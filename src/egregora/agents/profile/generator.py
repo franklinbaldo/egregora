@@ -3,11 +3,36 @@
 Generates PROFILE posts (Egregora writing ABOUT authors) based on
 their full message history in the current window.
 
-Design:
-- One PROFILE post per author per window
+## Append-Only Design
+- **Each profile generation creates a NEW post** (never overwrites)
+- Posts are saved to: `/posts/profiles/{author_uuid}/{slug}.md`
+- Slugs are meaningful and include:
+  - Date of analysis (YYYY-MM-DD)
+  - Content focus (e.g., "technical-contributions", "photography-interests")
+  - Author identifier (first 8 chars of UUID)
+- Example path: `/posts/profiles/550e8400/2025-03-15-technical-contributions-550e8400.md`
+
+## Design Principles
+- One PROFILE post per author per window (if significant changes detected)
 - LLM analyzes full message history
 - LLM decides what to write about (interests, contributions, interactions)
 - Flattering, appreciative tone
+- Each analysis is preserved as a separate post (append-only)
+
+## Integration with Profile Systems
+This module generates DocumentType.PROFILE Documents that represent
+Egregora's analysis of an author. These are distinct from the author's
+self-service profile (managed in knowledge/profiles.py).
+
+## Critical Metadata Requirement
+**ALL** generated profile Documents MUST include:
+- `subject`: The author's UUID (ensures proper routing to /posts/profiles/{uuid}/)
+- `slug`: Unique, meaningful identifier for this profile post
+- `authors`: Set to Egregora (the author OF the post)
+- `date`: The window date for temporal ordering
+
+The `subject` field is validated by `validate_profile_document()` before persistence
+to prevent routing failures.
 """
 
 import logging
@@ -19,8 +44,58 @@ from pydantic_ai import Agent
 
 from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.orchestration.persistence import validate_profile_document
+from egregora.utils.paths import slugify
+
+try:
+    from egregora.agents.profile.history import get_profile_history_for_context
+except ImportError:
+    # Graceful fallback if history module not available
+    def get_profile_history_for_context(*args, **kwargs):  # type: ignore
+        return ""
+
 
 logger = logging.getLogger(__name__)
+
+
+def _generate_meaningful_slug(title: str, window_date: str, author_uuid: str) -> str:
+    """Generate a meaningful, unique slug for a profile post.
+
+    Creates append-only profile posts with semantic slugs that indicate:
+    - The date of the analysis
+    - The focus/aspect being analyzed (from title)
+    - Author identifier for uniqueness
+
+    Args:
+        title: The profile post title (e.g., "John's Technical Contributions")
+        window_date: The analysis date (YYYY-MM-DD)
+        author_uuid: The author's UUID
+
+    Returns:
+        A meaningful slug like "2025-03-15-technical-contributions-john-550e"
+
+    Examples:
+        >>> _generate_meaningful_slug("Alice's Photography Interests", "2025-03-15", "alice-uuid-123")
+        '2025-03-15-photography-interests-alice-ali'
+
+    """
+    # Extract meaningful part from title (remove author name prefix if present)
+    title_parts = title.split(":", 1)
+    if len(title_parts) > 1:
+        # Title like "John Doe: Technical Contributions" -> use "Technical Contributions"
+        aspect = title_parts[1].strip()
+    else:
+        aspect = title
+
+    # Slugify the aspect
+    aspect_slug = slugify(aspect)
+
+    # Use short author identifier (first 8 chars of UUID)
+    author_id = author_uuid[:8]
+
+    # Combine into meaningful slug: date-aspect-author_id
+    # Example: 2025-03-15-technical-contributions-550e8400
+    return f"{window_date}-{aspect_slug}-{author_id}"
 
 
 class ProfileUpdateDecision(BaseModel):
@@ -39,6 +114,7 @@ def _build_profile_prompt(
     author_messages: list[dict[str, Any]],
     window_date: str,
     existing_profile: dict[str, Any] | None = None,
+    profile_history: str = "",
 ) -> str:
     """Build prompt for LLM to generate profile content.
 
@@ -47,6 +123,7 @@ def _build_profile_prompt(
         author_messages: All messages from this author in window
         window_date: Date of the window
         existing_profile: Current profile data (bio, interests) to check against
+        profile_history: Compiled history of previous profile posts (from Jinja template)
 
     Returns:
         Prompt string for LLM
@@ -67,21 +144,38 @@ Bio: {bio}
 Interests: {interests}
 """
 
+    history_context = ""
+    if profile_history:
+        history_context = f"""
+PROFILE POST HISTORY:
+{profile_history}
+
+The above history shows your previous analyses of {author_name}.
+Use this to:
+1. Avoid repeating what you've already covered
+2. Build on prior insights
+3. Track evolution over time
+4. Identify new aspects worth analyzing
+
+"""
+
     return f"""You are Egregora, writing a profile post ABOUT {author_name}.
 
 Analyze {author_name}'s contributions, interests, and interactions based on their message history below.
 
 {existing_context}
+{history_context}
 
 DECISION REQUIRED:
 Does the new message history below reveal SIGNIFICANT new information, contradict the current profile, or show a meaningful evolution in their stance/interests?
-- If NO (just more of the same): Set 'significant' to False.
+- If NO (just more of the same OR already covered in history): Set 'significant' to False.
 - If YES: Set 'significant' to True and write a short (1-2 paragraph) appreciative profile update.
 
 Update Content Guidelines (if significant):
 - Highlight the NEW insights or changes.
+- Build on (don't repeat) previous profile posts from history.
 - Tone: Positive, flattering, appreciative.
-- Format: Markdown with H1 title.
+- Format: Markdown with H1 title that includes the specific aspect (e.g., "Alice: Photography Techniques").
 
 {author_name}'s New Messages ({len(author_messages)} total):
 
@@ -115,12 +209,25 @@ async def _generate_profile_content(
         except Exception as e:
             logger.warning("Failed to fetch existing profile for %s: %s", author_uuid, e)
 
-    # Build prompt
+    # Fetch profile history for context (append-only timeline of previous posts)
+    profile_history = ""
+    try:
+        if hasattr(ctx, "output_dir"):
+            from pathlib import Path
+
+            profiles_dir = Path(ctx.output_dir) / "docs" / "posts" / "profiles"
+            profile_history = get_profile_history_for_context(author_uuid, profiles_dir, max_posts=5)
+            logger.debug("Loaded profile history for %s (%d chars)", author_uuid, len(profile_history))
+    except Exception as e:
+        logger.warning("Failed to load profile history for %s: %s", author_uuid, e)
+
+    # Build prompt with history context
     prompt = _build_profile_prompt(
         author_name=author_name,
         author_messages=author_messages,
         window_date=author_messages[0].get("timestamp", "").split("T")[0] if author_messages else "",
         existing_profile=existing_profile,
+        profile_history=profile_history,
     )
 
     # Call LLM
@@ -208,8 +315,9 @@ async def generate_profile_posts(
             else:
                 title = f"{author_name}: Profile Update"
 
-            # Create slug
-            slug = f"{window_date}-{author_uuid[:8]}-profile"
+            # Create meaningful, unique slug for append-only system
+            # Each profile analysis gets its own file in the author's directory
+            slug = _generate_meaningful_slug(title, window_date, author_uuid)
 
             # Create PROFILE document
             profile = Document(
@@ -223,6 +331,9 @@ async def generate_profile_posts(
                     "date": window_date,
                 },
             )
+
+            # Validate that subject metadata is present
+            validate_profile_document(profile)
 
             profiles.append(profile)
             logger.info("Generated profile update for %s: %s", author_name, title)
