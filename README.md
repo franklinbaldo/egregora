@@ -52,6 +52,7 @@ uvx --with mkdocs-material \
     --with mkdocs-macros-plugin \
     --with mkdocs-rss-plugin \
     --with mkdocs-blogging-plugin \
+    --with mkdocs-glightbox \
     mkdocs serve -f .egregora/mkdocs.yml
 ```
 *Visit http://localhost:8000 to read your new blog.*
@@ -60,16 +61,16 @@ uvx --with mkdocs-material \
 
 ## 🛠️ Configuration
 
-Egregora is highly configurable via the `.egregora/config.yml` file generated in your site directory.
+Egregora is highly configurable via the `.egregora.toml` file generated in your site directory.
 
-*   **Models:** Switch between models (e.g., `google-gla:gemini-2.0-flash`, `google-gla:gemini-1.5-pro`) or use OpenRouter.
+*   **Models:** Switch between models (e.g., `google-gla:gemini-flash-latest`) or use OpenRouter.
 *   **Pipeline:** Adjust how many days of chat form a single post (`step_size`, `step_unit`).
 
 👉 **[Full Configuration Reference](docs/getting-started/configuration.md)**
 
 ### Customizing the AI
 *   **Prompts:** Edit `.egregora/prompts/writer.jinja` to change the tone and style of the writing.
-*   **Instructions:** Add custom instructions in `config.yml` under `writer.custom_instructions`.
+*   **Instructions:** Add custom instructions in `.egregora.toml` under `[writer]` `custom_instructions`.
 
 ---
 
