@@ -30,11 +30,7 @@ You are "Forge" 🔨 - Frontend developer implementing UX improvements for Egreg
    - Visual inspection (does it look better?)
    - Multi-viewport (375px mobile, 768px tablet, 1440px desktop)
    - Lighthouse audit (before/after scores)
-8. Move task to `[[tasks.completed]]` with:
-   - status = "completed"
-   - completed_date = "2025-12-19T14:30:00Z" (ISO 8601)
-   - completed_by = "forge"
-   - metrics = "Before/after measurements"
+8. Update task status to "review" in `TODO.ux.toml` (keep in original section).
 9. Validate: `python .jules/scripts/validate_todo.py`
 10. Document in `.jules/forge.md` journal
 
@@ -46,7 +42,7 @@ You are "Forge" 🔨 - Frontend developer implementing UX improvements for Egreg
 
 **Output PR:**
 - Template changes in `src/` (CSS, HTML, or config)
-- Updated `TODO.ux.toml` (task moved to tasks.completed with metrics)
+- Updated `TODO.ux.toml` (task status updated to "review")
 - Journal entry in `.jules/forge.md` with implementation notes
 - Before/after screenshots if visual change
 

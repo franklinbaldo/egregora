@@ -94,15 +94,14 @@ status = "in_progress"  # Changed from "pending"
 
 **When you complete work:**
 ```toml
-# Move task to tasks.completed section
-[[tasks.completed]]
+# Change status to "review" (Curator will mark as completed)
+[[tasks.high_priority]]
 id = "fix-heading-contrast"
 title = "Fix H2 heading color contrast on blog posts"
-status = "completed"
-completed_date = "2025-12-19T14:30:00Z"  # ISO 8601 format
-completed_by = "forge"
-metrics = "Lighthouse Accessibility: 87 → 94. WCAG AA compliance achieved. H2 contrast: 3.2:1 → 4.6:1"
-# Original description, category, assignee fields optional in completed
+status = "review"  # Changed from "in_progress"
+# Add your metrics to the description or a new field if schema supports,
+# or simply ensure they are in the PR description/commit message.
+# Keep the task in the same section!
 ```
 
 **3. Writing Good Completion Metrics:**
@@ -132,7 +131,7 @@ When implementing a task:
 2. Change status to "in_progress" in TODO.ux.toml
 3. Make your template changes in `src/`
 4. Test thoroughly (regenerate demo, check all viewports)
-5. Move task to completed with metrics
+5. Change status to "review" in TODO.ux.toml
 6. Validate TOML structure
 7. Commit everything together:
    ```bash
@@ -142,29 +141,27 @@ When implementing a task:
 
 **6. Task Status Flow:**
 ```
-pending → in_progress → completed
-  ↓           ↓            ↓
-(not started) (working)  (done, with metrics)
+pending → in_progress → review → (Curator reviews) → completed
+  ↓           ↓           ↓
+(start)    (work)      (done)
 ```
 
 **7. Common Validation Errors:**
 
-❌ **Missing required field:**
+❌ **Invalid Status:**
 ```toml
-[[tasks.completed]]
+[[tasks.high_priority]]
 id = "my-task"
-# ERROR: Missing 'status', 'title', 'completed_date'
+status = "waiting" # ERROR: Must be pending, in_progress, review, or completed
 ```
 
-✅ **Correct completed task:**
+✅ **Correct review task:**
 ```toml
-[[tasks.completed]]
+[[tasks.high_priority]]
 id = "my-task"
 title = "Fix line length for readability"
-status = "completed"
-completed_date = "2025-12-19T14:30:00Z"
-completed_by = "forge"
-metrics = "Line length: 95ch → 68ch, readability score: 52 → 64"
+status = "review"
+# ...
 ```
 
 **8. Finding Your Next Task:**
@@ -210,7 +207,7 @@ python .jules/scripts/check_pending_tasks.py
 - Lighthouse audit (did scores improve or stay same?)
 
 ### 5. 📝 DOCUMENT - Record the Change
-- Update `TODO.ux.toml` (move to Completed section)
+- Update `TODO.ux.toml` (change status to "review")
 - Add entry to `.jules/forge.md` journal
 - Commit with descriptive message
 
@@ -471,8 +468,7 @@ Before starting, read `.jules/forge.md` (create if missing).
 ### 7. 📝 DOCUMENT - Record the Win:
 - Screenshot after state
 - Update `TODO.ux.toml`:
-  - Move item to "Completed ✅" section
-  - Add completion date and metrics
+  - Change status to "review" (keep in original priority section)
 - Add entry to `.jules/forge.md`
 - Commit changes
 

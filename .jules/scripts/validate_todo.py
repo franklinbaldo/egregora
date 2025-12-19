@@ -58,7 +58,7 @@ def validate_todo_toml(todo_path: Path) -> list[str]:
             errors.append("tasks.completed must be a list (array of tables)")
 
     # Validate individual task structure
-    valid_statuses = {"pending", "in_progress", "completed"}
+    valid_statuses = {"pending", "in_progress", "review", "completed"}
     valid_assignees = {"curator", "forge", "both"}
 
     # Check all categories that exist
