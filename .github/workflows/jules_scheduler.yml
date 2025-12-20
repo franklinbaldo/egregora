@@ -4,27 +4,25 @@ on:
   workflow_dispatch:
     inputs:
       prompt_id:
-        description: "Run only a specific prompt id (e.g. artisan)"
+        description: "Run only a specific prompt id (e.g. curator)"
         required: false
         type: string
       run_all:
         description: "Ignore schedules and run all enabled prompts"
         required: false
         type: boolean
-        default: true
+        default: false
       dry_run:
         description: "Do not call Jules API (prints what would run)"
         required: false
         type: boolean
         default: false
   schedule:
-    - cron: '0 10 * * 2'
-    - cron: '0 8 * * *'
-    - cron: '0 9 * * 1'
+    - cron: '0 * * * *'
 
 permissions:
-  contents: read
-  pull-requests: read
+  contents: write
+  pull-requests: write
 
 jobs:
   tick:
@@ -40,7 +38,7 @@ jobs:
         run: |
           args=(tick)
 
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             if [ "${{ inputs.run_all }}" = "true" ]; then
               args+=(--all)
             fi
