@@ -18,9 +18,7 @@ on:
         type: boolean
         default: false
   schedule:
-    - cron: '0 10 * * 2'
-    - cron: '0 8 * * *'
-    - cron: '0 9 * * 1'
+    - cron: '0 * * * *'
 
 permissions:
   contents: read
@@ -29,6 +27,7 @@ permissions:
 jobs:
   tick:
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v5
@@ -36,21 +35,62 @@ jobs:
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYTHONPATH: .claude/skills/jules-api
         run: |
           args=(tick)
 
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            if [ "${{ inputs.run_all }}" = "true" ]; then
-              args+=(--all)
-            fi
-            if [ "${{ inputs.dry_run }}" = "true" ]; then
-              args+=(--dry-run)
-            fi
-            if [ -n "${{ inputs.prompt_id }}" ]; then
-              args+=(--prompt-id "${{ inputs.prompt_id }}")
-            fi
+          if [ "${{ inputs.run_all }}" = "true" ]; then
+            args+=(--all)
+          fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args+=(--dry-run)
+          fi
+          if [ -n "${{ inputs.prompt_id }}" ]; then
+            args+=(--prompt-id "${{ inputs.prompt_id }}")
           fi
 
-          # Using local script that uses existing JulesClient skill
-          uv run --with requests --with python-frontmatter --with jinja2 python scripts/run_scheduler.py "${args[@]}"
+          # Pinning to specific commit SHA 4566f12 (2025-12-17) to prevent supply chain attacks
+          uvx --from git+https://github.com/franklinbaldo/jules_scheduler@4566f12c88aabee985865b94bbdbc614d87c82fb jules-scheduler "${args[@]}"
+
+  schedule-curator:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v5
+      - name: Run Jules Scheduler (Curator)
+        env:
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Run only at 09:00 UTC
+          if [ "$(date -u +%H)" == "09" ]; then
+            uvx --from git+https://github.com/franklinbaldo/jules_scheduler@4566f12c88aabee985865b94bbdbc614d87c82fb jules-scheduler tick --prompt-id curator-daily
+          else
+            echo "Not 09:00 UTC, skipping Curator."
+          fi
+
+  schedule-forge:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v5
+      - name: Run Jules Scheduler (Forge)
+        env:
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          uvx --from git+https://github.com/franklinbaldo/jules_scheduler@4566f12c88aabee985865b94bbdbc614d87c82fb jules-scheduler tick --prompt-id forge-hourly
+
+  schedule-refactor:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v5
+      - name: Run Jules Scheduler (Refactor)
+        env:
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          uvx --from git+https://github.com/franklinbaldo/jules_scheduler@4566f12c88aabee985865b94bbdbc614d87c82fb jules-scheduler tick --prompt-id refactor-hourly
