@@ -3,34 +3,25 @@ import os
 import sys
 import argparse
 import glob
-import re
 from datetime import datetime
 from pathlib import Path
 
-# Add the skills directory to path to import jules_client
-skills_dir = Path(__file__).parent.parent / ".claude" / "skills" / "jules-api"
-sys.path.append(str(skills_dir))
+# Dependencies (assumed to be available via uv run --with ...)
+import frontmatter
+import jinja2
 
+# Expect JulesClient to be importable via PYTHONPATH
 try:
     from jules_client import JulesClient
 except ImportError:
-    print("Error: Could not import JulesClient. Make sure .claude/skills/jules-api/jules_client.py exists.", file=sys.stderr)
+    print("Error: Could not import JulesClient. Make sure PYTHONPATH includes .claude/skills/jules-api", file=sys.stderr)
     sys.exit(1)
 
-# Import dependencies (assumed to be available via uv run --with ...)
-import yaml
-import jinja2
-
 def parse_prompt_file(filepath: Path, context: dict) -> dict:
-    content = filepath.read_text(encoding='utf-8')
-    match = re.match(r'^---\n(.*?)\n---\n(.*)$', content, re.DOTALL)
-    if not match:
-        raise ValueError(f"Invalid format in {filepath}: Missing frontmatter")
-
-    fm_text = match.group(1)
-    body_template = match.group(2)
-
-    config = yaml.safe_load(fm_text)
+    # Use python-frontmatter to parse
+    post = frontmatter.load(filepath)
+    config = post.metadata
+    body_template = post.content
 
     # Render body template
     template = jinja2.Template(body_template)
@@ -54,6 +45,40 @@ def get_repo_info() -> dict:
         "repo_full": os.environ.get("GITHUB_REPOSITORY", "unknown/unknown")
     }
 
+def check_schedule(schedule_str: str) -> bool:
+    """
+    Basic cron checker.
+    Supports: "* * * * *" format (min hour dom month dow)
+    Limitation: Only supports "*" or specific integer values.
+    """
+    if not schedule_str:
+        return False
+
+    parts = schedule_str.split()
+    if len(parts) != 5:
+        return False
+
+    min_s, hour_s, dom_s, month_s, dow_s = parts
+    now = datetime.utcnow()
+
+    # Check Hour
+    if hour_s != "*" and int(hour_s) != now.hour:
+        return False
+
+    # Check Day of Week
+    # Python: 0=Mon, 6=Sun
+    # Cron: 0=Sun, 6=Sat (usually) OR 7=Sun.
+    # Let's align with standard cron 0=Sun.
+    if dow_s != "*":
+        py_dow = now.weekday() # 0=Mon
+        # Convert py_dow to cron_dow (0=Sun, 1=Mon)
+        cron_dow = (py_dow + 1) % 7
+
+        if int(dow_s) != cron_dow:
+            return False
+
+    return True
+
 def main():
     parser = argparse.ArgumentParser(description="Jules Scheduler Runner")
     parser.add_argument("command", choices=["tick"], help="Command to run")
@@ -64,7 +89,6 @@ def main():
     args = parser.parse_args()
 
     # Initialize client
-    # Note: JulesClient will look for JULES_API_KEY env var
     client = JulesClient()
 
     repo_info = get_repo_info()
@@ -99,37 +123,13 @@ def main():
                 else:
                     continue
 
-            # Simple schedule check
+            # Check schedule
             should_run = False
             if args.all or (args.prompt_id == pid):
                 should_run = True
             elif args.command == "tick":
-                # Naive check matching hour and day of week
-                now = datetime.utcnow()
-                cron = config.get("schedule", "* * * * *").split()
-                if len(cron) == 5:
-                    _, hour_s, _, _, dow_s = cron
-                    matches = True
-                    if hour_s != "*" and int(hour_s) != now.hour:
-                        matches = False
-                    if dow_s != "*":
-                        # Python: 0=Mon, 6=Sun. Cron: 0=Sun, 1=Mon... OR 0-6 with 0=Sun?
-                        # Standard cron: 0 and 7 are Sunday.
-                        # Let's assume standard 0=Sun.
-                        # Python .weekday(): 0=Mon.
-                        # Mapping: Sun(0) -> 6, Mon(1) -> 0...
-                        # better: (dow_s - 1) % 7 == py_dow?
-                        # Let's just match simplistic integer equality assuming 0=Sun convention matches if user used 0=Sun.
-                        # Actually, let's just log and skip sophisticated cron checks for this 'script replacement' task
-                        # unless strictly needed. The user wants the 'tick' logic.
-                        # The previous tool likely used a library.
-                        # We'll rely on --all for manual runs and assume the workflow triggers match the intent.
-                        # If workflow runs at 8am, 9am, 10am, we just check the hour.
-                        if int(hour_s) != now.hour:
-                            matches = False
-
-                    if matches:
-                        should_run = True
+                if check_schedule(config.get("schedule", "* * * * *")):
+                    should_run = True
 
             if should_run:
                 print(f"Running prompt: {pid}")
@@ -147,13 +147,10 @@ def main():
                 else:
                     print(f"[Dry Run] Would create session for {pid}")
 
-        except ValueError as e:
-            # Skip files that aren't valid prompts (missing frontmatter)
-            pass
+        except ValueError:
+            pass # Skip invalid files
         except Exception as e:
             print(f"Error processing {p_file}: {e}")
-            import traceback
-            traceback.print_exc()
 
 if __name__ == "__main__":
     main()

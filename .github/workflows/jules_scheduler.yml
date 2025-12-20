@@ -36,6 +36,7 @@ jobs:
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: .claude/skills/jules-api
         run: |
           args=(tick)
 
@@ -52,4 +53,4 @@ jobs:
           fi
 
           # Using local script that uses existing JulesClient skill
-          uv run --with requests --with pyyaml --with jinja2 python scripts/run_scheduler.py "${args[@]}"
+          uv run --with requests --with python-frontmatter --with jinja2 python scripts/run_scheduler.py "${args[@]}"
