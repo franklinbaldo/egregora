@@ -12,3 +12,8 @@
 **Vulnerability:** The `jules_scheduler.yml` workflow executed code from an external repository (`franklinbaldo/jules_scheduler`), introducing a supply chain risk and opaque behavior.
 **Learning:** Relying on external, unverified wrappers for simple API interactions adds unnecessary attack surface and complexity. "Wrap logic" often hides what is actually happening.
 **Prevention:** Removed the external dependency entirely and replaced it with a local script (`scripts/run_scheduler.py`) that leverages the existing `.claude/skills/jules-api` client. This ensures all execution logic is owned and visible within the repository.
+
+## 2025-12-18 - [CRITICAL] SQL Injection in DuckDB PRAGMA Statements
+**Vulnerability:** The `get_table_columns` methods in both `SimpleDuckDBStorage` and `DuckDBStorageManager` constructed SQL queries using `f"PRAGMA table_info('{table_name}')"`. This allowed SQL injection via the `table_name` parameter because single quotes were used for interpolation without proper escaping, enabling attackers to break out of the string literal and execute arbitrary SQL commands (e.g., `DROP TABLE`).
+**Learning:** DuckDB's `PRAGMA` statements do not support parameterized queries (e.g., `PRAGMA table_info(?)`), creating a trap for developers who might otherwise use parameters.
+**Prevention:** Always use the `quote_identifier` utility to properly escape and double-quote identifiers when they must be interpolated into SQL strings. Never use single quotes for identifiers in f-strings.
