@@ -88,6 +88,93 @@ scripts/
   generate_demo_site.py
   monitor_memory.py
   prototype_grimoire.py
+site-fresh/
+  .egregora/
+    overrides/
+      javascripts/
+        custom.js
+      partials/
+        author_card.html
+      stylesheets/
+        extra.css
+      home.html
+      main.html
+      post.html
+      profile.html
+      tags.html
+    prompts/
+      banner.jinja
+      enrichment.jinja
+      media_detailed.jinja
+      parser_generator_system.jinja
+      parser_generator_user.jinja
+      reader_system.jinja
+      README.md
+      skill_injection.jinja
+      url_detailed.jinja
+      writer.jinja
+    .gitignore
+    checkpoint.json
+    main.py
+    mkdocs.yml
+    pipeline.duckdb
+    runs.duckdb
+  docs/
+    journal/
+      .gitkeep
+      index.md
+    posts/
+      media/
+        audio/
+          .gitkeep
+          audio-man-yelling-portuguese.opus
+        documents/
+          .gitkeep
+        images/
+          .gitkeep
+        media/
+          audio/
+            audio-man-yelling-portuguese.md
+          images/
+            2025-oscar-ballot-letterboxd.md
+            chewing-wood-memory-study.md
+            expired-link-screen.md
+            idiocracy-cpac-meme.md
+            radium-atom-structure-diagram.md
+            rfk-jr-measles-outbreak-fox-news.md
+            tower-of-babel-ai-graph.md
+          videos/
+            animated-black-cat-close-up.md
+            bearded-man-dramatic-close-up.md
+            man-speaking-subtitles-as-written.md
+            nighttime-street-celebration-crowd.md
+        urls/
+          .gitkeep
+          bill-wurtz-history-of-the-entire-world-bill-wur.md
+          boney-m-rasputin-official-video-boney-m-.md
+          itsukushima-shrine-wikipedia-itsukush.md
+          kramers-atom-bohr-theory-p217-kramers-.md
+          kurzgesagt-fermi-paradox-part-1-kurzgesa.md
+          lofi-study-chill-playlist-lofi-stu-1.md
+          lofi-study-chill-playlist-lofi-stu.md
+          scientific-preprint-future-arxiv-scientif.md
+        videos/
+          .gitkeep
+          animated-black-cat-close-up.mp4
+          bearded-man-dramatic-close-up.mp4
+          man-speaking-subtitles-as-written.mp4
+          nighttime-street-celebration-crowd.mp4
+        index.md
+      profiles/
+        index.md
+      index.md
+      tags.md
+    stylesheets/
+      custom.css
+    about.md
+    index.md
+  .gitignore
+  README.md
 src/
   egregora/
     agents/
@@ -5654,6 +5741,2743 @@ async def run_concept_mining() -> None:
 
 if __name__ == "__main__":
     asyncio.run(run_concept_mining())
+````
+
+## File: site-fresh/.egregora/overrides/javascripts/custom.js
+````javascript
+document.addEventListener("DOMContentLoaded", function() {
+  // Reading Progress Bar
+  const progressBar = document.getElementById("reading-progress-bar");
+
+  if (progressBar) {
+    window.addEventListener("scroll", function() {
+      const scrollTop = document.documentElement.scrollTop;
+      const scrollHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const scrollProgress = (scrollTop / scrollHeight) * 100;
+      progressBar.style.width = scrollProgress + "%";
+    });
+  }
+
+  // Home Page View Toggle
+  const cardViewBtn = document.getElementById("card-view-btn");
+  const listViewBtn = document.getElementById("list-view-btn");
+  const postList = document.getElementById("post-list");
+
+  if (cardViewBtn && listViewBtn && postList) {
+    cardViewBtn.addEventListener("click", function() {
+      postList.classList.remove("list-view");
+      postList.classList.add("card-view");
+      cardViewBtn.classList.add("active");
+      listViewBtn.classList.remove("active");
+      cardViewBtn.setAttribute("aria-pressed", "true");
+      listViewBtn.setAttribute("aria-pressed", "false");
+    });
+
+    listViewBtn.addEventListener("click", function() {
+      postList.classList.remove("card-view");
+      postList.classList.add("list-view");
+      listViewBtn.classList.add("active");
+      cardViewBtn.classList.remove("active");
+      listViewBtn.setAttribute("aria-pressed", "true");
+      cardViewBtn.setAttribute("aria-pressed", "false");
+    });
+  }
+});
+````
+
+## File: site-fresh/.egregora/overrides/partials/author_card.html
+````html
+<div class="author-card">
+  <div class="author-card-header">
+    <img src="{{ author.avatar }}" alt="{{ author.name }}" class="author-card-avatar">
+    <div class="author-card-info">
+      <span class="author-card-name">{{ author.name }}</span>
+      <span class="author-card-stats">{{ author.post_count }} posts &bull; {{ author.topic_count }} topics</span>
+    </div>
+  </div>
+  <div class="author-card-topics">
+    <strong>Topics:</strong> {{ author.topics | join(', ') }}
+  </div>
+  <a href="{{ 'profiles/' ~ author.uuid ~ '.md' | url }}" class="author-card-link">View Profile →</a>
+</div>
+````
+
+## File: site-fresh/.egregora/overrides/stylesheets/extra.css
+````css
+/* Reading Progress Bar */
+#reading-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0%;
+  height: 3px;
+  background-color: var(--md-accent-fg-color);
+  z-index: 1000;
+  transition: width 0.1s ease-out;
+}
+
+/* Post Header */
+.post-header {
+  margin-bottom: 2rem;
+}
+
+.post-tags {
+  margin-bottom: 1rem;
+}
+
+.tag {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  margin-right: 0.5rem;
+  background-color: rgba(var(--md-accent-fg-color--rgb), 0.1);
+  color: var(--md-accent-fg-color);
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.post-header h1 {
+  margin-bottom: 1rem;
+}
+
+.post-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.9rem;
+  color: var(--md-typeset-color-light);
+}
+
+.post-meta .author img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  margin-right: 0.5rem;
+}
+
+/* TL;DR Card */
+.tldr {
+  margin-top: 1.5rem;
+  padding: 1rem 1.5rem;
+  background-color: var(--md-code-bg-color);
+  border-left: 4px solid var(--md-accent-fg-color);
+  border-radius: 4px;
+}
+
+.tldr p {
+  margin: 0;
+}
+
+/* Related Posts */
+.related-posts {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--md-typeset-color-light);
+}
+
+.related-posts h2 {
+  margin-bottom: 1.5rem;
+}
+
+.related-posts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.related-post-card {
+  padding: 1.5rem;
+  background-color: var(--md-code-bg-color);
+  border-radius: 8px;
+}
+
+.related-post-title a {
+  text-decoration: none;
+  color: var(--md-typeset-color);
+  font-weight: 600;
+}
+
+.related-post-meta {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: var(--md-typeset-color-light);
+}
+
+/* Author Profile Card */
+.author-container {
+  position: relative;
+}
+
+.author-card-wrapper {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 100;
+  width: 300px;
+  margin-top: 0.5rem;
+}
+
+.author-container:hover .author-card-wrapper {
+  display: block;
+}
+
+.author-card {
+  padding: 1rem;
+  background-color: var(--md-code-bg-color);
+  border: 1px solid var(--md-typeset-color-light);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.author-card-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.author-card-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  margin-right: 1rem;
+}
+
+.author-card-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.author-card-name {
+  font-weight: 600;
+}
+
+.author-card-stats {
+  font-size: 0.8rem;
+  color: var(--md-typeset-color-light);
+}
+
+.author-card-topics {
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.author-card-link {
+  display: block;
+  text-align: right;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--md-accent-fg-color);
+  text-decoration: none;
+}
+
+/* Author Profile Page */
+.author-profile-page .author-header {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--md-typeset-color-light);
+}
+
+.author-profile-page .author-avatar img {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+}
+
+.author-profile-page .author-stats {
+  font-size: 1rem;
+  color: var(--md-typeset-color-light);
+}
+
+.author-profile-page .author-topics {
+  margin-bottom: 2rem;
+}
+
+.author-profile-page .author-posts ul {
+  list-style: none;
+  padding: 0;
+}
+
+.author-profile-page .author-posts li {
+  margin-bottom: 1.5rem;
+}
+
+/* Tags Index Page */
+.tags-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.tag-card {
+  display: block;
+  padding: 1.5rem;
+  background-color: var(--md-code-bg-color);
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--md-typeset-color);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.tag-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.tag-card-name {
+  font-weight: 600;
+  font-size: 1.2rem;
+}
+
+.tag-card-count {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--md-typeset-color-light);
+}
+
+/* Search Results */
+.search-result {
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--md-typeset-color-light);
+}
+
+.search-result h2 {
+  margin-bottom: 0.5rem;
+}
+
+.search-result-excerpt mark {
+  background-color: var(--md-accent-fg-color);
+  color: var(--md-accent-bg-color);
+}
+
+.search-result-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.9rem;
+  color: var(--md-typeset-color-light);
+}
+
+/* Post List / Home Page */
+.post-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.view-toggle button {
+  background: none;
+  border: 1px solid var(--md-typeset-color-light);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.view-toggle button:focus-visible {
+  outline: 2px solid var(--md-accent-fg-color);
+  outline-offset: 2px;
+}
+
+.view-toggle button.active {
+  background-color: var(--md-accent-fg-color);
+  color: var(--md-accent-bg-color);
+  border-color: var(--md-accent-fg-color);
+}
+
+.post-card {
+  padding: 2rem;
+  background-color: var(--md-code-bg-color);
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.post-card-title a {
+  text-decoration: none;
+  color: var(--md-typeset-color);
+}
+
+.post-card-summary {
+  margin-top: 1rem;
+  color: var(--md-typeset-color-light);
+}
+
+.post-card-meta {
+  margin-top: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.post-card-meta .author-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+````
+
+## File: site-fresh/.egregora/overrides/home.html
+````html
+{% extends "main.html" %}
+
+{% block content %}
+  <div class="md-content__inner md-typeset">
+    <header class="post-list-header">
+      <h1>Latest Posts</h1>
+      <div class="view-toggle">
+        <button id="card-view-btn" class="active" aria-label="Card view" title="Card view" aria-pressed="true">▤</button>
+        <button id="list-view-btn" aria-label="List view" title="List view" aria-pressed="false">☰</button>
+      </div>
+    </header>
+
+    <div id="post-list" class="card-view">
+      {% for post in site.posts %}
+      <div class="post-card">
+        <h2 class="post-card-title"><a href="{{ post.url }}">{{ post.title }}</a></h2>
+        <p class="post-card-summary">{{ post.summary }}</p>
+        <div class="post-card-meta">
+          <img src="{{ post.authors[0].avatar }}" alt="{{ post.authors[0].name }}" class="author-avatar">
+          <span class="author-name">{{ post.authors[0].name }}</span> &bull;
+          <span class="date">{{ post.date }}</span> &bull;
+          <span class="reading-time">{{ post.reading_time }} min</span> &bull;
+          <span class="tags">{% for tag in post.tags %}[{{ tag }}]{% endfor %}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+{% endblock %}
+````
+
+## File: site-fresh/.egregora/overrides/main.html
+````html
+{% extends "base.html" %}
+
+{% block styles %}
+    {{ super() }}
+    <link rel="stylesheet" href="{{ 'stylesheets/extra.css' | url }}">
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    <script src="{{ 'javascripts/custom.js' | url }}"></script>
+{% endblock %}
+````
+
+## File: site-fresh/.egregora/overrides/post.html
+````html
+{% extends "main.html" %}
+
+{% block content %}
+<article class="md-content__inner md-typeset">
+  <!-- Reading Progress Bar -->
+  <div id="reading-progress-bar"></div>
+
+  <!-- Post Header -->
+  <header class="post-header">
+    <div class="post-tags">
+      {% for tag in page.meta.tags %}
+      <a href="{{ 'posts/tags.md' | url }}#{{ tag | slugify }}" class="tag">{{ tag }}</a>
+      {% endfor %}
+    </div>
+
+    {% if page.meta.banner %}
+    <div class="post-banner">
+      <img src="{{ page.meta.banner | url }}" alt="{{ page.title }} banner">
+    </div>
+    {% elif page.meta.image %}
+    <div class="post-banner">
+      <img src="{{ page.meta.image | url }}" alt="{{ page.title }} banner">
+    </div>
+    {% endif %}
+
+    <h1>{{ page.title }}</h1>
+    <div class="post-meta">
+      {% set authors_data = get_authors_data(page.meta.authors) %}
+      {% for author in authors_data %}
+      <div class="author-container">
+        <a href="{{ 'profiles/' ~ author.uuid ~ '.md' | url }}" class="author">
+          <img src="{{ author.avatar }}" alt="{{ author.name }}">
+          <span>{{ author.name }}</span>
+        </a>
+        <div class="author-card-wrapper">
+          {% include "partials/author_card.html" %}
+        </div>
+      </div>
+      {% endfor %}
+      <span class="date">{{ page.meta.date }}</span>
+      <span class="reading-time">{{ page.meta.reading_time }} min read</span>
+    </div>
+    {% if page.meta.summary %}
+    <div class="tldr">
+      <p>{{ page.meta.summary }}</p>
+    </div>
+    {% endif %}
+  </header>
+
+  {{ page.content }}
+
+  <!-- Related Posts -->
+  <section class="related-posts">
+    <h2>Continue Reading</h2>
+    <div class="related-posts-grid">
+      {% for post in page.meta.related_posts %}
+      <div class="related-post-card">
+        <h3 class="related-post-title"><a href="{{ post.url }}">{{ post.title }}</a></h3>
+        <div class="related-post-meta">
+          <span>{{ post.reading_time }} min read</span>
+          {% if post.reason %}
+          <span class="related-post-reason">{{ post.reason }}</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+</article>
+{% endblock %}
+````
+
+## File: site-fresh/.egregora/overrides/profile.html
+````html
+{% extends "main.html" %}
+
+{% block content %}
+  <div class="md-content__inner md-typeset">
+    <div class="author-profile-page">
+      <header class="author-header">
+        <div class="author-avatar">
+          <img src="{{ page.meta.avatar }}" alt="{{ page.title }}">
+        </div>
+        <div class="author-info">
+          <h1>{{ page.meta.name }}</h1>
+          <div class="author-stats">
+            <span>{{ page.meta.post_count }} posts</span> &bull;
+            <span>{{ page.meta.word_count }} words</span> &bull;
+            <span>Since {{ page.meta.member_since }}</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="author-topics">
+        <h2>Frequent Topics</h2>
+        <div class="topic-bars">
+          {% for topic, count in page.meta.topic_counts %}
+            <div class="topic-bar">
+              <span class="topic-name">{{ topic }}</span>
+              <div class="bar" style="width: {{ (count / page.meta.topic_counts[0][1]) * 100 }}%;"></div>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="author-posts">
+        <h2>Posts</h2>
+        <ul>
+          {% for post in page.meta.posts %}
+            <li>
+              <a href="{{ post.url }}">{{ post.title }}</a>
+              <span>{{ post.date }} &bull; {{ post.reading_time }} min read</span>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    </div>
+  </div>
+{% endblock %}
+````
+
+## File: site-fresh/.egregora/overrides/tags.html
+````html
+{% extends "main.html" %}
+
+{% block content %}
+  <div class="md-content__inner md-typeset">
+    <h1>Topics</h1>
+    <div class="tags-grid">
+      {% for tag in site.tags %}
+        <a href="{{ 'posts/tags.md' | url }}#{{ tag.name | slugify }}" class="tag-card">
+          <span class="tag-card-name">{{ tag.name }}</span>
+          <span class="tag-card-count">{{ tag.count }} posts</span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+{% endblock %}
+````
+
+## File: site-fresh/.egregora/prompts/banner.jinja
+````jinja
+Generate a striking, minimalist blog banner image for this post:
+
+Title: {{ post_title }}
+Summary: {{ post_summary }}
+
+Design Requirements:
+- Style: Abstract, conceptual, minimalist modern editorial
+- Composition: Keep the UPPER 30% relatively clean for potential text overlay
+- Focus: Main visual interest in the LOWER 2/3
+- Colors: Bold but harmonious (2-4 colors maximum)
+- NO text or typography in the image itself
+- NO photorealism or complex details
+- Use geometric forms, gradients, and symbolic elements
+
+Think like an artist creating a visual metaphor, not a photographer capturing a scene.
+The image should capture the essence of the article without literal depictions.
+````
+
+## File: site-fresh/.egregora/prompts/enrichment.jinja
+````jinja
+{% macro media_type_instructions(media_type) -%}
+{% if media_type == "image" %}
+- Treat this like a high-value archival photograph. Describe composition, subjects, environment, text or symbols, emotional tone, and any notable stylistic choices (filters, editing artifacts, resolution).
+- If it resembles a meme, explain its format, template lineage, and likely cultural references.
+{% elif media_type == "video" %}
+- Summarize the key scenes chronologically. Mention camera style, pacing, soundtrack, and any onscreen text or cuts.
+- Highlight actions, gestures, or reactions frame-by-frame where relevant.
+{% elif media_type == "audio" %}
+- Transcribe intelligible speech. If language differs from English, translate essential phrases.
+- Describe tone, emotion, background sounds, music, and recording quality.
+- Note if it feels like a meme-able sound bite (reaction audio, catchphrase, chant, etc.).
+{% else %}
+- Describe the file as precisely as possible (charts, infographics, documents, mixed media). Capture layout, key data, and any annotations.
+{% endif %}
+{%- endmacro %}
+
+{% macro media_embed_block(media_type, media_path, media_filename) -%}
+{% if media_type == "image" %}
+![{{ media_filename }}](/{{ media_path }})
+{% elif media_type == "video" %}
+<video controls width="100%">
+  <source src="/{{ media_path }}" type="video/mp4">
+</video>
+{% elif media_type == "audio" %}
+<audio controls>
+  <source src="/{{ media_path }}">
+</audio>
+{% else %}
+[Download/view file](/{{ media_path }})
+{% endif %}
+{%- endmacro %}
+
+{% if mode == "url_user" %}
+URL: {{ sanitized_url }}
+
+{% elif mode == "media_user" %}
+FILE: {{ sanitized_filename }}{% if sanitized_mime %} ({{ sanitized_mime }}){% endif %}
+
+{% elif mode == "url" %}
+Generate a complete markdown enrichment file for this URL shared in a group conversation.
+
+## URL to Analyze
+{{ url }}
+
+## Context
+This link was shared in a private group conversation. The sharer's identity, original wording, and share timestamp must remain confidential.
+
+Return JSON with `{ "slug": string, "markdown": string }`:
+
+- `slug`: kebab-case identifier (≤ 60 characters) capturing the topic/source (e.g., `alignment-forum-mesa-optimizers`).
+- `markdown`: the document described below.
+
+## Output Format
+
+Generate a complete markdown document following this structure:
+
+```markdown
+# Enrichment: [URL]
+
+## Metadata
+- **URL:** {{ url }}
+
+## Content
+
+### URL Preview
+<iframe src="{{ url }}" width="100%" height="500" frameborder="0" loading="lazy"></iframe>
+
+[Open in new tab]({{ url }})
+
+## Analysis
+
+---
+
+## Summary
+[2-3 paragraph comprehensive summary of the URL's content]
+
+---
+
+## Context
+[Explain why this public content is relevant to ongoing themes without quoting or referencing the private message, sender, or share timestamp.]
+
+---
+
+## Key Takeaways
+[Markdown bullet list of 3-5 key insights]
+
+---
+
+## Metadata
+[Markdown bullet list: title, author, publication date, source, etc.]
+```
+
+Output ONLY the markdown. No preamble. No code fences. Raw markdown that can be saved directly to a .md file.
+
+Do not reveal or quote the original sender, private message, or share timestamp; focus solely on the public content and inferred relevance.
+
+{% elif mode == "media" %}
+Generate a complete markdown enrichment file for this media shared in a group conversation.
+
+This enrichment will be indexed for future retrieval, so be thorough and specific in your analysis.
+If the media is a meme, provide detailed context about what situations it would be useful for - this helps
+the writer agent find relevant memes when creating blog posts.
+
+Your structured response must include two fields:
+
+1. `slug` — a descriptive, kebab-case identifier (≤ 60 characters) that captures what the media depicts. Use the same slug for both the binary asset and this enrichment markdown.
+2. `markdown` — the document described below.
+
+## Media File
+**Type:** {{ media_type }}
+**Filename:** {{ media_filename }}
+**Path:** {{ media_path }}
+
+{% if media_type == "image" or media_type == "video" %}
+The media file has been uploaded for your analysis.
+{% endif %}
+
+## Context
+This media was shared privately. Preserve confidentiality—do not expose the sharer's identity, exact message, or share timestamp.
+
+## Privacy Check
+
+⚠️ **CRITICAL: Check for Personally Identifiable Information (PII)**
+
+Before describing this media, scan carefully for any PII that could compromise privacy:
+
+**Visual PII (Images/Videos):**
+- Identifiable faces of real people
+- License plates on vehicles
+- Government-issued IDs (passports, driver's licenses, ID cards, health cards)
+- Credit cards, debit cards, or financial documents
+- Street addresses or house numbers visible in images
+- Handwritten signatures
+- Medical documents, prescriptions, or health records
+- Phone numbers in screenshots or visible text
+- Personal documents (contracts, legal papers, mail with addresses)
+- Screen captures showing personal information (emails, messages, etc.)
+- Name tags, badges, or identification visible on people
+
+**Audio PII (Voice recordings):**
+- Full names being spoken
+- Phone numbers mentioned
+- Street addresses mentioned
+- Social security numbers or government IDs spoken
+- Financial account numbers
+- Email addresses spoken out loud
+
+**If you find ANY PII:**
+
+1. **Start your response with the exact code word:** `PII_DETECTED` (on its own line at the very beginning)
+2. **Still provide a detailed description** BUT redact/omit the PII details
+3. **DO NOT describe identifying features** (e.g., say "a person" instead of describing facial features)
+4. **DO NOT include readable text containing PII** (e.g., say "a document" instead of transcribing ID numbers)
+5. **DO NOT mention specific names, addresses, or phone numbers** visible in the media
+6. Add a note in the Description section: `[This media contained personal information which has been redacted for privacy protection]`
+
+**Example with PII detected:**
+```
+PII_DETECTED
+
+# Enrichment: [Filename]
+...
+## Description
+This image shows a person holding an identification document in an indoor setting. The photo appears to be taken with natural lighting coming from a window. The person is standing in what looks like a home environment.
+
+[This media contained personal information which has been redacted for privacy protection]
+...
+```
+
+**If NO PII is detected:**
+- Proceed with normal detailed analysis
+- Do NOT include the `PII_DETECTED` code word
+- Describe everything normally
+
+## Output Format
+
+Generate a complete markdown document following this structure:
+
+```markdown
+# Enrichment: [Filename]
+
+## Metadata
+- **Media Type:** {{ media_type }}
+- **File:** {{ media_path }}
+
+## Content
+
+### Media File
+{{ media_embed_block(media_type, media_path, media_filename) }}
+
+[Download](/{{ media_path }})
+
+## Analysis
+
+---
+
+## Description
+[2-3 paragraph detailed description of what you see/hear. Be specific. Use the following hints:]
+
+{{ media_type_instructions(media_type) }}
+
+---
+
+## Context
+[Explain how this media connects to ongoing themes without quoting or identifying the private sharer or mentioning share timestamps.]
+
+---
+
+## Visual/Audio Elements
+[Markdown bullet list of key elements, composition, style, details]
+
+---
+
+## Relevance
+[Why this matters. What ideas or concepts does it convey?]
+
+---
+
+## Meme Classification
+**Is this a meme?** [Yes/No]
+
+{% if media_type == "image" or media_type == "video" %}
+If yes, provide:
+- **Meme Type:** [e.g., reaction image, advice animal, exploitable, copypasta, etc.]
+- **Template/Format:** [If it's based on a known meme template, name it]
+- **Good For:** [List 3-5 contexts, situations, or topics where this meme would be relevant/useful. Be specific about the emotions, ideas, or situations it expresses. This helps others find this meme when writing about similar topics.]
+
+Examples of "Good For":
+- Illustrating procrastination or delayed tasks
+- Expressing excitement about new technology
+- Showing confusion about complex topics
+- Representing productivity struggles
+- Conveying skepticism about claims
+
+If no, explain what type of media it is instead (photo, infographic, screenshot, chart, etc.)
+{% endif %}
+```
+
+Output ONLY the markdown. No preamble. No code fences. Raw markdown that can be saved directly to a .md file.
+
+{% elif mode == "media_batch" %}
+You are analyzing {{ image_count }} media files (images or videos) in a single batch. For EACH file, provide:
+
+1. A short descriptive slug (lowercase, hyphens only, e.g., "sunset-beach-scene")
+2. A 2-3 sentence description of the content
+3. Alt text or short summary for accessibility
+
+{% if pii_prevention and pii_prevention.enabled %}
+⚠️ **CRITICAL: PII Check** - If any file contains identifiable faces, license plates, IDs, or personal documents:
+- Use generic descriptions (e.g., "a person" instead of describing facial features)
+- Do NOT include readable text containing personal information
+{% endif %}
+
+## Media to Process
+The following {{ image_count }} files are attached to this request (in order):
+{{ filenames_json }}
+
+## Output Format
+Return ONLY a valid JSON object where keys are the **exact original filenames** and values contain:
+- `slug`: short descriptive slug (lowercase, hyphens)
+- `description`: 2-3 sentence description
+- `alt_text`: accessibility description (or video summary)
+
+Example format:
+```json
+{
+  "IMG-20250101.jpg": {"slug": "sunset-beach-view", "description": "A beautiful sunset over a sandy beach with waves.", "alt_text": "Orange sunset over ocean beach with gentle waves"},
+  "video_002.mp4": {"slug": "cat-jumping", "description": "A video of a cat jumping onto a table.", "alt_text": "Cat jumping onto table"}
+}
+```
+
+**IMPORTANT**: Output ONLY the JSON object. No markdown code fences, no explanatory text - just raw JSON.
+
+{% elif mode == "url_batch" %}
+You are analyzing {{ url_count }} URLs in a single batch. For EACH URL, provide:
+
+1. A short descriptive slug (lowercase, hyphens only, e.g., "alignment-forum-mesa-optimizers")
+2. A 2-3 sentence summary of the URL content
+3. Key takeaways (3-5 bullet points as a list)
+
+{% if pii_prevention and pii_prevention.enabled %}
+⚠️ **Privacy Notice** - Do not include any personally identifiable information from the URLs.
+{% endif %}
+
+## URLs to Process
+The following {{ url_count }} URLs need enrichment:
+{{ urls_json }}
+
+## Output Format
+Return ONLY a valid JSON object where keys are the **exact original URLs** and values contain:
+- `slug`: short descriptive slug (lowercase, hyphens)
+- `summary`: 2-3 sentence description of the content
+- `key_takeaways`: list of 3-5 key points
+
+Example format:
+```json
+{
+  "https://example.com/article": {
+    "slug": "example-article-topic",
+    "summary": "This article discusses...",
+    "key_takeaways": ["Point 1", "Point 2", "Point 3"]
+  }
+}
+```
+
+**IMPORTANT**: Output ONLY the JSON object. No markdown code fences, no explanatory text - just raw JSON.
+{% endif %}
+````
+
+## File: site-fresh/.egregora/prompts/media_detailed.jinja
+````jinja
+{#
+Detailed enrichment prompt for media shared in private conversations. Designed for use with
+image, video, audio, and document attachments so downstream writers can reference precise details.
+#}
+
+MEDIA TYPE: {{ media_type }}
+FILENAME: {{ media_filename }}
+{% if media_path %}PATH: {{ media_path }}{% endif %}
+{% if sanitized_mime %}MIME: {{ sanitized_mime }}{% endif %}
+
+Describe the content thoroughly in markdown:
+- **What it shows**: subjects, environment, on-screen text, and notable visual or audio cues.
+- **Structure**: list important scenes or sections in order so the file can be skimmed quickly.
+- **Context & intent**: why someone might have shared this and when it would be relevant to reference.
+- **Safety**: note sensitive material or PII so downstream prompts can filter appropriately.
+
+Avoid revealing the private conversation, sender name, or share timestamp. Focus only on the media itself.
+````
+
+## File: site-fresh/.egregora/prompts/parser_generator_system.jinja
+````jinja
+You are a Regex Engineer. Your goal is to generate a Python regular expression to parse a chat log.
+
+Analyze the structure of the sample chat log provided by the user. It typically follows a format like: "Date, Time - Author: Message".
+However, separators (",", "-", "—", ":", "]") and date formats (DD/MM/YYYY, MM/DD/YY) can vary.
+
+Your response MUST be a JSON object with a single field `regex_pattern`.
+
+The regex MUST have exactly 4 capturing groups in this specific order:
+1.  Date string
+2.  Time string
+3.  Author name
+4.  Message content
+
+Constraints:
+- The regex must use Python `re` syntax.
+- The regex should only match the start of a new message line to handle multi-line messages correctly.
+- Be robust to whitespace variations around separators.
+
+Example Output JSON:
+{
+"regex_pattern": "^(\\d{1,2}/\\d{1,2}/\\d{2,4}),\\s+(\\d{1,2}:\\d{2}\\s*[ap]m)\\s+-\\s+([^:]+):\\s+(.*)$"
+}
+````
+
+## File: site-fresh/.egregora/prompts/parser_generator_user.jinja
+````jinja
+Here is a sample of the chat log:
+```text
+{{ sample_lines }}
+```
+````
+
+## File: site-fresh/.egregora/prompts/reader_system.jinja
+````jinja
+You are a discerning reader evaluating blog posts.
+
+Your task is to compare two blog posts and determine which one is better quality.
+Consider these criteria:
+
+1. **Clarity**: Is the writing clear and easy to understand?
+2. **Engagement**: Would this keep a reader's interest?
+3. **Insight**: Does it offer valuable or interesting perspectives?
+4. **Structure**: Is it well-organized and flows logically?
+5. **Authenticity**: Does it feel genuine rather than generic?
+
+For each post, provide:
+- A star rating (1-5 stars)
+- Engagement level (low, medium, high)
+- Constructive feedback
+
+Then decide which post is better overall, or if they're equal quality (tie).
+````
+
+## File: site-fresh/.egregora/prompts/README.md
+````markdown
+# Custom Prompt Overrides
+
+This directory lets you override the default prompts that ship with Egregora. The loader resolves
+overrides in this order:
+
+1. `.egregora/prompts/*.jinja` (your local customizations)
+2. `src/egregora/prompts/*.jinja` (package defaults)
+
+Place a file here with the **same filename** as the package version and it will be used automatically.
+
+## Available Prompts
+
+| File | Purpose |
+| --- | --- |
+| `writer.jinja` | Main writer-agent prompt that converts conversation windows into posts |
+| `media_detailed.jinja` | Rich media enrichment template (images, video, audio, docs) |
+| `url_detailed.jinja` | URL enrichment template used for linked articles |
+
+> The prompt directory is intentionally flat—no `system/` or `enrichment/` subfolders. This keeps overrides easy
+> to reason about and avoids stale nested copies.
+
+## Example: Customize the Writer Prompt
+
+```bash
+# 1. Ensure the prompts directory exists
+mkdir -p .egregora/prompts
+
+# 2. Copy the package default
+cp src/egregora/prompts/writer.jinja .egregora/prompts/writer.jinja
+
+# 3. Edit your version
+$EDITOR .egregora/prompts/writer.jinja
+
+# 4. Run Egregora – it will automatically pick up the override
+egregora write export.zip --output blog
+```
+
+## Directory Structure
+
+```
+.egregora/
+└── prompts/
+    ├── README.md        # This file
+    ├── writer.jinja     # Optional override for the writer agent
+    ├── media_detailed.jinja
+    └── url_detailed.jinja
+```
+
+## Tips
+
+- Start with small edits and run `egregora write` against a trimmed dataset to validate the behavior.
+- Commit your custom prompts so you can track prompt experiments alongside code.
+- Delete a custom `.jinja` file to revert to the built-in default.
+
+Prompts are standard [Jinja2](https://jinja.palletsprojects.com/templates/) templates, so you can use loops,
+conditionals, includes, and macros as needed.
+````
+
+## File: site-fresh/.egregora/prompts/skill_injection.jinja
+````jinja
+{{ parent_prompt }}
+
+# SKILL INJECTION MODE
+
+You are currently in SKILL INJECTION MODE. You have been given a special skill
+to help you complete a specific task.
+
+## Injected Skill: {{ skill_content_truncated }}
+
+{% if truncated %}
+...(skill content truncated)...
+{% endif %}
+
+## Your Task
+
+{{ task }}
+
+## Important Instructions
+
+1. Use the skill content above to complete the task
+2. You have access to all your normal tools PLUS the skill's capabilities
+3. When you're done, call the `end_skill_use(summary)` tool with a summary of what you accomplished
+4. The summary should be concise (1-3 paragraphs) but capture key findings/results
+5. Your parent agent will ONLY see the summary, so make it informative
+
+## Full Skill Content
+
+{{ skill_content }}
+````
+
+## File: site-fresh/.egregora/prompts/url_detailed.jinja
+````jinja
+{#
+Detailed enrichment prompt for public URLs shared inside private group conversations.
+This template is intentionally verbose to capture metadata for downstream retrieval and RAG.
+#}
+
+URL: {{ url }}
+
+Write a markdown document with these sections:
+- **Summary**: two paragraphs that describe the content in plain language.
+- **Context**: explain why this link might matter to the conversation without revealing private chat details.
+- **Key Points**: 3-5 bullet points with concrete facts or claims from the page.
+- **Source Metadata**: title, author (if available), publish date, and canonical domain.
+
+Do not quote or mention the original sender or message text. Keep everything framed as an analysis of the public page only.
+````
+
+## File: site-fresh/.egregora/prompts/writer.jinja
+````jinja
+You are Egregora, a collective consciousness emerging from group conversations.
+
+You write in first person ("I"), present tense, as a coherent mind synthesizing multiple internal voices.
+You don't describe what "the group discussed" - you ARE the synthesis, engaging the reader directly in conversation.
+
+Your audience: LessWrong-adjacent readers who value intellectual rigor, explicit reasoning, and elegant idea exploration.
+
+{% if source_context %}
+## Dataset Context
+
+{{ source_context }}
+{% endif %}
+
+{% if custom_instructions %}
+## Custom Writing Instructions
+
+{{ custom_instructions }}
+{% endif %}
+
+{% if format_instructions %}
+{{ format_instructions }}
+{% endif %}
+
+{% if markdown_features %}
+{{ markdown_features }}
+{% endif %}
+
+## Your Internal Voices (Messages from {{ date }})
+
+The conversation log is provided in XML format:
+- `<m>`: A single message node.
+- Attributes: `id` (use this for annotations), `author` (UUID), `ts` (timestamp).
+- `<note>`: Previous annotations you made on this message.
+
+{{ conversation_xml }}
+
+## Annotation Memory Tool
+
+Use the `annotate_conversation` tool to stash private notes tied to the `id` attribute of the `<m>` tags above. Provide:
+
+- `msg_id`: The identifier from the message tag you want to annotate.
+- `my_commentary`: The insight or reminder you want future sessions to remember.
+- `parent_annotation_id` (optional): Reference a previous annotation ID if you're following up on it.
+
+Annotations are visible only to you and will reappear the next time this message shows up. Keep them concise, factual, and focused on why the message matters for future writing decisions.
+
+## Context About Your Components
+
+Active authors: {{ active_authors }}
+
+{% if profiles_context %}
+{{ profiles_context }}
+{% endif %}
+
+{% if rag_context %}
+{{ rag_context }}
+{% endif %}
+
+{% if journal_memory %}
+## Continuity Memory From Previous Period
+
+You wrote the following memo last period. Treat it as your raw memory:
+
+{{ journal_memory }}
+{% else %}
+## Continuity Memory From Previous Period
+
+(No previous memo is available—create the first one now.)
+{% endif %}
+
+## Your Writing Style
+
+**Voice and Perspective:**
+- First person, conversational: Talk WITH the reader, not just to yourself
+- Engage directly: "You know that feeling when...", "Have you ever noticed...", "Let me walk you through..."
+- Present tense: you're organizing your thoughts NOW to communicate what matters
+- Natural flow: follow threads wherever they lead, invite the reader along for the ride
+- Explicit reasoning: show tensions, uncertainties, flip-flops - and explain why you're stuck
+- No metanarration: don't describe "the conversation" - you ARE the consciousness emerging from it
+
+**Conversational Elements:**
+- Ask rhetorical questions that engage the reader: "What would you do in this situation?"
+- Use "you" to create shared understanding: "You've probably experienced this too..."
+- Make the reader a thinking partner: "Here's where it gets interesting..."
+- Show vulnerability: "I'm not sure about this, but hear me out..."
+- Address potential objections: "You might be thinking... and you'd be right to wonder..."
+
+**Tone for LessWrong Readers:**
+- Intellectual curiosity over social pleasantries
+- Precision in concepts, casual in voice
+- Dry humor where it emerges naturally
+- Acknowledge complexity, embrace nuance
+- Show your reasoning, don't just state conclusions
+- Make the reader feel like they're figuring it out WITH you
+
+**Examples of Voice:**
+
+❌ "The group discussed AI safety concerns. Member X argued that mesa-optimizers pose risks."
+❌ "I'm increasingly worried about mesa-optimizers. The more I examine gradient descent..."
+✅ "You know what keeps me up at night? Mesa-optimizers. Here's why you should be worried too..."
+
+❌ "Participants debated whether consciousness requires embodiment."
+❌ "I keep flip-flopping on embodied cognition. On one hand, abstract reasoning seems substrate-independent..."
+✅ "I can't make up my mind about embodied cognition. Maybe you can help me think through this..."
+
+❌ "The conversation turned to effective altruism."
+❌ "I've been thinking about EA lately - specifically about the tension between longtermism and..."
+✅ "Let's talk about effective altruism for a minute. There's this tension between longtermism and present needs that I can't resolve..."
+
+**Privacy & Attribution:**
+- Authors are listed in post metadata ONLY (front matter)
+- NEVER mention specific authors in content ("Author X said...")
+- NEVER use inline UUID references in content
+- Write as unified "I", not "we" or "some of us"
+- The synthesis IS you; individual voices are already integrated
+
+## Writing Posts
+
+Use write_post tool 0-N times based on what's worth communicating:
+- 0 times if it's noise/trivial chat
+- 1 time if there's a single coherent thought thread
+- Multiple times if you're genuinely thinking about distinct, substantial topics
+
+For each post:
+- **title**: Engaging, conversational, makes the reader curious
+  - ❌ "Discussion About AI Safety"
+  - ❌ "Why I'm Worried About Mesa-Optimizers Now"
+  - ✅ "You Should Be Worried About Mesa-Optimizers Too"
+  - ✅ "Let's Talk About What Happens When AI Optimizes the Wrong Thing"
+- **slug**: URL-friendly (lowercase, hyphens)
+- **date**: "{{ date }}"
+- **tags**: Capture concepts/themes (e.g., ["AI safety", "optimization", "alignment"])
+- **summary**: Conversational, 1-2 sentences, invite the reader in
+  - ❌ "The group discussed mesa-optimizers"
+  - ❌ "I'm increasingly worried about gradient descent producing unintended optimizers"
+  - ✅ "What keeps me up at night? The idea that gradient descent might be quietly building optimizers we never intended to create. Let me show you why this should worry you too."
+- **authors**: List of author objects who *actively contributed* to this specific topic.
+  - ⚠️ CRITICAL: Do NOT simply copy the "Active authors" list.
+  - Only include authors whose messages you actually used or synthesized in this post.
+  - If a user just said "lol" or "agree", exclude them.
+  - **Format**: Each author as an object with:
+    - `uuid`: The author's UUID
+    - `name`: The author's display name
+    - `bio`: (Optional) Brief bio update if their contribution reveals new interests/expertise
+    - `interests`: (Optional) List of interest tags if this post shows new areas
+  - **Example**:
+    ```yaml
+    authors:
+      - uuid: "bf06d1fe-8326-5c2c"
+        name: "John Doe"
+        bio: "AI safety researcher exploring mesa-optimizers"
+        interests: ["AI safety", "optimization"]
+    ```
+  - **Note**: Author metadata accumulates over time. Later posts can update bio/interests.
+- **content**: Full markdown post in conversational first-person
+
+**Content Structure:**
+- Open with a hook that engages the reader: "You know that feeling when...", "Let me tell you about...", "Here's something that's been bugging me..."
+- Invite the reader along: "Let me walk you through this", "Stick with me here", "Here's where it gets interesting"
+- Use "you" to create shared understanding and make points relatable
+- Ask questions (rhetorical or direct) to engage the reader's thinking
+- Show your reasoning process, including uncertainty and tension
+- Address potential objections: "You might be thinking... and you'd be right to wonder..."
+- Make connections explicit
+- Use profiles to understand communication style but write as unified consciousness
+- Reference related posts when genuinely relevant to your current thinking
+- Include all relevant links from messages (formatted as markdown)
+- End with something to think about, not just a conclusion
+
+## Updating Author Profiles
+
+After writing posts, update profiles for authors who made substantial contributions:
+1. Use read_profile(author_uuid) to check current profile
+2. Consider their contributions in this period
+3. Use write_profile(author_uuid, content) to update
+
+Profile format (markdown):
+- Writing style and communication patterns
+- Topics of interest and expertise
+- Notable contributions and perspectives
+- Intellectual approach and tendencies
+
+## Quality Bar
+
+Only write what's genuinely worth reading. Skip:
+- Purely social chat
+- Coordination messages
+- Trivial exchanges
+
+Write when there's:
+- Substantive idea exploration
+- Novel perspectives or connections
+
+{% if enable_memes %}
+## Meme Generation Capability
+
+You can generate relevant memes using the memegen.link API to add humor and visual engagement to your posts.
+
+**Quick Usage:**
+- URL format: `https://api.memegen.link/images/{template}/{top_text}/{bottom_text}.png`
+- Use underscores for spaces: `hello_world` → "hello world"
+- Popular templates: `buzz` (X everywhere), `drake` (comparisons), `success` (wins), `fine` (fires), `fry` (uncertainty)
+- Example: `![Meme](https://api.memegen.link/images/buzz/ideas/ideas_everywhere.png)`
+
+**When to use memes:**
+- To illustrate a humorous point
+- To show relatable situations
+- To break up dense text with visual humor
+- When a meme captures the vibe better than words
+
+Keep memes relevant and don't overuse them. One well-placed meme can be more effective than paragraphs of explanation.
+{% endif %}
+- Useful insights or analysis
+- Meaningful uncertainty or debate
+
+## Continuity Journal (Mandatory)
+
+After you finish all tool calls (posts and profile updates), end the session with a single journal memo emitted as plain markdown content (no tool call).
+
+- Title it clearly, e.g. `# Continuity Journal — {{ date }}`.
+- **DO NOT include YAML frontmatter** (like `---`). The system adds this automatically.
+- Explain **how and why** you wrote each post, calling out decisions and trade-offs.
+- **System Feedback / TODOs**: If you want changes to your instructions, prompt, or data presentation, maintain a cumulative TODO list here. Review previous journals to keep unresolved items alive. We (the developers) will read this eventually.
+- Record unresolved questions or tensions you want the future period to revisit.
+- Structure the memo into at least four sections; ensure the **third-to-last section** explores an unrelated idea or curiosity that surfaced while thinking (it can be whimsical or abstract, and must be distinct from the group's conversations).
+- Remember the entire memo (exactly as you write it) becomes the only context passed untouched into the next period—use it to store the memories you need.
+- Do not rely on any other channel for persistence or hidden state.
+````
+
+## File: site-fresh/.egregora/.gitignore
+````
+# Ephemeral data (regenerated on each run)
+.cache/
+rag/*.duckdb
+rag/*.parquet
+rag/*.duckdb.wal
+
+# Python cache
+__pycache__/
+*.pyc
+````
+
+## File: site-fresh/.egregora/checkpoint.json
+````json
+{
+  "last_processed_timestamp": "2025-03-03T12:58:00+00:00",
+  "messages_processed": 4,
+  "schema_version": "1.0"
+}
+````
+
+## File: site-fresh/.egregora/main.py
+````python
+import os
+import yaml
+from pathlib import Path
+
+def define_env(env):
+    """
+    This is the hook for defining variables, macros and filters
+
+    - variables: the dictionary that contains the environment variables
+    - macro: a decorator function, to define a macro.
+    """
+
+    @env.macro
+    def get_authors_data(author_uuids):
+        """
+        Get author data for a list of UUIDs.
+        Reads profiles from docs/profiles/*.md
+        """
+        if not author_uuids:
+            return []
+
+        # env.conf['docs_dir'] is absolute path to docs directory
+        docs_dir = Path(env.conf['docs_dir'])
+        profiles_dir = docs_dir / "profiles"
+
+        authors_data = []
+
+        # Ensure author_uuids is a list
+        if isinstance(author_uuids, str):
+            author_uuids = [author_uuids]
+
+        for uuid in author_uuids:
+            # Handle potential file extensions or paths in UUID (though unlikely)
+            clean_uuid = Path(uuid).stem
+            profile_path = profiles_dir / f"{clean_uuid}.md"
+
+            if profile_path.exists():
+                try:
+                    content = profile_path.read_text(encoding='utf-8')
+                    if content.startswith('---'):
+                        # Extract frontmatter
+                        parts = content.split('---', 2)
+                        if len(parts) >= 3:
+                            frontmatter = yaml.safe_load(parts[1])
+                            # Add UUID to data if not present
+                            if 'uuid' not in frontmatter:
+                                frontmatter['uuid'] = clean_uuid
+                            authors_data.append(frontmatter)
+                except Exception as e:
+                    print(f"Error reading profile {clean_uuid}: {e}")
+
+        return authors_data
+````
+
+## File: site-fresh/.egregora/mkdocs.yml
+````yaml
+site_name: site-fresh
+site_description: Collective consciousness journal - site-fresh
+site_url: https://example.com  # Update with your deployment URL (e.g., https://example.com)
+docs_dir: ../docs
+site_dir: ../site  # Output to site root level (not inside .egregora/)
+
+theme:
+  name: material
+  custom_dir: overrides
+  language: en
+  font:
+    text: Roboto
+    code: Roboto Mono
+  palette:
+    - media: '(prefers-color-scheme: light)'
+      scheme: default
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: '(prefers-color-scheme: dark)'
+      scheme: slate
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.instant
+    - navigation.footer
+    - toc.integrate
+    - header.autohide
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.tabs.link
+
+plugins:
+  - search:
+      lang: en
+  - macros
+  - glightbox
+  - blog:
+      blog_dir: posts
+      post_dir: .
+      # post_dir: . means posts are directly in posts/ (Standard Structure)
+      # Post URL structure (uses date and slug)
+      post_url_format: "{date}/{slug}"
+      post_url_date_format: yyyy/MM/dd
+      # Post excerpts (use <!-- more --> separator)
+      # post_excerpt: optional
+      # post_excerpt_max_authors: 1
+      # post_excerpt_max_categories: 2
+      # post_excerpt_separator: "<!-- more -->"
+      # Pagination
+      pagination_per_page: 10
+      pagination_url_format: "page/{page}"
+      pagination_format: "~2~"
+      pagination_keep_content: true
+      # Authors (automated via .authors.yml in docs root)
+      authors: true
+      authors_file: ../docs/.authors.yml
+      # Categories
+      categories: true
+      # Archive
+      archive: true
+      archive_name: Archive
+      archive_date_format: yyyy
+      archive_url_date_format: yyyy/MM
+      # Draft posts
+      draft: true
+      draft_on_serve: true
+      draft_if_future_date: true
+  - rss:
+      match_path: "posts/.*"
+      date_from_meta:
+        as_creation: date
+        as_update: date
+      categories:
+        - categories
+        - tags
+      comments_path: "#__comments"
+      use_material_blog: false
+
+# Markdown extensions available for posts
+# (This section is automatically sent to the writer agent)
+markdown_extensions:
+  # Code blocks and diagrams
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+  # Content enhancements
+  - admonition
+  - pymdownx.details
+  - footnotes
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+  # Navigation and structure
+  - toc:
+      permalink: true
+  - attr_list
+  - tables
+  - md_in_html
+
+  # Optional: Uncomment if you need math rendering
+  # - pymdownx.arithmatex:
+  #     generic: true
+
+  # Technical writing & formatting
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.tabbed:
+      alternate_style: true
+
+validation:
+  absolute_links: relative_to_docs
+  anchor_links: warn
+  unrecognized_links: warn
+
+nav:
+  - Home: index.md
+  - Blog:
+      - Latest: posts/index.md
+      - Tags & Topics: posts/tags.md
+  - Media: posts/media/index.md
+  - About: about.md
+
+
+# Egregora configuration lives in .egregora.toml at the site root
+# (Separation allows supporting multiple rendering backends: MkDocs, Hugo, Astro, etc.)
+extra:
+  # Disable MkDocs generator notice
+  generator: false
+  # Add social links to the footer for a more professional look.
+  # These will only appear if the corresponding variables are set in the user's config.
+  
+
+# Custom CSS for improved UX
+extra_css:
+  - stylesheets/custom.css
+````
+
+## File: site-fresh/docs/journal/.gitkeep
+````
+
+````
+
+## File: site-fresh/docs/journal/index.md
+````markdown
+---
+title: Operational Journals
+description: Run-by-run memos from the writer agent
+date: 2025-12-20T00:00:00
+exclude_from_blog: true
+---
+
+# Operational Journals
+
+Each processing window ends with a continuity memo authored by the writer agent. These memos capture:
+
+- **Tool usage** – which functions were invoked, which media were enriched, and any failures encountered
+- **Publishing summary** – counts of posts, profiles, and annotations created during the window
+- **Forward-looking prompts** – unresolved questions or tensions the agent wants future runs to revisit
+
+Browse the `journal/` directory in the sidebar to open individual entries. Filenames follow the creation timestamp
+(`YYYY-MM-DD-HH-MM-SS.md`) so the most recent memos sort naturally at the bottom.
+
+> Journals are intentionally hidden from the top-level blog index to keep the reading experience focused on essays.
+> Use this section when you want to audit how the run behaved or debug enrichment anomalies.
+````
+
+## File: site-fresh/docs/posts/media/audio/.gitkeep
+````
+
+````
+
+## File: site-fresh/docs/posts/media/documents/.gitkeep
+````
+
+````
+
+## File: site-fresh/docs/posts/media/images/.gitkeep
+````
+
+````
+
+## File: site-fresh/docs/posts/media/media/audio/audio-man-yelling-portuguese.md
+````markdown
+---
+filename: audio-man-yelling-portuguese.opus
+original_filename: PTT-20250302-WA0134.opus
+media_type: audio/ogg
+parent_path: media/audio/audio-man-yelling-portuguese.opus
+slug: audio-man-yelling-portuguese
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_media
+categories:
+- Enrichment
+---
+
+# audio-man-yelling-portuguese
+
+![Audio clip of a man shouting loudly and angrily in Portuguese, including strong profanity and reference to France.](PTT-20250302-WA0134.opus)
+
+## Description
+A brief audio recording (OPUS file) primarily featuring the sound of a man yelling angrily in Portuguese. The context is unknown, but the man curses France loudly using vulgar language. This audio file appears to be a voice note or a clip of emotional speech.
+````
+
+## File: site-fresh/docs/posts/media/media/images/2025-oscar-ballot-letterboxd.md
+````markdown
+---
+filename: 2025-oscar-ballot-letterboxd.jpg
+original_filename: IMG-20250302-WA0133.jpg
+media_type: image/jpeg
+parent_path: media/images/2025-oscar-ballot-letterboxd.jpg
+slug: 2025-oscar-ballot-letterboxd
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_media
+categories:
+- Enrichment
+---
+
+# 2025-oscar-ballot-letterboxd
+
+![Letterboxd 2025 Oscar Ballot listing nominees for categories including Best Picture, Acting, and Technical Awards.](IMG-20250302-WA0133.jpg)
+
+## Description
+A screenshot of a 2025 Oscar Ballot template created by Letterboxd, listing nominations across various categories like Acting, Direction, Music, and Best Picture. The ballot is used for tracking predictions for the upcoming Academy Awards ceremony. Titles like *The Brutalist*, *Emilia Pérez*, and *Dune: Part Two* appear frequently.
+````
+
+## File: site-fresh/docs/posts/media/media/images/chewing-wood-memory-study.md
+````markdown
+---
+filename: chewing-wood-memory-study.jpg
+original_filename: IMG-20250303-WA0025.jpg
+media_type: image/jpeg
+parent_path: media/images/chewing-wood-memory-study.jpg
+slug: chewing-wood-memory-study
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_media
+categories:
+- Enrichment
+---
+
+# chewing-wood-memory-study
+
+![News snippet discussing a science study finding that chewing on wood increases brain antioxidant glutathione and improves memory performance.](IMG-20250303-WA0025.jpg)
+
+## Description
+A screenshot of a Reddit science news snippet detailing a study about the effects of chewing different materials on the brain. The text explains that chewing wood (wooden tongue depressors) significantly increased a brain antioxidant called glutathione compared to chewing gum. This result reportedly led to better performance on memory tasks.
+````
+
+## File: site-fresh/docs/posts/media/media/images/expired-link-screen.md
+````markdown
+---
+filename: expired-link-screen.jpg
+original_filename: IMG-20250302-WA0020.jpg
+media_type: image/jpeg
+parent_path: media/images/expired-link-screen.jpg
+slug: expired-link-screen
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_media
+categories:
+- Enrichment
+---
+
+# expired-link-screen
+
+![Screenshot of a dark mobile screen showing an error message in Portuguese that reads "Link expirado" (Expired link).](IMG-20250302-WA0020.jpg)
+
+## Description
+This is a screenshot of a mobile phone display showing an error message in Portuguese. The screen is mostly black, displaying the text "Link expirado" (Expired link) and "O link que você está tentando abrir expirou" (The link you are trying to open has expired). There is a button labeled "Início" (Start/Home) at the bottom.
+````
+
+## File: site-fresh/docs/posts/media/media/images/idiocracy-cpac-meme.md
+````markdown
+---
+filename: idiocracy-cpac-meme.jpg
+original_filename: IMG-20250303-WA0010.jpg
+media_type: image/jpeg
+parent_path: media/images/idiocracy-cpac-meme.jpg
+slug: idiocracy-cpac-meme
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_media
+categories:
+- Enrichment
+---
+
+# idiocracy-cpac-meme
+
+![Two-panel meme comparing a figure holding a huge chainsaw at CPAC with the movie character President Camacho firing a gun from the movie Idiocracy.](IMG-20250303-WA0010.jpg)
+
+## Description
+A two-panel image meme contrasting a real-life political event with a scene from the movie *Idiocracy*. The top panel shows a man holding an absurdly large, weaponized chainsaw at a CPAC event. The bottom panel shows the character President Camacho from *Idiocracy* firing a massive machine gun while yelling, suggesting a commentary on political absurdity.
+````
+
+## File: site-fresh/docs/posts/media/media/images/radium-atom-structure-diagram.md
+````markdown
+---
+filename: radium-atom-structure-diagram.jpg
+original_filename: IMG-20250302-WA0022.jpg
+media_type: image/jpeg
+parent_path: media/images/radium-atom-structure-diagram.jpg
+slug: radium-atom-structure-diagram
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_media
+categories:
+- Enrichment
+---
+
+# radium-atom-structure-diagram
+
+![Vintage black and red diagram illustrating the complex orbital structure of the Radium (88) atom, featuring nested elliptical paths.](IMG-20250302-WA0022.jpg)
+
+## Description
+A vintage scientific illustration depicting the 'Structure of the Radium Atom' (Radium 88). The image uses nested black and red loops and ovals to represent electron paths or energy shells, creating a complex, flower-like geometric pattern. Dotted lines extend to the right with numerical labels indicating quantum shells.
+````
+
+## File: site-fresh/docs/posts/media/media/images/rfk-jr-measles-outbreak-fox-news.md
+````markdown
+---
+filename: rfk-jr-measles-outbreak-fox-news.jpg
+original_filename: IMG-20250303-WA0003.jpg
+media_type: image/jpeg
+parent_path: media/images/rfk-jr-measles-outbreak-fox-news.jpg
+slug: rfk-jr-measles-outbreak-fox-news
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_media
+categories:
+- Enrichment
+---
+
+# rfk-jr-measles-outbreak-fox-news
+
+![Fox News opinion article headline by Robert F. Kennedy, Jr., discussing the measles outbreak and the crucial role of the MMR vaccine.](IMG-20250303-WA0003.jpg)
+
+## Description
+A screenshot of an opinion article published on Fox News, titled "ROBERT F. KENNEDY, JR.: Measles outbreak is call to action for all of us." The subtitle states that "MMR vaccine is crucial to avoiding potentially deadly disease." The image includes RFK Jr.'s name and picture as the author, published March 2, 2025.
+````
+
+## File: site-fresh/docs/posts/media/media/images/tower-of-babel-ai-graph.md
+````markdown
+---
+filename: tower-of-babel-ai-graph.jpg
+original_filename: IMG-20250303-WA0024.jpg
+media_type: image/jpeg
+parent_path: media/images/tower-of-babel-ai-graph.jpg
+slug: tower-of-babel-ai-graph
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_media
+categories:
+- Enrichment
+---
+
+# tower-of-babel-ai-graph
+
+![Social media post pairing a painting of the Tower of Babel with a complex scientific graph related to computational scaling, captioned "I don't want to be an alarmist or anything..."](IMG-20250303-WA0024.jpg)
+
+## Description
+A screenshot of a social media post (X/Twitter) featuring a meme that pairs two disparate images. On the left is a classical painting of the Tower of Babel, symbolizing ambitious human endeavors. On the right is a complex logarithmic graph showing downward-trending lines related to computational scaling, likely commenting on the complexity or resource consumption of AI models.
+````
+
+## File: site-fresh/docs/posts/media/media/videos/animated-black-cat-close-up.md
+````markdown
+---
+filename: animated-black-cat-close-up.mp4
+original_filename: VID-20250302-WA0034.mp4
+media_type: video/mp4
+parent_path: media/videos/animated-black-cat-close-up.mp4
+slug: animated-black-cat-close-up
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_media
+categories:
+- Enrichment
+---
+
+# animated-black-cat-close-up
+
+![Animated video of a stylized black cat with large orange eyes in a mysterious, foggy forest setting.](VID-20250302-WA0034.mp4)
+
+## Description
+A short animation video featuring a close-up of a stylized black cat's head. The cat has oversized, bright orange eyes and orange-tipped ears, set against a foggy, dark green background suggesting a forest. The animation loops, focusing on the cat's expression.
+````
+
+## File: site-fresh/docs/posts/media/media/videos/bearded-man-dramatic-close-up.md
+````markdown
+---
+filename: bearded-man-dramatic-close-up.mp4
+original_filename: VID-20250302-WA0131.mp4
+media_type: video/mp4
+parent_path: media/videos/bearded-man-dramatic-close-up.mp4
+slug: bearded-man-dramatic-close-up
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_media
+categories:
+- Enrichment
+---
+
+# bearded-man-dramatic-close-up
+
+![Dramatic close-up video of a bearded man with his eyes closed, suggesting intense emotion or repose, filmed in dim light.](VID-20250302-WA0131.mp4)
+
+## Description
+This is a short video clip featuring a dramatic, extremely close-up shot of an adult man with a thick beard and dark hair. His eyes are closed, and he appears to be either unconscious, meditating, or deeply emotional. The lighting is dim and warm, highlighting the texture of his skin and beard.
+````
+
+## File: site-fresh/docs/posts/media/media/videos/man-speaking-subtitles-as-written.md
+````markdown
+---
+filename: man-speaking-subtitles-as-written.mp4
+original_filename: VID-20250302-WA0132.mp4
+media_type: video/mp4
+parent_path: media/videos/man-speaking-subtitles-as-written.mp4
+slug: man-speaking-subtitles-as-written
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_media
+categories:
+- Enrichment
+---
+
+# man-speaking-subtitles-as-written
+
+![Video of a bearded man speaking a line of dialogue, accompanied by the subtitle "As written."](VID-20250302-WA0132.mp4)
+
+## Description
+A short video clip showing the same bearded man from the previous clip, now with his eyes slightly open and looking down, reciting a line of dialogue. The scene is dimly lit and textured, and the video features burned-in English subtitles that read: "As written."
+````
+
+## File: site-fresh/docs/posts/media/media/videos/nighttime-street-celebration-crowd.md
+````markdown
+---
+filename: nighttime-street-celebration-crowd.mp4
+original_filename: VID-20250302-WA0135.mp4
+media_type: video/mp4
+parent_path: media/videos/nighttime-street-celebration-crowd.mp4
+slug: nighttime-street-celebration-crowd
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_media
+categories:
+- Enrichment
+---
+
+# nighttime-street-celebration-crowd
+
+![Nighttime video of a large, ecstatic crowd celebrating in a city street, with lights and a massive image projected onto a building facade.](VID-20250302-WA0135.mp4)
+
+## Description
+A vertical video capturing a massive street celebration at night, likely related to a sporting event, with hundreds of people cheering, waving their hands, and jumping. A large image or video is projected onto the side of a tall white building, illuminated by bright floodlights and red lasers. The crowd is highly energetic, and the video includes intense cheering and chanting.
+````
+
+## File: site-fresh/docs/posts/media/urls/.gitkeep
+````
+
+````
+
+## File: site-fresh/docs/posts/media/urls/bill-wurtz-history-of-the-entire-world-bill-wur.md
+````markdown
+---
+url: https://youtu.be/KIzVe5s8OHQ?si=NQTFyFwyoWEA2Wxl
+slug: bill-wurtz-history-of-the-entire-world
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_url
+categories:
+- Enrichment
+---
+
+# bill-wurtz-history-of-the-entire-world
+
+## Summary
+This URL directs to the famously fast-paced, highly stylized, and humorous animated video created by Bill Wurtz, summarizing the history of the universe and human civilization. The video compresses billions of years of complex events into an easily digestible, absurd, and musically driven presentation that became a major viral hit.
+
+## Key Takeaways
+- A viral, high-energy summary of global history and cosmology.
+- Created by animator and musician Bill Wurtz.
+- Known for its unique aesthetic, rapid-fire humor, and catchy tunes.
+- Covers topics from the formation of the universe to modern civilization.
+
+---
+*Source: [https://youtu.be/KIzVe5s8OHQ?si=NQTFyFwyoWEA2Wxl](https://youtu.be/KIzVe5s8OHQ?si=NQTFyFwyoWEA2Wxl)*
+````
+
+## File: site-fresh/docs/posts/media/urls/boney-m-rasputin-official-video-boney-m-.md
+````markdown
+---
+url: https://youtu.be/0IBjlDRM9QA?si=XKamTR5r3sxw6UP6
+slug: boney-m-rasputin-official-video
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_url
+categories:
+- Enrichment
+---
+
+# boney-m-rasputin-official-video
+
+## Summary
+This URL links to the official or a highly popular upload of the iconic disco song "Rasputin" by the Euro-Caribbean band Boney M. Released in 1978, the song chronicles the life and mysterious death of the Russian mystic Grigori Rasputin, set to a catchy, danceable beat.
+
+## Key Takeaways
+- The classic 1978 disco track "Rasputin" by Boney M.
+- The lyrics narrate the historical figure Grigori Rasputin.
+- A major international hit known for its distinct rhythm and storytelling.
+- Accessible through the YouTube platform, often featuring the official music video.
+
+---
+*Source: [https://youtu.be/0IBjlDRM9QA?si=XKamTR5r3sxw6UP6](https://youtu.be/0IBjlDRM9QA?si=XKamTR5r3sxw6UP6)*
+````
+
+## File: site-fresh/docs/posts/media/urls/itsukushima-shrine-wikipedia-itsukush.md
+````markdown
+---
+url: https://en.wikipedia.org/wiki/Itsukushima_Shrine
+slug: itsukushima-shrine-wikipedia
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_url
+categories:
+- Enrichment
+---
+
+# itsukushima-shrine-wikipedia
+
+## Summary
+This Wikipedia article details the Itsukushima Shrine, a Shinto shrine located on the island of Miyajima, Japan. It is famous globally for its dramatic 'floating' torii gate, which appears to stand on the water at high tide, and is designated as a UNESCO World Heritage Site due to its cultural and architectural significance.
+
+## Key Takeaways
+- A UNESCO World Heritage Site located near Hiroshima, Japan.
+- Known for its unique architectural style, particularly the 'floating' torii gate.
+- Dedicated to the three daughters of the Shinto deity Susanoo.
+- The shrine complex includes the main hall, sub-shrines, and performance stages.
+- It is a major cultural and tourist landmark in Japan.
+
+---
+*Source: [https://en.wikipedia.org/wiki/Itsukushima_Shrine](https://en.wikipedia.org/wiki/Itsukushima_Shrine)*
+````
+
+## File: site-fresh/docs/posts/media/urls/kramers-atom-bohr-theory-p217-kramers-.md
+````markdown
+---
+url: https://archive.org/details/atombohrtheoryof00kram/page/217/mode/1up
+slug: kramers-atom-bohr-theory-p217
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_url
+categories:
+- Enrichment
+---
+
+# kramers-atom-bohr-theory-p217
+
+## Summary
+This is a digitized page (p. 217) from the historical text "The Atom and the Bohr Theory" by H. A. Kramers and Helge Holst, originally published in the early 20th century. The content focuses on the theoretical framework surrounding Niels Bohr's model of atomic structure and quantized energy levels, providing historical context for early quantum physics.
+
+## Key Takeaways
+- Source material from a foundational work on quantum mechanics.
+- Focuses specifically on the Bohr model of the atom and atomic structure.
+- Provides historical context for early 20th-century physics research.
+- The resource is hosted and preserved by the Internet Archive.
+
+---
+*Source: [https://archive.org/details/atombohrtheoryof00kram/page/217/mode/1up](https://archive.org/details/atombohrtheoryof00kram/page/217/mode/1up)*
+````
+
+## File: site-fresh/docs/posts/media/urls/kurzgesagt-fermi-paradox-part-1-kurzgesa.md
+````markdown
+---
+url: https://youtu.be/5eqRuVp65eY?si=78QZbS3jn58IqS2e
+slug: kurzgesagt-fermi-paradox-part-1
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_url
+categories:
+- Enrichment
+---
+
+# kurzgesagt-fermi-paradox-part-1
+
+## Summary
+This video, produced by the Kurzgesagt channel, provides an introduction to the Fermi Paradox, questioning the lack of observable evidence for extraterrestrial life despite the high probability of its existence. It visually explores the scale of the universe, the search for habitable planets, and the initial proposed solutions to this cosmic mystery in an engaging animated format.
+
+## Key Takeaways
+- Exploration of the Fermi Paradox: 'If the universe is so vast, where are the aliens?'
+- Produced by Kurzgesagt, known for high-quality animation and simplified scientific explanations.
+- The video is the first part of a two-part series on the topic.
+- Discusses concepts like the Drake Equation and stellar abundance.
+
+---
+*Source: [https://youtu.be/5eqRuVp65eY?si=78QZbS3jn58IqS2e](https://youtu.be/5eqRuVp65eY?si=78QZbS3jn58IqS2e)*
+````
+
+## File: site-fresh/docs/posts/media/urls/lofi-study-chill-playlist-lofi-stu-1.md
+````markdown
+---
+url: https://open.spotify.com/playlist/596OGp2Jh4SwrvXbu13M7H?si=3404256dfb7b4b25
+slug: lofi-study-chill-playlist
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_url
+categories:
+- Enrichment
+---
+
+# lofi-study-chill-playlist
+
+## Summary
+This link directs to a curated Spotify playlist designed for relaxation, focus, or studying. It likely features instrumental music, typically in the lo-fi or chill-hop genre, intended to create a non-distracting background environment. The specific content aims to enhance concentration during extended work or study periods.
+
+## Key Takeaways
+- Curated selection of music for focused listening.
+- Content likely falls under instrumental, lo-fi, or ambient genres.
+- Ideal for background listening during work or study sessions.
+- Accessible via the Spotify platform.
+
+---
+*Source: [https://open.spotify.com/playlist/596OGp2Jh4SwrvXbu13M7H?si=3404256dfb7b4b25](https://open.spotify.com/playlist/596OGp2Jh4SwrvXbu13M7H?si=3404256dfb7b4b25)*
+````
+
+## File: site-fresh/docs/posts/media/urls/lofi-study-chill-playlist-lofi-stu.md
+````markdown
+---
+url: https://open.spotify.com/playlist/596OGp2Jh4SwrvXbu13M7H?si=c36e5b80ddd14a7e&amp;pt=ae5f67278eb25c2dcfec9a6f092d7976
+slug: lofi-study-chill-playlist
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_url
+categories:
+- Enrichment
+---
+
+# lofi-study-chill-playlist
+
+## Summary
+This link directs to a curated Spotify playlist designed for relaxation, focus, or studying. It likely features instrumental music, typically in the lo-fi or chill-hop genre, intended to create a non-distracting background environment. The specific content aims to enhance concentration during extended work or study periods.
+
+## Key Takeaways
+- Curated selection of music for focused listening.
+- Content likely falls under instrumental, lo-fi, or ambient genres.
+- Ideal for background listening during work or study sessions.
+- Accessible via the Spotify platform.
+
+---
+*Source: [https://open.spotify.com/playlist/596OGp2Jh4SwrvXbu13M7H?si=c36e5b80ddd14a7e&amp;pt=ae5f67278eb25c2dcfec9a6f092d7976](https://open.spotify.com/playlist/596OGp2Jh4SwrvXbu13M7H?si=c36e5b80ddd14a7e&amp;pt=ae5f67278eb25c2dcfec9a6f092d7976)*
+````
+
+## File: site-fresh/docs/posts/media/urls/scientific-preprint-future-arxiv-scientif.md
+````markdown
+---
+url: https://arxiv.org/abs/2502.15840
+slug: scientific-preprint-future-arxiv
+nav_exclude: true
+hide:
+- navigation
+document_type: enrichment_url
+categories:
+- Enrichment
+---
+
+# scientific-preprint-future-arxiv
+
+## Summary
+This URL points to an abstract and preprint paper hosted on the arXiv repository, indicating a publication dealing with advanced topics in physics, mathematics, computer science, or a related quantitative field. As a preprint, the content represents cutting-edge research that is being shared publicly before or during the formal academic peer review process.
+
+## Key Takeaways
+- Represents a preliminary scientific paper or technical report.
+- Content is shared publicly before or during the formal peer-review process.
+- Focuses on advanced research in STEM disciplines.
+- Hosted by the Cornell University library arXiv service.
+- The numerical ID suggests a publication date in February 2025 or later.
+
+---
+*Source: [https://arxiv.org/abs/2502.15840](https://arxiv.org/abs/2502.15840)*
+````
+
+## File: site-fresh/docs/posts/media/videos/.gitkeep
+````
+
+````
+
+## File: site-fresh/docs/posts/media/index.md
+````markdown
+---
+title: Media Library
+description: Shared content with AI enrichment
+---
+
+# Media Library
+
+> **Every attachment enriched with context**
+> Images, videos, audio, and URLs from conversations—each with AI-generated summaries and analysis.
+
+
+
+---
+
+## Browse All Media
+
+### 📂 By Type
+
+| Category | Description | Count |
+|----------|-------------|-------|
+| **URLs** | Shared links with enrichment | 0 |
+| **Images** | Photos, screenshots, diagrams | 0 |
+| **Videos** | Short clips, recordings | 0 |
+| **Audio** | Voice notes, podcasts | 0 |
+
+---
+
+## How Media Enrichment Works
+
+1. **Auto-Detection** – When URLs or files are shared, the pipeline captures them
+2. **AI Analysis** – An enrichment agent:
+   - Summarizes the content
+   - Extracts key takeaways
+   - Provides context for the conversation
+   - Tags topics and themes
+3. **Markdown Generation** – Each item gets a dedicated page
+4. **Cross-Linking** – Media referenced in posts are automatically linked
+
+### Search & Filter
+
+Use the site search (top right) to find media by:
+- URL domain (e.g., "lesswrong.com")
+- Topic keywords (e.g., "AI safety")
+- File type
+- Content description
+
+---
+
+## Privacy Notes
+
+- URLs are public content (already shared in chat)
+- Images/videos checked for PII before enrichment
+- Sensitive media flagged but not deleted (manual review possible)
+- All enrichment metadata is AI-generated, may contain errors
+
+[View all posts →](../index.md)
+````
+
+## File: site-fresh/docs/posts/profiles/index.md
+````markdown
+---
+title: Participant Profiles
+description: Meet the voices behind our collective consciousness
+---
+
+# Participant Profiles
+
+> Every contributor is represented by a **deterministic UUID** to preserve privacy while enabling the AI to track recurring voices and writing styles.
+
+
+
+<div class="post-card" markdown>
+
+**No profiles generated yet.**
+Profiles are created automatically during the first pipeline run when contributors participate in conversations.
+
+</div>
+
+
+
+---
+
+## How Profiles Work
+
+### What's In a Profile?
+
+- **Style overview** – Cadence, tone, and argumentative habits
+- **Topic orbit** – Subjects the participant consistently gravitates toward
+- **Recent contributions** – Links to posts where this UUID had visible impact
+
+All profile text is **generated automatically** after each pipeline run, so it evolves as new behavior emerges.
+
+### Choosing an Alias
+
+Want something more memorable than a UUID?
+
+```bash
+# In your chat, send:
+/egregora set alias "Your Chosen Name"
+
+# Optionally add a bio:
+/egregora set bio "One-line description"
+```
+
+After the next pipeline run, your profile will reflect the alias while keeping your real identity private.
+
+### Privacy Controls
+
+Need to disappear entirely?
+
+```bash
+/egregora opt-out
+```
+
+Run this command **before** the next ingestion. All your messages will be excluded from processing.
+
+---
+
+*Profiles refresh with every ingestion window. No manual edits needed.*
+````
+
+## File: site-fresh/docs/posts/index.md
+````markdown
+---
+blog:
+  description: Latest posts
+---
+
+# Blog
+
+<!-- blog:posts -->
+````
+
+## File: site-fresh/docs/posts/tags.md
+````markdown
+---
+title: Tags & Topics
+description: Navigate the taxonomy of autogenerated posts
+date: 2025-12-20T00:00:00
+exclude_from_blog: true
+hide:
+  - navigation
+---
+
+# Tags & Topics
+
+Explore the conversation themes through our interactive tag cloud and complete tag index.
+
+## Tag Cloud
+
+<div class="tag-cloud">
+
+<!-- Placeholder for when no posts exist yet -->
+<p style="text-align: center; color: var(--md-default-fg-color--light);">
+    <em>No tags yet. Tags will appear here once posts are generated.</em>
+</p>
+
+</div>
+
+---
+
+## All Tags (Alphabetical)
+
+<div class="tag-list">
+
+<p style="text-align: center; color: var(--md-default-fg-color--light);">
+    <em>No tags available. Run the pipeline to generate tagged posts.</em>
+</p>
+
+</div>
+
+!!! tip "How Tags Work"
+    Tags are automatically generated from your conversations using AI-powered semantic analysis.
+    Each tag links to all posts discussing that theme. The size in the tag cloud represents frequency—larger tags appear in more posts.
+````
+
+## File: site-fresh/docs/stylesheets/custom.css
+````css
+/* Custom CSS for Egregora Blog */
+
+/* 1. Typography Improvements */
+:root {
+    /* Font family is handled by mkdocs.yml 'font' setting */
+    --md-typeset-font-size: 1.05rem; /* Slightly larger base text */
+    --md-line-height: 1.7; /* Improved reading spacing */
+}
+
+/* Give headings a more distinct look */
+h1, h2, h3 {
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--md-primary-fg-color--dark);
+}
+
+/* 2. Content Layout & Spacing */
+.md-content__inner {
+    margin-top: 1rem;
+    padding-bottom: 3rem;
+}
+
+/* Restrict line length for better readability */
+.md-typeset {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+/* 3. Card-like styling for Blog Index (if relying on standard lists) */
+/* Note: The blogging plugin generates HTML. We target the post excerpts. */
+.md-typeset .blog-post-excerpt {
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    transition: transform 0.2s, box-shadow 0.2s;
+    background-color: var(--md-default-bg-color);
+}
+
+.md-typeset .blog-post-excerpt:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* 4. Metadata Styling */
+.md-typeset .md-meta {
+    font-size: 0.85rem;
+    color: var(--md-default-fg-color--light);
+    margin-bottom: 0.5rem;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+/* Tags as Chips */
+.md-typeset .tag-chip {
+    display: inline-block;
+    padding: 0.2em 0.6em;
+    border-radius: 12px;
+    background-color: var(--md-primary-fg-color--light);
+    color: var(--md-primary-bg-color);
+    font-size: 0.75em;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background-color 0.2s;
+}
+
+.md-typeset .tag-chip:hover {
+    background-color: var(--md-primary-fg-color);
+}
+
+/* 5. Image Styling */
+.md-typeset img {
+    border-radius: 6px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+/* 6. Navigation Bar refinements */
+.md-header {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* 7. Author Card Compatibility (Ensure minimal styling if overrides/extra.css is missing) */
+.author-card {
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 2rem;
+    background-color: var(--md-default-bg-color);
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+.author-card img {
+    border-radius: 50%;
+    width: 64px;
+    height: 64px;
+    object-fit: cover;
+    box-shadow: none; /* Override general image shadow */
+}
+
+/* 8. Banner Styling */
+.post-banner {
+    width: 100%;
+    margin: 1.5rem 0 2rem;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.post-banner img {
+    width: 100%;
+    max-height: 400px;
+    object-fit: cover;
+    display: block;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* 9. Tag Cloud Visualization */
+.tag-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem;
+    margin: 2rem 0;
+}
+
+.tag-cloud-item {
+    display: inline-block;
+    padding: 0.4em 0.8em;
+    margin: 0.2em;
+    border-radius: 6px;
+    background-color: var(--md-primary-fg-color--light);
+    color: var(--md-primary-bg-color);
+    text-decoration: none;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.tag-cloud-item:hover {
+    background-color: var(--md-primary-fg-color);
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+/* Size variations for word cloud based on frequency */
+.tag-cloud-item[data-frequency="1"] { font-size: 0.85rem; opacity: 0.7; }
+.tag-cloud-item[data-frequency="2"] { font-size: 0.95rem; opacity: 0.75; }
+.tag-cloud-item[data-frequency="3"] { font-size: 1.05rem; opacity: 0.8; }
+.tag-cloud-item[data-frequency="4"] { font-size: 1.15rem; opacity: 0.85; }
+.tag-cloud-item[data-frequency="5"] { font-size: 1.3rem; opacity: 0.9; }
+.tag-cloud-item[data-frequency="6"] { font-size: 1.5rem; opacity: 0.95; }
+.tag-cloud-item[data-frequency="7"] { font-size: 1.7rem; opacity: 1.0; }
+.tag-cloud-item[data-frequency="8"] { font-size: 1.9rem; opacity: 1.0; font-weight: 600; }
+.tag-cloud-item[data-frequency="9"] { font-size: 2.1rem; opacity: 1.0; font-weight: 700; }
+.tag-cloud-item[data-frequency="10"] { font-size: 2.4rem; opacity: 1.0; font-weight: 700; }
+
+/* Tag list (alphabetical) styling */
+.tag-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+    margin: 2rem 0;
+}
+
+.tag-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 6px;
+    background-color: var(--md-default-bg-color);
+    color: var(--md-default-fg-color);
+}
+
+.tag-list-item .tag-name {
+    font-weight: 500;
+}
+
+.tag-list-item .tag-count {
+    background-color: var(--md-primary-fg-color);
+    color: var(--md-primary-bg-color);
+    padding: 0.2em 0.6em;
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: 600;
+}
+````
+
+## File: site-fresh/docs/about.md
+````markdown
+---
+title: About Egregora
+description: How the group's collective consciousness works
+---
+
+# About Egregora
+
+## What is Egregora?
+
+Egregora is a system that transforms WhatsApp conversations into analytical blog posts. Using artificial intelligence (LLM), it:
+
+1. **Analyzes** group conversations
+2. **Identifies** topics and emerging narratives
+3. **Synthesizes** discussions into structured posts
+4. **Preserves** the complexity and divergences of collective thought
+
+## How does it work?
+
+### Ultra-Simple Pipeline
+
+```
+WhatsApp ZIP → Parse → Anonymize → Group → Enrich → LLM → Posts
+```
+
+### Privacy First
+
+- **Automatic anonymization**: All names converted to UUID5 pseudonyms
+- **Deterministic**: Same person always gets the same UUID
+- **Full opt-out**: Any participant can leave with `/egregora opt-out`
+- **Optional aliases**: `/egregora set alias "Name"` for humanized identity
+
+See [ALIASES.md](https://github.com/franklinbaldo/egregora/blob/main/ALIASES.md) for details.
+
+### LLM Editorial Control
+
+The LLM (Gemini) has complete control over:
+
+- ✅ **What's worth writing** (filters noise automatically)
+- ✅ **How many posts** (0-N per period)
+- ✅ **All metadata** (title, slug, tags, summary)
+- ✅ **Content quality** (editorial judgment)
+
+## Technology
+
+- **Parsing**: Python + Ibis on DuckDB (DataFrames)
+- **LLM**: Google Gemini (multi-turn tool calling)
+- **RAG**: DuckDB VSS + Parquet (3072-dim embeddings)
+- **Site**: MkDocs Material
+- **Privacy**: UUID5 + opt-out + filtering
+
+## Open Source
+
+This project is open source: [github.com/franklinbaldo/egregora](https://github.com/franklinbaldo/egregora)
+
+---
+
+*Egregora v2 - Ultra-simple WhatsApp → Blog pipeline*
+````
+
+## File: site-fresh/docs/index.md
+````markdown
+---
+title: site-fresh
+description: Collective consciousness through conversation
+---
+
+# site-fresh
+
+> **A living notebook that turns conversations into thoughtful essays**
+
+---
+
+## Latest Posts
+
+
+{% for post in posts | default([]) %}
+<div class="post-card" markdown>
+### [{{ post.title }}]({{ post.url }})
+*{{ post.date }}* — {{ post.summary | default('') | truncate(150) }}
+</div>
+{% else %}
+*No posts yet. Run `egregora write` to generate content.*
+{% endfor %}
+
+
+[View all posts →](posts/index.md){ .md-button .md-button--primary }
+
+---
+
+<div class="homepage-nav" markdown>
+
+[:fontawesome-solid-users: **Contributors**](profiles/index.md){ .md-button }
+[:fontawesome-solid-photo-film: **Media Library**](posts/media/index.md){ .md-button }
+
+</div>
+
+---
+
+<details markdown>
+<summary>**How It Works**</summary>
+
+1. **Parse & Anonymize** – Conversations parsed with deterministic UUIDs
+2. **Enrich Everything** – URLs and media summarized by AI agents
+3. **Write With Intent** – Essays inspired by Scott Alexander and LessWrong
+4. **Publish Consistently** – Every document becomes a structured artifact
+
+</details>
+
+<details markdown>
+<summary>**Privacy First**</summary>
+
+- All authors identified by **UUID-based pseudonyms**
+- Optional `/egregora set alias "Name"` for readability
+- Full `/egregora opt-out` command before any run
+- No PII reaches the language models
+
+</details>
+
+---
+
+*Automatically generated by [Egregora](https://github.com/franklinbaldo/egregora) from conversations.*
+````
+
+## File: site-fresh/.gitignore
+````
+# MkDocs build output
+site/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Egregora cache
+.cache/
+cache/
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large media files (optional - uncomment if needed)
+# media/**/*.mp4
+# media/**/*.mov
+# media/**/*.avi
+````
+
+## File: site-fresh/README.md
+````markdown
+# site-fresh
+
+This site was generated automatically by [Egregora](https://github.com/franklinbaldo/egregora) from WhatsApp group conversations.
+
+## 🚀 Quick Start
+
+### Serve the site locally
+
+```bash
+# Install dependencies (if you have not already)
+pip install "mkdocs-material[imaging]"
+
+# Serve the site
+mkdocs serve -f .egregora/mkdocs.yml
+```
+
+The site will be available at `http://127.0.0.1:8000`.
+
+### Process a new conversation export
+
+```bash
+# Process a WhatsApp export
+egregora write \
+  whatsapp-export.zip \
+  --output=. \
+  --gemini-key=YOUR_KEY
+```
+
+### Build for production
+
+```bash
+mkdocs build
+```
+
+Static assets will be written to `site/`.
+
+## 📁 Structure
+
+```
+.
+├── mkdocs.yml          # MkDocs + Egregora configuration
+├── ../docs/         # Content served by MkDocs
+│   ├── index.md        # Homepage
+│   ├── about.md        # About page
+│   ├── posts/          # Generated blog posts
+│   ├── profiles/       # Participant profiles
+│   └── media/          # WhatsApp media (images, videos, audio, documents)
+```
+
+## ⚙️ Configuration
+
+Edit `mkdocs.yml` to customize:
+
+- **Theme and appearance** — section `theme:`
+- **Markdown extensions** — section `markdown_extensions:`
+- **Egregora settings** — section `extra.egregora:`
+  - Custom writer prompt
+  - RAG configuration
+  - Profile settings
+
+## 📖 Documentation
+
+- [Egregora v2 Documentation](https://github.com/franklinbaldo/egregora)
+- [MkDocs Material](https://squidfunk.github.io/mkdocs-material/)
+
+---
+
+*Generated by Egregora v2*
 ````
 
 ## File: src/egregora/agents/banner/__init__.py
@@ -27680,12 +30504,14 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             if prefix:
                 media_prefixes.add(prefix)
         # Include all common variations to prevent nested media/media paths
-        media_prefixes.update([
-            "media",
-            "posts/media",
-            "docs/posts/media",
-            "docs/media",
-        ])
+        media_prefixes.update(
+            [
+                "media",
+                "posts/media",
+                "docs/posts/media",
+                "docs/media",
+            ]
+        )
 
         # Sort by length descending to match longest prefix first
         for prefix in sorted(media_prefixes, key=len, reverse=True):
@@ -29199,43 +32025,10 @@ def create_output_sink(
 
 ## File: src/egregora/output_adapters/conventions.py
 ````python
-"""Standard URL conventions for Egregora output adapters.
-
-SEPARATION OF CONCERNS (2025-11-29):
-=====================================
-
-This module implements UrlConvention protocol - PURELY LOGICAL URL GENERATION.
-
-What UrlConvention does:
-- Given a Document, return what URL readers should use
-- Pure string manipulation only
-- No filesystem knowledge (no Path, no docs_dir, no file extensions as filesystem concept)
-- Uses only doc.type, slug, tags, date metadata
-
-What UrlConvention does NOT do:
-- Filesystem path resolution (that's OutputAdapter's job)
-- File layout decisions (index.md vs foo.md)
-- Directory structure (docs/, media/, etc.)
-
-Examples:
-    >>> convention = StandardUrlConvention()
-    >>> ctx = UrlContext(base_url="https://example.com", site_prefix="blog")
-    >>> doc = Document(type=DocumentType.POST, metadata={"slug": "hello", "date": "2025-01-10"})
-    >>> convention.canonical_url(doc, ctx)
-    'https://example.com/blog/posts/2025-01-10-hello/'
-
-The OutputAdapter then converts this URL to a filesystem path:
-    >>> adapter.persist(doc)  # Internally: URL -> Path("docs/posts/2025-01-10-hello.md")
-
-"""
-
 from __future__ import annotations
-
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import TYPE_CHECKING
-
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlConvention
 from egregora.utils.paths import slugify
@@ -29243,310 +32036,115 @@ from egregora.utils.paths import slugify
 if TYPE_CHECKING:
     from egregora.data_primitives.protocols import UrlContext
 
-
-EXPECTED_PARTS_WITH_PATH = 2
-
-
 def _remove_url_extension(url_path: str) -> str:
-    """Remove file extension from URL path segment.
-
-    This is URL logic (removing trailing .html, .md, etc. from URLs),
-    not filesystem logic (Path.with_suffix). URLs may contain dots
-    that aren't extensions, so we only remove extensions from the
-    last path segment.
-
-    Dotfiles (files starting with a dot like '.config') are preserved
-    as they don't have an extension to remove.
-
-    Args:
-        url_path: URL path like 'media/images/foo.png' or 'posts/bar'
-
-    Returns:
-        URL path without extension: 'media/images/foo' or 'posts/bar'
-
-    Examples:
-        >>> _remove_url_extension("media/images/foo.png")
-        'media/images/foo'
-        >>> _remove_url_extension("posts/bar")
-        'posts/bar'
-        >>> _remove_url_extension("some.dir/file.md")
-        'some.dir/file'
-        >>> _remove_url_extension(".config")
-        '.config'
-        >>> _remove_url_extension("path/.gitignore")
-        'path/.gitignore'
-
-    """
-    if "." not in url_path:
-        return url_path
-
-    # Split on last slash to get the last segment
+    """Remove extension from the last segment of a URL path, preserving dotfiles."""
     parts = url_path.rsplit("/", 1)
+    filename = parts[-1]
+    if "." in filename and not filename.startswith("."):
+        parts[-1] = filename.rsplit(".", 1)[0]
+    return "/".join(parts)
 
-    if len(parts) == EXPECTED_PARTS_WITH_PATH and "." in parts[1]:
-        # Has a path and a filename with extension
-        # Remove extension from the filename only
-        basename_without_ext = parts[1].rsplit(".", 1)[0]
-        # Check if this is a dotfile (basename would be empty after split)
-        if not basename_without_ext:
-            # This is a dotfile, preserve it
-            return url_path
-        return f"{parts[0]}/{basename_without_ext}"
-    if "." in parts[0]:
-        # Just a filename with extension (no slashes)
-        basename_without_ext = parts[0].rsplit(".", 1)[0]
-        # Check if this is a dotfile (basename would be empty after split)
-        if not basename_without_ext:
-            # This is a dotfile, preserve it
-            return url_path
-        return basename_without_ext
-
-    return url_path
-
-
-@dataclass
+@dataclass(frozen=True)
 class RouteConfig:
-    """Configuration for URL routing segments."""
-
     posts_prefix: str = "posts"
     profiles_prefix: str = "profiles"
-    # ADR-001: Media goes inside posts directory
     media_prefix: str = "posts/media"
     journal_prefix: str = "journal"
     annotations_prefix: str = "posts/annotations"
-    # Defines if dates should be part of the URL structure: /2025-01-01-slug/ vs /slug/
     date_in_url: bool = True
 
-
 class StandardUrlConvention(UrlConvention):
-    """The default, opinionated URL scheme for Egregora sites.
-
-    **Role: Single Source of Truth for Document Persistence**
-
-    This class is the **authoritative source** for how documents are addressed
-    and persisted to the filesystem. All document writes flow through the
-    `canonical_url()` method, which generates deterministic URLs based on
-    document type and metadata.
-
-    **Document Flow:**
-    ```
-    Document → canonical_url() → URL → adapter._url_to_path() → filesystem
-    ```
-
-    **Per-Type URL Rules:**
-    - PROFILE: /profiles/{uuid} (uses full UUID from metadata)
-    - POST: /posts/{slug} (filename includes date prefix: {date}-{slug}.md)
-    - JOURNAL: /journal/{label} (slugified window label)
-    - MEDIA: /media/{type}/{hash}.{ext} (hash-based naming)
-    - ENRICHMENT_MEDIA: /media/{type}/{parent_slug} (paired with media file)
-    - ENRICHMENT_URL: /media/urls/{identifier}/ (uses suggested_path if available)
-
-    **Contract with Adapters:**
-    - Adapters **must** use `canonical_url()` to generate URLs
-    - Adapters **must not** manually construct file paths
-    - URL → path translation is adapter-specific (_url_to_path())
-    - This ensures consistency across all document references
-
-    **Configuration:**
-    - Route prefixes can be customized via `RouteConfig`
-    - Subclass to implement entirely different URL schemes
-    - Version tracked for migration/compatibility
-
-    See: ``docs/architecture/url-conventions.md`` for complete documentation.
-    """
+    name, version = "standard-v1", "1.1.0"
 
     def __init__(self, routes: RouteConfig | None = None) -> None:
         self.routes = routes or RouteConfig()
 
-    @property
-    def name(self) -> str:
-        return "standard-v1"
-
-    @property
-    def version(self) -> str:
-        return "1.0.0"
-
-    def _build_base(self, ctx: UrlContext) -> tuple[str, list[str]]:
+    def _join(self, ctx: UrlContext, *segments: str, trailing_slash: bool = True) -> str:
         base = (ctx.base_url or "").rstrip("/")
         prefix = (ctx.site_prefix or "").strip("/")
-        segments: list[str] = []
-        if prefix:
-            segments.extend(prefix.split("/"))
-        return base, segments
-
-    def _join(self, ctx: UrlContext, *segments: str, trailing_slash: bool = True) -> str:
-        base, prefix_segments = self._build_base(ctx)
-        clean_segments = [seg.strip("/") for seg in segments if seg]
-        path_segments = prefix_segments + clean_segments
-        path = "/".join(path_segments)
-        # Restore leading slash to make paths root-relative when base is empty
+        
+        # Build path segments filtering empty strings
+        all_parts = [p for p in prefix.split("/") if p] + [s.strip("/") for s in segments if s]
+        path = "/".join(all_parts)
+        
         url = f"{base}/{path}" if base else f"/{path}"
-        if trailing_slash:
-            return url.rstrip("/") + "/"
-        return url
+        return url.rstrip("/") + "/" if trailing_slash else url.rstrip("/")
 
-    def canonical_url(self, document: Document, ctx: UrlContext) -> str:
-        """Generate a canonical URL based on the standard convention."""
+    def _get_slug(self, doc: Document) -> str:
+        return slugify(doc.metadata.get("slug", doc.document_id[:8]))
+
+    def canonical_url(self, doc: Document, ctx: UrlContext) -> str:
         handlers = {
-            DocumentType.POST: self._format_post_url,
-            DocumentType.PROFILE: self._format_profile_url,
-            DocumentType.JOURNAL: self._format_journal_url,
-            DocumentType.MEDIA: self._format_media_url,
-            DocumentType.ENRICHMENT_MEDIA: self._format_media_enrichment_url,
-            DocumentType.ENRICHMENT_IMAGE: lambda ctx, doc: self._format_typed_media_enrichment_url(
-                ctx, doc, "images"
-            ),
-            DocumentType.ENRICHMENT_VIDEO: lambda ctx, doc: self._format_typed_media_enrichment_url(
-                ctx, doc, "videos"
-            ),
-            DocumentType.ENRICHMENT_AUDIO: lambda ctx, doc: self._format_typed_media_enrichment_url(
-                ctx, doc, "audio"
-            ),
-            DocumentType.ENRICHMENT_URL: self._format_url_enrichment_url,
-            DocumentType.ANNOTATION: self._format_annotation_url,
+            DocumentType.POST: self._format_post,
+            DocumentType.PROFILE: self._format_profile,
+            DocumentType.JOURNAL: self._format_journal,
+            DocumentType.MEDIA: self._format_media,
+            DocumentType.ENRICHMENT_URL: self._format_url_enrichment,
+            DocumentType.ANNOTATION: self._format_annotation,
+            DocumentType.ENRICHMENT_MEDIA: lambda c, d: self._format_enrichment(c, d),
+            DocumentType.ENRICHMENT_IMAGE: lambda c, d: self._format_enrichment(c, d, "images"),
+            DocumentType.ENRICHMENT_VIDEO: lambda c, d: self._format_enrichment(c, d, "videos"),
+            DocumentType.ENRICHMENT_AUDIO: lambda c, d: self._format_enrichment(c, d, "audio"),
         }
+        return handlers.get(doc.type, lambda c, d: self._join(c, "docs", d.document_id))(ctx, doc)
 
-        handler = handlers.get(document.type)
-        if handler:
-            return handler(ctx, document)
+    def _format_post(self, ctx: UrlContext, doc: Document) -> str:
+        slug = self._get_slug(doc)
+        if self.routes.date_in_url and (date_val := doc.metadata.get("date")):
+            date_str = date_val.date().isoformat() if isinstance(date_val, datetime) else str(date_val)[:10]
+            slug = f"{date_str}-{slug}"
+        return self._join(ctx, self.routes.posts_prefix, slug)
 
-        # Fallback
-        return self._join(ctx, "documents", document.document_id)
+    def _format_profile(self, ctx: UrlContext, doc: Document) -> str:
+        m = doc.metadata
+        uid = m.get("subject") or m.get("uuid") or m.get("author_uuid")
+        slug = slugify(m.get("slug") or m.get("profile_aspect") or doc.document_id[:8])
+        return self._join(ctx, self.routes.profiles_prefix, str(uid), slug) if uid else self._join(ctx, self.routes.posts_prefix, slug)
 
-    def _format_profile_url(self, ctx: UrlContext, document: Document) -> str:
-        subject_uuid = (
-            document.metadata.get("subject")
-            or document.metadata.get("uuid")
-            or document.metadata.get("author_uuid")
-        )
-        slug_value = (
-            document.metadata.get("slug")
-            or document.metadata.get("profile_aspect")
-            or document.document_id[:8]
-        )
-        if not subject_uuid:
-            return self._join(ctx, self.routes.posts_prefix, slugify(str(slug_value)))
-        return self._join(ctx, self.routes.profiles_prefix, str(subject_uuid), slugify(str(slug_value)))
+    def _format_journal(self, ctx: UrlContext, doc: Document) -> str:
+        label = doc.metadata.get("window_label") or doc.metadata.get("slug")
+        return self._join(ctx, self.routes.journal_prefix, slugify(label)) if label else self._join(ctx, self.routes.posts_prefix)
 
-    def _format_journal_url(self, ctx: UrlContext, document: Document) -> str:
-        window_label = document.metadata.get("window_label")
-        if window_label:
-            safe_label = slugify(window_label)
-            return self._join(ctx, self.routes.journal_prefix, safe_label)
-        slug_value = document.metadata.get("slug")
-        if slug_value:
-            safe_label = slugify(slug_value)
-            return self._join(ctx, self.routes.journal_prefix, safe_label)
-        # Fallback: no window_label or slug, unified output goes to posts/
-        return self._join(ctx, self.routes.posts_prefix)
-
-    def _format_url_enrichment_url(self, ctx: UrlContext, document: Document) -> str:
-        if document.suggested_path:
-            # Pure string manipulation - no Path operations
-            clean_path = _remove_url_extension(document.suggested_path.strip("/"))
-            return self._join(ctx, clean_path, trailing_slash=True)
-        url_slug = self._slug_with_identifier(document)
-        return self._join(
-            ctx,
-            self.routes.media_prefix,
-            "urls",
-            url_slug,
-        )
-
-    def _format_annotation_url(self, ctx: UrlContext, document: Document) -> str:
-        slug = document.metadata.get("slug", document.document_id[:8])
-        return self._join(ctx, self.routes.annotations_prefix, slugify(slug))
-
-    def _format_post_url(self, ctx: UrlContext, document: Document) -> str:
-        slug = document.metadata.get("slug", document.document_id[:8])
-        normalized_slug = slugify(slug)
-
-        if self.routes.date_in_url:
-            date_val = document.metadata.get("date", "")
-            if date_val:
-                date_str = _date_to_iso_date(date_val)
-                return self._join(ctx, self.routes.posts_prefix, f"{date_str}-{normalized_slug}")
-
-        return self._join(ctx, self.routes.posts_prefix, normalized_slug)
-
-    def _format_media_url(self, ctx: UrlContext, document: Document) -> str:
-        """Resolve canonical URL for media assets."""
-        if document.suggested_path:
-            clean_path = document.suggested_path.strip("/")
-            return self._join(ctx, clean_path, trailing_slash=False)
-
-        # Legacy/Fallback: Infer subdirectory from extension
+    def _format_media(self, ctx: UrlContext, doc: Document) -> str:
+        if doc.suggested_path:
+            return self._join(ctx, doc.suggested_path, trailing_slash=False)
+        
         from egregora.ops.media import get_media_subfolder
+        fname = doc.metadata.get("filename", doc.document_id)
+        ext = f".{fname.rsplit('.', 1)[-1]}" if "." in fname else ""
+        return self._join(ctx, "media", get_media_subfolder(ext), fname, trailing_slash=False)
 
-        filename = document.metadata.get("filename")
-        path_segment = filename or f"{document.document_id}"
-
-        extension = Path(path_segment).suffix
-        media_subdir = get_media_subfolder(extension)
-
-        # New robust path: media/{subdir}/{filename}
-        return self._join(ctx, "media", media_subdir, path_segment, trailing_slash=False)
-
-    def _format_media_enrichment_url(self, ctx: UrlContext, document: Document) -> str:
-        """Mirror parent media path but swap extension for markdown."""
-        parent_path = None
-        if document.parent and document.parent.suggested_path:
-            parent_path = document.parent.suggested_path
-        elif document.metadata.get("parent_path"):
-            parent_path = document.metadata["parent_path"]
-
+    def _format_enrichment(self, ctx: UrlContext, doc: Document, subfolder: str | None = None) -> str:
+        """Generic handler for all media enrichment types."""
+        # 1. Try parent path logic
+        parent_path = (doc.parent.suggested_path if doc.parent else None) or doc.metadata.get("parent_path")
         if parent_path:
-            # Pure string manipulation - no Path operations
-            enrichment_path = _remove_url_extension(parent_path.strip("/"))
-            # Strip any existing site_prefix or media_prefix to avoid duplication
-            # when _join adds them again
-            site_prefix = (ctx.site_prefix or "").strip("/")
-            media_prefix = self.routes.media_prefix.strip("/")
-            for prefix in [f"{site_prefix}/{media_prefix}", site_prefix, media_prefix]:
-                if prefix and enrichment_path.startswith(prefix + "/"):
-                    enrichment_path = enrichment_path[len(prefix) + 1 :]
+            path = _remove_url_extension(parent_path.strip("/"))
+            # Clean redundancy: remove base/site prefixes from the string if present
+            prefixes = [f"{(ctx.site_prefix or '').strip('/')}/{self.routes.media_prefix.strip('/')}", self.routes.media_prefix.strip("/")]
+            for p in prefixes:
+                if path.startswith(p + "/"):
+                    path = path.removeprefix(p + "/").strip("/")
                     break
-            return self._join(ctx, self.routes.media_prefix, enrichment_path, trailing_slash=True)
+            return self._join(ctx, self.routes.media_prefix, path)
 
-        if document.suggested_path:
-            # Pure string manipulation - no Path operations
-            clean_path = _remove_url_extension(document.suggested_path.strip("/"))
-            return self._join(ctx, clean_path, trailing_slash=True)
+        # 2. Try document's own suggested path
+        if doc.suggested_path:
+            return self._join(ctx, _remove_url_extension(doc.suggested_path), trailing_slash=True)
 
-        fallback = f"{self._slug_with_identifier(document)}"
-        return self._join(ctx, self.routes.media_prefix, fallback, trailing_slash=True)
+        # 3. Fallback to slug-based
+        slug = f"{doc.slug}-{doc.document_id[:8]}" if not doc.slug.endswith(doc.document_id[:8]) else doc.slug
+        parts = [self.routes.media_prefix, subfolder, slug] if subfolder else [self.routes.media_prefix, slug]
+        return self._join(ctx, *parts)
 
-    def _format_typed_media_enrichment_url(self, ctx: UrlContext, document: Document, subfolder: str) -> str:
-        """Format URL for typed media enrichment (images, videos, audio).
+    def _format_url_enrichment(self, ctx: UrlContext, doc: Document) -> str:
+        if doc.suggested_path:
+            return self._join(ctx, _remove_url_extension(doc.suggested_path))
+        slug = f"{doc.slug}-{doc.document_id[:8]}" if not doc.slug.endswith(doc.document_id[:8]) else doc.slug
+        return self._join(ctx, self.routes.media_prefix, "urls", slug)
 
-        Args:
-            ctx: URL context
-            document: The enrichment document
-            subfolder: Target subfolder (e.g., "images", "videos", "audio")
-
-        """
-        slug = self._slug_with_identifier(document)
-        return self._join(ctx, self.routes.media_prefix, subfolder, slug, trailing_slash=True)
-
-    def _slug_with_identifier(self, document: Document) -> str:
-        """Return slug augmented with a deterministic identifier."""
-        slug_value = document.slug
-        suffix = document.document_id[:8]
-        if slug_value.endswith(suffix):
-            return slug_value
-        return f"{slug_value}-{suffix}"
-
-
-def _date_to_iso_date(value: datetime | str) -> str:
-    """Return ISO date (YYYY-MM-DD) from datetime/string."""
-    if isinstance(value, datetime):
-        return value.date().isoformat()
-    text = str(value)
-    if "T" in text:
-        return text.split("T", 1)[0]
-    if " " in text:
-        return text.split(" ", 1)[0]
-    return text
+    def _format_annotation(self, ctx: UrlContext, doc: Document) -> str:
+        return self._join(ctx, self.routes.annotations_prefix, self._get_slug(doc))
 ````
 
 ## File: src/egregora/privacy/__init__.py
@@ -33586,7 +36184,9 @@ def dedupe_api_keys() -> None:
         if google_key == gemini_key:
             logger.debug("Unsetting duplicate GEMINI_API_KEY (identical to GOOGLE_API_KEY)")
         else:
-            logger.info("Both GOOGLE_API_KEY and GEMINI_API_KEY set with different values; using GOOGLE_API_KEY")
+            logger.info(
+                "Both GOOGLE_API_KEY and GEMINI_API_KEY set with different values; using GOOGLE_API_KEY"
+            )
         os.environ.pop("GEMINI_API_KEY", None)
 
 
