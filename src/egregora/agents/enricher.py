@@ -1503,15 +1503,28 @@ class EnrichmentWorker(BaseWorker):
                     self.task_store.mark_failed(task["task_id"], "Failed to stage media file")
                     continue
 
+            # Determine subfolder based on media_type
+            from egregora.ops.media import get_media_subfolder
+
+            extension = Path(filename).suffix
+            media_subdir = get_media_subfolder(extension)
+
+            # Use slug-based filename
+            final_filename = f"{slug_value}{extension}"
+
+            # V3 Architecture: Set suggested_path to ensure correct filesystem placement
+            suggested_path = f"media/{media_subdir}/{final_filename}"
+
             # Create media document with slug-based metadata
             media_metadata = {
                 "original_filename": payload.get("original_filename"),
-                "filename": f"{slug_value}{Path(filename).suffix}",  # Use slug for filename
+                "filename": final_filename,
                 "media_type": media_type,
                 "slug": slug_value,
                 "nav_exclude": True,
                 "hide": ["navigation"],
                 "source_path": source_path,  # Path to staged file for efficient move
+                "media_subdir": media_subdir,
             }
 
             # Persist the actual media file
@@ -1522,6 +1535,7 @@ class EnrichmentWorker(BaseWorker):
                 metadata=media_metadata,
                 id=media_id if media_id else str(uuid.uuid4()),
                 parent_id=None,  # Media files have no parent document
+                suggested_path=suggested_path,
             )
 
             try:
@@ -1537,10 +1551,10 @@ class EnrichmentWorker(BaseWorker):
 
             # Create and persist the enrichment text document (description)
             enrichment_metadata = {
-                "filename": f"{slug_value}{Path(filename).suffix}",  # New slug-based filename
+                "filename": final_filename,
                 "original_filename": payload.get("original_filename"),  # Preserve original
                 "media_type": media_type,
-                "parent_path": payload.get("suggested_path"),
+                "parent_path": suggested_path,
                 "slug": slug_value,
                 "nav_exclude": True,
                 "hide": ["navigation"],

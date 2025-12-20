@@ -19,9 +19,9 @@ class MockBaseModel(Model):
 
     async def request(self, messages, settings, params):
         self.calls += 1
-        # Raise 429 for the first call
+        # Raise UsageLimitExceeded for the first call (simulates 429)
         if self.calls == 1:
-            raise Exception("429 Too Many Requests")
+            raise UsageLimitExceeded("429 Too Many Requests")
         return ModelResponse(
             parts=[TextPart(content=f"Success from {self._name}")],
             usage=RequestUsage(),
