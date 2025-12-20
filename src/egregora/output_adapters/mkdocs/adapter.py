@@ -836,7 +836,13 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             prefix = str(getattr(self._url_convention.routes, "media_prefix", "")).strip("/")
             if prefix:
                 media_prefixes.add(prefix)
-        media_prefixes.update(["media", "posts/media"])
+        # Include all common variations to prevent nested media/media paths
+        media_prefixes.update([
+            "media",
+            "posts/media",
+            "docs/posts/media",
+            "docs/media",
+        ])
 
         # Sort by length descending to match longest prefix first
         for prefix in sorted(media_prefixes, key=len, reverse=True):
