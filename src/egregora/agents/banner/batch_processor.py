@@ -268,6 +268,7 @@ class BannerBatchProcessor:
 
         Returns:
             File extension with leading dot (e.g., ".jpg")
+
         """
         mime_to_ext = {
             "image/jpeg": ".jpg",
