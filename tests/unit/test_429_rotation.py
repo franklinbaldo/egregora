@@ -23,7 +23,9 @@ class MockBaseModel(Model):
         if self.calls == 1:
             raise Exception("429 Too Many Requests")
         return ModelResponse(
-            parts=[TextPart(content=f"Success from {self._name}")], usage=RequestUsage(), model_name=self._name
+            parts=[TextPart(content=f"Success from {self._name}")],
+            usage=RequestUsage(),
+            model_name=self._name,
         )
 
     @property
@@ -99,7 +101,8 @@ async def test_create_fallback_model_count(monkeypatch):
     # We can check the __repr__ or just trust the logic if we can't access internals easily.
     # FallbackModel API changed - just verify it was created with the expected models
     # by checking the repr or that it's a FallbackModel instance
-    from pydantic_ai.models.fallback import FallbackModel as FM
-    assert isinstance(fb_model, FM)
+    from pydantic_ai.models.fallback import FallbackModel
+
+    assert isinstance(fb_model, FallbackModel)
     # The model should have multiple fallback options configured
     # Cannot easily inspect internals, so just verify it's created without error
