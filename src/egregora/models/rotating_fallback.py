@@ -38,6 +38,7 @@ class RotatingFallbackModel(Model):
             models: List of Model instances. Should include variations for
                    different API keys (e.g., gemini-2.5-flash with key1,
                    gemini-2.5-flash with key2, gemini-2.0-flash with key1, etc.)
+
         """
         if not models:
             msg = "At least one model required"
@@ -66,6 +67,7 @@ class RotatingFallbackModel(Model):
 
         Returns:
             The new current index after rotation
+
         """
         with self._lock:
             # Track this 429
@@ -94,10 +96,7 @@ class RotatingFallbackModel(Model):
         """Check if all models have recent 429s (full rotation without success)."""
         with self._lock:
             # If we've hit 429 on every model at least once since last success
-            return all(
-                self._consecutive_429s.get(i, 0) > 0
-                for i in range(len(self._models))
-            )
+            return all(self._consecutive_429s.get(i, 0) > 0 for i in range(len(self._models)))
 
     async def request(
         self,
@@ -117,9 +116,7 @@ class RotatingFallbackModel(Model):
             current_model = self._models[current_idx]
 
             try:
-                response = await current_model.request(
-                    messages, model_settings, model_request_parameters
-                )
+                response = await current_model.request(messages, model_settings, model_request_parameters)
                 # Success - reset 429 tracking for this model
                 self._reset_429_count(current_idx)
                 return response
@@ -133,7 +130,7 @@ class RotatingFallbackModel(Model):
 
                     # If all models exhausted, break to raise
                     if self._all_exhausted():
-                        logger.error(
+                        logger.exception(
                             "All %d models exhausted after 429s",
                             len(self._models),
                         )
@@ -153,7 +150,7 @@ class RotatingFallbackModel(Model):
                     self._rotate_on_429(current_idx)
 
                     if self._all_exhausted():
-                        logger.error("All models exhausted (httpx 429)")
+                        logger.exception("All models exhausted (httpx 429)")
                         break
                     continue
                 raise
@@ -167,7 +164,7 @@ class RotatingFallbackModel(Model):
                     self._rotate_on_429(current_idx)
 
                     if self._all_exhausted():
-                        logger.error("All models exhausted (generic 429)")
+                        logger.exception("All models exhausted (generic 429)")
                         break
                     continue
 

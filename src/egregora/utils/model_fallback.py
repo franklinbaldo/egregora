@@ -7,10 +7,7 @@ import os
 import time
 
 import httpx
-from pydantic_ai.exceptions import ModelAPIError, UsageLimitExceeded
 from pydantic_ai.models import Model
-from pydantic_ai.models.fallback import FallbackModel
-from pydantic_core import ValidationError
 
 from egregora.models import GoogleBatchModel
 from egregora.utils.env import get_google_api_key, get_google_api_keys
@@ -252,8 +249,8 @@ def create_fallback_model(
         # Should not happen given logic above
         raise ValueError("Failed to create primary model")
 
-    primary_instance = primary_variations[0]
-    remaining_primaries = primary_variations[1:]
+    primary_variations[0]
+    primary_variations[1:]
 
     # 2. Prepare Fallback Variations
     # For each fallback model, we try all keys

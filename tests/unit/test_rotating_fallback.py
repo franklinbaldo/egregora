@@ -6,9 +6,8 @@ Verifies that API key/model rotation on 429 errors happens immediately
 
 from __future__ import annotations
 
-import asyncio
 import time
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from pydantic_ai.exceptions import ModelHTTPError

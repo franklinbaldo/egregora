@@ -194,7 +194,6 @@ class MkDocsSiteScaffolder:
             media_subdir = media_dir / subdir
             media_subdir.mkdir(exist_ok=True)
 
-
     def _create_template_files(
         self, site_paths: MkDocsPaths, env: Environment, context: dict[str, Any]
     ) -> None:
