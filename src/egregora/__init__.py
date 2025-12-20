@@ -6,7 +6,7 @@ from egregora.utils.env import dedupe_api_keys
 
 dedupe_api_keys()
 
-from egregora.orchestration.pipelines.write import process_whatsapp_export
+from egregora.orchestration.pipelines.write import process_whatsapp_export  # noqa: E402
 
 __version__ = "2.0.0"
 __all__ = [
