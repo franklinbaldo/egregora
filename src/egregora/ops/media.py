@@ -69,6 +69,15 @@ MEDIA_EXTENSIONS = {
 WA_MEDIA_PATTERN = re.compile(r"\b((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b")
 URL_PATTERN = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+')
 
+# Optimized Patterns for find_media_references
+_MARKERS_REGEX = "|".join(re.escape(m) for m in ATTACHMENT_MARKERS)
+ATTACHMENT_MARKERS_PATTERN = re.compile(
+    rf"([\w\-\.]+\.\w+)\s*(?:{_MARKERS_REGEX})", re.IGNORECASE
+)
+UNICODE_MEDIA_PATTERN = re.compile(
+    r"\u200e((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)", re.IGNORECASE
+)
+
 # Patterns for Markdown processing
 MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
 MARKDOWN_LINK_PATTERN = re.compile(r"(?<!!)\[([^\]]+)\]\(([^)]+)\)")
@@ -123,21 +132,14 @@ def find_media_references(text: str) -> list[str]:
         return []
     media_files = []
 
-    # Pattern 1: Attachment markers (localized strings)
-    for marker in ATTACHMENT_MARKERS:
-        pattern = r"([\w\-\.]+\.\w+)\s*" + re.escape(marker)
-        matches = re.findall(pattern, text, re.IGNORECASE)
-        media_files.extend(matches)
+    # Pattern 1: Attachment markers (localized strings) - O(1) regex pass instead of O(N) loop
+    media_files.extend(ATTACHMENT_MARKERS_PATTERN.findall(text))
 
     # Pattern 2: WhatsApp filename pattern (IMG-/VID-/AUD-/etc.)
-    wa_matches = WA_MEDIA_PATTERN.findall(text)
-    media_files.extend(wa_matches)
+    media_files.extend(WA_MEDIA_PATTERN.findall(text))
 
     # Pattern 3: Unicode marker (U+200E LEFT-TO-RIGHT MARK) followed by media filename
-    # This is the most consistent WhatsApp marker, works across all localizations
-    unicode_pattern = r"\u200e((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)"
-    unicode_matches = re.findall(unicode_pattern, text, re.IGNORECASE)
-    media_files.extend(unicode_matches)
+    media_files.extend(UNICODE_MEDIA_PATTERN.findall(text))
 
     return list(set(media_files))
 
