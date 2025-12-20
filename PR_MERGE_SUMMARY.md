@@ -7,7 +7,7 @@ Reviewed all 6 open PRs and merged 2 critical fixes into `claude/merge-open-prs-
 
 ---
 
-## ✅ MERGED PRs (2)
+## ✅ MERGED PRs (4)
 
 ### PR #1386 - [CRITICAL] Fix SQL Injection in DuckDB PRAGMA Statements
 - **Status**: ✅ MERGED
@@ -38,9 +38,27 @@ Reviewed all 6 open PRs and merged 2 critical fixes into `claude/merge-open-prs-
   - `.jules/bolt.md`
 - **Why Merged**: Significant performance improvement with no functional changes. Main branch still uses slower loop-based approach.
 
+### PR #1382 - Fix RecursionError in sqlglot during blog generation
+- **Status**: ✅ MERGED (Already in Main)
+- **Branch**: `fix/sqlglot-recursion-error-14388812453291816974`
+- **Changes**:
+  - Minor import statement fix
+- **Files Modified**:
+  - `src/egregora/ops/media.py`
+- **Why Merged**: Already in main (commit `d0821db`), merged to close the PR.
+
+### PR #1380 - Rename prompts directory and migrate schedule to workflow
+- **Status**: ✅ MERGED (Already in Main)
+- **Branch**: `jules/rename-prompts-to-personas-18379321455174470981`
+- **Changes**:
+  - Resolved workflow conflict by keeping main's local script approach
+- **Files Modified**:
+  - `.github/workflows/jules_scheduler.yml`
+- **Why Merged**: Already in main (commit `3f6fac5`), merged to close the PR.
+
 ---
 
-## ❌ SKIPPED PRs (4)
+## ❌ SKIPPED PRs (2)
 
 ### PR #1384 - [CRITICAL] Fix mkdocs.yml paths for root execution
 - **Status**: ❌ REJECTED (Regression)
@@ -51,18 +69,6 @@ Reviewed all 6 open PRs and merged 2 critical fixes into `claude/merge-open-prs-
   - The current setup places `mkdocs.yml` at `.egregora/mkdocs.yml`, requiring paths like `../docs`
   - Hardcoded `docs` would look for `.egregora/docs` which doesn't exist
 - **Verdict**: Regression, not a fix. Would break CI and local development.
-
-### PR #1382 - Fix RecursionError in sqlglot during blog generation
-- **Status**: ⏭️ ALREADY IN MAIN
-- **Branch**: `fix/sqlglot-recursion-error-14388812453291816974`
-- **Reason**: Main branch already has identical fix in commit `d0821db`
-- **Commit Message**: "fix(media): resolve sqlglot RecursionError with UDF"
-
-### PR #1380 - Rename prompts directory and migrate schedule to workflow
-- **Status**: ⏭️ ALREADY IN MAIN
-- **Branch**: `jules/rename-prompts-to-personas-18379321455174470981`
-- **Reason**: Main branch already has this change in commit `3f6fac5`
-- **Commit Message**: "feat: rename prompts dir to personas and move schedule to workflow"
 
 ### PR #1383 - Initial UX Evaluation and Task Creation
 - **Status**: ❌ REJECTED (Bad Practice)
@@ -79,10 +85,12 @@ Reviewed all 6 open PRs and merged 2 critical fixes into `claude/merge-open-prs-
 ## Summary Statistics
 
 - **Total PRs Reviewed**: 6
-- **PRs Merged**: 2 (33%)
-- **PRs Skipped - Already in Main**: 2 (33%)
-- **PRs Rejected - Regression**: 1 (17%)
-- **PRs Rejected - Bad Practice**: 1 (17%)
+- **PRs Merged**: 4 (67%)
+  - New features/fixes: 2
+  - Already in main (merged to close): 2
+- **PRs Rejected**: 2 (33%)
+  - Regression: 1
+  - Bad practice: 1
 
 ---
 
@@ -90,13 +98,15 @@ Reviewed all 6 open PRs and merged 2 critical fixes into `claude/merge-open-prs-
 
 The following changes are now in `claude/merge-open-prs-GBV13`:
 
-1. **Security**: SQL injection fix in DuckDB (PR #1386)
-2. **Performance**: Media regex optimization with 7.8x speedup (PR #1385)
+1. **Security**: SQL injection fix in DuckDB (PR #1386) ✨ NEW
+2. **Performance**: Media regex optimization with 7.8x speedup (PR #1385) ✨ NEW
+3. **Cleanup**: RecursionError fix (PR #1382) - Already in main, merged to close
+4. **Cleanup**: Personas rename (PR #1380) - Already in main, merged to close
 
 All changes have been carefully reviewed to ensure:
 - ✅ No regressions introduced
 - ✅ No conflicts with existing main branch improvements
-- ✅ Only genuine improvements that aren't already in main
+- ✅ PRs already in main merged for proper closure
 - ✅ No binary files or generated content committed
 
 ---
