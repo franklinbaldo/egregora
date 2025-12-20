@@ -25,7 +25,6 @@ from ibis import udf
 
 from egregora.data_primitives.document import Document, DocumentType, MediaAsset
 from egregora.utils.paths import slugify
-from ibis import udf
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -74,12 +73,8 @@ URL_PATTERN = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+')
 
 # Optimized Patterns for find_media_references
 _MARKERS_REGEX = "|".join(re.escape(m) for m in ATTACHMENT_MARKERS)
-ATTACHMENT_MARKERS_PATTERN = re.compile(
-    rf"([\w\-\.]+\.\w+)\s*(?:{_MARKERS_REGEX})", re.IGNORECASE
-)
-UNICODE_MEDIA_PATTERN = re.compile(
-    r"\u200e((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)", re.IGNORECASE
-)
+ATTACHMENT_MARKERS_PATTERN = re.compile(rf"([\w\-\.]+\.\w+)\s*(?:{_MARKERS_REGEX})", re.IGNORECASE)
+UNICODE_MEDIA_PATTERN = re.compile(r"\u200e((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)", re.IGNORECASE)
 
 # Patterns for Markdown processing
 MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
