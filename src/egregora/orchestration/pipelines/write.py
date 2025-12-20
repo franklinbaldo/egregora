@@ -90,7 +90,7 @@ __all__ = ["WhatsAppProcessOptions", "WriteCommandOptions", "process_whatsapp_ex
 MIN_WINDOWS_WARNING_THRESHOLD = 5
 
 
-def run_async_safely(coro):
+def run_async_safely(coro: Any) -> Any:
     """Run an async coroutine safely, handling nested event loops.
 
     If an event loop is already running (e.g., in Jupyter or nested calls),
