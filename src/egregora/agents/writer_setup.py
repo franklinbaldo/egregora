@@ -42,31 +42,19 @@ def configure_writer_capabilities(
     return capabilities
 
 
-async def create_writer_model(
+def create_writer_model(
     config: EgregoraConfig,
     context: WriterDeps,
     prompt: str,
     test_model: Any | None = None,
 ) -> Any:
-    """Create and validate a model for writing.
-
-    This ensures we have a valid model and that the prompt fits
-    its context window before we start the actual agent run.
-    """
-    if test_model:
+    """Create or configure the writer model."""
+    if test_model is not None:
         return test_model
 
     model = create_fallback_model(config.models.writer, use_google_batch=False)
-
     # Validate prompt fits (only check for real models)
-    await validate_prompt_fits(
-        prompt,
-        config.models.writer,
-        config,
-        context.window_label,
-        model_instance=model,
-    )
-
+    validate_prompt_fits(prompt, config.models.writer, config, context.window_label)
     return model
 
 

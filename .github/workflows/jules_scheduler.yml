@@ -36,6 +36,7 @@ jobs:
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: .claude/skills/jules-api
         run: |
           args=(tick)
 
@@ -51,5 +52,5 @@ jobs:
             fi
           fi
 
-          # Pinning to specific commit SHA 4566f12 (2025-12-17) to prevent supply chain attacks
-          uvx --from git+https://github.com/franklinbaldo/jules_scheduler@4566f12c88aabee985865b94bbdbc614d87c82fb jules-scheduler "${args[@]}"
+          # Using local script that uses existing JulesClient skill
+          uv run --with requests --with python-frontmatter --with jinja2 python scripts/run_scheduler.py "${args[@]}"
