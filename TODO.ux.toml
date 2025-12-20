@@ -17,7 +17,7 @@ description = "Curator evaluates blogs and updates TODO. Forge implements items 
 id = "find-templates"
 title = "Find MkDocs template location in src/"
 description = "Document exact template location in vision.md (DO THIS FIRST)"
-status = "pending"
+status = "review"
 category = "infrastructure"
 assignee = "forge"
 
