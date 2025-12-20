@@ -61,6 +61,7 @@ tests/
       __init__.py
     pipeline/
       __init__.py
+      test_slug_filenames.py
       test_write_pipeline_e2e.py
     __init__.py
     conftest.py
@@ -162,6 +163,10 @@ tests/
       test_frontmatter_utils.py
       test_network.py
     __init__.py
+    test_429_rotation.py
+    test_media_slugs.py
+    test_media_url_conventions.py
+    test_model_guards.py
     test_security_xss.py
     test_taxonomy.py
   utils/
@@ -2028,6 +2033,104 @@ MOCK_METADATA = {
 ## File: tests/e2e/pipeline/__init__.py
 ````python
 
+````
+
+## File: tests/e2e/pipeline/test_slug_filenames.py
+````python
+import pytest
+from pathlib import Path
+import json
+from unittest.mock import MagicMock
+import uuid
+
+from egregora.orchestration.pipelines.write import WhatsAppProcessOptions, process_whatsapp_export
+from egregora.output_adapters.mkdocs import MkDocsAdapter
+from egregora.output_adapters.mkdocs.paths import derive_mkdocs_paths
+from egregora.agents.enricher import EnrichmentWorker
+
+@pytest.fixture
+def pipeline_setup_minimal(whatsapp_fixture):
+    """Bundle common pipeline fixtures to reduce test parameters."""
+    return {
+        "whatsapp_fixture": whatsapp_fixture,
+        "gemini_api_key": "test-key",
+    }
+
+@pytest.mark.e2e
+def test_media_filename_uses_llm_slug(pipeline_setup_minimal, tmp_path, mocker):
+    """Verify that media files are saved using the slug provided by the LLM."""
+    
+    # Setup output directory
+    site_root = tmp_path / "site"
+    site_root.mkdir()
+
+    # Scaffolding
+    adapter = MkDocsAdapter()
+    adapter.scaffold_site(site_root, site_name="Test Slug Site")
+
+    # Mock parameters
+    target_slug = "custom-slug-from-llm"
+    
+    # We will mock the method that performs the actual LLM call and result parsing
+    # EnrichmentWorker._enrich_media_batch is the main entry point for media enrichment
+    orig_method = EnrichmentWorker._enrich_media_batch
+    
+    def mock_enrich_media_batch(self, tasks):
+        # Instead of calling LLM, we manually construct the results
+        # This bypasses the need to mock the genai client
+        from egregora.agents.enricher import _normalize_slug
+        
+        results_count = 0
+        for task in tasks:
+            # Prepare a mock payload that looks like it came from _parse_media_result
+            payload = task["_parsed_payload"]
+            slug_value = _normalize_slug(target_slug, payload["filename"])
+            markdown = "# Mocked Enrichment\n\nContent goes here."
+            
+            # Use the actual _persist_media_results logic
+            # This is what we are REALLY testing (how it uses slug_value to name files)
+            self._persist_media_results([(payload, slug_value, markdown)], task)
+            results_count += 1
+            
+        return results_count
+
+    mocker.patch.object(EnrichmentWorker, "_enrich_media_batch", autospec=True, side_effect=mock_enrich_media_batch)
+
+    options = WhatsAppProcessOptions(
+        output_dir=site_root,
+        timezone=pipeline_setup_minimal["whatsapp_fixture"].timezone,
+        gemini_api_key="fake-key",
+        enable_enrichment=True,
+    )
+
+    # Run pipeline
+    process_whatsapp_export(
+        pipeline_setup_minimal["whatsapp_fixture"].zip_path,
+        options=options,
+    )
+
+    # Resolve paths
+    site_paths = derive_mkdocs_paths(site_root)
+    
+    # Check all files recursively
+    all_files = list(site_root.rglob("*"))
+    print(f"All generated files: {[f.relative_to(site_root) for f in all_files]}")
+
+    expected_file = None
+    for f in all_files:
+        if f.stem == target_slug:
+            expected_file = f
+            break
+    
+    assert expected_file is not None, f"A file with stem '{target_slug}' should exist in the output"
+    assert expected_file.suffix == ".jpg", f"The file should have the original extension .jpg, got {expected_file.suffix}"
+    
+    # Verify it's in the media directory
+    assert "media" in expected_file.parts
+    # It should also be in the 'images' subdirectory based on .jpg
+    assert "images" in expected_file.parts
+
+    print(f"SUCCESS: Found slug-based media file at {expected_file.relative_to(site_root)}")
 ````
 
 ## File: tests/e2e/pipeline/test_write_pipeline_e2e.py
@@ -8321,6 +8424,317 @@ def test_validate_public_url_resolve_failure(monkeypatch: pytest.MonkeyPatch) ->
 ## File: tests/unit/__init__.py
 ````python
 """Unit tests for Egregora."""
+````
+
+## File: tests/unit/test_429_rotation.py
+````python
+import pytest
+import time
+import os
+from unittest.mock import MagicMock, AsyncMock
+from pydantic_ai.models import Model, ModelResponse, ModelRequestParameters, ModelSettings
+from pydantic_ai.messages import ModelMessage, TextPart
+from pydantic_ai.exceptions import UsageLimitExceeded
+from pydantic_ai.usage import RequestUsage
+
+from egregora.utils.model_fallback import create_fallback_model
+from egregora.models.rate_limited import RateLimitedModel
+from egregora.utils.rate_limit import init_rate_limiter
+
+class MockBaseModel(Model):
+    def __init__(self, name):
+        self._name = name
+        self.calls = 0
+        super().__init__(settings=None, profile=None)
+
+    async def request(self, messages, settings, params):
+        self.calls += 1
+        # Raise 429 for the first call
+        if self.calls == 1:
+            raise Exception("429 Too Many Requests")
+        return ModelResponse(parts=[TextPart(text=f"Success from {self._name}")], usage=RequestUsage(), model_name=self._name)
+
+    @property
+    def model_name(self) -> str:
+        return self._name
+
+    @property
+    def system(self) -> str:
+        return "mock"
+
+@pytest.mark.asyncio
+async def test_fast_rotation_on_429(monkeypatch):
+    """
+    Verify that encountering a 429 triggers fast rotation to the next key/model
+    without significant delay.
+    """
+    # Initialize rate limiter with high limits
+    init_rate_limiter(requests_per_second=100.0, max_concurrency=10)
+    
+    m1 = MockBaseModel("m1")
+    rlm1 = RateLimitedModel(m1)
+    
+    m2 = MockBaseModel("m2")
+    rlm2 = RateLimitedModel(m2)
+    
+    # m3 will succeed on first call
+    class SuccessModel(MockBaseModel):
+        async def request(self, messages, settings, params):
+            self.calls += 1
+            return ModelResponse(parts=[TextPart(text=f"Success from {self._name}")], usage=RequestUsage(), model_name=self._name)
+            
+    m3 = SuccessModel("m3")
+    rlm3 = RateLimitedModel(m3)
+    
+    from pydantic_ai.models.fallback import FallbackModel
+    # FallbackModel should try rlm1 -> rlm2 -> rlm3
+    # rlm1 fails (429), rlm2 fails (429), rlm3 succeeds
+    fallback_model = FallbackModel(rlm1, rlm2, rlm3, fallback_on=(UsageLimitExceeded,))
+    
+    start_time = time.time()
+    response = await fallback_model.request([], None, ModelRequestParameters())
+    end_time = time.time()
+    
+    assert m1.calls == 1
+    assert m2.calls == 1
+    assert m3.calls == 1
+    assert "Success from m3" in response.parts[0].text
+    
+    # Elapsed time should be very small
+    assert end_time - start_time < 0.5
+
+@pytest.mark.asyncio
+async def test_create_fallback_model_count(monkeypatch):
+    """
+    Verify that create_fallback_model creates the expected number of combinations.
+    """
+    monkeypatch.setenv("GOOGLE_API_KEY", "key1")
+    monkeypatch.setenv("GEMINI_API_KEYS", "key1,key2,key3")
+    
+    fb_model = create_fallback_model("gemini-1.5-flash", ["gemini-1.5-pro"], include_openrouter=False)
+    
+    # We should have (1 primary + 1 fallback) * 3 keys = 6 variations
+    # FallbackModel stores them in an internal list.
+    # We have one primary + 5 fallbacks
+    all_models = [fb_model] # Not quite right, FallbackModel itself isn't a list
+    
+    # We can check the __repr__ or just trust the logic if we can't access internals easily.
+    # Actually, we can check how many models are in the '_fallback_models' tuple.
+    assert len(fb_model._fallback_models) == 5 # 1 primary(rest of keys) + 2 * 2 (fallbacks)?
+    # Wait:
+    # Primary-Key1 -> fb_model._primary_model
+    # Primary-Key2, Primary-Key3 -> fb_model._fallback_models[0:2]
+    # Fallback-Key1, Fallback-Key2, Fallback-Key3 -> fb_model._fallback_models[2:5]
+    # Total = 1 + 5 = 6. Correct.
+````
+
+## File: tests/unit/test_media_slugs.py
+````python
+import pytest
+from pathlib import Path
+from unittest.mock import MagicMock
+from types import SimpleNamespace
+import uuid
+
+from egregora.agents.enricher import EnrichmentWorker, EnrichmentRuntimeContext
+from egregora.data_primitives.document import Document, DocumentType
+
+@pytest.fixture
+def mock_context():
+    # EnrichmentWorker.__init__ expects self.ctx.input_path
+    ctx = MagicMock(spec=EnrichmentRuntimeContext)
+    ctx.output_format = MagicMock()
+    ctx.cache = MagicMock()
+    ctx.library = None
+    ctx.input_path = None # Set to None to skip ZIP initialization in __init__
+    return ctx
+
+@pytest.fixture
+def worker(mock_context):
+    return EnrichmentWorker(ctx=mock_context)
+
+def test_persist_media_results_uses_slug_for_filename(worker, mock_context, mocker):
+    """
+    Test that _persist_media_results correctly uses the slug 
+    provided by the LLM to construct the final filename and suggested_path.
+    """
+    # Setup test data
+    payload = {
+        "filename": "original_image.jpg",
+        "original_filename": "original_image.jpg",
+        "media_type": "image",
+        "message_metadata": {"id": "msg-1"},
+    }
+    slug_value = "cool-new-slug"
+    markdown = "# Enriched Content"
+    
+    # Mock _parse_media_result to return our test data
+    mocker.patch.object(worker, "_parse_media_result", return_value=(payload, slug_value, markdown))
+    # Mock _stage_file to avoid real IO
+    mocker.patch.object(worker, "_stage_file", return_value=Path("/tmp/fake.jpg"))
+    # Mock task_store
+    mock_context.task_store = MagicMock()
+    # Mock storage for SQL update
+    mock_context.storage = MagicMock()
+    
+    # Result object with 'tag' attribute
+    res = SimpleNamespace(tag="tag-1", error=None)
+    
+    # Task metadata for persistence tracking
+    task = {
+        "task_id": "task-123",
+        "payload": payload,
+        "_staged_path": "/tmp/fake.jpg",
+    }
+    task_map = {"tag-1": task}
+    
+    # We call the internal method
+    worker._persist_media_results([res], task_map)
+    
+    # Verify persistence call
+    assert mock_context.output_format.persist.called
+    
+    # Inspect the document passed to persist
+    persist_calls = mock_context.output_format.persist.call_args_list
+    
+    # We expect two calls: one for the media file itself, one for the enrichment description
+    assert len(persist_calls) >= 2
+    
+    # Find the media document (type MEDIA)
+    media_doc = next(call.args[0] for call in persist_calls if call.args[0].type == DocumentType.MEDIA)
+    
+    # ASSERTIONS (This should fail initially on suggested_path and subdirectory logic)
+    # 1. Filename in metadata should be slug-based
+    assert media_doc.metadata["filename"] == "cool-new-slug.jpg"
+    
+    # 2. suggested_path should include the subfolder and slug-based name
+    # DESIRED: media/images/cool-new-slug.jpg
+    # CURRENT: None (or some default if not set)
+    assert media_doc.suggested_path == "media/images/cool-new-slug.jpg"
+    
+    # 3. Verify enrichment doc also has correct references
+    enrich_doc = next(call.args[0] for call in persist_calls if call.args[0].type == DocumentType.ENRICHMENT_IMAGE)
+    assert enrich_doc.metadata["filename"] == "cool-new-slug.jpg"
+    
+    # DESIRED: parent_path should point to the media file's suggested path
+    assert enrich_doc.metadata.get("parent_path") == "media/images/cool-new-slug.jpg"
+    
+    # 4. Verify subdirectory logic
+    assert media_doc.metadata.get("media_subdir") == "images"
+````
+
+## File: tests/unit/test_media_url_conventions.py
+````python
+import pytest
+from pathlib import Path
+
+from egregora.output_adapters.conventions import StandardUrlConvention
+from egregora.data_primitives.protocols import UrlContext
+from egregora.data_primitives.document import Document, DocumentType
+
+@pytest.fixture
+def convention():
+    return StandardUrlConvention()
+
+@pytest.fixture
+def url_context():
+    return UrlContext(base_url="", site_prefix="")
+
+def test_format_media_url_with_suggested_path(convention, url_context):
+    """
+    Verify that _format_media_url respects the suggested_path if present,
+    correctly handling the media subdirectory.
+    """
+    doc = Document(
+        content=b"",
+        type=DocumentType.MEDIA,
+        id="test-id",
+        metadata={
+            "filename": "slug-name.jpg",
+            "media_type": "image",
+        },
+        suggested_path="media/images/slug-name.jpg"
+    )
+    
+    # The canonical URL should be 'media/images/slug-name.jpg'
+    url = convention.canonical_url(doc, url_context)
+    
+    # ASSERTION (Desired behavior)
+    assert url == "/media/images/slug-name.jpg"
+
+def test_format_media_url_infers_subdirectory_from_extension(convention, url_context):
+    """
+    Verify that if suggested_path is missing, the convention can still 
+    infer the correct subdirectory from the filename extension.
+    """
+    doc = Document(
+        content=b"",
+        type=DocumentType.MEDIA,
+        id="test-id",
+        metadata={
+            "filename": "some-image.png",
+            "media_type": "image",
+        }
+    )
+    
+    url = convention.canonical_url(doc, url_context)
+    
+    # ASSERTION (Desired behavior: robustness)
+    assert url == "/media/images/some-image.png"
+````
+
+## File: tests/unit/test_model_guards.py
+````python
+import pytest
+from egregora.config.settings import DEFAULT_MODEL, PipelineSettings, MAX_PROMPT_TOKENS_WARNING_THRESHOLD
+from egregora.constants import KNOWN_MODEL_LIMITS
+from egregora.utils.model_fallback import GOOGLE_FALLBACK_MODELS
+
+def test_default_model_is_modern():
+    """Ensure the default model is at least a 1.5-flash or 2.0 version."""
+    modern_keywords = ["flash-latest", "2.0-flash", "1.5-flash", "1.5-pro", "2.0-pro"]
+    assert any(kw in DEFAULT_MODEL for kw in modern_keywords), \
+        f"DEFAULT_MODEL '{DEFAULT_MODEL}' seems potentially outdated or low-capacity. " \
+        "Please use a flash-latest or 2.0+ model to ensure enough context for blog generation."
+
+def test_known_model_limits_not_downgraded():
+    """Ensure we don't accidentally lower the published limits of key models."""
+    # We must maintain at least 1M tokens for the flagship models to avoid splitting failures
+    MIN_STABLE_LIMIT = 1_000_000
+    
+    important_models = [
+        "gemini-flash-latest",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-pro-latest",
+        "gemini-1.5-pro",
+    ]
+    
+    for model in important_models:
+        limit = KNOWN_MODEL_LIMITS.get(model)
+        assert limit is not None, f"Model {model} missing from KNOWN_MODEL_LIMITS"
+        assert limit >= MIN_STABLE_LIMIT, \
+            f"Context limit for {model} ({limit}) is below the required 1M stability threshold."
+
+def test_pipeline_defaults_retain_safe_capacity():
+    """Ensure default pipeline settings have a safe conservative cap."""
+    settings = PipelineSettings()
+    
+    # max_prompt_tokens should be at least 100k for the conservative strategy
+    assert settings.max_prompt_tokens >= 100_000, \
+        f"max_prompt_tokens default ({settings.max_prompt_tokens}) is too low. Should be at least 100k."
+        
+    assert MAX_PROMPT_TOKENS_WARNING_THRESHOLD >= 100_000, \
+        "MAX_PROMPT_TOKENS_WARNING_THRESHOLD should remain at 100k to match our conservative strategy."
+
+def test_fallback_chain_is_robust():
+    """Ensure fallback models are all high-capacity Gemini models."""
+    modern_keywords = ["flash-latest", "2.0-flash", "1.5-flash", "pro-latest", "1.5-pro", "2.0-pro"]
+    
+    for model in GOOGLE_FALLBACK_MODELS:
+        assert any(kw in model for kw in modern_keywords), \
+            f"Fallback model '{model}' in GOOGLE_FALLBACK_MODELS is potentially low-capacity. " \
+            "Downgrading to smaller models (like gemini-pro 1.0) will cause generation failures for large windows."
 ````
 
 ## File: tests/unit/test_security_xss.py

@@ -105,7 +105,6 @@ src/
       commands.py
       enricher.py
       formatting.py
-      model_limits.py
       models.py
       registry.py
       taxonomy.py
@@ -6537,7 +6536,7 @@ from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
-from egregora.utils.model_fallback import create_fallback_model
+from egregora.utils.model_fallback import create_fallback_model, sanitize_model_name
 from egregora.utils.paths import slugify
 from egregora.utils.zip import validate_zip_contents
 
@@ -6800,8 +6799,31 @@ def _enqueue_url_enrichments(
         return 0
 
     candidates = _extract_url_candidates(messages_table, max_enrichments)
+
+    # Pre-check database for already enriched URLs to avoid redundant tasks
+    urls_to_check = [c[0] for c in candidates]
+    existing_urls = set()
+    if urls_to_check:
+        try:
+            # Check for existing URL enrichments in the messages table
+            # We look for rows with media_type='URL' and matching media_url
+            db_existing = (
+                messages_table.filter(
+                    (messages_table.media_type == "URL") & (messages_table.media_url.isin(urls_to_check))
+                )
+                .select("media_url")
+                .execute()
+            )
+            existing_urls = set(db_existing["media_url"].tolist())
+        except Exception:
+            logger.warning("Failed to check database for existing URL enrichments; falling back to cache only.")
+
     scheduled = 0
     for url, metadata in candidates:
+        # Skip if already in database OR disk cache
+        if url in existing_urls:
+            continue
+
         cache_key = make_enrichment_cache_key(kind="url", identifier=url)
         if context.cache.load(cache_key) is not None:
             continue
@@ -6835,8 +6857,31 @@ def _enqueue_media_enrichments(
         return 0
 
     candidates = _extract_media_candidates(messages_table, config.media_mapping, config.max_enrichments)
+
+    # Pre-check database for already enriched media to avoid redundant tasks
+    media_ids_to_check = [c[1].document_id for c in candidates]
+    existing_media = set()
+    if media_ids_to_check:
+        try:
+            # Check for existing Media enrichments in the messages table
+            # We look for rows with media_type='Media' and matching media_url (which stores the media_id)
+            db_existing = (
+                messages_table.filter(
+                    (messages_table.media_type == "Media") & (messages_table.media_url.isin(media_ids_to_check))
+                )
+                .select("media_url")
+                .execute()
+            )
+            existing_media = set(db_existing["media_url"].tolist())
+        except Exception:
+            logger.warning("Failed to check database for existing Media enrichments; falling back to cache only.")
+
     scheduled = 0
     for ref, media_doc, metadata in candidates:
+        # Skip if already in database OR disk cache
+        if media_doc.document_id in existing_media:
+            continue
+
         cache_key = make_enrichment_cache_key(kind="media", identifier=media_doc.document_id)
         if context.cache.load(cache_key) is not None:
             continue
@@ -6921,8 +6966,11 @@ def _extract_url_candidates(messages_table: Table, max_enrichments: int) -> list
     url_metadata: dict[str, dict[str, Any]] = {}
     discovered_count = 0
 
+    # Filter out enrichment records to only scan original messages
+    original_messages = messages_table.filter(messages_table.media_type.isnull())
+
     for batch in _iter_table_batches(
-        messages_table.select(
+        original_messages.select(
             "ts",
             "text",
             "event_id",
@@ -6971,8 +7019,11 @@ def _extract_media_candidates(
     # until we can refactor the return type.
     document_lookup: dict[str, Document] = {}
 
+    # Filter out enrichment records to only scan original messages
+    original_messages = messages_table.filter(messages_table.media_type.isnull())
+
     for batch in _iter_table_batches(
-        messages_table.select(
+        original_messages.select(
             "ts",
             "text",
             "event_id",
@@ -7376,7 +7427,7 @@ class EnrichmentWorker(BaseWorker):
         if rotation_enabled:
             from egregora.models.model_key_rotator import ModelKeyRotator
 
-            rotator = ModelKeyRotator(models=rotation_models)
+            rotator = ModelKeyRotator(models=[sanitize_model_name(m) for m in rotation_models] if rotation_models else None)
 
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 client = genai.Client(api_key=api_key)
@@ -7390,7 +7441,7 @@ class EnrichmentWorker(BaseWorker):
             response_text = rotator.call_with_rotation(call_with_model_and_key)
         else:
             # No rotation - use configured model and API key
-            model_name = self.ctx.config.models.enricher
+            model_name = sanitize_model_name(self.ctx.config.models.enricher)
             api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
             client = genai.Client(api_key=api_key)
             response = client.models.generate_content(
@@ -7567,7 +7618,7 @@ class EnrichmentWorker(BaseWorker):
                                 ]
                             }
                         ],
-                        "config": {"response_modalities": ["TEXT"]},
+                        "config": {},
                     }
                 )
                 task_map[tag] = task
@@ -7692,7 +7743,7 @@ class EnrichmentWorker(BaseWorker):
         self, requests: list[dict[str, Any]], task_map: dict[str, dict[str, Any]]
     ) -> list[Any]:
         """Execute media enrichments based on configured strategy."""
-        model_name = self.ctx.config.models.enricher_vision
+        model_name = sanitize_model_name(self.ctx.config.models.enricher_vision)
         api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         if not api_key:
             msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for media enrichment"
@@ -7782,12 +7833,12 @@ class EnrichmentWorker(BaseWorker):
         rotation_models = getattr(self.enrichment_config, "rotation_models", None)
 
         if rotation_enabled:
-            rotator = ModelKeyRotator(models=rotation_models)
+            rotator = ModelKeyRotator(models=[sanitize_model_name(m) for m in rotation_models] if rotation_models else None)
 
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
-                    model=model,
+                    model=sanitize_model_name(model),
                     contents=[{"parts": request_parts}],
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
@@ -7797,7 +7848,7 @@ class EnrichmentWorker(BaseWorker):
         else:
             # No rotation - use configured model and API key
             response = client.models.generate_content(
-                model=model_name,
+                model=sanitize_model_name(model_name),
                 contents=[{"parts": request_parts}],
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
@@ -7949,16 +8000,29 @@ class EnrichmentWorker(BaseWorker):
                     self.task_store.mark_failed(task["task_id"], "Failed to stage media file")
                     continue
 
+            # Determine subfolder based on media_type
+            from egregora.ops.media import get_media_subfolder
+
+            extension = Path(filename).suffix
+            media_subdir = get_media_subfolder(extension)
+
+            # Use slug-based filename as requested by user
+            final_filename = f"{slug_value}{extension}"
+
             # Create media document with slug-based metadata
             media_metadata = {
                 "original_filename": payload.get("original_filename"),
-                "filename": f"{slug_value}{Path(filename).suffix}",  # Use slug for filename
+                "filename": final_filename,
                 "media_type": media_type,
                 "slug": slug_value,
                 "nav_exclude": True,
                 "hide": ["navigation"],
                 "source_path": source_path,  # Path to staged file for efficient move
+                "media_subdir": media_subdir,
             }
+
+            # V3 Architecture: Set suggested_path to ensure correct filesystem placement
+            suggested_path = f"media/{media_subdir}/{final_filename}"
 
             # Persist the actual media file
             # We pass empty bytes for content because source_path is provided
@@ -7968,6 +8032,7 @@ class EnrichmentWorker(BaseWorker):
                 metadata=media_metadata,
                 id=media_id if media_id else str(uuid.uuid4()),
                 parent_id=None,  # Media files have no parent document
+                suggested_path=suggested_path,
             )
 
             try:
@@ -7983,10 +8048,10 @@ class EnrichmentWorker(BaseWorker):
 
             # Create and persist the enrichment text document (description)
             enrichment_metadata = {
-                "filename": f"{slug_value}{Path(filename).suffix}",  # New slug-based filename
+                "filename": final_filename,
                 "original_filename": payload.get("original_filename"),  # Preserve original
                 "media_type": media_type,
-                "parent_path": payload.get("suggested_path"),
+                "parent_path": suggested_path,
                 "slug": slug_value,
                 "nav_exclude": True,
                 "hide": ["navigation"],
@@ -8038,7 +8103,7 @@ class EnrichmentWorker(BaseWorker):
                 elif media_type and media_type.startswith("audio"):
                     media_subdir = "audio"
 
-                new_path = f"media/{media_subdir}/{slug_value}{Path(filename).suffix}"
+                new_path = f"media/{media_subdir}/{final_filename}"
 
                 # Using SQL replace to update all occurrences
                 try:
@@ -8075,9 +8140,12 @@ class EnrichmentWorker(BaseWorker):
 
             data = json.loads(clean_text.strip())
             slug = data.get("slug")
+            filename_from_llm = data.get("filename")
             markdown = data.get("markdown")
 
             payload = task["_parsed_payload"]
+            if filename_from_llm:
+                payload["filename"] = filename_from_llm
             filename = payload.get("filename", "")
 
             # Fallback logic for missing markdown
@@ -8311,214 +8379,6 @@ def _ensure_msg_id_column(rows: list[dict[str, object]], column_order: list[str]
         else:
             row["msg_id"] = _stringify_value(row.get("message_id"))
     return column_order
-````
-
-## File: src/egregora/agents/model_limits.py
-````python
-"""Model context window limits and token utilities.
-
-This module provides utilities for:
-- Getting model context window limits
-- Estimating token counts
-- Validating prompts fit within limits
-
-Context window validation is critical for production use - prompts that exceed
-limits cause API failures or silent truncation, wasting tokens and degrading quality.
-"""
-
-import logging
-from typing import Protocol, runtime_checkable
-
-from egregora.constants import KNOWN_MODEL_LIMITS
-
-logger = logging.getLogger(__name__)
-
-
-class PromptTooLargeError(Exception):
-    """Raised when a prompt exceeds the model's hard context limit.
-
-    This exception signals that the window should be split and retried.
-
-    Attributes:
-        estimated_tokens: Estimated token count of the prompt
-        effective_limit: Effective token limit after safety margin
-        model_name: Name of the model being used
-        window_id: ID of the window being processed
-
-    """
-
-    def __init__(self, estimated_tokens: int, effective_limit: int, model_name: str, window_id: str) -> None:
-        self.estimated_tokens = estimated_tokens
-        self.effective_limit = effective_limit
-        self.model_name = model_name
-        self.window_id = window_id
-        super().__init__(
-            f"Prompt exceeds hard limit: {estimated_tokens} tokens > {effective_limit} for {model_name} (window: {window_id})"
-        )
-
-
-@runtime_checkable
-class _HasModelName(Protocol):
-    @property
-    def model_name(self) -> str:  # pragma: no cover - structural helper
-        ...
-
-
-@runtime_checkable
-class _HasName(Protocol):
-    @property
-    def name(self) -> str:  # pragma: no cover - structural helper
-        ...
-
-
-ModelIdentifier = str | _HasModelName | _HasName
-
-
-def estimate_tokens(text: str) -> int:
-    """Estimate token count using character-based approximation.
-
-    Gemini uses SentencePiece tokenization. For English text, a rough approximation
-    is ~4 characters per token. This is faster than actual tokenization and
-    sufficient for context window validation (we add safety margins anyway).
-
-    Args:
-        text: Text to estimate tokens for
-
-    Returns:
-        Estimated token count
-
-    Examples:
-        >>> estimate_tokens("Hello world")
-        2  # "Hello world" is 11 chars → ~2.75 tokens → 2
-        >>> estimate_tokens("A" * 400)
-        100  # 400 chars → 100 tokens
-
-    """
-    return len(text) // 4
-
-
-def get_model_context_limit(model_name: ModelIdentifier) -> int:
-    """Get input token limit for a model.
-
-    Args:
-        model_name: Model identifier or object (e.g., "models/gemini-2.0-flash-exp",
-                    "google-gla:gemini-1.5-pro", "gemini-2.0-flash-exp", or a TestModel instance)
-
-    Returns:
-        Input token limit for the model. Defaults to conservative 128k if unknown.
-
-    Examples:
-        >>> get_model_context_limit("models/gemini-2.0-flash-exp")
-        1048576
-        >>> get_model_context_limit("google-gla:gemini-1.5-pro")
-        2097152
-        >>> get_model_context_limit("unknown-model")
-        128000
-
-    """
-    # Strip common prefixes
-    if isinstance(model_name, str):
-        raw_name = model_name
-    elif isinstance(model_name, _HasModelName):
-        raw_name = model_name.model_name
-    elif isinstance(model_name, _HasName):
-        raw_name = model_name.name
-    else:
-        raw_name = str(model_name)
-
-    clean_name = (
-        raw_name.replace("models/", "")
-        .replace("google-gla:", "")
-        .replace("google-vertex:", "")
-        .replace("gemini-", "gemini-")  # Normalize gemini- prefix
-    )
-
-    # Try exact match
-    limit = KNOWN_MODEL_LIMITS.get(clean_name)
-    if limit:
-        logger.debug("Found context limit for %s: %s tokens", model_name, limit)
-        return limit
-
-    # Try fuzzy match (e.g., "gemini-2.0-flash-exp-001" → "gemini-2.0-flash-exp")
-    for known_model, known_limit in KNOWN_MODEL_LIMITS.items():
-        if clean_name.startswith(known_model):
-            logger.debug(
-                "Fuzzy matched %s to %s: %s tokens",
-                model_name,
-                known_model,
-                known_limit,
-            )
-            return known_limit
-
-    # Default to conservative 128k for unknown models
-    logger.warning(
-        "Unknown model %s, defaulting to 128k token limit",
-        model_name,
-    )
-    return 128_000
-
-
-def validate_prompt_fits(
-    prompt: str,
-    model_name: str,
-    *,
-    safety_margin: float = 0.1,
-    max_prompt_tokens: int | None = 100_000,
-    use_full_context_window: bool = False,
-) -> tuple[bool, int, int]:
-    """Validate that a prompt fits within model's context window.
-
-    Args:
-        prompt: Full prompt to send to model
-        model_name: Model name to check limits for
-        safety_margin: Safety margin as fraction of limit (default 0.1 = 10%)
-        max_prompt_tokens: Maximum tokens allowed (default 100k cap, even if model supports more)
-        use_full_context_window: If True, ignore max_prompt_tokens and use full model limit
-
-    Returns:
-        Tuple of (fits, estimated_tokens, effective_limit)
-
-    Examples:
-        >>> fits, tokens, limit = validate_prompt_fits("Hello" * 1000, "gemini-2.0-flash-exp")
-        >>> fits
-        True
-        >>> tokens
-        1250  # ~5000 chars / 4
-        >>> limit
-        90000  # min(100k default cap, 1M model limit) - 10% margin
-
-    """
-    estimated_tokens = estimate_tokens(prompt)
-    context_limit = get_model_context_limit(model_name)
-
-    # Apply max_prompt_tokens cap unless use_full_context_window is True
-    if not use_full_context_window and max_prompt_tokens is not None:
-        context_limit = min(context_limit, max_prompt_tokens)
-
-    # Apply safety margin (reserve space for tool calls, continuations, etc.)
-    effective_limit = int(context_limit * (1 - safety_margin))
-
-    fits = estimated_tokens <= effective_limit
-
-    if not fits:
-        logger.warning(
-            "Prompt exceeds context limit: %d tokens > %d effective limit (%d total - %d%% margin) for model %s",
-            estimated_tokens,
-            effective_limit,
-            context_limit,
-            int(safety_margin * 100),
-            model_name,
-        )
-
-    return fits, estimated_tokens, effective_limit
-
-
-__all__ = [
-    "PromptTooLargeError",
-    "estimate_tokens",
-    "get_model_context_limit",
-    "validate_prompt_fits",
-]
 ````
 
 ## File: src/egregora/agents/models.py
@@ -9040,8 +8900,16 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
-
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from datetime import datetime
+
+    from ibis.expr.types import Table
+
+    from egregora.config.settings import EgregoraConfig
+    from egregora.data_primitives.protocols import OutputSink
+    from egregora.orchestration.persistence import PipelineCache
 
 from egregora.agents.banner.agent import generate_banner
 from egregora.data_primitives.document import Document, DocumentType
@@ -9079,10 +8947,90 @@ class PostMetadata(BaseModel):
 
 
 class WriterAgentReturn(BaseModel):
-    """Final assistant response when the agent finishes."""
+    """Result model for the writer agent (Dynamic Result Mapping)."""
 
-    summary: str | None = None
-    notes: str | None = None
+    journal: list[str] = Field(default_factory=list)
+    reasoning: str | None = None
+
+
+@dataclass
+class JournalEntry:
+    """Represents a single entry in the intercalated journal log."""
+
+    entry_type: str  # "thinking", "journal", "tool_call", "tool_return"
+    content: str
+    timestamp: datetime | None = None
+    tool_name: str | None = None
+
+
+@dataclass
+class JournalEntryParams:
+    """Parameters for saving a journal entry."""
+
+    intercalated_log: list[JournalEntry]
+    window_label: str
+    output_format: OutputSink
+    posts_published: int
+    profiles_updated: int
+    window_start: datetime
+    window_end: datetime
+    total_tokens: int = 0
+
+
+@dataclass
+class WriterContextParams:
+    """Parameters for building writer context."""
+
+    table: Table
+    resources: WriterResources
+    cache: Any
+    config: EgregoraConfig
+    window_label: str
+    adapter_content_summary: str
+    adapter_generation_instructions: str
+
+
+@dataclass
+class WriterDepsParams:
+    """Parameters for creating WriterDeps."""
+
+    window_start: datetime
+    window_end: datetime
+    resources: WriterResources
+    model_name: str
+    table: Table | None = None
+    config: EgregoraConfig | None = None
+    conversation_xml: str = ""
+    active_authors: list[str] | None = None
+    adapter_content_summary: str = ""
+    adapter_generation_instructions: str = ""
+
+
+@dataclass
+class WriterFinalizationParams:
+    """Parameters for finalizing writer results."""
+
+    saved_posts: list[str]
+    saved_profiles: list[str]
+    resources: WriterResources
+    deps: WriterDeps
+    cache: Any
+    signature: str
+
+
+@dataclass
+class WindowProcessingParams:
+    """Parameters for processing a window of messages."""
+
+    table: Table
+    window_start: datetime
+    window_end: datetime
+    resources: WriterResources
+    config: EgregoraConfig
+    cache: PipelineCache
+    adapter_content_summary: str = ""
+    adapter_generation_instructions: str = ""
+    run_id: str | None = None
 
 
 # ==============================================================================
@@ -9126,6 +9074,15 @@ class SearchMediaResult(BaseModel):
     """Result from searching media."""
 
     results: list[MediaItem]
+
+
+class PromptTooLargeError(Exception):
+    """Exception raised when a prompt exceeds model context limits."""
+
+    def __init__(self, limit: int, actual: int):
+        self.limit = limit
+        self.actual = actual
+        super().__init__(f"Prompt too large: {actual} tokens (limit: {limit})")
 
 
 class AnnotationResult(BaseModel):
@@ -9329,13 +9286,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic_ai import Agent, RunContext
 
 from egregora.agents.capabilities import AgentCapability
-from egregora.agents.model_limits import (
-    PromptTooLargeError,
-    get_model_context_limit,
-)
-from egregora.agents.model_limits import (
-    validate_prompt_fits as _validate_prompt_fits,
-)
+from egregora.agents.types import PromptTooLargeError
 from egregora.agents.types import (
     AnnotationResult,
     PostMetadata,
@@ -9535,41 +9486,56 @@ def load_profiles_context(active_authors: list[str], output_sink: Any) -> str:
     return profiles_context
 
 
-def validate_prompt_fits(
+async def validate_prompt_fits(
     prompt: str,
     model_name: str,
     config: EgregoraConfig,
     window_label: str,
-) -> None:
-    """Validate prompt fits within model context window limits."""
-    max_prompt_tokens = getattr(config.pipeline, "max_prompt_tokens", 100_000)
-    use_full_context_window = getattr(config.pipeline, "use_full_context_window", False)
+    *,
+    model_instance: Any | None = None,
+) -> int:
+    """Validate that prompt fits within model limits (Conservative 100k default).
 
-    fits, estimated_tokens, _effective_limit = _validate_prompt_fits(
-        prompt,
-        model_name,
-        max_prompt_tokens=max_prompt_tokens,
-        use_full_context_window=use_full_context_window,
-    )
+    Uses native SDK counting if possible, else character-based estimation.
+    If 'use_full_context_window' is enabled in config, it allows larger prompts
+    without preemptive splitting (reactive mode).
 
-    if not fits:
-        model_limit = get_model_context_limit(model_name)
-        model_effective_limit = int(model_limit * 0.9)
+    Returns:
+        Estimated or native token count.
+    """
+    # 1. Get token count (Native if possible, else Estimate)
+    token_count = await count_tokens(prompt, model_instance)
 
-        if estimated_tokens > model_effective_limit:
-            logger.error(
-                "Prompt exceeds limit: %d > %d for %s (window: %s)",
-                estimated_tokens,
-                model_effective_limit,
-                model_name,
-                window_label,
-            )
-            raise PromptTooLargeError(
-                estimated_tokens=estimated_tokens,
-                effective_limit=model_effective_limit,
-                model_name=model_name,
-                window_id=window_label,
-            )
+    # 2. Check limits
+    max_allowed = config.pipeline.max_prompt_tokens
+    use_full = config.pipeline.use_full_context_window
+
+    if token_count > max_allowed and not use_full:
+        logger.warning(
+            "Prompt for %s is too large (%d tokens, limit %d). "
+            "Set use_full_context_window=True to bypass or reduce window size.",
+            window_label,
+            token_count,
+            max_allowed,
+        )
+        raise PromptTooLargeError(
+            limit=max_allowed,
+            actual=token_count,
+        )
+
+    return token_count
+
+
+async def count_tokens(prompt: str, model: Any | None = None) -> int:
+    """Count tokens in a prompt, using native SDK if available."""
+    if model and hasattr(model, "count_tokens") and callable(model.count_tokens):
+        try:
+            return await model.count_tokens(prompt)
+        except Exception:
+            logger.debug("Native token counting failed, falling back to estimation")
+
+    # Fallback to conservative estimation (4 chars per token)
+    return len(prompt) // 4
 ````
 
 ## File: src/egregora/agents/writer_setup.py
@@ -9618,19 +9584,31 @@ def configure_writer_capabilities(
     return capabilities
 
 
-def create_writer_model(
+async def create_writer_model(
     config: EgregoraConfig,
     context: WriterDeps,
     prompt: str,
     test_model: Any | None = None,
 ) -> Any:
-    """Create or configure the writer model."""
-    if test_model is not None:
+    """Create and validate a model for writing.
+
+    This ensures we have a valid model and that the prompt fits
+    its context window before we start the actual agent run.
+    """
+    if test_model:
         return test_model
 
     model = create_fallback_model(config.models.writer, use_google_batch=False)
+
     # Validate prompt fits (only check for real models)
-    validate_prompt_fits(prompt, config.models.writer, config, context.window_label)
+    await validate_prompt_fits(
+        prompt,
+        config.models.writer,
+        config,
+        context.window_label,
+        model_instance=model,
+    )
+
     return model
 
 
@@ -10046,12 +10024,16 @@ from egregora.agents.formatting import (
     build_conversation_xml,
     load_journal_memory,
 )
-from egregora.agents.model_limits import (
-    PromptTooLargeError,
-)
 from egregora.agents.types import (
+    AnnotationResult,
+    JournalEntry,
+    JournalEntryParams,
+    PostMetadata,
+    PromptTooLargeError,
+    WriterContextParams,
     WriterDeps,
-    WriterResources,
+    WriterDepsParams,
+    WriterFinalizationParams,
 )
 from egregora.agents.writer_helpers import (
     process_tool_result,
@@ -10069,6 +10051,7 @@ from egregora.rag import index_documents, reset_backend
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
 from egregora.utils.cache import CacheTier, PipelineCache
+from egregora.utils.model_fallback import sanitize_model_name
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -10168,19 +10151,6 @@ def _truncate_for_embedding(text: str, byte_limit: int = MAX_RAG_QUERY_BYTES) ->
     return truncated_text + "\n\n<!-- truncated for RAG query -->"
 
 
-@dataclass
-class WriterContextParams:
-    """Parameters for building writer context."""
-
-    table: Table
-    resources: WriterResources
-    cache: PipelineCache
-    config: EgregoraConfig
-    window_label: str
-    adapter_content_summary: str
-    adapter_generation_instructions: str
-
-
 def _build_writer_context(params: WriterContextParams) -> WriterContext:
     """Collect contextual inputs used when rendering the writer prompt."""
     messages_table = params.table.to_pyarrow()
@@ -10257,15 +10227,6 @@ def _extract_journal_content(messages: MessageHistory) -> str:
     return "\n\n".join(journal_parts).strip()
 
 
-@dataclass(frozen=True)
-class JournalEntry:
-    """Represents a single entry in the intercalated journal log."""
-
-    entry_type: str  # "thinking", "journal", "tool_call", "tool_return"
-    content: str
-    timestamp: datetime | None = None
-    tool_name: str | None = None
-
 
 def _create_tool_call_entry(part: ToolCallPart, timestamp: datetime | None) -> JournalEntry:
     """Create a journal entry for a tool call part.
@@ -10330,19 +10291,6 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
 
     return entries
 
-
-@dataclass
-class JournalEntryParams:
-    """Parameters for saving a journal entry."""
-
-    intercalated_log: list[JournalEntry]
-    window_label: str
-    output_format: OutputSink
-    posts_published: int
-    profiles_updated: int
-    window_start: datetime
-    window_end: datetime
-    total_tokens: int = 0
 
 
 def _save_journal_to_file(params: JournalEntryParams) -> str | None:
@@ -10487,12 +10435,12 @@ def _prepare_deps(
 
 @sleep_and_retry
 @limits(calls=100, period=60)
-def write_posts_with_pydantic_agent(
+async def write_posts_with_pydantic_agent(
     *,
     prompt: str,
     config: EgregoraConfig,
     context: WriterDeps,
-    test_model: AgentModel | None = None,
+    test_model: Any | None = None,
 ) -> tuple[list[str], list[str]]:
     """Execute the writer flow using Pydantic-AI agent tooling."""
     logger.info("Running writer via Pydantic-AI backend")
@@ -10502,7 +10450,7 @@ def write_posts_with_pydantic_agent(
         caps_list = ", ".join(capability.name for capability in active_capabilities)
         logger.info("Writer capabilities enabled: %s", caps_list)
 
-    model = create_writer_model(config, context, prompt, test_model)
+    model = await create_writer_model(config, context, prompt, test_model)
     agent = setup_writer_agent(model, prompt, active_capabilities)
 
     if context.resources.quota:
@@ -10518,8 +10466,8 @@ def write_posts_with_pydantic_agent(
     # Use tenacity for retries
     for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
         with attempt:
-            # DIRECT SYNC CALL
-            result = agent.run_sync(
+            # Use async run since we're in an async context
+            result = await agent.run(
                 "Analyze the conversation context provided and write posts/profiles as needed.",
                 deps=context,
                 usage_limits=usage_limits,
@@ -10678,21 +10626,6 @@ def _index_new_content_in_rag(
         reset_backend()
 
 
-@dataclass
-class WriterDepsParams:
-    """Parameters for creating WriterDeps."""
-
-    window_start: datetime
-    window_end: datetime
-    resources: WriterResources
-    model_name: str
-    table: Table | None = None
-    config: EgregoraConfig | None = None
-    conversation_xml: str = ""
-    active_authors: list[str] | None = None
-    adapter_content_summary: str = ""
-    adapter_generation_instructions: str = ""
-
 
 def _prepare_writer_dependencies(params: WriterDepsParams) -> WriterDeps:
     """Create WriterDeps from window parameters and resources."""
@@ -10745,7 +10678,7 @@ def _build_context_and_signature(
     return writer_context, signature
 
 
-def _execute_writer_with_error_handling(
+async def _execute_writer_with_error_handling(
     prompt: str,
     config: EgregoraConfig,
     deps: WriterDeps,
@@ -10761,7 +10694,7 @@ def _execute_writer_with_error_handling(
 
     """
     try:
-        return write_posts_with_pydantic_agent(
+        return await write_posts_with_pydantic_agent(
             prompt=prompt,
             config=config,
             context=deps,
@@ -10774,17 +10707,6 @@ def _execute_writer_with_error_handling(
         logger.exception(msg)
         raise RuntimeError(msg) from exc
 
-
-@dataclass
-class WriterFinalizationParams:
-    """Parameters for finalizing writer results."""
-
-    saved_posts: list[str]
-    saved_profiles: list[str]
-    resources: WriterResources
-    deps: WriterDeps
-    cache: PipelineCache
-    signature: str
 
 
 def _finalize_writer_results(params: WriterFinalizationParams) -> dict[str, list[str]]:
@@ -10812,22 +10734,8 @@ def _finalize_writer_results(params: WriterFinalizationParams) -> dict[str, list
     return result_payload
 
 
-@dataclass
-class WindowProcessingParams:
-    """Parameters for processing a window of messages."""
 
-    table: Table
-    window_start: datetime
-    window_end: datetime
-    resources: WriterResources
-    config: EgregoraConfig
-    cache: PipelineCache
-    adapter_content_summary: str = ""
-    adapter_generation_instructions: str = ""
-    run_id: str | None = None
-
-
-def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
+async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
     """Let LLM analyze window's messages, write 0-N posts, and update author profiles.
 
     This acts as the public entry point, orchestrating the setup and execution
@@ -10899,9 +10807,9 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str
     # Check for economic mode
     if getattr(params.config.pipeline, "economic_mode", False):
         logger.info("💰 Economic Mode enabled: Using simple generation (no tools)")
-        saved_posts, saved_profiles = _execute_economic_writer(prompt, params.config, deps)
+        saved_posts, saved_profiles = await _execute_economic_writer(prompt, params.config, deps)
     else:
-        saved_posts, saved_profiles = _execute_writer_with_error_handling(prompt, params.config, deps)
+        saved_posts, saved_profiles = await _execute_writer_with_error_handling(prompt, params.config, deps)
 
     # 6. Finalize results (output, RAG indexing, caching)
     return _finalize_writer_results(
@@ -10916,17 +10824,14 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str
     )
 
 
-def _execute_economic_writer(
+async def _execute_economic_writer(
     prompt: str,
     config: EgregoraConfig,
     deps: WriterDeps,
 ) -> tuple[list[str], list[str]]:
     """Execute writer in economic mode (one-shot, no tools, no streaming)."""
     # 1. Create simple model for generation
-    model_name = config.models.writer
-    # Handle pydantic-ai prefix
-    if model_name.startswith("google-gla:"):
-        model_name = model_name.replace("google-gla:", "models/")
+    model_name = sanitize_model_name(config.models.writer)
 
     # We use genai directly for simple generation to bypass pydantic-ai overhead/tools
     # Or we can use pydantic-ai agent without tools.
@@ -11765,9 +11670,9 @@ logger = logging.getLogger(__name__)
 # Constants
 # ============================================================================
 
-DEFAULT_MODEL = "google-gla:gemini-2.0-flash-exp"  # Standardize on a valid existing model
+DEFAULT_MODEL = "google-gla:gemini-2.5-flash"  # Use latest stable model (pydantic-ai format)
 DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
-DEFAULT_BANNER_MODEL = "models/gemini-2.0-flash-exp"
+DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash" # (google-sdk format uses models/ prefix via validator)
 EMBEDDING_DIM = 768  # Embedding vector dimensions
 
 # Quota defaults
@@ -11782,7 +11687,7 @@ DEFAULT_RUNS_DB = "duckdb:///./.egregora/runs.duckdb"
 
 # Configuration validation warning thresholds
 RAG_TOP_K_WARNING_THRESHOLD = 20
-MAX_PROMPT_TOKENS_WARNING_THRESHOLD = 200_000
+MAX_PROMPT_TOKENS_WARNING_THRESHOLD = 100_000
 
 # Model naming conventions
 PydanticModelName = Annotated[
@@ -12010,9 +11915,9 @@ class EnrichmentSettings(BaseModel):
     )
     rotation_models: list[str] = Field(
         default=[
-            "gemini-2.0-flash-exp",
-            "gemini-1.5-flash-latest",
-            "gemini-1.5-pro-latest",
+            "google-gla:gemini-flash-latest",
+            "google-gla:gemini-2.0-flash-exp",
+            "google-gla:gemini-pro-latest",
         ],
         description="List of Gemini models to rotate through on rate limits",
     )
@@ -12077,7 +11982,7 @@ class PipelineSettings(BaseModel):
     max_prompt_tokens: int = Field(
         default=100_000,
         ge=1_000,
-        description="Maximum tokens per prompt (default 100k, even if model supports more). Prevents context overflow and controls costs.",
+        description="Maximum tokens per prompt (conservative 100k default). Prevents context overflow and controls costs.",
     )
     use_full_context_window: bool = Field(
         default=False,
@@ -21109,6 +21014,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
+from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.models import Model, ModelRequestParameters, ModelSettings
 
 from egregora.utils.rate_limit import get_rate_limiter
@@ -21151,6 +21057,13 @@ class RateLimitedModel(Model):
         limiter.acquire()
         try:
             return await self.wrapped_model.request(messages, model_settings, model_request_parameters)
+        except Exception as exc:
+            msg = str(exc).lower()
+            if "429" in msg or "resource_exhausted" in msg or "too many requests" in msg:
+                logger.warning("Rate limit hit on %s, refunding and failing fast for rotation", self.model_name)
+                limiter.refund()
+                raise UsageLimitExceeded(str(exc)) from exc
+            raise
         finally:
             limiter.release()
 
@@ -21169,6 +21082,13 @@ class RateLimitedModel(Model):
                 messages, model_settings, model_request_parameters
             ) as stream:
                 yield stream
+        except Exception as exc:
+            msg = str(exc).lower()
+            if "429" in msg or "resource_exhausted" in msg or "too many requests" in msg:
+                logger.warning("Rate limit hit on %s (stream), refunding and failing fast for rotation", self.model_name)
+                limiter.refund()
+                raise UsageLimitExceeded(str(exc)) from exc
+            raise
         finally:
             limiter.release()
 
@@ -21814,10 +21734,10 @@ from rich.panel import Panel
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.banner.worker import BannerWorker
 from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker, schedule_enrichment
-from egregora.agents.model_limits import PromptTooLargeError, get_model_context_limit
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
+from egregora.agents.types import PromptTooLargeError, WindowProcessingParams
+from egregora.agents.writer import write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
 from egregora.constants import SourceType, WindowUnit
@@ -21867,6 +21787,26 @@ console = Console()
 __all__ = ["WhatsAppProcessOptions", "WriteCommandOptions", "process_whatsapp_export", "run", "run_cli_flow"]
 
 MIN_WINDOWS_WARNING_THRESHOLD = 5
+
+
+def run_async_safely(coro):
+    """Run an async coroutine safely, handling nested event loops.
+    
+    If an event loop is already running (e.g., in Jupyter or nested calls),
+    this will use run_until_complete instead of asyncio.run().
+    """
+    import asyncio
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop - use asyncio.run()
+        return asyncio.run(coro)
+    else:
+        # Loop is already running - use run_until_complete in a new thread
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(asyncio.run, coro)
+            return future.result()
 
 
 @dataclass
@@ -22418,19 +22358,17 @@ def _process_single_window(
         adapter_generation_instructions=adapter_instructions,
         run_id=str(ctx.run_id) if ctx.run_id else None,
     )
-    result = write_posts_for_window(params)
+    result = run_async_safely(write_posts_for_window(params))
 
     posts = result.get("posts", [])
     profiles = result.get("profiles", [])
 
     # NEW: Generate PROFILE posts (Egregora writing ABOUT each author)
-    import asyncio
-
     from egregora.agents.profile.generator import generate_profile_posts
 
     window_date = window.start_time.strftime("%Y-%m-%d")
     try:
-        profile_docs = asyncio.run(
+        profile_docs = run_async_safely(
             generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date)
         )
 
@@ -22615,7 +22553,16 @@ def _resolve_context_token_limit(config: EgregoraConfig) -> int:
 
     if use_full_window:
         writer_model = config.models.writer
-        limit = get_model_context_limit(writer_model)
+        # Use KNOWN_MODEL_LIMITS from constants if available, else conservative 128k
+        from egregora.constants import KNOWN_MODEL_LIMITS
+
+        clean_name = writer_model.replace("models/", "").replace("google-gla:", "").replace("google-vertex:", "")
+        limit = 128_000
+        for known_model, known_limit in KNOWN_MODEL_LIMITS.items():
+            if clean_name.startswith(known_model):
+                limit = known_limit
+                break
+
         logger.debug(
             "Using full context window for writer model %s (limit=%d tokens)",
             writer_model,
@@ -22986,7 +22933,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
 
     url_ctx = UrlContext(
         base_url="",
-        site_prefix=site_paths.docs_prefix,
+        site_prefix="",  # FIX: Empty prefix because MkDocsAdapter prepends media_dir
         base_path=site_paths.site_root,
     )
 
@@ -24097,7 +24044,7 @@ class PipelineFactory:
 
         url_ctx = UrlContext(
             base_url="",
-            site_prefix=site_paths.docs_prefix,
+            site_prefix="",  # FIX: Empty prefix because MkDocsAdapter prepends media_dir
             base_path=site_paths.site_root,
         )
 
@@ -25285,18 +25232,20 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _strip_media_prefix(self, url_path: str) -> str:
         """Helper to strip media prefixes from URL path."""
-        rel_path = url_path
-        media_prefixes: list[str] = []
+        rel_path = url_path.strip("/")
+        media_prefixes: set[str] = set()
         if hasattr(self._url_convention, "routes"):
-            media_prefixes.append(str(getattr(self._url_convention.routes, "media_prefix", "")).strip("/"))
-        media_prefixes.extend(["media", "posts/media"])
-        for prefix in [p for p in media_prefixes if p]:
+            prefix = str(getattr(self._url_convention.routes, "media_prefix", "")).strip("/")
+            if prefix:
+                media_prefixes.add(prefix)
+        media_prefixes.update(["media", "posts/media"])
+        
+        # Sort by length descending to match longest prefix first
+        for prefix in sorted(media_prefixes, key=len, reverse=True):
             if rel_path == prefix:
-                rel_path = ""
-                break
+                return ""
             if rel_path.startswith(prefix + "/"):
-                rel_path = rel_path[len(prefix) + 1 :]
-                break
+                return rel_path[len(prefix) + 1 :]
         return rel_path
 
     def _parse_frontmatter(self, path: Path) -> dict:
@@ -25494,6 +25443,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         path.write_bytes(payload)
 
     def _write_generic_doc(self, document: Document, path: Path) -> None:
+        """Write a generic document (binary or text) to the given path."""
+        logger.info("Writing document %s to %s (type=%s)", document.document_id[:8], path, document.type)
         if isinstance(document.content, bytes):
             path.write_bytes(document.content)
         else:
@@ -26835,6 +26786,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from egregora.data_primitives.document import Document, DocumentType
@@ -27075,10 +27027,18 @@ class StandardUrlConvention(UrlConvention):
         if document.suggested_path:
             clean_path = document.suggested_path.strip("/")
             return self._join(ctx, clean_path, trailing_slash=False)
-        # Default to /media/{doc_id}
+
+        # Legacy/Fallback: Infer subdirectory from extension
+        from egregora.ops.media import get_media_subfolder
+        
         filename = document.metadata.get("filename")
         path_segment = filename or f"{document.document_id}"
-        return self._join(ctx, self.routes.media_prefix, path_segment, trailing_slash=False)
+        
+        extension = Path(path_segment).suffix
+        media_subdir = get_media_subfolder(extension)
+        
+        # New robust path: media/{subdir}/{filename}
+        return self._join(ctx, "media", media_subdir, path_segment, trailing_slash=False)
 
     def _format_media_enrichment_url(self, ctx: UrlContext, document: Document) -> str:
         """Mirror parent media path but swap extension for markdown."""
@@ -31173,26 +31133,30 @@ def get_google_api_keys() -> list[str]:
 
     Supports multiple keys via:
     - GEMINI_API_KEYS (comma-separated)
-    - GEMINI_API_KEY (single key, fallback)
-    - GOOGLE_API_KEY (single key, fallback)
+    - GEMINI_API_KEY (single key)
+    - GOOGLE_API_KEY (single key)
 
     Returns:
-        List of API keys, or empty list if none found.
+        List of unique API keys, or empty list if none found.
 
     """
-    # Check for comma-separated list first
+    keys = []
+
+    # 1. Check GEMINI_API_KEYS (comma-separated list)
     keys_str = os.environ.get("GEMINI_API_KEYS", "")
     if keys_str:
-        keys = [k.strip() for k in keys_str.split(",") if k.strip()]
-        if keys:
-            return keys
+        for k in keys_str.split(","):
+            val = k.strip()
+            if val and val not in keys:
+                keys.append(val)
 
-    # Fall back to single key
-    single_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if single_key:
-        return [single_key]
+    # 2. Check individual keys
+    for var in ["GEMINI_API_KEY", "GOOGLE_API_KEY"]:
+        val = os.environ.get(var)
+        if val and val.strip() and val.strip() not in keys:
+            keys.append(val.strip())
 
-    return []
+    return keys
 ````
 
 ## File: src/egregora/utils/filesystem.py
@@ -31490,10 +31454,19 @@ CACHE_TTL = 3600  # Cache for 1 hour
 
 # Priority order for Google models
 GOOGLE_FALLBACK_MODELS = [
-    "google-gla:gemini-2.0-flash-exp",
-    "google-gla:gemini-2.0-flash-exp",
-    "google-gla:gemini-1.5-pro",
+    "gemini-flash-latest",
+    "gemini-2.0-flash-exp",
+    "gemini-pro-latest",
 ]
+
+
+def sanitize_model_name(model_name: str) -> str:
+    """Sanitize model name for Google API by stripping internal prefixes."""
+    return (
+        model_name.replace("google-gla:", "")
+        .replace("google-vertex:", "")
+        .replace("pydantic_ai:", "")
+    )
 
 
 def get_openrouter_free_models(modality: str = "text") -> list[str]:
@@ -31639,10 +31612,11 @@ def create_fallback_model(
         if isinstance(model_def, Model):
             model = model_def
         elif isinstance(model_def, str):
-            if model_def.startswith("google-gla:"):
+            if model_def.startswith("google-gla:") or model_def.startswith("gemini-"):
                 provider = GoogleProvider(api_key=api_key or get_google_api_key())
+                model_name = model_def.removeprefix("google-gla:")
                 model = GoogleModel(
-                    model_def.removeprefix("google-gla:"),
+                    model_name,
                     provider=provider,
                 )
             elif model_def.startswith("openrouter:"):
@@ -31681,6 +31655,8 @@ def create_fallback_model(
         # Fallback to single getter which raises if missing
         api_keys = [get_google_api_key()]
 
+    logger.info("Creating fallback model with %d model(s) and %d API key(s)", len(fallback_models) + 1, len(api_keys))
+
     from egregora.models.rate_limited import RateLimitedModel
 
     # Helper to create model variations for all keys
@@ -31688,7 +31664,7 @@ def create_fallback_model(
         variations: list[Model] = []
 
         # If it's a string definition for a Google model, create one variation per key
-        if isinstance(model_def, str) and model_def.startswith("google-gla:"):
+        if isinstance(model_def, str) and (model_def.startswith("google-gla:") or model_def.startswith("gemini-")):
             for key in api_keys:
                 if use_google_batch:
                     batch_model = GoogleBatchModel(api_key=key, model_name=model_def)
@@ -31998,6 +31974,7 @@ class GlobalRateLimiter:
     _last_update: float = field(default_factory=time.time)
     _lock: threading.Lock = field(default_factory=threading.Lock)
     _semaphore: threading.Semaphore = field(init=False)
+    _skip_next_wait: bool = False  # Flag to skip wait after refund (rotating to fresh key)
 
     def __post_init__(self) -> None:
         self._semaphore = threading.Semaphore(self.max_concurrency)
@@ -32020,6 +31997,13 @@ class GlobalRateLimiter:
                     self.requests_per_second, self._tokens + elapsed * self.requests_per_second
                 )
 
+                # Skip wait if we just refunded (rotating to fresh key/model)
+                if self._skip_next_wait:
+                    self._skip_next_wait = False
+                    self._tokens = max(0.0, self._tokens - 1.0)
+                    logger.debug("Skipping wait - rotating to fresh key")
+                    return
+
                 if self._tokens < 1.0:
                     # Need to wait
                     wait_time = (1.0 - self._tokens) / self.requests_per_second
@@ -32036,6 +32020,13 @@ class GlobalRateLimiter:
     def release(self) -> None:
         """Release concurrency slot."""
         self._semaphore.release()
+
+    def refund(self) -> None:
+        """Add a token back and skip wait on next acquire (e.g. for key rotation on 429)."""
+        with self._lock:
+            self._tokens = min(self.requests_per_second, self._tokens + 1.0)
+            self._skip_next_wait = True  # Skip wait since we're rotating to a fresh key
+            logger.debug("Refunded token for immediate retry with fresh key")
 
 
 # Global singleton instance
@@ -32300,14 +32291,21 @@ class WindowUnit(str, Enum):
 KNOWN_MODEL_LIMITS = {
     # Gemini 2.0 family
     "gemini-2.0-flash-exp": 1_048_576,  # 1M tokens
-    "gemini-1.5-flash-8b": 1_048_576,  # 1M tokens
-    "gemini-1.5-pro": 2_097_152,  # 2M tokens
-    "gemini-1.5-pro-latest": 2_097_152,  # 2M tokens
+    "gemini-2.0-flash": 1_048_576,      # 1M tokens
+    "gemini-2.0-pro-exp": 2_097_152,    # 2M tokens
+    # Gemini 1.5 family & Latest Aliases
+    "gemini-flash-latest": 1_048_576,   # 1M tokens
+    "gemini-pro-latest": 2_097_152,     # 2M tokens
+    "gemini-1.5-flash": 1_048_576,      # 1M tokens
+    "gemini-1.5-flash-8b": 1_048_576,   # 1M tokens
+    "gemini-1.5-pro": 2_097_152,        # 2M tokens
+    "gemini-1.5-pro-latest": 2_097_152, # 2M tokens
     # Gemini 1.0 family (older, smaller limits)
-    "gemini-pro": 32_768,  # 32k tokens
-    "gemini-1.0-pro": 32_768,  # 32k tokens
+    "gemini-pro": 32_768,             # 32k tokens
+    "gemini-1.0-pro": 32_768,         # 32k tokens
     # Embeddings
-    "text-embedding-004": 2048,  # 2k tokens (for embeddings, not generation)
+    "text-embedding-004": 2048,       # 2k tokens
+    "gemini-embedding-001": 2048,     # 2k tokens
 }
 
 

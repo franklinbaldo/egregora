@@ -2,142 +2,142 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://franklinbaldo.github.io/egregora/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/CLAUDE/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/CONTRIBUTING/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/UX_REPORT/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/reference/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/v3_development_plan/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/adr/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/adr/0001-media-and-routing/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/adr/0002-profile-path-convention/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/adr/0003-v3-coexistence-strategy/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/adr/0004-configuration-consolidation/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/adr/0004-url-enrichment-path-convention/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/adr/0005-egregora-config-ownership/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/adr/template/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/api/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/api/configuration/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/api/data-primitives/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/api/augmentation/enrichment/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/api/ingestion/parser/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/api/init/scaffolding/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/api/knowledge/annotations/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/api/knowledge/rag/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/api/knowledge/ranking/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/api/privacy/anonymizer/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/api/privacy/detector/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/architecture/protocols/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/architecture/url-conventions/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/getting-started/configuration/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/getting-started/installation/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/getting-started/quickstart/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/guide/architecture/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/guide/generation/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/guide/knowledge/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/guide/privacy/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
     <url>
          <loc>https://franklinbaldo.github.io/egregora/includes/abbreviations/</loc>
-         <lastmod>2025-12-19</lastmod>
+         <lastmod>2025-12-20</lastmod>
     </url>
 </urlset>
