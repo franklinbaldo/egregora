@@ -1,6 +1,5 @@
 """Test that banner path prediction matches actual saved paths."""
 
-
 from egregora.agents.banner.batch_processor import BannerBatchProcessor, BannerTaskEntry
 from egregora.agents.banner.image_generation import ImageGenerationResult
 from egregora.data_primitives.document import Document, DocumentType
