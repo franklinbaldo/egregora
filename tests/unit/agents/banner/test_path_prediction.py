@@ -1,6 +1,5 @@
 """Test that banner path prediction matches actual saved paths."""
 
-import pytest
 
 from egregora.agents.banner.batch_processor import BannerBatchProcessor, BannerTaskEntry
 from egregora.agents.banner.image_generation import ImageGenerationResult
@@ -65,9 +64,7 @@ def test_predicted_path_matches_actual():
     actual_path = actual_url.lstrip("/")
 
     # 3. Verify paths match
-    assert predicted_path == actual_path, (
-        f"Path mismatch! Predicted: {predicted_path}, Actual: {actual_path}"
-    )
+    assert predicted_path == actual_path, f"Path mismatch! Predicted: {predicted_path}, Actual: {actual_path}"
     assert actual_doc.document_id == filename
     assert actual_doc.metadata["filename"] == filename
 
