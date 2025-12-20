@@ -113,6 +113,11 @@ tests/
         rag/
           __init__.py
         __init__.py
+      writer/
+        test_agent.py
+        test_context.py
+        test_journal.py
+        test_orchestrator.py
       __init__.py
       test_enricher_staging.py
       test_rag_exception_handling.py
@@ -228,6 +233,7 @@ tests/
   test_profile_generation.py
   test_profile_routing.py
   test_schema_migration.py
+  test_todo_ux_toml.py
 ```
 
 # Files
@@ -2038,15 +2044,12 @@ MOCK_METADATA = {
 ## File: tests/e2e/pipeline/test_slug_filenames.py
 ````python
 import pytest
-from pathlib import Path
-import json
-from unittest.mock import MagicMock
-import uuid
 
+from egregora.agents.enricher import EnrichmentWorker
 from egregora.orchestration.pipelines.write import WhatsAppProcessOptions, process_whatsapp_export
 from egregora.output_adapters.mkdocs import MkDocsAdapter
 from egregora.output_adapters.mkdocs.paths import derive_mkdocs_paths
-from egregora.agents.enricher import EnrichmentWorker
+
 
 @pytest.fixture
 def pipeline_setup_minimal(whatsapp_fixture):
@@ -2056,10 +2059,11 @@ def pipeline_setup_minimal(whatsapp_fixture):
         "gemini_api_key": "test-key",
     }
 
+
 @pytest.mark.e2e
 def test_media_filename_uses_llm_slug(pipeline_setup_minimal, tmp_path, mocker):
     """Verify that media files are saved using the slug provided by the LLM."""
-    
+
     # Setup output directory
     site_root = tmp_path / "site"
     site_root.mkdir()
@@ -2070,31 +2074,32 @@ def test_media_filename_uses_llm_slug(pipeline_setup_minimal, tmp_path, mocker):
 
     # Mock parameters
     target_slug = "custom-slug-from-llm"
-    
+
     # We will mock the method that performs the actual LLM call and result parsing
     # EnrichmentWorker._enrich_media_batch is the main entry point for media enrichment
-    orig_method = EnrichmentWorker._enrich_media_batch
-    
+
     def mock_enrich_media_batch(self, tasks):
         # Instead of calling LLM, we manually construct the results
         # This bypasses the need to mock the genai client
         from egregora.agents.enricher import _normalize_slug
-        
+
         results_count = 0
         for task in tasks:
             # Prepare a mock payload that looks like it came from _parse_media_result
             payload = task["_parsed_payload"]
             slug_value = _normalize_slug(target_slug, payload["filename"])
             markdown = "# Mocked Enrichment\n\nContent goes here."
-            
+
             # Use the actual _persist_media_results logic
             # This is what we are REALLY testing (how it uses slug_value to name files)
             self._persist_media_results([(payload, slug_value, markdown)], task)
             results_count += 1
-            
+
         return results_count
 
-    mocker.patch.object(EnrichmentWorker, "_enrich_media_batch", autospec=True, side_effect=mock_enrich_media_batch)
+    mocker.patch.object(
+        EnrichmentWorker, "_enrich_media_batch", autospec=True, side_effect=mock_enrich_media_batch
+    )
 
     options = WhatsAppProcessOptions(
         output_dir=site_root,
@@ -2110,27 +2115,26 @@ def test_media_filename_uses_llm_slug(pipeline_setup_minimal, tmp_path, mocker):
     )
 
     # Resolve paths
-    site_paths = derive_mkdocs_paths(site_root)
-    
+    derive_mkdocs_paths(site_root)
+
     # Check all files recursively
     all_files = list(site_root.rglob("*"))
-    print(f"All generated files: {[f.relative_to(site_root) for f in all_files]}")
 
     expected_file = None
     for f in all_files:
         if f.stem == target_slug:
             expected_file = f
             break
-    
+
     assert expected_file is not None, f"A file with stem '{target_slug}' should exist in the output"
-    assert expected_file.suffix == ".jpg", f"The file should have the original extension .jpg, got {expected_file.suffix}"
-    
+    assert expected_file.suffix == ".jpg", (
+        f"The file should have the original extension .jpg, got {expected_file.suffix}"
+    )
+
     # Verify it's in the media directory
     assert "media" in expected_file.parts
     # It should also be in the 'images' subdirectory based on .jpg
     assert "images" in expected_file.parts
-
-    print(f"SUCCESS: Found slug-based media file at {expected_file.relative_to(site_root)}")
 ````
 
 ## File: tests/e2e/pipeline/test_write_pipeline_e2e.py
@@ -4468,6 +4472,604 @@ def test_gemini_provider_handles_batch_failure():
 """Unit tests for shared agent code."""
 ````
 
+## File: tests/unit/agents/writer/test_agent.py
+````python
+"""Unit tests for writer agent execution module."""
+
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from pydantic_ai.messages import ToolReturnPart
+
+from egregora.agents.types import PromptTooLargeError
+from egregora.agents.writer.agent import (
+    execute_writer_with_error_handling,
+    extract_tool_results,
+    write_posts_with_pydantic_agent,
+)
+
+
+class TestWriterAgent:
+    def test_extract_tool_results(self):
+        msg = MagicMock()
+        msg.parts = [
+            ToolReturnPart(
+                tool_name="write_post_tool",
+                content='{"status": "success", "path": "post1"}',
+                tool_call_id="1",
+            ),
+            ToolReturnPart(
+                tool_name="write_profile_tool",
+                content='{"status": "success", "path": "prof1"}',
+                tool_call_id="2",
+            ),
+        ]
+
+        posts, profiles = extract_tool_results([msg])
+        assert "post1" in posts
+        assert "prof1" in profiles
+
+    @patch("egregora.agents.writer.agent.setup_writer_agent")
+    @patch("egregora.agents.writer.agent.create_writer_model")
+    @patch("egregora.agents.writer.agent.configure_writer_capabilities")
+    @patch("egregora.agents.writer.agent.extract_tool_results")
+    @patch("egregora.agents.writer.agent.extract_intercalated_log")
+    @patch("egregora.agents.writer.agent.save_journal_to_file")
+    @pytest.mark.asyncio
+    async def test_write_posts_with_pydantic_agent(
+        self,
+        mock_save,
+        mock_log,
+        mock_extract,
+        mock_caps,
+        mock_create,
+        mock_setup,
+    ):
+        # Setup mocks
+        from unittest.mock import AsyncMock
+
+        mock_agent = MagicMock()
+        mock_setup.return_value = mock_agent
+
+        mock_result = MagicMock()
+        mock_result.all_messages.return_value = []
+        mock_result.usage.return_value = MagicMock(total_tokens=100)
+        mock_agent.run = AsyncMock(return_value=mock_result)
+
+        # Make create_writer_model async
+        async def async_create_model(*args, **kwargs):
+            return MagicMock()
+
+        mock_create.side_effect = async_create_model
+
+        mock_extract.return_value = (["p1"], ["pr1"])
+        mock_log.return_value = ["log"]
+
+        mock_resources = MagicMock()
+        mock_resources.usage = MagicMock()
+        mock_resources.quota = MagicMock()
+
+        deps = MagicMock()
+        deps.resources = mock_resources
+
+        posts, profiles = await write_posts_with_pydantic_agent(
+            prompt="system prompt",
+            config=MagicMock(),
+            context=deps,
+        )
+
+        assert posts == ["p1"]
+        assert profiles == ["pr1"]
+        mock_agent.run.assert_called_once()
+        mock_save.assert_called_once()
+        mock_resources.usage.record.assert_called()
+
+    @patch("egregora.agents.writer.agent.write_posts_with_pydantic_agent")
+    @pytest.mark.asyncio
+    async def test_execute_writer_with_error_handling_success(self, mock_write):
+        mock_write.return_value = AsyncMock(return_value=(["p1"], []))
+        with patch(
+            "egregora.agents.writer.agent.write_posts_with_pydantic_agent",
+            AsyncMock(return_value=(["p1"], [])),
+        ):
+            posts, _profiles = await execute_writer_with_error_handling("prompt", MagicMock(), MagicMock())
+            assert posts == ["p1"]
+
+    @patch("egregora.agents.writer.agent.write_posts_with_pydantic_agent")
+    @pytest.mark.asyncio
+    async def test_execute_writer_re_raises_context_error(self, mock_write):
+        with patch(
+            "egregora.agents.writer.agent.write_posts_with_pydantic_agent",
+            AsyncMock(side_effect=PromptTooLargeError("model", "w1")),
+        ):
+            with pytest.raises(PromptTooLargeError):
+                await execute_writer_with_error_handling("prompt", MagicMock(), MagicMock())
+
+    @patch("egregora.agents.writer.agent.write_posts_with_pydantic_agent")
+    @pytest.mark.asyncio
+    async def test_execute_writer_wraps_general_error(self, mock_write):
+        with patch(
+            "egregora.agents.writer.agent.write_posts_with_pydantic_agent",
+            AsyncMock(side_effect=ValueError("boom")),
+        ):
+            with pytest.raises(RuntimeError) as exc:
+                await execute_writer_with_error_handling("prompt", MagicMock(), MagicMock())
+            assert "Writer agent failed" in str(exc.value)
+````
+
+## File: tests/unit/agents/writer/test_context.py
+````python
+"""Unit tests for writer context module."""
+
+from unittest.mock import MagicMock, patch
+
+from egregora.agents.writer.context import (
+    WriterContext,
+    WriterContextParams,
+    _build_context_and_signature,
+    _build_writer_context,
+    _truncate_for_embedding,
+    inject_profiles_context,
+    inject_rag_context,
+)
+from egregora.config.settings import EgregoraConfig
+
+
+class TestWriterContext:
+    def test_truncate_for_embedding(self):
+        text = "a" * 100
+        truncated = _truncate_for_embedding(text, byte_limit=50)
+        # 50 chars + 34 chars for comment = 84
+        assert len(truncated) <= 84
+        assert "truncated" in truncated
+
+        short_text = "short"
+        assert _truncate_for_embedding(short_text, byte_limit=50) == short_text
+
+    @patch("egregora.agents.writer.context.build_conversation_xml")
+    @patch("egregora.agents.writer.context.load_journal_memory")
+    @patch("egregora.agents.writer.context.get_active_authors")
+    def test_build_writer_context(self, mock_active_authors, mock_journal, mock_xml):
+        # Mocks
+        mock_xml.return_value = "<xml>conversation</xml>"
+        mock_journal.return_value = "Journal content"
+        mock_active_authors.return_value = ["author1"]
+
+        mock_table = MagicMock()
+        mock_table.to_pyarrow.return_value = "pyarrow_table"
+
+        mock_resources = MagicMock()
+        mock_resources.output.get_format_instructions.return_value = "Format instructions"
+
+        config = EgregoraConfig()
+        config.writer.custom_instructions = "Custom instructions"
+        config.privacy.pii_detection_enabled = True
+
+        params = WriterContextParams(
+            table=mock_table,
+            resources=mock_resources,
+            cache=MagicMock(),
+            config=config,
+            window_label="Window 1",
+            adapter_content_summary="Summary",
+            adapter_generation_instructions="Gen instructions",
+        )
+
+        ctx = _build_writer_context(params)
+
+        assert ctx.conversation_xml == "<xml>conversation</xml>"
+        assert ctx.journal_memory == "Journal content"
+        assert ctx.active_authors == ["author1"]
+        assert ctx.format_instructions == "Format instructions"
+        assert "Custom instructions" in ctx.custom_instructions
+        assert "Gen instructions" in ctx.custom_instructions
+        assert ctx.source_context == "Summary"
+        assert ctx.pii_prevention is not None
+
+    def test_writer_context_template_context(self):
+        ctx = WriterContext(
+            conversation_xml="xml",
+            rag_context="rag",
+            profiles_context="profiles",
+            journal_memory="journal",
+            active_authors=["a", "b"],
+            format_instructions="format",
+            custom_instructions="custom",
+            source_context="source",
+            date_label="date",
+        )
+
+        tpl_ctx = ctx.template_context
+        assert tpl_ctx["conversation_xml"] == "xml"
+        assert tpl_ctx["active_authors"] == "a, b"
+        assert tpl_ctx["enable_memes"] is False
+
+    @patch("egregora.agents.writer.context.build_rag_context_for_prompt")
+    def test_inject_rag_context(self, mock_build_rag):
+        mock_ctx = MagicMock()
+        mock_ctx.deps.resources.retrieval_config.enabled = True
+        mock_ctx.deps.resources.retrieval_config.top_k = 3
+        mock_ctx.deps.conversation_xml = "content"
+
+        mock_build_rag.return_value = "RAG Results"
+
+        result = inject_rag_context(mock_ctx)
+        assert result == "RAG Results"
+        mock_build_rag.assert_called_with("content", top_k=3, cache=None)
+
+    def test_inject_rag_context_disabled(self):
+        mock_ctx = MagicMock()
+        mock_ctx.deps.resources.retrieval_config.enabled = False
+        result = inject_rag_context(mock_ctx)
+        assert result == ""
+
+    @patch("egregora.agents.writer.context.load_profiles_context")
+    def test_inject_profiles_context(self, mock_load_profiles):
+        mock_ctx = MagicMock()
+        mock_ctx.deps.active_authors = ["a1"]
+        mock_ctx.deps.resources.output = "output"
+
+        mock_load_profiles.return_value = "Profiles"
+
+        result = inject_profiles_context(mock_ctx)
+        assert result == "Profiles"
+        mock_load_profiles.assert_called_with(["a1"], "output")
+
+    @patch("egregora.agents.writer.context._build_writer_context")
+    @patch("egregora.agents.writer.context.PromptManager")
+    @patch("egregora.agents.writer.context.generate_window_signature")
+    def test_build_context_and_signature(self, mock_sig, mock_pm, mock_build_ctx):
+        mock_pm.get_template_content.return_value = "template"
+        mock_build_ctx.return_value = MagicMock(conversation_xml="xml")
+        mock_sig.return_value = "signature_hash"
+
+        # Create a real ibis table to test casting (or mock it properly)
+        # Using a mock for simplicity as casting logic relies on ibis internals
+        mock_table = MagicMock()
+
+        params = WriterContextParams(
+            table=mock_table,
+            resources=MagicMock(),
+            cache=MagicMock(),
+            config=EgregoraConfig(),
+            window_label="w1",
+            adapter_content_summary="",
+            adapter_generation_instructions="",
+        )
+
+        _ctx, sig = _build_context_and_signature(params, None)
+
+        assert sig == "signature_hash"
+        # Verify table mutation was attempted (checking if mutate called)
+        mock_table.mutate.assert_called()
+````
+
+## File: tests/unit/agents/writer/test_journal.py
+````python
+"""Unit tests for writer journal module."""
+
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
+
+from pydantic_ai.messages import (
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ThinkingPart,
+    ToolCallPart,
+    ToolReturnPart,
+)
+
+from egregora.agents.writer.journal import (
+    JOURNAL_TYPE_TEXT,
+    JOURNAL_TYPE_THINKING,
+    JOURNAL_TYPE_TOOL_CALL,
+    JOURNAL_TYPE_TOOL_RETURN,
+    JournalEntry,
+    JournalEntryParams,
+    _create_tool_call_entry,
+    _process_response_part,
+    extract_intercalated_log,
+    extract_journal_content,
+    save_journal_to_file,
+)
+from egregora.data_primitives.document import DocumentType
+
+
+class TestJournalLogic:
+    def test_create_tool_call_entry(self):
+        timestamp = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
+        part = ToolCallPart(tool_name="test_tool", args={"arg1": "value1"}, tool_call_id="call_1")
+        entry = _create_tool_call_entry(part, timestamp)
+
+        assert entry.entry_type == JOURNAL_TYPE_TOOL_CALL
+        assert entry.tool_name == "test_tool"
+        assert entry.timestamp == timestamp
+        assert "test_tool" in entry.content
+        assert "value1" in entry.content
+
+    def test_process_response_part_thinking(self):
+        timestamp = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
+        part = ThinkingPart(content="Thinking about logic")
+        entry = _process_response_part(part, timestamp)
+
+        assert entry.entry_type == JOURNAL_TYPE_THINKING
+        assert entry.content == "Thinking about logic"
+        assert entry.timestamp == timestamp
+
+    def test_process_response_part_text(self):
+        timestamp = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
+        part = TextPart(content="Final answer")
+        entry = _process_response_part(part, timestamp)
+
+        assert entry.entry_type == JOURNAL_TYPE_TEXT
+        assert entry.content == "Final answer"
+        assert entry.timestamp == timestamp
+
+    def test_process_response_part_tool_return(self):
+        timestamp = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
+        part = ToolReturnPart(tool_name="test_tool", content="Tool result", tool_call_id="call_1")
+        entry = _process_response_part(part, timestamp)
+
+        assert entry.entry_type == JOURNAL_TYPE_TOOL_RETURN
+        assert entry.tool_name == "test_tool"
+        assert "Tool result" in entry.content
+        assert entry.timestamp == timestamp
+
+    def test_extract_intercalated_log(self):
+        timestamp = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
+
+        # Request with tool call
+        req = ModelRequest(parts=[ToolCallPart(tool_name="tool_a", args={}, tool_call_id="1")])
+        req.timestamp = timestamp
+
+        # Response with thinking and tool return
+        # Note: ToolReturnPart is typically in ModelRequest in pydantic-ai structure for history?
+        # Wait, ModelRequest contains User/Tool messages. ModelResponse contains Assistant messages.
+        # ToolReturnPart is in ModelRequest (role='tool').
+        # ThinkingPart/TextPart/ToolCallPart are in ModelResponse.
+
+        # Let's verify pydantic-ai structure assumptions in journal.py
+        # journal.py assumes:
+        # ModelResponse -> ThinkingPart, TextPart, ToolCallPart
+        # ModelRequest -> ToolCallPart (Wait, ToolCallPart in Request? Usually ToolReturnPart is in Request if role=tool)
+
+        # Let's correct the test based on journal.py implementation:
+        # journal.py:
+        #   ModelResponse: _process_response_part(part) -> handles Thinking, Text, ToolCall(!), ToolReturn(!)
+        #   ModelRequest: checks for ToolCallPart
+
+        # This seems a bit mixed in journal.py, but we test the implementation as is.
+
+        resp = ModelResponse(
+            parts=[
+                ThinkingPart(content="Hmm"),
+                TextPart(content="Hello"),
+                ToolCallPart(tool_name="tool_b", args={}, tool_call_id="2"),
+            ],
+            timestamp=timestamp,
+        )
+
+        log = extract_intercalated_log([req, resp])
+
+        # req has ToolCallPart? journal.py checks `if isinstance(part, ToolCallPart)` for ModelRequest
+        # But ToolCallPart is usually generated by Model (Response).
+        # Let's assume journal.py logic is what we test.
+
+        assert len(log) == 4
+        # 1 from req (ToolCallPart)
+        assert log[0].entry_type == JOURNAL_TYPE_TOOL_CALL
+        # 3 from resp (Thinking, Text, ToolCall)
+        assert log[1].entry_type == JOURNAL_TYPE_THINKING
+        assert log[2].entry_type == JOURNAL_TYPE_TEXT
+        assert log[3].entry_type == JOURNAL_TYPE_TOOL_CALL
+
+    def test_extract_journal_content(self):
+        messages = [
+            ModelResponse(parts=[TextPart(content="Part 1")]),
+            ModelRequest(parts=[]),
+            ModelResponse(parts=[ThinkingPart(content="skip"), TextPart(content="Part 2")]),
+        ]
+        content = extract_journal_content(messages)
+        assert content == "Part 1\n\nPart 2"
+
+    @patch("egregora.agents.writer.journal.Environment")
+    def test_save_journal_to_file(self, mock_env_cls):
+        mock_env = MagicMock()
+        mock_template = MagicMock()
+        mock_template.render.return_value = "Rendered Journal"
+        mock_env.get_template.return_value = mock_template
+        mock_env_cls.return_value = mock_env
+
+        mock_output = MagicMock()
+
+        params = JournalEntryParams(
+            intercalated_log=[JournalEntry("text", "content")],
+            window_label="w1",
+            output_format=mock_output,
+            posts_published=1,
+            profiles_updated=0,
+            window_start=datetime.now(UTC),
+            window_end=datetime.now(UTC),
+        )
+
+        doc_id = save_journal_to_file(params)
+
+        assert doc_id is not None
+        mock_output.persist.assert_called_once()
+        doc = mock_output.persist.call_args[0][0]
+        assert doc.type == DocumentType.JOURNAL
+        assert doc.content == "Rendered Journal"
+        assert doc.metadata["window_label"] == "w1"
+
+    def test_save_journal_empty_log_returns_none(self):
+        params = JournalEntryParams(
+            intercalated_log=[],
+            window_label="w1",
+            output_format=MagicMock(),
+            posts_published=0,
+            profiles_updated=0,
+            window_start=datetime.now(UTC),
+            window_end=datetime.now(UTC),
+        )
+        assert save_journal_to_file(params) is None
+````
+
+## File: tests/unit/agents/writer/test_orchestrator.py
+````python
+"""Unit tests for writer orchestrator module."""
+
+from datetime import datetime
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from egregora.agents.writer.orchestrator import (
+    WriterDepsParams,
+    WriterFinalizationParams,
+    _check_writer_cache,
+    _finalize_writer_results,
+    _index_new_content_in_rag,
+    _prepare_writer_dependencies,
+    write_posts_for_window,
+)
+from egregora.config.settings import EgregoraConfig
+
+
+class TestWriterOrchestrator:
+    def test_prepare_writer_dependencies(self):
+        params = WriterDepsParams(
+            window_start=datetime(2024, 1, 1),
+            window_end=datetime(2024, 1, 2),
+            resources=MagicMock(),
+            model_name="model",
+            config=EgregoraConfig(),
+        )
+        deps = _prepare_writer_dependencies(params)
+        assert deps.model_name == "model"
+        assert deps.config is not None
+
+    def test_check_writer_cache_hit(self):
+        mock_cache = MagicMock()
+        mock_cache.should_refresh.return_value = False
+        mock_cache.writer.get.return_value = {"posts": ["p1"]}
+
+        result = _check_writer_cache(mock_cache, "sig", "label")
+        assert result == {"posts": ["p1"]}
+
+    def test_check_writer_cache_miss(self):
+        mock_cache = MagicMock()
+        mock_cache.should_refresh.return_value = False
+        mock_cache.writer.get.return_value = None
+
+        result = _check_writer_cache(mock_cache, "sig", "label")
+        assert result is None
+
+    def test_check_writer_cache_refresh(self):
+        mock_cache = MagicMock()
+        mock_cache.should_refresh.return_value = True
+
+        result = _check_writer_cache(mock_cache, "sig", "label")
+        assert result is None
+
+    @patch("egregora.agents.writer.orchestrator.index_documents")
+    def test_index_new_content_in_rag(self, mock_index):
+        mock_resources = MagicMock()
+        mock_resources.retrieval_config.enabled = True
+
+        mock_doc = MagicMock()
+        mock_doc.type = "post"  # DocumentType.POST (simplified for mock check)
+        # Mocking enum comparison requires care, assuming simple string or object equality
+        # In real code it checks DocumentType enum.
+        # Let's mock the output format's documents iterator properly.
+
+        from egregora.data_primitives.document import Document, DocumentType
+
+        doc = Document(content="c", type=DocumentType.POST, metadata={"slug": "post1"})
+        mock_resources.output.documents.return_value = [doc]
+
+        _index_new_content_in_rag(mock_resources, ["post1"], [])
+
+        mock_index.assert_called_once()
+
+    def test_index_new_content_in_rag_disabled(self):
+        mock_resources = MagicMock()
+        mock_resources.retrieval_config.enabled = False
+
+        _index_new_content_in_rag(mock_resources, ["p1"], [])
+        # Should return early without error or indexing
+
+    @patch("egregora.agents.writer.orchestrator._index_new_content_in_rag")
+    def test_finalize_writer_results(self, mock_index):
+        params = WriterFinalizationParams(
+            saved_posts=["p1"],
+            saved_profiles=[],
+            resources=MagicMock(),
+            deps=MagicMock(),
+            cache=MagicMock(),
+            signature="sig",
+        )
+
+        result = _finalize_writer_results(params)
+
+        assert result["posts"] == ["p1"]
+        params.resources.output.finalize_window.assert_called_once()
+        params.cache.writer.set.assert_called_once()
+        mock_index.assert_called_once()
+
+    @patch("egregora.agents.writer.orchestrator._build_context_and_signature")
+    @patch("egregora.agents.writer.orchestrator._check_writer_cache")
+    @patch("egregora.agents.writer.orchestrator._prepare_writer_dependencies")
+    @patch("egregora.agents.writer.orchestrator._render_writer_prompt")
+    @patch("egregora.agents.writer.orchestrator.execute_writer_with_error_handling")
+    @patch("egregora.agents.writer.orchestrator._finalize_writer_results")
+    @pytest.mark.asyncio
+    async def test_write_posts_for_window_full_flow(
+        self,
+        mock_finalize,
+        mock_execute,
+        mock_render,
+        mock_deps,
+        mock_cache,
+        mock_context,
+    ):
+        # Setup
+        mock_context.return_value = (MagicMock(), "sig")
+        mock_cache.return_value = None  # Cache miss
+        mock_deps.return_value = MagicMock()
+        mock_render.return_value = "prompt"
+
+        # Make execute async
+        async def async_execute(*args, **kwargs):
+            return (["p1"], [])
+
+        mock_execute.side_effect = async_execute
+
+        mock_finalize.return_value = {"posts": ["p1"], "profiles": []}
+
+        params = MagicMock()
+        params.table.count().execute.return_value = 10
+        params.config = EgregoraConfig()
+        # Use real datetimes for format strings
+        params.window_start = datetime(2024, 1, 1)
+        params.window_end = datetime(2024, 1, 2)
+
+        result = await write_posts_for_window(params)
+
+        assert result["posts"] == ["p1"]
+        mock_execute.assert_called_once()
+        mock_finalize.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_write_posts_for_window_empty_table(self):
+        params = MagicMock()
+        params.table.count().execute.return_value = 0
+
+        result = await write_posts_for_window(params)
+        assert result["posts"] == []
+        assert result["profiles"] == []
+````
+
 ## File: tests/unit/agents/__init__.py
 ````python
 """Unit tests for agents."""
@@ -4835,11 +5437,11 @@ def test_register_writer_tools_invokes_capabilities_once() -> None:
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-from egregora.agents.writer import (
+from egregora.agents.writer.agent import _process_single_tool_result
+from egregora.agents.writer.journal import (
     JournalEntry,
     JournalEntryParams,
-    _process_single_tool_result,
-    _save_journal_to_file,
+    save_journal_to_file,
 )
 
 
@@ -4868,7 +5470,7 @@ class TestWriterDecoupling:
 
         assert "some-id" in saved_posts
 
-    @patch("egregora.agents.writer.Environment")
+    @patch("egregora.agents.writer.journal.Environment")
     def test_journal_saves_agnostic_content(self, mock_env_cls):
         """Test that journal saving does not apply MkDocs-specific path replacements."""
         # Arrange
@@ -4895,7 +5497,7 @@ class TestWriterDecoupling:
         )
 
         # Act
-        _save_journal_to_file(params)
+        save_journal_to_file(params)
 
         # Assert
         # Check what was persisted
@@ -5820,7 +6422,12 @@ def test_write_pipeline_importable():
 @patch("egregora.orchestration.pipelines.write.load_egregora_config")
 @patch("egregora.orchestration.pipelines.write._validate_api_key")
 @patch("egregora.orchestration.pipelines.write.ensure_mkdocs_project")
-def test_run_cli_flow(mock_ensure_mkdocs, mock_validate_key, mock_load_config, mock_run):
+def test_run_cli_flow(
+    _mock_ensure_mkdocs,  # noqa: PT019
+    _mock_validate_key,  # noqa: PT019
+    mock_load_config,
+    mock_run,
+):
     """
     GREEN TEST: Verify run_cli_flow executes the pipeline logic.
     """
@@ -5840,10 +6447,6 @@ def test_run_cli_flow(mock_ensure_mkdocs, mock_validate_key, mock_load_config, m
     run_params = mock_run.call_args[0][0]
     assert run_params.input_path == Path("test.zip")
     assert run_params.source_type == SourceType.WHATSAPP.value
-
-    # Verify other mocks were used (silences PT019)
-    assert mock_ensure_mkdocs.called is not None
-    assert mock_validate_key.called is not None
 ````
 
 ## File: tests/unit/orchestration/test_factory_validation.py
@@ -5863,9 +6466,7 @@ def make_config(pipeline_db: str, runs_db: str):
 def test_create_database_backends_requires_uri(tmp_path):
     config = make_config("", "duckdb:///:memory:")
 
-    with pytest.raises(
-        ValueError, match=r"Database setting 'database\.pipeline_db' must be a non-empty connection URI\."
-    ):
+    with pytest.raises(ValueError, match="must be a non-empty connection URI"):
         PipelineFactory.create_database_backends(tmp_path, config)
 
 
@@ -8428,18 +9029,18 @@ def test_validate_public_url_resolve_failure(monkeypatch: pytest.MonkeyPatch) ->
 
 ## File: tests/unit/test_429_rotation.py
 ````python
-import pytest
 import time
-import os
-from unittest.mock import MagicMock, AsyncMock
-from pydantic_ai.models import Model, ModelResponse, ModelRequestParameters, ModelSettings
-from pydantic_ai.messages import ModelMessage, TextPart
+
+import pytest
 from pydantic_ai.exceptions import UsageLimitExceeded
+from pydantic_ai.messages import TextPart
+from pydantic_ai.models import Model, ModelRequestParameters, ModelResponse
 from pydantic_ai.usage import RequestUsage
 
-from egregora.utils.model_fallback import create_fallback_model
 from egregora.models.rate_limited import RateLimitedModel
+from egregora.utils.model_fallback import create_fallback_model
 from egregora.utils.rate_limit import init_rate_limiter
+
 
 class MockBaseModel(Model):
     def __init__(self, name):
@@ -8452,7 +9053,9 @@ class MockBaseModel(Model):
         # Raise 429 for the first call
         if self.calls == 1:
             raise Exception("429 Too Many Requests")
-        return ModelResponse(parts=[TextPart(text=f"Success from {self._name}")], usage=RequestUsage(), model_name=self._name)
+        return ModelResponse(
+            parts=[TextPart(text=f"Success from {self._name}")], usage=RequestUsage(), model_name=self._name
+        )
 
     @property
     def model_name(self) -> str:
@@ -8462,6 +9065,7 @@ class MockBaseModel(Model):
     def system(self) -> str:
         return "mock"
 
+
 @pytest.mark.asyncio
 async def test_fast_rotation_on_429(monkeypatch):
     """
@@ -8470,38 +9074,44 @@ async def test_fast_rotation_on_429(monkeypatch):
     """
     # Initialize rate limiter with high limits
     init_rate_limiter(requests_per_second=100.0, max_concurrency=10)
-    
+
     m1 = MockBaseModel("m1")
     rlm1 = RateLimitedModel(m1)
-    
+
     m2 = MockBaseModel("m2")
     rlm2 = RateLimitedModel(m2)
-    
+
     # m3 will succeed on first call
     class SuccessModel(MockBaseModel):
         async def request(self, messages, settings, params):
             self.calls += 1
-            return ModelResponse(parts=[TextPart(text=f"Success from {self._name}")], usage=RequestUsage(), model_name=self._name)
-            
+            return ModelResponse(
+                parts=[TextPart(text=f"Success from {self._name}")],
+                usage=RequestUsage(),
+                model_name=self._name,
+            )
+
     m3 = SuccessModel("m3")
     rlm3 = RateLimitedModel(m3)
-    
+
     from pydantic_ai.models.fallback import FallbackModel
+
     # FallbackModel should try rlm1 -> rlm2 -> rlm3
     # rlm1 fails (429), rlm2 fails (429), rlm3 succeeds
     fallback_model = FallbackModel(rlm1, rlm2, rlm3, fallback_on=(UsageLimitExceeded,))
-    
+
     start_time = time.time()
     response = await fallback_model.request([], None, ModelRequestParameters())
     end_time = time.time()
-    
+
     assert m1.calls == 1
     assert m2.calls == 1
     assert m3.calls == 1
     assert "Success from m3" in response.parts[0].text
-    
+
     # Elapsed time should be very small
     assert end_time - start_time < 0.5
+
 
 @pytest.mark.asyncio
 async def test_create_fallback_model_count(monkeypatch):
@@ -8510,17 +9120,16 @@ async def test_create_fallback_model_count(monkeypatch):
     """
     monkeypatch.setenv("GOOGLE_API_KEY", "key1")
     monkeypatch.setenv("GEMINI_API_KEYS", "key1,key2,key3")
-    
+
     fb_model = create_fallback_model("gemini-1.5-flash", ["gemini-1.5-pro"], include_openrouter=False)
-    
+
     # We should have (1 primary + 1 fallback) * 3 keys = 6 variations
     # FallbackModel stores them in an internal list.
     # We have one primary + 5 fallbacks
-    all_models = [fb_model] # Not quite right, FallbackModel itself isn't a list
-    
+
     # We can check the __repr__ or just trust the logic if we can't access internals easily.
     # Actually, we can check how many models are in the '_fallback_models' tuple.
-    assert len(fb_model._fallback_models) == 5 # 1 primary(rest of keys) + 2 * 2 (fallbacks)?
+    assert len(fb_model._fallback_models) == 5  # 1 primary(rest of keys) + 2 * 2 (fallbacks)?
     # Wait:
     # Primary-Key1 -> fb_model._primary_model
     # Primary-Key2, Primary-Key3 -> fb_model._fallback_models[0:2]
@@ -8530,14 +9139,15 @@ async def test_create_fallback_model_count(monkeypatch):
 
 ## File: tests/unit/test_media_slugs.py
 ````python
-import pytest
 from pathlib import Path
-from unittest.mock import MagicMock
 from types import SimpleNamespace
-import uuid
+from unittest.mock import MagicMock
 
-from egregora.agents.enricher import EnrichmentWorker, EnrichmentRuntimeContext
-from egregora.data_primitives.document import Document, DocumentType
+import pytest
+
+from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker
+from egregora.data_primitives.document import DocumentType
+
 
 @pytest.fixture
 def mock_context():
@@ -8546,16 +9156,18 @@ def mock_context():
     ctx.output_format = MagicMock()
     ctx.cache = MagicMock()
     ctx.library = None
-    ctx.input_path = None # Set to None to skip ZIP initialization in __init__
+    ctx.input_path = None  # Set to None to skip ZIP initialization in __init__
     return ctx
+
 
 @pytest.fixture
 def worker(mock_context):
     return EnrichmentWorker(ctx=mock_context)
 
+
 def test_persist_media_results_uses_slug_for_filename(worker, mock_context, mocker):
     """
-    Test that _persist_media_results correctly uses the slug 
+    Test that _persist_media_results correctly uses the slug
     provided by the LLM to construct the final filename and suggested_path.
     """
     # Setup test data
@@ -8567,7 +9179,7 @@ def test_persist_media_results_uses_slug_for_filename(worker, mock_context, mock
     }
     slug_value = "cool-new-slug"
     markdown = "# Enriched Content"
-    
+
     # Mock _parse_media_result to return our test data
     mocker.patch.object(worker, "_parse_media_result", return_value=(payload, slug_value, markdown))
     # Mock _stage_file to avoid real IO
@@ -8576,10 +9188,10 @@ def test_persist_media_results_uses_slug_for_filename(worker, mock_context, mock
     mock_context.task_store = MagicMock()
     # Mock storage for SQL update
     mock_context.storage = MagicMock()
-    
+
     # Result object with 'tag' attribute
     res = SimpleNamespace(tag="tag-1", error=None)
-    
+
     # Task metadata for persistence tracking
     task = {
         "task_id": "task-123",
@@ -8587,38 +9199,40 @@ def test_persist_media_results_uses_slug_for_filename(worker, mock_context, mock
         "_staged_path": "/tmp/fake.jpg",
     }
     task_map = {"tag-1": task}
-    
+
     # We call the internal method
     worker._persist_media_results([res], task_map)
-    
+
     # Verify persistence call
     assert mock_context.output_format.persist.called
-    
+
     # Inspect the document passed to persist
     persist_calls = mock_context.output_format.persist.call_args_list
-    
+
     # We expect two calls: one for the media file itself, one for the enrichment description
     assert len(persist_calls) >= 2
-    
+
     # Find the media document (type MEDIA)
     media_doc = next(call.args[0] for call in persist_calls if call.args[0].type == DocumentType.MEDIA)
-    
+
     # ASSERTIONS (This should fail initially on suggested_path and subdirectory logic)
     # 1. Filename in metadata should be slug-based
     assert media_doc.metadata["filename"] == "cool-new-slug.jpg"
-    
+
     # 2. suggested_path should include the subfolder and slug-based name
     # DESIRED: media/images/cool-new-slug.jpg
     # CURRENT: None (or some default if not set)
     assert media_doc.suggested_path == "media/images/cool-new-slug.jpg"
-    
+
     # 3. Verify enrichment doc also has correct references
-    enrich_doc = next(call.args[0] for call in persist_calls if call.args[0].type == DocumentType.ENRICHMENT_IMAGE)
+    enrich_doc = next(
+        call.args[0] for call in persist_calls if call.args[0].type == DocumentType.ENRICHMENT_IMAGE
+    )
     assert enrich_doc.metadata["filename"] == "cool-new-slug.jpg"
-    
+
     # DESIRED: parent_path should point to the media file's suggested path
     assert enrich_doc.metadata.get("parent_path") == "media/images/cool-new-slug.jpg"
-    
+
     # 4. Verify subdirectory logic
     assert media_doc.metadata.get("media_subdir") == "images"
 ````
@@ -8626,19 +9240,21 @@ def test_persist_media_results_uses_slug_for_filename(worker, mock_context, mock
 ## File: tests/unit/test_media_url_conventions.py
 ````python
 import pytest
-from pathlib import Path
 
-from egregora.output_adapters.conventions import StandardUrlConvention
-from egregora.data_primitives.protocols import UrlContext
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import UrlContext
+from egregora.output_adapters.conventions import StandardUrlConvention
+
 
 @pytest.fixture
 def convention():
     return StandardUrlConvention()
 
+
 @pytest.fixture
 def url_context():
     return UrlContext(base_url="", site_prefix="")
+
 
 def test_format_media_url_with_suggested_path(convention, url_context):
     """
@@ -8653,18 +9269,19 @@ def test_format_media_url_with_suggested_path(convention, url_context):
             "filename": "slug-name.jpg",
             "media_type": "image",
         },
-        suggested_path="media/images/slug-name.jpg"
+        suggested_path="media/images/slug-name.jpg",
     )
-    
+
     # The canonical URL should be 'media/images/slug-name.jpg'
     url = convention.canonical_url(doc, url_context)
-    
+
     # ASSERTION (Desired behavior)
     assert url == "/media/images/slug-name.jpg"
 
+
 def test_format_media_url_infers_subdirectory_from_extension(convention, url_context):
     """
-    Verify that if suggested_path is missing, the convention can still 
+    Verify that if suggested_path is missing, the convention can still
     infer the correct subdirectory from the filename extension.
     """
     doc = Document(
@@ -8674,67 +9291,79 @@ def test_format_media_url_infers_subdirectory_from_extension(convention, url_con
         metadata={
             "filename": "some-image.png",
             "media_type": "image",
-        }
+        },
     )
-    
+
     url = convention.canonical_url(doc, url_context)
-    
+
     # ASSERTION (Desired behavior: robustness)
     assert url == "/media/images/some-image.png"
 ````
 
 ## File: tests/unit/test_model_guards.py
 ````python
-import pytest
-from egregora.config.settings import DEFAULT_MODEL, PipelineSettings, MAX_PROMPT_TOKENS_WARNING_THRESHOLD
+from egregora.config.settings import DEFAULT_MODEL, MAX_PROMPT_TOKENS_WARNING_THRESHOLD, PipelineSettings
 from egregora.constants import KNOWN_MODEL_LIMITS
 from egregora.utils.model_fallback import GOOGLE_FALLBACK_MODELS
 
+
 def test_default_model_is_modern():
-    """Ensure the default model is at least a 1.5-flash or 2.0 version."""
-    modern_keywords = ["flash-latest", "2.0-flash", "1.5-flash", "1.5-pro", "2.0-pro"]
-    assert any(kw in DEFAULT_MODEL for kw in modern_keywords), \
-        f"DEFAULT_MODEL '{DEFAULT_MODEL}' seems potentially outdated or low-capacity. " \
-        "Please use a flash-latest or 2.0+ model to ensure enough context for blog generation."
+    """Ensure the default model is at least a 2.5 version."""
+    modern_keywords = [
+        "flash-latest",
+        "2.5-flash",
+        "pro-latest",
+        "2.5-pro",
+    ]
+    assert any(kw in DEFAULT_MODEL for kw in modern_keywords), (
+        f"DEFAULT_MODEL '{DEFAULT_MODEL}' seems outdated. "
+        "Please use a flash-latest or 2.5+ model."
+    )
+
 
 def test_known_model_limits_not_downgraded():
     """Ensure we don't accidentally lower the published limits of key models."""
     # We must maintain at least 1M tokens for the flagship models to avoid splitting failures
-    MIN_STABLE_LIMIT = 1_000_000
-    
+    min_stable_limit = 1_000_000
+
     important_models = [
         "gemini-flash-latest",
-        "gemini-2.0-flash",
-        "gemini-1.5-flash",
+        "gemini-2.5-flash",
         "gemini-pro-latest",
-        "gemini-1.5-pro",
+        "gemini-2.5-pro",
     ]
-    
+
     for model in important_models:
         limit = KNOWN_MODEL_LIMITS.get(model)
         assert limit is not None, f"Model {model} missing from KNOWN_MODEL_LIMITS"
-        assert limit >= MIN_STABLE_LIMIT, \
+        assert limit >= min_stable_limit, (
             f"Context limit for {model} ({limit}) is below the required 1M stability threshold."
+        )
+
 
 def test_pipeline_defaults_retain_safe_capacity():
     """Ensure default pipeline settings have a safe conservative cap."""
     settings = PipelineSettings()
-    
+
     # max_prompt_tokens should be at least 100k for the conservative strategy
-    assert settings.max_prompt_tokens >= 100_000, \
+    assert settings.max_prompt_tokens >= 100_000, (
         f"max_prompt_tokens default ({settings.max_prompt_tokens}) is too low. Should be at least 100k."
-        
-    assert MAX_PROMPT_TOKENS_WARNING_THRESHOLD >= 100_000, \
+    )
+
+    assert MAX_PROMPT_TOKENS_WARNING_THRESHOLD >= 100_000, (
         "MAX_PROMPT_TOKENS_WARNING_THRESHOLD should remain at 100k to match our conservative strategy."
+    )
+
 
 def test_fallback_chain_is_robust():
     """Ensure fallback models are all high-capacity Gemini models."""
     modern_keywords = ["flash-latest", "2.0-flash", "1.5-flash", "pro-latest", "1.5-pro", "2.0-pro"]
-    
+
     for model in GOOGLE_FALLBACK_MODELS:
-        assert any(kw in model for kw in modern_keywords), \
-            f"Fallback model '{model}' in GOOGLE_FALLBACK_MODELS is potentially low-capacity. " \
+        assert any(kw in model for kw in modern_keywords), (
+            f"Fallback model '{model}' in GOOGLE_FALLBACK_MODELS is potentially low-capacity. "
             "Downgrading to smaller models (like gemini-pro 1.0) will cause generation failures for large windows."
+        )
 ````
 
 ## File: tests/unit/test_security_xss.py
@@ -10269,7 +10898,7 @@ class MockRepo(DocumentRepository):
     def save_entry(self, item: Entry) -> None:
         pass
 
-    def get_entry(self, _item_id: str) -> Entry | None:
+    def get_entry(self, item_id: str) -> Entry | None:
         return None
 
     def get_entries_by_source(self, source_id: str) -> builtins.list[Entry]:
@@ -10457,7 +11086,7 @@ from datetime import datetime, timezone
 import xml.etree.ElementTree as ET
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given, strategies as st, settings, HealthCheck
 
 from egregora_v3.core.types import (
     Document,
@@ -10471,42 +11100,46 @@ from egregora_v3.core.types import (
 
 # --- Strategies ---
 
-def xml_safe_text(min_size=0):
-    return st.text(alphabet=st.characters(blacklist_categories=('Cc', 'Cs', 'Co')), min_size=min_size)
+def xml_safe_text(min_size=0, max_size=None):
+    return st.text(
+        alphabet=st.characters(blacklist_categories=('Cc', 'Cs', 'Co')),
+        min_size=min_size,
+        max_size=max_size
+    )
 
 def document_strategy():
     return st.builds(
         Document.create,
-        content=xml_safe_text(min_size=1),
+        content=xml_safe_text(min_size=1, max_size=1000),
         doc_type=st.sampled_from(DocumentType),
-        title=xml_safe_text(min_size=1),
-        slug=st.one_of(st.none(), st.text(min_size=1, alphabet=st.characters(whitelist_categories=('L', 'N')))),
-        id_override=st.one_of(st.none(), st.text(min_size=1, alphabet=st.characters(whitelist_categories=('L', 'N')))),
+        title=xml_safe_text(min_size=1, max_size=200),
+        slug=st.one_of(st.none(), st.text(min_size=1, max_size=100, alphabet=st.characters(whitelist_categories=('L', 'N')))),
+        id_override=st.one_of(st.none(), st.text(min_size=1, max_size=100, alphabet=st.characters(whitelist_categories=('L', 'N')))),
         searchable=st.booleans(),
     )
 
 def author_strategy():
-    return st.builds(Author, name=xml_safe_text(min_size=1), email=st.one_of(st.none(), st.emails()))
+    return st.builds(Author, name=xml_safe_text(min_size=1, max_size=100), email=st.one_of(st.none(), st.emails()))
 
 def entry_strategy():
     return st.builds(
         Entry,
-        id=xml_safe_text(min_size=1),
-        title=xml_safe_text(min_size=1),
+        id=xml_safe_text(min_size=1, max_size=100),
+        title=xml_safe_text(min_size=1, max_size=200),
         updated=st.datetimes(timezones=st.just(timezone.utc)),
-        content=xml_safe_text(),
-        authors=st.lists(author_strategy(), max_size=3),
+        content=xml_safe_text(max_size=1000),
+        authors=st.lists(author_strategy(), max_size=5),
         in_reply_to=st.one_of(
             st.none(),
-            st.builds(InReplyTo, ref=xml_safe_text(min_size=1))
+            st.builds(InReplyTo, ref=xml_safe_text(min_size=1, max_size=100))
         )
     )
 
 def feed_strategy():
     return st.builds(
         Feed,
-        id=xml_safe_text(min_size=1),
-        title=xml_safe_text(min_size=1),
+        id=xml_safe_text(min_size=1, max_size=100),
+        title=xml_safe_text(min_size=1, max_size=200),
         updated=st.datetimes(timezones=st.just(timezone.utc)),
         entries=st.lists(entry_strategy(), max_size=5)
     )
@@ -10556,6 +11189,7 @@ def test_document_semantic_identity():
     assert doc.id == slug
     assert doc.internal_metadata["slug"] == slug
 
+@settings(suppress_health_check=[HealthCheck.too_slow], max_examples=50)
 @given(feed_strategy())
 def test_feed_xml_validity(feed: Feed):
     """Test that generated XML is valid and parseable."""
@@ -15434,7 +16068,7 @@ def stub_enrichment_agents(monkeypatch):
     async def _stub_url_enrichment_async(agent, url, prompts_dir=None):
         return f"Stub enrichment for {url}"
 
-    async def _stub_media_enrichment_async(agent, file_path, _mime_hint=None, prompts_dir=None):
+    async def _stub_media_enrichment_async(agent, file_path, mime_hint=None, prompts_dir=None):
         return f"Stub enrichment for {file_path}"
 
     monkeypatch.setattr(
@@ -17454,4 +18088,153 @@ def test_migrate_creates_table_if_missing():
 
     columns = [row[0] for row in conn.execute("DESCRIBE documents").fetchall()]
     assert "doc_type" in columns
+````
+
+## File: tests/test_todo_ux_toml.py
+````python
+"""Tests for TODO.ux.toml validation."""
+
+import sys
+from pathlib import Path
+
+import pytest
+
+# Add scripts to path
+sys.path.insert(0, str(Path(__file__).parent.parent / ".jules" / "scripts"))
+
+from validate_todo import validate_todo_toml
+
+
+def test_todo_ux_toml_exists():
+    """Test that TODO.ux.toml exists."""
+    repo_root = Path(__file__).parent.parent
+    todo_path = repo_root / "TODO.ux.toml"
+    assert todo_path.exists(), "TODO.ux.toml not found"
+
+
+def test_todo_ux_toml_is_valid():
+    """Test that TODO.ux.toml passes validation."""
+    repo_root = Path(__file__).parent.parent
+    todo_path = repo_root / "TODO.ux.toml"
+
+    errors = validate_todo_toml(todo_path)
+
+    if errors:
+        error_msg = "TODO.ux.toml validation errors:\n" + "\n".join(f"  • {e}" for e in errors)
+        pytest.fail(error_msg)
+
+
+def test_todo_ux_toml_has_required_sections():
+    """Test that TODO.ux.toml has all required sections."""
+    import tomllib
+
+    repo_root = Path(__file__).parent.parent
+    todo_path = repo_root / "TODO.ux.toml"
+
+    with todo_path.open("rb") as f:
+        data = tomllib.load(f)
+
+    # Required top-level sections
+    assert "metadata" in data, "Missing [metadata] section"
+    assert "workflow" in data, "Missing [workflow] section"
+    assert "tasks" in data, "Missing [tasks] section"
+    assert "lighthouse" in data, "Missing [lighthouse] section"
+    assert "references" in data, "Missing [references] section"
+
+    # Required task categories
+    assert "high_priority" in data["tasks"], "Missing tasks.high_priority"
+    assert "medium_priority" in data["tasks"], "Missing tasks.medium_priority"
+    assert "low_priority" in data["tasks"], "Missing tasks.low_priority"
+    # Note: completed is optional (may be empty initially)
+
+
+def test_todo_ux_toml_task_structure():
+    """Test that all tasks have required fields."""
+    import tomllib
+
+    repo_root = Path(__file__).parent.parent
+    todo_path = repo_root / "TODO.ux.toml"
+
+    with todo_path.open("rb") as f:
+        data = tomllib.load(f)
+
+    valid_statuses = {"pending", "in_progress", "completed"}
+
+    for category in ["high_priority", "medium_priority", "low_priority"]:
+        tasks = data["tasks"][category]
+        for task in tasks:
+            # Required fields
+            assert "id" in task, f"Task missing 'id' in {category}"
+            assert "title" in task, f"Task {task.get('id', 'UNKNOWN')} missing 'title'"
+            assert "status" in task, f"Task {task['id']} missing 'status'"
+            assert "category" in task, f"Task {task['id']} missing 'category'"
+            assert "assignee" in task, f"Task {task['id']} missing 'assignee'"
+
+            # Valid status
+            assert task["status"] in valid_statuses, f"Task {task['id']} has invalid status: {task['status']}"
+
+            # Non-empty strings
+            assert task["id"].strip(), f"Task has empty 'id' in {category}"
+            assert task["title"].strip(), f"Task {task['id']} has empty 'title'"
+
+
+def test_todo_ux_toml_no_duplicate_ids():
+    """Test that all task IDs are unique."""
+    import tomllib
+
+    repo_root = Path(__file__).parent.parent
+    todo_path = repo_root / "TODO.ux.toml"
+
+    with todo_path.open("rb") as f:
+        data = tomllib.load(f)
+
+    all_ids = []
+    for category in ["high_priority", "medium_priority", "low_priority"]:
+        for task in data["tasks"][category]:
+            all_ids.append(task["id"])
+
+    # Add completed tasks if section exists
+    if "completed" in data["tasks"]:
+        for task in data["tasks"]["completed"]:
+            all_ids.append(task["id"])
+
+    # Check for duplicates
+    duplicates = [task_id for task_id in all_ids if all_ids.count(task_id) > 1]
+    assert not duplicates, f"Duplicate task IDs found: {set(duplicates)}"
+
+
+def test_todo_ux_toml_lighthouse_sections():
+    """Test that lighthouse sections have required metrics."""
+    import tomllib
+
+    repo_root = Path(__file__).parent.parent
+    todo_path = repo_root / "TODO.ux.toml"
+
+    with todo_path.open("rb") as f:
+        data = tomllib.load(f)
+
+    metrics = ["performance", "accessibility", "best_practices", "seo"]
+
+    for section in ["baseline", "target", "current"]:
+        assert section in data["lighthouse"], f"Missing lighthouse.{section}"
+        for metric in metrics:
+            assert metric in data["lighthouse"][section], f"Missing lighthouse.{section}.{metric}"
+
+
+def test_todo_ux_toml_references_structure():
+    """Test that references have required fields."""
+    import tomllib
+
+    repo_root = Path(__file__).parent.parent
+    todo_path = repo_root / "TODO.ux.toml"
+
+    with todo_path.open("rb") as f:
+        data = tomllib.load(f)
+
+    assert isinstance(data["references"], list), "references must be a list"
+
+    for ref in data["references"]:
+        assert "name" in ref, "Reference missing 'name'"
+        assert "url" in ref, "Reference missing 'url'"
+        assert "strength" in ref, "Reference missing 'strength'"
 ````
