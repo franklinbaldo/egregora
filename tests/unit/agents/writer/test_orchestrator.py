@@ -1,7 +1,9 @@
 """Unit tests for writer orchestrator module."""
 
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from egregora.agents.writer.orchestrator import (
     WriterDepsParams,
@@ -102,6 +104,7 @@ class TestWriterOrchestrator:
     @patch("egregora.agents.writer.orchestrator._render_writer_prompt")
     @patch("egregora.agents.writer.orchestrator.execute_writer_with_error_handling")
     @patch("egregora.agents.writer.orchestrator._finalize_writer_results")
+    @pytest.mark.asyncio
     async def test_write_posts_for_window_full_flow(
         self,
         mock_finalize,
@@ -116,7 +119,12 @@ class TestWriterOrchestrator:
         mock_cache.return_value = None  # Cache miss
         mock_deps.return_value = MagicMock()
         mock_render.return_value = "prompt"
-        mock_execute.return_value = (["p1"], [])
+
+        # Make execute async
+        async def async_execute(*args, **kwargs):
+            return (["p1"], [])
+        mock_execute.side_effect = async_execute
+
         mock_finalize.return_value = {"posts": ["p1"], "profiles": []}
 
         params = MagicMock()
@@ -132,6 +140,7 @@ class TestWriterOrchestrator:
         mock_execute.assert_called_once()
         mock_finalize.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_write_posts_for_window_empty_table(self):
         params = MagicMock()
         params.table.count().execute.return_value = 0
