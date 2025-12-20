@@ -53,18 +53,34 @@ tags:
 
 ### 3. Template Integration
 
-**File**: `site-fresh/.egregora/overrides/post.html`
+Users should add banner support to their MkDocs theme overrides.
+
+**Example**: `.egregora/overrides/post.html`
 
 ```html
-{% if page.meta.banner %}
-<div class="post-banner">
-  <img src="{{ page.meta.banner | url }}" alt="{{ page.title }} banner">
-</div>
-{% elif page.meta.image %}
-<div class="post-banner">
-  <img src="{{ page.meta.image | url }}" alt="{{ page.title }} banner">
-</div>
-{% endif %}
+{% extends "main.html" %}
+
+{% block content %}
+<article class="md-content__inner md-typeset">
+  <!-- Post Header -->
+  <header class="post-header">
+    {% if page.meta.banner %}
+    <div class="post-banner">
+      <img src="{{ page.meta.banner | url }}" alt="{{ page.title }} banner">
+    </div>
+    {% elif page.meta.image %}
+    <div class="post-banner">
+      <img src="{{ page.meta.image | url }}" alt="{{ page.title }} banner">
+    </div>
+    {% endif %}
+
+    <h1>{{ page.title }}</h1>
+    <!-- Rest of post header... -->
+  </header>
+
+  {{ page.content }}
+</article>
+{% endblock %}
 ```
 
 **Features**:
@@ -75,7 +91,38 @@ tags:
 
 ### 4. Styling
 
-Banner images are styled with:
+**Note**: The `site-fresh/` demo directory with banner styling was removed in PR #1362 cleanup.
+
+Users should implement banner styling in their own MkDocs sites. Example CSS:
+
+```css
+/* Post Banner */
+.post-banner {
+  margin-bottom: 2rem;
+  margin-left: calc(-1 * var(--md-typeset-a-spacing));
+  margin-right: calc(-1 * var(--md-typeset-a-spacing));
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.post-banner img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  max-height: 400px;
+}
+
+/* Responsive banner sizing */
+@media screen and (max-width: 76.1875em) {
+  .post-banner {
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+```
+
+Banner styling features:
 - Full-width display at top of post
 - Responsive sizing
 - Proper spacing from post content
