@@ -12,8 +12,7 @@ def test_default_model_is_modern():
         "2.5-pro",
     ]
     assert any(kw in DEFAULT_MODEL for kw in modern_keywords), (
-        f"DEFAULT_MODEL '{DEFAULT_MODEL}' seems outdated. "
-        "Please use a flash-latest or 2.5+ model."
+        f"DEFAULT_MODEL '{DEFAULT_MODEL}' seems outdated. Please use a flash-latest or 2.5+ model."
     )
 
 
