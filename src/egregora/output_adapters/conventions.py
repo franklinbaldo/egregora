@@ -1,13 +1,16 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
+
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlConvention
 from egregora.utils.paths import slugify
 
 if TYPE_CHECKING:
     from egregora.data_primitives.protocols import UrlContext
+
 
 def _remove_url_extension(url_path: str) -> str:
     """Remove extension from the last segment of a URL path, preserving dotfiles."""
@@ -16,6 +19,7 @@ def _remove_url_extension(url_path: str) -> str:
     if "." in filename and not filename.startswith("."):
         parts[-1] = filename.rsplit(".", 1)[0]
     return "/".join(parts)
+
 
 @dataclass(frozen=True)
 class RouteConfig:
@@ -26,6 +30,7 @@ class RouteConfig:
     annotations_prefix: str = "posts/annotations"
     date_in_url: bool = True
 
+
 class StandardUrlConvention(UrlConvention):
     name, version = "standard-v1", "1.1.0"
 
@@ -35,11 +40,11 @@ class StandardUrlConvention(UrlConvention):
     def _join(self, ctx: UrlContext, *segments: str, trailing_slash: bool = True) -> str:
         base = (ctx.base_url or "").rstrip("/")
         prefix = (ctx.site_prefix or "").strip("/")
-        
+
         # Build path segments filtering empty strings
         all_parts = [p for p in prefix.split("/") if p] + [s.strip("/") for s in segments if s]
         path = "/".join(all_parts)
-        
+
         url = f"{base}/{path}" if base else f"/{path}"
         return url.rstrip("/") + "/" if trailing_slash else url.rstrip("/")
 
@@ -72,17 +77,26 @@ class StandardUrlConvention(UrlConvention):
         m = doc.metadata
         uid = m.get("subject") or m.get("uuid") or m.get("author_uuid")
         slug = slugify(m.get("slug") or m.get("profile_aspect") or doc.document_id[:8])
-        return self._join(ctx, self.routes.profiles_prefix, str(uid), slug) if uid else self._join(ctx, self.routes.posts_prefix, slug)
+        return (
+            self._join(ctx, self.routes.profiles_prefix, str(uid), slug)
+            if uid
+            else self._join(ctx, self.routes.posts_prefix, slug)
+        )
 
     def _format_journal(self, ctx: UrlContext, doc: Document) -> str:
         label = doc.metadata.get("window_label") or doc.metadata.get("slug")
-        return self._join(ctx, self.routes.journal_prefix, slugify(label)) if label else self._join(ctx, self.routes.posts_prefix)
+        return (
+            self._join(ctx, self.routes.journal_prefix, slugify(label))
+            if label
+            else self._join(ctx, self.routes.posts_prefix)
+        )
 
     def _format_media(self, ctx: UrlContext, doc: Document) -> str:
         if doc.suggested_path:
             return self._join(ctx, doc.suggested_path, trailing_slash=False)
-        
+
         from egregora.ops.media import get_media_subfolder
+
         fname = doc.metadata.get("filename", doc.document_id)
         ext = f".{fname.rsplit('.', 1)[-1]}" if "." in fname else ""
         return self._join(ctx, "media", get_media_subfolder(ext), fname, trailing_slash=False)
@@ -94,7 +108,10 @@ class StandardUrlConvention(UrlConvention):
         if parent_path:
             path = _remove_url_extension(parent_path.strip("/"))
             # Clean redundancy: remove base/site prefixes from the string if present
-            prefixes = [f"{(ctx.site_prefix or '').strip('/')}/{self.routes.media_prefix.strip('/')}", self.routes.media_prefix.strip("/")]
+            prefixes = [
+                f"{(ctx.site_prefix or '').strip('/')}/{self.routes.media_prefix.strip('/')}",
+                self.routes.media_prefix.strip("/"),
+            ]
             for p in prefixes:
                 if path.startswith(p + "/"):
                     path = path.removeprefix(p + "/").strip("/")
