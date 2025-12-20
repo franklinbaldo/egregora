@@ -47,9 +47,9 @@ logger = logging.getLogger(__name__)
 # Constants
 # ============================================================================
 
-DEFAULT_MODEL = "google-gla:gemini-flash-latest"  # Use latest unpinned model (pydantic-ai format)
+DEFAULT_MODEL = "google-gla:gemini-2.5-flash"  # Use latest stable model (pydantic-ai format)
 DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
-DEFAULT_BANNER_MODEL = "models/gemini-flash-latest" # (google-sdk format uses models/ prefix via validator)
+DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash" # (google-sdk format uses models/ prefix via validator)
 EMBEDDING_DIM = 768  # Embedding vector dimensions
 
 # Quota defaults

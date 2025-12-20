@@ -64,6 +64,7 @@ from egregora.rag import index_documents, reset_backend
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
 from egregora.utils.cache import CacheTier, PipelineCache
+from egregora.utils.model_fallback import sanitize_model_name
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -163,19 +164,6 @@ def _truncate_for_embedding(text: str, byte_limit: int = MAX_RAG_QUERY_BYTES) ->
     return truncated_text + "\n\n<!-- truncated for RAG query -->"
 
 
-@dataclass
-class WriterContextParams:
-    """Parameters for building writer context."""
-
-    table: Table
-    resources: WriterResources
-    cache: PipelineCache
-    config: EgregoraConfig
-    window_label: str
-    adapter_content_summary: str
-    adapter_generation_instructions: str
-
-
 def _build_writer_context(params: WriterContextParams) -> WriterContext:
     """Collect contextual inputs used when rendering the writer prompt."""
     messages_table = params.table.to_pyarrow()
@@ -252,15 +240,6 @@ def _extract_journal_content(messages: MessageHistory) -> str:
     return "\n\n".join(journal_parts).strip()
 
 
-@dataclass(frozen=True)
-class JournalEntry:
-    """Represents a single entry in the intercalated journal log."""
-
-    entry_type: str  # "thinking", "journal", "tool_call", "tool_return"
-    content: str
-    timestamp: datetime | None = None
-    tool_name: str | None = None
-
 
 def _create_tool_call_entry(part: ToolCallPart, timestamp: datetime | None) -> JournalEntry:
     """Create a journal entry for a tool call part.
@@ -325,19 +304,6 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
 
     return entries
 
-
-@dataclass
-class JournalEntryParams:
-    """Parameters for saving a journal entry."""
-
-    intercalated_log: list[JournalEntry]
-    window_label: str
-    output_format: OutputSink
-    posts_published: int
-    profiles_updated: int
-    window_start: datetime
-    window_end: datetime
-    total_tokens: int = 0
 
 
 def _save_journal_to_file(params: JournalEntryParams) -> str | None:
@@ -513,8 +479,8 @@ async def write_posts_with_pydantic_agent(
     # Use tenacity for retries
     for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
         with attempt:
-            # DIRECT SYNC CALL
-            result = agent.run_sync(
+            # Use async run since we're in an async context
+            result = await agent.run(
                 "Analyze the conversation context provided and write posts/profiles as needed.",
                 deps=context,
                 usage_limits=usage_limits,
@@ -673,21 +639,6 @@ def _index_new_content_in_rag(
         reset_backend()
 
 
-@dataclass
-class WriterDepsParams:
-    """Parameters for creating WriterDeps."""
-
-    window_start: datetime
-    window_end: datetime
-    resources: WriterResources
-    model_name: str
-    table: Table | None = None
-    config: EgregoraConfig | None = None
-    conversation_xml: str = ""
-    active_authors: list[str] | None = None
-    adapter_content_summary: str = ""
-    adapter_generation_instructions: str = ""
-
 
 def _prepare_writer_dependencies(params: WriterDepsParams) -> WriterDeps:
     """Create WriterDeps from window parameters and resources."""
@@ -770,17 +721,6 @@ async def _execute_writer_with_error_handling(
         raise RuntimeError(msg) from exc
 
 
-@dataclass
-class WriterFinalizationParams:
-    """Parameters for finalizing writer results."""
-
-    saved_posts: list[str]
-    saved_profiles: list[str]
-    resources: WriterResources
-    deps: WriterDeps
-    cache: PipelineCache
-    signature: str
-
 
 def _finalize_writer_results(params: WriterFinalizationParams) -> dict[str, list[str]]:
     """Finalize window results: output, RAG indexing, and caching.
@@ -806,20 +746,6 @@ def _finalize_writer_results(params: WriterFinalizationParams) -> dict[str, list
 
     return result_payload
 
-
-@dataclass
-class WindowProcessingParams:
-    """Parameters for processing a window of messages."""
-
-    table: Table
-    window_start: datetime
-    window_end: datetime
-    resources: WriterResources
-    config: EgregoraConfig
-    cache: PipelineCache
-    adapter_content_summary: str = ""
-    adapter_generation_instructions: str = ""
-    run_id: str | None = None
 
 
 async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
@@ -918,10 +844,7 @@ async def _execute_economic_writer(
 ) -> tuple[list[str], list[str]]:
     """Execute writer in economic mode (one-shot, no tools, no streaming)."""
     # 1. Create simple model for generation
-    model_name = config.models.writer
-    # Handle pydantic-ai prefix
-    if model_name.startswith("google-gla:"):
-        model_name = model_name.replace("google-gla:", "models/")
+    model_name = sanitize_model_name(config.models.writer)
 
     # We use genai directly for simple generation to bypass pydantic-ai overhead/tools
     # Or we can use pydantic-ai agent without tools.

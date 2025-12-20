@@ -9,8 +9,16 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
-
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from datetime import datetime
+
+    from ibis.expr.types import Table
+
+    from egregora.config.settings import EgregoraConfig
+    from egregora.data_primitives.protocols import OutputSink
+    from egregora.orchestration.persistence import PipelineCache
 
 from egregora.agents.banner.agent import generate_banner
 from egregora.data_primitives.document import Document, DocumentType
@@ -48,10 +56,90 @@ class PostMetadata(BaseModel):
 
 
 class WriterAgentReturn(BaseModel):
-    """Final assistant response when the agent finishes."""
+    """Result model for the writer agent (Dynamic Result Mapping)."""
 
-    summary: str | None = None
-    notes: str | None = None
+    journal: list[str] = Field(default_factory=list)
+    reasoning: str | None = None
+
+
+@dataclass
+class JournalEntry:
+    """Represents a single entry in the intercalated journal log."""
+
+    entry_type: str  # "thinking", "journal", "tool_call", "tool_return"
+    content: str
+    timestamp: datetime | None = None
+    tool_name: str | None = None
+
+
+@dataclass
+class JournalEntryParams:
+    """Parameters for saving a journal entry."""
+
+    intercalated_log: list[JournalEntry]
+    window_label: str
+    output_format: OutputSink
+    posts_published: int
+    profiles_updated: int
+    window_start: datetime
+    window_end: datetime
+    total_tokens: int = 0
+
+
+@dataclass
+class WriterContextParams:
+    """Parameters for building writer context."""
+
+    table: Table
+    resources: WriterResources
+    cache: Any
+    config: EgregoraConfig
+    window_label: str
+    adapter_content_summary: str
+    adapter_generation_instructions: str
+
+
+@dataclass
+class WriterDepsParams:
+    """Parameters for creating WriterDeps."""
+
+    window_start: datetime
+    window_end: datetime
+    resources: WriterResources
+    model_name: str
+    table: Table | None = None
+    config: EgregoraConfig | None = None
+    conversation_xml: str = ""
+    active_authors: list[str] | None = None
+    adapter_content_summary: str = ""
+    adapter_generation_instructions: str = ""
+
+
+@dataclass
+class WriterFinalizationParams:
+    """Parameters for finalizing writer results."""
+
+    saved_posts: list[str]
+    saved_profiles: list[str]
+    resources: WriterResources
+    deps: WriterDeps
+    cache: Any
+    signature: str
+
+
+@dataclass
+class WindowProcessingParams:
+    """Parameters for processing a window of messages."""
+
+    table: Table
+    window_start: datetime
+    window_end: datetime
+    resources: WriterResources
+    config: EgregoraConfig
+    cache: PipelineCache
+    adapter_content_summary: str = ""
+    adapter_generation_instructions: str = ""
+    run_id: str | None = None
 
 
 # ==============================================================================

@@ -37,8 +37,8 @@ from egregora.agents.banner.worker import BannerWorker
 from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker, schedule_enrichment
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.types import PromptTooLargeError
-from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
+from egregora.agents.types import PromptTooLargeError, WindowProcessingParams
+from egregora.agents.writer import write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
 from egregora.constants import SourceType, WindowUnit
@@ -88,6 +88,26 @@ console = Console()
 __all__ = ["WhatsAppProcessOptions", "WriteCommandOptions", "process_whatsapp_export", "run", "run_cli_flow"]
 
 MIN_WINDOWS_WARNING_THRESHOLD = 5
+
+
+def run_async_safely(coro):
+    """Run an async coroutine safely, handling nested event loops.
+    
+    If an event loop is already running (e.g., in Jupyter or nested calls),
+    this will use run_until_complete instead of asyncio.run().
+    """
+    import asyncio
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop - use asyncio.run()
+        return asyncio.run(coro)
+    else:
+        # Loop is already running - use run_until_complete in a new thread
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(asyncio.run, coro)
+            return future.result()
 
 
 @dataclass
@@ -639,20 +659,17 @@ def _process_single_window(
         adapter_generation_instructions=adapter_instructions,
         run_id=str(ctx.run_id) if ctx.run_id else None,
     )
-    import asyncio
-    result = asyncio.run(write_posts_for_window(params))
+    result = run_async_safely(write_posts_for_window(params))
 
     posts = result.get("posts", [])
     profiles = result.get("profiles", [])
 
     # NEW: Generate PROFILE posts (Egregora writing ABOUT each author)
-    import asyncio
-
     from egregora.agents.profile.generator import generate_profile_posts
 
     window_date = window.start_time.strftime("%Y-%m-%d")
     try:
-        profile_docs = asyncio.run(
+        profile_docs = run_async_safely(
             generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date)
         )
 
