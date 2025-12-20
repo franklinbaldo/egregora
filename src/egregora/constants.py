@@ -48,8 +48,6 @@ class WindowUnit(str, Enum):
     BYTES = "bytes"
 
 
-
-
 class MediaType(str, Enum):
     """Media content types."""
 

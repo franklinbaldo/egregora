@@ -1655,7 +1655,7 @@ class EnrichmentWorker(BaseWorker):
             if not markdown and slug_value:
                 description = data.get("description", "")
                 alt_text = data.get("alt_text", "")
-                
+
                 # Construct final filename to match what will be persisted
                 ext = Path(filename).suffix
                 final_filename = f"{slug_value}{ext}"
