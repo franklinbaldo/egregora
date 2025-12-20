@@ -4,6 +4,9 @@ This script is intended for CI/GitHub Pages deployment. It runs the normal
 WhatsApp->blog pipeline against the small fixture ZIP in `tests/fixtures/`,
 but patches networked components (Gemini, RAG, enrichment, background tasks)
 to deterministic stubs so the demo can build without secrets.
+
+It invokes the pipeline via the CLI entry point (`egregora write`) to ensure
+stability and realistic usage.
 """
 
 from __future__ import annotations
@@ -18,6 +21,9 @@ from types import SimpleNamespace
 from typing import Any
 
 from pydantic_ai.models.test import TestModel
+from typer.testing import CliRunner
+
+from egregora.cli.main import app
 
 
 class WriterDemoModel(TestModel):
@@ -249,7 +255,7 @@ def main() -> int:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".demo-site"),
+        default=Path("demo"),
         help="Directory to generate the demo MkDocs project into",
     )
     parser.add_argument(
@@ -289,8 +295,10 @@ def main() -> int:
 
     _patch_pipeline_for_offline_demo()
 
+    # Pre-scaffold logic is handled by 'egregora write' via 'init' if missing,
+    # but to customize the stub files (Journal/Profiles placeholders), we do it beforehand.
+    # Egregora 'init' is idempotent, so calling it here (or letting write do it) is fine.
     from egregora.init import ensure_mkdocs_project
-    from egregora.orchestration.pipelines.write import WhatsAppProcessOptions, process_whatsapp_export
 
     ensure_mkdocs_project(output_dir, site_name="Egregora Demo")
 
@@ -317,22 +325,41 @@ def main() -> int:
         _rewrite_demo_config(config_path)
         _rewrite_pipeline_max_windows(config_path, args.max_windows)
 
-    options = WhatsAppProcessOptions(
-        output_dir=output_dir,
-        step_size=10_000,
-        step_unit="messages",
-        overlap_ratio=0.0,
-        enable_enrichment=False,
-        gemini_api_key="demo-offline-key",
-        max_prompt_tokens=50_000,
-    )
+    # Invoke the CLI using CliRunner
+    runner = CliRunner()
 
-    previous_cwd = Path.cwd()
-    try:
-        os.chdir(output_dir)
-        process_whatsapp_export(fixture_zip, options=options)
-    finally:
-        os.chdir(previous_cwd)
+    # Arguments for 'egregora write'
+    cli_args = [
+        "write",
+        str(fixture_zip),
+        "--output-dir",
+        str(output_dir),
+        "--step-size",
+        "10000",
+        "--step-unit",
+        "messages",
+        "--overlap",
+        "0.0",
+        "--no-enable-enrichment",
+        "--max-prompt-tokens",
+        "50000",
+        # Force refresh to ensure clean run
+        "--force",
+    ]
+
+    print(f"Invoking CLI: egregora {' '.join(cli_args)}")
+
+    # Run in-process
+    result = runner.invoke(app, cli_args, catch_exceptions=False)
+
+    if result.exit_code != 0:
+        print("CLI execution failed:")
+        print(result.stdout)
+        if result.exc_info:
+            print(result.exc_info)
+        return result.exit_code
+
+    print(result.stdout)
     return 0
 
 

@@ -1,0 +1,9 @@
+# Ephemeral data (regenerated on each run)
+.cache/
+rag/*.duckdb
+rag/*.parquet
+rag/*.duckdb.wal
+
+# Python cache
+__pycache__/
+*.pyc
