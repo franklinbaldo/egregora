@@ -37,7 +37,7 @@ def test_todo_ux_toml_has_required_sections():
     repo_root = Path(__file__).parent.parent
     todo_path = repo_root / "TODO.ux.toml"
 
-    with open(todo_path, "rb") as f:
+    with todo_path.open("rb") as f:
         data = tomllib.load(f)
 
     # Required top-level sections
@@ -61,7 +61,7 @@ def test_todo_ux_toml_task_structure():
     repo_root = Path(__file__).parent.parent
     todo_path = repo_root / "TODO.ux.toml"
 
-    with open(todo_path, "rb") as f:
+    with todo_path.open("rb") as f:
         data = tomllib.load(f)
 
     valid_statuses = {"pending", "in_progress", "completed"}
@@ -91,7 +91,7 @@ def test_todo_ux_toml_no_duplicate_ids():
     repo_root = Path(__file__).parent.parent
     todo_path = repo_root / "TODO.ux.toml"
 
-    with open(todo_path, "rb") as f:
+    with todo_path.open("rb") as f:
         data = tomllib.load(f)
 
     all_ids = []
@@ -105,7 +105,7 @@ def test_todo_ux_toml_no_duplicate_ids():
             all_ids.append(task["id"])
 
     # Check for duplicates
-    duplicates = [id for id in all_ids if all_ids.count(id) > 1]
+    duplicates = [task_id for task_id in all_ids if all_ids.count(task_id) > 1]
     assert not duplicates, f"Duplicate task IDs found: {set(duplicates)}"
 
 
@@ -116,7 +116,7 @@ def test_todo_ux_toml_lighthouse_sections():
     repo_root = Path(__file__).parent.parent
     todo_path = repo_root / "TODO.ux.toml"
 
-    with open(todo_path, "rb") as f:
+    with todo_path.open("rb") as f:
         data = tomllib.load(f)
 
     metrics = ["performance", "accessibility", "best_practices", "seo"]
@@ -134,7 +134,7 @@ def test_todo_ux_toml_references_structure():
     repo_root = Path(__file__).parent.parent
     todo_path = repo_root / "TODO.ux.toml"
 
-    with open(todo_path, "rb") as f:
+    with todo_path.open("rb") as f:
         data = tomllib.load(f)
 
     assert isinstance(data["references"], list), "references must be a list"

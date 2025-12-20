@@ -51,6 +51,9 @@ class WindowUnit(str, Enum):
 # Gemini model context limits (input tokens)
 # Source: https://ai.google.dev/gemini-api/docs/models/gemini
 KNOWN_MODEL_LIMITS = {
+    # Gemini 2.5 family (Latest)
+    "gemini-2.5-flash": 1_048_576,  # 1M tokens
+    "gemini-2.5-pro": 2_097_152,  # 2M tokens
     # Gemini 2.0 family
     "gemini-2.0-flash-exp": 1_048_576,  # 1M tokens
     "gemini-2.0-flash": 1_048_576,  # 1M tokens
