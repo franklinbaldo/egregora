@@ -35,10 +35,10 @@ from rich.panel import Panel
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.banner.worker import BannerWorker
 from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker, schedule_enrichment
-from egregora.agents.model_limits import PromptTooLargeError, get_model_context_limit
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
+from egregora.agents.types import PromptTooLargeError, WindowProcessingParams
+from egregora.agents.writer import write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
 from egregora.constants import SourceType, WindowUnit
@@ -66,7 +66,7 @@ from egregora.transformations import (
     split_window_into_n_parts,
 )
 from egregora.utils.cache import PipelineCache
-from egregora.utils.env import validate_gemini_api_key
+from egregora.utils.env import dedupe_api_keys, get_google_api_keys, validate_gemini_api_key
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.rate_limit import init_rate_limiter
 
@@ -90,6 +90,28 @@ __all__ = ["WhatsAppProcessOptions", "WriteCommandOptions", "process_whatsapp_ex
 MIN_WINDOWS_WARNING_THRESHOLD = 5
 
 
+def run_async_safely(coro: Any) -> Any:
+    """Run an async coroutine safely, handling nested event loops.
+
+    If an event loop is already running (e.g., in Jupyter or nested calls),
+    this will use run_until_complete instead of asyncio.run().
+    """
+    import asyncio
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop - use asyncio.run()
+        return asyncio.run(coro)
+    else:
+        # Loop is already running - use run_until_complete in a new thread
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(asyncio.run, coro)
+            return future.result()
+
+
 @dataclass
 class WriteCommandOptions:
     """Options for the write command."""
@@ -109,7 +131,6 @@ class WriteCommandOptions:
     use_full_context_window: bool
     max_windows: int | None
     resume: bool
-    economic_mode: bool
     refresh: str | None
     force: bool
     debug: bool
@@ -133,7 +154,6 @@ class WhatsAppProcessOptions:
     # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch removed (legacy DuckDB VSS settings)
     max_prompt_tokens: int = 100_000
     use_full_context_window: bool = False
-    economic_mode: bool = False
     client: genai.Client | None = None
     refresh: str | None = None
 
@@ -146,12 +166,20 @@ def _load_dotenv_if_available(output_dir: Path) -> None:
 
 def _validate_api_key(output_dir: Path) -> None:
     """Validate that API key is set and valid."""
-    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        _load_dotenv_if_available(output_dir)
-        api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    skip_validation = os.getenv("EGREGORA_SKIP_API_KEY_VALIDATION", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "y",
+        "on",
+    }
 
-    if not api_key:
+    api_keys = get_google_api_keys()
+    if not api_keys:
+        _load_dotenv_if_available(output_dir)
+        api_keys = get_google_api_keys()
+
+    if not api_keys:
         console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
         console.print(
             "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key"
@@ -159,17 +187,27 @@ def _validate_api_key(output_dir: Path) -> None:
         console.print("You can also create a .env file in the output directory or current directory.")
         raise SystemExit(1)
 
-    # Validate the API key with a lightweight call
+    if skip_validation:
+        os.environ["GOOGLE_API_KEY"] = api_keys[0]
+        return
+
     console.print("[cyan]Validating Gemini API key...[/cyan]")
-    try:
-        validate_gemini_api_key(api_key)
-        console.print("[green]✓ API key validated successfully[/green]")
-    except ValueError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise SystemExit(1) from e
-    except ImportError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise SystemExit(1) from e
+    validation_errors: list[str] = []
+    for key in api_keys:
+        try:
+            validate_gemini_api_key(key)
+            os.environ["GOOGLE_API_KEY"] = key
+            console.print("[green]✓ API key validated successfully[/green]")
+            return
+        except ValueError as e:
+            validation_errors.append(str(e))
+        except ImportError as e:
+            console.print(f"[red]Error: {e}[/red]")
+            raise SystemExit(1) from e
+
+    joined = "\n\n".join(validation_errors)
+    console.print(f"[red]Error: {joined}[/red]")
+    raise SystemExit(1)
 
 
 def _prepare_write_config(
@@ -201,7 +239,6 @@ def _prepare_write_config(
                     "use_full_context_window": options.use_full_context_window,
                     "max_windows": options.max_windows,
                     "checkpoint_enabled": options.resume,
-                    "economic_mode": options.economic_mode,
                 }
             ),
             "enrichment": base_config.enrichment.model_copy(update={"enabled": options.enable_enrichment}),
@@ -257,7 +294,6 @@ def run_cli_flow(
     use_full_context_window: bool = False,
     max_windows: int | None = None,
     resume: bool = True,
-    economic_mode: bool = False,
     refresh: str | None = None,
     force: bool = False,
     debug: bool = False,
@@ -279,7 +315,6 @@ def run_cli_flow(
         "use_full_context_window": use_full_context_window,
         "max_windows": max_windows,
         "resume": resume,
-        "economic_mode": economic_mode,
         "refresh": refresh,
         "force": force,
         "debug": debug,
@@ -293,6 +328,9 @@ def run_cli_flow(
 
     if parsed_options.debug:
         logging.getLogger().setLevel(logging.DEBUG)
+
+    # Dedupe API keys at startup to prevent SDK warning about both being set
+    dedupe_api_keys()
 
     from_date_obj, to_date_obj = None, None
     if parsed_options.from_date:
@@ -408,7 +446,6 @@ def process_whatsapp_export(
                     "batch_threshold": opts.batch_threshold,
                     "max_prompt_tokens": opts.max_prompt_tokens,
                     "use_full_context_window": opts.use_full_context_window,
-                    "economic_mode": opts.economic_mode,
                 }
             ),
             "enrichment": base_config.enrichment.model_copy(update={"enabled": opts.enable_enrichment}),
@@ -554,35 +591,8 @@ def _process_single_window(
 
     # Enrichment (Schedule tasks)
     if ctx.enable_enrichment:
-        # Check for economic mode
-        if getattr(ctx.config.pipeline, "economic_mode", False):
-            logger.info("%s💰 [cyan]Economic Mode:[/], forcing batch enrichment", indent)
-            # We can force batch strategy in context or just rely on perform_enrichment logic
-            # For now, let's update _perform_enrichment to respect economic_mode if needed,
-            # but economic_mode primarily affects the WRITER (no tools) and ENRICHER (single batch).
-            # The current _perform_enrichment already schedules and executes.
-            # We need to make sure the strategy is 'batch_all'.
-
-            # Create a modified config for enrichment to force batch_all and disable URLs
-            # to strictly adhere to "two LLM calls" (1 Media + 1 Writer)
-            enrichment_config = ctx.config.enrichment.model_copy(
-                update={"strategy": "batch_all", "enable_url": False}
-            )
-
-            # We need to temporarily patch the config in context or pass it down
-            # Since ctx.config is immutable (pydantic), we might need to handle this carefully.
-            # However, `schedule_enrichment` takes `ctx.config.enrichment` as an argument.
-            # So we can just pass the modified config object there.
-
-            logger.info(
-                "%s✨ [cyan]Scheduling enrichment (Economic Batch)[/] for window %s", indent, window_label
-            )
-            enriched_table = _perform_enrichment(
-                window_table_processed, media_mapping, ctx, override_config=enrichment_config
-            )
-        else:
-            logger.info("%s✨ [cyan]Scheduling enrichment[/] for window %s", indent, window_label)
-            enriched_table = _perform_enrichment(window_table_processed, media_mapping, ctx)
+        logger.info("%s✨ [cyan]Scheduling enrichment[/] for window %s", indent, window_label)
+        enriched_table = _perform_enrichment(window_table_processed, media_mapping, ctx)
     else:
         enriched_table = window_table_processed
 
@@ -639,19 +649,17 @@ def _process_single_window(
         adapter_generation_instructions=adapter_instructions,
         run_id=str(ctx.run_id) if ctx.run_id else None,
     )
-    result = write_posts_for_window(params)
+    result = run_async_safely(write_posts_for_window(params))
 
     posts = result.get("posts", [])
     profiles = result.get("profiles", [])
 
     # NEW: Generate PROFILE posts (Egregora writing ABOUT each author)
-    import asyncio
-
     from egregora.agents.profile.generator import generate_profile_posts
 
     window_date = window.start_time.strftime("%Y-%m-%d")
     try:
-        profile_docs = asyncio.run(
+        profile_docs = run_async_safely(
             generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date)
         )
 
@@ -836,7 +844,18 @@ def _resolve_context_token_limit(config: EgregoraConfig) -> int:
 
     if use_full_window:
         writer_model = config.models.writer
-        limit = get_model_context_limit(writer_model)
+        # Use KNOWN_MODEL_LIMITS from constants if available, else conservative 128k
+        from egregora.constants import KNOWN_MODEL_LIMITS
+
+        clean_name = (
+            writer_model.replace("models/", "").replace("google-gla:", "").replace("google-vertex:", "")
+        )
+        limit = 128_000
+        for known_model, known_limit in KNOWN_MODEL_LIMITS.items():
+            if clean_name.startswith(known_model):
+                limit = known_limit
+                break
+
         logger.debug(
             "Using full context window for writer model %s (limit=%d tokens)",
             writer_model,
@@ -1207,7 +1226,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
 
     url_ctx = UrlContext(
         base_url="",
-        site_prefix=site_paths.docs_prefix,
+        site_prefix="",  # FIX: Empty prefix because MkDocsAdapter prepends media_dir
         base_path=site_paths.site_root,
     )
 
