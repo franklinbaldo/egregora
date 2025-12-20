@@ -79,12 +79,13 @@ def _apply_patches(patches: list[PatchSpec]) -> None:
 
 def _patch_pipeline_for_offline_demo() -> None:
     # Patch writer to force TestModel usage (no Gemini calls).
-    from egregora.agents import writer as writer_module
+    # We patch both the package export and the module definition to be safe.
+    from egregora.agents.writer import agent as writer_agent_module
 
-    original_writer = writer_module.write_posts_with_pydantic_agent
+    original_writer = writer_agent_module.write_posts_with_pydantic_agent
 
-    def _writer_wrapper(*, prompt: str, config, context, test_model=None):
-        return original_writer(
+    async def _writer_wrapper(*, prompt: str, config, context, test_model=None):
+        return await original_writer(
             prompt=prompt,
             config=config,
             context=context,
@@ -103,6 +104,12 @@ def _patch_pipeline_for_offline_demo() -> None:
     async def _stub_media_enrichment_async(_agent, file_path, mime_hint=None, prompts_dir=None) -> str:
         return f"Stub enrichment for {file_path}"
 
+    async def _stub_generate_profile_posts(ctx, messages, window_date) -> list:
+        return []
+
+    def _stub_process_avatar_commands(messages_table, context) -> dict:
+        return {}
+
     def _stub_url_agent(_model, _simple=True):
         return object()
 
@@ -112,11 +119,33 @@ def _patch_pipeline_for_offline_demo() -> None:
     def _skip_background_tasks(_ctx) -> None:
         return None
 
+    def _stub_generate_taxonomy(dataset) -> None:
+        return None
+
     patches = [
+        # Writer Agent
+        PatchSpec("egregora.agents.writer.agent.write_posts_with_pydantic_agent", _writer_wrapper),
         PatchSpec("egregora.agents.writer.write_posts_with_pydantic_agent", _writer_wrapper),
+        # Profile Generator
+        PatchSpec(
+            "egregora.agents.profile.generator.generate_profile_posts", _stub_generate_profile_posts
+        ),
+        # Avatar processing
+        PatchSpec("egregora.agents.avatar.process_avatar_commands", _stub_process_avatar_commands),
         # Avoid banner capability and workers.
         PatchSpec("egregora.agents.writer_setup.is_banner_generation_available", lambda: False),
-        PatchSpec("egregora.orchestration.pipelines.write._process_background_tasks", _skip_background_tasks),
+        PatchSpec(
+            "egregora.orchestration.pipelines.write._process_background_tasks", _skip_background_tasks
+        ),
+        # Taxonomy
+        PatchSpec(
+            "egregora.orchestration.pipelines.write._generate_taxonomy",
+            _stub_generate_taxonomy,
+            optional=True,
+        ),
+        PatchSpec(
+            "egregora.ops.taxonomy.generate_semantic_taxonomy", lambda *args, **kwargs: 0, optional=True
+        ),
         # RAG: avoid DB creation and searches.
         PatchSpec("egregora.rag.index_documents", _mock_index_documents),
         PatchSpec("egregora.rag.search", _mock_search),
@@ -131,8 +160,12 @@ def _patch_pipeline_for_offline_demo() -> None:
         PatchSpec("egregora.agents.writer.index_documents", _mock_index_documents, optional=True),
         PatchSpec("egregora.agents.writer.reset_backend", lambda **_kwargs: None, optional=True),
         # Enrichment: avoid network and multimodal calls.
-        PatchSpec("egregora.agents.enricher.create_url_enrichment_agent", _stub_url_agent, optional=True),
-        PatchSpec("egregora.agents.enricher.create_media_enrichment_agent", _stub_media_agent, optional=True),
+        PatchSpec(
+            "egregora.agents.enricher.create_url_enrichment_agent", _stub_url_agent, optional=True
+        ),
+        PatchSpec(
+            "egregora.agents.enricher.create_media_enrichment_agent", _stub_media_agent, optional=True
+        ),
         PatchSpec(
             "egregora.agents.enricher._run_url_enrichment_async", _stub_url_enrichment_async, optional=True
         ),
