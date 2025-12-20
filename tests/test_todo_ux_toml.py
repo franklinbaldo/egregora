@@ -77,8 +77,7 @@ def test_todo_ux_toml_task_structure():
             assert "assignee" in task, f"Task {task['id']} missing 'assignee'"
 
             # Valid status
-            assert task["status"] in valid_statuses, \
-                f"Task {task['id']} has invalid status: {task['status']}"
+            assert task["status"] in valid_statuses, f"Task {task['id']} has invalid status: {task['status']}"
 
             # Non-empty strings
             assert task["id"].strip(), f"Task has empty 'id' in {category}"
@@ -125,8 +124,7 @@ def test_todo_ux_toml_lighthouse_sections():
     for section in ["baseline", "target", "current"]:
         assert section in data["lighthouse"], f"Missing lighthouse.{section}"
         for metric in metrics:
-            assert metric in data["lighthouse"][section], \
-                f"Missing lighthouse.{section}.{metric}"
+            assert metric in data["lighthouse"][section], f"Missing lighthouse.{section}.{metric}"
 
 
 def test_todo_ux_toml_references_structure():

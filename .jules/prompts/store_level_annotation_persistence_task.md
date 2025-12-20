@@ -27,7 +27,7 @@ Move persistence INTO the store:
 class AnnotationsStore:
     def __init__(self, db, output_sink: OutputSink | None = None):
         self.output_sink = output_sink
-    
+
     def save_annotation(self, ...) -> Annotation:
         annotation = self._save_to_db(...)
         if self.output_sink:
@@ -66,26 +66,26 @@ class TestAnnotationStorePersistence:
         self, mock_db, mock_output_sink
     ) -> None:
         store = AnnotationStore(db=mock_db, output_sink=mock_output_sink)
-        
+
         annotation = store.save_annotation(
             parent_id="msg-123",
             parent_type="message",
             commentary="Important observation.",
         )
-        
+
         mock_output_sink.persist.assert_called_once()
         persisted_doc = mock_output_sink.persist.call_args[0][0]
         assert persisted_doc.type == DocumentType.ANNOTATION
 
     def test_save_annotation_works_without_sink(self, mock_db) -> None:
         store = AnnotationStore(db=mock_db, output_sink=None)
-        
+
         annotation = store.save_annotation(
             parent_id="msg-456",
             parent_type="message",
             commentary="Another observation.",
         )
-        
+
         assert annotation is not None
 
     def test_persist_failure_does_not_fail_save(
@@ -93,13 +93,13 @@ class TestAnnotationStorePersistence:
     ) -> None:
         mock_output_sink.persist.side_effect = IOError("Disk full")
         store = AnnotationStore(db=mock_db, output_sink=mock_output_sink)
-        
+
         annotation = store.save_annotation(
             parent_id="msg-789",
             parent_type="message",
             commentary="Test observation.",
         )
-        
+
         assert annotation is not None
 
 
@@ -114,9 +114,9 @@ class TestAnnotationDocumentConversion:
             commentary="Test commentary",
             created_at=datetime.now(timezone.utc),
         )
-        
+
         doc = annotation.to_document()
-        
+
         assert doc.type == DocumentType.ANNOTATION
         assert doc.metadata["annotation_id"] == "42"
 ```
@@ -144,14 +144,14 @@ class AnnotationStore:
 ```python
 def save_annotation(self, parent_id: str, parent_type: str, commentary: str, author: str = "egregora") -> Annotation:
     annotation = self._insert_annotation(parent_id=parent_id, parent_type=parent_type, commentary=commentary, author=author)
-    
+
     if self.output_sink:
         try:
             doc = annotation.to_document()
             self.output_sink.persist(doc)
         except Exception as e:
             logger.warning("Failed to persist annotation: %s", e)
-    
+
     return annotation
 ```
 
