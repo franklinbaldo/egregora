@@ -40,8 +40,7 @@ from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
-from egregora.utils.model_fallback import create_fallback_model, sanitize_model_name
-from egregora.utils.model_names import to_google_genai_model_name
+from egregora.utils.model_fallback import create_fallback_model
 from egregora.utils.paths import slugify
 from egregora.utils.zip import validate_zip_contents
 
@@ -304,33 +303,8 @@ def _enqueue_url_enrichments(
         return 0
 
     candidates = _extract_url_candidates(messages_table, max_enrichments)
-
-    # Pre-check database for already enriched URLs to avoid redundant tasks
-    urls_to_check = [c[0] for c in candidates]
-    existing_urls = set()
-    if urls_to_check:
-        try:
-            # Check for existing URL enrichments in the messages table
-            # We look for rows with media_type='URL' and matching media_url
-            db_existing = (
-                messages_table.filter(
-                    (messages_table.media_type == "URL") & (messages_table.media_url.isin(urls_to_check))
-                )
-                .select("media_url")
-                .execute()
-            )
-            existing_urls = set(db_existing["media_url"].tolist())
-        except Exception:
-            logger.warning(
-                "Failed to check database for existing URL enrichments; falling back to cache only."
-            )
-
     scheduled = 0
     for url, metadata in candidates:
-        # Skip if already in database OR disk cache
-        if url in existing_urls:
-            continue
-
         cache_key = make_enrichment_cache_key(kind="url", identifier=url)
         if context.cache.load(cache_key) is not None:
             continue
@@ -364,34 +338,8 @@ def _enqueue_media_enrichments(
         return 0
 
     candidates = _extract_media_candidates(messages_table, config.media_mapping, config.max_enrichments)
-
-    # Pre-check database for already enriched media to avoid redundant tasks
-    media_ids_to_check = [c[1].document_id for c in candidates]
-    existing_media = set()
-    if media_ids_to_check:
-        try:
-            # Check for existing Media enrichments in the messages table
-            # We look for rows with media_type='Media' and matching media_url (which stores the media_id)
-            db_existing = (
-                messages_table.filter(
-                    (messages_table.media_type == "Media")
-                    & (messages_table.media_url.isin(media_ids_to_check))
-                )
-                .select("media_url")
-                .execute()
-            )
-            existing_media = set(db_existing["media_url"].tolist())
-        except Exception:
-            logger.warning(
-                "Failed to check database for existing Media enrichments; falling back to cache only."
-            )
-
     scheduled = 0
     for ref, media_doc, metadata in candidates:
-        # Skip if already in database OR disk cache
-        if media_doc.document_id in existing_media:
-            continue
-
         cache_key = make_enrichment_cache_key(kind="media", identifier=media_doc.document_id)
         if context.cache.load(cache_key) is not None:
             continue
@@ -476,11 +424,8 @@ def _extract_url_candidates(messages_table: Table, max_enrichments: int) -> list
     url_metadata: dict[str, dict[str, Any]] = {}
     discovered_count = 0
 
-    # Filter out enrichment records to only scan original messages
-    original_messages = messages_table.filter(messages_table.media_type.isnull())
-
     for batch in _iter_table_batches(
-        original_messages.select(
+        messages_table.select(
             "ts",
             "text",
             "event_id",
@@ -529,11 +474,8 @@ def _extract_media_candidates(
     # until we can refactor the return type.
     document_lookup: dict[str, Document] = {}
 
-    # Filter out enrichment records to only scan original messages
-    original_messages = messages_table.filter(messages_table.media_type.isnull())
-
     for batch in _iter_table_batches(
-        original_messages.select(
+        messages_table.select(
             "ts",
             "text",
             "event_id",
@@ -937,14 +879,12 @@ class EnrichmentWorker(BaseWorker):
         if rotation_enabled:
             from egregora.models.model_key_rotator import ModelKeyRotator
 
-            rotator = ModelKeyRotator(
-                models=[sanitize_model_name(m) for m in rotation_models] if rotation_models else None
-            )
+            rotator = ModelKeyRotator(models=rotation_models)
 
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
-                    model=to_google_genai_model_name(model),
+                    model=model,
                     contents=[{"parts": [{"text": combined_prompt}]}],
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
@@ -953,11 +893,11 @@ class EnrichmentWorker(BaseWorker):
             response_text = rotator.call_with_rotation(call_with_model_and_key)
         else:
             # No rotation - use configured model and API key
-            model_name = sanitize_model_name(self.ctx.config.models.enricher)
+            model_name = self.ctx.config.models.enricher
             api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
             client = genai.Client(api_key=api_key)
             response = client.models.generate_content(
-                model=to_google_genai_model_name(model_name),
+                model=model_name,
                 contents=[{"parts": [{"text": combined_prompt}]}],
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
@@ -1130,7 +1070,7 @@ class EnrichmentWorker(BaseWorker):
                                 ]
                             }
                         ],
-                        "config": {},
+                        "config": {"response_modalities": ["TEXT"]},
                     }
                 )
                 task_map[tag] = task
@@ -1255,7 +1195,7 @@ class EnrichmentWorker(BaseWorker):
         self, requests: list[dict[str, Any]], task_map: dict[str, dict[str, Any]]
     ) -> list[Any]:
         """Execute media enrichments based on configured strategy."""
-        model_name = to_google_genai_model_name(self.ctx.config.models.enricher_vision)
+        model_name = self.ctx.config.models.enricher_vision
         api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         if not api_key:
             msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for media enrichment"
@@ -1345,14 +1285,12 @@ class EnrichmentWorker(BaseWorker):
         rotation_models = getattr(self.enrichment_config, "rotation_models", None)
 
         if rotation_enabled:
-            rotator = ModelKeyRotator(
-                models=[sanitize_model_name(m) for m in rotation_models] if rotation_models else None
-            )
+            rotator = ModelKeyRotator(models=rotation_models)
 
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
-                    model=to_google_genai_model_name(model),
+                    model=model,
                     contents=[{"parts": request_parts}],
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
@@ -1362,7 +1300,7 @@ class EnrichmentWorker(BaseWorker):
         else:
             # No rotation - use configured model and API key
             response = client.models.generate_content(
-                model=to_google_genai_model_name(model_name),
+                model=model_name,
                 contents=[{"parts": request_parts}],
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
@@ -1445,7 +1383,7 @@ class EnrichmentWorker(BaseWorker):
 
                 # Call Gemini API directly
                 response = client.models.generate_content(
-                    model=to_google_genai_model_name(model_name),
+                    model=model_name,
                     contents=contents,
                     config=types.GenerateContentConfig(**config) if config else None,
                 )
@@ -1514,29 +1452,16 @@ class EnrichmentWorker(BaseWorker):
                     self.task_store.mark_failed(task["task_id"], "Failed to stage media file")
                     continue
 
-            # Determine subfolder based on media_type
-            from egregora.ops.media import get_media_subfolder
-
-            extension = Path(filename).suffix
-            media_subdir = get_media_subfolder(extension)
-
-            # Use slug-based filename as requested by user
-            final_filename = f"{slug_value}{extension}"
-
             # Create media document with slug-based metadata
             media_metadata = {
                 "original_filename": payload.get("original_filename"),
-                "filename": final_filename,
+                "filename": f"{slug_value}{Path(filename).suffix}",  # Use slug for filename
                 "media_type": media_type,
                 "slug": slug_value,
                 "nav_exclude": True,
                 "hide": ["navigation"],
                 "source_path": source_path,  # Path to staged file for efficient move
-                "media_subdir": media_subdir,
             }
-
-            # V3 Architecture: Set suggested_path to ensure correct filesystem placement
-            suggested_path = f"media/{media_subdir}/{final_filename}"
 
             # Persist the actual media file
             # We pass empty bytes for content because source_path is provided
@@ -1546,7 +1471,6 @@ class EnrichmentWorker(BaseWorker):
                 metadata=media_metadata,
                 id=media_id if media_id else str(uuid.uuid4()),
                 parent_id=None,  # Media files have no parent document
-                suggested_path=suggested_path,
             )
 
             try:
@@ -1562,10 +1486,10 @@ class EnrichmentWorker(BaseWorker):
 
             # Create and persist the enrichment text document (description)
             enrichment_metadata = {
-                "filename": final_filename,
+                "filename": f"{slug_value}{Path(filename).suffix}",  # New slug-based filename
                 "original_filename": payload.get("original_filename"),  # Preserve original
                 "media_type": media_type,
-                "parent_path": suggested_path,
+                "parent_path": payload.get("suggested_path"),
                 "slug": slug_value,
                 "nav_exclude": True,
                 "hide": ["navigation"],
@@ -1617,7 +1541,7 @@ class EnrichmentWorker(BaseWorker):
                 elif media_type and media_type.startswith("audio"):
                     media_subdir = "audio"
 
-                new_path = f"media/{media_subdir}/{final_filename}"
+                new_path = f"media/{media_subdir}/{slug_value}{Path(filename).suffix}"
 
                 # Using SQL replace to update all occurrences
                 try:
@@ -1654,12 +1578,9 @@ class EnrichmentWorker(BaseWorker):
 
             data = json.loads(clean_text.strip())
             slug = data.get("slug")
-            filename_from_llm = data.get("filename")
             markdown = data.get("markdown")
 
             payload = task["_parsed_payload"]
-            if filename_from_llm:
-                payload["filename"] = filename_from_llm
             filename = payload.get("filename", "")
 
             # Fallback logic for missing markdown

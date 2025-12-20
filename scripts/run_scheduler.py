@@ -47,35 +47,13 @@ def get_repo_info() -> dict:
 
 def check_schedule(schedule_str: str) -> bool:
     """
-    Check if current time matches cron schedule.
-    Uses croniter for robust cron expression parsing.
-    Supports full cron syntax: *, ranges (1-5), lists (1,3,5), steps (*/15).
+    Basic cron checker.
+    Supports: "* * * * *" format (min hour dom month dow)
+    Limitation: Only supports "*" or specific integer values.
     """
     if not schedule_str:
         return False
 
-    try:
-        from croniter import croniter
-        now = datetime.utcnow()
-        cron = croniter(schedule_str, now)
-        prev_time = cron.get_prev(datetime)
-        # Check if we're within the current minute window
-        time_diff = (now - prev_time).total_seconds()
-        return time_diff < 60  # Within the last minute
-    except ImportError:
-        # Fallback to basic parser if croniter not available
-        return _basic_schedule_check(schedule_str)
-    except (KeyError, ValueError):
-        # Invalid cron expression
-        return False
-
-
-def _basic_schedule_check(schedule_str: str) -> bool:
-    """
-    Basic cron checker fallback.
-    Supports: "* * * * *" format (min hour dom month dow)
-    Limitation: Only supports "*" or specific integer values.
-    """
     parts = schedule_str.split()
     if len(parts) != 5:
         return False
@@ -92,7 +70,7 @@ def _basic_schedule_check(schedule_str: str) -> bool:
     # Cron: 0=Sun, 6=Sat (usually) OR 7=Sun.
     # Let's align with standard cron 0=Sun.
     if dow_s != "*":
-        py_dow = now.weekday()  # 0=Mon
+        py_dow = now.weekday() # 0=Mon
         # Convert py_dow to cron_dow (0=Sun, 1=Mon)
         cron_dow = (py_dow + 1) % 7
 

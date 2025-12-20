@@ -87,33 +87,7 @@ def validate_gemini_api_key(api_key: str | None = None) -> None:
         raise ValueError(msg) from e
 
 
-def dedupe_api_keys() -> None:
-    """Remove duplicate API key environment variables to prevent SDK warnings.
-
-    If both GOOGLE_API_KEY and GEMINI_API_KEY are set, unsets GEMINI_API_KEY
-    to prevent the google-genai SDK from emitting the "Both GOOGLE_API_KEY
-    and GEMINI_API_KEY are set" warning on every Client instantiation.
-
-    Call this once at the start of the pipeline.
-
-    """
-    google_key = os.environ.get("GOOGLE_API_KEY")
-    gemini_key = os.environ.get("GEMINI_API_KEY")
-
-    if google_key and gemini_key:
-        # If they're the same value, just unset one
-        # If different, prefer GOOGLE_API_KEY (the newer/standard name)
-        if google_key == gemini_key:
-            logger.debug("Unsetting duplicate GEMINI_API_KEY (identical to GOOGLE_API_KEY)")
-        else:
-            logger.info(
-                "Both GOOGLE_API_KEY and GEMINI_API_KEY set with different values; using GOOGLE_API_KEY"
-            )
-        os.environ.pop("GEMINI_API_KEY", None)
-
-
 __all__ = [
-    "dedupe_api_keys",
     "get_google_api_key",
     "get_google_api_keys",
     "google_api_key_available",
@@ -126,27 +100,23 @@ def get_google_api_keys() -> list[str]:
 
     Supports multiple keys via:
     - GEMINI_API_KEYS (comma-separated)
-    - GEMINI_API_KEY (single key)
-    - GOOGLE_API_KEY (single key)
+    - GEMINI_API_KEY (single key, fallback)
+    - GOOGLE_API_KEY (single key, fallback)
 
     Returns:
-        List of unique API keys, or empty list if none found.
+        List of API keys, or empty list if none found.
 
     """
-    keys = []
-
-    # 1. Check GEMINI_API_KEYS (comma-separated list)
+    # Check for comma-separated list first
     keys_str = os.environ.get("GEMINI_API_KEYS", "")
     if keys_str:
-        for k in keys_str.split(","):
-            val = k.strip()
-            if val and val not in keys:
-                keys.append(val)
+        keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+        if keys:
+            return keys
 
-    # 2. Check individual keys
-    for var in ["GEMINI_API_KEY", "GOOGLE_API_KEY"]:
-        val = os.environ.get(var)
-        if val and val.strip() and val.strip() not in keys:
-            keys.append(val.strip())
+    # Fall back to single key
+    single_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if single_key:
+        return [single_key]
 
-    return keys
+    return []

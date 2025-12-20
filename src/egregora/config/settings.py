@@ -47,9 +47,9 @@ logger = logging.getLogger(__name__)
 # Constants
 # ============================================================================
 
-DEFAULT_MODEL = "google-gla:gemini-2.5-flash"  # Use latest stable model (pydantic-ai format)
+DEFAULT_MODEL = "google-gla:gemini-2.0-flash-exp"  # Standardize on a valid existing model
 DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
-DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash"  # (google-sdk format uses models/ prefix via validator)
+DEFAULT_BANNER_MODEL = "models/gemini-2.0-flash-exp"
 EMBEDDING_DIM = 768  # Embedding vector dimensions
 
 # Quota defaults
@@ -64,7 +64,7 @@ DEFAULT_RUNS_DB = "duckdb:///./.egregora/runs.duckdb"
 
 # Configuration validation warning thresholds
 RAG_TOP_K_WARNING_THRESHOLD = 20
-MAX_PROMPT_TOKENS_WARNING_THRESHOLD = 100_000
+MAX_PROMPT_TOKENS_WARNING_THRESHOLD = 200_000
 
 # Model naming conventions
 PydanticModelName = Annotated[
@@ -234,6 +234,16 @@ class WriterAgentSettings(BaseModel):
         default=None,
         description="Custom instructions to guide the writer agent",
     )
+    economic_system_instruction: str | None = Field(
+        default=None,
+        description="Override system instruction for economic mode writer",
+    )
+    economic_temperature: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Temperature for economic mode generation (0.0=deterministic, 1.0=creative)",
+    )
 
 
 class PrivacySettings(BaseModel):
@@ -282,9 +292,9 @@ class EnrichmentSettings(BaseModel):
     )
     rotation_models: list[str] = Field(
         default=[
-            "google-gla:gemini-flash-latest",
-            "google-gla:gemini-2.0-flash-exp",
-            "google-gla:gemini-pro-latest",
+            "gemini-2.0-flash-exp",
+            "gemini-1.5-flash-latest",
+            "gemini-1.5-pro-latest",
         ],
         description="List of Gemini models to rotate through on rate limits",
     )
@@ -349,7 +359,7 @@ class PipelineSettings(BaseModel):
     max_prompt_tokens: int = Field(
         default=100_000,
         ge=1_000,
-        description="Maximum tokens per prompt (conservative 100k default). Prevents context overflow and controls costs.",
+        description="Maximum tokens per prompt (default 100k, even if model supports more). Prevents context overflow and controls costs.",
     )
     use_full_context_window: bool = Field(
         default=False,
@@ -363,6 +373,10 @@ class PipelineSettings(BaseModel):
     checkpoint_enabled: bool = Field(
         default=False,
         description="Enable incremental processing with checkpoints (opt-in). Default: always rebuild from scratch for simplicity.",
+    )
+    economic_mode: bool = Field(
+        default=False,
+        description="Enable economic mode to reduce LLM costs (2 calls per window, no tool usage).",
     )
 
 

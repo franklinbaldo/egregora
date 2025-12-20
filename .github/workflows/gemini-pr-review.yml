@@ -280,11 +280,11 @@ jobs:
             echo "Flash outcome: ${{ steps.gemini_flash.outcome }}"
             echo "Lite outcome: ${{ steps.gemini_lite.outcome }}"
             echo "::endgroup::"
-            # Check if API key is set (without exposing it)
+            # Check if API key is set (without exposing it or its length)
             if [ -z "${{ secrets.GEMINI_API_KEY }}" ]; then
               echo "::error::GEMINI_API_KEY secret is not set!"
             else
-              echo "GEMINI_API_KEY is set (length: ${#GEMINI_API_KEY})"
+              echo "GEMINI_API_KEY is configured"
             fi
           fi
         env:
