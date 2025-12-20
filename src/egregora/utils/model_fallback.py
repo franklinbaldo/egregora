@@ -24,9 +24,11 @@ CACHE_TTL = 3600  # Cache for 1 hour
 
 # Priority order for Google models
 GOOGLE_FALLBACK_MODELS = [
+    "google-gla:gemini-2.5-flash",
+    "google-gla:gemini-3-flash-preview",
+    "google-gla:gemini-2.5-pro",
+    "google-gla:gemini-2.0-flash",
     "google-gla:gemini-2.0-flash-exp",
-    "google-gla:gemini-2.0-flash-exp",
-    "google-gla:gemini-1.5-pro",
 ]
 
 
@@ -259,11 +261,11 @@ def create_fallback_model(
     for m in fallback_models:
         fallback_variations.extend(_create_variations(m))
 
-    # Combine: Rest of primaries + All fallbacks
-    all_fallbacks = remaining_primaries + fallback_variations
+    # Combine: Primary + Rest of primaries + All fallbacks
+    all_models = primary_variations + fallback_variations
 
-    return FallbackModel(
-        primary_instance,
-        *all_fallbacks,
-        fallback_on=(ModelAPIError, UsageLimitExceeded, ValidationError),
-    )
+    # Use our custom RotatingFallbackModel instead of pydantic-ai's FallbackModel
+    # This rotates immediately on 429 errors rather than waiting between agent runs
+    from egregora.models.rotating_fallback import RotatingFallbackModel
+
+    return RotatingFallbackModel(all_models)

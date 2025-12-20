@@ -340,7 +340,8 @@ def _prepare_media_document(document: Document, media_ref: str) -> MediaAsset:
         }
     )
     if "slug" not in metadata and original_filename:
-        metadata["slug"] = slugify(Path(original_filename).stem, lowercase=False)
+        stem = Path(original_filename).stem
+        metadata["slug"] = slugify(stem, lowercase=False)
     metadata.setdefault("nav_exclude", True)
     metadata["media_subdir"] = media_subdir
     hide_flags = metadata.get("hide", [])

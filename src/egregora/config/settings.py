@@ -47,15 +47,15 @@ logger = logging.getLogger(__name__)
 # Constants
 # ============================================================================
 
-DEFAULT_MODEL = "google-gla:gemini-2.0-flash-exp"  # Standardize on a valid existing model
+DEFAULT_MODEL = "google-gla:gemini-2.5-flash"  # Use latest stable model (pydantic-ai format)
 DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
-DEFAULT_BANNER_MODEL = "models/gemini-2.0-flash-exp"
+DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash"  # (google-sdk format uses models/ prefix via validator)
 EMBEDDING_DIM = 768  # Embedding vector dimensions
 
 # Quota defaults
 DEFAULT_DAILY_LLM_REQUESTS = 100  # Conservative default
-DEFAULT_PER_SECOND_LIMIT = 0.05  # ~3 requests/min to avoid 429 on free tier
-DEFAULT_CONCURRENCY = 1
+DEFAULT_PER_SECOND_LIMIT = 2.0  # Allow 2 req/s - FallbackModel handles 429s via key/model rotation
+DEFAULT_CONCURRENCY = 5  # Allow 5 concurrent requests
 
 # Default database connection strings
 # NOTE: These defaults are relative to site root.
@@ -292,9 +292,10 @@ class EnrichmentSettings(BaseModel):
     )
     rotation_models: list[str] = Field(
         default=[
+            "gemini-2.5-flash",
+            "gemini-3-flash-preview",
+            "gemini-2.0-flash",
             "gemini-2.0-flash-exp",
-            "gemini-1.5-flash-latest",
-            "gemini-1.5-pro-latest",
         ],
         description="List of Gemini models to rotate through on rate limits",
     )

@@ -37,10 +37,8 @@ from egregora.agents.formatting import (
     build_conversation_xml,
     load_journal_memory,
 )
-from egregora.agents.model_limits import (
-    PromptTooLargeError,
-)
 from egregora.agents.types import (
+    PromptTooLargeError,
     WriterDeps,
     WriterResources,
 )
@@ -478,7 +476,7 @@ def _prepare_deps(
 
 @sleep_and_retry
 @limits(calls=100, period=60)
-def write_posts_with_pydantic_agent(
+async def write_posts_with_pydantic_agent(
     *,
     prompt: str,
     config: EgregoraConfig,
@@ -493,7 +491,7 @@ def write_posts_with_pydantic_agent(
         caps_list = ", ".join(capability.name for capability in active_capabilities)
         logger.info("Writer capabilities enabled: %s", caps_list)
 
-    model = create_writer_model(config, context, prompt, test_model)
+    model = await create_writer_model(config, context, prompt, test_model)
     agent = setup_writer_agent(model, prompt, active_capabilities)
 
     if context.resources.quota:
@@ -509,8 +507,8 @@ def write_posts_with_pydantic_agent(
     # Use tenacity for retries
     for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
         with attempt:
-            # DIRECT SYNC CALL
-            result = agent.run_sync(
+            # Execute model directly without tools
+            result = await agent.run(
                 "Analyze the conversation context provided and write posts/profiles as needed.",
                 deps=context,
                 usage_limits=usage_limits,
@@ -736,7 +734,7 @@ def _build_context_and_signature(
     return writer_context, signature
 
 
-def _execute_writer_with_error_handling(
+async def _execute_writer_with_error_handling(
     prompt: str,
     config: EgregoraConfig,
     deps: WriterDeps,
@@ -752,7 +750,7 @@ def _execute_writer_with_error_handling(
 
     """
     try:
-        return write_posts_with_pydantic_agent(
+        return await write_posts_with_pydantic_agent(
             prompt=prompt,
             config=config,
             context=deps,
@@ -818,7 +816,7 @@ class WindowProcessingParams:
     run_id: str | None = None
 
 
-def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
+async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
     """Let LLM analyze window's messages, write 0-N posts, and update author profiles.
 
     This acts as the public entry point, orchestrating the setup and execution
@@ -887,12 +885,11 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str
 
     prompt = _render_writer_prompt(writer_context, deps.resources.prompts_dir)
 
-    # Check for economic mode
     if getattr(params.config.pipeline, "economic_mode", False):
         logger.info("💰 Economic Mode enabled: Using simple generation (no tools)")
-        saved_posts, saved_profiles = _execute_economic_writer(prompt, params.config, deps)
+        saved_posts, saved_profiles = await _execute_economic_writer(prompt, params.config, deps)
     else:
-        saved_posts, saved_profiles = _execute_writer_with_error_handling(prompt, params.config, deps)
+        saved_posts, saved_profiles = await _execute_writer_with_error_handling(prompt, params.config, deps)
 
     # 6. Finalize results (output, RAG indexing, caching)
     return _finalize_writer_results(
@@ -907,7 +904,7 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str
     )
 
 
-def _execute_economic_writer(
+async def _execute_economic_writer(
     prompt: str,
     config: EgregoraConfig,
     deps: WriterDeps,
