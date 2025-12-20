@@ -10341,24 +10341,33 @@ class EnrichmentWorker(BaseWorker):
             payload = task["_parsed_payload"]
             filename = payload.get("filename", "")
 
+            # Normalize slug first to use in filename construction
+            slug_value = _normalize_slug(slug, payload["filename"]) if slug else None
+
             # Fallback logic for missing markdown
-            if not markdown and slug:
+            if not markdown and slug_value:
                 description = data.get("description", "")
                 alt_text = data.get("alt_text", "")
-                if description or alt_text:
-                    markdown = f"""# {slug}
 
-![{alt_text}]({filename})
+                # Construct final filename to match what will be persisted
+                ext = Path(filename).suffix
+                final_filename = f"{slug_value}{ext}"
+
+                if description or alt_text:
+                    markdown = f"""# {slug_value}
+
+![{alt_text}]({final_filename})
 
 ## Description
 {description}
-"""
-                    logger.info("Constructed fallback markdown for %s", filename)
 
-            if not slug or not markdown:
+## Tags
+"""
+                    logger.info("Constructed fallback markdown for %s -> %s", filename, final_filename)
+
+            if not slug_value or not markdown:
                 self.task_store.mark_failed(task["task_id"], "Missing slug or markdown")
                 return None
-            slug_value = _normalize_slug(slug, payload["filename"])
         except Exception as exc:
             logger.exception("Failed to parse media result %s", task["task_id"])
             self.task_store.mark_failed(task["task_id"], f"Parse error: {exc!s}")
@@ -12957,7 +12966,33 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
         resources.usage,
     )
     if cached_result:
-        return cached_result
+        # Validate cached posts still exist on disk (they may be missing if output dir is fresh)
+        cached_posts = cached_result.get(RESULT_KEY_POSTS, [])
+        if cached_posts:
+            # Check if at least one post file exists
+            posts_exist = any(
+                list(resources.output.posts_dir.glob(f"*{slug}*.md"))
+                for slug in cached_posts[:1]  # Check first post only for speed
+            )
+            if not posts_exist:
+                logger.warning(
+                    "⚠️ Cached posts not found on disk, regenerating for window %s",
+                    f"{params.window_start:%Y-%m-%d %H:%M} to {params.window_end:%H:%M}",
+                )
+                # Invalidate this cache entry
+                params.cache.writer.delete(signature)
+            else:
+                # Posts exist, call finalize_window to mark completion and return
+                resources.output.finalize_window(
+                    window_label=f"{params.window_start:%Y-%m-%d %H:%M} to {params.window_end:%H:%M}",
+                    posts_created=cached_posts,
+                    profiles_updated=cached_result.get(RESULT_KEY_PROFILES, []),
+                    metadata=None,
+                )
+                return cached_result
+        else:
+            # No posts in cache, just return the empty result
+            return cached_result
 
     logger.info("Using Pydantic AI backend for writer")
 
@@ -24919,17 +24954,8 @@ def _resolve_context_token_limit(config: EgregoraConfig) -> int:
 
     if use_full_window:
         writer_model = config.models.writer
-        # Use KNOWN_MODEL_LIMITS from constants if available, else conservative 128k
-        from egregora.constants import KNOWN_MODEL_LIMITS
-
-        clean_name = (
-            writer_model.replace("models/", "").replace("google-gla:", "").replace("google-vertex:", "")
-        )
-        limit = 128_000
-        for known_model, known_limit in KNOWN_MODEL_LIMITS.items():
-            if clean_name.startswith(known_model):
-                limit = known_limit
-                break
+        # Default to 1M tokens for modern Gemini models (Flash/Pro)
+        limit = 1_048_576
 
         logger.debug(
             "Using full context window for writer model %s (limit=%d tokens)",
@@ -34445,22 +34471,6 @@ class WindowUnit(str, Enum):
     HOURS = "hours"
     DAYS = "days"
     BYTES = "bytes"
-
-
-# Gemini model context limits (input tokens)
-# Source: https://ai.google.dev/gemini-api/docs/models/gemini
-KNOWN_MODEL_LIMITS = {
-    # Gemini 2.0 family
-    "gemini-2.0-flash-exp": 1_048_576,  # 1M tokens
-    "gemini-1.5-flash-8b": 1_048_576,  # 1M tokens
-    "gemini-1.5-pro": 2_097_152,  # 2M tokens
-    "gemini-1.5-pro-latest": 2_097_152,  # 2M tokens
-    # Gemini 1.0 family (older, smaller limits)
-    "gemini-pro": 32_768,  # 32k tokens
-    "gemini-1.0-pro": 32_768,  # 32k tokens
-    # Embeddings
-    "text-embedding-004": 2048,  # 2k tokens (for embeddings, not generation)
-}
 
 
 class MediaType(str, Enum):
