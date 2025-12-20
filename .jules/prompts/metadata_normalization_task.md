@@ -21,43 +21,43 @@ Create a well-defined `PublishableMetadata` dataclass with typed fields and sens
 @dataclass(frozen=True, slots=True)
 class PublishableMetadata:
     """Structured metadata for publishable documents.
-    
+
     Used consistently across all document types to ensure
     themes, plugins, and feeds can rely on these fields.
     """
     # Core identity
     title: str
     slug: str
-    
+
     # Timestamps (ISO 8601 strings)
     date: str
     updated: str
-    
+
     # Content metadata
     summary: str = ""
     tags: tuple[str, ...] = ()
     categories: tuple[str, ...] = ()
     authors: tuple[str, ...] = ()
-    
+
     # Publishing state
     draft: bool = False
-    
+
     # Document identity
     doc_type: str = ""
     doc_id: str = ""
-    
+
     # Provenance
     source_adapter: str = "unknown"
     source_window: str | None = None
-    
+
     # Extension point for custom fields
     extra: dict[str, Any] = field(default_factory=dict)
-    
+
     @classmethod
     def from_document(cls, doc: Document) -> PublishableMetadata:
         """Create from Document, applying defaults for missing values."""
         ...
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dict for frontmatter serialization."""
         ...
@@ -144,7 +144,7 @@ class TestPublishableMetadataFromDocument:
         self, sample_document: Document
     ) -> None:
         meta = PublishableMetadata.from_document(sample_document)
-        
+
         assert meta.title == "My Post Title"
         assert meta.slug == "my-post"
         assert meta.tags == ("python", "testing")
@@ -153,7 +153,7 @@ class TestPublishableMetadataFromDocument:
         self, sample_document: Document
     ) -> None:
         meta = PublishableMetadata.from_document(sample_document)
-        
+
         assert meta.date == "2025-06-15T10:00:00+00:00"
 
     def test_from_document_defaults_title_if_missing(self) -> None:
@@ -162,9 +162,9 @@ class TestPublishableMetadataFromDocument:
             type=DocumentType.POST,
             metadata={"slug": "test"},
         )
-        
+
         meta = PublishableMetadata.from_document(doc)
-        
+
         assert meta.title == "Untitled Post"
 
     def test_from_document_defaults_updated_to_date(self) -> None:
@@ -174,9 +174,9 @@ class TestPublishableMetadataFromDocument:
             metadata={"slug": "test"},
             created_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
         )
-        
+
         meta = PublishableMetadata.from_document(doc)
-        
+
         assert meta.updated == meta.date
 
     def test_from_document_preserves_extra_fields(self) -> None:
@@ -189,9 +189,9 @@ class TestPublishableMetadataFromDocument:
                 "another_field": 123,
             },
         )
-        
+
         meta = PublishableMetadata.from_document(doc)
-        
+
         assert meta.extra["custom_field"] == "custom_value"
         assert meta.extra["another_field"] == 123
 
@@ -204,9 +204,9 @@ class TestPublishableMetadataFromDocument:
             type=doc_type,
             metadata={"slug": f"test-{doc_type.value}"},
         )
-        
+
         meta = PublishableMetadata.from_document(doc)
-        
+
         assert meta.doc_type == doc_type.value
 
 
@@ -222,9 +222,9 @@ class TestPublishableMetadataToDict:
             tags=("a", "b"),
             authors=("author-1",),
         )
-        
+
         d = meta.to_dict()
-        
+
         assert d["title"] == "Test"
         assert d["slug"] == "test"
         assert d["tags"] == ["a", "b"]  # Converts tuple to list
@@ -238,9 +238,9 @@ class TestPublishableMetadataToDict:
             updated="2025-01-15T10:00:00Z",
             extra={"custom": "value"},
         )
-        
+
         d = meta.to_dict()
-        
+
         assert d["custom"] == "value"
 
     def test_to_dict_omits_none_source_window(self) -> None:
@@ -251,9 +251,9 @@ class TestPublishableMetadataToDict:
             updated="2025-01-15T10:00:00Z",
             source_window=None,
         )
-        
+
         d = meta.to_dict()
-        
+
         assert "source_window" not in d or d.get("source_window") is None
 
 
@@ -267,7 +267,7 @@ class TestPublishableMetadataImmutability:
             date="2025-01-15T10:00:00Z",
             updated="2025-01-15T10:00:00Z",
         )
-        
+
         with pytest.raises(AttributeError):
             meta.title = "New Title"  # type: ignore
 ```
@@ -312,68 +312,68 @@ def _get_fallback_title(doc_type: DocumentType) -> str:
 @dataclass(frozen=True, slots=True)
 class PublishableMetadata:
     """Structured metadata for publishable documents.
-    
+
     Immutable dataclass with sensible defaults. Use `from_document()`
     to create from a Document instance, or construct directly.
-    
+
     Fields are designed to support:
     - MkDocs frontmatter
     - RSS feeds
     - Sitemaps
     - Social cards
     """
-    
+
     # Core identity (required)
     title: str
     slug: str
-    
+
     # Timestamps (ISO 8601)
     date: str
     updated: str
-    
+
     # Content metadata (with defaults)
     summary: str = ""
     tags: tuple[str, ...] = ()
     categories: tuple[str, ...] = ()
     authors: tuple[str, ...] = ()
-    
+
     # Publishing state
     draft: bool = False
-    
+
     # Document identity
     doc_type: str = ""
     doc_id: str = ""
-    
+
     # Provenance
     source_adapter: str = "unknown"
     source_window: str | None = None
-    
+
     # Extension point
     extra: dict[str, Any] = field(default_factory=dict)
-    
+
     @classmethod
     def from_document(cls, doc: Document) -> PublishableMetadata:
         """Create PublishableMetadata from a Document.
-        
+
         Extracts known fields from doc.metadata, applies defaults
         for missing values, and puts unknown fields into `extra`.
         """
         meta = doc.metadata
-        
+
         # Extract or compute values
         title = meta.get("title") or _get_fallback_title(doc.type)
         slug = meta.get("slug") or doc.slug
         date = meta.get("date") or doc.created_at.isoformat()
         updated = meta.get("updated") or date
-        
+
         # Convert lists to tuples for immutability
         tags = tuple(meta.get("tags") or [])
         categories = tuple(meta.get("categories") or [])
         authors = tuple(meta.get("authors") or [])
-        
+
         # Collect extra fields
         extra = {k: v for k, v in meta.items() if k not in KNOWN_FIELDS}
-        
+
         return cls(
             title=title,
             slug=slug,
@@ -390,10 +390,10 @@ class PublishableMetadata:
             source_window=doc.source_window,
             extra=extra,
         )
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dict for frontmatter serialization.
-        
+
         - Tuples are converted to lists
         - Extra fields are merged in
         - None values may be omitted
@@ -412,13 +412,13 @@ class PublishableMetadata:
             "doc_id": self.doc_id,
             "source_adapter": self.source_adapter,
         }
-        
+
         if self.source_window:
             result["source_window"] = self.source_window
-        
+
         # Merge extra fields
         result.update(self.extra)
-        
+
         return result
 ```
 
@@ -432,7 +432,7 @@ from egregora.metadata.publishable import PublishableMetadata
 def persist(self, document: Document) -> None:
     # Create structured metadata
     meta = PublishableMetadata.from_document(document)
-    
+
     # Use meta.to_dict() when writing frontmatter
     ...
 ```

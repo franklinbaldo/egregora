@@ -47,9 +47,9 @@ logger = logging.getLogger(__name__)
 # Constants
 # ============================================================================
 
-DEFAULT_MODEL = "google-gla:gemini-flash-latest"  # Use latest unpinned model (pydantic-ai format)
+DEFAULT_MODEL = "google-gla:gemini-2.5-flash"  # Use latest stable model (pydantic-ai format)
 DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
-DEFAULT_BANNER_MODEL = "models/gemini-flash-latest" # (google-sdk format uses models/ prefix via validator)
+DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash"  # (google-sdk format uses models/ prefix via validator)
 EMBEDDING_DIM = 768  # Embedding vector dimensions
 
 # Quota defaults
@@ -64,7 +64,7 @@ DEFAULT_RUNS_DB = "duckdb:///./.egregora/runs.duckdb"
 
 # Configuration validation warning thresholds
 RAG_TOP_K_WARNING_THRESHOLD = 20
-MAX_PROMPT_TOKENS_WARNING_THRESHOLD = 1_000_000
+MAX_PROMPT_TOKENS_WARNING_THRESHOLD = 100_000
 
 # Model naming conventions
 PydanticModelName = Annotated[
@@ -347,9 +347,9 @@ class PipelineSettings(BaseModel):
         description="End date for filtering (ISO format: YYYY-MM-DD)",
     )
     max_prompt_tokens: int = Field(
-        default=1_000_000,
+        default=100_000,
         ge=1_000,
-        description="Maximum tokens per prompt (default 1M, even if model supports more). Prevents context overflow and controls costs.",
+        description="Maximum tokens per prompt (conservative 100k default). Prevents context overflow and controls costs.",
     )
     use_full_context_window: bool = Field(
         default=False,

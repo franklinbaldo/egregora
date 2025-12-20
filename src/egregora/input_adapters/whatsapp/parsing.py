@@ -124,7 +124,14 @@ def _parse_message_time(time_token: str) -> time | None:
 
     # Fast path for standard HH:MM (e.g., "12:30", "09:15")
     # Checks length and digit presence to avoid splitting/parsing invalid strings
-    if len(token) == 5 and token[2] == ":" and token[0].isdigit() and token[1].isdigit() and token[3].isdigit() and token[4].isdigit():
+    if (
+        len(token) == 5
+        and token[2] == ":"
+        and token[0].isdigit()
+        and token[1].isdigit()
+        and token[3].isdigit()
+        and token[4].isdigit()
+    ):
         try:
             # Direct slicing is faster than splitting
             return time(int(token[:2]), int(token[3:]))
@@ -166,7 +173,7 @@ def _parse_message_time(time_token: str) -> time | None:
                     h = 0
                 return time(h, m)
         elif ":" in token:
-             # Standard "H:MM" or fallback for "HH:MM" that failed fast path
+            # Standard "H:MM" or fallback for "HH:MM" that failed fast path
             parts = token.split(":")
             if len(parts) == 2:
                 return time(int(parts[0]), int(parts[1]))

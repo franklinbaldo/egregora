@@ -40,9 +40,9 @@ class TestAtomicCheckpointSaving:
         """Checkpoint file should be created with correct JSON structure."""
         checkpoint_path = tmp_path / ".egregora" / "checkpoint.json"
         timestamp = datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
-        
+
         save_checkpoint_atomic(checkpoint_path, timestamp, messages_processed=100)
-        
+
         assert checkpoint_path.exists()
         data = json.loads(checkpoint_path.read_text())
         assert data["last_processed_timestamp"] == timestamp.isoformat()
@@ -53,11 +53,11 @@ class TestAtomicCheckpointSaving:
         """Checkpoint should use temp file + rename for atomicity."""
         checkpoint_path = tmp_path / ".egregora" / "checkpoint.json"
         timestamp = datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
-        
+
         save_checkpoint_atomic(checkpoint_path, timestamp, messages_processed=50)
         new_timestamp = datetime(2025, 1, 15, 11, 0, 0, tzinfo=timezone.utc)
         save_checkpoint_atomic(checkpoint_path, new_timestamp, messages_processed=100)
-        
+
         assert not (checkpoint_path.with_suffix(".tmp")).exists()
         data = json.loads(checkpoint_path.read_text())
         assert data["messages_processed"] == 100
@@ -66,9 +66,9 @@ class TestAtomicCheckpointSaving:
         """Checkpoint should create parent directory if missing."""
         checkpoint_path = tmp_path / "nested" / "dir" / "checkpoint.json"
         timestamp = datetime.now(timezone.utc)
-        
+
         save_checkpoint_atomic(checkpoint_path, timestamp, messages_processed=10)
-        
+
         assert checkpoint_path.exists()
 
 
@@ -79,10 +79,10 @@ class TestCheckpointLoadAndTimezone:
         """Loaded timestamps must always be timezone-aware UTC."""
         checkpoint_path = tmp_path / "checkpoint.json"
         original_ts = datetime(2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc)
-        
+
         save_checkpoint_atomic(checkpoint_path, original_ts, messages_processed=50)
         data = load_checkpoint(checkpoint_path)
-        
+
         loaded_ts = datetime.fromisoformat(data["last_processed_timestamp"])
         assert loaded_ts.tzinfo is not None
         assert loaded_ts == original_ts
@@ -109,7 +109,7 @@ class TestIncrementalCheckpointInPipeline:
     ) -> None:
         """Checkpoint must be saved after each successfully processed window."""
         from egregora.orchestration.pipelines.write import _process_all_windows
-        
+
         checkpoint_path = tmp_path / ".egregora" / "checkpoint.json"
         now = datetime.now(timezone.utc)
         windows = [
@@ -117,7 +117,7 @@ class TestIncrementalCheckpointInPipeline:
                    end_time=now + timedelta(hours=i+1), table=Mock(), size=10)
             for i in range(3)
         ]
-        
+
         monkeypatch.setattr(
             "egregora.orchestration.pipelines.write._process_window_with_auto_split",
             lambda *args, **kwargs: {"posts": ["post-1"]}
@@ -126,9 +126,9 @@ class TestIncrementalCheckpointInPipeline:
         monkeypatch.setattr("egregora.orchestration.pipelines.write._resolve_context_token_limit", lambda config: 100000)
         monkeypatch.setattr("egregora.orchestration.pipelines.write._validate_window_size", lambda window, max_size: None)
         monkeypatch.setattr("egregora.orchestration.pipelines.write._process_background_tasks", lambda ctx: None)
-        
+
         _process_all_windows(iter(windows), mock_context, checkpoint_path)
-        
+
         assert checkpoint_path.exists()
         data = load_checkpoint(checkpoint_path)
         assert data["messages_processed"] == 3
@@ -138,28 +138,28 @@ class TestIncrementalCheckpointInPipeline:
     ) -> None:
         """If window 2 fails, checkpoint from window 1 must still exist."""
         from egregora.orchestration.pipelines.write import _process_all_windows
-        
+
         checkpoint_path = tmp_path / ".egregora" / "checkpoint.json"
         now = datetime.now(timezone.utc)
         windows = [
             Window(window_index=0, start_time=now, end_time=now + timedelta(hours=1), table=Mock(), size=10),
             Window(window_index=1, start_time=now + timedelta(hours=1), end_time=now + timedelta(hours=2), table=Mock(), size=10),
         ]
-        
+
         def mock_process(window, *args, **kwargs):
             if window.window_index == 1:
                 raise RuntimeError("Simulated failure")
             return {"posts": ["post-1"]}
-        
+
         monkeypatch.setattr("egregora.orchestration.pipelines.write._process_window_with_auto_split", mock_process)
         monkeypatch.setattr("egregora.orchestration.pipelines.write._calculate_max_window_size", lambda config: 100)
         monkeypatch.setattr("egregora.orchestration.pipelines.write._resolve_context_token_limit", lambda config: 100000)
         monkeypatch.setattr("egregora.orchestration.pipelines.write._validate_window_size", lambda window, max_size: None)
         monkeypatch.setattr("egregora.orchestration.pipelines.write._process_background_tasks", lambda ctx: None)
-        
+
         with pytest.raises(RuntimeError, match="Simulated failure"):
             _process_all_windows(iter(windows), mock_context, checkpoint_path)
-        
+
         assert checkpoint_path.exists()
         data = load_checkpoint(checkpoint_path)
         assert data["messages_processed"] == 1
@@ -187,13 +187,13 @@ def save_checkpoint_atomic(
 ) -> None:
     """Save checkpoint atomically using temp file + rename."""
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     checkpoint_data = {
         "last_processed_timestamp": last_timestamp.isoformat(),
         "messages_processed": messages_processed,
         "schema_version": "1.0",
     }
-    
+
     temp_path = checkpoint_path.with_suffix(".tmp")
     try:
         with temp_path.open("w") as f:

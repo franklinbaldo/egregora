@@ -8,17 +8,18 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from dataclasses import dataclass
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from egregora.agents.types import (
+    WindowProcessingParams,
+    WriterContextParams,
     WriterDeps,
+    WriterDepsParams,
+    WriterFinalizationParams,
 )
 from egregora.agents.writer.agent import execute_writer_with_error_handling
 from egregora.agents.writer.context import (
     WriterContext,
-    WriterContextParams,
     _build_context_and_signature,
 )
 from egregora.data_primitives.document import Document, DocumentType
@@ -27,35 +28,16 @@ from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import CacheTier, PipelineCache
 
 if TYPE_CHECKING:
-    from egregora.utils.metrics import UsageTracker
     from pathlib import Path
 
-    from ibis.expr.types import Table
-
     from egregora.agents.types import WriterResources
-    from egregora.config.settings import EgregoraConfig
+    from egregora.utils.metrics import UsageTracker
 
 logger = logging.getLogger(__name__)
 
 # Result keys
 RESULT_KEY_POSTS = "posts"
 RESULT_KEY_PROFILES = "profiles"
-
-
-@dataclass
-class WriterDepsParams:
-    """Parameters for creating WriterDeps."""
-
-    window_start: datetime
-    window_end: datetime
-    resources: WriterResources
-    model_name: str
-    table: Table | None = None
-    config: EgregoraConfig | None = None
-    conversation_xml: str = ""
-    active_authors: list[str] | None = None
-    adapter_content_summary: str = ""
-    adapter_generation_instructions: str = ""
 
 
 def _prepare_writer_dependencies(params: WriterDepsParams) -> WriterDeps:
@@ -133,18 +115,6 @@ def _index_new_content_in_rag(
         reset_backend()
 
 
-@dataclass
-class WriterFinalizationParams:
-    """Parameters for finalizing writer results."""
-
-    saved_posts: list[str]
-    saved_profiles: list[str]
-    resources: WriterResources
-    deps: WriterDeps
-    cache: PipelineCache
-    signature: str
-
-
 def _finalize_writer_results(params: WriterFinalizationParams) -> dict[str, list[str]]:
     """Finalize window results: output, RAG indexing, and caching."""
     # Finalize output adapter
@@ -177,22 +147,7 @@ def _render_writer_prompt(
     )
 
 
-@dataclass
-class WindowProcessingParams:
-    """Parameters for processing a window of messages."""
-
-    table: Table
-    window_start: datetime
-    window_end: datetime
-    resources: WriterResources
-    config: EgregoraConfig
-    cache: PipelineCache
-    adapter_content_summary: str = ""
-    adapter_generation_instructions: str = ""
-    run_id: str | None = None
-
-
-def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
+async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
     """Let LLM analyze window's messages, write 0-N posts, and update author profiles.
 
     This acts as the public entry point, orchestrating the setup and execution
@@ -252,7 +207,7 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str
     # 5. Render prompt and execute agent
     prompt = _render_writer_prompt(writer_context, deps.resources.prompts_dir)
 
-    saved_posts, saved_profiles = execute_writer_with_error_handling(prompt, params.config, deps)
+    saved_posts, saved_profiles = await execute_writer_with_error_handling(prompt, params.config, deps)
 
     # 6. Finalize results (output, RAG indexing, caching)
     return _finalize_writer_results(

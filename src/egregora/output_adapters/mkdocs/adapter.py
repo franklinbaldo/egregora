@@ -837,7 +837,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             if prefix:
                 media_prefixes.add(prefix)
         media_prefixes.update(["media", "posts/media"])
-        
+
         # Sort by length descending to match longest prefix first
         for prefix in sorted(media_prefixes, key=len, reverse=True):
             if rel_path == prefix:
@@ -925,7 +925,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
-
 
     def _write_journal_doc(self, document: Document, path: Path) -> None:
         metadata = self._ensure_hidden(dict(document.metadata or {}))

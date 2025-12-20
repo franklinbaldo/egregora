@@ -1,10 +1,8 @@
 """Unit tests for writer journal module."""
 
 from datetime import UTC, datetime
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -74,9 +72,7 @@ class TestJournalLogic:
         timestamp = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
 
         # Request with tool call
-        req = ModelRequest(
-            parts=[ToolCallPart(tool_name="tool_a", args={}, tool_call_id="1")]
-        )
+        req = ModelRequest(parts=[ToolCallPart(tool_name="tool_a", args={}, tool_call_id="1")])
         req.timestamp = timestamp
 
         # Response with thinking and tool return
@@ -101,9 +97,9 @@ class TestJournalLogic:
             parts=[
                 ThinkingPart(content="Hmm"),
                 TextPart(content="Hello"),
-                ToolCallPart(tool_name="tool_b", args={}, tool_call_id="2")
+                ToolCallPart(tool_name="tool_b", args={}, tool_call_id="2"),
             ],
-            timestamp=timestamp
+            timestamp=timestamp,
         )
 
         log = extract_intercalated_log([req, resp])

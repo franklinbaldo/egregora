@@ -3,6 +3,8 @@
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from egregora.agents.writer.orchestrator import (
     WriterDepsParams,
     WriterFinalizationParams,
@@ -57,12 +59,12 @@ class TestWriterOrchestrator:
         mock_resources.retrieval_config.enabled = True
 
         mock_doc = MagicMock()
-        mock_doc.type = "post" # DocumentType.POST (simplified for mock check)
+        mock_doc.type = "post"  # DocumentType.POST (simplified for mock check)
         # Mocking enum comparison requires care, assuming simple string or object equality
         # In real code it checks DocumentType enum.
         # Let's mock the output format's documents iterator properly.
 
-        from egregora.data_primitives.document import DocumentType, Document
+        from egregora.data_primitives.document import Document, DocumentType
 
         doc = Document(content="c", type=DocumentType.POST, metadata={"slug": "post1"})
         mock_resources.output.documents.return_value = [doc]
@@ -102,7 +104,8 @@ class TestWriterOrchestrator:
     @patch("egregora.agents.writer.orchestrator._render_writer_prompt")
     @patch("egregora.agents.writer.orchestrator.execute_writer_with_error_handling")
     @patch("egregora.agents.writer.orchestrator._finalize_writer_results")
-    def test_write_posts_for_window_full_flow(
+    @pytest.mark.asyncio
+    async def test_write_posts_for_window_full_flow(
         self,
         mock_finalize,
         mock_execute,
@@ -116,7 +119,13 @@ class TestWriterOrchestrator:
         mock_cache.return_value = None  # Cache miss
         mock_deps.return_value = MagicMock()
         mock_render.return_value = "prompt"
-        mock_execute.return_value = (["p1"], [])
+
+        # Make execute async
+        async def async_execute(*args, **kwargs):
+            return (["p1"], [])
+
+        mock_execute.side_effect = async_execute
+
         mock_finalize.return_value = {"posts": ["p1"], "profiles": []}
 
         params = MagicMock()
@@ -126,16 +135,17 @@ class TestWriterOrchestrator:
         params.window_start = datetime(2024, 1, 1)
         params.window_end = datetime(2024, 1, 2)
 
-        result = write_posts_for_window(params)
+        result = await write_posts_for_window(params)
 
         assert result["posts"] == ["p1"]
         mock_execute.assert_called_once()
         mock_finalize.assert_called_once()
 
-    def test_write_posts_for_window_empty_table(self):
+    @pytest.mark.asyncio
+    async def test_write_posts_for_window_empty_table(self):
         params = MagicMock()
         params.table.count().execute.return_value = 0
 
-        result = write_posts_for_window(params)
+        result = await write_posts_for_window(params)
         assert result["posts"] == []
         assert result["profiles"] == []

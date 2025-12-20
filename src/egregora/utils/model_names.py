@@ -18,4 +18,3 @@ def to_google_genai_model_name(model: str) -> str:
     if model.startswith("google-gla:"):
         return model.removeprefix("google-gla:")
     return model
-
