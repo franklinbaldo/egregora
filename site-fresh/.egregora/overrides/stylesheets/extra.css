@@ -15,6 +15,31 @@
   margin-bottom: 2rem;
 }
 
+/* Post Banner */
+.post-banner {
+  margin-bottom: 2rem;
+  margin-left: calc(-1 * var(--md-typeset-a-spacing));
+  margin-right: calc(-1 * var(--md-typeset-a-spacing));
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.post-banner img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  max-height: 400px;
+}
+
+/* Responsive banner sizing */
+@media screen and (max-width: 76.1875em) {
+  .post-banner {
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+
 .post-tags {
   margin-bottom: 1rem;
 }
