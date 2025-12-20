@@ -102,7 +102,7 @@ class TestWriterOrchestrator:
     @patch("egregora.agents.writer.orchestrator._render_writer_prompt")
     @patch("egregora.agents.writer.orchestrator.execute_writer_with_error_handling")
     @patch("egregora.agents.writer.orchestrator._finalize_writer_results")
-    def test_write_posts_for_window_full_flow(
+    async def test_write_posts_for_window_full_flow(
         self,
         mock_finalize,
         mock_execute,
@@ -126,16 +126,16 @@ class TestWriterOrchestrator:
         params.window_start = datetime(2024, 1, 1)
         params.window_end = datetime(2024, 1, 2)
 
-        result = write_posts_for_window(params)
+        result = await write_posts_for_window(params)
 
         assert result["posts"] == ["p1"]
         mock_execute.assert_called_once()
         mock_finalize.assert_called_once()
 
-    def test_write_posts_for_window_empty_table(self):
+    async def test_write_posts_for_window_empty_table(self):
         params = MagicMock()
         params.table.count().execute.return_value = 0
 
-        result = write_posts_for_window(params)
+        result = await write_posts_for_window(params)
         assert result["posts"] == []
         assert result["profiles"] == []

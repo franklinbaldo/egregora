@@ -10,7 +10,7 @@ from egregora.agents.writer.agent import (
     write_posts_with_pydantic_agent,
     execute_writer_with_error_handling,
 )
-from egregora.agents.model_limits import PromptTooLargeError
+from egregora.agents.types import PromptTooLargeError
 
 
 class TestWriterAgent:
