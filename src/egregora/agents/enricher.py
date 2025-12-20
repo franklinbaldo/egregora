@@ -303,8 +303,33 @@ def _enqueue_url_enrichments(
         return 0
 
     candidates = _extract_url_candidates(messages_table, max_enrichments)
+
+    # Pre-check database for already enriched URLs to avoid redundant tasks
+    urls_to_check = [c[0] for c in candidates]
+    existing_urls: set[str] = set()
+    if urls_to_check:
+        try:
+            # Check for existing URL enrichments in the messages table
+            # We look for rows with media_type='URL' and matching media_url
+            db_existing = (
+                messages_table.filter(
+                    (messages_table.media_type == "URL") & (messages_table.media_url.isin(urls_to_check))
+                )
+                .select("media_url")
+                .execute()
+            )
+            existing_urls = set(db_existing["media_url"].tolist())
+        except Exception:
+            logger.warning(
+                "Failed to check database for existing URL enrichments; falling back to cache only."
+            )
+
     scheduled = 0
     for url, metadata in candidates:
+        # Skip if already in database OR disk cache
+        if url in existing_urls:
+            continue
+
         cache_key = make_enrichment_cache_key(kind="url", identifier=url)
         if context.cache.load(cache_key) is not None:
             continue
@@ -338,8 +363,34 @@ def _enqueue_media_enrichments(
         return 0
 
     candidates = _extract_media_candidates(messages_table, config.media_mapping, config.max_enrichments)
+
+    # Pre-check database for already enriched media to avoid redundant tasks
+    media_ids_to_check = [c[1].document_id for c in candidates]
+    existing_media: set[str] = set()
+    if media_ids_to_check:
+        try:
+            # Check for existing Media enrichments in the messages table
+            # We look for rows with media_type='Media' and matching media_url (which stores the media_id)
+            db_existing = (
+                messages_table.filter(
+                    (messages_table.media_type == "Media")
+                    & (messages_table.media_url.isin(media_ids_to_check))
+                )
+                .select("media_url")
+                .execute()
+            )
+            existing_media = set(db_existing["media_url"].tolist())
+        except Exception:
+            logger.warning(
+                "Failed to check database for existing Media enrichments; falling back to cache only."
+            )
+
     scheduled = 0
     for ref, media_doc, metadata in candidates:
+        # Skip if already in database OR disk cache
+        if media_doc.document_id in existing_media:
+            continue
+
         cache_key = make_enrichment_cache_key(kind="media", identifier=media_doc.document_id)
         if context.cache.load(cache_key) is not None:
             continue
