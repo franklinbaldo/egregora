@@ -53,4 +53,4 @@ jobs:
           fi
 
           # Using local script that uses existing JulesClient skill
-          uv run --with requests --with python-frontmatter --with jinja2 --with croniter python scripts/run_scheduler.py "${args[@]}"
+          uv run --with requests --with python-frontmatter --with jinja2 python scripts/run_scheduler.py "${args[@]}"

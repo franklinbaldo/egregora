@@ -9,10 +9,16 @@ from typing import TYPE_CHECKING, Any
 from pydantic_ai import Agent, RunContext
 
 from egregora.agents.capabilities import AgentCapability
+from egregora.agents.model_limits import (
+    PromptTooLargeError,
+    get_model_context_limit,
+)
+from egregora.agents.model_limits import (
+    validate_prompt_fits as _validate_prompt_fits,
+)
 from egregora.agents.types import (
     AnnotationResult,
     PostMetadata,
-    PromptTooLargeError,
     ReadProfileResult,
     WritePostResult,
     WriteProfileResult,
@@ -209,54 +215,38 @@ def load_profiles_context(active_authors: list[str], output_sink: Any) -> str:
     return profiles_context
 
 
-async def validate_prompt_fits(
+def validate_prompt_fits(
     prompt: str,
     model_name: str,
     config: EgregoraConfig,
     window_label: str,
-    *,
-    model_instance: Any | None = None,
-) -> int:
-    """Validate that prompt fits within model limits (Conservative 100k default).
+) -> None:
+    """Validate prompt fits within model context window limits."""
+    max_prompt_tokens = getattr(config.pipeline, "max_prompt_tokens", 100_000)
+    use_full_context_window = getattr(config.pipeline, "use_full_context_window", False)
 
-    Uses native SDK counting if possible, else character-based estimation.
-    If 'use_full_context_window' is enabled in config, it allows larger prompts
-    without preemptive splitting (reactive mode).
+    fits, estimated_tokens, _effective_limit = _validate_prompt_fits(
+        prompt,
+        model_name,
+        max_prompt_tokens=max_prompt_tokens,
+        use_full_context_window=use_full_context_window,
+    )
 
-    Returns:
-        Estimated or native token count.
+    if not fits:
+        model_limit = get_model_context_limit(model_name)
+        model_effective_limit = int(model_limit * 0.9)
 
-    """
-    # 1. Get token count (Native if possible, else Estimate)
-    token_count = await count_tokens(prompt, model_instance)
-
-    # 2. Check limits
-    max_allowed = config.pipeline.max_prompt_tokens
-    use_full = config.pipeline.use_full_context_window
-
-    if token_count > max_allowed and not use_full:
-        logger.warning(
-            "Prompt for %s is too large (%d tokens, limit %d). "
-            "Set use_full_context_window=True to bypass or reduce window size.",
-            window_label,
-            token_count,
-            max_allowed,
-        )
-        raise PromptTooLargeError(
-            limit=max_allowed,
-            actual=token_count,
-        )
-
-    return token_count
-
-
-async def count_tokens(prompt: str, model: Any | None = None) -> int:
-    """Count tokens in a prompt, using native SDK if available."""
-    if model and hasattr(model, "count_tokens") and callable(model.count_tokens):
-        try:
-            return await model.count_tokens(prompt)
-        except Exception:
-            logger.debug("Native token counting failed, falling back to estimation")
-
-    # Fallback to conservative estimation (4 chars per token)
-    return len(prompt) // 4
+        if estimated_tokens > model_effective_limit:
+            logger.error(
+                "Prompt exceeds limit: %d > %d for %s (window: %s)",
+                estimated_tokens,
+                model_effective_limit,
+                model_name,
+                window_label,
+            )
+            raise PromptTooLargeError(
+                estimated_tokens=estimated_tokens,
+                effective_limit=model_effective_limit,
+                model_name=model_name,
+                window_id=window_label,
+            )

@@ -24,15 +24,10 @@ CACHE_TTL = 3600  # Cache for 1 hour
 
 # Priority order for Google models
 GOOGLE_FALLBACK_MODELS = [
-    "gemini-flash-latest",
-    "gemini-2.0-flash-exp",
-    "gemini-pro-latest",
+    "google-gla:gemini-2.0-flash-exp",
+    "google-gla:gemini-2.0-flash-exp",
+    "google-gla:gemini-1.5-pro",
 ]
-
-
-def sanitize_model_name(model_name: str) -> str:
-    """Sanitize model name for Google API by stripping internal prefixes."""
-    return model_name.replace("google-gla:", "").replace("google-vertex:", "").replace("pydantic_ai:", "")
 
 
 def get_openrouter_free_models(modality: str = "text") -> list[str]:
@@ -178,11 +173,10 @@ def create_fallback_model(
         if isinstance(model_def, Model):
             model = model_def
         elif isinstance(model_def, str):
-            if model_def.startswith(("google-gla:", "gemini-")):
+            if model_def.startswith("google-gla:"):
                 provider = GoogleProvider(api_key=api_key or get_google_api_key())
-                model_name = model_def.removeprefix("google-gla:")
                 model = GoogleModel(
-                    model_name,
+                    model_def.removeprefix("google-gla:"),
                     provider=provider,
                 )
             elif model_def.startswith("openrouter:"):
@@ -221,10 +215,6 @@ def create_fallback_model(
         # Fallback to single getter which raises if missing
         api_keys = [get_google_api_key()]
 
-    logger.info(
-        "Creating fallback model with %d model(s) and %d API key(s)", len(fallback_models) + 1, len(api_keys)
-    )
-
     from egregora.models.rate_limited import RateLimitedModel
 
     # Helper to create model variations for all keys
@@ -232,7 +222,7 @@ def create_fallback_model(
         variations: list[Model] = []
 
         # If it's a string definition for a Google model, create one variation per key
-        if isinstance(model_def, str) and (model_def.startswith(("google-gla:", "gemini-"))):
+        if isinstance(model_def, str) and model_def.startswith("google-gla:"):
             for key in api_keys:
                 if use_google_batch:
                     batch_model = GoogleBatchModel(api_key=key, model_name=model_def)

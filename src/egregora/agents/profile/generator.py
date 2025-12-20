@@ -148,7 +148,7 @@ async def _call_llm_decision(prompt: str, ctx: Any) -> ProfileUpdateDecision:
     model_name = ctx.config.models.writer
 
     # Create pydantic-ai agent with structured output
-    agent = Agent(model_name, output_type=ProfileUpdateDecision)
+    agent = Agent(model_name, result_type=ProfileUpdateDecision)
 
     # Run agent
     result = await agent.run(prompt)
