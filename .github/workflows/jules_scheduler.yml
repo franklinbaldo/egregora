@@ -27,6 +27,7 @@ permissions:
 jobs:
   tick:
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v5
