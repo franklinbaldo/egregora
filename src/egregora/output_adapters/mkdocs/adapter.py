@@ -837,12 +837,14 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             if prefix:
                 media_prefixes.add(prefix)
         # Include all common variations to prevent nested media/media paths
-        media_prefixes.update([
-            "media",
-            "posts/media",
-            "docs/posts/media",
-            "docs/media",
-        ])
+        media_prefixes.update(
+            [
+                "media",
+                "posts/media",
+                "docs/posts/media",
+                "docs/media",
+            ]
+        )
 
         # Sort by length descending to match longest prefix first
         for prefix in sorted(media_prefixes, key=len, reverse=True):
