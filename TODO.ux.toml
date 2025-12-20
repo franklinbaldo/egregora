@@ -14,6 +14,45 @@ description = "Curator evaluates blogs and updates TODO. Forge implements items 
 
 # High Priority - Critical for Excellence
 [[tasks.high_priority]]
+id = "fix-empty-blog-generation"
+title = "Fix empty blog generation from sample data"
+description = """
+WHY: The primary function of Egregora is to generate a blog from chat data. The current `egregora write` command runs to completion but produces zero posts from the sample data (`tests/fixtures/Conversa do WhatsApp com Teste.zip`), resulting in an empty, unusable blog. This is a critical failure of the core user journey.
+WHAT: The content generation pipeline must be fixed to produce at least one blog post from the provided sample data.
+HOW: After running `egregora init demo` and `egregora write "tests/fixtures/Conversa do WhatsApp com Teste.zip" --output-dir demo`, the `demo/docs/posts/` directory must contain at least one generated Markdown file for a blog post.
+WHERE: The investigation should start in the `egregora write` command's logic and the underlying data processing pipeline to understand why no posts are being synthesized.
+"""
+status = "pending"
+category = "infrastructure"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "fix-broken-scaffolding-defaults"
+title = "Fix broken scaffolding defaults and missing dependencies"
+description = """
+WHY: The `egregora init` command creates a frustrating and broken out-of-the-box experience. The generated `mkdocs.yml` references a `custom_dir: overrides` that doesn't exist, and the suggested `mkdocs serve` command is missing multiple required plugins (`mkdocs-macros-plugin`, `mkdocs-glightbox`, `mkdocs-blogging-plugin`), causing the server to fail repeatedly. This forces users to manually debug the configuration.
+WHAT: The scaffolding process must produce a configuration that works without manual changes. This includes creating the `overrides` directory and providing a complete `uvx` command with all necessary plugins.
+HOW: After running `egregora init demo`, the `demo/overrides` directory should exist. The command suggested for serving the site should include all required plugins, allowing `mkdocs serve` to start successfully on the first attempt.
+WHERE: The logic for the `egregora init` command needs to be updated to create the directory and the output message needs to be corrected to include the full list of plugins.
+"""
+status = "pending"
+category = "infrastructure"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "set-homepage-to-blog-index"
+title = "Set the site homepage to the blog index"
+description = """
+WHY: The tool is designed to generate a blog, but the default homepage is a page of technical documentation about Egregora itself. This is confusing and misaligned with the user's goal. The primary view should be the content they generated.
+WHAT: The site's root page (`index.md`) should be the blog post index, showing a list of the most recent posts. The documentation content should be moved to a separate page, like `about.md` or `docs.md`.
+HOW: When a user navigates to the root of the generated site (e.g., `http://localhost:8000`), they should see the list of blog posts. The content currently on the homepage should be accessible via a link in the navigation.
+WHERE: The `egregora init` command's scaffolding process and the underlying templates in `src/egregora/rendering/templates/site/` need to be modified to change which content is placed in `index.md`.
+"""
+status = "pending"
+category = "navigation"
+assignee = "forge"
+
+[[tasks.high_priority]]
 id = "find-templates"
 title = "Find MkDocs template location in src/"
 description = "Document exact template location in vision.md (DO THIS FIRST)"

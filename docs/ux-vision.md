@@ -171,7 +171,7 @@ _To be documented with before/after metrics_
 
 ## Template Architecture
 
-**Important:** Egregora generates MkDocs sites using **templates located in `src/`** (specific location TBD).
+**Important:** Egregora generates MkDocs sites using **templates located in `src/egregora/rendering/templates/site/`**.
 
 **Workflow:**
 1. **DON'T** edit `demo/` directly (it's generated output)
