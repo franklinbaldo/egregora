@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Annotated
 
 from egregora.data_primitives.document import Document, DocumentType, MediaAsset
 from egregora.utils.paths import slugify
+from ibis import udf
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -224,46 +225,26 @@ def replace_media_mentions(
 
 
 def replace_media_references(table: Table, media_mapping: MediaMapping) -> Table:
-    """Replace media references (markdown and raw) with canonical URLs in Ibis table."""
+    """Replace media references (markdown and raw) with canonical URLs in Ibis table.
+
+    This function uses an Ibis User-Defined Function (UDF) to avoid deep recursion
+    in the expression tree, which can cause a RecursionError in sqlglot.
+    The UDF applies all replacements in a single pass within the backend.
+    """
     if not media_mapping:
         return table
 
-    text_col = table.text
-    # Combined pattern for attachment markers to flatten the expression tree
-    markers_pattern = "|".join(re.escape(m) for m in ATTACHMENT_MARKERS)
+    # The UDF is defined as a closure to capture the `media_mapping`.
+    # This is more efficient than passing the mapping as a parameter for each row.
+    @udf.scalar.python
+    def _replace_all_media(text: str | None) -> str | None:
+        """Performs all media replacements for a single text value."""
+        if not text or not isinstance(text, str):
+            return text
+        return replace_media_mentions(text, media_mapping)
 
-    for original_ref, media_doc in media_mapping.items():
-        # Check for PII deletion
-        if media_doc.metadata.get("pii_deleted"):
-            pii_reason = media_doc.metadata.get("pii_reason", "Contains PII")
-            logger.info("Redacting media reference '%s': %s", original_ref, pii_reason)
-            replacement = f"[REDACTED: {pii_reason}]"
-            public_url = replacement
-        else:
-            # Get pre-calculated URL from metadata (generated earlier by UrlConvention)
-            public_url = media_doc.metadata.get("public_url")
-            if not public_url:
-                logger.debug("No public URL for media ref '%s', skipping", original_ref)
-                continue
-
-            media_type = media_doc.metadata.get("media_type")
-            display_name = media_doc.metadata.get("filename") or original_ref
-            replacement = (
-                f"![Image]({public_url})" if media_type == "image" else f"[{display_name}]({public_url})"
-            )
-
-        # 1. Markdown replacement: ](filename) -> ](url)
-        text_col = text_col.replace(f"]({original_ref})", f"]({public_url})")
-
-        # 2. Raw replacement: filename [whitespace] marker -> replacement
-        # Combining markers and uses re_replace significantly flattens the expression depth.
-        raw_pattern = rf"{re.escape(original_ref)}\s*(?:{markers_pattern})"
-        text_col = text_col.re_replace(raw_pattern, replacement)
-
-        # 3. Bare filename replacement (safety fallback)
-        text_col = text_col.re_replace(rf"\b{re.escape(original_ref)}\b", replacement)
-
-    return table.mutate(text=text_col)
+    # Apply the UDF to the 'text' column.
+    return table.mutate(text=_replace_all_media(table.text))
 
 
 def process_media_for_window(
