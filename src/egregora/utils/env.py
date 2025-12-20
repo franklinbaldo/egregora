@@ -87,33 +87,7 @@ def validate_gemini_api_key(api_key: str | None = None) -> None:
         raise ValueError(msg) from e
 
 
-def dedupe_api_keys() -> None:
-    """Remove duplicate API key environment variables to prevent SDK warnings.
-
-    If both GOOGLE_API_KEY and GEMINI_API_KEY are set, unsets GEMINI_API_KEY
-    to prevent the google-genai SDK from emitting the "Both GOOGLE_API_KEY
-    and GEMINI_API_KEY are set" warning on every Client instantiation.
-
-    Call this once at the start of the pipeline.
-
-    """
-    google_key = os.environ.get("GOOGLE_API_KEY")
-    gemini_key = os.environ.get("GEMINI_API_KEY")
-
-    if google_key and gemini_key:
-        # If they're the same value, just unset one
-        # If different, prefer GOOGLE_API_KEY (the newer/standard name)
-        if google_key == gemini_key:
-            logger.debug("Unsetting duplicate GEMINI_API_KEY (identical to GOOGLE_API_KEY)")
-        else:
-            logger.info(
-                "Both GOOGLE_API_KEY and GEMINI_API_KEY set with different values; using GOOGLE_API_KEY"
-            )
-        os.environ.pop("GEMINI_API_KEY", None)
-
-
 __all__ = [
-    "dedupe_api_keys",
     "get_google_api_key",
     "get_google_api_keys",
     "google_api_key_available",

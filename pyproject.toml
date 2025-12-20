@@ -123,8 +123,6 @@ extend-exclude = [
     "src/egregora_v3",
     "tests/v3",
     "scripts",
-    "docs/demo",
-    "site-fresh",
 ]
 
 [tool.ruff.lint]

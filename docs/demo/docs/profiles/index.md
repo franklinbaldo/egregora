@@ -1,3 +1,5 @@
-# Profiles
+---
+title: Profiles
+---
 
 (Reserved for future demo content.)
