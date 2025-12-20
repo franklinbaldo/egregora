@@ -35,6 +35,40 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class PromptTooLargeError(Exception):
+    """Exception raised when a prompt exceeds the model's context window.
+
+    Attributes:
+        token_count: The estimated number of tokens in the prompt.
+        limit: The context window limit that was exceeded.
+        window_label: A human-readable label for the processing window.
+
+    """
+
+    def __init__(self, token_count: int, limit: int, window_label: str = "unknown") -> None:
+        self.token_count = token_count
+        self.limit = limit
+        self.window_label = window_label
+        self.message = (
+            f"Prompt for {window_label} contains approx {token_count:,} tokens, "
+            f"exceeding the {limit:,} token limit."
+        )
+        super().__init__(self.message)
+
+
+@dataclass(frozen=True)
+class WindowProcessingParams:
+    """Parameters for processing a specific time window."""
+
+    window_start: datetime
+    window_end: datetime
+    window_label: str
+    config: EgregoraConfig
+    resources: WriterResources
+    cache: PipelineCache
+    signature: str
+
+
 class PostMetadata(BaseModel):
     """Metadata schema for the write_post tool."""
 
