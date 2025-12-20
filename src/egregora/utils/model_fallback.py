@@ -30,6 +30,15 @@ GOOGLE_FALLBACK_MODELS = [
 ]
 
 
+def sanitize_model_name(model_name: str) -> str:
+    """Sanitize model name for Google API by stripping internal prefixes."""
+    return (
+        model_name.replace("google-gla:", "")
+        .replace("google-vertex:", "")
+        .replace("pydantic_ai:", "")
+    )
+
+
 def get_openrouter_free_models(modality: str = "text") -> list[str]:
     """Fetch list of free OpenRouter models from their API.
 

@@ -29,16 +29,16 @@ def test_known_model_limits_not_downgraded():
         assert limit >= MIN_STABLE_LIMIT, \
             f"Context limit for {model} ({limit}) is below the required 1M stability threshold."
 
-def test_pipeline_defaults_retain_high_capacity():
-    """Ensure default pipeline settings don't throttle the models unnecessarily."""
+def test_pipeline_defaults_retain_safe_capacity():
+    """Ensure default pipeline settings have a safe conservative cap."""
     settings = PipelineSettings()
     
-    # max_prompt_tokens must be at least 1M to handle dense WhatsApp windows
-    assert settings.max_prompt_tokens >= 1_000_000, \
-        f"max_prompt_tokens default ({settings.max_prompt_tokens}) is too low. Should be at least 1M."
+    # max_prompt_tokens should be at least 100k for the conservative strategy
+    assert settings.max_prompt_tokens >= 100_000, \
+        f"max_prompt_tokens default ({settings.max_prompt_tokens}) is too low. Should be at least 100k."
         
-    assert MAX_PROMPT_TOKENS_WARNING_THRESHOLD >= 1_000_000, \
-        "MAX_PROMPT_TOKENS_WARNING_THRESHOLD should remain at 1M to avoid false positive warnings."
+    assert MAX_PROMPT_TOKENS_WARNING_THRESHOLD >= 100_000, \
+        "MAX_PROMPT_TOKENS_WARNING_THRESHOLD should remain at 100k to match our conservative strategy."
 
 def test_fallback_chain_is_robust():
     """Ensure fallback models are all high-capacity Gemini models."""

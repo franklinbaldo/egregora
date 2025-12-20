@@ -14,7 +14,7 @@ from egregora.agents.formatting import (
     build_conversation_xml,
     load_journal_memory,
 )
-from egregora.agents.types import WriterResources
+from egregora.agents.types import WriterContextParams, WriterResources
 from egregora.agents.writer_helpers import build_rag_context_for_prompt, load_profiles_context
 from egregora.knowledge.profiles import get_active_authors
 from egregora.resources.prompts import PromptManager
@@ -89,19 +89,6 @@ def _truncate_for_embedding(text: str, byte_limit: int = MAX_RAG_QUERY_BYTES) ->
         byte_limit,
     )
     return truncated_text + "\n\n<!-- truncated for RAG query -->"
-
-
-@dataclass
-class WriterContextParams:
-    """Parameters for building writer context."""
-
-    table: Table
-    resources: WriterResources
-    cache: PipelineCache
-    config: EgregoraConfig
-    window_label: str
-    adapter_content_summary: str
-    adapter_generation_instructions: str
 
 
 def _build_writer_context(params: WriterContextParams) -> WriterContext:

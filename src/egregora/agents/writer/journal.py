@@ -25,6 +25,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 
+from egregora.agents.types import JournalEntry, JournalEntryParams
 from egregora.data_primitives.document import Document, DocumentType
 
 if TYPE_CHECKING:
@@ -44,16 +45,6 @@ JOURNAL_TYPE_TOOL_RETURN = "tool_return"
 
 # Type aliases
 MessageHistory = Sequence[ModelRequest | ModelResponse]
-
-
-@dataclass(frozen=True)
-class JournalEntry:
-    """Represents a single entry in the intercalated journal log."""
-
-    entry_type: str  # "thinking", "journal", "tool_call", "tool_return"
-    content: str
-    timestamp: datetime | None = None
-    tool_name: str | None = None
 
 
 def _create_tool_call_entry(part: ToolCallPart, timestamp: datetime | None) -> JournalEntry:
@@ -118,20 +109,6 @@ def extract_journal_content(messages: MessageHistory) -> str:
         if isinstance(message, ModelResponse):
             journal_parts.extend(part.content for part in message.parts if isinstance(part, TextPart))
     return "\n\n".join(journal_parts).strip()
-
-
-@dataclass
-class JournalEntryParams:
-    """Parameters for saving a journal entry."""
-
-    intercalated_log: list[JournalEntry]
-    window_label: str
-    output_format: OutputSink
-    posts_published: int
-    profiles_updated: int
-    window_start: datetime
-    window_end: datetime
-    total_tokens: int = 0
 
 
 def save_journal_to_file(params: JournalEntryParams) -> str | None:

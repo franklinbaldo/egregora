@@ -19,12 +19,14 @@ from pydantic_ai.messages import (
 from ratelimit import limits, sleep_and_retry
 from tenacity import Retrying
 
-from egregora.agents.model_limits import PromptTooLargeError
-from egregora.agents.types import WriterDeps
-from egregora.agents.writer.context import inject_profiles_context, inject_rag_context
-from egregora.agents.writer.journal import (
+from egregora.agents.types import (
     JournalEntry,
     JournalEntryParams,
+    PromptTooLargeError,
+    WriterDeps,
+)
+from egregora.agents.writer.context import inject_profiles_context, inject_rag_context
+from egregora.agents.writer.journal import (
     extract_journal_content,
     extract_intercalated_log,
     save_journal_to_file,
@@ -86,7 +88,7 @@ def extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str]
 
 @sleep_and_retry
 @limits(calls=100, period=60)
-def write_posts_with_pydantic_agent(
+async def write_posts_with_pydantic_agent(
     *,
     prompt: str,
     config: EgregoraConfig,
@@ -101,7 +103,7 @@ def write_posts_with_pydantic_agent(
         caps_list = ", ".join(capability.name for capability in active_capabilities)
         logger.info("Writer capabilities enabled: %s", caps_list)
 
-    model = create_writer_model(config, context, prompt, test_model)
+    model = await create_writer_model(config, context, prompt, test_model)
     agent = setup_writer_agent(model, prompt, active_capabilities)
 
     # Re-attach dynamic system prompts that were defined in the original writer.py
@@ -124,8 +126,8 @@ def write_posts_with_pydantic_agent(
     # Use tenacity for retries
     for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
         with attempt:
-            # DIRECT SYNC CALL
-            result = agent.run_sync(
+            # Use async run since we're in an async context
+            result = await agent.run(
                 "Analyze the conversation context provided and write posts/profiles as needed.",
                 deps=context,
                 usage_limits=usage_limits,
@@ -185,7 +187,7 @@ def write_posts_with_pydantic_agent(
     return saved_posts, saved_profiles
 
 
-def execute_writer_with_error_handling(
+async def execute_writer_with_error_handling(
     prompt: str,
     config: EgregoraConfig,
     deps: WriterDeps,
@@ -201,7 +203,7 @@ def execute_writer_with_error_handling(
 
     """
     try:
-        return write_posts_with_pydantic_agent(
+        return await write_posts_with_pydantic_agent(
             prompt=prompt,
             config=config,
             context=deps,
