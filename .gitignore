@@ -79,3 +79,5 @@ debug_*.py
 list_models.py
 reproduce_*.py
 blog_generation.log
+demo/
+*.duckdb
