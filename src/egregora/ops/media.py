@@ -25,6 +25,7 @@ from ibis import udf
 
 from egregora.data_primitives.document import Document, DocumentType, MediaAsset
 from egregora.utils.paths import slugify
+from ibis import udf
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
