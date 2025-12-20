@@ -131,6 +131,7 @@ class WriteCommandOptions:
     use_full_context_window: bool
     max_windows: int | None
     resume: bool
+    economic_mode: bool
     refresh: str | None
     force: bool
     debug: bool
@@ -294,6 +295,7 @@ def run_cli_flow(
     use_full_context_window: bool = False,
     max_windows: int | None = None,
     resume: bool = True,
+    economic_mode: bool = False,
     refresh: str | None = None,
     force: bool = False,
     debug: bool = False,
@@ -315,6 +317,7 @@ def run_cli_flow(
         "use_full_context_window": use_full_context_window,
         "max_windows": max_windows,
         "resume": resume,
+        "economic_mode": economic_mode,
         "refresh": refresh,
         "force": force,
         "debug": debug,
