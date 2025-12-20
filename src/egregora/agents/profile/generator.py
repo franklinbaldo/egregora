@@ -215,8 +215,10 @@ async def _generate_profile_content(
         if hasattr(ctx, "output_dir"):
             from pathlib import Path
 
+            from egregora.constants import PROFILE_HISTORY_MAX_POSTS
+
             profiles_dir = Path(ctx.output_dir) / "docs" / "posts" / "profiles"
-            profile_history = get_profile_history_for_context(author_uuid, profiles_dir, max_posts=5)
+            profile_history = get_profile_history_for_context(author_uuid, profiles_dir, max_posts=PROFILE_HISTORY_MAX_POSTS)
             logger.debug("Loaded profile history for %s (%d chars)", author_uuid, len(profile_history))
     except Exception as e:
         logger.warning("Failed to load profile history for %s: %s", author_uuid, e)
