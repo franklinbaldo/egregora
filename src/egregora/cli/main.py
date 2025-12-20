@@ -151,6 +151,13 @@ def write(
         bool,
         typer.Option("--resume/--no-resume", help="Resume from last checkpoint if available"),
     ] = True,
+    economic_mode: Annotated[
+        bool,
+        typer.Option(
+            "--economic-mode",
+            help="Enable economic mode (reduces LLM calls to 2 per window)",
+        ),
+    ] = False,
     refresh: Annotated[
         str | None,
         typer.Option(help="Force refresh components (writer, rag, enrichment, all)"),
@@ -184,6 +191,7 @@ def write(
         use_full_context_window=use_full_context_window,
         max_windows=max_windows,
         resume=resume,
+        economic_mode=economic_mode,
         refresh=refresh,
         force=force,
         debug=debug,

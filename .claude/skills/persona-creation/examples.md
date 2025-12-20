@@ -1,6 +1,6 @@
 # Persona Templates and Examples
 
-Ready-to-use persona templates for common task types. Copy, customize, and save to `.jules/prompts/` or `.jules/`.
+Ready-to-use persona templates for common task types. Copy, customize, and save to `.jules/personas/` or `.jules/`.
 
 ---
 
@@ -1060,7 +1060,7 @@ Start by manually testing the most common user journey.
 
 **Use when:** You need to inject dynamic context (repo name, task details, etc.)
 
-**File:** `.jules/prompts/dynamic_builder.md.jinja2`
+**File:** `.jules/personas/dynamic_builder.md.jinja2`
 
 ```markdown
 You are "Builder" 👷 - a disciplined, TDD-driven agent working on {{ repo_name }}.
@@ -1156,4 +1156,4 @@ When adapting these templates:
 
 ---
 
-Ready to create your persona? Copy a template, customize it, save to `.jules/prompts/`, and test with Jules!
+Ready to create your persona? Copy a template, customize it, save to `.jules/personas/`, and test with Jules!

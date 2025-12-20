@@ -8,8 +8,8 @@ vision_doc = "docs/ux-vision.md"
 template_location = "src/"  # To be documented by Forge
 
 [workflow]
-curator_persona = ".jules/prompts/curator.md"
-forge_persona = ".jules/prompts/forge.md"
+curator_persona = ".jules/personas/curator.md"
+forge_persona = ".jules/personas/forge.md"
 description = "Curator evaluates blogs and updates TODO. Forge implements items from high_priority."
 
 # High Priority - Critical for Excellence

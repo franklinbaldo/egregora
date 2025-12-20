@@ -467,7 +467,7 @@ Include project-specific guardrails:
 ### Step 9: Test the Persona
 
 Create a Jules session with the persona:
-1. Save persona to `.jules/{name}.md` or `.jules/prompts/{name}.md`
+1. Save persona to `.jules/{name}.md` or `.jules/personas/{name}.md`
 2. Create a test session with a real task
 3. Observe how Jules interprets the persona
 4. Refine based on results
@@ -488,10 +488,10 @@ As Jules uses the persona:
 - `.jules/sentinel.md` - Sentinel persona journal
 - `.jules/scribe.md` - Scribe persona journal
 
-**Prompt templates** (`.jules/prompts/`):
-- `.jules/prompts/janitor.md` - Cleanup tasks
-- `.jules/prompts/weaver.md` - Integration tasks
-- `.jules/prompts/artisan.md` - UX polish tasks
+**Prompt templates** (`.jules/personas/`):
+- `.jules/personas/janitor.md` - Cleanup tasks
+- `.jules/personas/weaver.md` - Integration tasks
+- `.jules/personas/artisan.md` - UX polish tasks
 
 ### File Format
 
@@ -592,7 +592,7 @@ You are a builder who writes code.
 
 Create base personas and specialize them:
 
-**Base: `.jules/prompts/base_tdd.md`**
+**Base: `.jules/personas/base_tdd.md`**
 ```markdown
 You follow strict TDD:
 1. RED - Write failing test
@@ -600,7 +600,7 @@ You follow strict TDD:
 3. REFACTOR - Clean up
 ```
 
-**Specialized: `.jules/prompts/api_builder.md`**
+**Specialized: `.jules/personas/api_builder.md`**
 ```markdown
 {% include 'base_tdd.md' %}
 

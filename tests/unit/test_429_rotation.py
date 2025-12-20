@@ -19,9 +19,9 @@ class MockBaseModel(Model):
 
     async def request(self, messages, settings, params):
         self.calls += 1
-        # Raise 429 for the first call
+        # Raise UsageLimitExceeded for the first call (simulates 429)
         if self.calls == 1:
-            raise Exception("429 Too Many Requests")
+            raise UsageLimitExceeded("429 Too Many Requests")
         return ModelResponse(
             parts=[TextPart(content=f"Success from {self._name}")],
             usage=RequestUsage(),
@@ -94,15 +94,9 @@ async def test_create_fallback_model_count(monkeypatch):
 
     fb_model = create_fallback_model("gemini-1.5-flash", ["gemini-1.5-pro"], include_openrouter=False)
 
-    # We should have (1 primary + 1 fallback) * 3 keys = 6 variations
-    # FallbackModel stores them in an internal list.
-    # We have one primary + 5 fallbacks
+    # Now uses our custom RotatingFallbackModel instead of pydantic-ai's FallbackModel
+    from egregora.models.rotating_fallback import RotatingFallbackModel
 
-    # We can check the __repr__ or just trust the logic if we can't access internals easily.
-    # FallbackModel API changed - just verify it was created with the expected models
-    # by checking the repr or that it's a FallbackModel instance
-    from pydantic_ai.models.fallback import FallbackModel
-
-    assert isinstance(fb_model, FallbackModel)
+    assert isinstance(fb_model, RotatingFallbackModel)
     # The model should have multiple fallback options configured
     # Cannot easily inspect internals, so just verify it's created without error

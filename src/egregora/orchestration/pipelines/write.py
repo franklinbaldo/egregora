@@ -37,8 +37,8 @@ from egregora.agents.banner.worker import BannerWorker
 from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker, schedule_enrichment
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.types import PromptTooLargeError, WindowProcessingParams
-from egregora.agents.writer import write_posts_for_window
+from egregora.agents.types import PromptTooLargeError
+from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
 from egregora.constants import SourceType, WindowUnit
@@ -131,6 +131,7 @@ class WriteCommandOptions:
     use_full_context_window: bool
     max_windows: int | None
     resume: bool
+    economic_mode: bool
     refresh: str | None
     force: bool
     debug: bool
@@ -294,6 +295,7 @@ def run_cli_flow(
     use_full_context_window: bool = False,
     max_windows: int | None = None,
     resume: bool = True,
+    economic_mode: bool = False,
     refresh: str | None = None,
     force: bool = False,
     debug: bool = False,
@@ -315,6 +317,7 @@ def run_cli_flow(
         "use_full_context_window": use_full_context_window,
         "max_windows": max_windows,
         "resume": resume,
+        "economic_mode": economic_mode,
         "refresh": refresh,
         "force": force,
         "debug": debug,

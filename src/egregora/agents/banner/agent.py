@@ -68,6 +68,7 @@ def _get_extension_for_mime_type(mime_type: str) -> str:
 
     Returns:
         File extension with leading dot (e.g., ".jpg")
+
     """
     mime_to_ext = {
         "image/jpeg": ".jpg",

@@ -88,7 +88,7 @@ class StandardUrlConvention(UrlConvention):
         return (
             self._join(ctx, self.routes.journal_prefix, slugify(label))
             if label
-            else self._join(ctx, self.routes.posts_prefix)
+            else self._join(ctx, self.routes.journal_prefix)
         )
 
     def _format_media(self, ctx: UrlContext, doc: Document) -> str:
@@ -97,9 +97,21 @@ class StandardUrlConvention(UrlConvention):
 
         from egregora.ops.media import get_media_subfolder
 
+        # Prefer semantic slug, then filename, then document_id
+        slug_base = doc.metadata.get("slug")
         fname = doc.metadata.get("filename", doc.document_id)
+
+        # Use the slug as the name if we have it, otherwise fallback to filename/ID
+        name_segment = slug_base or fname
+
+        # Ensure we have an extension if possible
         ext = f".{fname.rsplit('.', 1)[-1]}" if "." in fname else ""
-        return self._join(ctx, "media", get_media_subfolder(ext), fname, trailing_slash=False)
+        if not name_segment.endswith(ext) and ext:
+            name_segment = f"{name_segment}{ext}"
+
+        return self._join(
+            ctx, self.routes.media_prefix, get_media_subfolder(ext), name_segment, trailing_slash=False
+        )
 
     def _format_enrichment(self, ctx: UrlContext, doc: Document, subfolder: str | None = None) -> str:
         """Generic handler for all media enrichment types."""
@@ -111,6 +123,8 @@ class StandardUrlConvention(UrlConvention):
             prefixes = [
                 f"{(ctx.site_prefix or '').strip('/')}/{self.routes.media_prefix.strip('/')}",
                 self.routes.media_prefix.strip("/"),
+                "media",
+                "posts/media",
             ]
             for p in prefixes:
                 if path.startswith(p + "/"):

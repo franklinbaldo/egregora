@@ -95,10 +95,10 @@ class MkDocsAdapter(BaseOutputSink):
         # Configure URL convention to match filesystem layout
         # This ensures that generated URLs align with where files are actually stored
         routes = RouteConfig(
-            posts_prefix=__import__("os").path.relpath(self.posts_dir, self.docs_dir),
-            profiles_prefix=__import__("os").path.relpath(self.profiles_dir, self.docs_dir),
-            media_prefix=__import__("os").path.relpath(self.media_dir, self.docs_dir),
-            journal_prefix=__import__("os").path.relpath(self.journal_dir, self.docs_dir),
+            posts_prefix=self.posts_dir.relative_to(self.docs_dir).as_posix(),
+            profiles_prefix=self.profiles_dir.relative_to(self.docs_dir).as_posix(),
+            media_prefix=self.media_dir.relative_to(self.docs_dir).as_posix(),
+            journal_prefix=self.journal_dir.relative_to(self.docs_dir).as_posix(),
         )
         self._url_convention = StandardUrlConvention(routes)
 
@@ -210,8 +210,8 @@ class MkDocsAdapter(BaseOutputSink):
                     return max(matches, key=lambda p: p.stat().st_mtime)
                 return None
             case DocumentType.JOURNAL:
-                # Journals: simple filename with slug
-                return self.posts_dir / f"{identifier.replace('/', '-')}.md"
+                # Journals: simple filename with slug in journal_dir
+                return self.journal_dir / f"{identifier.replace('/', '-')}.md"
             case DocumentType.ENRICHMENT_URL:
                 # Enrichment URLs: inside media_dir/urls (ADR-0004)
                 return self.media_dir / "urls" / f"{identifier}.md"
@@ -788,12 +788,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
             case DocumentType.JOURNAL:
                 # When url_path is just "journal" (root journal URL), return journal.md in docs root
-                # Otherwise, extract the slug and put it in journal/
-                # UNIFIED: Journal entries go to posts_dir now.
+                # Otherwise, extract the slug and put it in journal_dir
                 slug = url_path.split("/")[-1]
                 if url_path == "journal":
                     return self.docs_dir / "journal.md"
-                return self.posts_dir / f"{slug}.md"
+                return self.journal_dir / f"{slug}.md"
             case DocumentType.ENRICHMENT_URL:
                 # url_path might be 'posts/media/urls/slug' -> we want 'slug.md' inside media_dir/urls
                 # ADR-0004: URL enrichments go to posts/media/urls/
@@ -830,28 +829,18 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _strip_media_prefix(self, url_path: str) -> str:
         """Helper to strip media prefixes from URL path."""
-        rel_path = url_path.strip("/")
-        media_prefixes: set[str] = set()
+        rel_path = url_path
+        media_prefixes: list[str] = []
         if hasattr(self._url_convention, "routes"):
-            prefix = str(getattr(self._url_convention.routes, "media_prefix", "")).strip("/")
-            if prefix:
-                media_prefixes.add(prefix)
-        # Include all common variations to prevent nested media/media paths
-        media_prefixes.update(
-            [
-                "media",
-                "posts/media",
-                "docs/posts/media",
-                "docs/media",
-            ]
-        )
-
-        # Sort by length descending to match longest prefix first
-        for prefix in sorted(media_prefixes, key=len, reverse=True):
+            media_prefixes.append(str(getattr(self._url_convention.routes, "media_prefix", "")).strip("/"))
+        media_prefixes.extend(["media", "posts/media"])
+        for prefix in [p for p in media_prefixes if p]:
             if rel_path == prefix:
-                return ""
+                rel_path = ""
+                break
             if rel_path.startswith(prefix + "/"):
-                return rel_path[len(prefix) + 1 :]
+                rel_path = rel_path[len(prefix) + 1 :]
+                break
         return rel_path
 
     def _parse_frontmatter(self, path: Path) -> dict:
@@ -1049,8 +1038,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         path.write_bytes(payload)
 
     def _write_generic_doc(self, document: Document, path: Path) -> None:
-        """Write a generic document (binary or text) to the given path."""
-        logger.info("Writing document %s to %s (type=%s)", document.document_id[:8], path, document.type)
         if isinstance(document.content, bytes):
             path.write_bytes(document.content)
         else:
