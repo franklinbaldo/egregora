@@ -175,6 +175,7 @@ def _create_enrichment_row(
     enrichment_type: str,
     identifier: str,
     enrichment_id_str: str,
+    media_identifier: str | None = None,
 ) -> dict[str, Any] | None:
     if not message_metadata:
         return None
@@ -197,8 +198,8 @@ def _create_enrichment_row(
         "author_raw": "egregora",
         "author_uuid": _uuid_to_str(message_metadata.get("author_uuid")),
         "text": f"[{enrichment_type} Enrichment] {identifier}\nEnrichment saved: {enrichment_id_str}",
-        "media_url": None,
-        "media_type": None,
+        "media_url": media_identifier,
+        "media_type": enrichment_type,
         "attrs": {
             "enrichment_type": enrichment_type,
             "enrichment_id": enrichment_id_str,
@@ -476,7 +477,9 @@ def _extract_url_candidates(messages_table: Table, max_enrichments: int) -> list
     url_metadata: dict[str, dict[str, Any]] = {}
     discovered_count = 0
 
-    # Filter out enrichment records to only scan original messages
+    # Filter out enrichment records to only scan original messages.
+    # Enrichment rows are identified by having a non-null `media_type` (e.g., "URL" or "Media"),
+    # which is set by `_create_enrichment_row`. This prevents re-processing.
     original_messages = messages_table.filter(messages_table.media_type.isnull())
 
     for batch in _iter_table_batches(
@@ -529,7 +532,9 @@ def _extract_media_candidates(
     # until we can refactor the return type.
     document_lookup: dict[str, Document] = {}
 
-    # Filter out enrichment records to only scan original messages
+    # Filter out enrichment records to only scan original messages.
+    # Enrichment rows are identified by having a non-null `media_type` (e.g., "URL" or "Media"),
+    # which is set by `_create_enrichment_row`. This prevents re-processing.
     original_messages = messages_table.filter(messages_table.media_type.isnull())
 
     for batch in _iter_table_batches(
@@ -1046,7 +1051,7 @@ class EnrichmentWorker(BaseWorker):
                     self.ctx.output_format.persist(doc)
 
                 metadata = payload["message_metadata"]
-                row = _create_enrichment_row(metadata, "URL", url, doc.document_id)
+                row = _create_enrichment_row(metadata, "URL", url, doc.document_id, media_identifier=url)
                 if row:
                     new_rows.append(row)
 
@@ -1593,7 +1598,9 @@ class EnrichmentWorker(BaseWorker):
                 self.ctx.output_format.persist(doc)
 
             metadata = payload["message_metadata"]
-            row = _create_enrichment_row(metadata, "Media", filename, doc.document_id)
+            row = _create_enrichment_row(
+                metadata, "Media", filename, doc.document_id, media_identifier=media_id
+            )
             if row:
                 new_rows.append(row)
 
