@@ -9,10 +9,9 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
@@ -27,9 +26,6 @@ from pydantic_ai.messages import (
 
 from egregora.agents.types import JournalEntry, JournalEntryParams
 from egregora.data_primitives.document import Document, DocumentType
-
-if TYPE_CHECKING:
-    from egregora.data_primitives.protocols import OutputSink
 
 logger = logging.getLogger(__name__)
 

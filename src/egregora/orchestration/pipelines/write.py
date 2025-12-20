@@ -92,19 +92,21 @@ MIN_WINDOWS_WARNING_THRESHOLD = 5
 
 def run_async_safely(coro):
     """Run an async coroutine safely, handling nested event loops.
-    
+
     If an event loop is already running (e.g., in Jupyter or nested calls),
     this will use run_until_complete instead of asyncio.run().
     """
     import asyncio
+
     try:
-        loop = asyncio.get_running_loop()
+        asyncio.get_running_loop()
     except RuntimeError:
         # No running loop - use asyncio.run()
         return asyncio.run(coro)
     else:
         # Loop is already running - use run_until_complete in a new thread
         import concurrent.futures
+
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(asyncio.run, coro)
             return future.result()
@@ -179,7 +181,9 @@ def _validate_api_key(output_dir: Path) -> None:
 
     if not api_keys:
         console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
-        console.print("Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key")
+        console.print(
+            "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key"
+        )
         console.print("You can also create a .env file in the output directory or current directory.")
         raise SystemExit(1)
 
@@ -840,7 +844,9 @@ def _resolve_context_token_limit(config: EgregoraConfig) -> int:
         # Use KNOWN_MODEL_LIMITS from constants if available, else conservative 128k
         from egregora.constants import KNOWN_MODEL_LIMITS
 
-        clean_name = writer_model.replace("models/", "").replace("google-gla:", "").replace("google-vertex:", "")
+        clean_name = (
+            writer_model.replace("models/", "").replace("google-gla:", "").replace("google-vertex:", "")
+        )
         limit = 128_000
         for known_model, known_limit in KNOWN_MODEL_LIMITS.items():
             if clean_name.startswith(known_model):

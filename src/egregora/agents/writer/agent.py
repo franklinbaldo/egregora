@@ -27,8 +27,8 @@ from egregora.agents.types import (
 )
 from egregora.agents.writer.context import inject_profiles_context, inject_rag_context
 from egregora.agents.writer.journal import (
-    extract_journal_content,
     extract_intercalated_log,
+    extract_journal_content,
     save_journal_to_file,
 )
 from egregora.agents.writer_helpers import process_tool_result

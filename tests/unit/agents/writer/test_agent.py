@@ -5,12 +5,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic_ai.messages import ToolReturnPart
 
+from egregora.agents.types import PromptTooLargeError
 from egregora.agents.writer.agent import (
+    execute_writer_with_error_handling,
     extract_tool_results,
     write_posts_with_pydantic_agent,
-    execute_writer_with_error_handling,
 )
-from egregora.agents.types import PromptTooLargeError
 
 
 class TestWriterAgent:
@@ -63,6 +63,7 @@ class TestWriterAgent:
         # Make create_writer_model async
         async def async_create_model(*args, **kwargs):
             return MagicMock()
+
         mock_create.side_effect = async_create_model
 
         mock_extract.return_value = (["p1"], ["pr1"])
@@ -91,21 +92,30 @@ class TestWriterAgent:
     @pytest.mark.asyncio
     async def test_execute_writer_with_error_handling_success(self, mock_write):
         mock_write.return_value = AsyncMock(return_value=(["p1"], []))
-        with patch("egregora.agents.writer.agent.write_posts_with_pydantic_agent", AsyncMock(return_value=(["p1"], []))):
-            posts, profiles = await execute_writer_with_error_handling("prompt", MagicMock(), MagicMock())
+        with patch(
+            "egregora.agents.writer.agent.write_posts_with_pydantic_agent",
+            AsyncMock(return_value=(["p1"], [])),
+        ):
+            posts, _profiles = await execute_writer_with_error_handling("prompt", MagicMock(), MagicMock())
             assert posts == ["p1"]
 
     @patch("egregora.agents.writer.agent.write_posts_with_pydantic_agent")
     @pytest.mark.asyncio
     async def test_execute_writer_re_raises_context_error(self, mock_write):
-        with patch("egregora.agents.writer.agent.write_posts_with_pydantic_agent", AsyncMock(side_effect=PromptTooLargeError("model", "w1"))):
+        with patch(
+            "egregora.agents.writer.agent.write_posts_with_pydantic_agent",
+            AsyncMock(side_effect=PromptTooLargeError("model", "w1")),
+        ):
             with pytest.raises(PromptTooLargeError):
                 await execute_writer_with_error_handling("prompt", MagicMock(), MagicMock())
 
     @patch("egregora.agents.writer.agent.write_posts_with_pydantic_agent")
     @pytest.mark.asyncio
     async def test_execute_writer_wraps_general_error(self, mock_write):
-        with patch("egregora.agents.writer.agent.write_posts_with_pydantic_agent", AsyncMock(side_effect=ValueError("boom"))):
+        with patch(
+            "egregora.agents.writer.agent.write_posts_with_pydantic_agent",
+            AsyncMock(side_effect=ValueError("boom")),
+        ):
             with pytest.raises(RuntimeError) as exc:
                 await execute_writer_with_error_handling("prompt", MagicMock(), MagicMock())
             assert "Writer agent failed" in str(exc.value)

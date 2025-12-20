@@ -1,10 +1,6 @@
 """Unit tests for writer context module."""
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
-from ibis import memtable
 
 from egregora.agents.writer.context import (
     WriterContext,
@@ -32,9 +28,7 @@ class TestWriterContext:
     @patch("egregora.agents.writer.context.build_conversation_xml")
     @patch("egregora.agents.writer.context.load_journal_memory")
     @patch("egregora.agents.writer.context.get_active_authors")
-    def test_build_writer_context(
-        self, mock_active_authors, mock_journal, mock_xml
-    ):
+    def test_build_writer_context(self, mock_active_authors, mock_journal, mock_xml):
         # Mocks
         mock_xml.return_value = "<xml>conversation</xml>"
         mock_journal.return_value = "Journal content"
@@ -142,7 +136,7 @@ class TestWriterContext:
             adapter_generation_instructions="",
         )
 
-        ctx, sig = _build_context_and_signature(params, None)
+        _ctx, sig = _build_context_and_signature(params, None)
 
         assert sig == "signature_hash"
         # Verify table mutation was attempted (checking if mutate called)

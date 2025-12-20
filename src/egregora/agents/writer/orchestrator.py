@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from dataclasses import dataclass
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from egregora.agents.types import (
@@ -30,13 +28,10 @@ from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import CacheTier, PipelineCache
 
 if TYPE_CHECKING:
-    from egregora.utils.metrics import UsageTracker
     from pathlib import Path
 
-    from ibis.expr.types import Table
-
     from egregora.agents.types import WriterResources
-    from egregora.config.settings import EgregoraConfig
+    from egregora.utils.metrics import UsageTracker
 
 logger = logging.getLogger(__name__)
 

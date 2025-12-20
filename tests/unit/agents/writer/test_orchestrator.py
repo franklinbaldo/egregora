@@ -1,7 +1,7 @@
 """Unit tests for writer orchestrator module."""
 
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -59,12 +59,12 @@ class TestWriterOrchestrator:
         mock_resources.retrieval_config.enabled = True
 
         mock_doc = MagicMock()
-        mock_doc.type = "post" # DocumentType.POST (simplified for mock check)
+        mock_doc.type = "post"  # DocumentType.POST (simplified for mock check)
         # Mocking enum comparison requires care, assuming simple string or object equality
         # In real code it checks DocumentType enum.
         # Let's mock the output format's documents iterator properly.
 
-        from egregora.data_primitives.document import DocumentType, Document
+        from egregora.data_primitives.document import Document, DocumentType
 
         doc = Document(content="c", type=DocumentType.POST, metadata={"slug": "post1"})
         mock_resources.output.documents.return_value = [doc]
@@ -123,6 +123,7 @@ class TestWriterOrchestrator:
         # Make execute async
         async def async_execute(*args, **kwargs):
             return (["p1"], [])
+
         mock_execute.side_effect = async_execute
 
         mock_finalize.return_value = {"posts": ["p1"], "profiles": []}

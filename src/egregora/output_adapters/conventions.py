@@ -276,13 +276,13 @@ class StandardUrlConvention(UrlConvention):
 
         # Legacy/Fallback: Infer subdirectory from extension
         from egregora.ops.media import get_media_subfolder
-        
+
         filename = document.metadata.get("filename")
         path_segment = filename or f"{document.document_id}"
-        
+
         extension = Path(path_segment).suffix
         media_subdir = get_media_subfolder(extension)
-        
+
         # New robust path: media/{subdir}/{filename}
         return self._join(ctx, "media", media_subdir, path_segment, trailing_slash=False)
 

@@ -321,7 +321,9 @@ def _enqueue_url_enrichments(
             )
             existing_urls = set(db_existing["media_url"].tolist())
         except Exception:
-            logger.warning("Failed to check database for existing URL enrichments; falling back to cache only.")
+            logger.warning(
+                "Failed to check database for existing URL enrichments; falling back to cache only."
+            )
 
     scheduled = 0
     for url, metadata in candidates:
@@ -372,14 +374,17 @@ def _enqueue_media_enrichments(
             # We look for rows with media_type='Media' and matching media_url (which stores the media_id)
             db_existing = (
                 messages_table.filter(
-                    (messages_table.media_type == "Media") & (messages_table.media_url.isin(media_ids_to_check))
+                    (messages_table.media_type == "Media")
+                    & (messages_table.media_url.isin(media_ids_to_check))
                 )
                 .select("media_url")
                 .execute()
             )
             existing_media = set(db_existing["media_url"].tolist())
         except Exception:
-            logger.warning("Failed to check database for existing Media enrichments; falling back to cache only.")
+            logger.warning(
+                "Failed to check database for existing Media enrichments; falling back to cache only."
+            )
 
     scheduled = 0
     for ref, media_doc, metadata in candidates:
@@ -932,7 +937,9 @@ class EnrichmentWorker(BaseWorker):
         if rotation_enabled:
             from egregora.models.model_key_rotator import ModelKeyRotator
 
-            rotator = ModelKeyRotator(models=[sanitize_model_name(m) for m in rotation_models] if rotation_models else None)
+            rotator = ModelKeyRotator(
+                models=[sanitize_model_name(m) for m in rotation_models] if rotation_models else None
+            )
 
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 client = genai.Client(api_key=api_key)
@@ -1338,7 +1345,9 @@ class EnrichmentWorker(BaseWorker):
         rotation_models = getattr(self.enrichment_config, "rotation_models", None)
 
         if rotation_enabled:
-            rotator = ModelKeyRotator(models=[sanitize_model_name(m) for m in rotation_models] if rotation_models else None)
+            rotator = ModelKeyRotator(
+                models=[sanitize_model_name(m) for m in rotation_models] if rotation_models else None
+            )
 
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 client = genai.Client(api_key=api_key)

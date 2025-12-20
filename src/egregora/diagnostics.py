@@ -122,7 +122,7 @@ def check_api_key() -> DiagnosticResult:
             from egregora.utils.env import validate_gemini_api_key
 
             validate_gemini_api_key(api_key)
-        except Exception as e:  # noqa: BLE001 - best-effort validation only
+        except Exception as e:
             return DiagnosticResult(
                 check="API Key",
                 status=HealthStatus.WARNING,

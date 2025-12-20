@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING, Any
 from pydantic_ai import Agent, RunContext
 
 from egregora.agents.capabilities import AgentCapability
-from egregora.agents.types import PromptTooLargeError
 from egregora.agents.types import (
     AnnotationResult,
     PostMetadata,
+    PromptTooLargeError,
     ReadProfileResult,
     WritePostResult,
     WriteProfileResult,
@@ -225,6 +225,7 @@ async def validate_prompt_fits(
 
     Returns:
         Estimated or native token count.
+
     """
     # 1. Get token count (Native if possible, else Estimate)
     token_count = await count_tokens(prompt, model_instance)
