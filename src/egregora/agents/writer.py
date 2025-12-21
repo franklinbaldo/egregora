@@ -854,7 +854,33 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
         resources.usage,
     )
     if cached_result:
-        return cached_result
+        # Validate cached posts still exist on disk (they may be missing if output dir is fresh)
+        cached_posts = cached_result.get(RESULT_KEY_POSTS, [])
+        if cached_posts:
+            # Check if at least one post file exists
+            posts_exist = any(
+                list(resources.output.posts_dir.glob(f"*{slug}*.md"))
+                for slug in cached_posts[:1]  # Check first post only for speed
+            )
+            if not posts_exist:
+                logger.warning(
+                    "⚠️ Cached posts not found on disk, regenerating for window %s",
+                    f"{params.window_start:%Y-%m-%d %H:%M} to {params.window_end:%H:%M}",
+                )
+                # Invalidate this cache entry
+                params.cache.writer.delete(signature)
+            else:
+                # Posts exist, call finalize_window to mark completion and return
+                resources.output.finalize_window(
+                    window_label=f"{params.window_start:%Y-%m-%d %H:%M} to {params.window_end:%H:%M}",
+                    posts_created=cached_posts,
+                    profiles_updated=cached_result.get(RESULT_KEY_PROFILES, []),
+                    metadata=None,
+                )
+                return cached_result
+        else:
+            # No posts in cache, just return the empty result
+            return cached_result
 
     logger.info("Using Pydantic AI backend for writer")
 
