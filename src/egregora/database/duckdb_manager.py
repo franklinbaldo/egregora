@@ -200,7 +200,7 @@ class DuckDBStorageManager:
             db_list = instance._conn.execute("PRAGMA database_list").fetchall()
             db_file = db_list[0][2] if db_list and db_list[0][2] else None
             instance.db_path = Path(db_file) if db_file else None
-        except Exception:
+        except duckdb.Error:
             instance.db_path = None
             logger.debug("Could not determine db_path from backend connection")
 
@@ -232,15 +232,15 @@ class DuckDBStorageManager:
 
         try:
             _connect()
-        except Exception as exc:
+        except duckdb.Error as exc:
             # Check for specific invalidation error that requires file removal
-            if isinstance(exc, duckdb.Error) and self._is_invalidated_error(exc) and self.db_path:
+            if self._is_invalidated_error(exc) and self.db_path:
                 logger.warning("Recreating DuckDB database file after fatal invalidation: %s", db_str)
                 try:
                     Path(db_str).unlink(missing_ok=True)
                     _connect()
                     return
-                except Exception:
+                except (OSError, duckdb.Error):
                     logger.exception("Failed to recover via file deletion")
 
             # Fallback to memory if file open/recovery fails
@@ -248,10 +248,10 @@ class DuckDBStorageManager:
             db_str = ":memory:"
             try:
                 _connect()
-            except Exception:
+            except duckdb.Error as e:
                 msg = "Critical failure: Could not connect to in-memory database after reset"
                 logger.critical(msg)
-                raise RuntimeError(msg) from exc
+                raise RuntimeError(msg) from e
 
         self.db_path = Path(db_str) if db_str != ":memory:" else None
         logger.info("DuckDB connection reset successfully (db=%s)", db_str)
