@@ -1,0 +1,2995 @@
+diff --git a/BANNER-SUPPORT.md b/BANNER-SUPPORT.md
+deleted file mode 100644
+index 30490d6a7..000000000
+--- a/BANNER-SUPPORT.md
++++ /dev/null
+@@ -1,254 +0,0 @@
+-# Blog Banner Support Documentation
+-
+-## Overview
+-
+-Blog banners are **fully supported** in Egregora with MkDocs Material! The fixed implementation ensures banners work correctly with async generation.
+-
+-## How It Works
+-
+-### 1. Banner Generation Workflow
+-
+-```
+-┌─────────────────────────────────────────────────────────────┐
+-│ Writer Agent generates blog post                             │
+-│ ├─ Calls generate_banner(slug, title, summary)              │
+-│ ├─ Gets predicted path: "media/images/my-post.jpg"          │
+-│ └─ Writes frontmatter with banner path                       │
+-└─────────────────────────────────────────────────────────────┘
+-                              │
+-                              ▼
+-┌─────────────────────────────────────────────────────────────┐
+-│ Background Worker generates actual banner                    │
+-│ ├─ Calls Gemini API with title + summary                    │
+-│ ├─ Gets image bytes (JPEG/PNG)                              │
+-│ └─ Saves to: "media/images/my-post.jpg" ✅                  │
+-└─────────────────────────────────────────────────────────────┘
+-                              │
+-                              ▼
+-┌─────────────────────────────────────────────────────────────┐
+-│ MkDocs renders the blog post                                 │
+-│ ├─ Reads frontmatter banner: "media/images/my-post.jpg"     │
+-│ ├─ Custom template checks page.meta.banner                   │
+-│ └─ Displays banner at top of post ✅                         │
+-└─────────────────────────────────────────────────────────────┘
+-```
+-
+-### 2. Post Frontmatter Example
+-
+-```yaml
+----
+-title: "Understanding AI Safety"
+-slug: "understanding-ai-safety"
+-date: 2025-12-20
+-banner: media/images/understanding-ai-safety.jpg  # Generated async!
+-summary: "An exploration of AI safety principles and practices."
+-authors:
+-  - alice-uuid
+-tags:
+-  - AI
+-  - Safety
+-  - Research
+----
+-```
+-
+-### 3. Template Integration
+-
+-Users should add banner support to their MkDocs theme overrides.
+-
+-**Example**: `.egregora/overrides/post.html`
+-
+-```html
+-{% extends "main.html" %}
+-
+-{% block content %}
+-<article class="md-content__inner md-typeset">
+-  <!-- Post Header -->
+-  <header class="post-header">
+-    {% if page.meta.banner %}
+-    <div class="post-banner">
+-      <img src="{{ page.meta.banner | url }}" alt="{{ page.title }} banner">
+-    </div>
+-    {% elif page.meta.image %}
+-    <div class="post-banner">
+-      <img src="{{ page.meta.image | url }}" alt="{{ page.title }} banner">
+-    </div>
+-    {% endif %}
+-
+-    <h1>{{ page.title }}</h1>
+-    <!-- Rest of post header... -->
+-  </header>
+-
+-  {{ page.content }}
+-</article>
+-{% endblock %}
+-```
+-
+-**Features**:
+-- ✅ Checks for `banner` field first
+-- ✅ Falls back to `image` field
+-- ✅ Uses `| url` filter for proper path resolution
+-- ✅ Includes alt text for accessibility
+-
+-### 4. Styling
+-
+-**Note**: The `site-fresh/` demo directory with banner styling was removed in PR #1362 cleanup.
+-
+-Users should implement banner styling in their own MkDocs sites. Example CSS:
+-
+-```css
+-/* Post Banner */
+-.post-banner {
+-  margin-bottom: 2rem;
+-  margin-left: calc(-1 * var(--md-typeset-a-spacing));
+-  margin-right: calc(-1 * var(--md-typeset-a-spacing));
+-  overflow: hidden;
+-  border-radius: 8px;
+-}
+-
+-.post-banner img {
+-  width: 100%;
+-  height: auto;
+-  display: block;
+-  object-fit: cover;
+-  max-height: 400px;
+-}
+-
+-/* Responsive banner sizing */
+-@media screen and (max-width: 76.1875em) {
+-  .post-banner {
+-    margin-left: 0;
+-    margin-right: 0;
+-  }
+-}
+-```
+-
+-Banner styling features:
+-- Full-width display at top of post
+-- Responsive sizing
+-- Proper spacing from post content
+-- Dark/light mode support
+-
+-## What Was Fixed
+-
+-### Before Fix ❌
+-
+-**Problem**: Path mismatch between prediction and actual file
+-
+-```
+-Predicted:  media/images/my-post.jpg
+-Actual:     media/files/my-post  (no extension!)
+-Result:     🔴 Broken image
+-```
+-
+-### After Fix ✅
+-
+-**Solution**: Proper filename with extension in document metadata
+-
+-```
+-Predicted:  media/images/my-post.jpg
+-Actual:     media/images/my-post.jpg
+-Result:     ✅ Banner displays correctly
+-```
+-
+-## Supported Image Formats
+-
+-The banner generator supports multiple formats:
+-
+-| MIME Type         | Extension | Gemini Support |
+-|-------------------|-----------|----------------|
+-| `image/jpeg`      | `.jpg`    | ✅ Default     |
+-| `image/png`       | `.png`    | ✅ Supported   |
+-| `image/webp`      | `.webp`   | ✅ Supported   |
+-| `image/gif`       | `.gif`    | ✅ Supported   |
+-| `image/svg+xml`   | `.svg`    | ✅ Supported   |
+-
+-**Default**: `.jpg` (most common Gemini output)
+-
+-## Additional Features
+-
+-### 1. Image Lightbox
+-
+-Banners work with the **glightbox** plugin:
+-- Click banner to view full-size
+-- Keyboard navigation
+-- Mobile-friendly
+-
+-### 2. Social Media Cards
+-
+-While not yet configured, banners can be used for:
+-- Open Graph images (`og:image`)
+-- Twitter cards
+-- Social media previews
+-
+-**Future Enhancement**:
+-```yaml
+-plugins:
+-  - social:
+-      cards: true
+-      cards_layout_options:
+-        background_image: "{{ page.meta.banner }}"
+-```
+-
+-### 3. RSS Feed
+-
+-Banners are included in RSS feed:
+-```yaml
+-plugins:
+-  - rss:
+-      match_path: "posts/.*"
+-      image: "{{ page.meta.banner }}"
+-```
+-
+-## Testing
+-
+-All banner functionality is tested:
+-
+-```bash
+-# Run banner tests
+-uv run pytest tests/unit/agents/banner/ -v
+-
+-# Results: 17/17 tests passing ✅
+-# - Path prediction matches actual paths
+-# - MIME type to extension mapping
+-# - Document structure validation
+-# - Batch processing
+-```
+-
+-## Usage in Writer Agent
+-
+-The writer agent automatically includes banners:
+-
+-```python
+-# Agent tool registers with BackgroundBannerCapability
+-result = generate_banner(
+-    post_slug="my-awesome-post",
+-    title="My Awesome Post",
+-    summary="This is an amazing post about AI"
+-)
+-
+-# Returns: BannerResult(
+-#   status="scheduled",
+-#   path="media/images/my-awesome-post.jpg"  # Predicted path
+-# )
+-```
+-
+-## Verification
+-
+-To verify banners work:
+-
+-1. **Generate a post** with banner capability enabled
+-2. **Check frontmatter** has `banner: media/images/...`
+-3. **Run background worker** to generate actual banner
+-4. **Build MkDocs** site: `mkdocs build`
+-5. **View post** - banner displays at top
+-
+-## Summary
+-
+-✅ **Banner generation**: Works with Gemini API
+-✅ **Path prediction**: Matches actual saved paths
+-✅ **MkDocs integration**: Custom template supports banners
+-✅ **Styling**: Responsive, accessible design
+-✅ **Multiple formats**: JPEG, PNG, WebP, GIF, SVG
+-✅ **Testing**: Comprehensive test coverage (17/17 passing)
+-
+-**Status**: Fully functional and production-ready! 🎉
+diff --git a/MERGE-EVALUATION.md b/MERGE-EVALUATION.md
+deleted file mode 100644
+index 1e97d915a..000000000
+--- a/MERGE-EVALUATION.md
++++ /dev/null
+@@ -1,167 +0,0 @@
+-# PR Merge Evaluation - Session 8oM9f
+-
+-## Branch Created
+-`claude/merge-compatible-prs-8oM9f`
+-
+-## Summary
+-
+-Evaluated and merged compatible PRs with banner implementation fixes (PR #1372). Successfully merged PR #1362 (scheduler replacement and cleanup). Profile PR #1256 was skipped due to architectural conflicts.
+-
+-## PRs Evaluated
+-
+-### ✅ PR #1372 - Banner Path Prediction (MERGED)
+-
+-**Branch**: `origin/claude/review-pr-1372-8oM9f`
+-**Status**: ✅ **Successfully reconciled and included**
+-
+-**Changes**:
+-- Fixed banner path prediction to match actual saved paths
+-- Added proper filename with extension in banner documents
+-- Added MIME type to extension mapping (JPEG, PNG, WebP, GIF, SVG)
+-- Added banner CSS styling for MkDocs
+-- Comprehensive test coverage (17/17 tests passing)
+-- Documentation in BANNER-SUPPORT.md
+-
+-**Commits included**:
+-1. `9654670` - docs: update BANNER-SUPPORT.md after site-fresh removal
+-2. `059ee31` - chore: reconcile PR #1372 with PR #1362
+-3. `1140697` - docs: add PR merge evaluation for session 8oM9f
+-4. `f48d9f1` - feat: add banner styling and documentation
+-5. `87f9826` - chore: reconcile PR #1372 with fixes
+-6. `582c335` - fix: resolve PR #1372 banner path prediction issues
+-7. `4d5fa96` - fix: resolve CI failures on main branch
+-8. `8e03a7a` - feat: make banner generator functional by predicting async banner path
+-
+-### ✅ PR #1362 - Scheduler Security & Cleanup (MERGED)
+-
+-**Branch**: `pr-1362`
+-**Status**: ✅ **Successfully merged and reconciled**
+-
+-**Purpose**: Replace external scheduler with local script for security + major cleanup
+-
+-**Changes**:
+-- Replaced `jules-scheduler` with local `scripts/run_scheduler.py`
+-- Removed `site-fresh/` and `docs/demo/` demo directories
+-- Removed Jules workflow files (.jules/curator.md, forge.md, refactor.md, etc.)
+-- Major writer agent refactoring (consolidated into single writer.py)
+-- Added WORKFLOW_SECURITY_ANALYSIS.md
+-- Cleaned up ~10,000 lines of outdated code
+-
+-**Files changed**: 206 files, +2,708 insertions, -10,859 deletions
+-
+-**Conflict resolution**:
+-- Minor conflict: site-fresh/.egregora/overrides/stylesheets/extra.css
+-- Resolution: Accepted deletion (demo directory removed)
+-- Banner styling moved to documentation as example code
+-
+-**Test results**: All 17 banner tests passing ✅
+-
+-### ❌ Issue #1256 - Profile History (NOT COMPATIBLE)
+-
+-**Branch**: `origin/claude/implement-issue-1256-tXStK`
+-**Status**: ❌ **Skipped due to conflicts**
+-
+-**Reason for exclusion**:
+-Significant merge conflicts in `src/egregora/output_adapters/conventions.py`. Both PRs made incompatible changes:
+-
+-**Banner PR approach**:
+-- Simplified `conventions.py` by ~300 lines
+-- Uses shorter method names: `_format_post`, `_format_media`, `_format_journal`
+-- Focus on path generation for media files
+-
+-**Profile PR approach**:
+-- Renamed all methods: `_format_post_url`, `_format_profile_url`, etc.
+-- Added improved error handling and logging for profiles
+-- Added new profile history features
+-- Made extensive changes to profile routing
+-
+-**Conflict details**:
+-```
+-CONFLICT (content): Merge conflict in src/egregora/output_adapters/conventions.py
+-```
+-
+-The two PRs have diverged in their architectural approach to URL conventions. Profile PR has valuable improvements but requires separate reconciliation work.
+-
+-**Profile PR changes** (would need separate merge):
+-- `docs/adr/0002-profile-path-convention.md` - Updated ADR
+-- `src/egregora/agents/profile/generator.py` - Profile generation improvements
+-- `src/egregora/agents/profile/history.py` - NEW: Profile history feature
+-- `src/egregora/knowledge/profiles.py` - Profile knowledge updates
+-- `src/egregora/output_adapters/conventions.py` - ⚠️ CONFLICTS
+-- `src/egregora/output_adapters/mkdocs/adapter.py` - Profile routing
+-- `tests/integration/test_profile_routing_e2e.py` - NEW: E2E tests
+-- `tests/unit/agents/test_profile_slug_generation.py` - NEW: Unit tests
+-- `tests/unit/test_profile_metadata_validation.py` - NEW: Unit tests
+-
+-**Files changed**: 12 files, +1191 lines, -27 deletions
+-
+-## Recommendation
+-
+-### For Banner PR (This Branch)
+-✅ **Ready to merge** - All tests passing, documentation complete, functionality verified
+-
+-### For Profile PR
+-⚠️ **Requires separate reconciliation**
+-- Profile improvements are valuable
+-- Should be reconciled with banner work in a separate effort
+-- Needs manual conflict resolution in `conventions.py`
+-- Consider adopting profile PR's improved method naming convention
+-
+-## Next Steps
+-
+-1. **Immediate**: Merge `claude/merge-compatible-prs-8oM9f` into main
+-2. **Follow-up**: Create reconciliation branch for profile features (Issue #1256)
+-3. **Future**: Align URL convention naming across the codebase
+-
+-## Branch Summary
+-
+-**Branch**: `claude/merge-compatible-prs-8oM9f`
+-**Based on**: Latest main + PR #1372 + PR #1362
+-**Total commits**: 8 (from initial divergence point)
+-**Test status**: ✅ All 17 banner tests passing
+-
+-## Files in This Branch
+-
+-### Core Banner Implementation
+-- `src/egregora/agents/banner/agent.py` - Sync banner generation
+-- `src/egregora/agents/banner/batch_processor.py` - Async banner generation
+-- `src/egregora/agents/capabilities.py` - Path prediction logic
+-
+-### Tests
+-- `tests/unit/agents/banner/test_path_prediction.py` - NEW: Path prediction tests
+-- All existing banner tests passing (17/17)
+-
+-### Styling & Templates
+-- `site-fresh/.egregora/overrides/post.html` - Banner display template
+-- `site-fresh/.egregora/overrides/stylesheets/extra.css` - Banner CSS
+-
+-### Documentation
+-- `BANNER-SUPPORT.md` - Comprehensive banner documentation
+-- `PR-1372-REVIEW.md` - Original PR review
+-
+-## Test Results
+-
+-```bash
+-============================= test session starts ==============================
+-17 passed, 17 warnings in 26.78s
+-
+-✅ test_predicted_path_matches_actual
+-✅ test_mime_type_to_extension_mapping
+-✅ test_banner_document_has_required_fields
+-✅ All batch processor tests
+-✅ All Gemini provider tests
+-```
+-
+-## Conclusion
+-
+-Created merge branch with compatible PRs:
+-- ✅ PR #1372 (Banner path prediction) - Fully functional
+-- ✅ PR #1362 (Scheduler security & cleanup) - Successfully merged
+-- ❌ Issue #1256 (Profile features) - Skipped due to conflicts
+-
+-The banner implementation is production-ready with comprehensive tests and documentation.
+-The codebase is significantly cleaner with ~10k lines of outdated code removed.
+-
+-**Branch**: `claude/merge-compatible-prs-8oM9f`
+-**Status**: Ready for review and merge
+-**Test Status**: ✅ All passing
+diff --git a/PR-1372-REVIEW.md b/PR-1372-REVIEW.md
+deleted file mode 100644
+index 618d81ae5..000000000
+--- a/PR-1372-REVIEW.md
++++ /dev/null
+@@ -1,234 +0,0 @@
+-# PR #1372 Review: Banner Generator Path Prediction
+-
+-## Summary
+-
+-PR #1372 attempts to make the banner generator functional by predicting the async banner path so that the LLM can reference it in blog posts before the actual banner is generated.
+-
+-**Status: ⚠️ DOES NOT WORK AS INTENDED**
+-
+-The predicted path **does not match** the actual path where the banner file will be saved, resulting in broken image references.
+-
+-## Test Results
+-
+-I created a test to verify the path prediction logic:
+-
+-```
+-Predicted path: media/images/my-awesome-post.jpg
+-Actual path:    media/files/my-awesome-post
+-```
+-
+-**Result**: Paths do not match! ❌
+-
+-## Issues Found
+-
+-### 1. Missing File Extension
+-
+-**Problem**: The actual banner document doesn't include a `filename` in its metadata.
+-
+-When a banner is generated (in `batch_processor.py:220-224`), the document is created as:
+-
+-```python
+-Document(
+-    content=image_data,
+-    type=DocumentType.MEDIA,
+-    metadata={
+-        "mime_type": mime_type,
+-        "slug": task.slug,
+-        "language": task.language,
+-        "task_id": task.task_id
+-    }
+-    # NO id field, NO filename in metadata
+-)
+-```
+-
+-Without an explicit filename, the `_format_media` URL convention uses:
+-```python
+-fname = doc.metadata.get("filename", doc.document_id)
+-```
+-
+-Since there's no filename, it falls back to `doc.document_id`, which is just the slugified slug (e.g., "my-awesome-post") **without any file extension**.
+-
+-**Impact**: The saved file has no extension, making it unrecognizable by browsers and markdown renderers.
+-
+-### 2. Wrong Subfolder
+-
+-**Problem**: The subfolder is determined by the file extension.
+-
+-The `get_media_subfolder()` function (in `ops/media.py:90-104`) determines the subfolder based on file extension:
+-- `.jpg`, `.jpeg`, `.png`, etc. → `images/`
+-- No extension or unknown → `files/`
+-
+-Since the actual banner has no extension, it goes to `files/` instead of `images/`.
+-
+-**PR #1372 assumes**: `images/` subfolder
+-**Actual location**: `files/` subfolder
+-
+-### 3. Extension Assumption
+-
+-**Problem**: The PR hardcodes `.jpg` extension.
+-
+-Line 99 of the PR:
+-```python
+-document_id = f"{slug}.jpg"
+-```
+-
+-This assumes all banners will be JPEG, but:
+-- The Gemini API might return PNG or other formats
+-- The `mime_type` metadata already contains the correct format
+-- Hardcoding creates a mismatch with the actual mime type
+-
+-## Root Cause
+-
+-The fundamental issue is that **banner documents don't store their filename in metadata**. The path prediction tries to work around this by creating a placeholder document, but it can't accurately predict what the actual document ID and path will be without knowing the persistence logic.
+-
+-## Recommended Fix
+-
+-To properly fix this issue, we need to ensure the banner document includes proper filename metadata **at creation time**:
+-
+-### Option 1: Add Filename to Banner Metadata (Recommended)
+-
+-Modify `batch_processor.py:_create_document()` to include a proper filename with extension:
+-
+-```python
+-def _create_document(
+-    self,
+-    task: BannerTaskEntry,
+-    image_data: bytes,
+-    mime_type: str,
+-    *,
+-    extra_metadata: dict[str, Any] | None = None,
+-) -> Document:
+-    metadata = self._build_metadata(task, extra_metadata)
+-    metadata["mime_type"] = mime_type
+-
+-    # NEW: Add proper filename with extension based on mime_type
+-    extension = self._get_extension_for_mime_type(mime_type)
+-    slug = slugify(task.slug, max_len=60)
+-    filename = f"{slug}{extension}"
+-
+-    return Document(
+-        content=image_data,
+-        type=DocumentType.MEDIA,
+-        metadata={**metadata, "filename": filename},
+-        id=filename  # Use filename as explicit ID for consistency
+-    )
+-
+-def _get_extension_for_mime_type(self, mime_type: str) -> str:
+-    """Map MIME type to file extension."""
+-    mime_to_ext = {
+-        "image/jpeg": ".jpg",
+-        "image/png": ".png",
+-        "image/webp": ".webp",
+-        "image/gif": ".gif",
+-    }
+-    return mime_to_ext.get(mime_type, ".jpg")
+-```
+-
+-Then, update the path prediction in `capabilities.py` to match:
+-
+-```python
+-# Predict the path using the same logic as banner generation
+-from egregora.ops.media import get_media_subfolder
+-
+-slug = slugify(post_slug, max_len=60)
+-
+-# Gemini typically returns JPEG, but check config if available
+-extension = ".jpg"  # Default assumption
+-filename = f"{slug}{extension}"
+-
+-# Create placeholder with proper filename and ID
+-placeholder_doc = Document(
+-    content="",
+-    type=DocumentType.MEDIA,
+-    metadata={"filename": filename},
+-    id=filename
+-)
+-
+-# Generate URL using the output sink's convention
+-output_sink = ctx.deps.resources.output
+-predicted_url = output_sink.url_convention.canonical_url(
+-    placeholder_doc,
+-    output_sink.url_context
+-)
+-
+-return BannerResult(
+-    status="scheduled",
+-    path=predicted_url.lstrip("/")
+-)
+-```
+-
+-### Option 2: Use Suggested Path
+-
+-Alternatively, set a `suggested_path` on the banner document that gets preserved during persistence:
+-
+-```python
+-# In batch_processor
+-document = Document(
+-    content=image_data,
+-    type=DocumentType.MEDIA,
+-    metadata=metadata,
+-    suggested_path=f"posts/media/images/{slug}.jpg"
+-)
+-```
+-
+-This way, the `_format_media` URL convention will use the suggested path directly.
+-
+-## Additional Issues
+-
+-### Line 118-121: Redundant Fallback
+-
+-```python
+-else:
+-    # Fallback if no output sink available (should not happen in writer)
+-    predicted_url = self.url_convention.canonical_url(
+-        placeholder_doc, ctx.deps.resources.output.url_context
+-    )
+-```
+-
+-This fallback code accesses `ctx.deps.resources.output.url_context` even though the condition checks that `output_sink` (which IS `ctx.deps.resources.output`) is falsy. This will raise an `AttributeError`.
+-
+-**Fix**: Remove the fallback or handle the case properly:
+-```python
+-else:
+-    # Fallback: use default convention without context
+-    from egregora.data_primitives.protocols import UrlContext
+-    predicted_url = self.url_convention.canonical_url(
+-        placeholder_doc,
+-        UrlContext(base_url="", site_prefix="")
+-    )
+-```
+-
+-### Line 66: Unnecessary Instance Variable
+-
+-```python
+-self.url_convention = StandardUrlConvention()
+-```
+-
+-This creates a duplicate URL convention instance when the output sink already has one. Better to just use `ctx.deps.resources.output.url_convention` directly.
+-
+-## Testing Recommendations
+-
+-1. **Add integration test**: Create a test that:
+-   - Schedules a banner generation
+-   - Waits for the worker to process it
+-   - Verifies the predicted path matches the actual saved path
+-
+-2. **Add unit test**: Test the path prediction logic with different:
+-   - MIME types (JPEG, PNG, WebP)
+-   - Slug lengths
+-   - Special characters in slugs
+-
+-3. **Test with real Gemini API**: Verify that actual Gemini responses work correctly with the provided API key
+-
+-## Conclusion
+-
+-The PR is a good attempt to solve the async banner path prediction problem, but it doesn't work correctly due to:
+-1. Missing filename/extension in actual banner documents
+-2. Mismatched subfolder logic
+-3. Hardcoded assumptions
+-
+-The root cause needs to be fixed in the banner generation code itself to include proper filename metadata, then the path prediction can accurately match it.
+-
+-## Recommendation
+-
+-**DO NOT MERGE** as-is. Implement Option 1 above to fix the root cause first, then update the path prediction logic to match.
+diff --git a/docs/demo/.egregora/checkpoint.json b/docs/demo/.egregora/checkpoint.json
+new file mode 100644
+index 000000000..920a25210
+--- /dev/null
++++ b/docs/demo/.egregora/checkpoint.json
+@@ -0,0 +1,5 @@
++{
++  "last_processed_timestamp": "2025-10-28T14:15:00+00:00",
++  "messages_processed": 1,
++  "schema_version": "1.0"
++}
+\ No newline at end of file
+diff --git a/docs/demo/.egregora/main.py b/docs/demo/.egregora/main.py
+new file mode 100644
+index 000000000..c8b018021
+--- /dev/null
++++ b/docs/demo/.egregora/main.py
+@@ -0,0 +1,52 @@
++import os
++import yaml
++from pathlib import Path
++
++def define_env(env):
++    """
++    This is the hook for defining variables, macros and filters
++
++    - variables: the dictionary that contains the environment variables
++    - macro: a decorator function, to define a macro.
++    """
++
++    @env.macro
++    def get_authors_data(author_uuids):
++        """
++        Get author data for a list of UUIDs.
++        Reads profiles from docs/profiles/*.md
++        """
++        if not author_uuids:
++            return []
++
++        # env.conf['docs_dir'] is absolute path to docs directory
++        docs_dir = Path(env.conf['docs_dir'])
++        profiles_dir = docs_dir / "profiles"
++
++        authors_data = []
++
++        # Ensure author_uuids is a list
++        if isinstance(author_uuids, str):
++            author_uuids = [author_uuids]
++
++        for uuid in author_uuids:
++            # Handle potential file extensions or paths in UUID (though unlikely)
++            clean_uuid = Path(uuid).stem
++            profile_path = profiles_dir / f"{clean_uuid}.md"
++
++            if profile_path.exists():
++                try:
++                    content = profile_path.read_text(encoding='utf-8')
++                    if content.startswith('---'):
++                        # Extract frontmatter
++                        parts = content.split('---', 2)
++                        if len(parts) >= 3:
++                            frontmatter = yaml.safe_load(parts[1])
++                            # Add UUID to data if not present
++                            if 'uuid' not in frontmatter:
++                                frontmatter['uuid'] = clean_uuid
++                            authors_data.append(frontmatter)
++                except Exception as e:
++                    print(f"Error reading profile {clean_uuid}: {e}")
++
++        return authors_data
+\ No newline at end of file
+diff --git a/docs/demo/.egregora/mkdocs.yml b/docs/demo/.egregora/mkdocs.yml
+new file mode 100644
+index 000000000..3eede1da1
+--- /dev/null
++++ b/docs/demo/.egregora/mkdocs.yml
+@@ -0,0 +1,118 @@
++site_name: Egregora Demo
++site_description: Collective consciousness journal - Egregora Demo
++site_url: https://franklinbaldo.github.io/egregora/demo/
++docs_dir: ../docs
++site_dir: ../site
++theme:
++  name: material
++  custom_dir: overrides
++  language: en
++  font:
++    text: Roboto
++    code: Roboto Mono
++  palette:
++  - media: '(prefers-color-scheme: light)'
++    scheme: default
++    primary: teal
++    accent: amber
++    toggle:
++      icon: material/brightness-7
++      name: Switch to dark mode
++  - media: '(prefers-color-scheme: dark)'
++    scheme: slate
++    primary: teal
++    accent: amber
++    toggle:
++      icon: material/brightness-4
++      name: Switch to light mode
++  features:
++  - navigation.tracking
++  - navigation.tabs
++  - navigation.tabs.sticky
++  - navigation.sections
++  - navigation.indexes
++  - navigation.top
++  - navigation.instant
++  - navigation.footer
++  - toc.integrate
++  - header.autohide
++  - search.highlight
++  - search.share
++  - content.code.copy
++  - content.tabs.link
++plugins:
++- search:
++    lang: en
++- macros
++- glightbox
++- blog:
++    blog_dir: posts
++    post_dir: .
++    post_url_format: '{date}/{slug}'
++    post_url_date_format: yyyy/MM/dd
++    pagination_per_page: 10
++    pagination_url_format: page/{page}
++    pagination_format: ~2~
++    pagination_keep_content: true
++    authors: true
++    authors_file: ../docs/.authors.yml
++    categories: true
++    archive: true
++    archive_name: Archive
++    archive_date_format: yyyy
++    archive_url_date_format: yyyy/MM
++    draft: true
++    draft_on_serve: true
++    draft_if_future_date: true
++- rss:
++    match_path: posts/.*
++    date_from_meta:
++      as_creation: date
++      as_update: date
++    categories:
++    - categories
++    - tags
++    comments_path: '#__comments'
++    use_material_blog: false
++markdown_extensions:
++- pymdownx.highlight:
++    anchor_linenums: true
++- pymdownx.superfences:
++    custom_fences:
++    - name: mermaid
++      class: mermaid
++      format: null
++- admonition
++- pymdownx.details
++- footnotes
++- pymdownx.tasklist:
++    custom_checkbox: true
++- pymdownx.emoji:
++    emoji_index: null
++    emoji_generator: null
++- toc:
++    permalink: true
++- attr_list
++- tables
++- md_in_html
++- pymdownx.inlinehilite
++- pymdownx.keys
++- pymdownx.mark
++- pymdownx.tilde
++- pymdownx.tabbed:
++    alternate_style: true
++validation:
++  absolute_links: relative_to_docs
++  anchor_links: warn
++  unrecognized_links: warn
++nav:
++- Home: index.md
++- Blog:
++  - Latest: posts/index.md
++  - Tags & Topics: posts/tags.md
++- Media: posts/media/index.md
++- About: about.md
++extra:
++  generator: false
++extra_css:
++- stylesheets/custom.css
+diff --git a/docs/demo/.egregora/prompts/README.md b/docs/demo/.egregora/prompts/README.md
+new file mode 100644
+index 000000000..d49c74b91
+--- /dev/null
++++ b/docs/demo/.egregora/prompts/README.md
+@@ -0,0 +1,56 @@
++# Custom Prompt Overrides
++
++This directory lets you override the default prompts that ship with Egregora. The loader resolves
++overrides in this order:
++
++1. `.egregora/prompts/*.jinja` (your local customizations)
++2. `src/egregora/prompts/*.jinja` (package defaults)
++
++Place a file here with the **same filename** as the package version and it will be used automatically.
++
++## Available Prompts
++
++| File | Purpose |
++| --- | --- |
++| `writer.jinja` | Main writer-agent prompt that converts conversation windows into posts |
++| `media_detailed.jinja` | Rich media enrichment template (images, video, audio, docs) |
++| `url_detailed.jinja` | URL enrichment template used for linked articles |
++
++> The prompt directory is intentionally flat—no `system/` or `enrichment/` subfolders. This keeps overrides easy
++> to reason about and avoids stale nested copies.
++
++## Example: Customize the Writer Prompt
++
++```bash
++# 1. Ensure the prompts directory exists
++mkdir -p .egregora/prompts
++
++# 2. Copy the package default
++cp src/egregora/prompts/writer.jinja .egregora/prompts/writer.jinja
++
++# 3. Edit your version
++$EDITOR .egregora/prompts/writer.jinja
++
++# 4. Run Egregora – it will automatically pick up the override
++egregora write export.zip --output blog
++```
++
++## Directory Structure
++
++```
++.egregora/
++└── prompts/
++    ├── README.md        # This file
++    ├── writer.jinja     # Optional override for the writer agent
++    ├── media_detailed.jinja
++    └── url_detailed.jinja
++```
++
++## Tips
++
++- Start with small edits and run `egregora write` against a trimmed dataset to validate the behavior.
++- Commit your custom prompts so you can track prompt experiments alongside code.
++- Delete a custom `.jinja` file to revert to the built-in default.
++
++Prompts are standard [Jinja2](https://jinja.palletsprojects.com/templates/) templates, so you can use loops,
++conditionals, includes, and macros as needed.
+\ No newline at end of file
+diff --git a/docs/demo/.egregora/runs.duckdb b/docs/demo/.egregora/runs.duckdb
+new file mode 100644
+index 000000000..1ba2ab24f
+Binary files /dev/null and b/docs/demo/.egregora/runs.duckdb differ
+diff --git a/docs/demo/.github/workflows/publish.yml b/docs/demo/.github/workflows/publish.yml
+new file mode 100644
+index 000000000..50c227f1c
+--- /dev/null
++++ b/docs/demo/.github/workflows/publish.yml
+@@ -0,0 +1,60 @@
++name: Publish Egregora Demo to GitHub Pages
++
++on:
++  push:
++    branches:
++      - main
++  workflow_dispatch:
++
++permissions:
++  contents: read
++  pages: write
++  id-token: write
++
++concurrency:
++  group: "pages"
++  cancel-in-progress: false
++
++jobs:
++  build:
++    runs-on: ubuntu-latest
++    steps:
++      - name: Checkout repository
++        uses: actions/checkout@v4
++
++      - name: Set up Python
++        uses: actions/setup-python@v5
++        with:
++          python-version: '3.12'
++
++      - name: Install uv
++        uses: astral-sh/setup-uv@v4
++        with:
++          enable-cache: true
++
++      - name: Install egregora
++        run: uv pip install --system egregora
++
++      - name: Run egregora pipeline
++        env:
++          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
++        run: |
++          # Place your WhatsApp export ZIP in the repository as 'export.zip'
++          # Or modify this command to point to your export location
++          uv run egregora write export.zip --output=${{ github.workspace }}
++
++      - name: Upload artifact
++        uses: actions/upload-pages-artifact@v3
++        with:
++          path: ${{ github.workspace }}/site
++
++  deploy:
++    environment:
++      name: github-pages
++      url: ${{ steps.deployment.outputs.page_url }}
++    runs-on: ubuntu-latest
++    needs: build
++    steps:
++      - name: Deploy to GitHub Pages
++        id: deployment
++        uses: actions/deploy-pages@v4
+\ No newline at end of file
+diff --git a/docs/demo/.gitignore b/docs/demo/.gitignore
+new file mode 100644
+index 000000000..00b6b9821
+--- /dev/null
++++ b/docs/demo/.gitignore
+@@ -0,0 +1,38 @@
++# MkDocs build output
++site/
++
++# Python cache
++__pycache__/
++*.py[cod]
++*$py.class
++*.so
++.Python
++
++# Egregora cache
++.cache/
++cache/
++
++# Environment
++.env
++.venv
++env/
++venv/
++ENV/
++env.bak/
++venv.bak/
++
++# IDEs
++.vscode/
++.idea/
++*.swp
++*.swo
++*~
++
++# OS
++.DS_Store
++Thumbs.db
++
++# Large media files (optional - uncomment if needed)
++# media/**/*.mp4
++# media/**/*.mov
++# media/**/*.avi
+\ No newline at end of file
+diff --git a/docs/demo/README.md b/docs/demo/README.md
+new file mode 100644
+index 000000000..3075a6922
+--- /dev/null
++++ b/docs/demo/README.md
+@@ -0,0 +1,68 @@
++# Egregora Demo
++
++This site was generated automatically by [Egregora](https://github.com/franklinbaldo/egregora) from WhatsApp group conversations.
++
++## 🚀 Quick Start
++
++### Serve the site locally
++
++```bash
++# Install dependencies (if you have not already)
++pip install "mkdocs-material[imaging]"
++
++# Serve the site
++mkdocs serve -f .egregora/mkdocs.yml
++```
++
++The site will be available at `http://127.0.0.1:8000`.
++
++### Process a new conversation export
++
++```bash
++# Process a WhatsApp export
++egregora write \
++  whatsapp-export.zip \
++  --output=. \
++  --gemini-key=YOUR_KEY
++```
++
++### Build for production
++
++```bash
++mkdocs build
++```
++
++Static assets will be written to `site/`.
++
++## 📁 Structure
++
++```
++.
++├── mkdocs.yml          # MkDocs + Egregora configuration
++├── ../docs/         # Content served by MkDocs
++│   ├── index.md        # Homepage
++│   ├── about.md        # About page
++│   ├── posts/          # Generated blog posts
++│   ├── profiles/       # Participant profiles
++│   └── media/          # WhatsApp media (images, videos, audio, documents)
++```
++
++## ⚙️ Configuration
++
++Edit `mkdocs.yml` to customize:
++
++- **Theme and appearance** — section `theme:`
++- **Markdown extensions** — section `markdown_extensions:`
++- **Egregora settings** — section `extra.egregora:`
++  - Custom writer prompt
++  - RAG configuration
++  - Profile settings
++
++## 📖 Documentation
++
++- [Egregora v2 Documentation](https://github.com/franklinbaldo/egregora)
++- [MkDocs Material](https://squidfunk.github.io/mkdocs-material/)
++
++---
++
++*Generated by Egregora v2*
+\ No newline at end of file
+diff --git a/docs/demo/docs/.authors.yml b/docs/demo/docs/.authors.yml
+new file mode 100644
+index 000000000..96bafa190
+--- /dev/null
++++ b/docs/demo/docs/.authors.yml
+@@ -0,0 +1,3 @@
++egregora:
++  name: egregora
++  url: profiles/egregora.md
+diff --git a/docs/demo/docs/about.md b/docs/demo/docs/about.md
+new file mode 100644
+index 000000000..8ee16a296
+--- /dev/null
++++ b/docs/demo/docs/about.md
+@@ -0,0 +1,57 @@
++---
++title: About Egregora
++description: How the group's collective consciousness works
++---
++
++# About Egregora
++
++## What is Egregora?
++
++Egregora is a system that transforms WhatsApp conversations into analytical blog posts. Using artificial intelligence (LLM), it:
++
++1. **Analyzes** group conversations
++2. **Identifies** topics and emerging narratives
++3. **Synthesizes** discussions into structured posts
++4. **Preserves** the complexity and divergences of collective thought
++
++## How does it work?
++
++### Ultra-Simple Pipeline
++
++```
++WhatsApp ZIP → Parse → Anonymize → Group → Enrich → LLM → Posts
++```
++
++### Privacy First
++
++- **Automatic anonymization**: All names converted to UUID5 pseudonyms
++- **Deterministic**: Same person always gets the same UUID
++- **Full opt-out**: Any participant can leave with `/egregora opt-out`
++- **Optional aliases**: `/egregora set alias "Name"` for humanized identity
++
++See [ALIASES.md](https://github.com/franklinbaldo/egregora/blob/main/ALIASES.md) for details.
++
++### LLM Editorial Control
++
++The LLM (Gemini) has complete control over:
++
++- ✅ **What's worth writing** (filters noise automatically)
++- ✅ **How many posts** (0-N per period)
++- ✅ **All metadata** (title, slug, tags, summary)
++- ✅ **Content quality** (editorial judgment)
++
++## Technology
++
++- **Parsing**: Python + Ibis on DuckDB (DataFrames)
++- **LLM**: Google Gemini (multi-turn tool calling)
++- **RAG**: DuckDB VSS + Parquet (3072-dim embeddings)
++- **Site**: MkDocs Material
++- **Privacy**: UUID5 + opt-out + filtering
++
++## Open Source
++
++This project is open source: [github.com/franklinbaldo/egregora](https://github.com/franklinbaldo/egregora)
++
++---
++
++*Egregora v2 - Ultra-simple WhatsApp → Blog pipeline*
+\ No newline at end of file
+diff --git a/docs/demo/docs/index.md b/docs/demo/docs/index.md
+new file mode 100644
+index 000000000..304304425
+--- /dev/null
++++ b/docs/demo/docs/index.md
+@@ -0,0 +1,60 @@
++---
++title: Egregora Demo
++description: Collective consciousness through conversation
++---
++
++# Egregora Demo
++
++> **A living notebook that turns conversations into thoughtful essays**
++
++---
++
++## Latest Posts
++
++
++{% for post in posts | default([]) %}
++<div class="post-card" markdown>
++### [{{ post.title }}]({{ post.url }})
++*{{ post.date }}* — {{ post.summary | default('') | truncate(150) }}
++</div>
++{% else %}
++*No posts yet. Run `egregora write` to generate content.*
++{% endfor %}
++
++
++[View all posts →](posts/index.md){ .md-button .md-button--primary }
++
++---
++
++<div class="homepage-nav" markdown>
++
++[:fontawesome-solid-users: **Contributors**](profiles/index.md){ .md-button }
++[:fontawesome-solid-photo-film: **Media Library**](posts/media/index.md){ .md-button }
++
++</div>
++
++---
++
++<details markdown>
++<summary>**How It Works**</summary>
++
++1. **Parse & Anonymize** – Conversations parsed with deterministic UUIDs
++2. **Enrich Everything** – URLs and media summarized by AI agents
++3. **Write With Intent** – Essays inspired by Scott Alexander and LessWrong
++4. **Publish Consistently** – Every document becomes a structured artifact
++
++</details>
++
++<details markdown>
++<summary>**Privacy First**</summary>
++
++- All authors identified by **UUID-based pseudonyms**
++- Optional `/egregora set alias "Name"` for readability
++- Full `/egregora opt-out` command before any run
++- No PII reaches the language models
++
++</details>
++
++---
++
++*Automatically generated by [Egregora](https://github.com/franklinbaldo/egregora) from conversations.*
+\ No newline at end of file
+diff --git a/docs/demo/docs/journal/.gitkeep b/docs/demo/docs/journal/.gitkeep
+new file mode 100644
+index 000000000..e69de29bb
+diff --git a/docs/demo/docs/journal/index.md b/docs/demo/docs/journal/index.md
+new file mode 100644
+index 000000000..f45227611
+--- /dev/null
++++ b/docs/demo/docs/journal/index.md
+@@ -0,0 +1,5 @@
++---
++title: Journal
++---
++
++(Reserved for future demo content.)
+diff --git a/docs/demo/docs/media/index.md b/docs/demo/docs/media/index.md
+new file mode 100644
+index 000000000..f96492bd6
+--- /dev/null
++++ b/docs/demo/docs/media/index.md
+@@ -0,0 +1,5 @@
++---
++title: Media
++---
++
++See the demo media gallery at `posts/media/`.
+diff --git a/docs/demo/docs/posts/2025-10-28-1410-to-1415.md b/docs/demo/docs/posts/2025-10-28-1410-to-1415.md
+new file mode 100644
+index 000000000..6abf0a8e0
+--- /dev/null
++++ b/docs/demo/docs/posts/2025-10-28-1410-to-1415.md
+@@ -0,0 +1,59 @@
++---
++window_label: 2025-10-28 14:10 to 14:15
++window_start: '2025-10-28T14:10:00+00:00'
++window_end: '2025-10-28T14:15:00+00:00'
++date: 2025-12-20 11:45
++created_at: 2025-12-20 11:45
++slug: 2025-12-20-11-45-31
++nav_exclude: true
++hide:
++- navigation
++type: journal
++categories:
++- Journal
++---
++
++# Agent Execution Log · 2025-10-28 14:10 to 14:15
++
++> Snapshot captured on **2025-12-20** at **2025-12-20T11:45:31.257773+00:00 UTC**
++>
++> Conversation window: **2025-10-28T14:10:00+00:00 → 2025-10-28T14:15:00+00:00**
++
++## Run Summary
++
++- **Posts published:** 1
++- **Profiles updated:** 0
++- **Reasoning segments captured:** 2
++- **Total tokens used:** 4496
++
++---
++
++
++
++!!! example "Tool Call: `write_post_tool`"
++    ```json
++    Tool: write_post_tool
++    Arguments:
++    {
++      &#34;metadata&#34;: {
++        &#34;title&#34;: &#34;Egregora Demo \u2014 2025-10-28 14:10 to 14:15&#34;,
++        &#34;slug&#34;: &#34;2025-10-28-1410-to-1415-demo&#34;,
++        &#34;date&#34;: &#34;2025-10-28&#34;,
++        &#34;tags&#34;: [
++          &#34;demo&#34;,
++          &#34;stub&#34;
++        ],
++        &#34;authors&#34;: [
++          &#34;egregora&#34;
++        ],
++        &#34;summary&#34;: &#34;Deterministic demo content generated in CI (no API calls).&#34;
++      },
++      &#34;content&#34;: &#34;This post was generated deterministically during CI to keep the public demo updated without requiring API keys.\n\nIt exercises the full pipeline (parsing, windowing, publishing) while stubbing out networked LLM calls.&#34;
++    }
++    ```
++
++
++
++
++!!! note "Journal"
++    {&#34;write_post_tool&#34;:{&#34;status&#34;:&#34;success&#34;,&#34;path&#34;:&#34;2025-10-28-1410-to-1415-demo&#34;}}
+diff --git a/docs/demo/docs/posts/2025-10-28-2025-10-28-1410-to-1415-demo.md b/docs/demo/docs/posts/2025-10-28-2025-10-28-1410-to-1415-demo.md
+new file mode 100644
+index 000000000..5bc14f579
+--- /dev/null
++++ b/docs/demo/docs/posts/2025-10-28-2025-10-28-1410-to-1415-demo.md
+@@ -0,0 +1,16 @@
++---
++title: Egregora Demo — 2025-10-28 14:10 to 14:15
++slug: 2025-10-28-1410-to-1415-demo
++date: 2025-10-28 00:00:00+00:00
++tags:
++- demo
++- stub
++summary: Deterministic demo content generated in CI (no API calls).
++authors:
++- egregora
++model: google-gla:gemini-2.5-flash
++---
++
++This post was generated deterministically during CI to keep the public demo updated without requiring API keys.
++
++It exercises the full pipeline (parsing, windowing, publishing) while stubbing out networked LLM calls.
+\ No newline at end of file
+diff --git a/docs/demo/docs/posts/index.md b/docs/demo/docs/posts/index.md
+new file mode 100644
+index 000000000..f0ff80d94
+--- /dev/null
++++ b/docs/demo/docs/posts/index.md
+@@ -0,0 +1,8 @@
++---
++blog:
++  description: Latest posts
++---
++
++# Blog
++
++<!-- blog:posts -->
+\ No newline at end of file
+diff --git a/docs/demo/docs/posts/media/audio/.gitkeep b/docs/demo/docs/posts/media/audio/.gitkeep
+new file mode 100644
+index 000000000..e69de29bb
+diff --git a/docs/demo/docs/posts/media/documents/.gitkeep b/docs/demo/docs/posts/media/documents/.gitkeep
+new file mode 100644
+index 000000000..e69de29bb
+diff --git a/docs/demo/docs/posts/media/images/.gitkeep b/docs/demo/docs/posts/media/images/.gitkeep
+new file mode 100644
+index 000000000..e69de29bb
+diff --git a/docs/demo/docs/posts/media/images/IMG-20251027-WA0023.jpg b/docs/demo/docs/posts/media/images/IMG-20251027-WA0023.jpg
+new file mode 100644
+index 000000000..e69de29bb
+diff --git a/docs/demo/docs/posts/media/images/IMG-20251028-WA0033.jpg b/docs/demo/docs/posts/media/images/IMG-20251028-WA0033.jpg
+new file mode 100644
+index 000000000..e69de29bb
+diff --git a/docs/demo/docs/posts/media/images/IMG-20251028-WA0034.jpg b/docs/demo/docs/posts/media/images/IMG-20251028-WA0034.jpg
+new file mode 100644
+index 000000000..e69de29bb
+diff --git a/docs/demo/docs/posts/media/images/IMG-20251028-WA0035.jpg b/docs/demo/docs/posts/media/images/IMG-20251028-WA0035.jpg
+new file mode 100644
+index 000000000..e69de29bb
+diff --git a/docs/demo/docs/posts/media/index.md b/docs/demo/docs/posts/media/index.md
+new file mode 100644
+index 000000000..a439d77bf
+--- /dev/null
++++ b/docs/demo/docs/posts/media/index.md
+@@ -0,0 +1,56 @@
++---
++title: Media Library
++description: Shared content with AI enrichment
++---
++
++# Media Library
++
++> **Every attachment enriched with context**
++> Images, videos, audio, and URLs from conversations—each with AI-generated summaries and analysis.
++
++
++
++---
++
++## Browse All Media
++
++### 📂 By Type
++
++| Category | Description | Count |
++|----------|-------------|-------|
++| **URLs** | Shared links with enrichment | 0 |
++| **Images** | Photos, screenshots, diagrams | 0 |
++| **Videos** | Short clips, recordings | 0 |
++| **Audio** | Voice notes, podcasts | 0 |
++
++---
++
++## How Media Enrichment Works
++
++1. **Auto-Detection** – When URLs or files are shared, the pipeline captures them
++2. **AI Analysis** – An enrichment agent:
++   - Summarizes the content
++   - Extracts key takeaways
++   - Provides context for the conversation
++   - Tags topics and themes
++3. **Markdown Generation** – Each item gets a dedicated page
++4. **Cross-Linking** – Media referenced in posts are automatically linked
++
++### Search & Filter
++
++Use the site search (top right) to find media by:
++- URL domain (e.g., "lesswrong.com")
++- Topic keywords (e.g., "AI safety")
++- File type
++- Content description
++
++---
++
++## Privacy Notes
++
++- URLs are public content (already shared in chat)
++- Images/videos checked for PII before enrichment
++- Sensitive media flagged but not deleted (manual review possible)
++- All enrichment metadata is AI-generated, may contain errors
++
++[View all posts →](../index.md)
+\ No newline at end of file
+diff --git a/docs/demo/docs/posts/media/urls/.gitkeep b/docs/demo/docs/posts/media/urls/.gitkeep
+new file mode 100644
+index 000000000..e69de29bb
+diff --git a/docs/demo/docs/posts/media/videos/.gitkeep b/docs/demo/docs/posts/media/videos/.gitkeep
+new file mode 100644
+index 000000000..e69de29bb
+diff --git a/docs/demo/docs/posts/profiles/index.md b/docs/demo/docs/posts/profiles/index.md
+new file mode 100644
+index 000000000..f13eaddf6
+--- /dev/null
++++ b/docs/demo/docs/posts/profiles/index.md
+@@ -0,0 +1,59 @@
++---
++title: Participant Profiles
++description: Meet the voices behind our collective consciousness
++---
++
++# Participant Profiles
++
++> Every contributor is represented by a **deterministic UUID** to preserve privacy while enabling the AI to track recurring voices and writing styles.
++
++
++
++<div class="post-card" markdown>
++
++**No profiles generated yet.**
++Profiles are created automatically during the first pipeline run when contributors participate in conversations.
++
++</div>
++
++
++
++---
++
++## How Profiles Work
++
++### What's In a Profile?
++
++- **Style overview** – Cadence, tone, and argumentative habits
++- **Topic orbit** – Subjects the participant consistently gravitates toward
++- **Recent contributions** – Links to posts where this UUID had visible impact
++
++All profile text is **generated automatically** after each pipeline run, so it evolves as new behavior emerges.
++
++### Choosing an Alias
++
++Want something more memorable than a UUID?
++
++```bash
++# In your chat, send:
++/egregora set alias "Your Chosen Name"
++
++# Optionally add a bio:
++/egregora set bio "One-line description"
++```
++
++After the next pipeline run, your profile will reflect the alias while keeping your real identity private.
++
++### Privacy Controls
++
++Need to disappear entirely?
++
++```bash
++/egregora opt-out
++```
++
++Run this command **before** the next ingestion. All your messages will be excluded from processing.
++
++---
++
++*Profiles refresh with every ingestion window. No manual edits needed.*
+\ No newline at end of file
+diff --git a/docs/demo/docs/posts/tags.md b/docs/demo/docs/posts/tags.md
+new file mode 100644
+index 000000000..a315a5ca0
+--- /dev/null
++++ b/docs/demo/docs/posts/tags.md
+@@ -0,0 +1,52 @@
++---
++title: Tags & Topics
++description: Navigate the taxonomy of autogenerated posts
++date: 2025-12-20T00:00:00
++exclude_from_blog: true
++hide:
++  - navigation
++---
++
++# Tags & Topics
++
++Explore the conversation themes through our interactive tag cloud and complete tag index.
++
++## Tag Cloud
++
++<div class="tag-cloud">
++
++
++<a href="#demo" class="tag-cloud-item" data-frequency="1" title="1 posts">
++    demo
++</a>
++
++<a href="#stub" class="tag-cloud-item" data-frequency="1" title="1 posts">
++    stub
++</a>
++
++
++</div>
++
++---
++
++## All Tags (Alphabetical)
++
++<div class="tag-list">
++
++
++<div class="tag-list-item" id="demo">
++    <span class="tag-name">demo</span>
++    <span class="tag-count">1</span>
++</div>
++
++<div class="tag-list-item" id="stub">
++    <span class="tag-name">stub</span>
++    <span class="tag-count">1</span>
++</div>
++
++
++</div>
++
++!!! tip "How Tags Work"
++    Tags are automatically generated from your conversations using AI-powered semantic analysis.
++    Each tag links to all posts discussing that theme. The size in the tag cloud represents frequency—larger tags appear in more posts.
+\ No newline at end of file
+diff --git a/docs/demo/docs/profiles/index.md b/docs/demo/docs/profiles/index.md
+new file mode 100644
+index 000000000..85edad21d
+--- /dev/null
++++ b/docs/demo/docs/profiles/index.md
+@@ -0,0 +1,5 @@
++---
++title: Profiles
++---
++
++(Reserved for future demo content.)
+diff --git a/docs/demo/docs/stylesheets/custom.css b/docs/demo/docs/stylesheets/custom.css
+new file mode 100644
+index 000000000..22f3db30a
+--- /dev/null
++++ b/docs/demo/docs/stylesheets/custom.css
+@@ -0,0 +1,190 @@
++/* Custom CSS for Egregora Blog */
++
++/* 1. Typography Improvements */
++:root {
++    /* Font family is handled by mkdocs.yml 'font' setting */
++    --md-typeset-font-size: 1.05rem; /* Slightly larger base text */
++    --md-line-height: 1.7; /* Improved reading spacing */
++}
++
++/* Give headings a more distinct look */
++h1, h2, h3 {
++    font-weight: 700;
++    letter-spacing: -0.01em;
++    color: var(--md-primary-fg-color--dark);
++}
++
++/* 2. Content Layout & Spacing */
++.md-content__inner {
++    margin-top: 1rem;
++    padding-bottom: 3rem;
++}
++
++/* Restrict line length for better readability */
++.md-typeset {
++    max-width: 800px;
++    margin: 0 auto;
++}
++
++/* 3. Card-like styling for Blog Index (if relying on standard lists) */
++/* Note: The blogging plugin generates HTML. We target the post excerpts. */
++.md-typeset .blog-post-excerpt {
++    border: 1px solid var(--md-default-fg-color--lightest);
++    border-radius: 8px;
++    padding: 1.5rem;
++    margin-bottom: 2rem;
++    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
++    transition: transform 0.2s, box-shadow 0.2s;
++    background-color: var(--md-default-bg-color);
++}
++
++.md-typeset .blog-post-excerpt:hover {
++    transform: translateY(-2px);
++    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
++}
++
++/* 4. Metadata Styling */
++.md-typeset .md-meta {
++    font-size: 0.85rem;
++    color: var(--md-default-fg-color--light);
++    margin-bottom: 0.5rem;
++    display: flex;
++    gap: 1rem;
++    align-items: center;
++}
++
++/* Tags as Chips */
++.md-typeset .tag-chip {
++    display: inline-block;
++    padding: 0.2em 0.6em;
++    border-radius: 12px;
++    background-color: var(--md-primary-fg-color--light);
++    color: var(--md-primary-bg-color);
++    font-size: 0.75em;
++    font-weight: 500;
++    text-decoration: none;
++    transition: background-color 0.2s;
++}
++
++.md-typeset .tag-chip:hover {
++    background-color: var(--md-primary-fg-color);
++}
++
++/* 5. Image Styling */
++.md-typeset img {
++    border-radius: 6px;
++    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
++}
++
++/* 6. Navigation Bar refinements */
++.md-header {
++    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
++}
++
++/* 7. Author Card Compatibility (Ensure minimal styling if overrides/extra.css is missing) */
++.author-card {
++    border: 1px solid var(--md-default-fg-color--lightest);
++    border-radius: 8px;
++    padding: 1rem;
++    margin-top: 2rem;
++    background-color: var(--md-default-bg-color);
++    display: flex;
++    gap: 1rem;
++    align-items: center;
++}
++.author-card img {
++    border-radius: 50%;
++    width: 64px;
++    height: 64px;
++    object-fit: cover;
++    box-shadow: none; /* Override general image shadow */
++}
++
++/* 8. Banner Styling */
++.post-banner {
++    width: 100%;
++    margin: 1.5rem 0 2rem;
++    border-radius: 8px;
++    overflow: hidden;
++}
++
++.post-banner img {
++    width: 100%;
++    max-height: 400px;
++    object-fit: cover;
++    display: block;
++    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
++}
++
++/* 9. Tag Cloud Visualization */
++.tag-cloud {
++    display: flex;
++    flex-wrap: wrap;
++    gap: 1rem;
++    justify-content: center;
++    align-items: center;
++    padding: 2rem;
++    margin: 2rem 0;
++}
++
++.tag-cloud-item {
++    display: inline-block;
++    padding: 0.4em 0.8em;
++    margin: 0.2em;
++    border-radius: 6px;
++    background-color: var(--md-primary-fg-color--light);
++    color: var(--md-primary-bg-color);
++    text-decoration: none;
++    transition: all 0.3s ease;
++    font-weight: 500;
++}
++
++.tag-cloud-item:hover {
++    background-color: var(--md-primary-fg-color);
++    transform: scale(1.1);
++    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
++}
++
++/* Size variations for word cloud based on frequency */
++.tag-cloud-item[data-frequency="1"] { font-size: 0.85rem; opacity: 0.7; }
++.tag-cloud-item[data-frequency="2"] { font-size: 0.95rem; opacity: 0.75; }
++.tag-cloud-item[data-frequency="3"] { font-size: 1.05rem; opacity: 0.8; }
++.tag-cloud-item[data-frequency="4"] { font-size: 1.15rem; opacity: 0.85; }
++.tag-cloud-item[data-frequency="5"] { font-size: 1.3rem; opacity: 0.9; }
++.tag-cloud-item[data-frequency="6"] { font-size: 1.5rem; opacity: 0.95; }
++.tag-cloud-item[data-frequency="7"] { font-size: 1.7rem; opacity: 1.0; }
++.tag-cloud-item[data-frequency="8"] { font-size: 1.9rem; opacity: 1.0; font-weight: 600; }
++.tag-cloud-item[data-frequency="9"] { font-size: 2.1rem; opacity: 1.0; font-weight: 700; }
++.tag-cloud-item[data-frequency="10"] { font-size: 2.4rem; opacity: 1.0; font-weight: 700; }
++
++/* Tag list (alphabetical) styling */
++.tag-list {
++    display: grid;
++    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
++    gap: 1rem;
++    margin: 2rem 0;
++}
++
++.tag-list-item {
++    display: flex;
++    justify-content: space-between;
++    align-items: center;
++    padding: 0.75rem 1rem;
++    border: 1px solid var(--md-default-fg-color--lightest);
++    border-radius: 6px;
++    background-color: var(--md-default-bg-color);
++    color: var(--md-default-fg-color);
++}
++
++.tag-list-item .tag-name {
++    font-weight: 500;
++}
++
++.tag-list-item .tag-count {
++    background-color: var(--md-primary-fg-color);
++    color: var(--md-primary-bg-color);
++    padding: 0.2em 0.6em;
++    border-radius: 12px;
++    font-size: 0.85em;
++    font-weight: 600;
++}
+diff --git a/scripts/generate_demo_site.py b/scripts/generate_demo_site.py
+index 5cf7a0d40..a8b4ed075 100644
+--- a/scripts/generate_demo_site.py
++++ b/scripts/generate_demo_site.py
+@@ -4,6 +4,9 @@
+ WhatsApp->blog pipeline against the small fixture ZIP in `tests/fixtures/`,
+ but patches networked components (Gemini, RAG, enrichment, background tasks)
+ to deterministic stubs so the demo can build without secrets.
++
++It invokes the pipeline via the CLI entry point (`egregora write`) to ensure
++stability and realistic usage.
+ """
+ 
+ from __future__ import annotations
+@@ -17,7 +20,13 @@
+ from types import SimpleNamespace
+ from typing import Any
+ 
++import frontmatter
++import yaml
+ from pydantic_ai.models.test import TestModel
++from typer.testing import CliRunner
++
++from egregora.cli.main import app
++from egregora.output_adapters.mkdocs.scaffolding import safe_yaml_load
+ 
+ 
+ class WriterDemoModel(TestModel):
+@@ -79,12 +88,13 @@ def _apply_patches(patches: list[PatchSpec]) -> None:
+ 
+ def _patch_pipeline_for_offline_demo() -> None:
+     # Patch writer to force TestModel usage (no Gemini calls).
+-    from egregora.agents import writer as writer_module
++    # We patch both the package export and the module definition to be safe.
++    from egregora.agents.writer import agent as writer_agent_module
+ 
+-    original_writer = writer_module.write_posts_with_pydantic_agent
++    original_writer = writer_agent_module.write_posts_with_pydantic_agent
+ 
+-    def _writer_wrapper(*, prompt: str, config, context, test_model=None):
+-        return original_writer(
++    async def _writer_wrapper(*, prompt: str, config, context, test_model=None):
++        return await original_writer(
+             prompt=prompt,
+             config=config,
+             context=context,
+@@ -103,6 +113,12 @@ async def _stub_url_enrichment_async(_agent, url, prompts_dir=None) -> str:
+     async def _stub_media_enrichment_async(_agent, file_path, mime_hint=None, prompts_dir=None) -> str:
+         return f"Stub enrichment for {file_path}"
+ 
++    async def _stub_generate_profile_posts(ctx, messages, window_date) -> list:
++        return []
++
++    def _stub_process_avatar_commands(messages_table, context) -> dict:
++        return {}
++
+     def _stub_url_agent(_model, _simple=True):
+         return object()
+ 
+@@ -112,11 +128,33 @@ def _stub_media_agent(_model, _simple=False):
+     def _skip_background_tasks(_ctx) -> None:
+         return None
+ 
++    def _stub_generate_taxonomy(dataset) -> None:
++        return None
++
+     patches = [
++        # Writer Agent
++        PatchSpec("egregora.agents.writer.agent.write_posts_with_pydantic_agent", _writer_wrapper),
+         PatchSpec("egregora.agents.writer.write_posts_with_pydantic_agent", _writer_wrapper),
++        # Profile Generator
++        PatchSpec(
++            "egregora.agents.profile.generator.generate_profile_posts", _stub_generate_profile_posts
++        ),
++        # Avatar processing
++        PatchSpec("egregora.agents.avatar.process_avatar_commands", _stub_process_avatar_commands),
+         # Avoid banner capability and workers.
+         PatchSpec("egregora.agents.writer_setup.is_banner_generation_available", lambda: False),
+-        PatchSpec("egregora.orchestration.pipelines.write._process_background_tasks", _skip_background_tasks),
++        PatchSpec(
++            "egregora.orchestration.pipelines.write._process_background_tasks", _skip_background_tasks
++        ),
++        # Taxonomy
++        PatchSpec(
++            "egregora.orchestration.pipelines.write._generate_taxonomy",
++            _stub_generate_taxonomy,
++            optional=True,
++        ),
++        PatchSpec(
++            "egregora.ops.taxonomy.generate_semantic_taxonomy", lambda *args, **kwargs: 0, optional=True
++        ),
+         # RAG: avoid DB creation and searches.
+         PatchSpec("egregora.rag.index_documents", _mock_index_documents),
+         PatchSpec("egregora.rag.search", _mock_search),
+@@ -131,8 +169,12 @@ def _skip_background_tasks(_ctx) -> None:
+         PatchSpec("egregora.agents.writer.index_documents", _mock_index_documents, optional=True),
+         PatchSpec("egregora.agents.writer.reset_backend", lambda **_kwargs: None, optional=True),
+         # Enrichment: avoid network and multimodal calls.
+-        PatchSpec("egregora.agents.enricher.create_url_enrichment_agent", _stub_url_agent, optional=True),
+-        PatchSpec("egregora.agents.enricher.create_media_enrichment_agent", _stub_media_agent, optional=True),
++        PatchSpec(
++            "egregora.agents.enricher.create_url_enrichment_agent", _stub_url_agent, optional=True
++        ),
++        PatchSpec(
++            "egregora.agents.enricher.create_media_enrichment_agent", _stub_media_agent, optional=True
++        ),
+         PatchSpec(
+             "egregora.agents.enricher._run_url_enrichment_async", _stub_url_enrichment_async, optional=True
+         ),
+@@ -147,68 +189,45 @@ def _skip_background_tasks(_ctx) -> None:
+ 
+ 
+ def _rewrite_site_url(mkdocs_config_path: Path, site_url: str) -> None:
+-    text = mkdocs_config_path.read_text(encoding="utf-8")
+-    lines = text.splitlines()
+-    out: list[str] = []
+-    replaced = False
+-    for line in lines:
+-        if line.strip().startswith("site_url:"):
+-            out.append(f"site_url: {site_url}")
+-            replaced = True
+-        else:
+-            out.append(line)
+-    if not replaced:
+-        out.insert(0, f"site_url: {site_url}")
+-    mkdocs_config_path.write_text("\n".join(out) + "\n", encoding="utf-8")
+-
+-
+-def _rewrite_pipeline_max_windows(config_path: Path, max_windows: int) -> None:
+-    text = config_path.read_text(encoding="utf-8")
+-    lines = text.splitlines()
+-
+-    if any(line.strip().startswith("max_windows:") for line in lines):
+-        out: list[str] = []
+-        for line in lines:
+-            if line.strip().startswith("max_windows:"):
+-                out.append(f"  max_windows: {max_windows}")
+-            else:
+-                out.append(line)
+-        config_path.write_text("\n".join(out) + "\n", encoding="utf-8")
++    if not mkdocs_config_path.exists():
+         return
++    with mkdocs_config_path.open("r", encoding="utf-8") as f:
++        # Use safe_yaml_load to handle custom tags like !ENV or emojis
++        data = safe_yaml_load(f.read()) or {}
++    data["site_url"] = site_url
++    with mkdocs_config_path.open("w", encoding="utf-8") as f:
++        yaml.safe_dump(data, f, sort_keys=False)
+ 
+-    out = []
+-    inserted = False
+-    for line in lines:
+-        out.append(line)
+-        if not inserted and line.strip() == "pipeline:":
+-            out.append(f"  max_windows: {max_windows}")
+-            inserted = True
+-    if not inserted:
+-        out.extend(["", "pipeline:", f"  max_windows: {max_windows}"])
+-    config_path.write_text("\n".join(out) + "\n", encoding="utf-8")
+ 
+-
+-def _rewrite_demo_config(config_path: Path) -> None:
++def _update_demo_config(config_path: Path, max_windows: int) -> None:
+     """Harden demo config to avoid network/DB side effects during CI."""
+-    text = config_path.read_text(encoding="utf-8")
+-    lines = text.splitlines()
+-    out: list[str] = []
+-    in_rag = False
+-    in_writer = False
+-    for line in lines:
+-        stripped = line.strip()
+-        if stripped and not line.startswith(" "):
+-            in_rag = stripped == "rag:"
+-            in_writer = stripped == "writer:"
+-
+-        if in_rag and stripped.startswith("enabled:"):
+-            out.append("  enabled: false")
+-            continue
+-        if in_writer and stripped.startswith("enable_banners:"):
+-            out.append("  enable_banners: false")
+-            continue
+-        out.append(line)
+-    config_path.write_text("\n".join(out) + "\n", encoding="utf-8")
++    if not config_path.exists():
++        return
++
++    with config_path.open("r", encoding="utf-8") as f:
++        data = safe_yaml_load(f.read()) or {}
++
++    # Disable RAG and Writer banners
++    if "rag" in data:
++        if isinstance(data["rag"], dict):
++            data["rag"]["enabled"] = False
++    if "writer" in data:
++        if isinstance(data["writer"], dict):
++            data["writer"]["enable_banners"] = False
++
++    # Set max windows
++    if "pipeline" not in data or not isinstance(data["pipeline"], dict):
++        data["pipeline"] = {}
++    data["pipeline"]["max_windows"] = max_windows
++
++    with config_path.open("w", encoding="utf-8") as f:
++        yaml.safe_dump(data, f, sort_keys=False)
++
++
++def _write_stub_file(path: Path, title: str, content: str) -> None:
++    """Write a stub markdown file using python-frontmatter."""
++    post = frontmatter.Post(content, title=title)
++    path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
+ 
+ 
+ def main() -> int:
+@@ -216,7 +235,7 @@ def main() -> int:
+     parser.add_argument(
+         "--output-dir",
+         type=Path,
+-        default=Path(".demo-site"),
++        default=Path("docs/demo"),
+         help="Directory to generate the demo MkDocs project into",
+     )
+     parser.add_argument(
+@@ -256,8 +275,9 @@ def main() -> int:
+ 
+     _patch_pipeline_for_offline_demo()
+ 
++    # Pre-scaffold logic is handled by 'egregora write' via 'init' if missing,
++    # but to customize the stub files (Journal/Profiles placeholders), we do it beforehand.
+     from egregora.init import ensure_mkdocs_project
+-    from egregora.orchestration.pipelines.write import WhatsAppProcessOptions, process_whatsapp_export
+ 
+     ensure_mkdocs_project(output_dir, site_name="Egregora Demo")
+ 
+@@ -265,14 +285,21 @@ def main() -> int:
+     (docs_dir / "journal").mkdir(parents=True, exist_ok=True)
+     (docs_dir / "profiles").mkdir(parents=True, exist_ok=True)
+     (docs_dir / "media").mkdir(parents=True, exist_ok=True)
+-    (docs_dir / "journal" / "index.md").write_text(
+-        "# Journal\n\n(Reserved for future demo content.)\n", encoding="utf-8"
++
++    _write_stub_file(
++        docs_dir / "journal" / "index.md",
++        "Journal",
++        "(Reserved for future demo content.)",
+     )
+-    (docs_dir / "profiles" / "index.md").write_text(
+-        "# Profiles\n\n(Reserved for future demo content.)\n", encoding="utf-8"
++    _write_stub_file(
++        docs_dir / "profiles" / "index.md",
++        "Profiles",
++        "(Reserved for future demo content.)",
+     )
+-    (docs_dir / "media" / "index.md").write_text(
+-        "# Media\n\nSee the demo media gallery at `posts/media/`.\n", encoding="utf-8"
++    _write_stub_file(
++        docs_dir / "media" / "index.md",
++        "Media",
++        "See the demo media gallery at `posts/media/`.",
+     )
+ 
+     mkdocs_config = output_dir / ".egregora" / "mkdocs.yml"
+@@ -280,26 +307,49 @@ def main() -> int:
+         _rewrite_site_url(mkdocs_config, args.site_url)
+ 
+     config_path = output_dir / ".egregora" / "config.yml"
++    # Also check .toml as recent versions might use TOML
++    # The generated config is usually .egregora.toml now (v3).
++    # Since we don't have a safe toml writer loaded, we skip toml config hacking for now
++    # relying on CLI args to disable things (e.g. --no-enable-enrichment).
++    # The 'egregora write' command arguments cover most needs (max_prompt_tokens, enable_enrichment).
++    # Disabling banner generation specifically isn't a CLI arg, but we patch
++    # 'is_banner_generation_available' in _patch_pipeline_for_offline_demo anyway.
++    # So we don't strictly need to rewrite .egregora.toml to be safe.
++
+     if config_path.exists():
+-        _rewrite_demo_config(config_path)
+-        _rewrite_pipeline_max_windows(config_path, args.max_windows)
+-
+-    options = WhatsAppProcessOptions(
+-        output_dir=output_dir,
+-        step_size=10_000,
+-        step_unit="messages",
+-        overlap_ratio=0.0,
+-        enable_enrichment=False,
+-        gemini_api_key="demo-offline-key",
+-        max_prompt_tokens=50_000,
+-    )
++        _update_demo_config(config_path, args.max_windows)
++
++    # Invoke the CLI using CliRunner
++    runner = CliRunner()
++
++    # Arguments for 'egregora write'
++    cli_args = [
++        "write",
++        str(fixture_zip),
++        "--output-dir",
++        str(output_dir),
++        "--step-size",
++        "10000",
++        "--step-unit",
++        "messages",
++        "--overlap",
++        "0.0",
++        "--no-enable-enrichment",
++        "--max-prompt-tokens",
++        "50000",
++        # Force refresh to ensure clean run
++        "--force",
++    ]
++
++
++    # Run in-process
++    result = runner.invoke(app, cli_args, catch_exceptions=False)
++
++    if result.exit_code != 0:
++        if result.exc_info:
++            pass
++        return result.exit_code
+ 
+-    previous_cwd = Path.cwd()
+-    try:
+-        os.chdir(output_dir)
+-        process_whatsapp_export(fixture_zip, options=options)
+-    finally:
+-        os.chdir(previous_cwd)
+     return 0
+ 
+ 
+diff --git a/src/egregora/agents/banner/agent.py b/src/egregora/agents/banner/agent.py
+index fbd048b2f..e5fb801aa 100644
+--- a/src/egregora/agents/banner/agent.py
++++ b/src/egregora/agents/banner/agent.py
+@@ -60,26 +60,6 @@ def success(self) -> bool:
+         return self.document is not None
+ 
+ 
+-def _get_extension_for_mime_type(mime_type: str) -> str:
+-    """Map MIME type to file extension.
+-
+-    Args:
+-        mime_type: MIME type string (e.g., "image/jpeg")
+-
+-    Returns:
+-        File extension with leading dot (e.g., ".jpg")
+-
+-    """
+-    mime_to_ext = {
+-        "image/jpeg": ".jpg",
+-        "image/png": ".png",
+-        "image/webp": ".webp",
+-        "image/gif": ".gif",
+-        "image/svg+xml": ".svg",
+-    }
+-    return mime_to_ext.get(mime_type, ".jpg")  # Default to .jpg
+-
+-
+ def _build_image_prompt(input_data: BannerInput) -> str:
+     """Build the image generation prompt from post metadata."""
+     return render_prompt(
+@@ -108,13 +88,6 @@ def _generate_banner_image(
+             return BannerOutput(error=error_message, error_code=result.error_code)
+ 
+         # Create Document with binary content
+-        # Add proper filename with extension based on mime_type
+-        from egregora.utils.paths import slugify
+-
+-        extension = _get_extension_for_mime_type(result.mime_type or "image/jpeg")
+-        slug = slugify(input_data.slug, max_len=60) if input_data.slug else "banner"
+-        filename = f"{slug}{extension}"
+-
+         document = Document(
+             content=result.image_bytes,
+             type=DocumentType.MEDIA,
+@@ -123,9 +96,7 @@ def _generate_banner_image(
+                 "source": image_model,
+                 "slug": input_data.slug,
+                 "language": input_data.language,
+-                "filename": filename,
+             },
+-            id=filename,  # Use filename as explicit ID for consistent path prediction
+         )
+ 
+         if result.debug_text:
+diff --git a/src/egregora/agents/banner/batch_processor.py b/src/egregora/agents/banner/batch_processor.py
+index 039d25113..b8d696c16 100644
+--- a/src/egregora/agents/banner/batch_processor.py
++++ b/src/egregora/agents/banner/batch_processor.py
+@@ -217,20 +217,10 @@ def _create_document(
+         metadata["mime_type"] = mime_type
+         metadata["generated_at"] = datetime.now(UTC).isoformat()
+ 
+-        # Add proper filename with extension based on mime_type
+-        # This ensures the file is saved with the correct extension and in the correct subfolder
+-        from egregora.utils.paths import slugify
+-
+-        extension = self._get_extension_for_mime_type(mime_type)
+-        slug = slugify(task.slug, max_len=60) if task.slug else "banner"
+-        filename = f"{slug}{extension}"
+-        metadata["filename"] = filename
+-
+         return Document(
+             content=image_data,
+             type=DocumentType.MEDIA,
+             metadata=metadata,
+-            id=filename,  # Use filename as explicit ID for consistent path prediction
+         )
+ 
+     def _attach_task_metadata(self, task: BannerTaskEntry, document: Document) -> Document:
+@@ -258,23 +248,3 @@ def _build_metadata(
+         if extra_metadata:
+             metadata.update(extra_metadata)
+         return metadata
+-
+-    @staticmethod
+-    def _get_extension_for_mime_type(mime_type: str) -> str:
+-        """Map MIME type to file extension.
+-
+-        Args:
+-            mime_type: MIME type string (e.g., "image/jpeg")
+-
+-        Returns:
+-            File extension with leading dot (e.g., ".jpg")
+-
+-        """
+-        mime_to_ext = {
+-            "image/jpeg": ".jpg",
+-            "image/png": ".png",
+-            "image/webp": ".webp",
+-            "image/gif": ".gif",
+-            "image/svg+xml": ".svg",
+-        }
+-        return mime_to_ext.get(mime_type, ".jpg")  # Default to .jpg
+diff --git a/src/egregora/orchestration/pipelines/write.py b/src/egregora/orchestration/pipelines/write.py
+index e6ff2f203..ce6d23327 100644
+--- a/src/egregora/orchestration/pipelines/write.py
++++ b/src/egregora/orchestration/pipelines/write.py
+@@ -66,7 +66,7 @@
+     split_window_into_n_parts,
+ )
+ from egregora.utils.cache import PipelineCache
+-from egregora.utils.env import dedupe_api_keys, get_google_api_keys, validate_gemini_api_key
++from egregora.utils.env import get_google_api_keys, validate_gemini_api_key
+ from egregora.utils.metrics import UsageTracker
+ from egregora.utils.rate_limit import init_rate_limiter
+ 
+@@ -332,9 +332,6 @@ def run_cli_flow(
+     if parsed_options.debug:
+         logging.getLogger().setLevel(logging.DEBUG)
+ 
+-    # Dedupe API keys at startup to prevent SDK warning about both being set
+-    dedupe_api_keys()
+-
+     from_date_obj, to_date_obj = None, None
+     if parsed_options.from_date:
+         try:
+diff --git a/src/egregora/output_adapters/conventions.py b/src/egregora/output_adapters/conventions.py
+index ad5283ee7..f7c40b463 100644
+--- a/src/egregora/output_adapters/conventions.py
++++ b/src/egregora/output_adapters/conventions.py
+@@ -1,7 +1,38 @@
++"""Standard URL conventions for Egregora output adapters.
++
++SEPARATION OF CONCERNS (2025-11-29):
++=====================================
++
++This module implements UrlConvention protocol - PURELY LOGICAL URL GENERATION.
++
++What UrlConvention does:
++- Given a Document, return what URL readers should use
++- Pure string manipulation only
++- No filesystem knowledge (no Path, no docs_dir, no file extensions as filesystem concept)
++- Uses only doc.type, slug, tags, date metadata
++
++What UrlConvention does NOT do:
++- Filesystem path resolution (that's OutputAdapter's job)
++- File layout decisions (index.md vs foo.md)
++- Directory structure (docs/, media/, etc.)
++
++Examples:
++    >>> convention = StandardUrlConvention()
++    >>> ctx = UrlContext(base_url="https://example.com", site_prefix="blog")
++    >>> doc = Document(type=DocumentType.POST, metadata={"slug": "hello", "date": "2025-01-10"})
++    >>> convention.canonical_url(doc, ctx)
++    'https://example.com/blog/posts/2025-01-10-hello/'
++
++The OutputAdapter then converts this URL to a filesystem path:
++    >>> adapter.persist(doc)  # Internally: URL -> Path("docs/posts/2025-01-10-hello.md")
++
++"""
++
+ from __future__ import annotations
+ 
+ from dataclasses import dataclass
+ from datetime import datetime
++from pathlib import Path
+ from typing import TYPE_CHECKING
+ 
+ from egregora.data_primitives.document import Document, DocumentType
+@@ -12,161 +43,306 @@
+     from egregora.data_primitives.protocols import UrlContext
+ 
+ 
++EXPECTED_PARTS_WITH_PATH = 2
++
++
+ def _remove_url_extension(url_path: str) -> str:
+-    """Remove extension from the last segment of a URL path, preserving dotfiles."""
++    """Remove file extension from URL path segment.
++
++    This is URL logic (removing trailing .html, .md, etc. from URLs),
++    not filesystem logic (Path.with_suffix). URLs may contain dots
++    that aren't extensions, so we only remove extensions from the
++    last path segment.
++
++    Dotfiles (files starting with a dot like '.config') are preserved
++    as they don't have an extension to remove.
++
++    Args:
++        url_path: URL path like 'media/images/foo.png' or 'posts/bar'
++
++    Returns:
++        URL path without extension: 'media/images/foo' or 'posts/bar'
++
++    Examples:
++        >>> _remove_url_extension("media/images/foo.png")
++        'media/images/foo'
++        >>> _remove_url_extension("posts/bar")
++        'posts/bar'
++        >>> _remove_url_extension("some.dir/file.md")
++        'some.dir/file'
++        >>> _remove_url_extension(".config")
++        '.config'
++        >>> _remove_url_extension("path/.gitignore")
++        'path/.gitignore'
++
++    """
++    if "." not in url_path:
++        return url_path
++
++    # Split on last slash to get the last segment
+     parts = url_path.rsplit("/", 1)
+-    filename = parts[-1]
+-    if "." in filename and not filename.startswith("."):
+-        parts[-1] = filename.rsplit(".", 1)[0]
+-    return "/".join(parts)
+ 
+-
+-@dataclass(frozen=True)
++    if len(parts) == EXPECTED_PARTS_WITH_PATH and "." in parts[1]:
++        # Has a path and a filename with extension
++        # Remove extension from the filename only
++        basename_without_ext = parts[1].rsplit(".", 1)[0]
++        # Check if this is a dotfile (basename would be empty after split)
++        if not basename_without_ext:
++            # This is a dotfile, preserve it
++            return url_path
++        return f"{parts[0]}/{basename_without_ext}"
++    if "." in parts[0]:
++        # Just a filename with extension (no slashes)
++        basename_without_ext = parts[0].rsplit(".", 1)[0]
++        # Check if this is a dotfile (basename would be empty after split)
++        if not basename_without_ext:
++            # This is a dotfile, preserve it
++            return url_path
++        return basename_without_ext
++
++    return url_path
++
++
++@dataclass
+ class RouteConfig:
++    """Configuration for URL routing segments."""
++
+     posts_prefix: str = "posts"
+     profiles_prefix: str = "profiles"
++    # ADR-001: Media goes inside posts directory
+     media_prefix: str = "posts/media"
+     journal_prefix: str = "journal"
+     annotations_prefix: str = "posts/annotations"
++    # Defines if dates should be part of the URL structure: /2025-01-01-slug/ vs /slug/
+     date_in_url: bool = True
+ 
+ 
+ class StandardUrlConvention(UrlConvention):
+-    name, version = "standard-v1", "1.1.0"
++    """The default, opinionated URL scheme for Egregora sites.
++
++    **Role: Single Source of Truth for Document Persistence**
++
++    This class is the **authoritative source** for how documents are addressed
++    and persisted to the filesystem. All document writes flow through the
++    `canonical_url()` method, which generates deterministic URLs based on
++    document type and metadata.
++
++    **Document Flow:**
++    ```
++    Document → canonical_url() → URL → adapter._url_to_path() → filesystem
++    ```
++
++    **Per-Type URL Rules:**
++    - PROFILE: /profiles/{uuid} (uses full UUID from metadata)
++    - POST: /posts/{slug} (filename includes date prefix: {date}-{slug}.md)
++    - JOURNAL: /journal/{label} (slugified window label)
++    - MEDIA: /media/{type}/{hash}.{ext} (hash-based naming)
++    - ENRICHMENT_MEDIA: /media/{type}/{parent_slug} (paired with media file)
++    - ENRICHMENT_URL: /media/urls/{identifier}/ (uses suggested_path if available)
++
++    **Contract with Adapters:**
++    - Adapters **must** use `canonical_url()` to generate URLs
++    - Adapters **must not** manually construct file paths
++    - URL → path translation is adapter-specific (_url_to_path())
++    - This ensures consistency across all document references
++
++    **Configuration:**
++    - Route prefixes can be customized via `RouteConfig`
++    - Subclass to implement entirely different URL schemes
++    - Version tracked for migration/compatibility
++
++    See: ``docs/architecture/url-conventions.md`` for complete documentation.
++    """
+ 
+     def __init__(self, routes: RouteConfig | None = None) -> None:
+         self.routes = routes or RouteConfig()
+ 
+-    def _join(self, ctx: UrlContext, *segments: str, trailing_slash: bool = True) -> str:
++    @property
++    def name(self) -> str:
++        return "standard-v1"
++
++    @property
++    def version(self) -> str:
++        return "1.0.0"
++
++    def _build_base(self, ctx: UrlContext) -> tuple[str, list[str]]:
+         base = (ctx.base_url or "").rstrip("/")
+         prefix = (ctx.site_prefix or "").strip("/")
++        segments: list[str] = []
++        if prefix:
++            segments.extend(prefix.split("/"))
++        return base, segments
+ 
+-        # Build path segments filtering empty strings
+-        all_parts = [p for p in prefix.split("/") if p] + [s.strip("/") for s in segments if s]
+-        path = "/".join(all_parts)
+-
++    def _join(self, ctx: UrlContext, *segments: str, trailing_slash: bool = True) -> str:
++        base, prefix_segments = self._build_base(ctx)
++        clean_segments = [seg.strip("/") for seg in segments if seg]
++        path_segments = prefix_segments + clean_segments
++        path = "/".join(path_segments)
++        # Restore leading slash to make paths root-relative when base is empty
+         url = f"{base}/{path}" if base else f"/{path}"
+-        return url.rstrip("/") + "/" if trailing_slash else url.rstrip("/")
+-
+-    def _get_slug(self, doc: Document) -> str:
+-        return slugify(doc.metadata.get("slug", doc.document_id[:8]))
++        if trailing_slash:
++            return url.rstrip("/") + "/"
++        return url
+ 
+-    def canonical_url(self, doc: Document, ctx: UrlContext) -> str:
++    def canonical_url(self, document: Document, ctx: UrlContext) -> str:
++        """Generate a canonical URL based on the standard convention."""
+         handlers = {
+-            DocumentType.POST: self._format_post,
+-            DocumentType.PROFILE: self._format_profile,
+-            DocumentType.ANNOUNCEMENT: self._format_announcement,
+-            DocumentType.JOURNAL: self._format_journal,
+-            DocumentType.MEDIA: self._format_media,
+-            DocumentType.ENRICHMENT_URL: self._format_url_enrichment,
+-            DocumentType.ANNOTATION: self._format_annotation,
+-            DocumentType.ENRICHMENT_MEDIA: lambda c, d: self._format_enrichment(c, d),
+-            DocumentType.ENRICHMENT_IMAGE: lambda c, d: self._format_enrichment(c, d, "images"),
+-            DocumentType.ENRICHMENT_VIDEO: lambda c, d: self._format_enrichment(c, d, "videos"),
+-            DocumentType.ENRICHMENT_AUDIO: lambda c, d: self._format_enrichment(c, d, "audio"),
++            DocumentType.POST: self._format_post_url,
++            DocumentType.PROFILE: self._format_profile_url,
++            DocumentType.JOURNAL: self._format_journal_url,
++            DocumentType.MEDIA: self._format_media_url,
++            DocumentType.ENRICHMENT_MEDIA: self._format_media_enrichment_url,
++            DocumentType.ENRICHMENT_IMAGE: lambda ctx, doc: self._format_typed_media_enrichment_url(
++                ctx, doc, "images"
++            ),
++            DocumentType.ENRICHMENT_VIDEO: lambda ctx, doc: self._format_typed_media_enrichment_url(
++                ctx, doc, "videos"
++            ),
++            DocumentType.ENRICHMENT_AUDIO: lambda ctx, doc: self._format_typed_media_enrichment_url(
++                ctx, doc, "audio"
++            ),
++            DocumentType.ENRICHMENT_URL: self._format_url_enrichment_url,
++            DocumentType.ANNOTATION: self._format_annotation_url,
+         }
+-        return handlers.get(doc.type, lambda c, d: self._join(c, "docs", d.document_id))(ctx, doc)
+-
+-    def _format_post(self, ctx: UrlContext, doc: Document) -> str:
+-        slug = self._get_slug(doc)
+-        if self.routes.date_in_url and (date_val := doc.metadata.get("date")):
+-            date_str = date_val.date().isoformat() if isinstance(date_val, datetime) else str(date_val)[:10]
+-            slug = f"{date_str}-{slug}"
+-        return self._join(ctx, self.routes.posts_prefix, slug)
+-
+-    def _format_profile(self, ctx: UrlContext, doc: Document) -> str:
+-        m = doc.metadata
+-        uid = m.get("subject") or m.get("uuid") or m.get("author_uuid")
+-        slug = slugify(m.get("slug") or m.get("profile_aspect") or doc.document_id[:8])
+-        return (
+-            self._join(ctx, self.routes.profiles_prefix, str(uid), slug)
+-            if uid
+-            else self._join(ctx, self.routes.posts_prefix, slug)
+-        )
+ 
+-    def _format_announcement(self, ctx: UrlContext, doc: Document) -> str:
+-        """Format URL for ANNOUNCEMENT documents (user command events).
++        handler = handlers.get(document.type)
++        if handler:
++            return handler(ctx, document)
+ 
+-        ANNOUNCEMENT documents with 'subject' metadata route to the author's profile feed:
+-        /profiles/{subject_uuid}/{slug}/
++        # Fallback
++        return self._join(ctx, "documents", document.document_id)
+ 
+-        This creates a unified feed showing both:
+-        - PROFILE posts (Egregora's analyses)
+-        - ANNOUNCEMENT posts (user actions/commands)
+-        """
+-        subject_uuid = doc.metadata.get("subject") or doc.metadata.get("actor")
++    def _format_profile_url(self, ctx: UrlContext, document: Document) -> str:
++        subject_uuid = (
++            document.metadata.get("subject")
++            or document.metadata.get("uuid")
++            or document.metadata.get("author_uuid")
++        )
++        slug_value = (
++            document.metadata.get("slug")
++            or document.metadata.get("profile_aspect")
++            or document.document_id[:8]
++        )
+         if not subject_uuid:
+-            # Fallback: route to announcements directory if no subject
+-            slug = doc.metadata.get("slug", doc.document_id[:8])
+-            return self._join(ctx, self.routes.posts_prefix, "announcements", slugify(slug))
+-
+-        # Route to author's profile feed
+-        slug_value = doc.metadata.get("slug") or doc.document_id[:8]
++            return self._join(ctx, self.routes.posts_prefix, slugify(str(slug_value)))
+         return self._join(ctx, self.routes.profiles_prefix, str(subject_uuid), slugify(str(slug_value)))
+ 
+-    def _format_journal(self, ctx: UrlContext, doc: Document) -> str:
+-        label = doc.metadata.get("window_label") or doc.metadata.get("slug")
+-        return (
+-            self._join(ctx, self.routes.journal_prefix, slugify(label))
+-            if label
+-            else self._join(ctx, self.routes.journal_prefix)
++    def _format_journal_url(self, ctx: UrlContext, document: Document) -> str:
++        window_label = document.metadata.get("window_label")
++        if window_label:
++            safe_label = slugify(window_label)
++            return self._join(ctx, self.routes.journal_prefix, safe_label)
++        slug_value = document.metadata.get("slug")
++        if slug_value:
++            safe_label = slugify(slug_value)
++            return self._join(ctx, self.routes.journal_prefix, safe_label)
++        # Fallback: no window_label or slug, unified output goes to posts/
++        return self._join(ctx, self.routes.posts_prefix)
++
++    def _format_url_enrichment_url(self, ctx: UrlContext, document: Document) -> str:
++        if document.suggested_path:
++            # Pure string manipulation - no Path operations
++            clean_path = _remove_url_extension(document.suggested_path.strip("/"))
++            return self._join(ctx, clean_path, trailing_slash=True)
++        url_slug = self._slug_with_identifier(document)
++        return self._join(
++            ctx,
++            self.routes.media_prefix,
++            "urls",
++            url_slug,
+         )
+ 
+-    def _format_media(self, ctx: UrlContext, doc: Document) -> str:
+-        if doc.suggested_path:
+-            return self._join(ctx, doc.suggested_path, trailing_slash=False)
++    def _format_annotation_url(self, ctx: UrlContext, document: Document) -> str:
++        slug = document.metadata.get("slug", document.document_id[:8])
++        return self._join(ctx, self.routes.annotations_prefix, slugify(slug))
+ 
++    def _format_post_url(self, ctx: UrlContext, document: Document) -> str:
++        slug = document.metadata.get("slug", document.document_id[:8])
++        normalized_slug = slugify(slug)
++
++        if self.routes.date_in_url:
++            date_val = document.metadata.get("date", "")
++            if date_val:
++                date_str = _date_to_iso_date(date_val)
++                return self._join(ctx, self.routes.posts_prefix, f"{date_str}-{normalized_slug}")
++
++        return self._join(ctx, self.routes.posts_prefix, normalized_slug)
++
++    def _format_media_url(self, ctx: UrlContext, document: Document) -> str:
++        """Resolve canonical URL for media assets."""
++        if document.suggested_path:
++            clean_path = document.suggested_path.strip("/")
++            return self._join(ctx, clean_path, trailing_slash=False)
++
++        # Legacy/Fallback: Infer subdirectory from extension
+         from egregora.ops.media import get_media_subfolder
+ 
+-        # Prefer semantic slug, then filename, then document_id
+-        slug_base = doc.metadata.get("slug")
+-        fname = doc.metadata.get("filename", doc.document_id)
++        filename = document.metadata.get("filename")
++        path_segment = filename or f"{document.document_id}"
+ 
+-        # Use the slug as the name if we have it, otherwise fallback to filename/ID
+-        name_segment = slug_base or fname
++        extension = Path(path_segment).suffix
++        media_subdir = get_media_subfolder(extension)
+ 
+-        # Ensure we have an extension if possible
+-        ext = f".{fname.rsplit('.', 1)[-1]}" if "." in fname else ""
+-        if not name_segment.endswith(ext) and ext:
+-            name_segment = f"{name_segment}{ext}"
++        # New robust path: media/{subdir}/{filename}
++        return self._join(ctx, "media", media_subdir, path_segment, trailing_slash=False)
+ 
+-        return self._join(
+-            ctx, self.routes.media_prefix, get_media_subfolder(ext), name_segment, trailing_slash=False
+-        )
++    def _format_media_enrichment_url(self, ctx: UrlContext, document: Document) -> str:
++        """Mirror parent media path but swap extension for markdown."""
++        parent_path = None
++        if document.parent and document.parent.suggested_path:
++            parent_path = document.parent.suggested_path
++        elif document.metadata.get("parent_path"):
++            parent_path = document.metadata["parent_path"]
+ 
+-    def _format_enrichment(self, ctx: UrlContext, doc: Document, subfolder: str | None = None) -> str:
+-        """Generic handler for all media enrichment types."""
+-        # 1. Try parent path logic
+-        parent_path = (doc.parent.suggested_path if doc.parent else None) or doc.metadata.get("parent_path")
+         if parent_path:
+-            path = _remove_url_extension(parent_path.strip("/"))
+-            # Clean redundancy: remove base/site prefixes from the string if present
+-            prefixes = [
+-                f"{(ctx.site_prefix or '').strip('/')}/{self.routes.media_prefix.strip('/')}",
+-                self.routes.media_prefix.strip("/"),
+-                "media",
+-                "posts/media",
+-            ]
+-            for p in prefixes:
+-                if path.startswith(p + "/"):
+-                    path = path.removeprefix(p + "/").strip("/")
++            # Pure string manipulation - no Path operations
++            enrichment_path = _remove_url_extension(parent_path.strip("/"))
++            # Strip any existing site_prefix or media_prefix to avoid duplication
++            # when _join adds them again
++            site_prefix = (ctx.site_prefix or "").strip("/")
++            media_prefix = self.routes.media_prefix.strip("/")
++            for prefix in [f"{site_prefix}/{media_prefix}", site_prefix, media_prefix]:
++                if prefix and enrichment_path.startswith(prefix + "/"):
++                    enrichment_path = enrichment_path[len(prefix) + 1 :]
+                     break
+-            return self._join(ctx, self.routes.media_prefix, path)
++            return self._join(ctx, self.routes.media_prefix, enrichment_path, trailing_slash=True)
+ 
+-        # 2. Try document's own suggested path
+-        if doc.suggested_path:
+-            return self._join(ctx, _remove_url_extension(doc.suggested_path), trailing_slash=True)
++        if document.suggested_path:
++            # Pure string manipulation - no Path operations
++            clean_path = _remove_url_extension(document.suggested_path.strip("/"))
++            return self._join(ctx, clean_path, trailing_slash=True)
+ 
+-        # 3. Fallback to slug-based
+-        slug = f"{doc.slug}-{doc.document_id[:8]}" if not doc.slug.endswith(doc.document_id[:8]) else doc.slug
+-        parts = [self.routes.media_prefix, subfolder, slug] if subfolder else [self.routes.media_prefix, slug]
+-        return self._join(ctx, *parts)
++        fallback = f"{self._slug_with_identifier(document)}"
++        return self._join(ctx, self.routes.media_prefix, fallback, trailing_slash=True)
+ 
+-    def _format_url_enrichment(self, ctx: UrlContext, doc: Document) -> str:
+-        if doc.suggested_path:
+-            return self._join(ctx, _remove_url_extension(doc.suggested_path))
+-        slug = f"{doc.slug}-{doc.document_id[:8]}" if not doc.slug.endswith(doc.document_id[:8]) else doc.slug
+-        return self._join(ctx, self.routes.media_prefix, "urls", slug)
++    def _format_typed_media_enrichment_url(self, ctx: UrlContext, document: Document, subfolder: str) -> str:
++        """Format URL for typed media enrichment (images, videos, audio).
+ 
+-    def _format_annotation(self, ctx: UrlContext, doc: Document) -> str:
+-        return self._join(ctx, self.routes.annotations_prefix, self._get_slug(doc))
++        Args:
++            ctx: URL context
++            document: The enrichment document
++            subfolder: Target subfolder (e.g., "images", "videos", "audio")
++
++        """
++        slug = self._slug_with_identifier(document)
++        return self._join(ctx, self.routes.media_prefix, subfolder, slug, trailing_slash=True)
++
++    def _slug_with_identifier(self, document: Document) -> str:
++        """Return slug augmented with a deterministic identifier."""
++        slug_value = document.slug
++        suffix = document.document_id[:8]
++        if slug_value.endswith(suffix):
++            return slug_value
++        return f"{slug_value}-{suffix}"
++
++
++def _date_to_iso_date(value: datetime | str) -> str:
++    """Return ISO date (YYYY-MM-DD) from datetime/string."""
++    if isinstance(value, datetime):
++        return value.date().isoformat()
++    text = str(value)
++    if "T" in text:
++        return text.split("T", 1)[0]
++    if " " in text:
++        return text.split(" ", 1)[0]
++    return text
+diff --git a/src/egregora/output_adapters/mkdocs/adapter.py b/src/egregora/output_adapters/mkdocs/adapter.py
+index 82c5875c6..4faa18a53 100644
+--- a/src/egregora/output_adapters/mkdocs/adapter.py
++++ b/src/egregora/output_adapters/mkdocs/adapter.py
+@@ -858,11 +858,15 @@ def _resolve_generic_path(self, url_path: str) -> Path:
+     def _strip_media_prefix(self, url_path: str) -> str:
+         """Helper to strip media prefixes from URL path."""
+         rel_path = url_path
+-        media_prefixes: list[str] = []
++        media_prefixes: set[str] = set()
+         if hasattr(self._url_convention, "routes"):
+-            media_prefixes.append(str(getattr(self._url_convention.routes, "media_prefix", "")).strip("/"))
+-        media_prefixes.extend(["media", "posts/media"])
+-        for prefix in [p for p in media_prefixes if p]:
++            prefix = str(getattr(self._url_convention.routes, "media_prefix", "")).strip("/")
++            if prefix:
++                media_prefixes.add(prefix)
++        media_prefixes.update(["media", "posts/media"])
++
++        # Sort by length descending to match longest prefix first
++        for prefix in sorted(media_prefixes, key=len, reverse=True):
+             if rel_path == prefix:
+                 rel_path = ""
+                 break
+diff --git a/src/egregora/utils/env.py b/src/egregora/utils/env.py
+index 7839a200e..20ccd51a7 100644
+--- a/src/egregora/utils/env.py
++++ b/src/egregora/utils/env.py
+@@ -87,33 +87,7 @@ def validate_gemini_api_key(api_key: str | None = None) -> None:
+         raise ValueError(msg) from e
+ 
+ 
+-def dedupe_api_keys() -> None:
+-    """Remove duplicate API key environment variables to prevent SDK warnings.
+-
+-    If both GOOGLE_API_KEY and GEMINI_API_KEY are set, unsets GEMINI_API_KEY
+-    to prevent the google-genai SDK from emitting the "Both GOOGLE_API_KEY
+-    and GEMINI_API_KEY are set" warning on every Client instantiation.
+-
+-    Call this once at the start of the pipeline.
+-
+-    """
+-    google_key = os.environ.get("GOOGLE_API_KEY")
+-    gemini_key = os.environ.get("GEMINI_API_KEY")
+-
+-    if google_key and gemini_key:
+-        # If they're the same value, just unset one
+-        # If different, prefer GOOGLE_API_KEY (the newer/standard name)
+-        if google_key == gemini_key:
+-            logger.debug("Unsetting duplicate GEMINI_API_KEY (identical to GOOGLE_API_KEY)")
+-        else:
+-            logger.info(
+-                "Both GOOGLE_API_KEY and GEMINI_API_KEY set with different values; using GOOGLE_API_KEY"
+-            )
+-        os.environ.pop("GEMINI_API_KEY", None)
+-
+-
+ __all__ = [
+-    "dedupe_api_keys",
+     "get_google_api_key",
+     "get_google_api_keys",
+     "google_api_key_available",
+diff --git a/tests/unit/agents/banner/test_path_prediction.py b/tests/unit/agents/banner/test_path_prediction.py
+deleted file mode 100644
+index b35a5e4c2..000000000
+--- a/tests/unit/agents/banner/test_path_prediction.py
++++ /dev/null
+@@ -1,114 +0,0 @@
+-"""Test that banner path prediction matches actual saved paths."""
+-
+-from egregora.agents.banner.batch_processor import BannerBatchProcessor, BannerTaskEntry
+-from egregora.agents.banner.image_generation import ImageGenerationResult
+-from egregora.data_primitives.document import Document, DocumentType
+-from egregora.data_primitives.protocols import UrlContext
+-from egregora.output_adapters.conventions import StandardUrlConvention
+-from egregora.utils.paths import slugify
+-
+-
+-class _FakeProvider:
+-    """Fake provider that returns a successful image generation result."""
+-
+-    def generate(self, request):
+-        return ImageGenerationResult(
+-            image_bytes=b"fake-image-data",
+-            mime_type="image/jpeg",
+-        )
+-
+-
+-def test_predicted_path_matches_actual():
+-    """Test that the predicted banner path matches the actual saved path."""
+-    post_slug = "test-post-banner"
+-
+-    # 1. Simulate path prediction (what happens in capabilities.py)
+-    slug = slugify(post_slug, max_len=60)
+-    extension = ".jpg"
+-    filename = f"{slug}{extension}"
+-
+-    placeholder_doc = Document(
+-        content="",
+-        type=DocumentType.MEDIA,
+-        metadata={"filename": filename},
+-        id=filename,
+-    )
+-
+-    url_convention = StandardUrlConvention()
+-    url_context = UrlContext(base_url="", site_prefix="")
+-
+-    predicted_url = url_convention.canonical_url(placeholder_doc, url_context)
+-    predicted_path = predicted_url.lstrip("/")
+-
+-    # 2. Simulate actual banner generation (what happens in batch_processor.py)
+-    processor = BannerBatchProcessor(provider=_FakeProvider())
+-
+-    task = BannerTaskEntry(
+-        task_id="test-task-123",
+-        title="Test Post",
+-        summary="Test summary",
+-        slug=post_slug,
+-        language="pt-BR",
+-        metadata={},
+-    )
+-
+-    results = processor.process_tasks([task])
+-    assert len(results) == 1
+-    assert results[0].success
+-
+-    actual_doc = results[0].document
+-    assert actual_doc is not None
+-
+-    actual_url = url_convention.canonical_url(actual_doc, url_context)
+-    actual_path = actual_url.lstrip("/")
+-
+-    # 3. Verify paths match
+-    assert predicted_path == actual_path, f"Path mismatch! Predicted: {predicted_path}, Actual: {actual_path}"
+-    assert actual_doc.document_id == filename
+-    assert actual_doc.metadata["filename"] == filename
+-
+-
+-def test_mime_type_to_extension_mapping():
+-    """Test that different MIME types map to correct extensions."""
+-    test_cases = [
+-        ("image/jpeg", ".jpg"),
+-        ("image/png", ".png"),
+-        ("image/webp", ".webp"),
+-        ("image/gif", ".gif"),
+-        ("image/svg+xml", ".svg"),
+-        ("image/unknown", ".jpg"),  # Default fallback
+-    ]
+-
+-    for mime_type, expected_ext in test_cases:
+-        extension = BannerBatchProcessor._get_extension_for_mime_type(mime_type)
+-        assert extension == expected_ext, f"MIME {mime_type} should map to {expected_ext}, got {extension}"
+-
+-
+-def test_banner_document_has_required_fields():
+-    """Test that generated banner documents have all required fields for path prediction."""
+-    processor = BannerBatchProcessor(provider=_FakeProvider())
+-
+-    task = BannerTaskEntry(
+-        task_id="test-456",
+-        title="Another Test",
+-        summary="Summary here",
+-        slug="another-test-post",
+-        language="en",
+-        metadata={},
+-    )
+-
+-    results = processor.process_tasks([task])
+-    doc = results[0].document
+-
+-    # Verify all required fields are present
+-    assert doc is not None
+-    assert doc.id is not None, "Document should have explicit ID"
+-    assert doc.metadata.get("filename") is not None, "Document should have filename in metadata"
+-    assert doc.metadata.get("mime_type") is not None, "Document should have mime_type"
+-    assert doc.type == DocumentType.MEDIA
+-
+-    # Verify filename matches ID
+-    assert doc.document_id == doc.metadata["filename"]
+-
+-    # Verify filename has extension
+-    assert "." in doc.metadata["filename"], "Filename should include extension"
+diff --git a/tests/unit/test_429_rotation.py b/tests/unit/test_429_rotation.py
+index 7871e925a..aec4354f0 100644
+--- a/tests/unit/test_429_rotation.py
++++ b/tests/unit/test_429_rotation.py
+@@ -23,9 +23,7 @@ async def request(self, messages, settings, params):
+         if self.calls == 1:
+             raise UsageLimitExceeded("429 Too Many Requests")
+         return ModelResponse(
+-            parts=[TextPart(content=f"Success from {self._name}")],
+-            usage=RequestUsage(),
+-            model_name=self._name,
++            parts=[TextPart(text=f"Success from {self._name}")], usage=RequestUsage(), model_name=self._name
+         )
+ 
+     @property
+@@ -57,7 +55,7 @@ class SuccessModel(MockBaseModel):
+         async def request(self, messages, settings, params):
+             self.calls += 1
+             return ModelResponse(
+-                parts=[TextPart(content=f"Success from {self._name}")],
++                parts=[TextPart(text=f"Success from {self._name}")],
+                 usage=RequestUsage(),
+                 model_name=self._name,
+             )
+@@ -78,7 +76,7 @@ async def request(self, messages, settings, params):
+     assert m1.calls == 1
+     assert m2.calls == 1
+     assert m3.calls == 1
+-    assert "Success from m3" in response.parts[0].content
++    assert "Success from m3" in response.parts[0].text
+ 
+     # Elapsed time should be very small
+     assert end_time - start_time < 0.5
+@@ -97,6 +95,11 @@ async def test_create_fallback_model_count(monkeypatch):
+     # Now uses our custom RotatingFallbackModel instead of pydantic-ai's FallbackModel
+     from egregora.models.rotating_fallback import RotatingFallbackModel
+ 
+-    assert isinstance(fb_model, RotatingFallbackModel)
+-    # The model should have multiple fallback options configured
+-    # Cannot easily inspect internals, so just verify it's created without error
++    # We can check the __repr__ or just trust the logic if we can't access internals easily.
++    # Actually, we can check how many models are in the '_fallback_models' tuple.
++    assert len(fb_model._fallback_models) == 5  # 1 primary(rest of keys) + 2 * 2 (fallbacks)?
++    # Wait:
++    # Primary-Key1 -> fb_model._primary_model
++    # Primary-Key2, Primary-Key3 -> fb_model._fallback_models[0:2]
++    # Fallback-Key1, Fallback-Key2, Fallback-Key3 -> fb_model._fallback_models[2:5]
++    # Total = 1 + 5 = 6. Correct.
+diff --git a/tests/unit/test_model_guards.py b/tests/unit/test_model_guards.py
+index a6a731e39..9b22e399c 100644
+--- a/tests/unit/test_model_guards.py
++++ b/tests/unit/test_model_guards.py
+@@ -2,18 +2,17 @@
+ 
+ 
+ def test_default_model_is_modern():
+-    """
+-    Ensure the default model is a modern, high-capacity model.
+-    We verify it's not a legacy 1.0 model.
+-    """
+-    model = DEFAULT_MODEL.lower()
+-
+-    # Must be Flash or Pro
+-    assert "flash" in model or "pro" in model
+-
+-    # Must NOT be legacy 1.0
+-    assert "1.0" not in model
+-    assert model.replace("google-gla:", "").replace("models/", "") != "gemini-pro"
++    """Ensure the default model is at least a 2.5 version."""
++    modern_keywords = [
++        "flash-latest",
++        "2.5-flash",
++        "pro-latest",
++        "2.5-pro",
++    ]
++    assert any(kw in DEFAULT_MODEL for kw in modern_keywords), (
++        f"DEFAULT_MODEL '{DEFAULT_MODEL}' seems outdated. "
++        "Please use a flash-latest or 2.5+ model."
++    )
+ 
+ 
+ def test_model_params_defaults(config_factory):

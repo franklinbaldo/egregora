@@ -37,10 +37,8 @@ from egregora.agents.formatting import (
     build_conversation_xml,
     load_journal_memory,
 )
-from egregora.agents.model_limits import (
-    PromptTooLargeError,
-)
 from egregora.agents.types import (
+    PromptTooLargeError,
     WriterDeps,
     WriterResources,
 )
@@ -478,11 +476,7 @@ def _prepare_deps(
 
 @sleep_and_retry
 @limits(calls=100, period=60)
-<<<<<<< HEAD
 async def write_posts_with_pydantic_agent(
-=======
-def write_posts_with_pydantic_agent(
->>>>>>> origin/claude/merge-compatible-prs-8oM9f
     *,
     prompt: str,
     config: EgregoraConfig,
@@ -497,11 +491,7 @@ def write_posts_with_pydantic_agent(
         caps_list = ", ".join(capability.name for capability in active_capabilities)
         logger.info("Writer capabilities enabled: %s", caps_list)
 
-<<<<<<< HEAD
     model = await create_writer_model(config, context, prompt, test_model)
-=======
-    model = create_writer_model(config, context, prompt, test_model)
->>>>>>> origin/claude/merge-compatible-prs-8oM9f
     agent = setup_writer_agent(model, prompt, active_capabilities)
 
     if context.resources.quota:
@@ -517,13 +507,8 @@ def write_posts_with_pydantic_agent(
     # Use tenacity for retries
     for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
         with attempt:
-<<<<<<< HEAD
             # Execute model directly without tools
             result = await agent.run(
-=======
-            # DIRECT SYNC CALL
-            result = agent.run_sync(
->>>>>>> origin/claude/merge-compatible-prs-8oM9f
                 "Analyze the conversation context provided and write posts/profiles as needed.",
                 deps=context,
                 usage_limits=usage_limits,
@@ -749,11 +734,7 @@ def _build_context_and_signature(
     return writer_context, signature
 
 
-<<<<<<< HEAD
 async def _execute_writer_with_error_handling(
-=======
-def _execute_writer_with_error_handling(
->>>>>>> origin/claude/merge-compatible-prs-8oM9f
     prompt: str,
     config: EgregoraConfig,
     deps: WriterDeps,
@@ -769,11 +750,7 @@ def _execute_writer_with_error_handling(
 
     """
     try:
-<<<<<<< HEAD
         return await write_posts_with_pydantic_agent(
-=======
-        return write_posts_with_pydantic_agent(
->>>>>>> origin/claude/merge-compatible-prs-8oM9f
             prompt=prompt,
             config=config,
             context=deps,
@@ -839,11 +816,7 @@ class WindowProcessingParams:
     run_id: str | None = None
 
 
-<<<<<<< HEAD
 async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
-=======
-def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
->>>>>>> origin/claude/merge-compatible-prs-8oM9f
     """Let LLM analyze window's messages, write 0-N posts, and update author profiles.
 
     This acts as the public entry point, orchestrating the setup and execution
@@ -881,7 +854,6 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str
         resources.usage,
     )
     if cached_result:
-<<<<<<< HEAD
         # Validate cached posts still exist on disk (they may be missing if output dir is fresh)
         cached_posts = cached_result.get(RESULT_KEY_POSTS, [])
         if cached_posts:
@@ -909,9 +881,6 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str
         else:
             # No posts in cache, just return the empty result
             return cached_result
-=======
-        return cached_result
->>>>>>> origin/claude/merge-compatible-prs-8oM9f
 
     logger.info("Using Pydantic AI backend for writer")
 
@@ -942,20 +911,11 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str
 
     prompt = _render_writer_prompt(writer_context, deps.resources.prompts_dir)
 
-<<<<<<< HEAD
     if getattr(params.config.pipeline, "economic_mode", False):
         logger.info("💰 Economic Mode enabled: Using simple generation (no tools)")
         saved_posts, saved_profiles = await _execute_economic_writer(prompt, params.config, deps)
     else:
         saved_posts, saved_profiles = await _execute_writer_with_error_handling(prompt, params.config, deps)
-=======
-    # Check for economic mode
-    if getattr(params.config.pipeline, "economic_mode", False):
-        logger.info("💰 Economic Mode enabled: Using simple generation (no tools)")
-        saved_posts, saved_profiles = _execute_economic_writer(prompt, params.config, deps)
-    else:
-        saved_posts, saved_profiles = _execute_writer_with_error_handling(prompt, params.config, deps)
->>>>>>> origin/claude/merge-compatible-prs-8oM9f
 
     # 6. Finalize results (output, RAG indexing, caching)
     return _finalize_writer_results(
@@ -970,11 +930,7 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str
     )
 
 
-<<<<<<< HEAD
 async def _execute_economic_writer(
-=======
-def _execute_economic_writer(
->>>>>>> origin/claude/merge-compatible-prs-8oM9f
     prompt: str,
     config: EgregoraConfig,
     deps: WriterDeps,

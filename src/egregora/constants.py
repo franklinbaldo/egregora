@@ -62,6 +62,8 @@ KNOWN_MODEL_LIMITS = {
     # Embeddings
     "text-embedding-004": 2048,  # 2k tokens (for embeddings, not generation)
 }
+
+
 class MediaType(str, Enum):
     """Media content types."""
 

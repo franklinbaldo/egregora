@@ -9,16 +9,10 @@ from typing import TYPE_CHECKING, Any
 from pydantic_ai import Agent, RunContext
 
 from egregora.agents.capabilities import AgentCapability
-from egregora.agents.model_limits import (
-    PromptTooLargeError,
-    get_model_context_limit,
-)
-from egregora.agents.model_limits import (
-    validate_prompt_fits as _validate_prompt_fits,
-)
 from egregora.agents.types import (
     AnnotationResult,
     PostMetadata,
+    PromptTooLargeError,
     ReadProfileResult,
     WritePostResult,
     WriteProfileResult,
@@ -215,12 +209,11 @@ def load_profiles_context(active_authors: list[str], output_sink: Any) -> str:
     return profiles_context
 
 
-def validate_prompt_fits(
+async def validate_prompt_fits(
     prompt: str,
     model_name: str,
     config: EgregoraConfig,
     window_label: str,
-<<<<<<< HEAD
     *,
     model_instance: Any | None = None,
 ) -> int:
@@ -258,35 +251,3 @@ async def count_tokens(prompt: str, model: Any | None = None) -> int:
 
     # Fallback to conservative estimation (4 chars per token)
     return len(prompt) // 4
-=======
-) -> None:
-    """Validate prompt fits within model context window limits."""
-    max_prompt_tokens = getattr(config.pipeline, "max_prompt_tokens", 100_000)
-    use_full_context_window = getattr(config.pipeline, "use_full_context_window", False)
-
-    fits, estimated_tokens, _effective_limit = _validate_prompt_fits(
-        prompt,
-        model_name,
-        max_prompt_tokens=max_prompt_tokens,
-        use_full_context_window=use_full_context_window,
-    )
-
-    if not fits:
-        model_limit = get_model_context_limit(model_name)
-        model_effective_limit = int(model_limit * 0.9)
-
-        if estimated_tokens > model_effective_limit:
-            logger.error(
-                "Prompt exceeds limit: %d > %d for %s (window: %s)",
-                estimated_tokens,
-                model_effective_limit,
-                model_name,
-                window_label,
-            )
-            raise PromptTooLargeError(
-                estimated_tokens=estimated_tokens,
-                effective_limit=model_effective_limit,
-                model_name=model_name,
-                window_id=window_label,
-            )
->>>>>>> origin/claude/merge-compatible-prs-8oM9f
