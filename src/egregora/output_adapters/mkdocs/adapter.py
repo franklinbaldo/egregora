@@ -28,7 +28,7 @@ from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import generate_fallback_avatar_url
-from egregora.markdown.frontmatter import parse_frontmatter, read_frontmatter_only
+import frontmatter
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
@@ -249,8 +249,8 @@ class MkDocsAdapter(BaseOutputSink):
                 raw_bytes = path.read_bytes()
                 metadata = {"filename": path.name}
                 return Document(content=raw_bytes, type=doc_type, metadata=metadata)
-            content = path.read_text(encoding="utf-8")
-            metadata, actual_content = parse_frontmatter(content)
+            post = frontmatter.load(str(path))
+            metadata, actual_content = post.metadata, post.content
         except OSError:
             logger.exception("Failed to read document at %s", path)
             return None
@@ -642,7 +642,12 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if parts[:2] == ("annotations",):
             return DocumentType.ANNOTATION
 
-        metadata = read_frontmatter_only(path)
+        try:
+            post = frontmatter.load(str(path))
+            metadata = post.metadata
+        except OSError:
+            metadata = {}
+
         categories = (metadata or {}).get("categories", [])
         if not isinstance(categories, list):
             categories = []
@@ -730,10 +735,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _document_from_path(self, path: Path, doc_type: DocumentType) -> Document | None:
         try:
-            raw = path.read_text(encoding="utf-8")
+            post = frontmatter.load(str(path))
+            metadata, body = post.metadata, post.content
         except OSError:
             return None
-        metadata, body = parse_frontmatter(raw)
         metadata = metadata or {}
         slug_value = metadata.get("slug")
         if isinstance(slug_value, str) and slug_value.strip():
@@ -853,7 +858,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             Dictionary of frontmatter metadata (empty if none found)
 
         """
-        return read_frontmatter_only(path)
+        try:
+            return frontmatter.load(str(path)).metadata
+        except OSError:
+            return {}
 
     # Document Writing Strategies ---------------------------------------------
 
@@ -1174,8 +1182,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 if not candidates:
                     continue
                 profile_path = max(candidates, key=lambda p: p.stat().st_mtime_ns)
-                content = profile_path.read_text(encoding="utf-8")
-                metadata, _ = parse_frontmatter(content)
+                post = frontmatter.load(str(profile_path))
+                metadata = post.metadata
                 author_uuid = author_dir.name
 
                 author_posts = [
@@ -1244,8 +1252,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         for media_path in url_files:
             try:
-                content = media_path.read_text(encoding="utf-8")
-                metadata, body = parse_frontmatter(content)
+                post = frontmatter.load(str(media_path))
+                metadata, body = post.metadata, post.content
 
                 # Extract summary from content
                 summary = ""
