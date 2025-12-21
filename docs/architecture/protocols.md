@@ -6,7 +6,7 @@ Egregora uses Protocol classes (PEP 544) to define interfaces without inheritanc
 
 - [URL Generation](#url-generation)
 - [Input Adapters](#input-adapters)
-- [Output Adapters](#output-adapters)
+- [Output Sink](#output-sink)
 - [RAG Backend](#rag-backend)
 - [Database Protocols](#database-protocols)
 
@@ -112,33 +112,38 @@ class MkDocsUrlConvention:
 
 ### InputAdapter
 
-**Module:** `egregora.data_primitives.protocols`
+**Module:** `egregora.input_adapters.base`
 
-Protocol for bringing data INTO the pipeline.
+Abstract Base Class (ABC) for bringing data INTO the pipeline.
 
 ```python
-@runtime_checkable
-class InputAdapter(Protocol):
-    """Adapter for reading external data sources and converting to IR."""
+class InputAdapter(ABC):
+    """Abstract base class for all source adapters."""
 
-    def read(self) -> Iterator[Table]:
-        """Read from source and yield Ibis tables conforming to IR_MESSAGE_SCHEMA.
-
-        Returns:
-            Iterator of Ibis tables with IR_MESSAGE_SCHEMA columns
-        """
+    @property
+    @abstractmethod
+    def source_name(self) -> str:
+        """Return the human-readable name of this source."""
         ...
 
     @property
-    def metadata(self) -> dict[str, Any]:
-        """Return metadata about the input source."""
+    @abstractmethod
+    def source_identifier(self) -> str:
+        """Return the unique identifier for this source."""
+        ...
+
+    @abstractmethod
+    def parse(self, input_path: Path, *, timezone: str | None = None, **kwargs: Any) -> Table:
+        """Parse the raw export and return an IR-compliant Ibis Table.
+
+        Returns:
+            Ibis Table conforming to IR_SCHEMA
+        """
         ...
 ```
 
 **Available Implementations:**
 - `WhatsAppAdapter` - Parse WhatsApp chat exports
-- `IperonTJROAdapter` - Brazilian judicial records API
-- `SelfInputAdapter` - Re-ingest existing posts
 
 **Key Responsibilities:**
 - Parse external format
@@ -146,51 +151,20 @@ class InputAdapter(Protocol):
 - Handle privacy/anonymization at source
 - Yield data as Ibis tables (not pandas)
 
-**Example:**
-```python
-class MyAdapter:
-    def __init__(self, source_path: Path):
-        self.source_path = source_path
-
-    def read(self) -> Iterator[Table]:
-        # Parse your format
-        data = parse_my_format(self.source_path)
-
-        # Convert to IR_MESSAGE_SCHEMA
-        table = ibis.memtable(data).select(
-            message_id=...,
-            conversation_id=...,
-            author_id=...,
-            content=...,
-            timestamp=...,
-            # ... all IR_MESSAGE_SCHEMA columns
-        )
-
-        yield table
-
-    @property
-    def metadata(self) -> dict[str, Any]:
-        return {
-            "source_type": "my-format",
-            "source_path": str(self.source_path),
-            "version": "1.0"
-        }
-```
-
 ---
 
-## Output Adapters
+## Output Sink
 
-### OutputAdapter
+### OutputSink
 
 **Module:** `egregora.data_primitives.protocols`
 
-Protocol for taking data OUT of the pipeline.
+Protocol for runtime data persistence and retrieval.
 
 ```python
 @runtime_checkable
-class OutputAdapter(Protocol):
-    """Adapter for persisting documents to external formats."""
+class OutputSink(Protocol):
+    """Runtime data plane for document persistence and retrieval."""
 
     def persist(self, document: Document) -> None:
         """Persist document to output format.
@@ -199,47 +173,22 @@ class OutputAdapter(Protocol):
         """
         ...
 
-    def documents(self) -> Iterator[Document]:
-        """Iterate over all documents in output format.
+    def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
+        """Iterate through available documents metadata efficiently."""
+        ...
 
-        Returns:
-            Iterator for memory efficiency (not list)
-        """
+    def documents(self) -> Iterator[Document]:
+        """Iterate over all documents in output format."""
         ...
 ```
 
 **Available Implementations:**
-- `MkDocsAdapter` - Generate MkDocs sites
-- `ParquetAdapter` - Export to Parquet format
+- `MkDocsAdapter` - Generate MkDocs sites (Implements `OutputSink` and `SiteScaffolder`)
 
 **Key Responsibilities:**
-- Convert `Document` to target format
+- Persist `Document` to target format
 - Idempotent writes (overwrite on repeat)
-- Lazy document iteration
-- Handle filesystem layout
-
-**Example:**
-```python
-class MyOutputAdapter:
-    def __init__(self, output_dir: Path):
-        self.output_dir = output_dir
-
-    def persist(self, document: Document) -> None:
-        # Calculate path
-        path = self.output_dir / f"{document.slug}.html"
-
-        # Convert Document to target format
-        html = render_to_html(document)
-
-        # Write (idempotent - overwrites)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(html)
-
-    def documents(self) -> Iterator[Document]:
-        # Lazy iteration (not list)
-        for path in self.output_dir.glob("*.html"):
-            yield parse_html_to_document(path)
-```
+- Efficient document listing via metadata
 
 ---
 
@@ -252,75 +201,24 @@ class MyOutputAdapter:
 Protocol for vector storage backends.
 
 ```python
-class RAGBackend(Protocol):
+class VectorStore(Protocol):  # formerly RAGBackend
     """Protocol for RAG vector storage backends."""
 
-    async def index_documents(
-        self,
-        documents: Sequence[Document],
-        *,
-        embedding_fn: Callable[[Sequence[str], str], Awaitable[list[list[float]]]]
-    ) -> int:
-        """Index documents for retrieval.
-
-        Args:
-            documents: Documents to index
-            embedding_fn: Async function to generate embeddings
-                         Signature: (texts, task_type) -> embeddings
-
-        Returns:
-            Number of chunks indexed
-        """
+    def add(self, documents: Sequence[Document]) -> int:
+        """Add documents to the store."""
         ...
 
-    async def search(
-        self,
-        request: RAGQueryRequest
-    ) -> RAGQueryResponse:
-        """Search indexed documents.
-
-        Args:
-            request: Search request with query text, top_k, filters
-
-        Returns:
-            Response with scored results
-        """
+    def query(self, request: RAGQueryRequest) -> RAGQueryResponse:
+        """Execute vector search in the knowledge base."""
         ...
 
-    async def delete_all(self) -> None:
-        """Delete all indexed documents."""
+    def delete(self, document_ids: list[str]) -> int:
+        """Delete documents from the store."""
         ...
 ```
 
 **Available Implementations:**
 - `LanceDBRAGBackend` - LanceDB vector storage (current)
-
-**Key Properties:**
-- **Fully async:** All methods are async
-- **Embedding injection:** Backend doesn't know about embedding models
-- **Chunking:** Backend handles chunking internally
-- **Task types:** Supports asymmetric embeddings (RETRIEVAL_DOCUMENT vs RETRIEVAL_QUERY)
-
-**Example Usage:**
-```python
-from egregora.rag import LanceDBRAGBackend, RAGQueryRequest, index_documents
-
-# Index documents
-backend = LanceDBRAGBackend(db_path=Path(".egregora/lancedb"))
-count = await index_documents([doc1, doc2, doc3])
-print(f"Indexed {count} chunks")
-
-# Search
-request = RAGQueryRequest(
-    text="how to use RAG",
-    top_k=5,
-    min_similarity=0.7
-)
-response = await backend.search(request)
-
-for hit in response.hits:
-    print(f"{hit.score:.2f}: {hit.text[:100]}")
-```
 
 ---
 
@@ -369,28 +267,8 @@ class TableStorage(Protocol):
 ### Implementation Guidelines
 
 1. **Pure functions when possible** - UrlConvention example
-2. **Idempotent operations** - OutputAdapter.persist()
+2. **Idempotent operations** - OutputSink.persist()
 3. **Lazy iteration** - Use `Iterator` not `list`
-4. **Async by default** - RAGBackend example
-
-### Testing Protocols
-
-```python
-# Test with mock implementation
-class MockOutputAdapter:
-    def __init__(self):
-        self.documents_dict = {}
-
-    def persist(self, document: Document) -> None:
-        self.documents_dict[document.id] = document
-
-    def documents(self) -> Iterator[Document]:
-        yield from self.documents_dict.values()
-
-# Verify protocol compliance
-from egregora.data_primitives.protocols import OutputAdapter
-assert isinstance(MockOutputAdapter(), OutputAdapter)
-```
 
 ---
 
@@ -399,4 +277,3 @@ assert isinstance(MockOutputAdapter(), OutputAdapter)
 - [CLAUDE.md](../CLAUDE.md) - Quick reference and key patterns
 - [Architecture Overview](../guide/architecture.md) - System architecture
 - [RAG Architecture](../api/knowledge/rag.md) - RAG implementation details
-- [Pipeline Design](../api/orchestration/pipeline.md) - Pipeline stages and transforms
