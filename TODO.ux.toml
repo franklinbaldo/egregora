@@ -71,7 +71,7 @@ assignee = "curator"
 [[tasks.medium_priority]]
 id = "breadcrumbs"
 title = "Add breadcrumbs to all pages"
-status = "pending"
+status = "review"
 category = "navigation"
 assignee = "forge"
 
