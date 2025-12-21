@@ -60,26 +60,6 @@ class BannerOutput(BaseModel):
         return self.document is not None
 
 
-def _get_extension_for_mime_type(mime_type: str) -> str:
-    """Map MIME type to file extension.
-
-    Args:
-        mime_type: MIME type string (e.g., "image/jpeg")
-
-    Returns:
-        File extension with leading dot (e.g., ".jpg")
-
-    """
-    mime_to_ext = {
-        "image/jpeg": ".jpg",
-        "image/png": ".png",
-        "image/webp": ".webp",
-        "image/gif": ".gif",
-        "image/svg+xml": ".svg",
-    }
-    return mime_to_ext.get(mime_type, ".jpg")  # Default to .jpg
-
-
 def _build_image_prompt(input_data: BannerInput) -> str:
     """Build the image generation prompt from post metadata."""
     return render_prompt(
@@ -108,13 +88,6 @@ def _generate_banner_image(
             return BannerOutput(error=error_message, error_code=result.error_code)
 
         # Create Document with binary content
-        # Add proper filename with extension based on mime_type
-        from egregora.utils.paths import slugify
-
-        extension = _get_extension_for_mime_type(result.mime_type or "image/jpeg")
-        slug = slugify(input_data.slug, max_len=60) if input_data.slug else "banner"
-        filename = f"{slug}{extension}"
-
         document = Document(
             content=result.image_bytes,
             type=DocumentType.MEDIA,
@@ -123,9 +96,7 @@ def _generate_banner_image(
                 "source": image_model,
                 "slug": input_data.slug,
                 "language": input_data.language,
-                "filename": filename,
             },
-            id=filename,  # Use filename as explicit ID for consistent path prediction
         )
 
         if result.debug_text:

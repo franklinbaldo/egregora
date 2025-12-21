@@ -13,8 +13,6 @@ from typing import Any, Protocol, runtime_checkable
 from pydantic_ai import Agent, RunContext
 
 from egregora.agents.types import BannerResult, SearchMediaResult, WriterDeps
-from egregora.data_primitives.document import Document, DocumentType
-from egregora.utils.paths import slugify
 
 logger = logging.getLogger(__name__)
 
@@ -89,31 +87,4 @@ class BackgroundBannerCapability:
                 run_id=self.run_id,
             )
             logger.info("Scheduled banner generation task: %s", task_id)
-
-            # Predict the banner path so the LLM can reference it before it's generated
-            # This must match the logic in BannerBatchProcessor._create_document()
-            slug = slugify(post_slug, max_len=60)
-            # Gemini typically returns JPEG, default assumption
-            extension = ".jpg"
-            filename = f"{slug}{extension}"
-
-            # Create placeholder document to generate the canonical URL
-            placeholder_doc = Document(
-                content="",
-                type=DocumentType.MEDIA,
-                metadata={"filename": filename},
-                id=filename,
-            )
-
-            # Use the output sink's URL convention for accurate path prediction
-            output_sink = ctx.deps.resources.output
-            if output_sink and output_sink.url_convention:
-                predicted_url = output_sink.url_convention.canonical_url(
-                    placeholder_doc, output_sink.url_context
-                )
-                predicted_path = predicted_url.lstrip("/")
-            else:
-                # Fallback: construct path manually (shouldn't happen in normal operation)
-                predicted_path = f"media/images/{filename}"
-
-            return BannerResult(status="scheduled", path=predicted_path)
+            return BannerResult(status="scheduled", path=None)

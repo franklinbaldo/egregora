@@ -66,7 +66,7 @@ from egregora.transformations import (
     split_window_into_n_parts,
 )
 from egregora.utils.cache import PipelineCache
-from egregora.utils.env import dedupe_api_keys, get_google_api_keys, validate_gemini_api_key
+from egregora.utils.env import get_google_api_keys, validate_gemini_api_key
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.rate_limit import init_rate_limiter
 
@@ -331,9 +331,6 @@ def run_cli_flow(
 
     if parsed_options.debug:
         logging.getLogger().setLevel(logging.DEBUG)
-
-    # Dedupe API keys at startup to prevent SDK warning about both being set
-    dedupe_api_keys()
 
     from_date_obj, to_date_obj = None, None
     if parsed_options.from_date:
