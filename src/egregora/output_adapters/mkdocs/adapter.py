@@ -775,17 +775,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 # PROFILE posts (Egregora writing ABOUT author) go to author's folder
                 subject_uuid = document.metadata.get("subject")
                 if not subject_uuid:
-                    # Fallback for backwards compatibility
-                    logger.warning(
-                        "PROFILE doc missing 'subject' metadata, falling back to posts/. "
-                        "Document ID: %s, URL: %s, Metadata: %s. "
-                        "This indicates a bug in profile generation - all PROFILE documents must include 'subject'.",
-                        document.document_id,
-                        url_path,
-                        document.metadata,
+                    raise ValueError(
+                        f"PROFILE document missing required 'subject' metadata. "
+                        f"Document ID: {document.document_id}, URL: {url_path}. "
+                        f"All PROFILE documents must include 'subject' to identify the author being profiled."
                     )
-                    slug = url_path.split("/")[-1]
-                    return self.posts_dir / f"{slug}.md"
 
                 # Successfully routing to author-specific directory
                 profile_dir = self.profiles_dir / str(subject_uuid)
