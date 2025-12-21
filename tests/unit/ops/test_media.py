@@ -1,5 +1,12 @@
 from pathlib import Path
-from egregora.ops.media import detect_media_type, get_media_subfolder, find_media_references, ATTACHMENT_MARKERS
+
+from egregora.ops.media import (
+    ATTACHMENT_MARKERS,
+    detect_media_type,
+    find_media_references,
+    get_media_subfolder,
+)
+
 
 def test_detect_media_type():
     """Should correctly identify media types from extensions."""
