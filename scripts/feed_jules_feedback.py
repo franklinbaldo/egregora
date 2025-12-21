@@ -10,6 +10,7 @@ import requests
 import json
 import re
 from pathlib import Path
+from urllib.parse import urlparse
 
 # Add .claude/skills/jules-api to sys.path to import JulesClient
 jules_api_path = Path(__file__).parent.parent / ".claude" / "skills" / "jules-api"
@@ -36,12 +37,21 @@ def get_repo_info():
     import subprocess
     try:
         url = subprocess.check_output(["git", "config", "--get", "remote.origin.url"], text=True).strip()
-        # Parse github.com/owner/repo or git@github.com:owner/repo
-        if "github.com" in url:
-            path = url.split("github.com")[-1][1:] # Remove leading / or :
+        # Support HTTPS/HTTP URLs like https://github.com/owner/repo(.git)
+        parsed = urlparse(url)
+        if parsed.scheme in ("http", "https") and parsed.hostname == "github.com":
+            path = parsed.path.lstrip("/")
             if path.endswith(".git"):
                 path = path[:-4]
-            owner, repo = path.split("/")
+            owner, repo = path.split("/", 1)
+            return owner, repo
+        # Support SSH URLs like git@github.com:owner/repo(.git)
+        if "@github.com:" in url:
+            _, path_part = url.split("@github.com:", 1)
+            path = path_part.lstrip("/")
+            if path.endswith(".git"):
+                path = path[:-4]
+            owner, repo = path.split("/", 1)
             return owner, repo
     except Exception:
         pass
