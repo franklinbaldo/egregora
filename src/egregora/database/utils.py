@@ -46,9 +46,7 @@ class SimpleDuckDBStorage:
         return self._conn.execute(sql, params or []).fetchone()
 
     def get_table_columns(self, table_name: str) -> set[str]:
-        # Sentinel: Fix SQL injection vulnerability by quoting the table name
-        quoted_name = quote_identifier(table_name)
-        info = self._conn.execute(f"PRAGMA table_info({quoted_name})").fetchall()
+        info = self._conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
         return {row[1] for row in info}
 
 

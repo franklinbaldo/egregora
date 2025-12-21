@@ -44,33 +44,8 @@ jobs:
           extras: "--extra docs"
 
       - name: Build Documentation
-        env:
-          BUILD_COMMIT: ${{ github.sha }}
-          BUILD_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          # Set human-readable build timestamp
-          export BUILD_TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
-          export BUILD_COMMIT="${BUILD_COMMIT:0:7}"  # Short SHA
-          echo "Building docs with timestamp: $BUILD_TIMESTAMP"
-          echo "Commit: $BUILD_COMMIT"
-          echo "Workflow: $BUILD_WORKFLOW_URL"
-          uv run mkdocs build
+        run: uv run mkdocs build
 
-      - name: Generate Demo Site (offline)
-        run: uv run python scripts/generate_demo_site.py --output-dir .demo-site
-
-      - name: Build Demo Site
-        env:
-          BUILD_COMMIT: ${{ github.sha }}
-          BUILD_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          # Set human-readable build timestamp
-          export BUILD_TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
-          export BUILD_COMMIT="${BUILD_COMMIT:0:7}"  # Short SHA
-          echo "Building demo site with timestamp: $BUILD_TIMESTAMP"
-          echo "Commit: $BUILD_COMMIT"
-          echo "Workflow: $BUILD_WORKFLOW_URL"
-          uv run mkdocs build -f .demo-site/.egregora/mkdocs.yml -d "$(pwd)/site/demo"
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -87,8 +62,7 @@ jobs:
           cp /tmp/bundles/*.bundle.md site/bundles/
 
       - name: Deploy to GitHub Pages
-        # Deploy on main branch push or manual workflow dispatch
-        if: github.ref == 'refs/heads/main'
+        if: github.repository == 'franklinbaldo/egregora'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

@@ -193,6 +193,9 @@ class MkDocsSiteScaffolder:
         for subdir in ["images", "videos", "audio", "documents", "urls"]:
             media_subdir = media_dir / subdir
             media_subdir.mkdir(exist_ok=True)
+            (media_subdir / ".gitkeep").touch()
+
+        (journal_dir / ".gitkeep").touch()
 
     def _create_template_files(
         self, site_paths: MkDocsPaths, env: Environment, context: dict[str, Any]

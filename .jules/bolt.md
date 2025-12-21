@@ -5,7 +5,3 @@
 ## 2025-05-21 - [Efficient Frontmatter Parsing]
 **Learning:** Reading entire files just to extract YAML frontmatter is a major performance bottleneck for large markdown files. Streaming the file and stopping after the second `---` delimiter avoids loading the full content into memory.
 **Action:** Use `read_frontmatter_only` instead of `path.read_text()` when only metadata is needed from markdown files.
-
-## 2025-10-27 - [Regex Compilation in Loops]
-**Learning:** Dynamically constructing and compiling regexes inside a loop (even with small N) prevents Python's internal cache from being effective if the pattern string changes (e.g., iterating over a list of suffixes). Combining these into a single pre-compiled regex with `|` (OR) logic can yield massive speedups (observed ~8x).
-**Action:** Always check loops that iterate over keywords to construct regexes. Pre-compile `|` joined patterns.

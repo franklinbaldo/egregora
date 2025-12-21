@@ -1,36 +1,4 @@
-"""Author profiling tools for LLM to read and update author profiles.
-
-## Two Profile Systems Overview
-
-Egregora has two distinct but complementary profile systems:
-
-### 1. Author Self-Service Profiles (this module)
-- Location: `output/profiles/{author_uuid}.md`
-- Purpose: Store author metadata and preferences (aliases, bios, avatars)
-- Created by: User commands (/egregora set alias, set bio, etc.)
-- Format: Markdown files with YAML frontmatter
-- Key function: `write_profile()`
-- **IMPORTANT**: These files include `subject` metadata in their frontmatter
-
-### 2. Egregora-Generated Profile Posts (agents/profile/generator.py)
-- Location: `docs/posts/profiles/{author_uuid}/{slug}.md` (via output adapters)
-- Purpose: LLM-generated analytical content ABOUT authors
-- Created by: Profile generation agent analyzing message history
-- Format: Document objects that go through the output adapter pipeline
-- Key function: `generate_profile_posts()`
-- **CRITICAL**: These Documents MUST include `subject: author_uuid` in metadata
-
-## Integration
-- Both systems use `subject` metadata to identify the profile subject
-- Self-service profiles are read by the LLM when generating profile posts
-- Generated profile posts route to author-specific directories via `subject` metadata
-- The `.authors.yml` file is synced from self-service profiles for MkDocs integration
-
-## Routing Requirement
-ALL profile Documents (type=DocumentType.PROFILE) MUST include `subject` metadata
-to ensure they route to `/posts/profiles/{author_uuid}/` instead of `/posts/`.
-This is validated by `validate_profile_document()` in orchestration/persistence.py.
-"""
+"""Author profiling tools for LLM to read and update author profiles."""
 
 import hashlib
 import logging

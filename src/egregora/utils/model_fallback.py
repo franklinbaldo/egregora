@@ -7,7 +7,10 @@ import os
 import time
 
 import httpx
+from pydantic_ai.exceptions import ModelAPIError, UsageLimitExceeded
 from pydantic_ai.models import Model
+from pydantic_ai.models.fallback import FallbackModel
+from pydantic_core import ValidationError
 
 from egregora.models import GoogleBatchModel
 from egregora.utils.env import get_google_api_key, get_google_api_keys
@@ -21,12 +24,15 @@ CACHE_TTL = 3600  # Cache for 1 hour
 
 # Priority order for Google models
 GOOGLE_FALLBACK_MODELS = [
-    "google-gla:gemini-2.5-flash",
-    "google-gla:gemini-3-flash-preview",
-    "google-gla:gemini-2.5-pro",
-    "google-gla:gemini-2.0-flash",
-    "google-gla:gemini-2.0-flash-exp",
+    "gemini-flash-latest",
+    "gemini-2.0-flash-exp",
+    "gemini-pro-latest",
 ]
+
+
+def sanitize_model_name(model_name: str) -> str:
+    """Sanitize model name for Google API by stripping internal prefixes."""
+    return model_name.replace("google-gla:", "").replace("google-vertex:", "").replace("pydantic_ai:", "")
 
 
 def get_openrouter_free_models(modality: str = "text") -> list[str]:
@@ -172,10 +178,11 @@ def create_fallback_model(
         if isinstance(model_def, Model):
             model = model_def
         elif isinstance(model_def, str):
-            if model_def.startswith("google-gla:"):
+            if model_def.startswith(("google-gla:", "gemini-")):
                 provider = GoogleProvider(api_key=api_key or get_google_api_key())
+                model_name = model_def.removeprefix("google-gla:")
                 model = GoogleModel(
-                    model_def.removeprefix("google-gla:"),
+                    model_name,
                     provider=provider,
                 )
             elif model_def.startswith("openrouter:"):
@@ -214,6 +221,10 @@ def create_fallback_model(
         # Fallback to single getter which raises if missing
         api_keys = [get_google_api_key()]
 
+    logger.info(
+        "Creating fallback model with %d model(s) and %d API key(s)", len(fallback_models) + 1, len(api_keys)
+    )
+
     from egregora.models.rate_limited import RateLimitedModel
 
     # Helper to create model variations for all keys
@@ -221,7 +232,7 @@ def create_fallback_model(
         variations: list[Model] = []
 
         # If it's a string definition for a Google model, create one variation per key
-        if isinstance(model_def, str) and model_def.startswith("google-gla:"):
+        if isinstance(model_def, str) and (model_def.startswith(("google-gla:", "gemini-"))):
             for key in api_keys:
                 if use_google_batch:
                     batch_model = GoogleBatchModel(api_key=key, model_name=model_def)
@@ -249,8 +260,8 @@ def create_fallback_model(
         # Should not happen given logic above
         raise ValueError("Failed to create primary model")
 
-    primary_variations[0]
-    primary_variations[1:]
+    primary_instance = primary_variations[0]
+    remaining_primaries = primary_variations[1:]
 
     # 2. Prepare Fallback Variations
     # For each fallback model, we try all keys
@@ -258,11 +269,11 @@ def create_fallback_model(
     for m in fallback_models:
         fallback_variations.extend(_create_variations(m))
 
-    # Combine: Primary + Rest of primaries + All fallbacks
-    all_models = primary_variations + fallback_variations
+    # Combine: Rest of primaries + All fallbacks
+    all_fallbacks = remaining_primaries + fallback_variations
 
-    # Use our custom RotatingFallbackModel instead of pydantic-ai's FallbackModel
-    # This rotates immediately on 429 errors rather than waiting between agent runs
-    from egregora.models.rotating_fallback import RotatingFallbackModel
-
-    return RotatingFallbackModel(all_models)
+    return FallbackModel(
+        primary_instance,
+        *all_fallbacks,
+        fallback_on=(ModelAPIError, UsageLimitExceeded, ValidationError),
+    )

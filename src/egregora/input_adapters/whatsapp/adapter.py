@@ -105,7 +105,7 @@ class WhatsAppAdapter(InputAdapter):
             config=self._config,
         )
 
-        logger.debug("Parsed WhatsApp export with %s messages", messages_table.count().execute())
+        logger.debug("Parsed WhatsApp export")
         return messages_table
 
     def deliver_media(self, media_reference: str, **kwargs: Unpack[DeliverMediaKwargs]) -> Document | None:

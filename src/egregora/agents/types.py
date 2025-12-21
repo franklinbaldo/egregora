@@ -12,6 +12,15 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
+if TYPE_CHECKING:
+    from datetime import datetime
+
+    from ibis.expr.types import Table
+
+    from egregora.config.settings import EgregoraConfig
+    from egregora.data_primitives.protocols import OutputSink
+    from egregora.orchestration.persistence import PipelineCache
+
 from egregora.agents.banner.agent import generate_banner
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
@@ -29,45 +38,10 @@ if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig, RAGSettings
     from egregora.data_primitives.protocols import OutputSink
     from egregora.database.task_store import TaskStore
-    from egregora.orchestration.cache import PipelineCache
     from egregora.output_adapters import OutputSinkRegistry
     from egregora.utils.metrics import UsageTracker
 
 logger = logging.getLogger(__name__)
-
-
-class PromptTooLargeError(Exception):
-    """Exception raised when a prompt exceeds the model's context window.
-
-    Attributes:
-        token_count: The estimated number of tokens in the prompt.
-        limit: The context window limit that was exceeded.
-        window_label: A human-readable label for the processing window.
-
-    """
-
-    def __init__(self, token_count: int, limit: int, window_label: str = "unknown") -> None:
-        self.token_count = token_count
-        self.limit = limit
-        self.window_label = window_label
-        self.message = (
-            f"Prompt for {window_label} contains approx {token_count:,} tokens, "
-            f"exceeding the {limit:,} token limit."
-        )
-        super().__init__(self.message)
-
-
-@dataclass(frozen=True)
-class WindowProcessingParams:
-    """Parameters for processing a specific time window."""
-
-    window_start: datetime
-    window_end: datetime
-    window_label: str
-    config: EgregoraConfig
-    resources: WriterResources
-    cache: PipelineCache
-    signature: str
 
 
 class PostMetadata(BaseModel):
@@ -83,10 +57,90 @@ class PostMetadata(BaseModel):
 
 
 class WriterAgentReturn(BaseModel):
-    """Final assistant response when the agent finishes."""
+    """Result model for the writer agent (Dynamic Result Mapping)."""
 
-    summary: str | None = None
-    notes: str | None = None
+    journal: list[str] = Field(default_factory=list)
+    reasoning: str | None = None
+
+
+@dataclass
+class JournalEntry:
+    """Represents a single entry in the intercalated journal log."""
+
+    entry_type: str  # "thinking", "journal", "tool_call", "tool_return"
+    content: str
+    timestamp: datetime | None = None
+    tool_name: str | None = None
+
+
+@dataclass
+class JournalEntryParams:
+    """Parameters for saving a journal entry."""
+
+    intercalated_log: list[JournalEntry]
+    window_label: str
+    output_format: OutputSink
+    posts_published: int
+    profiles_updated: int
+    window_start: datetime
+    window_end: datetime
+    total_tokens: int = 0
+
+
+@dataclass
+class WriterContextParams:
+    """Parameters for building writer context."""
+
+    table: Table
+    resources: WriterResources
+    cache: Any
+    config: EgregoraConfig
+    window_label: str
+    adapter_content_summary: str
+    adapter_generation_instructions: str
+
+
+@dataclass
+class WriterDepsParams:
+    """Parameters for creating WriterDeps."""
+
+    window_start: datetime
+    window_end: datetime
+    resources: WriterResources
+    model_name: str
+    table: Table | None = None
+    config: EgregoraConfig | None = None
+    conversation_xml: str = ""
+    active_authors: list[str] | None = None
+    adapter_content_summary: str = ""
+    adapter_generation_instructions: str = ""
+
+
+@dataclass
+class WriterFinalizationParams:
+    """Parameters for finalizing writer results."""
+
+    saved_posts: list[str]
+    saved_profiles: list[str]
+    resources: WriterResources
+    deps: WriterDeps
+    cache: Any
+    signature: str
+
+
+@dataclass
+class WindowProcessingParams:
+    """Parameters for processing a window of messages."""
+
+    table: Table
+    window_start: datetime
+    window_end: datetime
+    resources: WriterResources
+    config: EgregoraConfig
+    cache: PipelineCache
+    adapter_content_summary: str = ""
+    adapter_generation_instructions: str = ""
+    run_id: str | None = None
 
 
 # ==============================================================================
@@ -130,6 +184,15 @@ class SearchMediaResult(BaseModel):
     """Result from searching media."""
 
     results: list[MediaItem]
+
+
+class PromptTooLargeError(Exception):
+    """Exception raised when a prompt exceeds model context limits."""
+
+    def __init__(self, limit: int, actual: int) -> None:
+        self.limit = limit
+        self.actual = actual
+        super().__init__(f"Prompt too large: {actual} tokens (limit: {limit})")
 
 
 class AnnotationResult(BaseModel):

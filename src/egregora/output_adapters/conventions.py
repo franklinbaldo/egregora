@@ -55,7 +55,6 @@ class StandardUrlConvention(UrlConvention):
         handlers = {
             DocumentType.POST: self._format_post,
             DocumentType.PROFILE: self._format_profile,
-            DocumentType.ANNOUNCEMENT: self._format_announcement,
             DocumentType.JOURNAL: self._format_journal,
             DocumentType.MEDIA: self._format_media,
             DocumentType.ENRICHMENT_URL: self._format_url_enrichment,
@@ -84,32 +83,12 @@ class StandardUrlConvention(UrlConvention):
             else self._join(ctx, self.routes.posts_prefix, slug)
         )
 
-    def _format_announcement(self, ctx: UrlContext, doc: Document) -> str:
-        """Format URL for ANNOUNCEMENT documents (user command events).
-
-        ANNOUNCEMENT documents with 'subject' metadata route to the author's profile feed:
-        /profiles/{subject_uuid}/{slug}/
-
-        This creates a unified feed showing both:
-        - PROFILE posts (Egregora's analyses)
-        - ANNOUNCEMENT posts (user actions/commands)
-        """
-        subject_uuid = doc.metadata.get("subject") or doc.metadata.get("actor")
-        if not subject_uuid:
-            # Fallback: route to announcements directory if no subject
-            slug = doc.metadata.get("slug", doc.document_id[:8])
-            return self._join(ctx, self.routes.posts_prefix, "announcements", slugify(slug))
-
-        # Route to author's profile feed
-        slug_value = doc.metadata.get("slug") or doc.document_id[:8]
-        return self._join(ctx, self.routes.profiles_prefix, str(subject_uuid), slugify(str(slug_value)))
-
     def _format_journal(self, ctx: UrlContext, doc: Document) -> str:
         label = doc.metadata.get("window_label") or doc.metadata.get("slug")
         return (
             self._join(ctx, self.routes.journal_prefix, slugify(label))
             if label
-            else self._join(ctx, self.routes.journal_prefix)
+            else self._join(ctx, self.routes.posts_prefix)
         )
 
     def _format_media(self, ctx: UrlContext, doc: Document) -> str:
@@ -118,21 +97,9 @@ class StandardUrlConvention(UrlConvention):
 
         from egregora.ops.media import get_media_subfolder
 
-        # Prefer semantic slug, then filename, then document_id
-        slug_base = doc.metadata.get("slug")
         fname = doc.metadata.get("filename", doc.document_id)
-
-        # Use the slug as the name if we have it, otherwise fallback to filename/ID
-        name_segment = slug_base or fname
-
-        # Ensure we have an extension if possible
         ext = f".{fname.rsplit('.', 1)[-1]}" if "." in fname else ""
-        if not name_segment.endswith(ext) and ext:
-            name_segment = f"{name_segment}{ext}"
-
-        return self._join(
-            ctx, self.routes.media_prefix, get_media_subfolder(ext), name_segment, trailing_slash=False
-        )
+        return self._join(ctx, "media", get_media_subfolder(ext), fname, trailing_slash=False)
 
     def _format_enrichment(self, ctx: UrlContext, doc: Document, subfolder: str | None = None) -> str:
         """Generic handler for all media enrichment types."""
@@ -144,8 +111,6 @@ class StandardUrlConvention(UrlConvention):
             prefixes = [
                 f"{(ctx.site_prefix or '').strip('/')}/{self.routes.media_prefix.strip('/')}",
                 self.routes.media_prefix.strip("/"),
-                "media",
-                "posts/media",
             ]
             for p in prefixes:
                 if path.startswith(p + "/"):

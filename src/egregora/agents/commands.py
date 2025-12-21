@@ -177,7 +177,6 @@ These interests help shape the topics and themes in our discussions.
     slug = f"{date}-{event_type}-{author_uuid[:8]}"
 
     # Create ANNOUNCEMENT document
-    # Include 'subject' metadata to route to author's profile feed
     return Document(
         content=content,
         type=DocumentType.ANNOUNCEMENT,
@@ -185,7 +184,6 @@ These interests help shape the topics and themes in our discussions.
             "title": title,
             "slug": slug,
             "authors": [{"uuid": EGREGORA_UUID, "name": EGREGORA_NAME}],
-            "subject": author_uuid,  # Routes to /profiles/{author_uuid}/ for feed-style layout
             "event_type": event_type,
             "actor": author_uuid,
             "date": date,

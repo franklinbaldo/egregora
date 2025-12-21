@@ -1,13 +1,23 @@
 ## 2025-06-15 - Curator's Journal: Initializing the Vision
 
-## 2024-07-25 - Initial Evaluation & Blockers
+**Observation:** This is my first run as Curator. I've been tasked with establishing and evolving the UX vision for Egregora-generated blogs. The initial documentation (`docs/ux-vision.md`, `TODO.ux.toml`) provides a strong, structured starting point.
 
-**Observation:** The project's tooling for generating a demo site is currently broken. The `egregora demo` command does not exist, and the documented `egregora write` command fails consistently due to API rate-limiting and configuration issues. I was unable to generate a live, content-rich site for a full interactive UX evaluation.
+**Why It Matters:** A clear journal is essential for tracking my autonomous decisions, learnings, and the reasoning behind them. This ensures my work is transparent and builds a long-term, coherent vision.
 
-**Why It Matters:** A reliable demo generation process is critical for effective UX curation. Without it, I am forced to rely on static analysis of templates and minimal generated files, which provides an incomplete picture. This significantly slows down the feedback loop and makes it harder to assess the end-to-end user experience.
+**First Steps & Discoveries:**
+1.  **Template Discovery:** Successfully located the MkDocs templates at `src/egregora/rendering/templates/site/`. This was the critical first step. The presence of `mkdocs.yml.jinja` and theme `overrides/` confirms this is the correct location. I will document this in the main vision file.
+2.  **Initial Documentation Review:** The vision and TODO files are well-structured. The `TODO.ux.toml` is particularly detailed, which gives me a clear set of initial evaluation criteria to audit against. The task `find-templates` is already complete.
+3.  **Next Actions:** My immediate plan is to generate the demo site, perform a baseline Lighthouse audit as per the `baseline-lighthouse` task, and then create my first set of new, actionable tasks based on that initial, data-driven inspection.
 
-**Decision & Workaround:** I pivoted from a live review to a static analysis. I initialized a site, manually created a missing `overrides` directory, and built a minimal version with no generated content. This allowed me to inspect the site's "chrome" (layout, navigation, basic styling) and identify foundational issues like the use of a generic default theme. While not ideal, this workaround unblocked my ability to provide initial, high-impact feedback.
+## 2025-06-16 - UX Inspection: Critical Failures in Generation
 
-**Recommendation:** The highest priority for the Forge persona should be to fix the demo generation pipeline. A stable `egregora demo` command that works reliably out-of-the-box is a prerequisite for efficient UX development. My initial tasks focus on foundational brand and readability improvements that can be implemented and verified even with a minimal site, but future, more nuanced evaluations will depend on a working content pipeline.
+**Observation:** The initial demo generation process is fundamentally broken, preventing any meaningful UX/UI evaluation. The out-of-the-box experience is completely non-functional.
 
-**Insight:** The dependency on external APIs for the core content generation loop is a significant point of failure. The system should be resilient to these failures, perhaps by having a "fallback" mode that generates a site with placeholder content for UX review, rather than crashing the entire process.
+**Why It Matters:** A user's first impression is critical. If the tool fails to produce a working, populated blog from its own sample data, it immediately loses all credibility and creates a frustrating, negative experience. It's the most severe UX failure possible: the product does not do what it claims to do.
+
+**Key Issues Discovered:**
+1.  **Empty Blog Generation:** The `egregora write` command completes without error but generates **zero posts**. The resulting blog is an empty shell. This is a complete failure of the core value proposition.
+2.  **Broken Scaffolding:** The `egregora init` command produces a broken configuration. The `mkdocs serve` command fails due to a missing `overrides` directory and multiple undeclared plugin dependencies (`mkdocs-macros-plugin`, `mkdocs-glightbox`, etc.). This requires the user to manually debug the scaffolding process.
+3.  **Incorrect Homepage:** The default homepage is technical documentation for Egregora, not the user's generated blog. This is a confusing default that is not aligned with the user's primary goal of viewing their own content.
+
+**Recommendation:** I have created three high-priority tasks in `TODO.ux.toml` to address these blocking issues. All other UX improvements are secondary until a user can successfully generate a populated, working blog on their first try. The immediate focus must be on fixing this broken core experience.

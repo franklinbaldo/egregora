@@ -484,12 +484,12 @@ class DuckDBStorageManager:
         """
         cache_key = table_name.lower()
         if refresh or cache_key not in self._table_info_cache:
-            # Sentinel: Fix SQL injection vulnerability by properly quoting the identifier
-            quoted_name = quote_identifier(table_name)
+            # Validate identifier (raises ValueError on invalid characters)
+            quote_identifier(table_name)
 
             try:
                 rows = self._conn.execute(
-                    f"PRAGMA table_info({quoted_name})",
+                    f"PRAGMA table_info('{table_name}')",
                 ).fetchall()
             except duckdb.Error:
                 rows: list[tuple[str, ...]] = []

@@ -5,7 +5,7 @@
 
 ## Summary
 
-Evaluated and merged compatible PRs with banner implementation fixes (PR #1372). Successfully merged PR #1362 (scheduler replacement and cleanup). Profile PR #1256 was skipped due to architectural conflicts.
+Evaluated available PRs for compatibility with banner implementation (PR #1372 fixes). Only one other active PR found, which was **incompatible** due to conflicting architectural changes.
 
 ## PRs Evaluated
 
@@ -23,38 +23,11 @@ Evaluated and merged compatible PRs with banner implementation fixes (PR #1372).
 - Documentation in BANNER-SUPPORT.md
 
 **Commits included**:
-1. `9654670` - docs: update BANNER-SUPPORT.md after site-fresh removal
-2. `059ee31` - chore: reconcile PR #1372 with PR #1362
-3. `1140697` - docs: add PR merge evaluation for session 8oM9f
-4. `f48d9f1` - feat: add banner styling and documentation
-5. `87f9826` - chore: reconcile PR #1372 with fixes
-6. `582c335` - fix: resolve PR #1372 banner path prediction issues
-7. `4d5fa96` - fix: resolve CI failures on main branch
-8. `8e03a7a` - feat: make banner generator functional by predicting async banner path
-
-### ✅ PR #1362 - Scheduler Security & Cleanup (MERGED)
-
-**Branch**: `pr-1362`
-**Status**: ✅ **Successfully merged and reconciled**
-
-**Purpose**: Replace external scheduler with local script for security + major cleanup
-
-**Changes**:
-- Replaced `jules-scheduler` with local `scripts/run_scheduler.py`
-- Removed `site-fresh/` and `docs/demo/` demo directories
-- Removed Jules workflow files (.jules/curator.md, forge.md, refactor.md, etc.)
-- Major writer agent refactoring (consolidated into single writer.py)
-- Added WORKFLOW_SECURITY_ANALYSIS.md
-- Cleaned up ~10,000 lines of outdated code
-
-**Files changed**: 206 files, +2,708 insertions, -10,859 deletions
-
-**Conflict resolution**:
-- Minor conflict: site-fresh/.egregora/overrides/stylesheets/extra.css
-- Resolution: Accepted deletion (demo directory removed)
-- Banner styling moved to documentation as example code
-
-**Test results**: All 17 banner tests passing ✅
+1. `f48d9f1` - feat: add banner styling and documentation
+2. `87f9826` - chore: reconcile PR #1372 with fixes
+3. `582c335` - fix: resolve PR #1372 banner path prediction issues
+4. `4d5fa96` - fix: resolve CI failures on main branch
+5. `8e03a7a` - feat: make banner generator functional by predicting async banner path
 
 ### ❌ Issue #1256 - Profile History (NOT COMPATIBLE)
 
@@ -109,16 +82,9 @@ The two PRs have diverged in their architectural approach to URL conventions. Pr
 
 ## Next Steps
 
-1. **Immediate**: Merge `claude/merge-compatible-prs-8oM9f` into main
-2. **Follow-up**: Create reconciliation branch for profile features (Issue #1256)
+1. **Immediate**: Merge `claude/merge-compatible-prs-8oM9f` (banner work)
+2. **Follow-up**: Create reconciliation branch for profile features
 3. **Future**: Align URL convention naming across the codebase
-
-## Branch Summary
-
-**Branch**: `claude/merge-compatible-prs-8oM9f`
-**Based on**: Latest main + PR #1372 + PR #1362
-**Total commits**: 8 (from initial divergence point)
-**Test status**: ✅ All 17 banner tests passing
 
 ## Files in This Branch
 
@@ -154,13 +120,7 @@ The two PRs have diverged in their architectural approach to URL conventions. Pr
 
 ## Conclusion
 
-Created merge branch with compatible PRs:
-- ✅ PR #1372 (Banner path prediction) - Fully functional
-- ✅ PR #1362 (Scheduler security & cleanup) - Successfully merged
-- ❌ Issue #1256 (Profile features) - Skipped due to conflicts
-
-The banner implementation is production-ready with comprehensive tests and documentation.
-The codebase is significantly cleaner with ~10k lines of outdated code removed.
+Created merge branch with only compatible changes (banner work). Profile PR excluded due to architectural conflicts requiring manual reconciliation.
 
 **Branch**: `claude/merge-compatible-prs-8oM9f`
 **Status**: Ready for review and merge

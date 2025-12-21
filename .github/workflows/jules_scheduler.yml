@@ -4,30 +4,31 @@ on:
   workflow_dispatch:
     inputs:
       prompt_id:
-        description: "Run only a specific prompt id (e.g. curator)"
+        description: "Run only a specific prompt id (e.g. artisan)"
         required: false
         type: string
       run_all:
         description: "Ignore schedules and run all enabled prompts"
         required: false
         type: boolean
-        default: false
+        default: true
       dry_run:
         description: "Do not call Jules API (prints what would run)"
         required: false
         type: boolean
         default: false
   schedule:
-    - cron: '0 * * * *'
+    - cron: '0 10 * * 2'
+    - cron: '0 8 * * *'
+    - cron: '0 9 * * 1'
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
 
 jobs:
   tick:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v5
@@ -35,11 +36,10 @@ jobs:
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYTHONPATH: .claude/skills/jules-api
         run: |
           args=(tick)
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
             if [ "${{ inputs.run_all }}" = "true" ]; then
               args+=(--all)
             fi
@@ -51,5 +51,5 @@ jobs:
             fi
           fi
 
-          # Using local script that uses existing JulesClient skill
-          uv run --with requests --with python-frontmatter --with jinja2 python scripts/run_scheduler.py "${args[@]}"
+          # Pinning to specific commit SHA 4566f12 (2025-12-17) to prevent supply chain attacks
+          uvx --from git+https://github.com/franklinbaldo/jules_scheduler@4566f12c88aabee985865b94bbdbc614d87c82fb jules-scheduler "${args[@]}"

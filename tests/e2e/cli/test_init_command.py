@@ -65,13 +65,13 @@ def test_init_directory_structure(tmp_path: Path):
         full_path = tmp_path / dir_path
         assert full_path.is_dir(), f"Expected directory does not exist: {dir_path}"
 
-    # Verify .gitkeep files are NOT created (cleanup)
+    # Verify .gitkeep files in media subdirectories
     for subdir in ["images", "videos", "audio", "documents", "urls"]:
         gitkeep = tmp_path / "docs" / "posts" / "media" / subdir / ".gitkeep"
-        assert not gitkeep.exists(), f"Unwanted .gitkeep found in media/{subdir}"
+        assert gitkeep.exists(), f".gitkeep missing in media/{subdir}"
 
     journal_gitkeep = tmp_path / "docs" / "journal" / ".gitkeep"
-    assert not journal_gitkeep.exists(), "Unwanted .gitkeep found in journal directory"
+    assert journal_gitkeep.exists(), ".gitkeep missing in journal directory"
 
 
 def test_egregora_directory_created(tmp_path: Path):

@@ -14,9 +14,9 @@ import re
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
 
-import frontmatter
 import yaml
 
+from egregora.markdown.frontmatter import read_frontmatter_only
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.paths import safe_path_join, slugify
 
@@ -215,9 +215,9 @@ def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> in
 
     for md_file in posts_dir.rglob("*.md"):
         try:
-            post = frontmatter.load(str(md_file))
-            if "authors" in post.metadata:
-                author_list = post.metadata["authors"]
+            frontmatter = read_frontmatter_only(md_file)
+            if frontmatter and "authors" in frontmatter:
+                author_list = frontmatter["authors"]
                 if isinstance(author_list, list):
                     all_author_ids.update(str(a) for a in author_list if a)
                 elif author_list:

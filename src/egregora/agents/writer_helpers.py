@@ -9,9 +9,6 @@ from typing import TYPE_CHECKING, Any
 from pydantic_ai import Agent, RunContext
 
 from egregora.agents.capabilities import AgentCapability
-
-# model_limits removed in favor of Pydantic-AI native limits
-# and shared models in types.py
 from egregora.agents.types import (
     AnnotationResult,
     PostMetadata,
@@ -220,18 +217,27 @@ async def validate_prompt_fits(
     *,
     model_instance: Any | None = None,
 ) -> int:
-    """Validate that prompt fits within model limits.
+    """Validate that prompt fits within model limits (Conservative 100k default).
 
     Uses native SDK counting if possible, else character-based estimation.
+    If 'use_full_context_window' is enabled in config, it allows larger prompts
+    without preemptive splitting (reactive mode).
+
+    Returns:
+        Estimated or native token count.
+
     """
+    # 1. Get token count (Native if possible, else Estimate)
     token_count = await count_tokens(prompt, model_instance)
 
+    # 2. Check limits
     max_allowed = config.pipeline.max_prompt_tokens
     use_full = config.pipeline.use_full_context_window
 
     if token_count > max_allowed and not use_full:
         logger.warning(
-            "Prompt for %s is too large (%d tokens, limit %d).",
+            "Prompt for %s is too large (%d tokens, limit %d). "
+            "Set use_full_context_window=True to bypass or reduce window size.",
             window_label,
             token_count,
             max_allowed,
