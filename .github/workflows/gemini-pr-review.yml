@@ -94,14 +94,9 @@ jobs:
           # Get unified diff between base and head
           git diff --unified=3 "origin/${BASE_REF}" "${HEAD_SHA}" > pr.diff
 
-          # Trim diff to avoid blowing the context window (90KB ~= 22k tokens)
-          head -c 90000 pr.diff > pr-trimmed.diff
-
-          # Warn if diff was truncated
-          if [ $(wc -c < pr.diff) -gt 90000 ]; then
-            echo "⚠️ WARNING: Diff truncated at 90KB. This is a large PR." >> pr-trimmed.diff
-            echo "Review may miss issues in truncated sections." >> pr-trimmed.diff
-          fi
+          # Pass full diff to Gemini - let context window limit naturally fail
+          # for very large PRs rather than silently truncating
+          cp pr.diff pr-trimmed.diff
 
           # Get commit messages to understand intent
           # Format: hash - subject + body (if any)
@@ -280,11 +275,11 @@ jobs:
             echo "Flash outcome: ${{ steps.gemini_flash.outcome }}"
             echo "Lite outcome: ${{ steps.gemini_lite.outcome }}"
             echo "::endgroup::"
-            # Check if API key is set (without exposing it)
+            # Check if API key is set (without exposing it or its length)
             if [ -z "${{ secrets.GEMINI_API_KEY }}" ]; then
               echo "::error::GEMINI_API_KEY secret is not set!"
             else
-              echo "GEMINI_API_KEY is set (length: ${#GEMINI_API_KEY})"
+              echo "GEMINI_API_KEY is configured"
             fi
           fi
         env:

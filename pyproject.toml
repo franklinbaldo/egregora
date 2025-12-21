@@ -18,31 +18,19 @@ dependencies = [
     "mkdocs-material[imaging]>=9.7",
     "mkdocs-rss-plugin>=1.17",
     "pillow>=11.3",
-    "psutil>=6.1", # Memory monitoring and profiling
-    "pyarrow",
     "pydantic>=2.12",
     "pydantic-settings>=2.7",
     "pydantic-ai>=1.25",
     "pydantic-evals>=1.25",
-    "python-dateutil>=2.8,<2.9",
+    "python-dateutil>=2.9",
     "python-frontmatter>=1.1",
     "pyyaml>=6.0",
     "pymdown-extensions>=10.17",
     "ratelimit>=2.2",
     "rich>=13.9",
     "tenacity>=9.1",
-    "tiktoken>=0.12",
     "typer>=0.20",
     "scikit-learn>=1.7",
-    # V3 Production Dependencies
-    # Structured logging for async pipeline debugging
-    "structlog>=24.4",
-    # Atom feed validation (RFC 4287 compliance)
-    "xmlschema>=3.6",
-    # Async itertools (replaces custom batching utilities)
-    "asyncstdlib>=3.13",
-    # Advanced serialization for complex conversions
-    "cattrs>=24.2",
     # High-performance XML processing for Atom feeds
     "lxml>=5.4",
     "tomli-w>=1.2.0",
@@ -123,8 +111,6 @@ extend-exclude = [
     "src/egregora_v3",
     "tests/v3",
     "scripts",
-    "docs/demo",
-    "site-fresh",
 ]
 
 [tool.ruff.lint]
@@ -318,6 +304,7 @@ dev = [
     "freezegun>=1.5",
     "syrupy>=4.9",
     "radon>=6.0",
+    "xenon>=0.9",
     "ruff>=0.14",
     "vulture>=2.14",
     "respx>=0.22.0",
@@ -329,3 +316,25 @@ dev = [
     "mkdocs-blogging-plugin>=2.2.11",
     "pytest-socket>=0.7.0",
 ]
+
+[tool.vulture]
+paths = ["src", "tests"]
+min_confidence = 80
+sort_by_size = true
+exclude = []
+ignore_names = []
+
+[tool.bandit]
+targets = ["src"]
+skips = ["B101", "B608", "B701"]  # B101: assert_used, B608: hardcoded_sql (DuckDB), B701: jinja2_autoescape (SQL/prompts, not HTML)
+exclude_dirs = ["tests", ".venv", "build"]
+
+[tool.coverage.run]
+source = ["src/egregora"]
+omit = ["*/tests/*", "*/__pycache__/*", "*/site-packages/*"]
+
+[tool.coverage.report]
+fail_under = 70
+show_missing = true
+skip_covered = false
+precision = 2
