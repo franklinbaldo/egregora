@@ -358,9 +358,9 @@ class PipelineSettings(BaseModel):
         description="End date for filtering (ISO format: YYYY-MM-DD)",
     )
     max_prompt_tokens: int = Field(
-        default=100_000,
+        default=1_000_000,
         ge=1_000,
-        description="Maximum tokens per prompt (default 100k, even if model supports more). Prevents context overflow and controls costs.",
+        description="Maximum tokens per prompt (default 1M, even if model supports more). Prevents context overflow and controls costs.",
     )
     use_full_context_window: bool = Field(
         default=False,
