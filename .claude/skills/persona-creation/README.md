@@ -90,8 +90,8 @@ Your mission is to clean up the codebase using dead code analysis and safe refac
 - `.jules/{persona_name}.md`
 
 **Prompt templates**:
-- `.jules/prompts/{persona_name}.md`
-- `.jules/prompts/{persona_name}.md.jinja2` (with dynamic context)
+- `.jules/personas/{persona_name}.md`
+- `.jules/personas/{persona_name}.md.jinja2` (with dynamic context)
 
 ## Common Use Cases
 

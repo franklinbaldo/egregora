@@ -110,39 +110,25 @@ def check_required_packages() -> DiagnosticResult:
 
 
 def check_api_key() -> DiagnosticResult:
-    """Check if a Gemini API key is configured."""
+    """Check if GOOGLE_API_KEY is configured."""
     # Avoid importing from egregora.config to keep diagnostics dependency-free
     # as egregora.config imports pydantic/yaml which might be missing.
-    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("GOOGLE_API_KEY")
 
     if api_key:
-        # Optional: validate key to fail fast on expired/invalid keys.
-        # Keep this best-effort so `doctor` still works offline.
-        try:
-            from egregora.utils.env import validate_gemini_api_key
-
-            validate_gemini_api_key(api_key)
-        except Exception as e:
-            return DiagnosticResult(
-                check="API Key",
-                status=HealthStatus.WARNING,
-                message="Gemini API key is set but failed validation (check expiry/permissions)",
-                details={"error": str(e)},
-            )
-
         # Mask the key for security
         masked = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > MIN_API_KEY_LENGTH_FOR_MASKING else "***"
         return DiagnosticResult(
             check="API Key",
             status=HealthStatus.OK,
-            message=f"Gemini API key set ({masked})",
+            message=f"GOOGLE_API_KEY set ({masked})",
         )
 
     return DiagnosticResult(
         check="API Key",
         status=HealthStatus.WARNING,
-        message="GOOGLE_API_KEY or GEMINI_API_KEY not set (required for enrichment and generation)",
-        details={"env_var": "GOOGLE_API_KEY|GEMINI_API_KEY"},
+        message="GOOGLE_API_KEY not set (required for enrichment and generation)",
+        details={"env_var": "GOOGLE_API_KEY"},
     )
 
 

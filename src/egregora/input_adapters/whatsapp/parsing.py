@@ -63,9 +63,9 @@ _DATE_PARSING_STRATEGIES = [
     lambda x: date_parser.parse(x, dayfirst=False),
 ]
 
-_TIME_TOKEN_LENGTH_FAST_PATH = 5
-_HOURS_IN_HALF_DAY = 12
-_TIME_PARTS_COUNT = 2
+TIME_STR_LEN = 5
+HOURS_IN_HALF_DAY = 12
+PARTS_IN_TIME_STR = 2
 
 
 def _normalize_text(value: str, config: EgregoraConfig | None = None) -> str:
@@ -114,7 +114,7 @@ def _parse_message_date(token: str) -> date | None:
 
 
 @lru_cache(maxsize=4096)
-def _parse_message_time(token: str) -> time | None:
+def _parse_message_time(time_token: str) -> time | None:
     """Parse time token into a time object (naive, for later localization).
 
     Performance:
@@ -122,14 +122,14 @@ def _parse_message_time(token: str) -> time | None:
     - Uses lru_cache(4096) to cover full 24h cycle (1440 mins) + variations,
       ensuring we parse each unique time string only once per execution.
     """
-    token = token.strip()
+    token = time_token.strip()
     if not token:
         return None
 
     # Fast path for standard HH:MM (e.g., "12:30", "09:15")
     # Checks length and digit presence to avoid splitting/parsing invalid strings
     if (
-        len(token) == _TIME_TOKEN_LENGTH_FAST_PATH
+        len(token) == TIME_STR_LEN
         and token[2] == ":"
         and token[0].isdigit()
         and token[1].isdigit()
@@ -171,15 +171,15 @@ def _parse_message_time(token: str) -> time | None:
                 h = int(h_str)
                 m = int(m_str)
 
-                if is_pm and h != _HOURS_IN_HALF_DAY:
-                    h += _HOURS_IN_HALF_DAY
-                elif not is_pm and h == _HOURS_IN_HALF_DAY:
+                if is_pm and h != HOURS_IN_HALF_DAY:
+                    h += HOURS_IN_HALF_DAY
+                elif not is_pm and h == HOURS_IN_HALF_DAY:
                     h = 0
                 return time(h, m)
         elif ":" in token:
             # Standard "H:MM" or fallback for "HH:MM" that failed fast path
             parts = token.split(":")
-            if len(parts) == _TIME_PARTS_COUNT:
+            if len(parts) == PARTS_IN_TIME_STR:
                 return time(int(parts[0]), int(parts[1]))
     except ValueError:
         pass
