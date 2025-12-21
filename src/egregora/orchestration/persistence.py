@@ -17,6 +17,28 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def validate_profile_document(doc: Document) -> None:
+    """Validate that a profile document has required metadata.
+
+    Args:
+        doc: The profile document to validate
+
+    Raises:
+        ValueError: If required metadata is missing
+
+    """
+    if doc.type != DocumentType.PROFILE:
+        msg = f"Expected PROFILE document, got {doc.type}"
+        raise ValueError(msg)
+
+    if not doc.metadata.get("subject"):
+        msg = "PROFILE document missing required 'subject' metadata. This will cause routing to fail."
+        logger.error(msg)
+        raise ValueError(msg)
+
+    logger.debug("Profile document validation passed for subject: %s", doc.metadata.get("subject"))
+
+
 def persist_banner_document(
     output_sink: OutputSink,
     document: Document,
@@ -55,13 +77,25 @@ def persist_profile_document(
     Returns:
         The document ID of the saved profile
 
+    Raises:
+        ValueError: If author_uuid is empty or None
+
     """
+    if not author_uuid:
+        msg = "Cannot create profile document: author_uuid is required"
+        logger.error(msg)
+        raise ValueError(msg)
+
     doc = Document(
         content=content,
         type=DocumentType.PROFILE,
         metadata={"uuid": author_uuid, "subject": author_uuid},
         source_window=source_window,
     )
+
+    # Validate before persisting
+    validate_profile_document(doc)
+
     output_sink.persist(doc)
     logger.info("Saved profile for %s (doc_id: %s)", author_uuid, doc.document_id)
     return doc.document_id
