@@ -11,6 +11,7 @@ import json
 import re
 from pathlib import Path
 from datetime import datetime
+from urllib.parse import urlparse
 
 # Import JulesClient from the same directory
 try:
@@ -36,13 +37,23 @@ def get_repo_info():
     import subprocess
     try:
         url = subprocess.check_output(["git", "config", "--get", "remote.origin.url"], text=True).strip()
-        # Parse github.com/owner/repo or git@github.com:owner/repo
-        if "github.com" in url:
-            path = url.split("github.com")[-1][1:] # Remove leading / or :
+        # Parse GitHub remotes like:
+        # - https://github.com/owner/repo.git
+        # - git@github.com:owner/repo.git
+        parsed_url = url
+        # Handle SSH-style URLs without a scheme, e.g. git@github.com:owner/repo.git
+        if "://" not in parsed_url and "@" in parsed_url and ":" in parsed_url:
+            user_host, path_part = parsed_url.split("@", 1)[-1].split(":", 1)
+            parsed_url = f"ssh://{user_host}/{path_part}"
+        parsed = urlparse(parsed_url)
+        if parsed.hostname == "github.com":
+            path = parsed.path.lstrip("/")
             if path.endswith(".git"):
                 path = path[:-4]
-            owner, repo = path.split("/")
-            return owner, repo
+            parts = path.split("/")
+            if len(parts) >= 2:
+                owner, repo = parts[0], parts[1]
+                return owner, repo
     except Exception:
         pass
     return None, None
