@@ -14,16 +14,27 @@ description = "Curator evaluates blogs and updates TODO. Forge implements items 
 
 # High Priority - Critical for Excellence
 [[tasks.high_priority]]
-id = "establish-visual-identity"
-title = "Establish a unique visual identity with a custom color palette and typography"
-description = """
-The current site uses the default MkDocs Material theme, which is professional but generic ("Default Theme Syndrome"). To build trust and brand recognition, Egregora blogs need a unique, privacy-focused visual identity. This involves:
-1. **Color Palette**: Replace the default Teal/Amber with a palette that evokes privacy and trust (e.g., deep blues, warm grays). All new colors must pass WCAG AA (4.5:1) contrast ratios.
-2. **Typography**: Replace the default Roboto with a more distinctive, readable font pair (e.g., a professional sans-serif for body and a clear mono for code). Test against long-form content.
-**Verification**: The generated demo site should no longer use the default theme colors/fonts. A visual inspection should confirm the new brand identity. The new theme colors must pass a WCAG contrast check.
-"""
+id = "find-templates"
+title = "Find MkDocs template location in src/"
+description = "Document exact template location in vision.md (DO THIS FIRST)"
+status = "review"
+category = "infrastructure"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "demo-cli"
+title = "Add egregora demo CLI command"
+description = "Easy demo generation command"
 status = "pending"
-category = "brand"
+category = "infrastructure"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "demo-test"
+title = "Create test to ensure demo/ stays updated"
+description = "Automated test for demo freshness"
+status = "pending"
+category = "infrastructure"
 assignee = "forge"
 
 [[tasks.high_priority]]
