@@ -6425,11 +6425,9 @@ async def _generate_profile_content(
         if hasattr(ctx, "output_dir"):
             from pathlib import Path
 
-            from egregora.constants import PROFILE_HISTORY_MAX_POSTS
-
             profiles_dir = Path(ctx.output_dir) / "docs" / "posts" / "profiles"
             profile_history = get_profile_history_for_context(
-                author_uuid, profiles_dir, max_posts=PROFILE_HISTORY_MAX_POSTS
+                author_uuid, profiles_dir, max_posts=ctx.config.profile.history_window_size
             )
             logger.debug("Loaded profile history for %s (%d chars)", author_uuid, len(profile_history))
     except Exception as e:
@@ -15000,6 +14998,17 @@ class QuotaSettings(BaseModel):
     )
 
 
+class ProfileSettings(BaseModel):
+    """Configuration for profile generation agent."""
+
+    history_window_size: int = Field(
+        default=5,
+        ge=0,
+        le=50,
+        description="Maximum number of previous profile posts to include in LLM context.",
+    )
+
+
 class EgregoraConfig(BaseSettings):
     """Root configuration for Egregora.
 
@@ -15023,8 +15032,13 @@ class EgregoraConfig(BaseSettings):
     )
     writer: WriterAgentSettings = Field(
         default_factory=WriterAgentSettings,
-        description="Writer configuration",
+        description="Writer agent configuration",
     )
+    profile: ProfileSettings = Field(
+        default_factory=ProfileSettings,
+        description="Profile generation configuration",
+    )
+
     reader: ReaderSettings = Field(
         default_factory=ReaderSettings,
         description="Reader agent configuration",
@@ -35110,7 +35124,6 @@ EGREGORA_NAME = "Egregora"
 
 # Profile history context settings
 # Maximum number of recent profile posts to include in LLM context window
-PROFILE_HISTORY_MAX_POSTS = 5
 
 
 class OutputAdapter(str, Enum):
