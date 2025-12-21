@@ -575,6 +575,18 @@ class QuotaSettings(BaseModel):
     )
 
 
+
+class ProfileSettings(BaseModel):
+    """Configuration for profile generation agent."""
+
+    history_window_size: int = Field(
+        default=5,
+        ge=0,
+        le=50,
+        description="Maximum number of previous profile posts to include in LLM context.",
+    )
+
+
 class EgregoraConfig(BaseSettings):
     """Root configuration for Egregora.
 
@@ -598,8 +610,13 @@ class EgregoraConfig(BaseSettings):
     )
     writer: WriterAgentSettings = Field(
         default_factory=WriterAgentSettings,
-        description="Writer configuration",
+        description="Writer agent configuration",
     )
+    profile: ProfileSettings = Field(
+        default_factory=ProfileSettings,
+        description="Profile generation configuration",
+    )
+
     reader: ReaderSettings = Field(
         default_factory=ReaderSettings,
         description="Reader agent configuration",
