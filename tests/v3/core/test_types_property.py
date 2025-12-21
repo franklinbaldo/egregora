@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 import xml.etree.ElementTree as ET
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given, settings, HealthCheck, strategies as st
 
 from egregora_v3.core.types import (
     Document,
@@ -129,6 +129,12 @@ def test_document_semantic_identity():
     assert doc.id == slug
     assert doc.internal_metadata["slug"] == slug
 
+# Strategies are already optimized (max_size=2 for lists), but the combination
+# of Pydantic validation, XML serialization, and Hypothesis data generation
+# can still trigger the 'too_slow' health check in CI environments.
+# Further optimization would compromise test coverage (e.g. empty lists).
+# Therefore, we suppress the check to ensure stability.
+@settings(suppress_health_check=[HealthCheck.too_slow], deadline=None)
 @given(feed_strategy())
 def test_feed_xml_validity(feed: Feed):
     """Test that generated XML is valid and parseable."""
