@@ -775,11 +775,12 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 # PROFILE posts (Egregora writing ABOUT author) go to author's folder
                 subject_uuid = document.metadata.get("subject")
                 if not subject_uuid:
-                    raise ValueError(
+                    msg = (
                         f"PROFILE document missing required 'subject' metadata. "
                         f"Document ID: {document.document_id}, URL: {url_path}. "
                         f"All PROFILE documents must include 'subject' to identify the author being profiled."
                     )
+                    raise ValueError(msg)
 
                 # Successfully routing to author-specific directory
                 profile_dir = self.profiles_dir / str(subject_uuid)

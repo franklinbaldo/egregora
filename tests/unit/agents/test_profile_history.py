@@ -267,7 +267,7 @@ class TestContextGeneration:
 
         # Create 10 posts
         for i in range(10):
-            (profile_dir / f"2025-01-{i+1:02d}-post{i}-abc123.md").write_text(f"# Post {i}\n\nContent {i}")
+            (profile_dir / f"2025-01-{i + 1:02d}-post{i}-abc123.md").write_text(f"# Post {i}\n\nContent {i}")
 
         context = get_profile_history_for_context("author-123", profiles_base, max_posts=3)
 
