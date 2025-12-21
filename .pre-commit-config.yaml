@@ -54,7 +54,7 @@ repos:
       - id: bandit
         name: Check security issues with bandit
         entry: uvx bandit
-        args: ["-r", "src", "-f", "screen", "-c", "pyproject.toml"]
+        args: ["-r", "src", "-f", "screen", "-c", "pyproject.toml", "-lll", "-ii"]
         language: system
         types: [python]
         pass_filenames: false
