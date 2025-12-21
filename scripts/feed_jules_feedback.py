@@ -10,7 +10,7 @@ import requests
 import json
 import re
 from pathlib import Path
-from urllib.parse import urlparse
+from datetime import datetime
 
 # Add .claude/skills/jules-api to sys.path to import JulesClient
 jules_api_path = Path(__file__).parent.parent / ".claude" / "skills" / "jules-api"
@@ -37,21 +37,12 @@ def get_repo_info():
     import subprocess
     try:
         url = subprocess.check_output(["git", "config", "--get", "remote.origin.url"], text=True).strip()
-        # Support HTTPS/HTTP URLs like https://github.com/owner/repo(.git)
-        parsed = urlparse(url)
-        if parsed.scheme in ("http", "https") and parsed.hostname == "github.com":
-            path = parsed.path.lstrip("/")
+        # Parse github.com/owner/repo or git@github.com:owner/repo
+        if "github.com" in url:
+            path = url.split("github.com")[-1][1:] # Remove leading / or :
             if path.endswith(".git"):
                 path = path[:-4]
-            owner, repo = path.split("/", 1)
-            return owner, repo
-        # Support SSH URLs like git@github.com:owner/repo(.git)
-        if "@github.com:" in url:
-            _, path_part = url.split("@github.com:", 1)
-            path = path_part.lstrip("/")
-            if path.endswith(".git"):
-                path = path[:-4]
-            owner, repo = path.split("/", 1)
+            owner, repo = path.split("/")
             return owner, repo
     except Exception:
         pass
@@ -204,6 +195,25 @@ def extract_session_id(branch_name: str) -> str | None:
 
     return None
 
+def extract_session_id_from_body(body: str) -> str | None:
+    """
+    Extract session ID from PR body/description.
+    Looks for Jules web session links like:
+    https://jules.google/sessions/SESSION_ID
+    or similar variations.
+    """
+    if not body:
+        return None
+
+    # Regex to find session ID in URL
+    # Matches: .../sessions/<uuid or id>
+    # We assume ID is alphanumeric + hyphens
+    match = re.search(r'/sessions/([a-zA-Z0-9-]+)', body)
+    if match:
+        return match.group(1)
+
+    return None
+
 def main():
     parser = argparse.ArgumentParser(description="Feed Jules Feedback")
     parser.add_argument("--dry-run", action="store_true", help="Do not create sessions")
@@ -244,7 +254,7 @@ def main():
         # Get detailed PR info
         import subprocess
         try:
-             res = subprocess.run(["gh", "pr", "view", str(pr['number']), "--json", "number,title,headRefName,statusCheckRollup,latestReviews,author"], capture_output=True, text=True, check=True)
+             res = subprocess.run(["gh", "pr", "view", str(pr['number']), "--json", "number,title,headRefName,statusCheckRollup,latestReviews,author,body"], capture_output=True, text=True, check=True)
              pr_data = json.loads(res.stdout)
         except Exception as e:
             print(f"Failed to view PR {pr['number']}: {e}")
@@ -254,13 +264,44 @@ def main():
         comments_data = get_pr_comments(pr['number'])
 
         # Loop Prevention: Check if the last comment is already a feedback prompt
-        last_comment_body = ""
-        if comments_data.get("comments"):
-            last_comment_body = comments_data["comments"][-1]["body"]
+        # But allow re-triggering if there's a new commit since that comment.
+        should_skip = False
 
-        if "# Task: Fix Pull Request" in last_comment_body:
-             print(f"-> PR #{pr['number']} already has pending feedback (last comment). Skipping.")
-             continue
+        if comments_data.get("comments"):
+            last_comment = comments_data["comments"][-1]
+            last_comment_body = last_comment["body"]
+
+            if "# Task: Fix Pull Request" in last_comment_body:
+                # Found our own feedback. Check if it's stale.
+                # We need to compare comment time vs latest commit time.
+                # gh json dates are usually ISO 8601 strings.
+
+                # Fetch commits to get latest push time
+                # gh pr view --json commits returns all commits? No, usually list.
+                # run_gh_command asks for commits.
+                commits = pr_data.get("commits", [])
+                if commits:
+                     last_commit = commits[-1]
+                     # 'committedDate' is standard in GH API for commits
+                     commit_date_str = last_commit.get("committedDate")
+                     comment_date_str = last_comment.get("createdAt")
+
+                     if commit_date_str and comment_date_str:
+                         # Simple string comparison works for ISO8601 if in UTC (Z)
+                         # GH API returns UTC ISO strings.
+                         if comment_date_str > commit_date_str:
+                             print(f"-> PR #{pr['number']} has pending feedback and no new commits. Skipping.")
+                             should_skip = True
+                         else:
+                             print(f"-> PR #{pr['number']} has new commits since last feedback. Re-evaluating.")
+
+                else:
+                    # No commits found? Odd. Assume skip to be safe.
+                    print(f"-> PR #{pr['number']} has pending feedback (commits unknown). Skipping.")
+                    should_skip = True
+
+        if should_skip:
+            continue
 
         if should_trigger_feedback(pr_data):
             print(f"-> PR #{pr['number']} needs feedback.")
@@ -271,7 +312,11 @@ def main():
 
             prompt = construct_prompt(pr_data, ci_checks, comments_data)
             branch_name = pr_data["headRefName"]
+
+            # Try extracting from branch first, then body
             session_id = extract_session_id(branch_name)
+            if not session_id:
+                session_id = extract_session_id_from_body(pr_data.get("body"))
 
             print(f"   Branch: {branch_name}")
             print(f"   Extracted Session ID: {session_id}")
