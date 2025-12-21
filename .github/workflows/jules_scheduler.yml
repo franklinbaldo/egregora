@@ -23,15 +23,18 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # Required for 'gh' CLI in feedback script to list runs and comments
+  actions: read
 
 jobs:
   tick:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v5
+
       - name: Run Jules Scheduler
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -53,3 +56,20 @@ jobs:
 
           # Using local script that uses existing JulesClient skill
           uv run --with requests --with python-frontmatter --with jinja2 python scripts/run_scheduler.py "${args[@]}"
+
+      - name: Run Jules Feedback Loop
+        # Run on schedule or if requested manually (unless prompt_id is specific for something else, but safe to run)
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.prompt_id == '')
+        env:
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: .claude/skills/jules-api
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+           args=()
+           if [ "${{ inputs.dry_run }}" = "true" ]; then
+              args+=(--dry-run)
+           fi
+
+           # Run the feedback script
+           uv run --with requests python scripts/feed_jules_feedback.py "${args[@]}"
