@@ -42,7 +42,7 @@ def test_init_raises_value_error_missing_task_store(mock_pipeline_context_no_sto
     """Test that __init__ raises ValueError if task_store is missing."""
     with pytest.raises(
         ValueError,
-        match="TaskStore not found in PipelineContext; it must be initialized and injected.",
+        match=r"TaskStore not found in PipelineContext; it must be initialized and injected.",
     ):
         ConcreteWorker(mock_pipeline_context_no_store)
 
