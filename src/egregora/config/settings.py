@@ -575,7 +575,6 @@ class QuotaSettings(BaseModel):
     )
 
 
-
 class ProfileSettings(BaseModel):
     """Configuration for profile generation agent."""
 

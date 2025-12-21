@@ -91,7 +91,6 @@ EGREGORA_NAME = "Egregora"
 # Maximum number of recent profile posts to include in LLM context window
 
 
-
 class OutputAdapter(str, Enum):
     """Output format options for data export."""
 
