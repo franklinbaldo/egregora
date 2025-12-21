@@ -140,7 +140,7 @@ class TestProfilePersistence:
         mock_sink = Mock()
 
         with pytest.raises(ValueError, match="author_uuid is required"):
-            persist_profile_document(mock_sink, None, "Profile content")  # type: ignore
+            persist_profile_document(mock_sink, None, "Profile content")  # type: ignore[arg-type]
 
 
 if __name__ == "__main__":

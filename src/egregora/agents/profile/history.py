@@ -15,11 +15,13 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
-from jinja2 import Environment, FileSystemLoader, Template
+from jinja2 import Template
 
 logger = logging.getLogger(__name__)
+
+# Minimum number of parts required for date-aspect-authorid filename format (YYYY-MM-DD-aspect)
+MIN_FILENAME_PARTS = 4
 
 
 @dataclass
@@ -152,12 +154,12 @@ def load_profile_posts(author_uuid: str, profiles_dir: Path) -> list[ProfilePost
             stem = file_path.stem
             parts = stem.split("-")
 
-            if len(parts) >= 4:
+            if len(parts) >= MIN_FILENAME_PARTS:
                 # Extract date (first 3 parts: YYYY-MM-DD)
                 date = f"{parts[0]}-{parts[1]}-{parts[2]}"
 
                 # Extract aspect (everything between date and last part)
-                aspect_parts = parts[3:-1] if len(parts) > 4 else parts[3:4]
+                aspect_parts = parts[3:-1] if len(parts) > MIN_FILENAME_PARTS else parts[3:4]
                 aspect = " ".join(aspect_parts).replace("-", " ").title()
             else:
                 # Fallback for non-standard naming
@@ -217,9 +219,7 @@ def render_profile_history(
         template = Template(DEFAULT_HISTORY_TEMPLATE)
 
     # Render template
-    rendered = template.render(author_uuid=author_uuid, history=history)
-
-    return rendered
+    return template.render(author_uuid=author_uuid, history=history)
 
 
 def get_profile_history_for_context(
@@ -288,9 +288,9 @@ def get_profile_history_for_context(
 
 
 __all__ = [
-    "ProfilePost",
     "ProfileHistory",
+    "ProfilePost",
+    "get_profile_history_for_context",
     "load_profile_posts",
     "render_profile_history",
-    "get_profile_history_for_context",
 ]

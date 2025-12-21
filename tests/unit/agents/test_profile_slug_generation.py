@@ -15,7 +15,9 @@ class TestMeaningfulSlugGeneration:
     def test_slug_includes_date_aspect_and_author(self):
         """Slug should include date, aspect, and author identifier."""
         slug = _generate_meaningful_slug(
-            title="John Doe: Technical Contributions", window_date="2025-03-15", author_uuid="550e8400-abcd-1234"
+            title="John Doe: Technical Contributions",
+            window_date="2025-03-15",
+            author_uuid="550e8400-abcd-1234",
         )
 
         # Should include date
@@ -122,9 +124,7 @@ class TestMeaningfulSlugGeneration:
 
     def test_long_aspect_title(self):
         """Handle very long aspect titles gracefully."""
-        long_title = (
-            "John: " + "A" * 200
-        )  # Very long aspect
+        long_title = "John: " + "A" * 200  # Very long aspect
         slug = _generate_meaningful_slug(title=long_title, window_date="2025-03-15", author_uuid="john-uuid")
 
         # Should still produce valid slug (slugify should handle long strings)

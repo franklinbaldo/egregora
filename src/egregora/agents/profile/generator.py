@@ -51,7 +51,9 @@ try:
     from egregora.agents.profile.history import get_profile_history_for_context
 except ImportError:
     # Graceful fallback if history module not available
-    def get_profile_history_for_context(*args, **kwargs):  # type: ignore
+    from typing import Any
+
+    def get_profile_history_for_context(*args: Any, **kwargs: Any) -> str:
         return ""
 
 
@@ -218,7 +220,9 @@ async def _generate_profile_content(
             from egregora.constants import PROFILE_HISTORY_MAX_POSTS
 
             profiles_dir = Path(ctx.output_dir) / "docs" / "posts" / "profiles"
-            profile_history = get_profile_history_for_context(author_uuid, profiles_dir, max_posts=PROFILE_HISTORY_MAX_POSTS)
+            profile_history = get_profile_history_for_context(
+                author_uuid, profiles_dir, max_posts=PROFILE_HISTORY_MAX_POSTS
+            )
             logger.debug("Loaded profile history for %s (%d chars)", author_uuid, len(profile_history))
     except Exception as e:
         logger.warning("Failed to load profile history for %s: %s", author_uuid, e)
