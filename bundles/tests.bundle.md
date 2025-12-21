@@ -4213,104 +4213,131 @@ if __name__ == "__main__":
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
-# Add skills directory to path to allow importing the script module
-skills_path = Path(__file__).parent.parent.parent.parent / ".claude" / "skills" / "jules-api"
-sys.path.append(str(skills_path))
-
-import feed_feedback
 
 class TestFeedFeedback(unittest.TestCase):
+
+    def setUp(self):
+        """Set up test environment by modifying sys.path to import the script."""
+        self.skills_path = str(
+            Path(__file__).parent.parent.parent.parent / ".claude" / "skills" / "jules-api"
+        )
+        sys.path.insert(0, self.skills_path)
+        # Dynamically import the module under test now that the path is set
+        import feed_feedback
+        self.feed_feedback = feed_feedback
+
+    def tearDown(self):
+        """Clean up sys.path to avoid side effects."""
+        sys.path.remove(self.skills_path)
+        # Remove the module from cache to ensure it's re-imported cleanly if needed
+        if "feed_feedback" in sys.modules:
+            del sys.modules["feed_feedback"]
 
     def test_extract_session_id_numeric(self):
         # Case 1: Numeric Session ID (as seen in exploration)
         branch = "plan-jules-feedback-loop-11292279998332410515"
-        self.assertEqual(feed_feedback.extract_session_id(branch), "11292279998332410515")
+        self.assertEqual(
+            self.feed_feedback.extract_session_id(branch), "11292279998332410515"
+        )
 
     def test_extract_session_id_uuid(self):
         # Case 2: UUID Session ID
         branch = "feature-update-123e4567-e89b-12d3-a456-426614174000"
-        self.assertEqual(feed_feedback.extract_session_id(branch), "123e4567-e89b-12d3-a456-426614174000")
+        self.assertEqual(
+            self.feed_feedback.extract_session_id(branch),
+            "123e4567-e89b-12d3-a456-426614174000",
+        )
 
     def test_extract_session_id_short_fallback(self):
         # Case 3: Short suffix (should return None if < 10 chars to avoid false positives)
         branch = "feature-update-v1"
-        self.assertIsNone(feed_feedback.extract_session_id(branch))
+        self.assertIsNone(self.feed_feedback.extract_session_id(branch))
 
     def test_extract_session_id_from_body(self):
         # Case 4: Link in body
         body = "Check out the session: https://jules.google/sessions/11292279998332410515 for details."
-        self.assertEqual(feed_feedback.extract_session_id_from_body(body), "11292279998332410515")
+        self.assertEqual(
+            self.feed_feedback.extract_session_id_from_body(body), "11292279998332410515"
+        )
 
         # UUID in body
-        body_uuid = "Session: https://jules.google/sessions/123e4567-e89b-12d3-a456-426614174000"
-        self.assertEqual(feed_feedback.extract_session_id_from_body(body_uuid), "123e4567-e89b-12d3-a456-426614174000")
+        body_uuid = (
+            "Session: https://jules.google/sessions/123e4567-e89b-12d3-a456-426614174000"
+        )
+        self.assertEqual(
+            self.feed_feedback.extract_session_id_from_body(body_uuid),
+            "123e4567-e89b-12d3-a456-426614174000",
+        )
 
         # No link
-        self.assertIsNone(feed_feedback.extract_session_id_from_body("Just a normal description."))
+        self.assertIsNone(
+            self.feed_feedback.extract_session_id_from_body("Just a normal description.")
+        )
 
     def test_should_trigger_feedback_ci_failed(self):
-        pr = {
-            "statusCheckRollup": {"state": "FAILURE"},
-            "latestReviews": []
-        }
-        self.assertTrue(feed_feedback.should_trigger_feedback(pr))
+        pr = {"statusCheckRollup": {"state": "FAILURE"}, "latestReviews": []}
+        self.assertTrue(self.feed_feedback.should_trigger_feedback(pr))
 
     def test_should_trigger_feedback_changes_requested(self):
         pr = {
             "statusCheckRollup": {"state": "SUCCESS"},
-            "latestReviews": [{"state": "CHANGES_REQUESTED"}]
+            "latestReviews": [{"state": "CHANGES_REQUESTED"}],
         }
-        self.assertTrue(feed_feedback.should_trigger_feedback(pr))
+        self.assertTrue(self.feed_feedback.should_trigger_feedback(pr))
 
     def test_should_trigger_feedback_negative(self):
         pr = {
             "statusCheckRollup": {"state": "SUCCESS"},
-            "latestReviews": [{"state": "APPROVED"}]
+            "latestReviews": [{"state": "APPROVED"}],
         }
-        self.assertFalse(feed_feedback.should_trigger_feedback(pr))
+        self.assertFalse(self.feed_feedback.should_trigger_feedback(pr))
 
-        pr_pending = {
-             "statusCheckRollup": {"state": "PENDING"},
-             "latestReviews": []
-        }
-        self.assertFalse(feed_feedback.should_trigger_feedback(pr_pending))
+        pr_pending = {"statusCheckRollup": {"state": "PENDING"}, "latestReviews": []}
+        self.assertFalse(self.feed_feedback.should_trigger_feedback(pr_pending))
 
     def test_extract_session_id_complex_branch(self):
         # Real world example with hyphens in name
         branch = "scribe-protocol-drift-fix-5103170759952896668"
-        self.assertEqual(feed_feedback.extract_session_id(branch), "5103170759952896668")
+        self.assertEqual(
+            self.feed_feedback.extract_session_id(branch), "5103170759952896668"
+        )
 
     def test_should_skip_feedback(self):
         # Case 1: Feedback is fresh (comment > commit)
-        pr_data = {
-            "commits": [{"committedDate": "2023-01-01T10:00:00Z"}]
-        }
+        pr_data = {"commits": [{"committedDate": "2023-01-01T10:00:00Z"}]}
         comments_data = {
             "comments": [
-                {"body": "# Task: Fix Pull Request\nDetails...", "createdAt": "2023-01-01T10:05:00Z"}
+                {
+                    "body": "# Task: Fix Pull Request\nDetails...",
+                    "createdAt": "2023-01-01T10:05:00Z",
+                }
             ]
         }
-        self.assertTrue(feed_feedback.should_skip_feedback(pr_data, comments_data))
+        self.assertTrue(self.feed_feedback.should_skip_feedback(pr_data, comments_data))
 
         # Case 2: Feedback is stale (comment < commit)
         pr_data["commits"][0]["committedDate"] = "2023-01-01T10:10:00Z"
-        self.assertFalse(feed_feedback.should_skip_feedback(pr_data, comments_data))
+        self.assertFalse(self.feed_feedback.should_skip_feedback(pr_data, comments_data))
 
         # Case 3: Last comment is not feedback
         comments_data["comments"][0]["body"] = "Just a regular comment"
-        comments_data["comments"][0]["createdAt"] = "2023-01-01T10:20:00Z" # Even if newer
-        self.assertFalse(feed_feedback.should_skip_feedback(pr_data, comments_data))
+        comments_data["comments"][0]["createdAt"] = (
+            "2023-01-01T10:20:00Z"  # Even if newer
+        )
+        self.assertFalse(self.feed_feedback.should_skip_feedback(pr_data, comments_data))
 
         # Case 4: Feedback with marker in HTML comment
-        comments_data["comments"][0]["body"] = "Feedback sent. \n<!-- # Task: Fix Pull Request -->"
+        comments_data["comments"][0]["body"] = (
+            "Feedback sent. \n<!-- # Task: Fix Pull Request -->"
+        )
         comments_data["comments"][0]["createdAt"] = "2023-01-01T12:00:00Z"
         # Commit is old
         pr_data["commits"][0]["committedDate"] = "2023-01-01T10:10:00Z"
-        self.assertTrue(feed_feedback.should_skip_feedback(pr_data, comments_data))
+        self.assertTrue(self.feed_feedback.should_skip_feedback(pr_data, comments_data))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()
 ````
 
@@ -6865,7 +6892,14 @@ def test_registry_falls_back_to_builtin_adapters(monkeypatch):
 ## File: tests/unit/ops/test_media.py
 ````python
 from pathlib import Path
-from egregora.ops.media import detect_media_type, get_media_subfolder, find_media_references, ATTACHMENT_MARKERS
+
+from egregora.ops.media import (
+    ATTACHMENT_MARKERS,
+    detect_media_type,
+    find_media_references,
+    get_media_subfolder,
+)
+
 
 def test_detect_media_type():
     """Should correctly identify media types from extensions."""
@@ -18818,22 +18852,19 @@ class TestProfileRouting:
 
         # Should be in author's folder (now located under profiles/, not posts/authors/)
         assert "profiles" in str(path)
-        assert "john-uuid-12345678"[:16] in str(path)  # Shortened UUID
+        assert "john-uuid-12345678" in str(path)
         assert path.name == "john-interests.md"
 
-    def test_profile_without_subject_falls_back(self, adapter):
-        """PROFILE without subject metadata falls back to posts/."""
+    def test_profile_without_subject_raises_error(self, adapter):
+        """PROFILE without subject metadata must raise a ValueError."""
         doc = Document(
             content="# Profile",
             type=DocumentType.PROFILE,
             metadata={"slug": "orphan-profile", "authors": [{"uuid": EGREGORA_UUID}]},
         )
-
         url = f"/profiles/{doc.metadata['slug']}"
-        path = adapter._url_to_path(url, doc)
-
-        # Falls back to top-level posts/
-        assert path == adapter.posts_dir / "orphan-profile.md"
+        with pytest.raises(ValueError, match="PROFILE document missing required 'subject' metadata"):
+            adapter._url_to_path(url, doc)
 
     def test_profile_author_is_egregora(self, adapter):
         """PROFILE posts should be authored by Egregora."""
@@ -18855,8 +18886,9 @@ class TestProfileRouting:
 class TestAnnouncementRouting:
     """Test that ANNOUNCEMENT posts go to announcements/."""
 
-    def test_announcement_routes_to_announcements_folder(self, adapter):
-        """ANNOUNCEMENT goes to posts/announcements/{slug}.md."""
+    def test_announcement_with_actor_routes_to_profile_folder(self, adapter):
+        """ANNOUNCEMENT with an actor routes to the actor's profile folder."""
+        actor_uuid = "john-uuid"
         doc = Document(
             content="# Avatar Updated",
             type=DocumentType.ANNOUNCEMENT,
@@ -18865,16 +18897,38 @@ class TestAnnouncementRouting:
                 "slug": "john-avatar-update",
                 "authors": [{"uuid": EGREGORA_UUID}],
                 "event_type": "avatar_update",
-                "actor": "john-uuid",
+                "actor": actor_uuid,
             },
         )
 
         url = f"/announcements/{doc.metadata['slug']}"
         path = adapter._url_to_path(url, doc)
 
-        # Should be in announcements/
+        # Should be in the actor's profile directory
+        assert "announcements" not in str(path)
+        assert str(adapter.profiles_dir / actor_uuid) in str(path)
+        assert path == adapter.profiles_dir / actor_uuid / "john-avatar-update.md"
+
+    def test_announcement_without_actor_routes_to_announcements_folder(self, adapter):
+        """ANNOUNCEMENT without an actor falls back to the announcements folder."""
+        doc = Document(
+            content="# System Update",
+            type=DocumentType.ANNOUNCEMENT,
+            metadata={
+                "title": "System Update",
+                "slug": "system-update-v2",
+                "authors": [{"uuid": EGREGORA_UUID}],
+                "event_type": "system_update",
+            },
+        )
+        url = f"/announcements/{doc.metadata['slug']}"
+        path = adapter._url_to_path(url, doc)
+
+        announcements_dir = adapter.posts_dir / "announcements"
+        # Should be in the general announcements folder
+        assert "profiles" not in str(path)
         assert "announcements" in str(path)
-        assert path == adapter.posts_dir / "announcements" / "john-avatar-update.md"
+        assert path == announcements_dir / "system-update-v2.md"
 
     def test_announcement_author_is_egregora(self, adapter):
         """ANNOUNCEMENT posts authored by Egregora (system)."""
@@ -18914,6 +18968,8 @@ class TestRoutingIntegration:
             metadata={"slug": "update", "authors": [{"uuid": EGREGORA_UUID}]},
         )
 
+        announcement_dir = adapter.posts_dir / "announcements"
+
         post_path = adapter._url_to_path("/posts/regular", post)
         profile_path = adapter._url_to_path("/profiles/john-profile", profile)
         announcement_path = adapter._url_to_path("/announcements/update", announcement)
@@ -18926,7 +18982,7 @@ class TestRoutingIntegration:
         # Verify structure
         assert post_path == adapter.posts_dir / "regular.md"
         assert "profiles" in str(profile_path)
-        assert "announcements" in str(announcement_path)
+        assert announcement_path == announcement_dir / "update.md"
 
     def test_metadata_requirements(self, adapter):
         """Test that metadata is correctly structured."""
