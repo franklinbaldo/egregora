@@ -168,9 +168,6 @@ src/
     knowledge/
       __init__.py
       profiles.py
-    markdown/
-      __init__.py
-      frontmatter.py
     models/
       __init__.py
       google_batch.py
@@ -22334,118 +22331,6 @@ def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
     return count
 ````
 
-## File: src/egregora/markdown/__init__.py
-````python
-"""Markdown parsing and frontmatter utilities."""
-````
-
-## File: src/egregora/markdown/frontmatter.py
-````python
-"""Helpers for parsing YAML frontmatter from Markdown content."""
-
-from __future__ import annotations
-
-import logging
-from typing import TYPE_CHECKING, Any
-
-import frontmatter
-import yaml
-
-if TYPE_CHECKING:
-    from pathlib import Path
-
-logger = logging.getLogger(__name__)
-
-
-def parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
-    """Parse YAML frontmatter using python-frontmatter.
-
-    Args:
-        content: Markdown content that may include frontmatter.
-
-    Returns:
-        Tuple of (metadata dict, body string). If parsing fails or metadata is not a
-        mapping, metadata will be an empty dict and the original content is returned.
-
-    """
-    try:
-        parsed = frontmatter.loads(content)
-    except (yaml.YAMLError, ValueError) as exc:
-        logger.warning("Failed to parse frontmatter content: %s", exc)
-        return {}, content
-
-    raw_metadata = parsed.metadata or {}
-    if not isinstance(raw_metadata, dict):
-        logger.warning("Frontmatter metadata is not a mapping: %s", type(raw_metadata).__name__)
-        metadata: dict[str, Any] = {}
-    else:
-        metadata = dict(raw_metadata)
-
-    body = parsed.content if isinstance(parsed.content, str) else str(parsed.content)
-    return metadata, body
-
-
-def parse_frontmatter_file(path: Path, *, encoding: str = "utf-8") -> tuple[dict[str, Any], str]:
-    """Read a Markdown file and parse its frontmatter.
-
-    Args:
-        path: File system path to the Markdown document.
-        encoding: File encoding used to read the file.
-
-    Returns:
-        Tuple of (metadata dict, body string).
-
-    Raises:
-        OSError: If the file cannot be read.
-
-    """
-    content = path.read_text(encoding=encoding)
-    return parse_frontmatter(content)
-
-
-def read_frontmatter_only(path: Path, *, encoding: str = "utf-8") -> dict[str, Any]:
-    """Read only the frontmatter from a Markdown file, stopping at the delimiter.
-
-    This avoids reading the entire file into memory when only metadata is needed.
-
-    Args:
-        path: File system path to the Markdown document.
-        encoding: File encoding used to read the file.
-
-    Returns:
-        Metadata dict. Returns empty dict if no frontmatter found or parsing fails.
-
-    """
-    try:
-        with path.open("r", encoding=encoding) as f:
-            first_line = f.readline()
-            if not first_line.startswith("---"):
-                return {}
-
-            lines = []
-            for line in f:
-                if line.rstrip() == "---":
-                    break
-                lines.append(line)
-            else:
-                # EOF reached without closing '---', treat as invalid frontmatter
-                # or possibly the whole file is frontmatter?
-                # Standard behavior dictates closing delimiter.
-                # However, python-frontmatter might be more lenient.
-                # We'll be strict here: no closing delimiter = no frontmatter.
-                return {}
-
-            yaml_content = "".join(lines)
-            data = yaml.safe_load(yaml_content)
-            if isinstance(data, dict):
-                return data
-            return {}
-
-    except (OSError, yaml.YAMLError) as exc:
-        logger.debug("Failed to read frontmatter from %s: %s", path, exc)
-        return {}
-````
-
 ## File: src/egregora/models/__init__.py
 ````python
 """Model wrappers used by Egregora."""
@@ -26853,7 +26738,7 @@ from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import generate_fallback_avatar_url
-from egregora.markdown.frontmatter import parse_frontmatter, read_frontmatter_only
+import frontmatter
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
@@ -27074,8 +26959,8 @@ class MkDocsAdapter(BaseOutputSink):
                 raw_bytes = path.read_bytes()
                 metadata = {"filename": path.name}
                 return Document(content=raw_bytes, type=doc_type, metadata=metadata)
-            content = path.read_text(encoding="utf-8")
-            metadata, actual_content = parse_frontmatter(content)
+            post = frontmatter.load(str(path))
+            metadata, actual_content = post.metadata, post.content
         except OSError:
             logger.exception("Failed to read document at %s", path)
             return None
@@ -27467,7 +27352,12 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if parts[:2] == ("annotations",):
             return DocumentType.ANNOTATION
 
-        metadata = read_frontmatter_only(path)
+        try:
+            post = frontmatter.load(str(path))
+            metadata = post.metadata
+        except OSError:
+            metadata = {}
+
         categories = (metadata or {}).get("categories", [])
         if not isinstance(categories, list):
             categories = []
@@ -27555,10 +27445,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _document_from_path(self, path: Path, doc_type: DocumentType) -> Document | None:
         try:
-            raw = path.read_text(encoding="utf-8")
+            post = frontmatter.load(str(path))
+            metadata, body = post.metadata, post.content
         except OSError:
             return None
-        metadata, body = parse_frontmatter(raw)
         metadata = metadata or {}
         slug_value = metadata.get("slug")
         if isinstance(slug_value, str) and slug_value.strip():
@@ -27678,7 +27568,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             Dictionary of frontmatter metadata (empty if none found)
 
         """
-        return read_frontmatter_only(path)
+        try:
+            return frontmatter.load(str(path)).metadata
+        except OSError:
+            return {}
 
     # Document Writing Strategies ---------------------------------------------
 
@@ -27999,8 +27892,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 if not candidates:
                     continue
                 profile_path = max(candidates, key=lambda p: p.stat().st_mtime_ns)
-                content = profile_path.read_text(encoding="utf-8")
-                metadata, _ = parse_frontmatter(content)
+                post = frontmatter.load(str(profile_path))
+                metadata = post.metadata
                 author_uuid = author_dir.name
 
                 author_posts = [
@@ -28069,8 +27962,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         for media_path in url_files:
             try:
-                content = media_path.read_text(encoding="utf-8")
-                metadata, body = parse_frontmatter(content)
+                post = frontmatter.load(str(media_path))
+                metadata, body = post.metadata, post.content
 
                 # Extract summary from content
                 summary = ""
@@ -33421,9 +33314,9 @@ import re
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
 
+import frontmatter
 import yaml
 
-from egregora.markdown.frontmatter import read_frontmatter_only
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.paths import safe_path_join, slugify
 
@@ -33622,9 +33515,9 @@ def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> in
 
     for md_file in posts_dir.rglob("*.md"):
         try:
-            frontmatter = read_frontmatter_only(md_file)
-            if frontmatter and "authors" in frontmatter:
-                author_list = frontmatter["authors"]
+            post = frontmatter.load(str(md_file))
+            if "authors" in post.metadata:
+                author_list = post.metadata["authors"]
                 if isinstance(author_list, list):
                     all_author_ids.update(str(a) for a in author_list if a)
                 elif author_list:
