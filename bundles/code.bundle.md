@@ -89,6 +89,7 @@ src/
       profile/
         __init__.py
         generator.py
+        history.py
         worker.py
       reader/
         __init__.py
@@ -6075,11 +6076,36 @@ __all__ = ["ProfileWorker"]
 Generates PROFILE posts (Egregora writing ABOUT authors) based on
 their full message history in the current window.
 
-Design:
-- One PROFILE post per author per window
+## Append-Only Design
+- **Each profile generation creates a NEW post** (never overwrites)
+- Posts are saved to: `/posts/profiles/{author_uuid}/{slug}.md`
+- Slugs are meaningful and include:
+  - Date of analysis (YYYY-MM-DD)
+  - Content focus (e.g., "technical-contributions", "photography-interests")
+  - Author identifier (first 8 chars of UUID)
+- Example path: `/posts/profiles/550e8400/2025-03-15-technical-contributions-550e8400.md`
+
+## Design Principles
+- One PROFILE post per author per window (if significant changes detected)
 - LLM analyzes full message history
 - LLM decides what to write about (interests, contributions, interactions)
 - Flattering, appreciative tone
+- Each analysis is preserved as a separate post (append-only)
+
+## Integration with Profile Systems
+This module generates DocumentType.PROFILE Documents that represent
+Egregora's analysis of an author. These are distinct from the author's
+self-service profile (managed in knowledge/profiles.py).
+
+## Critical Metadata Requirement
+**ALL** generated profile Documents MUST include:
+- `subject`: The author's UUID (ensures proper routing to /posts/profiles/{uuid}/)
+- `slug`: Unique, meaningful identifier for this profile post
+- `authors`: Set to Egregora (the author OF the post)
+- `date`: The window date for temporal ordering
+
+The `subject` field is validated by `validate_profile_document()` before persistence
+to prevent routing failures.
 """
 
 import logging
@@ -6091,8 +6117,60 @@ from pydantic_ai import Agent
 
 from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.orchestration.persistence import validate_profile_document
+from egregora.utils.paths import slugify
+
+try:
+    from egregora.agents.profile.history import get_profile_history_for_context
+except ImportError:
+    # Graceful fallback if history module not available
+    from typing import Any
+
+    def get_profile_history_for_context(*args: Any, **kwargs: Any) -> str:
+        return ""
+
 
 logger = logging.getLogger(__name__)
+
+
+def _generate_meaningful_slug(title: str, window_date: str, author_uuid: str) -> str:
+    """Generate a meaningful, unique slug for a profile post.
+
+    Creates append-only profile posts with semantic slugs that indicate:
+    - The date of the analysis
+    - The focus/aspect being analyzed (from title)
+    - Author identifier for uniqueness
+
+    Args:
+        title: The profile post title (e.g., "John's Technical Contributions")
+        window_date: The analysis date (YYYY-MM-DD)
+        author_uuid: The author's UUID
+
+    Returns:
+        A meaningful slug like "2025-03-15-technical-contributions-john-550e"
+
+    Examples:
+        >>> _generate_meaningful_slug("Alice's Photography Interests", "2025-03-15", "alice-uuid-123")
+        '2025-03-15-photography-interests-alice-ali'
+
+    """
+    # Extract meaningful part from title (remove author name prefix if present)
+    title_parts = title.split(":", 1)
+    if len(title_parts) > 1:
+        # Title like "John Doe: Technical Contributions" -> use "Technical Contributions"
+        aspect = title_parts[1].strip()
+    else:
+        aspect = title
+
+    # Slugify the aspect
+    aspect_slug = slugify(aspect)
+
+    # Use short author identifier (first 8 chars of UUID)
+    author_id = author_uuid[:8]
+
+    # Combine into meaningful slug: date-aspect-author_id
+    # Example: 2025-03-15-technical-contributions-550e8400
+    return f"{window_date}-{aspect_slug}-{author_id}"
 
 
 class ProfileUpdateDecision(BaseModel):
@@ -6111,6 +6189,7 @@ def _build_profile_prompt(
     author_messages: list[dict[str, Any]],
     window_date: str,
     existing_profile: dict[str, Any] | None = None,
+    profile_history: str = "",
 ) -> str:
     """Build prompt for LLM to generate profile content.
 
@@ -6119,6 +6198,7 @@ def _build_profile_prompt(
         author_messages: All messages from this author in window
         window_date: Date of the window
         existing_profile: Current profile data (bio, interests) to check against
+        profile_history: Compiled history of previous profile posts (from Jinja template)
 
     Returns:
         Prompt string for LLM
@@ -6139,21 +6219,38 @@ Bio: {bio}
 Interests: {interests}
 """
 
+    history_context = ""
+    if profile_history:
+        history_context = f"""
+PROFILE POST HISTORY:
+{profile_history}
+
+The above history shows your previous analyses of {author_name}.
+Use this to:
+1. Avoid repeating what you've already covered
+2. Build on prior insights
+3. Track evolution over time
+4. Identify new aspects worth analyzing
+
+"""
+
     return f"""You are Egregora, writing a profile post ABOUT {author_name}.
 
 Analyze {author_name}'s contributions, interests, and interactions based on their message history below.
 
 {existing_context}
+{history_context}
 
 DECISION REQUIRED:
 Does the new message history below reveal SIGNIFICANT new information, contradict the current profile, or show a meaningful evolution in their stance/interests?
-- If NO (just more of the same): Set 'significant' to False.
+- If NO (just more of the same OR already covered in history): Set 'significant' to False.
 - If YES: Set 'significant' to True and write a short (1-2 paragraph) appreciative profile update.
 
 Update Content Guidelines (if significant):
 - Highlight the NEW insights or changes.
+- Build on (don't repeat) previous profile posts from history.
 - Tone: Positive, flattering, appreciative.
-- Format: Markdown with H1 title.
+- Format: Markdown with H1 title that includes the specific aspect (e.g., "Alice: Photography Techniques").
 
 {author_name}'s New Messages ({len(author_messages)} total):
 
@@ -6187,12 +6284,29 @@ async def _generate_profile_content(
         except Exception as e:
             logger.warning("Failed to fetch existing profile for %s: %s", author_uuid, e)
 
-    # Build prompt
+    # Fetch profile history for context (append-only timeline of previous posts)
+    profile_history = ""
+    try:
+        if hasattr(ctx, "output_dir"):
+            from pathlib import Path
+
+            from egregora.constants import PROFILE_HISTORY_MAX_POSTS
+
+            profiles_dir = Path(ctx.output_dir) / "docs" / "posts" / "profiles"
+            profile_history = get_profile_history_for_context(
+                author_uuid, profiles_dir, max_posts=PROFILE_HISTORY_MAX_POSTS
+            )
+            logger.debug("Loaded profile history for %s (%d chars)", author_uuid, len(profile_history))
+    except Exception as e:
+        logger.warning("Failed to load profile history for %s: %s", author_uuid, e)
+
+    # Build prompt with history context
     prompt = _build_profile_prompt(
         author_name=author_name,
         author_messages=author_messages,
         window_date=author_messages[0].get("timestamp", "").split("T")[0] if author_messages else "",
         existing_profile=existing_profile,
+        profile_history=profile_history,
     )
 
     # Call LLM
@@ -6280,8 +6394,9 @@ async def generate_profile_posts(
             else:
                 title = f"{author_name}: Profile Update"
 
-            # Create slug
-            slug = f"{window_date}-{author_uuid[:8]}-profile"
+            # Create meaningful, unique slug for append-only system
+            # Each profile analysis gets its own file in the author's directory
+            slug = _generate_meaningful_slug(title, window_date, author_uuid)
 
             # Create PROFILE document
             profile = Document(
@@ -6296,6 +6411,9 @@ async def generate_profile_posts(
                 },
             )
 
+            # Validate that subject metadata is present
+            validate_profile_document(profile)
+
             profiles.append(profile)
             logger.info("Generated profile update for %s: %s", author_name, title)
 
@@ -6304,6 +6422,306 @@ async def generate_profile_posts(
             continue
 
     return profiles
+````
+
+## File: src/egregora/agents/profile/history.py
+````python
+"""Profile history generation using Jinja templates.
+
+Compiles all profile posts for an author into a chronological history
+that can be included in the writer agent's context window.
+
+This enables the LLM to:
+- See how the author's profile has evolved over time
+- Avoid repeating previous analyses
+- Build on prior insights
+- Track significant changes in interests/contributions
+"""
+
+import logging
+from collections import defaultdict
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+
+from jinja2 import Template
+
+logger = logging.getLogger(__name__)
+
+# Minimum number of parts required for date-aspect-authorid filename format (YYYY-MM-DD-aspect)
+MIN_FILENAME_PARTS = 4
+
+
+@dataclass
+class ProfilePost:
+    """Represents a single profile post in the history."""
+
+    date: str
+    title: str
+    slug: str
+    content: str
+    file_path: Path
+    aspect: str  # Extracted from title (e.g., "Technical Contributions")
+
+    @property
+    def summary(self) -> str:
+        """Return first paragraph as summary."""
+        lines = [line for line in self.content.split("\n") if line.strip() and not line.startswith("#")]
+        return lines[0] if lines else ""
+
+
+@dataclass
+class ProfileHistory:
+    """Complete profile history for an author."""
+
+    author_uuid: str
+    posts: list[ProfilePost]
+    total_posts: int
+    date_range: tuple[str, str] | None
+    aspects_analyzed: set[str]
+
+    @classmethod
+    def from_posts(cls, author_uuid: str, posts: list[ProfilePost]) -> "ProfileHistory":
+        """Create ProfileHistory from list of posts."""
+        if not posts:
+            return cls(
+                author_uuid=author_uuid,
+                posts=[],
+                total_posts=0,
+                date_range=None,
+                aspects_analyzed=set(),
+            )
+
+        # Sort by date
+        sorted_posts = sorted(posts, key=lambda p: p.date)
+
+        # Extract aspects
+        aspects = {post.aspect for post in posts if post.aspect}
+
+        # Get date range
+        first_date = sorted_posts[0].date
+        last_date = sorted_posts[-1].date
+
+        return cls(
+            author_uuid=author_uuid,
+            posts=sorted_posts,
+            total_posts=len(posts),
+            date_range=(first_date, last_date),
+            aspects_analyzed=aspects,
+        )
+
+
+DEFAULT_HISTORY_TEMPLATE = """# Profile History for {{ author_uuid }}
+
+{% if history.total_posts == 0 %}
+No profile posts exist yet for this author.
+{% else %}
+{{ history.total_posts }} profile post(s) from {{ history.date_range[0] }} to {{ history.date_range[1] }}
+
+**Aspects analyzed:** {{ history.aspects_analyzed | join(", ") }}
+
+---
+
+## Chronological Timeline
+
+{% for post in history.posts %}
+### {{ post.date }}: {{ post.title }}
+
+**Aspect:** {{ post.aspect }}
+**Summary:** {{ post.summary }}
+
+<details>
+<summary>Full content</summary>
+
+{{ post.content }}
+
+</details>
+
+---
+{% endfor %}
+
+## Analysis Guidelines
+
+Based on the profile history above:
+1. **Avoid repetition**: Don't restate insights from previous posts
+2. **Build on prior work**: Reference and extend previous analyses
+3. **Track evolution**: Note how the author's interests/contributions have changed
+4. **Identify gaps**: Look for aspects not yet analyzed
+
+{% endif %}
+"""
+
+
+def load_profile_posts(author_uuid: str, profiles_dir: Path) -> list[ProfilePost]:
+    """Load all profile posts for an author from their directory.
+
+    Args:
+        author_uuid: The author's UUID
+        profiles_dir: Base profiles directory (e.g., docs/posts/profiles/)
+
+    Returns:
+        List of ProfilePost objects, sorted by date
+
+    """
+    author_dir = profiles_dir / author_uuid
+
+    if not author_dir.exists():
+        logger.debug("No profile directory found for %s", author_uuid)
+        return []
+
+    posts = []
+
+    for file_path in author_dir.glob("*.md"):
+        if file_path.name == "index.md":
+            continue  # Skip index files
+
+        try:
+            content = file_path.read_text(encoding="utf-8")
+
+            # Extract metadata from filename: YYYY-MM-DD-aspect-authorid.md
+            stem = file_path.stem
+            parts = stem.split("-")
+
+            if len(parts) >= MIN_FILENAME_PARTS:
+                # Extract date (first 3 parts: YYYY-MM-DD)
+                date = f"{parts[0]}-{parts[1]}-{parts[2]}"
+
+                # Extract aspect (everything between date and last part)
+                aspect_parts = parts[3:-1] if len(parts) > MIN_FILENAME_PARTS else parts[3:4]
+                aspect = " ".join(aspect_parts).replace("-", " ").title()
+            else:
+                # Fallback for non-standard naming
+                date = datetime.now().strftime("%Y-%m-%d")
+                aspect = "General Profile"
+
+            # Extract title from content (first H1)
+            title = "Profile Post"
+            for line in content.split("\n"):
+                if line.startswith("# "):
+                    title = line[2:].strip()
+                    break
+
+            posts.append(
+                ProfilePost(
+                    date=date,
+                    title=title,
+                    slug=file_path.stem,
+                    content=content,
+                    file_path=file_path,
+                    aspect=aspect,
+                )
+            )
+
+        except Exception:
+            logger.exception("Failed to load profile post: %s", file_path)
+            continue
+
+    logger.info("Loaded %d profile posts for %s", len(posts), author_uuid)
+    return posts
+
+
+def render_profile_history(
+    author_uuid: str,
+    profiles_dir: Path,
+    template: Template | None = None,
+) -> str:
+    """Render a complete profile history for an author.
+
+    Args:
+        author_uuid: The author's UUID
+        profiles_dir: Base profiles directory
+        template: Optional custom Jinja template (uses default if None)
+
+    Returns:
+        Rendered profile history as markdown
+
+    """
+    # Load all profile posts
+    posts = load_profile_posts(author_uuid, profiles_dir)
+
+    # Build history object
+    history = ProfileHistory.from_posts(author_uuid, posts)
+
+    # Use default template if none provided
+    if template is None:
+        template = Template(DEFAULT_HISTORY_TEMPLATE)
+
+    # Render template
+    return template.render(author_uuid=author_uuid, history=history)
+
+
+def get_profile_history_for_context(
+    author_uuid: str,
+    profiles_dir: Path,
+    max_posts: int = 5,
+) -> str:
+    """Get condensed profile history suitable for LLM context window.
+
+    Returns a summary of recent profile posts to include in the writer's
+    context without overwhelming the token budget.
+
+    Args:
+        author_uuid: The author's UUID
+        profiles_dir: Base profiles directory
+        max_posts: Maximum number of recent posts to include
+
+    Returns:
+        Condensed markdown summary for context window
+
+    """
+    posts = load_profile_posts(author_uuid, profiles_dir)
+
+    if not posts:
+        return f"# Profile History for {author_uuid}\n\nNo prior profile posts exist."
+
+    # Sort by date descending (most recent first)
+    recent_posts = sorted(posts, key=lambda p: p.date, reverse=True)[:max_posts]
+
+    # Build condensed summary
+    lines = [
+        f"# Profile History for {author_uuid}",
+        "",
+        f"**Total posts:** {len(posts)} | **Showing:** {len(recent_posts)} most recent",
+        "",
+    ]
+
+    # Group by aspect
+    by_aspect: dict[str, list[ProfilePost]] = defaultdict(list)
+    for post in recent_posts:
+        by_aspect[post.aspect].append(post)
+
+    # Show recent posts grouped by aspect
+    lines.append("## Recent Analyses")
+    lines.append("")
+
+    for post in recent_posts:
+        lines.append(f"**{post.date}** - *{post.aspect}*: {post.title}")
+        lines.append(f"> {post.summary[:200]}...")
+        lines.append("")
+
+    # Summary of what's been covered
+    all_aspects = {post.aspect for post in posts}
+    lines.append("## Coverage Summary")
+    lines.append("")
+    lines.append(f"**Aspects analyzed ({len(all_aspects)}):** {', '.join(sorted(all_aspects))}")
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+    lines.append("**Guidelines for new analysis:**")
+    lines.append("- Build on insights from recent posts above")
+    lines.append("- Avoid repeating covered aspects unless there's significant change")
+    lines.append("- Focus on new developments or underexplored areas")
+
+    return "\n".join(lines)
+
+
+__all__ = [
+    "ProfileHistory",
+    "ProfilePost",
+    "get_profile_history_for_context",
+    "load_profile_posts",
+    "render_profile_history",
+]
 ````
 
 ## File: src/egregora/agents/profile/worker.py
@@ -8701,6 +9119,7 @@ These interests help shape the topics and themes in our discussions.
     slug = f"{date}-{event_type}-{author_uuid[:8]}"
 
     # Create ANNOUNCEMENT document
+    # Include 'subject' metadata to route to author's profile feed
     return Document(
         content=content,
         type=DocumentType.ANNOUNCEMENT,
@@ -8708,6 +9127,7 @@ These interests help shape the topics and themes in our discussions.
             "title": title,
             "slug": slug,
             "authors": [{"uuid": EGREGORA_UUID, "name": EGREGORA_NAME}],
+            "subject": author_uuid,  # Routes to /profiles/{author_uuid}/ for feed-style layout
             "event_type": event_type,
             "actor": author_uuid,
             "date": date,
@@ -21430,7 +21850,39 @@ class SelfInputAdapter(InputAdapter):
 
 ## File: src/egregora/knowledge/profiles.py
 ````python
-"""Author profiling tools for LLM to read and update author profiles."""
+"""Author profiling tools for LLM to read and update author profiles.
+
+## Two Profile Systems Overview
+
+Egregora has two distinct but complementary profile systems:
+
+### 1. Author Self-Service Profiles (this module)
+- Location: `output/profiles/{author_uuid}.md`
+- Purpose: Store author metadata and preferences (aliases, bios, avatars)
+- Created by: User commands (/egregora set alias, set bio, etc.)
+- Format: Markdown files with YAML frontmatter
+- Key function: `write_profile()`
+- **IMPORTANT**: These files include `subject` metadata in their frontmatter
+
+### 2. Egregora-Generated Profile Posts (agents/profile/generator.py)
+- Location: `docs/posts/profiles/{author_uuid}/{slug}.md` (via output adapters)
+- Purpose: LLM-generated analytical content ABOUT authors
+- Created by: Profile generation agent analyzing message history
+- Format: Document objects that go through the output adapter pipeline
+- Key function: `generate_profile_posts()`
+- **CRITICAL**: These Documents MUST include `subject: author_uuid` in metadata
+
+## Integration
+- Both systems use `subject` metadata to identify the profile subject
+- Self-service profiles are read by the LLM when generating profile posts
+- Generated profile posts route to author-specific directories via `subject` metadata
+- The `.authors.yml` file is synced from self-service profiles for MkDocs integration
+
+## Routing Requirement
+ALL profile Documents (type=DocumentType.PROFILE) MUST include `subject` metadata
+to ensure they route to `/posts/profiles/{author_uuid}/` instead of `/posts/`.
+This is validated by `validate_profile_document()` in orchestration/persistence.py.
+"""
 
 import hashlib
 import logging
@@ -26583,6 +27035,28 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def validate_profile_document(doc: Document) -> None:
+    """Validate that a profile document has required metadata.
+
+    Args:
+        doc: The profile document to validate
+
+    Raises:
+        ValueError: If required metadata is missing
+
+    """
+    if doc.type != DocumentType.PROFILE:
+        msg = f"Expected PROFILE document, got {doc.type}"
+        raise ValueError(msg)
+
+    if not doc.metadata.get("subject"):
+        msg = "PROFILE document missing required 'subject' metadata. This will cause routing to fail."
+        logger.error(msg)
+        raise ValueError(msg)
+
+    logger.debug("Profile document validation passed for subject: %s", doc.metadata.get("subject"))
+
+
 def persist_banner_document(
     output_sink: OutputSink,
     document: Document,
@@ -26621,13 +27095,25 @@ def persist_profile_document(
     Returns:
         The document ID of the saved profile
 
+    Raises:
+        ValueError: If author_uuid is empty or None
+
     """
+    if not author_uuid:
+        msg = "Cannot create profile document: author_uuid is required"
+        logger.error(msg)
+        raise ValueError(msg)
+
     doc = Document(
         content=content,
         type=DocumentType.PROFILE,
         metadata={"uuid": author_uuid, "subject": author_uuid},
         source_window=source_window,
     )
+
+    # Validate before persisting
+    validate_profile_document(doc)
+
     output_sink.persist(doc)
     logger.info("Saved profile for %s (doc_id: %s)", author_uuid, doc.document_id)
     return doc.document_id
@@ -26731,6 +27217,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import frontmatter
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
@@ -26738,7 +27225,6 @@ from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import generate_fallback_avatar_url
-import frontmatter
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
@@ -27485,21 +27971,44 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 # PROFILE posts (Egregora writing ABOUT author) go to author's folder
                 subject_uuid = document.metadata.get("subject")
                 if not subject_uuid:
-                    # Fallback for backwards compatibility
-                    logger.warning("PROFILE doc missing 'subject' metadata, falling back to posts/")
-                    slug = url_path.split("/")[-1]
-                    return self.posts_dir / f"{slug}.md"
+                    msg = (
+                        f"PROFILE document missing required 'subject' metadata. "
+                        f"Document ID: {document.document_id}, URL: {url_path}. "
+                        f"All PROFILE documents must include 'subject' to identify the author being profiled."
+                    )
+                    raise ValueError(msg)
+
+                # Successfully routing to author-specific directory
                 profile_dir = self.profiles_dir / str(subject_uuid)
                 profile_dir.mkdir(parents=True, exist_ok=True)
                 slug = url_path.split("/")[-1]
+                logger.debug("Routing PROFILE to author directory: %s/%s", subject_uuid, slug)
                 return profile_dir / f"{slug}.md"
 
             case DocumentType.ANNOUNCEMENT:
-                # System announcements (/egregora commands) go to announcements/
+                # ANNOUNCEMENT posts (user command events) route to author folder if subject exists
+                # This creates a unified feed with PROFILE posts
+                subject_uuid = document.metadata.get("subject") or document.metadata.get("actor")
+
+                if not subject_uuid:
+                    # Fallback: system announcements without subject go to announcements/
+                    logger.warning(
+                        "ANNOUNCEMENT doc missing 'subject' metadata, falling back to announcements/. "
+                        "Document ID: %s, URL: %s",
+                        document.document_id,
+                        url_path,
+                    )
+                    slug = url_path.split("/")[-1]
+                    announcements_dir = self.posts_dir / "announcements"
+                    announcements_dir.mkdir(parents=True, exist_ok=True)
+                    return announcements_dir / f"{slug}.md"
+
+                # Route to author's profile feed directory
+                profile_dir = self.profiles_dir / str(subject_uuid)
+                profile_dir.mkdir(parents=True, exist_ok=True)
                 slug = url_path.split("/")[-1]
-                announcements_dir = self.posts_dir / "announcements"
-                announcements_dir.mkdir(parents=True, exist_ok=True)
-                return announcements_dir / f"{slug}.md"
+                logger.debug("Routing ANNOUNCEMENT to author directory: %s/%s", subject_uuid, slug)
+                return profile_dir / f"{slug}.md"
 
             case DocumentType.JOURNAL:
                 # When url_path is just "journal" (root journal URL), return journal.md in docs root
@@ -29117,6 +29626,7 @@ class StandardUrlConvention(UrlConvention):
         handlers = {
             DocumentType.POST: self._format_post,
             DocumentType.PROFILE: self._format_profile,
+            DocumentType.ANNOUNCEMENT: self._format_announcement,
             DocumentType.JOURNAL: self._format_journal,
             DocumentType.MEDIA: self._format_media,
             DocumentType.ENRICHMENT_URL: self._format_url_enrichment,
@@ -29144,6 +29654,26 @@ class StandardUrlConvention(UrlConvention):
             if uid
             else self._join(ctx, self.routes.posts_prefix, slug)
         )
+
+    def _format_announcement(self, ctx: UrlContext, doc: Document) -> str:
+        """Format URL for ANNOUNCEMENT documents (user command events).
+
+        ANNOUNCEMENT documents with 'subject' metadata route to the author's profile feed:
+        /profiles/{subject_uuid}/{slug}/
+
+        This creates a unified feed showing both:
+        - PROFILE posts (Egregora's analyses)
+        - ANNOUNCEMENT posts (user actions/commands)
+        """
+        subject_uuid = doc.metadata.get("subject") or doc.metadata.get("actor")
+        if not subject_uuid:
+            # Fallback: route to announcements directory if no subject
+            slug = doc.metadata.get("slug", doc.document_id[:8])
+            return self._join(ctx, self.routes.posts_prefix, "announcements", slugify(slug))
+
+        # Route to author's profile feed
+        slug_value = doc.metadata.get("slug") or doc.document_id[:8]
+        return self._join(ctx, self.routes.profiles_prefix, str(subject_uuid), slugify(str(slug_value)))
 
     def _format_journal(self, ctx: UrlContext, doc: Document) -> str:
         label = doc.metadata.get("window_label") or doc.metadata.get("slug")
@@ -33963,7 +34493,8 @@ class PathTraversalError(Exception):
 def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
     """Convert text to a safe URL-friendly slug using MkDocs/Python Markdown semantics.
 
-    Produces ASCII-only, hyphen-separated slugs matching MkDocs tab/heading behavior.
+    Uses pymdownx.slugs directly for consistent behavior with MkDocs heading IDs.
+    Produces ASCII-only slugs with Unicode transliteration.
 
     Args:
         text: Input text to slugify
@@ -33983,18 +34514,26 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
         >>> slugify("Привет мир")
         'privet-mir'
         >>> slugify("../../etc/passwd")
-        'etc-passwd'
+        'etcpasswd'
         >>> slugify("A" * 100, max_len=20)
         'aaaaaaaaaaaaaaaaaaaa'
 
     """
+    # Normalize Unicode to ASCII using NFKD (preserves transliteration)
     normalized = normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+
+    # Use pymdownx.slugs with appropriate settings
     slugifier = _md_slugify(case="lower" if lowercase else None, separator="-")
     slug = slugifier(normalized, sep="-")
+
+    # Fallback for empty slugs
     if not slug:
         return "post"
+
+    # Truncate to max length, removing trailing hyphens
     if len(slug) > max_len:
         slug = slug[:max_len].rstrip("-")
+
     return slug
 
 
@@ -34433,6 +34972,10 @@ class SystemIdentifier(str, Enum):
 # Used when Egregora generates content (PROFILE posts, ANNOUNCEMENT posts)
 EGREGORA_UUID = "00000000-0000-0000-0000-000000000000"
 EGREGORA_NAME = "Egregora"
+
+# Profile history context settings
+# Maximum number of recent profile posts to include in LLM context window
+PROFILE_HISTORY_MAX_POSTS = 5
 
 
 class OutputAdapter(str, Enum):

@@ -102,6 +102,8 @@ tests/
   helpers/
     __init__.py
     storage.py
+  integration/
+    test_profile_routing_e2e.py
   unit/
     agents/
       banner/
@@ -116,6 +118,8 @@ tests/
       __init__.py
       test_enricher_staging.py
       test_enrichment_parsing.py
+      test_profile_history.py
+      test_profile_slug_generation.py
       test_rag_exception_handling.py
       test_tool_registry.py
       test_writer_capabilities.py
@@ -162,11 +166,13 @@ tests/
     utils/
       test_filesystem.py
       test_network.py
+      test_paths.py
     __init__.py
     test_429_rotation.py
     test_media_slugs.py
     test_media_url_conventions.py
     test_model_guards.py
+    test_profile_metadata_validation.py
     test_rotating_fallback.py
     test_security_xss.py
     test_taxonomy.py
@@ -3962,6 +3968,241 @@ __all__ = [
 ]
 ````
 
+## File: tests/integration/test_profile_routing_e2e.py
+````python
+"""End-to-end tests for profile document routing.
+
+Verifies that profile Documents with proper metadata route to the correct
+directory structure: /docs/posts/profiles/{author_uuid}/{slug}.md
+"""
+
+import pytest
+
+from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
+from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import UrlContext
+from egregora.output_adapters.conventions import StandardUrlConvention
+
+
+class TestProfileRoutingEndToEnd:
+    """End-to-end tests for complete profile routing flow."""
+
+    @pytest.fixture
+    def convention(self):
+        """Create URL convention instance."""
+        return StandardUrlConvention()
+
+    @pytest.fixture
+    def ctx(self):
+        """Create URL context for testing."""
+        return UrlContext(base_url="https://example.com", site_prefix="blog")
+
+    def test_profile_with_subject_routes_to_author_directory(self, convention, ctx):
+        """Profile with subject metadata should route to author-specific URL."""
+        author_uuid = "550e8400-e29b-41d4-a716-446655440000"
+        doc = Document(
+            content="# Author Analysis",
+            type=DocumentType.PROFILE,
+            metadata={
+                "subject": author_uuid,
+                "slug": "contributions-analysis",
+                "authors": [{"uuid": EGREGORA_UUID, "name": EGREGORA_NAME}],
+            },
+        )
+
+        url = convention.canonical_url(doc, ctx)
+
+        # Should route to /blog/profiles/{uuid}/{slug}/
+        assert f"/profiles/{author_uuid}/contributions-analysis/" in url
+        assert url.startswith("https://example.com/blog/")
+
+    def test_profile_without_subject_falls_back_to_posts(self, convention, ctx):
+        """Profile without subject should fall back to posts directory."""
+        doc = Document(
+            content="# Orphan Profile",
+            type=DocumentType.PROFILE,
+            metadata={
+                "slug": "orphan-profile",
+                "authors": [{"uuid": EGREGORA_UUID, "name": EGREGORA_NAME}],
+            },
+        )
+
+        url = convention.canonical_url(doc, ctx)
+
+        # Should fall back to /blog/posts/{slug}/
+        assert "/posts/orphan-profile/" in url
+        assert "/profiles/" not in url
+
+    def test_multiple_profiles_same_author_different_slugs(self, convention, ctx):
+        """Multiple profiles for same author should all route to their directory."""
+        author_uuid = "test-author-123"
+
+        profiles = [
+            Document(
+                content=f"# Profile {i}",
+                type=DocumentType.PROFILE,
+                metadata={
+                    "subject": author_uuid,
+                    "slug": f"profile-{i}",
+                    "authors": [{"uuid": EGREGORA_UUID}],
+                },
+            )
+            for i in range(3)
+        ]
+
+        urls = [convention.canonical_url(doc, ctx) for doc in profiles]
+
+        # All should route to same author directory but different files
+        for i, url in enumerate(urls):
+            assert f"/profiles/{author_uuid}/profile-{i}/" in url
+
+    def test_profile_routing_with_date_metadata(self, convention, ctx):
+        """Profile with date should still route by subject, not date."""
+        author_uuid = "test-author-456"
+        doc = Document(
+            content="# Monthly Analysis",
+            type=DocumentType.PROFILE,
+            metadata={
+                "subject": author_uuid,
+                "slug": "monthly-analysis",
+                "date": "2025-03-15",
+                "authors": [{"uuid": EGREGORA_UUID}],
+            },
+        )
+
+        url = convention.canonical_url(doc, ctx)
+
+        # Should route to /profiles/{uuid}/{slug}/, NOT /profiles/2025-03-15-...
+        assert f"/profiles/{author_uuid}/monthly-analysis/" in url
+        assert "2025-03-15" not in url  # Date should not be in URL for profiles
+
+    def test_profile_with_special_characters_in_slug(self, convention, ctx):
+        """Profile slug should be properly slugified."""
+        author_uuid = "test-author-789"
+        doc = Document(
+            content="# Special Analysis",
+            type=DocumentType.PROFILE,
+            metadata={
+                "subject": author_uuid,
+                "slug": "John's Contributions & Interests!",
+                "authors": [{"uuid": EGREGORA_UUID}],
+            },
+        )
+
+        url = convention.canonical_url(doc, ctx)
+
+        # Slug should be sanitized
+        assert f"/profiles/{author_uuid}/" in url
+        # Special characters should be handled
+        assert "!" not in url
+        assert "&" not in url
+
+    def test_profile_uses_subject_over_uuid_metadata(self, convention, ctx):
+        """Profile should prefer 'subject' over 'uuid' for routing."""
+        subject_uuid = "subject-123"
+        doc = Document(
+            content="# Profile",
+            type=DocumentType.PROFILE,
+            metadata={
+                "subject": subject_uuid,
+                "uuid": "different-uuid-456",  # Should be ignored
+                "slug": "test-profile",
+                "authors": [{"uuid": EGREGORA_UUID}],
+            },
+        )
+
+        url = convention.canonical_url(doc, ctx)
+
+        # Should use subject, not uuid
+        assert f"/profiles/{subject_uuid}/" in url
+        assert "different-uuid-456" not in url
+
+    def test_profile_fallback_to_uuid_if_no_subject(self, convention, ctx):
+        """If subject is missing, should try uuid metadata."""
+        uuid_value = "fallback-uuid-789"
+        doc = Document(
+            content="# Profile",
+            type=DocumentType.PROFILE,
+            metadata={
+                "uuid": uuid_value,
+                "slug": "test-profile",
+                "authors": [{"uuid": EGREGORA_UUID}],
+            },
+        )
+
+        url = convention.canonical_url(doc, ctx)
+
+        # Should fall back to uuid metadata
+        assert f"/profiles/{uuid_value}/" in url
+
+
+class TestProfileRoutingConsistency:
+    """Tests to ensure consistent routing across different scenarios."""
+
+    @pytest.fixture
+    def convention(self):
+        return StandardUrlConvention()
+
+    @pytest.fixture
+    def ctx(self):
+        return UrlContext(base_url="", site_prefix="")
+
+    def test_same_subject_produces_consistent_urls(self, convention, ctx):
+        """Same subject should always produce URLs in same directory."""
+        author_uuid = "consistent-author"
+
+        urls = []
+        for i in range(5):
+            doc = Document(
+                content=f"# Profile {i}",
+                type=DocumentType.PROFILE,
+                metadata={
+                    "subject": author_uuid,
+                    "slug": f"profile-{i}",
+                    "authors": [{"uuid": EGREGORA_UUID}],
+                },
+            )
+            urls.append(convention.canonical_url(doc, ctx))
+
+        # All URLs should contain same author directory
+        for url in urls:
+            assert f"/profiles/{author_uuid}/" in url
+
+    def test_different_subjects_produce_different_directories(self, convention, ctx):
+        """Different subjects should produce URLs in different directories."""
+        authors = [f"author-{i}" for i in range(3)]
+
+        urls = [
+            convention.canonical_url(
+                Document(
+                    content=f"# Profile for {author}",
+                    type=DocumentType.PROFILE,
+                    metadata={
+                        "subject": author,
+                        "slug": "profile",
+                        "authors": [{"uuid": EGREGORA_UUID}],
+                    },
+                ),
+                ctx,
+            )
+            for author in authors
+        ]
+
+        # Each should have unique directory
+        for i, author in enumerate(authors):
+            assert f"/profiles/{author}/" in urls[i]
+
+        # No URL should contain another author's directory
+        for i, url in enumerate(urls):
+            for j, author in enumerate(authors):
+                if i != j:
+                    assert f"/profiles/{author}/" not in url
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
+````
+
 ## File: tests/unit/agents/banner/test_banner_image_generation.py
 ````python
 import pytest
@@ -4713,6 +4954,592 @@ def test_parse_media_result_handles_missing_slug(worker):
     # Should fail if slug is missing and no pre-existing markdown
     assert result is None
     worker.ctx.task_store.mark_failed.assert_called()
+````
+
+## File: tests/unit/agents/test_profile_history.py
+````python
+"""Behavioral tests for profile history generation.
+
+Tests focus on behavior (what the system does) rather than implementation (how it does it).
+Following TDD principles retroactively to ensure comprehensive coverage.
+"""
+
+from pathlib import Path
+
+import pytest
+
+from egregora.agents.profile.history import (
+    MIN_FILENAME_PARTS,
+    ProfilePost,
+    get_profile_history_for_context,
+    load_profile_posts,
+)
+
+
+class TestProfilePostLoading:
+    """Test loading profile posts from filesystem - behavior focused."""
+
+    def test_loads_profile_post_from_valid_file(self, tmp_path: Path):
+        """BEHAVIOR: System loads profile posts from markdown files with date-aspect-uuid naming."""
+        # Arrange
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        file = profile_dir / "2025-01-15-technical-contributions-abc123.md"
+        file.write_text("# Technical Contributions\n\nJohn is a Python expert.")
+
+        # Act
+        posts = load_profile_posts("author-123", profiles_base)
+
+        # Assert
+        assert len(posts) == 1
+        assert posts[0].date == "2025-01-15"
+        assert posts[0].aspect == "Technical Contributions"
+        assert "Python expert" in posts[0].content
+
+    def test_extracts_date_from_filename(self, tmp_path: Path):
+        """BEHAVIOR: Date is extracted from first 3 parts of filename (YYYY-MM-DD)."""
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        file = profile_dir / "2024-12-25-holiday-coding-abc123.md"
+        file.write_text("# Holiday Coding\n\nContent")
+
+        posts = load_profile_posts("author-123", profiles_base)
+
+        assert posts[0].date == "2024-12-25"
+
+    def test_extracts_aspect_from_filename(self, tmp_path: Path):
+        """BEHAVIOR: Aspect is extracted from middle parts, converted to Title Case."""
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        # Multi-word aspect with hyphens
+        file = profile_dir / "2025-01-01-community-leadership-skills-abc123.md"
+        file.write_text("# Community Leadership Skills\n\nContent")
+
+        posts = load_profile_posts("author-123", profiles_base)
+
+        assert posts[0].aspect == "Community Leadership Skills"
+
+    def test_handles_single_word_aspect(self, tmp_path: Path):
+        """BEHAVIOR: Single-word aspects are properly extracted."""
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        file = profile_dir / "2025-01-01-contributions-abc123.md"
+        file.write_text("# Contributions\n\nContent")
+
+        posts = load_profile_posts("author-123", profiles_base)
+
+        assert posts[0].aspect == "Contributions"
+
+    def test_extracts_title_from_content(self, tmp_path: Path):
+        """BEHAVIOR: Post title is extracted from first H1 heading."""
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        file = profile_dir / "2025-01-01-test-abc123.md"
+        file.write_text("# John's Amazing Work\n\nDetails here...")
+
+        posts = load_profile_posts("author-123", profiles_base)
+
+        assert posts[0].title == "John's Amazing Work"
+
+    def test_extracts_slug_from_filename(self, tmp_path: Path):
+        """BEHAVIOR: Slug is the filename without extension."""
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        file = profile_dir / "2025-01-01-test-aspect-abc123.md"
+        file.write_text("# Title\n\nContent")
+
+        posts = load_profile_posts("author-123", profiles_base)
+
+        assert posts[0].slug == "2025-01-01-test-aspect-abc123"
+
+    def test_loads_multiple_posts(self, tmp_path: Path):
+        """BEHAVIOR: Multiple posts are all loaded from directory."""
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        (profile_dir / "2025-01-01-first-abc123.md").write_text("# First\n\nContent")
+        (profile_dir / "2025-01-15-second-abc123.md").write_text("# Second\n\nContent")
+        (profile_dir / "2025-01-10-third-abc123.md").write_text("# Third\n\nContent")
+
+        posts = load_profile_posts("author-123", profiles_base)
+
+        assert len(posts) == 3
+        # All three posts loaded (order not guaranteed by load function)
+        dates = {p.date for p in posts}
+        assert dates == {"2025-01-01", "2025-01-15", "2025-01-10"}
+
+    def test_ignores_index_files(self, tmp_path: Path):
+        """BEHAVIOR: index.md files are ignored (not profile posts)."""
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        (profile_dir / "index.md").write_text("# Index\n\nThis is an index")
+        (profile_dir / "2025-01-01-valid-abc123.md").write_text("# Valid\n\nContent")
+
+        posts = load_profile_posts("author-123", profiles_base)
+
+        assert len(posts) == 1
+        assert posts[0].slug == "2025-01-01-valid-abc123"
+
+    def test_ignores_non_markdown_files(self, tmp_path: Path):
+        """BEHAVIOR: Only .md files are processed."""
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        (profile_dir / "2025-01-01-test-abc123.txt").write_text("Not markdown")
+        (profile_dir / "2025-01-01-valid-abc123.md").write_text("# Valid\n\nContent")
+
+        posts = load_profile_posts("author-123", profiles_base)
+
+        assert len(posts) == 1
+        assert posts[0].slug == "2025-01-01-valid-abc123"
+
+    def test_handles_missing_directory(self, tmp_path: Path):
+        """BEHAVIOR: Returns empty list when directory doesn't exist."""
+        profiles_base = tmp_path / "profiles"
+
+        posts = load_profile_posts("nonexistent-author", profiles_base)
+
+        assert posts == []
+
+    def test_handles_empty_directory(self, tmp_path: Path):
+        """BEHAVIOR: Returns empty list when directory has no markdown files."""
+        profiles_base = tmp_path / "profiles"
+        empty_dir = profiles_base / "author-123"
+        empty_dir.mkdir(parents=True)
+
+        posts = load_profile_posts("author-123", profiles_base)
+
+        assert posts == []
+
+    def test_handles_malformed_filename_gracefully(self, tmp_path: Path):
+        """BEHAVIOR: Files with < 4 parts get fallback date/aspect."""
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        # Only 2 parts (not enough)
+        file = profile_dir / "invalid-file.md"
+        file.write_text("# Title\n\nContent")
+
+        posts = load_profile_posts("author-123", profiles_base)
+
+        assert len(posts) == 1
+        # Fallback values - date will be today
+        assert len(posts[0].date) == 10  # YYYY-MM-DD format
+        assert posts[0].aspect == "General Profile"
+
+    def test_handles_missing_h1_title(self, tmp_path: Path):
+        """BEHAVIOR: Falls back to 'Profile Post' when no H1 found."""
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        file = profile_dir / "2025-01-01-test-abc123.md"
+        file.write_text("Content without a title header")
+
+        posts = load_profile_posts("author-123", profiles_base)
+
+        assert posts[0].title == "Profile Post"
+
+
+class TestProfilePostSummary:
+    """Test ProfilePost summary property - behavior focused."""
+
+    def test_summary_returns_first_paragraph(self):
+        """BEHAVIOR: Summary is the first non-heading paragraph."""
+        post = ProfilePost(
+            date="2025-01-01",
+            title="Test",
+            slug="test",
+            content="# Title\n\nFirst paragraph here.\n\nSecond paragraph.",
+            file_path=Path("/tmp/test.md"),
+            aspect="Test",
+        )
+
+        assert post.summary == "First paragraph here."
+
+    def test_summary_skips_headings(self):
+        """BEHAVIOR: Summary skips all heading lines."""
+        post = ProfilePost(
+            date="2025-01-01",
+            title="Test",
+            slug="test",
+            content="# Title\n\n## Subtitle\n\nActual content here.",
+            file_path=Path("/tmp/test.md"),
+            aspect="Test",
+        )
+
+        assert post.summary == "Actual content here."
+
+    def test_summary_handles_empty_content(self):
+        """BEHAVIOR: Returns empty string for content with no paragraphs."""
+        post = ProfilePost(
+            date="2025-01-01",
+            title="Test",
+            slug="test",
+            content="# Only Headings\n\n## No Content",
+            file_path=Path("/tmp/test.md"),
+            aspect="Test",
+        )
+
+        assert post.summary == ""
+
+
+class TestContextGeneration:
+    """Test generating context string for LLM - behavior focused."""
+
+    def test_generates_context_with_recent_posts(self, tmp_path: Path):
+        """BEHAVIOR: Context includes recent profile posts for LLM."""
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        (profile_dir / "2025-01-15-coding-abc123.md").write_text(
+            "# John's Coding Skills\n\nJohn is excellent at Python."
+        )
+
+        context = get_profile_history_for_context("author-123", profiles_base)
+
+        assert "John's Coding Skills" in context
+        assert "Python" in context
+
+    def test_context_respects_max_posts_limit(self, tmp_path: Path):
+        """BEHAVIOR: Limits number of posts in context to avoid token bloat."""
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        # Create 10 posts
+        for i in range(10):
+            (profile_dir / f"2025-01-{i + 1:02d}-post{i}-abc123.md").write_text(f"# Post {i}\n\nContent {i}")
+
+        context = get_profile_history_for_context("author-123", profiles_base, max_posts=3)
+
+        # Should only include 3 most recent
+        assert "Post 9" in context  # Most recent (day 10)
+        assert "Post 8" in context  # (day 9)
+        assert "Post 7" in context  # (day 8)
+        assert "Post 0" not in context  # Oldest excluded
+
+    def test_context_includes_metadata_summary(self, tmp_path: Path):
+        """BEHAVIOR: Context includes summary metadata (total posts, aspects)."""
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        (profile_dir / "2025-01-01-coding-abc123.md").write_text("# Coding\n\nContent")
+        (profile_dir / "2025-01-15-design-abc123.md").write_text("# Design\n\nContent")
+
+        context = get_profile_history_for_context("author-123", profiles_base)
+
+        # Should mention total posts
+        assert "2" in context
+        # Should mention aspects
+        assert "Coding" in context or "Design" in context
+
+    def test_context_indicates_no_history_exists(self, tmp_path: Path):
+        """BEHAVIOR: Returns message when no history exists."""
+        profiles_base = tmp_path / "profiles"
+        empty_dir = profiles_base / "author-123"
+        empty_dir.mkdir(parents=True)
+
+        context = get_profile_history_for_context("author-123", profiles_base)
+
+        # Should indicate no history
+        assert "no prior" in context.lower() or "no previous" in context.lower()
+
+    def test_context_handles_missing_directory(self, tmp_path: Path):
+        """BEHAVIOR: Gracefully handles nonexistent profile directory."""
+        profiles_base = tmp_path / "profiles"
+
+        context = get_profile_history_for_context("nonexistent-author", profiles_base)
+
+        assert "no prior" in context.lower()
+
+    def test_context_shows_aspects_coverage(self, tmp_path: Path):
+        """BEHAVIOR: Context summarizes what aspects have been analyzed."""
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        (profile_dir / "2025-01-01-coding-abc123.md").write_text("# Coding\n\nContent")
+        (profile_dir / "2025-01-05-design-abc123.md").write_text("# Design\n\nContent")
+        (profile_dir / "2025-01-10-leadership-abc123.md").write_text("# Leadership\n\nContent")
+
+        context = get_profile_history_for_context("author-123", profiles_base)
+
+        # Should list aspects covered
+        assert "Coding" in context
+        assert "Design" in context
+        assert "Leadership" in context
+
+    def test_context_provides_guidelines_for_new_analysis(self, tmp_path: Path):
+        """BEHAVIOR: Context includes guidelines for the next profile post."""
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        (profile_dir / "2025-01-01-coding-abc123.md").write_text("# Coding\n\nContent")
+
+        context = get_profile_history_for_context("author-123", profiles_base)
+
+        # Should include guidelines
+        assert "build on" in context.lower() or "avoid repeat" in context.lower()
+
+
+class TestEdgeCases:
+    """Test edge cases and error conditions - behavior focused."""
+
+    def test_handles_unicode_in_content(self, tmp_path: Path):
+        """BEHAVIOR: Properly handles Unicode characters in content."""
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        file = profile_dir / "2025-01-01-test-abc123.md"
+        file.write_text("# José's Café ☕\n\nÜber cool 中文 content! 🎉")
+
+        posts = load_profile_posts("author-123", profiles_base)
+
+        assert len(posts) == 1
+        assert "José" in posts[0].content
+        assert "☕" in posts[0].content
+        assert "中文" in posts[0].content
+
+    def test_handles_very_long_aspect_names(self, tmp_path: Path):
+        """BEHAVIOR: Handles aspect names with many hyphenated words."""
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        file = profile_dir / "2025-01-01-long-multi-word-aspect-name-with-many-parts-abc123.md"
+        file.write_text("# Title\n\nContent")
+
+        posts = load_profile_posts("author-123", profiles_base)
+
+        assert posts[0].aspect == "Long Multi Word Aspect Name With Many Parts"
+
+    def test_handles_empty_markdown_file(self, tmp_path: Path):
+        """BEHAVIOR: Handles empty markdown files without crashing."""
+        profiles_base = tmp_path / "profiles"
+        profile_dir = profiles_base / "author-123"
+        profile_dir.mkdir(parents=True)
+
+        file = profile_dir / "2025-01-01-test-abc123.md"
+        file.write_text("")
+
+        posts = load_profile_posts("author-123", profiles_base)
+
+        assert len(posts) == 1
+        assert posts[0].content == ""
+        assert posts[0].title == "Profile Post"
+
+    def test_min_filename_parts_constant_matches_logic(self):
+        """BEHAVIOR: MIN_FILENAME_PARTS constant reflects actual parsing logic."""
+        # This ensures the constant we export matches what we expect
+        assert MIN_FILENAME_PARTS == 4  # YYYY-MM-DD-aspect
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
+````
+
+## File: tests/unit/agents/test_profile_slug_generation.py
+````python
+"""Tests for profile slug generation and append-only behavior.
+
+Verifies that profile posts use meaningful slugs and support
+append-only architecture.
+"""
+
+import pytest
+
+from egregora.agents.profile.generator import _generate_meaningful_slug
+
+
+class TestMeaningfulSlugGeneration:
+    """Test meaningful slug generation for profile posts."""
+
+    def test_slug_includes_date_aspect_and_author(self):
+        """Slug should include date, aspect, and author identifier."""
+        slug = _generate_meaningful_slug(
+            title="John Doe: Technical Contributions",
+            window_date="2025-03-15",
+            author_uuid="550e8400-abcd-1234",
+        )
+
+        # Should include date
+        assert slug.startswith("2025-03-15-")
+        # Should include aspect (slugified "Technical Contributions")
+        assert "technical-contributions" in slug
+        # Should include author ID (first 8 chars)
+        assert slug.endswith("-550e8400")
+
+    def test_slug_with_title_without_colon(self):
+        """Handle titles without author name prefix."""
+        slug = _generate_meaningful_slug(
+            title="Photography Interests and Gear", window_date="2025-04-01", author_uuid="alice123-456"
+        )
+
+        assert slug.startswith("2025-04-01-")
+        assert "photography-interests" in slug
+        assert slug.endswith("-alice123")
+
+    def test_slug_uniqueness_across_different_aspects(self):
+        """Different aspects should produce different slugs."""
+        base_params = {"window_date": "2025-03-15", "author_uuid": "test-uuid-123"}
+
+        slug1 = _generate_meaningful_slug(title="John: Technical Skills", **base_params)
+        slug2 = _generate_meaningful_slug(title="John: Photography Interests", **base_params)
+        slug3 = _generate_meaningful_slug(title="John: Community Engagement", **base_params)
+
+        # All should be different
+        assert slug1 != slug2 != slug3
+
+        # All should have same date and author
+        assert all(s.startswith("2025-03-15-") for s in [slug1, slug2, slug3])
+        assert all(s.endswith("-test-uui") for s in [slug1, slug2, slug3])
+
+    def test_slug_uniqueness_across_different_dates(self):
+        """Same aspect on different dates should produce different slugs."""
+        slug1 = _generate_meaningful_slug(
+            title="Alice: Photography", window_date="2025-03-01", author_uuid="alice-123"
+        )
+        slug2 = _generate_meaningful_slug(
+            title="Alice: Photography", window_date="2025-03-15", author_uuid="alice-123"
+        )
+
+        assert slug1 != slug2
+        assert slug1.startswith("2025-03-01-")
+        assert slug2.startswith("2025-03-15-")
+
+    def test_slug_special_characters_handled(self):
+        """Special characters in title should be properly slugified."""
+        slug = _generate_meaningful_slug(
+            title="John's Amazing Contributions & Ideas!", window_date="2025-03-15", author_uuid="john-uuid"
+        )
+
+        # Should not contain special characters
+        assert "'" not in slug
+        assert "&" not in slug
+        assert "!" not in slug
+
+        # Should contain slugified version
+        assert "amazing-contributions" in slug
+        assert "ideas" in slug
+
+    def test_slug_consistency(self):
+        """Same inputs should produce same slug (deterministic)."""
+        params = {
+            "title": "Test Profile: Key Insights",
+            "window_date": "2025-03-15",
+            "author_uuid": "test-123",
+        }
+
+        slug1 = _generate_meaningful_slug(**params)
+        slug2 = _generate_meaningful_slug(**params)
+
+        assert slug1 == slug2
+
+    def test_slug_format_structure(self):
+        """Verify the expected format: date-aspect-authorid."""
+        slug = _generate_meaningful_slug(
+            title="Bob: Machine Learning Insights", window_date="2025-05-20", author_uuid="bobsmith-uuid-789"
+        )
+
+        # Split and verify structure
+        parts = slug.split("-")
+
+        # Should start with date (YYYY-MM-DD = 3 parts)
+        assert parts[0] == "2025"
+        assert parts[1] == "05"
+        assert parts[2] == "20"
+
+        # Should end with author ID (first 8 chars)
+        assert parts[-1] == "bobsmith"
+
+        # Middle parts should be aspect
+        aspect_parts = parts[3:-1]
+        assert "machine" in aspect_parts or "learning" in aspect_parts
+
+    def test_empty_aspect_after_colon(self):
+        """Handle edge case of title with just author name and colon."""
+        slug = _generate_meaningful_slug(title="John: ", window_date="2025-03-15", author_uuid="john-uuid")
+
+        # Should still produce valid slug
+        assert slug.startswith("2025-03-15-")
+        assert slug.endswith("-john-uui")
+
+    def test_long_aspect_title(self):
+        """Handle very long aspect titles gracefully."""
+        long_title = "John: " + "A" * 200  # Very long aspect
+        slug = _generate_meaningful_slug(title=long_title, window_date="2025-03-15", author_uuid="john-uuid")
+
+        # Should still produce valid slug (slugify should handle long strings)
+        assert slug.startswith("2025-03-15-")
+        assert slug.endswith("-john-uui")
+        assert "a" * 50 in slug  # Should contain many 'a's from the long title
+
+
+class TestAppendOnlyBehavior:
+    """Test that profile system supports append-only architecture."""
+
+    def test_different_slugs_for_same_author_different_analyses(self):
+        """Multiple analyses of same author should produce different slugs."""
+        author_uuid = "same-author-123"
+
+        # Simulate three different profile analyses
+        slug1 = _generate_meaningful_slug(
+            title="Technical Skills", window_date="2025-03-01", author_uuid=author_uuid
+        )
+
+        slug2 = _generate_meaningful_slug(
+            title="Photography Interests", window_date="2025-03-15", author_uuid=author_uuid
+        )
+
+        slug3 = _generate_meaningful_slug(
+            title="Community Engagement", window_date="2025-04-01", author_uuid=author_uuid
+        )
+
+        # All should be unique (append-only)
+        assert len({slug1, slug2, slug3}) == 3
+
+    def test_temporal_ordering_via_date_prefix(self):
+        """Date prefix enables temporal ordering of profile posts."""
+        author_uuid = "author-123"
+
+        slugs = [
+            _generate_meaningful_slug(title="Analysis", window_date="2025-01-15", author_uuid=author_uuid),
+            _generate_meaningful_slug(title="Analysis", window_date="2025-03-15", author_uuid=author_uuid),
+            _generate_meaningful_slug(title="Analysis", window_date="2025-02-15", author_uuid=author_uuid),
+        ]
+
+        # When sorted alphabetically, should be in chronological order
+        sorted_slugs = sorted(slugs)
+
+        assert sorted_slugs[0].startswith("2025-01-15-")
+        assert sorted_slugs[1].startswith("2025-02-15-")
+        assert sorted_slugs[2].startswith("2025-03-15-")
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
 ````
 
 ## File: tests/unit/agents/test_rag_exception_handling.py
@@ -6149,7 +6976,7 @@ def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Pat
     profile = Document(
         content="## Author",
         type=DocumentType.PROFILE,
-        metadata={"uuid": "author-123", "slug": "Should not be used"},
+        metadata={"subject": "author-123", "uuid": "author-123", "slug": "Should not be used"},
     )
     journal = Document(
         content="Journal entry",
@@ -6197,8 +7024,8 @@ def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Pat
         if stored_doc.type == DocumentType.POST:
             assert str(stored_relative).startswith("posts/")
         elif stored_doc.type == DocumentType.PROFILE:
-            # Unified: profiles go to posts/
-            assert str(stored_relative).startswith("posts/")
+            # Profiles with subject go to posts/profiles/{subject_uuid}/
+            assert str(stored_relative).startswith("posts/profiles/")
         elif stored_doc.type == DocumentType.JOURNAL:
             # Journals with metadata go to journal/ directory
             # Fallback journals (empty metadata) go to docs root as journal.md
@@ -8507,6 +9334,226 @@ def test_validate_public_url_resolve_failure(monkeypatch: pytest.MonkeyPatch) ->
         validate_public_url("https://does-not-resolve.test")
 ````
 
+## File: tests/unit/utils/test_paths.py
+````python
+"""Behavioral tests for path utilities - focusing on slugify function.
+
+Tests the slugify function behavior to ensure compatibility with MkDocs/Python Markdown.
+Using TDD approach to document expected behavior before refactoring.
+"""
+
+import pytest
+
+from egregora.utils.paths import slugify
+
+
+class TestSlugifyBasicBehavior:
+    """Test basic slugification behavior - converting text to URL-safe slugs."""
+
+    def test_simple_text_becomes_lowercase_hyphenated(self):
+        """BEHAVIOR: Simple text is lowercased and spaces become hyphens."""
+        assert slugify("Hello World") == "hello-world"
+
+    def test_preserves_case_when_lowercase_false(self):
+        """BEHAVIOR: Can preserve case when lowercase=False."""
+        assert slugify("Hello World", lowercase=False) == "Hello-World"
+
+    def test_removes_special_characters(self):
+        """BEHAVIOR: Special characters are removed."""
+        assert slugify("Hello, World!") == "hello-world"
+        assert slugify("Test@Example#Hash") == "testexamplehash"
+
+    def test_multiple_spaces_create_multiple_hyphens(self):
+        """BEHAVIOR: Multiple spaces create corresponding hyphens (pymdownx behavior)."""
+        # pymdownx.slugs preserves space-to-hyphen mapping
+        assert slugify("Hello    World") == "hello----world"
+
+    def test_leading_trailing_spaces_removed(self):
+        """BEHAVIOR: Leading and trailing spaces are removed."""
+        assert slugify("  Hello World  ") == "hello-world"
+
+    def test_hyphens_preserved(self):
+        """BEHAVIOR: Hyphens are preserved as-is (pymdownx behavior)."""
+        assert slugify("hello-world") == "hello-world"
+        assert slugify("hello---world") == "hello---world"  # Multiple hyphens preserved
+
+    def test_underscores_preserved(self):
+        """BEHAVIOR: Underscores are preserved in slugs (pymdownx behavior)."""
+        assert slugify("hello_world") == "hello_world"
+
+
+class TestSlugifyUnicode:
+    """Test Unicode handling - transliteration to ASCII."""
+
+    def test_french_accents_transliterated(self):
+        """BEHAVIOR: French accented characters become ASCII equivalents."""
+        assert slugify("Café") == "cafe"
+        assert slugify("élève") == "eleve"
+        assert slugify("à Paris") == "a-paris"
+
+    def test_german_characters_transliterated(self):
+        """BEHAVIOR: German special characters transliterated."""
+        assert slugify("Über") == "uber"
+        assert slugify("Müller") == "muller"
+
+    def test_cyrillic_transliterated(self):
+        """BEHAVIOR: Cyrillic characters transliterated to ASCII."""
+        # This should produce some ASCII representation
+        result = slugify("Привет")
+        assert result.isascii()
+        assert len(result) > 0
+
+    def test_chinese_characters_handled(self):
+        """BEHAVIOR: Chinese characters handled gracefully."""
+        result = slugify("你好")
+        # Should produce valid slug (may be empty or transliterated)
+        assert result.isascii()
+
+    def test_mixed_unicode_and_ascii(self):
+        """BEHAVIOR: Mixed Unicode and ASCII handled."""
+        assert slugify("Café in München") == "cafe-in-munchen"
+
+    def test_emoji_removed(self):
+        """BEHAVIOR: Emoji are removed, but spaces between create hyphens."""
+        result = slugify("Hello 👋 World 🌍")
+        # Emoji removed, but the spaces remain as hyphens
+        assert result == "hello--world"
+
+
+class TestSlugifyEdgeCases:
+    """Test edge cases and boundary conditions."""
+
+    def test_empty_string_returns_fallback(self):
+        """BEHAVIOR: Empty string returns fallback value 'post'."""
+        assert slugify("") == "post"
+
+    def test_only_special_characters_returns_fallback(self):
+        """BEHAVIOR: String with only special characters returns fallback."""
+        assert slugify("!!!???") == "post"
+
+    def test_only_unicode_that_strips_returns_fallback(self):
+        """BEHAVIOR: String with only non-transliteratable Unicode returns fallback."""
+        result = slugify("😀😀😀")
+        assert result == "post"  # Falls back when nothing remains
+
+    def test_numbers_preserved(self):
+        """BEHAVIOR: Numbers are preserved in slugs."""
+        assert slugify("Test 123") == "test-123"
+        assert slugify("2024-01-15") == "2024-01-15"
+
+    def test_dots_removed(self):
+        """BEHAVIOR: Dots are removed (not converted to hyphens)."""
+        assert slugify("file.name.txt") == "filenametxt"
+
+    def test_slashes_removed(self):
+        """BEHAVIOR: Slashes are removed (not converted to hyphens)."""
+        assert slugify("path/to/file") == "pathtofile"
+
+
+class TestSlugifyMaxLength:
+    """Test maximum length truncation behavior."""
+
+    def test_respects_max_length_default_60(self):
+        """BEHAVIOR: Default max_len is 60 characters."""
+        long_text = "a" * 100
+        result = slugify(long_text)
+        assert len(result) == 60
+
+    def test_respects_custom_max_length(self):
+        """BEHAVIOR: Custom max_len parameter works."""
+        long_text = "a" * 100
+        result = slugify(long_text, max_len=20)
+        assert len(result) == 20
+
+    def test_truncation_removes_trailing_hyphens(self):
+        """BEHAVIOR: Truncation removes trailing hyphens."""
+        # If truncation happens mid-word, trailing hyphen should be removed
+        text = "a" * 25 + "-" + "b" * 50
+        result = slugify(text, max_len=26)
+        assert not result.endswith("-")
+        assert len(result) <= 26
+
+    def test_short_text_not_padded(self):
+        """BEHAVIOR: Short text is not padded to max_len."""
+        assert slugify("hi", max_len=60) == "hi"
+
+
+class TestSlugifySecurity:
+    """Test security-related behavior - path traversal protection."""
+
+    def test_path_traversal_dots_removed(self):
+        """BEHAVIOR: Path traversal patterns are sanitized (dots/slashes removed)."""
+        assert slugify("../../etc/passwd") == "etcpasswd"
+
+    def test_absolute_paths_sanitized(self):
+        """BEHAVIOR: Absolute path markers are removed (slashes removed)."""
+        assert slugify("/etc/passwd") == "etcpasswd"
+
+    def test_backslashes_sanitized(self):
+        """BEHAVIOR: Windows-style backslashes are removed."""
+        assert slugify("..\\..\\windows\\system32") == "windowssystem32"
+
+    def test_null_bytes_removed(self):
+        """BEHAVIOR: Null bytes are removed."""
+        result = slugify("hello\x00world")
+        assert result == "helloworld"
+
+
+class TestSlugifyConsistency:
+    """Test consistency with MkDocs/Python Markdown behavior."""
+
+    def test_matches_mkdocs_heading_slug_behavior(self):
+        """BEHAVIOR: Should match MkDocs heading ID generation."""
+        # MkDocs uses pymdownx.slugs internally for heading IDs
+        # Our slugs should match that behavior
+        assert slugify("Getting Started") == "getting-started"
+        assert slugify("API Reference") == "api-reference"
+
+    def test_idempotent_on_already_slugified(self):
+        """BEHAVIOR: Running slugify twice produces same result."""
+        original = "Hello World!"
+        first = slugify(original)
+        second = slugify(first)
+        assert first == second
+
+    def test_deterministic_output(self):
+        """BEHAVIOR: Same input always produces same output."""
+        text = "Complex Test Case 123"
+        results = [slugify(text) for _ in range(10)]
+        assert len(set(results)) == 1  # All identical
+
+
+class TestSlugifyRealWorldExamples:
+    """Test real-world examples from actual usage."""
+
+    def test_blog_post_titles(self):
+        """BEHAVIOR: Typical blog post titles."""
+        assert slugify("How to Build a Web App") == "how-to-build-a-web-app"
+        assert slugify("Top 10 Python Tips") == "top-10-python-tips"
+
+    def test_technical_terms(self):
+        """BEHAVIOR: Technical terminology."""
+        assert slugify("REST API Design") == "rest-api-design"
+        assert slugify("OAuth2.0 Authentication") == "oauth20-authentication"
+
+    def test_author_names(self):
+        """BEHAVIOR: Author names with various characters."""
+        assert slugify("José García") == "jose-garcia"
+        assert slugify("François Müller") == "francois-muller"
+
+    def test_dates_in_titles(self):
+        """BEHAVIOR: Dates embedded in titles."""
+        assert slugify("2024-01-15 Release Notes") == "2024-01-15-release-notes"
+
+    def test_markdown_style_slugs(self):
+        """BEHAVIOR: Already hyphenated markdown-style text."""
+        assert slugify("my-existing-slug") == "my-existing-slug"
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
+````
+
 ## File: tests/unit/__init__.py
 ````python
 """Unit tests for Egregora."""
@@ -8809,6 +9856,157 @@ def test_model_params_defaults(config_factory):
 
     # verify writer model defaults matches our verified default
     assert config.models.writer == DEFAULT_MODEL
+````
+
+## File: tests/unit/test_profile_metadata_validation.py
+````python
+"""Tests for profile metadata validation.
+
+Ensures that all profile Documents include required 'subject' metadata
+to prevent routing issues.
+"""
+
+import pytest
+
+from egregora.data_primitives.document import Document, DocumentType
+from egregora.orchestration.persistence import validate_profile_document
+
+
+class TestProfileMetadataValidation:
+    """Test suite for profile document validation."""
+
+    def test_valid_profile_document(self):
+        """Valid profile document with subject metadata should pass validation."""
+        doc = Document(
+            content="# Profile Content",
+            type=DocumentType.PROFILE,
+            metadata={"subject": "test-author-uuid", "slug": "test-profile"},
+        )
+
+        # Should not raise
+        validate_profile_document(doc)
+
+    def test_profile_missing_subject_metadata(self):
+        """Profile document without subject metadata should fail validation."""
+        doc = Document(
+            content="# Profile Content",
+            type=DocumentType.PROFILE,
+            metadata={"slug": "test-profile"},  # Missing 'subject'
+        )
+
+        with pytest.raises(ValueError, match="missing required 'subject' metadata"):
+            validate_profile_document(doc)
+
+    def test_profile_with_empty_subject(self):
+        """Profile document with empty subject should fail validation."""
+        doc = Document(
+            content="# Profile Content",
+            type=DocumentType.PROFILE,
+            metadata={"subject": "", "slug": "test-profile"},
+        )
+
+        with pytest.raises(ValueError, match="missing required 'subject' metadata"):
+            validate_profile_document(doc)
+
+    def test_profile_with_none_subject(self):
+        """Profile document with None subject should fail validation."""
+        doc = Document(
+            content="# Profile Content",
+            type=DocumentType.PROFILE,
+            metadata={"subject": None, "slug": "test-profile"},
+        )
+
+        with pytest.raises(ValueError, match="missing required 'subject' metadata"):
+            validate_profile_document(doc)
+
+    def test_wrong_document_type(self):
+        """Validation should reject non-PROFILE documents."""
+        doc = Document(
+            content="# Post Content",
+            type=DocumentType.POST,
+            metadata={"subject": "test-author-uuid", "slug": "test-post"},
+        )
+
+        with pytest.raises(ValueError, match="Expected PROFILE document"):
+            validate_profile_document(doc)
+
+    def test_profile_with_valid_uuid_format(self):
+        """Profile document with properly formatted UUID should pass."""
+        doc = Document(
+            content="# Profile Content",
+            type=DocumentType.PROFILE,
+            metadata={
+                "subject": "550e8400-e29b-41d4-a716-446655440000",  # Valid UUID
+                "slug": "test-profile",
+            },
+        )
+
+        # Should not raise
+        validate_profile_document(doc)
+
+    def test_profile_with_short_uuid(self):
+        """Profile document with shortened UUID (first 8 chars) should pass."""
+        doc = Document(
+            content="# Profile Content",
+            type=DocumentType.PROFILE,
+            metadata={
+                "subject": "550e8400",  # Shortened UUID (first 8)
+                "slug": "test-profile",
+            },
+        )
+
+        # Should not raise (any non-empty string is valid)
+        validate_profile_document(doc)
+
+
+class TestProfilePersistence:
+    """Test profile document persistence with validation."""
+
+    def test_persist_profile_document_validates(self):
+        """persist_profile_document should validate before persisting."""
+        from unittest.mock import Mock
+
+        from egregora.orchestration.persistence import persist_profile_document
+
+        mock_sink = Mock()
+        mock_sink.persist = Mock()
+
+        # Should succeed with valid author_uuid
+        doc_id = persist_profile_document(mock_sink, "test-uuid", "Profile content")
+
+        # Verify persist was called
+        assert mock_sink.persist.called
+        assert doc_id is not None
+
+        # Verify the document has subject metadata
+        persisted_doc = mock_sink.persist.call_args[0][0]
+        assert persisted_doc.metadata.get("subject") == "test-uuid"
+
+    def test_persist_profile_document_empty_uuid(self):
+        """persist_profile_document should reject empty author_uuid."""
+        from unittest.mock import Mock
+
+        from egregora.orchestration.persistence import persist_profile_document
+
+        mock_sink = Mock()
+
+        with pytest.raises(ValueError, match="author_uuid is required"):
+            persist_profile_document(mock_sink, "", "Profile content")
+
+    def test_persist_profile_document_none_uuid(self):
+        """persist_profile_document should reject None author_uuid."""
+        from unittest.mock import Mock
+
+        from egregora.orchestration.persistence import persist_profile_document
+
+        mock_sink = Mock()
+
+        with pytest.raises(ValueError, match="author_uuid is required"):
+            persist_profile_document(mock_sink, None, "Profile content")  # type: ignore[arg-type]
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
 ````
 
 ## File: tests/unit/test_rotating_fallback.py
