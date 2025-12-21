@@ -1648,24 +1648,33 @@ class EnrichmentWorker(BaseWorker):
             payload = task["_parsed_payload"]
             filename = payload.get("filename", "")
 
+            # Normalize slug first to use in filename construction
+            slug_value = _normalize_slug(slug, payload["filename"]) if slug else None
+
             # Fallback logic for missing markdown
-            if not markdown and slug:
+            if not markdown and slug_value:
                 description = data.get("description", "")
                 alt_text = data.get("alt_text", "")
-                if description or alt_text:
-                    markdown = f"""# {slug}
 
-![{alt_text}]({filename})
+                # Construct final filename to match what will be persisted
+                ext = Path(filename).suffix
+                final_filename = f"{slug_value}{ext}"
+
+                if description or alt_text:
+                    markdown = f"""# {slug_value}
+
+![{alt_text}]({final_filename})
 
 ## Description
 {description}
-"""
-                    logger.info("Constructed fallback markdown for %s", filename)
 
-            if not slug or not markdown:
+## Tags
+"""
+                    logger.info("Constructed fallback markdown for %s -> %s", filename, final_filename)
+
+            if not slug_value or not markdown:
                 self.task_store.mark_failed(task["task_id"], "Missing slug or markdown")
                 return None
-            slug_value = _normalize_slug(slug, payload["filename"])
         except Exception as exc:
             logger.exception("Failed to parse media result %s", task["task_id"])
             self.task_store.mark_failed(task["task_id"], f"Parse error: {exc!s}")

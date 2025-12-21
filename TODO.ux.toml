@@ -5,7 +5,7 @@
 version = "1.0"
 last_updated = "2024-07-25T00:00:00Z"
 vision_doc = "docs/ux-vision.md"
-template_location = "src/egregora/rendering/templates/site/"
+template_location = "src/egregora/rendering/templates/site"
 
 [workflow]
 curator_persona = ".jules/personas/curator.md"
@@ -14,48 +14,90 @@ description = "Curator evaluates blogs and updates TODO. Forge implements items 
 
 # High Priority - Critical for Excellence
 [[tasks.high_priority]]
-id = "generate-meaningful-demo"
-title = "Generate a demo blog with actual post content"
-description = """
-The current demo generation process results in a site with zero blog posts, making it impossible to evaluate the primary UX of the blog.
-WHY it matters: The core purpose of Egregora is to generate a blog. If the demo doesn't contain a blog, no meaningful UX evaluation can occur. This is a blocker for all future UX work.
-WHAT to change: The `egregora write` command and/or the sample data at `tests/fixtures/` must be fixed to produce at least 3-5 sample blog posts.
-HOW to verify: Run the `egregora init` and `egregora write` commands. The resulting site must have multiple, populated blog posts viewable under the '/posts' section of the website.
-WHERE to look: The `egregora write` command's implementation, the input data in `tests/fixtures/`, and the output content of the `demo/docs/posts` directory after generation.
-"""
+id = "find-templates"
+title = "Find MkDocs template location in src/"
+description = "Document exact template location in vision.md (DO THIS FIRST)"
+status = "review"
+category = "infrastructure"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "demo-cli"
+title = "Add egregora demo CLI command"
+description = "Easy demo generation command"
 status = "pending"
 category = "infrastructure"
 assignee = "forge"
 
 [[tasks.high_priority]]
-id = "baseline-lighthouse-audit"
-title = "Run Lighthouse audit on existing documentation pages"
+id = "demo-test"
+title = "Create test to ensure demo/ stays updated"
+description = "Automated test for demo freshness"
+status = "pending"
+category = "infrastructure"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "improve-readability"
+title = "Improve long-form readability with larger body font size and optimal line length"
 description = """
-While the blog content is missing, a baseline audit of the existing documentation pages can provide initial metrics.
-WHY it matters: Establishes a starting point for Performance, Accessibility, Best Practices, and SEO scores. This data will inform future improvements and allow for tracking progress.
-WHAT to change: Run a Lighthouse audit in Chrome DevTools on the homepage of the generated demo site.
-HOW to verify: The results of the Lighthouse audit are recorded in the `[lighthouse.baseline]` section of this TOML file.
-WHERE to look: The homepage (index.html) of the running demo server.
+The default theme's body text is too small for comfortable long-form reading, and lines are too long on wide screens, causing eye strain. This task addresses these core readability issues.
+1. **Font Size**: Increase the base body font size from the default (likely 16px) to 18px.
+2. **Line Length**: Cap the main content column width to a maximum of 75 characters (approx `70ch` in CSS) to prevent overly long lines.
+**Verification**: Inspect the CSS for the body font-size and the main content container's `max-width`. Visually confirm on a wide monitor that text is comfortable to read and lines are not excessively long. A readability score (e.g., Flesch-Kincaid) should improve.
 """
+status = "pending"
+category = "content"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "demo-cli"
+title = "Add egregora demo CLI command"
+description = "Easy demo generation command. Currently blocked by pipeline errors."
+status = "pending"
+category = "infrastructure"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "baseline-lighthouse"
+title = "Generate demo and run Lighthouse audit"
+description = "Document baseline scores (Performance, A11y, Best Practices, SEO). Blocked by demo generation issues."
 status = "pending"
 category = "baseline"
 assignee = "curator"
 
 # Medium Priority - Refinement & Polish
-# (No medium priority tasks yet. Focus is on establishing a baseline.)
+# (Keeping the rest of the list for now)
+[[tasks.medium_priority]]
+id = "breadcrumbs"
+title = "Add breadcrumbs to all pages"
+status = "pending"
+category = "navigation"
+assignee = "forge"
 
-# Low Priority - Delight & Differentiation
-# (No low priority tasks yet.)
+[[tasks.medium_priority]]
+id = "active-state"
+title = "Implement 'you are here' active state styling"
+status = "pending"
+category = "navigation"
+assignee = "forge"
 
 # Completed tasks will be moved here
 [[tasks.completed]]
 id = "find-templates"
 title = "Find MkDocs template location in src/"
-description = "Documented the exact template location in `docs/ux-vision.md`."
+description = "Document exact template location in vision.md"
 status = "completed"
-completed_date = "2024-07-25T00:00:00Z"
-completed_by = "curator"
-metrics = "Template location found at src/egregora/rendering/templates/site/"
+category = "infrastructure"
+assignee = "curator"
+# Example format when tasks are completed:
+# [[tasks.completed]]
+# id = "setup-personas"
+# title = "Create Curator and Forge personas"
+# status = "completed"
+# completed_date = "2025-12-19T00:00:00Z"
+# completed_by = "claude"
+# metrics = "N/A - foundational work"
 
 # Lighthouse score tracking
 [lighthouse.baseline]
@@ -83,8 +125,3 @@ last_measured = ""
 name = "Stripe Docs"
 url = "https://stripe.com/docs"
 strength = "Search, clarity, hierarchy"
-
-[[references]]
-name = "Tailwind CSS"
-url = "https://tailwindcss.com/docs"
-strength = "Visual design, typography"

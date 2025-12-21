@@ -304,6 +304,7 @@ dev = [
     "freezegun>=1.5",
     "syrupy>=4.9",
     "radon>=6.0",
+    "xenon>=0.9",
     "ruff>=0.14",
     "vulture>=2.14",
     "respx>=0.22.0",
@@ -322,3 +323,18 @@ min_confidence = 80
 sort_by_size = true
 exclude = []
 ignore_names = []
+
+[tool.bandit]
+targets = ["src"]
+skips = ["B101", "B608", "B701"]  # B101: assert_used, B608: hardcoded_sql (DuckDB), B701: jinja2_autoescape (SQL/prompts, not HTML)
+exclude_dirs = ["tests", ".venv", "build"]
+
+[tool.coverage.run]
+source = ["src/egregora"]
+omit = ["*/tests/*", "*/__pycache__/*", "*/site-packages/*"]
+
+[tool.coverage.report]
+fail_under = 70
+show_missing = true
+skip_covered = false
+precision = 2

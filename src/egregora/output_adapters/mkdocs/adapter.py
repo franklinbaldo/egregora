@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import frontmatter
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
@@ -28,7 +29,6 @@ from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import generate_fallback_avatar_url
-from egregora.markdown.frontmatter import parse_frontmatter, read_frontmatter_only
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
@@ -249,8 +249,8 @@ class MkDocsAdapter(BaseOutputSink):
                 raw_bytes = path.read_bytes()
                 metadata = {"filename": path.name}
                 return Document(content=raw_bytes, type=doc_type, metadata=metadata)
-            content = path.read_text(encoding="utf-8")
-            metadata, actual_content = parse_frontmatter(content)
+            post = frontmatter.load(str(path))
+            metadata, actual_content = post.metadata, post.content
         except OSError:
             logger.exception("Failed to read document at %s", path)
             return None
@@ -642,7 +642,12 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if parts[:2] == ("annotations",):
             return DocumentType.ANNOTATION
 
-        metadata = read_frontmatter_only(path)
+        try:
+            post = frontmatter.load(str(path))
+            metadata = post.metadata
+        except OSError:
+            metadata = {}
+
         categories = (metadata or {}).get("categories", [])
         if not isinstance(categories, list):
             categories = []
@@ -730,10 +735,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _document_from_path(self, path: Path, doc_type: DocumentType) -> Document | None:
         try:
-            raw = path.read_text(encoding="utf-8")
+            post = frontmatter.load(str(path))
+            metadata, body = post.metadata, post.content
         except OSError:
             return None
-        metadata, body = parse_frontmatter(raw)
         metadata = metadata or {}
         slug_value = metadata.get("slug")
         if isinstance(slug_value, str) and slug_value.strip():
@@ -770,21 +775,44 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 # PROFILE posts (Egregora writing ABOUT author) go to author's folder
                 subject_uuid = document.metadata.get("subject")
                 if not subject_uuid:
-                    # Fallback for backwards compatibility
-                    logger.warning("PROFILE doc missing 'subject' metadata, falling back to posts/")
-                    slug = url_path.split("/")[-1]
-                    return self.posts_dir / f"{slug}.md"
+                    msg = (
+                        f"PROFILE document missing required 'subject' metadata. "
+                        f"Document ID: {document.document_id}, URL: {url_path}. "
+                        f"All PROFILE documents must include 'subject' to identify the author being profiled."
+                    )
+                    raise ValueError(msg)
+
+                # Successfully routing to author-specific directory
                 profile_dir = self.profiles_dir / str(subject_uuid)
                 profile_dir.mkdir(parents=True, exist_ok=True)
                 slug = url_path.split("/")[-1]
+                logger.debug("Routing PROFILE to author directory: %s/%s", subject_uuid, slug)
                 return profile_dir / f"{slug}.md"
 
             case DocumentType.ANNOUNCEMENT:
-                # System announcements (/egregora commands) go to announcements/
+                # ANNOUNCEMENT posts (user command events) route to author folder if subject exists
+                # This creates a unified feed with PROFILE posts
+                subject_uuid = document.metadata.get("subject") or document.metadata.get("actor")
+
+                if not subject_uuid:
+                    # Fallback: system announcements without subject go to announcements/
+                    logger.warning(
+                        "ANNOUNCEMENT doc missing 'subject' metadata, falling back to announcements/. "
+                        "Document ID: %s, URL: %s",
+                        document.document_id,
+                        url_path,
+                    )
+                    slug = url_path.split("/")[-1]
+                    announcements_dir = self.posts_dir / "announcements"
+                    announcements_dir.mkdir(parents=True, exist_ok=True)
+                    return announcements_dir / f"{slug}.md"
+
+                # Route to author's profile feed directory
+                profile_dir = self.profiles_dir / str(subject_uuid)
+                profile_dir.mkdir(parents=True, exist_ok=True)
                 slug = url_path.split("/")[-1]
-                announcements_dir = self.posts_dir / "announcements"
-                announcements_dir.mkdir(parents=True, exist_ok=True)
-                return announcements_dir / f"{slug}.md"
+                logger.debug("Routing ANNOUNCEMENT to author directory: %s/%s", subject_uuid, slug)
+                return profile_dir / f"{slug}.md"
 
             case DocumentType.JOURNAL:
                 # When url_path is just "journal" (root journal URL), return journal.md in docs root
@@ -853,7 +881,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             Dictionary of frontmatter metadata (empty if none found)
 
         """
-        return read_frontmatter_only(path)
+        try:
+            return frontmatter.load(str(path)).metadata
+        except OSError:
+            return {}
 
     # Document Writing Strategies ---------------------------------------------
 
@@ -1174,8 +1205,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 if not candidates:
                     continue
                 profile_path = max(candidates, key=lambda p: p.stat().st_mtime_ns)
-                content = profile_path.read_text(encoding="utf-8")
-                metadata, _ = parse_frontmatter(content)
+                post = frontmatter.load(str(profile_path))
+                metadata = post.metadata
                 author_uuid = author_dir.name
 
                 author_posts = [
@@ -1244,8 +1275,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         for media_path in url_files:
             try:
-                content = media_path.read_text(encoding="utf-8")
-                metadata, body = parse_frontmatter(content)
+                post = frontmatter.load(str(media_path))
+                metadata, body = post.metadata, post.content
 
                 # Extract summary from content
                 summary = ""
