@@ -141,6 +141,30 @@ Claude: "I'll create a Jules session to review your authentication code.
 **API Version**: v1alpha
 **Authentication**: API Key via `X-Goog-Api-Key` header
 
+## Tools
+
+### Feed Feedback (CI/Reviews)
+
+This skill includes a script `feed_feedback.py` designed to run in a scheduled workflow. It enables Jules to receive feedback from CI failures and code reviews on its own Pull Requests.
+
+**Purpose**: Closes the feedback loop by reporting CI errors and review comments back to the active Jules session so it can interactively fix issues.
+
+**Usage**:
+```bash
+# Run locally (requires JULES_API_KEY and GITHUB_TOKEN)
+python .claude/skills/jules-api/feed_feedback.py
+
+# Run for a specific bot author (default: jules-bot)
+python .claude/skills/jules-api/feed_feedback.py --author my-bot-name
+```
+
+**How it works**:
+1. Scans for open PRs by `jules-bot`.
+2. Checks CI status (failed) and Reviews (changes requested).
+3. Extracts the Jules Session ID from the branch name or PR body.
+4. Sends a prompt to the session with error logs and feedback.
+5. Posts a comment on the PR to prevent spamming the same feedback.
+
 ## Core Operations
 
 ### 1. Create a Session

@@ -72,4 +72,4 @@ jobs:
            fi
 
            # Run the feedback script
-           uv run --with requests python scripts/feed_jules_feedback.py "${args[@]}"
+           uv run --with requests python .claude/skills/jules-api/feed_feedback.py "${args[@]}"

@@ -12,19 +12,18 @@ import re
 from pathlib import Path
 from datetime import datetime
 
-# Add .claude/skills/jules-api to sys.path to import JulesClient
-jules_api_path = Path(__file__).parent.parent / ".claude" / "skills" / "jules-api"
-sys.path.append(str(jules_api_path))
-
+# Import JulesClient from the same directory
 try:
+    # If run as a script in the directory
     from jules_client import JulesClient
 except ImportError:
-    # If the path assumption failed, try standard import if pythonpath is set
+    # If run from root via python .claude/skills/jules-api/feed_feedback.py
+    # We need to make sure the directory is in path or we use relative import if it was a module
+    sys.path.append(str(Path(__file__).parent))
     try:
         from jules_client import JulesClient
     except ImportError:
-        print(f"Error: Could not import JulesClient. Make sure {jules_api_path} exists or PYTHONPATH is set.", file=sys.stderr)
-        # We don't exit here immediately to allow running 'gh' checks if needed, but it will fail later.
+        print("Error: Could not import JulesClient.", file=sys.stderr)
 
 def get_repo_info():
     """Get owner and repo from environment or git config."""
@@ -51,7 +50,29 @@ def get_repo_info():
 def run_gh_command(args):
     """Run a gh CLI command and return JSON."""
     import subprocess
-    cmd = ["gh"] + args + ["--json", "number,title,author,headRefName,url,commits,reviews,statusCheckRollup,latestReviews"]
+    # We shouldn't blindly append fields for 'list' vs 'view'.
+    # If args[0] is 'pr' and args[1] is 'list', use basic fields.
+    json_fields = "number,title,author,headRefName,url"
+
+    # If the caller didn't provide --json, we add it.
+    # But this helper is brittle if we change args.
+    # Let's trust the caller to provide valid commands or we make this less magic.
+
+    # Refactor: Minimal magic. Only add --json if not present?
+    # Or just use this for 'list' calls primarily.
+
+    # Previous code added 'commits,reviews' to ALL calls, which broke 'list'.
+
+    # Safe fields for list:
+    safe_fields = ["number", "title", "author", "headRefName", "url", "statusCheckRollup"]
+
+    # Check if 'view' or 'list'
+    is_view = "view" in args
+    if is_view:
+        safe_fields.extend(["commits", "reviews", "latestReviews", "body"])
+
+    cmd = ["gh"] + args + ["--json", ",".join(safe_fields)]
+
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return json.loads(result.stdout)
@@ -195,6 +216,36 @@ def extract_session_id(branch_name: str) -> str | None:
 
     return None
 
+def should_skip_feedback(pr_data, comments_data):
+    """
+    Check if we should skip feedback (loop prevention).
+    Returns True if we recently gave feedback and no new commits have appeared.
+    """
+    if not comments_data.get("comments"):
+        return False
+
+    last_comment = comments_data["comments"][-1]
+    last_comment_body = last_comment["body"]
+
+    if "# Task: Fix Pull Request" not in last_comment_body and "<!-- # Task: Fix Pull Request -->" not in last_comment_body:
+        return False
+
+    # Found our own feedback. Check if it's stale.
+    commits = pr_data.get("commits", [])
+    if not commits:
+         return True # No commits? Safer to skip.
+
+    last_commit = commits[-1]
+    commit_date_str = last_commit.get("committedDate")
+    comment_date_str = last_comment.get("createdAt")
+
+    if commit_date_str and comment_date_str:
+        # String comparison works for ISO8601
+        if comment_date_str > commit_date_str:
+            return True
+
+    return False
+
 def extract_session_id_from_body(body: str) -> str | None:
     """
     Extract session ID from PR body/description.
@@ -252,9 +303,10 @@ def main():
         print(f"Checking PR #{pr['number']}: {pr['title']}")
 
         # Get detailed PR info
+        # Explicitly request commits for loop prevention logic
         import subprocess
         try:
-             res = subprocess.run(["gh", "pr", "view", str(pr['number']), "--json", "number,title,headRefName,statusCheckRollup,latestReviews,author,body"], capture_output=True, text=True, check=True)
+             res = subprocess.run(["gh", "pr", "view", str(pr['number']), "--json", "number,title,headRefName,statusCheckRollup,latestReviews,author,body,commits"], capture_output=True, text=True, check=True)
              pr_data = json.loads(res.stdout)
         except Exception as e:
             print(f"Failed to view PR {pr['number']}: {e}")
@@ -263,44 +315,9 @@ def main():
         # Pre-fetch comments to check for loops
         comments_data = get_pr_comments(pr['number'])
 
-        # Loop Prevention: Check if the last comment is already a feedback prompt
-        # But allow re-triggering if there's a new commit since that comment.
-        should_skip = False
-
-        if comments_data.get("comments"):
-            last_comment = comments_data["comments"][-1]
-            last_comment_body = last_comment["body"]
-
-            if "# Task: Fix Pull Request" in last_comment_body:
-                # Found our own feedback. Check if it's stale.
-                # We need to compare comment time vs latest commit time.
-                # gh json dates are usually ISO 8601 strings.
-
-                # Fetch commits to get latest push time
-                # gh pr view --json commits returns all commits? No, usually list.
-                # run_gh_command asks for commits.
-                commits = pr_data.get("commits", [])
-                if commits:
-                     last_commit = commits[-1]
-                     # 'committedDate' is standard in GH API for commits
-                     commit_date_str = last_commit.get("committedDate")
-                     comment_date_str = last_comment.get("createdAt")
-
-                     if commit_date_str and comment_date_str:
-                         # Simple string comparison works for ISO8601 if in UTC (Z)
-                         # GH API returns UTC ISO strings.
-                         if comment_date_str > commit_date_str:
-                             print(f"-> PR #{pr['number']} has pending feedback and no new commits. Skipping.")
-                             should_skip = True
-                         else:
-                             print(f"-> PR #{pr['number']} has new commits since last feedback. Re-evaluating.")
-
-                else:
-                    # No commits found? Odd. Assume skip to be safe.
-                    print(f"-> PR #{pr['number']} has pending feedback (commits unknown). Skipping.")
-                    should_skip = True
-
-        if should_skip:
+        # Loop Prevention
+        if should_skip_feedback(pr_data, comments_data):
+            print(f"-> PR #{pr['number']} has pending feedback and no new commits. Skipping.")
             continue
 
         if should_trigger_feedback(pr_data):
