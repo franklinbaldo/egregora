@@ -56,7 +56,7 @@ def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Pat
     profile = Document(
         content="## Author",
         type=DocumentType.PROFILE,
-        metadata={"uuid": "author-123", "slug": "Should not be used"},
+        metadata={"subject": "author-123", "uuid": "author-123", "slug": "Should not be used"},
     )
     journal = Document(
         content="Journal entry",
@@ -104,8 +104,8 @@ def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Pat
         if stored_doc.type == DocumentType.POST:
             assert str(stored_relative).startswith("posts/")
         elif stored_doc.type == DocumentType.PROFILE:
-            # Unified: profiles go to posts/
-            assert str(stored_relative).startswith("posts/")
+            # Profiles with subject go to posts/profiles/{subject_uuid}/
+            assert str(stored_relative).startswith("posts/profiles/")
         elif stored_doc.type == DocumentType.JOURNAL:
             # Journals with metadata go to journal/ directory
             # Fallback journals (empty metadata) go to docs root as journal.md
