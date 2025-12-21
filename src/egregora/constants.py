@@ -87,6 +87,10 @@ class SystemIdentifier(str, Enum):
 EGREGORA_UUID = "00000000-0000-0000-0000-000000000000"
 EGREGORA_NAME = "Egregora"
 
+# Profile history context settings
+# Maximum number of recent profile posts to include in LLM context window
+PROFILE_HISTORY_MAX_POSTS = 5
+
 
 class OutputAdapter(str, Enum):
     """Output format options for data export."""

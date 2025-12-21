@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import frontmatter
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
@@ -28,7 +29,6 @@ from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import generate_fallback_avatar_url
-import frontmatter
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
@@ -776,20 +776,48 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 subject_uuid = document.metadata.get("subject")
                 if not subject_uuid:
                     # Fallback for backwards compatibility
-                    logger.warning("PROFILE doc missing 'subject' metadata, falling back to posts/")
+                    logger.warning(
+                        "PROFILE doc missing 'subject' metadata, falling back to posts/. "
+                        "Document ID: %s, URL: %s, Metadata: %s. "
+                        "This indicates a bug in profile generation - all PROFILE documents must include 'subject'.",
+                        document.document_id,
+                        url_path,
+                        document.metadata,
+                    )
                     slug = url_path.split("/")[-1]
                     return self.posts_dir / f"{slug}.md"
+
+                # Successfully routing to author-specific directory
                 profile_dir = self.profiles_dir / str(subject_uuid)
                 profile_dir.mkdir(parents=True, exist_ok=True)
                 slug = url_path.split("/")[-1]
+                logger.debug("Routing PROFILE to author directory: %s/%s", subject_uuid, slug)
                 return profile_dir / f"{slug}.md"
 
             case DocumentType.ANNOUNCEMENT:
-                # System announcements (/egregora commands) go to announcements/
+                # ANNOUNCEMENT posts (user command events) route to author folder if subject exists
+                # This creates a unified feed with PROFILE posts
+                subject_uuid = document.metadata.get("subject") or document.metadata.get("actor")
+
+                if not subject_uuid:
+                    # Fallback: system announcements without subject go to announcements/
+                    logger.warning(
+                        "ANNOUNCEMENT doc missing 'subject' metadata, falling back to announcements/. "
+                        "Document ID: %s, URL: %s",
+                        document.document_id,
+                        url_path,
+                    )
+                    slug = url_path.split("/")[-1]
+                    announcements_dir = self.posts_dir / "announcements"
+                    announcements_dir.mkdir(parents=True, exist_ok=True)
+                    return announcements_dir / f"{slug}.md"
+
+                # Route to author's profile feed directory
+                profile_dir = self.profiles_dir / str(subject_uuid)
+                profile_dir.mkdir(parents=True, exist_ok=True)
                 slug = url_path.split("/")[-1]
-                announcements_dir = self.posts_dir / "announcements"
-                announcements_dir.mkdir(parents=True, exist_ok=True)
-                return announcements_dir / f"{slug}.md"
+                logger.debug("Routing ANNOUNCEMENT to author directory: %s/%s", subject_uuid, slug)
+                return profile_dir / f"{slug}.md"
 
             case DocumentType.JOURNAL:
                 # When url_path is just "journal" (root journal URL), return journal.md in docs root
