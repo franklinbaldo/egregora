@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 import xml.etree.ElementTree as ET
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given, settings, HealthCheck, strategies as st
 
 from egregora_v3.core.types import (
     Document,
@@ -129,6 +129,9 @@ def test_document_semantic_identity():
     assert doc.id == slug
     assert doc.internal_metadata["slug"] == slug
 
+# Suppress too_slow health checks because complex XML generation/parsing
+# strategies can sometimes exceed default timing thresholds in CI/tests.
+@settings(suppress_health_check=[HealthCheck.too_slow], deadline=None)
 @given(feed_strategy())
 def test_feed_xml_validity(feed: Feed):
     """Test that generated XML is valid and parseable."""
