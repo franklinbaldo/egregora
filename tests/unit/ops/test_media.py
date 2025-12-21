@@ -20,14 +20,14 @@ def test_find_media_references_whatsapp():
     """Should extract standard WhatsApp media references."""
     text = "Here is a photo IMG-20230101-WA0001.jpg (file attached)"
     refs = find_media_references(text)
-    assert "IMG-20230101-WA0001.jpg" in refs
+    assert refs == ["IMG-20230101-WA0001.jpg"]
 
 def test_find_media_references_unicode():
     """Should extract WhatsApp media references with unicode markers."""
     # U+200E is implicit in some regexes, but let's test the explicit case if possible
     text = "\u200eIMG-20230101-WA0002.jpg"
     refs = find_media_references(text)
-    assert "IMG-20230101-WA0002.jpg" in refs
+    assert refs == ["IMG-20230101-WA0002.jpg"]
 
 def test_find_media_references_various_markers():
     """Should extract media references using various localized markers."""
@@ -35,4 +35,4 @@ def test_find_media_references_various_markers():
         filename = "test_image.png"
         text = f"{filename} {marker}"
         refs = find_media_references(text)
-        assert filename in refs, f"Failed to match marker: {marker}"
+        assert refs == [filename], f"Failed to match marker: {marker}"
