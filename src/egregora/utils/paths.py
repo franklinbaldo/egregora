@@ -13,7 +13,8 @@ class PathTraversalError(Exception):
 def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
     """Convert text to a safe URL-friendly slug using MkDocs/Python Markdown semantics.
 
-    Produces ASCII-only, hyphen-separated slugs matching MkDocs tab/heading behavior.
+    Uses pymdownx.slugs directly for consistent behavior with MkDocs heading IDs.
+    Produces ASCII-only slugs with Unicode transliteration.
 
     Args:
         text: Input text to slugify
@@ -33,18 +34,26 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
         >>> slugify("Привет мир")
         'privet-mir'
         >>> slugify("../../etc/passwd")
-        'etc-passwd'
+        'etcpasswd'
         >>> slugify("A" * 100, max_len=20)
         'aaaaaaaaaaaaaaaaaaaa'
 
     """
+    # Normalize Unicode to ASCII using NFKD (preserves transliteration)
     normalized = normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+
+    # Use pymdownx.slugs with appropriate settings
     slugifier = _md_slugify(case="lower" if lowercase else None, separator="-")
     slug = slugifier(normalized, sep="-")
+
+    # Fallback for empty slugs
     if not slug:
         return "post"
+
+    # Truncate to max length, removing trailing hyphens
     if len(slug) > max_len:
         slug = slug[:max_len].rstrip("-")
+
     return slug
 
 

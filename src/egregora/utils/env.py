@@ -106,7 +106,9 @@ def dedupe_api_keys() -> None:
         if google_key == gemini_key:
             logger.debug("Unsetting duplicate GEMINI_API_KEY (identical to GOOGLE_API_KEY)")
         else:
-            logger.info("Both GOOGLE_API_KEY and GEMINI_API_KEY set with different values; using GOOGLE_API_KEY")
+            logger.info(
+                "Both GOOGLE_API_KEY and GEMINI_API_KEY set with different values; using GOOGLE_API_KEY"
+            )
         os.environ.pop("GEMINI_API_KEY", None)
 
 
