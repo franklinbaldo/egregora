@@ -217,11 +217,9 @@ async def _generate_profile_content(
         if hasattr(ctx, "output_dir"):
             from pathlib import Path
 
-            from egregora.constants import PROFILE_HISTORY_MAX_POSTS
-
             profiles_dir = Path(ctx.output_dir) / "docs" / "posts" / "profiles"
             profile_history = get_profile_history_for_context(
-                author_uuid, profiles_dir, max_posts=PROFILE_HISTORY_MAX_POSTS
+                author_uuid, profiles_dir, max_posts=ctx.config.profile.history_window_size
             )
             logger.debug("Loaded profile history for %s (%d chars)", author_uuid, len(profile_history))
     except Exception as e:

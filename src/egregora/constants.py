@@ -89,7 +89,7 @@ EGREGORA_NAME = "Egregora"
 
 # Profile history context settings
 # Maximum number of recent profile posts to include in LLM context window
-PROFILE_HISTORY_MAX_POSTS = 5
+
 
 
 class OutputAdapter(str, Enum):
