@@ -62,6 +62,15 @@ The content is organized as follows:
   scribe.md
   sentinel.md
   sheriff.md
+demo/
+  .egregora/
+    .cache/
+      enrichment/
+        cache.db
+      rag/
+        cache.db
+      writer/
+        cache.db
 dev_tools/
   check_private_imports.py
   check_test_config.py
@@ -42878,7 +42887,7 @@ assignee = "curator"
 [[tasks.medium_priority]]
 id = "breadcrumbs"
 title = "Add breadcrumbs to all pages"
-status = "pending"
+status = "review"
 category = "navigation"
 assignee = "forge"
 
