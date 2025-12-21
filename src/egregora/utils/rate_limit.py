@@ -21,7 +21,6 @@ class GlobalRateLimiter:
     _last_update: float = field(default_factory=time.time)
     _lock: threading.Lock = field(default_factory=threading.Lock)
     _semaphore: threading.Semaphore = field(init=False)
-    _skip_next_wait: bool = False  # Flag to skip wait after refund (rotating to fresh key)
 
     def __post_init__(self) -> None:
         self._semaphore = threading.Semaphore(self.max_concurrency)
@@ -44,13 +43,6 @@ class GlobalRateLimiter:
                     self.requests_per_second, self._tokens + elapsed * self.requests_per_second
                 )
 
-                # Skip wait if we just refunded (rotating to fresh key/model)
-                if self._skip_next_wait:
-                    self._skip_next_wait = False
-                    self._tokens = max(0.0, self._tokens - 1.0)
-                    logger.debug("Skipping wait - rotating to fresh key")
-                    return
-
                 if self._tokens < 1.0:
                     # Need to wait
                     wait_time = (1.0 - self._tokens) / self.requests_per_second
@@ -67,13 +59,6 @@ class GlobalRateLimiter:
     def release(self) -> None:
         """Release concurrency slot."""
         self._semaphore.release()
-
-    def refund(self) -> None:
-        """Add a token back and skip wait on next acquire (e.g. for key rotation on 429)."""
-        with self._lock:
-            self._tokens = min(self.requests_per_second, self._tokens + 1.0)
-            self._skip_next_wait = True  # Skip wait since we're rotating to a fresh key
-            logger.debug("Refunded token for immediate retry with fresh key")
 
 
 # Global singleton instance

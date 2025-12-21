@@ -54,8 +54,8 @@ EMBEDDING_DIM = 768  # Embedding vector dimensions
 
 # Quota defaults
 DEFAULT_DAILY_LLM_REQUESTS = 100  # Conservative default
-DEFAULT_PER_SECOND_LIMIT = 0.05  # ~3 requests/min to avoid 429 on free tier
-DEFAULT_CONCURRENCY = 1
+DEFAULT_PER_SECOND_LIMIT = 2.0  # Allow 2 req/s - FallbackModel handles 429s via key/model rotation
+DEFAULT_CONCURRENCY = 5  # Allow 5 concurrent requests
 
 # Default database connection strings
 # NOTE: These defaults are relative to site root.
@@ -64,7 +64,7 @@ DEFAULT_RUNS_DB = "duckdb:///./.egregora/runs.duckdb"
 
 # Configuration validation warning thresholds
 RAG_TOP_K_WARNING_THRESHOLD = 20
-MAX_PROMPT_TOKENS_WARNING_THRESHOLD = 100_000
+MAX_PROMPT_TOKENS_WARNING_THRESHOLD = 200_000
 
 # Model naming conventions
 PydanticModelName = Annotated[
@@ -234,6 +234,16 @@ class WriterAgentSettings(BaseModel):
         default=None,
         description="Custom instructions to guide the writer agent",
     )
+    economic_system_instruction: str | None = Field(
+        default=None,
+        description="Override system instruction for economic mode writer",
+    )
+    economic_temperature: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Temperature for economic mode generation (0.0=deterministic, 1.0=creative)",
+    )
 
 
 class PrivacySettings(BaseModel):
@@ -282,9 +292,10 @@ class EnrichmentSettings(BaseModel):
     )
     rotation_models: list[str] = Field(
         default=[
-            "google-gla:gemini-flash-latest",
-            "google-gla:gemini-2.0-flash-exp",
-            "google-gla:gemini-pro-latest",
+            "gemini-2.5-flash",
+            "gemini-3-flash-preview",
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-exp",
         ],
         description="List of Gemini models to rotate through on rate limits",
     )
@@ -349,7 +360,7 @@ class PipelineSettings(BaseModel):
     max_prompt_tokens: int = Field(
         default=100_000,
         ge=1_000,
-        description="Maximum tokens per prompt (conservative 100k default). Prevents context overflow and controls costs.",
+        description="Maximum tokens per prompt (default 100k, even if model supports more). Prevents context overflow and controls costs.",
     )
     use_full_context_window: bool = Field(
         default=False,
@@ -363,6 +374,10 @@ class PipelineSettings(BaseModel):
     checkpoint_enabled: bool = Field(
         default=False,
         description="Enable incremental processing with checkpoints (opt-in). Default: always rebuild from scratch for simplicity.",
+    )
+    economic_mode: bool = Field(
+        default=False,
+        description="Enable economic mode to reduce LLM costs (2 calls per window, no tool usage).",
     )
 
 
@@ -560,6 +575,17 @@ class QuotaSettings(BaseModel):
     )
 
 
+class ProfileSettings(BaseModel):
+    """Configuration for profile generation agent."""
+
+    history_window_size: int = Field(
+        default=5,
+        ge=0,
+        le=50,
+        description="Maximum number of previous profile posts to include in LLM context.",
+    )
+
+
 class EgregoraConfig(BaseSettings):
     """Root configuration for Egregora.
 
@@ -583,8 +609,13 @@ class EgregoraConfig(BaseSettings):
     )
     writer: WriterAgentSettings = Field(
         default_factory=WriterAgentSettings,
-        description="Writer configuration",
+        description="Writer agent configuration",
     )
+    profile: ProfileSettings = Field(
+        default_factory=ProfileSettings,
+        description="Profile generation configuration",
+    )
+
     reader: ReaderSettings = Field(
         default_factory=ReaderSettings,
         description="Reader agent configuration",

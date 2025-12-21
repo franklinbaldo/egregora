@@ -35,7 +35,7 @@ class MockRepo(DocumentRepository):
     def save_entry(self, item: Entry) -> None:
         pass
 
-    def get_entry(self, item_id: str) -> Entry | None:
+    def get_entry(self, _item_id: str) -> Entry | None:
         return None
 
     def get_entries_by_source(self, source_id: str) -> builtins.list[Entry]:
