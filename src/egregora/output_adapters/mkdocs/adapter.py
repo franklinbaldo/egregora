@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import frontmatter
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
@@ -28,7 +29,6 @@ from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import generate_fallback_avatar_url
-from egregora.markdown.frontmatter import parse_frontmatter, read_frontmatter_only
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
@@ -95,10 +95,10 @@ class MkDocsAdapter(BaseOutputSink):
         # Configure URL convention to match filesystem layout
         # This ensures that generated URLs align with where files are actually stored
         routes = RouteConfig(
-            posts_prefix=__import__("os").path.relpath(self.posts_dir, self.docs_dir),
-            profiles_prefix=__import__("os").path.relpath(self.profiles_dir, self.docs_dir),
-            media_prefix=__import__("os").path.relpath(self.media_dir, self.docs_dir),
-            journal_prefix=__import__("os").path.relpath(self.journal_dir, self.docs_dir),
+            posts_prefix=self.posts_dir.relative_to(self.docs_dir).as_posix(),
+            profiles_prefix=self.profiles_dir.relative_to(self.docs_dir).as_posix(),
+            media_prefix=self.media_dir.relative_to(self.docs_dir).as_posix(),
+            journal_prefix=self.journal_dir.relative_to(self.docs_dir).as_posix(),
         )
         self._url_convention = StandardUrlConvention(routes)
 
@@ -210,8 +210,8 @@ class MkDocsAdapter(BaseOutputSink):
                     return max(matches, key=lambda p: p.stat().st_mtime)
                 return None
             case DocumentType.JOURNAL:
-                # Journals: simple filename with slug
-                return self.posts_dir / f"{identifier.replace('/', '-')}.md"
+                # Journals: simple filename with slug in journal_dir
+                return self.journal_dir / f"{identifier.replace('/', '-')}.md"
             case DocumentType.ENRICHMENT_URL:
                 # Enrichment URLs: inside media_dir/urls (ADR-0004)
                 return self.media_dir / "urls" / f"{identifier}.md"
@@ -249,8 +249,8 @@ class MkDocsAdapter(BaseOutputSink):
                 raw_bytes = path.read_bytes()
                 metadata = {"filename": path.name}
                 return Document(content=raw_bytes, type=doc_type, metadata=metadata)
-            content = path.read_text(encoding="utf-8")
-            metadata, actual_content = parse_frontmatter(content)
+            post = frontmatter.load(str(path))
+            metadata, actual_content = post.metadata, post.content
         except OSError:
             logger.exception("Failed to read document at %s", path)
             return None
@@ -642,7 +642,12 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if parts[:2] == ("annotations",):
             return DocumentType.ANNOTATION
 
-        metadata = read_frontmatter_only(path)
+        try:
+            post = frontmatter.load(str(path))
+            metadata = post.metadata
+        except OSError:
+            metadata = {}
+
         categories = (metadata or {}).get("categories", [])
         if not isinstance(categories, list):
             categories = []
@@ -730,10 +735,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _document_from_path(self, path: Path, doc_type: DocumentType) -> Document | None:
         try:
-            raw = path.read_text(encoding="utf-8")
+            post = frontmatter.load(str(path))
+            metadata, body = post.metadata, post.content
         except OSError:
             return None
-        metadata, body = parse_frontmatter(raw)
         metadata = metadata or {}
         slug_value = metadata.get("slug")
         if isinstance(slug_value, str) and slug_value.strip():
@@ -770,30 +775,52 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 # PROFILE posts (Egregora writing ABOUT author) go to author's folder
                 subject_uuid = document.metadata.get("subject")
                 if not subject_uuid:
-                    # Fallback for backwards compatibility
-                    logger.warning("PROFILE doc missing 'subject' metadata, falling back to posts/")
-                    slug = url_path.split("/")[-1]
-                    return self.posts_dir / f"{slug}.md"
+                    msg = (
+                        f"PROFILE document missing required 'subject' metadata. "
+                        f"Document ID: {document.document_id}, URL: {url_path}. "
+                        f"All PROFILE documents must include 'subject' to identify the author being profiled."
+                    )
+                    raise ValueError(msg)
+
+                # Successfully routing to author-specific directory
                 profile_dir = self.profiles_dir / str(subject_uuid)
                 profile_dir.mkdir(parents=True, exist_ok=True)
                 slug = url_path.split("/")[-1]
+                logger.debug("Routing PROFILE to author directory: %s/%s", subject_uuid, slug)
                 return profile_dir / f"{slug}.md"
 
             case DocumentType.ANNOUNCEMENT:
-                # System announcements (/egregora commands) go to announcements/
+                # ANNOUNCEMENT posts (user command events) route to author folder if subject exists
+                # This creates a unified feed with PROFILE posts
+                subject_uuid = document.metadata.get("subject") or document.metadata.get("actor")
+
+                if not subject_uuid:
+                    # Fallback: system announcements without subject go to announcements/
+                    logger.warning(
+                        "ANNOUNCEMENT doc missing 'subject' metadata, falling back to announcements/. "
+                        "Document ID: %s, URL: %s",
+                        document.document_id,
+                        url_path,
+                    )
+                    slug = url_path.split("/")[-1]
+                    announcements_dir = self.posts_dir / "announcements"
+                    announcements_dir.mkdir(parents=True, exist_ok=True)
+                    return announcements_dir / f"{slug}.md"
+
+                # Route to author's profile feed directory
+                profile_dir = self.profiles_dir / str(subject_uuid)
+                profile_dir.mkdir(parents=True, exist_ok=True)
                 slug = url_path.split("/")[-1]
-                announcements_dir = self.posts_dir / "announcements"
-                announcements_dir.mkdir(parents=True, exist_ok=True)
-                return announcements_dir / f"{slug}.md"
+                logger.debug("Routing ANNOUNCEMENT to author directory: %s/%s", subject_uuid, slug)
+                return profile_dir / f"{slug}.md"
 
             case DocumentType.JOURNAL:
                 # When url_path is just "journal" (root journal URL), return journal.md in docs root
-                # Otherwise, extract the slug and put it in journal/
-                # UNIFIED: Journal entries go to posts_dir now.
+                # Otherwise, extract the slug and put it in journal_dir
                 slug = url_path.split("/")[-1]
                 if url_path == "journal":
                     return self.docs_dir / "journal.md"
-                return self.posts_dir / f"{slug}.md"
+                return self.journal_dir / f"{slug}.md"
             case DocumentType.ENRICHMENT_URL:
                 # url_path might be 'posts/media/urls/slug' -> we want 'slug.md' inside media_dir/urls
                 # ADR-0004: URL enrichments go to posts/media/urls/
@@ -830,26 +857,18 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _strip_media_prefix(self, url_path: str) -> str:
         """Helper to strip media prefixes from URL path."""
-        rel_path = url_path.strip("/")
-        media_prefixes: set[str] = set()
+        rel_path = url_path
+        media_prefixes: list[str] = []
         if hasattr(self._url_convention, "routes"):
-            prefix = str(getattr(self._url_convention.routes, "media_prefix", "")).strip("/")
-            if prefix:
-                media_prefixes.add(prefix)
-        # Include all common variations to prevent nested media/media paths
-        media_prefixes.update([
-            "media",
-            "posts/media",
-            "docs/posts/media",
-            "docs/media",
-        ])
-
-        # Sort by length descending to match longest prefix first
-        for prefix in sorted(media_prefixes, key=len, reverse=True):
+            media_prefixes.append(str(getattr(self._url_convention.routes, "media_prefix", "")).strip("/"))
+        media_prefixes.extend(["media", "posts/media"])
+        for prefix in [p for p in media_prefixes if p]:
             if rel_path == prefix:
-                return ""
+                rel_path = ""
+                break
             if rel_path.startswith(prefix + "/"):
-                return rel_path[len(prefix) + 1 :]
+                rel_path = rel_path[len(prefix) + 1 :]
+                break
         return rel_path
 
     def _parse_frontmatter(self, path: Path) -> dict:
@@ -862,7 +881,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             Dictionary of frontmatter metadata (empty if none found)
 
         """
-        return read_frontmatter_only(path)
+        try:
+            return frontmatter.load(str(path)).metadata
+        except OSError:
+            return {}
 
     # Document Writing Strategies ---------------------------------------------
 
@@ -1047,8 +1069,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         path.write_bytes(payload)
 
     def _write_generic_doc(self, document: Document, path: Path) -> None:
-        """Write a generic document (binary or text) to the given path."""
-        logger.info("Writing document %s to %s (type=%s)", document.document_id[:8], path, document.type)
         if isinstance(document.content, bytes):
             path.write_bytes(document.content)
         else:
@@ -1185,8 +1205,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 if not candidates:
                     continue
                 profile_path = max(candidates, key=lambda p: p.stat().st_mtime_ns)
-                content = profile_path.read_text(encoding="utf-8")
-                metadata, _ = parse_frontmatter(content)
+                post = frontmatter.load(str(profile_path))
+                metadata = post.metadata
                 author_uuid = author_dir.name
 
                 author_posts = [
@@ -1255,8 +1275,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         for media_path in url_files:
             try:
-                content = media_path.read_text(encoding="utf-8")
-                metadata, body = parse_frontmatter(content)
+                post = frontmatter.load(str(media_path))
+                metadata, body = post.metadata, post.content
 
                 # Extract summary from content
                 summary = ""

@@ -21,6 +21,8 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
+from ibis import udf
+
 from egregora.data_primitives.document import Document, DocumentType, MediaAsset
 from egregora.utils.paths import slugify
 
@@ -68,6 +70,11 @@ MEDIA_EXTENSIONS = {
 # Patterns for raw source extraction (e.g. WhatsApp)
 WA_MEDIA_PATTERN = re.compile(r"\b((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b")
 URL_PATTERN = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+')
+
+# Optimized Patterns for find_media_references
+_MARKERS_REGEX = "|".join(re.escape(m) for m in ATTACHMENT_MARKERS)
+ATTACHMENT_MARKERS_PATTERN = re.compile(rf"([\w\-\.]+\.\w+)\s*(?:{_MARKERS_REGEX})", re.IGNORECASE)
+UNICODE_MEDIA_PATTERN = re.compile(r"\u200e((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)", re.IGNORECASE)
 
 # Patterns for Markdown processing
 MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
@@ -123,21 +130,14 @@ def find_media_references(text: str) -> list[str]:
         return []
     media_files = []
 
-    # Pattern 1: Attachment markers (localized strings)
-    for marker in ATTACHMENT_MARKERS:
-        pattern = r"([\w\-\.]+\.\w+)\s*" + re.escape(marker)
-        matches = re.findall(pattern, text, re.IGNORECASE)
-        media_files.extend(matches)
+    # Pattern 1: Attachment markers (localized strings) - O(1) regex pass instead of O(N) loop
+    media_files.extend(ATTACHMENT_MARKERS_PATTERN.findall(text))
 
     # Pattern 2: WhatsApp filename pattern (IMG-/VID-/AUD-/etc.)
-    wa_matches = WA_MEDIA_PATTERN.findall(text)
-    media_files.extend(wa_matches)
+    media_files.extend(WA_MEDIA_PATTERN.findall(text))
 
     # Pattern 3: Unicode marker (U+200E LEFT-TO-RIGHT MARK) followed by media filename
-    # This is the most consistent WhatsApp marker, works across all localizations
-    unicode_pattern = r"\u200e((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)"
-    unicode_matches = re.findall(unicode_pattern, text, re.IGNORECASE)
-    media_files.extend(unicode_matches)
+    media_files.extend(UNICODE_MEDIA_PATTERN.findall(text))
 
     return list(set(media_files))
 
@@ -224,46 +224,26 @@ def replace_media_mentions(
 
 
 def replace_media_references(table: Table, media_mapping: MediaMapping) -> Table:
-    """Replace media references (markdown and raw) with canonical URLs in Ibis table."""
+    """Replace media references (markdown and raw) with canonical URLs in Ibis table.
+
+    This function uses an Ibis User-Defined Function (UDF) to avoid deep recursion
+    in the expression tree, which can cause a RecursionError in sqlglot.
+    The UDF applies all replacements in a single pass within the backend.
+    """
     if not media_mapping:
         return table
 
-    text_col = table.text
-    # Combined pattern for attachment markers to flatten the expression tree
-    markers_pattern = "|".join(re.escape(m) for m in ATTACHMENT_MARKERS)
+    # The UDF is defined as a closure to capture the `media_mapping`.
+    # This is more efficient than passing the mapping as a parameter for each row.
+    @udf.scalar.python
+    def _replace_all_media(text: str | None) -> str | None:
+        """Performs all media replacements for a single text value."""
+        if not text or not isinstance(text, str):
+            return text
+        return replace_media_mentions(text, media_mapping)
 
-    for original_ref, media_doc in media_mapping.items():
-        # Check for PII deletion
-        if media_doc.metadata.get("pii_deleted"):
-            pii_reason = media_doc.metadata.get("pii_reason", "Contains PII")
-            logger.info("Redacting media reference '%s': %s", original_ref, pii_reason)
-            replacement = f"[REDACTED: {pii_reason}]"
-            public_url = replacement
-        else:
-            # Get pre-calculated URL from metadata (generated earlier by UrlConvention)
-            public_url = media_doc.metadata.get("public_url")
-            if not public_url:
-                logger.debug("No public URL for media ref '%s', skipping", original_ref)
-                continue
-
-            media_type = media_doc.metadata.get("media_type")
-            display_name = media_doc.metadata.get("filename") or original_ref
-            replacement = (
-                f"![Image]({public_url})" if media_type == "image" else f"[{display_name}]({public_url})"
-            )
-
-        # 1. Markdown replacement: ](filename) -> ](url)
-        text_col = text_col.replace(f"]({original_ref})", f"]({public_url})")
-
-        # 2. Raw replacement: filename [whitespace] marker -> replacement
-        # Combining markers and uses re_replace significantly flattens the expression depth.
-        raw_pattern = rf"{re.escape(original_ref)}\s*(?:{markers_pattern})"
-        text_col = text_col.re_replace(raw_pattern, replacement)
-
-        # 3. Bare filename replacement (safety fallback)
-        text_col = text_col.re_replace(rf"\b{re.escape(original_ref)}\b", replacement)
-
-    return table.mutate(text=text_col)
+    # Apply the UDF to the 'text' column.
+    return table.mutate(text=_replace_all_media(table.text))
 
 
 def process_media_for_window(
@@ -271,7 +251,7 @@ def process_media_for_window(
     adapter: InputAdapter,
     url_convention: UrlConvention,
     url_context: UrlContext,
-    **adapter_kwargs: object,
+    **_adapter_kwargs: object,
 ) -> tuple[Table, MediaMapping]:
     """High-level pipeline to process media for a window."""
     media_refs = extract_media_references(window_table)
@@ -358,7 +338,8 @@ def _prepare_media_document(document: Document, media_ref: str) -> MediaAsset:
         }
     )
     if "slug" not in metadata and original_filename:
-        metadata["slug"] = slugify(Path(original_filename).stem, lowercase=False)
+        stem = Path(original_filename).stem
+        metadata["slug"] = slugify(stem, lowercase=False)
     metadata.setdefault("nav_exclude", True)
     metadata["media_subdir"] = media_subdir
     hide_flags = metadata.get("hide", [])
