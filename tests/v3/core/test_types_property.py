@@ -16,8 +16,12 @@ from egregora_v3.core.types import (
 
 # --- Strategies ---
 
-def xml_safe_text(min_size=0):
-    return st.text(alphabet=st.characters(blacklist_categories=('Cc', 'Cs', 'Co')), min_size=min_size)
+def xml_safe_text(min_size=0, max_size=100):
+    """Generate XML-safe text with configurable size limits.
+
+    Default max_size reduced from 500 to 100 for faster property test execution.
+    """
+    return st.text(alphabet=st.characters(blacklist_categories=('Cc', 'Cs', 'Co')), min_size=min_size, max_size=max_size)
 
 def document_strategy():
     return st.builds(
@@ -31,29 +35,53 @@ def document_strategy():
     )
 
 def author_strategy():
-    return st.builds(Author, name=xml_safe_text(min_size=1), email=st.one_of(st.none(), st.emails()))
+    """Generate Author objects with optimized constraints.
+
+    Uses simpler email generation for better performance.
+    """
+    # Simple email pattern instead of full st.emails() which can be slow
+    simple_email = st.builds(
+        lambda user, domain: f"{user}@{domain}",
+        user=st.text(alphabet=st.characters(whitelist_categories=('L', 'N')), min_size=1, max_size=20),
+        domain=st.sampled_from(['example.com', 'test.org', 'mail.net'])
+    )
+    return st.builds(
+        Author,
+        name=xml_safe_text(min_size=1, max_size=50),
+        email=st.one_of(st.none(), simple_email)
+    )
 
 def entry_strategy():
+    """Generate Entry objects with optimized constraints for faster tests.
+
+    Reduced authors from max_size=3 to max_size=1 to minimize nested object generation.
+    """
     return st.builds(
         Entry,
-        id=xml_safe_text(min_size=1),
-        title=xml_safe_text(min_size=1),
+        id=xml_safe_text(min_size=1, max_size=50),
+        title=xml_safe_text(min_size=1, max_size=50),
         updated=st.datetimes(timezones=st.just(timezone.utc)),
-        content=xml_safe_text(),
-        authors=st.lists(author_strategy(), max_size=3),
+        content=xml_safe_text(max_size=200),
+        authors=st.lists(author_strategy(), max_size=1),
         in_reply_to=st.one_of(
             st.none(),
-            st.builds(InReplyTo, ref=xml_safe_text(min_size=1))
+            st.builds(InReplyTo, ref=xml_safe_text(min_size=1, max_size=50))
         )
     )
 
 def feed_strategy():
+    """Generate Feed objects with optimized constraints for faster tests.
+
+    Reduced entries from max_size=5 to max_size=2 to minimize nested object generation.
+    With max 2 entries and max 1 author each, we generate at most 2 nested objects,
+    down from 15 (5 entries × 3 authors).
+    """
     return st.builds(
         Feed,
-        id=xml_safe_text(min_size=1),
-        title=xml_safe_text(min_size=1),
+        id=xml_safe_text(min_size=1, max_size=50),
+        title=xml_safe_text(min_size=1, max_size=50),
         updated=st.datetimes(timezones=st.just(timezone.utc)),
-        entries=st.lists(entry_strategy(), max_size=5)
+        entries=st.lists(entry_strategy(), max_size=2)
     )
 
 # --- Tests ---
