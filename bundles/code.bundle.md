@@ -9451,6 +9451,7 @@ def _create_enrichment_row(
     enrichment_type: str,
     identifier: str,
     enrichment_id_str: str,
+    media_identifier: str | None = None,
 ) -> dict[str, Any] | None:
     if not message_metadata:
         return None
@@ -9473,8 +9474,8 @@ def _create_enrichment_row(
         "author_raw": "egregora",
         "author_uuid": _uuid_to_str(message_metadata.get("author_uuid")),
         "text": f"[{enrichment_type} Enrichment] {identifier}\nEnrichment saved: {enrichment_id_str}",
-        "media_url": None,
-        "media_type": None,
+        "media_url": media_identifier,
+        "media_type": enrichment_type,
         "attrs": {
             "enrichment_type": enrichment_type,
             "enrichment_id": enrichment_id_str,
@@ -10314,7 +10315,7 @@ class EnrichmentWorker(BaseWorker):
                     self.ctx.output_format.persist(doc)
 
                 metadata = payload["message_metadata"]
-                row = _create_enrichment_row(metadata, "URL", url, doc.document_id)
+                row = _create_enrichment_row(metadata, "URL", url, doc.document_id, media_identifier=url)
                 if row:
                     new_rows.append(row)
 
@@ -10859,7 +10860,9 @@ class EnrichmentWorker(BaseWorker):
                 self.ctx.output_format.persist(doc)
 
             metadata = payload["message_metadata"]
-            row = _create_enrichment_row(metadata, "Media", filename, doc.document_id)
+            row = _create_enrichment_row(
+                metadata, "Media", filename, doc.document_id, media_identifier=media_id
+            )
             if row:
                 new_rows.append(row)
 
