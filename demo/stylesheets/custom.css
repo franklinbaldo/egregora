@@ -3,7 +3,7 @@
 /* 1. Typography Improvements */
 :root {
     /* Font family is handled by mkdocs.yml 'font' setting */
-    --md-typeset-font-size: 1.05rem; /* Slightly larger base text */
+    --md-typeset-font-size: 18px; /* Larger base text for readability (was 1.05rem) */
     --md-line-height: 1.7; /* Improved reading spacing */
 }
 
@@ -22,7 +22,7 @@ h1, h2, h3 {
 
 /* Restrict line length for better readability */
 .md-typeset {
-    max-width: 800px;
+    max-width: 70ch;
     margin: 0 auto;
 }
 
