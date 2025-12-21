@@ -3,11 +3,11 @@
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-from egregora.agents.writer.agent import _process_single_tool_result
-from egregora.agents.writer.journal import (
+from egregora.agents.writer import (
     JournalEntry,
     JournalEntryParams,
-    save_journal_to_file,
+    _process_single_tool_result,
+    _save_journal_to_file,
 )
 
 
@@ -36,7 +36,7 @@ class TestWriterDecoupling:
 
         assert "some-id" in saved_posts
 
-    @patch("egregora.agents.writer.journal.Environment")
+    @patch("egregora.agents.writer.Environment")
     def test_journal_saves_agnostic_content(self, mock_env_cls):
         """Test that journal saving does not apply MkDocs-specific path replacements."""
         # Arrange
@@ -63,7 +63,7 @@ class TestWriterDecoupling:
         )
 
         # Act
-        save_journal_to_file(params)
+        _save_journal_to_file(params)
 
         # Assert
         # Check what was persisted

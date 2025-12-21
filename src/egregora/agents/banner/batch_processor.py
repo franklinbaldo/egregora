@@ -217,10 +217,20 @@ class BannerBatchProcessor:
         metadata["mime_type"] = mime_type
         metadata["generated_at"] = datetime.now(UTC).isoformat()
 
+        # Add proper filename with extension based on mime_type
+        # This ensures the file is saved with the correct extension and in the correct subfolder
+        from egregora.utils.paths import slugify
+
+        extension = self._get_extension_for_mime_type(mime_type)
+        slug = slugify(task.slug, max_len=60) if task.slug else "banner"
+        filename = f"{slug}{extension}"
+        metadata["filename"] = filename
+
         return Document(
             content=image_data,
             type=DocumentType.MEDIA,
             metadata=metadata,
+            id=filename,  # Use filename as explicit ID for consistent path prediction
         )
 
     def _attach_task_metadata(self, task: BannerTaskEntry, document: Document) -> Document:
@@ -248,3 +258,23 @@ class BannerBatchProcessor:
         if extra_metadata:
             metadata.update(extra_metadata)
         return metadata
+
+    @staticmethod
+    def _get_extension_for_mime_type(mime_type: str) -> str:
+        """Map MIME type to file extension.
+
+        Args:
+            mime_type: MIME type string (e.g., "image/jpeg")
+
+        Returns:
+            File extension with leading dot (e.g., ".jpg")
+
+        """
+        mime_to_ext = {
+            "image/jpeg": ".jpg",
+            "image/png": ".png",
+            "image/webp": ".webp",
+            "image/gif": ".gif",
+            "image/svg+xml": ".svg",
+        }
+        return mime_to_ext.get(mime_type, ".jpg")  # Default to .jpg
