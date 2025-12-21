@@ -42,7 +42,7 @@ def configure_writer_capabilities(
     return capabilities
 
 
-async def create_writer_model(
+def create_writer_model(
     config: EgregoraConfig,
     context: WriterDeps,
     prompt: str,
@@ -54,9 +54,7 @@ async def create_writer_model(
 
     model = create_fallback_model(config.models.writer, use_google_batch=False)
     # Validate prompt fits (only check for real models)
-    await validate_prompt_fits(
-        prompt, config.models.writer, config, context.window_label, model_instance=model
-    )
+    validate_prompt_fits(prompt, config.models.writer, config, context.window_label)
     return model
 
 

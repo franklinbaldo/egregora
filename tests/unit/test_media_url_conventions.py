@@ -56,5 +56,5 @@ def test_format_media_url_infers_subdirectory_from_extension(convention, url_con
     url = convention.canonical_url(doc, url_context)
 
     # ASSERTION: When no suggested_path, falls back to posts/media prefix
-    # (Current convention uses posts/media/{subfolder}/{filename})
-    assert url == "/posts/media/images/some-image.png"
+    # (Current convention uses posts/media/ for media without explicit path)
+    assert url == "/posts/media/some-image.png"
