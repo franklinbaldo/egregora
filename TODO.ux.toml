@@ -14,18 +14,10 @@ description = "Curator evaluates blogs and updates TODO. Forge implements items 
 
 # High Priority - Critical for Excellence
 [[tasks.high_priority]]
-id = "find-templates"
-title = "Find MkDocs template location in src/"
-description = "Document exact template location in vision.md (DO THIS FIRST)"
-status = "review"
-category = "infrastructure"
-assignee = "forge"
-
-[[tasks.high_priority]]
 id = "demo-cli"
 title = "Add egregora demo CLI command"
 description = "Easy demo generation command"
-status = "pending"
+status = "review"
 category = "infrastructure"
 assignee = "forge"
 
@@ -48,14 +40,6 @@ The default theme's body text is too small for comfortable long-form reading, an
 """
 status = "review"
 category = "content"
-assignee = "forge"
-
-[[tasks.high_priority]]
-id = "demo-cli"
-title = "Add egregora demo CLI command"
-description = "Easy demo generation command. Currently blocked by pipeline errors."
-status = "pending"
-category = "infrastructure"
 assignee = "forge"
 
 [[tasks.high_priority]]
