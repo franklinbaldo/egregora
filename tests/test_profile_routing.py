@@ -93,22 +93,19 @@ class TestProfileRouting:
 
         # Should be in author's folder (now located under profiles/, not posts/authors/)
         assert "profiles" in str(path)
-        assert "john-uuid-12345678"[:16] in str(path)  # Shortened UUID
+        assert "john-uuid-12345678" in str(path)
         assert path.name == "john-interests.md"
 
-    def test_profile_without_subject_falls_back(self, adapter):
-        """PROFILE without subject metadata falls back to posts/."""
+    def test_profile_without_subject_raises_error(self, adapter):
+        """PROFILE without subject metadata must raise a ValueError."""
         doc = Document(
             content="# Profile",
             type=DocumentType.PROFILE,
             metadata={"slug": "orphan-profile", "authors": [{"uuid": EGREGORA_UUID}]},
         )
-
         url = f"/profiles/{doc.metadata['slug']}"
-        path = adapter._url_to_path(url, doc)
-
-        # Falls back to top-level posts/
-        assert path == adapter.posts_dir / "orphan-profile.md"
+        with pytest.raises(ValueError, match="PROFILE document missing required 'subject' metadata"):
+            adapter._url_to_path(url, doc)
 
     def test_profile_author_is_egregora(self, adapter):
         """PROFILE posts should be authored by Egregora."""
@@ -130,8 +127,9 @@ class TestProfileRouting:
 class TestAnnouncementRouting:
     """Test that ANNOUNCEMENT posts go to announcements/."""
 
-    def test_announcement_routes_to_announcements_folder(self, adapter):
-        """ANNOUNCEMENT goes to posts/announcements/{slug}.md."""
+    def test_announcement_with_actor_routes_to_profile_folder(self, adapter):
+        """ANNOUNCEMENT with an actor routes to the actor's profile folder."""
+        actor_uuid = "john-uuid"
         doc = Document(
             content="# Avatar Updated",
             type=DocumentType.ANNOUNCEMENT,
@@ -140,16 +138,38 @@ class TestAnnouncementRouting:
                 "slug": "john-avatar-update",
                 "authors": [{"uuid": EGREGORA_UUID}],
                 "event_type": "avatar_update",
-                "actor": "john-uuid",
+                "actor": actor_uuid,
             },
         )
 
         url = f"/announcements/{doc.metadata['slug']}"
         path = adapter._url_to_path(url, doc)
 
-        # Should be in announcements/
+        # Should be in the actor's profile directory
+        assert "announcements" not in str(path)
+        assert str(adapter.profiles_dir / actor_uuid) in str(path)
+        assert path == adapter.profiles_dir / actor_uuid / "john-avatar-update.md"
+
+    def test_announcement_without_actor_routes_to_announcements_folder(self, adapter):
+        """ANNOUNCEMENT without an actor falls back to the announcements folder."""
+        doc = Document(
+            content="# System Update",
+            type=DocumentType.ANNOUNCEMENT,
+            metadata={
+                "title": "System Update",
+                "slug": "system-update-v2",
+                "authors": [{"uuid": EGREGORA_UUID}],
+                "event_type": "system_update",
+            },
+        )
+        url = f"/announcements/{doc.metadata['slug']}"
+        path = adapter._url_to_path(url, doc)
+
+        announcements_dir = adapter.posts_dir / "announcements"
+        # Should be in the general announcements folder
+        assert "profiles" not in str(path)
         assert "announcements" in str(path)
-        assert path == adapter.posts_dir / "announcements" / "john-avatar-update.md"
+        assert path == announcements_dir / "system-update-v2.md"
 
     def test_announcement_author_is_egregora(self, adapter):
         """ANNOUNCEMENT posts authored by Egregora (system)."""
@@ -189,6 +209,8 @@ class TestRoutingIntegration:
             metadata={"slug": "update", "authors": [{"uuid": EGREGORA_UUID}]},
         )
 
+        announcement_dir = adapter.posts_dir / "announcements"
+
         post_path = adapter._url_to_path("/posts/regular", post)
         profile_path = adapter._url_to_path("/profiles/john-profile", profile)
         announcement_path = adapter._url_to_path("/announcements/update", announcement)
@@ -201,7 +223,7 @@ class TestRoutingIntegration:
         # Verify structure
         assert post_path == adapter.posts_dir / "regular.md"
         assert "profiles" in str(profile_path)
-        assert "announcements" in str(announcement_path)
+        assert announcement_path == announcement_dir / "update.md"
 
     def test_metadata_requirements(self, adapter):
         """Test that metadata is correctly structured."""
