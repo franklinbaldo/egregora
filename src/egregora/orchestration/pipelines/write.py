@@ -847,17 +847,8 @@ def _resolve_context_token_limit(config: EgregoraConfig) -> int:
 
     if use_full_window:
         writer_model = config.models.writer
-        # Use KNOWN_MODEL_LIMITS from constants if available, else conservative 128k
-        from egregora.constants import KNOWN_MODEL_LIMITS
-
-        clean_name = (
-            writer_model.replace("models/", "").replace("google-gla:", "").replace("google-vertex:", "")
-        )
-        limit = 128_000
-        for known_model, known_limit in KNOWN_MODEL_LIMITS.items():
-            if clean_name.startswith(known_model):
-                limit = known_limit
-                break
+        # Default to 1M tokens for modern Gemini models (Flash/Pro)
+        limit = 1_048_576
 
         logger.debug(
             "Using full context window for writer model %s (limit=%d tokens)",
