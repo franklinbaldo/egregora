@@ -307,7 +307,7 @@ class StandardUrlConvention(UrlConvention):
                 if prefix and enrichment_path.startswith(prefix + "/"):
                     enrichment_path = enrichment_path[len(prefix) + 1 :]
                     break
-            
+
             # Fix: Check for partial overlap (e.g., prefix "posts/media", path "media/images/...")
             # This handles cases where the source path assumes a "media/" root.
             if "/" in media_prefix:
