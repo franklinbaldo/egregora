@@ -118,7 +118,7 @@ class PipelineFactory:
 
         ctx = PipelineContext(config_obj, state)
         # Inject the already created adapter into the context
-        ctx.output_format = adapter
+        ctx.state.output_format = adapter
 
         return ctx, pipeline_backend, runs_backend
 
@@ -154,15 +154,17 @@ class PipelineFactory:
             parsed = urlparse(value)
             if not parsed.scheme:
                 msg = (
-                    "Database setting '{setting}' must be provided as an Ibis-compatible connection "
-                    "URI (e.g. 'duckdb:///absolute/path/to/file.duckdb' or 'postgres://user:pass@host/db')."
+                    "Database setting '{setting}' must be provided as an "
+                    "Ibis-compatible connection URI (e.g. 'duckdb:///absolute/path/to/file.duckdb' "
+                    "or 'postgres://user:pass@host/db')."
                 )
                 raise ValueError(msg.format(setting=setting_name))
 
             if len(parsed.scheme) == 1 and value[1:3] in {":/", ":\\"}:
                 msg = (
-                    "Database setting '{setting}' looks like a filesystem path. Provide a full connection "
-                    "URI instead (see the database settings documentation)."
+                    "Database setting '{setting}' looks like a filesystem path. "
+                    "Provide a full connection URI instead "
+                    "(see the database settings documentation)."
                 )
                 raise ValueError(msg.format(setting=setting_name))
 
@@ -208,7 +210,10 @@ class PipelineFactory:
 
         docs_dir = site_paths.docs_dir
         if not docs_dir.exists():
-            msg = f"Docs directory not found: {docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
+            msg = (
+                f"Docs directory not found: {docs_dir}. "
+                "Re-run 'egregora init' to scaffold the MkDocs project."
+            )
             raise ValueError(msg)
 
         return site_paths

@@ -4,6 +4,9 @@ This script is intended for CI/GitHub Pages deployment. It runs the normal
 WhatsApp->blog pipeline against the small fixture ZIP in `tests/fixtures/`,
 but patches networked components (Gemini, RAG, enrichment, background tasks)
 to deterministic stubs so the demo can build without secrets.
+
+It invokes the pipeline via the CLI entry point (`egregora write`) to ensure
+stability and realistic usage.
 """
 
 from __future__ import annotations
@@ -17,7 +20,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import frontmatter
+import yaml
 from pydantic_ai.models.test import TestModel
+from typer.testing import CliRunner
+
+from egregora.cli.main import app
+from egregora.output_adapters.mkdocs.scaffolding import safe_yaml_load
 
 
 class WriterDemoModel(TestModel):
@@ -79,12 +88,13 @@ def _apply_patches(patches: list[PatchSpec]) -> None:
 
 def _patch_pipeline_for_offline_demo() -> None:
     # Patch writer to force TestModel usage (no Gemini calls).
-    from egregora.agents import writer as writer_module
+    # We patch both the package export and the module definition to be safe.
+    from egregora.agents.writer import agent as writer_agent_module
 
-    original_writer = writer_module.write_posts_with_pydantic_agent
+    original_writer = writer_agent_module.write_posts_with_pydantic_agent
 
-    def _writer_wrapper(*, prompt: str, config, context, test_model=None):
-        return original_writer(
+    async def _writer_wrapper(*, prompt: str, config, context, test_model=None):
+        return await original_writer(
             prompt=prompt,
             config=config,
             context=context,
@@ -103,6 +113,12 @@ def _patch_pipeline_for_offline_demo() -> None:
     async def _stub_media_enrichment_async(_agent, file_path, mime_hint=None, prompts_dir=None) -> str:
         return f"Stub enrichment for {file_path}"
 
+    async def _stub_generate_profile_posts(ctx, messages, window_date) -> list:
+        return []
+
+    def _stub_process_avatar_commands(messages_table, context) -> dict:
+        return {}
+
     def _stub_url_agent(_model, _simple=True):
         return object()
 
@@ -112,11 +128,33 @@ def _patch_pipeline_for_offline_demo() -> None:
     def _skip_background_tasks(_ctx) -> None:
         return None
 
+    def _stub_generate_taxonomy(dataset) -> None:
+        return None
+
     patches = [
+        # Writer Agent
+        PatchSpec("egregora.agents.writer.agent.write_posts_with_pydantic_agent", _writer_wrapper),
         PatchSpec("egregora.agents.writer.write_posts_with_pydantic_agent", _writer_wrapper),
+        # Profile Generator
+        PatchSpec(
+            "egregora.agents.profile.generator.generate_profile_posts", _stub_generate_profile_posts
+        ),
+        # Avatar processing
+        PatchSpec("egregora.agents.avatar.process_avatar_commands", _stub_process_avatar_commands),
         # Avoid banner capability and workers.
         PatchSpec("egregora.agents.writer_setup.is_banner_generation_available", lambda: False),
-        PatchSpec("egregora.orchestration.pipelines.write._process_background_tasks", _skip_background_tasks),
+        PatchSpec(
+            "egregora.orchestration.pipelines.write._process_background_tasks", _skip_background_tasks
+        ),
+        # Taxonomy
+        PatchSpec(
+            "egregora.orchestration.pipelines.write._generate_taxonomy",
+            _stub_generate_taxonomy,
+            optional=True,
+        ),
+        PatchSpec(
+            "egregora.ops.taxonomy.generate_semantic_taxonomy", lambda *args, **kwargs: 0, optional=True
+        ),
         # RAG: avoid DB creation and searches.
         PatchSpec("egregora.rag.index_documents", _mock_index_documents),
         PatchSpec("egregora.rag.search", _mock_search),
@@ -131,8 +169,12 @@ def _patch_pipeline_for_offline_demo() -> None:
         PatchSpec("egregora.agents.writer.index_documents", _mock_index_documents, optional=True),
         PatchSpec("egregora.agents.writer.reset_backend", lambda **_kwargs: None, optional=True),
         # Enrichment: avoid network and multimodal calls.
-        PatchSpec("egregora.agents.enricher.create_url_enrichment_agent", _stub_url_agent, optional=True),
-        PatchSpec("egregora.agents.enricher.create_media_enrichment_agent", _stub_media_agent, optional=True),
+        PatchSpec(
+            "egregora.agents.enricher.create_url_enrichment_agent", _stub_url_agent, optional=True
+        ),
+        PatchSpec(
+            "egregora.agents.enricher.create_media_enrichment_agent", _stub_media_agent, optional=True
+        ),
         PatchSpec(
             "egregora.agents.enricher._run_url_enrichment_async", _stub_url_enrichment_async, optional=True
         ),
@@ -147,68 +189,45 @@ def _patch_pipeline_for_offline_demo() -> None:
 
 
 def _rewrite_site_url(mkdocs_config_path: Path, site_url: str) -> None:
-    text = mkdocs_config_path.read_text(encoding="utf-8")
-    lines = text.splitlines()
-    out: list[str] = []
-    replaced = False
-    for line in lines:
-        if line.strip().startswith("site_url:"):
-            out.append(f"site_url: {site_url}")
-            replaced = True
-        else:
-            out.append(line)
-    if not replaced:
-        out.insert(0, f"site_url: {site_url}")
-    mkdocs_config_path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    if not mkdocs_config_path.exists():
+        return
+    with mkdocs_config_path.open("r", encoding="utf-8") as f:
+        # Use safe_yaml_load to handle custom tags like !ENV or emojis
+        data = safe_yaml_load(f.read()) or {}
+    data["site_url"] = site_url
+    with mkdocs_config_path.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(data, f, sort_keys=False)
 
 
-def _rewrite_pipeline_max_windows(config_path: Path, max_windows: int) -> None:
-    text = config_path.read_text(encoding="utf-8")
-    lines = text.splitlines()
-
-    if any(line.strip().startswith("max_windows:") for line in lines):
-        out: list[str] = []
-        for line in lines:
-            if line.strip().startswith("max_windows:"):
-                out.append(f"  max_windows: {max_windows}")
-            else:
-                out.append(line)
-        config_path.write_text("\n".join(out) + "\n", encoding="utf-8")
+def _update_demo_config(config_path: Path, max_windows: int) -> None:
+    """Harden demo config to avoid network/DB side effects during CI."""
+    if not config_path.exists():
         return
 
-    out = []
-    inserted = False
-    for line in lines:
-        out.append(line)
-        if not inserted and line.strip() == "pipeline:":
-            out.append(f"  max_windows: {max_windows}")
-            inserted = True
-    if not inserted:
-        out.extend(["", "pipeline:", f"  max_windows: {max_windows}"])
-    config_path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    with config_path.open("r", encoding="utf-8") as f:
+        data = safe_yaml_load(f.read()) or {}
+
+    # Disable RAG and Writer banners
+    if "rag" in data:
+        if isinstance(data["rag"], dict):
+            data["rag"]["enabled"] = False
+    if "writer" in data:
+        if isinstance(data["writer"], dict):
+            data["writer"]["enable_banners"] = False
+
+    # Set max windows
+    if "pipeline" not in data or not isinstance(data["pipeline"], dict):
+        data["pipeline"] = {}
+    data["pipeline"]["max_windows"] = max_windows
+
+    with config_path.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(data, f, sort_keys=False)
 
 
-def _rewrite_demo_config(config_path: Path) -> None:
-    """Harden demo config to avoid network/DB side effects during CI."""
-    text = config_path.read_text(encoding="utf-8")
-    lines = text.splitlines()
-    out: list[str] = []
-    in_rag = False
-    in_writer = False
-    for line in lines:
-        stripped = line.strip()
-        if stripped and not line.startswith(" "):
-            in_rag = stripped == "rag:"
-            in_writer = stripped == "writer:"
-
-        if in_rag and stripped.startswith("enabled:"):
-            out.append("  enabled: false")
-            continue
-        if in_writer and stripped.startswith("enable_banners:"):
-            out.append("  enable_banners: false")
-            continue
-        out.append(line)
-    config_path.write_text("\n".join(out) + "\n", encoding="utf-8")
+def _write_stub_file(path: Path, title: str, content: str) -> None:
+    """Write a stub markdown file using python-frontmatter."""
+    post = frontmatter.Post(content, title=title)
+    path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
 
 
 def main() -> int:
@@ -216,7 +235,7 @@ def main() -> int:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(".demo-site"),
+        default=Path("docs/demo"),
         help="Directory to generate the demo MkDocs project into",
     )
     parser.add_argument(
@@ -256,8 +275,9 @@ def main() -> int:
 
     _patch_pipeline_for_offline_demo()
 
+    # Pre-scaffold logic is handled by 'egregora write' via 'init' if missing,
+    # but to customize the stub files (Journal/Profiles placeholders), we do it beforehand.
     from egregora.init import ensure_mkdocs_project
-    from egregora.orchestration.pipelines.write import WhatsAppProcessOptions, process_whatsapp_export
 
     ensure_mkdocs_project(output_dir, site_name="Egregora Demo")
 
@@ -265,14 +285,21 @@ def main() -> int:
     (docs_dir / "journal").mkdir(parents=True, exist_ok=True)
     (docs_dir / "profiles").mkdir(parents=True, exist_ok=True)
     (docs_dir / "media").mkdir(parents=True, exist_ok=True)
-    (docs_dir / "journal" / "index.md").write_text(
-        "# Journal\n\n(Reserved for future demo content.)\n", encoding="utf-8"
+
+    _write_stub_file(
+        docs_dir / "journal" / "index.md",
+        "Journal",
+        "(Reserved for future demo content.)",
     )
-    (docs_dir / "profiles" / "index.md").write_text(
-        "# Profiles\n\n(Reserved for future demo content.)\n", encoding="utf-8"
+    _write_stub_file(
+        docs_dir / "profiles" / "index.md",
+        "Profiles",
+        "(Reserved for future demo content.)",
     )
-    (docs_dir / "media" / "index.md").write_text(
-        "# Media\n\nSee the demo media gallery at `posts/media/`.\n", encoding="utf-8"
+    _write_stub_file(
+        docs_dir / "media" / "index.md",
+        "Media",
+        "See the demo media gallery at `posts/media/`.",
     )
 
     mkdocs_config = output_dir / ".egregora" / "mkdocs.yml"
@@ -280,26 +307,49 @@ def main() -> int:
         _rewrite_site_url(mkdocs_config, args.site_url)
 
     config_path = output_dir / ".egregora" / "config.yml"
+    # Also check .toml as recent versions might use TOML
+    # The generated config is usually .egregora.toml now (v3).
+    # Since we don't have a safe toml writer loaded, we skip toml config hacking for now
+    # relying on CLI args to disable things (e.g. --no-enable-enrichment).
+    # The 'egregora write' command arguments cover most needs (max_prompt_tokens, enable_enrichment).
+    # Disabling banner generation specifically isn't a CLI arg, but we patch
+    # 'is_banner_generation_available' in _patch_pipeline_for_offline_demo anyway.
+    # So we don't strictly need to rewrite .egregora.toml to be safe.
+
     if config_path.exists():
-        _rewrite_demo_config(config_path)
-        _rewrite_pipeline_max_windows(config_path, args.max_windows)
+        _update_demo_config(config_path, args.max_windows)
 
-    options = WhatsAppProcessOptions(
-        output_dir=output_dir,
-        step_size=10_000,
-        step_unit="messages",
-        overlap_ratio=0.0,
-        enable_enrichment=False,
-        gemini_api_key="demo-offline-key",
-        max_prompt_tokens=50_000,
-    )
+    # Invoke the CLI using CliRunner
+    runner = CliRunner()
 
-    previous_cwd = Path.cwd()
-    try:
-        os.chdir(output_dir)
-        process_whatsapp_export(fixture_zip, options=options)
-    finally:
-        os.chdir(previous_cwd)
+    # Arguments for 'egregora write'
+    cli_args = [
+        "write",
+        str(fixture_zip),
+        "--output-dir",
+        str(output_dir),
+        "--step-size",
+        "10000",
+        "--step-unit",
+        "messages",
+        "--overlap",
+        "0.0",
+        "--no-enable-enrichment",
+        "--max-prompt-tokens",
+        "50000",
+        # Force refresh to ensure clean run
+        "--force",
+    ]
+
+
+    # Run in-process
+    result = runner.invoke(app, cli_args, catch_exceptions=False)
+
+    if result.exit_code != 0:
+        if result.exc_info:
+            pass
+        return result.exit_code
+
     return 0
 
 

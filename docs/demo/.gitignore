@@ -1,0 +1,38 @@
+# MkDocs build output
+site/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Egregora cache
+.cache/
+cache/
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large media files (optional - uncomment if needed)
+# media/**/*.mp4
+# media/**/*.mov
+# media/**/*.avi

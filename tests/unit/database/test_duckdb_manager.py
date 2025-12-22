@@ -1,4 +1,3 @@
-
 from unittest.mock import MagicMock, patch
 
 import duckdb
@@ -37,9 +36,9 @@ def test_reset_connection_handles_duckdb_error(mock_connect):
     """
     # 1. Configure the mock to raise a duckdb.Error, but only after the first call
     mock_connect.side_effect = [
-        MagicMock(), # Initial successful connection
+        MagicMock(),  # Initial successful connection
         duckdb.Error("Test Exception: Simulating a DB error on reconnect"),
-        MagicMock() # Successful in-memory connection
+        MagicMock(),  # Successful in-memory connection
     ]
 
     # 2. Instantiate the manager

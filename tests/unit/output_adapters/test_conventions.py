@@ -143,7 +143,7 @@ class TestUrlConventionNoFilesystemDependency:
 
     def test_no_path_operations_in_helper_methods(self):
         """Verify helper methods don't use Path operations."""
-        methods = ["_format_post", "_format_media", "_format_enrichment"]
+        methods = ["_format_post_url", "_format_media_url", "_format_media_enrichment_url"]
         for method_name in methods:
             method = getattr(StandardUrlConvention, method_name)
             source = inspect.getsource(method)

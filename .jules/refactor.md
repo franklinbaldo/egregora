@@ -39,3 +39,27 @@
 
 **Learning:** Even the simplest fixes deserve a full TDD cycle to guarantee stability. The process is the process, and it prevents mistakes. A skipped test is still a valid baseline.
 **Future:** Continue applying this rigorous process to all linting issues, no matter how small.
+
+---
+
+## 2024-07-26 - E501 and Bug Fix
+
+**Issue:** `E501` (Line too long) in `src/egregora/orchestration/factory.py`.
+**File:** `src/egregora/orchestration/factory.py`
+**Approach:**
+1.  Temporarily modified `pyproject.toml` to focus only on `E501` warnings.
+2.  Created a new test file `tests/unit/orchestration/test_factory.py` with a test for `create_context`.
+3.  The initial test run failed, revealing a bug: an attempt to assign to a field on a frozen dataclass (`PipelineContext`).
+4.  Corrected the bug by assigning to the mutable state object (`context.state.output_format`).
+5.  Updated the test to assert the correct assignment, ensuring the bug fix was covered.
+6.  Refactored the long lines in `factory.py` to fix the `E501` warnings.
+7.  Restored the original `ruff` configuration and fixed the resulting import-related linting issues in the new test file.
+
+**TDD Cycle:**
+- **RED:** Wrote a test for `create_context` which failed, uncovering a bug.
+- **GREEN:** Fixed the bug in the production code and updated the test to assert the correct behavior, making the test pass.
+- **REFACTOR:** Refactored long lines in `factory.py` to eliminate `E501` warnings.
+
+**Learning:**
+- TDD is a powerful tool for not only preventing regressions but also for uncovering existing bugs. The process of writing a test for a seemingly simple refactoring task revealed a more critical issue in the application logic.
+- `PipelineContext` is a frozen dataclass, which means it's immutable. Any changes to the pipeline's state must be made to the `PipelineState` object, which is accessible via `context.state`. This is a key architectural pattern in the codebase.

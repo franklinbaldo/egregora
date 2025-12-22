@@ -29,6 +29,8 @@ from typing import TYPE_CHECKING, Any, Self
 from ibis.common.exceptions import IbisError
 from pydantic import BaseModel
 from pydantic_ai import Agent
+# UrlContextTool is the client-side fetcher (alias for WebFetchTool) suitable for pydantic-ai
+from pydantic_ai import UrlContextTool
 from pydantic_ai.messages import BinaryContent
 
 from egregora.config.settings import EnrichmentSettings
@@ -737,7 +739,11 @@ class EnrichmentWorker(BaseWorker):
         try:
             # Create agent with fallback
             model = create_fallback_model(self.ctx.config.models.enricher)
-            agent = Agent(model=model, output_type=EnrichmentOutput)
+            
+            # Use UrlContextTool (WebFetchTool) to allow the model to fetch page content
+            # This provides context for the enrichment (summary, key takeaways)
+            tool = UrlContextTool() 
+            agent = Agent(model=model, output_type=EnrichmentOutput, tools=[tool])
 
             # Use run_sync to execute the async agent synchronously
             result = agent.run_sync(prompt)
