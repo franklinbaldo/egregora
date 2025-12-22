@@ -14,18 +14,10 @@ description = "Curator evaluates blogs and updates TODO. Forge implements items 
 
 # High Priority - Critical for Excellence
 [[tasks.high_priority]]
-id = "find-templates"
-title = "Find MkDocs template location in src/"
-description = "Document exact template location in vision.md (DO THIS FIRST)"
-status = "review"
-category = "infrastructure"
-assignee = "forge"
-
-[[tasks.high_priority]]
 id = "demo-cli"
 title = "Add egregora demo CLI command"
 description = "Easy demo generation command"
-status = "pending"
+status = "review"
 category = "infrastructure"
 assignee = "forge"
 
@@ -33,7 +25,7 @@ assignee = "forge"
 id = "demo-test"
 title = "Create test to ensure demo/ stays updated"
 description = "Automated test for demo freshness"
-status = "pending"
+status = "review"
 category = "infrastructure"
 assignee = "forge"
 
@@ -51,20 +43,48 @@ category = "content"
 assignee = "forge"
 
 [[tasks.high_priority]]
-id = "demo-cli"
-title = "Add egregora demo CLI command"
-description = "Easy demo generation command. Currently blocked by pipeline errors."
-status = "pending"
-category = "infrastructure"
-assignee = "forge"
-
-[[tasks.high_priority]]
 id = "baseline-lighthouse"
 title = "Generate demo and run Lighthouse audit"
 description = "Document baseline scores (Performance, A11y, Best Practices, SEO). Blocked by demo generation issues."
 status = "pending"
 category = "baseline"
 assignee = "curator"
+
+[[tasks.high_priority]]
+id = "implement-core-readability-css"
+title = "Implement Core Readability CSS in extra.css"
+description = """
+To improve readability for long-form content, specific CSS rules must be added. This task provides the exact implementation details for Forge.
+
+**File to Edit:**
+`src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`
+
+**CSS to Add:**
+```css
+/* --- Core Readability Improvements --- */
+/*
+  - Increase base font size for comfortable long-form reading.
+  - Cap content width to optimal line length (approx. 70 characters).
+*/
+
+.md-typeset {
+  font-size: 1.1rem; /* Approx 17.6px, slightly larger for readability */
+}
+
+.md-main .md-content {
+    max-width: 75ch; /* Optimal line length */
+}
+```
+
+**Verification Steps:**
+1. Generate the demo site after making the change.
+2. Open a blog post and use browser developer tools.
+3. **Check Font Size:** Inspect a paragraph (`<p>`) inside the `.md-typeset` container. The computed `font-size` should be `1.1rem` (or its pixel equivalent).
+4. **Check Line Length:** Inspect the `.md-content` container. The `max-width` should be `75ch`. The text lines should not exceed this width on large screens.
+"""
+status = "review"
+category = "visual"
+assignee = "forge"
 
 # Medium Priority - Refinement & Polish
 # (Keeping the rest of the list for now)

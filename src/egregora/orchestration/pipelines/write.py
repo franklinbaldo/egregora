@@ -652,7 +652,7 @@ def _process_single_window(
         adapter_generation_instructions=adapter_instructions,
         run_id=str(ctx.run_id) if ctx.run_id else None,
     )
-    result = write_posts_for_window(params)
+    result = run_async_safely(write_posts_for_window(params))
 
     posts = result.get("posts", [])
     profiles = result.get("profiles", [])

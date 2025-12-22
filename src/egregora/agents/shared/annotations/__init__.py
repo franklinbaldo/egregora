@@ -386,7 +386,7 @@ class AnnotationStore:
     def _row_to_annotation(row: dict[str, Any]) -> Annotation:
         """Convert a database row dictionary to an Annotation instance.
 
-        Handles various datetime formats from DuckDB (pandas Timestamp, datetime, ISO strings)
+        Handles various datetime formats from DuckDB (datetime, ISO strings)
         and ensures all timestamps are in UTC timezone.
 
         Args:
