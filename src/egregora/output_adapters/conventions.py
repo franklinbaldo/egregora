@@ -307,13 +307,13 @@ class StandardUrlConvention(UrlConvention):
                 if prefix and enrichment_path.startswith(prefix + "/"):
                     enrichment_path = enrichment_path[len(prefix) + 1 :]
                     break
-            
+
             # Fix: Check for partial overlap (e.g., prefix "posts/media", path "media/images/...")
             # This handles cases where the source path assumes a "media/" root.
             if "/" in media_prefix:
                 last_segment = media_prefix.rsplit("/", 1)[-1]
                 if enrichment_path.startswith(f"{last_segment}/"):
-                   enrichment_path = enrichment_path[len(last_segment) + 1 :]
+                    enrichment_path = enrichment_path[len(last_segment) + 1 :]
             return self._join(ctx, self.routes.media_prefix, enrichment_path, trailing_slash=True)
 
         if document.suggested_path:

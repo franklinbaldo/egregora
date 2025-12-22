@@ -191,11 +191,11 @@ class MediaReplacer:
     text segment with an O(M + T) approach (compiled regex + single scan).
     """
 
-    def __init__(self, media_mapping: MediaMapping):
+    def __init__(self, media_mapping: MediaMapping) -> None:
         """Initialize the replacer with a mapping of filenames to media documents."""
         self.media_mapping = media_mapping
         # Map lowercase to original key for case-insensitive lookup
-        self.lookup = {k.lower(): k for k in media_mapping.keys()}
+        self.lookup = {k.lower(): k for k in media_mapping}
 
         # Sort by length descending to ensure longest match priority
         # e.g., match "image-123.jpg" before "image-1.jpg" if overlapping (rare with \b but safer)
@@ -247,8 +247,7 @@ class MediaReplacer:
 
             if media_type == "image":
                 return f"![Image]({public_url})"
-            else:
-                return f"[{display_name}]({public_url})"
+            return f"[{display_name}]({public_url})"
 
         return self.pattern.sub(replacer_func, text)
 
