@@ -2,18 +2,16 @@
 
 /* --- Core Readability Improvements --- */
 :root {
-    --md-typeset-font-size: 1.125rem; /* 18px assuming 16px base */
-    --md-line-height: 1.7; /* Improved reading spacing */
+    --eg-readability-font-size: 1.1rem; /* Approx 17.6px for better readability */
+    --eg-readability-line-height: 1.7;
+    --eg-readability-max-width: 70ch; /* Optimal line length for reading */
 }
 
 .md-typeset {
-  font-size: 1.1rem; /* Approx 17.6px, slightly larger for readability */
-  max-width: 70ch;
+  font-size: var(--eg-readability-font-size);
+  line-height: var(--eg-readability-line-height);
+  max-width: var(--eg-readability-max-width);
   margin: 0 auto;
-}
-
-.md-main .md-content {
-    max-width: 75ch; /* Optimal line length */
 }
 
 
