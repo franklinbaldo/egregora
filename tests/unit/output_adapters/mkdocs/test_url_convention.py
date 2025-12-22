@@ -112,7 +112,9 @@ def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Pat
             is_fallback = stored_doc is fallback_journal
             if is_fallback:
                 # Fallback journal with no metadata goes to posts/ per unified output convention
-                assert str(stored_relative).startswith("journal/") or str(stored_relative).startswith("posts/")
+                assert str(stored_relative).startswith("journal/") or str(stored_relative).startswith(
+                    "posts/"
+                )
             else:
                 assert str(stored_relative).startswith("journal/")
         elif stored_doc.type == DocumentType.ENRICHMENT_URL:

@@ -163,9 +163,9 @@ ignore = [
     # Exception style - enable gradually
     "TRY002",
     "TRY003",
+    "TRY203",  # Remapped from deprecated TRY302
     "TRY300",
     "TRY301",
-    "TRY302",
     "TRY401",
 
     # Logging/exception formatting - enable gradually
