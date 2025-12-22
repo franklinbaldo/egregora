@@ -38,7 +38,7 @@ The default theme's body text is too small for comfortable long-form reading, an
 2. **Line Length**: Cap the main content column width to a maximum of 75 characters (approx `70ch` in CSS) to prevent overly long lines.
 **Verification**: Inspect the CSS for the body font-size and the main content container's `max-width`. Visually confirm on a wide monitor that text is comfortable to read and lines are not excessively long. A readability score (e.g., Flesch-Kincaid) should improve.
 """
-status = "pending"
+status = "review"
 category = "content"
 assignee = "forge"
 
