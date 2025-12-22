@@ -20,7 +20,7 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
     try:
         from sklearn.cluster import KMeans
     except ModuleNotFoundError as exc:
-        logger.warning("scikit-learn missing (pandas dependency unresolved). Skipping taxonomy: %s", exc)
+        logger.warning("scikit-learn not installed (optional dependency). Skipping taxonomy: %s", exc)
         return 0
     except Exception as exc:
         logger.warning("Failed to import scikit-learn dependencies. Skipping taxonomy: %s", exc)

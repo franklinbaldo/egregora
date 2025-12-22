@@ -246,7 +246,6 @@ class LanceDBRAGBackend(VectorStore):
             raise RuntimeError(msg) from e
 
         # Convert Arrow table to Python dicts (fast native method)
-        # This is much faster than iterating over pandas rows
         hits: list[RAGHit] = []
         for row in arrow_table.to_pylist():
             # LanceDB exposes a distance column (usually "_distance")
