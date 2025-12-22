@@ -1,3 +1,4 @@
+"""Network utilities, primarily for security functions like SSRF prevention."""
 from __future__ import annotations
 
 import ipaddress

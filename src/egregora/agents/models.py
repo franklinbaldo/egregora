@@ -1,3 +1,5 @@
+"""Pydantic models for agent configuration and tooling."""
+
 from typing import Any
 
 from pydantic import BaseModel, Field

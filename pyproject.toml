@@ -188,7 +188,6 @@ ignore = [
     "DTZ011",  # call-date-today
 
     # Docstrings - enforce for new code, not blocking for existing
-    "D100",    # Missing docstring in public module
     "D101",    # Missing docstring in public class
     "D102",    # Missing docstring in public method
     "D103",    # Missing docstring in public function

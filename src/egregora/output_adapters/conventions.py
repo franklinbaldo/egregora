@@ -1,3 +1,9 @@
+"""Standard URL generation conventions for the Egregora static site.
+
+This module defines the `StandardUrlConvention`, which implements the logic
+for creating canonical, predictable, and semantic URLs for different
+document types (e.g., posts, profiles, media).
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
