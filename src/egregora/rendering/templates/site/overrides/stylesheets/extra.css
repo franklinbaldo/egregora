@@ -315,3 +315,17 @@
   height: 32px;
   border-radius: 50%;
 }
+
+/* --- Core Readability Improvements --- */
+/*
+  - Increase base font size for comfortable long-form reading.
+  - Cap content width to optimal line length (approx. 70 characters).
+*/
+
+.md-typeset {
+  font-size: 1.1rem; /* Approx 17.6px, slightly larger for readability */
+}
+
+.md-main .md-content {
+    max-width: 75ch; /* Optimal line length */
+}
