@@ -6591,15 +6591,16 @@ def test_execute_wrappers_use_default_params(tmp_path):
 
 ## File: tests/unit/database/test_duckdb_manager.py
 ````python
-import pytest
-import duckdb
 from unittest.mock import MagicMock, patch
+
+import duckdb
+import pytest
 
 from egregora.database.duckdb_manager import DuckDBStorageManager
 
+
 def test_from_ibis_backend_handles_duckdb_error_gracefully():
-    """
-    Tests that DuckDBStorageManager.from_ibis_backend handles a duckdb.Error
+    """Tests that DuckDBStorageManager.from_ibis_backend handles a duckdb.Error
     during the PRAGMA database_list call and sets db_path to None.
     """
     # 1. Create a mock Ibis backend
@@ -6623,8 +6624,7 @@ def test_from_ibis_backend_handles_duckdb_error_gracefully():
 
 @patch("ibis.duckdb.connect")
 def test_reset_connection_handles_duckdb_error(mock_connect):
-    """
-    Tests that _reset_connection handles a duckdb.Error during reconnect
+    """Tests that _reset_connection handles a duckdb.Error during reconnect
     and falls back to an in-memory database.
     """
     # 1. Configure the mock to raise a duckdb.Error, but only after the first call
@@ -6650,8 +6650,7 @@ def test_reset_connection_handles_duckdb_error(mock_connect):
 @patch("ibis.duckdb.connect")
 @patch("pathlib.Path.unlink")
 def test_reset_connection_handles_os_error_on_unlink(mock_unlink, mock_connect):
-    """
-    Tests that _reset_connection handles an OSError during file deletion
+    """Tests that _reset_connection handles an OSError during file deletion
     and still falls back to an in-memory database.
     """
     # 1. Configure mocks to allow instantiation, then fail during reset
@@ -6678,8 +6677,7 @@ def test_reset_connection_handles_os_error_on_unlink(mock_unlink, mock_connect):
 
 @patch("ibis.duckdb.connect")
 def test_reset_connection_raises_runtime_error_on_critical_failure(mock_connect):
-    """
-    Tests that _reset_connection raises a RuntimeError if it can't even connect
+    """Tests that _reset_connection raises a RuntimeError if it can't even connect
     to an in-memory database.
     """
     # 1. Configure mock to succeed on instantiation, then always fail
