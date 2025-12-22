@@ -14,9 +14,7 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
-import math
 import os
-from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -33,12 +31,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
-from egregora.agents.banner.worker import BannerWorker
-from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker, schedule_enrichment
-from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.types import PromptTooLargeError
-from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
 from egregora.constants import SourceType, WindowUnit
@@ -51,7 +44,6 @@ from egregora.init import ensure_mkdocs_project
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
-from egregora.ops.media import process_media_for_window
 from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
@@ -79,8 +71,6 @@ if TYPE_CHECKING:
     import uuid
 
     import ibis.expr.types as ir
-
-    from egregora.input_adapters.base import MediaMapping
 
 
 logger = logging.getLogger(__name__)
@@ -745,7 +735,6 @@ def _pipeline_environment(run_params: PipelineRunParams) -> any:
     if options is not None:
         options.default_backend = pipeline_backend
 
-
     try:
         yield ctx, runs_backend
     finally:
@@ -766,6 +755,7 @@ def _pipeline_environment(run_params: PipelineRunParams) -> any:
                     backend_close()
                 elif hasattr(pipeline_backend, "con") and hasattr(pipeline_backend.con, "close"):
                     pipeline_backend.con.close()
+
 
 def _parse_and_validate_source(
     adapter: any,

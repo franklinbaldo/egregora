@@ -1,14 +1,16 @@
-from unittest.mock import MagicMock, Mock
-import pytest
 from datetime import datetime
-from egregora.orchestration.runner import PipelineRunner
-from egregora.orchestration.context import PipelineContext
+from unittest.mock import MagicMock
+
 from egregora.data_primitives.protocols import OutputSink
+from egregora.orchestration.context import PipelineContext
+from egregora.orchestration.runner import PipelineRunner
+
 
 def test_pipeline_runner_init():
     context = MagicMock(spec=PipelineContext)
     runner = PipelineRunner(context)
     assert runner.context == context
+
 
 def test_pipeline_runner_process_windows():
     context = MagicMock(spec=PipelineContext)

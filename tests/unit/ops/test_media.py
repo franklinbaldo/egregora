@@ -16,6 +16,7 @@ def test_detect_media_type():
     assert detect_media_type(Path("doc.pdf")) == "document"
     assert detect_media_type(Path("unknown.xyz")) is None
 
+
 def test_get_media_subfolder():
     """Should return correct subfolder for media types."""
     assert get_media_subfolder(".jpg") == "images"
@@ -23,11 +24,13 @@ def test_get_media_subfolder():
     assert get_media_subfolder(".pdf") == "documents"
     assert get_media_subfolder(".xyz") == "files"
 
+
 def test_find_media_references_whatsapp():
     """Should extract standard WhatsApp media references."""
     text = "Here is a photo IMG-20230101-WA0001.jpg (file attached)"
     refs = find_media_references(text)
     assert refs == ["IMG-20230101-WA0001.jpg"]
+
 
 def test_find_media_references_unicode():
     """Should extract WhatsApp media references with unicode markers."""
@@ -35,6 +38,7 @@ def test_find_media_references_unicode():
     text = "\u200eIMG-20230101-WA0002.jpg"
     refs = find_media_references(text)
     assert refs == ["IMG-20230101-WA0002.jpg"]
+
 
 def test_find_media_references_various_markers():
     """Should extract media references using various localized markers."""

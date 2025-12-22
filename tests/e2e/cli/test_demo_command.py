@@ -2,13 +2,16 @@
 End-to-end test for the 'egregora demo' CLI command.
 """
 
-from pathlib import Path
 import shutil
+from pathlib import Path
+
 import pytest
 from typer.testing import CliRunner
+
 from egregora.cli.main import app
 
 runner = CliRunner()
+
 
 @pytest.fixture
 def clean_demo_dir():
@@ -20,6 +23,7 @@ def clean_demo_dir():
     if demo_path.exists():
         shutil.rmtree(demo_path)
 
+
 def test_demo_command_creates_site_structure(clean_demo_dir: Path):
     """
     Tests that the `egregora demo` command successfully creates the site structure,
@@ -29,7 +33,9 @@ def test_demo_command_creates_site_structure(clean_demo_dir: Path):
 
     # The command should initialize the site, but the pipeline may fail gracefully (exit code 1)
     # if API keys are not available in the test environment.
-    assert result.exit_code in (0, 1), f"CLI command failed unexpectedly with exit code {result.exit_code}: {result.stdout}"
+    assert result.exit_code in (0, 1), (
+        f"CLI command failed unexpectedly with exit code {result.exit_code}: {result.stdout}"
+    )
 
     assert clean_demo_dir.exists(), "The 'demo' directory was not created."
     assert clean_demo_dir.is_dir(), "The 'demo' path is not a directory."

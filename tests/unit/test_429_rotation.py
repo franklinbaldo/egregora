@@ -93,7 +93,6 @@ async def test_create_fallback_model_count(monkeypatch):
     fb_model = create_fallback_model("gemini-1.5-flash", ["gemini-1.5-pro"], include_openrouter=False)
 
     # Now uses our custom RotatingFallbackModel instead of pydantic-ai's FallbackModel
-    from egregora.models.rotating_fallback import RotatingFallbackModel
 
     # We can check the __repr__ or just trust the logic if we can't access internals easily.
     # Actually, we can check how many models are in the '_fallback_models' tuple.

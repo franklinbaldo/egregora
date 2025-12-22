@@ -1,4 +1,5 @@
 """Unit tests for the pipeline factory."""
+
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
@@ -30,27 +31,23 @@ def mock_run_params(tmp_path):
 
 def test_create_context(mock_run_params):
     """Tests that create_context initializes PipelineContext and its resources correctly."""
-    with patch.object(
-        PipelineFactory, "resolve_site_paths_or_raise", return_value=MagicMock()
-    ) as mock_resolve_paths, patch.object(
-        PipelineFactory,
-        "create_database_backends",
-        return_value=("mock_db_uri", MagicMock(), MagicMock()),
-    ) as mock_create_db, patch(
-        "egregora.orchestration.factory.initialize_database"
-    ) as mock_init_db, patch.object(
-        PipelineFactory, "create_gemini_client"
-    ) as mock_create_client, patch(
-        "egregora.orchestration.factory.PipelineCache"
-    ) as mock_cache, patch(
-        "egregora.orchestration.factory.DuckDBStorageManager"
-    ) as mock_storage, patch(
-        "egregora.orchestration.factory.create_default_output_registry"
-    ) as mock_create_registry, patch.object(
-        PipelineFactory, "create_output_adapter"
-    ) as mock_create_adapter, patch(
-        "egregora.orchestration.factory.AnnotationStore"
-    ) as mock_annotation_store:
+    with (
+        patch.object(
+            PipelineFactory, "resolve_site_paths_or_raise", return_value=MagicMock()
+        ) as mock_resolve_paths,
+        patch.object(
+            PipelineFactory,
+            "create_database_backends",
+            return_value=("mock_db_uri", MagicMock(), MagicMock()),
+        ) as mock_create_db,
+        patch("egregora.orchestration.factory.initialize_database") as mock_init_db,
+        patch.object(PipelineFactory, "create_gemini_client") as mock_create_client,
+        patch("egregora.orchestration.factory.PipelineCache") as mock_cache,
+        patch("egregora.orchestration.factory.DuckDBStorageManager") as mock_storage,
+        patch("egregora.orchestration.factory.create_default_output_registry") as mock_create_registry,
+        patch.object(PipelineFactory, "create_output_adapter") as mock_create_adapter,
+        patch("egregora.orchestration.factory.AnnotationStore") as mock_annotation_store,
+    ):
         # Setup mock return value for the adapter
         mock_adapter = MagicMock()
         mock_create_adapter.return_value = mock_adapter

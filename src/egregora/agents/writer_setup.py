@@ -4,6 +4,7 @@ This module handles the dynamic construction of the writer agent,
 including its capabilities, model, and tools, based on the application's
 configuration.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any

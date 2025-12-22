@@ -1,9 +1,11 @@
 """Async utilities."""
+
 from __future__ import annotations
 
 import asyncio
 import concurrent.futures
 from typing import Any
+
 
 def run_async_safely(coro: Any) -> Any:
     """Run an async coroutine safely, handling nested event loops.

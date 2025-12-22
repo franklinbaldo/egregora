@@ -1,4 +1,3 @@
-
 import filecmp
 from pathlib import Path
 
@@ -24,12 +23,7 @@ def are_dirs_equal(dir1: Path, dir2: Path) -> tuple[bool, str]:
     ignore_list = [".gitkeep", ".DS_Store", "__pycache__"]
     comparison = filecmp.dircmp(dir1, dir2, ignore=ignore_list)
 
-    if (
-        comparison.left_only
-        or comparison.right_only
-        or comparison.diff_files
-        or comparison.funny_files
-    ):
+    if comparison.left_only or comparison.right_only or comparison.diff_files or comparison.funny_files:
         report = []
         if comparison.left_only:
             report.append(f"Only in {dir1}: {comparison.left_only}")
@@ -42,9 +36,7 @@ def are_dirs_equal(dir1: Path, dir2: Path) -> tuple[bool, str]:
         return False, "\n".join(report)
 
     for subdir in comparison.common_dirs:
-        are_equal, report_str = are_dirs_equal(
-            dir1 / subdir, dir2 / subdir
-        )
+        are_equal, report_str = are_dirs_equal(dir1 / subdir, dir2 / subdir)
         if not are_equal:
             return False, f"Difference in subdir '{subdir}':\n{report_str}"
 

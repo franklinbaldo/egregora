@@ -6,6 +6,7 @@ This module implements the logic for "Multi-Label Semantic Clustering". It works
 3. Sending the clusters to an LLM to generate a set of descriptive tags for each cluster.
 4. Applying these generated tags to the corresponding documents.
 """
+
 import logging
 from typing import Any
 

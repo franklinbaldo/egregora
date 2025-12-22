@@ -377,16 +377,14 @@ def demo(
         "--output-dir",
         "-o",
         help="The directory to output the demo site to.",
-    )
+    ),
 ) -> None:
     """Generate a demo site from a sample WhatsApp export."""
     console.print("[bold cyan]Generating demo site...[/bold cyan]")
     # Resolve the path to the sample input file relative to this script's location
     # to ensure it's found regardless of the current working directory.
     project_root = Path(__file__).resolve().parent.parent.parent.parent
-    sample_input = (
-        project_root / "tests/fixtures/Conversa do WhatsApp com Teste.zip"
-    )
+    sample_input = project_root / "tests/fixtures/Conversa do WhatsApp com Teste.zip"
     if not sample_input.exists():
         console.print(f"[red]Sample input file not found at {sample_input}[/red]")
         raise typer.Exit(1)

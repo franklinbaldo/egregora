@@ -8,42 +8,45 @@ from __future__ import annotations
 import logging
 import math
 from collections import deque
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Tuple
+from typing import TYPE_CHECKING, Any
 
+from egregora.agents.banner.worker import BannerWorker
+from egregora.agents.commands import command_to_announcement, filter_commands
+from egregora.agents.commands import extract_commands as extract_commands_list
+from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker, schedule_enrichment
+from egregora.agents.profile.generator import generate_profile_posts
+from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.types import PromptTooLargeError
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
+from egregora.data_primitives.protocols import UrlContext
+from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.factory import PipelineFactory
-from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker, schedule_enrichment
-from egregora.agents.avatar import AvatarContext, process_avatar_commands
-from egregora.agents.commands import command_to_announcement, extract_commands as extract_commands_list, filter_commands
-from egregora.agents.profile.generator import generate_profile_posts
 from egregora.transformations import split_window_into_n_parts
-from egregora.ops.media import process_media_for_window
-from egregora.data_primitives.protocols import UrlContext
-from egregora.agents.banner.worker import BannerWorker
-from egregora.agents.profile.worker import ProfileWorker
 from egregora.utils.async_utils import run_async_safely
 
 if TYPE_CHECKING:
     from datetime import datetime
+
     import ibis.expr.types as ir
+
     from egregora.input_adapters.base import MediaMapping
 
 logger = logging.getLogger(__name__)
 
 MIN_WINDOWS_WARNING_THRESHOLD = 5
 
+
 class PipelineRunner:
     """Orchestrates the execution of the pipeline window processing loop."""
 
-    def __init__(self, context: PipelineContext):
+    def __init__(self, context: PipelineContext) -> None:
         self.context = context
 
     def process_windows(
         self,
         windows_iterator: Any,
-    ) -> Tuple[Dict[str, Dict[str, List[str]]], datetime | None]:
+    ) -> tuple[dict[str, dict[str, list[str]]], datetime | None]:
         """Process all windows with tracking and error handling.
 
         Args:
@@ -51,6 +54,7 @@ class PipelineRunner:
 
         Returns:
             Tuple of (results dict, max_processed_timestamp)
+
         """
         results = {}
         max_processed_timestamp: datetime | None = None
@@ -88,7 +92,9 @@ class PipelineRunner:
                 logger.debug("Skipping empty window %d", window.window_index)
                 continue
 
-            window_label = f"{window.start_time.strftime('%Y-%m-%d %H:%M')} - {window.end_time.strftime('%H:%M')}"
+            window_label = (
+                f"{window.start_time.strftime('%Y-%m-%d %H:%M')} - {window.end_time.strftime('%H:%M')}"
+            )
             logger.info("Processing window %d: %s", windows_processed + 1, window_label)
 
             self._validate_window_size(window, max_window_size)
@@ -127,8 +133,7 @@ class PipelineRunner:
         use_full_window = getattr(config.pipeline, "use_full_context_window", False)
 
         if use_full_window:
-            limit = 1_048_576
-            return limit
+            return 1_048_576
 
         return config.pipeline.max_prompt_tokens
 
@@ -164,16 +169,12 @@ class PipelineRunner:
             logger.info("Enriched %d items", enrichment_processed)
 
     def _process_window_with_auto_split(
-        self,
-        window: Any,
-        *,
-        depth: int = 0,
-        max_depth: int = 5
-    ) -> Dict[str, Dict[str, List[str]]]:
+        self, window: Any, *, depth: int = 0, max_depth: int = 5
+    ) -> dict[str, dict[str, list[str]]]:
         """Process a window with automatic splitting if prompt exceeds model limit."""
         min_window_size = 5
-        results: Dict[str, Dict[str, List[str]]] = {}
-        queue: deque[Tuple[Any, int]] = deque([(window, depth)])
+        results: dict[str, dict[str, list[str]]] = {}
+        queue: deque[tuple[Any, int]] = deque([(window, depth)])
 
         while queue:
             current_window, current_depth = queue.popleft()
@@ -209,12 +210,7 @@ class PipelineRunner:
 
         return results
 
-    def _process_single_window(
-        self,
-        window: Any,
-        *,
-        depth: int = 0
-    ) -> Dict[str, Dict[str, List[str]]]:
+    def _process_single_window(self, window: Any, *, depth: int = 0) -> dict[str, dict[str, list[str]]]:
         """Process a single window with media extraction, enrichment, and post writing."""
         indent = "  " * depth
         window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
@@ -290,7 +286,9 @@ class PipelineRunner:
         window_date = window.start_time.strftime("%Y-%m-%d")
         try:
             profile_docs = run_async_safely(
-                generate_profile_posts(ctx=self.context, messages=clean_messages_list, window_date=window_date)
+                generate_profile_posts(
+                    ctx=self.context, messages=clean_messages_list, window_date=window_date
+                )
             )
             for profile_doc in profile_docs:
                 try:
@@ -364,7 +362,7 @@ class PipelineRunner:
 
         return window_table
 
-    def _extract_adapter_info(self) -> Tuple[str, str]:
+    def _extract_adapter_info(self) -> tuple[str, str]:
         """Extract content summary and generation instructions from adapter."""
         adapter = getattr(self.context, "adapter", None)
         if adapter is None:
@@ -386,7 +384,7 @@ class PipelineRunner:
         error: PromptTooLargeError,
         depth: int,
         indent: str,
-    ) -> List[Tuple[Any, int]]:
+    ) -> list[tuple[Any, int]]:
         estimated_tokens = getattr(error, "estimated_tokens", 0)
         effective_limit = getattr(error, "effective_limit", 1) or 1
 
