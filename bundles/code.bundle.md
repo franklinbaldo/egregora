@@ -62,15 +62,6 @@ The content is organized as follows:
   scribe.md
   sentinel.md
   sheriff.md
-demo/
-  .egregora/
-    .cache/
-      enrichment/
-        cache.db
-      rag/
-        cache.db
-      writer/
-        cache.db
 dev_tools/
   check_private_imports.py
   check_test_config.py
@@ -14182,6 +14173,48 @@ def doctor(
 ) -> None:
     """Run diagnostic checks to verify Egregora setup."""
     _run_doctor_checks(verbose=verbose)
+
+
+@app.command()
+def demo() -> None:
+    """Generate a demo site from a sample WhatsApp export."""
+    console.print("[bold cyan]Generating demo site...[/bold cyan]")
+    sample_input = Path("tests/fixtures/Conversa do WhatsApp com Teste.zip")
+    if not sample_input.exists():
+        console.print(f"[red]Sample input file not found at {sample_input}[/red]")
+        raise typer.Exit(1)
+
+    run_cli_flow(
+        input_file=sample_input,
+        output=Path("demo"),
+        source=SourceType.WHATSAPP,
+        step_size=100,
+        step_unit=WindowUnit.MESSAGES,
+        overlap=0.0,
+        enable_enrichment=True,
+        from_date=None,
+        to_date=None,
+        timezone=None,
+        model=None,
+        max_prompt_tokens=400000,
+        use_full_context_window=False,
+        max_windows=None,
+        resume=True,
+        economic_mode=False,
+        refresh=None,
+        force=True,  # Always force a refresh for the demo
+        debug=False,
+        options=None,
+    )
+    console.print(
+        Panel(
+            "[bold green]✅ Demo site generated successfully![/bold green]\n\n"
+            "To view the site, run:\n"
+            "[cyan]cd demo && uvx --with mkdocs-material --with mkdocs-rss-plugin mkdocs serve[/cyan]",
+            title="🚀 Demo Complete",
+            border_style="green",
+        )
+    )
 
 
 def _load_dotenv_if_available(output_dir: Path) -> None:
@@ -39379,6 +39412,7 @@ debug_*.py
 list_models.py
 reproduce_*.py
 blog_generation.log
+demo/
 ````
 
 ## File: .pre-commit-config.yaml
@@ -42832,18 +42866,10 @@ description = "Curator evaluates blogs and updates TODO. Forge implements items 
 
 # High Priority - Critical for Excellence
 [[tasks.high_priority]]
-id = "find-templates"
-title = "Find MkDocs template location in src/"
-description = "Document exact template location in vision.md (DO THIS FIRST)"
-status = "review"
-category = "infrastructure"
-assignee = "forge"
-
-[[tasks.high_priority]]
 id = "demo-cli"
 title = "Add egregora demo CLI command"
 description = "Easy demo generation command"
-status = "pending"
+status = "review"
 category = "infrastructure"
 assignee = "forge"
 
@@ -42866,14 +42892,6 @@ The default theme's body text is too small for comfortable long-form reading, an
 """
 status = "pending"
 category = "content"
-assignee = "forge"
-
-[[tasks.high_priority]]
-id = "demo-cli"
-title = "Add egregora demo CLI command"
-description = "Easy demo generation command. Currently blocked by pipeline errors."
-status = "pending"
-category = "infrastructure"
 assignee = "forge"
 
 [[tasks.high_priority]]
