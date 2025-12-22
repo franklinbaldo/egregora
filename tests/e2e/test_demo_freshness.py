@@ -2,7 +2,6 @@
 E2E test to ensure the demo/ directory is up-to-date.
 """
 import filecmp
-import shutil
 import subprocess
 import sys
 from pathlib import Path
