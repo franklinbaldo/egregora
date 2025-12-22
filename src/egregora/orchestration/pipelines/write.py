@@ -1274,6 +1274,7 @@ def _pipeline_environment(run_params: PipelineRunParams) -> any:
     if options is not None:
         options.default_backend = pipeline_backend
 
+
     try:
         yield ctx, runs_backend
     finally:
@@ -1287,18 +1288,13 @@ def _pipeline_environment(run_params: PipelineRunParams) -> any:
                 elif hasattr(runs_backend, "con") and hasattr(runs_backend.con, "close"):
                     runs_backend.con.close()
             finally:
-                try:
-                    if ctx.client:
-                        ctx.client.close()
-                finally:
-                    if options is not None:
-                        options.default_backend = old_backend
-                    backend_close = getattr(pipeline_backend, "close", None)
-                    if callable(backend_close):
-                        backend_close()
-                    elif hasattr(pipeline_backend, "con") and hasattr(pipeline_backend.con, "close"):
-                        pipeline_backend.con.close()
-
+                if options is not None:
+                    options.default_backend = old_backend
+                backend_close = getattr(pipeline_backend, "close", None)
+                if callable(backend_close):
+                    backend_close()
+                elif hasattr(pipeline_backend, "con") and hasattr(pipeline_backend.con, "close"):
+                    pipeline_backend.con.close()
 
 def _parse_and_validate_source(
     adapter: any,
