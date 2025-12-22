@@ -27,10 +27,12 @@ The OutputAdapter then converts this URL to a filesystem path:
     >>> adapter.persist(doc)  # Internally: URL -> Path("docs/posts/2025-01-10-hello.md")
 
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from egregora.data_primitives.document import Document, DocumentType
@@ -271,10 +273,18 @@ class StandardUrlConvention(UrlConvention):
         if document.suggested_path:
             clean_path = document.suggested_path.strip("/")
             return self._join(ctx, clean_path, trailing_slash=False)
-        # Default to /media/{doc_id}
+
+        # Legacy/Fallback: Infer subdirectory from extension
+        from egregora.ops.media import get_media_subfolder
+
         filename = document.metadata.get("filename")
         path_segment = filename or f"{document.document_id}"
-        return self._join(ctx, self.routes.media_prefix, path_segment, trailing_slash=False)
+
+        extension = Path(path_segment).suffix
+        media_subdir = get_media_subfolder(extension)
+
+        # New robust path: media/{subdir}/{filename}
+        return self._join(ctx, "media", media_subdir, path_segment, trailing_slash=False)
 
     def _format_media_enrichment_url(self, ctx: UrlContext, document: Document) -> str:
         """Mirror parent media path but swap extension for markdown."""

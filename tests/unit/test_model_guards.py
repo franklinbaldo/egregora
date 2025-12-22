@@ -2,18 +2,17 @@ from egregora.config.settings import DEFAULT_MODEL
 
 
 def test_default_model_is_modern():
-    """
-    Ensure the default model is a modern, high-capacity model.
-    We verify it's not a legacy 1.0 model.
-    """
-    model = DEFAULT_MODEL.lower()
-
-    # Must be Flash or Pro
-    assert "flash" in model or "pro" in model
-
-    # Must NOT be legacy 1.0
-    assert "1.0" not in model
-    assert model.replace("google-gla:", "").replace("models/", "") != "gemini-pro"
+    """Ensure the default model is at least a 2.5 version."""
+    modern_keywords = [
+        "flash-latest",
+        "2.5-flash",
+        "pro-latest",
+        "2.5-pro",
+    ]
+    assert any(kw in DEFAULT_MODEL for kw in modern_keywords), (
+        f"DEFAULT_MODEL '{DEFAULT_MODEL}' seems outdated. "
+        "Please use a flash-latest or 2.5+ model."
+    )
 
 
 def test_model_params_defaults(config_factory):

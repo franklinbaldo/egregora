@@ -23,9 +23,7 @@ class MockBaseModel(Model):
         if self.calls == 1:
             raise UsageLimitExceeded("429 Too Many Requests")
         return ModelResponse(
-            parts=[TextPart(content=f"Success from {self._name}")],
-            usage=RequestUsage(),
-            model_name=self._name,
+            parts=[TextPart(text=f"Success from {self._name}")], usage=RequestUsage(), model_name=self._name
         )
 
     @property
@@ -57,7 +55,7 @@ async def test_fast_rotation_on_429(monkeypatch):
         async def request(self, messages, settings, params):
             self.calls += 1
             return ModelResponse(
-                parts=[TextPart(content=f"Success from {self._name}")],
+                parts=[TextPart(text=f"Success from {self._name}")],
                 usage=RequestUsage(),
                 model_name=self._name,
             )
@@ -78,7 +76,7 @@ async def test_fast_rotation_on_429(monkeypatch):
     assert m1.calls == 1
     assert m2.calls == 1
     assert m3.calls == 1
-    assert "Success from m3" in response.parts[0].content
+    assert "Success from m3" in response.parts[0].text
 
     # Elapsed time should be very small
     assert end_time - start_time < 0.5
@@ -97,6 +95,11 @@ async def test_create_fallback_model_count(monkeypatch):
     # Now uses our custom RotatingFallbackModel instead of pydantic-ai's FallbackModel
     from egregora.models.rotating_fallback import RotatingFallbackModel
 
-    assert isinstance(fb_model, RotatingFallbackModel)
-    # The model should have multiple fallback options configured
-    # Cannot easily inspect internals, so just verify it's created without error
+    # We can check the __repr__ or just trust the logic if we can't access internals easily.
+    # Actually, we can check how many models are in the '_fallback_models' tuple.
+    assert len(fb_model._fallback_models) == 5  # 1 primary(rest of keys) + 2 * 2 (fallbacks)?
+    # Wait:
+    # Primary-Key1 -> fb_model._primary_model
+    # Primary-Key2, Primary-Key3 -> fb_model._fallback_models[0:2]
+    # Fallback-Key1, Fallback-Key2, Fallback-Key3 -> fb_model._fallback_models[2:5]
+    # Total = 1 + 5 = 6. Correct.
