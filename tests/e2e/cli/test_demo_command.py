@@ -35,9 +35,8 @@ def test_demo_command_with_output_dir(test_output_dir: Path, monkeypatch: pytest
     # Check for the presence of key files and directories.
     assert (demo_dir / "mkdocs.yml").exists(), "mkdocs.yml was not created."
     assert (demo_dir / "docs").is_dir(), "'docs' directory was not created."
-    assert (
-        demo_dir / "docs" / "posts"
-    ).is_dir(), "'posts' directory was not created."
+    assert (demo_dir / "docs" / "posts").is_dir(), "'posts' directory was not created."
+
 
 def test_demo_command_with_default_output_dir(test_output_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test the 'egregora demo' command with the default output directory."""
@@ -56,6 +55,4 @@ def test_demo_command_with_default_output_dir(test_output_dir: Path, monkeypatch
     # Check for the presence of key files and directories.
     assert (demo_dir / "mkdocs.yml").exists(), "mkdocs.yml was not created."
     assert (demo_dir / "docs").is_dir(), "'docs' directory was not created."
-    assert (
-        demo_dir / "docs" / "posts"
-    ).is_dir(), "'posts' directory was not created."
+    assert (demo_dir / "docs" / "posts").is_dir(), "'posts' directory was not created."

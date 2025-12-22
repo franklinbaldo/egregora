@@ -313,7 +313,7 @@ class StandardUrlConvention(UrlConvention):
             if "/" in media_prefix:
                 last_segment = media_prefix.rsplit("/", 1)[-1]
                 if enrichment_path.startswith(f"{last_segment}/"):
-                   enrichment_path = enrichment_path[len(last_segment) + 1 :]
+                    enrichment_path = enrichment_path[len(last_segment) + 1 :]
             return self._join(ctx, self.routes.media_prefix, enrichment_path, trailing_slash=True)
 
         if document.suggested_path:

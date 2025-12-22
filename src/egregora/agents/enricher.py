@@ -28,6 +28,8 @@ from typing import TYPE_CHECKING, Any, Self
 
 from ibis.common.exceptions import IbisError
 from pydantic import BaseModel
+
+# UrlContextTool is the client-side fetcher (alias for WebFetchTool) suitable for pydantic-ai
 from pydantic_ai import Agent, UrlContextTool
 from pydantic_ai.messages import BinaryContent
 
