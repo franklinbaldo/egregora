@@ -40,6 +40,7 @@ from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.run_store import RunStore
 from egregora.database.task_store import TaskStore
+from egregora.database.utils import resolve_db_uri
 from egregora.init import ensure_mkdocs_project
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
@@ -566,18 +567,7 @@ def _create_database_backends(
             )
             raise ValueError(msg.format(setting=setting_name))
 
-        normalized_value = value
-
-        if parsed.scheme == "duckdb" and not parsed.netloc:
-            path_value = parsed.path
-            if path_value and path_value not in {"/:memory:", ":memory:", "memory", "memory:"}:
-                if path_value.startswith("/./"):
-                    fs_path = (site_root / Path(path_value[3:])).resolve()
-                else:
-                    fs_path = Path(path_value).resolve()
-                fs_path.parent.mkdir(parents=True, exist_ok=True)
-                normalized_value = f"duckdb://{fs_path}"
-
+        normalized_value = resolve_db_uri(value, site_root)
         return normalized_value, ibis.connect(normalized_value)
 
     runtime_db_uri, pipeline_backend = _validate_and_connect(

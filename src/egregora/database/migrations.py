@@ -48,10 +48,12 @@ def migrate_documents_table(conn: Any) -> None:
     # Normalize connection access for introspection
     # We prefer using raw SQL DESCRIBE for ground truth
     try:
-        if hasattr(conn, "execute"):
-            columns_info = conn.execute("DESCRIBE documents").fetchall()
-        elif hasattr(conn, "raw_sql"):
+        # Prefer raw_sql if available (Ibis backend)
+        # Ibis backend.execute() expects an Expression, not a string.
+        if hasattr(conn, "raw_sql"):
             columns_info = conn.raw_sql("DESCRIBE documents").fetchall()
+        elif hasattr(conn, "execute"):
+            columns_info = conn.execute("DESCRIBE documents").fetchall()
         else:
             raise ValueError("Unknown connection type")
 
