@@ -135,7 +135,6 @@ markdown_extensions:
 
 validation:
   absolute_links: relative_to_docs
-  anchor_links: warn
   unrecognized_links: warn
 
 nav:
@@ -152,6 +151,7 @@ nav:
 extra:
   # Disable MkDocs generator notice
   generator: false
+  copyright: Copyright &copy; {{ now.year }} {{ site_name }}
   # Add social links to the footer for a more professional look.
   # These will only appear if the corresponding variables are set in the user's config.
   {% if github_user or twitter_handle or linkedin_user %}
@@ -172,4 +172,4 @@ extra:
 
 # Custom CSS for improved UX
 extra_css:
-  - stylesheets/custom.css
+  - stylesheets/extra.css
