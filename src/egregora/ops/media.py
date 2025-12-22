@@ -184,6 +184,75 @@ def _normalize_public_url(value: str | None) -> str | None:
     return "/" + value.lstrip("/")
 
 
+class MediaReplacer:
+    """Optimized replacement for media mentions using a single regex pass.
+
+    This replaces the O(N * M) logic of iterating through all mapped files for every
+    text segment with an O(M + T) approach (compiled regex + single scan).
+    """
+
+    def __init__(self, media_mapping: MediaMapping):
+        """Initialize the replacer with a mapping of filenames to media documents."""
+        self.media_mapping = media_mapping
+        # Map lowercase to original key for case-insensitive lookup
+        self.lookup = {k.lower(): k for k in media_mapping.keys()}
+
+        # Sort by length descending to ensure longest match priority
+        # e.g., match "image-123.jpg" before "image-1.jpg" if overlapping (rare with \b but safer)
+        sorted_filenames = sorted(media_mapping.keys(), key=len, reverse=True)
+
+        if not sorted_filenames:
+            self.pattern = None
+            return
+
+        # Pattern parts
+        files_pattern = "|".join(re.escape(f) for f in sorted_filenames)
+        markers_pattern = "|".join(re.escape(m) for m in ATTACHMENT_MARKERS)
+
+        # Combined Pattern: \b(filename)\b(?:\s*(marker))?
+        # Matches the filename at a word boundary, optionally followed by an attachment marker.
+        # This covers both cases: "file.jpg (attached)" and "file.jpg" (bare).
+        self.pattern = re.compile(
+            rf"\b({files_pattern})\b(?:\s*(?:{markers_pattern}))?",
+            re.IGNORECASE,
+        )
+
+    def replace(self, text: str) -> str:
+        """Replace media mentions in text with their markdown equivalents."""
+        if not text or not self.pattern:
+            return text
+
+        def replacer_func(match: re.Match) -> str:
+            full_match = match.group(0)
+            filename_part = match.group(1)
+
+            original_filename = self.lookup.get(filename_part.lower())
+            if not original_filename:
+                # Should not be reachable if regex is correct
+                return full_match
+
+            media_doc = self.media_mapping[original_filename]
+
+            # Check for PII deletion
+            if media_doc.metadata.get("pii_deleted"):
+                return f"[Media Redacted: {original_filename} contains PII]"
+
+            public_url = media_doc.metadata.get("public_url")
+            if not public_url:
+                # If we don't have a URL, skip replacement (return original text)
+                return full_match
+
+            media_type = media_doc.metadata.get("media_type")
+            display_name = media_doc.metadata.get("filename") or original_filename
+
+            if media_type == "image":
+                return f"![Image]({public_url})"
+            else:
+                return f"[{display_name}]({public_url})"
+
+        return self.pattern.sub(replacer_func, text)
+
+
 def replace_media_mentions(
     text: str,
     media_mapping: MediaMapping,
@@ -191,36 +260,7 @@ def replace_media_mentions(
     """Replace raw media filenames with canonical URLs in plain text."""
     if not text or not media_mapping:
         return text
-
-    result = text
-    for original_filename, media_doc in media_mapping.items():
-        # Check for PII deletion first
-        if media_doc.metadata.get("pii_deleted"):
-            replacement = f"[Media Redacted: {original_filename} contains PII]"
-            for marker in ATTACHMENT_MARKERS:
-                pattern = re.escape(original_filename) + r"\s*" + re.escape(marker)
-                result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
-            result = re.sub(r"\b" + re.escape(original_filename) + r"\b", replacement, result)
-            continue
-
-        # Get pre-calculated URL from metadata (generated earlier by UrlConvention)
-        public_url = media_doc.metadata.get("public_url")
-        if not public_url:
-            continue
-
-        media_type = media_doc.metadata.get("media_type")
-        display_name = media_doc.metadata.get("filename") or original_filename
-        replacement = (
-            f"![Image]({public_url})" if media_type == "image" else f"[{display_name}]({public_url})"
-        )
-
-        for marker in ATTACHMENT_MARKERS:
-            pattern = re.escape(original_filename) + r"\s*" + re.escape(marker)
-            result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
-
-        result = re.sub(r"\b" + re.escape(original_filename) + r"\b", replacement, result)
-
-    return result
+    return MediaReplacer(media_mapping).replace(text)
 
 
 def replace_media_references(table: Table, media_mapping: MediaMapping) -> Table:
@@ -233,14 +273,16 @@ def replace_media_references(table: Table, media_mapping: MediaMapping) -> Table
     if not media_mapping:
         return table
 
-    # The UDF is defined as a closure to capture the `media_mapping`.
-    # This is more efficient than passing the mapping as a parameter for each row.
+    # Pre-compile the replacer logic once for the entire table operation
+    replacer = MediaReplacer(media_mapping)
+
+    # The UDF is defined as a closure to capture the `replacer` instance.
     @udf.scalar.python
     def _replace_all_media(text: str | None) -> str | None:
         """Performs all media replacements for a single text value."""
         if not text or not isinstance(text, str):
             return text
-        return replace_media_mentions(text, media_mapping)
+        return replacer.replace(text)
 
     # Apply the UDF to the 'text' column.
     return table.mutate(text=_replace_all_media(table.text))
