@@ -46,7 +46,7 @@ The default theme's body text is too small for comfortable long-form reading, an
 2. **Line Length**: Cap the main content column width to a maximum of 75 characters (approx `70ch` in CSS) to prevent overly long lines.
 **Verification**: Inspect the CSS for the body font-size and the main content container's `max-width`. Visually confirm on a wide monitor that text is comfortable to read and lines are not excessively long. A readability score (e.g., Flesch-Kincaid) should improve.
 """
-status = "review"
+status = "pending"
 category = "content"
 assignee = "forge"
 
@@ -66,12 +66,48 @@ status = "pending"
 category = "baseline"
 assignee = "curator"
 
+[[tasks.high_priority]]
+id = "implement-core-readability-css"
+title = "Implement Core Readability CSS in extra.css"
+description = """
+To improve readability for long-form content, specific CSS rules must be added. This task provides the exact implementation details for Forge.
+
+**File to Edit:**
+`src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`
+
+**CSS to Add:**
+```css
+/* --- Core Readability Improvements --- */
+/*
+  - Increase base font size for comfortable long-form reading.
+  - Cap content width to optimal line length (approx. 70 characters).
+*/
+
+.md-typeset {
+  font-size: 1.1rem; /* Approx 17.6px, slightly larger for readability */
+}
+
+.md-main .md-content {
+    max-width: 75ch; /* Optimal line length */
+}
+```
+
+**Verification Steps:**
+1. Generate the demo site after making the change.
+2. Open a blog post and use browser developer tools.
+3. **Check Font Size:** Inspect a paragraph (`<p>`) inside the `.md-typeset` container. The computed `font-size` should be `1.1rem` (or its pixel equivalent).
+4. **Check Line Length:** Inspect the `.md-content` container. The `max-width` should be `75ch`. The text lines should not exceed this width on large screens.
+"""
+status = "pending"
+category = "visual"
+assignee = "forge"
+
 # Medium Priority - Refinement & Polish
 # (Keeping the rest of the list for now)
 [[tasks.medium_priority]]
 id = "breadcrumbs"
 title = "Add breadcrumbs to all pages"
-status = "review"
+status = "pending"
 category = "navigation"
 assignee = "forge"
 
