@@ -32,7 +32,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from egregora.data_primitives.document import Document, DocumentType
@@ -280,11 +279,14 @@ class StandardUrlConvention(UrlConvention):
         filename = document.metadata.get("filename")
         path_segment = filename or f"{document.document_id}"
 
-        extension = Path(path_segment).suffix
+        # Extract extension using string manipulation (not Path)
+        extension = ""
+        if "." in path_segment:
+            extension = "." + path_segment.rsplit(".", 1)[1]
         media_subdir = get_media_subfolder(extension)
 
-        # New robust path: media/{subdir}/{filename}
-        return self._join(ctx, "media", media_subdir, path_segment, trailing_slash=False)
+        # New robust path: {media_prefix}/{subdir}/{filename}
+        return self._join(ctx, self.routes.media_prefix, media_subdir, path_segment, trailing_slash=False)
 
     def _format_media_enrichment_url(self, ctx: UrlContext, document: Document) -> str:
         """Mirror parent media path but swap extension for markdown."""
