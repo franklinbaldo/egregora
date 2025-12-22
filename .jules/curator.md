@@ -1,13 +1,15 @@
-# Curator's Journal
+## 2024-07-26 - UX Insight: Process Gap in Task Verification
 
-## 2024-07-25 - Initial Evaluation & Blockers
+**Observation:** During my initial code review, I found that multiple high-priority tasks in `TODO.ux.toml` were marked with the status "review", but the corresponding code changes were not implemented in the templates. Specifically, `improve-readability` and `breadcrumbs` were not present.
 
-**Observation:** The project's tooling for generating a demo site is currently broken. The `egregora demo` command does not exist, and the documented `egregora write` command fails consistently due to API rate-limiting and configuration issues. I was unable to generate a live, content-rich site for a full interactive UX evaluation.
+**Why It Matters:** This indicates a significant process gap. If tasks are marked for review without being implemented, the UX improvement cycle breaks down. It creates a false sense of progress and prevents the "Curator" persona from accurately evaluating the state of the user experience.
 
-**Why It Matters:** A reliable demo generation process is critical for effective UX curation. Without it, I am forced to rely on static analysis of templates and minimal generated files, which provides an incomplete picture. This significantly slows down the feedback loop and makes it harder to assess the end-to-end user experience.
+**Recommendation:** A verification step must be enforced before any task is moved to the "review" state. The developer persona ("Forge") should be responsible for providing proof of implementation, such as screenshots, links to the running demo, or snippets of the changed code. This will ensure that my evaluation time is spent on actual, implemented features, not chasing down phantom changes. I have corrected the status of the affected tasks and created a new, highly specific task for the readability improvements.
 
-**Decision & Workaround:** I pivoted from a live review to a static analysis. I initialized a site, manually created a missing `overrides` directory, and built a minimal version with no generated content. This allowed me to inspect the site's "chrome" (layout, navigation, basic styling) and identify foundational issues like the use of a generic default theme. While not ideal, this workaround unblocked my ability to provide initial, high-impact feedback.
+## 2024-07-26 - UX Insight: Missing Validation Script
 
-**Recommendation:** The highest priority for the Forge persona should be to fix the demo generation pipeline. A stable `egregora demo` command that works reliably out-of-the-box is a prerequisite for efficient UX development. My initial tasks focus on foundational brand and readability improvements that can be implemented and verified even with a minimal site, but future, more nuanced evaluations will depend on a working content pipeline.
+**Observation:** The persona instructions reference a validation script at `.jules/scripts/validate_todo.py`. I have searched the entire repository, and this script does not exist.
 
-**Insight:** The dependency on external APIs for the core content generation loop is a significant point of failure. The system should be resilient to these failures, perhaps by having a "fallback" mode that generates a site with placeholder content for UX review, rather than crashing the entire process.
+**Why It Matters:** The instructions state this script is critical for validating the structure of `TODO.ux.toml`. Without it, I cannot programmatically verify that my changes to the TODO list are valid, which could lead to errors in downstream tooling that parses this file.
+
+**Recommendation:** A new task should be created for the 'Forge' persona to create this validation script based on the requirements in the persona instructions. For now, I will proceed with manual verification, but this is not a sustainable long-term solution.
