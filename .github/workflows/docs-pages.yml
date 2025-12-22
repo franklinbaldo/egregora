@@ -41,7 +41,7 @@ jobs:
         uses: ./.github/actions/setup-python-uv
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          extras: "--extra docs"
+          extras: "--extra dev"
 
       - name: Build Documentation
         env:
