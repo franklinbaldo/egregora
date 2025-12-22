@@ -7889,7 +7889,7 @@ class AnnotationStore:
     def _row_to_annotation(row: dict[str, Any]) -> Annotation:
         """Convert a database row dictionary to an Annotation instance.
 
-        Handles various datetime formats from DuckDB (pandas Timestamp, datetime, ISO strings)
+        Handles various datetime formats from DuckDB (datetime, ISO strings)
         and ensures all timestamps are in UTC timezone.
 
         Args:
@@ -16305,8 +16305,8 @@ class SiteScaffolder(Protocol):
 """Streaming utilities for Egregora - Ibis-first streaming and I/O.
 
 This module provides utilities for working with Ibis expressions and DuckDB
-without materializing full tables into pandas/PyArrow. All utilities enforce
-the "Ibis-first" architecture principle.
+without materializing full tables. All utilities enforce the "Ibis-first"
+architecture principle.
 
 Public API:
     - stream_ibis: Stream Ibis expression rows in batches
@@ -16330,13 +16330,12 @@ __all__ = ["copy_expr_to_ndjson", "copy_expr_to_parquet", "ensure_deterministic_
 """Streaming and I/O utilities for Ibis expressions using DuckDB.
 
 This module provides memory-efficient streaming and file output operations
-for Ibis expressions, avoiding full materialization to pandas/PyArrow.
+for Ibis expressions, avoiding full materialization.
 
 Core Principles:
-1. Never call .execute() (returns pandas DataFrame)
-2. Never call .to_pyarrow() on large tables
-3. Stream via DuckDB's native fetch API
-4. Use COPY ... TO for file outputs (zero Python overhead)
+1. Avoid materializing large result sets in memory
+2. Stream via DuckDB's native fetch API
+3. Use COPY ... TO for file outputs (zero Python overhead)
 
 Usage:
     >>> import ibis
@@ -24568,7 +24567,7 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
     try:
         from sklearn.cluster import KMeans
     except ModuleNotFoundError as exc:
-        logger.warning("scikit-learn missing (pandas dependency unresolved). Skipping taxonomy: %s", exc)
+        logger.warning("scikit-learn not installed (optional dependency). Skipping taxonomy: %s", exc)
         return 0
     except Exception as exc:
         logger.warning("Failed to import scikit-learn dependencies. Skipping taxonomy: %s", exc)
@@ -32370,7 +32369,6 @@ class LanceDBRAGBackend(VectorStore):
             raise RuntimeError(msg) from e
 
         # Convert Arrow table to Python dicts (fast native method)
-        # This is much faster than iterating over pandas rows
         hits: list[RAGHit] = []
         for row in arrow_table.to_pylist():
             # LanceDB exposes a distance column (usually "_distance")
