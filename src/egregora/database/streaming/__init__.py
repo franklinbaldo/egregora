@@ -1,8 +1,8 @@
 """Streaming utilities for Egregora - Ibis-first streaming and I/O.
 
 This module provides utilities for working with Ibis expressions and DuckDB
-without materializing full tables into pandas/PyArrow. All utilities enforce
-the "Ibis-first" architecture principle.
+without materializing full tables. All utilities enforce the "Ibis-first"
+architecture principle.
 
 Public API:
     - stream_ibis: Stream Ibis expression rows in batches

@@ -1,13 +1,12 @@
 """Streaming and I/O utilities for Ibis expressions using DuckDB.
 
 This module provides memory-efficient streaming and file output operations
-for Ibis expressions, avoiding full materialization to pandas/PyArrow.
+for Ibis expressions, avoiding full materialization.
 
 Core Principles:
-1. Never call .execute() (returns pandas DataFrame)
-2. Never call .to_pyarrow() on large tables
-3. Stream via DuckDB's native fetch API
-4. Use COPY ... TO for file outputs (zero Python overhead)
+1. Avoid materializing large result sets in memory
+2. Stream via DuckDB's native fetch API
+3. Use COPY ... TO for file outputs (zero Python overhead)
 
 Usage:
     >>> import ibis
