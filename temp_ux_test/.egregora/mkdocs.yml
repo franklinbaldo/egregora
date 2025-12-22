@@ -1,14 +1,14 @@
-site_name: {{ site_name }}
-site_description: Collective consciousness journal - {{ site_name }}
-site_url: {{ site_url }}  # Update with your deployment URL (e.g., https://example.com)
+site_name: temp_ux_test
+site_description: Collective consciousness journal - temp_ux_test
+site_url: https://example.com  # Update with your deployment URL (e.g., https://example.com)
 # repo_url: https://github.com/your-user/your-repo  # Uncomment to enable 'Edit on GitHub'
 # repo_name: your-repo
-docs_dir: {{ docs_dir }}
+docs_dir: ../docs
 site_dir: site
 
 theme:
   name: material
-  custom_dir: {{ overrides_dir }}
+  custom_dir: overrides
   language: en
   font:
     text: Roboto
@@ -51,9 +51,9 @@ plugins:
   - macros
   - glightbox
   - blog:
-      blog_dir: {{ blog_dir }}
+      blog_dir: posts
       post_dir: .
-      # post_dir: . means posts are directly in {{ blog_dir }}/ (Standard Structure)
+      # post_dir: . means posts are directly in posts/ (Standard Structure)
       # Post URL structure (uses date and slug)
       post_url_format: "{date}/{slug}"
       post_url_date_format: yyyy/MM/dd
@@ -82,7 +82,7 @@ plugins:
       draft_on_serve: true
       draft_if_future_date: true
   - rss:
-      match_path: "{{ blog_dir }}/.*"
+      match_path: "posts/.*"
       date_from_meta:
         as_creation: date
         as_update: date
@@ -135,14 +135,15 @@ markdown_extensions:
 
 validation:
   absolute_links: relative_to_docs
+  anchor_links: warn
   unrecognized_links: warn
 
 nav:
   - Home: index.md
   - Blog:
-      - Latest: {{ blog_dir }}/index.md
-      - Tags & Topics: {{ blog_dir }}/tags.md
-  - Media: {{ media_dir }}/index.md
+      - Latest: posts/index.md
+      - Tags & Topics: posts/tags.md
+  - Media: posts/media/index.md
   - About: about.md
 
 
@@ -151,24 +152,9 @@ nav:
 extra:
   # Disable MkDocs generator notice
   generator: false
-  copyright: Copyright &copy; {{ now.year }} {{ site_name }}
   # Add social links to the footer for a more professional look.
   # These will only appear if the corresponding variables are set in the user's config.
-  {% if github_user or twitter_handle or linkedin_user %}
-  social:
-    {% if github_user %}
-    - icon: fontawesome/brands/github
-      link: https://github.com/{{ github_user }}
-    {% endif %}
-    {% if twitter_handle %}
-    - icon: fontawesome/brands/x-twitter
-      link: https://twitter.com/{{ twitter_handle }}
-    {% endif %}
-    {% if linkedin_user %}
-    - icon: fontawesome/brands/linkedin
-      link: https://linkedin.com/in/{{ linkedin_user }}
-    {% endif %}
-  {% endif %}
+
 
 # Custom CSS for improved UX
 extra_css:

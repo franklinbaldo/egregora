@@ -91,6 +91,7 @@ class MkDocsSiteScaffolder:
                 "media_dir": Path(os.path.relpath(site_paths.media_dir, docs_dir)).as_posix(),
                 "docs_dir": docs_relative,
                 "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
+                "now": datetime.now(UTC),
                 "generated_date": datetime.now(UTC).strftime("%Y-%m-%d"),
                 "default_writer_model": EgregoraConfig().models.writer,
                 "media_counts": {"urls": 0, "images": 0, "videos": 0, "audio": 0},
