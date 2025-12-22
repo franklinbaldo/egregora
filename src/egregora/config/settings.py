@@ -445,6 +445,7 @@ class PathsSettings(BaseModel):
         "profiles_dir",
         "media_dir",
         "journal_dir",
+        "cache_dir",
         mode="after",
     )
     @classmethod
@@ -453,9 +454,7 @@ class PathsSettings(BaseModel):
         if not v:
             return v
         path = Path(v)
-        if path.is_absolute():
-            msg = f"Path must be relative, not absolute: {v}"
-            raise ValueError(msg)
+
         if any(part == ".." for part in path.parts):
             msg = f"Path must not contain traversal sequences ('..'): {v}"
             raise ValueError(msg)

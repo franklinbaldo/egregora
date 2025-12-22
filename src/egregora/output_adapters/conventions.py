@@ -272,10 +272,21 @@ class StandardUrlConvention(UrlConvention):
         if document.suggested_path:
             clean_path = document.suggested_path.strip("/")
             return self._join(ctx, clean_path, trailing_slash=False)
-        # Default to /media/{doc_id}
+
+        # Legacy/Fallback: Infer subdirectory from extension
+        from egregora.ops.media import get_media_subfolder
+
         filename = document.metadata.get("filename")
         path_segment = filename or f"{document.document_id}"
-        return self._join(ctx, self.routes.media_prefix, path_segment, trailing_slash=False)
+
+        # Extract extension using string manipulation (not Path)
+        extension = ""
+        if "." in path_segment:
+            extension = "." + path_segment.rsplit(".", 1)[1]
+        media_subdir = get_media_subfolder(extension)
+
+        # New robust path: {media_prefix}/{subdir}/{filename}
+        return self._join(ctx, self.routes.media_prefix, media_subdir, path_segment, trailing_slash=False)
 
     def _format_media_enrichment_url(self, ctx: UrlContext, document: Document) -> str:
         """Mirror parent media path but swap extension for markdown."""
@@ -296,6 +307,13 @@ class StandardUrlConvention(UrlConvention):
                 if prefix and enrichment_path.startswith(prefix + "/"):
                     enrichment_path = enrichment_path[len(prefix) + 1 :]
                     break
+            
+            # Fix: Check for partial overlap (e.g., prefix "posts/media", path "media/images/...")
+            # This handles cases where the source path assumes a "media/" root.
+            if "/" in media_prefix:
+                last_segment = media_prefix.rsplit("/", 1)[-1]
+                if enrichment_path.startswith(f"{last_segment}/"):
+                   enrichment_path = enrichment_path[len(last_segment) + 1 :]
             return self._join(ctx, self.routes.media_prefix, enrichment_path, trailing_slash=True)
 
         if document.suggested_path:

@@ -371,17 +371,29 @@ def doctor(
 
 
 @app.command()
-def demo() -> None:
+def demo(
+    output_dir: Path | None = typer.Option(
+        None,
+        "--output-dir",
+        "-o",
+        help="The directory to output the demo site to.",
+    ),
+) -> None:
     """Generate a demo site from a sample WhatsApp export."""
+    if output_dir is None:
+        output_dir = Path("demo")
     console.print("[bold cyan]Generating demo site...[/bold cyan]")
-    sample_input = Path("tests/fixtures/Conversa do WhatsApp com Teste.zip")
+    # Resolve the path to the sample input file relative to this script's location
+    # to ensure it's found regardless of the current working directory.
+    project_root = Path(__file__).resolve().parent.parent.parent.parent
+    sample_input = project_root / "tests/fixtures/Conversa do WhatsApp com Teste.zip"
     if not sample_input.exists():
         console.print(f"[red]Sample input file not found at {sample_input}[/red]")
         raise typer.Exit(1)
 
     run_cli_flow(
         input_file=sample_input,
-        output=Path("demo"),
+        output=output_dir,
         source=SourceType.WHATSAPP,
         step_size=100,
         step_unit=WindowUnit.MESSAGES,
@@ -393,7 +405,7 @@ def demo() -> None:
         model=None,
         max_prompt_tokens=400000,
         use_full_context_window=False,
-        max_windows=None,
+        max_windows=2,
         resume=True,
         economic_mode=False,
         refresh=None,

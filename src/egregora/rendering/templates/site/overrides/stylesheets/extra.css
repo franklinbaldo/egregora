@@ -1,4 +1,3 @@
-
 /* --- Core Readability Improvements --- */
 /*
   - Increase base font size for comfortable long-form reading.
@@ -12,6 +11,21 @@
 .md-main .md-content {
     max-width: 75ch; /* Optimal line length */
 }
+
+/* --- Navigation Active State --- */
+/*
+  - Provide a clear visual indicator for the current page and section
+    in the primary navigation.
+*/
+.md-nav__item--active > .md-nav__link {
+    font-weight: 600; /* Make parent section bold */
+}
+
+.md-nav__link--active {
+    color: var(--md-accent-fg-color); /* Highlight the current page link */
+    font-weight: 700; /* Make it even bolder */
+}
+
 
 /* Reading Progress Bar */
 #reading-progress-bar {

@@ -91,14 +91,14 @@ assignee = "forge"
 [[tasks.medium_priority]]
 id = "breadcrumbs"
 title = "Add breadcrumbs to all pages"
-status = "pending"
+status = "review"
 category = "navigation"
 assignee = "forge"
 
 [[tasks.medium_priority]]
 id = "active-state"
 title = "Implement 'you are here' active state styling"
-status = "pending"
+status = "review"
 category = "navigation"
 assignee = "forge"
 
