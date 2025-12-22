@@ -74,7 +74,12 @@ This will:
 Launch a local preview server:
 
 ```bash
-uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
+uvx --with mkdocs-material \
+    --with mkdocs-macros-plugin \
+    --with mkdocs-rss-plugin \
+    --with mkdocs-blogging-plugin \
+    --with mkdocs-glightbox \
+    mkdocs serve
 ```
 
 Open [http://localhost:8000](http://localhost:8000) in your browser. 🎉
