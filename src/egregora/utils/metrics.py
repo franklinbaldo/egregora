@@ -1,3 +1,4 @@
+"""Usage tracking and metrics for LLM API calls."""
 from __future__ import annotations
 
 from collections import deque

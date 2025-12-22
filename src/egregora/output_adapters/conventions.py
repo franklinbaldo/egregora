@@ -27,7 +27,6 @@ The OutputAdapter then converts this URL to a filesystem path:
     >>> adapter.persist(doc)  # Internally: URL -> Path("docs/posts/2025-01-10-hello.md")
 
 """
-
 from __future__ import annotations
 
 from dataclasses import dataclass
