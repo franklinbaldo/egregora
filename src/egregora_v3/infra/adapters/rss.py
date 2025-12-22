@@ -59,9 +59,9 @@ class RSSAdapter:
 
     def __exit__(
         self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
+        _: type[BaseException] | None,
+        __: BaseException | None,
+        ___: TracebackType | None,
     ) -> None:
         """Exit context manager and close HTTP client."""
         self.close()
