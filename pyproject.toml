@@ -217,6 +217,11 @@ ignore = [
     "PERF401", # list-building loops (tests)
 ]
 
+# CLI files - Typer requires Option() calls in function signatures
+"src/egregora/cli/*.py" = [
+    "B008",    # Function call in argument defaults (required by Typer)
+]
+
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
 

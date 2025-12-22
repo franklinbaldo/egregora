@@ -372,14 +372,16 @@ def doctor(
 
 @app.command()
 def demo(
-    output_dir: Path = typer.Option(
-        Path("demo"),
+    output_dir: Path | None = typer.Option(
+        None,
         "--output-dir",
         "-o",
         help="The directory to output the demo site to.",
     ),
 ) -> None:
     """Generate a demo site from a sample WhatsApp export."""
+    if output_dir is None:
+        output_dir = Path("demo")
     console.print("[bold cyan]Generating demo site...[/bold cyan]")
     # Resolve the path to the sample input file relative to this script's location
     # to ensure it's found regardless of the current working directory.

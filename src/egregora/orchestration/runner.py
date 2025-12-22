@@ -394,8 +394,4 @@ class PipelineRunner:
         if not split_windows:
             raise RuntimeError("Cannot split window - all splits would be empty") from error
 
-        scheduled = []
-        for split_window in split_windows:
-            scheduled.append((split_window, depth + 1))
-
-        return scheduled
+        return [(split_window, depth + 1) for split_window in split_windows]
