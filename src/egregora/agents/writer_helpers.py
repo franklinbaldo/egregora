@@ -9,9 +9,6 @@ from typing import TYPE_CHECKING, Any
 from pydantic_ai import Agent, RunContext
 
 from egregora.agents.capabilities import AgentCapability
-
-# model_limits removed in favor of Pydantic-AI native limits
-# and shared models in types.py
 from egregora.agents.types import (
     AnnotationResult,
     PostMetadata,

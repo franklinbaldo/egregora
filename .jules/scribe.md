@@ -9,3 +9,8 @@
 **Confusion:** `docs/architecture/protocols.md` referenced the legacy `OutputAdapter` as a protocol and pointed to non-existent API docs.
 **Discovery:** The actual protocol is `OutputSink` in `src/egregora/data_primitives/protocols.py`, and `InputAdapter` is an ABC in `src/egregora/input_adapters/base.py`.
 **Resolution:** Updated `docs/architecture/protocols.md` to match the codebase and removed dead links.
+
+## 2025-05-16 - Broken Installation Instructions & Quickstart Dependencies
+**Confusion:** `docs/getting-started/installation.md` instructed users to run `uv sync --extra docs`, which doesn't exist. `docs/getting-started/quickstart.md` was missing required MkDocs plugins in the `uvx` command, causing local preview to fail.
+**Discovery:** The correct extra is `dev` (which contains MkDocs plugins). The `quickstart.md` command was missing `mkdocs-macros-plugin`, `mkdocs-rss-plugin`, and `mkdocs-glightbox`.
+**Resolution:** Corrected the installation instruction to use `--extra dev` (or reliance on dev dependencies) and updated the quickstart `uvx` command to include all necessary plugins.
