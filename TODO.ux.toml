@@ -82,7 +82,7 @@ To improve readability for long-form content, specific CSS rules must be added. 
 3. **Check Font Size:** Inspect a paragraph (`<p>`) inside the `.md-typeset` container. The computed `font-size` should be `1.1rem` (or its pixel equivalent).
 4. **Check Line Length:** Inspect the `.md-content` container. The `max-width` should be `75ch`. The text lines should not exceed this width on large screens.
 """
-status = "pending"
+status = "review"
 category = "visual"
 assignee = "forge"
 
