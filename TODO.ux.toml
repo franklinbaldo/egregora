@@ -25,7 +25,7 @@ assignee = "forge"
 id = "demo-test"
 title = "Create test to ensure demo/ stays updated"
 description = "Automated test for demo freshness"
-status = "pending"
+status = "review"
 category = "infrastructure"
 assignee = "forge"
 
