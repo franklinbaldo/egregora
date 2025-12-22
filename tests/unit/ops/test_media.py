@@ -1,10 +1,12 @@
 """Tests for egregora.ops.media."""
 from __future__ import annotations
-import pytest
+
 from pathlib import Path
 
+import pytest
+
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.ops.media import MediaReplacer, detect_media_type, get_media_subfolder, find_media_references
+from egregora.ops.media import MediaReplacer, detect_media_type, find_media_references, get_media_subfolder
 
 
 def test_media_replacer_image():
@@ -71,7 +73,7 @@ def test_media_replacer_case_insensitive():
 
 
 @pytest.mark.parametrize(
-    "filename, expected_type",
+    ("filename", "expected_type"),
     [
         ("image.jpg", "image"),
         ("photo.png", "image"),
@@ -91,7 +93,7 @@ def test_detect_media_type(filename, expected_type):
 
 
 @pytest.mark.parametrize(
-    "extension, expected_folder",
+    ("extension", "expected_folder"),
     [
         (".jpg", "images"),
         (".png", "images"),
@@ -111,7 +113,7 @@ def test_get_media_subfolder(extension, expected_folder):
 
 
 @pytest.mark.parametrize(
-    "text, expected_references",
+    ("text", "expected_references"),
     [
         ("Here is a file: IMG-20230101-WA0001.jpg (file attached)", ["IMG-20230101-WA0001.jpg"]),
         ("Check out this video: VID-20230101-WA0002.mp4", ["VID-20230101-WA0002.mp4"]),
