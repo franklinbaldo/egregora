@@ -56,6 +56,7 @@ The content is organized as follows:
   bolt.md
   builder.md
   curator.md
+  forge.md
   palette.md
   README.md
   refactor.md
@@ -3651,6 +3652,19 @@ This will reveal if I have a migration mechanism. If not, I will implement one.
 **Why It Matters:** The instructions state this script is critical for validating the structure of `TODO.ux.toml`. Without it, I cannot programmatically verify that my changes to the TODO list are valid, which could lead to errors in downstream tooling that parses this file.
 
 **Recommendation:** A new task should be created for the 'Forge' persona to create this validation script based on the requirements in the persona instructions. For now, I will proceed with manual verification, but this is not a sustainable long-term solution.
+````
+
+## File: .jules/forge.md
+````markdown
+## 2025-12-22 - Implement Core Readability CSS
+**Challenge:** The task description in `TODO.ux.toml` provided an incorrect file path for the stylesheet (`extra.css` instead of `custom.css`). After correcting this, the demo generation command (`uv run egregora demo`) did not pick up the changes, suggesting a caching issue.
+**Solution:** I first located the correct stylesheet by inspecting the `mkdocs.yml.jinja` template. Then, to resolve the caching issue, I completely removed the `demo` directory before running the generation command again. This forced a clean build, which successfully included the new CSS rules.
+**Result:** The readability of the blog has been improved by increasing the font size and setting a max-width for the acontent. The CSS rules are now correctly applied in the generated demo site.
+
+## 2025-12-22 - Correction: Restored Critical Stylesheet
+**Challenge:** During the first implementation attempt, I incorrectly deleted the `extra.css` file after discovering that `custom.css` was the correct file to edit. A code review flagged this as a critical regression, as it would have removed hundreds of lines of essential styling.
+**Solution:** I used the `restore_file` command to revert the deletion of `extra.css`, bringing the file back to its original state. I then verified that both `extra.css` and the correctly modified `custom.css` were in place.
+**Result:** The critical regression was averted. The final changeset correctly includes the new readability styles in `custom.css` while preserving the essential base styles in `extra.css`. This incident highlights the importance of understanding a file's purpose before deleting it, even if it doesn't seem immediately relevant to the current task.
 ````
 
 ## File: .jules/palette.md
@@ -42934,7 +42948,7 @@ To improve readability for long-form content, specific CSS rules must be added. 
 3. **Check Font Size:** Inspect a paragraph (`<p>`) inside the `.md-typeset` container. The computed `font-size` should be `1.1rem` (or its pixel equivalent).
 4. **Check Line Length:** Inspect the `.md-content` container. The `max-width` should be `75ch`. The text lines should not exceed this width on large screens.
 """
-status = "pending"
+status = "review"
 category = "visual"
 assignee = "forge"
 
