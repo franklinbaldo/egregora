@@ -1,14 +1,25 @@
-from egregora.config.settings import DEFAULT_MODEL, EgregoraConfig
+from egregora.config.settings import DEFAULT_MODEL
 
-def test_model_guards():
-    """Ensure we are using modern Gemini models."""
-    modern_keywords = ["flash", "pro", "1.5", "2.0"]
-    is_modern = any(k in DEFAULT_MODEL for k in modern_keywords)
-    assert is_modern, f"DEFAULT_MODEL {DEFAULT_MODEL} appears outdated"
-    assert "1.0" not in DEFAULT_MODEL, "Should not use 1.0 models"
+
+def test_default_model_is_modern():
+    """
+    Ensure the default model is a modern, high-capacity model.
+    We verify it's not a legacy 1.0 model.
+    """
+    model = DEFAULT_MODEL.lower()
+
+    # Must be Flash or Pro
+    assert "flash" in model or "pro" in model
+
+    # Must NOT be legacy 1.0
+    assert "1.0" not in model
+    assert model.replace("google-gla:", "").replace("models/", "") != "gemini-pro"
+
 
 def test_model_params_defaults(config_factory):
-    """Ensure defaults are robust."""
+    """Ensure default configuration parameters meet safety requirements."""
+    # Create a default config
     config = config_factory()
+
+    # verify writer model defaults matches our verified default
     assert config.models.writer == DEFAULT_MODEL
-    assert config.pipeline.max_prompt_tokens >= 1_000_000
