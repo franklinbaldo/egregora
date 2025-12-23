@@ -1,5 +1,6 @@
 """Tests for writer agent decoupling logic."""
 
+import pytest
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
@@ -8,7 +9,10 @@ from egregora.agents.writer import (
     JournalEntryParams,
     _process_single_tool_result,
     _save_journal_to_file,
+    write_posts_for_window,
+    WindowProcessingParams,
 )
+from egregora.config.settings import EgregoraConfig
 
 
 class TestWriterDecoupling:
@@ -73,3 +77,40 @@ class TestWriterDecoupling:
         # The content should PRESERVE "../media/" and NOT replace it with "/media/"
         assert "../media/image.jpg" in doc.content
         assert "/media/image.jpg" not in doc.content.replace("../media/", "")
+
+@pytest.mark.asyncio
+@patch("egregora.agents.writer._build_context_and_signature")
+@patch("egregora.agents.writer._check_writer_cache")
+@patch("egregora.agents.writer._prepare_writer_dependencies")
+@patch("egregora.agents.writer._render_writer_prompt")
+@patch("egregora.agents.writer._execute_writer_with_error_handling")
+@patch("egregora.agents.writer._finalize_writer_results")
+async def test_write_posts_for_window_smoke_test(
+    mock_finalize,
+    mock_execute,
+    mock_render,
+    mock_prepare_deps,
+    mock_check_cache,
+    mock_build_context,
+):
+    """Smoke test to ensure write_posts_for_window can be called without error."""
+    mock_table = MagicMock()
+    mock_table.count.return_value.execute.return_value = 1
+    mock_check_cache.return_value = None
+    mock_build_context.return_value = (MagicMock(), "signature")
+    mock_execute.return_value = ([], [])
+    mock_finalize.return_value = {"posts": [], "profiles": []}
+
+    params = WindowProcessingParams(
+        table=mock_table,
+        window_start=datetime.now(),
+        window_end=datetime.now(),
+        resources=MagicMock(),
+        config=EgregoraConfig(),
+        cache=MagicMock(),
+    )
+
+    result = await write_posts_for_window(params)
+    assert result == {"posts": [], "profiles": []}
+    mock_execute.assert_called_once()
+    mock_finalize.assert_called_once()
