@@ -6,7 +6,7 @@ import pytest
 from pydantic_ai import ModelRetry
 
 from egregora.agents.types import WriterDeps, WriterResources
-from egregora.agents.writer_tools import search_media_impl
+from egregora.agents.tools.writer_tools import search_media_impl
 
 
 def make_resources(tmp_path: Path) -> WriterResources:
@@ -53,7 +53,7 @@ def test_writer_deps_handles_invalid_search(monkeypatch, tmp_path):
 
 def test_search_media_impl_raises_model_retry(monkeypatch):
     monkeypatch.setattr(
-        "egregora.agents.writer_tools.search",
+        "egregora.agents.tools.writer_tools.search",
         lambda request: (_ for _ in ()).throw(ConnectionError("backend down")),
     )
 

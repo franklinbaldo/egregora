@@ -11,13 +11,6 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic_ai import Agent, RunContext
 
-from egregora.agents.banner.agent import is_banner_generation_available
-from egregora.agents.capabilities import (
-    AgentCapability,
-    BackgroundBannerCapability,
-    BannerCapability,
-    RagCapability,
-)
 from egregora.agents.types import WriterAgentReturn, WriterDeps
 from egregora.agents.writer_helpers import (
     build_rag_context_for_prompt,
@@ -29,24 +22,6 @@ from egregora.utils.model_fallback import create_fallback_model
 
 if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig
-
-
-def configure_writer_capabilities(
-    config: EgregoraConfig,
-    context: WriterDeps,
-) -> list[AgentCapability]:
-    """Configure capabilities for the writer agent."""
-    capabilities: list[AgentCapability] = []
-    if config.rag.enabled:
-        capabilities.append(RagCapability())
-
-    if is_banner_generation_available():
-        if context.resources.task_store and context.resources.run_id:
-            capabilities.append(BackgroundBannerCapability(context.resources.run_id))
-        else:
-            capabilities.append(BannerCapability())
-
-    return capabilities
 
 
 async def create_writer_model(
@@ -68,7 +43,7 @@ async def create_writer_model(
 def setup_writer_agent(
     model: Any,
     prompt: str,
-    capabilities: list[AgentCapability],
+    config: EgregoraConfig,
 ) -> Agent[WriterDeps, WriterAgentReturn]:
     """Initialize and configure the writer agent."""
     agent = Agent[WriterDeps, WriterAgentReturn](
@@ -77,7 +52,7 @@ def setup_writer_agent(
         retries=3,
         system_prompt=prompt,
     )
-    register_writer_tools(agent, capabilities=capabilities)
+    register_writer_tools(agent, config=config)
 
     # Dynamic System Prompts
     @agent.system_prompt
