@@ -100,7 +100,7 @@ jobs:
             echo "Demo posts index missing site/demo/posts/index.html"
             exit 1
           fi
-          post_count=$(find site/demo/posts -maxdepth 1 -type f -name "*.html" ! -name "index.html" | wc -l)
+          post_count=$(find site/demo/posts -type f -path "site/demo/posts/20??/*/*/*/*.html" | wc -l)
           if [ "${post_count}" -lt 1 ]; then
             echo "Demo build produced no post pages."
             exit 1
