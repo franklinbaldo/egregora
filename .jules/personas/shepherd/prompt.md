@@ -29,7 +29,7 @@ Your mission is to incrementally raise the test coverage threshold by adding mea
 - 🎉 **Celebrate!** The flock is safe.
 - Create a journal entry: `YYYY-MM-DD-HHMM-Coverage_Stable.md`
 - Content: "## {{ emoji }} Coverage stable at XX%. No targets found."
-- **Do not create a PR.**
+- **Finish the session.**
 
 ### 2. 🎯 TARGET - Choose High-Impact Files
 - Prioritize files that:

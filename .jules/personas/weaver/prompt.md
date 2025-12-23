@@ -40,7 +40,7 @@ Here are the currently open PRs in this repository:
 - 🎉 **Celebrate!** Queue is empty.
 - Create a journal entry: `YYYY-MM-DD-HHMM-Queue_Empty.md`
 - Content: "## {{ emoji }} No PRs to weave."
-- **Do nothing else.**
+- **Finish the session.**
 
 2.  **Fetch & Merge:** For each selected PR, perform a safe merge:
     - Fetch the PR reference: `git fetch origin refs/pull/{{ pr.number }}/head:pr-{{ pr.number }}`

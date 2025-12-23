@@ -103,7 +103,7 @@ Every refactoring follows the sacred TDD cycle:
 - 🎉 **Celebrate!** Codebase is squeaky clean.
 - Create a journal entry: `YYYY-MM-DD-HHMM-Lint_Clean.md`
 - Content: "## {{ emoji }} 0 warnings found."
-- **Do not create a PR.**
+- **Finish the session.**
 
 ### 2. 📝 UNDERSTAND - Analyze the Issue
 - Read the ruff error message
