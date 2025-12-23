@@ -59,7 +59,7 @@ async def create_writer_model(
     if test_model is not None:
         return test_model
 
-    model = create_fallback_model(config.models.writer, use_google_batch=False)
+    model = create_fallback_model(config.models.writer, use_google_batch=False, require_tools=True)
     # Validate prompt fits (only check for real models)
     await validate_prompt_fits(prompt, config.models.writer, config, context.window_label)
     return model

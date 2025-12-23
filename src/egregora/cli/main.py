@@ -386,37 +386,50 @@ def demo(
     ] = Path("demo"),
 ) -> None:
     """Generate a demo site from a sample WhatsApp export."""
-    console.print("[bold cyan]Generating demo site...[/bold cyan]")
-    # Resolve the path to the sample input file relative to this script's location
-    # to ensure it's found regardless of the current working directory.
+    console.print("[bold cyan]Generating demo site (offline mode)...[/bold cyan]")
+
+    from unittest.mock import patch
+
     project_root = Path(__file__).resolve().parent.parent.parent.parent
+    sys.path.insert(0, str(project_root))
+
+    from tests.utils.pydantic_test_models import WriterTestModel
+    from egregora.agents.writer import write_posts_with_pydantic_agent as original_write_posts_func
+
+    def _wrapper(*, prompt, config, context, test_model=None):
+        """Wrapper to inject a deterministic test model."""
+        test_model = WriterTestModel(window_label=context.window_label)
+        return original_write_posts_func(prompt=prompt, config=config, context=context, test_model=test_model)
+
     sample_input = project_root / "tests/fixtures/Conversa do WhatsApp com Teste.zip"
     if not sample_input.exists():
         console.print(f"[red]Sample input file not found at {sample_input}[/red]")
         raise typer.Exit(1)
 
-    run_cli_flow(
-        input_file=sample_input,
-        output=output_dir,
-        source=SourceType.WHATSAPP,
-        step_size=100,
-        step_unit=WindowUnit.MESSAGES,
-        overlap=0.0,
-        enable_enrichment=True,
-        from_date=None,
-        to_date=None,
-        timezone=None,
-        model=None,
-        max_prompt_tokens=400000,
-        use_full_context_window=False,
-        max_windows=2,
-        resume=True,
-        economic_mode=False,
-        refresh=None,
-        force=True,  # Always force a refresh for the demo
-        debug=False,
-        options=None,
-    )
+    with patch("egregora.agents.writer.write_posts_with_pydantic_agent", _wrapper):
+        run_cli_flow(
+            input_file=sample_input,
+            output=output_dir,
+            source=SourceType.WHATSAPP,
+            step_size=100,
+            step_unit=WindowUnit.MESSAGES,
+            overlap=0.0,
+            enable_enrichment=False,  # Disable for offline demo
+            from_date=None,
+            to_date=None,
+            timezone=None,
+            model=None,
+            max_prompt_tokens=400000,
+            use_full_context_window=False,
+            max_windows=2,
+            resume=True,
+            economic_mode=False,
+            refresh=None,
+            force=True,  # Always force a refresh for the demo
+            debug=False,
+            options=None,
+        )
+
     console.print(
         Panel(
             "[bold green]✅ Demo site generated successfully![/bold green]\n\n"
