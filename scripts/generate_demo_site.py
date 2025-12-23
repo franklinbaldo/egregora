@@ -15,6 +15,7 @@ import argparse
 import importlib
 import os
 import shutil
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -133,6 +134,13 @@ def _patch_pipeline_for_offline_demo() -> None:
     patches = [
         # Writer Agent
         PatchSpec("egregora.agents.writer.write_posts_with_pydantic_agent", _writer_wrapper),
+        # Disable API key validation for offline demo builds.
+        PatchSpec("egregora.utils.env.validate_gemini_api_key", lambda *_args, **_kwargs: None),
+        PatchSpec(
+            "egregora.orchestration.pipelines.write._validate_api_key",
+            lambda _output_dir: None,
+            optional=True,
+        ),
         # Profile Generator
         PatchSpec(
             "egregora.agents.profile.generator.generate_profile_posts", _stub_generate_profile_posts
@@ -346,8 +354,10 @@ def main() -> int:
     result = runner.invoke(app, cli_args, catch_exceptions=False)
 
     if result.exit_code != 0:
+        if result.output:
+            sys.stderr.write(result.output)
         if result.exc_info:
-            pass
+            raise result.exc_info[1]
         return result.exit_code
 
     return 0
