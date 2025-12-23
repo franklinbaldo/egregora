@@ -88,8 +88,7 @@ def _apply_patches(patches: list[PatchSpec]) -> None:
 
 def _patch_pipeline_for_offline_demo() -> None:
     # Patch writer to force TestModel usage (no Gemini calls).
-    # We patch both the package export and the module definition to be safe.
-    from egregora.agents.writer import agent as writer_agent_module
+    from egregora.agents import writer as writer_agent_module
 
     original_writer = writer_agent_module.write_posts_with_pydantic_agent
 
@@ -133,7 +132,6 @@ def _patch_pipeline_for_offline_demo() -> None:
 
     patches = [
         # Writer Agent
-        PatchSpec("egregora.agents.writer.agent.write_posts_with_pydantic_agent", _writer_wrapper),
         PatchSpec("egregora.agents.writer.write_posts_with_pydantic_agent", _writer_wrapper),
         # Profile Generator
         PatchSpec(
