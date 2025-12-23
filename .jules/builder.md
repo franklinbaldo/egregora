@@ -27,3 +27,11 @@ My plan:
 **Solution:**
 I will create a test `tests/test_schema_migration.py` that simulates an old schema (without `doc_type` and `extensions`) and tries to migrate it to the new `UNIFIED_SCHEMA`.
 This will reveal if I have a migration mechanism. If not, I will implement one.
+
+## 2025-05-23 - Extract `write_pipeline.py` to `PipelineRunner`
+**Obstacle:** The `write.py` module was mixing CLI concerns (argument parsing, key validation) with core pipeline orchestration logic (looping windows, RAG indexing, checkpointing). This made it hard to test the pipeline logic in isolation without invoking the full CLI and dealing with its side effects.
+**Solution:**
+I extracted the orchestration logic into a `PipelineRunner.run()` method.
+- **Dependency Injection:** The `PipelineRunner` now receives a fully configured `PipelineContext` and other dependencies, making it easy to mock.
+- **Separation of Concerns:** `write.py` is now strictly a CLI adapter that prepares configuration and calls `runner.run()`. `PipelineRunner` handles the business logic of executing the pipeline.
+- **Testing:** I created `tests/e2e/orchestration/test_pipeline_runner.py` which mocks the context and verifies the runner's flow without making actual external calls.

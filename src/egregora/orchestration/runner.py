@@ -5,9 +5,11 @@ This module encapsulates the execution of the pipeline logic, separating it from
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
 from collections import deque
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from egregora.agents.banner.worker import BannerWorker
@@ -19,14 +21,16 @@ from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.types import PromptTooLargeError
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.data_primitives.protocols import UrlContext
+from egregora.database.run_store import RunStore
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.modules.media import process_media_for_window
-from egregora.transformations import split_window_into_n_parts
+from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
+from egregora.transformations import save_checkpoint, split_window_into_n_parts
 from egregora.utils.async_utils import run_async_safely
 
 if TYPE_CHECKING:
-    from datetime import datetime
+    from pathlib import Path
 
     import ibis.expr.types as ir
 
@@ -42,6 +46,79 @@ class PipelineRunner:
 
     def __init__(self, context: PipelineContext) -> None:
         self.context = context
+
+    def run(
+        self,
+        windows_iterator: Any,
+        checkpoint_path: Path,
+        enable_enrichment: bool,
+        embedding_model: str,
+        run_store: RunStore | None = None,
+    ) -> dict[str, dict[str, list[str]]]:
+        """Run the complete pipeline workflow for a prepared dataset.
+
+        This method handles:
+        - Run recording (start, completion, failure)
+        - Window processing loop
+        - RAG indexing (media, taxonomy)
+        - Checkpointing
+        - Background task processing
+        - Tag page regeneration
+        """
+        run_id = self.context.run_id
+        started_at = self.context.start_time
+
+        # Record run start
+        self._record_run_start(run_store, run_id, started_at)
+
+        try:
+            results, max_processed_timestamp = self.process_windows(windows_iterator)
+
+            self._index_media_into_rag(
+                enable_enrichment=enable_enrichment,
+                results=results,
+                embedding_model=embedding_model,
+            )
+
+            self._generate_taxonomy()
+
+            # Save checkpoint first (critical path)
+            self._save_checkpoint(results, max_processed_timestamp, checkpoint_path)
+
+            # Process remaining background tasks after all windows are done
+            self.process_background_tasks()
+
+            # Regenerate tags page with word cloud visualization
+            if hasattr(self.context.output_format, "regenerate_tags_page"):
+                try:
+                    logger.info("[bold cyan]🏷️  Regenerating tags page with word cloud...[/]")
+                    self.context.output_format.regenerate_tags_page()
+                except (OSError, AttributeError, TypeError) as e:
+                    logger.warning("Failed to regenerate tags page: %s", e)
+
+            # Update run to completed
+            self._record_run_completion(run_store, run_id, started_at, results)
+
+            logger.info("[bold green]🎉 Pipeline completed successfully![/]")
+
+            return results
+
+        except KeyboardInterrupt:
+            logger.warning("[yellow]⚠️  Pipeline cancelled by user (Ctrl+C)[/]")
+            # Mark run as cancelled (using failed status with specific error message)
+            if run_store:
+                with contextlib.suppress(Exception):
+                    run_store.mark_run_failed(
+                        run_id=run_id,
+                        finished_at=datetime.now(UTC),
+                        duration_seconds=(datetime.now(UTC) - started_at).total_seconds(),
+                        error="Cancelled by user (KeyboardInterrupt)",
+                    )
+            raise  # Re-raise to allow proper cleanup
+        except Exception as exc:
+            # Broad catch is intentional: record failure for any exception, then re-raise
+            self._record_run_failure(run_store, run_id, started_at, exc)
+            raise  # Re-raise original exception to preserve error context
 
     def process_windows(
         self,
@@ -396,3 +473,141 @@ class PipelineRunner:
             raise RuntimeError("Cannot split window - all splits would be empty") from error
 
         return [(split_window, depth + 1) for split_window in split_windows]
+
+    def _generate_taxonomy(self) -> None:
+        """Generate semantic taxonomy if enabled."""
+        if self.context.config.rag.enabled:
+            logger.info("[bold cyan]🏷️  Generating Semantic Taxonomy...[/]")
+            try:
+                tagged_count = generate_semantic_taxonomy(self.context.output_format, self.context.config)
+                if tagged_count > 0:
+                    logger.info("[green]✓ Applied semantic tags to %d posts[/]", tagged_count)
+            except Exception as e:  # noqa: BLE001
+                # Non-critical failure
+                logger.warning("Auto-taxonomy failed: %s", e)
+
+    def _index_media_into_rag(
+        self,
+        *,
+        enable_enrichment: bool,
+        results: dict,
+        embedding_model: str,
+    ) -> None:
+        """Index media enrichments into RAG after window processing.
+
+        Args:
+            enable_enrichment: Whether enrichment is enabled
+            results: Window processing results
+            embedding_model: Embedding model identifier
+
+        """
+        if not (enable_enrichment and results):
+            return
+
+        # Media RAG indexing removed - will be reimplemented with egregora.rag
+        # logger.info("[bold cyan]📚 Indexing media into RAG...[/]")
+        # ... (removed for now)
+
+    def _save_checkpoint(
+        self, results: dict, max_processed_timestamp: datetime | None, checkpoint_path: Path
+    ) -> None:
+        """Save checkpoint after successful window processing.
+
+        Args:
+            results: Window processing results
+            max_processed_timestamp: Latest end_time from successfully processed windows
+            checkpoint_path: Path to checkpoint file
+
+        """
+        if not results or max_processed_timestamp is None:
+            logger.warning(
+                "⚠️  [yellow]No windows processed[/] - checkpoint not saved. "
+                "All windows may have been empty or filtered out."
+            )
+            return
+
+        # Count total messages processed (approximate from results)
+        total_posts = sum(len(r.get("posts", [])) for r in results.values())
+
+        save_checkpoint(checkpoint_path, max_processed_timestamp, total_posts)
+        logger.info(
+            "💾 [cyan]Checkpoint saved:[/] processed up to %s (%d posts written)",
+            max_processed_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            total_posts,
+        )
+
+    def _record_run_start(self, run_store: RunStore | None, run_id: Any, started_at: datetime) -> None:
+        """Record the start of a pipeline run in the database."""
+        if run_store is None:
+            return
+
+        try:
+            run_store.mark_run_started(
+                run_id=run_id,
+                stage="write",
+                started_at=started_at,
+            )
+        except (OSError, PermissionError) as exc:
+            logger.debug("Failed to record run start (database unavailable): %s", exc)
+        except ValueError as exc:
+            logger.debug("Failed to record run start (invalid data): %s", exc)
+
+    def _record_run_completion(
+        self,
+        run_store: RunStore | None,
+        run_id: Any,
+        started_at: datetime,
+        results: dict[str, dict[str, list[str]]],
+    ) -> None:
+        """Record successful completion of a pipeline run."""
+        if run_store is None:
+            return
+
+        try:
+            finished_at = datetime.now(UTC)
+            duration_seconds = (finished_at - started_at).total_seconds()
+
+            total_posts = sum(len(r.get("posts", [])) for r in results.values())
+            total_profiles = sum(len(r.get("profiles", [])) for r in results.values())
+            num_windows = len(results)
+
+            run_store.mark_run_completed(
+                run_id=run_id,
+                finished_at=finished_at,
+                duration_seconds=duration_seconds,
+                rows_out=total_posts + total_profiles,
+            )
+            logger.debug(
+                "Recorded pipeline run: %s (posts=%d, profiles=%d, windows=%d)",
+                run_id,
+                total_posts,
+                total_profiles,
+                num_windows,
+            )
+        except (OSError, PermissionError) as exc:
+            logger.debug("Failed to record run completion (database unavailable): %s", exc)
+        except ValueError as exc:
+            logger.debug("Failed to record run completion (invalid data): %s", exc)
+
+    def _record_run_failure(
+        self, run_store: RunStore | None, run_id: Any, started_at: datetime, exc: Exception
+    ) -> None:
+        """Record failure of a pipeline run."""
+        if run_store is None:
+            return
+
+        try:
+            finished_at = datetime.now(UTC)
+            duration_seconds = (finished_at - started_at).total_seconds()
+            error_msg = f"{type(exc).__name__}: {exc!s}"
+
+            run_store.mark_run_failed(
+                run_id=run_id,
+                finished_at=finished_at,
+                duration_seconds=duration_seconds,
+                error=error_msg[:500],
+            )
+        except (OSError, PermissionError) as tracking_exc:
+            logger.debug("Failed to record run failure (database unavailable): %s", tracking_exc)
+        except ValueError as tracking_exc:
+            logger.debug("Failed to record run failure (invalid data): %s", tracking_exc)

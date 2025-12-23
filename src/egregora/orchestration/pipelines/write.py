@@ -11,14 +11,13 @@ This module orchestrates the high-level flow for the 'write' command, coordinati
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
@@ -46,7 +45,6 @@ from egregora.input_adapters.whatsapp.commands import extract_commands, filter_e
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
-from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.runner import PipelineRunner
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import MkDocsPaths
@@ -56,7 +54,6 @@ from egregora.transformations import (
     WindowConfig,
     create_windows,
     load_checkpoint,
-    save_checkpoint,
 )
 from egregora.utils.cache import PipelineCache
 from egregora.utils.env import get_google_api_keys, validate_gemini_api_key
@@ -69,16 +66,12 @@ except ImportError:
     dotenv = None
 
 if TYPE_CHECKING:
-    import uuid
-
     import ibis.expr.types as ir
 
 
 logger = logging.getLogger(__name__)
 console = Console()
 __all__ = ["WhatsAppProcessOptions", "WriteCommandOptions", "process_whatsapp_export", "run", "run_cli_flow"]
-
-MIN_WINDOWS_WARNING_THRESHOLD = 5
 
 
 def run_async_safely(coro: Any) -> Any:
@@ -468,59 +461,6 @@ class PreparedPipelineData:
     context: PipelineContext
     enable_enrichment: bool
     embedding_model: str
-
-
-# _create_writer_resources REMOVED - functionality moved to PipelineFactory.create_writer_resources
-
-
-def _extract_adapter_info(ctx: PipelineContext) -> tuple[str, str]:
-    """Extract content summary and generation instructions from adapter."""
-    adapter = getattr(ctx, "adapter", None)
-    if adapter is None:
-        return "", ""
-
-    summary: str | None = ""
-    try:
-        summary = getattr(adapter, "content_summary", "")
-        if callable(summary):
-            summary = summary()
-    except (AttributeError, TypeError) as exc:
-        logger.debug("Adapter %s failed to provide content_summary: %s", adapter, exc)
-        summary = ""
-
-    instructions: str | None = ""
-    try:
-        instructions = getattr(adapter, "generation_instructions", "")
-        if callable(instructions):
-            instructions = instructions()
-    except (AttributeError, TypeError) as exc:
-        logger.warning("Failed to evaluate adapter generation instructions: %s", exc)
-        instructions = ""
-
-    return (summary or "").strip(), (instructions or "").strip()
-
-
-# _process_background_tasks REMOVED - functionality moved to PipelineRunner
-
-# _process_single_window REMOVED - functionality moved to PipelineRunner
-
-# _process_window_with_auto_split REMOVED - functionality moved to PipelineRunner
-
-# _warn_if_window_too_small REMOVED - functionality moved to PipelineRunner
-
-# _ensure_split_depth REMOVED - functionality moved to PipelineRunner
-
-# _split_window_for_retry REMOVED - functionality moved to PipelineRunner
-
-# _resolve_context_token_limit REMOVED - functionality moved to PipelineRunner
-
-# _calculate_max_window_size REMOVED - functionality moved to PipelineRunner
-
-# _validate_window_size REMOVED - functionality moved to PipelineRunner
-
-# _process_all_windows REMOVED - functionality moved to PipelineRunner
-
-# _perform_enrichment REMOVED - functionality moved to PipelineRunner
 
 
 def _create_database_backends(
@@ -966,57 +906,6 @@ def _prepare_pipeline_data(
     )
 
 
-def _index_media_into_rag(
-    *,
-    enable_enrichment: bool,
-    results: dict,
-    ctx: PipelineContext,
-    embedding_model: str,
-) -> None:
-    """Index media enrichments into RAG after window processing.
-
-    Args:
-        enable_enrichment: Whether enrichment is enabled
-        results: Window processing results
-        ctx: Pipeline context
-        embedding_model: Embedding model identifier
-
-    """
-    if not (enable_enrichment and results):
-        return
-
-    # Media RAG indexing removed - will be reimplemented with egregora.rag
-    # logger.info("[bold cyan]📚 Indexing media into RAG...[/]")
-    # ... (removed for now)
-
-
-def _save_checkpoint(results: dict, max_processed_timestamp: datetime | None, checkpoint_path: Path) -> None:
-    """Save checkpoint after successful window processing.
-
-    Args:
-        results: Window processing results
-        max_processed_timestamp: Latest end_time from successfully processed windows
-        checkpoint_path: Path to checkpoint file
-
-    """
-    if not results or max_processed_timestamp is None:
-        logger.warning(
-            "⚠️  [yellow]No windows processed[/] - checkpoint not saved. "
-            "All windows may have been empty or filtered out."
-        )
-        return
-
-    # Count total messages processed (approximate from results)
-    total_posts = sum(len(r.get("posts", [])) for r in results.values())
-
-    save_checkpoint(checkpoint_path, max_processed_timestamp, total_posts)
-    logger.info(
-        "💾 [cyan]Checkpoint saved:[/] processed up to %s (%d posts written)",
-        max_processed_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-        total_posts,
-    )
-
-
 def _apply_date_filters(
     messages_table: ir.Table, from_date: date_type | None, to_date: date_type | None
 ) -> ir.Table:
@@ -1135,120 +1024,6 @@ def _init_global_rate_limiter(quota_config: any) -> None:
     )
 
 
-def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
-    """Generate semantic taxonomy if enabled."""
-    if dataset.context.config.rag.enabled:
-        logger.info("[bold cyan]🏷️  Generating Semantic Taxonomy...[/]")
-        try:
-            tagged_count = generate_semantic_taxonomy(dataset.context.output_format, dataset.context.config)
-            if tagged_count > 0:
-                logger.info("[green]✓ Applied semantic tags to %d posts[/]", tagged_count)
-        except Exception as e:  # noqa: BLE001
-            # Non-critical failure
-            logger.warning("Auto-taxonomy failed: %s", e)
-
-
-def _record_run_start(run_store: RunStore | None, run_id: uuid.UUID, started_at: datetime) -> None:
-    """Record the start of a pipeline run in the database.
-
-    Args:
-        run_store: Run store for tracking (None to skip tracking)
-        run_id: Unique identifier for this run
-        started_at: Timestamp when run started
-
-    """
-    if run_store is None:
-        return
-
-    try:
-        run_store.mark_run_started(
-            run_id=run_id,
-            stage="write",
-            started_at=started_at,
-        )
-    except (OSError, PermissionError) as exc:
-        logger.debug("Failed to record run start (database unavailable): %s", exc)
-    except ValueError as exc:
-        logger.debug("Failed to record run start (invalid data): %s", exc)
-
-
-def _record_run_completion(
-    run_store: RunStore | None,
-    run_id: uuid.UUID,
-    started_at: datetime,
-    results: dict[str, dict[str, list[str]]],
-) -> None:
-    """Record successful completion of a pipeline run.
-
-    Args:
-        run_store: Run store for tracking (None to skip tracking)
-        run_id: Unique identifier for this run
-        started_at: Timestamp when run started
-        results: Results dict mapping window labels to posts/profiles
-
-    """
-    if run_store is None:
-        return
-
-    try:
-        finished_at = datetime.now(UTC)
-        duration_seconds = (finished_at - started_at).total_seconds()
-
-        total_posts = sum(len(r.get("posts", [])) for r in results.values())
-        total_profiles = sum(len(r.get("profiles", [])) for r in results.values())
-        num_windows = len(results)
-
-        run_store.mark_run_completed(
-            run_id=run_id,
-            finished_at=finished_at,
-            duration_seconds=duration_seconds,
-            rows_out=total_posts + total_profiles,
-        )
-        logger.debug(
-            "Recorded pipeline run: %s (posts=%d, profiles=%d, windows=%d)",
-            run_id,
-            total_posts,
-            total_profiles,
-            num_windows,
-        )
-    except (OSError, PermissionError) as exc:
-        logger.debug("Failed to record run completion (database unavailable): %s", exc)
-    except ValueError as exc:
-        logger.debug("Failed to record run completion (invalid data): %s", exc)
-
-
-def _record_run_failure(
-    run_store: RunStore | None, run_id: uuid.UUID, started_at: datetime, exc: Exception
-) -> None:
-    """Record failure of a pipeline run.
-
-    Args:
-        run_store: Run store for tracking (None to skip tracking)
-        run_id: Unique identifier for this run
-        started_at: Timestamp when run started
-        exc: Exception that caused the failure
-
-    """
-    if run_store is None:
-        return
-
-    try:
-        finished_at = datetime.now(UTC)
-        duration_seconds = (finished_at - started_at).total_seconds()
-        error_msg = f"{type(exc).__name__}: {exc!s}"
-
-        run_store.mark_run_failed(
-            run_id=run_id,
-            finished_at=finished_at,
-            duration_seconds=duration_seconds,
-            error=error_msg[:500],
-        )
-    except (OSError, PermissionError) as tracking_exc:
-        logger.debug("Failed to record run failure (database unavailable): %s", tracking_exc)
-    except ValueError as tracking_exc:
-        logger.debug("Failed to record run failure (invalid data): %s", tracking_exc)
-
-
 def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
     """Run the complete write pipeline workflow.
 
@@ -1275,10 +1050,6 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
         # Fallback for adapters that don't accept config parameter
         adapter = adapter_cls()
 
-    # Generate run ID and timestamp for tracking
-    run_id = run_params.run_id
-    started_at = run_params.start_time
-
     with _pipeline_environment(run_params) as (ctx, runs_backend):
         # Create RunStore from backend for abstracted run tracking
         runs_conn = getattr(runs_backend, "con", None)
@@ -1290,59 +1061,14 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
         else:
             logger.warning("Unable to access DuckDB connection for run tracking - runs will not be recorded")
 
-        # Record run start
-        _record_run_start(run_store, run_id, started_at)
+        dataset = _prepare_pipeline_data(adapter, run_params, ctx)
 
-        try:
-            dataset = _prepare_pipeline_data(adapter, run_params, ctx)
-
-            # Use PipelineRunner for execution
-            runner = PipelineRunner(dataset.context)
-            results, max_processed_timestamp = runner.process_windows(dataset.windows_iterator)
-
-            _index_media_into_rag(
-                enable_enrichment=dataset.enable_enrichment,
-                results=results,
-                ctx=dataset.context,
-                embedding_model=dataset.embedding_model,
-            )
-
-            _generate_taxonomy(dataset)
-
-            # Save checkpoint first (critical path)
-            _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
-
-            # Process remaining background tasks after all windows are done
-            runner.process_background_tasks()
-
-            # Regenerate tags page with word cloud visualization
-            if hasattr(dataset.context.output_format, "regenerate_tags_page"):
-                try:
-                    logger.info("[bold cyan]🏷️  Regenerating tags page with word cloud...[/]")
-                    dataset.context.output_format.regenerate_tags_page()
-                except (OSError, AttributeError, TypeError) as e:
-                    logger.warning("Failed to regenerate tags page: %s", e)
-
-            # Update run to completed
-            _record_run_completion(run_store, run_id, started_at, results)
-
-            logger.info("[bold green]🎉 Pipeline completed successfully![/]")
-
-        except KeyboardInterrupt:
-            logger.warning("[yellow]⚠️  Pipeline cancelled by user (Ctrl+C)[/]")
-            # Mark run as cancelled (using failed status with specific error message)
-            if run_store:
-                with contextlib.suppress(Exception):
-                    run_store.mark_run_failed(
-                        run_id=run_id,
-                        finished_at=datetime.now(UTC),
-                        duration_seconds=(datetime.now(UTC) - started_at).total_seconds(),
-                        error="Cancelled by user (KeyboardInterrupt)",
-                    )
-            raise  # Re-raise to allow proper cleanup
-        except Exception as exc:
-            # Broad catch is intentional: record failure for any exception, then re-raise
-            _record_run_failure(run_store, run_id, started_at, exc)
-            raise  # Re-raise original exception to preserve error context
-
-        return results
+        # Use PipelineRunner for execution
+        runner = PipelineRunner(dataset.context)
+        return runner.run(
+            windows_iterator=dataset.windows_iterator,
+            checkpoint_path=dataset.checkpoint_path,
+            enable_enrichment=dataset.enable_enrichment,
+            embedding_model=dataset.embedding_model,
+            run_store=run_store,
+        )
