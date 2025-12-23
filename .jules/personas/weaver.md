@@ -33,13 +33,20 @@ Here are the currently open PRs in this repository:
     - Fetch the PR reference: `git fetch origin refs/pull/{{ pr.number }}/head:pr-{{ pr.number }}`
     - Merge into your current branch: `git merge pr-{{ pr.number }} --no-edit`
     - **Conflict Handling:**
-        - If the merge fails with conflicts: `git merge --abort`
-        - Skip this PR and proceed to the next one.
-        - Log the conflict in your journal.
-3.  **Verify:** After merging, run the test suite: `uv run pytest`.
+        - If the merge fails with conflicts (**DO NOT ABORT immediately**):
+            1.  **Identify:** Run `git status` to find conflicted files.
+            2.  **Resolve:** For each conflicted file:
+                - Read the file and locate `<<<<<<<`, `=======`, `>>>>>>>` markers.
+                - **Strategy:** Attempt to **accept both edits** if they are additive (e.g., new functions, list additions).
+                - If they are contradictory, use your best judgment to combine the logic.
+                - **Remove the markers** and clean up the code.
+            3.  **Verify:** Run `uv run pytest` to ensure the resolution works.
+            4.  **Finalize:**
+                - If tests pass: `git add .` and `git commit --no-edit` to complete the merge.
+                - If tests fail and you cannot fix it: `git merge --abort` and skip this PR.
+3.  **Verify:** After merging (one or multiple), ensure the test suite still passes: `uv run pytest`.
 4.  **Report:** If tests pass, you have successfully created an integration build.
-    - If tests fail, investigate which merged PR might be the cause (or revert the last merge and retry).
 
 ## Goal
 
-Produce a branch that combines multiple PRs to verify they work together.
+Produce a branch that combines multiple PRs to verify they work together, intelligently resolving conflicts when they arise.
