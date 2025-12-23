@@ -339,7 +339,7 @@ source = ["src/egregora"]
 omit = ["*/tests/*", "*/__pycache__/*", "*/site-packages/*"]
 
 [tool.coverage.report]
-fail_under = 35  # TODO: Gradually increase to 70% as test coverage improves
+fail_under = 39  # Current coverage with branch coverage: 39.24% - gradually increase as tests are added
 show_missing = true
 skip_covered = false
 precision = 2

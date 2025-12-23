@@ -2,7 +2,7 @@ name: Auto-merge dependency updates
 
 on:
   pull_request:  # Changed from pull_request_target for security
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: write
@@ -12,14 +12,17 @@ jobs:
   auto-merge:
     name: Enable auto-merge for dependency PRs
     runs-on: ubuntu-latest
-    # Only run for dependabot or renovate PRs
+    # Run for dependabot, renovate, or Jules bot PRs
     if: |
       github.actor == 'dependabot[bot]' ||
-      github.actor == 'renovate[bot]'
+      github.actor == 'renovate[bot]' ||
+      github.actor == 'google-labs-jules[bot]'
 
     steps:
       # SECURITY: Validate that PR only modifies dependency files
+      # Skip validation for Jules bot (creates code PRs, not dependency PRs)
       - name: Validate PR changes
+        if: github.actor != 'google-labs-jules[bot]'
         uses: actions/github-script@v8
         with:
           script: |
@@ -29,7 +32,7 @@ jobs:
               pull_number: context.issue.number
             });
 
-            // Only allow changes to dependency files
+            // Only allow changes to dependency files for dependabot/renovate
             const allowedPatterns = [
               /^package\.json$/,
               /^package-lock\.json$/,
@@ -57,6 +60,36 @@ jobs:
               console.log('✅ All file changes are in allowed dependency files');
             }
 
+
+      - name: Convert draft to ready for review
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+            const isDraft = context.payload.pull_request.draft;
+
+            if (isDraft) {
+              console.log('📝 PR is a draft, converting to ready for review...');
+
+              await github.rest.pulls.update({
+                owner,
+                repo,
+                pull_number,
+                draft: false
+              });
+
+              console.log('✅ PR converted to ready for review');
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pull_number,
+                body: '🤖 **Draft converted to ready for review**\n\nThis PR has been automatically marked as ready for review and will be auto-merged when CI passes.'
+              });
+            } else {
+              console.log('✅ PR is already ready for review');
+            }
 
       - name: Get PR metadata
         id: metadata
