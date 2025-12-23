@@ -155,7 +155,6 @@ ignore = [
 
     # Pragmatic runtime patterns - common in optional-dep paths
     "PLC0415",  # Non-top-level imports
-    "BLE001",   # Blind exception
     "PLW0603",  # Global statement
     "PLW2901",  # Redefined loop name
     "TC001",    # Type-checking-only imports (runtime introspection needs them)

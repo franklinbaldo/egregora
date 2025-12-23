@@ -164,9 +164,6 @@ def generate_banner(
     except google_exceptions.GoogleAPICallError as e:
         logger.exception("Banner generation failed after retries")
         return BannerOutput(error=type(e).__name__, error_code="GENERATION_FAILED")
-    except Exception:
-        logger.exception("An unexpected error occurred during banner generation")
-        raise
 
 
 def is_banner_generation_available() -> bool:
