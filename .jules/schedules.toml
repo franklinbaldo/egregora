@@ -12,23 +12,24 @@
 # So the first field (minute) must be "0" or "*" to ever match.
 
 [schedules]
-# --- Daily Routine ---
-curator = "0 0 * * *"       # Daily at 00:00 UTC
-janitor = "0 8 * * *"       # Daily at 08:00 UTC
-weaver = "0 8 * * *"        # Daily at 08:00 UTC
+# --- 🌅 Daily Routine ---
+curator = "0 0 * * *"       # Daily at 00:00 UTC (UX Review)
+janitor = "0 8 * * *"       # Daily at 08:00 UTC (Hygiene)
+weaver = "0 8 * * *"        # Daily at 08:00 UTC (Integration Build)
 
-# --- Weekly Routine ---
-docs_curator = "0 9 * * 1"  # Mondays at 09:00 UTC
-artisan = "0 10 * * 2"      # Tuesdays at 10:00 UTC
+# --- 🗓️ Weekly Routine ---
+docs_curator = "0 9 * * 1"  # Mondays at 09:00 UTC (Docs Audit)
+artisan = "0 10 * * 2"      # Tuesdays at 10:00 UTC (Quality Refactor)
 
-# --- Manual / Trigger-only Agents ---
-# These are available for manual dispatch but have no automatic schedule.
-# shepherd = "manual"
-# forge = "manual"
-# refactor = "manual"
-# bolt = "manual"
-# builder = "manual"
-# palette = "manual"
-# scribe = "manual"
-# sentinel = "manual"
-# sheriff = "manual"
+# --- 🚨 Manual / Trigger-only Agents ---
+# These run only when manually dispatched or triggered by specific events.
+#
+# shepherd  = "manual"  # Test Coverage
+# forge     = "manual"  # Feature Implementation
+# refactor  = "manual"  # Lint Fixing
+# bolt      = "manual"  # Performance
+# builder   = "manual"  # Data Architecture
+# palette   = "manual"  # Design System
+# scribe    = "manual"  # Technical Writing
+# sentinel  = "manual"  # Security Audit
+# sheriff   = "manual"  # Test Stability
