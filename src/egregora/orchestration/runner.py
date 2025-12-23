@@ -277,6 +277,7 @@ class PipelineRunner:
             adapter_content_summary=adapter_summary,
             adapter_generation_instructions=adapter_instructions,
             run_id=str(self.context.run_id) if self.context.run_id else None,
+            smoke_test=self.context.state.smoke_test,
         )
 
         result = run_async_safely(write_posts_for_window(params))

@@ -384,6 +384,13 @@ def demo(
             help="The directory to output the demo site to.",
         ),
     ] = Path("demo"),
+    smoke_test: Annotated[
+        bool,
+        typer.Option(
+            "--smoke-test",
+            help="Run in smoke test mode (no API calls).",
+        ),
+    ] = True,
 ) -> None:
     """Generate a demo site from a sample WhatsApp export."""
     console.print("[bold cyan]Generating demo site...[/bold cyan]")
@@ -402,20 +409,21 @@ def demo(
         step_size=100,
         step_unit=WindowUnit.MESSAGES,
         overlap=0.0,
-        enable_enrichment=True,
+        enable_enrichment=False,
         from_date=None,
         to_date=None,
         timezone=None,
-        model=None,
+        model="google-gla:gemini-flash-latest",
         max_prompt_tokens=400000,
         use_full_context_window=False,
-        max_windows=2,
+        max_windows=1,
         resume=True,
-        economic_mode=False,
+        economic_mode=True,
         refresh=None,
         force=True,  # Always force a refresh for the demo
         debug=False,
         options=None,
+        smoke_test=smoke_test,
     )
     console.print(
         Panel(

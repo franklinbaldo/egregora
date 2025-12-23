@@ -814,6 +814,7 @@ class WindowProcessingParams:
     adapter_content_summary: str = ""
     adapter_generation_instructions: str = ""
     run_id: str | None = None
+    smoke_test: bool = False
 
 
 async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
@@ -822,6 +823,9 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
     This acts as the public entry point, orchestrating the setup and execution
     of the writer agent.
     """
+    if params.smoke_test:
+        logger.info("Smoke test mode: skipping writer agent.")
+        return {RESULT_KEY_POSTS: [], RESULT_KEY_PROFILES: []}
     if params.table.count().execute() == 0:
         return {RESULT_KEY_POSTS: [], RESULT_KEY_PROFILES: []}
 

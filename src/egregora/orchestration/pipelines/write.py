@@ -291,6 +291,7 @@ def run_cli_flow(
     force: bool = False,
     debug: bool = False,
     options: str | None = None,
+    smoke_test: bool = False,
 ) -> None:
     """Execute the write flow from CLI arguments."""
     cli_values = {
@@ -389,6 +390,7 @@ def run_cli_flow(
             source_type=parsed_options.source.value,
             input_path=runtime.input_file,
             refresh="all" if parsed_options.force else parsed_options.refresh,
+            smoke_test=smoke_test,
         )
         run(run_params)
         console.print("[green]Processing completed successfully.[/green]")
@@ -697,6 +699,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
         annotations_store=annotations_store,
         usage_tracker=UsageTracker(),
         output_registry=output_registry,
+        smoke_test=run_params.smoke_test,
     )
 
     # Inject TaskStore into state/context
