@@ -5,6 +5,7 @@ import argparse
 import glob
 from datetime import datetime
 from pathlib import Path
+import tomllib
 
 # Dependencies (assumed to be available via uv run --with ...)
 import frontmatter
@@ -16,6 +17,13 @@ try:
 except ImportError:
     print("Error: Could not import JulesClient. Make sure PYTHONPATH includes .claude/skills/jules-api", file=sys.stderr)
     sys.exit(1)
+
+def load_schedule_registry(registry_path: Path) -> dict:
+    if not registry_path.exists():
+        return {}
+    with open(registry_path, "rb") as f:
+        data = tomllib.load(f)
+    return data.get("schedules", {})
 
 def parse_prompt_file(filepath: Path, context: dict) -> dict:
     # Use python-frontmatter to parse
@@ -93,6 +101,7 @@ def main():
 
     repo_info = get_repo_info()
     prompts_dir = Path(".jules/prompts")
+    registry_path = Path(".jules/schedules.toml")
 
     if not prompts_dir.exists():
         print(f"Prompts directory {prompts_dir} not found")
@@ -101,6 +110,8 @@ def main():
     print(f"Repo context: {repo_info}")
 
     prompt_files = list(prompts_dir.glob("*.md"))
+    registry = load_schedule_registry(registry_path)
+    print(f"Loaded {len(registry)} schedules from registry.")
 
     for p_file in prompt_files:
         try:
@@ -125,11 +136,24 @@ def main():
 
             # Check schedule
             should_run = False
+            
+            # Determine schedule string: Registry > Frontmatter > Default (None)
+            schedule_str = registry.get(pid)
+            
+            # Fallback to frontmatter if not in registry (backward compatibility)
+            # but ONLY if explicitly defined (not empty)
+            if not schedule_str and config.get("schedule"):
+                schedule_str = config.get("schedule")
+                print(f"Warning: Using deprecated frontmatter schedule for {pid}: {schedule_str}")
+
             if args.all or (args.prompt_id == pid):
                 should_run = True
             elif args.command == "tick":
-                if check_schedule(config.get("schedule", "* * * * *")):
+                if schedule_str and check_schedule(schedule_str):
                     should_run = True
+                elif not schedule_str:
+                     # No schedule found means MANUAL execution only
+                     pass
 
             if should_run:
                 print(f"Running prompt: {pid}")

@@ -1,7 +1,6 @@
 ---
 id: weaver
 enabled: false
-schedule: "0 8 * * *"
 branch: "main"
 automation_mode: "MANUAL"
 require_plan_approval: true

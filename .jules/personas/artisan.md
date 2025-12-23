@@ -1,7 +1,6 @@
 ---
 id: artisan
 enabled: true
-schedule: "0 10 * * 2"
 branch: "main"
 automation_mode: "AUTO_CREATE_PR"
 require_plan_approval: false
