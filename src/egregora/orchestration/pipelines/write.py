@@ -291,6 +291,7 @@ def run_cli_flow(
     force: bool = False,
     debug: bool = False,
     options: str | None = None,
+    skip_api_key_validation: bool = False,
 ) -> None:
     """Execute the write flow from CLI arguments."""
     cli_values = {
@@ -364,7 +365,8 @@ def run_cli_flow(
         logger.info("Initializing site in %s", output_dir)
         ensure_mkdocs_project(output_dir)
 
-    _validate_api_key(output_dir)
+    if not skip_api_key_validation:
+        _validate_api_key(output_dir)
 
     egregora_config = _prepare_write_config(parsed_options, from_date_obj, to_date_obj)
 

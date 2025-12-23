@@ -416,6 +416,7 @@ def demo(
         force=True,  # Always force a refresh for the demo
         debug=False,
         options=None,
+        skip_api_key_validation=True,  # Demo does not require API key
     )
     console.print(
         Panel(
