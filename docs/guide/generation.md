@@ -426,6 +426,5 @@ egregora process export.zip --delay=1.0
 
 ## Next Steps
 
-- [API Reference - Writer Module](../api/generation/writer.md) - Code documentation
-- [API Reference - Editor Module](../api/generation/editor.md) - Interactive editing
-- [Development Guide](../development/contributing.md) - Extend the writer
+- [API Reference - Writer Module](../api/index.md) - Code documentation
+- [Development Guide](https://github.com/franklinbaldo/egregora/blob/main/CONTRIBUTING.md) - Extend the writer
