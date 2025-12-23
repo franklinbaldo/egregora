@@ -133,26 +133,32 @@ def create_fallback_model(
         >>> agent = Agent(model=model)
 
     """
+    openrouter_models: list[str] = []
+    if include_openrouter and os.environ.get("OPENROUTER_API_KEY"):
+        try:
+            openrouter_models = get_openrouter_free_models(modality=modality)
+            if not openrouter_models and modality == "vision":
+                logger.info("No free OpenRouter vision models available, using Google models only")
+        except (httpx.HTTPError, httpx.TimeoutException) as e:
+            logger.warning("Failed to add OpenRouter models to fallback: %s", e)
+    elif include_openrouter:
+        logger.debug("OPENROUTER_API_KEY not set, skipping OpenRouter fallback models")
+
     if fallback_models is None:
-        # Start with Google fallback models
+        # Start with Google fallback models.
         fallback_models = [m for m in GOOGLE_FALLBACK_MODELS if m != primary_model]
 
-        # Add OpenRouter free models if requested (ONLY if API key is available)
-        if include_openrouter and os.environ.get("OPENROUTER_API_KEY"):
-            try:
-                openrouter_models = get_openrouter_free_models(modality=modality)
-                # Only add if we got models back (vision may return empty list)
-                if openrouter_models:
-                    # Add OpenRouter models that aren't already in the list
-                    for orm in openrouter_models:
-                        if orm not in fallback_models and orm != primary_model:
-                            fallback_models.append(orm)
-                elif modality == "vision":
-                    logger.info("No free OpenRouter vision models available, using Google models only")
-            except (httpx.HTTPError, httpx.TimeoutException) as e:
-                logger.warning("Failed to add OpenRouter models to fallback: %s", e)
-        elif include_openrouter:
-            logger.debug("OPENROUTER_API_KEY not set, skipping OpenRouter fallback models")
+        # Prefer OpenRouter models ahead of Google fallbacks when Google is primary.
+        if openrouter_models and isinstance(primary_model, str) and primary_model.startswith("google-gla:"):
+            fallback_models = [
+                *[orm for orm in openrouter_models if orm != primary_model],
+                *fallback_models,
+            ]
+        else:
+            # Append OpenRouter models at the end when primary isn't Google.
+            for orm in openrouter_models:
+                if orm not in fallback_models and orm != primary_model:
+                    fallback_models.append(orm)
 
     def _resolve_and_wrap(model_def: str | Model, api_key: str | None = None) -> Model:
         # Imports moved here to avoid top-level circular dependencies,
