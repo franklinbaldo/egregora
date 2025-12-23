@@ -2316,7 +2316,7 @@ egregora --version
 To build the documentation locally:
 
 ```bash
-uv sync --extra docs
+uv sync --extra dev
 uv run mkdocs serve
 ```
 
@@ -2413,7 +2413,12 @@ This will:
 Launch a local preview server:
 
 ```bash
-uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
+uvx --with mkdocs-material \
+    --with mkdocs-macros-plugin \
+    --with mkdocs-rss-plugin \
+    --with mkdocs-blogging-plugin \
+    --with mkdocs-glightbox \
+    mkdocs serve
 ```
 
 Open [http://localhost:8000](http://localhost:8000) in your browser. 🎉
@@ -4150,89 +4155,27 @@ This page mirrors the contributor notes maintained at the repository root. Refer
 
 ## File: docs/index.md
 `````markdown
-# Egregora Documentation
+# Egregora
 
-**Emergent Group Reflection Engine Generating Organized Relevant Articles**
+Egregora turns chat archives into a structured, readable blog. It parses your export,
+groups conversations into time windows, and generates posts that you can publish as a
+static site with MkDocs.
 
-Welcome to the Egregora documentation! Transform your WhatsApp group chats into intelligent, privacy-first blogs where collective conversations emerge as beautifully written articles.
+## Quick links
 
-## Features
+- Demo site: https://franklinbaldo.github.io/egregora/demo/
+- Getting started: getting-started/quickstart.md
+- Configuration: getting-started/configuration.md
+- Technical reference: reference.md
 
-- 🧠 **Emergent Intelligence**: Collective conversations synthesize into coherent articles
-- 👥 **Group Reflection**: Your community's unique voice and insights are preserved
-- 🛡️ **Privacy-First**: Automatic anonymization - real names never reach the AI
-- ⚙️ **Fully Automated**: Stateless pipeline powered by Ibis, DuckDB, and Gemini
-- 📊 **Smart Context**: RAG retrieval ensures consistent, context-aware writing
+## How it works
 
-## Quick Links
+1. Initialize a site scaffold with `egregora init`.
+2. Run `egregora write` on your WhatsApp export.
+3. Preview the generated blog with MkDocs.
 
-<div class="grid cards" markdown>
-
--   :material-clock-fast:{ .lg .middle } __Quick Start__
-
-    ---
-
-    Install Egregora and generate your first blog post in minutes
-
-    [:octicons-arrow-right-24: Get Started](getting-started/quickstart.md)
-
--   :material-book-open-variant:{ .lg .middle } __User Guide__
-
-    ---
-
-    Learn about the architecture, privacy features, and how to customize your blog
-
-    [:octicons-arrow-right-24: User Guide](guide/architecture.md)
-
--   :material-code-braces:{ .lg .middle } __API Reference__
-
-    ---
-
-    Complete API documentation for all modules and functions
-
-    [:octicons-arrow-right-24: API Reference](api/index.md)
-
-</div>
-
-## Architecture Overview
-
-```mermaid
-graph LR
-    A[Ingestion] --> B[Privacy]
-    B --> C[Augmentation]
-    C --> D[Knowledge]
-    D --> E[Generation]
-    E --> F[Publication]
-    D -.-> E
-```
-
-Egregora uses a staged pipeline architecture that processes conversations through distinct phases:
-
-1. **Ingestion**: Parse WhatsApp exports into structured data
-2. **Privacy**: Anonymize names and detect PII
-3. **Augmentation**: Enrich context with LLM-powered descriptions
-4. **Knowledge**: Build RAG index and annotation metadata
-5. **Generation**: LLM generates blog posts with tool calling
-6. **Publication**: Create MkDocs site with templates
-
-## Stack
-
-- **[Ibis](https://ibis-project.org/)**: DataFrame abstraction for data transformations
-- **[DuckDB](https://duckdb.org/)**: Fast analytical database with vector search
-- **[Gemini](https://ai.google.dev/)**: Google's LLM for content generation
-- **[MkDocs](https://www.mkdocs.org/)**: Static site generation
-- **[uv](https://github.com/astral-sh/uv)**: Modern Python package management
-
-## Philosophy
-
-Egregora follows the principle of **"trusting the LLM"** - instead of micromanaging with complex heuristics, we:
-
-- Give the AI complete conversation context
-- Let it make editorial decisions (how many posts, what to write)
-- Use tool calling for structured output
-- Keep the pipeline simple and composable
-
-This results in simpler code and often better outcomes. The LLM knows what makes a good article - our job is to give it the right context.
+Egregora is designed to run locally with privacy-first defaults while letting you
+choose modern LLMs for writing and enrichment.
 `````
 
 ## File: docs/jules_feedback_loop_plan.md
@@ -4464,6 +4407,15 @@ A primary goal of the UX vision is to ensure all generated blogs are highly read
 1.  **Optimal Font Size**: The base font size for body content should be `1.1rem` (approximately 18px). This is slightly larger than the default for most browsers and themes, providing a more comfortable reading experience and reducing eye strain.
 
 2.  **Optimal Line Length**: The main content width will be capped at a maximum of `75ch`. This ensures that lines of text do not become excessively long on wide screens, which can make it difficult for the reader's eye to track from one line to the next. This range is widely accepted as the optimal line length for readability.
+
+## Current Status (2024-07-26)
+
+Based on a static analysis of the codebase, the following UX features have been implemented:
+
+*   **Core Readability**: The CSS for `font-size` and `max-width` has been implemented in `src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`.
+*   **Navigation**: The `mkdocs.yml.jinja` template enables the `navigation.path` (breadcrumbs) and `navigation.tracking` (active state) features of the Material for MkDocs theme.
+
+The `egregora demo` command is currently broken, which prevents a live inspection and Lighthouse audit. A high-priority task has been created to fix this issue. Once the demo command is working, a baseline Lighthouse score will be established and recorded here.
 `````
 
 ## File: docs/v3_development_plan.md
