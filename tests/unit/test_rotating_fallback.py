@@ -13,7 +13,7 @@ import pytest
 from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.models import Model
 
-from egregora.models.rotating_fallback import RotatingFallbackModel
+from egregora.llm.providers.rotating_fallback import RotatingFallbackModel
 
 
 class MockModel(Model):

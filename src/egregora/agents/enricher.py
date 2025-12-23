@@ -37,7 +37,7 @@ from pydantic_ai.messages import BinaryContent
 from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
-from egregora.models.google_batch import GoogleBatchModel
+from egregora.llm.providers.google_batch import GoogleBatchModel
 from egregora.ops.media import extract_urls, find_media_references
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
@@ -970,7 +970,7 @@ class EnrichmentWorker(BaseWorker):
         rotation_models = getattr(self.enrichment_config, "rotation_models", None)
 
         if rotation_enabled:
-            from egregora.models.model_key_rotator import ModelKeyRotator
+            from egregora.llm.providers.model_key_rotator import ModelKeyRotator
 
             rotator = ModelKeyRotator(models=rotation_models)
 

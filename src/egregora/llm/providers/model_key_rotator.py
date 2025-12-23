@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from egregora.models.model_cycler import (
+from egregora.llm.providers.model_cycler import (
     DEFAULT_GEMINI_MODELS,
     GeminiKeyRotator,
     default_rate_limit_check,
