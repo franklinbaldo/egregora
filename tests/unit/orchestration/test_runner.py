@@ -1,7 +1,7 @@
 from datetime import datetime
 from unittest.mock import MagicMock
 
-from egregora.data_primitives.protocols import OutputSink
+from egregora.data_primitives.document import OutputSink
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.runner import PipelineRunner
 

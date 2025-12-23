@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import cast
 
-from egregora.data_primitives.protocols import SiteScaffolder
+from egregora.data_primitives.document import SiteScaffolder
 from egregora.output_adapters import create_default_output_registry, create_output_sink
 from egregora.output_adapters.mkdocs import MkDocsPaths
 

@@ -13,14 +13,11 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import ibis
 import yaml
 
-from egregora.data_primitives.document import DocumentType
+from egregora.data_primitives.document import DocumentType, OutputSink
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.paths import slugify
-
-if TYPE_CHECKING:
-    from egregora.data_primitives.protocols import OutputSink
 
 logger = logging.getLogger(__name__)
 
