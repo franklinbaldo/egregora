@@ -1,5 +1,3 @@
-
-
 import duckdb
 
 from egregora.database.ir_schema import UNIFIED_SCHEMA
@@ -55,7 +53,7 @@ def test_migrate_documents_table_adds_missing_columns():
     assert row_dict["id"] == "1"
     assert row_dict["title"] == "Test Doc"
     assert row_dict["doc_type"] == "post"  # Default
-    assert row_dict["status"] == "published" # Default
+    assert row_dict["status"] == "published"  # Default
     # DuckDB returns JSON as string? Or as object?
     # Usually string if not strictly typed, but let's check.
     # Ibis types map to DuckDB JSON type.
@@ -64,6 +62,7 @@ def test_migrate_documents_table_adds_missing_columns():
     assert row_dict["extensions"] == "{}"
 
     conn.close()
+
 
 def test_migrate_documents_table_creates_fresh():
     """Test that migrate_documents_table creates the table if it doesn't exist."""

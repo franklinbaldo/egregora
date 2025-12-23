@@ -1,11 +1,10 @@
-
-
 import duckdb
 from typer.testing import CliRunner
 
 from egregora.cli.main import app
 
 runner = CliRunner()
+
 
 def test_db_migrate_command(tmp_path):
     """Test the 'db migrate' command."""

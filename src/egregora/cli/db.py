@@ -14,6 +14,7 @@ from egregora.database.utils import resolve_db_uri
 db_app = typer.Typer(name="db", help="Database management commands.")
 console = Console()
 
+
 @db_app.command()
 def migrate(
     site_root: Annotated[Path, typer.Argument(help="Site root directory containing .egregora.toml")],
