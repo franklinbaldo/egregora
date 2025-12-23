@@ -1,0 +1,1 @@
+"""Egregora demo configuration package."""
