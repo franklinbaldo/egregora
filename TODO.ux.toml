@@ -79,7 +79,7 @@ To improve readability for long-form content, specific CSS rules must be added. 
 4. **Check Line Length:** Inspect the `.md-content` container. The `max-width` should be `75ch`. The text lines should not exceed this width on large screens.
 **Status**: Blocked by `fix-demo-command`.
 """
-status = "pending"
+status = "review"
 category = "visual"
 assignee = "forge"
 
