@@ -243,22 +243,46 @@ def _write_stub_file(path: Path, title: str, content: str) -> None:
     path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
 
 
-def _write_demo_homepage(
-    docs_dir: Path, build_timestamp: str, build_commit: str, build_workflow_url: str
+def _inject_demo_build_info(
+    index_path: Path, build_timestamp: str, build_commit: str, build_workflow_url: str
 ) -> None:
-    """Write the demo homepage with build provenance."""
-    lines = [
-        "# Egregora Demo",
-        "",
-        "This site is generated automatically from a deterministic demo dataset.",
-        "",
-        f"- Generated: {build_timestamp}",
-        f"- Commit: {build_commit}",
-        f"- Workflow: {build_workflow_url}",
-        "",
-        "Explore the latest posts in the demo blog.",
-    ]
-    (docs_dir / "index.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    """Inject build provenance into the demo homepage without clobbering content."""
+    if not index_path.exists():
+        return
+    content = index_path.read_text(encoding="utf-8")
+    marker_start = "<!-- demo-build-info:start -->"
+    marker_end = "<!-- demo-build-info:end -->"
+    block = "\n".join(
+        [
+            marker_start,
+            "",
+            "> **Demo build**",
+            f"> - Generated: {build_timestamp}",
+            f"> - Commit: {build_commit}",
+            f"> - Workflow: {build_workflow_url}",
+            "",
+            marker_end,
+            "",
+        ]
+    )
+
+    if marker_start in content and marker_end in content:
+        pre, _rest = content.split(marker_start, 1)
+        _old, post = _rest.split(marker_end, 1)
+        content = f"{pre}{block}{post.lstrip()}"
+    else:
+        if content.startswith("---"):
+            parts = content.split("---", 2)
+            if len(parts) == 3:
+                header = f"---{parts[1]}---\n"
+                body = parts[2].lstrip("\n")
+                content = f"{header}\n{block}{body}"
+            else:
+                content = f"{block}{content}"
+        else:
+            content = f"{block}{content}"
+
+    index_path.write_text(content, encoding="utf-8")
 
 
 def main() -> int:
@@ -320,7 +344,6 @@ def main() -> int:
     build_timestamp = os.getenv("BUILD_TIMESTAMP", "Unknown")
     build_commit = os.getenv("BUILD_COMMIT", "Unknown")
     build_workflow_url = os.getenv("BUILD_WORKFLOW_URL", "")
-    _write_demo_homepage(docs_dir, build_timestamp, build_commit, build_workflow_url)
 
     _write_stub_file(
         docs_dir / "journal" / "index.md",
@@ -387,6 +410,8 @@ def main() -> int:
         if result.exc_info:
             raise result.exc_info[1]
         return result.exit_code
+
+    _inject_demo_build_info(docs_dir / "index.md", build_timestamp, build_commit, build_workflow_url)
 
     return 0
 
