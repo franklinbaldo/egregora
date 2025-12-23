@@ -88,34 +88,36 @@ class EloStore:
     def _ensure_tables(self) -> None:
         """Create ratings and history tables if they don't exist."""
         # Create ratings table with race condition handling
-        if "elo_ratings" not in self.storage.list_tables():
-            try:
+        try:
+            if "elo_ratings" not in self.storage.list_tables():
                 self.storage.ibis_conn.create_table(
                     "elo_ratings",
                     schema=ELO_RATINGS_SCHEMA,
                 )
                 logger.info("Created elo_ratings table")
-            except Exception as e:
-                # Table might have been created by another worker (race condition)
-                if "elo_ratings" not in self.storage.list_tables():
-                    # Only raise if table still doesn't exist
-                    raise
+        except Exception as e:
+            # Verify table exists (might have been created by another worker during race)
+            if "elo_ratings" in self.storage.list_tables():
                 logger.debug("elo_ratings table already exists (race condition): %s", e)
+            else:
+                # Table doesn't exist and creation failed - this is a real error
+                raise RuntimeError(f"Failed to create elo_ratings table: {e}") from e
 
         # Create comparison history table with race condition handling
-        if "comparison_history" not in self.storage.list_tables():
-            try:
+        try:
+            if "comparison_history" not in self.storage.list_tables():
                 self.storage.ibis_conn.create_table(
                     "comparison_history",
                     schema=COMPARISON_HISTORY_SCHEMA,
                 )
                 logger.info("Created comparison_history table")
-            except Exception as e:
-                # Table might have been created by another worker (race condition)
-                if "comparison_history" not in self.storage.list_tables():
-                    # Only raise if table still doesn't exist
-                    raise
+        except Exception as e:
+            # Verify table exists (might have been created by another worker during race)
+            if "comparison_history" in self.storage.list_tables():
                 logger.debug("comparison_history table already exists (race condition): %s", e)
+            else:
+                # Table doesn't exist and creation failed - this is a real error
+                raise RuntimeError(f"Failed to create comparison_history table: {e}") from e
 
     def get_rating(self, post_slug: str) -> EloRating:
         """Get current ELO rating for a post.
