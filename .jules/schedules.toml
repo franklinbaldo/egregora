@@ -31,3 +31,6 @@ sheriff      = "0 16 * * *" # 16:00 - 🤠 Test Stability
 
 # --- 🌙 Evening (UTC) ---
 weaver       = "0 22 * * *" # 22:00 - 🕸️ Integration Build
+
+# --- 🚨 Manual / Trigger-only Agents ---
+# pruner = "manual"  # 🪓 Dead Code Elimination

@@ -26,6 +26,7 @@ This directory contains the definitions and memory for the autonomous agents (pe
 | 🧑‍🌾 | **Shepherd** | Test Engineer | Coverage & Behavior |
 | 🤠 | **Sheriff** | Build Cop | Test Stability & Flakes |
 | 🔧 | **Refactor** | Developer | Linting & TDD |
+| 🪓 | **Pruner** | Eliminator | Dead Code Removal |
 | 🕸️ | **Weaver** | Integrator | PR Merging & Builds |
 | ⚡ | **Bolt** | Perf. Engineer | Optimization |
 | 🏗️ | **Builder** | Architect | Data & Schema |
