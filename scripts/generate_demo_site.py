@@ -199,12 +199,17 @@ def _patch_pipeline_for_offline_demo() -> None:
 def _rewrite_site_url(mkdocs_config_path: Path, site_url: str) -> None:
     if not mkdocs_config_path.exists():
         return
-    with mkdocs_config_path.open("r", encoding="utf-8") as f:
-        # Use safe_yaml_load to handle custom tags like !ENV or emojis
-        data = safe_yaml_load(f.read()) or {}
-    data["site_url"] = site_url
-    with mkdocs_config_path.open("w", encoding="utf-8") as f:
-        yaml.safe_dump(data, f, sort_keys=False)
+    text = mkdocs_config_path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    replaced = False
+    for idx, line in enumerate(lines):
+        if line.startswith("site_url:"):
+            lines[idx] = f"site_url: {site_url}"
+            replaced = True
+            break
+    if not replaced:
+        lines.insert(0, f"site_url: {site_url}")
+    mkdocs_config_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _update_demo_config(config_path: Path, max_windows: int) -> None:
