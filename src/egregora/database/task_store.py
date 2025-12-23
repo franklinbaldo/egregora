@@ -37,7 +37,14 @@ class TaskStore:
     def _ensure_table(self) -> None:
         """Create the tasks table if it was dropped or the database was rebuilt."""
         if "tasks" not in self.storage.list_tables():
-            self.storage.ibis_conn.create_table("tasks", schema=TASKS_SCHEMA)
+            try:
+                self.storage.ibis_conn.create_table("tasks", schema=TASKS_SCHEMA)
+            except Exception:
+                # Table might have been created by another worker (race condition)
+                if "tasks" not in self.storage.list_tables():
+                    # Only raise if table still doesn't exist
+                    raise
+                # Table exists now, continue
 
     def enqueue(self, task_type: str, payload: dict[str, Any], run_id: uuid.UUID) -> str:
         """Add a new task to the queue.

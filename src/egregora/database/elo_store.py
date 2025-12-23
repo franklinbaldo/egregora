@@ -87,21 +87,35 @@ class EloStore:
 
     def _ensure_tables(self) -> None:
         """Create ratings and history tables if they don't exist."""
-        # Create ratings table
+        # Create ratings table with race condition handling
         if "elo_ratings" not in self.storage.list_tables():
-            self.storage.ibis_conn.create_table(
-                "elo_ratings",
-                schema=ELO_RATINGS_SCHEMA,
-            )
-            logger.info("Created elo_ratings table")
+            try:
+                self.storage.ibis_conn.create_table(
+                    "elo_ratings",
+                    schema=ELO_RATINGS_SCHEMA,
+                )
+                logger.info("Created elo_ratings table")
+            except Exception as e:
+                # Table might have been created by another worker (race condition)
+                if "elo_ratings" not in self.storage.list_tables():
+                    # Only raise if table still doesn't exist
+                    raise
+                logger.debug("elo_ratings table already exists (race condition): %s", e)
 
-        # Create comparison history table
+        # Create comparison history table with race condition handling
         if "comparison_history" not in self.storage.list_tables():
-            self.storage.ibis_conn.create_table(
-                "comparison_history",
-                schema=COMPARISON_HISTORY_SCHEMA,
-            )
-            logger.info("Created comparison_history table")
+            try:
+                self.storage.ibis_conn.create_table(
+                    "comparison_history",
+                    schema=COMPARISON_HISTORY_SCHEMA,
+                )
+                logger.info("Created comparison_history table")
+            except Exception as e:
+                # Table might have been created by another worker (race condition)
+                if "comparison_history" not in self.storage.list_tables():
+                    # Only raise if table still doesn't exist
+                    raise
+                logger.debug("comparison_history table already exists (race condition): %s", e)
 
     def get_rating(self, post_slug: str) -> EloRating:
         """Get current ELO rating for a post.
