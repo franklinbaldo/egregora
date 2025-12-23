@@ -2,8 +2,6 @@
 
 from datetime import UTC, date, datetime, timedelta, timezone
 
-import pytest
-
 from egregora.utils.datetime_utils import parse_datetime_flexible
 
 

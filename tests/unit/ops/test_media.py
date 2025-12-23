@@ -1,4 +1,5 @@
 """Tests for egregora.ops.media."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -15,7 +16,11 @@ def test_media_replacer_image():
         "image.jpg": Document(
             content=b"",
             type=DocumentType.MEDIA,
-            metadata={"media_type": "image", "public_url": "/media/images/image.jpg", "filename": "image.jpg"},
+            metadata={
+                "media_type": "image",
+                "public_url": "/media/images/image.jpg",
+                "filename": "image.jpg",
+            },
         )
     }
     replacer = MediaReplacer(media_mapping)
