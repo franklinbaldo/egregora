@@ -17,6 +17,7 @@ This directory contains the definitions and memory for the autonomous agents (pe
 
 | Emoji | Name | Role | Focus |
 | :---: | :--- | :--- | :--- |
+| 📉 | **Simplifier** | Reducer | Complexity Reduction, Inlining |
 | 🔮 | **Visionary** | Strategist | Moonshots, RFCs, Innovation |
 | 🎭 | **Curator** | UX Designer | User Experience, Blog Evaluation |
 | 🧹 | **Janitor** | Hygienist | Code Cleanup, Technical Debt |

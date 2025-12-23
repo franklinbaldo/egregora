@@ -12,6 +12,9 @@
 # So the first field (minute) must be "0" or "*" to ever match.
 
 [schedules]
+# --- ⏱️ Hourly ---
+simplifier   = "0 * * * *"  # 📉 Complexity Reduction
+
 # --- 🌅 Morning (UTC) ---
 curator      = "0 0 * * *"  # 00:00 - 🎭 UX Evaluation
 refactor     = "0 2 * * *"  # 02:00 - 🔧 Code Improvements
