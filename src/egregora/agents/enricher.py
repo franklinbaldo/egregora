@@ -31,6 +31,7 @@ from pydantic import BaseModel
 
 # UrlContextTool is the client-side fetcher (alias for WebFetchTool) suitable for pydantic-ai
 from pydantic_ai import Agent, UrlContextTool
+from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import BinaryContent
 
 from egregora.config.settings import EnrichmentSettings
@@ -1275,7 +1276,7 @@ class EnrichmentWorker(BaseWorker):
         model = GoogleBatchModel(api_key=api_key, model_name=model_name)
         try:
             return asyncio.run(model.run_batch(requests))
-        except Exception as batch_exc:
+        except (UsageLimitExceeded, ModelHTTPError) as batch_exc:
             # Batch failed (likely quota exceeded) - fallback to individual calls
             logger.warning(
                 "Batch API failed (%s), falling back to individual calls for %d requests",
