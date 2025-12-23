@@ -33,7 +33,12 @@ from rich.panel import Panel
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.config import RuntimeContext, load_egregora_config
-from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
+from egregora.config.settings import (
+    EgregoraConfig,
+    is_demo_mode,
+    parse_date_arg,
+    validate_timezone,
+)
 from egregora.constants import SourceType, WindowUnit
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database import initialize_database
@@ -42,6 +47,7 @@ from egregora.database.run_store import RunStore
 from egregora.database.task_store import TaskStore
 from egregora.database.utils import resolve_db_uri
 from egregora.init import ensure_mkdocs_project
+from egregora.testing.mock_client import MockGeminiClient
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
@@ -614,6 +620,10 @@ def _create_gemini_client() -> genai.Client:
     Model/Key rotator to handle it immediately (Story 8).
     We still retry 503 (Service Unavailable).
     """
+    if is_demo_mode():
+        logger.info("DEMO MODE: Using mock Gemini client.")
+        return MockGeminiClient()
+
     http_options = genai.types.HttpOptions(
         retryOptions=genai.types.HttpRetryOptions(
             attempts=3,  # Reduced from 15

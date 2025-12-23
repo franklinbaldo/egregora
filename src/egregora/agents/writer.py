@@ -10,6 +10,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -50,6 +51,7 @@ from egregora.agents.writer_setup import (
     create_writer_model,
     setup_writer_agent,
 )
+from egregora.config.settings import is_demo_mode
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.infra.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.knowledge.profiles import get_active_authors
@@ -758,6 +760,10 @@ async def _execute_writer_with_error_handling(
     except Exception as exc:
         if isinstance(exc, PromptTooLargeError):
             raise
+
+        if is_demo_mode():
+            logger.warning("DEMO MODE: Writer agent failed but we are ignoring it.")
+            return [], []
 
         msg = f"Writer agent failed for {deps.window_label}"
         logger.exception(msg)
