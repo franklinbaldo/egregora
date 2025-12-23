@@ -12,24 +12,22 @@
 # So the first field (minute) must be "0" or "*" to ever match.
 
 [schedules]
-# --- 🌅 Daily Routine ---
-curator = "0 0 * * *"       # Daily at 00:00 UTC (UX Review)
-janitor = "0 8 * * *"       # Daily at 08:00 UTC (Hygiene)
-weaver = "0 8 * * *"        # Daily at 08:00 UTC (Integration Build)
+# --- 🌅 Morning (UTC) ---
+curator      = "0 0 * * *"  # 00:00 - 🎭 UX Evaluation
+refactor     = "0 2 * * *"  # 02:00 - 🔧 Code Improvements
+bolt         = "0 4 * * *"  # 04:00 - ⚡ Performance Check
+sentinel     = "0 5 * * *"  # 05:00 - 🛡️ Security Audit
+builder      = "0 6 * * *"  # 06:00 - 🏗️ Data Architecture
+shepherd     = "0 7 * * *"  # 07:00 - 🧑‍🌾 Test Coverage
+janitor      = "0 8 * * *"  # 08:00 - 🧹 Code Hygiene
+docs_curator = "0 9 * * *"  # 09:00 - 📚 Docs Gardening
+artisan      = "0 10 * * *" # 10:00 - 🔨 Code Craftsmanship
+palette      = "0 11 * * *" # 11:00 - 🎨 Design System
 
-# --- 🗓️ Weekly Routine ---
-docs_curator = "0 9 * * 1"  # Mondays at 09:00 UTC (Docs Audit)
-artisan = "0 10 * * 2"      # Tuesdays at 10:00 UTC (Quality Refactor)
+# --- ☀️ Afternoon (UTC) ---
+scribe       = "0 12 * * *" # 12:00 - ✍️ Technical Writing
+forge        = "0 14 * * *" # 14:00 - ⚒️ Feature Implementation
+sheriff      = "0 16 * * *" # 16:00 - 🤠 Test Stability
 
-# --- 🚨 Manual / Trigger-only Agents ---
-# These run only when manually dispatched or triggered by specific events.
-#
-# shepherd  = "manual"  # Test Coverage
-# forge     = "manual"  # Feature Implementation
-# refactor  = "manual"  # Lint Fixing
-# bolt      = "manual"  # Performance
-# builder   = "manual"  # Data Architecture
-# palette   = "manual"  # Design System
-# scribe    = "manual"  # Technical Writing
-# sentinel  = "manual"  # Security Audit
-# sheriff   = "manual"  # Test Stability
+# --- 🌙 Evening (UTC) ---
+weaver       = "0 22 * * *" # 22:00 - 🕸️ Integration Build
