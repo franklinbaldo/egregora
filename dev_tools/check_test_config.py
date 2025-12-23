@@ -47,6 +47,7 @@ def check_file(file_path: Path) -> list[str]:
 
 
 def main() -> int:
+    """Runs the pre-commit hook to check all test files for violations."""
     test_files = Path("tests").rglob("test_*.py")
     all_errors = []
 

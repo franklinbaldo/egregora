@@ -26,6 +26,15 @@ MIN_DOCS_FOR_CLUSTERING = 5
 
 
 def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) -> int:
+    """Generates a semantic taxonomy from the content.
+
+    Args:
+        output_sink: The output sink to use for persisting documents.
+        config: The Egregora configuration.
+
+    Returns:
+        The number of documents updated with new tags.
+    """
     try:
         from sklearn.cluster import KMeans
     except ModuleNotFoundError as exc:

@@ -15,9 +15,9 @@ def con():
 def test_normalize_smart_quotes(con):
     """Verify that smart quotes are replaced with standard quotes via Ibis."""
     test_cases = {
-        "‘Hello’ “World”": "'Hello' \"World\"",
-        "’Tis a test’": "'Tis a test'",
-        "“Straight quotes are fine”": "\"Straight quotes are fine\"",
+        "\u2018Hello\u2019 \u201cWorld\u201d": "'Hello' \"World\"",
+        "\u2019Tis a test\u2019": "'Tis a test'",
+        "\u201cStraight quotes are fine\u201d": "\"Straight quotes are fine\"",
         "No quotes here": "No quotes here",
         None: None,  # A None input should result in a None output
     }

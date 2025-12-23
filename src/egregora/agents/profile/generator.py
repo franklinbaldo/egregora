@@ -54,6 +54,7 @@ except ImportError:
     from typing import Any
 
     def get_profile_history_for_context(*args: Any, **kwargs: Any) -> str:
+        """Graceful fallback if profile history module not available."""
         return ""
 
 
