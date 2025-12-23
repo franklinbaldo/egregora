@@ -17,3 +17,12 @@ A primary goal of the UX vision is to ensure all generated blogs are highly read
 1.  **Optimal Font Size**: The base font size for body content should be `1.1rem` (approximately 18px). This is slightly larger than the default for most browsers and themes, providing a more comfortable reading experience and reducing eye strain.
 
 2.  **Optimal Line Length**: The main content width will be capped at a maximum of `75ch`. This ensures that lines of text do not become excessively long on wide screens, which can make it difficult for the reader's eye to track from one line to the next. This range is widely accepted as the optimal line length for readability.
+
+## Current Status (2024-07-26)
+
+Based on a static analysis of the codebase, the following UX features have been implemented:
+
+*   **Core Readability**: The CSS for `font-size` and `max-width` has been implemented in `src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`.
+*   **Navigation**: The `mkdocs.yml.jinja` template enables the `navigation.path` (breadcrumbs) and `navigation.tracking` (active state) features of the Material for MkDocs theme.
+
+The `egregora demo` command is currently broken, which prevents a live inspection and Lighthouse audit. A high-priority task has been created to fix this issue. Once the demo command is working, a baseline Lighthouse score will be established and recorded here.
