@@ -274,7 +274,7 @@ class StandardUrlConvention(UrlConvention):
             return self._join(ctx, clean_path, trailing_slash=False)
 
         # Legacy/Fallback: Infer subdirectory from extension
-        from egregora.ops.media import get_media_subfolder
+        from egregora.orchestration.pipelines.modules.media import get_media_subfolder
 
         filename = document.metadata.get("filename")
         path_segment = filename or f"{document.document_id}"
