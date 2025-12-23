@@ -2,7 +2,6 @@
 title: "Refactor Demo Generation to use Offline Cache"
 id: "refactor-demo-cache"
 enabled: true
-schedule: ""
 branch: "claude/reconcile-pr-1371-0ga0G"
 automation_mode: "AUTO_COMMIT"
 require_plan_approval: true

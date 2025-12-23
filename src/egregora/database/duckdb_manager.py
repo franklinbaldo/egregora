@@ -337,7 +337,8 @@ class DuckDBStorageManager:
         max_value = int(max_row[0])
         state = self.get_sequence_state(sequence_name)
         if state is None:
-            raise RuntimeError(f"Sequence '{sequence_name}' not found")
+            msg = f"Sequence '{sequence_name}' not found"
+            raise RuntimeError(msg)
 
         current_next = state.next_value
         desired_next = max(max_value + 1, current_next)
@@ -367,7 +368,8 @@ class DuckDBStorageManager:
                     "SELECT nextval('{}')".format(sequence_name.replace("'", "''"))
                 )
                 if row is None:
-                    raise RuntimeError(f"Failed to fetch next value for sequence '{sequence_name}'")
+                    msg = f"Failed to fetch next value for sequence '{sequence_name}'"
+                    raise RuntimeError(msg)
                 results.append(int(row[0]))
             return results
 

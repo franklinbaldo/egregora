@@ -289,6 +289,7 @@ def run_cli_flow(
     force: bool = False,
     debug: bool = False,
     options: str | None = None,
+    is_demo: bool = False,
 ) -> None:
     """Execute the write flow from CLI arguments."""
     cli_values = {
@@ -386,6 +387,7 @@ def run_cli_flow(
             source_type=parsed_options.source.value,
             input_path=runtime.input_file,
             refresh="all" if parsed_options.force else parsed_options.refresh,
+            is_demo=is_demo,
         )
         run(run_params)
         console.print("[green]Processing completed successfully.[/green]")
@@ -681,6 +683,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
         profiles_dir=site_paths.profiles_dir,
         media_dir=site_paths.media_dir,
         url_context=url_ctx,
+        is_demo=run_params.is_demo,
     )
 
     state = PipelineState(
@@ -1140,7 +1143,7 @@ def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
             tagged_count = generate_semantic_taxonomy(dataset.context.output_format, dataset.context.config)
             if tagged_count > 0:
                 logger.info("[green]✓ Applied semantic tags to %d posts[/]", tagged_count)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # Non-critical failure
             logger.warning("Auto-taxonomy failed: %s", e)
 

@@ -14,3 +14,8 @@
 **Confusion:** `docs/getting-started/installation.md` instructed users to run `uv sync --extra docs`, which doesn't exist. `docs/getting-started/quickstart.md` was missing required MkDocs plugins in the `uvx` command, causing local preview to fail.
 **Discovery:** The correct extra is `dev` (which contains MkDocs plugins). The `quickstart.md` command was missing `mkdocs-macros-plugin`, `mkdocs-rss-plugin`, and `mkdocs-glightbox`.
 **Resolution:** Corrected the installation instruction to use `--extra dev` (or reliance on dev dependencies) and updated the quickstart `uvx` command to include all necessary plugins.
+
+## 2025-05-18 - Broken Internal Documentation Links
+**Confusion:** `docs/reference.md` and several guides contained broken links to non-existent sections (`api/orchestration`, `development/structure.md`, etc.), causing build warnings and dead ends for users.
+**Discovery:** The documentation structure had drifted from the actual file layout. Many "development" docs were missing or had been consolidated into `guide/architecture.md` or the root `CONTRIBUTING.md`.
+**Resolution:** Updated `docs/reference.md`, `docs/guide/architecture.md`, `docs/guide/generation.md`, and `docs/guide/privacy.md` to point to existing files or external GitHub resources where appropriate.

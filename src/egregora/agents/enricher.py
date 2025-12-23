@@ -26,7 +26,9 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
+import duckdb
 import httpx
+from google.api_core import exceptions as google_exceptions
 from ibis.common.exceptions import IbisError
 from pydantic import BaseModel
 
@@ -38,7 +40,10 @@ from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.models.google_batch import GoogleBatchModel
-from egregora.orchestration.pipelines.modules.media import extract_urls, find_media_references
+from egregora.orchestration.pipelines.modules.media import (
+    extract_urls,
+    find_media_references,
+)
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
@@ -162,8 +167,8 @@ async def fetch_url_with_jina(ctx: RunContext[Any], url: str) -> str:
             response = await client.get(jina_url, headers=headers, timeout=30.0)
             response.raise_for_status()
             return response.text
-        except Exception as e:
-            return f"Jina fetch failed: {e}"
+        except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+            return f"Jina fetch failed: {exc}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -347,9 +352,10 @@ def _enqueue_url_enrichments(
                 .execute()
             )
             existing_urls = set(db_existing["media_url"].tolist())
-        except Exception:
+        except (IbisError, ValueError) as exc:
             logger.warning(
-                "Failed to check database for existing URL enrichments; falling back to cache only."
+                "Failed to check database for existing URL enrichments; falling back to cache only: %s",
+                exc,
             )
 
     scheduled = 0
@@ -408,9 +414,10 @@ def _enqueue_media_enrichments(
                 .execute()
             )
             existing_media = set(db_existing["media_url"].tolist())
-        except Exception:
+        except (IbisError, ValueError) as exc:
             logger.warning(
-                "Failed to check database for existing Media enrichments; falling back to cache only."
+                "Failed to check database for existing Media enrichments; falling back to cache only: %s",
+                exc,
             )
 
     scheduled = 0
@@ -661,8 +668,8 @@ class EnrichmentWorker(BaseWorker):
                 for info in self.zip_handle.infolist():
                     if not info.is_dir():
                         self.media_index[Path(info.filename).name.lower()] = info.filename
-            except Exception:
-                logger.warning("Failed to open source ZIP %s", self.ctx.input_path)
+            except (OSError, zipfile.BadZipFile) as exc:
+                logger.warning("Failed to open source ZIP %s: %s", self.ctx.input_path, exc)
                 if self.zip_handle:
                     self.zip_handle.close()
                     self.zip_handle = None
@@ -686,7 +693,7 @@ class EnrichmentWorker(BaseWorker):
         if self.staging_dir:
             try:
                 self.staging_dir.cleanup()
-            except Exception:
+            except OSError:
                 logger.debug("Error cleaning up staging directory", exc_info=True)
             finally:
                 self.staging_dir = None
@@ -885,7 +892,7 @@ class EnrichmentWorker(BaseWorker):
             try:
                 logger.info("[URLEnricher] Using single-call batch mode for %d URLs", total)
                 return self._execute_url_single_call(tasks_data)
-            except Exception as single_call_exc:
+            except Exception as single_call_exc:  # noqa: BLE001
                 logger.warning(
                     "[URLEnricher] Single-call batch failed (%s), falling back to individual",
                     single_call_exc,
@@ -1201,7 +1208,7 @@ class EnrichmentWorker(BaseWorker):
                 for info in zf.infolist():
                     if not info.is_dir():
                         media_index[Path(info.filename).name.lower()] = info.filename
-            except Exception as exc:
+            except (OSError, zipfile.BadZipFile) as exc:
                 logger.warning("Failed to open source ZIP: %s", exc)
                 return None
 
@@ -1292,7 +1299,7 @@ class EnrichmentWorker(BaseWorker):
             try:
                 logger.info("[MediaEnricher] Using single-call batch mode for %d images", len(requests))
                 return self._execute_media_single_call(requests, task_map, model_name, api_key)
-            except Exception as single_call_exc:
+            except google_exceptions.GoogleAPICallError as single_call_exc:
                 logger.warning(
                     "[MediaEnricher] Single-call batch failed (%s), falling back to standard batch",
                     single_call_exc,
@@ -1302,7 +1309,7 @@ class EnrichmentWorker(BaseWorker):
         model = GoogleBatchModel(api_key=api_key, model_name=model_name)
         try:
             return asyncio.run(model.run_batch(requests))
-        except Exception as batch_exc:
+        except Exception as batch_exc:  # noqa: BLE001
             # Batch failed (likely quota exceeded) - fallback to individual calls
             logger.warning(
                 "Batch API failed (%s), falling back to individual calls for %d requests",
@@ -1486,7 +1493,7 @@ class EnrichmentWorker(BaseWorker):
                 results.append(result)
                 logger.info("[MediaEnricher] Processed %s via individual call", tag)
 
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.warning("[MediaEnricher] Individual call failed for %s: %s", tag, exc)
                 result = type(
                     "BatchResult",
@@ -1655,8 +1662,8 @@ class EnrichmentWorker(BaseWorker):
                     # Given filenames are usually unique (timestamps), this is safe.
                     query = f"UPDATE messages SET text = replace(text, '{safe_original}', '{safe_new}') WHERE text LIKE '%{safe_original}%'"
                     self.ctx.storage._conn.execute(query)
-                except Exception:
-                    logger.warning("Failed to update message references for %s", original_ref)
+                except duckdb.Error as exc:
+                    logger.warning("Failed to update message references for %s: %s", original_ref, exc)
 
             self.task_store.mark_completed(task["task_id"])
 
@@ -1664,7 +1671,7 @@ class EnrichmentWorker(BaseWorker):
             try:
                 self.ctx.storage.ibis_conn.insert("messages", new_rows)
                 logger.info("Inserted %d media enrichment rows", len(new_rows))
-            except Exception:
+            except (IbisError, duckdb.Error):
                 logger.exception("Failed to insert media enrichment rows")
 
         return len(results)

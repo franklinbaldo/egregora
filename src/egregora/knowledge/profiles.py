@@ -5,7 +5,7 @@
 Egregora has two distinct but complementary profile systems:
 
 ### 1. Author Self-Service Profiles (this module)
-- Location: `output/profiles/{author_uuid}.md`
+- Location: `output/profiles/{slug}.md` (formerly `{author_uuid}.md`)
 - Purpose: Store author metadata and preferences (aliases, bios, avatars)
 - Created by: User commands (/egregora set alias, set bio, etc.)
 - Format: Markdown files with YAML frontmatter
@@ -32,6 +32,7 @@ to ensure they route to `/posts/profiles/{author_uuid}/` instead of `/posts/`.
 This is validated by `validate_profile_document()` in orchestration/persistence.py.
 """
 
+import contextlib
 import hashlib
 import logging
 import re
@@ -41,6 +42,8 @@ from typing import Annotated, Any
 
 import ibis.expr.types as ir
 import yaml
+
+from egregora_v3.core.utils import slugify
 
 logger = logging.getLogger(__name__)
 MAX_ALIAS_LENGTH = 40
@@ -154,6 +157,100 @@ AVATAR_HAIR_COLORS = [
 ]
 
 
+def _get_uuid_from_profile(profile_path: Path) -> str | None:
+    """Extract UUID from profile frontmatter."""
+    if not profile_path.exists():
+        return None
+
+    # The test creates profiles in nested directories, so the UUID is the parent directory name
+    if profile_path.parent.name != "profiles":
+        return profile_path.parent.name
+
+    with contextlib.suppress(OSError, UnicodeError, ValueError, TypeError):
+        content = profile_path.read_text(encoding="utf-8")
+        metadata = _parse_frontmatter(content)
+        if "uuid" in metadata:
+            return str(metadata["uuid"])
+        # Fallback for legacy files where filename IS the uuid
+        stem = profile_path.stem
+        # Basic heuristic: UUID is 36 chars (with dashes) or 32 (hex)
+        if len(stem) in (32, 36) and all(c in "0123456789abcdefABCDEF-" for c in stem):
+            return stem
+    return None
+
+
+def _find_profile_path(
+    author_uuid: str,
+    profiles_dir: Path,
+) -> Path | None:
+    """Find profile file for a given UUID, scanning directory if needed."""
+    # Fast path: check if {uuid}.md exists (legacy or default)
+    legacy_path = profiles_dir / f"{author_uuid}.md"
+    if legacy_path.exists():
+        return legacy_path
+
+    # Scan directory
+    if not profiles_dir.exists():
+        return None
+
+    for path in profiles_dir.glob("*.md"):
+        if path.name == "index.md":
+            continue
+        if _get_uuid_from_profile(path) == author_uuid:
+            return path
+
+    return None
+
+
+def _determine_profile_path(
+    author_uuid: str,
+    metadata: dict[str, Any],
+    profiles_dir: Path,
+    current_path: Path | None = None,
+) -> Path:
+    """Determine the correct filename for a profile based on alias/name."""
+    alias = metadata.get("alias")
+    name = metadata.get("name")
+
+    # Prefer alias, then name, then uuid
+    # Only use name if it's not the UUID itself
+    slug = slugify(alias) if alias else (slugify(name) if name and name != author_uuid else None)
+
+    if not slug:
+        return profiles_dir / f"{author_uuid}.md"
+
+    filename = f"{slug}.md"
+    target_path = profiles_dir / filename
+
+    # Check for collision
+    # If target exists and is not us, we have a collision
+    if target_path.exists() and (not current_path or target_path.resolve() != current_path.resolve()):
+        # Check ownership of the target file
+        other_uuid = _get_uuid_from_profile(target_path)
+        if other_uuid and other_uuid != author_uuid:
+            # Collision! Append counter until unique
+            counter = 1
+            while True:
+                new_filename = f"{slug}-{counter}.md"
+                target_path = profiles_dir / new_filename
+
+                # If this slot is free, take it
+                if not target_path.exists():
+                    break
+
+                # If it's us, take it
+                if current_path and target_path.resolve() == current_path.resolve():
+                    break
+
+                # If it belongs to someone else, keep incrementing
+                if _get_uuid_from_profile(target_path) != author_uuid:
+                    counter += 1
+                else:
+                    break
+
+    return target_path
+
+
 def read_profile(
     author_uuid: Annotated[str, "The UUID5 pseudonym of the author"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
@@ -169,10 +266,12 @@ def read_profile(
 
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
-    profile_path = profiles_dir / f"{author_uuid}.md"
-    if not profile_path.exists():
+    profile_path = _find_profile_path(author_uuid, profiles_dir)
+
+    if not profile_path:
         logger.info("No existing profile for %s", author_uuid)
         return ""
+
     logger.info("Reading profile for %s from %s", author_uuid, profile_path)
     return profile_path.read_text(encoding="utf-8")
 
@@ -194,13 +293,16 @@ def write_profile(
 
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
-    profile_path = profiles_dir / f"{author_uuid}.md"
+
+    # Find existing file to preserve identity/handle renames
+    existing_path = _find_profile_path(author_uuid, profiles_dir)
+    if existing_path:
+        metadata = _extract_profile_metadata(existing_path)
+    else:
+        metadata = {}
 
     if any(suspicious in content.lower() for suspicious in ["phone", "email", "@", "whatsapp", "real name"]):
         logger.warning("Profile for %s contains suspicious content", author_uuid)
-
-    # Extract metadata from existing profile if it exists
-    metadata = _extract_profile_metadata(profile_path) if profile_path.exists() else {}
 
     # Create front-matter with metadata
     front_matter = {
@@ -240,21 +342,32 @@ def write_profile(
         profile_body = "![Avatar]({{ page.meta.avatar }}){ align=left width=150 }\n\n" + profile_body
 
     full_profile = f"---\n{yaml_front}---\n\n{profile_body}"
-    profile_path.write_text(full_profile, encoding="utf-8")
 
-    logger.info("Saved profile for %s to %s", author_uuid, profile_path)
+    # Determine filename
+    target_path = _determine_profile_path(author_uuid, front_matter, profiles_dir, current_path=existing_path)
 
-    # Update .authors.yml for MkDocs blog plugin
-    # Also use fallback for authors.yml if needed
+    target_path.write_text(full_profile, encoding="utf-8")
+    logger.info("Saved profile for %s to %s", author_uuid, target_path)
+
+    # Clean up old file if renamed
+    if existing_path and existing_path.resolve() != target_path.resolve():
+        try:
+            existing_path.unlink()
+            logger.info("Renamed profile from %s to %s", existing_path.name, target_path.name)
+        except OSError as e:
+            logger.warning("Failed to delete old profile %s: %s", existing_path, e)
+
+    # Update .authors.yml
     if "avatar" not in front_matter and avatar_url:
-        # Create a copy for authors.yml that includes the fallback
         front_matter_for_authors = front_matter.copy()
         front_matter_for_authors["avatar"] = avatar_url
-        _update_authors_yml(profiles_dir.parent, author_uuid, front_matter_for_authors)
+        _update_authors_yml(
+            profiles_dir.parent, author_uuid, front_matter_for_authors, filename=target_path.name
+        )
     else:
-        _update_authors_yml(profiles_dir.parent, author_uuid, front_matter)
+        _update_authors_yml(profiles_dir.parent, author_uuid, front_matter, filename=target_path.name)
 
-    return str(profile_path)
+    return str(target_path)
 
 
 def generate_fallback_avatar_url(author_uuid: str) -> str:
@@ -484,11 +597,21 @@ def apply_command_to_profile(
 
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
-    profile_path = profiles_dir / f"{author_uuid}.md"
-    if profile_path.exists():
+
+    # Locate existing profile using flexible lookup
+    profile_path = _find_profile_path(author_uuid, profiles_dir)
+
+    if profile_path:
         content = profile_path.read_text(encoding="utf-8")
+        # Ensure header/frontmatter exists for consistency
+        # If it's a legacy file without frontmatter, we might want to add it eventually
+        # But _extract_profile_metadata handles parsing, so it's okay for now.
     else:
-        content = f"# Profile: {author_uuid}\n\n"
+        # Create new profile with required frontmatter
+        front_matter = {"uuid": author_uuid, "subject": author_uuid}
+        content = f"---\n{yaml.dump(front_matter)}---\n\n# Profile: {author_uuid}\n\n"
+        # Temporary path, will be determined correctly upon save
+        profile_path = profiles_dir / f"{author_uuid}.md"
 
     cmd_type = command["command"]
     target = command["target"]
@@ -501,8 +624,30 @@ def apply_command_to_profile(
     content = _handle_simple_set_command(cmd_type, target, value, ctx)
     content = _handle_privacy_command(cmd_type, author_uuid, timestamp, content)
 
-    profile_path.write_text(content, encoding="utf-8")
-    return str(profile_path)
+    # Now decide where to save it
+    # We must extract metadata from the NEW content to know if alias changed
+    metadata = _parse_frontmatter(content)
+    # Also parse legacy sections (like ## Display Preferences) to get alias
+    _extract_legacy_metadata(content, metadata)
+
+    target_path = _determine_profile_path(
+        author_uuid, metadata, profiles_dir, current_path=profile_path if profile_path.exists() else None
+    )
+
+    target_path.write_text(content, encoding="utf-8")
+
+    # Rename/Cleanup
+    if profile_path and profile_path.exists() and profile_path.resolve() != target_path.resolve():
+        try:
+            profile_path.unlink()
+            logger.info("Renamed profile from %s to %s", profile_path.name, target_path.name)
+        except OSError:
+            pass
+
+    # Update .authors.yml
+    _update_authors_yml(profiles_dir.parent, author_uuid, metadata, filename=target_path.name)
+
+    return str(target_path)
 
 
 def _update_profile_metadata(content: str, section_name: str, _key: str, new_value: str) -> str:
@@ -609,8 +754,8 @@ def get_opted_out_authors(
         return set()
     opted_out = set()
     for profile_path in profiles_dir.glob("*.md"):
-        author_uuid = profile_path.stem
-        if is_opted_out(author_uuid, profiles_dir):
+        author_uuid = _get_uuid_from_profile(profile_path)
+        if author_uuid and is_opted_out(author_uuid, profiles_dir):
             opted_out.add(author_uuid)
     return opted_out
 
@@ -672,18 +817,42 @@ def update_profile_avatar(
 
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
-    profile_path = profiles_dir / f"{author_uuid}.md"
-    if profile_path.exists():
+    profile_path = _find_profile_path(author_uuid, profiles_dir)
+
+    if profile_path:
         content = profile_path.read_text(encoding="utf-8")
     else:
-        content = f"# Profile: {author_uuid}\n\n"
+        # Create new
+        front_matter = {"uuid": author_uuid, "subject": author_uuid}
+        content = f"---\n{yaml.dump(front_matter)}---\n\n# Profile: {author_uuid}\n\n"
+        profile_path = profiles_dir / f"{author_uuid}.md"
 
     avatar_content = f"- URL: {avatar_url}\n- Set on: {timestamp}"
     logger.info("✅ Avatar set for %s: %s", author_uuid, avatar_url)
 
     content = _update_profile_metadata(content, "Avatar", "avatar", avatar_content)
-    profile_path.write_text(content, encoding="utf-8")
-    return str(profile_path)
+
+    # Check if we need to rename (metadata logic relies on content having the info)
+    # But update_profile_avatar only changes content
+    # If filename is uuid, it stays uuid. If alias is set, it might stay slug.
+    # We should re-eval filename just in case
+    metadata = _parse_frontmatter(content)
+    _extract_legacy_metadata(content, metadata)
+
+    target_path = _determine_profile_path(
+        author_uuid, metadata, profiles_dir, current_path=profile_path if profile_path.exists() else None
+    )
+
+    target_path.write_text(content, encoding="utf-8")
+
+    if profile_path and profile_path.exists() and profile_path.resolve() != target_path.resolve():
+        with contextlib.suppress(OSError):
+            profile_path.unlink()
+
+    # Update .authors.yml
+    _update_authors_yml(profiles_dir.parent, author_uuid, metadata, filename=target_path.name)
+
+    return str(target_path)
 
 
 def remove_profile_avatar(
@@ -703,16 +872,34 @@ def remove_profile_avatar(
 
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
-    profile_path = profiles_dir / f"{author_uuid}.md"
-    if profile_path.exists():
+    profile_path = _find_profile_path(author_uuid, profiles_dir)
+
+    if profile_path:
         content = profile_path.read_text(encoding="utf-8")
     else:
-        content = f"# Profile: {author_uuid}\n\n"
+        front_matter = {"uuid": author_uuid, "subject": author_uuid}
+        content = f"---\n{yaml.dump(front_matter)}---\n\n# Profile: {author_uuid}\n\n"
+        profile_path = profiles_dir / f"{author_uuid}.md"
+
     avatar_content = f"- Status: None (removed on {timestamp})"
     content = _update_profile_metadata(content, "Avatar", "avatar", avatar_content)
-    profile_path.write_text(content, encoding="utf-8")
+
+    # Save
+    metadata = _extract_profile_metadata(profile_path) if profile_path.exists() else {}
+    target_path = _determine_profile_path(
+        author_uuid, metadata, profiles_dir, current_path=profile_path if profile_path.exists() else None
+    )
+    target_path.write_text(content, encoding="utf-8")
+
+    if profile_path and profile_path.exists() and profile_path.resolve() != target_path.resolve():
+        with contextlib.suppress(OSError):
+            profile_path.unlink()
+
+    # Update .authors.yml
+    _update_authors_yml(profiles_dir.parent, author_uuid, metadata, filename=target_path.name)
+
     logger.info("Removed avatar for %s", author_uuid)
-    return str(profile_path)
+    return str(target_path)
 
 
 def _parse_frontmatter(content: str) -> dict[str, Any]:
@@ -779,13 +966,16 @@ def _extract_profile_metadata(profile_path: Path) -> dict[str, Any]:
     return metadata
 
 
-def _update_authors_yml(site_root: Path, author_uuid: str, front_matter: dict[str, Any]) -> None:
+def _update_authors_yml(
+    site_root: Path, author_uuid: str, front_matter: dict[str, Any], filename: str | None = None
+) -> None:
     """Update or create .authors.yml for MkDocs blog plugin.
 
     Args:
         site_root: Site root directory (profiles parent)
         author_uuid: Author UUID
         front_matter: Profile front-matter dict
+        filename: The actual filename of the profile (e.g. 'franklin.md')
 
     """
     authors_yml_path = site_root / ".authors.yml"
@@ -820,12 +1010,15 @@ def _update_authors_yml(site_root: Path, author_uuid: str, front_matter: dict[st
         author_entry.update(dict(front_matter["social"].items()))
 
     # URL to profile page (relative to docs root)
-    # ADR-002: profiles live under posts/profiles/{author_uuid}/{slug}.md
-    slug = front_matter.get("slug")
-    if isinstance(slug, str) and slug.strip():
-        author_entry["url"] = f"posts/profiles/{author_uuid}/{slug}.md"
+    if filename:
+        author_entry["url"] = f"profiles/{filename}"
     else:
-        author_entry["url"] = f"profiles/{author_uuid}.md"
+        # Fallback logic if filename not provided
+        slug = front_matter.get("slug")
+        if isinstance(slug, str) and slug.strip():
+            author_entry["url"] = f"posts/profiles/{author_uuid}/{slug}.md"
+        else:
+            author_entry["url"] = f"profiles/{author_uuid}.md"
 
     # Update authors dict
     authors[author_uuid] = author_entry
@@ -847,7 +1040,9 @@ def _build_author_entry(
     url: str | None = None,
 ) -> dict:
     """Build an author entry dict from profile metadata."""
-    author_uuid = author_uuid or profile_path.stem
+    # If author_uuid not passed, try to get from metadata or filename(deprecated)
+    if not author_uuid:
+        author_uuid = str(metadata.get("uuid", profile_path.stem))
 
     # Ensure we have a name (default to UUID if missing)
     name = metadata.get("name", metadata.get("alias", author_uuid))
@@ -856,7 +1051,7 @@ def _build_author_entry(
     avatar = metadata.get("avatar", generate_fallback_avatar_url(author_uuid))
 
     # Build entry
-    entry = {"name": metadata.get("alias", name), "url": url or f"profiles/{author_uuid}.md"}
+    entry = {"name": metadata.get("alias", name), "url": url or f"posts/profiles/{author_uuid}/{profile_path.name}"}
     if "bio" in metadata:
         entry["description"] = metadata["bio"]
     entry["avatar"] = avatar
@@ -869,7 +1064,9 @@ def _build_author_entry(
 def _infer_docs_dir_from_profiles_dir(profiles_dir: Path) -> Path:
     """Return docs_dir given either legacy or posts-centric profiles_dir."""
     if profiles_dir.name == "profiles" and profiles_dir.parent.name == "posts":
+        # This handles the case where profiles_dir is docs/posts/profiles
         return profiles_dir.parent.parent
+    # This handles the case where profiles_dir is output/profiles
     return profiles_dir.parent
 
 
@@ -891,34 +1088,19 @@ def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
     authors = {}
 
     count = 0
-    author_dirs = [p for p in profiles_dir.iterdir() if p.is_dir()]
-    if author_dirs:
-        for author_dir in author_dirs:
-            candidates = [p for p in author_dir.glob("*.md") if p.name != "index.md"]
-            if not candidates:
-                continue
-            profile_path = max(candidates, key=lambda p: p.stat().st_mtime_ns)
-            try:
-                metadata = _extract_profile_metadata(profile_path)
-                relative_url = f"posts/profiles/{author_dir.name}/{profile_path.stem}.md"
-                entry = _build_author_entry(
-                    profile_path, metadata, author_uuid=author_dir.name, url=relative_url
-                )
-                authors[author_dir.name] = entry
+    for profile_path in profiles_dir.rglob("*.md"):
+        if profile_path.name == "index.md":
+            continue
+        try:
+            metadata = _extract_profile_metadata(profile_path)
+            author_uuid = _get_uuid_from_profile(profile_path)
+
+            if author_uuid:
+                entry = _build_author_entry(profile_path, metadata, author_uuid=author_uuid)
+                authors[author_uuid] = entry
                 count += 1
-            except (OSError, yaml.YAMLError) as e:
-                logger.warning("Failed to sync profile %s: %s", profile_path, e)
-    else:
-        for profile_path in profiles_dir.glob("*.md"):
-            if profile_path.name == "index.md":
-                continue
-            try:
-                metadata = _extract_profile_metadata(profile_path)
-                entry = _build_author_entry(profile_path, metadata)
-                authors[profile_path.stem] = entry
-                count += 1
-            except (OSError, yaml.YAMLError) as e:
-                logger.warning("Failed to sync profile %s: %s", profile_path, e)
+        except (OSError, yaml.YAMLError) as e:
+            logger.warning("Failed to sync profile %s: %s", profile_path, e)
 
     # Write complete file
     try:

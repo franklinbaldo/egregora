@@ -407,6 +407,7 @@ def demo(
         force=True,  # Always force a refresh for the demo
         debug=False,
         options=None,
+        is_demo=True,
     )
     console.print(
         Panel(

@@ -89,8 +89,8 @@ def test_demo_directory_is_up_to_date(tmp_path: Path):
     # Run the pipeline to generate the fresh demo
     try:
         run_write_pipeline(run_params)
-    except Exception as e:
-        pytest.fail(f"Demo site generation failed with an exception: {e}")
+    except Exception as exc:  # noqa: BLE001
+        pytest.fail(f"Demo site generation failed with an exception: {exc}")
 
     # Compare the generated demo with the committed one
     are_equal, report = are_dirs_equal(temp_demo_path, DEMO_DIR)
