@@ -13,3 +13,10 @@
 ## 2025-10-27 - [Regex Trie Optimization]
 **Learning:** Replacing a loop of M regex compilations and M searches (O(N*M)) with a single compiled regex using alternation `(a|b|c)` (O(N)) provided a 2200x speedup for text processing tasks. Python's regex engine optimizes alternations effectively.
 **Action:** When performing bulk string replacements from a dynamic dictionary, compile a single regex with alternation instead of looping. Use `re.compile(r"\b(" + "|".join(map(re.escape, keys)) + r")\b")`.
+## 2025-12-23 - [Path vs OS Path Performance]
+**Learning:** For high-frequency loops (like processing 100k+ media references), instantiating `pathlib.Path` objects just to check a suffix is significantly slower (~5x) than using `os.path.splitext`.
+**Action:** Use `os.path.splitext` for simple extension checks in hot paths, or pass strings instead of Path objects where rich Path functionality isn't needed.
+
+## 2025-12-23 - [Regex vs Translate Performance]
+**Learning:** `str.translate` is faster than `re.sub` for character removal ONLY if the string is empty of targets. If targets exist, `re.sub` (compiled) is 10x faster due to optimized C implementation for replacements vs Python string builder overhead.
+**Action:** Stick to compiled Regex for sanitization unless you are certain the 'happy path' (no replacements) is 99.9% of cases AND the penalty for the 'sad path' is acceptable.
