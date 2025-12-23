@@ -7,14 +7,13 @@ import tomli_w
 from typer.testing import CliRunner
 
 from egregora.cli.main import app
-from egregora.config.settings import EgregoraConfig
 
 # Create a CLI runner for testing
 runner = CliRunner()
 
 
 @pytest.fixture
-def mock_site_root(tmp_path: Path) -> Path:
+def mock_site_root(tmp_path: Path, config_factory) -> Path:
     """Creates a mock site root with the necessary config and directories."""
     site_root = tmp_path / "test_site"
     site_root.mkdir()
@@ -39,7 +38,7 @@ def mock_site_root(tmp_path: Path) -> Path:
     (site_root / ".egregora").mkdir()
 
     # The app expects .egregora.toml in the site root
-    config = EgregoraConfig()
+    config = config_factory()
     config.reader.enabled = True  # Enable the reader to reach the target code path
     config_path = site_root / ".egregora.toml"
 

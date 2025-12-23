@@ -425,7 +425,9 @@ class DuckDBStorageManager:
                     # We create empty table if not exists first, matching the jinja logic:
                     # CREATE TABLE IF NOT EXISTS ... AS SELECT * FROM ... WHERE 1=0;
                     # INSERT INTO ...
-                    sql_create = f"CREATE TABLE IF NOT EXISTS {quoted_name} AS SELECT * FROM read_parquet(?) WHERE 1=0"
+                    sql_create = (
+                        f"CREATE TABLE IF NOT EXISTS {quoted_name} AS SELECT * FROM read_parquet(?) WHERE 1=0"
+                    )
                     sql_insert = f"INSERT INTO {quoted_name} SELECT * FROM read_parquet(?)"
                     self._conn.execute(sql_create, [path_str])
                     sql = sql_insert

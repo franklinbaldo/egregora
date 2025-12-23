@@ -37,6 +37,7 @@ def test_register_writer_tools_registers_core_tools(mock_is_banner_available) ->
     register_writer_tools(agent, config)
 
     assert set(agent.tools.keys()) == CORE_TOOL_NAMES
+    mock_is_banner_available.assert_called_once()
 
 
 @patch("egregora.agents.writer_helpers.is_banner_generation_available", return_value=False)
@@ -48,5 +49,6 @@ def test_register_writer_tools_registers_rag_tools_if_enabled(mock_is_banner_ava
 
     register_writer_tools(agent, config)
 
-    assert "search_media" in agent.tools.keys()
-    assert CORE_TOOL_NAMES.issubset(agent.tools.keys())
+    assert "search_media" in agent.tools
+    assert CORE_TOOL_NAMES.issubset(agent.tools)
+    mock_is_banner_available.assert_called_once()

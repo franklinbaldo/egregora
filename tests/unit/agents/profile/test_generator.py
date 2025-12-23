@@ -25,9 +25,7 @@ async def test_generate_profile_content_handles_oserror_on_get_author_profile():
         new_callable=AsyncMock,
     ) as mock_llm:
         mock_llm.return_value = MagicMock(significant=False)
-        result = await _generate_profile_content(
-            ctx, [{"text": "message"}], "author_name", "author_uuid"
-        )
+        result = await _generate_profile_content(ctx, [{"text": "message"}], "author_name", "author_uuid")
         assert result is None
         ctx.output_format.get_author_profile.assert_called_once_with("author_uuid")
 
@@ -48,9 +46,7 @@ async def test_generate_profile_content_handles_yamlerror_on_get_author_profile(
         new_callable=AsyncMock,
     ) as mock_llm:
         mock_llm.return_value = MagicMock(significant=False)
-        result = await _generate_profile_content(
-            ctx, [{"text": "message"}], "author_name", "author_uuid"
-        )
+        result = await _generate_profile_content(ctx, [{"text": "message"}], "author_name", "author_uuid")
         assert result is None
         ctx.output_format.get_author_profile.assert_called_once_with("author_uuid")
 
@@ -65,17 +61,18 @@ async def test_generate_profile_content_handles_importerror_on_history():
     ctx.output_format.get_author_profile.return_value = None
     ctx.config.profile.history_window_size = 5
 
-    with patch(
-        "egregora.agents.profile.generator.get_profile_history_for_context",
-        side_effect=ImportError("Module not found"),
-    ), patch(
-        "egregora.agents.profile.generator._call_llm_decision",
-        new_callable=AsyncMock,
-    ) as mock_llm:
+    with (
+        patch(
+            "egregora.agents.profile.generator.get_profile_history_for_context",
+            side_effect=ImportError("Module not found"),
+        ),
+        patch(
+            "egregora.agents.profile.generator._call_llm_decision",
+            new_callable=AsyncMock,
+        ) as mock_llm,
+    ):
         mock_llm.return_value = MagicMock(significant=False)
-        result = await _generate_profile_content(
-            ctx, [{"text": "message"}], "author_name", "author_uuid"
-        )
+        result = await _generate_profile_content(ctx, [{"text": "message"}], "author_name", "author_uuid")
         assert result is None
 
 
@@ -96,10 +93,7 @@ async def test_generate_profile_posts_continues_on_exception():
         new_callable=AsyncMock,
     ) as mock_generate:
         # First author fails, second succeeds
-        mock_generate.side_effect = [
-            ValueError("Unexpected error"),
-            "# Profile Update"
-        ]
+        mock_generate.side_effect = [ValueError("Unexpected error"), "# Profile Update"]
         results = await generate_profile_posts(ctx, messages, "2024-01-01")
 
         # Assert that we have one successful profile and the error was handled.

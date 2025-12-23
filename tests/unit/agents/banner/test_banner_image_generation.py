@@ -79,9 +79,7 @@ def test_generate_banner_image_handles_api_error(monkeypatch):
 
     monkeypatch.setattr(agent, "GeminiImageGenerationProvider", FailingProvider)
 
-    request = ImageGenerationRequest(
-        prompt="prompt", response_modalities=["IMAGE"], aspect_ratio="1:1"
-    )
+    request = ImageGenerationRequest(prompt="prompt", response_modalities=["IMAGE"], aspect_ratio="1:1")
     input_data = BannerInput(post_title="Title", post_summary="Summary")
 
     # 2. Act
@@ -101,6 +99,7 @@ def test_generate_banner_image_handles_api_error(monkeypatch):
 
 def test_generate_banner_reraises_unexpected_errors(monkeypatch):
     """Test that the main `generate_banner` function reraises unexpected errors."""
+
     # 1. Arrange
     def mock_generate_banner_image(*args, **kwargs):
         raise ValueError("Something went wrong")
@@ -114,7 +113,9 @@ def test_generate_banner_reraises_unexpected_errors(monkeypatch):
 
     class MockConfig:
         models = MockModels()
-        image_generation = type("ImageGenerationSettings", (), {"response_modalities": ["IMAGE"], "aspect_ratio": "1:1"})()
+        image_generation = type(
+            "ImageGenerationSettings", (), {"response_modalities": ["IMAGE"], "aspect_ratio": "1:1"}
+        )()
 
     monkeypatch.setattr(agent, "EgregoraConfig", MockConfig)
 
@@ -125,6 +126,7 @@ def test_generate_banner_reraises_unexpected_errors(monkeypatch):
 
 def test_generate_banner_image_reraises_unexpected_errors(monkeypatch):
     """Test that unexpected (non-API) errors are not caught."""
+
     # 1. Arrange
     class FailingProvider:
         def __init__(self, *args, **kwargs):
@@ -136,9 +138,7 @@ def test_generate_banner_image_reraises_unexpected_errors(monkeypatch):
 
     monkeypatch.setattr(agent, "GeminiImageGenerationProvider", FailingProvider)
 
-    request = ImageGenerationRequest(
-        prompt="prompt", response_modalities=["IMAGE"], aspect_ratio="1:1"
-    )
+    request = ImageGenerationRequest(prompt="prompt", response_modalities=["IMAGE"], aspect_ratio="1:1")
     input_data = BannerInput(post_title="Title", post_summary="Summary")
 
     # 2. Act & Assert

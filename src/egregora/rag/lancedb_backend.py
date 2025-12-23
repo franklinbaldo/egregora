@@ -132,7 +132,7 @@ class LanceDBRAGBackend(VectorStore):
             else:
                 logger.info("Opening existing LanceDB table: %s", table_name)
                 self._table = self._db.open_table(table_name)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # If table creation fails (e.g., race condition), try to open existing table
             logger.warning("Table creation failed, attempting to open existing table: %s", e)
             try:

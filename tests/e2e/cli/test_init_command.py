@@ -9,10 +9,9 @@ MODERN: Updated to use OutputAdapter abstraction instead of direct scaffolding i
 from pathlib import Path
 
 from egregora.config.settings import load_egregora_config
-from egregora.output_adapters.mkdocs.scaffolding import ensure_mkdocs_project
 from egregora.output_adapters import create_default_output_registry, create_output_sink
 from egregora.output_adapters.mkdocs import MkDocsAdapter
-from egregora.output_adapters.mkdocs.scaffolding import safe_yaml_load
+from egregora.output_adapters.mkdocs.scaffolding import ensure_mkdocs_project, safe_yaml_load
 
 
 def test_init_creates_all_template_files(tmp_path: Path):

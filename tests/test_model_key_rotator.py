@@ -60,15 +60,15 @@ def test_model_key_rotator_fails_when_all_exhausted():
 
     def always_fails(model: str, api_key: str) -> str:
         msg = "429 Too Many Requests"
-        raise Exception(msg)
+        raise RuntimeError(msg)
 
     # Should try all 4 combinations (2 models x 2 keys) then raise
     try:
         rotator.call_with_rotation(always_fails)
         msg = "Should have raised exception"
         raise AssertionError(msg)
-    except Exception as e:
-        assert "429" in str(e)
+    except RuntimeError as exc:
+        assert "429" in str(exc)
 
 
 def test_model_key_rotator_succeeds_on_first_try():

@@ -444,7 +444,9 @@ def create_index(
     q_col = quote_identifier(column_name)
 
     if index_type == "HNSW":
-        sql = f"CREATE INDEX IF NOT EXISTS {q_index} ON {q_table} USING HNSW ({q_col}) WITH (metric = 'cosine')"
+        sql = (
+            f"CREATE INDEX IF NOT EXISTS {q_index} ON {q_table} USING HNSW ({q_col}) WITH (metric = 'cosine')"
+        )
     else:
         sql = f"CREATE INDEX IF NOT EXISTS {q_index} ON {q_table} ({q_col})"
 

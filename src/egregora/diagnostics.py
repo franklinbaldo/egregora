@@ -187,7 +187,7 @@ def check_duckdb_zipfs() -> DiagnosticResult:
         finally:
             conn.close()
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # Diagnostic check failure shouldn't crash the tool, just report as INFO/ERROR
         return DiagnosticResult(
             check="DuckDB ZipFS Extension",
@@ -299,7 +299,7 @@ def check_egregora_config() -> DiagnosticResult:
             },
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # Catch configuration loading errors (validation, parsing, etc.)
         return DiagnosticResult(
             check="Egregora Config",
@@ -327,7 +327,7 @@ def check_adapters() -> DiagnosticResult:
             message="No adapters registered",
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # Adapter listing failure shouldn't crash diagnostics
         return DiagnosticResult(
             check="Source Adapters",
@@ -364,7 +364,7 @@ def run_diagnostics() -> list[DiagnosticResult]:
         try:
             result = check_func()
             results.append(result)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # Catch-all for unexpected check failures to ensure report is generated
             check_name = getattr(check_func, "__name__", "Unknown Check")
             check_name = check_name.replace("check_", "").replace("_", " ").title()

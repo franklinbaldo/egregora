@@ -1,20 +1,20 @@
-
-import asyncio
-from unittest.mock import MagicMock, patch, ANY
+from unittest.mock import MagicMock, patch
 
 import pytest
 from google.api_core import exceptions as api_exceptions
 
 from egregora.agents.enricher import EnrichmentWorker
 
+
 @pytest.fixture
 def mock_context():
     """Provides a mocked PipelineContext for the EnrichmentWorker."""
     context = MagicMock()
     context.config.models.enricher_vision = "gemini-pro-vision"
-    context.config.enrichment.strategy = "not_batch_all" # to ensure we hit the part with GoogleBatchModel
+    context.config.enrichment.strategy = "not_batch_all"  # to ensure we hit the part with GoogleBatchModel
     context.input_path = None
     return context
+
 
 @pytest.mark.parametrize(
     "exception_to_raise",
@@ -25,7 +25,7 @@ def mock_context():
         api_exceptions.GatewayTimeout("Gateway timeout"),
     ],
 )
-@patch.dict('os.environ', {'GOOGLE_API_KEY': 'test-key'})
+@patch.dict("os.environ", {"GOOGLE_API_KEY": "test-key"})
 def test_execute_media_batch_fallback_on_api_errors(exception_to_raise, mock_context):
     """
     Verify that _execute_media_batch falls back to individual calls
@@ -47,4 +47,6 @@ def test_execute_media_batch_fallback_on_api_errors(exception_to_raise, mock_con
             worker._execute_media_batch(requests, task_map)
 
     # Assert
-    worker._execute_media_individual.assert_called_once_with(requests, task_map, "gemini-pro-vision", "test-key")
+    worker._execute_media_individual.assert_called_once_with(
+        requests, task_map, "gemini-pro-vision", "test-key"
+    )

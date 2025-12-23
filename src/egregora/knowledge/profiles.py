@@ -32,6 +32,7 @@ to ensure they route to `/posts/profiles/{author_uuid}/` instead of `/posts/`.
 This is validated by `validate_profile_document()` in orchestration/persistence.py.
 """
 
+import contextlib
 import hashlib
 import logging
 import re
@@ -160,7 +161,7 @@ def _get_uuid_from_profile(profile_path: Path) -> str | None:
     """Extract UUID from profile frontmatter."""
     if not profile_path.exists():
         return None
-    try:
+    with contextlib.suppress(OSError, UnicodeError, ValueError, TypeError):
         content = profile_path.read_text(encoding="utf-8")
         metadata = _parse_frontmatter(content)
         if "uuid" in metadata:
@@ -170,8 +171,6 @@ def _get_uuid_from_profile(profile_path: Path) -> str | None:
         # Basic heuristic: UUID is 36 chars (with dashes) or 32 (hex)
         if len(stem) in (32, 36) and all(c in "0123456789abcdefABCDEF-" for c in stem):
             return stem
-    except Exception:
-        pass
     return None
 
 
@@ -357,7 +356,9 @@ def write_profile(
     if "avatar" not in front_matter and avatar_url:
         front_matter_for_authors = front_matter.copy()
         front_matter_for_authors["avatar"] = avatar_url
-        _update_authors_yml(profiles_dir.parent, author_uuid, front_matter_for_authors, filename=target_path.name)
+        _update_authors_yml(
+            profiles_dir.parent, author_uuid, front_matter_for_authors, filename=target_path.name
+        )
     else:
         _update_authors_yml(profiles_dir.parent, author_uuid, front_matter, filename=target_path.name)
 
@@ -624,7 +625,9 @@ def apply_command_to_profile(
     # Also parse legacy sections (like ## Display Preferences) to get alias
     _extract_legacy_metadata(content, metadata)
 
-    target_path = _determine_profile_path(author_uuid, metadata, profiles_dir, current_path=profile_path if profile_path.exists() else None)
+    target_path = _determine_profile_path(
+        author_uuid, metadata, profiles_dir, current_path=profile_path if profile_path.exists() else None
+    )
 
     target_path.write_text(content, encoding="utf-8")
 
@@ -831,15 +834,15 @@ def update_profile_avatar(
     metadata = _parse_frontmatter(content)
     _extract_legacy_metadata(content, metadata)
 
-    target_path = _determine_profile_path(author_uuid, metadata, profiles_dir, current_path=profile_path if profile_path.exists() else None)
+    target_path = _determine_profile_path(
+        author_uuid, metadata, profiles_dir, current_path=profile_path if profile_path.exists() else None
+    )
 
     target_path.write_text(content, encoding="utf-8")
 
     if profile_path and profile_path.exists() and profile_path.resolve() != target_path.resolve():
-        try:
+        with contextlib.suppress(OSError):
             profile_path.unlink()
-        except OSError:
-            pass
 
     # Update .authors.yml
     _update_authors_yml(profiles_dir.parent, author_uuid, metadata, filename=target_path.name)
@@ -878,14 +881,14 @@ def remove_profile_avatar(
 
     # Save
     metadata = _extract_profile_metadata(profile_path) if profile_path.exists() else {}
-    target_path = _determine_profile_path(author_uuid, metadata, profiles_dir, current_path=profile_path if profile_path.exists() else None)
+    target_path = _determine_profile_path(
+        author_uuid, metadata, profiles_dir, current_path=profile_path if profile_path.exists() else None
+    )
     target_path.write_text(content, encoding="utf-8")
 
     if profile_path and profile_path.exists() and profile_path.resolve() != target_path.resolve():
-        try:
+        with contextlib.suppress(OSError):
             profile_path.unlink()
-        except OSError:
-            pass
 
     # Update .authors.yml
     _update_authors_yml(profiles_dir.parent, author_uuid, metadata, filename=target_path.name)
@@ -958,7 +961,9 @@ def _extract_profile_metadata(profile_path: Path) -> dict[str, Any]:
     return metadata
 
 
-def _update_authors_yml(site_root: Path, author_uuid: str, front_matter: dict[str, Any], filename: str | None = None) -> None:
+def _update_authors_yml(
+    site_root: Path, author_uuid: str, front_matter: dict[str, Any], filename: str | None = None
+) -> None:
     """Update or create .authors.yml for MkDocs blog plugin.
 
     Args:

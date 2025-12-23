@@ -1,18 +1,18 @@
 """Tests for writer agent decoupling logic."""
 
-import pytest
 from datetime import datetime
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from egregora.agents.writer import (
     JournalEntry,
     JournalEntryParams,
+    WindowProcessingParams,
     _process_single_tool_result,
     _save_journal_to_file,
     write_posts_for_window,
-    WindowProcessingParams,
 )
-from egregora.config.settings import EgregoraConfig
 
 
 class TestWriterDecoupling:
@@ -78,6 +78,7 @@ class TestWriterDecoupling:
         assert "../media/image.jpg" in doc.content
         assert "/media/image.jpg" not in doc.content.replace("../media/", "")
 
+
 @pytest.mark.asyncio
 @patch("egregora.agents.writer._build_context_and_signature")
 @patch("egregora.agents.writer._check_writer_cache")
@@ -92,6 +93,7 @@ async def test_write_posts_for_window_smoke_test(
     mock_prepare_deps,
     mock_check_cache,
     mock_build_context,
+    test_config,
 ):
     """Smoke test to ensure write_posts_for_window can be called without error."""
     mock_table = MagicMock()
@@ -106,7 +108,7 @@ async def test_write_posts_for_window_smoke_test(
         window_start=datetime.now(),
         window_end=datetime.now(),
         resources=MagicMock(),
-        config=EgregoraConfig(),
+        config=test_config,
         cache=MagicMock(),
     )
 
@@ -114,3 +116,5 @@ async def test_write_posts_for_window_smoke_test(
     assert result == {"posts": [], "profiles": []}
     mock_execute.assert_called_once()
     mock_finalize.assert_called_once()
+    mock_render.assert_called_once()
+    mock_prepare_deps.assert_called_once()
