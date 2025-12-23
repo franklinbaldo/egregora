@@ -51,6 +51,7 @@ class PipelineRunParams:
     input_path: Path
     client: genai.Client | None = None
     refresh: str | None = None
+    is_demo: bool = False
     run_id: UUID = field(default_factory=uuid.uuid4)
     start_time: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -72,6 +73,7 @@ class PipelineConfig:
 
     # URL context is largely static configuration
     url_context: UrlContext | None = None
+    is_demo: bool = False
 
     @property
     def enable_enrichment(self) -> bool:

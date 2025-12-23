@@ -814,6 +814,7 @@ class WindowProcessingParams:
     adapter_content_summary: str = ""
     adapter_generation_instructions: str = ""
     run_id: str | None = None
+    is_demo: bool = False
 
 
 async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
@@ -822,6 +823,10 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
     This acts as the public entry point, orchestrating the setup and execution
     of the writer agent.
     """
+    if params.is_demo:
+        logger.info("🤖 Demo mode: Skipping writer agent and returning mock data.")
+        return {RESULT_KEY_POSTS: ["demo-post-1", "demo-post-2"], RESULT_KEY_PROFILES: ["demo-profile-1"]}
+
     if params.table.count().execute() == 0:
         return {RESULT_KEY_POSTS: [], RESULT_KEY_PROFILES: []}
 
