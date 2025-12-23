@@ -9,7 +9,7 @@ import time
 import httpx
 from pydantic_ai.models import Model
 
-from egregora.models import GoogleBatchModel
+from egregora.llm.providers import GoogleBatchModel
 from egregora.utils.env import get_google_api_key, get_google_api_keys
 
 logger = logging.getLogger(__name__)
@@ -161,7 +161,7 @@ def create_fallback_model(
         from pydantic_ai.models.google import GoogleModel
         from pydantic_ai.providers.google import GoogleProvider
 
-        from egregora.models.rate_limited import RateLimitedModel
+        from egregora.llm.providers.rate_limited import RateLimitedModel
 
         if isinstance(model_def, RateLimitedModel):
             return model_def
@@ -214,7 +214,7 @@ def create_fallback_model(
         # Fallback to single getter which raises if missing
         api_keys = [get_google_api_key()]
 
-    from egregora.models.rate_limited import RateLimitedModel
+    from egregora.llm.providers.rate_limited import RateLimitedModel
 
     # Helper to create model variations for all keys
     def _create_variations(model_def: str | Model) -> list[Model]:
@@ -263,6 +263,6 @@ def create_fallback_model(
 
     # Use our custom RotatingFallbackModel instead of pydantic-ai's FallbackModel
     # This rotates immediately on 429 errors rather than waiting between agent runs
-    from egregora.models.rotating_fallback import RotatingFallbackModel
+    from egregora.llm.providers.rotating_fallback import RotatingFallbackModel
 
     return RotatingFallbackModel(all_models)
