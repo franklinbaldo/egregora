@@ -101,7 +101,8 @@ class EloStore:
                 logger.debug("elo_ratings table already exists (race condition): %s", e)
             else:
                 # Table doesn't exist and creation failed - this is a real error
-                raise RuntimeError(f"Failed to create elo_ratings table: {e}") from e
+                msg = f"Failed to create elo_ratings table: {e}"
+                raise RuntimeError(msg) from e
 
         # Create comparison history table with race condition handling
         try:
@@ -117,7 +118,8 @@ class EloStore:
                 logger.debug("comparison_history table already exists (race condition): %s", e)
             else:
                 # Table doesn't exist and creation failed - this is a real error
-                raise RuntimeError(f"Failed to create comparison_history table: {e}") from e
+                msg = f"Failed to create comparison_history table: {e}"
+                raise RuntimeError(msg) from e
 
     def get_rating(self, post_slug: str) -> EloRating:
         """Get current ELO rating for a post.
