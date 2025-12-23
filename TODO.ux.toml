@@ -1,9 +1,9 @@
 # UX/UI TODO - Structured format for programmatic task management
-# Last updated: 2024-07-25
+# Last updated: 2024-07-26
 
 [metadata]
 version = "1.0"
-last_updated = "2024-07-25T00:00:00Z"
+last_updated = "2024-07-26T00:00:00Z"
 vision_doc = "docs/ux-vision.md"
 template_location = "src/egregora/rendering/templates/site"
 
@@ -14,32 +14,14 @@ description = "Curator evaluates blogs and updates TODO. Forge implements items 
 
 # High Priority - Critical for Excellence
 [[tasks.high_priority]]
-id = "demo-cli"
-title = "Add egregora demo CLI command"
-description = "Easy demo generation command"
-status = "review"
-category = "infrastructure"
-assignee = "forge"
-
-[[tasks.high_priority]]
-id = "demo-test"
-title = "Create test to ensure demo/ stays updated"
-description = "Automated test for demo freshness"
-status = "review"
-category = "infrastructure"
-assignee = "forge"
-
-[[tasks.high_priority]]
-id = "improve-readability"
-title = "Improve long-form readability with larger body font size and optimal line length"
+id = "fix-demo-command"
+title = "Fix the `egregora demo` command"
 description = """
-The default theme's body text is too small for comfortable long-form reading, and lines are too long on wide screens, causing eye strain. This task addresses these core readability issues.
-1. **Font Size**: Increase the base body font size from the default (likely 16px) to 18px.
-2. **Line Length**: Cap the main content column width to a maximum of 75 characters (approx `70ch` in CSS) to prevent overly long lines.
-**Verification**: Inspect the CSS for the body font-size and the main content container's `max-width`. Visually confirm on a wide monitor that text is comfortable to read and lines are not excessively long. A readability score (e.g., Flesch-Kincaid) should improve.
+The `egregora demo` command is currently broken and fails with a `ModelHTTPError`. This is a critical issue as it prevents the Curator from visually inspecting the site and running Lighthouse audits.
+**Verification**: The `egregora demo` command should run without errors and generate a demo site in the `demo/` directory.
 """
-status = "review"
-category = "content"
+status = "pending"
+category = "infrastructure"
 assignee = "forge"
 
 [[tasks.high_priority]]
@@ -49,6 +31,20 @@ description = "Document baseline scores (Performance, A11y, Best Practices, SEO)
 status = "pending"
 category = "baseline"
 assignee = "curator"
+
+[[tasks.high_priority]]
+id = "improve-readability"
+title = "Improve long-form readability with larger body font size and optimal line length"
+description = """
+The default theme's body text is too small for comfortable long-form reading, and lines are too long on wide screens, causing eye strain. This task addresses these core readability issues.
+1. **Font Size**: Increase the base body font size from the default (likely 16px) to 18px.
+2. **Line Length**: Cap the main content column width to a maximum of 75 characters (approx `70ch` in CSS) to prevent overly long lines.
+**Verification**: Inspect the CSS for the body font-size and the main content container's `max-width`. Visually confirm on a wide monitor that text is comfortable to read and lines are not excessively long. A readability score (e.g., Flesch-Kincaid) should improve.
+**Status**: Blocked by `fix-demo-command`.
+"""
+status = "pending"
+category = "content"
+assignee = "forge"
 
 [[tasks.high_priority]]
 id = "implement-core-readability-css"
@@ -81,8 +77,9 @@ To improve readability for long-form content, specific CSS rules must be added. 
 2. Open a blog post and use browser developer tools.
 3. **Check Font Size:** Inspect a paragraph (`<p>`) inside the `.md-typeset` container. The computed `font-size` should be `1.1rem` (or its pixel equivalent).
 4. **Check Line Length:** Inspect the `.md-content` container. The `max-width` should be `75ch`. The text lines should not exceed this width on large screens.
+**Status**: Blocked by `fix-demo-command`.
 """
-status = "review"
+status = "pending"
 category = "visual"
 assignee = "forge"
 
@@ -91,14 +88,16 @@ assignee = "forge"
 [[tasks.medium_priority]]
 id = "breadcrumbs"
 title = "Add breadcrumbs to all pages"
-status = "review"
+description = "Enable the `navigation.path` feature in the `mkdocs.yml` file to provide breadcrumbs. **Status**: Blocked by `fix-demo-command`."
+status = "pending"
 category = "navigation"
 assignee = "forge"
 
 [[tasks.medium_priority]]
 id = "active-state"
 title = "Implement 'you are here' active state styling"
-status = "review"
+description = "Enable the `navigation.tracking` and `navigation.tabs` features in the `mkdocs.yml` file to provide active state styling. **Status**: Blocked by `fix-demo-command`."
+status = "pending"
 category = "navigation"
 assignee = "forge"
 
@@ -110,14 +109,6 @@ description = "Document exact template location in vision.md"
 status = "completed"
 category = "infrastructure"
 assignee = "curator"
-# Example format when tasks are completed:
-# [[tasks.completed]]
-# id = "setup-personas"
-# title = "Create Curator and Forge personas"
-# status = "completed"
-# completed_date = "2025-12-19T00:00:00Z"
-# completed_by = "claude"
-# metrics = "N/A - foundational work"
 
 # Lighthouse score tracking
 [lighthouse.baseline]
