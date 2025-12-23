@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
 import httpx
+from google.api_core import exceptions as api_exceptions
 from ibis.common.exceptions import IbisError
 from pydantic import BaseModel
 
@@ -1310,7 +1311,12 @@ class EnrichmentWorker(BaseWorker):
         model = GoogleBatchModel(api_key=api_key, model_name=model_name)
         try:
             return asyncio.run(model.run_batch(requests))
-        except Exception as batch_exc:
+        except (
+            api_exceptions.ResourceExhausted,
+            api_exceptions.InternalServerError,
+            api_exceptions.ServiceUnavailable,
+            api_exceptions.GatewayTimeout,
+        ) as batch_exc:
             # Batch failed (likely quota exceeded) - fallback to individual calls
             logger.warning(
                 "Batch API failed (%s), falling back to individual calls for %d requests",
