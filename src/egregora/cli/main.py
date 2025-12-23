@@ -384,7 +384,7 @@ def demo(
         ),
     ] = Path("demo"),
 ) -> None:
-    """Generate a demo site from a sample WhatsApp export."""
+    """Copy a pre-built demo site to the output directory."""
     console.print("[bold cyan]Generating demo site...[/bold cyan]")
     project_root = Path(__file__).resolve().parent.parent.parent.parent
     demo_site_src = project_root / "tests/fixtures/demo_site"
