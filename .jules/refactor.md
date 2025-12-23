@@ -63,3 +63,19 @@
 **Learning:**
 - TDD is a powerful tool for not only preventing regressions but also for uncovering existing bugs. The process of writing a test for a seemingly simple refactoring task revealed a more critical issue in the application logic.
 - `PipelineContext` is a frozen dataclass, which means it's immutable. Any changes to the pipeline's state must be made to the `PipelineState` object, which is accessible via `context.state`. This is a key architectural pattern in the codebase.
+
+## 2025-12-22 - Vulture Unused Variable (Context Manager)
+
+**Issue:** `vulture` reported unused variables (`exc_type`, `exc_val`, `exc_tb`) in a class `__exit__` method.
+**File:** `src/egregora_v3/infra/adapters/rss.py`
+**Approach:** Refactored the code to use underscores (`_`, `__`, `___`) for the unused variables, which is the standard Python idiom for intentionally unused arguments.
+
+**TDD Cycle:**
+- **RED:** Identified existing tests in `tests/v3/infra/adapters/test_rss_adapter.py` that implicitly covered the context manager's usage, serving as a sufficient safety net. No new test was required as the change was a non-functional cleanup.
+- **GREEN:** Replaced the unused variable names with underscores. Ran the existing test suite (`pytest`) to ensure no functionality was broken. Ran `vulture` again on the file to confirm the warning was resolved.
+- **REFACTOR:** The change was minimal and clean, requiring no further refactoring.
+
+**Learning:** `vulture` is effective for spotting dead code, and using underscores is the correct, Pythonic way to handle unused variables required by a function or method signature. This clearly communicates intent and satisfies the linter without resorting to suppression comments.
+**Future:** Apply this pattern to any other unused variables found by `vulture`, particularly in method signatures required by interfaces or protocols.
+
+---
