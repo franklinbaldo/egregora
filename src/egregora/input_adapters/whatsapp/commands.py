@@ -57,16 +57,21 @@ logger = logging.getLogger(__name__)
 
 @ibis.udf.scalar.python
 def normalize_smart_quotes(value: str) -> str:
+    """Converts smart quotes (e.g., `'` `"` `”`) to standard ASCII quotes."""
     if value is None:
-        return ""
+        return None
     return value.translate(SMART_QUOTES_TRANSLATION)
 
 
 @ibis.udf.scalar.python
 def strip_wrapping_quotes(value: str) -> str:
-    if value is None:
-        return None
-    return value.strip("\"'")
+    """Removes a single pair of matching wrapping quotes (`"` or `'`) from a string."""
+    if value and len(value) > 1:
+        if value.startswith('"') and value.endswith('"'):
+            return value[1:-1]
+        if value.startswith("'") and value.endswith("'"):
+            return value[1:-1]
+    return value
 
 
 @ibis.udf.scalar.python

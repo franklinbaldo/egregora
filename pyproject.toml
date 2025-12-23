@@ -191,7 +191,6 @@ ignore = [
     # Docstrings - enforce for new code, not blocking for existing
     "D101",    # Missing docstring in public class
     "D102",    # Missing docstring in public method
-    "D103",    # Missing docstring in public function
     "D105",    # Missing docstring in magic method
     "D107",    # Missing docstring in __init__
     "D401",    # First line should be imperative
