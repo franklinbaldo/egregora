@@ -22,7 +22,7 @@ from rich.table import Table
 from egregora.cli.db import db_app
 from egregora.cli.read import read_app
 from egregora.config import load_egregora_config
-from egregora.constants import SourceType, WindowUnit
+from egregora.config.settings import SourceType, WindowUnit
 from egregora.database.elo_store import EloStore
 from egregora.database.utils import get_simple_storage
 from egregora.diagnostics import HealthStatus, run_diagnostics
