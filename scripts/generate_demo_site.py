@@ -142,7 +142,9 @@ def _patch_pipeline_for_offline_demo() -> None:
         # Avoid banner capability and workers.
         PatchSpec("egregora.agents.writer_setup.is_banner_generation_available", lambda: False),
         PatchSpec(
-            "egregora.orchestration.pipelines.write._process_background_tasks", _skip_background_tasks
+            "egregora.orchestration.pipelines.write._process_background_tasks",
+            _skip_background_tasks,
+            optional=True,
         ),
         # Taxonomy
         PatchSpec(
