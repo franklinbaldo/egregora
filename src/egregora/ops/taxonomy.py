@@ -34,6 +34,7 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
 
     Returns:
         The number of documents updated with new tags.
+
     """
     try:
         from sklearn.cluster import KMeans

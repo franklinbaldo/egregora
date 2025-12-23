@@ -68,6 +68,17 @@ def test_generate_semantic_taxonomy_insufficient_docs(mock_output_sink, mock_con
         assert count == 0
 
 
+def test_generate_semantic_taxonomy_docstring_adheres_to_d413():
+    """This test enforces ruff's D413: Missing blank line after last section."""
+    docstring = generate_semantic_taxonomy.__doc__
+    assert docstring is not None, "Function must have a docstring."
+
+    # The docstring should end with a newline followed by indented whitespace.
+    # When split by newline, the very last element of the list should be whitespace-only.
+    lines = docstring.split('\n')
+    assert lines[-1].strip() == "", "The last line of the docstring before the closing quotes must be blank."
+
+
 def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config):
     """Test successful global taxonomy generation."""
     with (
