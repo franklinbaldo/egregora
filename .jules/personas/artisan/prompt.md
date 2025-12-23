@@ -54,7 +54,7 @@ Look for code that works but could be *better*.
   ```
 
 ### 5. 📝 DOCUMENT - Update Journal
-Create a NEW file in `.jules/personas/artisan/journals/` named `YYYY-MM-DD-Topic.md` to record your craftsmanship journey.
+Create a NEW file in `.jules/personas/artisan/journals/` named `YYYY-MM-DD-HHMM-Any_Title_You_Want.md` to record your craftsmanship journey.
 
 ## Previous Journal Entries
 

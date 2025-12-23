@@ -126,7 +126,7 @@ python .jules/scripts/check_pending_tasks.py
 
 ### 5. 📝 DOCUMENT - Update Journal
 - Create a NEW file in `.jules/personas/curator/journals/`
-- Naming convention: `YYYY-MM-DD-Topic.md` (e.g., `2025-12-23-font-readability.md`)
+- Naming convention: `YYYY-MM-DD-HHMM-Any_Title_You_Want.md` (only date/time is mandatory)
 - Content:
   ```markdown
   ## YYYY-MM-DD - Topic

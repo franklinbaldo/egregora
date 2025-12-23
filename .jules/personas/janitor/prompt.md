@@ -59,7 +59,7 @@ Choose ONE of these inspection strategies for this session:
 
 ### 5. 📝 DOCUMENT - Update Journal
 If you find recurring issues, create a NEW file in `.jules/personas/janitor/journals/`.
-- Name: `YYYY-MM-DD-Topic.md`
+- Name: `YYYY-MM-DD-HHMM-Any_Title_You_Want.md`
 - Content:
   ```markdown
   ## YYYY-MM-DD - [Topic]

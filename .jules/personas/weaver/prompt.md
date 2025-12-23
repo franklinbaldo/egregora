@@ -49,7 +49,7 @@ Here are the currently open PRs in this repository:
 
 ## Weaver's Journal
 
-If you encounter conflicts or tricky merges, log them in a NEW file in `.jules/personas/weaver/journals/` named `YYYY-MM-DD-Merge-PR-ID.md`.
+If you encounter conflicts or tricky merges, log them in a NEW file in `.jules/personas/weaver/journals/` named `YYYY-MM-DD-HHMM-Any_Title_You_Want.md`.
 
 ## Previous Journal Entries
 
