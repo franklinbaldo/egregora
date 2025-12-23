@@ -63,3 +63,89 @@ def test_generate_banner_image_preserves_request_prompt(fake_provider):
     assert output.document.metadata["language"] == "en"
     assert output.document.type is DocumentType.MEDIA
     assert output.debug_text == "debug info"
+
+
+def test_generate_banner_image_handles_api_error(monkeypatch):
+    """Test that API errors from the provider are caught and handled."""
+    # 1. Arrange
+    from google.api_core import exceptions as google_exceptions
+
+    class FailingProvider:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def generate(self, request: ImageGenerationRequest) -> ImageGenerationResult:
+            raise google_exceptions.ResourceExhausted("Rate limit exceeded")
+
+    monkeypatch.setattr(agent, "GeminiImageGenerationProvider", FailingProvider)
+
+    request = ImageGenerationRequest(
+        prompt="prompt", response_modalities=["IMAGE"], aspect_ratio="1:1"
+    )
+    input_data = BannerInput(post_title="Title", post_summary="Summary")
+
+    # 2. Act
+    output = _generate_banner_image(
+        client=object(),
+        input_data=input_data,
+        image_model="model-id",
+        generation_request=request,
+    )
+
+    # 3. Assert
+    assert not output.success
+    assert output.document is None
+    assert output.error == "ResourceExhausted"
+    assert output.error_code == "GENERATION_EXCEPTION"
+
+
+def test_generate_banner_reraises_unexpected_errors(monkeypatch):
+    """Test that the main `generate_banner` function reraises unexpected errors."""
+    # 1. Arrange
+    def mock_generate_banner_image(*args, **kwargs):
+        raise ValueError("Something went wrong")
+
+    monkeypatch.setattr(agent, "_generate_banner_image", mock_generate_banner_image)
+    monkeypatch.setattr(agent.genai, "Client", lambda: object())
+
+    # Mocking EgregoraConfig to return an object with a .models.banner attribute
+    class MockModels:
+        banner = "test-model"
+
+    class MockConfig:
+        models = MockModels()
+        image_generation = type("ImageGenerationSettings", (), {"response_modalities": ["IMAGE"], "aspect_ratio": "1:1"})()
+
+    monkeypatch.setattr(agent, "EgregoraConfig", MockConfig)
+
+    # 2. Act & Assert
+    with pytest.raises(ValueError, match="Something went wrong"):
+        agent.generate_banner(post_title="Title", post_summary="Summary")
+
+
+def test_generate_banner_image_reraises_unexpected_errors(monkeypatch):
+    """Test that unexpected (non-API) errors are not caught."""
+    # 1. Arrange
+    class FailingProvider:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def generate(self, request: ImageGenerationRequest) -> ImageGenerationResult:
+            # This simulates a bug inside the provider, not a remote API error
+            raise TypeError("A bug in the provider")
+
+    monkeypatch.setattr(agent, "GeminiImageGenerationProvider", FailingProvider)
+
+    request = ImageGenerationRequest(
+        prompt="prompt", response_modalities=["IMAGE"], aspect_ratio="1:1"
+    )
+    input_data = BannerInput(post_title="Title", post_summary="Summary")
+
+    # 2. Act & Assert
+    with pytest.raises(TypeError, match="A bug in the provider"):
+        _generate_banner_image(
+            client=object(),
+            input_data=input_data,
+            image_model="model-id",
+            generation_request=request,
+        )

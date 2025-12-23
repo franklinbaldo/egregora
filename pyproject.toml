@@ -34,6 +34,7 @@ dependencies = [
     # High-performance XML processing for Atom feeds
     "lxml>=5.4",
     "tomli-w>=1.2.0",
+    "google-api-core",
 ]
 
 [project.scripts]
