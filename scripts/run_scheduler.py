@@ -157,7 +157,17 @@ def main():
             # Build persona-specific context
             persona_dir = p_file.parent
             journal_entries = collect_journals(persona_dir)
-            context = {**base_context, "journal_entries": journal_entries}
+            
+            # Pre-load to get emoji from frontmatter
+            # We need this BEFORE rendering because title/body might use {{ emoji }}
+            raw_post = frontmatter.load(p_file)
+            emoji = raw_post.metadata.get("emoji", "")
+            
+            context = {
+                **base_context, 
+                "journal_entries": journal_entries,
+                "emoji": emoji
+            }
 
             parsed = parse_prompt_file(p_file, context)
             config = parsed["config"]
