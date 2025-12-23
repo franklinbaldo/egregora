@@ -91,7 +91,8 @@ def main(
     if run_reader_evaluation is None:
         console.print(
             "[red]Reader evaluation is not available in this build.[/red]\n"
-            "The legacy reader runner was removed; update to the new reader workflow or pull the latest tooling."
+            "The legacy reader runner was removed; update to the new reader workflow "
+            "or pull the latest tooling."
         )
         raise typer.Exit(1)
 
