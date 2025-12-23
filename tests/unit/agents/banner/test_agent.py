@@ -1,8 +1,10 @@
 import logging
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 from egregora.agents.banner.agent import generate_banner
+
 
 @patch("egregora.agents.banner.agent.genai.Client")
 @patch("egregora.agents.banner.agent._generate_banner_image", side_effect=ValueError("Unexpected test error"))

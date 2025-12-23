@@ -37,37 +37,15 @@ from zoneinfo import ZoneInfo
 
 import tomli_w
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
-from enum import Enum
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from egregora.constants import WindowUnit
 
 logger = logging.getLogger(__name__)
 
 # ============================================================================
 # Constants
 # ============================================================================
-
-# Egregora system author constants
-# Used when Egregora generates content (PROFILE posts, ANNOUNCEMENT posts)
-EGREGORA_UUID = "00000000-0000-0000-0000-000000000000"
-EGREGORA_NAME = "Egregora"
-
-
-class WindowUnit(str, Enum):
-    """Units for windowing messages."""
-
-    MESSAGES = "messages"
-    HOURS = "hours"
-    DAYS = "days"
-    BYTES = "bytes"
-
-
-class SourceType(str, Enum):
-    """Input source types for data ingestion."""
-
-    WHATSAPP = "whatsapp"
-    IPERON_TJRO = "iperon-tjro"
-    SELF_REFLECTION = "self"
-
 
 DEFAULT_MODEL = "google-gla:gemini-2.5-flash"  # Use latest stable model (pydantic-ai format)
 DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
@@ -1127,8 +1105,6 @@ __all__ = [
     "DEFAULT_MODEL",
     "DEFAULT_PIPELINE_DB",
     "DEFAULT_RUNS_DB",
-    "EGREGORA_NAME",
-    "EGREGORA_UUID",
     "EMBEDDING_DIM",
     "EgregoraConfig",
     "EnrichmentRuntimeConfig",
@@ -1145,8 +1121,6 @@ __all__ = [
     "RAGSettings",
     "ReaderSettings",
     "RuntimeContext",
-    "SourceType",
-    "WindowUnit",
     "WriterAgentSettings",
     "WriterRuntimeConfig",
     "create_default_config",

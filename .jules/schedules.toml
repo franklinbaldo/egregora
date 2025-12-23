@@ -1,0 +1,32 @@
+# Jules Agent Schedule Registry
+# Defines when each agent persona should run.
+#
+# Format:
+#   agent_id = "cron_expression"
+#
+# Cron format: "min hour day month dow"
+#   * = any
+#   dow: 0=Sun, 1=Mon, ..., 6=Sat (Standard Cron)
+#
+# Note: The scheduler currently runs hourly (minute is always 0 in the GitHub Action trigger).
+# So the first field (minute) must be "0" or "*" to ever match.
+
+[schedules]
+# --- Daily Routine ---
+curator = "0 0 * * *"       # Daily at 00:00 UTC
+janitor = "0 8 * * *"       # Daily at 08:00 UTC
+weaver = "0 8 * * *"        # Daily at 08:00 UTC
+
+# --- Weekly Routine ---
+docs_curator = "0 9 * * 1"  # Mondays at 09:00 UTC
+artisan = "0 10 * * 2"      # Tuesdays at 10:00 UTC
+
+# --- Manual / Trigger-only Agents ---
+# These are available for manual dispatch but have no automatic schedule.
+# shepherd = "manual"
+# forge = "manual"
+# refactor = "manual"
+# incremental_checkpoint_task = "manual"
+# metadata_normalization_task = "manual"
+# store_level_annotation_persistence_task = "manual"
+# refactor-demo-cache = "manual"

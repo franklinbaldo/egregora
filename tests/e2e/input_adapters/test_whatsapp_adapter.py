@@ -28,7 +28,7 @@ from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 from egregora.input_adapters.whatsapp.commands import filter_egregora_messages
 from egregora.input_adapters.whatsapp.parsing import parse_source
-from egregora.ops.media import process_media_for_window
+from egregora.orchestration.pipelines.modules.media import process_media_for_window
 from egregora.transformations.windowing import Window
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
 

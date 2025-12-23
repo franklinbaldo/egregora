@@ -257,7 +257,7 @@ Yes, but requires code changes. Egregora uses Google's Gemini client, but you ca
 - [vLLM](https://vllm.ai/) for self-hosted serving
 - [LiteLLM](https://litellm.ai/) for unified API
 
-See [Development Guide](../development/contributing.md) for details.
+See [Development Guide](https://github.com/franklinbaldo/egregora/blob/main/CONTRIBUTING.md) for details.
 
 ## Next Steps
 

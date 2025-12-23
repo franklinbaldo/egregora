@@ -51,10 +51,7 @@ def test_sequence_values_concurrent_threads():
 
         def get_sequence_batch(thread_id: int) -> list[int]:
             """Get a batch of sequence values in a thread."""
-            try:
-                return manager.next_sequence_values("test_seq", count=10)
-            except Exception:
-                raise
+            return manager.next_sequence_values("test_seq", count=10)
 
         # Run concurrent sequence requests
         errors = []
@@ -65,8 +62,8 @@ def test_sequence_values_concurrent_threads():
                 try:
                     result = future.result()
                     assert len(result) == 10
-                except Exception as e:
-                    errors.append(e)
+                except (duckdb.Error, RuntimeError) as exc:
+                    errors.append(exc)
 
         manager.close()
 
@@ -103,9 +100,9 @@ def test_sequence_values_with_explicit_transactions():
                 values = manager.next_sequence_values("test_seq", count=5)
                 manager._conn.commit()
                 assert len(values) == 5
-            except Exception as e:
+            except (duckdb.Error, RuntimeError) as exc:
                 manager._conn.rollback()
-                pytest.fail(f"Iteration {i}: Transaction error: {e}")
+                pytest.fail(f"Iteration {i}: Transaction error: {exc}")
 
         manager.close()
 
@@ -129,8 +126,8 @@ def test_sequence_values_rapid_fire():
             try:
                 values = manager.next_sequence_values("test_seq", count=1)
                 assert len(values) == 1
-            except Exception as e:
-                errors.append((i, e))
+            except (duckdb.Error, RuntimeError) as exc:
+                errors.append((i, exc))
 
         manager.close()
 

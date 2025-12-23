@@ -33,23 +33,24 @@ from rich.panel import Panel
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.config import RuntimeContext, load_egregora_config
-from egregora.config.settings import EgregoraConfig, SourceType, WindowUnit, parse_date_arg, validate_timezone
+from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
+from egregora.constants import SourceType, WindowUnit
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.run_store import RunStore
 from egregora.database.task_store import TaskStore
 from egregora.database.utils import resolve_db_uri
-from egregora.init import ensure_mkdocs_project
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
-from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
+from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.runner import PipelineRunner
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import MkDocsPaths
+from egregora.output_adapters.mkdocs.scaffolding import ensure_mkdocs_project
 from egregora.rag import index_documents, reset_backend
 from egregora.transformations import (
     WindowConfig,
@@ -288,6 +289,7 @@ def run_cli_flow(
     force: bool = False,
     debug: bool = False,
     options: str | None = None,
+    is_demo: bool = False,
 ) -> None:
     """Execute the write flow from CLI arguments."""
     cli_values = {
@@ -385,6 +387,7 @@ def run_cli_flow(
             source_type=parsed_options.source.value,
             input_path=runtime.input_file,
             refresh="all" if parsed_options.force else parsed_options.refresh,
+            is_demo=is_demo,
         )
         run(run_params)
         console.print("[green]Processing completed successfully.[/green]")
@@ -680,6 +683,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
         profiles_dir=site_paths.profiles_dir,
         media_dir=site_paths.media_dir,
         url_context=url_ctx,
+        is_demo=run_params.is_demo,
     )
 
     state = PipelineState(
@@ -1139,7 +1143,7 @@ def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
             tagged_count = generate_semantic_taxonomy(dataset.context.output_format, dataset.context.config)
             if tagged_count > 0:
                 logger.info("[green]✓ Applied semantic tags to %d posts[/]", tagged_count)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # Non-critical failure
             logger.warning("Auto-taxonomy failed: %s", e)
 

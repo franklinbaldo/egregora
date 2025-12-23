@@ -129,6 +129,7 @@ class TestProfileGeneration:
         ctx.config = Mock()
         ctx.config.models = Mock()
         ctx.config.models.writer = "gemini-2.0-flash"
+        ctx.output_dir = "/tmp/test_output"
         # Mock existing profile response
         ctx.output_format.get_author_profile.return_value = {"bio": "Old Bio", "interests": ["Old Interest"]}
 

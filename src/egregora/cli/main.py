@@ -22,12 +22,12 @@ from rich.table import Table
 from egregora.cli.db import db_app
 from egregora.cli.read import read_app
 from egregora.config import load_egregora_config
-from egregora.config.settings import SourceType, WindowUnit
+from egregora.constants import SourceType, WindowUnit
 from egregora.database.elo_store import EloStore
 from egregora.database.utils import get_simple_storage
 from egregora.diagnostics import HealthStatus, run_diagnostics
-from egregora.init import ensure_mkdocs_project
 from egregora.orchestration.pipelines.write import run_cli_flow
+from egregora.output_adapters.mkdocs.scaffolding import ensure_mkdocs_project
 
 app = typer.Typer(
     name="egregora",
@@ -394,7 +394,7 @@ def demo(
         step_size=100,
         step_unit=WindowUnit.MESSAGES,
         overlap=0.0,
-        enable_enrichment=True,
+        enable_enrichment=False,
         from_date=None,
         to_date=None,
         timezone=None,
@@ -407,6 +407,7 @@ def demo(
         force=True,  # Always force a refresh for the demo
         debug=False,
         options=None,
+        is_demo=True,
     )
     console.print(
         Panel(

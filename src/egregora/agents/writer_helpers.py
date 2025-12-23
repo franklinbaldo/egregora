@@ -61,11 +61,11 @@ def register_writer_tools(
     """Attach tool implementations to the agent.
 
     This function registers all available tools based on the provided configuration.
-    It replaces the previous 'Capability' abstraction.
 
     Args:
         agent: The writer agent to register tools with.
         config: Application configuration.
+
     """
 
     # Core Tools (Always available)
@@ -285,7 +285,7 @@ async def count_tokens(prompt: str, model: Any | None = None) -> int:
     if model and hasattr(model, "count_tokens") and callable(model.count_tokens):
         try:
             return await model.count_tokens(prompt)
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.debug("Native token counting failed, falling back to estimation")
 
     # Fallback to conservative estimation (4 chars per token)

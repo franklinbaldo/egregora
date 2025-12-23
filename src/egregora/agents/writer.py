@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 import ibis.common.exceptions
-from google import genai
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
 from pydantic_ai import UsageLimits
@@ -50,13 +49,13 @@ from egregora.agents.writer_setup import (
     setup_writer_agent,
 )
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.infra.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.knowledge.profiles import get_active_authors
 from egregora.output_adapters import OutputSinkRegistry, create_default_output_registry
 from egregora.rag import index_documents, reset_backend
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
 from egregora.utils.cache import CacheTier, PipelineCache
+from egregora.utils.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -808,6 +807,7 @@ class WindowProcessingParams:
     adapter_content_summary: str = ""
     adapter_generation_instructions: str = ""
     run_id: str | None = None
+    is_demo: bool = False
 
 
 async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
@@ -816,6 +816,10 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
     This acts as the public entry point, orchestrating the setup and execution
     of the writer agent.
     """
+    if params.is_demo:
+        logger.info("🤖 Demo mode: Skipping writer agent and returning mock data.")
+        return {RESULT_KEY_POSTS: ["demo-post-1", "demo-post-2"], RESULT_KEY_PROFILES: ["demo-profile-1"]}
+
     if params.table.count().execute() == 0:
         return {RESULT_KEY_POSTS: [], RESULT_KEY_PROFILES: []}
 

@@ -41,7 +41,7 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
     except ModuleNotFoundError as exc:
         logger.warning("scikit-learn not installed (optional dependency). Skipping taxonomy: %s", exc)
         return 0
-    except Exception as exc:
+    except ImportError as exc:
         logger.warning("Failed to import scikit-learn dependencies. Skipping taxonomy: %s", exc)
         return 0
 
@@ -138,7 +138,7 @@ def _process_batches(agent: Any, batches: list[list[str]]) -> list[Any]:
         try:
             result = agent.run_sync(prompt)
             batch_results.append(result.data.mappings)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning("Batch taxonomy generation failed: %s", e)
             batch_results.append([])
     return batch_results

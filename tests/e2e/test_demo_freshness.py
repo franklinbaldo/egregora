@@ -5,10 +5,10 @@ from pathlib import Path
 import pytest
 
 from egregora.config import load_egregora_config
-from egregora.config.settings import SourceType
-from egregora.init import ensure_mkdocs_project
+from egregora.constants import SourceType
 from egregora.orchestration.context import PipelineRunParams
 from egregora.orchestration.pipelines.write import run as run_write_pipeline
+from egregora.output_adapters.mkdocs.scaffolding import ensure_mkdocs_project
 
 # Determine the project root to reliably find the 'demo' directory
 PROJECT_ROOT = Path(__file__).parent.parent.parent.resolve()
@@ -89,8 +89,8 @@ def test_demo_directory_is_up_to_date(tmp_path: Path):
     # Run the pipeline to generate the fresh demo
     try:
         run_write_pipeline(run_params)
-    except Exception as e:
-        pytest.fail(f"Demo site generation failed with an exception: {e}")
+    except Exception as exc:  # noqa: BLE001
+        pytest.fail(f"Demo site generation failed with an exception: {exc}")
 
     # Compare the generated demo with the committed one
     are_equal, report = are_dirs_equal(temp_demo_path, DEMO_DIR)

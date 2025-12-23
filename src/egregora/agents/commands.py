@@ -8,7 +8,7 @@ import re
 from datetime import datetime
 from typing import Any
 
-from egregora.config.settings import EGREGORA_NAME, EGREGORA_UUID
+from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import Document, DocumentType
 
 
