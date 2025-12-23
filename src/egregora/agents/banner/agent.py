@@ -13,6 +13,7 @@ import logging
 import os
 
 from google import genai
+from google.api_core import exceptions as google_exceptions
 from pydantic import BaseModel, Field
 from tenacity import Retrying
 
@@ -104,7 +105,7 @@ def _generate_banner_image(
 
         return BannerOutput(document=document, debug_text=result.debug_text)
 
-    except Exception as e:
+    except google_exceptions.GoogleAPICallError as e:
         logger.exception("Banner image generation failed for post '%s'", input_data.post_title)
         return BannerOutput(error=type(e).__name__, error_code="GENERATION_EXCEPTION")
 
@@ -160,8 +161,8 @@ def generate_banner(
         for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
             with attempt:
                 return _generate_banner_image(client, input_data, image_model, generation_request)
-    except Exception as e:
-        logger.exception("Banner generation failed")
+    except google_exceptions.GoogleAPICallError as e:
+        logger.exception("Banner generation failed after retries")
         return BannerOutput(error=type(e).__name__, error_code="GENERATION_FAILED")
 
 

@@ -15,6 +15,7 @@ import argparse
 import importlib
 import os
 import shutil
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -88,8 +89,7 @@ def _apply_patches(patches: list[PatchSpec]) -> None:
 
 def _patch_pipeline_for_offline_demo() -> None:
     # Patch writer to force TestModel usage (no Gemini calls).
-    # We patch both the package export and the module definition to be safe.
-    from egregora.agents.writer import agent as writer_agent_module
+    from egregora.agents import writer as writer_agent_module
 
     original_writer = writer_agent_module.write_posts_with_pydantic_agent
 
@@ -133,8 +133,14 @@ def _patch_pipeline_for_offline_demo() -> None:
 
     patches = [
         # Writer Agent
-        PatchSpec("egregora.agents.writer.agent.write_posts_with_pydantic_agent", _writer_wrapper),
         PatchSpec("egregora.agents.writer.write_posts_with_pydantic_agent", _writer_wrapper),
+        # Disable API key validation for offline demo builds.
+        PatchSpec("egregora.utils.env.validate_gemini_api_key", lambda *_args, **_kwargs: None),
+        PatchSpec(
+            "egregora.orchestration.pipelines.write._validate_api_key",
+            lambda _output_dir: None,
+            optional=True,
+        ),
         # Profile Generator
         PatchSpec(
             "egregora.agents.profile.generator.generate_profile_posts", _stub_generate_profile_posts
@@ -144,7 +150,9 @@ def _patch_pipeline_for_offline_demo() -> None:
         # Avoid banner capability and workers.
         PatchSpec("egregora.agents.writer_setup.is_banner_generation_available", lambda: False),
         PatchSpec(
-            "egregora.orchestration.pipelines.write._process_background_tasks", _skip_background_tasks
+            "egregora.orchestration.pipelines.write._process_background_tasks",
+            _skip_background_tasks,
+            optional=True,
         ),
         # Taxonomy
         PatchSpec(
@@ -191,12 +199,17 @@ def _patch_pipeline_for_offline_demo() -> None:
 def _rewrite_site_url(mkdocs_config_path: Path, site_url: str) -> None:
     if not mkdocs_config_path.exists():
         return
-    with mkdocs_config_path.open("r", encoding="utf-8") as f:
-        # Use safe_yaml_load to handle custom tags like !ENV or emojis
-        data = safe_yaml_load(f.read()) or {}
-    data["site_url"] = site_url
-    with mkdocs_config_path.open("w", encoding="utf-8") as f:
-        yaml.safe_dump(data, f, sort_keys=False)
+    text = mkdocs_config_path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    replaced = False
+    for idx, line in enumerate(lines):
+        if line.startswith("site_url:"):
+            lines[idx] = f"site_url: {site_url}"
+            replaced = True
+            break
+    if not replaced:
+        lines.insert(0, f"site_url: {site_url}")
+    mkdocs_config_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _update_demo_config(config_path: Path, max_windows: int) -> None:
@@ -228,6 +241,48 @@ def _write_stub_file(path: Path, title: str, content: str) -> None:
     """Write a stub markdown file using python-frontmatter."""
     post = frontmatter.Post(content, title=title)
     path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
+
+
+def _inject_demo_build_info(
+    index_path: Path, build_timestamp: str, build_commit: str, build_workflow_url: str
+) -> None:
+    """Inject build provenance into the demo homepage without clobbering content."""
+    if not index_path.exists():
+        return
+    content = index_path.read_text(encoding="utf-8")
+    marker_start = "<!-- demo-build-info:start -->"
+    marker_end = "<!-- demo-build-info:end -->"
+    block = "\n".join(
+        [
+            marker_start,
+            "",
+            "> **Demo build**",
+            f"> - Generated: {build_timestamp}",
+            f"> - Commit: {build_commit}",
+            f"> - Workflow: {build_workflow_url}",
+            "",
+            marker_end,
+            "",
+        ]
+    )
+
+    if marker_start in content and marker_end in content:
+        pre, _rest = content.split(marker_start, 1)
+        _old, post = _rest.split(marker_end, 1)
+        content = f"{pre}{block}{post.lstrip()}"
+    else:
+        if content.startswith("---"):
+            parts = content.split("---", 2)
+            if len(parts) == 3:
+                header = f"---{parts[1]}---\n"
+                body = parts[2].lstrip("\n")
+                content = f"{header}\n{block}{body}"
+            else:
+                content = f"{block}{content}"
+        else:
+            content = f"{block}{content}"
+
+    index_path.write_text(content, encoding="utf-8")
 
 
 def main() -> int:
@@ -285,6 +340,10 @@ def main() -> int:
     (docs_dir / "journal").mkdir(parents=True, exist_ok=True)
     (docs_dir / "profiles").mkdir(parents=True, exist_ok=True)
     (docs_dir / "media").mkdir(parents=True, exist_ok=True)
+
+    build_timestamp = os.getenv("BUILD_TIMESTAMP", "Unknown")
+    build_commit = os.getenv("BUILD_COMMIT", "Unknown")
+    build_workflow_url = os.getenv("BUILD_WORKFLOW_URL", "")
 
     _write_stub_file(
         docs_dir / "journal" / "index.md",
@@ -346,9 +405,13 @@ def main() -> int:
     result = runner.invoke(app, cli_args, catch_exceptions=False)
 
     if result.exit_code != 0:
+        if result.output:
+            sys.stderr.write(result.output)
         if result.exc_info:
-            pass
+            raise result.exc_info[1]
         return result.exit_code
+
+    _inject_demo_build_info(docs_dir / "index.md", build_timestamp, build_commit, build_workflow_url)
 
     return 0
 

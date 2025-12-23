@@ -26,18 +26,19 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
+import httpx
 from ibis.common.exceptions import IbisError
 from pydantic import BaseModel
 
 # UrlContextTool is the client-side fetcher (alias for WebFetchTool) suitable for pydantic-ai
-from pydantic_ai import Agent, UrlContextTool
+from pydantic_ai import Agent, RunContext, UrlContextTool
 from pydantic_ai.messages import BinaryContent
 
 from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.models.google_batch import GoogleBatchModel
-from egregora.ops.media import extract_urls, find_media_references
+from egregora.orchestration.pipelines.modules.media import extract_urls, find_media_references
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
@@ -139,6 +140,30 @@ class EnrichmentOutput(BaseModel):
 # ---------------------------------------------------------------------------
 # Dependencies & Contexts
 # ---------------------------------------------------------------------------
+
+
+async def fetch_url_with_jina(ctx: RunContext[Any], url: str) -> str:
+    """Fetch URL content using Jina.ai Reader.
+
+    Use this tool ONLY if the standard 'UrlContextTool' fails to retrieve meaningful content.
+    Examples of when to use this:
+    - The standard fetch returns "JavaScript is required" or "Access Denied" (403/429).
+    - The content is empty or contains only cookie/GDPR banners.
+    - The page is a Single Page Application (SPA) that didn't render.
+    """
+    jina_url = f"https://r.jina.ai/{url}"
+
+    # Headers to enable image captioning and ensure JSON response if needed
+    headers = {"X-With-Generated-Alt": "true", "X-Retain-Images": "none"}
+
+    async with httpx.AsyncClient() as client:
+        try:
+            # Jina returns Markdown by default
+            response = await client.get(jina_url, headers=headers, timeout=30.0)
+            response.raise_for_status()
+            return response.text
+        except Exception as e:
+            return f"Jina fetch failed: {e}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -740,10 +765,12 @@ class EnrichmentWorker(BaseWorker):
             # Create agent with fallback
             model = create_fallback_model(self.ctx.config.models.enricher)
 
-            # Use UrlContextTool (WebFetchTool) to allow the model to fetch page content
-            # This provides context for the enrichment (summary, key takeaways)
-            tool = UrlContextTool()
-            agent = Agent(model=model, output_type=EnrichmentOutput, tools=[tool])
+            # REGISTER TOOLS:
+            # 1. UrlContextTool: Standard client-side fetcher (primary)
+            # 2. fetch_url_with_jina: Fallback service for difficult pages
+            tools = [UrlContextTool(), fetch_url_with_jina]
+
+            agent = Agent(model=model, output_type=EnrichmentOutput, tools=tools)
 
             # Use run_sync to execute the async agent synchronously
             result = agent.run_sync(prompt)
@@ -751,7 +778,7 @@ class EnrichmentWorker(BaseWorker):
             logger.exception("Failed to enrich URL %s", url)
             return task, None, str(e)
         else:
-            return task, result.output, None
+            return task, result.data, None
 
     def _prepare_url_tasks(self, tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Parse payloads and render prompts for URL enrichment tasks."""
@@ -1511,7 +1538,7 @@ class EnrichmentWorker(BaseWorker):
                     continue
 
             # Determine subfolder based on media_type
-            from egregora.ops.media import get_media_subfolder
+            from egregora.orchestration.pipelines.modules.media import get_media_subfolder
 
             extension = Path(filename).suffix
             media_subdir = get_media_subfolder(extension)

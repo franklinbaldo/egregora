@@ -49,7 +49,7 @@ Media processing:
 
 """
 
-from egregora.ops.media import (
+from egregora.orchestration.pipelines.modules.media import (
     extract_media_references,
     process_media_for_window,
     replace_media_references,

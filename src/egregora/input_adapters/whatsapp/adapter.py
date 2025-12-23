@@ -13,7 +13,7 @@ from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.input_adapters.whatsapp.commands import EGREGORA_COMMAND_PATTERN
 from egregora.input_adapters.whatsapp.parsing import WhatsAppExport, parse_source
 from egregora.input_adapters.whatsapp.utils import discover_chat_file
-from egregora.ops.media import detect_media_type
+from egregora.orchestration.pipelines.modules.media import detect_media_type
 from egregora.utils.paths import slugify
 from egregora.utils.zip import validate_zip_contents
 

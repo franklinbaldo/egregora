@@ -10,14 +10,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.providers.google import GoogleProvider
 
-from egregora.agents.banner.agent import is_banner_generation_available
-from egregora.agents.capabilities import (
-    AgentCapability,
-    BackgroundBannerCapability,
-    BannerCapability,
-    RagCapability,
-)
 from egregora.agents.types import WriterAgentReturn, WriterDeps
 from egregora.agents.writer_helpers import (
     build_rag_context_for_prompt,
@@ -25,28 +20,10 @@ from egregora.agents.writer_helpers import (
     register_writer_tools,
     validate_prompt_fits,
 )
-from egregora.utils.model_fallback import create_fallback_model
+from egregora.utils.env import get_google_api_key
 
 if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig
-
-
-def configure_writer_capabilities(
-    config: EgregoraConfig,
-    context: WriterDeps,
-) -> list[AgentCapability]:
-    """Configure capabilities for the writer agent."""
-    capabilities: list[AgentCapability] = []
-    if config.rag.enabled:
-        capabilities.append(RagCapability())
-
-    if is_banner_generation_available():
-        if context.resources.task_store and context.resources.run_id:
-            capabilities.append(BackgroundBannerCapability(context.resources.run_id))
-        else:
-            capabilities.append(BannerCapability())
-
-    return capabilities
 
 
 async def create_writer_model(
@@ -59,7 +36,12 @@ async def create_writer_model(
     if test_model is not None:
         return test_model
 
-    model = create_fallback_model(config.models.writer, use_google_batch=False)
+    # Explicitly use GoogleProvider to avoid OpenRouter fallback
+    api_key = get_google_api_key()
+    provider = GoogleProvider(api_key=api_key)
+    model_name = config.models.writer.replace("google-gla:", "")
+    model = GoogleModel(model_name, provider=provider)
+
     # Validate prompt fits (only check for real models)
     await validate_prompt_fits(prompt, config.models.writer, config, context.window_label)
     return model
@@ -68,7 +50,7 @@ async def create_writer_model(
 def setup_writer_agent(
     model: Any,
     prompt: str,
-    capabilities: list[AgentCapability],
+    config: EgregoraConfig,
 ) -> Agent[WriterDeps, WriterAgentReturn]:
     """Initialize and configure the writer agent."""
     agent = Agent[WriterDeps, WriterAgentReturn](
@@ -77,7 +59,7 @@ def setup_writer_agent(
         retries=3,
         system_prompt=prompt,
     )
-    register_writer_tools(agent, capabilities=capabilities)
+    register_writer_tools(agent, config=config)
 
     # Dynamic System Prompts
     @agent.system_prompt

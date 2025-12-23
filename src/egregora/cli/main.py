@@ -26,8 +26,8 @@ from egregora.constants import SourceType, WindowUnit
 from egregora.database.elo_store import EloStore
 from egregora.database.utils import get_simple_storage
 from egregora.diagnostics import HealthStatus, run_diagnostics
-from egregora.init import ensure_mkdocs_project
 from egregora.orchestration.pipelines.write import run_cli_flow
+from egregora.output_adapters.mkdocs.scaffolding import ensure_mkdocs_project
 
 app = typer.Typer(
     name="egregora",
@@ -155,13 +155,6 @@ def write(
         bool,
         typer.Option("--resume/--no-resume", help="Resume from last checkpoint if available"),
     ] = True,
-    economic_mode: Annotated[
-        bool,
-        typer.Option(
-            "--economic-mode",
-            help="Enable economic mode (reduces LLM calls to 2 per window)",
-        ),
-    ] = False,
     refresh: Annotated[
         str | None,
         typer.Option(help="Force refresh components (writer, rag, enrichment, all)"),
@@ -195,7 +188,6 @@ def write(
         use_full_context_window=use_full_context_window,
         max_windows=max_windows,
         resume=resume,
-        economic_mode=economic_mode,
         refresh=refresh,
         force=force,
         debug=debug,
@@ -411,7 +403,6 @@ def demo(
         use_full_context_window=False,
         max_windows=2,
         resume=True,
-        economic_mode=False,
         refresh=None,
         force=True,  # Always force a refresh for the demo
         debug=False,

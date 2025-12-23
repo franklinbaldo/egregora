@@ -41,16 +41,16 @@ from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.run_store import RunStore
 from egregora.database.task_store import TaskStore
 from egregora.database.utils import resolve_db_uri
-from egregora.init import ensure_mkdocs_project
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
-from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
+from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.runner import PipelineRunner
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import MkDocsPaths
+from egregora.output_adapters.mkdocs.scaffolding import ensure_mkdocs_project
 from egregora.rag import index_documents, reset_backend
 from egregora.transformations import (
     WindowConfig,
@@ -122,7 +122,6 @@ class WriteCommandOptions:
     use_full_context_window: bool
     max_windows: int | None
     resume: bool
-    economic_mode: bool
     refresh: str | None
     force: bool
     debug: bool
@@ -286,7 +285,6 @@ def run_cli_flow(
     use_full_context_window: bool = False,
     max_windows: int | None = None,
     resume: bool = True,
-    economic_mode: bool = False,
     refresh: str | None = None,
     force: bool = False,
     debug: bool = False,
@@ -308,7 +306,6 @@ def run_cli_flow(
         "use_full_context_window": use_full_context_window,
         "max_windows": max_windows,
         "resume": resume,
-        "economic_mode": economic_mode,
         "refresh": refresh,
         "force": force,
         "debug": debug,

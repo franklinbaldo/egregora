@@ -8,7 +8,14 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic_ai import Agent, RunContext
 
-from egregora.agents.capabilities import AgentCapability
+from egregora.agents.banner.agent import is_banner_generation_available
+from egregora.agents.tools.writer_tools import (
+    BannerContext,
+    BannerResult,
+    SearchMediaResult,
+    generate_banner_impl,
+    search_media_impl,
+)
 from egregora.agents.types import (
     AnnotationResult,
     PostMetadata,
@@ -49,10 +56,20 @@ def process_tool_result(content: Any) -> dict[str, Any] | None:
 
 def register_writer_tools(
     agent: Agent[WriterDeps, WriterAgentReturn],
-    capabilities: list[AgentCapability],
+    config: EgregoraConfig,
 ) -> None:
-    """Attach tool implementations to the agent via core tools and capabilities."""
+    """Attach tool implementations to the agent.
 
+    This function registers all available tools based on the provided configuration.
+    It replaces the previous 'Capability' abstraction.
+
+    Args:
+        agent: The writer agent to register tools with.
+        config: Application configuration.
+
+    """
+
+    # Core Tools (Always available)
     @agent.tool
     def write_post_tool(ctx: RunContext[WriterDeps], metadata: PostMetadata, content: str) -> WritePostResult:
         meta_dict = metadata.model_dump(exclude_none=True)
@@ -74,9 +91,32 @@ def register_writer_tools(
         """Annotate a message or another annotation with commentary."""
         return ctx.deps.annotate(parent_id, parent_type, commentary)
 
-    for capability in capabilities:
-        logger.debug("Registering capability: %s", capability.name)
-        capability.register(agent)
+    # RAG Capability
+    if config.rag.enabled:
+        logger.debug("Registering RAG tools (search_media)")
+
+        @agent.tool
+        def search_media(ctx: RunContext[WriterDeps], query: str, top_k: int = 5) -> SearchMediaResult:
+            """Search for relevant media (images, videos, audio) in the knowledge base."""
+            # Direct implementation call
+            return search_media_impl(query, top_k)
+
+    # Banner Capability
+    if is_banner_generation_available():
+        logger.debug("Registering Banner tools (generate_banner)")
+
+        @agent.tool
+        def generate_banner(
+            ctx: RunContext[WriterDeps], post_slug: str, title: str, summary: str
+        ) -> BannerResult:
+            """Generate a banner image for a post."""
+            # Construct context from WriterDeps
+            banner_ctx = BannerContext(
+                output_sink=ctx.deps.resources.output,
+                task_store=ctx.deps.resources.task_store,
+                run_id=ctx.deps.resources.run_id,
+            )
+            return generate_banner_impl(banner_ctx, post_slug, title, summary)
 
 
 # ============================================================================

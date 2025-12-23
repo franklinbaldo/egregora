@@ -21,7 +21,6 @@ import ibis
 
 from egregora.database import schemas
 from egregora.database.ir_schema import quote_identifier
-from egregora.database.sql import SQLManager
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -63,9 +62,8 @@ class DuckDBStorageManager:
         self.db_path = db_path
         self.checkpoint_dir = checkpoint_dir or Path(".egregora/data")
         self._thread_local = threading.local()
-        self.sql = SQLManager()
         self._table_info_cache: dict[str, set[str]] = {}
-        self._file_lock = threading.RLock()  # For file-level operations like checkpoints
+        self._file_lock = threading.RLock()
 
         logger.info(
             "DuckDBStorageManager initialized (db=%s, checkpoints=%s)",
@@ -158,7 +156,6 @@ class DuckDBStorageManager:
         if hasattr(self._thread_local, "ibis_conn"):
             del self._thread_local.ibis_conn
 
-        self.sql = SQLManager()
         self._table_info_cache.clear()
 
     @contextlib.contextmanager
@@ -241,12 +238,18 @@ class DuckDBStorageManager:
                 logger.debug("Writing checkpoint: %s", parquet_path)
                 table.to_parquet(str(parquet_path))
 
-                sql = self.sql.render(
-                    "dml/load_parquet.sql.jinja",
-                    table_name=name,
-                    mode=mode,
-                )
-                params = [str(parquet_path)] if mode == "replace" else [str(parquet_path), str(parquet_path)]
+                quoted_name = quote_identifier(name)
+                path_str = str(parquet_path)
+                if mode == "replace":
+                    sql = f"CREATE OR REPLACE TABLE {quoted_name} AS SELECT * FROM read_parquet(?)"
+                    params = [path_str]
+                else:
+                    sql_create = f"CREATE TABLE IF NOT EXISTS {quoted_name} AS SELECT * FROM read_parquet(?) WHERE 1=0"
+                    sql_insert = f"INSERT INTO {quoted_name} SELECT * FROM read_parquet(?)"
+                    self._conn.execute(sql_create, [path_str])
+                    sql = sql_insert
+                    params = [path_str]
+
                 self._conn.execute(sql, params)
                 logger.info("Table '%s' written with checkpoint (%s)", name, mode)
 
@@ -259,15 +262,22 @@ class DuckDBStorageManager:
             msg = "Append mode requires checkpoint=True"
             raise ValueError(msg)
 
+    def get_table_columns(self, table_name: str, *, refresh: bool = False) -> set[str]:
+        """Return cached column names for ``table_name``."""
+        cache_key = table_name.lower()
+        if refresh or cache_key not in self._table_info_cache:
+            quoted_name = quote_identifier(table_name)
+            try:
+                rows = self.execute_query(f"PRAGMA table_info({quoted_name})")
+            except duckdb.Error:
+                rows = []
+            self._table_info_cache[cache_key] = {row[1] for row in rows}
+        return self._table_info_cache[cache_key]
+
     def list_tables(self) -> list[str]:
         """List all tables in database."""
         tables = self.execute_query(
-            """
-            SELECT table_name
-            FROM information_schema.tables
-            WHERE table_schema = 'main'
-            ORDER BY table_name
-            """
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' ORDER BY table_name"
         )
         return [t[0] for t in tables]
 

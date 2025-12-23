@@ -9,7 +9,11 @@ from pathlib import Path
 import ibis
 import ibis.expr.datatypes as dt
 
-from egregora.ops.media import ATTACHMENT_MARKERS, WA_MEDIA_PATTERN, detect_media_type
+from egregora.orchestration.pipelines.modules.media import (
+    ATTACHMENT_MARKERS,
+    WA_MEDIA_PATTERN,
+    detect_media_type,
+)
 from egregora.utils.zip import validate_zip_contents
 
 _CHW_PATTERN_RAW = r"WhatsApp(?: Chat with|.*) (.+)\.txt"
