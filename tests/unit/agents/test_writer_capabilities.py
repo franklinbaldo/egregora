@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from egregora.agents.writer_helpers import register_writer_tools
 
@@ -28,18 +28,22 @@ CORE_TOOL_NAMES = {
 
 def test_register_writer_tools_registers_core_tools() -> None:
     agent = FakeAgent()
+    config = MagicMock()
+    config.rag.enabled = False
 
-    register_writer_tools(agent, capabilities=[])
+    with patch("egregora.agents.writer_helpers.is_banner_generation_available", return_value=False):
+        register_writer_tools(agent, config)
 
     assert set(agent.tools.keys()) == CORE_TOOL_NAMES
 
 
-def test_register_writer_tools_invokes_capabilities_once() -> None:
+def test_register_writer_tools_registers_conditional_tools() -> None:
     agent = FakeAgent()
-    capability = MagicMock()
-    capability.name = "mock-capability"
+    config = MagicMock()
+    config.rag.enabled = True
 
-    register_writer_tools(agent, capabilities=[capability])
+    with patch("egregora.agents.writer_helpers.is_banner_generation_available", return_value=True):
+        register_writer_tools(agent, config)
 
-    capability.register.assert_called_once_with(agent)
-    assert set(agent.tools.keys()) == CORE_TOOL_NAMES
+    expected_tools = CORE_TOOL_NAMES | {"search_media", "generate_banner"}
+    assert set(agent.tools.keys()) == expected_tools

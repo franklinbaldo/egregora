@@ -66,6 +66,7 @@ def register_writer_tools(
     Args:
         agent: The writer agent to register tools with.
         config: Application configuration.
+
     """
 
     # Core Tools (Always available)

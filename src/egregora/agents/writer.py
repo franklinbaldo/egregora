@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 import ibis.common.exceptions
-from google import genai
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
 from pydantic_ai import UsageLimits

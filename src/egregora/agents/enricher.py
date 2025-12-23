@@ -143,8 +143,7 @@ class EnrichmentOutput(BaseModel):
 
 
 async def fetch_url_with_jina(ctx: RunContext[Any], url: str) -> str:
-    """
-    Fetch URL content using Jina.ai Reader.
+    """Fetch URL content using Jina.ai Reader.
 
     Use this tool ONLY if the standard 'UrlContextTool' fails to retrieve meaningful content.
     Examples of when to use this:
