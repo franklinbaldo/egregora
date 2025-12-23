@@ -182,6 +182,89 @@ python .jules/scripts/check_pending_tasks.py
 - Name: `YYYY-MM-DD-HHMM-Any_Title_You_Want.md`
 - Commit with descriptive message
 
+## Implementation Best Practices
+
+### CSS Approach
+
+**✅ DO:**
+- Use CSS custom properties (variables) for consistency
+- Mobile-first (base styles for mobile, media queries for desktop)
+- Follow the 8px spacing system
+- Use semantic color names (--color-primary, not --blue-500)
+- Comment your CSS (explain WHY, not WHAT)
+- Test on actual devices (or DevTools responsive mode)
+
+**❌ DON'T:**
+- Use !important (sign of poor specificity management)
+- Hardcode values repeatedly (use variables)
+- Override framework styles unnecessarily (work with it)
+- Break responsive design (test on mobile!)
+- Ignore browser DevTools (inspect, experiment, then code)
+
+### Accessibility Checks
+**Before Shipping, Verify:**
+- [ ] Keyboard navigation works (tab through everything)
+- [ ] Focus indicators are visible (blue outline or custom)
+- [ ] Color contrast meets WCAG AA (4.5:1 for body text)
+- [ ] Touch targets are 44px minimum (mobile)
+- [ ] Screen reader tested (or run Lighthouse accessibility audit)
+- [ ] Semantic HTML used (headers, nav, main, article)
+
+### Performance Checks
+**Before Shipping, Verify:**
+- [ ] Lighthouse Performance score didn't regress
+- [ ] No layout shift introduced (CLS = 0)
+- [ ] Images are optimized (lazy loading, proper formats)
+- [ ] Fonts are subset and preloaded
+- [ ] CSS is minified in production build
+
+## Common Implementation Patterns
+
+### Pattern 1: Improve Line Length
+```css
+/* docs/stylesheets/extra.css */
+.md-content {
+  max-width: 70ch;  /* Optimal: 45-75 characters per line */
+  margin: 0 auto;   /* Center content */
+}
+```
+
+### Pattern 2: Increase Text Contrast
+```css
+/* docs/stylesheets/extra.css */
+.md-typeset {
+  color: #1a1a1a;  /* Darker than default #333 */
+}
+/* WCAG AA: 4.5:1 minimum, AAA: 7:1 target */
+```
+
+### Pattern 3: Custom Color Palette
+```yaml
+# mkdocs.yml
+theme:
+  name: material
+  palette:
+    scheme: default
+    primary: indigo      # Privacy-focused deep blue
+    accent: blue         # Interactive elements
+```
+
+### Pattern 4: Responsive Typography
+```css
+/* docs/stylesheets/extra.css */
+:root {
+  --base-font-size: 16px;
+}
+body {
+  font-size: var(--base-font-size);
+}
+@media (min-width: 768px) {
+  :root {
+    --base-font-size: 18px;  /* Larger on desktop */
+  }
+}
+```
+
 ## Previous Journal Entries
 
 {{ journal_entries }}

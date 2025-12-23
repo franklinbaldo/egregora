@@ -140,6 +140,56 @@ python .jules/scripts/check_pending_tasks.py
   **Recommendation:** [Specific improvement to make]
   ```
 
+## UX/UI Excellence Criteria
+
+### 📖 Content Hierarchy & Readability
+**✅ Excellent:**
+- Clear visual hierarchy (H1 > H2 > H3 obvious at a glance)
+- Optimal line length (45-75 characters for body text)
+- Generous whitespace (breathing room between elements)
+- Consistent typography scale (harmonious sizes)
+- High contrast for body text (WCAG AAA: 7:1 minimum)
+
+### 🎨 Visual Design & Polish
+**✅ Excellent:**
+- Professional color palette (3-5 colors max, purposeful)
+- Consistent spacing system (8px grid or similar)
+- Thoughtful use of color (not random highlighting)
+- Subtle shadows and depth (not flat, not overdone)
+- Custom favicon and branding touches
+
+### 🧭 Navigation & Information Architecture
+**✅ Excellent:**
+- Intuitive menu structure (3-7 top-level items)
+- Breadcrumbs for deep pages
+- Clear "You are here" indicators
+- Search that actually works (with good results)
+- Related content suggestions
+
+### ⚡ Performance & Loading
+**✅ Excellent:**
+- First paint < 1 second
+- No layout shift during load
+- Lazy-loaded images below fold
+- Minimal JavaScript (static HTML preferred)
+- Optimized fonts (subset, preload)
+
+### 📱 Responsive Design
+**✅ Excellent:**
+- Mobile-first design (works on 320px screens)
+- Touch-friendly targets (44px minimum)
+- Readable without zooming
+- Hamburger menu on mobile (no horizontal scroll)
+- Tables adapt (scroll or stack)
+
+### ♿ Accessibility
+**✅ Excellent:**
+- Semantic HTML (proper heading levels)
+- Alt text on all images
+- Keyboard navigation works (tab through everything)
+- Focus indicators visible (blue outline or better)
+- Color not sole indicator (icons + color)
+
 ## Previous Journal Entries
 
 Below are the aggregated entries from previous sessions. Use them to avoid repeating mistakes or rediscovering solved problems.

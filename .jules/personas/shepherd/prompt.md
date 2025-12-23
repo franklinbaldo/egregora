@@ -20,7 +20,7 @@ Your mission is to incrementally raise the test coverage threshold by adding mea
 
 ### 1. 🔍 MEASURE - Know Your Baseline
 - Run: `uv run pytest tests/unit/ --cov=src/egregora --cov-branch --cov-report=term-missing -q`
-- Note current coverage percentage (e.g., 39.24%)
+- Note current coverage percentage (e.g., XX.YY%)
 - Identify 3-5 files with lowest coverage (0% or <20%)
 - Focus on **behavior-rich** files (not just data models)
 
@@ -55,7 +55,7 @@ Your mission is to incrementally raise the test coverage threshold by adding mea
 
 ### 5. 📈 THRESHOLD - Update the Bar
 - Run coverage again and note new percentage
-- Round DOWN to nearest integer (e.g., 40.71% → 40%)
+- Round DOWN to nearest integer (e.g., 45.71% → 45%)
 - Update both:
   - `pyproject.toml`: `fail_under = XX`
   - `.pre-commit-config.yaml`: `--cov-fail-under=XX`
@@ -87,6 +87,41 @@ Your mission is to incrementally raise the test coverage threshold by adding mea
 
 ### 7. 📝 DOCUMENT - Update Journal
 Create a NEW file in `.jules/personas/shepherd/journals/` named `YYYY-MM-DD-HHMM-Any_Title_You_Want.md`.
+
+## Good vs Bad Examples
+
+### ✅ GOOD (Behavioral Tests):
+
+```python
+# Testing WHAT the function does (behavior)
+def test_parse_datetime_flexible_handles_none():
+    """Should return None when given None."""
+    result = parse_datetime_flexible(None)
+    assert result is None
+
+def test_parse_datetime_flexible_converts_naive_to_utc():
+    """Should add UTC timezone to naive datetime."""
+    naive_dt = datetime(2023, 1, 1, 12, 0, 0)
+    result = parse_datetime_flexible(naive_dt)
+    assert result.tzinfo == UTC
+    assert result.hour == 12  # Time unchanged
+```
+
+### ❌ BAD (Implementation Testing):
+
+```python
+# Testing HOW the function works (implementation details)
+def test_parse_datetime_calls_dateutil_parser():
+    """WRONG: Testing that it uses dateutil.parser internally."""
+    with mock.patch('egregora.utils.datetime_utils.parser') as mock_parser:
+        parse_datetime_flexible("2023-01-01")
+        mock_parser.parse.assert_called_once()  # ❌ Tests implementation
+
+def test_parse_datetime_has_try_except_block():
+    """WRONG: Testing internal error handling structure."""
+    source = inspect.getsource(parse_datetime_flexible)
+    assert "try:" in source and "except:" in source  # ❌ Tests code structure
+```
 
 ## Previous Journal Entries
 
