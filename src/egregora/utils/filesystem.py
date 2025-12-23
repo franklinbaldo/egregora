@@ -38,23 +38,24 @@ def _extract_clean_date(date_obj: str | date | datetime) -> str:
 
     date_str = str(date_obj).strip()
 
+    # First, try to parse the whole string directly
     try:
-        if len(date_str) == ISO_DATE_LENGTH and date_str[4] == "-" and date_str[7] == "-":
-            date.fromisoformat(date_str)
-            return date_str
-    except ValueError:
+        # This handles "YYYY-MM-DD" and other ISO-like formats
+        return date.fromisoformat(date_str[:ISO_DATE_LENGTH]).isoformat()
+    except (ValueError, TypeError):
         pass
 
+    # If direct parsing fails, search for a date pattern
     match = _DATE_PATTERN.search(date_str)
     if match:
-        clean_date = match.group(1)
+        clean_date_str = match.group(1)
         try:
-            date.fromisoformat(clean_date)
+            # Validate that the matched pattern is a real date
+            return date.fromisoformat(clean_date_str).isoformat()
         except ValueError:
-            pass
-        else:
-            return clean_date
+            pass  # The matched pattern was not a valid date
 
+    # Fallback to the original string if no valid date is found
     return date_str
 
 
@@ -167,21 +168,17 @@ def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path
     front_matter = {
         "title": metadata["title"],
         "slug": slug_candidate,
+        "date": format_frontmatter_datetime(raw_date),
     }
 
-    front_matter["date"] = format_frontmatter_datetime(raw_date)
+    # Copy optional metadata fields
+    optional_keys = ["tags", "summary", "authors", "category"]
+    for key in optional_keys:
+        if key in metadata:
+            front_matter[key] = metadata[key]
 
-    if "authors" in metadata:
-        ensure_author_entries(output_dir, metadata.get("authors"))
-
-    if "tags" in metadata:
-        front_matter["tags"] = metadata["tags"]
-    if "summary" in metadata:
-        front_matter["summary"] = metadata["summary"]
-    if "authors" in metadata:
-        front_matter["authors"] = metadata["authors"]
-    if "category" in metadata:
-        front_matter["category"] = metadata["category"]
+    if "authors" in front_matter:
+        ensure_author_entries(output_dir, front_matter.get("authors"))
 
     yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
     full_post = f"---\n{yaml_front}---\n\n{content}"
