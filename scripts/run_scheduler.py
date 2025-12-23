@@ -20,6 +20,41 @@ except ImportError:
     print("Error: Could not import JulesClient. Make sure PYTHONPATH includes .claude/skills/jules-api", file=sys.stderr)
     sys.exit(1)
 
+# --- Standard Text Blocks ---
+
+IDENTITY_BRANDING = """
+## Identity & Branding
+Your emoji is: {{ emoji }}
+- **PR Title:** Always prefix with {{ emoji }}. Example: {{ emoji }} {{ example_pr_title | default('chore: update') }}
+- **Journal Entries:** Prefix file content title with {{ emoji }}.
+"""
+
+JOURNAL_MANAGEMENT = """
+### 📝 DOCUMENT - Update Journal
+- Create a NEW file in `.jules/personas/{{ id }}/journals/`
+- Naming convention: `YYYY-MM-DD-HHMM-Any_Title_You_Want.md` (only date/time is mandatory)
+- Content:
+  ```markdown
+  ## {{ emoji }} YYYY-MM-DD - Topic
+  **Observation:** [What did you notice?]
+  **Action:** [What did you do?]
+  ```
+
+## Previous Journal Entries
+
+Below are the aggregated entries from previous sessions. Use them to avoid repeating mistakes or rediscovering solved problems.
+
+{{ journal_entries }}
+"""
+
+CELEBRATION = """
+**If you find no work to do:**
+- 🎉 **Celebrate!** The state is good.
+- Create a journal entry: `YYYY-MM-DD-HHMM-No_Work_Needed.md`
+- Content: "## {{ emoji }} No issues found / Queue empty."
+- **Finish the session.**
+"""
+
 def load_schedule_registry(registry_path: Path) -> dict:
     if not registry_path.exists():
         return {}
@@ -72,14 +107,24 @@ def parse_prompt_file(filepath: Path, context: dict) -> dict:
     config = post.metadata
     body_template = post.content
 
+    # Merge frontmatter config into context so variables like 'example_pr_title' are available
+    full_context = {**context, **config}
+
+    # Setup basic Jinja2 environment
+    env = jinja2.Environment()
+
+    # Pre-render standard blocks using full_context so they can use {{ emoji }}, {{ id }}, etc.
+    full_context["identity_branding"] = env.from_string(IDENTITY_BRANDING).render(**full_context)
+    full_context["journal_management"] = env.from_string(JOURNAL_MANAGEMENT).render(**full_context)
+    full_context["empty_queue_celebration"] = env.from_string(CELEBRATION).render(**full_context)
+
     # Render body template
-    template = jinja2.Template(body_template)
-    rendered_body = template.render(**context)
+    rendered_body = env.from_string(body_template).render(**full_context)
 
     # Render title template if present
     title = config.get("title", "Jules Task")
     if "{{" in title:
-         title = jinja2.Template(title).render(**context)
+         title = env.from_string(title).render(**full_context)
          config["title"] = title
 
     return {
@@ -158,15 +203,9 @@ def main():
             persona_dir = p_file.parent
             journal_entries = collect_journals(persona_dir)
             
-            # Pre-load to get emoji from frontmatter
-            # We need this BEFORE rendering because title/body might use {{ emoji }}
-            raw_post = frontmatter.load(p_file)
-            emoji = raw_post.metadata.get("emoji", "")
-            
             context = {
                 **base_context, 
-                "journal_entries": journal_entries,
-                "emoji": emoji
+                "journal_entries": journal_entries
             }
 
             parsed = parse_prompt_file(p_file, context)
@@ -190,8 +229,6 @@ def main():
 
             # Check schedule
             should_run = False
-            
-            # Determine schedule string: Registry > Frontmatter > Default (None)
             schedule_str = registry.get(pid)
             
             if not schedule_str and config.get("schedule"):
