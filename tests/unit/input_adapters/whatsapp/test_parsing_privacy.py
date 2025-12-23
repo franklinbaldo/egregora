@@ -2,7 +2,7 @@
 
 import uuid
 
-from egregora.privacy import anonymize_author, scrub_pii
+from egregora.input_adapters.whatsapp.parsing import anonymize_author, scrub_pii
 
 
 def test_scrub_pii_email():
