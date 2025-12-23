@@ -25,6 +25,7 @@ from egregora.agents.writer_helpers import (
     register_writer_tools,
     validate_prompt_fits,
 )
+from egregora.config.settings import google_api_key_status
 from egregora.utils.model_fallback import create_fallback_model
 
 if TYPE_CHECKING:
@@ -58,6 +59,15 @@ async def create_writer_model(
     """Create or configure the writer model."""
     if test_model is not None:
         return test_model
+
+    # Fail fast if a Google model is requested without an API key
+    if config.models.writer.startswith("google-gla:") and not google_api_key_status():
+        msg = (
+            "A Google model is configured, but no API key was found.\n"
+            "Please set the GEMINI_API_key or GOOGLE_API_KEY environment variable.\n"
+            "You can get a free key from Google AI Studio: https://aistudio.google.com/app/apikey"
+        )
+        raise ValueError(msg)
 
     model = create_fallback_model(config.models.writer, use_google_batch=False)
     # Validate prompt fits (only check for real models)
