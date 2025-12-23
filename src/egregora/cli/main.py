@@ -26,8 +26,8 @@ from egregora.constants import SourceType, WindowUnit
 from egregora.database.elo_store import EloStore
 from egregora.database.utils import get_simple_storage
 from egregora.diagnostics import HealthStatus, run_diagnostics
-from egregora.init import ensure_mkdocs_project
 from egregora.orchestration.pipelines.write import run_cli_flow
+from egregora.output_adapters.mkdocs.scaffolding import ensure_mkdocs_project
 
 app = typer.Typer(
     name="egregora",

@@ -41,9 +41,9 @@ from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.run_store import RunStore
 from egregora.database.task_store import TaskStore
 from egregora.database.utils import resolve_db_uri
-from egregora.init import ensure_mkdocs_project
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
+from egregora.output_adapters.mkdocs.scaffolding import ensure_mkdocs_project
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
