@@ -394,7 +394,7 @@ def demo(
         step_size=100,
         step_unit=WindowUnit.MESSAGES,
         overlap=0.0,
-        enable_enrichment=True,
+        enable_enrichment=False,
         from_date=None,
         to_date=None,
         timezone=None,
@@ -407,6 +407,7 @@ def demo(
         force=True,  # Always force a refresh for the demo
         debug=False,
         options=None,
+        is_demo=True,
     )
     console.print(
         Panel(
