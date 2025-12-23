@@ -402,7 +402,7 @@ def demo(
         step_size=100,
         step_unit=WindowUnit.MESSAGES,
         overlap=0.0,
-        enable_enrichment=True,
+        enable_enrichment=False,
         from_date=None,
         to_date=None,
         timezone=None,
