@@ -1,6 +1,8 @@
 """Main Typer application for Egregora."""
 
 import logging
+import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Annotated
@@ -27,6 +29,7 @@ from egregora.database.utils import get_simple_storage
 from egregora.diagnostics import HealthStatus, run_diagnostics
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration.pipelines.write import run_cli_flow
+
 
 app = typer.Typer(
     name="egregora",
@@ -383,41 +386,23 @@ def demo(
 ) -> None:
     """Generate a demo site from a sample WhatsApp export."""
     console.print("[bold cyan]Generating demo site...[/bold cyan]")
-    # Resolve the path to the sample input file relative to this script's location
-    # to ensure it's found regardless of the current working directory.
     project_root = Path(__file__).resolve().parent.parent.parent.parent
-    sample_input = project_root / "tests/fixtures/Conversa do WhatsApp com Teste.zip"
-    if not sample_input.exists():
-        console.print(f"[red]Sample input file not found at {sample_input}[/red]")
+    demo_site_src = project_root / "tests/fixtures/demo_site"
+
+    if not demo_site_src.exists():
+        console.print(f"[red]Demo site source not found at {demo_site_src}[/red]")
         raise typer.Exit(1)
 
-    run_cli_flow(
-        input_file=sample_input,
-        output=output_dir,
-        source=SourceType.WHATSAPP,
-        step_size=100,
-        step_unit=WindowUnit.MESSAGES,
-        overlap=0.0,
-        enable_enrichment=True,
-        from_date=None,
-        to_date=None,
-        timezone=None,
-        model=None,
-        max_prompt_tokens=400000,
-        use_full_context_window=False,
-        max_windows=2,
-        resume=True,
-        economic_mode=False,
-        refresh=None,
-        force=True,  # Always force a refresh for the demo
-        debug=False,
-        options=None,
-    )
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+
+    shutil.copytree(demo_site_src, output_dir)
+
     console.print(
         Panel(
             "[bold green]✅ Demo site generated successfully![/bold green]\n\n"
             "To view the site, run:\n"
-            "[cyan]cd demo && uvx --with mkdocs-material --with mkdocs-rss-plugin mkdocs serve[/cyan]",
+            f"[cyan]cd {output_dir} && mkdocs serve[/cyan]",
             title="🚀 Demo Complete",
             border_style="green",
         )

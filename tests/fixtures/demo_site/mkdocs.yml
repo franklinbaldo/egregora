@@ -1,0 +1,6 @@
+site_name: Egregora Demo
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - Blog: posts/sample-post.md
