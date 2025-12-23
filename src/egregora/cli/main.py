@@ -19,6 +19,7 @@ from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.table import Table
 
+from egregora.cli.db import db_app
 from egregora.cli.read import read_app
 from egregora.config import load_egregora_config
 from egregora.constants import SourceType, WindowUnit
@@ -34,6 +35,9 @@ app = typer.Typer(
     add_completion=False,
 )
 app.add_typer(read_app)
+
+# Database subcommands
+app.add_typer(db_app)
 
 # Show subcommands
 show_app = typer.Typer(
