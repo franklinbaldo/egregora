@@ -40,7 +40,7 @@ from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.llm.providers.google_batch import GoogleBatchModel
-from egregora.ops.media import extract_urls, find_media_references
+from egregora.orchestration.pipelines.modules.media import extract_urls, find_media_references
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
@@ -1368,7 +1368,7 @@ class EnrichmentWorker(BaseWorker):
         request_parts = [{"text": combined_prompt}, *parts]
 
         # Build model+key rotator if enabled
-        from egregora.models.model_key_rotator import ModelKeyRotator
+        from egregora.llm.providers.model_key_rotator import ModelKeyRotator
 
         rotation_enabled = getattr(self.enrichment_config, "model_rotation_enabled", True)
         rotation_models = getattr(self.enrichment_config, "rotation_models", None)
@@ -1542,7 +1542,7 @@ class EnrichmentWorker(BaseWorker):
                     continue
 
             # Determine subfolder based on media_type
-            from egregora.ops.media import get_media_subfolder
+            from egregora.orchestration.pipelines.modules.media import get_media_subfolder
 
             extension = Path(filename).suffix
             media_subdir = get_media_subfolder(extension)
