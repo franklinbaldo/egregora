@@ -1368,7 +1368,7 @@ class EnrichmentWorker(BaseWorker):
         request_parts = [{"text": combined_prompt}, *parts]
 
         # Build model+key rotator if enabled
-        from egregora.models.model_key_rotator import ModelKeyRotator
+        from egregora.llm.providers.model_key_rotator import ModelKeyRotator
 
         rotation_enabled = getattr(self.enrichment_config, "model_rotation_enabled", True)
         rotation_models = getattr(self.enrichment_config, "rotation_models", None)
