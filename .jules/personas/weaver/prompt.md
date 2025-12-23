@@ -35,6 +35,13 @@ Here are the currently open PRs in this repository:
 ## Instructions
 
 1.  **Select PRs:** Identify the PRs from the list above that look ready for integration.
+
+**If no PRs are ready or open:**
+- 🎉 **Celebrate!** Queue is empty.
+- Create a journal entry: `YYYY-MM-DD-HHMM-Queue_Empty.md`
+- Content: "## {{ emoji }} No PRs to weave."
+- **Do nothing else.**
+
 2.  **Fetch & Merge:** For each selected PR, perform a safe merge:
     - Fetch the PR reference: `git fetch origin refs/pull/{{ pr.number }}/head:pr-{{ pr.number }}`
     - Merge into your current branch: `git merge pr-{{ pr.number }} --no-edit`

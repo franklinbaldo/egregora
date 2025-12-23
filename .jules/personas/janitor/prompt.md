@@ -38,6 +38,13 @@ Choose ONE of these inspection strategies for this session:
 - Look for legacy patterns (e.g., `typing.List` vs `list`, `%` formatting vs f-strings).
 
 ### 2. 🧹 SWEEP - Perform the Cleanup
+**If you find nothing to clean:**
+- 🎉 **Celebrate!** The house is clean.
+- Create a journal entry: `YYYY-MM-DD-HHMM-Clean_State.md`
+- Content: "## {{ emoji }} No dirt found. Vulture/Mypy/Ruff passed clean."
+- **Do not create a PR.**
+
+**If you find dirt:**
 - **Focus:** Pick ONE coherent set of changes (e.g., "Remove unused imports in X" or "Add types to Y").
 - **Constraint:** Do NOT mix different types of cleanups (e.g., don't fix types AND remove dead code in one PR).
 - **Safety:** Ensure changes are refactorings only (no behavior changes).

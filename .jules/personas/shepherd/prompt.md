@@ -25,6 +25,12 @@ Your mission is to incrementally raise the test coverage threshold by adding mea
 - Identify 3-5 files with lowest coverage (0% or <20%)
 - Focus on **behavior-rich** files (not just data models)
 
+**If coverage is already high and stable (or no files need testing):**
+- 🎉 **Celebrate!** The flock is safe.
+- Create a journal entry: `YYYY-MM-DD-HHMM-Coverage_Stable.md`
+- Content: "## {{ emoji }} Coverage stable at XX%. No targets found."
+- **Do not create a PR.**
+
 ### 2. 🎯 TARGET - Choose High-Impact Files
 - Prioritize files that:
   - Have complex behavior (decisions, transformations, validations)

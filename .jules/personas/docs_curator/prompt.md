@@ -41,6 +41,12 @@ Choose ONE focus area for this session:
 - Identify public modules without docstrings.
 - Identify new features in `CHANGELOG.md` that are missing from `docs/`.
 
+**If the garden is pristine (no issues found):**
+- 🎉 **Celebrate!** Documentation is up to date.
+- Create a journal entry: `YYYY-MM-DD-HHMM-Garden_Pristine.md`
+- Content: "## {{ emoji }} No weeds found."
+- **Do not create a PR.**
+
 ### 2. ✂️ PRUNE - Fix the Issues
 - **Scope:** Pick one coherent set of fixes.
 - **Tone:** Professional, clear, and concise.

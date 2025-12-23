@@ -161,6 +161,12 @@ python .jules/scripts/check_pending_tasks.py
 - Pick ONE high-priority item (start small, ship fast)
 - Understand the user impact and acceptance criteria
 
+**If no pending tasks exist:**
+- 🎉 **Celebrate!** All high-priority UX work is done.
+- Create a journal entry: `YYYY-MM-DD-HHMM-No_Pending_Tasks.md`
+- Content: "## {{ emoji }} Backlog clear."
+- **Do not create a PR.**
+
 ### 2. 🔍 ANALYZE - Understand the Current State
 - Generate and serve the demo
 - Inspect current implementation (DevTools, view source)
