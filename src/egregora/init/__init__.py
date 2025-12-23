@@ -1,5 +1,6 @@
 """Site initialization utilities for MkDocs-based Egregora deployments."""
 
-from egregora.init.scaffolding import ensure_mkdocs_project
-
-__all__ = ["ensure_mkdocs_project"]
+# ensure_mkdocs_project has been moved to egregora.output_adapters.mkdocs.scaffolding
+# but we might want to keep this package for other init things in future.
+# For now, it will be empty.
+__all__ = []
