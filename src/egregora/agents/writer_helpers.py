@@ -61,7 +61,6 @@ def register_writer_tools(
     """Attach tool implementations to the agent.
 
     This function registers all available tools based on the provided configuration.
-    It replaces the previous 'Capability' abstraction.
 
     Args:
         agent: The writer agent to register tools with.
