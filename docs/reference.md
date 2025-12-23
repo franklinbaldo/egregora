@@ -7,7 +7,7 @@ This section serves as a deep dive into the internal mechanics, command-line int
 
 ## Core References
 
-### 1. [CLI Reference](api/orchestration/cli.md)
+### 1. CLI Reference
 Detailed documentation of all command-line arguments, environment variables, and subcommands.
 *   `egregora init`: Site scaffolding internals.
 *   `egregora write`: Pipeline execution flags and caching strategies.
@@ -26,7 +26,7 @@ Complete guide to `egregora.toml` and `config.yml` settings.
 *   Pipeline windowing rules.
 *   Prompt customization.
 
-### 4. [Database Schema](api/core/schema.md)
+### 4. Database Schema
 Documentation of the internal Ibis/DuckDB schemas used for:
 *   Intermediate Representation (IR).
 *   Run tracking.
@@ -40,6 +40,6 @@ Documentation of the internal Ibis/DuckDB schemas used for:
 
 ## Developer Resources
 
-*   [Contributing Guide](development/contributing.md): Coding standards and PR process.
-*   [Project Structure](development/structure.md): File organization and module responsibilities.
-*   [Testing Strategy](development/testing.md): How to run and write tests.
+*   [Contributing Guide](https://github.com/franklinbaldo/egregora/blob/main/CONTRIBUTING.md): Coding standards and PR process.
+*   [Project Structure](guide/architecture.md#code-structure): File organization and module responsibilities.
+*   [Testing Strategy](https://github.com/franklinbaldo/egregora/blob/main/CONTRIBUTING.md#testing): How to run and write tests.
