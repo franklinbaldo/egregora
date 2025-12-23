@@ -39,6 +39,7 @@ import logging
 from collections import defaultdict
 from typing import Any
 
+import yaml
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
@@ -209,7 +210,7 @@ async def _generate_profile_content(
     if hasattr(ctx.output_format, "get_author_profile"):
         try:
             existing_profile = ctx.output_format.get_author_profile(author_uuid)
-        except Exception as e:
+        except (OSError, yaml.YAMLError) as e:
             logger.warning("Failed to fetch existing profile for %s: %s", author_uuid, e)
 
     # Fetch profile history for context (append-only timeline of previous posts)
@@ -223,7 +224,7 @@ async def _generate_profile_content(
                 author_uuid, profiles_dir, max_posts=ctx.config.profile.history_window_size
             )
             logger.debug("Loaded profile history for %s (%d chars)", author_uuid, len(profile_history))
-    except Exception as e:
+    except ImportError as e:
         logger.warning("Failed to load profile history for %s: %s", author_uuid, e)
 
     # Build prompt with history context
@@ -343,8 +344,8 @@ async def generate_profile_posts(
             profiles.append(profile)
             logger.info("Generated profile update for %s: %s", author_name, title)
 
-        except Exception:
-            logger.exception("Failed to generate profile for %s", author_name)
+        except (ValueError, TypeError) as e:
+            logger.exception(f"Failed to generate profile for {author_name}: {e}")
             continue
 
     return profiles

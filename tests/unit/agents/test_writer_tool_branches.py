@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import pytest
 from pydantic_ai import ModelRetry
 
-from egregora.agents.types import WriterDeps, WriterResources
 from egregora.agents.tools.writer_tools import search_media_impl
+from egregora.agents.types import WriterDeps, WriterResources
 
 
 def make_resources(tmp_path: Path) -> WriterResources:

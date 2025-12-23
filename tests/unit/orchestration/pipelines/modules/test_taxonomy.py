@@ -75,7 +75,7 @@ def test_generate_semantic_taxonomy_docstring_adheres_to_d413():
 
     # The docstring should end with a newline followed by indented whitespace.
     # When split by newline, the very last element of the list should be whitespace-only.
-    lines = docstring.split('\n')
+    lines = docstring.split("\n")
     assert lines[-1].strip() == "", "The last line of the docstring before the closing quotes must be blank."
 
 
@@ -83,7 +83,9 @@ def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config):
     """Test successful global taxonomy generation."""
     with (
         patch("egregora.orchestration.pipelines.modules.taxonomy.get_backend") as mock_get_backend,
-        patch("egregora.orchestration.pipelines.modules.taxonomy.create_global_taxonomy_agent") as mock_create_agent,
+        patch(
+            "egregora.orchestration.pipelines.modules.taxonomy.create_global_taxonomy_agent"
+        ) as mock_create_agent,
     ):
         # Setup Backend
         backend = MagicMock()
@@ -119,7 +121,9 @@ def test_generate_semantic_taxonomy_batching(mock_output_sink, mock_config):
     """Test that large inputs are batched."""
     with (
         patch("egregora.orchestration.pipelines.modules.taxonomy.get_backend") as mock_get_backend,
-        patch("egregora.orchestration.pipelines.modules.taxonomy.create_global_taxonomy_agent") as mock_create_agent,
+        patch(
+            "egregora.orchestration.pipelines.modules.taxonomy.create_global_taxonomy_agent"
+        ) as mock_create_agent,
         patch("egregora.orchestration.pipelines.modules.taxonomy.MAX_PROMPT_CHARS", 100),
     ):  # FORCE tiny limit
         # Setup Backend
@@ -155,7 +159,9 @@ def test_generate_semantic_taxonomy_agent_failure(mock_output_sink, mock_config)
     """Test graceful failure if agent errors out."""
     with (
         patch("egregora.orchestration.pipelines.modules.taxonomy.get_backend") as mock_get_backend,
-        patch("egregora.orchestration.pipelines.modules.taxonomy.create_global_taxonomy_agent") as mock_create_agent,
+        patch(
+            "egregora.orchestration.pipelines.modules.taxonomy.create_global_taxonomy_agent"
+        ) as mock_create_agent,
     ):
         backend = MagicMock()
         real_docs = list(mock_output_sink.documents())

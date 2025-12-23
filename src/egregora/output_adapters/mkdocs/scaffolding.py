@@ -310,6 +310,7 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
         tuple of (docs_dir, was_created)
         - docs_dir: Directory where documentation content should be written.
         - was_created: True if new site was created, False if existed.
+
     """
     site_root = site_root.expanduser().resolve()
     if site_name is None:

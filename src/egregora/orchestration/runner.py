@@ -19,9 +19,9 @@ from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.types import PromptTooLargeError
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.data_primitives.protocols import UrlContext
-from egregora.orchestration.pipelines.modules.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.factory import PipelineFactory
+from egregora.orchestration.pipelines.modules.media import process_media_for_window
 from egregora.transformations import split_window_into_n_parts
 from egregora.utils.async_utils import run_async_safely
 
@@ -277,6 +277,7 @@ class PipelineRunner:
             adapter_content_summary=adapter_summary,
             adapter_generation_instructions=adapter_instructions,
             run_id=str(self.context.run_id) if self.context.run_id else None,
+            is_demo=self.context.config_obj.is_demo,
         )
 
         result = run_async_safely(write_posts_for_window(params))
