@@ -3,6 +3,8 @@ import os
 import sys
 import argparse
 import glob
+import subprocess
+import json
 from datetime import datetime
 from pathlib import Path
 import tomllib
@@ -24,6 +26,31 @@ def load_schedule_registry(registry_path: Path) -> dict:
     with open(registry_path, "rb") as f:
         data = tomllib.load(f)
     return data.get("schedules", {})
+
+def get_open_prs(owner: str, repo: str) -> list[dict]:
+    """Fetch open PRs using gh CLI."""
+    # Check if we have a token
+    if not os.environ.get("GITHUB_TOKEN") and not os.environ.get("GH_TOKEN"):
+        # In dry-run or local dev without token, this might be expected.
+        # But for 'weaver' it's critical. We'll return empty list and let the prompt handle empty state.
+        return []
+    
+    try:
+        # Fetch number, title, headRefName (branch), url, author, isDraft
+        # Exclude draft PRs if needed? The prompt can filter them.
+        cmd = [
+            "gh", "pr", "list",
+            "--repo", f"{owner}/{repo}",
+            "--state", "open",
+            "--json", "number,title,headRefName,url,author,isDraft",
+            "--limit", "50"
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return json.loads(result.stdout)
+    except Exception as e:
+        # Don't crash the scheduler if gh fails
+        print(f"Warning: Failed to fetch PRs: {e}")
+        return []
 
 def parse_prompt_file(filepath: Path, context: dict) -> dict:
     # Use python-frontmatter to parse
@@ -109,13 +136,19 @@ def main():
 
     print(f"Repo context: {repo_info}")
 
+    # Fetch PRs once
+    open_prs = get_open_prs(repo_info["owner"], repo_info["repo"])
+    context = {**repo_info, "open_prs": open_prs}
+    if open_prs:
+        print(f"Fetched {len(open_prs)} open PRs for context.")
+
     prompt_files = list(prompts_dir.glob("*.md"))
     registry = load_schedule_registry(registry_path)
     print(f"Loaded {len(registry)} schedules from registry.")
 
     for p_file in prompt_files:
         try:
-            parsed = parse_prompt_file(p_file, repo_info)
+            parsed = parse_prompt_file(p_file, context)
             config = parsed["config"]
             prompt_body = parsed["prompt"]
 
@@ -140,8 +173,7 @@ def main():
             # Determine schedule string: Registry > Frontmatter > Default (None)
             schedule_str = registry.get(pid)
             
-            # Fallback to frontmatter if not in registry (backward compatibility)
-            # but ONLY if explicitly defined (not empty)
+            # Fallback to frontmatter if not in registry
             if not schedule_str and config.get("schedule"):
                 schedule_str = config.get("schedule")
                 print(f"Warning: Using deprecated frontmatter schedule for {pid}: {schedule_str}")
@@ -152,7 +184,6 @@ def main():
                 if schedule_str and check_schedule(schedule_str):
                     should_run = True
                 elif not schedule_str:
-                     # No schedule found means MANUAL execution only
                      pass
 
             if should_run:
