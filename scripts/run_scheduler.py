@@ -127,7 +127,7 @@ def main():
     client = JulesClient()
 
     repo_info = get_repo_info()
-    prompts_dir = Path(".jules/prompts")
+    prompts_dir = Path(".jules/personas")
     registry_path = Path(".jules/schedules.toml")
 
     if not prompts_dir.exists():
