@@ -6251,9 +6251,6 @@ def generate_banner(
     except google_exceptions.GoogleAPICallError as e:
         logger.exception("Banner generation failed after retries")
         return BannerOutput(error=type(e).__name__, error_code="GENERATION_FAILED")
-    except Exception:
-        logger.exception("An unexpected error occurred during banner generation")
-        raise
 
 
 def is_banner_generation_available() -> bool:
@@ -42434,7 +42431,6 @@ ignore = [
 
     # Pragmatic runtime patterns - common in optional-dep paths
     "PLC0415",  # Non-top-level imports
-    "BLE001",   # Blind exception
     "PLW0603",  # Global statement
     "PLW2901",  # Redefined loop name
     "TC001",    # Type-checking-only imports (runtime introspection needs them)
