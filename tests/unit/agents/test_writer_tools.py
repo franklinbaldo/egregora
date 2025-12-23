@@ -7,8 +7,8 @@ from pydantic_ai import ModelRetry
 
 import egregora.rag as rag_pkg
 import egregora.rag.models as rag_models
-from egregora.agents import writer_tools
-from egregora.agents.writer_tools import (
+from egregora.agents.tools import writer_tools
+from egregora.agents.tools.writer_tools import (
     AnnotationContext,
     AnnotationResult,
     BannerContext,
@@ -101,7 +101,7 @@ class TestWriterToolsExtraction:
         # This test verifies error handling works without needing actual RAG backend
 
         # Patch search to raise an error
-        with patch("egregora.agents.writer_tools.search", side_effect=RuntimeError("RAG error")):
+        with patch("egregora.agents.tools.writer_tools.search", side_effect=RuntimeError("RAG error")):
             # Act
             with pytest.raises(ModelRetry) as excinfo:
                 search_media_impl("test query", top_k=5)
@@ -141,12 +141,12 @@ class TestWriterToolsExtraction:
         """Test generate_banner_impl returns failure result when generation fails."""
         # Arrange
         mock_output_sink = Mock()
-        ctx = BannerContext(output_sink=mock_output_sink, banner_capability=None)
+        ctx = BannerContext(output_sink=mock_output_sink, task_store=None)
 
         # Mock the generate_banner function to return a failed result
         mock_result = Mock(success=False, error="Banner generation failed", document=None)
 
-        with patch("egregora.agents.writer_tools.generate_banner", return_value=mock_result):
+        with patch("egregora.agents.tools.writer_tools.generate_banner", return_value=mock_result):
             # Act
             result = generate_banner_impl(ctx, "test-slug", "Test Title", "Test summary")
 

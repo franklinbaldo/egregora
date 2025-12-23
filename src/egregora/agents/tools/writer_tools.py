@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 from pydantic_ai import ModelRetry
@@ -25,11 +25,14 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
 from egregora.rag import search
 from egregora.rag.models import RAGQueryRequest
+from egregora.utils.paths import slugify
 
 if TYPE_CHECKING:
-    from egregora.agents.capabilities import AsyncProfileCapability, BackgroundBannerCapability
-    from egregora.database.annotations_store import AnnotationsStore
-    from egregora.output_adapters.base import OutputSink
+    import uuid
+
+    from egregora.agents.shared.annotations import AnnotationStore
+    from egregora.data_primitives.protocols import OutputSink
+    from egregora.database.task_store import TaskStore
 
 logger = logging.getLogger(__name__)
 
@@ -106,14 +109,15 @@ class ToolContext:
 
     output_sink: OutputSink
     window_label: str
-    profile_capability: AsyncProfileCapability | None = None
+    task_store: TaskStore | None = None
+    run_id: uuid.UUID | str | None = None
 
 
 @dataclass
 class AnnotationContext:
     """Context for annotation operations."""
 
-    annotations_store: AnnotationsStore | None
+    annotations_store: AnnotationStore | None
 
 
 @dataclass
@@ -121,7 +125,8 @@ class BannerContext:
     """Context for banner generation."""
 
     output_sink: OutputSink
-    banner_capability: BackgroundBannerCapability | None = None
+    task_store: TaskStore | None = None
+    run_id: uuid.UUID | str | None = None
 
 
 # ==============================================================================
@@ -175,9 +180,6 @@ def read_profile_impl(ctx: ToolContext, author_uuid: str) -> ReadProfileResult:
 def write_profile_impl(ctx: ToolContext, author_uuid: str, content: str) -> WriteProfileResult:
     """Write or update an author's profile.
 
-    If an AsyncProfileCapability is available in the context, this delegates to it.
-    Otherwise, it writes directly to the output sink (synchronous fallback).
-
     Args:
         ctx: Tool context with output sink and window label
         author_uuid: UUID of the author
@@ -187,10 +189,6 @@ def write_profile_impl(ctx: ToolContext, author_uuid: str, content: str) -> Writ
         WriteProfileResult with success status and document path
 
     """
-    if ctx.profile_capability:
-        logger.info("Delegating profile update to async capability for %s", author_uuid)
-        return ctx.profile_capability.schedule(author_uuid, content)
-
     # Fix: Unescape literal newlines
     content = content.replace("\\n", "\n")
 
@@ -307,11 +305,10 @@ def annotate_conversation_impl(
 def generate_banner_impl(ctx: BannerContext, post_slug: str, title: str, summary: str) -> BannerResult:
     """Generate a banner image for a post.
 
-    If an AsyncBannerCapability is available, delegates to it.
-    Otherwise, generates synchronously.
+    Uses task_store if available for background processing, otherwise runs synchronously.
 
     Args:
-        ctx: Banner context with output sink
+        ctx: Banner context with output sink and optional task store
         post_slug: Slug for the post
         title: Post title
         summary: Post summary
@@ -320,9 +317,45 @@ def generate_banner_impl(ctx: BannerContext, post_slug: str, title: str, summary
         BannerResult with generation status and path
 
     """
-    if ctx.banner_capability:
-        logger.info("Delegating banner generation to async capability for %s", post_slug)
-        return ctx.banner_capability.schedule(post_slug, title, summary)
+    if ctx.task_store and ctx.run_id:
+        logger.info("Scheduling background banner generation for %s", post_slug)
+
+        payload = {
+            "post_slug": post_slug,
+            "title": title,
+            "summary": summary,
+            "run_id": str(ctx.run_id),
+        }
+
+        task_id = ctx.task_store.enqueue(
+            task_type="generate_banner",
+            payload=payload,
+            run_id=ctx.run_id,
+        )
+        logger.info("Scheduled banner generation task: %s", task_id)
+
+        # Predict path
+        slug = slugify(post_slug, max_len=60)
+        extension = ".jpg"
+        filename = f"{slug}{extension}"
+
+        # Create placeholder document for URL prediction
+        placeholder_doc = Document(
+            content="",
+            type=DocumentType.MEDIA,
+            metadata={"filename": filename},
+            id=filename,
+        )
+
+        if ctx.output_sink.url_convention:
+            predicted_url = ctx.output_sink.url_convention.canonical_url(
+                placeholder_doc, ctx.output_sink.url_context
+            )
+            predicted_path = predicted_url.lstrip("/")
+        else:
+            predicted_path = f"media/images/{filename}"
+
+        return BannerResult(status="scheduled", path=predicted_path)
 
     # Fallback: Synchronous generation
     result = generate_banner(post_title=title, post_summary=summary, slug=post_slug)

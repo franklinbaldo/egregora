@@ -46,7 +46,6 @@ from egregora.agents.writer_helpers import (
     process_tool_result,
 )
 from egregora.agents.writer_setup import (
-    configure_writer_capabilities,
     create_writer_model,
     setup_writer_agent,
 )
@@ -486,13 +485,8 @@ async def write_posts_with_pydantic_agent(
     """Execute the writer flow using Pydantic-AI agent tooling."""
     logger.info("Running writer via Pydantic-AI backend")
 
-    active_capabilities = configure_writer_capabilities(config, context)
-    if active_capabilities:
-        caps_list = ", ".join(capability.name for capability in active_capabilities)
-        logger.info("Writer capabilities enabled: %s", caps_list)
-
     model = await create_writer_model(config, context, prompt, test_model)
-    agent = setup_writer_agent(model, prompt, active_capabilities)
+    agent = setup_writer_agent(model, prompt, config)
 
     if context.resources.quota:
         context.resources.quota.reserve(1)
