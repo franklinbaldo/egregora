@@ -17,6 +17,8 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+import duckdb
+
 from pydantic import BaseModel
 from pydantic_ai import ModelRetry
 
@@ -290,7 +292,7 @@ def annotate_conversation_impl(
             parent_id=annotation.parent_id,
             parent_type=annotation.parent_type,
         )
-    except (RuntimeError, ValueError, OSError, AttributeError) as exc:
+    except (RuntimeError, ValueError, OSError, AttributeError, duckdb.Error) as exc:
         # We catch expected persistence exceptions here to prevent a single
         # annotation failure from crashing the entire writer agent process.
         logger.warning("Failed to save annotation: %s", exc)
