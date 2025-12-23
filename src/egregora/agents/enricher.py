@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
 import httpx
+from google.api_core import exceptions as google_exceptions
 from ibis.common.exceptions import IbisError
 from pydantic import BaseModel
 
@@ -1300,7 +1301,7 @@ class EnrichmentWorker(BaseWorker):
             try:
                 logger.info("[MediaEnricher] Using single-call batch mode for %d images", len(requests))
                 return self._execute_media_single_call(requests, task_map, model_name, api_key)
-            except Exception as single_call_exc:
+            except google_exceptions.GoogleAPICallError as single_call_exc:
                 logger.warning(
                     "[MediaEnricher] Single-call batch failed (%s), falling back to standard batch",
                     single_call_exc,
