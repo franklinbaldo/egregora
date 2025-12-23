@@ -6,7 +6,7 @@ Only includes v3 code and test mocks - v2 code should be kept clean with actual 
 
 
 def _whitelist() -> None:
-    """Dummy function to hold vulture whitelist references."""
+    """Hold vulture whitelist references."""
 
     # Use a dummy object to reference attributes without triggering ruff errors
     class _Placeholder:
