@@ -1,5 +1,5 @@
 """Model wrappers used by Egregora."""
 
-from egregora.models.google_batch import GoogleBatchModel
+from egregora.llm.providers.google_batch import GoogleBatchModel
 
 __all__ = ["GoogleBatchModel"]

@@ -1,6 +1,6 @@
 """Tests for ModelKeyRotator to verify proper key and model rotation."""
 
-from egregora.models.model_key_rotator import ModelKeyRotator
+from egregora.llm.providers.model_key_rotator import ModelKeyRotator
 
 
 def test_model_key_rotator_exhausts_keys_per_model():
