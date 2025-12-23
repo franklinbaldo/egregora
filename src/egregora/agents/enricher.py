@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
 import httpx
-from google.api_core import exceptions as api_exceptions
+from google.api_core import exceptions as google_exceptions
 from ibis.common.exceptions import IbisError
 from pydantic import BaseModel
 
@@ -39,7 +39,7 @@ from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.models.google_batch import GoogleBatchModel
-from egregora.orchestration.pipelines.modules.media import extract_urls, find_media_references
+from egregora.ops.media import extract_urls, find_media_references
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
@@ -144,7 +144,8 @@ class EnrichmentOutput(BaseModel):
 
 
 async def fetch_url_with_jina(ctx: RunContext[Any], url: str) -> str:
-    """Fetch URL content using Jina.ai Reader.
+    """
+    Fetch URL content using Jina.ai Reader.
 
     Use this tool ONLY if the standard 'UrlContextTool' fails to retrieve meaningful content.
     Examples of when to use this:
@@ -1300,7 +1301,7 @@ class EnrichmentWorker(BaseWorker):
             try:
                 logger.info("[MediaEnricher] Using single-call batch mode for %d images", len(requests))
                 return self._execute_media_single_call(requests, task_map, model_name, api_key)
-            except Exception as single_call_exc:
+            except google_exceptions.GoogleAPICallError as single_call_exc:
                 logger.warning(
                     "[MediaEnricher] Single-call batch failed (%s), falling back to standard batch",
                     single_call_exc,
@@ -1310,12 +1311,7 @@ class EnrichmentWorker(BaseWorker):
         model = GoogleBatchModel(api_key=api_key, model_name=model_name)
         try:
             return asyncio.run(model.run_batch(requests))
-        except (
-            api_exceptions.ResourceExhausted,
-            api_exceptions.InternalServerError,
-            api_exceptions.ServiceUnavailable,
-            api_exceptions.GatewayTimeout,
-        ) as batch_exc:
+        except Exception as batch_exc:
             # Batch failed (likely quota exceeded) - fallback to individual calls
             logger.warning(
                 "Batch API failed (%s), falling back to individual calls for %d requests",
@@ -1551,7 +1547,7 @@ class EnrichmentWorker(BaseWorker):
                     continue
 
             # Determine subfolder based on media_type
-            from egregora.orchestration.pipelines.modules.media import get_media_subfolder
+            from egregora.ops.media import get_media_subfolder
 
             extension = Path(filename).suffix
             media_subdir = get_media_subfolder(extension)
