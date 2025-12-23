@@ -57,7 +57,14 @@ jobs:
           uv run mkdocs build
 
       - name: Generate Demo Site (offline)
-        run: uv run python scripts/generate_demo_site.py --output-dir .demo-site
+        env:
+          BUILD_COMMIT: ${{ github.sha }}
+          BUILD_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Set human-readable build timestamp
+          export BUILD_TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+          export BUILD_COMMIT="${BUILD_COMMIT:0:7}"  # Short SHA
+          uv run python scripts/generate_demo_site.py --output-dir .demo-site
 
       - name: Build Demo Site
         env:

@@ -243,6 +243,24 @@ def _write_stub_file(path: Path, title: str, content: str) -> None:
     path.write_text(frontmatter.dumps(post) + "\n", encoding="utf-8")
 
 
+def _write_demo_homepage(
+    docs_dir: Path, build_timestamp: str, build_commit: str, build_workflow_url: str
+) -> None:
+    """Write the demo homepage with build provenance."""
+    lines = [
+        "# Egregora Demo",
+        "",
+        "This site is generated automatically from a deterministic demo dataset.",
+        "",
+        f"- Generated: {build_timestamp}",
+        f"- Commit: {build_commit}",
+        f"- Workflow: {build_workflow_url}",
+        "",
+        "Explore the latest posts in the demo blog.",
+    ]
+    (docs_dir / "index.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -298,6 +316,11 @@ def main() -> int:
     (docs_dir / "journal").mkdir(parents=True, exist_ok=True)
     (docs_dir / "profiles").mkdir(parents=True, exist_ok=True)
     (docs_dir / "media").mkdir(parents=True, exist_ok=True)
+
+    build_timestamp = os.getenv("BUILD_TIMESTAMP", "Unknown")
+    build_commit = os.getenv("BUILD_COMMIT", "Unknown")
+    build_workflow_url = os.getenv("BUILD_WORKFLOW_URL", "")
+    _write_demo_homepage(docs_dir, build_timestamp, build_commit, build_workflow_url)
 
     _write_stub_file(
         docs_dir / "journal" / "index.md",
