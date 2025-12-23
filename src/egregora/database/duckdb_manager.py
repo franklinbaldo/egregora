@@ -49,7 +49,6 @@ import ibis
 
 from egregora.database import schemas
 from egregora.database.ir_schema import quote_identifier
-from egregora.database.sql import SQLManager
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -121,9 +120,6 @@ class DuckDBStorageManager:
         # This prevents "read-only transaction" errors caused by multiple connections to the same file
         self._conn = self.ibis_conn.con
 
-        # Initialize SQL template manager
-        self.sql = SQLManager()
-
         # Cache for PRAGMA table metadata
         self._table_info_cache: dict[str, set[str]] = {}
 
@@ -162,7 +158,6 @@ class DuckDBStorageManager:
         # This might cause concurrency issues if not handled carefully.
         # Ideally we would use the same connection, but for now we accept the limitation for from_connection.
         instance.ibis_conn = ibis.duckdb.connect(database=db_str, read_only=False)
-        instance.sql = SQLManager()
         instance._table_info_cache = {}
         instance._lock = threading.Lock()
         logger.debug("DuckDBStorageManager created from existing connection")
@@ -204,7 +199,6 @@ class DuckDBStorageManager:
             instance.db_path = None
             logger.debug("Could not determine db_path from backend connection")
 
-        instance.sql = SQLManager()
         instance._table_info_cache = {}
         instance._lock = threading.Lock()
         logger.debug("DuckDBStorageManager created from existing Ibis backend (db_path=%s)", instance.db_path)
@@ -256,7 +250,6 @@ class DuckDBStorageManager:
         self.db_path = Path(db_str) if db_str != ":memory:" else None
         logger.info("DuckDB connection reset successfully (db=%s)", db_str)
 
-        self.sql = SQLManager()
         self._table_info_cache.clear()
 
     @contextlib.contextmanager
@@ -420,12 +413,24 @@ class DuckDBStorageManager:
                 table.to_parquet(str(parquet_path))
 
                 # Load into DuckDB from parquet
-                sql = self.sql.render(
-                    "dml/load_parquet.sql.jinja",
-                    table_name=name,
-                    mode=mode,
-                )
-                params = [str(parquet_path)] if mode == "replace" else [str(parquet_path), str(parquet_path)]
+                quoted_name = quote_identifier(name)
+                # Ensure path is a string for DuckDB binding
+                path_str = str(parquet_path)
+
+                if mode == "replace":
+                    sql = f"CREATE OR REPLACE TABLE {quoted_name} AS SELECT * FROM read_parquet(?)"
+                    params = [path_str]
+                else:
+                    # Append mode: ensure table exists (idempotent) then insert
+                    # We create empty table if not exists first, matching the jinja logic:
+                    # CREATE TABLE IF NOT EXISTS ... AS SELECT * FROM ... WHERE 1=0;
+                    # INSERT INTO ...
+                    sql_create = f"CREATE TABLE IF NOT EXISTS {quoted_name} AS SELECT * FROM read_parquet(?) WHERE 1=0"
+                    sql_insert = f"INSERT INTO {quoted_name} SELECT * FROM read_parquet(?)"
+                    self._conn.execute(sql_create, [path_str])
+                    sql = sql_insert
+                    params = [path_str]
+
                 self._conn.execute(sql, params)
                 logger.info("Table '%s' written with checkpoint (%s)", name, mode)
 
@@ -464,12 +469,18 @@ class DuckDBStorageManager:
         self._conn.create_view(temp_view, table.to_pyarrow(), overwrite=True)
 
         try:
-            sql = self.sql.render(
-                "ddl/atomic_persist.sql.jinja",
-                target_table=name,
-                columns=target_schema.names,
-                source_view=temp_view,
-            )
+            quoted_target = quote_identifier(name)
+            quoted_view = quote_identifier(temp_view)
+            quoted_columns = ", ".join(quote_identifier(col) for col in target_schema.names)
+
+            sql = f"""
+            BEGIN TRANSACTION;
+            DELETE FROM {quoted_target};
+            INSERT INTO {quoted_target} ({quoted_columns})
+            SELECT {quoted_columns}
+            FROM {quoted_view};
+            COMMIT;
+            """
             self._conn.execute(sql)
         finally:
             with contextlib.suppress(Exception):
