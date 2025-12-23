@@ -34,7 +34,7 @@ def get_open_prs(owner: str, repo: str) -> list[dict]:
         # In dry-run or local dev without token, this might be expected.
         # But for 'weaver' it's critical. We'll return empty list and let the prompt handle empty state.
         return []
-    
+
     try:
         # Fetch number, title, headRefName (branch), url, author, isDraft
         # Exclude draft PRs if needed? The prompt can filter them.
@@ -169,10 +169,10 @@ def main():
 
             # Check schedule
             should_run = False
-            
+
             # Determine schedule string: Registry > Frontmatter > Default (None)
             schedule_str = registry.get(pid)
-            
+
             # Fallback to frontmatter if not in registry
             if not schedule_str and config.get("schedule"):
                 schedule_str = config.get("schedule")
