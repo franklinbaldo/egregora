@@ -41,7 +41,7 @@ jobs:
         uses: ./.github/actions/setup-python-uv
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          extras: "--extra dev"
+          extras: "--extra docs --extra rss"
 
       - name: Build Documentation
         env:
@@ -85,6 +85,26 @@ jobs:
           npx repomix -c repomix-code.json --output /tmp/bundles/code.bundle.md
           mkdir -p site/bundles
           cp /tmp/bundles/*.bundle.md site/bundles/
+
+      - name: Verify demo output
+        run: |
+          if [ ! -f "site/index.html" ]; then
+            echo "Docs site build missing site/index.html"
+            exit 1
+          fi
+          if [ ! -f "site/demo/index.html" ]; then
+            echo "Demo site build missing site/demo/index.html"
+            exit 1
+          fi
+          if [ ! -f "site/demo/posts/index.html" ]; then
+            echo "Demo posts index missing site/demo/posts/index.html"
+            exit 1
+          fi
+          post_count=$(find site/demo/posts -maxdepth 1 -type f -name "*.html" ! -name "index.html" | wc -l)
+          if [ "${post_count}" -lt 1 ]; then
+            echo "Demo build produced no post pages."
+            exit 1
+          fi
 
       - name: Deploy to GitHub Pages
         # Deploy on main branch push or manual workflow dispatch
