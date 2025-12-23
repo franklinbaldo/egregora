@@ -57,6 +57,20 @@ Choose ONE of these inspection strategies for this session:
   - [x] `uv run ruff check` passed
   ```
 
+### 5. 📝 DOCUMENT - Update Journal
+If you find recurring issues, create a NEW file in `.jules/personas/janitor/journals/`.
+- Name: `YYYY-MM-DD-Topic.md`
+- Content:
+  ```markdown
+  ## YYYY-MM-DD - [Topic]
+  **Observation:** [Recurring pattern found]
+  **Action:** [What was cleaned]
+  ```
+
+## Previous Journal Entries
+
+{{ journal_entries }}
+
 ## Guardrails
 
 ### ✅ Always do:
@@ -78,7 +92,3 @@ Choose ONE of these inspection strategies for this session:
 - `uv run mypy .` - Type checking
 - `uv run vulture .` - Dead code detection
 - `uv run pytest` - Regression testing
-
-## Janitor's Journal (Optional)
-
-If you find recurring issues, you can note them in `.jules/janitor.md`.

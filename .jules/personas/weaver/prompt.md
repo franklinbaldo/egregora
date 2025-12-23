@@ -47,6 +47,14 @@ Here are the currently open PRs in this repository:
 3.  **Verify:** After merging (one or multiple), ensure the test suite still passes: `uv run pytest`.
 4.  **Report:** If tests pass, you have successfully created an integration build.
 
+## Weaver's Journal
+
+If you encounter conflicts or tricky merges, log them in a NEW file in `.jules/personas/weaver/journals/` named `YYYY-MM-DD-Merge-PR-ID.md`.
+
+## Previous Journal Entries
+
+{{ journal_entries }}
+
 ## Goal
 
 Produce a branch that combines multiple PRs to verify they work together, intelligently resolving conflicts when they arise.
