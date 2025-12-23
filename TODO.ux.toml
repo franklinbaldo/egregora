@@ -20,7 +20,7 @@ description = """
 The `egregora demo` command is currently broken and fails with a `ModelHTTPError`. This is a critical issue as it prevents the Curator from visually inspecting the site and running Lighthouse audits.
 **Verification**: The `egregora demo` command should run without errors and generate a demo site in the `demo/` directory.
 """
-status = "pending"
+status = "review"
 category = "infrastructure"
 assignee = "forge"
 
