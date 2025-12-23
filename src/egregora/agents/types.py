@@ -10,6 +10,8 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+import duckdb
+
 from pydantic import BaseModel, Field
 
 from egregora.agents.banner.agent import generate_banner
@@ -296,7 +298,7 @@ class WriterDeps:
                 parent_id=annotation.parent_id,
                 parent_type=annotation.parent_type,
             )
-        except (RuntimeError, ValueError) as exc:
+        except (RuntimeError, ValueError, OSError, AttributeError, duckdb.Error) as exc:
             # We catch broad exceptions here intentionally to prevent a single
             # annotation failure from crashing the entire writer agent process.
             # The agent should be able to continue writing even if one annotation fails.
