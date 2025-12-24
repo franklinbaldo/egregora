@@ -28,7 +28,7 @@ config/
 # ==============================================================================
 from egregora.config.settings import (
     EMBEDDING_DIM,
-    # Pydantic V2 config models (persisted in .egregora/config.yml)
+    # Pydantic V2 config models (persisted in .egregora.toml)
     EgregoraConfig,
     EnrichmentSettings,
     FeaturesSettings,

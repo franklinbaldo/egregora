@@ -274,19 +274,19 @@ def check_cache_directory() -> DiagnosticResult:
 
 
 def check_egregora_config() -> DiagnosticResult:
-    """Check if .egregora/config.yml exists and is valid."""
-    config_file = Path(".egregora/config.yml")
+    """Check if .egregora.toml exists and is valid."""
+    config_file = Path(".egregora.toml")
 
     if not config_file.exists():
         return DiagnosticResult(
             check="Egregora Config",
             status=HealthStatus.INFO,
-            message="No .egregora/config.yml (will use defaults)",
+            message="No .egregora.toml (will use defaults)",
         )
 
     try:
         # Try loading config
-        config = load_egregora_config(config_file.parent.parent)  # Pass site root
+        config = load_egregora_config(config_file.parent)  # Pass site root
 
         return DiagnosticResult(
             check="Egregora Config",

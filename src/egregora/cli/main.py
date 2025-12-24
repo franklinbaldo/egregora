@@ -199,7 +199,7 @@ def write(
 def top(
     site_root: Annotated[
         Path,
-        typer.Argument(help="Site root directory containing .egregora/config.yml"),
+        typer.Argument(help="Site root directory containing .egregora.toml"),
     ],
     limit: Annotated[
         int,
@@ -273,7 +273,7 @@ def top(
 def show_reader_history(
     site_root: Annotated[
         Path,
-        typer.Argument(help="Site root directory containing .egregora/config.yml"),
+        typer.Argument(help="Site root directory containing .egregora.toml"),
     ],
     post_slug: Annotated[
         str | None,

@@ -104,7 +104,7 @@ Edit `mkdocs.yml` to change:
 - Site name, description, theme
 - Navigation structure
 
-Edit `.egregora/config.yml` to customize:
+Edit `.egregora.toml` to customize:
 
 - Models and parameters
 - RAG settings
@@ -189,13 +189,13 @@ Check that:
 
 ### Rate Limiting
 
-If you hit API rate limits, Egregora will automatically retry with exponential backoff. You can also configure quota limits in `.egregora/config.yml`:
+If you hit API rate limits, Egregora will automatically retry with exponential backoff. You can also configure quota limits in `.egregora.toml`:
 
-```yaml
-quota:
-  daily_llm_requests: 1000
-  per_second_limit: 1.0
-  concurrency: 5
+```toml
+[quota]
+daily_llm_requests = 1000
+per_second_limit = 1.0
+concurrency = 5
 ```
 
 ### LanceDB Permission Issues
