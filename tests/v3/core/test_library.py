@@ -21,11 +21,11 @@ def test_content_library_routing():
     )
 
     # Test POST routing
-    doc_post = Document.create(content="A", doc_type=DocumentType.POST, title="A")
+    doc_post = Document.create(id="post-a", content="A", doc_type=DocumentType.POST, title="A")
     lib.save(doc_post)
     posts_repo.save.assert_called_with(doc_post)
 
     # Test PROFILE routing
-    doc_profile = Document.create(content="B", doc_type=DocumentType.PROFILE, title="B")
+    doc_profile = Document.create(id="profile-b", content="B", doc_type=DocumentType.PROFILE, title="B")
     lib.save(doc_profile)
     profiles_repo.save.assert_called_with(doc_profile)

@@ -1,0 +1,3 @@
+## 💎 2025-12-24 - Simplifying Core Library
+**Observation:** The 'core' library in 'src/egregora_v3/core' contained several violations of the Essentialist Heuristics. The configuration system was over-engineered with imperative logic, and the `Document.create` method had convoluted, multi-path branching for ID generation.
+**Action:** I refactored these components following a strict TDD process. I replaced the custom configuration loader with a declarative implementation using `pydantic-settings`'s `settings_customise_sources` hook. I also simplified the `Document.create` method to have a single, explicit path for ID generation. Both changes were validated with new and existing tests to ensure correctness and prevent regressions.

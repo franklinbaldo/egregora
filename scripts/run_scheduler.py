@@ -20,41 +20,6 @@ except ImportError:
     print("Error: Could not import JulesClient. Make sure PYTHONPATH includes .claude/skills/jules-api", file=sys.stderr)
     sys.exit(1)
 
-# --- Standard Text Blocks ---
-
-IDENTITY_BRANDING = """
-## Identity & Branding
-Your emoji is: {{ emoji }}
-- **PR Title:** Always prefix with {{ emoji }}. Example: {{ emoji }} {{ example_pr_title | default('chore: update') }}
-- **Journal Entries:** Prefix file content title with {{ emoji }}.
-"""
-
-JOURNAL_MANAGEMENT = """
-### 📝 DOCUMENT - Update Journal
-- Create a NEW file in `.jules/personas/{{ id }}/journals/`
-- Naming convention: `YYYY-MM-DD-HHMM-Any_Title_You_Want.md` (only date/time is mandatory)
-- Content:
-  ```markdown
-  ## {{ emoji }} YYYY-MM-DD - Topic
-  **Observation:** [What did you notice?]
-  **Action:** [What did you do?]
-  ```
-
-## Previous Journal Entries
-
-Below are the aggregated entries from previous sessions. Use them to avoid repeating mistakes or rediscovering solved problems.
-
-{{ journal_entries }}
-"""
-
-CELEBRATION = """
-**If you find no work to do:**
-- 🎉 **Celebrate!** The state is good.
-- Create a journal entry: `YYYY-MM-DD-HHMM-No_Work_Needed.md`
-- Content: "## {{ emoji }} No issues found / Queue empty."
-- **Finish the session.**
-"""
-
 def load_schedule_registry(registry_path: Path) -> dict:
     if not registry_path.exists():
         return {}
@@ -64,10 +29,15 @@ def load_schedule_registry(registry_path: Path) -> dict:
 
 def get_open_prs(owner: str, repo: str) -> list[dict]:
     """Fetch open PRs using gh CLI."""
+    # Check if we have a token
     if not os.environ.get("GITHUB_TOKEN") and not os.environ.get("GH_TOKEN"):
+        # In dry-run or local dev without token, this might be expected.
+        # But for 'weaver' it's critical. We'll return empty list and let the prompt handle empty state.
         return []
-    
+
     try:
+        # Fetch number, title, headRefName (branch), url, author, isDraft
+        # Exclude draft PRs if needed? The prompt can filter them.
         cmd = [
             "gh", "pr", "list",
             "--repo", f"{owner}/{repo}",
@@ -78,28 +48,9 @@ def get_open_prs(owner: str, repo: str) -> list[dict]:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return json.loads(result.stdout)
     except Exception as e:
+        # Don't crash the scheduler if gh fails
         print(f"Warning: Failed to fetch PRs: {e}")
         return []
-
-def collect_journals(persona_dir: Path) -> str:
-    """Collects all journal entries from the journals/ subdirectory."""
-    journals_dir = persona_dir / "journals"
-    if not journals_dir.exists():
-        return ""
-    
-    # Collect all .md files, sort by name (assumes timestamp prefix)
-    journal_files = sorted(list(journals_dir.glob("*.md")))
-    entries = []
-    
-    for jf in journal_files:
-        try:
-            content = jf.read_text().strip()
-            if content:
-                entries.append(f"\n--- Journal Entry: {jf.name} ---\n{content}\n")
-        except Exception:
-            pass
-            
-    return "\n".join(entries)
 
 def parse_prompt_file(filepath: Path, context: dict) -> dict:
     # Use python-frontmatter to parse
@@ -176,7 +127,7 @@ def main():
     client = JulesClient()
 
     repo_info = get_repo_info()
-    prompts_dir = Path(".jules/personas")
+    prompts_dir = Path(".jules/prompts")
     registry_path = Path(".jules/schedules.toml")
 
     if not prompts_dir.exists():
@@ -187,27 +138,16 @@ def main():
 
     # Fetch PRs once
     open_prs = get_open_prs(repo_info["owner"], repo_info["repo"])
-    base_context = {**repo_info, "open_prs": open_prs}
+    context = {**repo_info, "open_prs": open_prs}
     if open_prs:
         print(f"Fetched {len(open_prs)} open PRs for context.")
 
-    # Find prompts: look for */prompt.md in subdirectories
-    prompt_files = list(prompts_dir.glob("*/prompt.md"))
+    prompt_files = list(prompts_dir.glob("*.md"))
     registry = load_schedule_registry(registry_path)
     print(f"Loaded {len(registry)} schedules from registry.")
-    print(f"Found {len(prompt_files)} persona definitions.")
 
     for p_file in prompt_files:
         try:
-            # Build persona-specific context
-            persona_dir = p_file.parent
-            journal_entries = collect_journals(persona_dir)
-            
-            context = {
-                **base_context, 
-                "journal_entries": journal_entries
-            }
-
             parsed = parse_prompt_file(p_file, context)
             config = parsed["config"]
             prompt_body = parsed["prompt"]
@@ -229,8 +169,11 @@ def main():
 
             # Check schedule
             should_run = False
+
+            # Determine schedule string: Registry > Frontmatter > Default (None)
             schedule_str = registry.get(pid)
-            
+
+            # Fallback to frontmatter if not in registry
             if not schedule_str and config.get("schedule"):
                 schedule_str = config.get("schedule")
                 print(f"Warning: Using deprecated frontmatter schedule for {pid}: {schedule_str}")

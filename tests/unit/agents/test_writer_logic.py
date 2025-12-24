@@ -80,9 +80,9 @@ class TestWriterDecoupling:
 
 
 @pytest.mark.asyncio
-@patch("egregora.agents.writer.build_context_and_signature")
-@patch("egregora.agents.writer.check_writer_cache")
-@patch("egregora.agents.writer.prepare_writer_dependencies")
+@patch("egregora.agents.writer._build_context_and_signature")
+@patch("egregora.agents.writer._check_writer_cache")
+@patch("egregora.agents.writer._prepare_writer_dependencies")
 @patch("egregora.agents.writer._render_writer_prompt")
 @patch("egregora.agents.writer._execute_writer_with_error_handling")
 @patch("egregora.agents.writer._finalize_writer_results")

@@ -31,7 +31,8 @@ def test_feed_to_xml_basic():
     # Check XML declaration (ElementTree uses single quotes)
     assert xml.startswith("<?xml version")
     assert "encoding" in xml[:50]
-    assert '<feed xmlns="http://www.w3.org/2005/Atom">' in xml
+    assert 'xmlns="http://www.w3.org/2005/Atom"' in xml
+    assert 'xmlns:thr="http://purl.org/syndication/thread/1.0"' in xml
     assert "<id>http://example.org/feed</id>" in xml
     assert "<title>Test Feed</title>" in xml
     assert "<author>" in xml
@@ -119,9 +120,15 @@ def test_entry_with_categories():
     assert '<category term="tdd"' in xml
 
 
-def test_feed_parses_as_valid_xml():
-    """Test that generated XML is valid and parseable."""
-    doc = Document.create(content="Test content", doc_type=DocumentType.POST, title="Test Post")
+def test_feed_parses_as_valid_xml(snapshot):
+    """Test that generated XML is valid and matches snapshot."""
+    doc = Document.create(
+        content="Test content",
+        doc_type=DocumentType.POST,
+        title="Test Post",
+        id_override="test-post-123",  # For stable ID
+    )
+    doc.updated = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)  # For stable timestamp
 
     feed = documents_to_feed(
         [doc], feed_id="http://example.org/feed", title="Test Feed", authors=[Author(name="Alice")]
@@ -129,16 +136,10 @@ def test_feed_parses_as_valid_xml():
 
     xml = feed.to_xml()
 
-    # Should parse without error
+    # Should parse without error and match snapshot
     root = ElementTree.fromstring(xml)
-
-    # Check namespace
     assert root.tag == "{http://www.w3.org/2005/Atom}feed"
-
-    # Check required elements
-    assert root.find("{http://www.w3.org/2005/Atom}id") is not None
-    assert root.find("{http://www.w3.org/2005/Atom}title") is not None
-    assert root.find("{http://www.w3.org/2005/Atom}updated") is not None
+    assert xml == snapshot
 
 
 def test_datetime_formatting():

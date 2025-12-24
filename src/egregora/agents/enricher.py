@@ -39,8 +39,11 @@ from pydantic_ai.messages import BinaryContent
 from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
-from egregora.llm.providers.google_batch import GoogleBatchModel
-from egregora.orchestration.pipelines.modules.media import extract_urls, find_media_references
+from egregora.models.google_batch import GoogleBatchModel
+from egregora.orchestration.pipelines.modules.media import (
+    extract_urls,
+    find_media_references,
+)
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key

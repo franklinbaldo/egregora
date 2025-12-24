@@ -401,52 +401,52 @@ def run_cli_flow(
 
     _validate_api_key(output_dir)
 
-    base_config = load_egregora_config(output_dir)
     try:
-        sources_to_run = _resolve_sources_to_run(base_config, parsed_options.source)
-    except ValueError as exc:
-        console.print(f"[red]{exc}[/red]")
-        # For programmatic execution (tests), we might want to let the exception bubble up if not handled
-        # But CLI should exit gracefully.
-        # Since run_cli_flow is primarily for CLI, SystemExit(1) is correct behavior for CLI.
-        # However, tests might expect this.
-        raise SystemExit(1) from exc
-
-    runtime = RuntimeContext(
-        output_dir=output_dir,
-        input_file=parsed_options.input_file,
-        model_override=parsed_options.model,
-        debug=parsed_options.debug,
-    )
-
-    for source_key, source_settings in sources_to_run:
-        merged_options = _merge_source_overrides(parsed_options, source_key=source_key, source_settings=source_settings)
-
-        from_date_obj, to_date_obj = None, None
-        if merged_options.from_date:
-            try:
-                from_date_obj = parse_date_arg(merged_options.from_date, "from_date")
-            except ValueError as e:
-                console.print(f"[red]{e}[/red]")
-                raise SystemExit(1) from e
-        if merged_options.to_date:
-            try:
-                to_date_obj = parse_date_arg(merged_options.to_date, "to_date")
-            except ValueError as e:
-                console.print(f"[red]{e}[/red]")
-                raise SystemExit(1) from e
-
-        if merged_options.timezone:
-            try:
-                validate_timezone(merged_options.timezone)
-                console.print(f"[green]Using timezone: {merged_options.timezone}[/green]")
-            except ValueError as e:
-                console.print(f"[red]{e}[/red]")
-                raise SystemExit(1) from e
-
-        egregora_config = _prepare_write_config(merged_options, from_date_obj, to_date_obj, base_config)
-
+        base_config = load_egregora_config(output_dir)
         try:
+            sources_to_run = _resolve_sources_to_run(base_config, parsed_options.source)
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            # For programmatic execution (tests), we might want to let the exception bubble up if not handled
+            # But CLI should exit gracefully.
+            # Since run_cli_flow is primarily for CLI, SystemExit(1) is correct behavior for CLI.
+            # However, tests might expect this.
+            raise SystemExit(1) from exc
+
+        runtime = RuntimeContext(
+            output_dir=output_dir,
+            input_file=parsed_options.input_file,
+            model_override=parsed_options.model,
+            debug=parsed_options.debug,
+        )
+
+        for source_key, source_settings in sources_to_run:
+            merged_options = _merge_source_overrides(parsed_options, source_key=source_key, source_settings=source_settings)
+
+            from_date_obj, to_date_obj = None, None
+            if merged_options.from_date:
+                try:
+                    from_date_obj = parse_date_arg(merged_options.from_date, "from_date")
+                except ValueError as e:
+                    console.print(f"[red]{e}[/red]")
+                    raise SystemExit(1) from e
+            if merged_options.to_date:
+                try:
+                    to_date_obj = parse_date_arg(merged_options.to_date, "to_date")
+                except ValueError as e:
+                    console.print(f"[red]{e}[/red]")
+                    raise SystemExit(1) from e
+
+            if merged_options.timezone:
+                try:
+                    validate_timezone(merged_options.timezone)
+                    console.print(f"[green]Using timezone: {merged_options.timezone}[/green]")
+                except ValueError as e:
+                    console.print(f"[red]{e}[/red]")
+                    raise SystemExit(1) from e
+
+            egregora_config = _prepare_write_config(merged_options, from_date_obj, to_date_obj, base_config)
+
             console.print(
                 Panel(
                     f"[cyan]Source key:[/cyan] {source_key}\n"
@@ -461,18 +461,17 @@ def run_cli_flow(
             run_params = PipelineRunParams(
                 output_dir=runtime.output_dir,
                 config=egregora_config,
-                source_type=merged_options.source,
-                source_key=source_key,
+                source_type=parsed_options.source.value,
                 input_path=runtime.input_file,
-                refresh="all" if merged_options.force else merged_options.refresh,
+                refresh="all" if parsed_options.force else parsed_options.refresh,
                 is_demo=is_demo,
             )
             run(run_params)
-            console.print(f"[green]Processing completed successfully for source '{source_key}'.[/green]")
-        except Exception as e:
-            console.print_exception(show_locals=False)
-            console.print(f"[red]Pipeline failed for source '{source_key}': {e}[/]")
-            raise SystemExit(1) from e
+            console.print("[green]Processing completed successfully.[/green]")
+    except Exception as e:
+        console.print_exception(show_locals=False)
+        console.print(f"[red]Pipeline failed: {e}[/]")
+        raise SystemExit(1) from e
 
 
 def process_whatsapp_export(

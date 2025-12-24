@@ -1,0 +1,3 @@
+## 📉 2025-12-24 - Simplify Author Sync Logic
+**Observation:** The `sync_authors_from_posts` function in `src/egregora/utils/filesystem.py` used conditional logic to handle author frontmatter that could be a string or a list. This made the code more complex than necessary.
+**Action:** I refactored the function to normalize the author data into a list at the beginning of processing. This removed the conditional branching, making the code flatter and easier to understand. I also added a dedicated test file to lock in the behavior before and after the change, which helped catch and fix a variable shadowing bug introduced during the refactor.

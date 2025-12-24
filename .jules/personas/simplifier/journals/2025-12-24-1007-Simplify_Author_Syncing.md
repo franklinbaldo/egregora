@@ -1,0 +1,3 @@
+## 📉 2025-12-24 - Simplify Author Syncing
+**Observation:** The `sync_authors_from_posts` function in `src/egregora/utils/filesystem.py` was responsible for both discovering author IDs from all post files and registering them. This mixed two distinct responsibilities, making the code harder to follow.
+**Action:** I extracted the author discovery logic into a new private helper function, `_collect_author_ids_from_posts`. The `sync_authors_from_posts` function now calls this helper and focuses solely on the orchestration of loading, updating, and saving the author data. This improves separation of concerns and simplifies the main function.

@@ -1,0 +1,3 @@
+## 📉 2025-12-24-0909 - Simplify Author Extraction
+**Observation:** The `sync_authors_from_posts` function in `src/egregora/utils/filesystem.py` used a branching `if/elif` structure to handle both single string and list formats for authors in post frontmatter. This created unnecessary cognitive load.
+**Action:** I refactored the logic to a single, unified path. The code now ensures the author data is a list, whether it starts as a single string or a list, and then processes it in a single loop. This makes the code flatter and easier to understand without changing its behavior. A bug was introduced and caught by the test suite, reinforcing the value of TDD.

@@ -12,30 +12,21 @@
 # So the first field (minute) must be "0" or "*" to ever match.
 
 [schedules]
-# --- ⏱️ Hourly ---
-simplifier   = "0 * * * *"  # 📉 Complexity Reduction
-essentialist = "0 * * * *"  # 💎 Pragmatism & Cuts
+# --- Daily Routine ---
+curator = "0 0 * * *"       # Daily at 00:00 UTC
+janitor = "0 8 * * *"       # Daily at 08:00 UTC
+weaver = "0 8 * * *"        # Daily at 08:00 UTC
 
-# --- 🌅 Morning (UTC) ---
-curator      = "0 0 * * *"  # 00:00 - 🎭 UX Evaluation
-refactor     = "0 2 * * *"  # 02:00 - 🔧 Code Improvements
-visionary    = "0 3 * * *"  # 03:00 - 🔮 Moonshot Strategy
-bolt         = "0 4 * * *"  # 04:00 - ⚡ Performance Check
-sentinel     = "0 5 * * *"  # 05:00 - 🛡️ Security Audit
-builder      = "0 6 * * *"  # 06:00 - 🏗️ Data Architecture
-shepherd     = "0 7 * * *"  # 07:00 - 🧑‍🌾 Test Coverage
-janitor      = "0 8 * * *"  # 08:00 - 🧹 Code Hygiene
-docs_curator = "0 9 * * *"  # 09:00 - 📚 Docs Gardening
-artisan      = "0 10 * * *" # 10:00 - 🔨 Code Craftsmanship
-palette      = "0 11 * * *" # 11:00 - 🎨 Design System
+# --- Weekly Routine ---
+docs_curator = "0 9 * * 1"  # Mondays at 09:00 UTC
+artisan = "0 10 * * 2"      # Tuesdays at 10:00 UTC
 
-# --- ☀️ Afternoon (UTC) ---
-scribe       = "0 12 * * *" # 12:00 - ✍️ Technical Writing
-forge        = "0 14 * * *" # 14:00 - ⚒️ Feature Implementation
-sheriff      = "0 16 * * *" # 16:00 - 🤠 Test Stability
-
-# --- 🌙 Evening (UTC) ---
-weaver       = "0 22 * * *" # 22:00 - 🕸️ Integration Build
-
-# --- 🚨 Manual / Trigger-only Agents ---
-# pruner = "manual"  # 🪓 Dead Code Elimination
+# --- Manual / Trigger-only Agents ---
+# These are available for manual dispatch but have no automatic schedule.
+# shepherd = "manual"
+# forge = "manual"
+# refactor = "manual"
+# incremental_checkpoint_task = "manual"
+# metadata_normalization_task = "manual"
+# store_level_annotation_persistence_task = "manual"
+# refactor-demo-cache = "manual"

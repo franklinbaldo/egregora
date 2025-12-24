@@ -1,0 +1,3 @@
+## 📉 2025-12-24 - Simplify Author Syncing Logic
+**Observation:** The `sync_authors_from_posts` function in `src/egregora/utils/filesystem.py` used a nested conditional to handle author metadata that could be a single string or a list. This created unnecessary branching and cognitive load.
+**Action:** I flattened the logic by ensuring the author metadata is always a list. This removed the nested conditional, making the code more direct and easier to read. I first wrote a test to cover the existing behavior, and it continued to pass after the simplification.
