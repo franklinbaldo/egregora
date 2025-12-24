@@ -12,20 +12,22 @@ theme:
   custom_dir: overrides
   language: en
   font:
-    text: Roboto
+    text: Inter
     code: Roboto Mono
   palette:
+    # Light mode
     - media: '(prefers-color-scheme: light)'
       scheme: default
-      primary: teal
-      accent: amber
+      primary: deep-purple
+      accent: indigo
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
+    # Dark mode
     - media: '(prefers-color-scheme: dark)'
       scheme: slate
-      primary: teal
-      accent: amber
+      primary: deep-purple
+      accent: indigo
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
@@ -50,6 +52,7 @@ theme:
     - content.tooltips
 
 plugins:
+  - social
   - search:
       lang: en
   - macros
