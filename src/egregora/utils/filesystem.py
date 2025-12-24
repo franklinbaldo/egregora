@@ -173,12 +173,11 @@ def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path
     }
 
     # Copy optional metadata fields
-    optional_keys = ["tags", "summary", "authors", "category"]
-    for key in optional_keys:
+    for key in ["tags", "summary", "authors", "category"]:
         if key in metadata:
             front_matter[key] = metadata[key]
 
-    if "authors" in front_matter:
+    if "authors" in metadata:
         ensure_author_entries(output_dir, front_matter.get("authors"))
 
     yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)

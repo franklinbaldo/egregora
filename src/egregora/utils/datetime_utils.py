@@ -17,7 +17,7 @@ def parse_datetime_flexible(
     default_timezone: tzinfo = UTC,
     parser_kwargs: Mapping[str, Any] | None = None,
 ) -> datetime | None:
-    """Parse a datetime value with ISO-first logic and optional dateutil fallback.
+    """Parse a datetime value using a flexible approach.
 
     Args:
         value: Datetime-like input (datetime/date/str/other). ``None`` or empty strings
@@ -44,15 +44,13 @@ def parse_datetime_flexible(
         raw = str(value).strip()
         if not raw:
             return None
-
         try:
-            dt = datetime.fromisoformat(raw)
-        except (TypeError, ValueError):
+            # dateutil.parser.parse can handle ISO 8601 strings,
+            # so we don't need a separate fromisoformat call.
             kwargs = dict(parser_kwargs or {})
-            try:
-                dt = dateutil_parser.parse(raw, **kwargs)
-            except (TypeError, ValueError, OverflowError):
-                return None
+            dt = dateutil_parser.parse(raw, **kwargs)
+        except (TypeError, ValueError, OverflowError):
+            return None
 
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=default_timezone)
