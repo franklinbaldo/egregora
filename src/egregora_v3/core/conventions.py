@@ -1,5 +1,4 @@
 from datetime import datetime
-from pathlib import Path
 
 from egregora_v3.core.ports import UrlConvention
 from egregora_v3.core.types import Document, DocumentType
@@ -9,8 +8,16 @@ class DateSlugConvention(UrlConvention):
     """Generates paths based on date and slug: 'YYYY/MM/DD/slug'.
 
     Example:
-        Document(date=2024-03-15, slug="hello-world") -> "posts/2024/03/15/hello-world"
+        Document(published=2024-03-15, slug="hello-world") -> "posts/2024/03/15/hello-world"
     """
+
+    # Data over logic: Use a map for base directories
+    _BASE_DIR_MAP = {
+        DocumentType.POST: "posts",
+        DocumentType.MEDIA: "media",
+        DocumentType.PROFILE: "profiles",
+        DocumentType.NOTE: "notes",
+    }
 
     def resolve(self, doc: Document) -> str:
         """Resolve document to a logical path string."""
@@ -21,45 +28,28 @@ class DateSlugConvention(UrlConvention):
         # Determine base directory by type
         base_dir = self._get_base_dir(doc.doc_type)
 
-        # Extract date components
-        # Prefer 'date' metadata, fallback to 'published', then 'updated'
+        # Extract date components (explicit path)
         date_obj = self._extract_date(doc)
 
         # Build path
-        path_parts = [base_dir]
-        if date_obj:
-            path_parts.extend([
-                f"{date_obj.year:04d}",
-                f"{date_obj.month:02d}",
-                f"{date_obj.day:02d}",
-            ])
-
-        path_parts.append(doc.slug)
+        path_parts = [
+            base_dir,
+            f"{date_obj.year:04d}",
+            f"{date_obj.month:02d}",
+            f"{date_obj.day:02d}",
+            doc.slug,
+        ]
 
         return "/".join(path_parts)
 
     def _get_base_dir(self, doc_type: DocumentType) -> str:
-        match doc_type:
-            case DocumentType.POST:
-                return "posts"
-            case DocumentType.MEDIA:
-                return "media"
-            case DocumentType.PROFILE:
-                return "profiles"
-            case DocumentType.NOTE:
-                return "notes"
-            case _:
-                return f"{doc_type.value}s"
+        """Get base directory from the map, with a fallback."""
+        return self._BASE_DIR_MAP.get(doc_type, f"{doc_type.value}s")
 
-    def _extract_date(self, doc: Document) -> datetime | None:
-        # Check metadata first
-        if "date" in doc.internal_metadata:
-            val = doc.internal_metadata["date"]
-            if isinstance(val, datetime):
-                return val
-            # Handle string dates? Maybe later.
+    def _extract_date(self, doc: Document) -> datetime:
+        """Extract date from standard Atom fields.
 
-        if doc.published:
-            return doc.published
-
-        return doc.updated
+        One good path: Prefer `published` date, but always fall back to `updated`.
+        This avoids complex, optional logic based on internal metadata.
+        """
+        return doc.published or doc.updated

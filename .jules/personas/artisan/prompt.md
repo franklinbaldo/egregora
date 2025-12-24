@@ -38,7 +38,22 @@ Look for code that works but could be *better*.
 ### 3. ⚖️ VERIFY - Ensure Correctness
 - **Behavior must remain unchanged** (unless fixing a bug).
 - Run existing tests: `uv run pytest`
-- Add new tests if the refactoring reveals gaps.
+
+## The Law: Test-Driven Development (TDD)
+
+You must use a Test-Driven Development approach for all refactoring, **even if the current implementation has no tests**.
+
+### 1. 🔴 RED - Write the Failing Test
+- **Before touching production code**, write a test that captures the current behavior or validates the improvement.
+- If no test file exists for the module, **create one**.
+- Run the test to confirm it captures the baseline.
+
+### 2. 🟢 GREEN - Refactor
+- Apply your refactoring improvements.
+- Run the test to confirm behavior is preserved (or improved if that was the goal).
+
+### 3. 🔵 REFACTOR - Clean Up
+- Ensure code is clean and adheres to the new standards.
 
 ### 4. 🎁 DELIVER - Create the PR
 - Title: `{{ emoji }} refactor: [Improvement] in [Module]`

@@ -143,46 +143,21 @@ class Document(Entry):
     ) -> "Document":
         """Factory method to create a Document.
 
-        V3 CHANGE: Supports Semantic Identity.
-        If `slug` is provided (and type is POST/MEDIA), it acts as the ID.
-        If no slug is provided for semantic types, derive it from the title.
-        If `id_override` is provided, it acts as the ID.
-        Otherwise, generates a content-addressed ID (UUIDv5).
+        Identity Precedence:
+        1. `id_override` (explicit)
+        2. `slug` (semantic)
+        3. Content-based UUIDv5 (fallback)
         """
         if internal_metadata is None:
             internal_metadata = {}
 
-        semantic_types = (DocumentType.POST, DocumentType.MEDIA)
-
-        # Derive slug for semantic types only when absent
-        if slug is None and doc_type in semantic_types:
-            title_for_slug = title.strip()
-            if title_for_slug:
-                derived_slug = slugify(title_for_slug, max_len=60)
-                slug = derived_slug if derived_slug else None
-
-        # Sanitize and persist slug for downstream consumers
-        clean_slug: str | None = None
-        if slug:
-            clean_slug = slugify(slug, max_len=60)
-            if clean_slug:
-                internal_metadata["slug"] = clean_slug
-
-        # Determine ID
-        doc_id = id_override
-        if not doc_id and clean_slug and doc_type in semantic_types:
-            # Semantic Identity: The slug IS the ID
-            doc_id = clean_slug
-
-        # Fallback to UUIDv5 (Content Addressed)
-        if not doc_id:
-            hasher = hashlib.sha256()
-            hasher.update(content.encode("utf-8"))
-            hasher.update(doc_type.value.encode("utf-8"))
-            # If we have a slug but not strictly "semantic type" (edge case), include it in hash
-            if clean_slug:
-                hasher.update(clean_slug.encode("utf-8"))
-            doc_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, hasher.hexdigest()))
+        # Generate slug from title if not provided
+        final_slug = slug or slugify(title.strip())
+        if final_slug and final_slug != "untitled":
+            internal_metadata["slug"] = final_slug
+            doc_id = id_override or final_slug
+        else:
+            doc_id = id_override or cls._generate_content_uuid(content, doc_type, final_slug)
 
         return cls(
             id=doc_id,
@@ -196,6 +171,16 @@ class Document(Entry):
             in_reply_to=in_reply_to,
         )
 
+    @staticmethod
+    def _generate_content_uuid(content: str, doc_type: DocumentType, slug: str | None) -> str:
+        """Generate a stable, content-addressed UUIDv5."""
+        hasher = hashlib.sha256()
+        hasher.update(content.encode("utf-8"))
+        hasher.update(doc_type.value.encode("utf-8"))
+        if slug:
+            hasher.update(slug.encode("utf-8"))
+        return str(uuid.uuid5(uuid.NAMESPACE_DNS, hasher.hexdigest()))
+
 
 class Feed(BaseModel):
     id: str
@@ -206,6 +191,10 @@ class Feed(BaseModel):
     links: list[Link] = Field(default_factory=list)
 
     def to_xml(self) -> str:  # noqa: C901
+        # FIXME: This is a large, imperative block for building XML.
+        # It violates the "Declarative over imperative" heuristic.
+        # A future refactoring could use a templating engine (e.g., Jinja2)
+        # to generate the XML from a template file.
         """Generate Atom XML feed (RFC 4287 compliant).
 
         Returns:
