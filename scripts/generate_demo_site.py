@@ -147,8 +147,7 @@ def _patch_pipeline_for_offline_demo() -> None:
         ),
         # Avatar processing
         PatchSpec("egregora.agents.avatar.process_avatar_commands", _stub_process_avatar_commands),
-        # Avoid banner capability and workers.
-        PatchSpec("egregora.agents.writer_setup.is_banner_generation_available", lambda: False),
+
         PatchSpec(
             "egregora.orchestration.pipelines.write._process_background_tasks",
             _skip_background_tasks,
@@ -332,7 +331,7 @@ def main() -> int:
 
     # Pre-scaffold logic is handled by 'egregora write' via 'init' if missing,
     # but to customize the stub files (Journal/Profiles placeholders), we do it beforehand.
-    from egregora.init import ensure_mkdocs_project
+    from egregora.output_adapters.mkdocs.scaffolding import ensure_mkdocs_project
 
     ensure_mkdocs_project(output_dir, site_name="Egregora Demo")
 
