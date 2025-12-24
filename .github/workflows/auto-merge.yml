@@ -189,9 +189,7 @@ jobs:
                   owner,
                   repo,
                   issue_number: pull_number,
-                  body: `ℹ️ **Manual review required**\n\nThis is a
-${updateType}
- update, which requires manual approval before merging.`
+                  body: `ℹ️ **Manual review required**\n\nThis is a ${updateType} update, which requires manual approval before merging.`
                 });
               }
             }
