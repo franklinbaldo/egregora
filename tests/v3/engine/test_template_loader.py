@@ -213,3 +213,15 @@ class TestTemplateInheritance:
         assert "Generate a blog post" in result
         # Should contain variable substitution
         assert "2024-12-12" in result
+
+from egregora_v3.core.utils import slugify as canonical_slugify
+
+def test_template_loader_uses_canonical_slugify():
+    """Ensures the slugify filter is the canonical one, not a duplicate."""
+    loader = TemplateLoader()
+    slugify_filter = loader.env.filters.get("slugify")
+
+    assert slugify_filter is not None, "Slugify filter should be registered"
+    assert (
+        slugify_filter is canonical_slugify
+    ), "TemplateLoader should use the slugify function from core.utils"
