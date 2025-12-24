@@ -90,18 +90,10 @@ def ensure_author_entries(output_dir: Path, author_ids: list[str] | None) -> Non
 
 
 def _find_authors_yml(output_dir: Path) -> Path:
-    """Finds the .authors.yml file by traversing up from the output directory."""
-    current = output_dir.resolve()
-    # Check current directory and up to 5 parents
-    for i, path in enumerate([current] + list(current.parents)):
-        if i > 5:
-            break
-        authors_yml = path / ".authors.yml"
-        if authors_yml.exists() or path.name == "docs":
-            return authors_yml
-
-    # Fallback to the original assumption if not found after traversal
-    return output_dir.resolve().parent.parent / ".authors.yml"
+    """Finds the .authors.yml file assuming a standard project structure."""
+    # Assumes output_dir is something like /path/to/docs/posts/posts
+    docs_dir = output_dir.resolve().parent.parent
+    return docs_dir / ".authors.yml"
 
 
 def _load_authors_yml(path: Path) -> dict:
