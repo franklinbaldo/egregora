@@ -48,12 +48,8 @@ egregora write path/to/chat_export.zip --output=.
 
 **3. Preview your site:**
 ```bash
-uvx --with mkdocs-material \
-    --with mkdocs-macros-plugin \
-    --with mkdocs-rss-plugin \
-    --with mkdocs-blogging-plugin \
-    --with mkdocs-glightbox \
-    mkdocs serve -f .egregora/mkdocs.yml
+uv sync --all-extras
+uv run mkdocs serve -f .egregora/mkdocs.yml
 ```
 *Visit http://localhost:8000 to read your new blog.*
 
