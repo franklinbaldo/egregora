@@ -38,22 +38,16 @@ def _extract_clean_date(date_obj: str | date | datetime) -> str:
 
     date_str = str(date_obj).strip()
 
-    # First, try to parse the whole string directly
-    try:
-        # This handles "YYYY-MM-DD" and other ISO-like formats
-        return date.fromisoformat(date_str[:ISO_DATE_LENGTH]).isoformat()
-    except (ValueError, TypeError):
-        pass
-
-    # If direct parsing fails, search for a date pattern
+    # Search for a YYYY-MM-DD pattern anywhere in the string.
+    # This unifies the logic that previously had two separate checks.
     match = _DATE_PATTERN.search(date_str)
     if match:
-        clean_date_str = match.group(1)
         try:
             # Validate that the matched pattern is a real date
-            return date.fromisoformat(clean_date_str).isoformat()
+            return date.fromisoformat(match.group(1)).isoformat()
         except ValueError:
-            pass  # The matched pattern was not a valid date
+            # The matched pattern was not a valid date (e.g., "2023-99-99")
+            pass
 
     # Fallback to the original string if no valid date is found
     return date_str
