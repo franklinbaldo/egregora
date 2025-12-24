@@ -8,15 +8,16 @@ from egregora_v3.core.config_loader import ConfigLoader
 
 def test_load_from_file(tmp_path):
     """Test loading configuration from a file."""
-    config_dir = tmp_path / ".egregora"
-    config_dir.mkdir()
-    config_file = config_dir / "config.yml"
-    config_file.write_text("""
-models:
-  writer: "custom-writer-model"
-paths:
-  posts_dir: "custom-posts"
-    """)
+    config_file = tmp_path / ".egregora.toml"
+    config_file.write_text(
+        """
+[models]
+writer = "custom-writer-model"
+
+[paths]
+posts_dir = "custom-posts"
+        """
+    )
 
     loader = ConfigLoader(tmp_path)
     config = loader.load()
@@ -51,23 +52,24 @@ def test_load_defaults_from_cwd(tmp_path, monkeypatch):
     assert config.paths.site_root == tmp_path
 
 
-def test_load_from_cwd_with_yaml(tmp_path, monkeypatch):
-    """Test loading YAML configuration from current working directory."""
+def test_load_from_cwd_with_toml(tmp_path, monkeypatch):
+    """Test loading TOML configuration from current working directory."""
     # Setup config in tmp_path
-    config_dir = tmp_path / ".egregora"
-    config_dir.mkdir()
-    config_file = config_dir / "config.yml"
-    config_file.write_text("""
-models:
-  writer: "cwd-custom-model"
-pipeline:
-  step_size: 5
-    """)
+    config_file = tmp_path / ".egregora.toml"
+    config_file.write_text(
+        """
+[models]
+writer = "cwd-custom-model"
+
+[pipeline]
+step_size = 5
+        """
+    )
 
     # Change to tmp_path directory
     monkeypatch.chdir(tmp_path)
 
-    # Load without specifying site_root - should find config.yml in CWD
+    # Load without specifying site_root - should find .egregora.toml in CWD
     loader = ConfigLoader()
     config = loader.load()
 
@@ -135,13 +137,13 @@ def test_env_var_override_path(tmp_path, monkeypatch):
 
 def test_env_var_precedence_over_file(tmp_path, monkeypatch):
     """Test that environment variables take precedence over file configuration."""
-    config_dir = tmp_path / ".egregora"
-    config_dir.mkdir()
-    config_file = config_dir / "config.yml"
-    config_file.write_text("""
-models:
-  writer: "file-writer-model"
-    """)
+    config_file = tmp_path / ".egregora.toml"
+    config_file.write_text(
+        """
+[models]
+writer = "file-writer-model"
+        """
+    )
 
     monkeypatch.setenv("EGREGORA_MODELS__WRITER", "env-writer-model")
 
@@ -152,24 +154,20 @@ models:
     assert config.models.writer == "env-writer-model"
 
 
-def test_invalid_yaml(tmp_path):
-    """Test handling of invalid YAML configuration."""
-    config_dir = tmp_path / ".egregora"
-    config_dir.mkdir()
-    config_file = config_dir / "config.yml"
-    config_file.write_text("invalid: [ yaml: content")
+def test_invalid_toml(tmp_path):
+    """Test handling of invalid TOML configuration."""
+    config_file = tmp_path / ".egregora.toml"
+    config_file.write_text("invalid = [")
 
     loader = ConfigLoader(tmp_path)
-    with pytest.raises(ValueError, match="Invalid YAML"):
+    with pytest.raises(ValueError, match="Invalid TOML"):
         loader.load()
 
 
 def test_invalid_root_type(tmp_path):
-    """Test that non-mapping YAML roots raise a clear error."""
-    config_dir = tmp_path / ".egregora"
-    config_dir.mkdir()
-    config_file = config_dir / "config.yml"
-    config_file.write_text("- list-root-value")
+    """Test that non-mapping TOML roots raise a clear error."""
+    config_file = tmp_path / ".egregora.toml"
+    config_file.write_text('["list-root-value"]')
 
     loader = ConfigLoader(tmp_path)
     with pytest.raises(TypeError, match="root must be a mapping"):

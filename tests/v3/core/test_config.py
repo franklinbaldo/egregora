@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-import yaml
 
 from egregora_v3.core.config import EgregoraConfig, PathsSettings
 
@@ -23,16 +22,22 @@ def test_path_resolution(tmp_path):
     assert paths.abs_db_path == site_root / ".egregora/pipeline.duckdb"
 
 
-def test_load_from_yaml(tmp_path):
+def test_load_from_toml(tmp_path):
     # Setup a mock site
     site_root = tmp_path / "mysite"
-    egregora_dir = site_root / ".egregora"
-    egregora_dir.mkdir(parents=True)
+    site_root.mkdir(parents=True)
 
-    config_data = {"pipeline": {"step_size": 7, "step_unit": "days"}, "models": {"writer": "custom-model"}}
+    config_file = site_root / ".egregora.toml"
+    config_file.write_text(
+        """
+[pipeline]
+step_size = 7
+step_unit = "days"
 
-    with (egregora_dir / "config.yml").open("w") as f:
-        yaml.dump(config_data, f)
+[models]
+writer = "custom-model"
+        """
+    )
 
     # Load config
     config = EgregoraConfig.load(site_root)
@@ -56,12 +61,15 @@ def test_load_missing_file(tmp_path):
 def test_load_from_cwd(tmp_path, monkeypatch):
     """Test loading from current working directory (no explicit path)."""
     site_root = tmp_path / "mysite"
-    egregora_dir = site_root / ".egregora"
-    egregora_dir.mkdir(parents=True)
+    site_root.mkdir(parents=True)
 
-    config_data = {"models": {"writer": "cwd-model"}}
-    with (egregora_dir / "config.yml").open("w") as f:
-        yaml.dump(config_data, f)
+    config_file = site_root / ".egregora.toml"
+    config_file.write_text(
+        """
+[models]
+writer = "cwd-model"
+        """
+    )
 
     # Change to site directory
     monkeypatch.chdir(site_root)
@@ -74,14 +82,11 @@ def test_load_from_cwd(tmp_path, monkeypatch):
 
 def test_load_invalid_paths_config(tmp_path):
     site_root = tmp_path / "bad_site"
-    egregora_dir = site_root / ".egregora"
-    egregora_dir.mkdir(parents=True)
+    site_root.mkdir(parents=True)
 
     # paths is a string, not a dict
-    config_data = {"paths": "invalid_string"}
-
-    with (egregora_dir / "config.yml").open("w") as f:
-        yaml.dump(config_data, f)
+    config_file = site_root / ".egregora.toml"
+    config_file.write_text('paths = "invalid_string"')
 
     with pytest.raises(TypeError, match="Configuration 'paths' must be a dictionary"):
         EgregoraConfig.load(site_root)

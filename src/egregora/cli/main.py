@@ -137,8 +137,9 @@ def write(
         ),
     ] = None,
     source: Annotated[
-        SourceType, typer.Option("--source-type", "-s", help="Source format of the input")
-    ] = SourceType.WHATSAPP,
+        str | None,
+        typer.Option("--source-type", "-s", help="Configured source key to run (defaults to [site.default_source])"),
+    ] = None,
     step_size: Annotated[int, typer.Option(help="Window size (messages or hours)")] = 100,
     step_unit: Annotated[WindowUnit, typer.Option(help="Unit for windowing")] = WindowUnit.MESSAGES,
     overlap: Annotated[float, typer.Option(help="Overlap ratio between windows (0.0-1.0)")] = 0.0,
@@ -207,7 +208,7 @@ def write(
 def top(
     site_root: Annotated[
         Path,
-        typer.Argument(help="Site root directory containing .egregora/config.yml"),
+        typer.Argument(help="Site root directory containing .egregora.toml"),
     ],
     site: Annotated[
         str | None,
@@ -285,7 +286,7 @@ def top(
 def show_reader_history(
     site_root: Annotated[
         Path,
-        typer.Argument(help="Site root directory containing .egregora/config.yml"),
+        typer.Argument(help="Site root directory containing .egregora.toml"),
     ],
     site: Annotated[
         str | None,
@@ -406,7 +407,7 @@ def demo(
     run_cli_flow(
         input_file=sample_input,
         output=output_dir,
-        source=SourceType.WHATSAPP,
+        source=SourceType.WHATSAPP.value,
         step_size=100,
         step_unit=WindowUnit.MESSAGES,
         overlap=0.0,

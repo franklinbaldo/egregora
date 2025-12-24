@@ -34,19 +34,19 @@ example()
 
 ## Configuration
 
-Configure RAG in `.egregora/config.yml`:
+Configure RAG in `.egregora.toml`:
 
-```yaml
-paths:
-  lancedb_dir: .egregora/lancedb
+```toml
+[paths]
+lancedb_dir = ".egregora/lancedb"
 
-rag:
-  enabled: true
-  top_k: 5
-  min_similarity_threshold: 0.7
-  indexable_types: ["POST"]
-  embedding_max_batch_size: 100
-  embedding_timeout: 60.0
+[rag]
+enabled = true
+top_k = 5
+min_similarity_threshold = 0.7
+indexable_types = ["POST"]
+embedding_max_batch_size = 100
+embedding_timeout = 60.0
 ```
 
 ## API Reference

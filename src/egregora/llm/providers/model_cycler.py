@@ -57,6 +57,11 @@ class GeminiKeyRotator:
         """Get the current API key."""
         return self.api_keys[self.current_idx]
 
+    @property
+    def key_index(self) -> int:
+        """Get the index of the current API key."""
+        return self.current_idx
+
     def next_key(self) -> str | None:
         """Advance to the next API key.
 

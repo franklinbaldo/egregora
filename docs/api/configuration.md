@@ -4,7 +4,7 @@ Configuration management for Egregora, including settings models and validation.
 
 ## Overview
 
-Egregora uses **Pydantic V2** for type-safe configuration management. All settings are defined in `.egregora/config.yml` and validated at load time.
+Egregora uses **Pydantic V2** for type-safe configuration management. All settings are defined in `.egregora.toml` and validated at load time.
 
 ## CLI Commands
 
@@ -35,7 +35,7 @@ egregora config show ./my-blog
 
 ### EgregoraConfig
 
-Root configuration object loaded from `.egregora/config.yml`.
+Root configuration object loaded from `.egregora.toml`.
 
 ::: egregora.config.settings.EgregoraConfig
     options:
@@ -97,91 +97,83 @@ Pipeline execution settings.
 
 ### Minimal Configuration
 
-```yaml
-# .egregora/config.yml
-models:
-  writer: google-gla:gemini-flash-latest
+```toml
+# .egregora.toml
+[models]
+writer = "google-gla:gemini-flash-latest"
 
-rag:
-  enabled: true
-  top_k: 5
+[rag]
+enabled = true
+top_k = 5
 ```
 
 ### Full Configuration
 
-```yaml
-# .egregora/config.yml
+```toml
+# .egregora.toml
 
-# Model configuration
-models:
-  writer: google-gla:gemini-flash-latest
-  enricher: google-gla:gemini-flash-latest
-  enricher_vision: google-gla:gemini-flash-latest
-  ranking: google-gla:gemini-flash-latest
-  editor: google-gla:gemini-flash-latest
-  reader: google-gla:gemini-flash-latest
-  embedding: models/gemini-embedding-001
-  banner: models/gemini-2.5-flash-image
+[models]
+writer = "google-gla:gemini-flash-latest"
+enricher = "google-gla:gemini-flash-latest"
+enricher_vision = "google-gla:gemini-flash-latest"
+ranking = "google-gla:gemini-flash-latest"
+editor = "google-gla:gemini-flash-latest"
+reader = "google-gla:gemini-flash-latest"
+embedding = "models/gemini-embedding-001"
+banner = "models/gemini-2.5-flash-image"
 
-# RAG configuration
-rag:
-  enabled: true
-  top_k: 5
-  min_similarity_threshold: 0.7
-  indexable_types: ["POST"]
-  embedding_max_batch_size: 100
-  embedding_timeout: 60.0
-  embedding_max_retries: 5
+[rag]
+enabled = true
+top_k = 5
+min_similarity_threshold = 0.7
+indexable_types = ["POST"]
+embedding_max_batch_size = 100
+embedding_timeout = 60.0
+embedding_max_retries = 5
 
-# Writer agent
-writer:
-  custom_instructions: |
-    Write in a casual, friendly tone.
-    Focus on practical examples.
+[writer]
+custom_instructions = """
+Write in a casual, friendly tone.
+Focus on practical examples.
+"""
 
-# Enrichment
-enrichment:
-  enabled: true
-  enable_url: true
-  enable_media: true
-  max_enrichments: 50
+[enrichment]
+enabled = true
+enable_url = true
+enable_media = true
+max_enrichments = 50
 
-# Pipeline
-pipeline:
-  step_size: 1
-  step_unit: days                  # "days", "hours", "messages"
-  overlap_ratio: 0.2               # 20% overlap
-  max_windows: 1                   # Process 1 window (0 = all)
-  checkpoint_enabled: false        # Enable incremental processing
+[pipeline]
+step_size = 1
+step_unit = "days"                  # "days", "hours", "messages"
+overlap_ratio = 0.2                 # 20% overlap
+max_windows = 1                     # Process 1 window (0 = all)
+checkpoint_enabled = false          # Enable incremental processing
 
-# Paths (relative to site root)
-paths:
-  egregora_dir: .egregora
-  rag_dir: .egregora/rag
-  lancedb_dir: .egregora/lancedb
-  cache_dir: .egregora/cache
-  prompts_dir: .egregora/prompts
-  docs_dir: docs
-  posts_dir: docs/posts
-  profiles_dir: docs/profiles
-  media_dir: docs/assets/media
+[paths]
+egregora_dir = ".egregora"
+rag_dir = ".egregora/rag"
+lancedb_dir = ".egregora/lancedb"
+cache_dir = ".egregora/cache"
+prompts_dir = ".egregora/prompts"
+docs_dir = "docs"
+posts_dir = "docs/posts"
+profiles_dir = "docs/profiles"
+media_dir = "docs/assets/media"
 
-# Output format
-output:
-  format: mkdocs                   # "mkdocs" or "hugo"
+[output]
+format = "mkdocs"                   # "mkdocs" or "hugo"
 
-# Reader agent
-reader:
-  enabled: false
-  comparisons_per_post: 5
-  k_factor: 32
-  database_path: .egregora/reader.duckdb
+[reader]
+enabled = false
+comparisons_per_post = 5
+k_factor = 32
+database_path = ".egregora/reader.duckdb"
 
-# Quota limits
-quota:
-  daily_llm_requests: 220
-  per_second_limit: 1
-  concurrency: 1
+[quota]
+daily_llm_requests = 220
+per_second_limit = 1
+concurrency = 1
 ```
 
 ## Validation
@@ -190,33 +182,34 @@ quota:
 
 Configuration fields are validated with custom validators:
 
-```python
+```toml
 # Model name format validation
-models:
-  writer: google-gla:gemini-flash-latest  # ✅ Valid
-  writer: gemini-flash-latest             # ❌ Invalid (missing prefix)
+[models]
+writer = "google-gla:gemini-flash-latest"  # ✅ Valid
+# writer = "gemini-flash-latest"           # ❌ Invalid (missing prefix)
 
 # RAG top_k validation
-rag:
-  top_k: 5      # ✅ Good
-  top_k: 20     # ⚠️  Warning (unusually high)
-  top_k: 100    # ❌ Error (exceeds maximum)
+[rag]
+top_k = 5      # ✅ Good
+# top_k = 20   # ⚠️  Warning (unusually high)
+# top_k = 100  # ❌ Error (exceeds maximum)
 ```
 
 ### Cross-Field Validation
 
 The config validator checks dependencies between fields:
 
-```yaml
+```toml
 # ❌ Error: RAG enabled but lancedb_dir not set
-rag:
-  enabled: true
-paths:
-  lancedb_dir: ""  # Empty path
+[rag]
+enabled = true
+
+[paths]
+lancedb_dir = ""  # Empty path
 
 # ⚠️  Warning: Very high token limit
-pipeline:
-  max_prompt_tokens: 500000  # Exceeds most model limits
+[pipeline]
+max_prompt_tokens = 500000  # Exceeds most model limits
 ```
 
 ## Programmatic Usage

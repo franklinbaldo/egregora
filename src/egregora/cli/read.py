@@ -32,7 +32,7 @@ def main(
     ctx: typer.Context,
     site_root: Annotated[
         Path | None,
-        typer.Argument(help="Site root directory containing .egregora/config.yml"),
+        typer.Argument(help="Site root directory containing .egregora.toml"),
     ] = None,
     site: Annotated[
         str | None,
@@ -92,7 +92,7 @@ def main(
 
     if not config.reader.enabled:
         console.print("[yellow]Reader agent is disabled in config[/yellow]")
-        console.print("Set reader.enabled = true in .egregora/config.yml to enable")
+        console.print("Set reader.enabled = true in .egregora.toml to enable")
         raise typer.Exit(0)
 
     if run_reader_evaluation is None:

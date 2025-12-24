@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 2025-12-15 - Configuration File Path Clarity
+
+#### Changed
+- Updated CLI help, diagnostics, and docs to reference `.egregora.toml` instead of the legacy `.egregora/config.yml`, with TOML-based examples to guide users.
+
+#### Migration
+- Existing projects using `.egregora/config.yml` should move settings into a root-level `.egregora.toml` for consistency with the current tooling.
+
 ### 2025-12-13 - Simplification: Remove Over-Engineered Sub-Features
 
 #### Removed
