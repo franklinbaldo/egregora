@@ -36,7 +36,7 @@
     {%- for category in entry.categories -%}
     <category term="{{ category.term }}" {%- if category.scheme %} scheme="{{ category.scheme }}"{% endif %} {%- if category.label %} label="{{ category.label }}"{% endif %} />
     {%- endfor -%}
-    {%- if isinstance(entry, Document) -%}
+    {%- if entry.is_document -%}
     <category term="{{ entry.doc_type.value }}" scheme="https://egregora.app/schema#doc_type" label="Document Type" />
     <category term="{{ entry.status.value }}" scheme="https://egregora.app/schema#status" label="Document Status" />
     {%- endif -%}
