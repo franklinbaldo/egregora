@@ -17,6 +17,8 @@ uvx --from git+https://github.com/franklinbaldo/egregora egregora init my-blog
 cd my-blog
 ```
 
+Running `egregora init` or the next `egregora write` call will automatically create `.egregora` (mkdocs config plus cache/RAG/LanceDB paths). If you ever need to rehydrate the scaffolding manually, run `python scripts/bootstrap_site.py ./my-blog` from the repo root or `python ../scripts/bootstrap_site.py .` from within the site directory.
+
 This creates a minimal MkDocs site structure:
 
 ```
