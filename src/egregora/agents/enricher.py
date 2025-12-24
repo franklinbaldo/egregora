@@ -45,7 +45,7 @@ from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
-from egregora.utils.model_fallback import create_fallback_model
+from egregora.utils.env import get_google_api_key
 from egregora.utils.paths import slugify
 from egregora.utils.zip import validate_zip_contents
 
@@ -761,13 +761,21 @@ class EnrichmentWorker(BaseWorker):
 
     def _enrich_single_url(self, task_data: dict) -> tuple[dict, EnrichmentOutput | None, str | None]:
         """Enrich a single URL with fallback support (sync wrapper)."""
+        from pydantic_ai.models.google import GoogleModel
+        from pydantic_ai.providers.google import GoogleProvider
+
         task = task_data["task"]
         url = task_data["url"]
         prompt = task_data["prompt"]
 
         try:
             # Create agent with fallback
-            model = create_fallback_model(self.ctx.config.models.enricher)
+            model_name = self.ctx.config.models.enricher
+            provider = GoogleProvider(api_key=get_google_api_key())
+            model = GoogleModel(
+                model_name.removeprefix("google-gla:"),
+                provider=provider,
+            )
 
             # REGISTER TOOLS:
             # 1. UrlContextTool: Standard client-side fetcher (primary)

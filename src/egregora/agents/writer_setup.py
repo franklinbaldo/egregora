@@ -11,13 +11,16 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic_ai import Agent, RunContext
 from egregora.agents.types import WriterAgentReturn, WriterDeps
+from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.providers.google import GoogleProvider
+
 from egregora.agents.writer_helpers import (
     build_rag_context_for_prompt,
     load_profiles_context,
     register_writer_tools,
     validate_prompt_fits,
 )
-from egregora.utils.model_fallback import create_fallback_model
+from egregora.utils.env import get_google_api_key
 
 if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig
@@ -33,8 +36,13 @@ async def create_writer_model(
     if test_model is not None:
         return test_model
 
-    # Use fallback model to allow automatic OpenRouter failover on rate limits.
-    model = create_fallback_model(config.models.writer)
+    # Simple model instantiation, removing complex fallback logic.
+    model_name = config.models.writer
+    provider = GoogleProvider(api_key=get_google_api_key())
+    model = GoogleModel(
+        model_name.removeprefix("google-gla:"),
+        provider=provider,
+    )
 
     # Validate prompt fits (only check for real models)
     await validate_prompt_fits(

@@ -29,7 +29,7 @@ from egregora.knowledge.profiles import remove_profile_avatar, update_profile_av
 from egregora.orchestration.pipelines.modules.media import detect_media_type, extract_urls
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
-from egregora.utils.model_fallback import create_fallback_model
+from egregora.utils.env import get_google_api_key
 from egregora.utils.network import SSRFValidationError, validate_public_url
 
 if TYPE_CHECKING:
@@ -403,8 +403,16 @@ def _enrich_avatar(
     ).strip()
 
     # Create local agent
+    from pydantic_ai.models.google import GoogleModel
+    from pydantic_ai.providers.google import GoogleProvider
+
     try:
-        model = create_fallback_model(context.vision_model)
+        model_name = context.vision_model
+        provider = GoogleProvider(api_key=get_google_api_key())
+        model = GoogleModel(
+            model_name.removeprefix("google-gla:"),
+            provider=provider,
+        )
         agent = Agent(model=model, output_type=EnrichmentOutput)
 
         message_content = [
