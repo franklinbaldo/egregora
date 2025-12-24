@@ -223,6 +223,32 @@ class TestProfilePrompt:
         # Should mention 1-2 paragraphs
         assert "paragraph" in prompt.lower()
 
+    def test_prompt_handles_none_interests(self):
+        """Prompt handles None interests gracefully."""
+        from egregora.agents.profile.generator import _build_profile_prompt
+
+        prompt = _build_profile_prompt(
+            author_name="Eve",
+            author_messages=[{"text": "Hello", "timestamp": "2025-03-01"}],
+            window_date="2025-03-07",
+            existing_profile={"bio": "Bio here", "interests": None},
+        )
+
+        assert "Interests: None" in prompt
+
+    def test_prompt_handles_string_interests(self):
+        """Prompt wraps string interests into list for joining."""
+        from egregora.agents.profile.generator import _build_profile_prompt
+
+        prompt = _build_profile_prompt(
+            author_name="Eve",
+            author_messages=[{"text": "Hello", "timestamp": "2025-03-01"}],
+            window_date="2025-03-07",
+            existing_profile={"bio": "Bio here", "interests": "AI Safety"},
+        )
+
+        assert "Interests: AI Safety" in prompt
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
