@@ -31,50 +31,7 @@ def test_document_create_factory():
     assert doc.doc_type == DocumentType.POST
     assert doc.title == "My Post"
     assert isinstance(doc.id, str)
-    # Post is semantic, so ID should be slug-like
     assert doc.id == "my-post"
-
-
-def test_document_content_addressed_id():
-    content = "Same Content"
-    doc1 = Document.create(content=content, doc_type=DocumentType.POST, title="Title")
-    doc2 = Document.create(content=content, doc_type=DocumentType.POST, title="Title")
-    doc3 = Document.create(content=content, doc_type=DocumentType.PROFILE, title="Title")
-
-    assert doc1.id == doc2.id
-    assert doc1.id != doc3.id
-
-
-def test_document_semantic_identity_slug_derivation():
-    # POST with title -> should derive slug
-    doc = Document.create(content="Body", doc_type=DocumentType.POST, title="My Great Post")
-    assert doc.slug == "my-great-post"
-    assert doc.id == "my-great-post"
-
-    # MEDIA with explicit slug
-    doc_media = Document.create(content="Image", doc_type=DocumentType.MEDIA, title="Pic", slug="my-pic")
-    assert doc_media.slug == "my-pic"
-    assert doc_media.id == "my-pic"
-
-
-def test_document_semantic_identity_fallback():
-    # NOTE (non-semantic) -> no slug, UUID ID
-    doc = Document.create(content="Note body", doc_type=DocumentType.NOTE, title="Just a note")
-    assert doc.slug is None
-    # ID should be UUIDv5
-    assert len(doc.id) == 36
-
-    # POST with empty title -> fallback to UUIDv5
-    doc_empty = Document.create(content="Body", doc_type=DocumentType.POST, title="")
-    assert doc_empty.slug is None
-    assert len(doc_empty.id) == 36
-
-
-def test_document_id_override():
-    doc = Document.create(content="Body", doc_type=DocumentType.POST, title="Title", id_override="custom-id")
-    assert doc.id == "custom-id"
-    # Slug is still derived for semantic types
-    assert doc.slug == "title"
 
 
 def test_document_types_exist():

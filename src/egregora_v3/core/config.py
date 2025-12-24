@@ -1,6 +1,5 @@
-import importlib
+import tomllib
 from pathlib import Path
-from typing import Literal
 
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,10 +11,6 @@ class ModelSettings(BaseModel):
     writer: str = Field(default="google-gla:gemini-2.0-flash", description="Model for writing posts")
     enricher: str = Field(default="google-gla:gemini-2.0-flash", description="Model for enrichment")
     embedding: str = Field(default="models/gemini-embedding-001", description="Model for embeddings")
-
-    # Fallback/Secondary provider
-    fallback_enabled: bool = Field(default=True, description="Enable fallback to secondary provider")
-    fallback_model: str = Field(default="openrouter:google/gemini-flash-1.5", description="Fallback model ID")
 
 
 class PathsSettings(BaseModel):
@@ -66,14 +61,6 @@ class PathsSettings(BaseModel):
         return self.site_root / path
 
 
-class PipelineSettings(BaseModel):
-    """Pipeline execution settings."""
-
-    step_size: int = 1
-    step_unit: Literal["days", "messages", "hours"] = "days"
-    max_tokens: int = 100_000
-
-
 class EgregoraConfig(BaseSettings):
     """Root configuration for Egregora V3.
 
@@ -83,7 +70,6 @@ class EgregoraConfig(BaseSettings):
 
     models: ModelSettings = Field(default_factory=ModelSettings)
     paths: PathsSettings = Field(default_factory=PathsSettings)
-    pipeline: PipelineSettings = Field(default_factory=PipelineSettings)
 
     model_config = SettingsConfigDict(
         extra="ignore",
@@ -95,9 +81,6 @@ class EgregoraConfig(BaseSettings):
     def load(cls, site_root: Path | None = None) -> "EgregoraConfig":
         """Loads configuration from .egregora.toml and environment variables.
 
-        Uses ConfigLoader to handle TOML file loading. Environment variables
-        automatically override file values via Pydantic Settings.
-
         Priority (highest to lowest):
         1. Environment variables (EGREGORA_SECTION__KEY)
         2. Config file (.egregora.toml)
@@ -105,22 +88,27 @@ class EgregoraConfig(BaseSettings):
 
         Args:
             site_root: Root directory of the site. If None, uses current working directory.
-                      Can be overridden by CLI with --site-root flag.
 
         Returns:
             EgregoraConfig: Fully loaded and validated configuration.
-
-        Raises:
-            ValueError: If config file exists but contains invalid TOML.
-
-        Examples:
-            # Use current working directory
-            config = EgregoraConfig.load()
-
-            # Use explicit path (e.g., from CLI --site-root flag)
-            config = EgregoraConfig.load(Path("/path/to/site"))
-
         """
-        # Dynamic import to avoid circular dependency with ConfigLoader
-        loader_module = importlib.import_module("egregora_v3.core.config_loader")
-        return loader_module.ConfigLoader(site_root).load()
+        root_path = site_root if site_root is not None else Path.cwd()
+        config_file = root_path / ".egregora.toml"
+
+        file_settings = {}
+        if config_file.is_file():
+            try:
+                with config_file.open("rb") as f:
+                    file_settings = tomllib.load(f)
+            except tomllib.TOMLDecodeError as e:
+                msg = f"Invalid TOML in {config_file}: {e}"
+                raise ValueError(msg) from e
+
+        # Ensure paths section exists for site_root injection
+        if "paths" not in file_settings:
+            file_settings["paths"] = {}
+        file_settings["paths"]["site_root"] = root_path
+
+        # Pydantic will merge dicts during initialization.
+        # Env vars take precedence over init_kwargs.
+        return cls(**file_settings)
