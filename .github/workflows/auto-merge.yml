@@ -52,6 +52,7 @@ jobs:
             core.setOutput('draft', pr_data.draft);
             core.setOutput('actor', pr_data.user.login);
 
+
       # SECURITY: Validate that PR only modifies dependency files for dependency bots
       - name: Validate PR changes
         if: |

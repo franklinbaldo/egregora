@@ -1004,7 +1004,13 @@ def ensure_author_profile_index(author_uuid: str, profiles_dir: Path) -> Path:
     avatar = existing_metadata.get("avatar") or generate_fallback_avatar_url(author_uuid)
     bio = existing_metadata.get("bio") or existing_metadata.get("description") or ""
     interests_value = existing_metadata.get("interests") or []
-    interests = list(interests_value) if isinstance(interests_value, list) else [interests_value] if interests_value else []
+    interests = (
+        list(interests_value)
+        if isinstance(interests_value, list)
+        else [interests_value]
+        if interests_value
+        else []
+    )
 
     posts = _collect_profile_posts(author_dir)
     posts.sort(key=lambda entry: entry["date_obj"] or date.min, reverse=True)
@@ -1103,7 +1109,7 @@ def _render_profile_index_body(
     *, name: str, alias: str, bio: str, interests: list[Any], posts: list[dict[str, Any]]
 ) -> str:
     sections: list[str] = []
-    sections.append(f"![Avatar]({{ page.meta.avatar }}){{ align=left width=150 }}")
+    sections.append("![Avatar]({ page.meta.avatar }){ align=left width=150 }")
     sections.append(f"# {html.escape(name)}")
     if alias and alias != name:
         sections.append(f"*Alias: {html.escape(alias)}*")
