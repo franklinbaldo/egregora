@@ -95,10 +95,20 @@ def ensure_author_entries(output_dir: Path, author_ids: list[str] | None) -> Non
 
 
 def _find_authors_yml(output_dir: Path) -> Path:
-    """Finds the .authors.yml file assuming a standard project structure."""
-    # Assumes output_dir is something like /path/to/docs/posts/posts
-    docs_dir = output_dir.resolve().parent.parent
-    return docs_dir / ".authors.yml"
+    """Finds the .authors.yml file by searching upwards for a `docs` directory."""
+    current_dir = output_dir.resolve()
+    for _ in range(5):  # Limit search depth
+        if current_dir.name == "docs":
+            return current_dir / ".authors.yml"
+        if current_dir.parent == current_dir:
+            break
+        current_dir = current_dir.parent
+
+    logger.warning(
+        "Could not find 'docs' directory in ancestry of %s. " "Falling back to legacy path resolution for .authors.yml.",
+        output_dir,
+    )
+    return output_dir.resolve().parent.parent / ".authors.yml"
 
 
 def _load_authors_yml(path: Path) -> dict:

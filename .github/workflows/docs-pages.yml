@@ -48,8 +48,6 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           extras: "--extra docs --extra rss"
 
-      - name: Prepare Build Environment
-        run: |
           BUILD_TIMESTAMP=$(date -u +'%Y-%m-%d %H:%M UTC')
           BUILD_COMMIT=${GITHUB_SHA::7}
           BUILD_WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
