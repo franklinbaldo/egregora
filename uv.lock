@@ -740,7 +740,7 @@ requires-dist = [
     { name = "python-frontmatter", specifier = ">=1.1" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "ratelimit", specifier = ">=2.2" },
-    { name = "respx", marker = "extra == 'test'", specifier = ">=0.22" },
+    { name = "respx", marker = "extra == 'test'", specifier = ">=0.22.0" },
     { name = "rich", specifier = ">=13.9" },
     { name = "scikit-learn", specifier = ">=1.7" },
     { name = "syrupy", marker = "extra == 'test'", specifier = ">=4.9" },
