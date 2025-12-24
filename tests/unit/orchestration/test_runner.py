@@ -1,5 +1,5 @@
 from datetime import datetime
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from egregora.data_primitives.protocols import OutputSink
 from egregora.orchestration.context import PipelineContext
@@ -49,3 +49,67 @@ def test_pipeline_runner_process_windows():
     assert max_ts == datetime(2023, 1, 2, 10, 0)
 
     runner.process_background_tasks.assert_called()
+
+
+@patch("egregora.orchestration.runner.process_media_for_window")
+@patch("egregora.orchestration.runner.extract_commands_list")
+@patch("egregora.orchestration.runner.command_to_announcement")
+@patch("egregora.orchestration.runner.filter_commands")
+@patch("egregora.orchestration.runner.run_async_safely")
+def test_process_single_window_orchestration(
+    mock_run_async_safely,
+    mock_filter_commands,
+    mock_command_to_announcement,
+    mock_extract_commands,
+    mock_process_media,
+):
+    # Arrange
+    context = MagicMock(spec=PipelineContext)
+    context.output_format = MagicMock(spec=OutputSink)
+    context.url_context = None
+    context.enable_enrichment = False
+    context.config.pipeline.is_demo = False
+    context.run_id = "test-run"
+    context.config_obj.is_demo = False
+    runner = PipelineRunner(context)
+
+    window = MagicMock()
+    window.start_time = datetime(2023, 1, 1)
+    window.end_time = datetime(2023, 1, 1, 1)
+    window.table = MagicMock()
+    window.size = 10
+
+    mock_table = MagicMock()
+    mock_table.execute.return_value.to_pylist.return_value = [{"id": 1, "text": "/cmd"}]
+    mock_process_media.return_value = (mock_table, {"media.jpg": MagicMock()})
+
+    mock_extract_commands.return_value = [{"id": 1, "text": "/cmd"}]
+    mock_command_to_announcement.return_value = MagicMock()
+    mock_filter_commands.return_value = [{"id": 2, "text": "not a command"}]
+
+    # Mock the two async calls
+    mock_run_async_safely.side_effect = [
+        {"posts": ["post1"], "profiles": []},  # write_posts_for_window
+        [MagicMock()],  # generate_profile_posts
+    ]
+
+    runner._extract_adapter_info = MagicMock(return_value=("summary", "instructions"))
+
+    # Act
+    window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
+    result = runner._process_single_window(window, depth=0)
+
+    # Assert
+    assert window_label in result
+    window_result = result[window_label]
+    assert window_result["posts"] == ["post1"]
+    assert len(window_result["profiles"]) == 1  # from generate_profile_posts
+
+    mock_process_media.assert_called_once()
+    # one for media, one for announcement, one for profile
+    assert context.output_format.persist.call_count == 3
+
+    mock_extract_commands.assert_called_once()
+    mock_command_to_announcement.assert_called_once()
+    mock_filter_commands.assert_called_once()
+    assert mock_run_async_safely.call_count == 2
