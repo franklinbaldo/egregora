@@ -178,6 +178,23 @@ def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path
     return str(filepath)
 
 
+def _collect_author_ids_from_posts(posts_dir: Path) -> set[str]:
+    """Scans all markdown files in a directory to find unique author IDs."""
+    all_author_ids: set[str] = set()
+    for md_file in posts_dir.rglob("*.md"):
+        try:
+            post = frontmatter.load(str(md_file))
+            if "authors" in post.metadata:
+                author_list = post.metadata["authors"]
+                if isinstance(author_list, list):
+                    all_author_ids.update(str(a) for a in author_list if a)
+                elif author_list:
+                    all_author_ids.add(str(author_list))
+        except OSError as exc:
+            logger.debug("Skipping %s: %s", md_file, exc)
+    return all_author_ids
+
+
 def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> int:
     """Scan all posts and ensure every referenced author exists in .authors.yml.
 
@@ -199,21 +216,7 @@ def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> in
     authors_path = docs_dir / ".authors.yml"
     authors = _load_authors_yml(authors_path)
 
-    # Collect all unique author IDs from posts
-    all_author_ids: set[str] = set()
-
-    for md_file in posts_dir.rglob("*.md"):
-        try:
-            post = frontmatter.load(str(md_file))
-            if "authors" in post.metadata:
-                author_list = post.metadata["authors"]
-                if isinstance(author_list, list):
-                    all_author_ids.update(str(a) for a in author_list if a)
-                elif author_list:
-                    all_author_ids.add(str(author_list))
-        except OSError as exc:
-            logger.debug("Skipping %s: %s", md_file, exc)
-            continue
+    all_author_ids = _collect_author_ids_from_posts(posts_dir)
 
     # Register missing authors
     new_ids = _register_new_authors(authors, list(all_author_ids))
