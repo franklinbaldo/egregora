@@ -65,22 +65,32 @@ def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
     return dt.strftime("%Y-%m-%d %H:%M")
 
 
-def ensure_author_entries(output_dir: Path, author_ids: list[str] | None) -> None:
-    """Ensure every referenced author has an entry in `.authors.yml`.
+def _update_authors_file(authors_path: Path, author_ids: list[str]) -> int:
+    """Load, update, and save the .authors.yml file.
 
-    This logic is specific to MkDocs/Material theme but stored here for reuse
-    if other adapters adopt similar conventions.
+    This is the core, shared logic for registering new authors.
+
+    Args:
+        authors_path: The path to the .authors.yml file.
+        author_ids: A list of author IDs to ensure are registered.
+
+    Returns:
+        The number of new authors that were added to the file.
     """
+    authors = _load_authors_yml(authors_path)
+    new_ids = _register_new_authors(authors, author_ids)
+    if new_ids:
+        _save_authors_yml(authors_path, authors, len(new_ids))
+    return len(new_ids)
+
+
+def ensure_author_entries(output_dir: Path, author_ids: list[str] | None) -> None:
+    """Ensure every referenced author has an entry in `.authors.yml`."""
     if not author_ids:
         return
 
     authors_path = _find_authors_yml(output_dir)
-    authors = _load_authors_yml(authors_path)
-
-    new_ids = _register_new_authors(authors, author_ids)
-
-    if new_ids:
-        _save_authors_yml(authors_path, authors, len(new_ids))
+    _update_authors_file(authors_path, author_ids)
 
 
 def _find_authors_yml(output_dir: Path) -> Path:
@@ -215,36 +225,21 @@ def _extract_authors_from_post(md_file: Path) -> set[str]:
 
 
 def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> int:
-    """Scan all posts and ensure every referenced author exists in .authors.yml.
-
-    This function traverses all markdown files in posts_dir, extracts author IDs
-    from their frontmatter, and registers any missing authors in .authors.yml.
-
-    Args:
-        posts_dir: Directory containing post markdown files (recursively scanned).
-        docs_dir: Root docs directory where .authors.yml lives. If None, derived from posts_dir.
-
-    Returns:
-        Number of new authors registered.
-
-    """
+    """Scan all posts and ensure every referenced author exists in .authors.yml."""
     if docs_dir is None:
-        # Derive docs_dir: posts_dir is typically docs/posts/posts, so go up 2 levels
         docs_dir = posts_dir.resolve().parent.parent
 
     authors_path = docs_dir / ".authors.yml"
-    authors = _load_authors_yml(authors_path)
 
-    # Collect all unique author IDs from posts
     all_author_ids: set[str] = set()
     for md_file in posts_dir.rglob("*.md"):
         all_author_ids.update(_extract_authors_from_post(md_file))
 
-    # Register missing authors
-    new_ids = _register_new_authors(authors, list(all_author_ids))
+    if not all_author_ids:
+        return 0
 
-    if new_ids:
-        _save_authors_yml(authors_path, authors, len(new_ids))
-        logger.info("Synced %d new author(s) from posts to %s", len(new_ids), authors_path)
+    new_count = _update_authors_file(authors_path, list(all_author_ids))
+    if new_count > 0:
+        logger.info("Synced %d new author(s) from posts to %s", new_count, authors_path)
 
-    return len(new_ids)
+    return new_count
