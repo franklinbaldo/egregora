@@ -90,16 +90,17 @@ def ensure_author_entries(output_dir: Path, author_ids: list[str] | None) -> Non
 
 
 def _find_authors_yml(output_dir: Path) -> Path:
+    """Finds the .authors.yml file by traversing up from the output directory."""
     current = output_dir.resolve()
-    for _ in range(5):  # Limit traversal depth
-        if current.name == "docs" or (current / ".authors.yml").exists():
-            return current / ".authors.yml"
-        parent = current.parent
-        if parent == current:  # Reached filesystem root
+    # Check current directory and up to 5 parents
+    for i, path in enumerate([current] + list(current.parents)):
+        if i > 5:
             break
-        current = parent
+        authors_yml = path / ".authors.yml"
+        if authors_yml.exists() or path.name == "docs":
+            return authors_yml
 
-    # Fallback: assume output_dir's grandparent is docs (posts/posts -> docs)
+    # Fallback to the original assumption if not found after traversal
     return output_dir.resolve().parent.parent / ".authors.yml"
 
 
