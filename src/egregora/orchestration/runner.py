@@ -214,13 +214,33 @@ class PipelineRunner:
         """Process a single window with media extraction, enrichment, and post writing."""
         indent = "  " * depth
         window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
-
         logger.info("%s➡️  [bold]%s[/] — %s messages (depth=%d)", indent, window_label, window.size, depth)
 
         output_sink = self.context.output_format
         if output_sink is None:
             raise RuntimeError("Output adapter must be initialized before processing windows.")
 
+        enriched_table = self._enrich_window_data(window, output_sink)
+        messages_list = self._get_messages_as_list(enriched_table)
+
+        announcements_generated = self._handle_commands(messages_list, output_sink)
+        clean_messages_list = filter_commands(messages_list)
+
+        result = self._generate_posts_and_profiles(
+            enriched_table, clean_messages_list, window, output_sink
+        )
+
+        self._log_window_summary(
+            result,
+            announcements_generated,
+            indent,
+            window_label,
+        )
+
+        return {window_label: result}
+
+    def _enrich_window_data(self, window: Any, output_sink: Any) -> ir.Table:
+        """Handle media processing and data enrichment for a window."""
         url_context = self.context.url_context or UrlContext()
         window_table_processed, media_mapping = process_media_for_window(
             window_table=window.table,
@@ -238,22 +258,24 @@ class PipelineRunner:
                     logger.exception("Failed to write media file: %s", e)
 
         if self.context.enable_enrichment:
-            enriched_table = self._perform_enrichment(window_table_processed, media_mapping)
-        else:
-            enriched_table = window_table_processed
+            return self._perform_enrichment(window_table_processed, media_mapping)
 
-        resources = PipelineFactory.create_writer_resources(self.context)
-        adapter_summary, adapter_instructions = self._extract_adapter_info()
+        return window_table_processed
 
-        # Convert table to list for command processing
+    def _get_messages_as_list(self, table: ir.Table | list[dict]) -> list[dict]:
+        """Convert an Ibis table to a list of dicts, handling multiple input types."""
+        if isinstance(table, list):
+            return table
         try:
-            messages_list = enriched_table.execute().to_pylist()
+            return table.execute().to_pylist()
         except (AttributeError, TypeError):
             try:
-                messages_list = enriched_table.to_pylist()
+                return table.to_pylist()
             except (AttributeError, TypeError):
-                messages_list = enriched_table if isinstance(enriched_table, list) else []
+                return []
 
+    def _handle_commands(self, messages_list: list[dict], output_sink: Any) -> int:
+        """Extract and process commands, generating announcements."""
         command_messages = extract_commands_list(messages_list)
         announcements_generated = 0
         if command_messages:
@@ -264,8 +286,18 @@ class PipelineRunner:
                     announcements_generated += 1
                 except Exception as exc:
                     logger.exception("Failed to generate announcement: %s", exc)
+        return announcements_generated
 
-        clean_messages_list = filter_commands(messages_list)
+    def _generate_posts_and_profiles(
+        self,
+        enriched_table: ir.Table,
+        clean_messages_list: list[dict],
+        window: Any,
+        output_sink: Any,
+    ) -> dict[str, list[str]]:
+        """Generate and persist posts and profiles for the window."""
+        resources = PipelineFactory.create_writer_resources(self.context)
+        adapter_summary, adapter_instructions = self._extract_adapter_info()
 
         params = WindowProcessingParams(
             table=enriched_table,
@@ -281,7 +313,6 @@ class PipelineRunner:
         )
 
         result = run_async_safely(write_posts_for_window(params))
-        posts = result.get("posts", [])
         profiles = result.get("profiles", [])
 
         window_date = window.start_time.strftime("%Y-%m-%d")
@@ -300,14 +331,24 @@ class PipelineRunner:
         except Exception as exc:
             logger.exception("Failed to generate profile posts: %s", exc)
 
-        # Scheduled tasks are returned as "pending:<task_id>"
+        return result
+
+    def _log_window_summary(
+        self,
+        result: dict[str, list[str]],
+        announcements_generated: int,
+        indent: str,
+        window_label: str,
+    ) -> None:
+        """Log a summary of the items generated for a window."""
+        posts = result.get("posts", [])
+        profiles = result.get("profiles", [])
+
         scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
         generated_posts = len(posts) - scheduled_posts
-
         scheduled_profiles = sum(1 for p in profiles if isinstance(p, str) and p.startswith("pending:"))
         generated_profiles = len(profiles) - scheduled_profiles
 
-        # Construct status message
         status_parts = []
         if generated_posts > 0:
             status_parts.append(f"{generated_posts} posts")
@@ -321,15 +362,7 @@ class PipelineRunner:
             status_parts.append(f"{announcements_generated} announcements")
 
         status_msg = ", ".join(status_parts) if status_parts else "0 items"
-
-        logger.info(
-            "%s[green]✔ Generated[/] %s for %s",
-            indent,
-            status_msg,
-            window_label,
-        )
-
-        return {window_label: result}
+        logger.info("%s[green]✔ Generated[/] %s for %s", indent, status_msg, window_label)
 
     def _perform_enrichment(
         self,
