@@ -1,4 +1,6 @@
-"""Tests for semantic identity with slugs."""
+
+import uuid
+import pytest
 
 from egregora_v3.core.types import Document, DocumentType
 
@@ -32,6 +34,11 @@ def test_slug_derived_from_title():
 
 import pytest
 
+    # Check if it's a valid UUID
+    try:
+        uuid.UUID(doc.id, version=4)
+    except ValueError:
+        pytest.fail(f"{doc.id} is not a valid UUIDv4")
 
 def test_error_on_empty_slug_and_title():
     """If slug and title are empty, a ValueError should be raised."""
