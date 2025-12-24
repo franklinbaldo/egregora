@@ -32,27 +32,25 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
+            let pull_number;
+            let pr_data;
             if (context.eventName === 'workflow_dispatch') {
-              const pull_number = parseInt(context.payload.inputs.pr_number);
+              pull_number = parseInt(context.payload.inputs.pr_number);
               const { data: pullRequest } = await github.rest.pulls.get({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 pull_number: pull_number
               });
-              return {
-                number: pull_number,
-                node_id: pullRequest.node_id,
-                draft: pullRequest.draft,
-                actor: pullRequest.user.login
-              };
+              pr_data = pullRequest;
             } else {
-              return {
-                number: context.payload.pull_request.number,
-                node_id: context.payload.pull_request.node_id,
-                draft: context.payload.pull_request.draft,
-                actor: context.actor
-              };
+              pr_data = context.payload.pull_request;
+              pull_number = pr_data.number;
             }
+            
+            core.setOutput('number', pull_number);
+            core.setOutput('node_id', pr_data.node_id);
+            core.setOutput('draft', pr_data.draft);
+            core.setOutput('actor', pr_data.user.login);
 
       # SECURITY: Validate that PR only modifies dependency files for dependency bots
       - name: Validate PR changes
@@ -70,12 +68,12 @@ jobs:
             });
 
             const allowedPatterns = [
-              /^package\.json$/,
-              /^package-lock\.json$/,
-              /^pyproject\.toml$/,
-              /^uv\.lock$/,
-              /^requirements.*\.txt$/,
-              /^\.github\/workflows\/.*\.yml$/
+              /^package.json$/,
+              /^package-lock.json$/,
+              /^pyproject.toml$/,
+              /^uv.lock$/,
+              /^requirements.*.txt$/,
+              /^.github/workflows/.*.yml$/
             ];
 
             const unauthorizedFiles = files.filter(file =>
@@ -111,7 +109,7 @@ jobs:
 
       - name: Get PR metadata
         id: metadata
-        if: |
+        if: | 
           (github.event_name == 'workflow_dispatch' && fromJSON(steps.pr-info.outputs.result).actor == 'dependabot[bot]') ||
           (github.event_name != 'workflow_dispatch' && github.actor == 'dependabot[bot]')
         uses: dependabot/fetch-metadata@v2
