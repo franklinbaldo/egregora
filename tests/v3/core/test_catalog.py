@@ -106,3 +106,18 @@ def test_content_library_get_document_not_found(content_library):
     assert found_doc is None
     for repo in content_library.repositories:
         repo.get.assert_called_once_with(doc_id)
+
+
+def test_content_library_count_documents_by_type(content_library, mock_posts_repo):
+    """Test that ContentLibrary.count returns the correct count for a doc type."""
+    # Arrange
+    doc_type = DocumentType.POST
+    expected_count = 42
+    mock_posts_repo.count.return_value = expected_count
+
+    # Act
+    count = content_library.count(doc_type)
+
+    # Assert
+    assert count == expected_count
+    mock_posts_repo.count.assert_called_once_with(doc_type=doc_type)

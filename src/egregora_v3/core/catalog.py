@@ -70,3 +70,8 @@ class ContentLibrary(BaseModel):
 
         logger.warning("Unknown document type %s, defaulting to posts repo", doc_type)
         return self.posts
+
+    def count(self, doc_type: DocumentType) -> int:
+        """Count documents of a specific type."""
+        repo = self.get_repo(doc_type)
+        return repo.count(doc_type=doc_type)
