@@ -6,6 +6,7 @@ matches the templates defined in src/egregora/rendering/templates/.
 MODERN: Updated to use OutputAdapter abstraction instead of direct scaffolding imports.
 """
 
+import tomllib
 from pathlib import Path
 
 from egregora.config.settings import load_egregora_config
@@ -112,6 +113,7 @@ def test_config_toml_structure(tmp_path: Path):
 
     # Load config and verify structure
     config = load_egregora_config(tmp_path)
+    parsed_config = tomllib.loads((tmp_path / ".egregora.toml").read_text())
 
     # Verify all top-level sections exist
     assert config.models is not None
@@ -125,6 +127,8 @@ def test_config_toml_structure(tmp_path: Path):
     # Verify some key defaults
     assert config.models.writer is not None
     assert config.rag.enabled is True
+    assert "sites" in parsed_config
+    assert "default" in parsed_config["sites"]
 
 
 def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):

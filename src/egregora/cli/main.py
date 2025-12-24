@@ -129,6 +129,13 @@ def write(
     output: Annotated[
         Path, typer.Option("--output-dir", "-o", help="Directory for the generated site")
     ] = Path("site"),
+    site: Annotated[
+        str | None,
+        typer.Option(
+            "--site",
+            help="Site identifier to use from the multi-site configuration (default site if omitted)",
+        ),
+    ] = None,
     source: Annotated[
         SourceType, typer.Option("--source-type", "-s", help="Source format of the input")
     ] = SourceType.WHATSAPP,
@@ -180,6 +187,7 @@ def write(
         step_unit=step_unit,
         overlap=overlap,
         enable_enrichment=enable_enrichment,
+        site=site,
         from_date=from_date,
         to_date=to_date,
         timezone=timezone,
@@ -201,6 +209,10 @@ def top(
         Path,
         typer.Argument(help="Site root directory containing .egregora/config.yml"),
     ],
+    site: Annotated[
+        str | None,
+        typer.Option("--site", help="Site identifier to use from the multi-site configuration"),
+    ] = None,
     limit: Annotated[
         int,
         typer.Option(
@@ -228,7 +240,7 @@ def top(
         console.print("Run 'egregora init' or 'egregora write' first to create a site")
         raise typer.Exit(1)
 
-    config = load_egregora_config(site_root)
+    config = load_egregora_config(site_root, site=site)
 
     db_path = site_root / config.reader.database_path
 
@@ -275,6 +287,10 @@ def show_reader_history(
         Path,
         typer.Argument(help="Site root directory containing .egregora/config.yml"),
     ],
+    site: Annotated[
+        str | None,
+        typer.Option("--site", help="Site identifier to use from the multi-site configuration"),
+    ] = None,
     post_slug: Annotated[
         str | None,
         typer.Option(
@@ -309,7 +325,7 @@ def show_reader_history(
         console.print("Run 'egregora init' or 'egregora write' first to create a site")
         raise typer.Exit(1)
 
-    config = load_egregora_config(site_root)
+    config = load_egregora_config(site_root, site=site)
 
     db_path = site_root / config.reader.database_path
 

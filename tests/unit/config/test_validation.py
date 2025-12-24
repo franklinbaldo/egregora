@@ -198,3 +198,46 @@ def test_config_env_var_override_integer(tmp_path: Path, monkeypatch):
     # Env var should override file value
     assert config.rag.top_k == 15
     assert isinstance(config.rag.top_k, int)
+
+
+def test_config_multi_site_selection(tmp_path: Path):
+    """Ensure multi-site configs can be selected explicitly."""
+    config_file = tmp_path / ".egregora.toml"
+    config_file.write_text(
+        """
+[sites.primary.models]
+writer = "google-gla:gemini-pro-latest"
+
+[sites.secondary.models]
+writer = "google-gla:gemini-2.5-flash"
+""".lstrip()
+    )
+
+    primary = load_egregora_config(tmp_path, site="primary")
+    secondary = load_egregora_config(tmp_path, site="secondary")
+
+    assert primary.models.writer == "google-gla:gemini-pro-latest"
+    assert secondary.models.writer == "google-gla:gemini-2.5-flash"
+
+
+def test_config_requires_at_least_one_site(tmp_path: Path):
+    """Validate that at least one site entry is present."""
+    config_file = tmp_path / ".egregora.toml"
+    config_file.write_text("sites = {}")
+
+    with pytest.raises(ValueError, match="at least one site"):
+        load_egregora_config(tmp_path)
+
+
+def test_config_unknown_site(tmp_path: Path):
+    """Unknown site selections should fail fast."""
+    config_file = tmp_path / ".egregora.toml"
+    config_file.write_text(
+        """
+[sites.default.models]
+writer = "google-gla:gemini-pro-latest"
+""".lstrip()
+    )
+
+    with pytest.raises(ValueError, match="not found"):
+        load_egregora_config(tmp_path, site="does-not-exist")

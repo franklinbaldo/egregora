@@ -34,6 +34,13 @@ def main(
         Path | None,
         typer.Argument(help="Site root directory containing .egregora/config.yml"),
     ] = None,
+    site: Annotated[
+        str | None,
+        typer.Option(
+            "--site",
+            help="Site identifier to use from the multi-site configuration",
+        ),
+    ] = None,
     model: Annotated[
         str | None,
         typer.Option(
@@ -81,7 +88,7 @@ def main(
         raise typer.Exit(1)
 
     # Load configuration
-    config = load_egregora_config(site_root)
+    config = load_egregora_config(site_root, site=site)
 
     if not config.reader.enabled:
         console.print("[yellow]Reader agent is disabled in config[/yellow]")

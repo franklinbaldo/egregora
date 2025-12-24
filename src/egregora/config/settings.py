@@ -51,6 +51,7 @@ DEFAULT_MODEL = "google-gla:gemini-2.5-flash"  # Use latest stable model (pydant
 DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
 DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash"  # (google-sdk format uses models/ prefix via validator)
 EMBEDDING_DIM = 768  # Embedding vector dimensions
+DEFAULT_SITE_NAME = "default"
 
 # Quota defaults
 DEFAULT_DAILY_LLM_REQUESTS = 100  # Conservative default
@@ -748,11 +749,12 @@ class EgregoraConfig(BaseSettings):
 # ============================================================================
 
 
-def find_egregora_config(start_dir: Path) -> Path | None:
+def find_egregora_config(start_dir: Path, *, site: str | None = None) -> Path | None:
     """Search upward for .egregora.toml.
 
     Args:
         start_dir: Starting directory for upward search
+        site: Optional site identifier (reserved for future use)
 
     Returns:
         Path to config file if found, else None
@@ -804,7 +806,46 @@ def _merge_config(
     return merged
 
 
-def load_egregora_config(site_root: Path | None = None) -> EgregoraConfig:
+def _normalize_sites_config(
+    file_data: dict[str, Any], site: str | None = None
+) -> tuple[str, dict[str, Any]]:
+    """Normalize config data to a sites mapping and select the requested site.
+
+    Args:
+        file_data: Parsed TOML data
+        site: Optional site identifier to select
+
+    Returns:
+        Tuple of (selected_site_name, site_config_data)
+
+    Raises:
+        ValueError: If sites are missing/invalid or site is not found
+    """
+    sites_data: dict[str, Any]
+    if "sites" in file_data:
+        sites_data = file_data["sites"]
+        if not isinstance(sites_data, dict):
+            raise ValueError("Configuration section 'sites' must be a table mapping site names to configs.")
+    else:
+        sites_data = {DEFAULT_SITE_NAME: file_data}
+
+    if not sites_data:
+        raise ValueError("Configuration must define at least one site under [sites].")
+
+    selected_site = site or (DEFAULT_SITE_NAME if DEFAULT_SITE_NAME in sites_data else next(iter(sites_data)))
+    if selected_site not in sites_data:
+        available = ", ".join(sorted(sites_data))
+        msg = f"Site '{selected_site}' not found in configuration. Available sites: {available}"
+        raise ValueError(msg)
+
+    site_data = sites_data[selected_site]
+    if not isinstance(site_data, dict):
+        raise ValueError(f"Configuration for site '{selected_site}' must be a table.")
+
+    return selected_site, site_data
+
+
+def load_egregora_config(site_root: Path | None = None, *, site: str | None = None) -> EgregoraConfig:
     """Load Egregora configuration from .egregora.toml.
 
     Configuration priority (highest to lowest):
@@ -815,6 +856,7 @@ def load_egregora_config(site_root: Path | None = None) -> EgregoraConfig:
 
     Args:
         site_root: Root directory of the site. If None, uses current working directory.
+        site: Optional site identifier to select from the sites mapping.
 
     Returns:
         Validated EgregoraConfig instance
@@ -826,7 +868,7 @@ def load_egregora_config(site_root: Path | None = None) -> EgregoraConfig:
     if site_root is None:
         site_root = Path.cwd()
 
-    config_path = find_egregora_config(site_root)
+    config_path = find_egregora_config(site_root, site=site)
 
     if not config_path:
         # Default to .egregora.toml in site_root
@@ -834,7 +876,7 @@ def load_egregora_config(site_root: Path | None = None) -> EgregoraConfig:
 
     if not config_path.exists():
         logger.info("No configuration found, creating default config at %s", config_path)
-        return create_default_config(site_root)
+        return create_default_config(site_root, site=site or DEFAULT_SITE_NAME)
 
     logger.info("Loading config from %s", config_path)
 
@@ -851,48 +893,62 @@ def load_egregora_config(site_root: Path | None = None) -> EgregoraConfig:
         raise
 
     try:
-        # Create base config with defaults
+        # Create base config with defaults (environment overrides applied)
         base_config = EgregoraConfig()
         base_dict = base_config.model_dump(mode="json")
 
         # Merge file config into base, skipping keys that are set in env vars
         # This logic preserves: Env Vars > Config File > Defaults
         env_override_paths = _collect_env_override_paths()
-        merged = _merge_config(base_dict, file_data, env_override_paths)
+
+        selected_site, site_data = _normalize_sites_config(file_data, site=site)
+        env_override_paths_with_site = set(env_override_paths)
+        for path in env_override_paths:
+            if path and path[0] == "sites":
+                env_override_paths_with_site.add(path)
+            else:
+                env_override_paths_with_site.add(("sites", selected_site, *path))
+
+        wrapped_base = {"sites": {selected_site: base_dict}}
+        wrapped_override = {"sites": {selected_site: site_data}}
+        merged = _merge_config(wrapped_base, wrapped_override, env_override_paths_with_site)
 
         # Validate and return
-        return EgregoraConfig.model_validate(merged)
+        selected_config = merged["sites"][selected_site]
+        return EgregoraConfig.model_validate(selected_config)
     except ValidationError as e:
         logger.exception("Configuration validation failed for %s:", config_path)
         for error in e.errors():
             loc = " -> ".join(str(location_part) for location_part in error["loc"])
             logger.exception("  %s: %s", loc, error["msg"])
         logger.warning("Creating default config due to validation error")
-        return create_default_config(site_root)
+        return create_default_config(site_root, site=site or DEFAULT_SITE_NAME)
 
 
-def create_default_config(site_root: Path) -> EgregoraConfig:
+def create_default_config(site_root: Path, *, site: str = DEFAULT_SITE_NAME) -> EgregoraConfig:
     """Create default .egregora.toml and return it.
 
     Args:
         site_root: Root directory of the site
+        site: Site identifier to write under the sites mapping
 
     Returns:
         EgregoraConfig with all defaults
 
     """
     config = EgregoraConfig()  # All defaults from Pydantic
-    save_egregora_config(config, site_root)
+    save_egregora_config(config, site_root, site=site)
     logger.info("Created default config at %s/.egregora.toml", site_root)
     return config
 
 
-def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
+def save_egregora_config(config: EgregoraConfig, site_root: Path, *, site: str = DEFAULT_SITE_NAME) -> Path:
     """Save EgregoraConfig to .egregora.toml in site_root.
 
     Args:
         config: EgregoraConfig instance to save
         site_root: Root directory of the site
+        site: Site identifier to write under the sites mapping
 
     Returns:
         Path to the saved config file
@@ -901,8 +957,8 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
     config_path = site_root / ".egregora.toml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Export as dict
-    data = config.model_dump(exclude_defaults=False, mode="json")
+    # Export as dict under the selected site mapping
+    data = {"sites": {site: config.model_dump(exclude_defaults=False, mode="json")}}
 
     # Remove None values as tomli_w doesn't support them
     def _clean_nones(d: dict[str, Any]) -> dict[str, Any]:

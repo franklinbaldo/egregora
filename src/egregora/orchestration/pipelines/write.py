@@ -124,6 +124,7 @@ class WriteCommandOptions:
     resume: bool
     refresh: str | None
     force: bool
+    site: str | None
     debug: bool
 
 
@@ -147,6 +148,7 @@ class WhatsAppProcessOptions:
     use_full_context_window: bool = False
     client: genai.Client | None = None
     refresh: str | None = None
+    site: str | None = None
 
 
 def _load_dotenv_if_available(output_dir: Path) -> None:
@@ -205,7 +207,7 @@ def _prepare_write_config(
     options: WriteCommandOptions, from_date_obj: date_type | None, to_date_obj: date_type | None
 ) -> Any:
     """Prepare Egregora configuration from options."""
-    base_config = load_egregora_config(options.output)
+    base_config = load_egregora_config(options.output, site=options.site)
     models_update: dict[str, str] = {}
     if options.model:
         models_update = {
@@ -272,6 +274,7 @@ def run_cli_flow(
     input_file: Path,
     *,
     output: Path = Path("site"),
+    site: str | None = None,
     source: SourceType = SourceType.WHATSAPP,
     step_size: int = 100,
     step_unit: WindowUnit = WindowUnit.MESSAGES,
@@ -295,6 +298,7 @@ def run_cli_flow(
     cli_values = {
         "source": source,
         "output": output,
+        "site": site,
         "step_size": step_size,
         "step_unit": step_unit,
         "overlap": overlap,
@@ -409,7 +413,7 @@ def process_whatsapp_export(
     if opts.gemini_api_key:
         os.environ["GOOGLE_API_KEY"] = opts.gemini_api_key
 
-    base_config = load_egregora_config(output_dir)
+    base_config = load_egregora_config(output_dir, site=opts.site)
 
     # Apply CLI model override to all text generation models if provided
     models_update = {}

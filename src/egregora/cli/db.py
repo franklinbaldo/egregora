@@ -18,6 +18,10 @@ console = Console()
 @db_app.command()
 def migrate(
     site_root: Annotated[Path, typer.Argument(help="Site root directory containing .egregora.toml")],
+    site: Annotated[
+        str | None,
+        typer.Option("--site", help="Site identifier to use from the multi-site configuration"),
+    ] = None,
 ) -> None:
     """Migrate the database schema to the latest version.
 
@@ -27,7 +31,7 @@ def migrate(
     site_root = site_root.expanduser().resolve()
 
     try:
-        config = load_egregora_config(site_root)
+        config = load_egregora_config(site_root, site=site)
     except Exception as e:
         console.print(f"[red]Failed to load configuration from {site_root}: {e}[/red]")
         raise typer.Exit(1) from e
