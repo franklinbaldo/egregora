@@ -89,3 +89,9 @@ def test_feed_to_xml_handles_document_and_entry():
 
     assert "doc_type" not in entry_xml_block
     assert "status" not in entry_xml_block
+
+
+def test_jinja_env_does_not_contain_isinstance():
+    """Verify that the 'isinstance' function is not exposed to the Jinja environment."""
+    from egregora_v3.core.types import _jinja_env
+    assert "isinstance" not in _jinja_env.globals
