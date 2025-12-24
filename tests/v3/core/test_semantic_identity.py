@@ -32,9 +32,7 @@ def test_slug_derived_from_title():
     assert doc.internal_metadata.get("slug") == "my-awesome-post"
 
 
-def test_random_uuid_fallback():
-    """If slug and title are empty, a random UUID should be generated."""
-    doc = Document.create(content="Content", doc_type=DocumentType.POST, title="", slug="")
+import pytest
 
     # Check if it's a valid UUID
     try:
@@ -42,8 +40,7 @@ def test_random_uuid_fallback():
     except ValueError:
         pytest.fail(f"{doc.id} is not a valid UUIDv4")
 
-def test_fallback_uuids_are_not_stable():
-    """Fallback UUIDs should be random, not content-addressed."""
-    doc1 = Document.create(content="Same content", doc_type=DocumentType.NOTE, title="")
-    doc2 = Document.create(content="Same content", doc_type=DocumentType.NOTE, title="")
-    assert doc1.id != doc2.id
+def test_error_on_empty_slug_and_title():
+    """If slug and title are empty, a ValueError should be raised."""
+    with pytest.raises(ValueError, match="must have a slug or a title"):
+        Document.create(content="Content", doc_type=DocumentType.POST, title="", slug="")
