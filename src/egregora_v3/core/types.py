@@ -51,7 +51,6 @@ def _normalize_content_type(content_type: str | None) -> str:
 
 _jinja_env.filters["rfc3339"] = _format_datetime
 _jinja_env.filters["content_type"] = _normalize_content_type
-_jinja_env.globals["isinstance"] = isinstance
 _jinja_env.globals["Document"] = "Document"  # Use string to avoid circular import issues if Document is used
 
 
