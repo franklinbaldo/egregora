@@ -178,7 +178,7 @@ nav:
       - Annotations: api/knowledge/annotations.md
       - Ranking: api/knowledge/ranking.md
     - Publication:
-      - Scaffolding: api/init/scaffolding.md
+      - Scaffolding: api/output_adapters/mkdocs/scaffolding.md
     - Core:
       - Data Primitives: api/data-primitives.md
   - Architecture:
