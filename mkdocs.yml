@@ -158,6 +158,7 @@ nav:
     - Installation: getting-started/installation.md
     - Quick Start: getting-started/quickstart.md
     - Configuration: getting-started/configuration.md
+    - Deployment: getting-started/deployment.md
   - User Guide:
     - Architecture Overview: guide/architecture.md
     - Technical Reference: reference.md

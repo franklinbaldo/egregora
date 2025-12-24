@@ -109,6 +109,10 @@ Edit `.egregora.toml` to customize:
 
 See [Configuration Guide](configuration.md) for details.
 
+### Deploy Your Site
+
+Ready to share your archive with the world? See [Deployment Guide](deployment.md).
+
 ### Generate More Posts
 
 Process another export or adjust windowing:
