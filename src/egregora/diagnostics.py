@@ -276,6 +276,8 @@ def check_cache_directory() -> DiagnosticResult:
 def check_egregora_config() -> DiagnosticResult:
     """Check if .egregora.toml exists and is valid."""
     config_file = Path(".egregora.toml")
+    # find_egregora_config returns path or None
+    config_path = find_egregora_config(config_file.parent)
 
     if not config_path:
         return DiagnosticResult(

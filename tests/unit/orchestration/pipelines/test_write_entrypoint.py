@@ -64,7 +64,7 @@ def test_run_cli_flow_runs_all_sources_when_default_missing(
     )
     mock_load_config.return_value = config
 
-    run_cli_flow(input_file=Path("test.zip"), output=Path("site"))
+    run_cli_flow(input_file=Path("test.zip"), output=Path("site"), source=None)
 
     assert mock_run.call_count == 2
     first_params = mock_run.call_args_list[0][0][0]

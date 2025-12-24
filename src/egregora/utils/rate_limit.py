@@ -60,6 +60,12 @@ class GlobalRateLimiter:
         """Release concurrency slot."""
         self._semaphore.release()
 
+    def refund(self) -> None:
+        """Refund a token (e.g. on rate limit error) to allow immediate retry."""
+        with self._lock:
+            # We add 1.0 token back, clamped to max capacity
+            self._tokens = min(self.requests_per_second, self._tokens + 1.0)
+
 
 # Global singleton instance
 _limiter: GlobalRateLimiter | None = None
