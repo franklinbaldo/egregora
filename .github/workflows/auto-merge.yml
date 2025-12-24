@@ -51,6 +51,12 @@ jobs:
             core.setOutput('node_id', pr_data.node_id);
             core.setOutput('draft', pr_data.draft);
             core.setOutput('actor', pr_data.user.login);
+            core.setOutput('result', JSON.stringify({
+              number: pull_number,
+              node_id: pr_data.node_id,
+              draft: pr_data.draft,
+              actor: pr_data.user.login
+            }));
 
       # SECURITY: Validate that PR only modifies dependency files for dependency bots
       - name: Validate PR changes
