@@ -9,6 +9,7 @@ import argparse
 import requests
 import json
 import re
+import subprocess
 from pathlib import Path
 from datetime import datetime
 from urllib.parse import urlparse
@@ -34,7 +35,6 @@ def get_repo_info():
         return owner, repo
 
     # Fallback to local git
-    import subprocess
     try:
         url = subprocess.check_output(["git", "config", "--get", "remote.origin.url"], text=True).strip()
         # Parse GitHub remotes like:
@@ -60,21 +60,7 @@ def get_repo_info():
 
 def run_gh_command(args):
     """Run a gh CLI command and return JSON."""
-    import subprocess
-    # We shouldn't blindly append fields for 'list' vs 'view'.
-    # If args[0] is 'pr' and args[1] is 'list', use basic fields.
-    json_fields = "number,title,author,headRefName,url"
-
-    # If the caller didn't provide --json, we add it.
-    # But this helper is brittle if we change args.
-    # Let's trust the caller to provide valid commands or we make this less magic.
-
-    # Refactor: Minimal magic. Only add --json if not present?
-    # Or just use this for 'list' calls primarily.
-
-    # Previous code added 'commits,reviews' to ALL calls, which broke 'list'.
-
-    # Safe fields for list:
+    # Use basic fields for list
     safe_fields = ["number", "title", "author", "headRefName", "url", "statusCheckRollup"]
 
     # Check if 'view' or 'list'
@@ -93,9 +79,8 @@ def run_gh_command(args):
 
 def get_pr_ci_status(pr_number):
     """Get detailed CI status for a PR."""
-    import subprocess
-    # gh pr checks <number> --json bucket,name,conclusion,url
-    cmd = ["gh", "pr", "checks", str(pr_number), "--json", "bucket,name,conclusion,url"]
+    # gh pr checks <number> --json bucket,name,state,link
+    cmd = ["gh", "pr", "checks", str(pr_number), "--json", "name,state,link"]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return json.loads(result.stdout)
@@ -105,7 +90,6 @@ def get_pr_ci_status(pr_number):
 
 def get_pr_comments(pr_number):
     """Get comments and reviews for a PR."""
-    import subprocess
     # gh pr view <number> --json comments,reviews
     cmd = ["gh", "pr", "view", str(pr_number), "--json", "comments,reviews"]
     try:
@@ -118,7 +102,6 @@ def get_pr_comments(pr_number):
 def should_trigger_feedback(pr):
     """Determine if a PR needs feedback."""
     # 1. Check CI Status
-    # statusCheckRollup gives a high level view, but we might want specifics
     status = pr.get("statusCheckRollup") or {}
     state = status.get("state", "PENDING")
 
@@ -128,31 +111,7 @@ def should_trigger_feedback(pr):
     reviews = pr.get("latestReviews", [])
     changes_requested = any(r["state"] == "CHANGES_REQUESTED" for r in reviews)
 
-    # We only want to trigger if:
-    # - CI is completely done and failed
-    # - OR Review requests changes
-
-    if not (ci_failed or changes_requested):
-        return False
-
-    # Heuristic Loop Prevention:
-    # Check if the latest comment on the PR is already a feedback prompt from us.
-    # Since we can't easily identify "our" comments without a specific marker,
-    # we can check if the last comment body starts with "# Task: Fix Pull Request".
-    # This isn't perfect but prevents immediate re-triggering if nothing else happened.
-
-    # We need comments data here, but this function only takes 'pr'.
-    # We'll assume the caller might handle this or we fetch it.
-    # Since we fetch detailed comments later, let's defer this check or do a lightweight check.
-    # Actually, 'pr' object from 'gh pr view' includes 'latestReviews'.
-    # But it doesn't include the timeline of comments unless we asked for it.
-
-    # Simpler approach: Check if we have already commented on the current commit SHA.
-    # We can't know that easily without state.
-
-    # Let's rely on the caller to not spam.
-    # But wait, the plan required loop prevention.
-    return True
+    return ci_failed or changes_requested
 
 def construct_prompt(pr, ci_checks, comments_data):
     """Construct the prompt for Jules."""
@@ -161,12 +120,12 @@ def construct_prompt(pr, ci_checks, comments_data):
     branch = pr["headRefName"]
 
     # Analyze CI
-    failed_checks = [c for c in ci_checks if c["conclusion"] == "FAILURE"]
+    failed_checks = [c for c in ci_checks if c["state"] == "FAILURE"]
     ci_section = ""
     if failed_checks:
         ci_section = "## CI Failures\nThe following checks failed:\n"
         for check in failed_checks:
-            ci_section += f"- **{check['name']}**: {check['url']}\n"
+            ci_section += f"- **{check['name']}**: {check['link']}\n"
     else:
         ci_section = "## CI Status\nCI checks passed (or none failed yet).\n"
 
@@ -183,7 +142,6 @@ def construct_prompt(pr, ci_checks, comments_data):
 
     # Get recent comments (last 5)
     for comment in comments[-5:]:
-        # Filter out comments that look like Jules' own logs if possible, but hard to know
         review_section += f"**{comment['author']['login']}**: {comment['body'][:500]}...\n\n"
 
     prompt = f"""
@@ -204,82 +162,60 @@ Your Pull Request "{pr_title}" on branch `{branch}` has received feedback that n
     return prompt
 
 def extract_session_id(branch_name: str) -> str | None:
-    """
-    Extract session ID from branch name.
-    Assumption: branch ends with the session ID (often UUID-like)
-    Pattern usually: feature-branch-SESSION_ID or jules/branch-SESSION_ID
-    Let's look for a UUID or a long alphanumeric string at the end.
-    """
-    # Regex for typical UUID or session ID at end of string
-    # Try finding UUID v4
+    """Extract session ID from branch name."""
     uuid_match = re.search(r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$', branch_name)
     if uuid_match:
         return uuid_match.group(1)
 
-    # Fallback: try finding something that looks like a session ID after a separator
-    # This might match 'main' if not careful, but branches are usually hyphenated.
     parts = branch_name.split('-')
     if len(parts) > 1:
         last_part = parts[-1]
-        # Heuristic: Session IDs are usually long (>10 chars)
-        if len(last_part) > 10:
+        if len(last_part) > 10 and last_part.isalnum():
              return last_part
 
     return None
 
+def extract_session_id_from_body(body: str) -> str | None:
+    """Extract session ID from PR body/description."""
+    if not body:
+        return None
+    match = re.search(r'/task/([a-zA-Z0-9-]+)', body)
+    if not match:
+        match = re.search(r'/sessions/([a-zA-Z0-9-]+)', body)
+    return match.group(1) if match else None
+
 def should_skip_feedback(pr_data, comments_data):
-    """
-    Check if we should skip feedback (loop prevention).
-    Returns True if we recently gave feedback and no new commits have appeared.
-    """
+    """Check if we should skip feedback (loop prevention)."""
     if not comments_data.get("comments"):
         return False
 
-    last_comment = comments_data["comments"][-1]
-    last_comment_body = last_comment["body"]
+    last_comment = None
+    for c in reversed(comments_data["comments"]):
+        if "# Task: Fix Pull Request" in c["body"] or "<!-- # Task: Fix Pull Request -->" in c["body"]:
+            last_comment = c
+            break
 
-    if "# Task: Fix Pull Request" not in last_comment_body and "<!-- # Task: Fix Pull Request -->" not in last_comment_body:
+    if not last_comment:
         return False
 
-    # Found our own feedback. Check if it's stale.
     commits = pr_data.get("commits", [])
     if not commits:
-         return True # No commits? Safer to skip.
+         return True
 
     last_commit = commits[-1]
     commit_date_str = last_commit.get("committedDate")
     comment_date_str = last_comment.get("createdAt")
 
     if commit_date_str and comment_date_str:
-        # String comparison works for ISO8601
         if comment_date_str > commit_date_str:
             return True
 
     return False
 
-def extract_session_id_from_body(body: str) -> str | None:
-    """
-    Extract session ID from PR body/description.
-    Looks for Jules web session links like:
-    https://jules.google/sessions/SESSION_ID
-    or similar variations.
-    """
-    if not body:
-        return None
-
-    # Regex to find session ID in URL
-    # Matches: .../sessions/<uuid or id>
-    # We assume ID is alphanumeric + hyphens
-    match = re.search(r'/sessions/([a-zA-Z0-9-]+)', body)
-    if match:
-        return match.group(1)
-
-    return None
-
 def main():
     parser = argparse.ArgumentParser(description="Feed Jules Feedback")
     parser.add_argument("--dry-run", action="store_true", help="Do not create sessions")
-    parser.add_argument("--author", default="jules-bot", help="Filter PRs by author")
+    parser.add_argument("--author", default="app/google-labs-jules", help="Filter PRs by author")
     args = parser.parse_args()
 
     owner, repo = get_repo_info()
@@ -289,8 +225,6 @@ def main():
 
     print(f"Scanning PRs for {owner}/{repo} by author {args.author}...")
 
-    # Find PRs
-    # gh pr list --author <author> --state open
     cmd = ["pr", "list", "--author", args.author, "--state", "open"]
     try:
         prs = run_gh_command(cmd)
@@ -313,9 +247,6 @@ def main():
     for pr in prs:
         print(f"Checking PR #{pr['number']}: {pr['title']}")
 
-        # Get detailed PR info
-        # Explicitly request commits for loop prevention logic
-        import subprocess
         try:
              res = subprocess.run(["gh", "pr", "view", str(pr['number']), "--json", "number,title,headRefName,statusCheckRollup,latestReviews,author,body,commits"], capture_output=True, text=True, check=True)
              pr_data = json.loads(res.stdout)
@@ -323,10 +254,8 @@ def main():
             print(f"Failed to view PR {pr['number']}: {e}")
             continue
 
-        # Pre-fetch comments to check for loops
         comments_data = get_pr_comments(pr['number'])
 
-        # Loop Prevention
         if should_skip_feedback(pr_data, comments_data):
             print(f"-> PR #{pr['number']} has pending feedback and no new commits. Skipping.")
             continue
@@ -334,24 +263,16 @@ def main():
         if should_trigger_feedback(pr_data):
             print(f"-> PR #{pr['number']} needs feedback.")
 
-            # Fetch details
             ci_checks = get_pr_ci_status(pr['number'])
-            # comments_data already fetched
-
             prompt = construct_prompt(pr_data, ci_checks, comments_data)
             branch_name = pr_data["headRefName"]
 
-            # Try extracting from branch first, then body
-            session_id = extract_session_id(branch_name)
+            session_id = extract_session_id_from_body(pr_data.get("body"))
             if not session_id:
-                session_id = extract_session_id_from_body(pr_data.get("body"))
+                session_id = extract_session_id(branch_name)
 
             print(f"   Branch: {branch_name}")
             print(f"   Extracted Session ID: {session_id}")
-
-            print("-------- PROMPT PREVIEW --------")
-            print(prompt)
-            print("--------------------------------")
 
             if not args.dry_run and client:
                 try:
@@ -360,7 +281,7 @@ def main():
                         client.send_message(session_id, prompt)
                         print("Message sent.")
                     else:
-                        print("No session ID found in branch name. Creating new session...")
+                        print("No session ID found. Creating new session...")
                         resp = client.create_session(
                             prompt=prompt,
                             owner=owner,
@@ -371,18 +292,14 @@ def main():
                         )
                         print(f"Session created: {resp.get('name')}")
 
-                    # Mark the PR as having received feedback to prevent loops
-                    # We post a comment so the next run detects it via loop prevention check
                     print("Posting comment to PR to mark feedback loop...")
                     marker_body = f"🤖 Feedback sent to Jules session. \n<!-- # Task: Fix Pull Request -->"
                     subprocess.run(["gh", "pr", "comment", str(pr['number']), "--body", marker_body], check=True)
 
                 except Exception as e:
                     print(f"Failed to communicate with Jules or update PR: {e}")
-                    # If sending message fails (e.g. session closed), maybe fallback to create?
-                    # For now, let's log and continue.
         else:
-            print(f"-> PR #{pr['number']} seems fine or pending.")
+            print(f"-> PR #{pr['number']} CI is green or pending.")
 
 if __name__ == "__main__":
     main()
