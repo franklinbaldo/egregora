@@ -38,7 +38,7 @@ jobs:
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYTHONPATH: .claude/skills/jules-api
+          PYTHONPATH: .jules
         run: |
           args=(tick)
 
@@ -54,8 +54,8 @@ jobs:
             fi
           fi
 
-          # Using local script that uses existing JulesClient skill
-          uv run --with requests --with python-frontmatter --with jinja2 python scripts/run_scheduler.py "${args[@]}"
+          # Using new CLI
+          uv run --with requests --with python-frontmatter --with jinja2 --with typer --with pydantic python -m jules.cli schedule tick "${args[@]}"
 
       - name: Run Jules Feedback Loop
         # Run on schedule or if requested manually (unless prompt_id is specific for something else, but safe to run)
@@ -63,8 +63,8 @@ jobs:
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYTHONPATH: .claude/skills/jules-api
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: .jules
         run: |
            args=()
            if [ "${{ inputs.dry_run }}" = "true" ]; then
@@ -72,4 +72,4 @@ jobs:
            fi
 
            # Run the feedback script
-           uv run --with requests python .claude/skills/jules-api/feed_feedback.py "${args[@]}"
+           uv run --with requests --with typer --with pydantic python -m jules.cli feedback loop "${args[@]}"

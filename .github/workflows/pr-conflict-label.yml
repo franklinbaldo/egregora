@@ -41,7 +41,7 @@ jobs:
             const labelColor = 'd73a4a';
             const labelDescription = 'Pull request has merge conflicts';
             const { owner, repo } = context.repo;
-            
+
             let pull_number;
             let actor;
 
@@ -160,7 +160,7 @@ jobs:
           pr_number = "${{ steps.manage_conflicts.outputs.pull_number }}"
           pr_data = get_pr_data(pr_number)
           task_id = extract_task_id(pr_data['body'])
-          
+
           if not task_id:
               print("No Jules task ID found in PR body. Skipping automation.")
               sys.exit(0)
@@ -170,7 +170,7 @@ jobs:
               sys.exit(0)
 
           print(f"Detected conflicts in Jules PR #{pr_number} (Task: {task_id})")
-          
+
           prompt = f"""
           # 🚨 Merge Conflict Detected
 
@@ -187,7 +187,7 @@ jobs:
           try:
               print(f"Sending conflict resolution request to session {task_id}...")
               client.send_message(task_id, prompt)
-              
+
               # Add a marker comment to prevent loops
               msg = "🤖 **Merge Conflict Detected**: I've notified Jules to resolve the conflicts in this PR."
               subprocess.run(["gh", "pr", "comment", pr_number, "--body", msg], check=True)

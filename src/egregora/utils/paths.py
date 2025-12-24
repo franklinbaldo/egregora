@@ -10,6 +10,12 @@ class PathTraversalError(Exception):
     """Raised when a path would escape its intended directory."""
 
 
+# Pre-configure a slugify instance for reuse.
+# This is more efficient than creating a new slugifier on each call.
+slugify_lower = _md_slugify(case="lower", separator="-")
+slugify_case = _md_slugify(separator="-")
+
+
 def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
     """Convert text to a safe URL-friendly slug using MkDocs/Python Markdown semantics.
 
@@ -39,18 +45,15 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
         'aaaaaaaaaaaaaaaaaaaa'
 
     """
-    # Normalize Unicode to ASCII using NFKD (preserves transliteration)
+    # Normalize Unicode to ASCII using NFKD (preserves transliteration).
     normalized = normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
 
-    # Use pymdownx.slugs with appropriate settings
-    slugifier = _md_slugify(case="lower" if lowercase else None, separator="-")
+    # Choose the appropriate pre-configured slugifier.
+    slugifier = slugify_lower if lowercase else slugify_case
     slug = slugifier(normalized, sep="-")
 
-    # Fallback for empty slugs
-    if not slug:
-        return "post"
-
-    # Truncate to max length, removing trailing hyphens
+    # Fallback for empty slugs, truncate, and clean up trailing hyphens.
+    slug = slug or "post"
     if len(slug) > max_len:
         slug = slug[:max_len].rstrip("-")
 
@@ -84,49 +87,19 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
         PathTraversalError: Path escaped output directory
 
     """
+    if any(Path(part).is_absolute() for part in parts):
+        absolute_part = next(part for part in parts if Path(part).is_absolute())
+        msg = f"Absolute paths not allowed: {absolute_part}"
+        raise PathTraversalError(msg)
+
     base_resolved = base_dir.resolve()
-    candidate = base_resolved
-    for part in parts:
-        part_path = Path(part)
-        if part_path.is_absolute():
-            msg = f"Absolute paths not allowed: {part}"
-            raise PathTraversalError(msg)
-        candidate = candidate.joinpath(part_path)
+    candidate_path = base_resolved.joinpath(*parts)
 
     try:
-        candidate_resolved = candidate.resolve()
-    except OSError as exc:  # pragma: no cover - defensive
-        msg = f"Failed to resolve path {candidate}: {exc}"
-        raise PathTraversalError(msg) from exc
-
-    try:
+        candidate_resolved = candidate_path.resolve()
         candidate_resolved.relative_to(base_resolved)
-    except ValueError as err:
+    except (ValueError, OSError) as err:
         msg = f"Path traversal detected: joining {parts} to {base_dir} would escape base directory"
         raise PathTraversalError(msg) from err
 
     return candidate_resolved
-
-
-def ensure_dir(path: Path) -> Path:
-    """Create directory if it doesn't exist, with proper parent creation.
-
-    This is a convenience wrapper around mkdir that sets the standard
-    options for ensuring a directory exists without errors.
-
-    Args:
-        path: Directory path to create
-
-    Returns:
-        The same path (for chaining)
-
-    Examples:
-        >>> ensure_dir(Path("output/posts"))
-        PosixPath('output/posts')
-
-        >>> # Chaining example
-        >>> output_file = ensure_dir(Path("output/data")) / "results.csv"
-
-    """
-    path.mkdir(parents=True, exist_ok=True)
-    return path

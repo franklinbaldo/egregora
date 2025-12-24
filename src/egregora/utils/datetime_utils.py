@@ -47,8 +47,7 @@ def parse_datetime_flexible(
         try:
             # dateutil.parser.parse can handle ISO 8601 strings,
             # so we don't need a separate fromisoformat call.
-            kwargs = dict(parser_kwargs or {})
-            dt = dateutil_parser.parse(raw, **kwargs)
+            dt = dateutil_parser.parse(raw, **(parser_kwargs or {}))
         except (TypeError, ValueError, OverflowError):
             return None
 

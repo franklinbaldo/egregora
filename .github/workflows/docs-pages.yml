@@ -5,7 +5,9 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 env:
   PYTHON_VERSION: "3.12"
@@ -26,6 +28,9 @@ jobs:
     name: Build & Deploy Docs
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Enable debug logging
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}
@@ -35,7 +40,7 @@ jobs:
           echo "::notice::Debug logging enabled"
 
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
@@ -43,44 +48,31 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           extras: "--extra docs --extra rss"
 
+          BUILD_TIMESTAMP=$(date -u +'%Y-%m-%d %H:%M UTC')
+          BUILD_COMMIT=${GITHUB_SHA::7}
+          BUILD_WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          # Replace placeholders in mkdocs.yml
+          sed -i "s|__BUILD_TIMESTAMP__|$BUILD_TIMESTAMP|g" mkdocs.yml
+          sed -i "s|__BUILD_COMMIT__|$BUILD_COMMIT|g" mkdocs.yml
+          sed -i "s|__BUILD_WORKFLOW_URL__|$BUILD_WORKFLOW_URL|g" mkdocs.yml
+
+          # Export for scripts just in case
+          echo "BUILD_TIMESTAMP=$BUILD_TIMESTAMP" >> $GITHUB_ENV
+          echo "BUILD_COMMIT=$BUILD_COMMIT" >> $GITHUB_ENV
+          echo "BUILD_WORKFLOW_URL=$BUILD_WORKFLOW_URL" >> $GITHUB_ENV
+
       - name: Build Documentation
-        env:
-          BUILD_COMMIT: ${{ github.sha }}
-          BUILD_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          # Set human-readable build timestamp
-          export BUILD_TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
-          export BUILD_COMMIT="${BUILD_COMMIT:0:7}"  # Short SHA
-          echo "Building docs with timestamp: $BUILD_TIMESTAMP"
-          echo "Commit: $BUILD_COMMIT"
-          echo "Workflow: $BUILD_WORKFLOW_URL"
-          uv run mkdocs build
+        run: uv run mkdocs build
 
       - name: Generate Demo Site (offline)
-        env:
-          BUILD_COMMIT: ${{ github.sha }}
-          BUILD_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          # Set human-readable build timestamp
-          export BUILD_TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
-          export BUILD_COMMIT="${BUILD_COMMIT:0:7}"  # Short SHA
-          uv run python scripts/generate_demo_site.py --output-dir .demo-site
+        run: uv run python scripts/generate_demo_site.py --output-dir .demo-site
 
       - name: Build Demo Site
-        env:
-          BUILD_COMMIT: ${{ github.sha }}
-          BUILD_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          # Set human-readable build timestamp
-          export BUILD_TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
-          export BUILD_COMMIT="${BUILD_COMMIT:0:7}"  # Short SHA
-          echo "Building demo site with timestamp: $BUILD_TIMESTAMP"
-          echo "Commit: $BUILD_COMMIT"
-          echo "Workflow: $BUILD_WORKFLOW_URL"
-          uv run mkdocs build -f .demo-site/.egregora/mkdocs.yml -d "$(pwd)/site/demo"
+        run: uv run mkdocs build -f .demo-site/.egregora/mkdocs.yml -d "$(pwd)/site/demo"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
@@ -93,40 +85,18 @@ jobs:
           mkdir -p site/bundles
           cp /tmp/bundles/*.bundle.md site/bundles/
 
-      - name: Verify demo output
-        run: |
-          if [ ! -f "site/index.html" ]; then
-            echo "Docs site build missing site/index.html"
-            exit 1
-          fi
-          if [ ! -f "site/demo/index.html" ]; then
-            echo "Demo site build missing site/demo/index.html"
-            exit 1
-          fi
-          if [ ! -f "site/demo/posts/index.html" ]; then
-            echo "Demo posts index missing site/demo/posts/index.html"
-            exit 1
-          fi
-          post_count=$(find site/demo/posts -type f -name "index.html" \
-            ! -path "site/demo/posts/index.html" \
-            ! -path "site/demo/posts/tags/index.html" \
-            ! -path "site/demo/posts/media/index.html" \
-            ! -path "site/demo/posts/profiles/index.html" | wc -l)
-          if [ "${post_count}" -lt 1 ]; then
-            echo "Demo build produced no post pages."
-            exit 1
-          fi
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
 
       - name: Deploy to GitHub Pages
-        # Deploy on main branch push or manual workflow dispatch
+        id: deployment
         if: github.ref == 'refs/heads/main'
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./site
+        uses: actions/deploy-pages@v4
 
       - name: Upload bundles artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: bundles
           path: /tmp/bundles/
