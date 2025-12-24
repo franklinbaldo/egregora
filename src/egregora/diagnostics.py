@@ -24,7 +24,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from egregora.config import load_egregora_config
+from egregora.config import find_egregora_config, load_egregora_config
 from egregora.input_adapters import list_adapters
 
 # Constants
@@ -274,24 +274,24 @@ def check_cache_directory() -> DiagnosticResult:
 
 
 def check_egregora_config() -> DiagnosticResult:
-    """Check if .egregora/config.yml exists and is valid."""
-    config_file = Path(".egregora/config.yml")
+    """Check if .egregora.toml exists and is valid."""
+    site_root = Path.cwd()
+    config_path = find_egregora_config(site_root)
 
-    if not config_file.exists():
+    if not config_path:
         return DiagnosticResult(
             check="Egregora Config",
             status=HealthStatus.INFO,
-            message="No .egregora/config.yml (will use defaults)",
+            message="No .egregora.toml found (will use defaults)",
         )
 
     try:
-        # Try loading config
-        config = load_egregora_config(config_file.parent.parent)  # Pass site root
+        config = load_egregora_config(config_path.parent)
 
         return DiagnosticResult(
             check="Egregora Config",
             status=HealthStatus.OK,
-            message=f"Valid config at {config_file}",
+            message=f"Valid config at {config_path}",
             details={
                 "writer_model": config.models.writer,
                 "rag_enabled": config.rag.enabled,
