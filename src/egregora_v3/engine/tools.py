@@ -86,20 +86,7 @@ async def get_document_by_id(
         Document if found, None otherwise
 
     """
-    library = context.library
-
-    # Try to find in posts first (most common)
-    doc = library.posts.get(doc_id)
-    if doc:
-        return doc
-
-    # Try other repositories
-    for repo in [library.journal, library.media, library.profiles, library.enrichments]:
-        doc = repo.get(doc_id)
-        if doc:
-            return doc
-
-    return None
+    return context.library.get(doc_id)
 
 
 async def count_documents_by_type(
@@ -117,19 +104,10 @@ async def count_documents_by_type(
 
     """
     library = context.library
-
-    # Get all documents from relevant repository
-    # Map document types to repositories
-    repo_map = {
-        DocumentType.POST: library.posts,
-        DocumentType.MEDIA: library.media,
-    }
-
-    repo = repo_map.get(doc_type)
+    repo = library.get_repo(doc_type)
     if not repo:
         return 0
 
-    # Count documents of this type
     all_docs = repo.list(doc_type=doc_type)
     return len(all_docs)
 
