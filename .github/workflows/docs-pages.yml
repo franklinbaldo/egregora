@@ -50,19 +50,6 @@ jobs:
 
       - name: Prepare Build Environment
         run: |
-          # Set human-readable build timestamp
-<<<<<<< HEAD
-          export BUILD_TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
-          export BUILD_COMMIT="${BUILD_COMMIT:0:7}"
-
-          # Append to docs/index.md
-          echo "" >> docs/index.md
-          echo "---" >> docs/index.md
-          echo "> **Build Info**" >> docs/index.md
-          echo "> - Updated: $BUILD_TIMESTAMP" >> docs/index.md
-          echo "> - Commit: $BUILD_COMMIT" >> docs/index.md
-          echo "> - Workflow: $BUILD_WORKFLOW_URL" >> docs/index.md
-=======
           BUILD_TIMESTAMP=$(date -u +'%Y-%m-%d %H:%M UTC')
           BUILD_COMMIT=${GITHUB_SHA::7}
           BUILD_WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
@@ -76,7 +63,6 @@ jobs:
           echo "BUILD_TIMESTAMP=$BUILD_TIMESTAMP" >> $GITHUB_ENV
           echo "BUILD_COMMIT=$BUILD_COMMIT" >> $GITHUB_ENV
           echo "BUILD_WORKFLOW_URL=$BUILD_WORKFLOW_URL" >> $GITHUB_ENV
->>>>>>> origin/main
 
       - name: Build Documentation
         run: uv run mkdocs build

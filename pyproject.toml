@@ -109,6 +109,7 @@ line-length = 110  # Slightly more generous for strings/logs
 target-version = "py312"
 extend-exclude = [
     ".claude",
+    ".jules",
     "prompt_tests",
     "src/egregora_v3",
     "tests/v3",
