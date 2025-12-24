@@ -1084,7 +1084,35 @@ def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
     # Logic 1: nested dirs (posts/profiles/{uuid}/*.md) - handled by agents/profile/generator usually?
     # No, profiles.py deals with output/profiles/{slug}.md
 
-    # Handle direct files in profiles_dir
+    # Handle nested author directories first (e.g. profiles/{uuid}/bio.md)
+    # This matches the new structure where profiles are nested
+    for author_dir in profiles_dir.iterdir():
+        if author_dir.is_dir():
+            # Check for bio.md or similar
+            profile_path = author_dir / "bio.md"
+            if not profile_path.exists():
+                # Fallback to any markdown file
+                md_files = list(author_dir.glob("*.md"))
+                if md_files:
+                    profile_path = md_files[0]
+
+            if profile_path and profile_path.exists():
+                try:
+                    metadata = _extract_profile_metadata(profile_path)
+                    author_uuid = author_dir.name # Use directory name as UUID if nested
+
+                    # Update URL to be relative to docs root
+                    # profiles_dir is docs/posts/profiles
+                    # url should be posts/profiles/{uuid}/{file}
+                    rel_path = f"posts/profiles/{author_uuid}/{profile_path.name}"
+
+                    entry = _build_author_entry(profile_path, metadata, author_uuid=author_uuid, url=rel_path)
+                    authors[author_uuid] = entry
+                    count += 1
+                except (OSError, yaml.YAMLError) as e:
+                    logger.warning("Failed to sync profile %s: %s", profile_path, e)
+
+    # Handle direct files in profiles_dir (legacy flat structure)
     for profile_path in profiles_dir.glob("*.md"):
         if profile_path.name == "index.md":
             continue
@@ -1092,6 +1120,10 @@ def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
             metadata = _extract_profile_metadata(profile_path)
             # Must get UUID from metadata now, not filename
             author_uuid = str(metadata.get("uuid", profile_path.stem))
+
+            # Skip if already processed via directory
+            if author_uuid in authors:
+                continue
 
             entry = _build_author_entry(profile_path, metadata, author_uuid=author_uuid)
             authors[author_uuid] = entry

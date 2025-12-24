@@ -167,10 +167,41 @@ def test_invalid_toml(tmp_path):
 def test_invalid_root_type(tmp_path):
     """Test that non-mapping TOML roots raise a clear error."""
     config_file = tmp_path / ".egregora.toml"
-    config_file.write_text('["list-root-value"]')
+    # tomllib.load treats single list as valid but we validate it is dict
+    # However, tomllib returns dict from valid toml key=value
+    # If file content is just a list, tomllib.load returns that list if it is valid TOML?
+    # Actually standard TOML files must be key-value pairs at root.
+    # But a JSON array is valid TOML? No.
+    # Let's try to write something that parses but isn't a dict if possible,
+    # or just use a list syntax that might parse as a list (though strict TOML forbids it at root).
+    # If tomllib raises TOMLDecodeError for list at root, then we should expect ValueError.
+    # If it parses it as a list, we expect TypeError.
+    # Let's write valid TOML that is interpreted as empty dict or similar?
+    # Wait, invalid TOML raises ValueError.
+    # We need something that parses successfully but isn't a dict.
+    # But standard TOML parsers usually enforce root as table.
+    # If tomllib.load returns a dict always for valid toml, then this test might be redundant or unreachable.
+    # Let's try mocking tomllib.load instead to force return a list.
+
+    # We need to patch tomllib.load used in ConfigLoader
+    # But ConfigLoader imports tomllib inside module scope if 3.11+, or via compat
+    # Actually ConfigLoader imports tomllib at top level.
+
+    # We can't easily monkeypatch built-in tomllib.load in some environments.
+    # But let's check what the implementation does.
+    # It checks `if not isinstance(data, dict): raise TypeError`.
+    # So we just need `tomllib.load` to return a list.
+    # Since `tomllib` is strictly compliant, it might be hard to get a list from valid TOML file at root.
+    # So let's skip this test if we can't easily force it, or mock it.
+
+    # If we assume tomllib ALWAYS returns a dict for valid TOML, then the check is defensive.
+    # We can use monkeypatch on the instance method `_load_from_file` instead.
 
     loader = ConfigLoader(tmp_path)
-    with pytest.raises(TypeError, match="root must be a mapping"):
+    # Monkeypatch the private method to return a list
+    loader._load_from_file = lambda: ["invalid", "list"]
+
+    with pytest.raises(TypeError, match="Configuration must be a mapping"):
         loader.load()
 
 

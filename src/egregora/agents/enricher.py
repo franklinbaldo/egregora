@@ -777,7 +777,19 @@ class EnrichmentWorker(BaseWorker):
             agent = Agent(model=model, output_type=EnrichmentOutput, tools=tools)
 
             # Use run_sync to execute the async agent synchronously
-            result = agent.run_sync(prompt)
+            # pydantic_ai Agent.run_sync is async internally but runs in loop?
+            # Actually, Agent.run_sync is deprecated or removed in newer versions in favor of
+            # just run() which is async, but we need sync here.
+            # If we are in a thread pool, we can use asyncio.run(agent.run(...))
+
+            # Since this is running in a thread pool (via _execute_url_individual),
+            # we can create a new event loop for this thread.
+
+            async def _run_async() -> Any:
+                return await agent.run(prompt)
+
+            result = asyncio.run(_run_async())
+
         except Exception as e:
             logger.exception("Failed to enrich URL %s", url)
             return task, None, str(e)

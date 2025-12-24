@@ -406,6 +406,10 @@ def run_cli_flow(
         sources_to_run = _resolve_sources_to_run(base_config, parsed_options.source)
     except ValueError as exc:
         console.print(f"[red]{exc}[/red]")
+        # For programmatic execution (tests), we might want to let the exception bubble up if not handled
+        # But CLI should exit gracefully.
+        # Since run_cli_flow is primarily for CLI, SystemExit(1) is correct behavior for CLI.
+        # However, tests might expect this.
         raise SystemExit(1) from exc
 
     runtime = RuntimeContext(
