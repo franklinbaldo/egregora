@@ -98,9 +98,16 @@ class DuckDBDocumentRepository(DocumentRepository):
         }
         self.conn.insert(self.table_name, [data])
 
+    def _hydrate_object(self, json_val: str | dict, doc_type_val: str) -> Entry:
+        """Centralized helper to deserialize JSON into Entry or Document."""
+        is_document = doc_type_val in _DOCUMENT_TYPE_VALUES
+
+        model_class = Document if is_document else Entry
+        validator = model_class.model_validate if isinstance(json_val, dict) else model_class.model_validate_json
+        return validator(json_val)
+
     def get(self, doc_id: str) -> Document | None:
         """Retrieves a document by ID."""
-        # This explicitly expects a Document (subset of Entry with specific fields/type)
         t = self._get_table()
         query = t.filter(t.id == doc_id).select("doc_type", "json_data")
         result = query.execute()
@@ -109,27 +116,14 @@ class DuckDBDocumentRepository(DocumentRepository):
             return None
 
         row = result.iloc[0]
-        # Verify it is a Document (has valid doc_type from DocumentType enum)
-        # However, historically get() just inflated whatever into Document.
-        # Now we have hybrid table.
-        # If doc_type is "_ENTRY_", Document.model_validate might fail if it misses required fields
-        # or it might succeed but effectively be wrong type.
-        # Strict typing: if we called get() we expect Document.
-        # If we find an Entry, we might return None or raise error?
-        # Or try to parse.
+        doc_type_val = row["doc_type"]
 
-        json_val = row["json_data"]
-
-        # If it's a raw entry, we can't really return it as a Document easily unless we cast it.
-        # But get() signature is Document | None.
-        # If type is _ENTRY_, it's NOT a Document.
-        if row["doc_type"] == "_ENTRY_":
+        # get() specifically retrieves Documents, not raw Entries.
+        if doc_type_val == "_ENTRY_":
             return None
 
-        if isinstance(json_val, dict):
-            return Document.model_validate(json_val)
-
-        return Document.model_validate_json(json_val)
+        # We know it's a Document, so the cast is safe.
+        return self._hydrate_object(row["json_data"], doc_type_val)
 
     def list(self, *, doc_type: DocumentType | None = None) -> list[Document]:
         """Lists documents, optionally filtered by type."""
@@ -138,20 +132,13 @@ class DuckDBDocumentRepository(DocumentRepository):
         if doc_type:
             query = query.filter(query.doc_type == doc_type.value)
         else:
-            # Exclude raw entries if listing "Documents"
+            # Exclude raw entries when listing all "Documents"
             query = query.filter(query.doc_type != "_ENTRY_")
 
-        # Select JSON data
-        result = query.select("json_data").execute()
+        result = query.select("doc_type", "json_data").execute()
 
-        docs = []
-        for json_val in result["json_data"]:
-            if isinstance(json_val, dict):
-                docs.append(Document.model_validate(json_val))
-            else:
-                docs.append(Document.model_validate_json(json_val))
-
-        return docs
+        # We know these are Documents, so the list comprehension cast is safe.
+        return [self._hydrate_object(row["json_data"], row["doc_type"]) for _, row in result.iterrows()]
 
     def delete(self, doc_id: str) -> None:
         """Deletes a document by ID."""
@@ -214,58 +201,16 @@ class DuckDBDocumentRepository(DocumentRepository):
             return None
 
         row = result.iloc[0]
-        json_val = row["json_data"]
-        doc_type_val = row["doc_type"]
-
-        # Check if it's a Document (has a valid DocumentType)
-        is_document = doc_type_val in _DOCUMENT_TYPE_VALUES
-
-        if is_document:
-            if isinstance(json_val, dict):
-                return Document.model_validate(json_val)
-            return Document.model_validate_json(json_val)
-
-        # Otherwise treat as raw Entry
-        if isinstance(json_val, dict):
-            return Entry.model_validate(json_val)
-        return Entry.model_validate_json(json_val)
+        return self._hydrate_object(row["json_data"], row["doc_type"])
 
     def get_entries_by_source(self, source_id: str) -> builtins.list[Entry]:
-        """Lists entries by source ID."""
-        # Prioritize raw SQL for DuckDB as Ibis JSON extraction can be flaky/strict on types
-        if hasattr(self.conn, "con"):
-            # DuckDB raw SQL for JSON extraction
-            sql = f"SELECT json_data, doc_type FROM {self.table_name} WHERE json_extract_string(json_data, '$.source.id') = ?"
-            result = self.conn.con.execute(sql, [source_id]).fetch_df()
-        else:
-            t = self._get_table()
-            # Filter by JSON path: source.id == source_id
-            try:
-                query = t.filter(t.json_data["source"]["id"] == source_id)
-                result = query.select("json_data", "doc_type").execute()
-            except (AttributeError, NotImplementedError, TypeError, KeyError):
-                # Fallback for backends/versions where Ibis JSON getitem might fail
-                # AttributeError: JSON getitem not supported
-                # NotImplementedError: Backend doesn't implement this feature
-                # TypeError: Type mismatch in filter operation
-                # KeyError: Column or key access failure
-                return []
+        """Lists entries by source ID using raw SQL for reliable JSON extraction."""
+        if not hasattr(self.conn, "con"):
+            # This method relies on raw SQL for DuckDB's JSON support, which is more reliable than the Ibis API
+            # for this purpose. If we don't have a raw connection, we can't proceed.
+            return []
 
-        entries = []
-        for _, row in result.iterrows():
-            json_val = row["json_data"]
-            doc_type_val = row["doc_type"]
+        sql = f"SELECT json_data, doc_type FROM {self.table_name} WHERE json_extract_string(json_data, '$.source.id') = ?"
+        result = self.conn.con.execute(sql, [source_id]).fetch_df()
 
-            is_document = doc_type_val in _DOCUMENT_TYPE_VALUES
-
-            if is_document:
-                if isinstance(json_val, dict):
-                    entries.append(Document.model_validate(json_val))
-                else:
-                    entries.append(Document.model_validate_json(json_val))
-            elif isinstance(json_val, dict):
-                entries.append(Entry.model_validate(json_val))
-            else:
-                entries.append(Entry.model_validate_json(json_val))
-
-        return entries
+        return [self._hydrate_object(row["json_data"], row["doc_type"]) for _, row in result.iterrows()]
