@@ -179,19 +179,7 @@ def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path
 
 
 def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> int:
-    """Scan all posts and ensure every referenced author exists in .authors.yml.
-
-    This function traverses all markdown files in posts_dir, extracts author IDs
-    from their frontmatter, and registers any missing authors in .authors.yml.
-
-    Args:
-        posts_dir: Directory containing post markdown files (recursively scanned).
-        docs_dir: Root docs directory where .authors.yml lives. If None, derived from posts_dir.
-
-    Returns:
-        Number of new authors registered.
-
-    """
+    """Scan all posts and ensure every referenced author exists in .authors.yml."""
     if docs_dir is None:
         # Derive docs_dir: posts_dir is typically docs/posts/posts, so go up 2 levels
         docs_dir = posts_dir.resolve().parent.parent
@@ -199,24 +187,26 @@ def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> in
     authors_path = docs_dir / ".authors.yml"
     authors = _load_authors_yml(authors_path)
 
-    # Collect all unique author IDs from posts
     all_author_ids: set[str] = set()
-
     for md_file in posts_dir.rglob("*.md"):
         try:
-            post = frontmatter.load(str(md_file))
-            if "authors" in post.metadata:
-                author_list = post.metadata["authors"]
-                if isinstance(author_list, list):
-                    all_author_ids.update(str(a) for a in author_list if a)
-                elif author_list:
-                    all_author_ids.add(str(author_list))
-        except OSError as exc:
+            post = frontmatter.load(md_file)
+            post_authors = post.metadata.get("authors")
+            if not post_authors:
+                continue
+
+            # Ensure authors are always treated as a list
+            if not isinstance(post_authors, list):
+                post_authors = [post_authors]
+
+            all_author_ids.update(str(author) for author in post_authors if author)
+
+        except (OSError, ValueError) as exc:
             logger.debug("Skipping %s: %s", md_file, exc)
             continue
 
-    # Register missing authors
-    new_ids = _register_new_authors(authors, list(all_author_ids))
+    # Register missing authors, sorting for deterministic output
+    new_ids = _register_new_authors(authors, sorted(list(all_author_ids)))
 
     if new_ids:
         _save_authors_yml(authors_path, authors, len(new_ids))
