@@ -494,7 +494,6 @@ def _finalize_writer_results(params: WriterFinalizationParams) -> dict[str, list
     # Finalize output adapter
     params.resources.output.finalize_window(
         window_label=params.deps.window_label,
-        posts_created=params.saved_posts,
         profiles_updated=params.saved_profiles,
         metadata=None,
     )
@@ -586,7 +585,6 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
                 # Posts exist, call finalize_window to mark completion and return
                 resources.output.finalize_window(
                     window_label=f"{params.window_start:%Y-%m-%d %H:%M} to {params.window_end:%H:%M}",
-                    posts_created=cached_posts,
                     profiles_updated=cached_result.get(RESULT_KEY_PROFILES, []),
                     metadata=None,
                 )
