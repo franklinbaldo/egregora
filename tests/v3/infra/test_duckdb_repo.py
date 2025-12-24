@@ -183,3 +183,31 @@ def test_get_entry_distinguishes_document_from_entry(repo):
     assert isinstance(retrieved_entry, Entry)
     assert retrieved_doc.id == doc_id
     assert retrieved_entry.id == entry_id
+
+
+def test_list_hydrates_from_raw_json_string(repo):
+    """
+    Locks in the behavior that the repository can correctly deserialize
+    a JSON string from the database into a Document object. This test
+    will serve as a regression check for the refactoring of the duplicated
+    hydration logic into a single `_hydrate_object` method.
+    """
+    # Arrange
+    doc = Document.create(content="Test content", doc_type=DocumentType.POST, title="Test Post")
+    json_data = doc.model_dump_json()
+
+    # Manually insert using raw SQL to ensure we are testing hydration from a string
+    repo.conn.con.execute(
+        f"INSERT INTO {repo.table_name} (id, doc_type, json_data, updated) VALUES (?, ?, ?, ?)",
+        [doc.id, doc.doc_type.value, json_data, doc.updated],
+    )
+
+    # Act
+    docs = repo.list(doc_type=DocumentType.POST)
+
+    # Assert
+    assert len(docs) == 1
+    retrieved = docs[0]
+    assert retrieved.id == doc.id
+    assert retrieved.title == "Test Post"
+    assert retrieved.content == "Test content"
