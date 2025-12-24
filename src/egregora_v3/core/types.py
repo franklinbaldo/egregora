@@ -145,19 +145,23 @@ class Document(Entry):
 
         Identity Precedence:
         1. `id_override` (explicit)
-        2. `slug` (semantic)
-        3. Content-based UUIDv5 (fallback)
+        2. `slug` (semantic, derived from title if absent)
+        3. Content-based UUIDv5 (fallback if slug is invalid)
         """
-        if internal_metadata is None:
-            internal_metadata = {}
+        meta = internal_metadata or {}
 
-        # Generate slug from title if not provided
+        # Determine slug and ID in a single, explicit path
         final_slug = slug or slugify(title.strip())
-        if final_slug and final_slug != "untitled":
-            internal_metadata["slug"] = final_slug
-            doc_id = id_override or final_slug
+        is_valid_slug = bool(final_slug and final_slug != "untitled")
+
+        if is_valid_slug:
+            meta["slug"] = final_slug
+            doc_id = final_slug
         else:
-            doc_id = id_override or cls._generate_content_uuid(content, doc_type, final_slug)
+            doc_id = cls._generate_content_uuid(content, doc_type, final_slug)
+
+        # Explicit override always wins
+        doc_id = id_override or doc_id
 
         return cls(
             id=doc_id,
@@ -166,7 +170,7 @@ class Document(Entry):
             content=content,
             doc_type=doc_type,
             status=status,
-            internal_metadata=internal_metadata,
+            internal_metadata=meta,
             searchable=searchable,
             in_reply_to=in_reply_to,
         )

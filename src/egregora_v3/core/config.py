@@ -1,8 +1,9 @@
-import tomllib
 from pathlib import Path
+from typing import Any, Tuple
 
 from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
+from pydantic_settings.sources import TomlConfigSettingsSource
 
 
 class ModelSettings(BaseModel):
@@ -79,36 +80,43 @@ class EgregoraConfig(BaseSettings):
 
     @classmethod
     def load(cls, site_root: Path | None = None) -> "EgregoraConfig":
-        """Loads configuration from .egregora.toml and environment variables.
-
-        Priority (highest to lowest):
-        1. Environment variables (EGREGORA_SECTION__KEY)
-        2. Config file (.egregora.toml)
-        3. Defaults
-
-        Args:
-            site_root: Root directory of the site. If None, uses current working directory.
-
-        Returns:
-            EgregoraConfig: Fully loaded and validated configuration.
-        """
+        """Loads configuration with a dynamically located TOML file."""
         root_path = site_root if site_root is not None else Path.cwd()
-        config_file = root_path / ".egregora.toml"
+        return cls(paths={"site_root": root_path})
 
-        file_settings = {}
-        if config_file.is_file():
-            try:
-                with config_file.open("rb") as f:
-                    file_settings = tomllib.load(f)
-            except tomllib.TOMLDecodeError as e:
-                msg = f"Invalid TOML in {config_file}: {e}"
-                raise ValueError(msg) from e
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> Tuple[PydanticBaseSettingsSource, ...]:
+        """Declarative way to inject a dynamic TOML file path.
 
-        # Ensure paths section exists for site_root injection
-        if "paths" not in file_settings:
-            file_settings["paths"] = {}
-        file_settings["paths"]["site_root"] = root_path
+        This hook allows us to find the `site_root` from the initial
+        settings (provided by the `.load()` method) and then insert the
+        TOML configuration source in the correct order of precedence.
+        """
+        # Get site_root from the initial settings
+        # The `init_settings` source holds the keyword arguments passed to the constructor.
+        init_kwargs = init_settings.init_kwargs
+        paths_data = init_kwargs.get("paths", {})
+        site_root = paths_data.get("site_root", Path.cwd())
 
-        # Pydantic will merge dicts during initialization.
-        # Env vars take precedence over init_kwargs.
-        return cls(**file_settings)
+        # Construct path to TOML file
+        toml_file = site_root / ".egregora.toml"
+
+        # Create the TOML source if the file exists
+        toml_source = TomlConfigSettingsSource(settings_cls, toml_file) if toml_file.is_file() else None
+
+        # Build the list of sources, filtering out None if the TOML file doesn't exist.
+        sources = [
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            file_secret_settings,
+            toml_source,
+        ]
+        return tuple(source for source in sources if source is not None)

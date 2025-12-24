@@ -37,6 +37,14 @@ def test_uuid_fallback_for_empty_slug_and_title():
     assert len(doc.id) == 36
 
 
+def test_uuid_fallback_for_untitled_slug():
+    """If the title slugifies to 'untitled', a UUID should be generated."""
+    # This title will become "untitled" after slugify
+    doc = Document.create(content="Content", doc_type=DocumentType.POST, title="!@#$%^")
+    assert doc.internal_metadata.get("slug") is None
+    assert len(doc.id) == 36
+
+
 def test_content_addressed_uuid_is_stable():
     """Content-based UUIDs should be stable for the same inputs."""
     doc1 = Document.create(content="Same content", doc_type=DocumentType.NOTE, title="")

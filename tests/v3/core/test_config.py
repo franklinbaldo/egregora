@@ -50,6 +50,36 @@ def test_load_missing_file(tmp_path):
     assert config.paths.site_root == site_root
 
 
+def test_load_with_env_override(tmp_path, monkeypatch):
+    """Test that environment variables override TOML settings."""
+    # Setup a mock site
+    site_root = tmp_path / "mysite"
+    site_root.mkdir(parents=True)
+
+    config_file = site_root / ".egregora.toml"
+    config_file.write_text(
+        """
+[models]
+writer = "toml-model"
+enricher = "toml-enricher"
+        """
+    )
+
+    # Set environment variable to override one of the settings
+    monkeypatch.setenv("EGREGORA_MODELS__WRITER", "env-model")
+
+    # Load config
+    config = EgregoraConfig.load(site_root)
+
+    # Assert that env var takes precedence
+    assert config.models.writer == "env-model"
+    # Assert that other TOML settings are loaded
+    assert config.models.enricher == "toml-enricher"
+    # Assert that default settings are still present
+    assert config.models.embedding == "models/gemini-embedding-001"
+    assert config.paths.site_root == site_root
+
+
 def test_load_from_cwd(tmp_path, monkeypatch):
     """Test loading from current working directory (no explicit path)."""
     site_root = tmp_path / "mysite"
