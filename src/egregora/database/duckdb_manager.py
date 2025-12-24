@@ -8,10 +8,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
-import re
-import tempfile
 import threading
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Self
@@ -19,7 +16,6 @@ from typing import TYPE_CHECKING, Any, Literal, Self
 import duckdb
 import ibis
 
-from egregora.database import schemas
 from egregora.database.ir_schema import quote_identifier
 
 if TYPE_CHECKING:
@@ -244,7 +240,9 @@ class DuckDBStorageManager:
                     sql = f"CREATE OR REPLACE TABLE {quoted_name} AS SELECT * FROM read_parquet(?)"
                     params = [path_str]
                 else:
-                    sql_create = f"CREATE TABLE IF NOT EXISTS {quoted_name} AS SELECT * FROM read_parquet(?) WHERE 1=0"
+                    sql_create = (
+                        f"CREATE TABLE IF NOT EXISTS {quoted_name} AS SELECT * FROM read_parquet(?) WHERE 1=0"
+                    )
                     sql_insert = f"INSERT INTO {quoted_name} SELECT * FROM read_parquet(?)"
                     self._conn.execute(sql_create, [path_str])
                     sql = sql_insert
@@ -320,7 +318,9 @@ class DuckDBStorageManager:
         if not row or row[0] != desired_default:
             quoted_table = quote_identifier(table)
             quoted_column = quote_identifier(column)
-            self.execute_sql(f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} SET DEFAULT {desired_default}")
+            self.execute_sql(
+                f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} SET DEFAULT {desired_default}"
+            )
             self._conn.commit()
 
     def sync_sequence_with_table(self, sequence_name: str, *, table: str, column: str) -> None:
@@ -348,9 +348,7 @@ class DuckDBStorageManager:
 
     def next_sequence_value(self, sequence_name: str) -> int:
         """Return the next value from ``sequence_name``."""
-        row = self.execute_query_single(
-            "SELECT nextval('{}')".format(sequence_name.replace("'", "''"))
-        )
+        row = self.execute_query_single("SELECT nextval('{}')".format(sequence_name.replace("'", "''")))
         if row is None:
             msg = f"Failed to fetch next value for sequence '{sequence_name}'"
             raise RuntimeError(msg)
@@ -394,6 +392,7 @@ class DuckDBStorageManager:
     def __exit__(self, _exc_type: object, _exc_val: object, _exc_tb: object) -> None:
         self.close()
 
+
 def temp_storage() -> DuckDBStorageManager:
     """Create temporary in-memory storage manager."""
     return DuckDBStorageManager(db_path=None)
@@ -411,6 +410,7 @@ def duckdb_backend() -> ibis.BaseBackend:
         ibis.options.default_backend = old_backend
         if hasattr(backend, "disconnect"):
             backend.disconnect()
+
 
 __all__ = [
     "DuckDBStorageManager",

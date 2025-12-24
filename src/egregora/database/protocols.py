@@ -108,7 +108,7 @@ class StorageProtocol(Protocol):
         """
         ...
 
-    def drop_table(self, name: str, *, checkpoint_too: bool = False) -> None:
+    def drop_table(self, name: str, *, _checkpoint_too: bool = False) -> None:
         """Drop table from storage.
 
         Args:

@@ -1,8 +1,6 @@
 """Unit tests for windowing strategies."""
 
-import json
 from datetime import datetime, timedelta
-from pathlib import Path
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -11,7 +9,6 @@ import pytest
 
 from egregora.config.settings import EgregoraConfig
 from egregora.transformations.windowing import (
-    HOURS_PER_DAY,
     WindowConfig,
     create_windows,
     generate_window_signature,

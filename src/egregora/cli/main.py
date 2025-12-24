@@ -138,7 +138,9 @@ def write(
     ] = None,
     source: Annotated[
         str | None,
-        typer.Option("--source-type", "-s", help="Configured source key to run (defaults to [site.default_source])"),
+        typer.Option(
+            "--source-type", "-s", help="Configured source key to run (defaults to [site.default_source])"
+        ),
     ] = None,
     step_size: Annotated[int, typer.Option(help="Window size (messages or hours)")] = 100,
     step_unit: Annotated[WindowUnit, typer.Option(help="Unit for windowing")] = WindowUnit.MESSAGES,

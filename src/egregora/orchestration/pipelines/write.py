@@ -250,7 +250,9 @@ def _prepare_write_config(
     )
 
 
-def _resolve_sources_to_run(config: EgregoraConfig, requested_key: str | None) -> list[tuple[str, SourceSettings]]:
+def _resolve_sources_to_run(
+    config: EgregoraConfig, requested_key: str | None
+) -> list[tuple[str, SourceSettings]]:
     """Return the ordered list of sources to execute for this run."""
     site: SiteSettings = getattr(config, "site", None)
     if site is None or not site.sources:
@@ -421,7 +423,9 @@ def run_cli_flow(
         )
 
         for source_key, source_settings in sources_to_run:
-            merged_options = _merge_source_overrides(parsed_options, source_key=source_key, source_settings=source_settings)
+            merged_options = _merge_source_overrides(
+                parsed_options, source_key=source_key, source_settings=source_settings
+            )
 
             from_date_obj, to_date_obj = None, None
             if merged_options.from_date:

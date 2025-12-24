@@ -5,7 +5,6 @@ from enum import Enum
 from typing import Any
 from xml.etree.ElementTree import Element, register_namespace, SubElement, tostring
 
-import jinja2
 from pydantic import BaseModel, Field
 
 from egregora_v3.core.utils import slugify
@@ -20,39 +19,6 @@ try:
 except Exception:  # pragma: no cover
     # Best effort registration; may fail in some environments or if already registered
     pass
-
-# --- Jinja2 Environment ---
-
-# Module-level Jinja2 environment for performance
-# Data over logic: Template is data, not code.
-_jinja_env = jinja2.Environment(
-    loader=jinja2.PackageLoader("egregora_v3.core", "."),
-    autoescape=jinja2.select_autoescape(["html", "xml"]),
-    trim_blocks=True,
-    lstrip_blocks=True,
-)
-
-
-def _format_datetime(dt: datetime) -> str:
-    """Format datetime as RFC 3339 (Atom requirement)."""
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=UTC)
-    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def _normalize_content_type(content_type: str | None) -> str:
-    """Normalize content type for Atom."""
-    if content_type == "text/markdown":
-        return "text"
-    if content_type == "text/html":
-        return "html"
-    return content_type or "text"
-
-
-_jinja_env.filters["rfc3339"] = _format_datetime
-_jinja_env.filters["content_type"] = _normalize_content_type
-_jinja_env.globals["isinstance"] = isinstance
-_jinja_env.globals["Document"] = "Document"  # Use string to avoid circular import issues if Document is used
 
 
 # --- Atom Core Domain ---
@@ -164,45 +130,56 @@ class Document(Entry):
     @classmethod
     def create(  # noqa: PLR0913
         cls,
-        id: str,
         content: str,
         doc_type: DocumentType,
         title: str,
         *,
         status: DocumentStatus = DocumentStatus.DRAFT,
         internal_metadata: dict[str, Any] | None = None,
+        id_override: str | None = None,
         slug: str | None = None,
         searchable: bool = True,
         in_reply_to: InReplyTo | None = None,
     ) -> "Document":
-        """Factory method to create a Document with an explicit ID.
+        """Factory method to create a Document.
 
-        Identity is always derived from a slug or an override.
-        The complex content-based UUID fallback is removed.
-        One good path over many flexible paths.
+        Identity Precedence:
+        1. `id_override` (explicit)
+        2. `slug` (semantic)
+        3. Content-based UUIDv5 (fallback)
         """
-        meta = internal_metadata or {}
+        if internal_metadata is None:
+            internal_metadata = {}
 
-        # Generate slug from title if not provided.
+        # Generate slug from title if not provided
         final_slug = slug or slugify(title.strip())
-        if not final_slug or (final_slug == "untitled" and not slug):
-            msg = "Document must have a slug or a title to generate one."
-            raise ValueError(msg)
-
-        internal_metadata["slug"] = final_slug
-        doc_id = id_override or final_slug
+        if final_slug and final_slug != "untitled":
+            internal_metadata["slug"] = final_slug
+            doc_id = id_override or final_slug
+        else:
+            doc_id = id_override or cls._generate_content_uuid(content, doc_type, final_slug)
 
         return cls(
-            id=id,
+            id=doc_id,
             title=title,
             updated=datetime.now(UTC),
             content=content,
             doc_type=doc_type,
             status=status,
-            internal_metadata=meta,
+            internal_metadata=internal_metadata,
             searchable=searchable,
             in_reply_to=in_reply_to,
         )
+
+    @staticmethod
+    def _generate_content_uuid(content: str, doc_type: DocumentType, slug: str | None) -> str:
+        """Generate a stable, content-addressed UUIDv5."""
+        hasher = hashlib.sha256()
+        hasher.update(content.encode("utf-8"))
+        hasher.update(doc_type.value.encode("utf-8"))
+        if slug:
+            hasher.update(slug.encode("utf-8"))
+        return str(uuid.uuid5(uuid.NAMESPACE_DNS, hasher.hexdigest()))
 
 
 class Feed(BaseModel):
@@ -213,13 +190,162 @@ class Feed(BaseModel):
     authors: list[Author] = Field(default_factory=list)
     links: list[Link] = Field(default_factory=list)
 
-    def to_xml(self) -> str:
-        """Generate Atom XML feed (RFC 4287 compliant) using a Jinja2 template."""
-        template = _jinja_env.get_template("atom.xml.jinja")
-        # The Document class is passed to the template's global namespace.
-        # This is a bit of a hack to allow `isinstance(entry, Document)` checks in the template.
-        # A better solution might be to add a `doc_type` attribute to the Entry class.
-        return template.render(feed=self, Document=Document)
+    def to_xml(self) -> str:  # noqa: C901
+        # FIXME: This is a large, imperative block for building XML.
+        # It violates the "Declarative over imperative" heuristic.
+        # A future refactoring could use a templating engine (e.g., Jinja2)
+        # to generate the XML from a template file.
+        """Generate Atom XML feed (RFC 4287 compliant).
+
+        Returns:
+            Valid Atom 1.0 XML string
+
+        """
+        # Create root feed element with Atom namespace
+        feed = Element("feed", {"xmlns": "http://www.w3.org/2005/Atom"})
+
+        # Required feed elements
+        SubElement(feed, "id").text = self.id
+        SubElement(feed, "title").text = self.title
+        SubElement(feed, "updated").text = self._format_datetime(self.updated)
+
+        # Authors
+        for author in self.authors:
+            author_elem = SubElement(feed, "author")
+            SubElement(author_elem, "name").text = author.name
+            if author.email:
+                SubElement(author_elem, "email").text = author.email
+            if author.uri:
+                SubElement(author_elem, "uri").text = author.uri
+
+        # Links
+        for link in self.links:
+            link_elem = SubElement(feed, "link")
+            link_elem.set("href", link.href)
+            if link.rel:
+                link_elem.set("rel", link.rel)
+            if link.type:
+                link_elem.set("type", link.type)
+            if link.hreflang:
+                link_elem.set("hreflang", link.hreflang)
+            if link.title:
+                link_elem.set("title", link.title)
+            if link.length:
+                link_elem.set("length", str(link.length))
+
+        # Entries
+        for entry in self.entries:
+            self._add_entry_to_feed(feed, entry)
+
+        # Convert to string with XML declaration
+        xml_bytes = tostring(feed, encoding="utf-8", xml_declaration=True)
+        return xml_bytes.decode("utf-8")
+
+    def _add_entry_to_feed(self, feed_elem: Element, entry: Entry) -> None:  # noqa: C901, PLR0912, PLR0915
+        """Add an Entry to the feed XML element."""
+        entry_elem = SubElement(feed_elem, "entry")
+
+        # Specific Logic for Documents
+        if isinstance(entry, Document):
+            # Export doc_type as category
+            SubElement(
+                entry_elem,
+                "category",
+                {
+                    "term": entry.doc_type.value,
+                    "scheme": "https://egregora.app/schema#doc_type",
+                    "label": "Document Type",
+                },
+            )
+            # Export status as category
+            SubElement(
+                entry_elem,
+                "category",
+                {
+                    "term": entry.status.value,
+                    "scheme": "https://egregora.app/schema#status",
+                    "label": "Document Status",
+                },
+            )
+
+        # Required entry elements
+        SubElement(entry_elem, "id").text = entry.id
+        SubElement(entry_elem, "title").text = entry.title
+        SubElement(entry_elem, "updated").text = self._format_datetime(entry.updated)
+
+        # Optional elements
+        if entry.published:
+            SubElement(entry_elem, "published").text = self._format_datetime(entry.published)
+
+        if entry.summary:
+            SubElement(entry_elem, "summary").text = entry.summary
+
+        if entry.content:
+            content_elem = SubElement(entry_elem, "content")
+            content_elem.text = entry.content
+            if entry.content_type:
+                # Normalize content type for Atom
+                content_type = entry.content_type
+                if content_type == "text/markdown":
+                    content_type = "text"
+                elif content_type == "text/html":
+                    content_type = "html"
+                content_elem.set("type", content_type)
+
+        # Authors
+        for author in entry.authors:
+            author_elem = SubElement(entry_elem, "author")
+            SubElement(author_elem, "name").text = author.name
+            if author.email:
+                SubElement(author_elem, "email").text = author.email
+            if author.uri:
+                SubElement(author_elem, "uri").text = author.uri
+
+        # Links
+        for link in entry.links:
+            link_elem = SubElement(entry_elem, "link")
+            link_elem.set("href", link.href)
+            if link.rel:
+                link_elem.set("rel", link.rel)
+            if link.type:
+                link_elem.set("type", link.type)
+            if link.hreflang:
+                link_elem.set("hreflang", link.hreflang)
+            if link.title:
+                link_elem.set("title", link.title)
+            if link.length:
+                link_elem.set("length", str(link.length))
+
+        # Categories
+        for category in entry.categories:
+            cat_elem = SubElement(entry_elem, "category")
+            cat_elem.set("term", category.term)
+            if category.scheme:
+                cat_elem.set("scheme", category.scheme)
+            if category.label:
+                cat_elem.set("label", category.label)
+
+        # Threading (RFC 4685)
+        # Using the thr namespace prefix we defined in root
+        if entry.in_reply_to:
+            in_reply_to_elem = SubElement(entry_elem, "{http://purl.org/syndication/thread/1.0}in-reply-to")
+            in_reply_to_elem.set("ref", entry.in_reply_to.ref)
+            if entry.in_reply_to.href:
+                in_reply_to_elem.set("href", entry.in_reply_to.href)
+            if entry.in_reply_to.type:
+                in_reply_to_elem.set("type", entry.in_reply_to.type)
+
+    @staticmethod
+    def _format_datetime(dt: datetime) -> str:
+        """Format datetime as RFC 3339 (Atom requirement)."""
+        # Convert to UTC if not already
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        elif dt.tzinfo != UTC:
+            dt = dt.astimezone(UTC)
+
+        # Format as RFC 3339: 2024-12-04T15:30:45Z
+        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def documents_to_feed(

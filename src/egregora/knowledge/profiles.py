@@ -1051,7 +1051,10 @@ def _build_author_entry(
     avatar = metadata.get("avatar", generate_fallback_avatar_url(author_uuid))
 
     # Build entry
-    entry = {"name": metadata.get("alias", name), "url": url or f"posts/profiles/{author_uuid}/{profile_path.name}"}
+    entry = {
+        "name": metadata.get("alias", name),
+        "url": url or f"posts/profiles/{author_uuid}/{profile_path.name}",
+    }
     if "bio" in metadata:
         entry["description"] = metadata["bio"]
     entry["avatar"] = avatar

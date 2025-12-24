@@ -881,9 +881,7 @@ def _merge_config(
     return merged
 
 
-def _normalize_sites_config(
-    file_data: dict[str, Any], site: str | None = None
-) -> tuple[str, dict[str, Any]]:
+def _normalize_sites_config(file_data: dict[str, Any], site: str | None = None) -> tuple[str, dict[str, Any]]:
     """Normalize config data to a sites mapping and select the requested site.
 
     Args:
@@ -895,12 +893,13 @@ def _normalize_sites_config(
 
     Raises:
         ValueError: If sites are missing/invalid or site is not found
+
     """
     sites_data: dict[str, Any]
     if "sites" in file_data:
         sites_data = file_data["sites"]
         if not isinstance(sites_data, dict):
-            raise ValueError("Configuration section 'sites' must be a table mapping site names to configs.")
+            raise TypeError("Configuration section 'sites' must be a table mapping site names to configs.")
     else:
         sites_data = {DEFAULT_SITE_NAME: file_data}
 
@@ -915,7 +914,8 @@ def _normalize_sites_config(
 
     site_data = sites_data[selected_site]
     if not isinstance(site_data, dict):
-        raise ValueError(f"Configuration for site '{selected_site}' must be a table.")
+        msg = f"Configuration for site '{selected_site}' must be a table."
+        raise TypeError(msg)
 
     return selected_site, site_data
 

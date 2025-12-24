@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import duckdb
-
 from pydantic import BaseModel, Field
 
 from egregora.agents.banner.agent import generate_banner

@@ -54,7 +54,8 @@ def test_load_from_toml(tmp_path, monkeypatch):
 [models]
 writer = "custom-writer-model"
 embedding = "custom-embedding-model"
-
+"""
+    )
     monkeypatch.chdir(site_root)
     config = EgregoraConfig()
 

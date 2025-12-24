@@ -226,9 +226,7 @@ class PipelineRunner:
         announcements_generated = self._handle_commands(messages_list, output_sink)
         clean_messages_list = filter_commands(messages_list)
 
-        result = self._generate_posts_and_profiles(
-            enriched_table, clean_messages_list, window, output_sink
-        )
+        result = self._generate_posts_and_profiles(enriched_table, clean_messages_list, window, output_sink)
 
         self._log_window_summary(
             result,

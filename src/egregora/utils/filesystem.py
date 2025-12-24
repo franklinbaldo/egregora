@@ -136,6 +136,7 @@ def _prepare_frontmatter(metadata: dict[str, Any], slug: str) -> dict[str, Any]:
 
     Returns:
         A dictionary containing the formatted frontmatter.
+
     """
     front_matter = {
         "title": metadata["title"],
@@ -160,6 +161,7 @@ def _resolve_filepath(output_dir: Path, date_prefix: str, base_slug: str) -> tup
 
     Returns:
         A tuple containing the unique Path object and the final resolved slug.
+
     """
     slug_candidate = base_slug
     filename = f"{date_prefix}-{slug_candidate}.md"
@@ -228,7 +230,7 @@ def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> in
     all_author_ids = _collect_author_ids_from_posts(posts_dir)
 
     # Register missing authors, sorting for deterministic output
-    new_ids = _register_new_authors(authors, sorted(list(all_author_ids)))
+    new_ids = _register_new_authors(authors, sorted(all_author_ids))
 
     if new_ids:
         _save_authors_yml(authors_path, authors, len(new_ids))

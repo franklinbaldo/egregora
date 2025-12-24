@@ -81,7 +81,8 @@ def test_validate_public_url_blocks_redirect_to_private_ip(
             return _fake_addrinfo("93.184.216.34")  # Public IP
         if host == private_hostname:
             return _fake_addrinfo("192.168.1.1")  # Private IP
-        raise socket.gaierror(f"getaddrinfo failed for {host}")
+        msg = f"getaddrinfo failed for {host}"
+        raise socket.gaierror(msg)
 
     monkeypatch.setattr(socket, "getaddrinfo", mock_getaddrinfo)
 
