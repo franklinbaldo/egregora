@@ -4,8 +4,9 @@ Tests the slugify function behavior to ensure compatibility with MkDocs/Python M
 Using TDD approach to document expected behavior before refactoring.
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 from egregora.utils.paths import PathTraversalError, safe_path_join, slugify
 
