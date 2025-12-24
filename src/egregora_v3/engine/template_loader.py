@@ -3,13 +3,14 @@
 Provides centralized template loading with custom filters for V3 agents.
 """
 
-import re
 from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, Template
+
+from egregora_v3.core.utils import slugify
 
 
 class TemplateLoader:
@@ -55,7 +56,7 @@ class TemplateLoader:
         self.env.filters["format_datetime"] = self._filter_format_datetime
         self.env.filters["isoformat"] = self._filter_isoformat
         self.env.filters["truncate_words"] = self._filter_truncate_words
-        self.env.filters["slugify"] = self._filter_slugify
+        self.env.filters["slugify"] = slugify
 
     @staticmethod
     def _filter_format_datetime(value: datetime, format_str: str = "%Y-%m-%d %H:%M:%S") -> str:
@@ -107,28 +108,6 @@ class TemplateLoader:
 
         truncated = " ".join(words[:num_words])
         return f"{truncated}{suffix}"
-
-    @staticmethod
-    def _filter_slugify(value: str) -> str:
-        """Convert string to URL-safe slug.
-
-        Args:
-            value: String to slugify
-
-        Returns:
-            Slugified string
-
-        """
-        # Convert to lowercase
-        slug = value.lower()
-        # Replace spaces with hyphens
-        slug = re.sub(r"\s+", "-", slug)
-        # Remove non-alphanumeric characters (except hyphens)
-        slug = re.sub(r"[^a-z0-9-]", "", slug)
-        # Remove consecutive hyphens
-        slug = re.sub(r"-+", "-", slug)
-        # Strip leading/trailing hyphens
-        return slug.strip("-")
 
     def load_template(self, template_name: str) -> Template:
         """Load a template by name.
