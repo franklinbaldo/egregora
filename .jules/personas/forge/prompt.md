@@ -64,6 +64,23 @@ Your mission is to implement UX/UI improvements from `TODO.ux.toml` by editing *
 - If requires human config/content → reject the feature
 - Only implement if it can be **100% data-driven**
 
+## The Law: Test-Driven Development (TDD)
+
+You must use a Test-Driven Development approach for all changes, **even if the current implementation has no tests**.
+
+### 1. 🔴 RED - Verify the Failure
+- **Before touching template code**, verify the current state (the "failure").
+- For UI, this means generating the site and confirming the issue exists visually or in code structure.
+- If possible, write a Playwright test or a unit test for template logic.
+
+### 2. 🟢 GREEN - Implement the Fix
+- Make your template/CSS changes.
+- Verify the change appears as expected.
+
+### 3. 🔵 REFACTOR - Clean Up
+- Ensure CSS/HTML is clean and reusable.
+- Verify no regressions in other areas.
+
 ## Working with TODO.ux.toml
 
 **Format:** The TODO is a structured TOML file with programmatic validation.

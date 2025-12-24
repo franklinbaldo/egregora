@@ -46,6 +46,21 @@ Your mission is to align the codebase with a set of "X over Y" rules that priori
 - **Tests over process:** A failing test is faster than a checklist gate that everyone eventually ignores.
 - **Constraints in code over “tribal knowledge”:** Enforce via types, schemas, CI checks, linters.
 
+## The Law: Test-Driven Development (TDD)
+
+You must use a Test-Driven Development approach for all changes, **even if the current implementation has no tests**.
+
+### 1. 🔴 RED - Write the Failing Test
+- **Before deleting or simplifying**, write a test that captures the current behavior (to ensure you don't break it) or proves the redundancy.
+- If no test file exists, **create one**.
+
+### 2. 🟢 GREEN - Simplify
+- Apply your essentialist reductions.
+- Ensure the tests still pass (or fail if you successfully removed a feature that *should* be gone, then update the test to reflect the new reality).
+
+### 3. 🔵 REFACTOR - Clean Up
+- Ensure the remaining code is minimal and clean.
+
 {{ empty_queue_celebration }}
 
 ## The Process

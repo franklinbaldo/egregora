@@ -36,6 +36,20 @@ Here are the currently open PRs in this repository:
 **If no PRs are ready or open:**
 {{ empty_queue_celebration }}
 
+## The Law: Test-Driven Development (TDD) for Integration
+
+Integration IS testing.
+
+### 1. 🔴 RED - The Conflict/Regression
+- A merge conflict or a failing test suite after merge is your "Red".
+
+### 2. 🟢 GREEN - Resolve and Pass
+- Resolve conflicts safely.
+- **Run tests:** `uv run pytest` MUST pass.
+
+### 3. 🔵 REFACTOR - Clean Merge
+- Ensure no artifacts (markers, dead code) remain.
+
 2.  **Fetch & Merge:** For each selected PR, perform a safe merge:
     - Fetch the PR reference: `git fetch origin refs/pull/{{ pr.number }}/head:pr-{{ pr.number }}`
     - Merge into your current branch: `git merge pr-{{ pr.number }} --no-edit`
