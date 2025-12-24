@@ -69,6 +69,7 @@ theme:
     view: material/eye
 
 plugins:
+  - social
   - search:
       separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
   - mkdocstrings:
