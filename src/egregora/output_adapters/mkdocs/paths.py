@@ -13,11 +13,11 @@ __all__ = ["MkDocsPaths", "derive_mkdocs_paths"]
 class MkDocsPaths:
     """Resolved MkDocs paths configuration (Config Over Code)."""
 
-    def __init__(self, site_root: Path, *, config: Any | None = None) -> None:
+    def __init__(self, site_root: Path, *, config: Any | None = None, site: str | None = None) -> None:
         self.site_root = site_root.expanduser().resolve()
 
         if config is None:
-            config = load_egregora_config(self.site_root)
+            config = load_egregora_config(self.site_root, site=site)
 
         self.config = config
         p = config.paths
@@ -104,12 +104,12 @@ class MkDocsPaths:
         }
 
 
-def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[str, Path]:
+def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None, site: str | None = None) -> dict[str, Path]:
     """Backwards-compatible helper returning common MkDocs paths.
 
     Prefer using :class:`MkDocsPaths` directly in new code.
     """
-    paths = MkDocsPaths(site_root, config=config)
+    paths = MkDocsPaths(site_root, config=config, site=site)
     return {
         "site_root": paths.site_root,
         "egregora_dir": paths.egregora_dir,
