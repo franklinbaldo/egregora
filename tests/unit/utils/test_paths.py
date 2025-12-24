@@ -212,5 +212,66 @@ class TestSlugifyRealWorldExamples:
         assert slugify("my-existing-slug") == "my-existing-slug"
 
 
+import pytest
+from pathlib import Path
+from egregora.utils.paths import safe_path_join, PathTraversalError
+
+
+class TestSafePathJoin:
+    """Tests for the safe_path_join function."""
+
+    def test_joins_valid_paths_correctly(self, tmp_path: Path):
+        """BEHAVIOR: Should correctly join valid, relative path parts."""
+        base = tmp_path
+        result = safe_path_join(base, "posts", "my-post.md")
+        assert result == base.resolve() / "posts" / "my-post.md"
+        assert str(result).startswith(str(base.resolve()))
+
+    def test_blocks_simple_parent_traversal(self, tmp_path: Path):
+        """BEHAVIOR: Should raise PathTraversalError for simple '../'."""
+        base = tmp_path
+        with pytest.raises(PathTraversalError, match="Path traversal detected"):
+            safe_path_join(base, "..", "some_file")
+
+    def test_blocks_complex_parent_traversal(self, tmp_path: Path):
+        """BEHAVIOR: Should raise PathTraversalError for '../etc/passwd' style attacks."""
+        base = tmp_path
+        with pytest.raises(PathTraversalError, match="Path traversal detected"):
+            safe_path_join(base, "../../etc/passwd")
+
+    def test_blocks_absolute_paths_in_parts(self, tmp_path: Path):
+        """BEHAVIOR: Should raise PathTraversalError if any part is an absolute path."""
+        base = tmp_path
+        with pytest.raises(PathTraversalError, match="Absolute paths not allowed"):
+            safe_path_join(base, "posts", "/etc/passwd")
+
+    def test_handles_empty_parts(self, tmp_path: Path):
+        """BEHAVIOR: Should handle empty strings in parts correctly."""
+        base = tmp_path
+        result = safe_path_join(base, "posts", "", "my-post.md")
+        assert result == base.resolve() / "posts" / "my-post.md"
+
+    def test_result_is_always_absolute(self, tmp_path: Path):
+        """BEHAVIOR: The resulting path should always be absolute and resolved."""
+        # a relative path for base
+        relative_base = Path(".")
+        result = safe_path_join(relative_base, "file.txt")
+        assert result.is_absolute()
+
+    def test_symlink_traversal_is_blocked(self, tmp_path: Path):
+        """BEHAVIOR: Should block traversal via symbolic links."""
+        base = tmp_path
+        outside_dir = tmp_path.parent / "outside"
+        outside_dir.mkdir()
+        outside_file = outside_dir / "secret.txt"
+        outside_file.touch()
+
+        link_dir = base / "link_to_outside"
+        link_dir.symlink_to(outside_dir, target_is_directory=True)
+
+        with pytest.raises(PathTraversalError, match="Path traversal detected"):
+            safe_path_join(base, "link_to_outside", "secret.txt")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

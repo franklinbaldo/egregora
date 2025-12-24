@@ -60,9 +60,7 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
 def safe_path_join(base_dir: Path, *parts: str) -> Path:
     r"""Safely join path parts and ensure result stays within base_dir.
 
-    Protects against path traversal attacks on all platforms by normalizing
-    path separators and validating that the resolved path is contained within
-    the base directory.
+    Protects against path traversal attacks.
 
     Args:
         base_dir: Base directory that result must stay within
@@ -73,35 +71,19 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
 
     Raises:
         PathTraversalError: If resulting path would escape base_dir
-
-    Examples:
-        >>> base = Path("/output")
-        >>> safe_path_join(base, "posts", "2025-01-01-hello.md")
-        PosixPath('/output/posts/2025-01-01-hello.md')
-        >>> safe_path_join(base, "../../etc/passwd")  # doctest: +SKIP
-        Traceback (most recent call last):
-        ...
-        PathTraversalError: Path escaped output directory
-
     """
     base_resolved = base_dir.resolve()
-    candidate = base_resolved
-    for part in parts:
-        part_path = Path(part)
-        if part_path.is_absolute():
-            msg = f"Absolute paths not allowed: {part}"
-            raise PathTraversalError(msg)
-        candidate = candidate.joinpath(part_path)
+
+    # Disallow absolute paths in subsequent parts
+    if any(Path(part).is_absolute() for part in parts):
+        raise PathTraversalError(f"Absolute paths not allowed in parts: {parts}")
+
+    candidate_path = base_resolved.joinpath(*parts)
 
     try:
-        candidate_resolved = candidate.resolve()
-    except OSError as exc:  # pragma: no cover - defensive
-        msg = f"Failed to resolve path {candidate}: {exc}"
-        raise PathTraversalError(msg) from exc
-
-    try:
+        candidate_resolved = candidate_path.resolve()
         candidate_resolved.relative_to(base_resolved)
-    except ValueError as err:
+    except (ValueError, OSError) as err:
         msg = f"Path traversal detected: joining {parts} to {base_dir} would escape base directory"
         raise PathTraversalError(msg) from err
 
