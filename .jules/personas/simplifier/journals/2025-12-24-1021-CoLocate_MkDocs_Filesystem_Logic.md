@@ -1,0 +1,3 @@
+## 📉 2025-12-24 - Co-Locate MkDocs Filesystem Logic
+**Observation:** The `src/egregora/utils/filesystem.py` module contained logic that was exclusively used by the MkDocs output adapter. This created unnecessary coupling and made the `utils` directory a junk drawer.
+**Action:** I relocated the entire `filesystem.py` module and its tests to `src/egregora/output_adapters/mkdocs/`. This co-locates the code with its only consumer, improving modularity and making the project structure easier to understand. All relevant imports were updated, and the entire test suite was run to ensure the move was safe.

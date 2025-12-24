@@ -34,7 +34,7 @@ from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvent
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 from egregora.utils.datetime_utils import parse_datetime_flexible
-from egregora.utils.filesystem import ensure_author_entries
+from egregora.output_adapters.mkdocs.filesystem import ensure_author_entries
 from egregora.utils.paths import slugify
 
 if TYPE_CHECKING:

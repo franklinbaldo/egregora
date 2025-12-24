@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from egregora.utils.filesystem import _extract_clean_date
+from egregora.output_adapters.mkdocs.filesystem import _extract_clean_date
 
 
 def test_extract_clean_date_str():
