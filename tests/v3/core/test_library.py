@@ -52,6 +52,3 @@ def test_content_library_routing(mock_library: ContentLibrary, doc_type: Documen
     for name, repo in all_repos.items():
         if name != repo_name:
             repo.save.assert_not_called()
-
-
-

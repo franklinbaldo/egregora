@@ -1,14 +1,9 @@
 """Jules Scheduler."""
 
-import os
 import sys
-import argparse
-import glob
-import subprocess
-import json
+import tomllib
 from datetime import datetime
 from pathlib import Path
-import tomllib
 
 import frontmatter
 import jinja2
@@ -71,12 +66,14 @@ CELEBRATION = """
 - **Finish the session.**
 """
 
+
 def load_schedule_registry(registry_path: Path) -> dict:
     if not registry_path.exists():
         return {}
     with open(registry_path, "rb") as f:
         data = tomllib.load(f)
     return data.get("schedules", {})
+
 
 def collect_journals(persona_dir: Path) -> str:
     """Collects all journal entries from the journals/ subdirectory."""
@@ -85,7 +82,7 @@ def collect_journals(persona_dir: Path) -> str:
         return ""
 
     # Collect all .md files, sorted by name
-    journal_files = sorted(list(journals_dir.glob("*.md")))
+    journal_files = sorted(journals_dir.glob("*.md"))
     entries = []
 
     for jf in journal_files:
@@ -104,6 +101,7 @@ def collect_journals(persona_dir: Path) -> str:
 
     return "\n".join(entries)
 
+
 def parse_prompt_file(filepath: Path, context: dict) -> dict:
     post = frontmatter.load(filepath)
     config = post.metadata
@@ -120,13 +118,11 @@ def parse_prompt_file(filepath: Path, context: dict) -> dict:
 
     title = config.get("title", "Jules Task")
     if "{{" in title:
-         title = env.from_string(title).render(**full_context)
-         config["title"] = title
+        title = env.from_string(title).render(**full_context)
+        config["title"] = title
 
-    return {
-        "config": config,
-        "prompt": rendered_body.strip()
-    }
+    return {"config": config, "prompt": rendered_body.strip()}
+
 
 def check_schedule(schedule_str: str) -> bool:
     if not schedule_str:
@@ -136,7 +132,7 @@ def check_schedule(schedule_str: str) -> bool:
     if len(parts) != 5:
         return False
 
-    min_s, hour_s, dom_s, month_s, dow_s = parts
+    _min_s, hour_s, _dom_s, _month_s, dow_s = parts
     now = datetime.utcnow()
 
     # Check Hour
@@ -145,18 +141,16 @@ def check_schedule(schedule_str: str) -> bool:
 
     # Check Day of Week
     if dow_s != "*":
-        py_dow = now.weekday() # 0=Mon
+        py_dow = now.weekday()  # 0=Mon
         cron_dow = (py_dow + 1) % 7
         if int(dow_s) != cron_dow:
             return False
 
     return True
 
+
 def run_scheduler(
-    command: str, 
-    run_all: bool = False, 
-    dry_run: bool = False, 
-    prompt_id: str | None = None
+    command: str, run_all: bool = False, dry_run: bool = False, prompt_id: str | None = None
 ) -> None:
     client = JulesClient()
     repo_info = get_repo_info()
@@ -164,26 +158,21 @@ def run_scheduler(
     registry_path = Path(".jules/schedules.toml")
 
     if not prompts_dir.exists():
-        print(f"Prompts directory {prompts_dir} not found")
         sys.exit(1)
-
-    print(f"Repo context: {repo_info}")
 
     open_prs = get_open_prs(repo_info["owner"], repo_info["repo"])
     base_context = {**repo_info, "open_prs": open_prs}
     if open_prs:
-        print(f"Fetched {len(open_prs)} open PRs for context.")
+        pass
 
     prompt_files = list(prompts_dir.glob("*/prompt.md"))
     registry = load_schedule_registry(registry_path)
-    print(f"Loaded {len(registry)} schedules from registry.")
-    print(f"Found {len(prompt_files)} persona definitions.")
 
     for p_file in prompt_files:
         try:
             persona_dir = p_file.parent
             journal_entries = collect_journals(persona_dir)
-            
+
             raw_post = frontmatter.load(p_file)
             emoji = raw_post.metadata.get("emoji", "")
 
@@ -191,7 +180,7 @@ def run_scheduler(
                 **base_context,
                 "journal_entries": journal_entries,
                 "emoji": emoji,
-                "id": raw_post.metadata.get("id", "")
+                "id": raw_post.metadata.get("id", ""),
             }
 
             parsed = parse_prompt_file(p_file, context)
@@ -207,7 +196,7 @@ def run_scheduler(
 
             if not config.get("enabled", True):
                 if prompt_id == pid:
-                    print(f"Warning: Prompt {pid} is disabled but explicitly requested.")
+                    pass
                 else:
                     continue
 
@@ -216,7 +205,6 @@ def run_scheduler(
 
             if not schedule_str and config.get("schedule"):
                 schedule_str = config.get("schedule")
-                print(f"Warning: Using deprecated frontmatter schedule for {pid}: {schedule_str}")
 
             if run_all or (prompt_id == pid):
                 should_run = True
@@ -224,25 +212,23 @@ def run_scheduler(
                 if schedule_str and check_schedule(schedule_str):
                     should_run = True
                 elif not schedule_str:
-                     pass
+                    pass
 
             if should_run:
-                print(f"Running prompt: {pid}")
                 if not dry_run:
-                    resp = client.create_session(
+                    client.create_session(
                         prompt=prompt_body,
                         owner=repo_info["owner"],
                         repo=repo_info["repo"],
                         branch=config.get("branch", "main"),
                         title=config.get("title", f"Task: {pid}"),
                         automation_mode=config.get("automation_mode", "AUTO_CREATE_PR"),
-                        require_plan_approval=config.get("require_plan_approval", False)
+                        require_plan_approval=config.get("require_plan_approval", False),
                     )
-                    print(f"Session created: {resp.get('name')}")
                 else:
-                    print(f"[Dry Run] Would create session for {pid}")
+                    pass
 
         except ValueError:
             pass
-        except Exception as e:
-            print(f"Error processing {p_file}: {e}")
+        except Exception:
+            pass

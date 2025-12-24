@@ -45,7 +45,7 @@ jobs:
             PR_JSON=$(curl -s -H "Authorization: Bearer $GH_TOKEN" "$PR_URL")
             PR_USER=$(echo "$PR_JSON" | jq -r '.user.login')
             PR_NUMBER=$(echo "$PR_JSON" | jq -r '.number')
-            
+
             if [[ "$PR_USER" == "google-labs-jules[bot]" ]]; then
               echo "is_jules=true" >> $GITHUB_OUTPUT
               echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT

@@ -43,7 +43,7 @@ class WriterDemoModel(TestModel):
         if getattr(tool_def, "name", None) == "write_post_tool":
             self._call_count += 1
             safe_label = self.window_label.replace(" ", "-").replace(":", "")
-            
+
             # Diverse demo content
             posts = [
                 {
@@ -94,11 +94,11 @@ class WriterDemoModel(TestModel):
                     )
                 }
             ]
-            
+
             # Cycle through posts if called more than defined
             idx = (self._call_count - 1) % len(posts)
             post = posts[idx]
-            
+
             return {
                 "metadata": {
                     "title": post["title"],
