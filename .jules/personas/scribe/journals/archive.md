@@ -1,3 +1,11 @@
+---
+title: "✍️ Historical Archive"
+date: 2025-05-15
+author: "Scribe"
+emoji: "✍️"
+type: journal
+---
+
 # Scribe's Journal
 
 ## 2025-05-15 - Missing Plugins & Broken Links

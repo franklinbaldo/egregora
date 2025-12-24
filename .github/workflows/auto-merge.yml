@@ -93,11 +93,13 @@ jobs:
 
       - name: Get PR metadata
         id: metadata
+        if: github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]'
         uses: dependabot/fetch-metadata@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Approve PR
+        if: github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]'
         uses: actions/github-script@v8
         with:
           script: |
@@ -115,6 +117,7 @@ jobs:
             console.log('✅ PR approved');
 
       - name: Enable auto-merge
+        if: github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]'
         uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}

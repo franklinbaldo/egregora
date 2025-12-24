@@ -1,3 +1,11 @@
+---
+title: "⚒️ Historical Archive"
+date: 2025-12-22
+author: "Forge"
+emoji: "⚒️"
+type: journal
+---
+
 ## 2025-12-22 - Refactor Core Readability CSS
 
 **Challenge:** The `TODO.ux.toml` was in an inconsistent state, with tasks marked `review` that were not properly implemented. The primary `egregora demo` and `egregora write` commands were failing due to a backend LLM error, completely blocking the standard workflow for verifying frontend changes.

@@ -7,6 +7,8 @@ import logging
 import socket
 from urllib.parse import urlparse
 
+import httpx
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_BLOCKED_IP_RANGES = (
@@ -88,22 +90,49 @@ def validate_public_url(
     allowed_schemes: tuple[str, ...] = ("http", "https"),
     blocked_ranges: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...] = DEFAULT_BLOCKED_IP_RANGES,
 ) -> None:
-    """Validate a URL to guard against SSRF attempts."""
+    """
+    Validate a URL to guard against SSRF attempts.
+
+    This function performs two checks:
+    1.  Resolves the original hostname and checks it against a blocklist.
+    2.  Makes a HEAD request to the URL, follows redirects, and validates the
+        final destination's hostname against the same blocklist.
+    """
     try:
-        parsed = urlparse(url)
+        parsed_initial = urlparse(url)
     except Exception as exc:  # pragma: no cover - urlparse rarely raises
         msg = f"Invalid URL: {exc}"
         raise SSRFValidationError(msg) from exc
 
-    if parsed.scheme not in allowed_schemes:
-        msg = f"Invalid URL scheme: {parsed.scheme}. Only {', '.join(allowed_schemes)} are allowed."
+    if parsed_initial.scheme not in allowed_schemes:
+        msg = f"Invalid URL scheme: {parsed_initial.scheme}. Only {', '.join(allowed_schemes)} are allowed."
         raise SSRFValidationError(msg)
 
-    if not parsed.hostname:
+    if not parsed_initial.hostname:
         msg = "URL must have a hostname"
         raise SSRFValidationError(msg)
 
-    for ip_addr in _resolve_host_ips(parsed.hostname):
+    # First, validate the IP of the original hostname.
+    for ip_addr in _resolve_host_ips(parsed_initial.hostname):
         _validate_ip_is_public(ip_addr, url, blocked_ranges)
+
+    # Second, follow redirects and validate the final destination.
+    try:
+        with httpx.Client() as client:
+            response = client.head(url, follow_redirects=True, timeout=10.0)
+            final_url = str(response.url)
+    except httpx.RequestError as exc:
+        msg = f"Failed to connect to URL: {exc}"
+        raise SSRFValidationError(msg) from exc
+
+    if final_url != url:
+        logger.debug("URL redirected from %s to %s", url, final_url)
+        parsed_final = urlparse(final_url)
+        if not parsed_final.hostname:
+            msg = "Redirect destination URL must have a hostname"
+            raise SSRFValidationError(msg)
+
+        for ip_addr in _resolve_host_ips(parsed_final.hostname):
+            _validate_ip_is_public(ip_addr, final_url, blocked_ranges)
 
     logger.info("URL validation passed for: %s", url)

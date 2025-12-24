@@ -1,3 +1,11 @@
+---
+title: "🔧 Historical Archive"
+date: 2024-07-25
+author: "Refactor"
+emoji: "🔧"
+type: journal
+---
+
 # Refactor Journal
 
 ## 2024-07-25 - F401, E402, I001, and pre-existing test failures

@@ -127,27 +127,40 @@ def _save_authors_yml(path: Path, authors: dict, count: int) -> None:
         logger.warning("Failed to update %s: %s", path, exc)
 
 
-def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:
-    """Save a markdown post with YAML front matter and unique slugging.
+def _prepare_frontmatter(metadata: dict[str, Any], slug: str) -> dict[str, Any]:
+    """Prepare the YAML frontmatter dictionary from post metadata.
 
-    Handles:
-    - Slug generation and collision resolution
-    - Date formatting
-    - Frontmatter serialization
-    - Author registration (side effect)
+    Args:
+        metadata: The raw metadata dictionary for the post.
+        slug: The final, resolved slug for the post.
+
+    Returns:
+        A dictionary containing the formatted frontmatter.
     """
-    required = ["title", "slug", "date"]
-    for key in required:
-        if key not in metadata:
-            msg = f"Missing required metadata: {key}"
-            raise ValueError(msg)
+    front_matter = {
+        "title": metadata["title"],
+        "slug": slug,
+        "date": format_frontmatter_datetime(metadata["date"]),
+    }
+    for key in ["tags", "summary", "authors", "category"]:
+        if key in metadata:
+            front_matter[key] = metadata[key]
+    return front_matter
 
-    output_dir.mkdir(parents=True, exist_ok=True)
 
-    raw_date = metadata["date"]
-    date_prefix = _extract_clean_date(raw_date)
+def _resolve_filepath(output_dir: Path, date_prefix: str, base_slug: str) -> tuple[Path, str]:
+    """Resolve a unique filepath and slug, handling collisions.
 
-    base_slug = slugify(metadata["slug"])
+    Appends a numeric suffix to the slug if a file with the same name already exists.
+
+    Args:
+        output_dir: The directory where the file will be saved.
+        date_prefix: The YYYY-MM-DD date prefix for the filename.
+        base_slug: The initial slug to use.
+
+    Returns:
+        A tuple containing the unique Path object and the final resolved slug.
+    """
     slug_candidate = base_slug
     filename = f"{date_prefix}-{slug_candidate}.md"
     filepath = safe_path_join(output_dir, filename)
@@ -157,19 +170,27 @@ def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path
         filename = f"{date_prefix}-{slug_candidate}.md"
         filepath = safe_path_join(output_dir, filename)
         suffix += 1
+    return filepath, slug_candidate
 
-    front_matter = {
-        "title": metadata["title"],
-        "slug": slug_candidate,
-        "date": format_frontmatter_datetime(raw_date),
-    }
 
-    # Copy optional metadata fields
-    for key in ["tags", "summary", "authors", "category"]:
-        if key in metadata:
-            front_matter[key] = metadata[key]
+def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:
+    """Save a markdown post with YAML front matter and unique slugging."""
+    required = ["title", "slug", "date"]
+    for key in required:
+        if key not in metadata:
+            msg = f"Missing required metadata: {key}"
+            raise ValueError(msg)
 
-    if "authors" in metadata:
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    date_prefix = _extract_clean_date(metadata["date"])
+    base_slug = slugify(metadata["slug"])
+
+    filepath, final_slug = _resolve_filepath(output_dir, date_prefix, base_slug)
+
+    front_matter = _prepare_frontmatter(metadata, final_slug)
+
+    if "authors" in front_matter:
         ensure_author_entries(output_dir, front_matter.get("authors"))
 
     yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
@@ -205,12 +226,16 @@ def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> in
     for md_file in posts_dir.rglob("*.md"):
         try:
             post = frontmatter.load(str(md_file))
-            if "authors" in post.metadata:
-                author_list = post.metadata["authors"]
-                if isinstance(author_list, list):
-                    all_author_ids.update(str(a) for a in author_list if a)
-                elif author_list:
-                    all_author_ids.add(str(author_list))
+            authors_meta = post.metadata.get("authors")
+            if not authors_meta:
+                continue
+
+            # Normalize to a list
+            if not isinstance(authors_meta, list):
+                authors_meta = [authors_meta]
+
+            all_author_ids.update(str(a) for a in authors_meta if a)
+
         except OSError as exc:
             logger.debug("Skipping %s: %s", md_file, exc)
             continue
