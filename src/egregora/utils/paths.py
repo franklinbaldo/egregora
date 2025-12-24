@@ -84,24 +84,18 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
         PathTraversalError: Path escaped output directory
 
     """
+    if any(Path(part).is_absolute() for part in parts):
+        absolute_part = next(part for part in parts if Path(part).is_absolute())
+        msg = f"Absolute paths not allowed: {absolute_part}"
+        raise PathTraversalError(msg)
+
     base_resolved = base_dir.resolve()
-    candidate = base_resolved
-    for part in parts:
-        part_path = Path(part)
-        if part_path.is_absolute():
-            msg = f"Absolute paths not allowed: {part}"
-            raise PathTraversalError(msg)
-        candidate = candidate.joinpath(part_path)
+    candidate_path = base_resolved.joinpath(*parts)
 
     try:
-        candidate_resolved = candidate.resolve()
-    except OSError as exc:  # pragma: no cover - defensive
-        msg = f"Failed to resolve path {candidate}: {exc}"
-        raise PathTraversalError(msg) from exc
-
-    try:
+        candidate_resolved = candidate_path.resolve()
         candidate_resolved.relative_to(base_resolved)
-    except ValueError as err:
+    except (ValueError, OSError) as err:
         msg = f"Path traversal detected: joining {parts} to {base_dir} would escape base directory"
         raise PathTraversalError(msg) from err
 
