@@ -50,16 +50,15 @@ jobs:
 
       - name: Prepare Build Environment
         run: |
-          # Set human-readable build timestamp
           BUILD_TIMESTAMP=$(date -u +'%Y-%m-%d %H:%M UTC')
           BUILD_COMMIT=${GITHUB_SHA::7}
           BUILD_WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          
+
           # Replace placeholders in mkdocs.yml
           sed -i "s|__BUILD_TIMESTAMP__|$BUILD_TIMESTAMP|g" mkdocs.yml
           sed -i "s|__BUILD_COMMIT__|$BUILD_COMMIT|g" mkdocs.yml
           sed -i "s|__BUILD_WORKFLOW_URL__|$BUILD_WORKFLOW_URL|g" mkdocs.yml
-          
+
           # Export for scripts just in case
           echo "BUILD_TIMESTAMP=$BUILD_TIMESTAMP" >> $GITHUB_ENV
           echo "BUILD_COMMIT=$BUILD_COMMIT" >> $GITHUB_ENV

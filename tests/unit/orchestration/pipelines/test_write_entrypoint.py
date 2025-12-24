@@ -1,7 +1,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from egregora.config.settings import EgregoraConfig, SiteSettings, SourceSettings
+from egregora.config.settings import SiteSettings, SourceSettings
 from egregora.constants import SourceType
 
 
@@ -18,16 +18,14 @@ def test_write_pipeline_importable():
 @patch("egregora.orchestration.pipelines.write.load_egregora_config")
 @patch("egregora.orchestration.pipelines.write._validate_api_key")
 @patch("egregora.orchestration.pipelines.write.ensure_mkdocs_project")
-def test_run_cli_flow(
-    mock_ensure_mkdocs, mock_validate_key, mock_load_config, mock_run, test_config: EgregoraConfig
-):
+def test_run_cli_flow(mock_ensure_mkdocs, mock_validate_key, mock_load_config, mock_run, config_factory):
     """
     GREEN TEST: Verify run_cli_flow executes the pipeline logic.
     """
     from egregora.orchestration.pipelines.write import run_cli_flow
 
     # Mock config
-    mock_config = test_config
+    mock_config = config_factory()
     mock_load_config.return_value = mock_config
 
     run_cli_flow(input_file=Path("test.zip"), output=Path("site"), source=SourceType.WHATSAPP.value)
@@ -49,14 +47,14 @@ def test_run_cli_flow(
 @patch("egregora.orchestration.pipelines.write._validate_api_key")
 @patch("egregora.orchestration.pipelines.write.ensure_mkdocs_project")
 def test_run_cli_flow_runs_all_sources_when_default_missing(
-    mock_ensure_mkdocs, mock_validate_key, mock_load_config, mock_run, test_config: EgregoraConfig
+    mock_ensure_mkdocs, mock_validate_key, mock_load_config, mock_run, config_factory
 ):
     """
     GREEN TEST: Ensure multiple configured sources run sequentially without repeated CLI flags.
     """
     from egregora.orchestration.pipelines.write import run_cli_flow
 
-    config = test_config
+    config = config_factory()
     config.site = SiteSettings(
         default_source=None,
         sources={
@@ -82,14 +80,14 @@ def test_run_cli_flow_runs_all_sources_when_default_missing(
 @patch("egregora.orchestration.pipelines.write._validate_api_key")
 @patch("egregora.orchestration.pipelines.write.ensure_mkdocs_project")
 def test_run_cli_flow_invalid_source_key_exits(
-    mock_ensure_mkdocs, mock_validate_key, mock_load_config, mock_run, test_config: EgregoraConfig
+    mock_ensure_mkdocs, mock_validate_key, mock_load_config, mock_run, config_factory
 ):
     """
     GREEN TEST: Unknown source keys emit a clear error and abort.
     """
     from egregora.orchestration.pipelines.write import run_cli_flow
 
-    config = test_config
+    config = config_factory()
     config.site = SiteSettings(
         default_source="missing", sources={"alpha": SourceSettings(adapter="whatsapp")}
     )

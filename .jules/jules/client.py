@@ -2,7 +2,7 @@
 
 import os
 import subprocess
-from typing import Any, Optional
+from typing import Any
 
 import requests
 from pydantic import BaseModel, ConfigDict
@@ -10,8 +10,9 @@ from pydantic import BaseModel, ConfigDict
 
 class JulesSession(BaseModel):
     """Jules Session Model."""
+
     model_config = ConfigDict(extra="ignore")
-    
+
     name: str  # sessions/UUID
     state: str
     createTime: str
@@ -20,11 +21,11 @@ class JulesSession(BaseModel):
 class JulesClient:
     """Client for Google Jules API."""
 
-    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None) -> None:
+    def __init__(self, api_key: str | None = None, base_url: str | None = None) -> None:
         """Initialize the Jules client."""
         self.api_key = api_key or os.environ.get("JULES_API_KEY")
         self.base_url = base_url or os.environ.get("JULES_BASE_URL", "https://jules.googleapis.com/v1alpha")
-        self.access_token: Optional[str] = None
+        self.access_token: str | None = None
 
     def _get_headers(self) -> dict[str, str]:
         """Get request headers with authentication."""
@@ -56,7 +57,7 @@ class JulesClient:
         owner: str,
         repo: str,
         branch: str = "main",
-        title: Optional[str] = None,
+        title: str | None = None,
         require_plan_approval: bool = False,
         automation_mode: str = "AUTO_CREATE_PR",
     ) -> dict[str, Any]:
@@ -86,7 +87,7 @@ class JulesClient:
         # Sanitize session_id if it's full resource name
         if session_id.startswith("sessions/"):
             session_id = session_id.split("/")[-1]
-            
+
         url = f"{self.base_url}/sessions/{session_id}"
         response = requests.get(url, headers=self._get_headers())
         response.raise_for_status()
@@ -103,7 +104,7 @@ class JulesClient:
         """Send a message to an active session."""
         if session_id.startswith("sessions/"):
             session_id = session_id.split("/")[-1]
-            
+
         url = f"{self.base_url}/sessions/{session_id}:sendMessage"
         data = {"message": message}
         response = requests.post(url, headers=self._get_headers(), json=data)
@@ -114,7 +115,7 @@ class JulesClient:
         """Approve a plan for a session."""
         if session_id.startswith("sessions/"):
             session_id = session_id.split("/")[-1]
-            
+
         url = f"{self.base_url}/sessions/{session_id}:approvePlan"
         response = requests.post(url, headers=self._get_headers())
         response.raise_for_status()

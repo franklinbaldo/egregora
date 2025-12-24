@@ -54,45 +54,6 @@ jobs:
         run: |
           uv run pre-commit run --all-files --show-diff-on-failure
 
-  lint-ruff-check:
-    name: Ruff (lint)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Enable debug logging
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}
-        run: |
-          echo "ACTIONS_STEP_DEBUG=true" >> $GITHUB_ENV
-          echo "ACTIONS_RUNNER_DEBUG=true" >> $GITHUB_ENV
-          echo "::notice::Debug logging enabled"
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Python environment
-        uses: ./.github/actions/setup-python-uv
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          extras: "--all-extras"
-
-      - name: Run ruff (lint)
-        run: uv run ruff check src/ tests/
-
-  lint-ruff-format:
-    name: Ruff (format)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Python environment
-        uses: ./.github/actions/setup-python-uv
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          extras: "--all-extras"
-
-      - name: Run ruff (format check)
-        run: uv run ruff format --check src/ tests/
-
   test-unit:
     name: Unit Tests (Python 3.12)
     runs-on: ubuntu-latest
@@ -231,7 +192,7 @@ jobs:
   build:
     name: Build Package
     runs-on: ubuntu-latest
-    needs: [lint-ruff-check, lint-ruff-format, test-unit, test-e2e]
+    needs: [pre-commit, test-unit, test-e2e]
     if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && (success() || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true')) }}
     timeout-minutes: 10
     steps:
@@ -283,7 +244,7 @@ jobs:
   summary:
     name: Workflow Summary
     runs-on: ubuntu-latest
-    needs: [pre-commit, lint-ruff-check, lint-ruff-format, test-unit, test-e2e, security, quality, build]
+    needs: [pre-commit, test-unit, test-e2e, security, quality, build]
     if: always()
     steps:
       - name: Post summary
@@ -294,8 +255,6 @@ jobs:
           | Job | Result |
           | --- | ------ |
           | Pre-commit Hooks | ${{ needs['pre-commit'].result }} |
-          | Ruff Lint | ${{ needs['lint-ruff-check'].result }} |
-          | Ruff Format | ${{ needs['lint-ruff-format'].result }} |
           | Unit Tests | ${{ needs['test-unit'].result }} |
           | E2E Tests | ${{ needs['test-e2e'].result }} |
           | Security | ${{ needs.security.result || 'skipped' }} |

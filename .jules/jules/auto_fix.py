@@ -1,21 +1,17 @@
 """Jules Auto-Fixer."""
 
-import sys
-import json
 from typing import Any
 
 from jules.client import JulesClient
-from jules.github import get_pr_details_via_gh, get_base_sha, fetch_failed_logs_summary
+from jules.github import fetch_failed_logs_summary, get_base_sha, get_pr_details_via_gh
 
 
 def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
-    print(f"--- Analyzing PR #{pr_number} ---")
-    
     # Use repo root as cwd for git/gh commands
-    repo_root = "." 
-    
+    repo_root = "."
+
     details = get_pr_details_via_gh(pr_number, repo_path=repo_root)
-    
+
     if details.get("passed_all_checks") and not details.get("has_conflicts"):
         return {"status": "success", "message": "PR is healthy."}
 
@@ -36,7 +32,7 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
 
     client = JulesClient()
     session_id = details.get("session_id")
-    
+
     autonomous_instruction = (
         "\n\n**🤖 CRITICAL - Full Autonomy Required:**\n"
         "- **NEVER ask humans for help, approval, or implementation decisions**\n"
@@ -51,19 +47,18 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
             session = client.get_session(session_id)
             state = session.get("state")
             if state not in ["COMPLETED", "FAILED"]:
-                print(f"Sending feedback to active Jules Session {session_id}...")
-                client.send_message(session_id, f"Hi Jules! Please fix these issues in PR #{pr_number}:\n\n{feedback}{autonomous_instruction}")
+                client.send_message(
+                    session_id,
+                    f"Hi Jules! Please fix these issues in PR #{pr_number}:\n\n{feedback}{autonomous_instruction}",
+                )
                 return {"status": "success", "action": "messaged_active_session", "session_id": session_id}
-            else:
-                print(f"Session {session_id} is {state}. Starting a new follow-up session...")
-        except Exception as e:
-            print(f"Could not message session {session_id}: {e}. Falling back to new session.")
+        except Exception:
+            pass
 
     # 2. Start a NEW session
-    print("Creating a new Jules session for fixes...")
     base_sha = get_base_sha(details["base_branch"], repo_path=repo_root)
     files_list = "\n".join([f"- {f}" for f in details["changed_files"]])
-    
+
     new_prompt = (
         f"FIX REQUEST for Pull Request #{pr_number}: {details['title']}\n\n"
         f"## Context\n"
@@ -79,21 +74,21 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
         f"{autonomous_instruction}\n"
         f"Please checkout the branch `{details['branch']}`, investigate the failures, fix them, and push an update."
     )
-    
+
     try:
         new_session = client.create_session(
             prompt=new_prompt,
-            owner="franklinbaldo", # TODO: parameterize
-            repo="egregora",       # TODO: parameterize
+            owner="franklinbaldo",  # TODO: parameterize
+            repo="egregora",  # TODO: parameterize
             branch=details["branch"],
             title=f"Fix #{pr_number}: {details['title']}",
-            automation_mode="AUTO_CREATE_PR"
+            automation_mode="AUTO_CREATE_PR",
         )
         return {
-            "status": "success", 
-            "action": "created_new_session", 
-            "new_session_id": new_session.get("name"), # Resource name
+            "status": "success",
+            "action": "created_new_session",
+            "new_session_id": new_session.get("name"),  # Resource name
             "branch": details["branch"],
         }
     except Exception as e:
-        return {"error": f"Failed to start new session: {str(e)}"}
+        return {"error": f"Failed to start new session: {e!s}"}
