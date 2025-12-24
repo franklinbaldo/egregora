@@ -212,7 +212,7 @@ class MkDocsSiteScaffolder:
             (site_root / ".github" / "workflows" / "publish.yml", ".github/workflows/publish.yml.jinja"),
             (docs_dir / "index.md", "docs/index.md.jinja"),
             (docs_dir / "about.md", "docs/about.md.jinja"),
-            (media_dir / "index.md", "docs/media/index.md.jinja"),
+            (media_dir / "index.md", "docs/posts/media/index.md.jinja"),
             (site_paths.blog_root_dir / "index.md", "docs/posts/index.md.jinja"),
             (site_paths.blog_root_dir / "tags.md", "docs/posts/tags.md.jinja"),
             (site_paths.profiles_dir / "index.md", "docs/profiles/index.md.jinja"),
