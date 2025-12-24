@@ -1,0 +1,64 @@
+name: Jules Auto-Fixer
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to analyze'
+        required: true
+        type: string
+
+jobs:
+  auto-fix:
+    runs-on: ubuntu-latest
+    # Run if CI failed OR if manually triggered
+    if: ${{ github.event.workflow_run.conclusion == 'failure' || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: "3.12"
+          extras: "--all-extras"
+
+      - name: Identify PR
+        id: pr-info
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "pr_number=${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
+            echo "is_jules=true" >> $GITHUB_OUTPUT
+          else
+            # Get the PR number associated with this workflow run
+            PR_URL="${{ github.event.workflow_run.pull_requests[0].url }}"
+            if [[ -z "$PR_URL" ]]; then
+               echo "No PR found in workflow_run event."
+               exit 1
+            fi
+            PR_JSON=$(curl -s -H "Authorization: Bearer $GH_TOKEN" "$PR_URL")
+            PR_USER=$(echo "$PR_JSON" | jq -r '.user.login')
+            PR_NUMBER=$(echo "$PR_JSON" | jq -r '.number')
+            
+            if [[ "$PR_USER" == "google-labs-jules[bot]" ]]; then
+              echo "is_jules=true" >> $GITHUB_OUTPUT
+              echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+            else
+              echo "is_jules=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Trigger Jules Auto-Fix
+        if: steps.pr-info.outputs.is_jules == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+          PYTHONPATH: .jules
+        run: |
+          uv run --with requests --with typer --with pydantic python -m jules.cli autofix analyze ${{ steps.pr-info.outputs.pr_number }}

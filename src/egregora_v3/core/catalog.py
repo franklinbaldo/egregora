@@ -63,10 +63,14 @@ class ContentLibrary(BaseModel):
 
     def get_repo(self, doc_type: DocumentType) -> DocumentRepository:
         """Get the repository for a given document type."""
-        # Use the map with a safe fallback to the 'posts' repository.
-        repo = self._repo_map.get(doc_type)
-        if repo:
-            return repo
+        # Explicit over implicit: Fail fast if the type is unknown.
+        try:
+            return self._repo_map[doc_type]
+        except KeyError:
+            # Re-raise with a more informative message
+            raise KeyError(f"No repository registered for DocumentType: {doc_type.value}") from None
 
-        logger.warning("Unknown document type %s, defaulting to posts repo", doc_type)
-        return self.posts
+    def count(self, doc_type: DocumentType) -> int:
+        """Count documents of a specific type."""
+        repo = self.get_repo(doc_type)
+        return repo.count(doc_type=doc_type)

@@ -3,6 +3,12 @@ name: Auto-merge dependency and bot updates
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to auto-merge'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -12,34 +18,62 @@ jobs:
   auto-merge:
     name: Enable auto-merge for dependency and bot PRs
     runs-on: ubuntu-latest
-    # Run for dependabot, renovate, or Jules bot PRs
+    # Run for dependabot, renovate, or Jules bot PRs, or if manually triggered
     if: |
+      github.event_name == 'workflow_dispatch' ||
       github.actor == 'dependabot[bot]' ||
       github.actor == 'renovate[bot]' ||
       github.actor == 'google-labs-jules[bot]'
 
     steps:
-      # SECURITY: Validate that PR only modifies dependency files for dependency bots
-      # Skip validation for Jules bot (creates code PRs, not dependency PRs)
-      - name: Validate PR changes
-        if: github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]'
+      # Identify PR info for manual trigger
+      - name: Identify PR
+        id: pr-info
         uses: actions/github-script@v8
         with:
           script: |
+            let pull_number;
+            let pr_data;
+            if (context.eventName === 'workflow_dispatch') {
+              pull_number = parseInt(context.payload.inputs.pr_number);
+              const { data: pullRequest } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pull_number
+              });
+              pr_data = pullRequest;
+            } else {
+              pr_data = context.payload.pull_request;
+              pull_number = pr_data.number;
+            }
+            
+            core.setOutput('number', pull_number);
+            core.setOutput('node_id', pr_data.node_id);
+            core.setOutput('draft', pr_data.draft);
+            core.setOutput('actor', pr_data.user.login);
+
+      # SECURITY: Validate that PR only modifies dependency files for dependency bots
+      - name: Validate PR changes
+        if: |
+          (github.event_name == 'workflow_dispatch' && (fromJSON(steps.pr-info.outputs.result).actor == 'dependabot[bot]' || fromJSON(steps.pr-info.outputs.result).actor == 'renovate[bot]')) ||
+          (github.event_name != 'workflow_dispatch' && (github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]'))
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const prInfo = JSON.parse('${{ steps.pr-info.outputs.result }}');
             const { data: files } = await github.rest.pulls.listFiles({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: context.issue.number
+              pull_number: prInfo.number
             });
 
-            // Only allow changes to dependency files for dependabot/renovate
             const allowedPatterns = [
-              /^package\.json$/,
-              /^package-lock\.json$/,
-              /^pyproject\.toml$/,
-              /^uv\.lock$/,
-              /^requirements.*\.txt$/,
-              /^\.github\/workflows\/.*\.yml$/  // Allow workflow updates from bots
+              /^package.json$/,
+              /^package-lock.json$/,
+              /^pyproject.toml$/,
+              /^uv.lock$/,
+              /^requirements.*.txt$/,
+              /^.github/workflows/.*.yml$/
             ];
 
             const unauthorizedFiles = files.filter(file =>
@@ -49,49 +83,35 @@ jobs:
             if (unauthorizedFiles.length > 0) {
               const fileList = unauthorizedFiles.map(f => f.filename).join(', ');
               core.setFailed(`PR contains unauthorized file changes: ${fileList}`);
-
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: `⚠️ **Auto-merge blocked**: This PR modifies files outside of dependency files.\n\nUnauthorized files: ${fileList}\n\nPlease review manually.`
-              });
-            } else {
-              console.log('✅ All file changes are in allowed dependency files');
             }
 
       - name: Convert draft to ready for review
         uses: actions/github-script@v8
         with:
           script: |
+            const prInfo = JSON.parse('${{ steps.pr-info.outputs.result }}');
             const { owner, repo } = context.repo;
-            const pull_number = context.payload.pull_request.number;
-            const isDraft = context.payload.pull_request.draft;
 
-            if (isDraft) {
+            if (prInfo.draft) {
               console.log('📝 PR is a draft, converting to ready for review...');
-
               await github.rest.pulls.update({
                 owner,
                 repo,
-                pull_number,
+                pull_number: prInfo.number,
                 draft: false
               });
-
-              console.log('✅ PR converted to ready for review');
-
               await github.rest.issues.createComment({
                 owner,
                 repo,
-                issue_number: pull_number,
+                issue_number: prInfo.number,
                 body: '🤖 **Draft converted to ready for review**\n\nThis PR has been automatically marked as ready for review and will be auto-merged when CI passes.'
               });
-            } else {
-              console.log('✅ PR is already ready for review');
-            }
 
       - name: Get PR metadata
         id: metadata
+        if: | 
+          (github.event_name == 'workflow_dispatch' && fromJSON(steps.pr-info.outputs.result).actor == 'dependabot[bot]') ||
+          (github.event_name != 'workflow_dispatch' && github.actor == 'dependabot[bot]')
         uses: dependabot/fetch-metadata@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -100,96 +120,58 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
+            const prInfo = JSON.parse('${{ steps.pr-info.outputs.result }}');
             const { owner, repo } = context.repo;
-            const pull_number = context.payload.pull_request.number;
-            const actor = context.actor;
+            const actor = prInfo.actor;
 
-            let approvalMessage = '✅ Auto-approved by CI workflow';
-            if (actor === 'google-labs-jules[bot]') {
-              approvalMessage = '✅ Auto-approved by CI workflow - Jules bot update';
-            } else {
-              approvalMessage = '✅ Auto-approved by CI workflow - dependency update';
-            }
+            let approvalMessage = actor === 'google-labs-jules[bot]'
+              ? '✅ Auto-approved by CI workflow - Jules bot update'
+              : '✅ Auto-approved by CI workflow - dependency update';
 
             await github.rest.pulls.createReview({
               owner,
               repo,
-              pull_number,
+              pull_number: prInfo.number,
               event: 'APPROVE',
               body: approvalMessage
             });
-
-            console.log('✅ PR approved');
 
       - name: Enable auto-merge
         uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const prInfo = JSON.parse('${{ steps.pr-info.outputs.result }}');
             const { owner, repo } = context.repo;
-            const pull_number = context.payload.pull_request.number;
-            const actor = context.actor;
+            const actor = prInfo.actor;
             const updateType = '${{ steps.metadata.outputs.update-type }}';
 
-            console.log(`Actor: ${actor}`);
-            console.log(`Update type: ${updateType}`);
-
-            // Auto-merge conditions:
-            // 1. It's Jules bot
-            // 2. It's a minor/patch dependency update
             const shouldAutoMerge = (actor === 'google-labs-jules[bot]') ||
                                     (updateType === 'version-update:semver-patch' ||
                                      updateType === 'version-update:semver-minor');
 
             if (shouldAutoMerge) {
               try {
-                // Enable GitHub's native auto-merge feature
                 await github.graphql(`
                   mutation($pullRequestId: ID!) {
                     enablePullRequestAutoMerge(input: {
                       pullRequestId: $pullRequestId,
                       mergeMethod: SQUASH
                     }) {
-                      pullRequest {
-                        autoMergeRequest {
-                          enabledAt
-                        }
-                      }
+                      pullRequest { autoMergeRequest { enabledAt } }
                     }
                   }
                 `, {
-                  pullRequestId: context.payload.pull_request.node_id
+                  pullRequestId: prInfo.node_id
                 });
-
-                console.log('✅ Auto-merge enabled - PR will merge when all checks pass');
-
-                let mergeReason = '';
-                if (actor === 'google-labs-jules[bot]') {
-                  mergeReason = 'Jules bot update';
-                } else {
-                  mergeReason = `dependency update (${updateType})`;
-                }
 
                 await github.rest.issues.createComment({
                   owner,
                   repo,
-                  issue_number: pull_number,
-                  body: `🤖 **Auto-merge enabled**\n\nThis PR will automatically merge when all required checks pass.\n\n_Reason: ${mergeReason}_`
+                  issue_number: prInfo.number,
+                  body: `🤖 **Auto-merge enabled**\n\nThis PR will automatically merge when all required checks pass.\n\n_Reason: ${actor === 'google-labs-jules[bot]' ? 'Jules bot update' : 'dependency update'}_`
                 });
-
               } catch (error) {
                 console.log(`⚠️ Could not enable auto-merge: ${error.message}`);
-                console.log('Note: Auto-merge requires branch protection rules to be enabled');
-              }
-            } else {
-              console.log(`⏭️ Skipping auto-merge - conditions not met`);
-
-              if (actor !== 'google-labs-jules[bot]') {
-                await github.rest.issues.createComment({
-                  owner,
-                  repo,
-                  issue_number: pull_number,
-                  body: `ℹ️ **Manual review required**\n\nThis is a ${updateType} update, which requires manual approval before merging.`
-                });
               }
             }

@@ -145,3 +145,41 @@ def test_get_polymorphism(repo):
 
     val = repo.get(ent.id)
     assert val is None
+
+
+def test_get_entry_distinguishes_document_from_entry(repo):
+    """
+    Test that get_entry correctly identifies and returns a Document instance
+    when the stored item is a Document, and an Entry instance otherwise.
+    This test locks in the current behavior before refactoring.
+    """
+    # Arrange
+    doc_id = "test-doc"
+    entry_id = "test-entry"
+
+    document = Document.create(
+        doc_type=DocumentType.POST,
+        title="A Post",
+        content="This is a post."
+    )
+    document.id = doc_id
+
+    entry = Entry(
+        id=entry_id,
+        title="An Entry",
+        updated=datetime.now(UTC)
+    )
+
+    repo.save(document)
+    repo.save_entry(entry)
+
+    # Act
+    retrieved_doc = repo.get_entry(doc_id)
+    retrieved_entry = repo.get_entry(entry_id)
+
+    # Assert
+    assert isinstance(retrieved_doc, Document)
+    assert not isinstance(retrieved_entry, Document)
+    assert isinstance(retrieved_entry, Entry)
+    assert retrieved_doc.id == doc_id
+    assert retrieved_entry.id == entry_id
