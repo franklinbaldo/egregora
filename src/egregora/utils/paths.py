@@ -100,5 +100,3 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
         raise PathTraversalError(msg) from err
 
     return candidate_resolved
-
-

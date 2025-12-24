@@ -186,10 +186,10 @@ def test_checkpoint_operations(tmp_path):
     assert load_checkpoint(checkpoint_path) is None
 
 
-def test_generate_window_signature():
+def test_generate_window_signature(test_config: EgregoraConfig):
     """Test window signature generation."""
     table = create_test_table(10)
-    config = EgregoraConfig()
+    config = test_config
 
     # Mock build_conversation_xml to return deterministic XML
     with patch("egregora.transformations.windowing.build_conversation_xml") as mock_build_xml:
