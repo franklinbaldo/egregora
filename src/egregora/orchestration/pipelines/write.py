@@ -16,7 +16,7 @@ import json
 import logging
 import os
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
 from pathlib import Path
@@ -33,7 +33,13 @@ from rich.panel import Panel
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.config import RuntimeContext, load_egregora_config
-from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
+from egregora.config.settings import (
+    EgregoraConfig,
+    SiteSettings,
+    SourceSettings,
+    parse_date_arg,
+    validate_timezone,
+)
 from egregora.constants import SourceType, WindowUnit
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database import initialize_database
@@ -108,7 +114,7 @@ class WriteCommandOptions:
     """Options for the write command."""
 
     input_file: Path
-    source: SourceType
+    source: str | None
     output: Path
     step_size: int
     step_unit: WindowUnit
@@ -202,10 +208,12 @@ def _validate_api_key(output_dir: Path) -> None:
 
 
 def _prepare_write_config(
-    options: WriteCommandOptions, from_date_obj: date_type | None, to_date_obj: date_type | None
+    options: WriteCommandOptions,
+    from_date_obj: date_type | None,
+    to_date_obj: date_type | None,
+    base_config: EgregoraConfig,
 ) -> Any:
     """Prepare Egregora configuration from options."""
-    base_config = load_egregora_config(options.output)
     models_update: dict[str, str] = {}
     if options.model:
         models_update = {
@@ -239,6 +247,54 @@ def _prepare_write_config(
     )
 
 
+def _resolve_sources_to_run(config: EgregoraConfig, requested_key: str | None) -> list[tuple[str, SourceSettings]]:
+    """Return the ordered list of sources to execute for this run."""
+    site: SiteSettings = getattr(config, "site", None)
+    if site is None or not site.sources:
+        msg = "No sources configured under [site.sources] in .egregora.toml"
+        raise ValueError(msg)
+
+    if requested_key:
+        if requested_key in site.sources:
+            return [(requested_key, site.sources[requested_key])]
+        available = ", ".join(sorted(site.sources))
+        msg = f"Unknown source key '{requested_key}'. Available sources: {available or 'none'}."
+        raise ValueError(msg)
+
+    if site.default_source:
+        if site.default_source not in site.sources:
+            msg = (
+                f"Configured default_source '{site.default_source}' not found in [site.sources]. "
+                "Update .egregora.toml or pass --source to select a valid source key."
+            )
+            raise ValueError(msg)
+        return [(site.default_source, site.sources[site.default_source])]
+
+    # Run all configured sources when no default is set
+    return [(key, site.sources[key]) for key in sorted(site.sources)]
+
+
+def _merge_source_overrides(
+    options: WriteCommandOptions, *, source_key: str, source_settings: SourceSettings
+) -> WriteCommandOptions:
+    """Apply per-source overrides, ensuring adapter selection is taken from config."""
+    overrides = source_settings.overrides
+    return replace(
+        options,
+        source=source_settings.adapter,
+        step_size=overrides.step_size or options.step_size,
+        step_unit=overrides.step_unit or options.step_unit,
+        overlap=overrides.overlap_ratio if overrides.overlap_ratio is not None else options.overlap,
+        enable_enrichment=overrides.enable_enrichment
+        if overrides.enable_enrichment is not None
+        else options.enable_enrichment,
+        from_date=overrides.from_date or options.from_date,
+        to_date=overrides.to_date or options.to_date,
+        timezone=overrides.timezone or options.timezone,
+        max_windows=overrides.max_windows if overrides.max_windows is not None else options.max_windows,
+    )
+
+
 def _resolve_write_options(
     input_file: Path,
     options_json: str | None,
@@ -253,9 +309,7 @@ def _resolve_write_options(
             overrides = json.loads(options_json)
             # Update with JSON overrides, converting enums if strings
             for k, v in overrides.items():
-                if k == "source" and isinstance(v, str):
-                    defaults[k] = SourceType(v)
-                elif k == "step_unit" and isinstance(v, str):
+                if k == "step_unit" and isinstance(v, str):
                     defaults[k] = WindowUnit(v)
                 elif k == "output" and isinstance(v, str):
                     defaults[k] = Path(v)
@@ -272,7 +326,7 @@ def run_cli_flow(
     input_file: Path,
     *,
     output: Path = Path("site"),
-    source: SourceType = SourceType.WHATSAPP,
+    source: str | None = None,
     step_size: int = 100,
     step_unit: WindowUnit = WindowUnit.MESSAGES,
     overlap: float = 0.0,
@@ -321,28 +375,6 @@ def run_cli_flow(
     if parsed_options.debug:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    from_date_obj, to_date_obj = None, None
-    if parsed_options.from_date:
-        try:
-            from_date_obj = parse_date_arg(parsed_options.from_date, "from_date")
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise SystemExit(1) from e
-    if parsed_options.to_date:
-        try:
-            to_date_obj = parse_date_arg(parsed_options.to_date, "to_date")
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise SystemExit(1) from e
-
-    if parsed_options.timezone:
-        try:
-            validate_timezone(parsed_options.timezone)
-            console.print(f"[green]Using timezone: {parsed_options.timezone}[/green]")
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise SystemExit(1) from e
-
     output_dir = parsed_options.output.expanduser().resolve()
 
     # Ensure MkDocs project exists (imported logic)
@@ -364,7 +396,12 @@ def run_cli_flow(
 
     _validate_api_key(output_dir)
 
-    egregora_config = _prepare_write_config(parsed_options, from_date_obj, to_date_obj)
+    base_config = load_egregora_config(output_dir)
+    try:
+        sources_to_run = _resolve_sources_to_run(base_config, parsed_options.source)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise SystemExit(1) from exc
 
     runtime = RuntimeContext(
         output_dir=output_dir,
@@ -373,28 +410,60 @@ def run_cli_flow(
         debug=parsed_options.debug,
     )
 
-    try:
-        console.print(
-            Panel(
-                f"[cyan]Source:[/cyan] {parsed_options.source.value}\n[cyan]Input:[/cyan] {parsed_options.input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {parsed_options.step_size} {parsed_options.step_unit.value}",
-                title="⚙️  Egregora Pipeline",
-                border_style="cyan",
+    for source_key, source_settings in sources_to_run:
+        merged_options = _merge_source_overrides(parsed_options, source_key=source_key, source_settings=source_settings)
+
+        from_date_obj, to_date_obj = None, None
+        if merged_options.from_date:
+            try:
+                from_date_obj = parse_date_arg(merged_options.from_date, "from_date")
+            except ValueError as e:
+                console.print(f"[red]{e}[/red]")
+                raise SystemExit(1) from e
+        if merged_options.to_date:
+            try:
+                to_date_obj = parse_date_arg(merged_options.to_date, "to_date")
+            except ValueError as e:
+                console.print(f"[red]{e}[/red]")
+                raise SystemExit(1) from e
+
+        if merged_options.timezone:
+            try:
+                validate_timezone(merged_options.timezone)
+                console.print(f"[green]Using timezone: {merged_options.timezone}[/green]")
+            except ValueError as e:
+                console.print(f"[red]{e}[/red]")
+                raise SystemExit(1) from e
+
+        egregora_config = _prepare_write_config(merged_options, from_date_obj, to_date_obj, base_config)
+
+        try:
+            console.print(
+                Panel(
+                    f"[cyan]Source key:[/cyan] {source_key}\n"
+                    f"[cyan]Adapter:[/cyan] {merged_options.source}\n"
+                    f"[cyan]Input:[/cyan] {merged_options.input_file}\n"
+                    f"[cyan]Output:[/cyan] {output_dir}\n"
+                    f"[cyan]Windowing:[/cyan] {merged_options.step_size} {merged_options.step_unit.value}",
+                    title="⚙️  Egregora Pipeline",
+                    border_style="cyan",
+                )
             )
-        )
-        run_params = PipelineRunParams(
-            output_dir=runtime.output_dir,
-            config=egregora_config,
-            source_type=parsed_options.source.value,
-            input_path=runtime.input_file,
-            refresh="all" if parsed_options.force else parsed_options.refresh,
-            is_demo=is_demo,
-        )
-        run(run_params)
-        console.print("[green]Processing completed successfully.[/green]")
-    except Exception as e:
-        console.print_exception(show_locals=False)
-        console.print(f"[red]Pipeline failed: {e}[/]")
-        raise SystemExit(1) from e
+            run_params = PipelineRunParams(
+                output_dir=runtime.output_dir,
+                config=egregora_config,
+                source_type=merged_options.source,
+                source_key=source_key,
+                input_path=runtime.input_file,
+                refresh="all" if merged_options.force else merged_options.refresh,
+                is_demo=is_demo,
+            )
+            run(run_params)
+            console.print(f"[green]Processing completed successfully for source '{source_key}'.[/green]")
+        except Exception as e:
+            console.print_exception(show_locals=False)
+            console.print(f"[red]Pipeline failed for source '{source_key}': {e}[/]")
+            raise SystemExit(1) from e
 
 
 def process_whatsapp_export(
@@ -753,6 +822,8 @@ def _parse_and_validate_source(
     timezone: str,
     *,
     output_adapter: OutputSink | None = None,
+    source_key: str | None = None,
+    source_type: str | None = None,
 ) -> ir.Table:
     """Parse source and return messages table.
 
@@ -766,7 +837,9 @@ def _parse_and_validate_source(
         messages_table: Parsed messages table
 
     """
-    logger.info("[bold cyan]📦 Parsing with adapter:[/] %s", adapter.source_name)
+    key_label = f"[{source_key}] " if source_key else ""
+    adapter_label = source_type or getattr(adapter, "source_name", "")
+    logger.info("[bold cyan]📦 Parsing with adapter:[/] %s%s", key_label, adapter_label)
     messages_table = adapter.parse(input_path, timezone=timezone, output_adapter=output_adapter)
     total_messages = messages_table.count().execute()
     logger.info("[green]✅ Parsed[/] %s messages", total_messages)
@@ -904,7 +977,12 @@ def _prepare_pipeline_data(
     ctx = ctx.with_output_format(output_format)
 
     messages_table = _parse_and_validate_source(
-        adapter, run_params.input_path, timezone, output_adapter=output_format
+        adapter,
+        run_params.input_path,
+        timezone,
+        output_adapter=output_format,
+        source_key=run_params.source_key,
+        source_type=run_params.source_type,
     )
     _setup_content_directories(ctx)
     messages_table = _process_commands_and_avatars(messages_table, ctx, vision_model)
@@ -1259,13 +1337,22 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
         Dict mapping window labels to {'posts': [...], 'profiles': [...]}
 
     """
-    logger.info("[bold cyan]🚀 Starting pipeline for source:[/] %s", run_params.source_type)
+    if run_params.source_key:
+        logger.info(
+            "[bold cyan]🚀 Starting pipeline for source:[/] %s (adapter=%s)",
+            run_params.source_key,
+            run_params.source_type,
+        )
+    else:
+        logger.info("[bold cyan]🚀 Starting pipeline for adapter:[/] %s", run_params.source_type)
 
     # Create adapter with config for privacy settings
     # Instead of using singleton from registry, instantiate with config
     adapter_cls = ADAPTER_REGISTRY.get(run_params.source_type)
     if adapter_cls is None:
-        msg = f"Unknown source type: {run_params.source_type}"
+        msg = f"Unknown source type '{run_params.source_type}'"
+        if run_params.source_key:
+            msg += f" (from source key '{run_params.source_key}')"
         raise ValueError(msg)
 
     # Instantiate adapter with config if it supports it (WhatsApp does)

@@ -39,7 +39,7 @@ import tomli_w
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from egregora.constants import WindowUnit
+from egregora.constants import SourceType, WindowUnit
 
 logger = logging.getLogger(__name__)
 
@@ -477,6 +477,77 @@ class OutputSettings(BaseModel):
     )
 
 
+class SourceOverrideSettings(BaseModel):
+    """Per-source overrides for pipeline execution.
+
+    Allows fine-grained control of windowing, enrichment, and date ranges
+    without requiring repeated CLI flags.
+    """
+
+    step_size: int | None = Field(
+        default=None,
+        ge=1,
+        description="Override pipeline.step_size for this source (messages or time units)",
+    )
+    step_unit: WindowUnit | None = Field(
+        default=None,
+        description="Override pipeline.step_unit for this source",
+    )
+    overlap_ratio: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=0.5,
+        description="Override pipeline.overlap_ratio for this source",
+    )
+    enable_enrichment: bool | None = Field(
+        default=None,
+        description="Enable or disable enrichment for this source",
+    )
+    from_date: str | None = Field(
+        default=None,
+        description="Start date filter override (YYYY-MM-DD)",
+    )
+    to_date: str | None = Field(
+        default=None,
+        description="End date filter override (YYYY-MM-DD)",
+    )
+    timezone: str | None = Field(
+        default=None,
+        description="Timezone override for timestamp parsing",
+    )
+    max_windows: int | None = Field(
+        default=None,
+        ge=0,
+        description="Limit maximum windows for this source (0/None = all)",
+    )
+
+
+class SourceSettings(BaseModel):
+    """Configuration for a single input source."""
+
+    adapter: str = Field(
+        default=SourceType.WHATSAPP.value,
+        description="Adapter identifier registered in the input adapter registry",
+    )
+    overrides: SourceOverrideSettings = Field(
+        default_factory=SourceOverrideSettings,
+        description="Optional per-source pipeline overrides",
+    )
+
+
+class SiteSettings(BaseModel):
+    """Site-level configuration including configured sources."""
+
+    default_source: str | None = Field(
+        default="whatsapp",
+        description="Default source key to run when none is provided (set to null to run all configured sources)",
+    )
+    sources: dict[str, SourceSettings] = Field(
+        default_factory=lambda: {"whatsapp": SourceSettings(adapter=SourceType.WHATSAPP.value)},
+        description="Mapping of source keys to adapter configuration and overrides",
+    )
+
+
 class DatabaseSettings(BaseModel):
     """Database configuration for pipeline and observability.
 
@@ -620,6 +691,10 @@ class EgregoraConfig(BaseSettings):
     paths: PathsSettings = Field(
         default_factory=PathsSettings,
         description="Site directory paths (relative to site root)",
+    )
+    site: SiteSettings = Field(
+        default_factory=SiteSettings,
+        description="Site-level settings including configured sources",
     )
     database: DatabaseSettings = Field(
         default_factory=DatabaseSettings,
@@ -1121,6 +1196,9 @@ __all__ = [
     "RAGSettings",
     "ReaderSettings",
     "RuntimeContext",
+    "SiteSettings",
+    "SourceOverrideSettings",
+    "SourceSettings",
     "WriterAgentSettings",
     "WriterRuntimeConfig",
     "create_default_config",

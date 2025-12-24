@@ -38,9 +38,12 @@ from egregora.config.settings import (
     ModelType,
     PipelineEnrichmentConfig,
     PipelineSettings,
+    SiteSettings,
     # Runtime dataclasses (for function parameters, not persisted)
     RAGSettings,
     RuntimeContext,  # Minimal runtime-only context
+    SourceOverrideSettings,
+    SourceSettings,
     WriterAgentSettings,
     # Config loading/saving functions
     create_default_config,
@@ -59,8 +62,11 @@ __all__ = [
     "ModelType",
     "PipelineEnrichmentConfig",
     "PipelineSettings",
+    "SiteSettings",
     "RAGSettings",
     "RuntimeContext",
+    "SourceOverrideSettings",
+    "SourceSettings",
     "WriterAgentSettings",
     "create_default_config",
     "find_egregora_config",
