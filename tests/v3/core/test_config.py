@@ -1,72 +1,66 @@
 from pathlib import Path
+import os
+import pytest
+from egregora_v3.core.config import EgregoraConfig
 
-from egregora_v3.core.config import EgregoraConfig, PathsSettings
-
-
-def test_default_config():
-    """Test default configuration uses current working directory."""
-    config = EgregoraConfig()
-    assert config.models.writer == "google-gla:gemini-2.0-flash"
-    # site_root defaults to CWD
-    assert config.paths.site_root == Path.cwd()
-
-
-def test_path_resolution(tmp_path):
-    site_root = tmp_path / "mysite"
-    paths = PathsSettings(site_root=site_root, posts_dir=Path("content/posts"))
-
-    assert paths.abs_posts_dir == site_root / "content/posts"
-    assert paths.abs_db_path == site_root / ".egregora/pipeline.duckdb"
-
-
-def test_load_from_toml(tmp_path):
-    # Setup a mock site
-    site_root = tmp_path / "mysite"
-    site_root.mkdir(parents=True)
-
-    config_file = site_root / ".egregora.toml"
-    config_file.write_text(
-        """
+def test_config_loading_post_refactor(tmp_path: Path):
+    """
+    Test that EgregoraConfig correctly loads configuration using
+    pydantic-settings's declarative TOML loading.
+    """
+    # 1. Create a dummy config file in the temp path
+    config_content = """
 [models]
-writer = "custom-model"
-        """
-    )
+writer = "toml-writer-model"
+enricher = "toml-enricher-model"
+"""
+    config_file = tmp_path / ".egregora.toml"
+    config_file.write_text(config_content)
 
-    # Load config
-    config = EgregoraConfig.load(site_root)
+    # 2. Set environment variables
+    os.environ["EGREGORA_MODELS__WRITER"] = "env-writer-model"
+    os.environ["EGREGORA_PATHS__POSTS_DIR"] = "env/posts"
 
-    assert config.models.writer == "custom-model"
-    assert config.paths.site_root == site_root
-    assert config.paths.abs_posts_dir == site_root / "posts"
+    # 3. Change working directory to tmp_path to simulate running from site root
+    original_cwd = Path.cwd()
+    os.chdir(tmp_path)
+
+    try:
+        # 4. Load the config (pydantic-settings finds it automatically)
+        config = EgregoraConfig()
+
+        # 5. Assertions
+        # Env var should override TOML
+        assert config.models.writer == "env-writer-model"
+        # Value from TOML
+        assert config.models.enricher == "toml-enricher-model"
+        # Default value
+        assert config.models.embedding == "models/gemini-embedding-001"
+        # Env var for a different section
+        assert config.paths.posts_dir == Path("env/posts")
+        # site_root should default to the current working directory (tmp_path)
+        assert config.paths.site_root == tmp_path
+
+    finally:
+        # 6. Clean up environment variables and restore CWD
+        os.chdir(original_cwd)
+        del os.environ["EGREGORA_MODELS__WRITER"]
+        del os.environ["EGREGORA_PATHS__POSTS_DIR"]
 
 
-def test_load_missing_file(tmp_path):
-    """Test loading from directory without config file (explicit path)."""
-    site_root = tmp_path / "empty_site"
-    site_root.mkdir()
+def test_paths_settings_resolve(tmp_path: Path):
+    """
+    Test the PathSettings.resolve method for both relative and absolute paths.
+    """
+    # 1. Create a config with site_root set to a temporary directory
+    config = EgregoraConfig(paths={"site_root": tmp_path})
+    paths_settings = config.paths
 
-    config = EgregoraConfig.load(site_root)
-    assert config.models.writer == "google-gla:gemini-2.0-flash"  # Default
-    assert config.paths.site_root == site_root
+    # 2. Test resolving a relative path
+    relative_path = Path("posts")
+    expected_abs_path = tmp_path / "posts"
+    assert paths_settings.resolve(relative_path) == expected_abs_path
 
-
-def test_load_from_cwd(tmp_path, monkeypatch):
-    """Test loading from current working directory (no explicit path)."""
-    site_root = tmp_path / "mysite"
-    site_root.mkdir(parents=True)
-
-    config_file = site_root / ".egregora.toml"
-    config_file.write_text(
-        """
-[models]
-writer = "cwd-model"
-        """
-    )
-
-    # Change to site directory
-    monkeypatch.chdir(site_root)
-
-    # Load without path - should use CWD
-    config = EgregoraConfig.load()
-    assert config.models.writer == "cwd-model"
-    assert config.paths.site_root == site_root
+    # 3. Test resolving an absolute path
+    absolute_path = Path("/etc/passwd")
+    assert paths_settings.resolve(absolute_path) == absolute_path
