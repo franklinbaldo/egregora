@@ -105,7 +105,8 @@ def _find_authors_yml(output_dir: Path) -> Path:
         current_dir = current_dir.parent
 
     logger.warning(
-        "Could not find 'docs' directory in ancestry of %s. " "Falling back to legacy path resolution for .authors.yml.",
+        "Could not find 'docs' directory in ancestry of %s. "
+        "Falling back to legacy path resolution for .authors.yml.",
         output_dir,
     )
     return output_dir.resolve().parent.parent / ".authors.yml"
