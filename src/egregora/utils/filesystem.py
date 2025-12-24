@@ -205,12 +205,12 @@ def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> in
     for md_file in posts_dir.rglob("*.md"):
         try:
             post = frontmatter.load(str(md_file))
-            if "authors" in post.metadata:
+            if "authors" in post.metadata and post.metadata["authors"]:
                 author_list = post.metadata["authors"]
-                if isinstance(author_list, list):
-                    all_author_ids.update(str(a) for a in author_list if a)
-                elif author_list:
-                    all_author_ids.add(str(author_list))
+                # Normalize to a list to handle single author strings gracefully
+                if not isinstance(author_list, list):
+                    author_list = [author_list]
+                all_author_ids.update(str(a) for a in author_list if a)
         except OSError as exc:
             logger.debug("Skipping %s: %s", md_file, exc)
             continue
