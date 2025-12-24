@@ -15,6 +15,4 @@ def estimate_tokens(text: str) -> int:
         Estimated number of tokens
 
     """
-    if not text:
-        return 0
     return len(text) // 4
