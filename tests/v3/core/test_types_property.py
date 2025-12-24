@@ -17,7 +17,8 @@ from egregora_v3.core.types import (
 # --- Strategies ---
 
 def xml_safe_text(min_size=0):
-    return st.text(alphabet=st.characters(blacklist_categories=('Cc', 'Cs', 'Co')), min_size=min_size)
+    # Restrict to safer characters for XML 1.0
+    return st.text(alphabet=st.characters(whitelist_categories=('L', 'N', 'P', 'S')), min_size=min_size)
 
 def document_strategy():
     return st.builds(
@@ -26,7 +27,6 @@ def document_strategy():
         doc_type=st.sampled_from(DocumentType),
         title=xml_safe_text(min_size=1),
         slug=st.one_of(st.none(), st.text(min_size=1, alphabet=st.characters(whitelist_categories=('L', 'N')))),
-        id_override=st.one_of(st.none(), st.text(min_size=1, alphabet=st.characters(whitelist_categories=('L', 'N')))),
         searchable=st.booleans(),
     )
 

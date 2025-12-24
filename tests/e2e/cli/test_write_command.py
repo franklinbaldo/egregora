@@ -112,9 +112,7 @@ class TestWriteCommandBasic:
         )
 
         # Ensure failure (exit code 1 for runtime error, 2 for CLI usage error)
-        assert result.exit_code != 0, (
-            f"Should fail with invalid source type. Output:\n{result.stdout}"
-        )
+        assert result.exit_code != 0, f"Should fail with invalid source type. Output:\n{result.stdout}"
 
     def test_write_command_help(self):
         """Test write command help message."""
@@ -281,9 +279,7 @@ class TestWriteCommandDateFiltering:
         result = runner.invoke(app, args)
         assert_command_success(result)
 
-    def test_write_command_invalid_from_date_format(
-        self, test_zip_file, test_output_dir, monkeypatch
-    ):
+    def test_write_command_invalid_from_date_format(self, test_zip_file, test_output_dir, monkeypatch):
         """Test write command with invalid --from-date format."""
         # Set a dummy key to avoid validation error before date validation
         monkeypatch.setenv("GOOGLE_API_KEY", "dummy-key")

@@ -164,6 +164,61 @@ def stub_enrichment_agents(monkeypatch):
         raising=False,
     )
 
+    # --- Patch synchronous batch execution methods (called by worker.run()) ---
+
+    def _stub_execute_media_single_call(self, requests, task_map, model_name, api_key):
+        """Stub for EnrichmentWorker._execute_media_single_call."""
+        import json
+
+        results = []
+        for req in requests:
+            tag = req.get("tag")
+            task = task_map.get(tag, {})
+            payload = task.get("_parsed_payload", {})
+            filename = payload.get("filename", "stub.jpg")
+
+            response_json = {
+                "slug": f"stub-media-{tag}",
+                "description": f"Stub description for {filename}",
+                "alt_text": f"Stub alt text for {filename}",
+                "filename": filename,
+            }
+            response_data = {"text": json.dumps(response_json)}
+
+            # Simple namespace to mimic BatchResult
+            result = SimpleNamespace(tag=tag, response=response_data, error=None)
+            results.append(result)
+        return results
+
+    monkeypatch.setattr(
+        "egregora.agents.enricher.EnrichmentWorker._execute_media_single_call",
+        _stub_execute_media_single_call,
+        raising=False,
+    )
+
+    def _stub_execute_url_single_call(self, tasks_data):
+        """Stub for EnrichmentWorker._execute_url_single_call."""
+        # Returns list[tuple[dict, EnrichmentOutput | None, str | None]]
+        from egregora.agents.enricher import EnrichmentOutput
+
+        results = []
+        for td in tasks_data:
+            task = td["task"]
+            payload = task.get("_parsed_payload") or {}
+            url = payload.get("url", "http://unknown.com")
+
+            output = EnrichmentOutput(
+                slug=f"stub-url-{task['task_id']}", markdown=f"# Stub Analysis\n\nAnalysis for {url}"
+            )
+            results.append((task, output, None))
+        return results
+
+    monkeypatch.setattr(
+        "egregora.agents.enricher.EnrichmentWorker._execute_url_single_call",
+        _stub_execute_url_single_call,
+        raising=False,
+    )
+
 
 @pytest.fixture(autouse=True)
 def reset_rag_backend():

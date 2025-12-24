@@ -48,9 +48,7 @@ def test_sync_authors_from_posts(site_structure: Path):
         {"title": "Post 3", "authors": ["author_one", "existing_author"]},
     )
     create_post(posts_dir / "post4.md", {"title": "Post 4"})  # No authors
-    create_post(
-        posts_dir / "post5.md", {"title": "Post 5", "authors": None}
-    )  # Null authors
+    create_post(posts_dir / "post5.md", {"title": "Post 5", "authors": None})  # Null authors
 
     # 2. Run the function
     new_authors_count = sync_authors_from_posts(posts_dir)

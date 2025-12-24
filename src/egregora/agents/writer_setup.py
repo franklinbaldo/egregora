@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from pydantic_ai import Agent, RunContext
+
 from egregora.agents.types import WriterAgentReturn, WriterDeps
 from egregora.agents.writer_helpers import (
     build_rag_context_for_prompt,

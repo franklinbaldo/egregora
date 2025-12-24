@@ -138,7 +138,9 @@ def write(
     ] = None,
     source: Annotated[
         str | None,
-        typer.Option("--source-type", "-s", help="Configured source key to run (defaults to [site.default_source])"),
+        typer.Option(
+            "--source-type", "-s", help="Configured source key to run (defaults to [site.default_source])"
+        ),
     ] = None,
     step_size: Annotated[int, typer.Option(help="Window size (messages or hours)")] = 100,
     step_unit: Annotated[WindowUnit, typer.Option(help="Unit for windowing")] = WindowUnit.MESSAGES,
@@ -490,4 +492,7 @@ def _run_doctor_checks(*, verbose: bool) -> None:
 
     if error_count > 0:
         raise typer.Exit(1)
-if __name__ == "__main__": app()
+
+
+if __name__ == "__main__":
+    app()

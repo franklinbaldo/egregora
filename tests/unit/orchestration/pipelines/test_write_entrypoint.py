@@ -88,7 +88,9 @@ def test_run_cli_flow_invalid_source_key_exits(
     from egregora.orchestration.pipelines.write import run_cli_flow
 
     config = EgregoraConfig()
-    config.site = SiteSettings(default_source="missing", sources={"alpha": SourceSettings(adapter="whatsapp")})
+    config.site = SiteSettings(
+        default_source="missing", sources={"alpha": SourceSettings(adapter="whatsapp")}
+    )
     mock_load_config.return_value = config
 
     try:

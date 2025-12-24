@@ -126,7 +126,7 @@ def test_feed_parses_as_valid_xml(snapshot):
         content="Test content",
         doc_type=DocumentType.POST,
         title="Test Post",
-        id_override="test-post-123",  # For stable ID
+        slug="test-post-123",  # For stable ID
     )
     doc.updated = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)  # For stable timestamp
 

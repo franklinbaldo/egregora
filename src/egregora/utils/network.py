@@ -90,8 +90,7 @@ def validate_public_url(
     allowed_schemes: tuple[str, ...] = ("http", "https"),
     blocked_ranges: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...] = DEFAULT_BLOCKED_IP_RANGES,
 ) -> None:
-    """
-    Validate a URL to guard against SSRF attempts.
+    """Validate a URL to guard against SSRF attempts.
 
     This function performs two checks:
     1.  Resolves the original hostname and checks it against a blocklist.

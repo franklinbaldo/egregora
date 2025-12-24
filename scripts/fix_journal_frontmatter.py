@@ -27,32 +27,32 @@ PERSONAS = {
 
 def fix_frontmatter():
     base_dir = Path(".jules/personas")
-    
+
     for persona_dir in base_dir.iterdir():
         if not persona_dir.is_dir():
             continue
-            
+
         persona_id = persona_dir.name
         journals_dir = persona_dir / "journals"
-        
+
         if not journals_dir.exists():
             continue
-            
+
         meta = PERSONAS.get(persona_id, {"name": persona_id.capitalize(), "emoji": "🤖"})
-        
+
         for journal_file in journals_dir.glob("*.md"):
             content = journal_file.read_text()
-            
+
             if content.startswith("---"):
                 print(f"Skipping {journal_file} (already has frontmatter)")
                 continue
-                
+
             print(f"Fixing {journal_file}...")
-            
+
             # Derive date and title from filename
             # Format: YYYY-MM-DD-HHMM-Title.md or archive.md
             stem = journal_file.stem
-            
+
             date_match = re.match(r"(\d{4}-\d{2}-\d{2})", stem)
             if date_match:
                 date = date_match.group(1)
@@ -71,7 +71,7 @@ def fix_frontmatter():
                 # Fallback for archive.md or non-standard names
                 date = "2025-01-01" # Default or today? Maybe file mod time?
                 raw_title = stem.replace("_", " ").capitalize()
-                
+
             # If archive.md, give it a generic title
             if stem == "archive":
                 raw_title = "Historical Archive"
@@ -84,7 +84,7 @@ def fix_frontmatter():
                     date = content_date_match.group(1)
 
             title = f"{meta['emoji']} {raw_title}"
-            
+
             frontmatter = f"""---
 title: "{title}"
 date: {date}

@@ -43,8 +43,6 @@ from typing import Annotated, Any
 import ibis.expr.types as ir
 import yaml
 
-from egregora_v3.core.utils import slugify
-
 logger = logging.getLogger(__name__)
 MAX_ALIAS_LENGTH = 40
 ASCII_CONTROL_CHARS_THRESHOLD = 32
@@ -1067,22 +1065,48 @@ def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
     for author_dir in profiles_dir.iterdir():
         if not author_dir.is_dir():
             continue
-        
+
         index_path = author_dir / "index.md"
+        target_path = index_path
         if not index_path.exists():
-            continue
+            # Fallback: look for ANY markdown file in the directory
+            md_files = [
+                p for p in author_dir.glob("*.md") if p.name != "index.md"
+            ]  # exclude index.md to be safe
+            if not md_files:
+                continue
+            # Pick the first one (arbitrary tie-break if multiple)
+            # Typically dynamic posts are named by slug.
+            target_path = md_files[0]
 
         try:
-            metadata = _extract_profile_metadata(index_path)
+            metadata = _extract_profile_metadata(target_path)
             # UUID should be the directory name or in metadata
             author_uuid = str(metadata.get("uuid", author_dir.name))
-            
-            # For nested structure, we want URL to be specific
-            entry = _build_author_entry(index_path, metadata, author_uuid=author_uuid, url=f"profiles/{author_uuid}/")
+
+            # Determine base URL path relative to docs directory
+            try:
+                base_url = profiles_dir.relative_to(docs_dir).as_posix()
+            except ValueError:
+                # Fallback if not relative to docs_dir (unlikely given how docs_dir is inferred)
+                base_url = "profiles"
+
+            # For nested structure, we want URL to be specific to the file found
+            if target_path.name == "index.md":
+                url = f"{base_url}/{author_uuid}/"
+            else:
+                url = f"{base_url}/{author_uuid}/{target_path.name}"
+
+            entry = _build_author_entry(target_path, metadata, author_uuid=author_uuid, url=url)
             authors[author_uuid] = entry
             count += 1
         except (OSError, yaml.YAMLError) as e:
-            logger.warning("Failed to sync profile %s: %s", index_path, e)
+            logger.warning("Failed to sync profile %s: %s", target_path, e)
+
+        # We handled this directory, continue outer loop
+        continue
+
+        # (Original code continued below, but I am replacing the block)
 
     # Write complete file
     try:

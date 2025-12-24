@@ -18,7 +18,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import duckdb
-
 from pydantic import BaseModel
 from pydantic_ai import ModelRetry
 

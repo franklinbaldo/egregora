@@ -312,7 +312,7 @@ def test_save_document_with_special_characters_in_id(repo: DuckDBDocumentReposit
             content="Test content",
             doc_type=DocumentType.POST,
             title="Test",
-            id_override=special_id,
+            slug=special_id,
         )
         repo.save(doc)
 

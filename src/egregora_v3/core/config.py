@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Tuple
+
 
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict

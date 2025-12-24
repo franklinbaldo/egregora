@@ -104,7 +104,9 @@ class MkDocsPaths:
         }
 
 
-def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None, site: str | None = None) -> dict[str, Path]:
+def derive_mkdocs_paths(
+    site_root: Path, *, config: Any | None = None, site: str | None = None
+) -> dict[str, Path]:
     """Backwards-compatible helper returning common MkDocs paths.
 
     Prefer using :class:`MkDocsPaths` directly in new code.

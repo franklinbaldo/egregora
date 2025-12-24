@@ -27,7 +27,7 @@ except Exception:  # pragma: no cover
 # Data over logic: Template is data, not code.
 _jinja_env = jinja2.Environment(
     loader=jinja2.PackageLoader("egregora_v3.core", "."),
-    autoescape=jinja2.select_autoescape(["html", "xml"]),
+    autoescape=True,
     trim_blocks=True,
     lstrip_blocks=True,
 )

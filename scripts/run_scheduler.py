@@ -85,7 +85,7 @@ def get_open_prs(owner: str, repo: str) -> list[dict]:
     """Fetch open PRs using gh CLI."""
     if not os.environ.get("GITHUB_TOKEN") and not os.environ.get("GH_TOKEN"):
         return []
-    
+
     try:
         cmd = [
             "gh", "pr", "list",
@@ -105,11 +105,11 @@ def collect_journals(persona_dir: Path) -> str:
     journals_dir = persona_dir / "journals"
     if not journals_dir.exists():
         return ""
-    
+
     # Collect all .md files, sort by name (assumes timestamp prefix)
     journal_files = sorted(list(journals_dir.glob("*.md")))
     entries = []
-    
+
     for jf in journal_files:
         try:
             content = jf.read_text().strip()
@@ -118,12 +118,12 @@ def collect_journals(persona_dir: Path) -> str:
                 parts = content.split("---", 2)
                 if len(parts) >= 3:
                     content = parts[2].strip()
-            
+
             if content:
                 entries.append(f"\n--- Journal Entry: {jf.name} ---\n{content}\n")
         except Exception:
             pass
-            
+
     return "\n".join(entries)
 
 def parse_prompt_file(filepath: Path, context: dict) -> dict:
@@ -227,13 +227,13 @@ def main():
             # Build persona-specific context
             persona_dir = p_file.parent
             journal_entries = collect_journals(persona_dir)
-            
+
             # Pre-load to get emoji from frontmatter
             raw_post = frontmatter.load(p_file)
             emoji = raw_post.metadata.get("emoji", "")
-            
+
             context = {
-                **base_context, 
+                **base_context,
                 "journal_entries": journal_entries,
                 "emoji": emoji,
                 "id": raw_post.metadata.get("id", "")
@@ -261,7 +261,7 @@ def main():
             # Check schedule
             should_run = False
             schedule_str = registry.get(pid)
-            
+
             if not schedule_str and config.get("schedule"):
                 schedule_str = config.get("schedule")
                 print(f"Warning: Using deprecated frontmatter schedule for {pid}: {schedule_str}")

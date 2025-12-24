@@ -136,6 +136,7 @@ def _prepare_frontmatter(metadata: dict[str, Any], slug: str) -> dict[str, Any]:
 
     Returns:
         A dictionary containing the formatted frontmatter.
+
     """
     front_matter = {
         "title": metadata["title"],
@@ -160,6 +161,7 @@ def _resolve_filepath(output_dir: Path, date_prefix: str, base_slug: str) -> tup
 
     Returns:
         A tuple containing the unique Path object and the final resolved slug.
+
     """
     slug_candidate = base_slug
     filename = f"{date_prefix}-{slug_candidate}.md"
