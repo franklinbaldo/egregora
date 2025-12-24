@@ -35,7 +35,7 @@ jobs:
           echo "::notice::Debug logging enabled"
 
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
@@ -80,7 +80,7 @@ jobs:
           uv run mkdocs build -f .demo-site/.egregora/mkdocs.yml -d "$(pwd)/site/demo"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
@@ -126,7 +126,7 @@ jobs:
           publish_dir: ./site
 
       - name: Upload bundles artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: bundles
           path: /tmp/bundles/

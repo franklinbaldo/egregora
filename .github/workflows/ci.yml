@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
@@ -66,7 +66,7 @@ jobs:
           echo "::notice::Debug logging enabled"
 
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
@@ -82,7 +82,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
@@ -100,7 +100,7 @@ jobs:
     if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true') }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
@@ -127,7 +127,7 @@ jobs:
 
       - name: Upload coverage artifact
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: coverage-unit
           path: coverage.xml
@@ -135,7 +135,7 @@ jobs:
 
       - name: Upload test results on failure
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: unit-test-results
           path: |
@@ -150,7 +150,7 @@ jobs:
     if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true') }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
@@ -177,7 +177,7 @@ jobs:
 
       - name: Upload coverage artifact
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: coverage-e2e
           path: coverage.xml
@@ -185,7 +185,7 @@ jobs:
 
       - name: Upload test results on failure
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: e2e-test-results
           path: |
@@ -204,7 +204,7 @@ jobs:
       security-events: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
@@ -236,7 +236,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
@@ -248,7 +248,7 @@ jobs:
         run: uv build
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
@@ -262,7 +262,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
