@@ -48,8 +48,8 @@ class PipelineRunParams:
     output_dir: Path
     config: EgregoraConfig
     source_type: str
-    source_key: str | None = None
     input_path: Path
+    source_key: str | None = None
     client: genai.Client | None = None
     refresh: str | None = None
     is_demo: bool = False
