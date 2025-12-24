@@ -31,7 +31,26 @@ def test_document_create_factory():
     assert doc.doc_type == DocumentType.POST
     assert doc.title == "My Post"
     assert isinstance(doc.id, str)
-    assert doc.id == "my-post"
+    assert doc.slug == "my-post"
+
+
+def test_document_id_generation_logic():
+    # ID override takes precedence
+    doc1 = Document.create(content="c", doc_type=DocumentType.POST, title="t", id_override="explicit-id")
+    assert doc1.id == "explicit-id"
+
+    # Content-based UUID is the default
+    doc2 = Document.create(content="c", doc_type=DocumentType.POST, title="T")
+    assert doc2.id != "t"
+
+    # Content-based UUID is the fallback
+    doc3 = Document.create(content="different content", doc_type=DocumentType.POST, title="t")
+    assert doc3.id != "t"
+    assert doc2.id != doc3.id
+
+    # slug and id_override together - id_override wins
+    doc4 = Document.create(content="c", doc_type=DocumentType.POST, title="t", slug="s", id_override="explicit-id")
+    assert doc4.id == "explicit-id"
 
 
 def test_document_types_exist():

@@ -155,9 +155,8 @@ class Document(Entry):
         final_slug = slug or slugify(title.strip())
         if final_slug and final_slug != "untitled":
             internal_metadata["slug"] = final_slug
-            doc_id = id_override or final_slug
-        else:
-            doc_id = id_override or cls._generate_content_uuid(content, doc_type, final_slug)
+
+        doc_id = id_override or cls._generate_content_uuid(content, doc_type, final_slug)
 
         return cls(
             id=doc_id,
