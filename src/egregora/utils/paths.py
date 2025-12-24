@@ -10,6 +10,12 @@ class PathTraversalError(Exception):
     """Raised when a path would escape its intended directory."""
 
 
+# Pre-configure a slugify instance for reuse.
+# This is more efficient than creating a new slugifier on each call.
+slugify_lower = _md_slugify(case="lower", separator="-")
+slugify_case = _md_slugify(separator="-")
+
+
 def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
     """Convert text to a safe URL-friendly slug using MkDocs/Python Markdown semantics.
 
@@ -39,18 +45,15 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
         'aaaaaaaaaaaaaaaaaaaa'
 
     """
-    # Normalize Unicode to ASCII using NFKD (preserves transliteration)
+    # Normalize Unicode to ASCII using NFKD (preserves transliteration).
     normalized = normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
 
-    # Use pymdownx.slugs with appropriate settings
-    slugifier = _md_slugify(case="lower" if lowercase else None, separator="-")
+    # Choose the appropriate pre-configured slugifier.
+    slugifier = slugify_lower if lowercase else slugify_case
     slug = slugifier(normalized, sep="-")
 
-    # Fallback for empty slugs
-    if not slug:
-        return "post"
-
-    # Truncate to max length, removing trailing hyphens
+    # Fallback for empty slugs, truncate, and clean up trailing hyphens.
+    slug = slug or "post"
     if len(slug) > max_len:
         slug = slug[:max_len].rstrip("-")
 
