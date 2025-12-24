@@ -39,10 +39,29 @@ class ContentLibrary(BaseModel):
 
     def save(self, doc: Document) -> None:
         """Convenience method to save a document to the correct repository."""
-        repo = self._get_repo(doc.doc_type)
+        repo = self.get_repo(doc.doc_type)
         repo.save(doc)
 
-    def _get_repo(self, doc_type: DocumentType) -> DocumentRepository:
+    @property
+    def repositories(self) -> list[DocumentRepository]:
+        """Returns a list of all repository instances."""
+        return [
+            self.posts,
+            self.media,
+            self.profiles,
+            self.journal,
+            self.enrichments,
+        ]
+
+    def get(self, doc_id: str) -> Document | None:
+        """Find a document by its ID across all repositories."""
+        for repo in self.repositories:
+            doc = repo.get(doc_id)
+            if doc:
+                return doc
+        return None
+
+    def get_repo(self, doc_type: DocumentType) -> DocumentRepository:
         """Get the repository for a given document type."""
         # Use the map with a safe fallback to the 'posts' repository.
         repo = self._repo_map.get(doc_type)
