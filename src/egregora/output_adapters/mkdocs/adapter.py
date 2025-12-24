@@ -13,9 +13,9 @@ MODERN (2025-11-18): Imports site path resolution from
 
 from __future__ import annotations
 
+import html
 import logging
 import shutil
-import html
 from collections import Counter
 from contextlib import suppress
 from datetime import UTC, datetime
