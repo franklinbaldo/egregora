@@ -8,6 +8,8 @@ from ibis.expr.types import Table
 from egregora_v3.core.ports import DocumentRepository
 from egregora_v3.core.types import Document, DocumentType, Entry
 
+_DOCUMENT_TYPE_VALUES = {item.value for item in DocumentType}
+
 
 class DuckDBDocumentRepository(DocumentRepository):
     """DuckDB-backed document storage."""
@@ -204,7 +206,7 @@ class DuckDBDocumentRepository(DocumentRepository):
         doc_type_val = row["doc_type"]
 
         # Check if it's a Document (has a valid DocumentType)
-        is_document = any(doc_type_val == item.value for item in DocumentType)
+        is_document = doc_type_val in _DOCUMENT_TYPE_VALUES
 
         if is_document:
             if isinstance(json_val, dict):
@@ -242,7 +244,7 @@ class DuckDBDocumentRepository(DocumentRepository):
             json_val = row["json_data"]
             doc_type_val = row["doc_type"]
 
-            is_document = any(doc_type_val == item.value for item in DocumentType)
+            is_document = doc_type_val in _DOCUMENT_TYPE_VALUES
 
             if is_document:
                 if isinstance(json_val, dict):
