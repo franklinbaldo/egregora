@@ -31,30 +31,84 @@ from egregora.output_adapters.mkdocs.scaffolding import safe_yaml_load
 
 
 class WriterDemoModel(TestModel):
-    """Deterministic writer model that always emits a single stub post."""
+    """Deterministic writer model that always emits stub posts."""
 
     def __init__(self, *, window_label: str) -> None:
-        super().__init__(call_tools=["write_post_tool"])
+        # Generate 3 posts per window
+        super().__init__(call_tools=["write_post_tool", "write_post_tool", "write_post_tool"])
         self.window_label = window_label
+        self._call_count = 0
 
     def gen_tool_args(self, tool_def: Any) -> dict[str, Any]:
         if getattr(tool_def, "name", None) == "write_post_tool":
+            self._call_count += 1
             safe_label = self.window_label.replace(" ", "-").replace(":", "")
+
+            # Diverse demo content
+            posts = [
+                {
+                    "title": "Welcome to Egregora",
+                    "slug": f"{safe_label}-welcome",
+                    "date": "2025-10-28",
+                    "tags": ["demo", "introduction"],
+                    "summary": "Introduction to the collective consciousness journal.",
+                    "content": (
+                        "# Welcome to the Machine\n\n"
+                        "Egregora isn't just a blog generator; it's a mirror for your digital tribe. "
+                        "By processing your chat archives, it reveals the hidden structures and shared narratives "
+                        "that define your group's identity.\n\n"
+                        "## Why 'Egregora'?\n\n"
+                        "An **egregore** is a distinct psychic entity that arises from a collective group of people. "
+                        "It is the sum of their thoughts, emotions, and interactions."
+                    )
+                },
+                {
+                    "title": "System Architecture",
+                    "slug": f"{safe_label}-architecture",
+                    "date": "2025-10-29",
+                    "tags": ["tech", "architecture"],
+                    "summary": "How Egregora processes data privately.",
+                    "content": (
+                        "# Under the Hood\n\n"
+                        "This demo site was built using a **deterministic pipeline**.\n\n"
+                        "- **Ingestion**: Parsing WhatsApp zip exports.\n"
+                        "- **Windowing**: Grouping messages by semantic or time boundaries.\n"
+                        "- **Synthesis**: Using LLMs (stubbed here) to extract insights.\n"
+                        "- **Publishing**: Generating this static MkDocs site.\n\n"
+                        "!!! info \"Privacy First\"\n"
+                        "    All processing happens locally. No data leaves your machine unless you explicitly configure an API."
+                    )
+                },
+                {
+                    "title": "A Moment of Clarity",
+                    "slug": f"{safe_label}-philosophy",
+                    "date": "2025-10-30",
+                    "tags": ["philosophy", "reflection"],
+                    "summary": "Reflections on digital archives.",
+                    "content": (
+                        "# The Digital Ephemeral\n\n"
+                        "We generate gigabytes of text every year, most of it lost to the infinite scroll. "
+                        "What if we could capture the *signal* in the noise?\n\n"
+                        "> \"The details are lost, but the feeling remains.\"\n\n"
+                        "Egregora aims to crystallize these fleeting interactions into something permanent and beautiful."
+                    )
+                }
+            ]
+
+            # Cycle through posts if called more than defined
+            idx = (self._call_count - 1) % len(posts)
+            post = posts[idx]
+
             return {
                 "metadata": {
-                    "title": f"Egregora Demo — {self.window_label}",
-                    "slug": f"{safe_label}-demo",
-                    "date": "2025-10-28",
-                    "tags": ["demo", "stub"],
+                    "title": post["title"],
+                    "slug": post["slug"],
+                    "date": post["date"],
+                    "tags": post["tags"],
                     "authors": ["egregora"],
-                    "summary": "Deterministic demo content generated in CI (no API calls).",
+                    "summary": post["summary"],
                 },
-                "content": (
-                    "This post was generated deterministically during CI to keep the public demo "
-                    "updated without requiring API keys.\n\n"
-                    "It exercises the full pipeline (parsing, windowing, publishing) while "
-                    "stubbing out networked LLM calls."
-                ),
+                "content": post["content"],
             }
         return super().gen_tool_args(tool_def)
 

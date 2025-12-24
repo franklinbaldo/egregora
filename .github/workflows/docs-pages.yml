@@ -48,35 +48,25 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           extras: "--extra docs --extra rss"
 
-      - name: Inject Build Info
-        env:
-          BUILD_COMMIT: ${{ github.sha }}
-          BUILD_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          # Set human-readable build timestamp
-          export BUILD_TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
-          export BUILD_COMMIT="${BUILD_COMMIT:0:7}"
+          BUILD_TIMESTAMP=$(date -u +'%Y-%m-%d %H:%M UTC')
+          BUILD_COMMIT=${GITHUB_SHA::7}
+          BUILD_WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-          # Append to docs/index.md
-          echo "" >> docs/index.md
-          echo "---" >> docs/index.md
-          echo "> **Build Info**" >> docs/index.md
-          echo "> - Updated: $BUILD_TIMESTAMP" >> docs/index.md
-          echo "> - Commit: $BUILD_COMMIT" >> docs/index.md
-          echo "> - Workflow: $BUILD_WORKFLOW_URL" >> docs/index.md
+          # Replace placeholders in mkdocs.yml
+          sed -i "s|__BUILD_TIMESTAMP__|$BUILD_TIMESTAMP|g" mkdocs.yml
+          sed -i "s|__BUILD_COMMIT__|$BUILD_COMMIT|g" mkdocs.yml
+          sed -i "s|__BUILD_WORKFLOW_URL__|$BUILD_WORKFLOW_URL|g" mkdocs.yml
+
+          # Export for scripts just in case
+          echo "BUILD_TIMESTAMP=$BUILD_TIMESTAMP" >> $GITHUB_ENV
+          echo "BUILD_COMMIT=$BUILD_COMMIT" >> $GITHUB_ENV
+          echo "BUILD_WORKFLOW_URL=$BUILD_WORKFLOW_URL" >> $GITHUB_ENV
 
       - name: Build Documentation
         run: uv run mkdocs build
 
       - name: Generate Demo Site (offline)
-        env:
-          BUILD_COMMIT: ${{ github.sha }}
-          BUILD_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          # Set human-readable build timestamp
-          export BUILD_TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
-          export BUILD_COMMIT="${BUILD_COMMIT:0:7}"  # Short SHA
-          uv run python scripts/generate_demo_site.py --output-dir .demo-site
+        run: uv run python scripts/generate_demo_site.py --output-dir .demo-site
 
       - name: Build Demo Site
         run: uv run mkdocs build -f .demo-site/.egregora/mkdocs.yml -d "$(pwd)/site/demo"
