@@ -41,6 +41,8 @@ egregora init ./my-blog
 cd my-blog
 ```
 
+Egregora automatically bootstraps `.egregora` (mkdocs config, cache, RAG, and LanceDB directories) when you run `egregora init` or `egregora write`. Use `python scripts/bootstrap_site.py ./my-blog` (or `python ../scripts/bootstrap_site.py .` from inside the site) only if you need to regenerate the scaffolding manually.
+
 **2. Generate posts from your chat export:**
 ```bash
 egregora write path/to/chat_export.zip --output=.
