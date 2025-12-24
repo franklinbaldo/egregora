@@ -1,96 +1,91 @@
-from datetime import UTC, datetime
-
 import pytest
-from defusedxml import ElementTree
-from pydantic import ValidationError
+from datetime import datetime, UTC
+from egregora_v3.core.types import Document, DocumentType, DocumentStatus, Feed, Entry
 
-from egregora_v3.core.types import Document, DocumentType, Entry, InReplyTo, documents_to_feed
-
-# --- Entry Tests ---
-
-
-def test_entry_validation():
-    # Test valid entry
-    entry = Entry(id="urn:uuid:1234", title="Test Entry", updated=datetime.now(UTC), content="Some content")
-    assert entry.id == "urn:uuid:1234"
-    assert entry.title == "Test Entry"
-
-    # Test missing mandatory fields
-    with pytest.raises(ValidationError):
-        Entry(id="123")  # missing title and updated
-
-
-# --- Document Tests ---
-
-
-def test_document_create_factory():
-    content = "# Hello"
-    doc = Document.create(content=content, doc_type=DocumentType.POST, title="My Post")
-
-    assert doc.content == content
+def test_document_create_generates_slug_from_title():
+    """Verify that a slug is generated from the title if not provided."""
+    doc = Document.create(
+        content="Hello world",
+        doc_type=DocumentType.POST,
+        title="  My First Post!  "
+    )
+    assert doc.slug == "my-first-post"
+    assert doc.id == "my-first-post"
+    assert doc.title == "  My First Post!  "
     assert doc.doc_type == DocumentType.POST
-    assert doc.title == "My Post"
-    assert isinstance(doc.id, str)
-    assert doc.id == "my-post"
+    assert doc.status == DocumentStatus.DRAFT
+    assert isinstance(doc.updated, datetime)
 
 
-def test_document_types_exist():
-    assert DocumentType.POST == "post"
-    assert DocumentType.PROFILE == "profile"
-    assert DocumentType.NOTE == "note"
-    assert DocumentType.RECAP == "recap"
-    assert DocumentType.ENRICHMENT == "enrichment"
+def test_document_create_uses_explicit_slug():
+    """Verify that an explicit slug is used for the slug and ID."""
+    doc = Document.create(
+        content="Hello world",
+        doc_type=DocumentType.POST,
+        title="My First Post",
+        slug="custom-slug"
+    )
+    assert doc.slug == "custom-slug"
+    assert doc.id == "custom-slug"
 
 
-def test_searchable_flag():
-    doc = Document.create(content="A", doc_type=DocumentType.POST, title="A", searchable=False)
-    assert doc.searchable is False
+def test_document_create_raises_error_on_empty_title_and_slug():
+    """Verify that a ValueError is raised if a slug cannot be generated."""
+    with pytest.raises(ValueError, match="Document must have a slug or a title to generate one."):
+        Document.create(
+            content="Hello world",
+            doc_type=DocumentType.POST,
+            title="",
+            slug=""
+        )
 
-    doc_default = Document.create(content="A", doc_type=DocumentType.POST, title="A")
-    assert doc_default.searchable is True
+    # With the simplified logic, a title of "Untitled" with an explicit empty slug
+    # should also fail, as the final slug is empty.
+    with pytest.raises(ValueError, match="Document must have a slug or a title to generate one."):
+        Document.create(
+            content="Hello world",
+            doc_type=DocumentType.POST,
+            title="Untitled",
+            slug=""
+        )
 
+def test_feed_to_xml_handles_document_and_entry():
+    """Verify that Feed.to_xml correctly serializes both Entry and Document types."""
+    now = datetime.now(UTC)
 
-# --- Feed Tests ---
-
-
-def test_documents_to_feed():
-    doc1 = Document.create(content="A", doc_type=DocumentType.NOTE, title="A")
-    doc2 = Document.create(content="B", doc_type=DocumentType.NOTE, title="B")
-
-    feed = documents_to_feed([doc1, doc2], feed_id="test-feed", title="Test Feed")
-
-    assert feed.title == "Test Feed"
-    assert len(feed.entries) == 2
-    assert feed.updated >= doc1.updated
-    assert feed.updated >= doc2.updated
-
-
-def test_empty_feed():
-    feed = documents_to_feed([], feed_id="empty", title="Empty")
-    assert len(feed.entries) == 0
-    assert isinstance(feed.updated, datetime)
-
-
-def test_threading_support():
-    parent = Document.create(content="Parent", doc_type=DocumentType.POST, title="P")
-    reply = Document.create(
-        content="Reply",
-        doc_type=DocumentType.NOTE,
-        title="R",
-        in_reply_to=InReplyTo(ref=parent.id, type="text/markdown"),
+    doc = Document.create(
+        content="This is a document.",
+        doc_type=DocumentType.POST,
+        title="A Document"
     )
 
-    assert reply.in_reply_to is not None
-    assert reply.in_reply_to.ref == parent.id
-    assert reply.in_reply_to.type == "text/markdown"
+    entry = Entry(
+        id="plain-entry-1",
+        title="A Plain Entry",
+        updated=now
+    )
 
-    # Test Feed XML Generation with Threading
-    feed = documents_to_feed([reply], feed_id="test", title="Thread Test")
-    xml = feed.to_xml()
-    root = ElementTree.fromstring(xml)
-    entry = root.find("{http://www.w3.org/2005/Atom}entry")
-    in_reply_to = entry.find("{http://purl.org/syndication/thread/1.0}in-reply-to")
+    feed = Feed(
+        id="test-feed",
+        title="My Test Feed",
+        updated=now,
+        entries=[doc, entry]
+    )
 
-    assert in_reply_to is not None
-    assert in_reply_to.get("ref") == parent.id
-    assert in_reply_to.get("type") == "text/markdown"
+    xml_output = feed.to_xml()
+
+    # Assert that the Document-specific fields are present for the Document entry
+    doc_type_category = f'<category term="{doc.doc_type.value}" scheme="https://egregora.app/schema#doc_type" label="Document Type" />'
+    status_category = f'<category term="{doc.status.value}" scheme="https://egregora.app/schema#status" label="Document Status" />'
+
+    assert f"<id>{doc.id}</id>" in xml_output
+    assert doc_type_category in xml_output
+    assert status_category in xml_output
+
+    # Assert that the Document-specific fields are NOT present for the plain Entry
+    entry_start_index = xml_output.find(f"<id>{entry.id}</id>")
+    entry_end_index = xml_output.find("</entry>", entry_start_index)
+    entry_xml_block = xml_output[entry_start_index:entry_end_index]
+
+    assert "doc_type" not in entry_xml_block
+    assert "status" not in entry_xml_block

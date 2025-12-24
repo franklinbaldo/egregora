@@ -120,6 +120,11 @@ class Entry(BaseModel):
     # Internal system metadata (not serialized to public Atom)
     internal_metadata: dict[str, Any] = Field(default_factory=dict)
 
+    @property
+    def is_document(self) -> bool:
+        """Type guard for Jinja templates."""
+        return False
+
 
 # --- Application Domain ---
 
@@ -157,6 +162,11 @@ class Document(Entry):
     url_path: str | None = None
 
     @property
+    def is_document(self) -> bool:
+        """Type guard for Jinja templates."""
+        return True
+
+    @property
     def slug(self) -> str | None:
         """Get the semantic slug for this document."""
         return self.internal_metadata.get("slug")
@@ -170,31 +180,32 @@ class Document(Entry):
         *,
         status: DocumentStatus = DocumentStatus.DRAFT,
         internal_metadata: dict[str, Any] | None = None,
-        id_override: str | None = None,
         slug: str | None = None,
         searchable: bool = True,
         in_reply_to: InReplyTo | None = None,
     ) -> "Document":
         """Factory method to create a Document.
 
-        Identity is always derived from a slug or an override.
-        The complex content-based UUID fallback is removed.
+        Identity is always derived from the slug.
         One good path over many flexible paths.
         """
         if internal_metadata is None:
             internal_metadata = {}
 
         # Generate slug from title if not provided.
-        final_slug = slug or slugify(title.strip())
-        if not final_slug or (final_slug == "untitled" and not slug):
+        if slug is not None:
+            final_slug = slug
+        else:
+            final_slug = slugify(title.strip())
+
+        if not final_slug:
             msg = "Document must have a slug or a title to generate one."
             raise ValueError(msg)
 
         internal_metadata["slug"] = final_slug
-        doc_id = id_override or final_slug
 
         return cls(
-            id=doc_id,
+            id=final_slug,
             title=title,
             updated=datetime.now(UTC),
             content=content,
@@ -217,10 +228,7 @@ class Feed(BaseModel):
     def to_xml(self) -> str:
         """Generate Atom XML feed (RFC 4287 compliant) using a Jinja2 template."""
         template = _jinja_env.get_template("atom.xml.jinja")
-        # The Document class is passed to the template's global namespace.
-        # This is a bit of a hack to allow `isinstance(entry, Document)` checks in the template.
-        # A better solution might be to add a `doc_type` attribute to the Entry class.
-        return template.render(feed=self, Document=Document)
+        return template.render(feed=self)
 
 
 def documents_to_feed(
