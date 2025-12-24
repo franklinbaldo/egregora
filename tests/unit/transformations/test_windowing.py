@@ -1,13 +1,22 @@
 """Unit tests for windowing strategies."""
 
+import json
 from datetime import datetime, timedelta
+from pathlib import Path
+from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 import ibis
 import pytest
 
+from egregora.config.settings import EgregoraConfig
 from egregora.transformations.windowing import (
+    HOURS_PER_DAY,
     WindowConfig,
     create_windows,
+    generate_window_signature,
+    load_checkpoint,
+    save_checkpoint,
     split_window_into_n_parts,
 )
 
@@ -150,3 +159,105 @@ def test_invalid_config():
     config = WindowConfig(step_unit="invalid")
     with pytest.raises(ValueError, match="Unknown step_unit"):
         list(create_windows(table, config=config))
+
+
+def test_checkpoint_operations(tmp_path):
+    """Test saving and loading checkpoints."""
+    checkpoint_path = tmp_path / ".egregora" / "checkpoint.json"
+
+    # Test loading non-existent checkpoint
+    assert load_checkpoint(checkpoint_path) is None
+
+    # Test saving checkpoint
+    last_timestamp = datetime(2023, 1, 1, 12, 0, 0, tzinfo=ZoneInfo("UTC"))
+    messages_processed = 150
+
+    save_checkpoint(checkpoint_path, last_timestamp, messages_processed)
+
+    assert checkpoint_path.exists()
+
+    # Test loading saved checkpoint
+    loaded = load_checkpoint(checkpoint_path)
+    assert loaded is not None
+    assert loaded["messages_processed"] == 150
+    # JSON stores ISO string, verify it parses back
+    loaded_ts = datetime.fromisoformat(loaded["last_processed_timestamp"])
+    assert loaded_ts == last_timestamp
+
+    # Test corrupted checkpoint
+    checkpoint_path.write_text("invalid json")
+    assert load_checkpoint(checkpoint_path) is None
+
+
+def test_generate_window_signature():
+    """Test window signature generation."""
+    table = create_test_table(10)
+    config = EgregoraConfig()
+
+    # Mock build_conversation_xml to return deterministic XML
+    with patch("egregora.transformations.windowing.build_conversation_xml") as mock_build_xml:
+        mock_build_xml.return_value = "<chat>content</chat>"
+
+        sig1 = generate_window_signature(table, config, "prompt template")
+        sig2 = generate_window_signature(table, config, "prompt template")
+
+        assert sig1 == sig2
+        assert mock_build_xml.call_count == 2
+
+        # Verify components of signature
+        # data_hash:logic_hash:model_hash
+        parts = sig1.split(":")
+        # The default model name might contain colons (e.g., google-gla:gemini-2.5-flash)
+        # So splitting by ":" might yield more than 3 parts if we don't handle it.
+        # But the implementation is: return f"{data_hash}:{logic_hash}:{model_hash}"
+        # If model_hash has ':', then len(parts) > 3.
+        # Let's check that we have AT LEAST 3 parts, and the last part(s) form the model name
+        assert len(parts) >= 3
+
+        # Change prompt template -> different signature
+        sig3 = generate_window_signature(table, config, "different template")
+        assert sig1 != sig3
+
+        # Provide pre-computed XML -> should use it
+        mock_build_xml.reset_mock()
+        sig4 = generate_window_signature(table, config, "prompt template", xml_content="<chat>content</chat>")
+        assert sig1 == sig4
+        mock_build_xml.assert_not_called()
+
+
+def test_window_by_time_with_max_window_limit(caplog):
+    """Test that max_window_time constrains the window size."""
+    # 3 days of data (72 hours)
+    start_time = datetime(2023, 1, 1, 0, 0, 0)
+    # One message per hour for 72 hours
+    data = [{"ts": start_time + timedelta(hours=i), "text": f"msg {i}", "sender": "A"} for i in range(72)]
+    table = ibis.memtable(data)
+
+    # Request 2 days per window, but limit to 24 hours
+    max_window = timedelta(hours=24)
+    config = WindowConfig(step_size=2, step_unit="days", max_window_time=max_window, overlap_ratio=0.0)
+
+    with caplog.at_level("INFO"):
+        windows = list(create_windows(table, config=config))
+
+    # Should reduce step size to 24 hours (1 day)
+    # 72 hours total / 24 hours per window = 3 windows
+    assert len(windows) == 3
+    assert "Adjusted window size" in caplog.text
+
+    # Verify each window is approx 24 hours
+    for w in windows:
+        duration = w.end_time - w.start_time
+        # Allow minor floating point diff
+        assert duration <= max_window + timedelta(seconds=1)
+
+
+def test_window_by_count_max_window_warning(caplog):
+    """Test warning when max_window_time is used with message count windowing."""
+    table = create_test_table(10)
+    config = WindowConfig(step_size=10, step_unit="messages", max_window_time=timedelta(hours=1))
+
+    with caplog.at_level("WARNING"):
+        list(create_windows(table, config=config))
+
+    assert "max_window_time constraint not enforced for message-based windowing" in caplog.text
