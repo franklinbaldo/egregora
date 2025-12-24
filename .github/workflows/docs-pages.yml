@@ -48,35 +48,18 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           extras: "--extra docs --extra rss"
 
-      - name: Inject Build Info
-        env:
-          BUILD_COMMIT: ${{ github.sha }}
-          BUILD_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      - name: Prepare Build Environment
         run: |
           # Set human-readable build timestamp
-          export BUILD_TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
-          export BUILD_COMMIT="${BUILD_COMMIT:0:7}"
-          
-          # Append to docs/index.md
-          echo "" >> docs/index.md
-          echo "---" >> docs/index.md
-          echo "> **Build Info**" >> docs/index.md
-          echo "> - Updated: $BUILD_TIMESTAMP" >> docs/index.md
-          echo "> - Commit: $BUILD_COMMIT" >> docs/index.md
-          echo "> - Workflow: $BUILD_WORKFLOW_URL" >> docs/index.md
+          echo "BUILD_TIMESTAMP=$(date -u +'%Y-%m-%d %H:%M UTC')" >> $GITHUB_ENV
+          echo "BUILD_COMMIT=${GITHUB_SHA::7}" >> $GITHUB_ENV
+          echo "BUILD_WORKFLOW_URL=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_ENV
 
       - name: Build Documentation
         run: uv run mkdocs build
 
       - name: Generate Demo Site (offline)
-        env:
-          BUILD_COMMIT: ${{ github.sha }}
-          BUILD_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          # Set human-readable build timestamp
-          export BUILD_TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
-          export BUILD_COMMIT="${BUILD_COMMIT:0:7}"  # Short SHA
-          uv run python scripts/generate_demo_site.py --output-dir .demo-site
+        run: uv run python scripts/generate_demo_site.py --output-dir .demo-site
 
       - name: Build Demo Site
         run: uv run mkdocs build -f .demo-site/.egregora/mkdocs.yml -d "$(pwd)/site/demo"
