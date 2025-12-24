@@ -50,12 +50,13 @@ docs/
       enrichment.md
     ingestion/
       parser.md
-    init/
-      scaffolding.md
     knowledge/
       annotations.md
       rag.md
       ranking.md
+    output_adapters/
+      mkdocs/
+        scaffolding.md
     privacy/
       anonymizer.md
       detector.md
@@ -63,6 +64,7 @@ docs/
     data-primitives.md
     index.md
   architecture/
+    directory_structure.md
     protocols.md
     url-conventions.md
   getting-started/
@@ -80,6 +82,8 @@ docs/
     mathjax.js
   posts/
     index.md
+  privacy/
+    README.md
   CLAUDE.md
   index.md
   jules_feedback_loop_plan.md
@@ -484,20 +488,6 @@ The ingestion parser converts raw exports into the intermediate representation (
 This document will be expanded with code samples and adapter-specific notes as the pipeline stabilizes.
 `````
 
-## File: docs/api/init/scaffolding.md
-`````markdown
-# Scaffolding API
-
-The scaffolding utilities initialize an output directory with templates, assets, and configuration needed to publish the site.
-
-## Capabilities
-- Create deterministic directory structures for generated content.
-- Provide defaults for prompts, CSS, and layouts.
-- Support idempotent re-runs when scaffolding already exists.
-
-Examples for CLI usage and programmatic calls will be added as the tooling settles.
-`````
-
 ## File: docs/api/knowledge/annotations.md
 `````markdown
 # Annotations API
@@ -550,19 +540,19 @@ example()
 
 ## Configuration
 
-Configure RAG in `.egregora/config.yml`:
+Configure RAG in `.egregora.toml`:
 
-```yaml
-paths:
-  lancedb_dir: .egregora/lancedb
+```toml
+[paths]
+lancedb_dir = ".egregora/lancedb"
 
-rag:
-  enabled: true
-  top_k: 5
-  min_similarity_threshold: 0.7
-  indexable_types: ["POST"]
-  embedding_max_batch_size: 100
-  embedding_timeout: 60.0
+[rag]
+enabled = true
+top_k = 5
+min_similarity_threshold = 0.7
+indexable_types = ["POST"]
+embedding_max_batch_size = 100
+embedding_timeout = 60.0
 ```
 
 ## API Reference
@@ -804,6 +794,13 @@ Ranking surfaces score enriched content and annotations to drive better retrieva
 This is a placeholder page; algorithm details will be captured as they are implemented.
 `````
 
+## File: docs/api/output_adapters/mkdocs/scaffolding.md
+`````markdown
+# `egregora.output_adapters.mkdocs.scaffolding`
+
+::: egregora.output_adapters.mkdocs.scaffolding
+`````
+
 ## File: docs/api/privacy/anonymizer.md
 `````markdown
 # Privacy Anonymizer
@@ -853,7 +850,7 @@ Configuration management for Egregora, including settings models and validation.
 
 ## Overview
 
-Egregora uses **Pydantic V2** for type-safe configuration management. All settings are defined in `.egregora/config.yml` and validated at load time.
+Egregora uses **Pydantic V2** for type-safe configuration management. All settings are defined in `.egregora.toml` and validated at load time.
 
 ## CLI Commands
 
@@ -884,7 +881,7 @@ egregora config show ./my-blog
 
 ### EgregoraConfig
 
-Root configuration object loaded from `.egregora/config.yml`.
+Root configuration object loaded from `.egregora.toml`.
 
 ::: egregora.config.settings.EgregoraConfig
     options:
@@ -946,91 +943,83 @@ Pipeline execution settings.
 
 ### Minimal Configuration
 
-```yaml
-# .egregora/config.yml
-models:
-  writer: google-gla:gemini-flash-latest
+```toml
+# .egregora.toml
+[models]
+writer = "google-gla:gemini-flash-latest"
 
-rag:
-  enabled: true
-  top_k: 5
+[rag]
+enabled = true
+top_k = 5
 ```
 
 ### Full Configuration
 
-```yaml
-# .egregora/config.yml
+```toml
+# .egregora.toml
 
-# Model configuration
-models:
-  writer: google-gla:gemini-flash-latest
-  enricher: google-gla:gemini-flash-latest
-  enricher_vision: google-gla:gemini-flash-latest
-  ranking: google-gla:gemini-flash-latest
-  editor: google-gla:gemini-flash-latest
-  reader: google-gla:gemini-flash-latest
-  embedding: models/gemini-embedding-001
-  banner: models/gemini-2.5-flash-image
+[models]
+writer = "google-gla:gemini-flash-latest"
+enricher = "google-gla:gemini-flash-latest"
+enricher_vision = "google-gla:gemini-flash-latest"
+ranking = "google-gla:gemini-flash-latest"
+editor = "google-gla:gemini-flash-latest"
+reader = "google-gla:gemini-flash-latest"
+embedding = "models/gemini-embedding-001"
+banner = "models/gemini-2.5-flash-image"
 
-# RAG configuration
-rag:
-  enabled: true
-  top_k: 5
-  min_similarity_threshold: 0.7
-  indexable_types: ["POST"]
-  embedding_max_batch_size: 100
-  embedding_timeout: 60.0
-  embedding_max_retries: 5
+[rag]
+enabled = true
+top_k = 5
+min_similarity_threshold = 0.7
+indexable_types = ["POST"]
+embedding_max_batch_size = 100
+embedding_timeout = 60.0
+embedding_max_retries = 5
 
-# Writer agent
-writer:
-  custom_instructions: |
-    Write in a casual, friendly tone.
-    Focus on practical examples.
+[writer]
+custom_instructions = """
+Write in a casual, friendly tone.
+Focus on practical examples.
+"""
 
-# Enrichment
-enrichment:
-  enabled: true
-  enable_url: true
-  enable_media: true
-  max_enrichments: 50
+[enrichment]
+enabled = true
+enable_url = true
+enable_media = true
+max_enrichments = 50
 
-# Pipeline
-pipeline:
-  step_size: 1
-  step_unit: days                  # "days", "hours", "messages"
-  overlap_ratio: 0.2               # 20% overlap
-  max_windows: 1                   # Process 1 window (0 = all)
-  checkpoint_enabled: false        # Enable incremental processing
+[pipeline]
+step_size = 1
+step_unit = "days"                  # "days", "hours", "messages"
+overlap_ratio = 0.2                 # 20% overlap
+max_windows = 1                     # Process 1 window (0 = all)
+checkpoint_enabled = false          # Enable incremental processing
 
-# Paths (relative to site root)
-paths:
-  egregora_dir: .egregora
-  rag_dir: .egregora/rag
-  lancedb_dir: .egregora/lancedb
-  cache_dir: .egregora/cache
-  prompts_dir: .egregora/prompts
-  docs_dir: docs
-  posts_dir: docs/posts
-  profiles_dir: docs/profiles
-  media_dir: docs/assets/media
+[paths]
+egregora_dir = ".egregora"
+rag_dir = ".egregora/rag"
+lancedb_dir = ".egregora/lancedb"
+cache_dir = ".egregora/cache"
+prompts_dir = ".egregora/prompts"
+docs_dir = "docs"
+posts_dir = "docs/posts"
+profiles_dir = "docs/profiles"
+media_dir = "docs/assets/media"
 
-# Output format
-output:
-  format: mkdocs                   # "mkdocs" or "hugo"
+[output]
+format = "mkdocs"                   # "mkdocs" or "hugo"
 
-# Reader agent
-reader:
-  enabled: false
-  comparisons_per_post: 5
-  k_factor: 32
-  database_path: .egregora/reader.duckdb
+[reader]
+enabled = false
+comparisons_per_post = 5
+k_factor = 32
+database_path = ".egregora/reader.duckdb"
 
-# Quota limits
-quota:
-  daily_llm_requests: 220
-  per_second_limit: 1
-  concurrency: 1
+[quota]
+daily_llm_requests = 220
+per_second_limit = 1
+concurrency = 1
 ```
 
 ## Validation
@@ -1039,33 +1028,34 @@ quota:
 
 Configuration fields are validated with custom validators:
 
-```python
+```toml
 # Model name format validation
-models:
-  writer: google-gla:gemini-flash-latest  # ✅ Valid
-  writer: gemini-flash-latest             # ❌ Invalid (missing prefix)
+[models]
+writer = "google-gla:gemini-flash-latest"  # ✅ Valid
+# writer = "gemini-flash-latest"           # ❌ Invalid (missing prefix)
 
 # RAG top_k validation
-rag:
-  top_k: 5      # ✅ Good
-  top_k: 20     # ⚠️  Warning (unusually high)
-  top_k: 100    # ❌ Error (exceeds maximum)
+[rag]
+top_k = 5      # ✅ Good
+# top_k = 20   # ⚠️  Warning (unusually high)
+# top_k = 100  # ❌ Error (exceeds maximum)
 ```
 
 ### Cross-Field Validation
 
 The config validator checks dependencies between fields:
 
-```yaml
+```toml
 # ❌ Error: RAG enabled but lancedb_dir not set
-rag:
-  enabled: true
-paths:
-  lancedb_dir: ""  # Empty path
+[rag]
+enabled = true
+
+[paths]
+lancedb_dir = ""  # Empty path
 
 # ⚠️  Warning: Very high token limit
-pipeline:
-  max_prompt_tokens: 500000  # Exceeds most model limits
+[pipeline]
+max_prompt_tokens = 500000  # Exceeds most model limits
 ```
 
 ## Programmatic Usage
@@ -1255,6 +1245,40 @@ Use the subsections in the navigation to find the component you need:
 - **Publication & Orchestration** explains scaffolding, pipeline coordination, and CLI entry points.
 
 Each page is a work in progress while we expand the consolidated documentation set.
+`````
+
+## File: docs/architecture/directory_structure.md
+`````markdown
+# Directory Structure
+
+This document tracks the directory structure of the Egregora codebase.
+
+## `src/egregora`
+
+*   `agents/`: Logic for AI agents (e.g., writer, banner, enricher).
+*   `cli/`: Command-line interface entry points.
+*   `config/`: Configuration settings and management.
+*   `data_primitives/`: Core data structures (Document, Entry, etc.).
+*   `database/`: Database connectivity and schema definitions (DuckDB, Ibis).
+*   `infra/`: Infrastructure components.
+*   `init/`: Site initialization logic.
+*   `input_adapters/`: Adapters for ingesting data (e.g., WhatsApp).
+*   `knowledge/`: Knowledge base components (Profiles).
+*   `models/`: AI model interfaces and wrappers.
+*   `orchestration/`: Pipeline orchestration and execution logic.
+    *   `pipelines/`: Specific pipeline implementations (e.g., `write`).
+        *   `modules/`: Shared modules used by pipelines.
+            *   `media.py`: Media handling operations.
+            *   `taxonomy.py`: Taxonomy generation logic.
+*   `output_adapters/`: Adapters for outputting data (e.g., MkDocs).
+*   `privacy/`: Privacy handling components.
+*   `prompts/`: Prompt management.
+*   `rag/`: Retrieval-Augmented Generation components.
+*   `rendering/`: Template rendering.
+*   `resources/`: Static resources (SQL, prompts).
+*   `templates/`: Jinja2 templates.
+*   `transformations/`: Functional data transformations.
+*   `utils/`: Utility functions.
 `````
 
 ## File: docs/architecture/protocols.md
@@ -2096,6 +2120,63 @@ annotations_enabled = true
 
 **Location**: `.egregora.toml` in site root (next to `mkdocs.yml`)
 
+### Sites and sources (multi-site configs)
+
+You can now register multiple data inputs and publishing targets in a single `.egregora.toml`. Define reusable sources once, then map them to one or more sites:
+
+```toml
+[sources.whatsapp_export]
+type = "whatsapp"               # Matches --source-type
+path = "exports/friends.zip"    # Relative to the working directory
+timezone = "America/New_York"
+
+[sources.journal]
+type = "self"
+path = "data/journal.ndjson"
+
+[sites.default]
+description = "Personal blog"
+sources = ["whatsapp_export"]   # Names from [sources.*]
+
+[sites.default.paths]
+docs_dir = "docs"
+posts_dir = "docs/posts"
+media_dir = "docs/posts/media"
+
+[sites.default.output]
+adapters = [{ type = "mkdocs", config_path = ".egregora/mkdocs.yml" }]
+
+[sites.retrospective]
+description = "Quarterly retro"
+sources = ["journal"]
+
+[sites.retrospective.output]
+adapters = [{ type = "mkdocs", config_path = ".egregora/mkdocs.retrospective.yml" }]
+```
+
+**Selection behavior**
+
+1. CLI `--site`/`--source` or `EGREGORA_SITE`/`EGREGORA_SOURCE` environment variables take precedence.
+2. If you omit flags and only one site or source is defined, it is selected automatically.
+3. If multiple entries exist and no selection is provided, Egregora picks the `default` site if present, otherwise the first entry and logs a warning. This maintains backward compatibility while encouraging explicit selection.
+4. Legacy single-site configs without `[sites.*]` still work. The loader treats them as a single implicit site and applies the provided `--source-type`/`EXPORT_PATH` inputs as before.
+
+**Backward compatibility**
+
+- Existing top-level settings remain valid. When `sites.*` is absent, your file is interpreted as a single-site configuration.
+- You can introduce `[sources.*]` gradually; if none are present, CLI positional arguments continue to drive ingestion.
+- MkDocs config paths and content directories remain relative to the site root, so you can keep your current layout while adding new sites alongside it.
+
+### Migrating from a single-site config
+
+Follow this checklist to adopt the new structure without disrupting current runs:
+
+1. **Copy your existing `.egregora.toml`** and wrap the content under `[sites.default]` (or another site name of your choice). Keep the nested sections (`[paths]`, `[pipeline]`, `[models]`, etc.) intact—only their prefix changes.
+2. **Add a named source** under `[sources.<name>]` that captures the CLI arguments you normally pass (`type`, `path`, `timezone`, date filters). Reference that name from `sites.<name>.sources`.
+3. **Keep MkDocs config paths unique** (`sites.<name>.output.adapters[0].config_path`) if you publish more than one site in the same repo. Otherwise you can continue to use `.egregora/mkdocs.yml`.
+4. **Test a dry run** with your usual CLI command plus `--site <name>` to confirm the site selection is intentional. Remove the flag once you are comfortable relying on the default-selection rules above.
+5. **Clean up legacy keys** once you verify the new layout (optional). The loader will ignore top-level settings when `sites.*` exists, but removing them avoids confusion.
+
 ## Advanced Configuration
 
 ### Custom Prompt Templates
@@ -2413,12 +2494,8 @@ This will:
 Launch a local preview server:
 
 ```bash
-uvx --with mkdocs-material \
-    --with mkdocs-macros-plugin \
-    --with mkdocs-rss-plugin \
-    --with mkdocs-blogging-plugin \
-    --with mkdocs-glightbox \
-    mkdocs serve
+uv sync --all-extras
+uv run mkdocs serve
 ```
 
 Open [http://localhost:8000](http://localhost:8000) in your browser. 🎉
@@ -2443,7 +2520,7 @@ Edit `mkdocs.yml` to change:
 - Site name, description, theme
 - Navigation structure
 
-Edit `.egregora/config.yml` to customize:
+Edit `.egregora.toml` to customize:
 
 - Models and parameters
 - RAG settings
@@ -2528,13 +2605,13 @@ Check that:
 
 ### Rate Limiting
 
-If you hit API rate limits, Egregora will automatically retry with exponential backoff. You can also configure quota limits in `.egregora/config.yml`:
+If you hit API rate limits, Egregora will automatically retry with exponential backoff. You can also configure quota limits in `.egregora.toml`:
 
-```yaml
-quota:
-  daily_llm_requests: 1000
-  per_second_limit: 1.0
-  concurrency: 5
+```toml
+[quota]
+daily_llm_requests = 1000
+per_second_limit = 1.0
+concurrency = 5
 ```
 
 ### LanceDB Permission Issues
@@ -2973,7 +3050,7 @@ def transform(data: Table) -> Table:
 - [Privacy Model](privacy.md) - Deep dive on anonymization
 - [Knowledge Base](knowledge.md) - RAG and vector search
 - [Content Generation](generation.md) - LLM writer internals
-- [Project Structure](../development/structure.md) - Detailed code organization
+- [Project Structure](#code-structure) - Detailed code organization
 `````
 
 ## File: docs/guide/generation.md
@@ -3406,9 +3483,8 @@ egregora process export.zip --delay=1.0
 
 ## Next Steps
 
-- [API Reference - Writer Module](../api/generation/writer.md) - Code documentation
-- [API Reference - Editor Module](../api/generation/editor.md) - Interactive editing
-- [Development Guide](../development/contributing.md) - Extend the writer
+- [API Reference - Writer Module](../api/index.md) - Code documentation
+- [Development Guide](https://github.com/franklinbaldo/egregora/blob/main/CONTRIBUTING.md) - Extend the writer
 `````
 
 ## File: docs/guide/knowledge.md
@@ -4065,7 +4141,7 @@ Yes, but requires code changes. Egregora uses Google's Gemini client, but you ca
 - [vLLM](https://vllm.ai/) for self-hosted serving
 - [LiteLLM](https://litellm.ai/) for unified API
 
-See [Development Guide](../development/contributing.md) for details.
+See [Development Guide](https://github.com/franklinbaldo/egregora/blob/main/CONTRIBUTING.md) for details.
 
 ## Next Steps
 
@@ -4144,6 +4220,15 @@ document$.subscribe(() => {
 ## File: docs/posts/index.md
 `````markdown
 # Blog
+`````
+
+## File: docs/privacy/README.md
+`````markdown
+# Privacy
+
+The `egregora.privacy` module has been removed. Privacy and anonymization logic (PII scrubbing, author anonymization) is now handled directly by input adapters (e.g., `egregora.input_adapters.whatsapp.parsing`) or relevant transformations.
+
+This ensures privacy logic is integrated where data ingestion happens, rather than being an isolated concern.
 `````
 
 ## File: docs/CLAUDE.md
@@ -4274,7 +4359,7 @@ This section serves as a deep dive into the internal mechanics, command-line int
 
 ## Core References
 
-### 1. [CLI Reference](api/orchestration/cli.md)
+### 1. CLI Reference
 Detailed documentation of all command-line arguments, environment variables, and subcommands.
 *   `egregora init`: Site scaffolding internals.
 *   `egregora write`: Pipeline execution flags and caching strategies.
@@ -4288,12 +4373,12 @@ A high-level view of the system's design, including:
 *   **Privacy Layer** mechanics.
 
 ### 3. [Configuration Reference](getting-started/configuration.md)
-Complete guide to `egregora.toml` and `config.yml` settings.
+Complete guide to `.egregora.toml` settings (with notes for migrating legacy `config.yml` setups).
 *   Model selection and parameters.
 *   Pipeline windowing rules.
 *   Prompt customization.
 
-### 4. [Database Schema](api/core/schema.md)
+### 4. Database Schema
 Documentation of the internal Ibis/DuckDB schemas used for:
 *   Intermediate Representation (IR).
 *   Run tracking.
@@ -4307,9 +4392,9 @@ Documentation of the internal Ibis/DuckDB schemas used for:
 
 ## Developer Resources
 
-*   [Contributing Guide](development/contributing.md): Coding standards and PR process.
-*   [Project Structure](development/structure.md): File organization and module responsibilities.
-*   [Testing Strategy](development/testing.md): How to run and write tests.
+*   [Contributing Guide](https://github.com/franklinbaldo/egregora/blob/main/CONTRIBUTING.md): Coding standards and PR process.
+*   [Project Structure](guide/architecture.md#code-structure): File organization and module responsibilities.
+*   [Testing Strategy](https://github.com/franklinbaldo/egregora/blob/main/CONTRIBUTING.md#testing): How to run and write tests.
 `````
 
 ## File: docs/UX_REPORT.md
@@ -5305,6 +5390,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 2025-12-15 - Configuration File Path Clarity
+
+#### Changed
+- Updated CLI help, diagnostics, and docs to reference `.egregora.toml` instead of the legacy `.egregora/config.yml`, with TOML-based examples to guide users.
+
+#### Migration
+- Existing projects using `.egregora/config.yml` should move settings into a root-level `.egregora.toml` for consistency with the current tooling.
+
 ### 2025-12-13 - Simplification: Remove Over-Engineered Sub-Features
 
 #### Removed
@@ -5651,22 +5744,22 @@ theme:
     # Light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: deep purple
-      accent: purple
+      primary: teal
+      accent: amber
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     # Dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: deep purple
-      accent: purple
+      primary: teal
+      accent: amber
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
   font:
-    text: Inter
-    code: Fira Code
+    text: Roboto
+    code: Roboto Mono
   features:
     # Navigation
     - navigation.instant
@@ -5914,12 +6007,8 @@ egregora write path/to/chat_export.zip --output=.
 
 **3. Preview your site:**
 ```bash
-uvx --with mkdocs-material \
-    --with mkdocs-macros-plugin \
-    --with mkdocs-rss-plugin \
-    --with mkdocs-blogging-plugin \
-    --with mkdocs-glightbox \
-    mkdocs serve -f .egregora/mkdocs.yml
+uv sync --all-extras
+uv run mkdocs serve -f .egregora/mkdocs.yml
 ```
 *Visit http://localhost:8000 to read your new blog.*
 
@@ -5931,6 +6020,23 @@ Egregora is highly configurable via the `.egregora.toml` file generated in your 
 
 *   **Models:** Switch between models (e.g., `google-gla:gemini-flash-latest`) or use OpenRouter.
 *   **Pipeline:** Adjust how many days of chat form a single post (`step_size`, `step_unit`).
+
+### Multi-site configs & reusable sources
+Register inputs once and point multiple sites at them using `[sources.*]` and `[sites.<name>]` blocks:
+
+```toml
+[sources.whatsapp_export]
+type = "whatsapp"
+path = "exports/friends.zip"
+
+[sites.default]
+sources = ["whatsapp_export"]
+
+[sites.default.output]
+adapters = [{ type = "mkdocs", config_path = ".egregora/mkdocs.yml" }]
+```
+
+If you only define one site/source, Egregora selects it automatically. When multiple entries exist, use `--site`/`--source` (or `EGREGORA_SITE`/`EGREGORA_SOURCE`) to choose explicitly. Legacy single-site configs without `[sites.*]` continue to work and are treated as a single implicit site. See the [Configuration Guide](docs/getting-started/configuration.md#sites-and-sources-multi-site-configs) for detailed rules and migration steps.
 
 👉 **[Full Configuration Reference](docs/getting-started/configuration.md)**
 
