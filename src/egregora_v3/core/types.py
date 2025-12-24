@@ -153,11 +153,14 @@ class Document(Entry):
 
         # Generate slug from title if not provided
         final_slug = slug or slugify(title.strip())
-        if final_slug and final_slug != "untitled":
+        if final_slug:
             internal_metadata["slug"] = final_slug
-            doc_id = id_override or final_slug
-        else:
-            doc_id = id_override or cls._generate_content_uuid(content, doc_type, final_slug)
+
+        # Only use slug for ID if it's meaningful (not the default placeholder)
+        slug_for_id = final_slug if final_slug and final_slug != "untitled" else None
+
+        # Identity: explicit override > meaningful slug > random UUID
+        doc_id = id_override or slug_for_id or str(uuid.uuid4())
 
         return cls(
             id=doc_id,
@@ -171,17 +174,6 @@ class Document(Entry):
             in_reply_to=in_reply_to,
         )
 
-    @staticmethod
-    def _generate_content_uuid(content: str, doc_type: DocumentType, slug: str | None) -> str:
-        """Generate a stable, content-addressed UUIDv5."""
-        hasher = hashlib.sha256()
-        hasher.update(content.encode("utf-8"))
-        hasher.update(doc_type.value.encode("utf-8"))
-        if slug:
-            hasher.update(slug.encode("utf-8"))
-        return str(uuid.uuid5(uuid.NAMESPACE_DNS, hasher.hexdigest()))
-
-
 class Feed(BaseModel):
     id: str
     title: str
@@ -191,10 +183,15 @@ class Feed(BaseModel):
     links: list[Link] = Field(default_factory=list)
 
     def to_xml(self) -> str:  # noqa: C901
-        # FIXME: This is a large, imperative block for building XML.
-        # It violates the "Declarative over imperative" heuristic.
-        # A future refactoring could use a templating engine (e.g., Jinja2)
-        # to generate the XML from a template file.
+        # FIXME: [Essentialist] Declarative over imperative.
+        # This is a large, imperative block for building XML. It's brittle and
+        # hard to maintain.
+        #
+        # SUGGESTION: Refactor this to use a Jinja2 template.
+        # 1. Create a `templates/atom.xml.jinja` file.
+        # 2. Pass `self` (the Feed object) to the template.
+        # 3. Use Jinja loops and conditionals to render the XML declaratively.
+        # This would make the structure much easier to see and modify.
         """Generate Atom XML feed (RFC 4287 compliant).
 
         Returns:

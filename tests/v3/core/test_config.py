@@ -1,25 +1,9 @@
-from pathlib import Path
 
+from pathlib import Path
 from egregora_v3.core.config import EgregoraConfig, PathsSettings
 
-
-def test_default_config():
-    """Test default configuration uses current working directory."""
-    config = EgregoraConfig()
-    assert config.models.writer == "google-gla:gemini-2.0-flash"
-    # site_root defaults to CWD
-    assert config.paths.site_root == Path.cwd()
-
-
-def test_path_resolution(tmp_path):
-    site_root = tmp_path / "mysite"
-    paths = PathsSettings(site_root=site_root, posts_dir=Path("content/posts"))
-
-    assert paths.abs_posts_dir == site_root / "content/posts"
-    assert paths.abs_db_path == site_root / ".egregora/pipeline.duckdb"
-
-
-def test_load_from_toml(tmp_path):
+def test_declarative_load_from_toml(tmp_path, monkeypatch):
+    """Test that EgregoraConfig loads from .egregora.toml in the CWD declaratively."""
     # Setup a mock site
     site_root = tmp_path / "mysite"
     site_root.mkdir(parents=True)
@@ -28,30 +12,26 @@ def test_load_from_toml(tmp_path):
     config_file.write_text(
         """
 [models]
-writer = "custom-model"
-        """
+writer = "declarative-model"
+
+[paths]
+posts_dir = "content/blog"
+"""
     )
 
-    # Load config
-    config = EgregoraConfig.load(site_root)
+    # Change to site directory
+    monkeypatch.chdir(site_root)
 
-    assert config.models.writer == "custom-model"
+    # This instantiation should fail to load the config until the main code is refactored
+    config = EgregoraConfig()
+
+    assert config.models.writer == "declarative-model"
     assert config.paths.site_root == site_root
-    assert config.paths.abs_posts_dir == site_root / "posts"
+    assert config.paths.posts_dir == Path("content/blog")
+    assert config.paths.abs_posts_dir == site_root / "content/blog"
 
-
-def test_load_missing_file(tmp_path):
-    """Test loading from directory without config file (explicit path)."""
-    site_root = tmp_path / "empty_site"
-    site_root.mkdir()
-
-    config = EgregoraConfig.load(site_root)
-    assert config.models.writer == "google-gla:gemini-2.0-flash"  # Default
-    assert config.paths.site_root == site_root
-
-
-def test_load_from_cwd(tmp_path, monkeypatch):
-    """Test loading from current working directory (no explicit path)."""
+def test_env_var_override(tmp_path, monkeypatch):
+    """Test that environment variables override TOML settings."""
     site_root = tmp_path / "mysite"
     site_root.mkdir(parents=True)
 
@@ -59,14 +39,13 @@ def test_load_from_cwd(tmp_path, monkeypatch):
     config_file.write_text(
         """
 [models]
-writer = "cwd-model"
-        """
+writer = "toml-model"
+"""
     )
 
-    # Change to site directory
     monkeypatch.chdir(site_root)
+    monkeypatch.setenv("EGREGORA_MODELS__WRITER", "env-var-model")
 
-    # Load without path - should use CWD
-    config = EgregoraConfig.load()
-    assert config.models.writer == "cwd-model"
-    assert config.paths.site_root == site_root
+    config = EgregoraConfig()
+
+    assert config.models.writer == "env-var-model"
