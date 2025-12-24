@@ -66,6 +66,25 @@ CELEBRATION = """
 - **Finish the session.**
 """
 
+PRE_COMMIT_INSTRUCTIONS = """
+## ⚠️ Required: Run Pre-commit Before Submitting
+
+**CRITICAL:** Before creating a PR or committing changes, you MUST run:
+
+```bash
+uv run --with pre-commit pre-commit run --all-files
+```
+
+If pre-commit auto-fixes any issues, **stage the changes and include them in your commit**.
+
+This ensures:
+1. Your code passes CI (CI runs the same checks).
+2. Consistent formatting and linting across all contributions.
+3. No surprises when your PR is checked.
+
+**Failure to run pre-commit will result in CI failures.**
+"""
+
 
 def load_schedule_registry(registry_path: Path) -> dict:
     if not registry_path.exists():
@@ -113,6 +132,7 @@ def parse_prompt_file(filepath: Path, context: dict) -> dict:
     full_context["identity_branding"] = env.from_string(IDENTITY_BRANDING).render(**full_context)
     full_context["journal_management"] = env.from_string(JOURNAL_MANAGEMENT).render(**full_context)
     full_context["empty_queue_celebration"] = env.from_string(CELEBRATION).render(**full_context)
+    full_context["pre_commit_instructions"] = env.from_string(PRE_COMMIT_INSTRUCTIONS).render(**full_context)
 
     rendered_body = env.from_string(body_template).render(**full_context)
 

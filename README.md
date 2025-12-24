@@ -1,4 +1,5 @@
 # Egregora
+>
 > *Turn your chaotic group chat into a structured, readable blog.*
 
 [![CI](https://github.com/franklinbaldo/egregora/actions/workflows/ci.yml/badge.svg)](https://github.com/franklinbaldo/egregora/actions/workflows/ci.yml)
@@ -36,28 +37,28 @@ export GOOGLE_API_KEY="your-api-key"
 ### 2. The Workflow
 
 **1. Initialize a new site:**
+
 ```bash
 egregora init ./my-blog
 cd my-blog
 ```
 
-**After cloning** (or whenever you need to rehydrate the scaffolding) run from the repo root:
-```bash
-python scripts/bootstrap_site.py ./my-blog
-```
-If you have already `cd`ed into the site directory, run `python ../scripts/bootstrap_site.py .` instead. This ensures `.egregora/mkdocs.yml` plus the `.egregora/` cache, RAG, and LanceDB paths exist before you run `egregora write`, avoiding `_resolve_site_paths_or_raise` errors on repeated workflows.
+Egregora automatically bootstraps `.egregora` (mkdocs config, cache, RAG, and LanceDB directories) when you run `egregora init` or `egregora write`. Use `python scripts/bootstrap_site.py ./my-blog` (or `python ../scripts/bootstrap_site.py .` from inside the site) only if you need to regenerate the scaffolding manually.
 
 **2. Generate posts from your chat export:**
+
 ```bash
 egregora write path/to/chat_export.zip --output=.
 ```
 
 **3. Preview your site:**
+
 ```bash
 uv sync --all-extras
 uv run mkdocs serve -f .egregora/mkdocs.yml
 ```
-*Visit http://localhost:8000 to read your new blog.*
+
+*Visit <http://localhost:8000> to read your new blog.*
 
 ---
 
@@ -65,10 +66,11 @@ uv run mkdocs serve -f .egregora/mkdocs.yml
 
 Egregora is highly configurable via the `.egregora.toml` file generated in your site directory.
 
-*   **Models:** Switch between models (e.g., `google-gla:gemini-flash-latest`) or use OpenRouter.
-*   **Pipeline:** Adjust how many days of chat form a single post (`step_size`, `step_unit`).
+* **Models:** Switch between models (e.g., `google-gla:gemini-flash-latest`) or use OpenRouter.
+* **Pipeline:** Adjust how many days of chat form a single post (`step_size`, `step_unit`).
 
 ### Multi-site configs & reusable sources
+
 Register inputs once and point multiple sites at them using `[sources.*]` and `[sites.<name>]` blocks:
 
 ```toml
@@ -88,23 +90,28 @@ If you only define one site/source, Egregora selects it automatically. When mult
 👉 **[Full Configuration Reference](docs/getting-started/configuration.md)**
 
 ### Customizing the AI
-*   **Prompts:** Edit `.egregora/prompts/writer.jinja` to change the tone and style of the writing.
-*   **Instructions:** Add custom instructions in `.egregora.toml` under `[writer]` `custom_instructions`.
+
+* **Prompts:** Edit `.egregora/prompts/writer.jinja` to change the tone and style of the writing.
+* **Instructions:** Add custom instructions in `.egregora.toml` under `[writer]` `custom_instructions`.
 
 ---
 
 ## ✨ Features
 
 ### 🧠 Context & Memory (RAG)
+
 Egregora uses **LanceDB** to build a vector knowledge base of your conversations. When writing a new post, the AI "remembers" related discussions from the past, adding depth and continuity to the narrative.
 
 ### 🖼️ Rich Media
+
 Images and videos shared in the chat are automatically extracted, optimized, and embedded in the posts. An "Enricher" agent analyzes images to provide descriptions for the Writer agent.
 
 ### 🎨 Visuals
+
 A dedicated **Banner Agent** generates unique cover images for each post based on its content, giving your blog a polished look.
 
 ### 📊 Ranking & Quality
+
 The **Reader Agent** uses an ELO rating system to evaluate and rank posts, helping you surface the best content from your archives.
 
 ---
@@ -114,17 +121,21 @@ The **Reader Agent** uses an ELO rating system to evaluate and rank posts, helpi
 Egregora is built with a focus on performance and maintainability.
 
 ### Project Structure
-*   `src/egregora/orchestration/`: High-level workflows that coordinate the pipeline.
-*   `src/egregora/agents/`: AI logic powered by **Pydantic-AI**.
-*   `src/egregora/database/`: Data persistence using **DuckDB** and **LanceDB**.
-*   `src/egregora/input_adapters/`: Logic for reading different data sources.
+
+* `src/egregora/orchestration/`: High-level workflows that coordinate the pipeline.
+* `src/egregora/agents/`: AI logic powered by **Pydantic-AI**.
+* `src/egregora/database/`: Data persistence using **DuckDB** and **LanceDB**.
+* `src/egregora/input_adapters/`: Logic for reading different data sources.
 
 ### Performance (Internals)
+
 We use **Ibis** and **DuckDB** to handle large datasets efficiently.
-*   **Streaming:** Large ZIP files are processed without loading everything into RAM.
-*   **Functional Transforms:** Data flows through pure functions (`Table -> Table`) for speed and reliability.
+
+* **Streaming:** Large ZIP files are processed without loading everything into RAM.
+* **Functional Transforms:** Data flows through pure functions (`Table -> Table`) for speed and reliability.
 
 ### Adding New Adapters
+
 You can extend Egregora to read from other sources (e.g., Slack, Telegram) by implementing the `InputAdapter` protocol in `src/egregora/input_adapters/base.py`.
 
 ---
@@ -133,10 +144,11 @@ You can extend Egregora to read from other sources (e.g., Slack, Telegram) by im
 
 We welcome contributions! Please check out:
 
-*   **[Technical Reference](docs/reference.md):** Deep dive into CLI commands and architecture.
-*   **[Code of the Weaver](CLAUDE.md):** Guidelines for contributors and AI agents.
+* **[Technical Reference](docs/reference.md):** Deep dive into CLI commands and architecture.
+* **[Code of the Weaver](CLAUDE.md):** Guidelines for contributors and AI agents.
 
 To run tests:
+
 ```bash
 uv sync --all-extras
 uv run pytest tests/

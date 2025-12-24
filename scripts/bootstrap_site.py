@@ -32,11 +32,7 @@ def main() -> None:
 
     docs_dir, created = ensure_mkdocs_project(site_root, site_name=args.site_name)
 
-    if created:
-        status = "created"
-    else:
-        status = "verified"
-
+    status = "created" if created else "verified"
     print(f"{status.capitalize()} MkDocs scaffolding at {site_root} (docs: {docs_dir}).")
 
 

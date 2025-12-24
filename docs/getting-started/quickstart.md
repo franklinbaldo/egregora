@@ -17,10 +17,7 @@ uvx --from git+https://github.com/franklinbaldo/egregora egregora init my-blog
 cd my-blog
 ```
 
-After cloning or whenever the scaffolding goes missing, run `python ../scripts/bootstrap_site.py .`
-(or from the repository root `python scripts/bootstrap_site.py ./my-blog`) to ensure `.egregora/mkdocs.yml`
-and the supporting cache/RAG directories exist before calling `egregora write`. This prevents
-`_resolve_site_paths_or_raise` from complaining on subsequent runs.
+Running `egregora init` or the next `egregora write` call will automatically create `.egregora` (mkdocs config plus cache/RAG/LanceDB paths). If you ever need to rehydrate the scaffolding manually, run `python scripts/bootstrap_site.py ./my-blog` from the repo root or `python ../scripts/bootstrap_site.py .` from within the site directory.
 
 This creates a minimal MkDocs site structure:
 
