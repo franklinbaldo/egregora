@@ -40,6 +40,8 @@ writer = "custom-model"
     assert config.paths.site_root == site_root.resolve()
     assert config.paths.abs_posts_dir == site_root.resolve() / "posts"
 
+    # Change to site directory
+    monkeypatch.chdir(site_root)
 
 def test_load_missing_file(tmp_path, monkeypatch):
     """Test loading from directory without config file."""
@@ -61,12 +63,12 @@ def test_load_from_cwd(tmp_path, monkeypatch):
     config_file.write_text(
         """
 [models]
-writer = "cwd-model"
-        """
+writer = "toml-model"
+"""
     )
 
-    # Change to site directory
     monkeypatch.chdir(site_root)
+    monkeypatch.setenv("EGREGORA_MODELS__WRITER", "env-var-model")
 
     # Load - should use CWD as project root
     config = EgregoraConfig()

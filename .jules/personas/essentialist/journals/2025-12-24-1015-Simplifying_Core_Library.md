@@ -1,3 +1,3 @@
-## 💎 2025-12-24 - Refactoring the Core Library
+## 💎 2025-12-24 - Simplifying the Core Library
 **Observation:** The 'core' library in 'src/egregora_v3/core' contained several violations of the Essentialist Heuristics. The configuration system was over-engineered, the URL conventions were complex, and the 'Document.create' method had convoluted logic.
 **Action:** I refactored the 'core' library to address these issues. I deleted the 'ConfigLoader' and simplified the configuration system to use 'pydantic-settings''s built-in functionality. I replaced the 'match' statement in the URL conventions with a 'dict' lookup and simplified the date extraction logic. I refactored the 'Document.create' method to have a single, explicit path for ID generation. Finally, I added a '# FIXME' comment to the 'Feed.to_xml' method to acknowledge a violation of the 'Declarative over imperative' heuristic and suggest a future refactoring.
