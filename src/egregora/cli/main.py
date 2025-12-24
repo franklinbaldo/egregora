@@ -123,6 +123,64 @@ def init(
 
 
 @app.command()
+def rehydrate(
+    site_root: Annotated[
+        Path,
+        typer.Argument(help="Directory path of the site to rehydrate (defaults to current directory)"),
+    ] = Path(),
+    *,
+    site_name: Annotated[
+        str | None,
+        typer.Option(
+            "--site-name",
+            "--name",
+            help="Optional site name used when initializing MkDocs scaffolding",
+        ),
+    ] = None,
+) -> None:
+    """Rehydrate the .egregora scaffolding for an existing site.
+
+    Use this after cloning a repository or when the .egregora directory
+    is missing or incomplete. This ensures mkdocs.yml, cache, RAG, and
+    LanceDB directories are properly set up.
+
+    Examples:
+        egregora rehydrate              # Rehydrate current directory
+        egregora rehydrate ./my-blog    # Rehydrate specific site
+        egregora rehydrate . --name "My Blog"
+
+    """
+    resolved_root = site_root.expanduser().resolve()
+    resolved_root.mkdir(parents=True, exist_ok=True)
+
+    docs_dir, created = ensure_mkdocs_project(resolved_root, site_name=site_name)
+
+    status = "Created" if created else "Verified"
+    if created:
+        console.print(
+            Panel(
+                f"[bold green]✅ {status} MkDocs scaffolding[/bold green]\n\n"
+                f"📁 Site root: {resolved_root}\n"
+                f"📝 Docs directory: {docs_dir}\n\n"
+                "[bold]The .egregora directory is now ready.[/bold]",
+                title="🔄 Rehydration Complete",
+                border_style="green",
+            )
+        )
+    else:
+        console.print(
+            Panel(
+                f"[bold cyan]✅ {status} MkDocs scaffolding[/bold cyan]\n\n"
+                f"📁 Site root: {resolved_root}\n"
+                f"📝 Docs directory: {docs_dir}\n\n"
+                "[dim]Scaffolding already exists and is valid.[/dim]",
+                title="🔄 Rehydration Complete",
+                border_style="cyan",
+            )
+        )
+
+
+@app.command()
 def write(
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
