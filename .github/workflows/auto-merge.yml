@@ -106,6 +106,7 @@ jobs:
                 issue_number: prInfo.number,
                 body: '🤖 **Draft converted to ready for review**\n\nThis PR has been automatically marked as ready for review and will be auto-merged when CI passes.'
               });
+            }
 
       - name: Get PR metadata
         id: metadata
