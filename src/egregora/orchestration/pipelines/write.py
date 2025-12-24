@@ -87,28 +87,6 @@ __all__ = ["WhatsAppProcessOptions", "WriteCommandOptions", "process_whatsapp_ex
 MIN_WINDOWS_WARNING_THRESHOLD = 5
 
 
-def run_async_safely(coro: Any) -> Any:
-    """Run an async coroutine safely, handling nested event loops.
-
-    If an event loop is already running (e.g., in Jupyter or nested calls),
-    this will use run_until_complete instead of asyncio.run().
-    """
-    import asyncio
-
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        # No running loop - use asyncio.run()
-        return asyncio.run(coro)
-    else:
-        # Loop is already running - use run_until_complete in a new thread
-        import concurrent.futures
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(asyncio.run, coro)
-            return future.result()
-
-
 @dataclass
 class WriteCommandOptions:
     """Options for the write command."""
