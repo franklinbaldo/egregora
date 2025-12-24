@@ -54,6 +54,7 @@ The scheduler automatically injects standard variables into the prompt context:
 
 - `{{ emoji }}`: The agent's brand emoji.
 - `{{ identity_branding }}`: Standard header with naming conventions.
+- `{{ pre_commit_instructions }}`: **Required** pre-commit instructions for all agents.
 - `{{ journal_management }}`: Standard instructions for writing journals.
 - `{{ empty_queue_celebration }}`: Standard logic for exiting when no work is found.
 - `{{ journal_entries }}`: Aggregated content from `journals/*.md`.
