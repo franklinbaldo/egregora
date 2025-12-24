@@ -41,6 +41,12 @@ egregora init ./my-blog
 cd my-blog
 ```
 
+**After cloning** (or whenever you need to rehydrate the scaffolding) run from the repo root:
+```bash
+python scripts/bootstrap_site.py ./my-blog
+```
+If you have already `cd`ed into the site directory, run `python ../scripts/bootstrap_site.py .` instead. This ensures `.egregora/mkdocs.yml` plus the `.egregora/` cache, RAG, and LanceDB paths exist before you run `egregora write`, avoiding `_resolve_site_paths_or_raise` errors on repeated workflows.
+
 **2. Generate posts from your chat export:**
 ```bash
 egregora write path/to/chat_export.zip --output=.
