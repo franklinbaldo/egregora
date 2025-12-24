@@ -1,8 +1,13 @@
-import tomllib
 from pathlib import Path
+from typing import Tuple
 
-from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import BaseModel, Field, model_validator
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+    TomlConfigSettingsSource,
+)
 
 
 class ModelSettings(BaseModel):
@@ -14,59 +19,41 @@ class ModelSettings(BaseModel):
 
 
 class PathsSettings(BaseModel):
-    """Path configuration.
-
-    All paths are relative to the 'site_root' unless absolute.
-    site_root defaults to current working directory.
-    """
+    """Path configuration."""
 
     site_root: Path = Field(
         default_factory=Path.cwd,
-        description="Root directory of the site (defaults to current working directory)",
+        description="Root directory of the site",
     )
+    posts_dir: Path = Path("posts")
+    profiles_dir: Path = Path("profiles")
+    media_dir: Path = Path("media")
+    db_path: Path = Path(".egregora/pipeline.duckdb")
+    lancedb_path: Path = Path(".egregora/lancedb")
 
-    # Content
-    posts_dir: Path = Field(default=Path("posts"), description="Posts directory")
-    profiles_dir: Path = Field(default=Path("profiles"), description="Profiles directory")
-    media_dir: Path = Field(default=Path("media"), description="Media directory")
+    # Resolved absolute paths
+    abs_posts_dir: Path = Path("")
+    abs_profiles_dir: Path = Path("")
+    abs_media_dir: Path = Path("")
+    abs_db_path: Path = Path("")
+    abs_lancedb_path: Path = Path("")
 
-    # Internal
-    egregora_dir: Path = Field(default=Path(".egregora"), description="Internal directory")
-    db_path: Path = Field(default=Path(".egregora/pipeline.duckdb"), description="DuckDB file path")
-    lancedb_path: Path = Field(default=Path(".egregora/lancedb"), description="LanceDB directory")
+    @model_validator(mode="after")
+    def resolve_paths(self) -> "PathsSettings":
+        """Resolve all paths relative to the site_root."""
+        if not self.site_root.is_absolute():
+            self.site_root = Path.cwd() / self.site_root
 
-    @property
-    def abs_posts_dir(self) -> Path:
-        return self._resolve(self.posts_dir)
-
-    @property
-    def abs_profiles_dir(self) -> Path:
-        return self._resolve(self.profiles_dir)
-
-    @property
-    def abs_media_dir(self) -> Path:
-        return self._resolve(self.media_dir)
-
-    @property
-    def abs_db_path(self) -> Path:
-        return self._resolve(self.db_path)
-
-    @property
-    def abs_lancedb_path(self) -> Path:
-        return self._resolve(self.lancedb_path)
-
-    def _resolve(self, path: Path) -> Path:
-        if path.is_absolute():
-            return path
-        return self.site_root / path
+        self.abs_posts_dir = self.site_root / self.posts_dir
+        self.abs_profiles_dir = self.site_root / self.profiles_dir
+        self.abs_media_dir = self.site_root / self.media_dir
+        self.abs_db_path = self.site_root / self.db_path
+        self.abs_lancedb_path = self.site_root / self.lancedb_path
+        return self
 
 
 class EgregoraConfig(BaseSettings):
-    """Root configuration for Egregora V3.
-
-    Supports environment variable overrides with the pattern:
-    EGREGORA_SECTION__KEY (e.g., EGREGORA_MODELS__WRITER)
-    """
+    """Root configuration for Egregora V3."""
 
     models: ModelSettings = Field(default_factory=ModelSettings)
     paths: PathsSettings = Field(default_factory=PathsSettings)
@@ -75,40 +62,21 @@ class EgregoraConfig(BaseSettings):
         extra="ignore",
         env_prefix="EGREGORA_",
         env_nested_delimiter="__",
+        toml_file=".egregora.toml",
     )
 
     @classmethod
-    def load(cls, site_root: Path | None = None) -> "EgregoraConfig":
-        """Loads configuration from .egregora.toml and environment variables.
-
-        Priority (highest to lowest):
-        1. Environment variables (EGREGORA_SECTION__KEY)
-        2. Config file (.egregora.toml)
-        3. Defaults
-
-        Args:
-            site_root: Root directory of the site. If None, uses current working directory.
-
-        Returns:
-            EgregoraConfig: Fully loaded and validated configuration.
-        """
-        root_path = site_root if site_root is not None else Path.cwd()
-        config_file = root_path / ".egregora.toml"
-
-        file_settings = {}
-        if config_file.is_file():
-            try:
-                with config_file.open("rb") as f:
-                    file_settings = tomllib.load(f)
-            except tomllib.TOMLDecodeError as e:
-                msg = f"Invalid TOML in {config_file}: {e}"
-                raise ValueError(msg) from e
-
-        # Ensure paths section exists for site_root injection
-        if "paths" not in file_settings:
-            file_settings["paths"] = {}
-        file_settings["paths"]["site_root"] = root_path
-
-        # Pydantic will merge dicts during initialization.
-        # Env vars take precedence over init_kwargs.
-        return cls(**file_settings)
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> Tuple[PydanticBaseSettingsSource, ...]:
+        return (
+            init_settings,
+            env_settings,
+            TomlConfigSettingsSource(settings_cls),
+            file_secret_settings,
+        )

@@ -1,5 +1,5 @@
 from pathlib import Path
-
+import os
 from egregora_v3.core.config import EgregoraConfig, PathsSettings
 
 
@@ -19,7 +19,7 @@ def test_path_resolution(tmp_path):
     assert paths.abs_db_path == site_root / ".egregora/pipeline.duckdb"
 
 
-def test_load_from_toml(tmp_path):
+def test_load_from_toml(tmp_path, monkeypatch):
     # Setup a mock site
     site_root = tmp_path / "mysite"
     site_root.mkdir(parents=True)
@@ -31,21 +31,23 @@ def test_load_from_toml(tmp_path):
 writer = "custom-model"
         """
     )
+    monkeypatch.chdir(site_root)
 
     # Load config
-    config = EgregoraConfig.load(site_root)
+    config = EgregoraConfig()
 
     assert config.models.writer == "custom-model"
     assert config.paths.site_root == site_root
     assert config.paths.abs_posts_dir == site_root / "posts"
 
 
-def test_load_missing_file(tmp_path):
+def test_load_missing_file(tmp_path, monkeypatch):
     """Test loading from directory without config file (explicit path)."""
     site_root = tmp_path / "empty_site"
     site_root.mkdir()
+    monkeypatch.chdir(site_root)
 
-    config = EgregoraConfig.load(site_root)
+    config = EgregoraConfig()
     assert config.models.writer == "google-gla:gemini-2.0-flash"  # Default
     assert config.paths.site_root == site_root
 
@@ -67,6 +69,6 @@ writer = "cwd-model"
     monkeypatch.chdir(site_root)
 
     # Load without path - should use CWD
-    config = EgregoraConfig.load()
+    config = EgregoraConfig()
     assert config.models.writer == "cwd-model"
     assert config.paths.site_root == site_root
