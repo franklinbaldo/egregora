@@ -1,21 +1,84 @@
+---
+hide:
+  - navigation
+  - toc
+---
+
 # Egregora
 
-Egregora turns chat archives into a structured, readable blog. It parses your export,
-groups conversations into time windows, and generates posts that you can publish as a
-static site with MkDocs.
+<div class="md-hero">
+  <p>Turn chaotic chat archives into a structured, readable blog.</p>
+</div>
 
-## Quick links
+Egregora parses your WhatsApp exports, groups conversations into meaningful stories, and uses LLMs to generate posts that capture the essence of your collective consciousness.
 
-- Demo site: https://franklinbaldo.github.io/egregora/demo/
-- Getting started: getting-started/quickstart.md
-- Configuration: getting-started/configuration.md
-- Technical reference: reference.md
+<div class="grid cards" markdown>
+
+- :material-eye-outline: __[View Demo](https://franklinbaldo.github.io/egregora/demo/)__
+
+    ---
+
+    See a live example of a blog generated from chat data.
+
+- :material-rocket-launch-outline: __[Quick Start](getting-started/quickstart.md)__
+
+    ---
+
+    Install Egregora and generate your first site in minutes.
+
+- :material-cogs: __[Configuration](getting-started/configuration.md)__
+
+    ---
+
+    Customize the behavior, LLM models, and output style.
+
+- :material-book-open-page-variant-outline: __[User Guide](guide/architecture.md)__
+
+    ---
+
+    Deep dive into the architecture and workflows.
+
+</div>
+
+## Key Features
+
+<div class="grid cards" markdown>
+
+- __Privacy First__
+
+    ---
+
+    Runs entirely locally. Your chat data never leaves your machine unless you configure an external LLM APIs.
+
+- __AI Powered__
+
+    ---
+
+    Uses advanced LLMs (via LiteLLM) to summarize conversations and extract meaningful narratives.
+
+- __Rich Media__
+
+    ---
+
+    Preserves images and links from your chats, embedding them into the generated posts.
+
+- __Static Site Generation__
+
+    ---
+
+    Outputs standard Markdown compatible with MkDocs, allowing you to host your archive anywhere for free (GitHub Pages, etc).
+
+</div>
 
 ## How it works
 
-1. Initialize a site scaffold with `egregora init`.
-2. Run `egregora write` on your WhatsApp export.
-3. Preview the generated blog with MkDocs.
+``` title="Simple Workflow"
+# 1. Initialize a new site
+egregora init
 
-Egregora is designed to run locally with privacy-first defaults while letting you
-choose modern LLMs for writing and enrichment.
+# 2. Process your chat export
+egregora write -f _chat.txt
+
+# 3. Preview your beautiful blog
+mkdocs serve
+```
