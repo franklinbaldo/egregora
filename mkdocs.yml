@@ -6,7 +6,7 @@ repo_name: franklinbaldo/egregora
 edit_uri: edit/main/docs/
 copyright: |
   Copyright &copy; 2025 Egregora - MIT License<br>
-  <small>Last generated: !ENV [BUILD_TIMESTAMP, "Unknown"]</small>
+  <small>Last generated: __BUILD_TIMESTAMP__</small>
 
 theme:
   name: material
@@ -15,16 +15,16 @@ theme:
     # Light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: teal
-      accent: amber
+      primary: deep-purple
+      accent: indigo
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     # Dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: teal
-      accent: amber
+      primary: deep-purple
+      accent: indigo
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
@@ -69,6 +69,7 @@ theme:
     view: material/eye
 
 plugins:
+  - social
   - search:
       separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
   - mkdocstrings:
@@ -157,6 +158,7 @@ nav:
     - Installation: getting-started/installation.md
     - Quick Start: getting-started/quickstart.md
     - Configuration: getting-started/configuration.md
+    - Deployment: getting-started/deployment.md
   - User Guide:
     - Architecture Overview: guide/architecture.md
     - Technical Reference: reference.md
@@ -177,7 +179,7 @@ nav:
       - Annotations: api/knowledge/annotations.md
       - Ranking: api/knowledge/ranking.md
     - Publication:
-      - Scaffolding: api/init/scaffolding.md
+      - Scaffolding: api/output_adapters/mkdocs/scaffolding.md
     - Core:
       - Data Primitives: api/data-primitives.md
   - Architecture:
@@ -187,9 +189,9 @@ nav:
 extra:
   # Build information (set by CI/CD workflow)
   build:
-    timestamp: !ENV [BUILD_TIMESTAMP, "Unknown"]
-    commit: !ENV [BUILD_COMMIT, "Unknown"]
-    workflow_url: !ENV [BUILD_WORKFLOW_URL, ""]
+    timestamp: "__BUILD_TIMESTAMP__"
+    commit: "__BUILD_COMMIT__"
+    workflow_url: "__BUILD_WORKFLOW_URL__"
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/franklinbaldo/egregora
@@ -199,7 +201,7 @@ extra:
       name: Egregora on PyPI
   analytics:
     provider: google
-    property: !ENV [GOOGLE_ANALYTICS_KEY, ""]
+    property: "__GOOGLE_ANALYTICS_KEY__"
     feedback:
       title: Was this page helpful?
       ratings:

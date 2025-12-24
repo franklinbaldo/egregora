@@ -103,13 +103,7 @@ async def count_documents_by_type(
         Number of documents of the specified type
 
     """
-    library = context.library
-    repo = library.get_repo(doc_type)
-    if not repo:
-        return 0
-
-    all_docs = repo.list(doc_type=doc_type)
-    return len(all_docs)
+    return context.library.count(doc_type)
 
 
 async def get_pipeline_metadata(

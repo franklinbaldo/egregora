@@ -116,3 +116,17 @@ def test_get_repo_raises_error_for_unknown_type(content_library):
     # Act and Assert: It should raise a KeyError.
     with pytest.raises(KeyError, match=f"No repository registered for DocumentType: {unknown_doc_type.value}"):
         content_library.get_repo(unknown_doc_type)
+
+def test_content_library_count_documents_by_type(content_library, mock_posts_repo):
+    """Test that ContentLibrary.count returns the correct count for a doc type."""
+    # Arrange
+    doc_type = DocumentType.POST
+    expected_count = 42
+    mock_posts_repo.count.return_value = expected_count
+
+    # Act
+    count = content_library.count(doc_type)
+
+    # Assert
+    assert count == expected_count
+    mock_posts_repo.count.assert_called_once_with(doc_type=doc_type)

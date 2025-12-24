@@ -69,3 +69,8 @@ class ContentLibrary(BaseModel):
         except KeyError:
             # Re-raise with a more informative message
             raise KeyError(f"No repository registered for DocumentType: {doc_type.value}") from None
+
+    def count(self, doc_type: DocumentType) -> int:
+        """Count documents of a specific type."""
+        repo = self.get_repo(doc_type)
+        return repo.count(doc_type=doc_type)

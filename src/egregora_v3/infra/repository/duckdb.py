@@ -178,6 +178,18 @@ class DuckDBDocumentRepository(DocumentRepository):
         count = t.filter(t.id == doc_id).count().execute()
         return count > 0
 
+    def count(self, *, doc_type: DocumentType | None = None) -> int:
+        """Counts documents, optionally filtered by type."""
+        t = self._get_table()
+        query = t
+        if doc_type:
+            query = query.filter(query.doc_type == doc_type.value)
+        else:
+            # Exclude raw entries if counting all "Documents"
+            query = query.filter(query.doc_type != "_ENTRY_")
+
+        return query.count().execute()
+
     # Entry methods
 
     def save_entry(self, entry: Entry) -> None:
