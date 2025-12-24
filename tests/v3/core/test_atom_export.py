@@ -121,7 +121,7 @@ def test_entry_with_categories():
 
 def test_feed_parses_as_valid_xml():
     """Test that generated XML is valid and parseable."""
-    doc = Document.create(content="Test content", doc_type=DocumentType.POST, title="Test Post")
+    doc = Document.create(id="test-post-id", content="Test content", doc_type=DocumentType.POST, title="Test Post")
 
     feed = documents_to_feed(
         [doc], feed_id="http://example.org/feed", title="Test Feed", authors=[Author(name="Alice")]

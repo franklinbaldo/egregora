@@ -1,8 +1,20 @@
 import tomllib
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _deep_merge(destination: dict[str, Any], source: dict[str, Any]) -> dict[str, Any]:
+    """Merge source into destination, with source values overwriting."""
+    for key, value in source.items():
+        if isinstance(value, Mapping) and key in destination and isinstance(destination[key], Mapping):
+            destination[key] = _deep_merge(destination.get(key, {}), value)
+        else:
+            destination[key] = value
+    return destination
 
 
 class ModelSettings(BaseModel):
@@ -79,36 +91,37 @@ class EgregoraConfig(BaseSettings):
 
     @classmethod
     def load(cls, site_root: Path | None = None) -> "EgregoraConfig":
+        # FIXME: This manual merging is more complex than ideal.
+        # It's a workaround for the fact that `pydantic-settings` gives
+        # `__init__` arguments higher precedence than environment variables,
+        # which complicates loading a dynamic TOML file while respecting
+        # `env > toml` priority. A future refactoring could explore a custom
+        # settings source to simplify this.
         """Loads configuration from .egregora.toml and environment variables.
 
         Priority (highest to lowest):
         1. Environment variables (EGREGORA_SECTION__KEY)
         2. Config file (.egregora.toml)
         3. Defaults
-
-        Args:
-            site_root: Root directory of the site. If None, uses current working directory.
-
-        Returns:
-            EgregoraConfig: Fully loaded and validated configuration.
         """
         root_path = site_root if site_root is not None else Path.cwd()
         config_file = root_path / ".egregora.toml"
 
-        file_settings = {}
+        # 1. Load from TOML file
+        file_settings: dict[str, Any] = {}
         if config_file.is_file():
-            try:
-                with config_file.open("rb") as f:
-                    file_settings = tomllib.load(f)
-            except tomllib.TOMLDecodeError as e:
-                msg = f"Invalid TOML in {config_file}: {e}"
-                raise ValueError(msg) from e
+            with config_file.open("rb") as f:
+                file_settings = tomllib.load(f)
 
-        # Ensure paths section exists for site_root injection
-        if "paths" not in file_settings:
-            file_settings["paths"] = {}
-        file_settings["paths"]["site_root"] = root_path
+        # 2. Load from environment variables
+        env_config = cls()
+        env_settings = env_config.model_dump(exclude_unset=True)
 
-        # Pydantic will merge dicts during initialization.
-        # Env vars take precedence over init_kwargs.
-        return cls(**file_settings)
+        # 3. Merge configurations: env > toml
+        merged_config = _deep_merge(file_settings, env_settings)
+
+        # 4. Inject site_root
+        merged_config.setdefault("paths", {})["site_root"] = root_path
+
+        # 5. Validate and build the final model object
+        return cls.model_validate(merged_config)

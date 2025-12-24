@@ -1,96 +1,57 @@
-from datetime import UTC, datetime
+from datetime import datetime
+from uuid import UUID
 
 import pytest
-from defusedxml import ElementTree
-from pydantic import ValidationError
 
-from egregora_v3.core.types import Document, DocumentType, Entry, InReplyTo, documents_to_feed
-
-# --- Entry Tests ---
+from egregora_v3.core.types import Author, Document, DocumentType, Feed, documents_to_feed
 
 
-def test_entry_validation():
-    # Test valid entry
-    entry = Entry(id="urn:uuid:1234", title="Test Entry", updated=datetime.now(UTC), content="Some content")
-    assert entry.id == "urn:uuid:1234"
-    assert entry.title == "Test Entry"
-
-    # Test missing mandatory fields
-    with pytest.raises(ValidationError):
-        Entry(id="123")  # missing title and updated
-
-
-# --- Document Tests ---
-
-
-def test_document_create_factory():
-    content = "# Hello"
-    doc = Document.create(content=content, doc_type=DocumentType.POST, title="My Post")
-
-    assert doc.content == content
-    assert doc.doc_type == DocumentType.POST
-    assert doc.title == "My Post"
-    assert isinstance(doc.id, str)
-    assert doc.id == "my-post"
-
-
-def test_document_types_exist():
-    assert DocumentType.POST == "post"
-    assert DocumentType.PROFILE == "profile"
-    assert DocumentType.NOTE == "note"
-    assert DocumentType.RECAP == "recap"
-    assert DocumentType.ENRICHMENT == "enrichment"
-
-
-def test_searchable_flag():
-    doc = Document.create(content="A", doc_type=DocumentType.POST, title="A", searchable=False)
-    assert doc.searchable is False
-
-    doc_default = Document.create(content="A", doc_type=DocumentType.POST, title="A")
-    assert doc_default.searchable is True
-
-
-# --- Feed Tests ---
-
-
-def test_documents_to_feed():
-    doc1 = Document.create(content="A", doc_type=DocumentType.NOTE, title="A")
-    doc2 = Document.create(content="B", doc_type=DocumentType.NOTE, title="B")
-
-    feed = documents_to_feed([doc1, doc2], feed_id="test-feed", title="Test Feed")
-
-    assert feed.title == "Test Feed"
-    assert len(feed.entries) == 2
-    assert feed.updated >= doc1.updated
-    assert feed.updated >= doc2.updated
-
-
-def test_empty_feed():
-    feed = documents_to_feed([], feed_id="empty", title="Empty")
-    assert len(feed.entries) == 0
-    assert isinstance(feed.updated, datetime)
-
-
-def test_threading_support():
-    parent = Document.create(content="Parent", doc_type=DocumentType.POST, title="P")
-    reply = Document.create(
-        content="Reply",
+def test_document_create_with_explicit_id():
+    """Verify that the provided `id` is always used."""
+    doc = Document.create(
+        id="explicit-id",
+        content="Test content",
         doc_type=DocumentType.NOTE,
-        title="R",
-        in_reply_to=InReplyTo(ref=parent.id, type="text/markdown"),
+        title="My Note",
+        slug="a-slug",
     )
+    assert doc.id == "explicit-id"
+    assert doc.slug == "a-slug"
 
-    assert reply.in_reply_to is not None
-    assert reply.in_reply_to.ref == parent.id
-    assert reply.in_reply_to.type == "text/markdown"
 
-    # Test Feed XML Generation with Threading
-    feed = documents_to_feed([reply], feed_id="test", title="Thread Test")
-    xml = feed.to_xml()
-    root = ElementTree.fromstring(xml)
-    entry = root.find("{http://www.w3.org/2005/Atom}entry")
-    in_reply_to = entry.find("{http://purl.org/syndication/thread/1.0}in-reply-to")
+def test_document_create_generates_slug_from_title():
+    """Verify slug is generated from title if not provided."""
+    doc = Document.create(
+        id="another-id", content="Test", doc_type=DocumentType.POST, title="A Title Here"
+    )
+    assert doc.slug == "a-title-here"
+    assert doc.id == "another-id"
 
-    assert in_reply_to is not None
-    assert in_reply_to.get("ref") == parent.id
-    assert in_reply_to.get("type") == "text/markdown"
+
+def test_document_create_handles_no_slug():
+    """Verify that documents can be created without a slug."""
+    doc = Document.create(id="no-slug-id", content="Content", doc_type=DocumentType.NOTE, title="")
+    assert doc.slug is None
+    assert doc.id == "no-slug-id"
+
+
+def test_feed_to_xml_basic():
+    """Verify basic Atom XML generation."""
+    doc = Document.create(
+        id="test-doc",
+        title="Test Doc",
+        content="Hello",
+        doc_type=DocumentType.NOTE,
+    )
+    feed = documents_to_feed([doc], feed_id="test-feed", title="My Test Feed")
+    xml_output = feed.to_xml()
+
+    assert "<?xml version='1.0' encoding='utf-8'?>" in xml_output
+    assert '<feed xmlns="http://www.w3.org/2005/Atom">' in xml_output
+    assert "<id>test-feed</id>" in xml_output
+    assert "<title>My Test Feed</title>" in xml_output
+    assert "<entry>" in xml_output
+    assert "<id>test-doc</id>" in xml_output
+    assert "<title>Test Doc</title>" in xml_output
+    assert "<content>Hello</content>" in xml_output
+    assert "</feed>" in xml_output

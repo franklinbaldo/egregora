@@ -70,3 +70,18 @@ writer = "cwd-model"
     config = EgregoraConfig.load()
     assert config.models.writer == "cwd-model"
     assert config.paths.site_root == site_root
+
+
+def test_env_overrides_toml(tmp_path, monkeypatch):
+    """Verify that environment variables take precedence over the TOML file."""
+    site_root = tmp_path / "mysite"
+    site_root.mkdir(parents=True)
+
+    config_file = site_root / ".egregora.toml"
+    config_file.write_text('[models]\nwriter = "toml-writer"\n')
+
+    monkeypatch.setenv("EGREGORA_MODELS__WRITER", "env-writer")
+
+    config = EgregoraConfig.load(site_root)
+
+    assert config.models.writer == "env-writer"

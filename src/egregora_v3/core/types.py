@@ -130,37 +130,34 @@ class Document(Entry):
     @classmethod
     def create(  # noqa: PLR0913
         cls,
+        id: str,
         content: str,
         doc_type: DocumentType,
         title: str,
         *,
         status: DocumentStatus = DocumentStatus.DRAFT,
         internal_metadata: dict[str, Any] | None = None,
-        id_override: str | None = None,
         slug: str | None = None,
         searchable: bool = True,
         in_reply_to: InReplyTo | None = None,
     ) -> "Document":
-        """Factory method to create a Document.
+        """Factory method to create a Document with an explicit ID.
 
-        Identity Precedence:
-        1. `id_override` (explicit)
-        2. `slug` (semantic)
-        3. Content-based UUIDv5 (fallback)
+        Slug is derived from the title if not provided, but is not used for identity.
         """
         if internal_metadata is None:
             internal_metadata = {}
 
-        # Generate slug from title if not provided
-        final_slug = slug or slugify(title.strip())
-        if final_slug and final_slug != "untitled":
+        # Use explicit slug if provided; otherwise, generate from title only if title is not blank.
+        final_slug = slug
+        if not final_slug and title and title.strip():
+            final_slug = slugify(title.strip())
+
+        if final_slug:
             internal_metadata["slug"] = final_slug
-            doc_id = id_override or final_slug
-        else:
-            doc_id = id_override or cls._generate_content_uuid(content, doc_type, final_slug)
 
         return cls(
-            id=doc_id,
+            id=id,
             title=title,
             updated=datetime.now(UTC),
             content=content,
@@ -170,16 +167,6 @@ class Document(Entry):
             searchable=searchable,
             in_reply_to=in_reply_to,
         )
-
-    @staticmethod
-    def _generate_content_uuid(content: str, doc_type: DocumentType, slug: str | None) -> str:
-        """Generate a stable, content-addressed UUIDv5."""
-        hasher = hashlib.sha256()
-        hasher.update(content.encode("utf-8"))
-        hasher.update(doc_type.value.encode("utf-8"))
-        if slug:
-            hasher.update(slug.encode("utf-8"))
-        return str(uuid.uuid5(uuid.NAMESPACE_DNS, hasher.hexdigest()))
 
 
 class Feed(BaseModel):

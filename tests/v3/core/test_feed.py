@@ -7,6 +7,7 @@ from egregora_v3.core.types import Document, DocumentStatus, DocumentType, Feed,
 
 def test_feed_to_xml_exposes_doc_type_and_status_categories():
     doc = Document.create(
+        id="hello-world",
         content="Example body",
         doc_type=DocumentType.POST,
         title="Hello World",
@@ -41,11 +42,13 @@ def test_feed_to_xml_exposes_doc_type_and_status_categories():
 
 def test_documents_to_feed_sorts_entries_newest_first():
     older = Document.create(
+        id="older",
         content="Older entry",
         doc_type=DocumentType.NOTE,
         title="Older",
     )
     newer = Document.create(
+        id="newer",
         content="Newer entry",
         doc_type=DocumentType.NOTE,
         title="Newer",

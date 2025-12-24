@@ -46,6 +46,7 @@ def sample_feed() -> Feed:
     """Create a comprehensive sample feed with all features."""
     # Create documents with various features
     doc1 = Document.create(
+        id="doc1",
         content="# First Post\n\nThis is the **first** post with *Markdown*.",
         doc_type=DocumentType.POST,
         title="First Post",
@@ -64,6 +65,7 @@ def sample_feed() -> Feed:
     ]
 
     doc2 = Document.create(
+        id="doc2",
         content="Second post content.",
         doc_type=DocumentType.NOTE,
         title="Quick Note",
@@ -75,6 +77,7 @@ def sample_feed() -> Feed:
 
     # Document with threading
     doc3 = Document.create(
+        id="doc3",
         content="Reply to first post.",
         doc_type=DocumentType.POST,
         title="Re: First Post",
@@ -127,6 +130,7 @@ def test_roundtrip_feed_to_xml_to_entries(sample_feed: Feed, tmp_path: Path) -> 
 def test_roundtrip_preserves_timestamps(tmp_path: Path) -> None:
     """Test that timestamps are preserved in roundtrip serialization."""
     doc = Document.create(
+        id="timestamp-doc",
         content="Test content",
         doc_type=DocumentType.POST,
         title="Test Post",
@@ -271,6 +275,7 @@ def test_feed_xml_snapshot_regression(sample_feed: Feed, snapshot: SnapshotAsser
     with freeze_time("2025-12-06 10:00:00"):
         # Create deterministic feed
         doc = Document.create(
+            id="deterministic-doc",
             content="Deterministic content",
             doc_type=DocumentType.POST,
             title="Deterministic Post",
@@ -303,7 +308,7 @@ def test_feed_xml_snapshot_regression(sample_feed: Feed, snapshot: SnapshotAsser
 def test_documents_to_feed_count_invariant(titles: list[str]) -> None:
     """Property: Number of documents equals number of feed entries."""
     docs = [
-        Document.create(content=f"Content {i}", doc_type=DocumentType.NOTE, title=title)
+        Document.create(id=f"doc-{i}", content=f"Content {i}", doc_type=DocumentType.NOTE, title=title)
         for i, title in enumerate(titles)
     ]
 
@@ -317,6 +322,7 @@ def test_feed_to_xml_always_well_formed(num_entries: int) -> None:
     """Property: Feed.to_xml() always produces well-formed XML."""
     docs = [
         Document.create(
+            id=f"post-{i}",
             content=f"Content {i}",
             doc_type=DocumentType.POST,
             title=f"Post {i}",
@@ -370,12 +376,14 @@ def test_feed_preserves_title_exactly(title: str) -> None:
 def test_feed_with_threading_extension() -> None:
     """Test RFC 4685 threading extension (in-reply-to)."""
     parent = Document.create(
+        id="parent-doc",
         content="Parent post",
         doc_type=DocumentType.POST,
         title="Parent",
     )
 
     reply = Document.create(
+        id="reply-doc",
         content="Reply post",
         doc_type=DocumentType.POST,
         title="Re: Parent",
@@ -406,6 +414,7 @@ def test_feed_with_threading_extension() -> None:
 def test_feed_with_categories() -> None:
     """Test that categories are exported correctly."""
     doc = Document.create(
+        id="categorized-doc",
         content="Categorized content",
         doc_type=DocumentType.POST,
         title="Categorized Post",
@@ -456,6 +465,7 @@ def test_empty_feed_is_valid() -> None:
 def test_feed_updated_timestamp_reflects_newest_entry() -> None:
     """Test that feed.updated is set to the newest entry's timestamp."""
     old_doc = Document.create(
+        id="old-doc",
         content="Old",
         doc_type=DocumentType.POST,
         title="Old Post",
@@ -463,6 +473,7 @@ def test_feed_updated_timestamp_reflects_newest_entry() -> None:
     old_doc.updated = datetime(2025, 12, 1, tzinfo=UTC)
 
     new_doc = Document.create(
+        id="new-doc",
         content="New",
         doc_type=DocumentType.POST,
         title="New Post",
@@ -482,6 +493,7 @@ def test_feed_updated_timestamp_reflects_newest_entry() -> None:
 def test_feed_with_content_types() -> None:
     """Test different content types (text, html, markdown)."""
     text_doc = Document.create(
+        id="text-doc",
         content="Plain text content",
         doc_type=DocumentType.POST,
         title="Text Post",
@@ -489,6 +501,7 @@ def test_feed_with_content_types() -> None:
     text_doc.content_type = "text/plain"
 
     html_doc = Document.create(
+        id="html-doc",
         content="<p>HTML content</p>",
         doc_type=DocumentType.POST,
         title="HTML Post",
@@ -496,6 +509,7 @@ def test_feed_with_content_types() -> None:
     html_doc.content_type = "text/html"
 
     markdown_doc = Document.create(
+        id="markdown-doc",
         content="# Markdown content",
         doc_type=DocumentType.POST,
         title="Markdown Post",
