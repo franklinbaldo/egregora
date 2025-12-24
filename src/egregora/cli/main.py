@@ -490,3 +490,4 @@ def _run_doctor_checks(*, verbose: bool) -> None:
 
     if error_count > 0:
         raise typer.Exit(1)
+if __name__ == "__main__": app()

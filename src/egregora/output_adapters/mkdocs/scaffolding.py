@@ -62,7 +62,13 @@ class MkDocsSiteScaffolder:
         site_root = site_root.expanduser().resolve()
         site_root.mkdir(parents=True, exist_ok=True)
 
-        site_paths = MkDocsPaths(site_root)
+        # Fix for config leakage: Only load config if it exists LOCALLY in site_root.
+        # Otherwise, use default config to avoid picking up parent configs (e.g. from repo root).
+        config_path = site_root / ".egregora.toml"
+        if config_path.exists():
+            site_paths = MkDocsPaths(site_root)
+        else:
+            site_paths = MkDocsPaths(site_root, config=EgregoraConfig())
 
         mkdocs_path = site_paths.mkdocs_path
         site_exists = False
@@ -258,7 +264,7 @@ class MkDocsSiteScaffolder:
             env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
 
         prompts_dir = site_paths.prompts_dir
-        prompts_dir.mkdir(exist_ok=True)
+        prompts_dir.mkdir(parents=True, exist_ok=True)
 
         PromptManager.copy_defaults(prompts_dir)
 
