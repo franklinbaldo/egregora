@@ -98,6 +98,63 @@ annotations_enabled = true
 
 **Location**: `.egregora.toml` in site root (next to `mkdocs.yml`)
 
+### Sites and sources (multi-site configs)
+
+You can now register multiple data inputs and publishing targets in a single `.egregora.toml`. Define reusable sources once, then map them to one or more sites:
+
+```toml
+[sources.whatsapp_export]
+type = "whatsapp"               # Matches --source-type
+path = "exports/friends.zip"    # Relative to the working directory
+timezone = "America/New_York"
+
+[sources.journal]
+type = "self"
+path = "data/journal.ndjson"
+
+[sites.default]
+description = "Personal blog"
+sources = ["whatsapp_export"]   # Names from [sources.*]
+
+[sites.default.paths]
+docs_dir = "docs"
+posts_dir = "docs/posts"
+media_dir = "docs/posts/media"
+
+[sites.default.output]
+adapters = [{ type = "mkdocs", config_path = ".egregora/mkdocs.yml" }]
+
+[sites.retrospective]
+description = "Quarterly retro"
+sources = ["journal"]
+
+[sites.retrospective.output]
+adapters = [{ type = "mkdocs", config_path = ".egregora/mkdocs.retrospective.yml" }]
+```
+
+**Selection behavior**
+
+1. CLI `--site`/`--source` or `EGREGORA_SITE`/`EGREGORA_SOURCE` environment variables take precedence.
+2. If you omit flags and only one site or source is defined, it is selected automatically.
+3. If multiple entries exist and no selection is provided, Egregora picks the `default` site if present, otherwise the first entry and logs a warning. This maintains backward compatibility while encouraging explicit selection.
+4. Legacy single-site configs without `[sites.*]` still work. The loader treats them as a single implicit site and applies the provided `--source-type`/`EXPORT_PATH` inputs as before.
+
+**Backward compatibility**
+
+- Existing top-level settings remain valid. When `sites.*` is absent, your file is interpreted as a single-site configuration.
+- You can introduce `[sources.*]` gradually; if none are present, CLI positional arguments continue to drive ingestion.
+- MkDocs config paths and content directories remain relative to the site root, so you can keep your current layout while adding new sites alongside it.
+
+### Migrating from a single-site config
+
+Follow this checklist to adopt the new structure without disrupting current runs:
+
+1. **Copy your existing `.egregora.toml`** and wrap the content under `[sites.default]` (or another site name of your choice). Keep the nested sections (`[paths]`, `[pipeline]`, `[models]`, etc.) intact—only their prefix changes.
+2. **Add a named source** under `[sources.<name>]` that captures the CLI arguments you normally pass (`type`, `path`, `timezone`, date filters). Reference that name from `sites.<name>.sources`.
+3. **Keep MkDocs config paths unique** (`sites.<name>.output.adapters[0].config_path`) if you publish more than one site in the same repo. Otherwise you can continue to use `.egregora/mkdocs.yml`.
+4. **Test a dry run** with your usual CLI command plus `--site <name>` to confirm the site selection is intentional. Remove the flag once you are comfortable relying on the default-selection rules above.
+5. **Clean up legacy keys** once you verify the new layout (optional). The loader will ignore top-level settings when `sites.*` exists, but removing them avoids confusion.
+
 ## Advanced Configuration
 
 ### Custom Prompt Templates

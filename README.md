@@ -66,6 +66,23 @@ Egregora is highly configurable via the `.egregora.toml` file generated in your 
 *   **Models:** Switch between models (e.g., `google-gla:gemini-flash-latest`) or use OpenRouter.
 *   **Pipeline:** Adjust how many days of chat form a single post (`step_size`, `step_unit`).
 
+### Multi-site configs & reusable sources
+Register inputs once and point multiple sites at them using `[sources.*]` and `[sites.<name>]` blocks:
+
+```toml
+[sources.whatsapp_export]
+type = "whatsapp"
+path = "exports/friends.zip"
+
+[sites.default]
+sources = ["whatsapp_export"]
+
+[sites.default.output]
+adapters = [{ type = "mkdocs", config_path = ".egregora/mkdocs.yml" }]
+```
+
+If you only define one site/source, Egregora selects it automatically. When multiple entries exist, use `--site`/`--source` (or `EGREGORA_SITE`/`EGREGORA_SOURCE`) to choose explicitly. Legacy single-site configs without `[sites.*]` continue to work and are treated as a single implicit site. See the [Configuration Guide](docs/getting-started/configuration.md#sites-and-sources-multi-site-configs) for detailed rules and migration steps.
+
 👉 **[Full Configuration Reference](docs/getting-started/configuration.md)**
 
 ### Customizing the AI
