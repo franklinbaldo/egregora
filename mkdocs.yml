@@ -188,9 +188,9 @@ nav:
 extra:
   # Build information (set by CI/CD workflow)
   build:
-    timestamp: {{ env.BUILD_TIMESTAMP | default('Unknown') }}
-    commit: {{ env.BUILD_COMMIT | default('Unknown') }}
-    workflow_url: {{ env.BUILD_WORKFLOW_URL | default('') }}
+    timestamp: "{{ env.BUILD_TIMESTAMP | default('Unknown') }}"
+    commit: "{{ env.BUILD_COMMIT | default('Unknown') }}"
+    workflow_url: "{{ env.BUILD_WORKFLOW_URL | default('') }}"
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/franklinbaldo/egregora
@@ -200,7 +200,7 @@ extra:
       name: Egregora on PyPI
   analytics:
     provider: google
-    property: {{ env.GOOGLE_ANALYTICS_KEY | default('') }}
+    property: "{{ env.GOOGLE_ANALYTICS_KEY | default('') }}"
     feedback:
       title: Was this page helpful?
       ratings:
