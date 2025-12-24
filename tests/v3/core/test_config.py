@@ -1,18 +1,18 @@
 from pathlib import Path
-import os
 from egregora_v3.core.config import EgregoraConfig, PathsSettings
 
 
-def test_default_config():
+def test_default_config(tmp_path, monkeypatch):
     """Test default configuration uses current working directory."""
+    monkeypatch.chdir(tmp_path)
     config = EgregoraConfig()
     assert config.models.writer == "google-gla:gemini-2.0-flash"
-    # site_root defaults to CWD
-    assert config.paths.site_root == Path.cwd()
+    assert config.paths.site_root == tmp_path.resolve()
 
 
 def test_path_resolution(tmp_path):
     site_root = tmp_path / "mysite"
+    site_root.mkdir()
     paths = PathsSettings(site_root=site_root, posts_dir=Path("content/posts"))
 
     assert paths.abs_posts_dir == site_root / "content/posts"
@@ -37,23 +37,23 @@ writer = "custom-model"
     config = EgregoraConfig()
 
     assert config.models.writer == "custom-model"
-    assert config.paths.site_root == site_root
-    assert config.paths.abs_posts_dir == site_root / "posts"
+    assert config.paths.site_root == site_root.resolve()
+    assert config.paths.abs_posts_dir == site_root.resolve() / "posts"
 
 
 def test_load_missing_file(tmp_path, monkeypatch):
-    """Test loading from directory without config file (explicit path)."""
+    """Test loading from directory without config file."""
     site_root = tmp_path / "empty_site"
     site_root.mkdir()
     monkeypatch.chdir(site_root)
 
     config = EgregoraConfig()
     assert config.models.writer == "google-gla:gemini-2.0-flash"  # Default
-    assert config.paths.site_root == site_root
+    assert config.paths.site_root == site_root.resolve()
 
 
 def test_load_from_cwd(tmp_path, monkeypatch):
-    """Test loading from current working directory (no explicit path)."""
+    """Test loading from current working directory."""
     site_root = tmp_path / "mysite"
     site_root.mkdir(parents=True)
 
@@ -68,7 +68,7 @@ writer = "cwd-model"
     # Change to site directory
     monkeypatch.chdir(site_root)
 
-    # Load without path - should use CWD
+    # Load - should use CWD as project root
     config = EgregoraConfig()
     assert config.models.writer == "cwd-model"
-    assert config.paths.site_root == site_root
+    assert config.paths.site_root == site_root.resolve()
