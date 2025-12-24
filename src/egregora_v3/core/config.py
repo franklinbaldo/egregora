@@ -1,13 +1,9 @@
 from pathlib import Path
 from typing import Tuple
 
-from pydantic import BaseModel, Field, model_validator
-from pydantic_settings import (
-    BaseSettings,
-    PydanticBaseSettingsSource,
-    SettingsConfigDict,
-    TomlConfigSettingsSource,
-)
+from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings.sources import TomlConfigSettingsSource
 
 
 class ModelSettings(BaseModel):
@@ -19,38 +15,40 @@ class ModelSettings(BaseModel):
 
 
 class PathsSettings(BaseModel):
-    """Path configuration."""
+    """Path configuration.
 
-    site_root: Path = Field(description="Root directory of the site", default_factory=Path.cwd)
-    posts_dir: Path = Path("posts")
-    profiles_dir: Path = Path("profiles")
-    media_dir: Path = Path("media")
-    db_path: Path = Path(".egregora/pipeline.duckdb")
-    lancedb_path: Path = Path(".egregora/lancedb")
+    All paths are relative to the 'site_root' unless absolute.
+    site_root defaults to current working directory.
+    """
 
-    # Resolved absolute paths
-    abs_posts_dir: Path = Path("")
-    abs_profiles_dir: Path = Path("")
-    abs_media_dir: Path = Path("")
-    abs_db_path: Path = Path("")
-    abs_lancedb_path: Path = Path("")
+    site_root: Path = Field(
+        default_factory=Path.cwd,
+        description="Root directory of the site (defaults to current working directory)",
+    )
 
-    @model_validator(mode="after")
-    def resolve_paths(self) -> "PathsSettings":
-        """Resolve all paths relative to the site_root."""
-        if not self.site_root.is_absolute():
-            self.site_root = (Path.cwd() / self.site_root).resolve()
+    # Content
+    posts_dir: Path = Field(default=Path("posts"), description="Posts directory")
+    profiles_dir: Path = Field(default=Path("profiles"), description="Profiles directory")
+    media_dir: Path = Field(default=Path("media"), description="Media directory")
 
-        self.abs_posts_dir = self.site_root / self.posts_dir
-        self.abs_profiles_dir = self.site_root / self.profiles_dir
-        self.abs_media_dir = self.site_root / self.media_dir
-        self.abs_db_path = self.site_root / self.db_path
-        self.abs_lancedb_path = self.site_root / self.lancedb_path
-        return self
+    # Internal
+    egregora_dir: Path = Field(default=Path(".egregora"), description="Internal directory")
+    db_path: Path = Field(default=Path(".egregora/pipeline.duckdb"), description="DuckDB file path")
+    lancedb_path: Path = Field(default=Path(".egregora/lancedb"), description="LanceDB directory")
+
+    def resolve(self, path: Path) -> Path:
+        """Resolves a path relative to the site_root."""
+        if path.is_absolute():
+            return path
+        return self.site_root / path
 
 
 class EgregoraConfig(BaseSettings):
-    """Root configuration for Egregora V3."""
+    """Root configuration for Egregora V3.
+
+    Supports loading settings from `.egregora.toml` and environment variables.
+    Environment variables take precedence. EGREGORA_SECTION__KEY.
+    """
 
     models: ModelSettings = Field(default_factory=ModelSettings)
     paths: PathsSettings = Field(default_factory=PathsSettings)
@@ -65,17 +63,16 @@ class EgregoraConfig(BaseSettings):
     @classmethod
     def settings_customise_sources(
         cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> Tuple[PydanticBaseSettingsSource, ...]:
-        """Enable TomlConfigSettingsSource."""
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
         return (
-            init_settings,
             env_settings,
             TomlConfigSettingsSource(settings_cls),
+            init_settings,
             dotenv_settings,
             file_secret_settings,
         )
