@@ -201,6 +201,25 @@ def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path
     return str(filepath)
 
 
+def _extract_authors_from_post(md_file: Path) -> set[str]:
+    """Load a single post file and extract its author IDs."""
+    try:
+        post = frontmatter.load(str(md_file))
+        authors_meta = post.metadata.get("authors")
+        if not authors_meta:
+            return set()
+
+        # Normalize to a list
+        if not isinstance(authors_meta, list):
+            authors_meta = [authors_meta]
+
+        return {str(a) for a in authors_meta if a}
+
+    except OSError as exc:
+        logger.debug("Skipping %s: %s", md_file, exc)
+        return set()
+
+
 def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> int:
     """Scan all posts and ensure every referenced author exists in .authors.yml.
 
@@ -224,23 +243,8 @@ def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> in
 
     # Collect all unique author IDs from posts
     all_author_ids: set[str] = set()
-
     for md_file in posts_dir.rglob("*.md"):
-        try:
-            post = frontmatter.load(str(md_file))
-            authors_meta = post.metadata.get("authors")
-            if not authors_meta:
-                continue
-
-            # Normalize to a list
-            if not isinstance(authors_meta, list):
-                authors_meta = [authors_meta]
-
-            all_author_ids.update(str(a) for a in authors_meta if a)
-
-        except OSError as exc:
-            logger.debug("Skipping %s: %s", md_file, exc)
-            continue
+        all_author_ids.update(_extract_authors_from_post(md_file))
 
     # Register missing authors
     new_ids = _register_new_authors(authors, list(all_author_ids))
