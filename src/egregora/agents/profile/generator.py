@@ -138,10 +138,30 @@ def _build_profile_prompt(
         [f"[{msg.get('timestamp', 'unknown')}] {msg.get('text', '')}" for msg in author_messages]
     )
 
+    def _normalize_interests(raw_interests: Any) -> list[str]:
+        """Normalize interests to a list of strings for prompt construction."""
+        if raw_interests is None:
+            return []
+
+        if isinstance(raw_interests, str):
+            return [raw_interests]
+
+        try:
+            from collections.abc import Iterable
+
+            if isinstance(raw_interests, Iterable):
+                return list(raw_interests)
+        except TypeError:
+            # Non-iterables should be treated as empty
+            return []
+
+        return []
+
     existing_context = ""
     if existing_profile:
         bio = existing_profile.get("bio", "None")
-        interests = ", ".join(existing_profile.get("interests", [])) or "None"
+        interests_list = _normalize_interests(existing_profile.get("interests"))
+        interests = ", ".join(interests_list) or "None"
         existing_context = f"""
 CURRENT PROFILE STATE:
 Bio: {bio}
