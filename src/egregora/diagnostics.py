@@ -24,7 +24,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from egregora.config import load_egregora_config
+from egregora.config import find_egregora_config, load_egregora_config
 from egregora.input_adapters import list_adapters
 
 # Constants
@@ -277,7 +277,7 @@ def check_egregora_config() -> DiagnosticResult:
     """Check if .egregora.toml exists and is valid."""
     config_file = Path(".egregora.toml")
 
-    if not config_file.exists():
+    if not config_path:
         return DiagnosticResult(
             check="Egregora Config",
             status=HealthStatus.INFO,
@@ -291,7 +291,7 @@ def check_egregora_config() -> DiagnosticResult:
         return DiagnosticResult(
             check="Egregora Config",
             status=HealthStatus.OK,
-            message=f"Valid config at {config_file}",
+            message=f"Valid config at {config_path}",
             details={
                 "writer_model": config.models.writer,
                 "rag_enabled": config.rag.enabled,
