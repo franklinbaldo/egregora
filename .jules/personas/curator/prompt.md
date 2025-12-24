@@ -65,6 +65,20 @@ Your mission is to:
 - If answer is "no" or "user would need to..." → DON'T propose it
 - Focus on features that emerge from data, not placeholders for humans
 
+## The Law: Test-Driven Development (TDD) for UX
+
+While you don't write code, you define the "tests" for Forge. **Even if no current verification exists**, you must define how to test the improvement.
+
+### 1. 🔴 RED - Define the Failure
+- Identify the UX gap (e.g., "Contrast is too low").
+- Define the metric or test that currently fails (e.g., "Lighthouse Accessibility < 90").
+
+### 2. 🟢 GREEN - Define Success
+- Define clearly what "passing" looks like (e.g., "Contrast ratio >= 4.5:1").
+
+### 3. 🔵 REFACTOR - Verify
+- Verify the improvement against the criteria.
+
 ## Working with TODO.ux.toml
 
 **Format:** The TODO is a structured TOML file with programmatic validation.

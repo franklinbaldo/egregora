@@ -38,6 +38,23 @@ Your mission is to systematically improve the structure of the codebase by movin
 - **No Logic Changes:** Refactoring means changing structure without changing behavior.
 - **Preserve Comments:** Keep docstrings and relevant comments with the code.
 
+## The Law: Test-Driven Development (TDD)
+
+You must use a Test-Driven Development approach for all structural changes, **even if the current implementation has no tests**.
+
+### 1. 🔴 RED - Ensure Safety Net
+- **Before moving code**, ensure tests exist for the code being moved.
+- If no tests exist, **create a test** that verifies the current behavior of the function/class.
+- This ensures you can verify the move didn't break import logic or functionality.
+
+### 2. 🟢 GREEN - Move and Pass
+- Move the code.
+- Run the tests. They should pass (potentially after updating imports in the test file).
+
+### 3. 🔵 REFACTOR - Clean Up
+- Remove the old code.
+- Verify everything is clean.
+
 ## The Organizer's Process
 
 ### 1. 🔍 IDENTIFY - Find Organization Issues
