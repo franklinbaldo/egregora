@@ -1,8 +1,13 @@
-import tomllib
 from pathlib import Path
+from typing import Tuple, Type
 
 from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
+from pydantic_settings.sources import TomlConfigSettingsSource
 
 
 class ModelSettings(BaseModel):
@@ -75,40 +80,23 @@ class EgregoraConfig(BaseSettings):
         extra="ignore",
         env_prefix="EGREGORA_",
         env_nested_delimiter="__",
+        toml_file=".egregora.toml",
     )
 
     @classmethod
-    def load(cls, site_root: Path | None = None) -> "EgregoraConfig":
-        """Loads configuration from .egregora.toml and environment variables.
-
-        Priority (highest to lowest):
-        1. Environment variables (EGREGORA_SECTION__KEY)
-        2. Config file (.egregora.toml)
-        3. Defaults
-
-        Args:
-            site_root: Root directory of the site. If None, uses current working directory.
-
-        Returns:
-            EgregoraConfig: Fully loaded and validated configuration.
-        """
-        root_path = site_root if site_root is not None else Path.cwd()
-        config_file = root_path / ".egregora.toml"
-
-        file_settings = {}
-        if config_file.is_file():
-            try:
-                with config_file.open("rb") as f:
-                    file_settings = tomllib.load(f)
-            except tomllib.TOMLDecodeError as e:
-                msg = f"Invalid TOML in {config_file}: {e}"
-                raise ValueError(msg) from e
-
-        # Ensure paths section exists for site_root injection
-        if "paths" not in file_settings:
-            file_settings["paths"] = {}
-        file_settings["paths"]["site_root"] = root_path
-
-        # Pydantic will merge dicts during initialization.
-        # Env vars take precedence over init_kwargs.
-        return cls(**file_settings)
+    def settings_customise_sources(
+        cls: Type["EgregoraConfig"],
+        settings_cls: Type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> Tuple[PydanticBaseSettingsSource, ...]:
+        """Customise settings sources to add TOML file support."""
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            TomlConfigSettingsSource(settings_cls),
+            file_secret_settings,
+        )

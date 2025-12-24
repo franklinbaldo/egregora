@@ -143,21 +143,22 @@ class Document(Entry):
     ) -> "Document":
         """Factory method to create a Document.
 
-        Identity Precedence:
-        1. `id_override` (explicit)
-        2. `slug` (semantic)
-        3. Content-based UUIDv5 (fallback)
+        Identity is explicit (`id_override`) or content-based (UUIDv5).
+        Slugs are for semantic URLs and are stored in metadata.
         """
         if internal_metadata is None:
             internal_metadata = {}
 
-        # Generate slug from title if not provided
+        # 1. Handle slug separately. It's metadata, not identity.
         final_slug = slug or slugify(title.strip())
         if final_slug and final_slug != "untitled":
             internal_metadata["slug"] = final_slug
-            doc_id = id_override or final_slug
         else:
-            doc_id = id_override or cls._generate_content_uuid(content, doc_type, final_slug)
+            # ensure final_slug is None if not valid
+            final_slug = None
+
+        # 2. Determine ID with a single, clear precedence.
+        doc_id = id_override or cls._generate_content_uuid(content, doc_type, final_slug)
 
         return cls(
             id=doc_id,
@@ -191,10 +192,12 @@ class Feed(BaseModel):
     links: list[Link] = Field(default_factory=list)
 
     def to_xml(self) -> str:  # noqa: C901
-        # FIXME: This is a large, imperative block for building XML.
-        # It violates the "Declarative over imperative" heuristic.
-        # A future refactoring could use a templating engine (e.g., Jinja2)
-        # to generate the XML from a template file.
+        # 💎 FIXME: Declarative over imperative
+        # This is a large, imperative block for building XML. It works, but it's
+        # hard to read and brittle to change. A better approach would be to
+        # use a templating engine (e.g., Jinja2) with an Atom XML template.
+        # This would separate the data (Feed object) from its representation (XML),
+        # making the logic declarative and easier to maintain.
         """Generate Atom XML feed (RFC 4287 compliant).
 
         Returns:
