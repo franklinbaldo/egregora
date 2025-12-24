@@ -93,14 +93,14 @@ class EgregoraConfig(BaseSettings):
 
     @classmethod
     def load(cls, site_root: Path | None = None) -> "EgregoraConfig":
-        """Loads configuration from .egregora/config.yml and environment variables.
+        """Loads configuration from .egregora.toml and environment variables.
 
-        Uses ConfigLoader to handle YAML file loading. Environment variables
+        Uses ConfigLoader to handle TOML file loading. Environment variables
         automatically override file values via Pydantic Settings.
 
         Priority (highest to lowest):
         1. Environment variables (EGREGORA_SECTION__KEY)
-        2. Config file (.egregora/config.yml)
+        2. Config file (.egregora.toml)
         3. Defaults
 
         Args:
@@ -111,7 +111,7 @@ class EgregoraConfig(BaseSettings):
             EgregoraConfig: Fully loaded and validated configuration.
 
         Raises:
-            ValueError: If config file exists but contains invalid YAML.
+            ValueError: If config file exists but contains invalid TOML.
 
         Examples:
             # Use current working directory

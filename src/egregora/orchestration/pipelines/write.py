@@ -439,7 +439,7 @@ def process_whatsapp_export(
                 }
             ),
             "enrichment": base_config.enrichment.model_copy(update={"enabled": opts.enable_enrichment}),
-            # RAG settings: no runtime overrides needed (uses config from .egregora/config.yml)
+            # RAG settings: no runtime overrides needed (uses config from .egregora.toml)
             # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch were legacy DuckDB VSS settings
             "rag": base_config.rag,
             **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),

@@ -112,7 +112,7 @@ def generate_config_docs() -> str:
     lines = [
         "# Configuration Reference",
         "",
-        "Complete reference for `.egregora/config.yml` configuration file.",
+        "Complete reference for `.egregora.toml` configuration file.",
         "",
         "**Auto-generated from Pydantic models** - Do not edit manually!",
         "To regenerate: `python dev_tools/generate_config_docs.py`",

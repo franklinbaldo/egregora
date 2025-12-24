@@ -21,7 +21,7 @@ A high-level view of the system's design, including:
 *   **Privacy Layer** mechanics.
 
 ### 3. [Configuration Reference](getting-started/configuration.md)
-Complete guide to `egregora.toml` and `config.yml` settings.
+Complete guide to `.egregora.toml` settings (with notes for migrating legacy `config.yml` setups).
 *   Model selection and parameters.
 *   Pipeline windowing rules.
 *   Prompt customization.

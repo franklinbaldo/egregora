@@ -5,7 +5,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-import yaml
+import tomllib
 
 from egregora_v3.core.config import EgregoraConfig
 
@@ -13,7 +13,7 @@ from egregora_v3.core.config import EgregoraConfig
 class ConfigLoader:
     """Loads and validates Egregora configuration.
 
-    Handles YAML file loading and works with EgregoraConfig (BaseSettings)
+    Handles TOML file loading and works with EgregoraConfig (BaseSettings)
     to automatically apply environment variable overrides.
     """
 
@@ -31,7 +31,7 @@ class ConfigLoader:
 
         Priority (highest to lowest):
         1. Environment variables (EGREGORA_SECTION__KEY)
-        2. Config file (.egregora/config.yml relative to site_root)
+        2. Config file (.egregora.toml at the site root)
         3. Defaults
         """
         file_config = self._normalized_config(self._load_from_file())
@@ -93,18 +93,18 @@ class ConfigLoader:
         return merged
 
     def _load_from_file(self) -> dict[str, Any]:
-        """Loads configuration from .egregora/config.yml."""
-        config_path = self.site_root / ".egregora" / "config.yml"
+        """Loads configuration from .egregora.toml."""
+        config_path = self.site_root / ".egregora.toml"
         if not config_path.exists():
             return {}
 
         try:
-            with config_path.open(encoding="utf-8") as f:
-                data = yaml.safe_load(f) or {}
+            with config_path.open("rb") as f:
+                data = tomllib.load(f) or {}
                 if not isinstance(data, dict):
                     msg = f"Configuration root must be a mapping (dictionary), got {type(data).__name__}"
                     raise TypeError(msg)
                 return data
-        except yaml.YAMLError as e:
-            msg = f"Invalid YAML in {config_path}: {e}"
+        except tomllib.TOMLDecodeError as e:
+            msg = f"Invalid TOML in {config_path}: {e}"
             raise ValueError(msg) from e

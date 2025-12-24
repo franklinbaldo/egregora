@@ -275,18 +275,18 @@ def check_cache_directory() -> DiagnosticResult:
 
 def check_egregora_config() -> DiagnosticResult:
     """Check if .egregora.toml exists and is valid."""
-    site_root = Path.cwd()
-    config_path = find_egregora_config(site_root)
+    config_file = Path(".egregora.toml")
 
     if not config_path:
         return DiagnosticResult(
             check="Egregora Config",
             status=HealthStatus.INFO,
-            message="No .egregora.toml found (will use defaults)",
+            message="No .egregora.toml (will use defaults)",
         )
 
     try:
-        config = load_egregora_config(config_path.parent)
+        # Try loading config
+        config = load_egregora_config(config_file.parent)  # Pass site root
 
         return DiagnosticResult(
             check="Egregora Config",
