@@ -179,12 +179,17 @@ def _find_profile_path(
     profiles_dir: Path,
 ) -> Path | None:
     """Find profile file for a given UUID, scanning directory if needed."""
-    # Fast path: check if {uuid}.md exists (legacy or default)
+    # Fast path: check if {uuid}/index.md exists (new structure)
+    index_path = profiles_dir / author_uuid / "index.md"
+    if index_path.exists():
+        return index_path
+
+    # Check potential legacy flat file (by UUID)
     legacy_path = profiles_dir / f"{author_uuid}.md"
     if legacy_path.exists():
         return legacy_path
 
-    # Scan directory
+    # Scan directory for legacy slug-based files
     if not profiles_dir.exists():
         return None
 
@@ -204,46 +209,11 @@ def _determine_profile_path(
     current_path: Path | None = None,
 ) -> Path:
     """Determine the correct filename for a profile based on alias/name."""
-    alias = metadata.get("alias")
-    name = metadata.get("name")
-
-    # Prefer alias, then name, then uuid
-    # Only use name if it's not the UUID itself
-    slug = slugify(alias) if alias else (slugify(name) if name and name != author_uuid else None)
-
-    if not slug:
-        return profiles_dir / f"{author_uuid}.md"
-
-    filename = f"{slug}.md"
-    target_path = profiles_dir / filename
-
-    # Check for collision
-    # If target exists and is not us, we have a collision
-    if target_path.exists() and (not current_path or target_path.resolve() != current_path.resolve()):
-        # Check ownership of the target file
-        other_uuid = _get_uuid_from_profile(target_path)
-        if other_uuid and other_uuid != author_uuid:
-            # Collision! Append counter until unique
-            counter = 1
-            while True:
-                new_filename = f"{slug}-{counter}.md"
-                target_path = profiles_dir / new_filename
-
-                # If this slot is free, take it
-                if not target_path.exists():
-                    break
-
-                # If it's us, take it
-                if current_path and target_path.resolve() == current_path.resolve():
-                    break
-
-                # If it belongs to someone else, keep incrementing
-                if _get_uuid_from_profile(target_path) != author_uuid:
-                    counter += 1
-                else:
-                    break
-
-    return target_path
+    # Always use {author_uuid}/index.md for the static profile
+    # This separates static metadata from dynamic posts in the same folder
+    author_dir = profiles_dir / author_uuid
+    author_dir.mkdir(parents=True, exist_ok=True)
+    return author_dir / "index.md"
 
 
 def read_profile(
@@ -1005,15 +975,9 @@ def _update_authors_yml(
         author_entry.update(dict(front_matter["social"].items()))
 
     # URL to profile page (relative to docs root)
-    if filename:
-        author_entry["url"] = f"profiles/{filename}"
-    else:
-        # Fallback logic if filename not provided
-        slug = front_matter.get("slug")
-        if isinstance(slug, str) and slug.strip():
-            author_entry["url"] = f"posts/profiles/{author_uuid}/{slug}.md"
-        else:
-            author_entry["url"] = f"profiles/{author_uuid}.md"
+    # URL to profile page (relative to docs root)
+    # New structure: profiles/{uuid}/ (which serves index.md)
+    author_entry["url"] = f"profiles/{author_uuid}/"
 
     # Update authors dict
     authors[author_uuid] = author_entry
@@ -1046,7 +1010,7 @@ def _build_author_entry(
     avatar = metadata.get("avatar", generate_fallback_avatar_url(author_uuid))
 
     # Build entry
-    entry = {"name": metadata.get("alias", name), "url": url or f"profiles/{profile_path.name}"}
+    entry = {"name": metadata.get("alias", name), "url": url or f"profiles/{author_uuid}/"}
     if "bio" in metadata:
         entry["description"] = metadata["bio"]
     entry["avatar"] = avatar
@@ -1085,19 +1049,40 @@ def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
     # No, profiles.py deals with output/profiles/{slug}.md
 
     # Handle direct files in profiles_dir
+    # Handle direct files in profiles_dir (legacy flat structure)
     for profile_path in profiles_dir.glob("*.md"):
         if profile_path.name == "index.md":
             continue
         try:
             metadata = _extract_profile_metadata(profile_path)
-            # Must get UUID from metadata now, not filename
             author_uuid = str(metadata.get("uuid", profile_path.stem))
-
             entry = _build_author_entry(profile_path, metadata, author_uuid=author_uuid)
             authors[author_uuid] = entry
             count += 1
         except (OSError, yaml.YAMLError) as e:
             logger.warning("Failed to sync profile %s: %s", profile_path, e)
+
+    # Handle nested directories (new structure: {uuid}/index.md)
+    # We iterate over directories in profiles_dir
+    for author_dir in profiles_dir.iterdir():
+        if not author_dir.is_dir():
+            continue
+        
+        index_path = author_dir / "index.md"
+        if not index_path.exists():
+            continue
+
+        try:
+            metadata = _extract_profile_metadata(index_path)
+            # UUID should be the directory name or in metadata
+            author_uuid = str(metadata.get("uuid", author_dir.name))
+            
+            # For nested structure, we want URL to be specific
+            entry = _build_author_entry(index_path, metadata, author_uuid=author_uuid, url=f"profiles/{author_uuid}/")
+            authors[author_uuid] = entry
+            count += 1
+        except (OSError, yaml.YAMLError) as e:
+            logger.warning("Failed to sync profile %s: %s", index_path, e)
 
     # Write complete file
     try:
