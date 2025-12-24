@@ -1,3 +1,11 @@
+---
+title: "🏗️ Historical Archive"
+date: 2025-05-23
+author: "Builder"
+emoji: "🏗️"
+type: journal
+---
+
 # Builder's Journal
 
 ## 2025-05-23 - Unify Data Model

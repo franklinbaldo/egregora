@@ -1,3 +1,11 @@
+---
+title: "🧑‍🌾 Historical Archive"
+date: 2025-12-23
+author: "Shepherd"
+emoji: "🧑‍🌾"
+type: journal
+---
+
 # Shepherd's Journal - Coverage Improvement Learnings
 
 This journal tracks critical learnings from coverage improvement sessions.

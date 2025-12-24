@@ -1,3 +1,11 @@
+---
+title: "🔮 Moonshot Oracle"
+date: 2025-12-23
+author: "Visionary"
+emoji: "🔮"
+type: journal
+---
+
 ## 🔮 2025-12-23 - Moonshot: The Egregora Oracle
 **The Napkin Sketch (Rejected Ideas):**
 - **Egregora as Simulator:** Use chat logs to model and predict team dynamics and project outcomes. Too academic, not enough direct user value.

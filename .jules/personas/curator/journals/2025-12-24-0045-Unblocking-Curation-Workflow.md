@@ -1,3 +1,11 @@
+---
+title: "🎭 Unblocking-Curation-Workflow"
+date: 2025-12-24
+author: "Curator"
+emoji: "🎭"
+type: journal
+---
+
 ## 🎭 2025-12-24-0045 - Unblocking the Curation Workflow and First Impressions
 
 **Observation:** My initial attempt to follow the Curation Cycle was completely blocked by a series of infrastructure bugs. The `egregora demo` command, while appearing to run, produced a broken site that could not be served due to missing directories and incorrect plugin installation instructions. The `TODO.ux.toml` file incorrectly listed this as a "review" item, indicating a process gap where changes are not verified before being marked for review.

@@ -32,9 +32,17 @@ Your emoji is: {{ emoji }}
 JOURNAL_MANAGEMENT = """
 ### 📝 DOCUMENT - Update Journal
 - Create a NEW file in `.jules/personas/{{ id }}/journals/`
-- Naming convention: `YYYY-MM-DD-HHMM-Any_Title_You_Want.md` (only date/time is mandatory)
-- Content:
+- Naming convention: `YYYY-MM-DD-HHMM-Any_Title_You_Want.md`
+- **CRITICAL:** Start with YAML Frontmatter:
   ```markdown
+  ---
+  title: "{{ emoji }} Any Title You Want"
+  date: YYYY-MM-DD
+  author: "{{ id | title }}"
+  emoji: "{{ emoji }}"
+  type: journal
+  ---
+
   ## {{ emoji }} YYYY-MM-DD - Topic
   **Observation:** [What did you notice?]
   **Action:** [What did you do?]
@@ -51,7 +59,18 @@ CELEBRATION = """
 **If you find no work to do:**
 - 🎉 **Celebrate!** The state is good.
 - Create a journal entry: `YYYY-MM-DD-HHMM-No_Work_Needed.md`
-- Content: "## {{ emoji }} No issues found / Queue empty."
+- Content:
+  ```markdown
+  ---
+  title: "{{ emoji }} No Work Needed"
+  date: YYYY-MM-DD
+  author: "{{ id | title }}"
+  emoji: "{{ emoji }}"
+  type: journal
+  ---
+
+  ## {{ emoji }} No issues found / Queue empty.
+  ```
 - **Finish the session.**
 """
 
@@ -94,6 +113,12 @@ def collect_journals(persona_dir: Path) -> str:
     for jf in journal_files:
         try:
             content = jf.read_text().strip()
+            # If frontmatter exists, strip it for the aggregated view to avoid confusion
+            if content.startswith("---"):
+                parts = content.split("---", 2)
+                if len(parts) >= 3:
+                    content = parts[2].strip()
+            
             if content:
                 entries.append(f"\n--- Journal Entry: {jf.name} ---\n{content}\n")
         except Exception:
@@ -203,9 +228,15 @@ def main():
             persona_dir = p_file.parent
             journal_entries = collect_journals(persona_dir)
             
+            # Pre-load to get emoji from frontmatter
+            raw_post = frontmatter.load(p_file)
+            emoji = raw_post.metadata.get("emoji", "")
+            
             context = {
                 **base_context, 
-                "journal_entries": journal_entries
+                "journal_entries": journal_entries,
+                "emoji": emoji,
+                "id": raw_post.metadata.get("id", "")
             }
 
             parsed = parse_prompt_file(p_file, context)
