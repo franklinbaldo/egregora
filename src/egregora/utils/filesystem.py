@@ -76,6 +76,7 @@ def _update_authors_file(authors_path: Path, author_ids: list[str]) -> int:
 
     Returns:
         The number of new authors that were added to the file.
+
     """
     authors = _load_authors_yml(authors_path)
     new_ids = _register_new_authors(authors, author_ids)

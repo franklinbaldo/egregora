@@ -7,7 +7,6 @@ from zoneinfo import ZoneInfo
 import ibis
 import pytest
 
-from egregora.config.settings import EgregoraConfig
 from egregora.transformations.windowing import (
     WindowConfig,
     create_windows,
@@ -186,10 +185,10 @@ def test_checkpoint_operations(tmp_path):
     assert load_checkpoint(checkpoint_path) is None
 
 
-def test_generate_window_signature():
+def test_generate_window_signature(config_factory):
     """Test window signature generation."""
     table = create_test_table(10)
-    config = EgregoraConfig()
+    config = config_factory()
 
     # Mock build_conversation_xml to return deterministic XML
     with patch("egregora.transformations.windowing.build_conversation_xml") as mock_build_xml:
