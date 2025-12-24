@@ -10,15 +10,20 @@ from jules.github import get_pr_details_via_gh, get_repo_info, run_gh_command
 
 def should_trigger_feedback(pr_data: dict[str, Any]) -> bool:
     """Determine if a PR needs feedback."""
-    # 1. Check CI Status
-    status = pr_data.get("statusCheckRollup") or {}
-    state = status.get("state", "PENDING")
+    # 1. Check CI Status - statusCheckRollup is a list of check results
+    checks_rollup = pr_data.get("statusCheckRollup") or []
 
-    ci_failed = state in ["FAILURE", "ERROR"]
+    # Check if any check has failed
+    ci_failed = False
+    for check in checks_rollup:
+        status = check.get("conclusion") or check.get("status") or check.get("state")
+        if status in ["FAILURE", "failure", "error", "timed_out", "ERROR"]:
+            ci_failed = True
+            break
 
     # 2. Check Reviews
     reviews = pr_data.get("latestReviews", [])
-    changes_requested = any(r["state"] == "CHANGES_REQUESTED" for r in reviews)
+    changes_requested = any(r.get("state") == "CHANGES_REQUESTED" for r in reviews)
 
     return ci_failed or changes_requested
 
