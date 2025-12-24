@@ -1,15 +1,8 @@
-"""Content Library Facade.
-
-This module replaces the AtomPub-style Catalog (Service/Workspace/Collection)
-with a simpler Repository Pattern facade.
-
-It exposes typed repositories for accessing and persisting content.
-"""
 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from pydantic import BaseModel, ConfigDict
 
@@ -23,10 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class ContentLibrary(BaseModel):
-    """Facade for content repositories.
-
-    Replaces the complex Service/Workspace/Collection hierarchy.
-    """
+    """Facade for content repositories."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -36,30 +26,28 @@ class ContentLibrary(BaseModel):
     journal: DocumentRepository
     enrichments: DocumentRepository
 
+    @property
+    def _repo_map(self) -> dict[DocumentType, DocumentRepository]:
+        """Data over logic: Use a map for routing."""
+        return {
+            DocumentType.POST: self.posts,
+            DocumentType.MEDIA: self.media,
+            DocumentType.PROFILE: self.profiles,
+            DocumentType.NOTE: self.journal,  # NOTE maps to journal
+            DocumentType.ENRICHMENT: self.enrichments,
+        }
+
     def save(self, doc: Document) -> None:
         """Convenience method to save a document to the correct repository."""
         repo = self._get_repo(doc.doc_type)
         repo.save(doc)
 
     def _get_repo(self, doc_type: DocumentType) -> DocumentRepository:
-        if doc_type == DocumentType.POST:
-            return self.posts
-        if doc_type == DocumentType.MEDIA:
-            return self.media
-        if doc_type == DocumentType.PROFILE:
-            return self.profiles
-        if doc_type == DocumentType.NOTE:  # Mapping NOTE to journal for now
-            return self.journal
-        if doc_type == DocumentType.ENRICHMENT:
-            return self.enrichments
+        """Get the repository for a given document type."""
+        # Use the map with a safe fallback to the 'posts' repository.
+        repo = self._repo_map.get(doc_type)
+        if repo:
+            return repo
 
-        # Fallback or error
-        # Assuming posts is a safe default or raising error
-        # For now, return posts to avoid crash if unexpected type
         logger.warning("Unknown document type %s, defaulting to posts repo", doc_type)
         return self.posts
-
-
-# Legacy aliases for backward compatibility if needed,
-# but the instruction was to remove them.
-# We intentionally do NOT export Service/Workspace/Collection.
