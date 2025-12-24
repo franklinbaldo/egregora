@@ -52,7 +52,7 @@ def test_embed_fn_uses_rag_settings_for_router(
         models__embedding="models/test-embedding",
     )
 
-    monkeypatch.setattr(egregora_config, "load_egregora_config", lambda _path=None: config)
+    monkeypatch.setattr(egregora_config, "EgregoraConfig", lambda **_kwargs: config)
 
     created_router = Mock()
     created_router.embed.return_value = [[0.1]]

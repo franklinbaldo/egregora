@@ -32,7 +32,7 @@ from rich.panel import Panel
 
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.config import RuntimeContext, load_egregora_config
+from egregora.config import RuntimeContext
 from egregora.config.settings import (
     EgregoraConfig,
     SiteSettings,
@@ -216,7 +216,6 @@ def _prepare_write_config(
     base_config: EgregoraConfig,
 ) -> Any:
     """Prepare Egregora configuration from options."""
-    base_config = load_egregora_config(options.output, site=options.site)
     models_update: dict[str, str] = {}
     if options.model:
         models_update = {
@@ -401,7 +400,7 @@ def run_cli_flow(
 
     _validate_api_key(output_dir)
 
-    base_config = load_egregora_config(output_dir)
+    base_config = EgregoraConfig(toml_file=output_dir / ".egregora.toml")
     try:
         sources_to_run = _resolve_sources_to_run(base_config, parsed_options.source)
     except ValueError as exc:
@@ -487,7 +486,7 @@ def process_whatsapp_export(
     if opts.gemini_api_key:
         os.environ["GOOGLE_API_KEY"] = opts.gemini_api_key
 
-    base_config = load_egregora_config(output_dir, site=opts.site)
+    base_config = EgregoraConfig(toml_file=output_dir / ".egregora.toml")
 
     # Apply CLI model override to all text generation models if provided
     models_update = {}

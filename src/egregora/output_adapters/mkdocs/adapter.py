@@ -30,6 +30,7 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
+from egregora.config import EgregoraConfig
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
@@ -72,7 +73,8 @@ class MkDocsAdapter(BaseOutputSink):
 
     def initialize(self, site_root: Path, url_context: UrlContext | None = None) -> None:
         """Initializes the adapter with all necessary paths and dependencies."""
-        site_paths = MkDocsPaths(site_root)
+        config = EgregoraConfig(toml_file=site_root / ".egregora.toml")
+        site_paths = MkDocsPaths(site_root, config=config)
         self.site_root = site_paths.site_root
         self._site_root = self.site_root
         self.docs_dir = site_paths.docs_dir
@@ -297,7 +299,8 @@ class MkDocsAdapter(BaseOutputSink):
 
         """
         # Use MkDocsPaths to find mkdocs.yml (checks .egregora/, root)
-        site_paths = MkDocsPaths(site_root)
+        config = EgregoraConfig(toml_file=site_root / ".egregora.toml")
+        site_paths = MkDocsPaths(site_root, config=config)
         mkdocs_path = site_paths.mkdocs_path
         if not mkdocs_path:
             msg = f"No mkdocs.yml found in {site_root}"

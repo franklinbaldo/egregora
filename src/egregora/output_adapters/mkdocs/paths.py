@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from egregora.config import load_egregora_config
+from egregora.config import EgregoraConfig
 
 __all__ = ["MkDocsPaths", "derive_mkdocs_paths"]
 
@@ -13,14 +13,10 @@ __all__ = ["MkDocsPaths", "derive_mkdocs_paths"]
 class MkDocsPaths:
     """Resolved MkDocs paths configuration (Config Over Code)."""
 
-    def __init__(self, site_root: Path, *, config: Any | None = None, site: str | None = None) -> None:
+    def __init__(self, site_root: Path, *, config: EgregoraConfig) -> None:
         self.site_root = site_root.expanduser().resolve()
-
-        if config is None:
-            config = load_egregora_config(self.site_root, site=site)
-
         self.config = config
-        p = config.paths
+        p = self.config.paths
 
         self.egregora_dir = (self.site_root / p.egregora_dir).resolve()
         self.config_path = self.site_root / ".egregora.toml"
@@ -104,12 +100,12 @@ class MkDocsPaths:
         }
 
 
-def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None, site: str | None = None) -> dict[str, Path]:
+def derive_mkdocs_paths(site_root: Path, *, config: EgregoraConfig) -> dict[str, Path]:
     """Backwards-compatible helper returning common MkDocs paths.
 
     Prefer using :class:`MkDocsPaths` directly in new code.
     """
-    paths = MkDocsPaths(site_root, config=config, site=site)
+    paths = MkDocsPaths(site_root, config=config)
     return {
         "site_root": paths.site_root,
         "egregora_dir": paths.egregora_dir,

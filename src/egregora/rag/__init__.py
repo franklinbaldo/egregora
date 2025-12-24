@@ -35,21 +35,18 @@ logger = logging.getLogger(__name__)
 _backend: VectorStore | None = None
 
 
-def get_backend() -> VectorStore:
+def get_backend(config: "EgregoraConfig | None" = None) -> VectorStore:
     """Get or initialize the global RAG backend."""
     global _backend
     if _backend is None:
         from pathlib import Path
 
-        from egregora.config import load_egregora_config
+        from egregora.config import EgregoraConfig
 
-        try:
-            config = load_egregora_config()
-            lancedb_path = Path(config.paths.lancedb_dir)
-        except Exception:  # noqa: BLE001
-            logger.warning("Could not load RAG config, using defaults")
-            # Default fallback matching PathsSettings
-            lancedb_path = Path(".egregora/lancedb")
+        if config is None:
+            config = EgregoraConfig()
+
+        lancedb_path = Path(config.paths.lancedb_dir)
 
         # Initialize LanceDB backend with embedding function
         # Note: We inject embed_fn here to decouple backend from router
@@ -104,6 +101,7 @@ def embed_fn(
     texts: tuple[str],
     task_type: TaskType = "RETRIEVAL_DOCUMENT",
     model: str | None = None,
+    config: "EgregoraConfig | None" = None,
 ) -> list[list[float]]:
     """Generate embeddings for a list of texts using the configured router.
 
@@ -111,20 +109,18 @@ def embed_fn(
         texts: Tuple of strings to embed (tuple for lru_cache)
         task_type: Type of task (retrieval_query, retrieval_document, etc.)
         model: Optional model override
+        config: Optional EgregoraConfig instance
 
     Returns:
         List of embedding vectors
 
     """
-    from egregora.config import load_egregora_config
+    from egregora.config import EgregoraConfig
 
     if model is None:
-        try:
-            config = load_egregora_config()
-            model = config.models.embedding
-        except Exception:  # noqa: BLE001
-            # Fallback if config fails
-            model = "models/gemini-embedding-001"
+        if config is None:
+            config = EgregoraConfig()
+        model = config.models.embedding
 
     router = get_embedding_router(model=model)
     return router.embed(list(texts), task_type=task_type)

@@ -32,12 +32,17 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, ClassVar, Literal
 from zoneinfo import ZoneInfo
 
 import tomli_w
-from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, ValidationError, field_validator, model_validator
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+    TomlConfigSettingsSource,
+)
 
 from egregora.constants import SourceType, WindowUnit
 
@@ -78,7 +83,7 @@ GoogleModelName = Annotated[
 ]
 
 
-class ModelSettings(BaseModel):
+class ModelSettings(BaseSettings):
     """LLM model configuration for different tasks.
 
     - Pydantic-AI agents expect provider-prefixed IDs like ``google-gla:gemini-flash-latest``
@@ -154,7 +159,7 @@ class ModelSettings(BaseModel):
         return v
 
 
-class ImageGenerationSettings(BaseModel):
+class ImageGenerationSettings(BaseSettings):
     """Configuration for image generation requests."""
 
     response_modalities: list[str] = Field(
@@ -167,7 +172,7 @@ class ImageGenerationSettings(BaseModel):
     )
 
 
-class RAGSettings(BaseModel):
+class RAGSettings(BaseSettings):
     """Retrieval-Augmented Generation (RAG) configuration.
 
     Uses LanceDB for vector storage and similarity search.
@@ -228,7 +233,7 @@ class RAGSettings(BaseModel):
         return v
 
 
-class WriterAgentSettings(BaseModel):
+class WriterAgentSettings(BaseSettings):
     """Blog post writer configuration."""
 
     custom_instructions: str | None = Field(
@@ -237,7 +242,7 @@ class WriterAgentSettings(BaseModel):
     )
 
 
-class PrivacySettings(BaseModel):
+class PrivacySettings(BaseSettings):
     """Privacy and PII configuration."""
 
     anonymization_enabled: bool = Field(
@@ -258,7 +263,7 @@ class PrivacySettings(BaseModel):
     )
 
 
-class EnrichmentSettings(BaseModel):
+class EnrichmentSettings(BaseSettings):
     """Enrichment settings for URLs and media."""
 
     enabled: bool = Field(
@@ -308,7 +313,7 @@ class EnrichmentSettings(BaseModel):
     )
 
 
-class PipelineSettings(BaseModel):
+class PipelineSettings(BaseSettings):
     """Pipeline execution settings."""
 
     step_size: int = Field(
@@ -368,7 +373,7 @@ class PipelineSettings(BaseModel):
     )
 
 
-class PathsSettings(BaseModel):
+class PathsSettings(BaseSettings):
     """Site directory paths configuration.
 
     All paths are relative to site_root (output directory).
@@ -448,7 +453,7 @@ class PathsSettings(BaseModel):
         return v
 
 
-class OutputAdapterConfig(BaseModel):
+class OutputAdapterConfig(BaseSettings):
     """Configuration for a single output adapter.
 
     Each adapter represents a target format (e.g., MkDocs, Hugo) with
@@ -465,7 +470,7 @@ class OutputAdapterConfig(BaseModel):
     )
 
 
-class OutputSettings(BaseModel):
+class OutputSettings(BaseSettings):
     """Output adapter registry.
 
     Registers all output adapters used for this site.
@@ -478,7 +483,7 @@ class OutputSettings(BaseModel):
     )
 
 
-class SourceOverrideSettings(BaseModel):
+class SourceOverrideSettings(BaseSettings):
     """Per-source overrides for pipeline execution.
 
     Allows fine-grained control of windowing, enrichment, and date ranges
@@ -523,7 +528,7 @@ class SourceOverrideSettings(BaseModel):
     )
 
 
-class SourceSettings(BaseModel):
+class SourceSettings(BaseSettings):
     """Configuration for a single input source."""
 
     adapter: str = Field(
@@ -536,7 +541,7 @@ class SourceSettings(BaseModel):
     )
 
 
-class SiteSettings(BaseModel):
+class SiteSettings(BaseSettings):
     """Site-level configuration including configured sources."""
 
     default_source: str | None = Field(
@@ -549,7 +554,7 @@ class SiteSettings(BaseModel):
     )
 
 
-class DatabaseSettings(BaseModel):
+class DatabaseSettings(BaseSettings):
     """Database configuration for pipeline and observability.
 
     All values must be valid Ibis connection URIs (e.g. DuckDB, Postgres, SQLite).
@@ -573,7 +578,7 @@ class DatabaseSettings(BaseModel):
     )
 
 
-class ReaderSettings(BaseModel):
+class ReaderSettings(BaseSettings):
     """Reader agent configuration for post evaluation and ranking."""
 
     enabled: bool = Field(
@@ -598,7 +603,7 @@ class ReaderSettings(BaseModel):
     )
 
 
-class FeaturesSettings(BaseModel):
+class FeaturesSettings(BaseSettings):
     """Feature flags for experimental or optional functionality."""
 
     ranking_enabled: bool = Field(
@@ -611,7 +616,7 @@ class FeaturesSettings(BaseModel):
     )
 
 
-class QuotaSettings(BaseModel):
+class QuotaSettings(BaseSettings):
     """Configuration for LLM usage budgets and concurrency."""
 
     daily_llm_requests: int = Field(
@@ -632,7 +637,7 @@ class QuotaSettings(BaseModel):
     )
 
 
-class ProfileSettings(BaseModel):
+class ProfileSettings(BaseSettings):
     """Configuration for profile generation agent."""
 
     history_window_size: int = Field(
@@ -714,12 +719,36 @@ class EgregoraConfig(BaseSettings):
         description="LLM usage quota tracking",
     )
 
+    toml_file: str | Path = Field(
+        default=".egregora.toml",
+        description="Path to the TOML configuration file.",
+    )
+
     model_config = SettingsConfigDict(
-        extra="forbid",  # Reject unknown fields
-        validate_assignment=True,  # Validate on attribute assignment
+        extra="forbid",
+        validate_assignment=True,
         env_prefix="EGREGORA_",
         env_nested_delimiter="__",
+        toml_file=".egregora.toml",
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        toml_file = init_settings.init_kwargs.get("toml_file")
+        return (
+            init_settings,
+            env_settings,
+            TomlConfigSettingsSource(settings_cls, toml_file=toml_file),
+            dotenv_settings,
+            file_secret_settings,
+        )
 
     @model_validator(mode="after")
     def validate_cross_field(self) -> EgregoraConfig:
@@ -822,182 +851,6 @@ class EgregoraConfig(BaseSettings):
 # ============================================================================
 # Configuration Loading and Saving
 # ============================================================================
-
-
-def find_egregora_config(start_dir: Path, *, site: str | None = None) -> Path | None:
-    """Search upward for .egregora.toml.
-
-    Args:
-        start_dir: Starting directory for upward search
-        site: Optional site identifier (reserved for future use)
-
-    Returns:
-        Path to config file if found, else None
-
-    """
-    current = start_dir.expanduser().resolve()
-    for candidate in (current, *current.parents):
-        toml_path = candidate / ".egregora.toml"
-        if toml_path.exists():
-            return toml_path
-
-    return None
-
-
-def _collect_env_override_paths() -> set[tuple[str, ...]]:
-    """Return the set of config paths defined via environment variables."""
-    prefix = "EGREGORA_"
-    env_paths: set[tuple[str, ...]] = set()
-
-    for key in os.environ:
-        if not key.startswith(prefix):
-            continue
-        parts = [part.lower() for part in key[len(prefix) :].split("__") if part]
-        if parts:
-            env_paths.add(tuple(parts))
-
-    return env_paths
-
-
-def _merge_config(
-    base: dict[str, Any],
-    override: dict[str, Any],
-    env_override_paths: set[tuple[str, ...]],
-    current_path: tuple[str, ...] = (),
-) -> dict[str, Any]:
-    """Merge override into base, skipping keys provided via env vars."""
-    merged = deepcopy(base)
-
-    for key, value in override.items():
-        path = (*current_path, str(key).lower())
-        if path in env_override_paths:
-            continue
-
-        if isinstance(value, dict) and isinstance(merged.get(key), dict):
-            merged[key] = _merge_config(merged[key], value, env_override_paths, path)
-        else:
-            merged[key] = value
-
-    return merged
-
-
-def _normalize_sites_config(
-    file_data: dict[str, Any], site: str | None = None
-) -> tuple[str, dict[str, Any]]:
-    """Normalize config data to a sites mapping and select the requested site.
-
-    Args:
-        file_data: Parsed TOML data
-        site: Optional site identifier to select
-
-    Returns:
-        Tuple of (selected_site_name, site_config_data)
-
-    Raises:
-        ValueError: If sites are missing/invalid or site is not found
-    """
-    sites_data: dict[str, Any]
-    if "sites" in file_data:
-        sites_data = file_data["sites"]
-        if not isinstance(sites_data, dict):
-            raise ValueError("Configuration section 'sites' must be a table mapping site names to configs.")
-    else:
-        sites_data = {DEFAULT_SITE_NAME: file_data}
-
-    if not sites_data:
-        raise ValueError("Configuration must define at least one site under [sites].")
-
-    selected_site = site or (DEFAULT_SITE_NAME if DEFAULT_SITE_NAME in sites_data else next(iter(sites_data)))
-    if selected_site not in sites_data:
-        available = ", ".join(sorted(sites_data))
-        msg = f"Site '{selected_site}' not found in configuration. Available sites: {available}"
-        raise ValueError(msg)
-
-    site_data = sites_data[selected_site]
-    if not isinstance(site_data, dict):
-        raise ValueError(f"Configuration for site '{selected_site}' must be a table.")
-
-    return selected_site, site_data
-
-
-def load_egregora_config(site_root: Path | None = None, *, site: str | None = None) -> EgregoraConfig:
-    """Load Egregora configuration from .egregora.toml.
-
-    Configuration priority (highest to lowest):
-    1. CLI (applied via from_cli_overrides later)
-    2. Environment variables (EGREGORA_SECTION__KEY)
-    3. Config file (.egregora.toml)
-    4. Defaults
-
-    Args:
-        site_root: Root directory of the site. If None, uses current working directory.
-        site: Optional site identifier to select from the sites mapping.
-
-    Returns:
-        Validated EgregoraConfig instance
-
-    Raises:
-        ValidationError: If config file contains invalid data
-
-    """
-    if site_root is None:
-        site_root = Path.cwd()
-
-    config_path = find_egregora_config(site_root, site=site)
-
-    if not config_path:
-        # Default to .egregora.toml in site_root
-        config_path = site_root / ".egregora.toml"
-
-    if not config_path.exists():
-        logger.info("No configuration found, creating default config at %s", config_path)
-        return create_default_config(site_root, site=site or DEFAULT_SITE_NAME)
-
-    logger.info("Loading config from %s", config_path)
-
-    try:
-        raw_config = config_path.read_text(encoding="utf-8")
-    except OSError:
-        logger.exception("Failed to read config from %s", config_path)
-        raise
-
-    try:
-        file_data = tomllib.loads(raw_config)
-    except ValueError as e:
-        logger.exception("Failed to parse config in %s: %s", config_path, e)
-        raise
-
-    try:
-        # Create base config with defaults (environment overrides applied)
-        base_config = EgregoraConfig()
-        base_dict = base_config.model_dump(mode="json")
-
-        # Merge file config into base, skipping keys that are set in env vars
-        # This logic preserves: Env Vars > Config File > Defaults
-        env_override_paths = _collect_env_override_paths()
-
-        selected_site, site_data = _normalize_sites_config(file_data, site=site)
-        env_override_paths_with_site = set(env_override_paths)
-        for path in env_override_paths:
-            if path and path[0] == "sites":
-                env_override_paths_with_site.add(path)
-            else:
-                env_override_paths_with_site.add(("sites", selected_site, *path))
-
-        wrapped_base = {"sites": {selected_site: base_dict}}
-        wrapped_override = {"sites": {selected_site: site_data}}
-        merged = _merge_config(wrapped_base, wrapped_override, env_override_paths_with_site)
-
-        # Validate and return
-        selected_config = merged["sites"][selected_site]
-        return EgregoraConfig.model_validate(selected_config)
-    except ValidationError as e:
-        logger.exception("Configuration validation failed for %s:", config_path)
-        for error in e.errors():
-            loc = " -> ".join(str(location_part) for location_part in error["loc"])
-            logger.exception("  %s: %s", loc, error["msg"])
-        logger.warning("Creating default config due to validation error")
-        return create_default_config(site_root, site=site or DEFAULT_SITE_NAME)
 
 
 def create_default_config(site_root: Path, *, site: str = DEFAULT_SITE_NAME) -> EgregoraConfig:
@@ -1259,7 +1112,6 @@ __all__ = [
     "WriterRuntimeConfig",
     "create_default_config",
     "find_egregora_config",
-    "load_egregora_config",
     "parse_date_arg",
     "save_egregora_config",
     "validate_retrieval_config",

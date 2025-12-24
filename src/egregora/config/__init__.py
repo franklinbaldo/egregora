@@ -47,8 +47,6 @@ from egregora.config.settings import (
     WriterAgentSettings,
     # Config loading/saving functions
     create_default_config,
-    find_egregora_config,
-    load_egregora_config,
     save_egregora_config,
 )
 
@@ -69,7 +67,5 @@ __all__ = [
     "SourceSettings",
     "WriterAgentSettings",
     "create_default_config",
-    "find_egregora_config",
-    "load_egregora_config",
     "save_egregora_config",
 ]
