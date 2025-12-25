@@ -55,9 +55,9 @@ def test_pipeline_runner_process_windows():
 @patch("egregora.orchestration.runner.extract_commands_list")
 @patch("egregora.orchestration.runner.command_to_announcement")
 @patch("egregora.orchestration.runner.filter_commands")
-@patch("egregora.orchestration.runner.run_async_safely")
+@patch("egregora.orchestration.runner.asyncio.run")
 def test_process_single_window_orchestration(
-    mock_run_async_safely,
+    mock_asyncio_run,
     mock_filter_commands,
     mock_command_to_announcement,
     mock_extract_commands,
@@ -88,7 +88,7 @@ def test_process_single_window_orchestration(
     mock_filter_commands.return_value = [{"id": 2, "text": "not a command"}]
 
     # Mock the two async calls
-    mock_run_async_safely.side_effect = [
+    mock_asyncio_run.side_effect = [
         {"posts": ["post1"], "profiles": []},  # write_posts_for_window
         [MagicMock()],  # generate_profile_posts
     ]
@@ -112,4 +112,4 @@ def test_process_single_window_orchestration(
     mock_extract_commands.assert_called_once()
     mock_command_to_announcement.assert_called_once()
     mock_filter_commands.assert_called_once()
-    assert mock_run_async_safely.call_count == 2
+    assert mock_asyncio_run.call_count == 2

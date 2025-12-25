@@ -5,6 +5,7 @@ This module encapsulates the execution of the pipeline logic, separating it from
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 from collections import deque
@@ -23,7 +24,6 @@ from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.modules.media import process_media_for_window
 from egregora.transformations import split_window_into_n_parts
-from egregora.utils.async_utils import run_async_safely
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -310,12 +310,12 @@ class PipelineRunner:
             is_demo=self.context.config_obj.is_demo,
         )
 
-        result = run_async_safely(write_posts_for_window(params))
+        result = asyncio.run(write_posts_for_window(params))
         profiles = result.get("profiles", [])
 
         window_date = window.start_time.strftime("%Y-%m-%d")
         try:
-            profile_docs = run_async_safely(
+            profile_docs = asyncio.run(
                 generate_profile_posts(
                     ctx=self.context, messages=clean_messages_list, window_date=window_date
                 )
