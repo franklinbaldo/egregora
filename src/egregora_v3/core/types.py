@@ -1,3 +1,5 @@
+"""Core Data Types for Egregora V3."""
+
 import hashlib
 import uuid
 from datetime import UTC, datetime
