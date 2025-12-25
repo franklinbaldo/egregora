@@ -973,6 +973,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Add type for categorization
         metadata["type"] = "profile"
 
+        # Ensure avatar is present in frontmatter (for profile index page to use)
+        if "avatar" not in metadata:
+            metadata["avatar"] = generate_fallback_avatar_url(author_uuid)
+
         # Add Profile category using helper (handles malformed data)
         metadata = self._ensure_category(metadata, "Profile")
 
@@ -989,7 +993,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             for post in author_posts_docs
         ]
 
-        # Write content directly (avatar is handled by profile index page, not each post)
+        # Write content directly (avatar is in frontmatter for index page, not in content body)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
         ensure_author_profile_index(author_uuid, self.profiles_dir)
