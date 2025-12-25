@@ -38,6 +38,7 @@ from egregora.agents.exceptions import (
     JournalDataError,
     JournalFileSystemError,
     JournalTemplateError,
+    WriterAgentExecutionError,
 )
 from egregora.agents.types import (
     PromptTooLargeError,

@@ -47,3 +47,11 @@ class FormatInstructionError(AgentLogicError):
         self.format_name = format_name
         self.reason = reason
         super().__init__(f"Could not load instructions for format '{format_name}': {reason}")
+
+
+class WriterAgentExecutionError(AgentLogicError):
+    """Raised when the writer agent fails during execution."""
+
+    def __init__(self, window_label: str) -> None:
+        self.window_label = window_label
+        super().__init__(f"Writer agent failed for window '{window_label}'")

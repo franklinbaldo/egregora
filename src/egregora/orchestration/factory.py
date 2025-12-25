@@ -19,6 +19,7 @@ from egregora.agents.types import WriterResources
 from egregora.data_primitives.protocols import UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.repository import ContentRepository
 from egregora.orchestration.context import (
     PipelineConfig,
     PipelineContext,
@@ -71,8 +72,8 @@ class PipelineFactory:
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
         site_paths.egregora_dir.mkdir(parents=True, exist_ok=True)
-        db_file = site_paths.egregora_dir / "app.duckdb"
-        storage = DuckDBStorageManager(db_path=db_file)
+        storage = DuckDBStorageManager.from_ibis_backend(pipeline_backend)
+        repository = ContentRepository(storage)
 
         output_registry = create_default_output_registry()
 
@@ -90,7 +91,7 @@ class PipelineFactory:
             url_context=url_ctx,
         )
 
-        annotations_store = AnnotationStore(storage, output_sink=adapter)
+        annotations_store = AnnotationStore(repository)
 
         config_obj = PipelineConfig(
             config=run_params.config,
