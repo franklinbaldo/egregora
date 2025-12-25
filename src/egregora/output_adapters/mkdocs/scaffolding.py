@@ -114,21 +114,11 @@ class MkDocsSiteScaffolder:
                 mkdocs_content = mkdocs_template.render(**context)
                 new_mkdocs_path.parent.mkdir(parents=True, exist_ok=True)
                 new_mkdocs_path.write_text(mkdocs_content, encoding="utf-8")
-                logger.info("Created .egregora/mkdocs.yml")
+                logger.info("Created mkdocs.yml")
             else:
                 new_mkdocs_path = mkdocs_path or legacy_mkdocs
 
             self._create_site_structure(site_paths, env, context)
-
-            # Create symlink for mkdocs.yml in root for standard tooling compatibility
-            symlink_path = site_root / "mkdocs.yml"
-            if not symlink_path.exists():
-                try:
-                    target = Path(".egregora/mkdocs.yml")
-                    symlink_path.symlink_to(target)
-                    logger.info("Created symlink mkdocs.yml -> .egregora/mkdocs.yml")
-                except OSError as e:
-                    logger.warning("Failed to create mkdocs.yml symlink: %s", e)
         except Exception as e:
             msg = f"Failed to scaffold MkDocs site: {e}"
             raise RuntimeError(msg) from e

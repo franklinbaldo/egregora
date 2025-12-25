@@ -68,7 +68,7 @@ class MkDocsPaths:
         """Preferred location for creating new mkdocs.yml.
 
         Uses config.output.adapters[0].config_path if set,
-        otherwise defaults to .egregora/mkdocs.yml.
+        otherwise defaults to mkdocs.yml in site_root.
         """
         adapters = getattr(self.config.output, "adapters", [])
         if adapters:
@@ -76,7 +76,7 @@ class MkDocsPaths:
             if adapter_config_path:
                 return (self.site_root / adapter_config_path).resolve()
 
-        return (self.egregora_dir / "mkdocs.yml").resolve()
+        return (self.site_root / "mkdocs.yml").resolve()
 
     @property
     def blog_dir(self) -> str:
