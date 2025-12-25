@@ -8,7 +8,7 @@ class WhatsAppParsingError(Exception):
 class DateParsingError(WhatsAppParsingError):
     """Raised when a date string cannot be parsed."""
 
-    def __init__(self, date_str: str, message: str | None = None):
+    def __init__(self, date_str: str, message: str | None = None) -> None:
         self.date_str = date_str
         if message is None:
             message = f"Failed to parse date string: '{self.date_str}'"
@@ -18,7 +18,7 @@ class DateParsingError(WhatsAppParsingError):
 class TimeParsingError(WhatsAppParsingError):
     """Raised when a time string cannot be parsed."""
 
-    def __init__(self, time_str: str, message: str | None = None):
+    def __init__(self, time_str: str, message: str | None = None) -> None:
         self.time_str = time_str
         if message is None:
             message = f"Failed to parse time string: '{self.time_str}'"
