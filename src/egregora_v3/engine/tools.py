@@ -113,11 +113,7 @@ async def get_pipeline_metadata(
         Dictionary with pipeline metadata including run_id
 
     """
-    # Return metadata with run_id
-    return {
-        "run_id": context.run_id,
-        **context.metadata,
-    }
+    return context.full_metadata
 
 
 # Tool registry for easy discovery

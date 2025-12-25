@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, PropertyMock
 
 import pytest
 
@@ -77,10 +77,17 @@ async def test_count_documents_by_type(mock_context: PipelineContext):
 
 
 @pytest.mark.asyncio
-async def test_get_pipeline_metadata(mock_context: PipelineContext):
-    """Tests retrieval of pipeline metadata."""
+async def test_get_pipeline_metadata_uses_full_metadata_property(
+    mock_context: PipelineContext,
+):
+    """Tests that get_pipeline_metadata uses the full_metadata property."""
     expected_metadata = {"run_id": "test-run-123", "extra": "data"}
+    # Store the mock in a variable for later assertion
+    prop_mock = PropertyMock(return_value=expected_metadata)
+    type(mock_context).full_metadata = prop_mock
 
     result = await get_pipeline_metadata(mock_context)
 
     assert result == expected_metadata
+    # Assert that the property was accessed once
+    prop_mock.assert_called_once()
