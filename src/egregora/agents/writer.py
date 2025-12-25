@@ -32,6 +32,10 @@ from pydantic_ai.messages import (
 from ratelimit import limits, sleep_and_retry
 from tenacity import Retrying
 
+from egregora.agents.exceptions import (
+    JournalFileSystemError,
+    JournalTemplateError,
+)
 from egregora.agents.types import (
     PromptTooLargeError,
     WriterDeps,
@@ -201,17 +205,18 @@ class JournalEntryParams:
     total_tokens: int = 0
 
 
-def _save_journal_to_file(params: JournalEntryParams) -> str | None:
+def _save_journal_to_file(params: JournalEntryParams) -> str:
     """Save journal entry to markdown file."""
     intercalated_log = params.intercalated_log
     if not intercalated_log:
-        return None
+        return ""
 
     templates_dir = Path(__file__).resolve().parents[1] / TEMPLATES_DIR_NAME
     now_utc = datetime.now(tz=UTC)
     window_start_iso = params.window_start.astimezone(UTC).isoformat()
     window_end_iso = params.window_end.astimezone(UTC).isoformat()
     journal_slug = now_utc.strftime("%Y-%m-%d-%H-%M-%S")
+    journal_path_str = f"journal/{journal_slug}.md"
 
     try:
         # Security: Enable autoescape for markdown/jinja templates to prevent XSS in journals
@@ -251,17 +256,16 @@ def _save_journal_to_file(params: JournalEntryParams) -> str | None:
         )
         params.output_format.persist(doc)
         logger.info("Saved journal entry: %s", doc.document_id)
-    except (TemplateNotFound, TemplateError):
-        logger.exception("Journal template error")
-    except (OSError, PermissionError):
-        logger.exception("File system error during journal creation")
-    except (TypeError, AttributeError):
-        logger.exception("Invalid data for journal")
-    except ValueError:
-        logger.exception("Invalid journal document")
-    else:
         return doc.document_id
-    return None
+    except (TemplateNotFound, TemplateError) as e:
+        raise JournalTemplateError(template_name=JOURNAL_TEMPLATE_NAME, reason=str(e)) from e
+    except (OSError, PermissionError) as e:
+        raise JournalFileSystemError(path=journal_path_str, reason=str(e)) from e
+    except (TypeError, AttributeError, ValueError) as e:
+        # Catching other potential issues during doc creation
+        msg = f"Invalid data for journal: {e}"
+        logger.exception(msg)
+        raise JournalFileSystemError(path=journal_path_str, reason=msg) from e
 
 
 def _process_single_tool_result(
@@ -406,18 +410,19 @@ async def write_posts_with_pydantic_agent(
                     datetime.now(tz=UTC),
                 )
             ]
-    _save_journal_to_file(
-        JournalEntryParams(
-            intercalated_log=intercalated_log,
-            window_label=context.window_label,
-            output_format=context.resources.output,
-            posts_published=len(saved_posts),
-            profiles_updated=len(saved_profiles),
-            window_start=context.window_start,
-            window_end=context.window_end,
-            total_tokens=result.usage().total_tokens if result.usage() else 0,
+    if intercalated_log:
+        _save_journal_to_file(
+            JournalEntryParams(
+                intercalated_log=intercalated_log,
+                window_label=context.window_label,
+                output_format=context.resources.output,
+                posts_published=len(saved_posts),
+                profiles_updated=len(saved_profiles),
+                window_start=context.window_start,
+                window_end=context.window_end,
+                total_tokens=result.usage().total_tokens if result.usage() else 0,
+            )
         )
-    )
 
     logger.info(
         "Writer agent completed: period=%s posts=%d profiles=%d tokens=%d",
