@@ -24,7 +24,7 @@ import pytest
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
-from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
+from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 from egregora.input_adapters.whatsapp.commands import filter_egregora_messages
 from egregora.input_adapters.whatsapp.parsing import parse_source
@@ -81,7 +81,7 @@ def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
-    assert set(table.columns) == set(INGESTION_MESSAGE_SCHEMA.names)
+    assert set(table.columns) == set(IR_MESSAGE_SCHEMA.names)
     assert table.count().execute() == 10
     messages = table["text"].execute().tolist()
     assert all(message is not None and message.strip() for message in messages)
@@ -124,7 +124,7 @@ def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
-    expected_columns = set(INGESTION_MESSAGE_SCHEMA.names)
+    expected_columns = set(IR_MESSAGE_SCHEMA.names)
     assert set(table.columns) == expected_columns
 
 

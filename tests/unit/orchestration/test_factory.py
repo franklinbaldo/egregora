@@ -62,7 +62,7 @@ def test_create_context(mock_run_params):
         mock_init_db.assert_called_once()
         mock_create_client.assert_called_once()
         mock_cache.assert_called_once()
-        mock_storage.from_ibis_backend.assert_called_once()
+        mock_storage.assert_called_once()
         mock_create_registry.assert_called_once()
         mock_create_adapter.assert_called_once()
         mock_annotation_store.assert_called_once()

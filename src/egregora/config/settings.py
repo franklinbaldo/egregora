@@ -39,15 +39,6 @@ import tomli_w
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from egregora.config.exceptions import (
-    ConfigError,
-    ConfigNotFoundError,
-    ConfigValidationError,
-    InvalidDateFormatError,
-    InvalidRetrievalModeError,
-    InvalidTimezoneError,
-    SiteNotFoundError,
-)
 from egregora.constants import SourceType, WindowUnit
 
 logger = logging.getLogger(__name__)
@@ -833,7 +824,7 @@ class EgregoraConfig(BaseSettings):
 # ============================================================================
 
 
-def find_egregora_config(start_dir: Path, *, site: str | None = None) -> Path:
+def find_egregora_config(start_dir: Path, *, site: str | None = None) -> Path | None:
     """Search upward for .egregora.toml.
 
     Args:
@@ -841,10 +832,7 @@ def find_egregora_config(start_dir: Path, *, site: str | None = None) -> Path:
         site: Optional site identifier (reserved for future use)
 
     Returns:
-        Path to config file if found
-
-    Raises:
-        ConfigNotFoundError: If the config file cannot be found
+        Path to config file if found, else None
 
     """
     current = start_dir.expanduser().resolve()
@@ -853,7 +841,7 @@ def find_egregora_config(start_dir: Path, *, site: str | None = None) -> Path:
         if toml_path.exists():
             return toml_path
 
-    raise ConfigNotFoundError(start_dir)
+    return None
 
 
 def _collect_env_override_paths() -> set[tuple[str, ...]]:
@@ -904,8 +892,7 @@ def _normalize_sites_config(file_data: dict[str, Any], site: str | None = None) 
         Tuple of (selected_site_name, site_config_data)
 
     Raises:
-        ValueError: If sites are missing/invalid
-        SiteNotFoundError: If the requested site is not found
+        ValueError: If sites are missing/invalid or site is not found
 
     """
     sites_data: dict[str, Any]
@@ -921,7 +908,9 @@ def _normalize_sites_config(file_data: dict[str, Any], site: str | None = None) 
 
     selected_site = site or (DEFAULT_SITE_NAME if DEFAULT_SITE_NAME in sites_data else next(iter(sites_data)))
     if selected_site not in sites_data:
-        raise SiteNotFoundError(selected_site, list(sites_data.keys()))
+        available = ", ".join(sorted(sites_data))
+        msg = f"Site '{selected_site}' not found in configuration. Available sites: {available}"
+        raise ValueError(msg)
 
     site_data = sites_data[selected_site]
     if not isinstance(site_data, dict):
@@ -948,32 +937,46 @@ def load_egregora_config(site_root: Path | None = None, *, site: str | None = No
         Validated EgregoraConfig instance
 
     Raises:
-        ConfigValidationError: If config file contains invalid data
-        ConfigNotFoundError: If the config file cannot be found and a default one is not created.
+        ValidationError: If config file contains invalid data
 
     """
     if site_root is None:
         site_root = Path.cwd()
 
-    try:
-        config_path = find_egregora_config(site_root, site=site)
-        logger.info("Loading config from %s", config_path)
-    except ConfigNotFoundError:
-        logger.info("No configuration found, creating default config at %s", site_root / ".egregora.toml")
+    config_path = find_egregora_config(site_root, site=site)
+
+    if not config_path:
+        # Default to .egregora.toml in site_root
+        config_path = site_root / ".egregora.toml"
+
+    if not config_path.exists():
+        logger.info("No configuration found, creating default config at %s", config_path)
         return create_default_config(site_root, site=site or DEFAULT_SITE_NAME)
+
+    logger.info("Loading config from %s", config_path)
 
     try:
         raw_config = config_path.read_text(encoding="utf-8")
-        file_data = tomllib.loads(raw_config)
+    except OSError:
+        logger.exception("Failed to read config from %s", config_path)
+        raise
 
+    try:
+        file_data = tomllib.loads(raw_config)
+    except ValueError as e:
+        logger.exception("Failed to parse config in %s: %s", config_path, e)
+        raise
+
+    try:
         # Create base config with defaults (environment overrides applied)
         base_config = EgregoraConfig()
         base_dict = base_config.model_dump(mode="json")
 
         # Merge file config into base, skipping keys that are set in env vars
+        # This logic preserves: Env Vars > Config File > Defaults
         env_override_paths = _collect_env_override_paths()
-        selected_site, site_data = _normalize_sites_config(file_data, site=site)
 
+        selected_site, site_data = _normalize_sites_config(file_data, site=site)
         env_override_paths_with_site = set(env_override_paths)
         for path in env_override_paths:
             if path and path[0] == "sites":
@@ -985,19 +988,16 @@ def load_egregora_config(site_root: Path | None = None, *, site: str | None = No
         wrapped_override = {"sites": {selected_site: site_data}}
         merged = _merge_config(wrapped_base, wrapped_override, env_override_paths_with_site)
 
+        # Validate and return
         selected_config = merged["sites"][selected_site]
         return EgregoraConfig.model_validate(selected_config)
-
     except ValidationError as e:
         logger.exception("Configuration validation failed for %s:", config_path)
         for error in e.errors():
             loc = " -> ".join(str(location_part) for location_part in error["loc"])
             logger.exception("  %s: %s", loc, error["msg"])
-        raise ConfigValidationError(e.errors()) from e
-    except (OSError, ValueError) as e:
-        logger.exception("Failed to read or parse config from %s", config_path)
-        msg = f"Failed to process config file: {e}"
-        raise ConfigError(msg) from e
+        logger.warning("Creating default config due to validation error")
+        return create_default_config(site_root, site=site or DEFAULT_SITE_NAME)
 
 
 def create_default_config(site_root: Path, *, site: str = DEFAULT_SITE_NAME) -> EgregoraConfig:
@@ -1064,7 +1064,7 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path, *, site: str =
 # ============================================================================
 
 
-def parse_date_arg(date_str: str, _arg_name: str = "date") -> date:
+def parse_date_arg(date_str: str, arg_name: str = "date") -> date:
     """Parse a date string in YYYY-MM-DD format.
 
     Args:
@@ -1075,13 +1075,14 @@ def parse_date_arg(date_str: str, _arg_name: str = "date") -> date:
         date object in UTC
 
     Raises:
-        InvalidDateFormatError: If date_str is not in YYYY-MM-DD format
+        ValueError: If date_str is not in YYYY-MM-DD format
 
     """
     try:
         return datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=UTC).date()
     except ValueError as e:
-        raise InvalidDateFormatError(date_str) from e
+        msg = f"Invalid {arg_name} format: {e}. Expected format: YYYY-MM-DD"
+        raise ValueError(msg) from e
 
 
 def validate_timezone(timezone_str: str) -> ZoneInfo:
@@ -1094,13 +1095,14 @@ def validate_timezone(timezone_str: str) -> ZoneInfo:
         ZoneInfo object for the specified timezone
 
     Raises:
-        InvalidTimezoneError: If timezone_str is not a valid timezone identifier
+        ValueError: If timezone_str is not a valid timezone identifier
 
     """
     try:
         return ZoneInfo(timezone_str)
     except Exception as e:
-        raise InvalidTimezoneError(timezone_str, e) from e
+        msg = f"Invalid timezone '{timezone_str}': {e}"
+        raise ValueError(msg) from e
 
 
 def validate_retrieval_config(
@@ -1114,7 +1116,8 @@ def validate_retrieval_config(
     """
     normalized_mode = (retrieval_mode or "ann").lower()
     if normalized_mode not in {"ann", "exact"}:
-        raise InvalidRetrievalModeError(normalized_mode)
+        msg = "Invalid retrieval mode. Choose 'ann' or 'exact'."
+        raise ValueError(msg)
 
     if retrieval_nprobe is not None and retrieval_nprobe <= 0:
         raise ValueError("retrieval_nprobe must be positive")
