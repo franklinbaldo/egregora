@@ -35,6 +35,7 @@ from tenacity import Retrying
 from egregora.agents.exceptions import (
     JournalFileSystemError,
     JournalTemplateError,
+    WriterAgentExecutionError,
 )
 from egregora.agents.types import (
     PromptTooLargeError,
@@ -466,7 +467,7 @@ async def _execute_writer_with_error_handling(
 
     Raises:
         PromptTooLargeError: If prompt exceeds model context window (propagated unchanged)
-        RuntimeError: For other agent failures (wrapped with context)
+        WriterAgentExecutionError: For other agent failures (wrapped with context)
 
     """
     try:
@@ -481,7 +482,7 @@ async def _execute_writer_with_error_handling(
 
         msg = f"Writer agent failed for {deps.window_label}"
         logger.exception(msg)
-        raise RuntimeError(msg) from exc
+        raise WriterAgentExecutionError(window_label=deps.window_label, reason=str(exc)) from exc
 
 
 @dataclass
