@@ -15,6 +15,7 @@
 # --- ⏱️ Hourly ---
 simplifier   = "0 * * * *"  # 📉 Complexity Reduction
 essentialist = "0 * * * *"  # 💎 Pragmatism & Cuts
+sapper       = "0 * * * *"  # 💣 Exception Structuring
 
 # --- 🌅 Morning (UTC) ---
 curator      = "0 0 * * *"  # 00:00 - 🎭 UX Evaluation
