@@ -55,14 +55,13 @@ def _extract_clean_date(date_obj: str | date | datetime) -> str:
 
 def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
     """Normalize a metadata date into the RSS-friendly ``YYYY-MM-DD HH:MM`` string."""
-    if raw_date is None:
-        return ""
-
-    dt = parse_datetime_flexible(raw_date, default_timezone=UTC)
-    if dt is None:
-        return str(raw_date).strip()
-
-    return dt.strftime("%Y-%m-%d %H:%M")
+    try:
+        dt = parse_datetime_flexible(raw_date, default_timezone=UTC)
+        return dt.strftime("%Y-%m-%d %H:%M")
+    except AttributeError:
+        # This will be raised if parse_datetime_flexible returns None,
+        # which covers all failure modes (None input, empty strings, bad data).
+        return str(raw_date).strip() if raw_date is not None else ""
 
 
 def _update_authors_file(authors_path: Path, author_ids: list[str]) -> int:
