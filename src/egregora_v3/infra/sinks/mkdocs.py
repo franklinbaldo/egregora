@@ -79,9 +79,12 @@ class MkDocsOutputSink:
         output_file.write_text(content, encoding="utf-8")
 
     def _get_filename(self, doc: Document) -> str:
-        """Get filename for a document.
+        """Get filename for a document using a declarative strategy chain.
 
-        Uses slug if available, otherwise slugifies the title or ID.
+        Tries strategies in order:
+        1. Use the document's explicit slug.
+        2. Slugify the document's title (if title exists).
+        3. Slugify the document's ID as a fallback.
 
         Args:
             doc: Document to get filename for
@@ -90,18 +93,19 @@ class MkDocsOutputSink:
             Filename (without .md extension)
 
         """
-        # Try slug from internal_metadata first
-        if doc.slug:
-            return doc.slug
+        # A list of potential filename values. The first valid one is used.
+        potential_filenames = [
+            doc.slug,
+            slugify(doc.title, max_len=60) if doc.title else None,
+            slugify(doc.id, max_len=60),
+        ]
 
-        # Try slugifying the title
-        if doc.title:
-            slug = slugify(doc.title, max_len=60)
-            if slug:
-                return slug
+        for filename in potential_filenames:
+            if filename:
+                return filename
 
-        # Fallback to slugified ID
-        return slugify(doc.id, max_len=60) or doc.id
+        # Final fallback to the raw ID if all slugification fails
+        return doc.id
 
     def _generate_frontmatter(self, doc: Document) -> str:
         """Generate YAML frontmatter for a document.

@@ -459,3 +459,33 @@ def test_mkdocs_sink_handles_documents_without_slug(tmp_path: Path) -> None:
     markdown_files = list(output_dir.glob("*.md"))
     # At least index.md + one file for the note
     assert len(markdown_files) >= 2
+
+
+def test_mkdocs_get_filename_logic() -> None:
+    """Test the filename generation logic in isolation."""
+    sink = MkDocsOutputSink(output_dir=Path("dummy"))
+
+    # 1. Prefers slug
+    doc_with_slug = Document.create(
+        content="", doc_type=DocumentType.POST, title="A Title", slug="the-slug"
+    )
+    assert sink._get_filename(doc_with_slug) == "the-slug"
+
+    # 2. Falls back to slugified title
+    doc_with_title = Document.create(
+        content="", doc_type=DocumentType.POST, title="A Different Title"
+    )
+    assert sink._get_filename(doc_with_title) == "a-different-title"
+
+    # 3. Falls back to slugified ID
+    # We construct the document directly to bypass the `create` factory's
+    # validation, allowing us to test the filename fallback logic in isolation.
+    doc_with_id_only = Document(
+        id="urn:uuid:1234-abcd",
+        title="",
+        updated=datetime.now(UTC),
+        content="",
+        doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
+    )
+    assert sink._get_filename(doc_with_id_only) == "urn-uuid-1234-abcd"
