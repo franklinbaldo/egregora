@@ -109,13 +109,25 @@ def _resolve_filepath(output_dir: Path, date_prefix: str, base_slug: str) -> tup
     return filepath, slug_candidate
 
 
-def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:
-    """Save a markdown post with YAML front matter and unique slugging."""
+def _validate_post_metadata(metadata: dict[str, Any]) -> None:
+    """Ensure required metadata keys are present."""
     required = ["title", "slug", "date"]
     for key in required:
         if key not in metadata:
             msg = f"Missing required metadata: {key}"
             raise ValueError(msg)
+
+
+def _write_post_file(filepath: Path, content: str, front_matter: dict[str, Any]) -> None:
+    """Construct the full post content and write it to a file."""
+    yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    full_post = f"---\n{yaml_front}---\n\n{content}"
+    filepath.write_text(full_post, encoding="utf-8")
+
+
+def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:
+    """Save a markdown post with YAML front matter and unique slugging."""
+    _validate_post_metadata(metadata)
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -129,7 +141,6 @@ def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path
     if "authors" in front_matter:
         ensure_author_entries(output_dir, front_matter.get("authors"))
 
-    yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
-    full_post = f"---\n{yaml_front}---\n\n{content}"
-    filepath.write_text(full_post, encoding="utf-8")
+    _write_post_file(filepath, content, front_matter)
+
     return str(filepath)
