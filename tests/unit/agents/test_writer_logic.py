@@ -173,3 +173,31 @@ async def test_write_posts_for_window_smoke_test(
     mock_finalize.assert_called_once()
     mock_render.assert_called_once()
     mock_prepare_deps.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("egregora.agents.writer.write_posts_with_pydantic_agent")
+async def test_execute_writer_raises_specific_error(mock_writer_agent, test_config):
+    """Test that _execute_writer_with_error_handling raises a specific, structured exception."""
+    from egregora.agents.writer import _execute_writer_with_error_handling
+    from egregora.agents.exceptions import WriterAgentExecutionError
+
+    # Arrange
+    original_error = ValueError("Underlying agent error")
+    mock_writer_agent.side_effect = original_error
+
+    mock_deps = MagicMock()
+    mock_deps.window_label = "test-window-123"
+
+    # Act & Assert
+    with pytest.raises(WriterAgentExecutionError) as exc_info:
+        await _execute_writer_with_error_handling(
+            prompt="test prompt",
+            config=test_config,
+            deps=mock_deps,
+        )
+
+    # Verify the exception has the correct context
+    assert exc_info.value.window_label == "test-window-123"
+    assert "test-window-123" in str(exc_info.value)
+    assert exc_info.value.__cause__ is original_error
