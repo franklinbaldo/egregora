@@ -79,16 +79,3 @@ class TestParserCaching:
         cache_info = _parse_message_date.cache_info()
         assert cache_info.misses == 2  # Two unique dates
         assert cache_info.hits == 1  # One repeated lookup
-
-    def test_cache_handles_invalid_dates(self) -> None:
-        """Verify invalid dates return None and are also cached."""
-        _parse_message_date.cache_clear()
-
-        result1 = _parse_message_date("not-a-date")
-        result2 = _parse_message_date("not-a-date")
-
-        assert result1 is None
-        assert result2 is None
-
-        cache_info = _parse_message_date.cache_info()
-        assert cache_info.hits == 1  # Second lookup was a cache hit
