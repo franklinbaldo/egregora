@@ -61,63 +61,83 @@ jobs:
       # SECURITY: Validate that PR only modifies dependency files for dependency bots
       - name: Validate PR changes
         if: |
-          (github.event_name == 'workflow_dispatch' && (fromJSON(steps.pr-info.outputs.result).actor == 'dependabot[bot]' || fromJSON(steps.pr-info.outputs.result).actor == 'renovate[bot]')) ||
+          (github.event_name == 'workflow_dispatch' && steps.pr-info.outputs.result != '' && (fromJSON(steps.pr-info.outputs.result).actor == 'dependabot[bot]' || fromJSON(steps.pr-info.outputs.result).actor == 'renovate[bot]')) ||
           (github.event_name != 'workflow_dispatch' && (github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]'))
         uses: actions/github-script@v8
         with:
           script: |
-            const prInfo = JSON.parse('${{ steps.pr-info.outputs.result }}');
-            const { data: files } = await github.rest.pulls.listFiles({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prInfo.number
-            });
+            const prInfoJson = '${{ steps.pr-info.outputs.result }}';
+            if (!prInfoJson || prInfoJson.trim() === "") {
+              core.setFailed("PR info from previous step is empty.");
+              return;
+            }
 
-            const allowedPatterns = [
-              /^package.json$/,
-              /^package-lock.json$/,
-              /^pyproject.toml$/,
-              /^uv.lock$/,
-              /^requirements.*.txt$/,
-              /^.github/workflows/.*.yml$/
-            ];
+            try {
+              const prInfo = JSON.parse(prInfoJson);
+              const { data: files } = await github.rest.pulls.listFiles({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prInfo.number
+              });
 
-            const unauthorizedFiles = files.filter(file =>
-              !allowedPatterns.some(pattern => pattern.test(file.filename))
-            );
+              const allowedPatterns = [
+                /^package.json$/,
+                /^package-lock.json$/,
+                /^pyproject.toml$/,
+                /^uv.lock$/,
+                /^requirements.*.txt$/,
+                /^.github\/workflows\/.*.yml$/
+              ];
 
-            if (unauthorizedFiles.length > 0) {
-              const fileList = unauthorizedFiles.map(f => f.filename).join(', ');
-              core.setFailed(`PR contains unauthorized file changes: ${fileList}`);
+              const unauthorizedFiles = files.filter(file =>
+                !allowedPatterns.some(pattern => pattern.test(file.filename))
+              );
+
+              if (unauthorizedFiles.length > 0) {
+                const fileList = unauthorizedFiles.map(f => f.filename).join(', ');
+                core.setFailed(`PR contains unauthorized file changes: ${fileList}`);
+              }
+            } catch (error) {
+              core.setFailed(`Failed to parse PR info JSON: ${error.message}`);
             }
 
       - name: Convert draft to ready for review
         uses: actions/github-script@v8
         with:
           script: |
-            const prInfo = JSON.parse('${{ steps.pr-info.outputs.result }}');
-            const { owner, repo } = context.repo;
+            const prInfoJson = '${{ steps.pr-info.outputs.result }}';
+            if (!prInfoJson || prInfoJson.trim() === "") {
+              core.setFailed("PR info from previous step is empty.");
+              return;
+            }
 
-            if (prInfo.draft) {
-              console.log('📝 PR is a draft, converting to ready for review...');
-              await github.rest.pulls.update({
-                owner,
-                repo,
-                pull_number: prInfo.number,
-                draft: false
-              });
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number: prInfo.number,
-                body: '🤖 **Draft converted to ready for review**\n\nThis PR has been automatically marked as ready for review and will be auto-merged when CI passes.'
-              });
+            try {
+              const prInfo = JSON.parse(prInfoJson);
+              const { owner, repo } = context.repo;
+
+              if (prInfo.draft) {
+                console.log('📝 PR is a draft, converting to ready for review...');
+                await github.rest.pulls.update({
+                  owner,
+                  repo,
+                  pull_number: prInfo.number,
+                  draft: false
+                });
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: prInfo.number,
+                  body: '🤖 **Draft converted to ready for review**\n\nThis PR has been automatically marked as ready for review and will be auto-merged when CI passes.'
+                });
+              }
+            } catch (error) {
+              core.setFailed(`Failed to parse PR info JSON: ${error.message}`);
             }
 
       - name: Get PR metadata
         id: metadata
         if: |
-          (github.event_name == 'workflow_dispatch' && fromJSON(steps.pr-info.outputs.result).actor == 'dependabot[bot]') ||
+          (github.event_name == 'workflow_dispatch' && steps.pr-info.outputs.result != '' && fromJSON(steps.pr-info.outputs.result).actor == 'dependabot[bot]') ||
           (github.event_name != 'workflow_dispatch' && github.actor == 'dependabot[bot]')
         uses: dependabot/fetch-metadata@v2
         with:
@@ -127,58 +147,78 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            const prInfo = JSON.parse('${{ steps.pr-info.outputs.result }}');
-            const { owner, repo } = context.repo;
-            const actor = prInfo.actor;
+            const prInfoJson = '${{ steps.pr-info.outputs.result }}';
+            if (!prInfoJson || prInfoJson.trim() === "") {
+              core.setFailed("PR info from previous step is empty.");
+              return;
+            }
 
-            let approvalMessage = actor === 'google-labs-jules[bot]'
-              ? '✅ Auto-approved by CI workflow - Jules bot update'
-              : '✅ Auto-approved by CI workflow - dependency update';
+            try {
+              const prInfo = JSON.parse(prInfoJson);
+              const { owner, repo } = context.repo;
+              const actor = prInfo.actor;
 
-            await github.rest.pulls.createReview({
-              owner,
-              repo,
-              pull_number: prInfo.number,
-              event: 'APPROVE',
-              body: approvalMessage
-            });
+              let approvalMessage = actor === 'google-labs-jules[bot]'
+                ? '✅ Auto-approved by CI workflow - Jules bot update'
+                : '✅ Auto-approved by CI workflow - dependency update';
+
+              await github.rest.pulls.createReview({
+                owner,
+                repo,
+                pull_number: prInfo.number,
+                event: 'APPROVE',
+                body: approvalMessage
+              });
+            } catch (error) {
+              core.setFailed(`Failed to parse PR info JSON: ${error.message}`);
+            }
 
       - name: Enable auto-merge
         uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const prInfo = JSON.parse('${{ steps.pr-info.outputs.result }}');
-            const { owner, repo } = context.repo;
-            const actor = prInfo.actor;
-            const updateType = '${{ steps.metadata.outputs.update-type }}';
+            const prInfoJson = '${{ steps.pr-info.outputs.result }}';
+            if (!prInfoJson || prInfoJson.trim() === "") {
+              core.setFailed("PR info from previous step is empty.");
+              return;
+            }
 
-            const shouldAutoMerge = (actor === 'google-labs-jules[bot]') ||
-                                    (updateType === 'version-update:semver-patch' ||
-                                     updateType === 'version-update:semver-minor');
+            try {
+              const prInfo = JSON.parse(prInfoJson);
+              const { owner, repo } = context.repo;
+              const actor = prInfo.actor;
+              const updateType = '${{ steps.metadata.outputs.update-type }}';
 
-            if (shouldAutoMerge) {
-              try {
-                await github.graphql(`
-                  mutation($pullRequestId: ID!) {
-                    enablePullRequestAutoMerge(input: {
-                      pullRequestId: $pullRequestId,
-                      mergeMethod: SQUASH
-                    }) {
-                      pullRequest { autoMergeRequest { enabledAt } }
+              const shouldAutoMerge = (actor === 'google-labs-jules[bot]') ||
+                                      (updateType === 'version-update:semver-patch' ||
+                                       updateType === 'version-update:semver-minor');
+
+              if (shouldAutoMerge) {
+                try {
+                  await github.graphql(`
+                    mutation($pullRequestId: ID!) {
+                      enablePullRequestAutoMerge(input: {
+                        pullRequestId: $pullRequestId,
+                        mergeMethod: SQUASH
+                      }) {
+                        pullRequest { autoMergeRequest { enabledAt } }
+                      }
                     }
-                  }
-                `, {
-                  pullRequestId: prInfo.node_id
-                });
+                  `, {
+                    pullRequestId: prInfo.node_id
+                  });
 
-                await github.rest.issues.createComment({
-                  owner,
-                  repo,
-                  issue_number: prInfo.number,
-                  body: `🤖 **Auto-merge enabled**\n\nThis PR will automatically merge when all required checks pass.\n\n_Reason: ${actor === 'google-labs-jules[bot]' ? 'Jules bot update' : 'dependency update'}_`
-                });
-              } catch (error) {
-                console.log(`⚠️ Could not enable auto-merge: ${error.message}`);
+                  await github.rest.issues.createComment({
+                    owner,
+                    repo,
+                    issue_number: prInfo.number,
+                    body: `🤖 **Auto-merge enabled**\n\nThis PR will automatically merge when all required checks pass.\n\n_Reason: ${actor === 'google-labs-jules[bot]' ? 'Jules bot update' : 'dependency update'}_`
+                  });
+                } catch (error) {
+                  console.log(`⚠️ Could not enable auto-merge: ${error.message}`);
+                }
               }
+            } catch (error) {
+              core.setFailed(`Failed to parse PR info JSON: ${error.message}`);
             }
