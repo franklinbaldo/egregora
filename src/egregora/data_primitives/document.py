@@ -49,6 +49,7 @@ class DocumentType(Enum):
 @dataclass
 class Author:
     """Represents an author of a document."""
+
     id: str
     name: str | None = None
     email: str | None = None
@@ -58,6 +59,7 @@ class Author:
 @dataclass
 class Category:
     """Represents a category or tag for a document."""
+
     term: str
     scheme: str | None = None
     label: str | None = None

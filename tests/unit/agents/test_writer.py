@@ -1,7 +1,8 @@
 """Tests for the writer agent."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from egregora.agents.exceptions import WriterAgentExecutionError
 from egregora.agents.types import WriterDeps

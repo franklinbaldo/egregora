@@ -11,14 +11,13 @@ This module orchestrates the high-level flow for the 'write' command, coordinati
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
@@ -44,19 +43,19 @@ from egregora.constants import SourceType, WindowUnit
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.repository import ContentRepository
 from egregora.database.task_store import TaskStore
 from egregora.database.utils import resolve_db_uri
-from egregora.database.repository import ContentRepository
-from egregora.output_adapters.db_sink import DbOutputSink
-from egregora.orchestration.materializer import materialize_site
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
+from egregora.orchestration.materializer import materialize_site
 from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.runner import PipelineRunner
 from egregora.output_adapters import create_default_output_registry
+from egregora.output_adapters.db_sink import DbOutputSink
 from egregora.output_adapters.mkdocs import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import ensure_mkdocs_project
 from egregora.rag import index_documents, reset_backend
@@ -77,8 +76,6 @@ except ImportError:
     dotenv = None
 
 if TYPE_CHECKING:
-    import uuid
-
     import ibis.expr.types as ir
 
 
@@ -703,9 +700,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
 
     refresh_tiers = {r.strip().lower() for r in (run_params.refresh or "").split(",") if r.strip()}
     site_paths = _resolve_site_paths_or_raise(resolved_output, run_params.config)
-    _runtime_db_uri, pipeline_backend = _create_database_backends(
-        site_paths.site_root, run_params.config
-    )
+    _runtime_db_uri, pipeline_backend = _create_database_backends(site_paths.site_root, run_params.config)
 
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
     initialize_database(pipeline_backend)
@@ -1038,8 +1033,8 @@ def _prepare_pipeline_data(
     if ctx.config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
-            # Get existing documents from output format
-            existing_docs = list(output_format.documents())
+            # Get existing documents from filesystem adapter
+            existing_docs = list(fs_adapter.documents())
             if existing_docs:
                 index_documents(existing_docs)
                 logger.info("[green]✓ Indexed %d existing documents into RAG[/]", len(existing_docs))
@@ -1285,8 +1280,6 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
         adapter = adapter_cls()
 
     # Generate run ID and timestamp for tracking
-    run_id = run_params.run_id
-    started_at = run_params.start_time
 
     with _pipeline_environment(run_params) as ctx:
         try:
@@ -1328,7 +1321,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
         except KeyboardInterrupt:
             logger.warning("[yellow]⚠️  Pipeline cancelled by user (Ctrl+C)[/]")
             raise  # Re-raise to allow proper cleanup
-        except Exception as exc:
+        except Exception:
             raise  # Re-raise original exception to preserve error context
 
         return results
