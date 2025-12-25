@@ -38,6 +38,7 @@ JOURNAL_MANAGEMENT = """
   ## {{ emoji }} YYYY-MM-DD - Topic
   **Observation:** [What did you notice?]
   **Action:** [What did you do?]
+  **Reflection:** [Identify and suggest problems in your domain to tackle in the next iteration. This reflection must be included in your journal.]
   ```
 
 ## Previous Journal Entries
@@ -102,6 +103,10 @@ def collect_journals(persona_dir: Path) -> str:
 
     # Collect all .md files, sorted by name
     journal_files = sorted(journals_dir.glob("*.md"))
+    # Limit to the last 10 entries
+    if len(journal_files) > 10:
+        journal_files = journal_files[-10:]
+
     entries = []
 
     for jf in journal_files:
