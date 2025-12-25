@@ -37,4 +37,6 @@ async def test_execute_writer_with_error_handling_raises_specific_exception(monk
 
     # Assert exception details
     assert exc_info.value.window_label == "test-window-label"
-    assert "Agent execution failed for window 'test-window-label': Internal agent error" in str(exc_info.value)
+    assert "Agent execution failed for window 'test-window-label': Internal agent error" in str(
+        exc_info.value
+    )
