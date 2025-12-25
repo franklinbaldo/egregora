@@ -24,7 +24,7 @@ description = """
 3. **Revert Workaround:** The test `tests/unit/output_adapters/mkdocs/test_scaffolding.py::test_overrides_are_in_site_root` and the corresponding code in `scaffolding.py` should be reverted to place `overrides` back into the `.egregora` directory.
 **Verification:** After these changes, the `mkdocs build` command should succeed, and the test suite should pass.
 """
-status = "pending"
+status = "review"
 category = "infrastructure"
 assignee = "forge"
 
