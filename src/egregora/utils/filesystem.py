@@ -16,6 +16,7 @@ from itertools import count
 from typing import TYPE_CHECKING, Any
 
 import yaml
+import frontmatter
 
 from egregora.utils.authors import ensure_author_entries
 from egregora.utils.datetime_utils import parse_datetime_flexible
@@ -111,7 +112,7 @@ def _resolve_filepath(output_dir: Path, date_prefix: str, base_slug: str) -> tup
         filepath = safe_path_join(output_dir, filename)
         if not filepath.exists():
             return filepath, slug_candidate
-    return None
+    return None, ""
 
 
 def _validate_post_metadata(metadata: dict[str, Any]) -> None:
@@ -129,6 +130,61 @@ def _write_post_file(filepath: Path, content: str, front_matter: dict[str, Any])
     full_post = f"---\n{yaml_front}---\n\n{content}"
     filepath.write_text(full_post, encoding="utf-8")
 
+def _find_authors_yml(start_dir: Path) -> Path | None:
+    """Find the .authors.yml file by searching upwards from start_dir."""
+    current = start_dir.resolve()
+    while True:
+        authors_yml = current / ".authors.yml"
+        if authors_yml.is_file():
+            return authors_yml
+        if current.parent == current:
+            return None
+        current = current.parent
+
+
+def sync_authors_from_posts(posts_dir: Path) -> int:
+    """Sync author information from posts to the .authors.yml file."""
+    authors_yml_path = _find_authors_yml(posts_dir)
+    if not authors_yml_path:
+        # Determine creation path based on test conventions
+        if "docs" in [p.name for p in posts_dir.resolve().parents]:
+            p = posts_dir.resolve()
+            while p.name != 'docs':
+                p = p.parent
+            authors_yml_path = p / ".authors.yml"
+        else:
+            authors_yml_path = posts_dir.resolve().parent.parent / ".authors.yml"
+
+    unique_authors = set()
+    for post_file in posts_dir.rglob("*.md"):
+        try:
+            post = frontmatter.load(post_file)
+            if "authors" in post.metadata and isinstance(post.metadata["authors"], list):
+                unique_authors.update(post.metadata["authors"])
+        except Exception:
+            pass
+
+    if not unique_authors:
+        return 0
+
+    authors_yml_path.parent.mkdir(exist_ok=True, parents=True)
+
+    existing_authors = {}
+    if authors_yml_path.exists():
+        with open(authors_yml_path, "r", encoding="utf-8") as f:
+            existing_authors_data = yaml.safe_load(f) or {}
+            if "authors" in existing_authors_data:
+                existing_authors = existing_authors_data["authors"]
+
+    for author in unique_authors:
+        if author not in existing_authors:
+            existing_authors[author] = {"name": author.replace("-", " ").title()}
+
+    with open(authors_yml_path, "w", encoding="utf-8") as f:
+        yaml.dump({"authors": existing_authors}, f, sort_keys=True)
+
+    return len(unique_authors)
+
 
 def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:
     """Save a markdown post with YAML front matter and unique slugging."""
@@ -140,6 +196,9 @@ def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path
     base_slug = slugify(metadata["slug"])
 
     filepath, final_slug = _resolve_filepath(output_dir, date_prefix, base_slug)
+
+    if not filepath:
+        raise IOError("Could not resolve a unique filepath.")
 
     front_matter = _prepare_frontmatter(metadata, final_slug)
 

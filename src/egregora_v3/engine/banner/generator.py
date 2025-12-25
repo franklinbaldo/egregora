@@ -56,15 +56,23 @@ class GeminiV3BannerGenerator(ImageGenerationProvider):
         # Prepare configuration declaratively
         config_params = {"aspect_ratio": request.aspect_ratio} if request.aspect_ratio else {}
 
-        response = self._client.models.generate_images(
-            model=self._model,
-            prompt=request.prompt,
-            config=(
-                types.GenerateImagesConfig(**config_params)
-                if config_params
-                else None
-            ),
-        )
+        try:
+            response = self._client.models.generate_images(
+                model=self._model,
+                prompt=request.prompt,
+                config=(
+                    types.GenerateImagesConfig(**config_params)
+                    if config_params
+                    else None
+                ),
+            )
+        except ValueError as e:
+            return ImageGenerationResult(
+                image_bytes=None,
+                mime_type=None,
+                error=str(e),
+                error_code="GENERATION_EXCEPTION",
+            )
 
         if not response.generated_images:
             return ImageGenerationResult(
