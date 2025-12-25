@@ -377,7 +377,8 @@ ANNOTATIONS_SCHEMA = ibis.schema(
         "parent_id": dt.string,  # Reference to what is being annotated
         "parent_type": dt.string,  # 'message', 'post', 'annotation'
         "author_id": dt.string,  # Author of the annotation
-        # "commentary" is mapped to "content" in BASE_COLUMNS
+        "category": dt.String(nullable=True),
+        "tags": dt.Array(dt.string),
     }
 )
 

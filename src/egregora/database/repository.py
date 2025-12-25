@@ -88,6 +88,8 @@ class ContentRepository:
                     "parent_id": doc.metadata.get("parent_id"),
                     "parent_type": doc.metadata.get("parent_type"),
                     "author_id": doc.metadata.get("author_id"),
+                    "category": doc.metadata.get("category"),
+                    "tags": doc.metadata.get("tags", []),
                 }
             )
             self.db.ibis_conn.insert("annotations", [row])

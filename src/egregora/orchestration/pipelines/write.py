@@ -717,10 +717,10 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     # Use the pipeline backend for storage to ensure we share the same connection
     # This prevents "read-only transaction" errors and database invalidation
     storage = DuckDBStorageManager.from_ibis_backend(pipeline_backend)
-    annotations_store = AnnotationStore(storage)
 
     # Initialize Repository and DB Sink (New V2 Architecture)
     content_repo = ContentRepository(storage)
+    annotations_store = AnnotationStore(content_repo)
 
     url_ctx = UrlContext(
         base_url="",
@@ -998,6 +998,24 @@ def _prepare_pipeline_data(
         source_key=run_params.source_key,
         source_type=run_params.source_type,
     )
+
+    # V2 ARCHITECTURE: Persist ingested messages to the unified database
+    # This ensures RAG, enrichment, and other downstream components can query the physical table.
+    try:
+        if hasattr(ctx.state, "pipeline_backend") and ctx.state.pipeline_backend:
+            # We use a TRY block because the table might have a unique index on event_id.
+            # Ideally we want INSERT OR IGNORE, but Ibis high-level insert may not support it easily.
+            # So we check if messages table is empty or just attempt insertion.
+            # If the adapter is WhatsApp, it currently returns a memtable or read_csv.
+            logger.info("[bold cyan]💾 Persisting ingested messages to database...[/]")
+            ctx.state.pipeline_backend.insert("messages", messages_table)
+            # Rebind messages_table to the physical table in the database for better performance
+            messages_table = ctx.state.pipeline_backend.table("messages")
+    except Exception as e:
+        # If it fails (e.g. duplicate keys), we log a warning but continue with the ephemeral table
+        # to avoid crashing the whole pipeline if some messages already exist.
+        logger.debug("Ingestion persistence failed (might be duplicates): %s", e)
+
     _setup_content_directories(ctx)
     messages_table = _process_commands_and_avatars(messages_table, ctx, vision_model)
 

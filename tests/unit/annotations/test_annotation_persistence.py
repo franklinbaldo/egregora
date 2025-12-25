@@ -3,85 +3,60 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from egregora.agents.shared.annotations import Annotation, AnnotationStore
+from egregora.agents.shared.annotations import AnnotationStore
 from egregora.data_primitives.document import DocumentType
 
 
 class TestAnnotationStorePersistence:
     @pytest.fixture
-    def mock_output_sink(self):
-        sink = MagicMock()
-        sink.persist = MagicMock()
-        return sink
+    def mock_repo(self):
+        repo = MagicMock()
+        repo.db = MagicMock()
+        repo.db.ibis_conn = MagicMock()
+        return repo
 
-    @pytest.fixture
-    def mock_db(self):
-        # Mocking the storage object which is passed to AnnotationStore
-        storage = MagicMock()
-        # Mocking ibis_conn and other required methods/attributes
-        storage.ibis_conn = MagicMock()
-        storage.ibis_conn.table.return_value = MagicMock()  # For table creation checks if any
-        storage.connection = MagicMock()  # For context manager
+    def test_save_annotation_persists_document(self, mock_repo) -> None:
+        store = AnnotationStore(repository=mock_repo)
 
-        # Mock context manager return value for connection()
-        conn_context = MagicMock()
-        storage.connection.return_value.__enter__.return_value = conn_context
-
-        # Mock next_sequence_value to return an integer
-        storage.next_sequence_value.return_value = 1
-        return storage
-
-    def test_save_annotation_persists_document_when_sink_provided(self, mock_db, mock_output_sink) -> None:
-        store = AnnotationStore(storage=mock_db, output_sink=mock_output_sink)
-
-        store.save_annotation(
+        doc = store.save_annotation(
             parent_id="msg-123",
             parent_type="message",
             commentary="Important observation.",
         )
 
-        mock_output_sink.persist.assert_called_once()
-        persisted_doc = mock_output_sink.persist.call_args[0][0]
-        assert persisted_doc.type == DocumentType.ANNOTATION
-        assert persisted_doc.metadata["categories"] == ["Annotations"]
+        mock_repo.save.assert_called_once()
+        saved_doc = mock_repo.save.call_args[0][0]
+        assert saved_doc.type == DocumentType.ANNOTATION
+        assert saved_doc.content == "Important observation."
+        assert saved_doc.metadata["parent_id"] == "msg-123"
+        assert saved_doc.metadata["author_id"] == "egregora"
+        assert saved_doc.metadata["category"] == "Annotations"
 
-    def test_save_annotation_works_without_sink(self, mock_db) -> None:
-        store = AnnotationStore(storage=mock_db, output_sink=None)
+        assert doc == saved_doc
 
-        annotation = store.save_annotation(
-            parent_id="msg-456",
-            parent_type="message",
-            commentary="Another observation.",
-        )
+    def test_list_annotations_for_message(self, mock_repo) -> None:
+        store = AnnotationStore(repository=mock_repo)
 
-        assert annotation is not None
+        # Mock DB response
+        mock_table = MagicMock()
+        mock_repo.db.read_table.return_value = mock_table
+        mock_res = MagicMock()
+        mock_res.empty = False
+        mock_res.to_dict.return_value = [
+            {
+                "id": "ann-1",
+                "content": "test",
+                "created_at": datetime.now(UTC),
+                "parent_id": "msg-1",
+                "parent_type": "message",
+            }
+        ]
+        mock_table.filter.return_value.order_by.return_value.execute.return_value = mock_res
 
-    def test_persist_failure_does_not_fail_save(self, mock_db, mock_output_sink) -> None:
-        mock_output_sink.persist.side_effect = OSError("Disk full")
-        store = AnnotationStore(storage=mock_db, output_sink=mock_output_sink)
+        # Mock repository _row_to_document
+        mock_repo._row_to_document.side_effect = lambda row, type: MagicMock(id=row["id"])
 
-        annotation = store.save_annotation(
-            parent_id="msg-789",
-            parent_type="message",
-            commentary="Test observation.",
-        )
+        annotations = store.list_annotations_for_message("msg-1")
 
-        assert annotation is not None
-
-
-class TestAnnotationDocumentConversion:
-    def test_to_document_creates_annotation_type(self) -> None:
-        annotation = Annotation(
-            id="42",
-            parent_id="msg-123",
-            parent_type="message",
-            author_id="egregora",
-            commentary="Test commentary",
-            created_at=datetime.now(UTC),
-        )
-
-        doc = annotation.to_document()
-
-        assert doc.type == DocumentType.ANNOTATION
-        assert doc.metadata["annotation_id"] == "42"
-        assert doc.metadata["categories"] == ["Annotations"]
+        assert len(annotations) == 1
+        mock_repo.db.read_table.assert_called_with("annotations")
