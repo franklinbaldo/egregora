@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from egregora.utils.authors import find_authors_yml
 from egregora.utils.filesystem import (
     _extract_clean_date,
-    _find_authors_yml,
     _resolve_filepath,
 )
 
@@ -24,7 +24,7 @@ def test_find_authors_yml_standard_layout(tmp_path: Path) -> None:
     expected_path.touch()
 
     # Act
-    result = _find_authors_yml(posts_dir)
+    result = find_authors_yml(posts_dir)
 
     # Assert
     assert result == expected_path
@@ -86,7 +86,7 @@ def test_find_authors_yml_nested_layout(tmp_path: Path) -> None:
     expected_path.touch()
 
     # Act
-    result = _find_authors_yml(deep_dir)
+    result = find_authors_yml(deep_dir)
 
     # Assert
     assert result == expected_path
@@ -102,7 +102,7 @@ def test_find_authors_yml_fallback_behavior(tmp_path: Path) -> None:
     expected_path.touch()
 
     # Act
-    result = _find_authors_yml(output_dir)
+    result = find_authors_yml(output_dir)
 
     # Assert
     assert result == expected_path
