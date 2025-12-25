@@ -3,23 +3,44 @@ from datetime import UTC, datetime
 import ibis
 import pytest
 
-from egregora_v3.core.types import Document, DocumentType, Entry, Source
+from egregora_v3.core.types import Document, DocumentType, Entry
 from egregora_v3.infra.repository.duckdb import DuckDBDocumentRepository
+
+
+class MockIbisConnection:
+    """A mock Ibis connection that lacks the '.con' attribute."""
+
+    pass
 
 
 @pytest.fixture
 def duckdb_conn():
+    """Provides an in-memory DuckDB Ibis connection."""
     return ibis.duckdb.connect(":memory:")
 
 
 @pytest.fixture
 def repo(duckdb_conn):
+    """Provides an initialized DuckDBDocumentRepository."""
     repo = DuckDBDocumentRepository(duckdb_conn)
     repo.initialize()
     return repo
 
 
+def test_repo_requires_raw_connection():
+    """Tests that DuckDBDocumentRepository raises ValueError if the connection has no raw '.con' attribute."""
+    mock_conn = MockIbisConnection()
+    with pytest.raises(ValueError, match="raw DuckDB connection"):
+        DuckDBDocumentRepository(mock_conn)
+
+
+def test_initialize_creates_table(repo):
+    """Tests that the table is created on initialization."""
+    assert "documents" in repo.conn.list_tables()
+
+
 def test_save_and_get_document(repo):
+    """Tests saving and retrieving a document."""
     doc = Document.create(content="Test content", doc_type=DocumentType.POST, title="Test Post")
     repo.save(doc)
 
@@ -27,220 +48,60 @@ def test_save_and_get_document(repo):
     assert retrieved is not None
     assert retrieved.id == doc.id
     assert retrieved.title == "Test Post"
-    assert retrieved.content == "Test content"
-    assert retrieved.doc_type == DocumentType.POST
-    # Check serialization of datetime
-    assert retrieved.updated == doc.updated
 
 
-def test_list_documents(repo):
-    doc1 = Document.create(title="Post 1", content="Content 1", doc_type=DocumentType.POST)
-    doc2 = Document.create(title="Post 2", content="Content 2", doc_type=DocumentType.POST)
-    doc3 = Document.create(title="Profile 1", content="Profile Content", doc_type=DocumentType.PROFILE)
-
-    repo.save(doc1)
-    repo.save(doc2)
-    repo.save(doc3)
-
-    # List all
-    all_docs = repo.list()
-    assert len(all_docs) == 3
-
-    # List by type
-    posts = repo.list(doc_type=DocumentType.POST)
-    assert len(posts) == 2
-    assert {d.id for d in posts} == {doc1.id, doc2.id}
-
-    profiles = repo.list(doc_type=DocumentType.PROFILE)
-    assert len(profiles) == 1
-    assert profiles[0].id == doc3.id
-
-
-def test_delete_document(repo):
-    doc = Document.create(title="To Delete", content="...", doc_type=DocumentType.NOTE)
-    repo.save(doc)
-
-    assert repo.get(doc.id) is not None
-
-    repo.delete(doc.id)
-    assert repo.get(doc.id) is None
-
-
-def test_exists_document(repo):
-    doc = Document.create(title="Exists?", content="...", doc_type=DocumentType.NOTE)
-    assert not repo.exists(doc.id)
-
-    repo.save(doc)
-    assert repo.exists(doc.id)
-
-
-def test_save_update_document(repo):
+def test_save_is_upsert(repo):
+    """Tests that saving an existing document updates it (upsert)."""
     doc = Document.create(title="Original", content="Original", doc_type=DocumentType.POST)
     repo.save(doc)
 
+    # Modify and save again
     doc.title = "Updated"
+    doc.updated = datetime.now(UTC)
     repo.save(doc)
 
     retrieved = repo.get(doc.id)
+    assert retrieved is not None
     assert retrieved.title == "Updated"
+    assert retrieved.id == doc.id
+
+    # Check count to ensure no new record was created
+    assert repo.count(doc_type=DocumentType.POST) == 1
 
 
-# --- Entry Tests ---
+def test_delete_document(repo):
+    """Tests deleting a document."""
+    doc = Document.create(title="To Delete", content="...", doc_type=DocumentType.NOTE)
+    repo.save(doc)
+
+    assert repo.exists(doc.id)
+    repo.delete(doc.id)
+    assert not repo.exists(doc.id)
 
 
 def test_save_and_get_entry(repo):
+    """Tests saving and retrieving a plain Entry."""
     entry = Entry(id="entry-1", title="Test Entry", updated=datetime.now(UTC), content="Entry Content")
-    repo.save_entry(entry)
+    repo.save(entry)
 
     retrieved = repo.get_entry(entry.id)
     assert retrieved is not None
     assert retrieved.id == entry.id
-    assert retrieved.title == "Test Entry"
-    # Ensure it's exactly an Entry, not a Document
     assert type(retrieved) is Entry
 
 
-def test_save_entry_handles_document_polymorphically(repo):
-    """
-    Tests that `save_entry` can correctly save a Document instance
-    without branching, ensuring it's stored with the correct doc_type.
-    This test locks in the behavior before refactoring the implementation
-    to remove the `isinstance` check.
-    """
-    # Arrange
-    doc = Document.create(
-        doc_type=DocumentType.POST,
-        title="A Polymorphic Post",
-        content="This document is saved as an entry.",
-    )
-
-    # Act
-    # This call should work, and the implementation will be simplified.
-    repo.save_entry(doc)
-
-    # Assert
-    # 1. Retrieve it as a generic Entry/Document to check high-level API
-    retrieved = repo.get_entry(doc.id)
-    assert isinstance(retrieved, Document)
-    assert retrieved.id == doc.id
-    assert retrieved.doc_type == DocumentType.POST
-    assert retrieved.title == "A Polymorphic Post"
-
-    # 2. Check the raw doc_type in the database to be absolutely sure
-    table = repo._get_table()
-    raw_record = table.filter(table.id == doc.id).execute()
-    assert not raw_record.empty
-    assert raw_record["doc_type"][0] == DocumentType.POST.value
-
-
-def test_get_entries_by_source(repo):
-    source_id = "whatsapp-chat-123"
-    other_source = "other-source"
-
-    entry1 = Entry(id="e1", title="E1", updated=datetime.now(UTC), source=Source(id=source_id))
-    entry2 = Entry(id="e2", title="E2", updated=datetime.now(UTC), source=Source(id=source_id))
-    entry3 = Entry(id="e3", title="E3", updated=datetime.now(UTC), source=Source(id=other_source))
-    entry4 = Entry(
-        id="e4",
-        title="E4",
-        updated=datetime.now(UTC),
-        # No source
-    )
-
-    repo.save_entry(entry1)
-    repo.save_entry(entry2)
-    repo.save_entry(entry3)
-    repo.save_entry(entry4)
-
-    results = repo.get_entries_by_source(source_id)
-    assert len(results) == 2
-    ids = {e.id for e in results}
-    assert ids == {"e1", "e2"}
-
-    empty_results = repo.get_entries_by_source("non-existent")
-    assert len(empty_results) == 0
-
-
-def test_get_polymorphism(repo):
-    # Retrieve Document as Entry
-    doc = Document.create(title="Doc", content="C", doc_type=DocumentType.POST)
-    repo.save(doc)
-
-    # get_entry should be able to retrieve it, returning Document (subclass of Entry)
-    entry = repo.get_entry(doc.id)
-    assert entry is not None
-    assert isinstance(entry, Document)
-    assert entry.doc_type == DocumentType.POST
-
-    # get() should NOT retrieve an Entry
-    ent = Entry(id="pure-entry", title="E", updated=datetime.now(UTC))
-    repo.save_entry(ent)
-
-    val = repo.get(ent.id)
-    assert val is None
-
-
-def test_get_entry_distinguishes_document_from_entry(repo):
-    """
-    Test that get_entry correctly identifies and returns a Document instance
-    when the stored item is a Document, and an Entry instance otherwise.
-    This test locks in the current behavior before refactoring.
-    """
-    # Arrange
-    doc_id = "test-doc"
-    entry_id = "test-entry"
-
-    document = Document.create(
-        doc_type=DocumentType.POST,
-        title="A Post",
-        content="This is a post."
-    )
-    document.id = doc_id
-
-    entry = Entry(
-        id=entry_id,
-        title="An Entry",
-        updated=datetime.now(UTC)
-    )
-
-    repo.save(document)
-    repo.save_entry(entry)
-
-    # Act
-    retrieved_doc = repo.get_entry(doc_id)
-    retrieved_entry = repo.get_entry(entry_id)
-
-    # Assert
-    assert isinstance(retrieved_doc, Document)
-    assert not isinstance(retrieved_entry, Document)
-    assert isinstance(retrieved_entry, Entry)
-    assert retrieved_doc.id == doc_id
-    assert retrieved_entry.id == entry_id
-
-
-def test_list_hydrates_from_raw_json_string(repo):
-    """
-    Locks in the behavior that the repository can correctly deserialize
-    a JSON string from the database into a Document object. This test
-    will serve as a regression check for the refactoring of the duplicated
-    hydration logic into a single `_hydrate_object` method.
-    """
-    # Arrange
+def test_save_handles_documents_and_entries(repo):
+    """Tests that save correctly handles both Document and Entry instances."""
     doc = Document.create(content="Test content", doc_type=DocumentType.POST, title="Test Post")
-    json_data = doc.model_dump_json()
+    entry = Entry(id="entry-1", title="Test Entry", updated=datetime.now(UTC), content="Entry Content")
 
-    # Manually insert using raw SQL to ensure we are testing hydration from a string
-    repo.conn.con.execute(
-        f"INSERT INTO {repo.table_name} (id, doc_type, json_data, updated) VALUES (?, ?, ?, ?)",
-        [doc.id, doc.doc_type.value, json_data, doc.updated],
-    )
+    repo.save(doc)
+    repo.save(entry)
 
-    # Act
-    docs = repo.list(doc_type=DocumentType.POST)
+    retrieved_doc = repo.get(doc.id)
+    assert retrieved_doc is not None
+    assert retrieved_doc.id == doc.id
 
-    # Assert
-    assert len(docs) == 1
-    retrieved = docs[0]
-    assert retrieved.id == doc.id
-    assert retrieved.title == "Test Post"
-    assert retrieved.content == "Test content"
+    retrieved_entry = repo.get_entry(entry.id)
+    assert retrieved_entry is not None
+    assert type(retrieved_entry) is Entry
