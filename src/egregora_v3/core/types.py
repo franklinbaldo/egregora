@@ -8,6 +8,7 @@ from xml.etree.ElementTree import Element, register_namespace, SubElement, tostr
 import jinja2
 from pydantic import BaseModel, Field
 
+from egregora_v3.core.filters import format_datetime, normalize_content_type
 from egregora_v3.core.utils import slugify
 
 # --- XML Configuration ---
@@ -32,25 +33,8 @@ _jinja_env = jinja2.Environment(
     lstrip_blocks=True,
 )
 
-
-def _format_datetime(dt: datetime) -> str:
-    """Format datetime as RFC 3339 (Atom requirement)."""
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=UTC)
-    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def _normalize_content_type(content_type: str | None) -> str:
-    """Normalize content type for Atom."""
-    if content_type == "text/markdown":
-        return "text"
-    if content_type == "text/html":
-        return "html"
-    return content_type or "text"
-
-
-_jinja_env.filters["rfc3339"] = _format_datetime
-_jinja_env.filters["content_type"] = _normalize_content_type
+_jinja_env.filters["rfc3339"] = format_datetime
+_jinja_env.filters["content_type"] = normalize_content_type
 _jinja_env.globals["Document"] = "Document"  # Use string to avoid circular import issues if Document is used
 
 
