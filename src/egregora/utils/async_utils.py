@@ -20,7 +20,7 @@ def run_async_safely(coro: Any) -> Any:
         # No running loop - use asyncio.run()
         return asyncio.run(coro)
     else:
-        # Loop is already running - use run_until_complete in a new thread
+        # Loop is already running - run asyncio.run in a new thread.
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(asyncio.run, coro)
             return future.result()
