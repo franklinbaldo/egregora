@@ -14,8 +14,8 @@ import pytest
 
 from egregora_v3.core.catalog import ContentLibrary
 from egregora_v3.core.context import PipelineContext
-from egregora_v3.core.types import Document, DocumentStatus, DocumentType, Entry
-from egregora_v3.engine.agents.writer import WriterAgent
+from egregora_v3.core.types import Entry
+from egregora_v3.engine.agents.writer import GeneratedPost, WriterAgent
 from egregora_v3.infra.repository.duckdb import DuckDBDocumentRepository
 
 # ========== Fixtures ==========
@@ -84,22 +84,20 @@ def test_writer_agent_has_generate_method() -> None:
 
 
 @pytest.mark.asyncio
-async def test_writer_agent_generates_document(
+async def test_writer_agent_generates_generated_post(
     sample_entries: list[Entry],
     pipeline_context: PipelineContext,
 ) -> None:
-    """Test that WriterAgent generates a Document from entries."""
-    # Use TestModel for deterministic testing
+    """Test that WriterAgent generates a GeneratedPost from entries."""
     agent = WriterAgent(model="test")
 
-    # Generate document (TestModel is already configured in __init__)
     result = await agent.generate(
         entries=sample_entries,
         context=pipeline_context,
     )
 
-    # Verify result is a Document
-    assert isinstance(result, Document)
+    assert isinstance(result, GeneratedPost)
+    assert "Generated Blog Post" in result.title
 
 
 @pytest.mark.asyncio
@@ -107,7 +105,6 @@ async def test_writer_agent_uses_test_model(content_library: ContentLibrary) -> 
     """Test that WriterAgent works with TestModel (no live API calls)."""
     agent = WriterAgent(model="test")
 
-    # Should not make any HTTP requests
     entries = [
         Entry(
             id="test-1",
@@ -116,21 +113,17 @@ async def test_writer_agent_uses_test_model(content_library: ContentLibrary) -> 
             updated="2025-12-06T10:00:00Z",
         ),
     ]
-
     context = PipelineContext(library=content_library, run_id="test-run")
 
-    # This should work without network access
     result = await agent.generate(entries=entries, context=context)
 
-    # Verify basic properties
-    assert isinstance(result, Document)
-    assert result.doc_type == DocumentType.POST
-    assert result.status == DocumentStatus.DRAFT
+    assert isinstance(result, GeneratedPost)
+    assert "Generated Blog Post" in result.title
 
 
 @pytest.mark.asyncio
 async def test_writer_agent_structured_output(content_library: ContentLibrary) -> None:
-    """Test that WriterAgent returns structured Document output."""
+    """Test that WriterAgent returns structured GeneratedPost output."""
     agent = WriterAgent(model="test")
 
     entries = [
@@ -141,16 +134,13 @@ async def test_writer_agent_structured_output(content_library: ContentLibrary) -
             updated="2025-12-06T10:00:00Z",
         ),
     ]
-
     context = PipelineContext(library=content_library, run_id="test-run")
 
     result = await agent.generate(entries=entries, context=context)
 
-    # Verify structured output fields
-    assert isinstance(result, Document)
+    assert isinstance(result, GeneratedPost)
     assert result.title
     assert result.content
-    assert result.doc_type == DocumentType.POST
 
 
 # ========== Context Integration Tests ==========
@@ -164,14 +154,12 @@ async def test_writer_agent_receives_pipeline_context(
     """Test that WriterAgent receives PipelineContext."""
     agent = WriterAgent(model="test")
 
-    # Context should be passed through
     result = await agent.generate(
         entries=sample_entries,
         context=pipeline_context,
     )
 
-    assert isinstance(result, Document)
-    # Context is available during generation (tested via agent internals)
+    assert isinstance(result, GeneratedPost)
 
 
 # ========== Edge Cases ==========
@@ -210,7 +198,7 @@ async def test_writer_agent_handles_single_entry(
 
     result = await agent.generate(entries=entries, context=context)
 
-    assert isinstance(result, Document)
+    assert isinstance(result, GeneratedPost)
     assert result.title
 
 
@@ -221,7 +209,7 @@ async def test_writer_agent_handles_single_entry(
 async def test_writer_agent_output_has_required_fields(
     content_library: ContentLibrary,
 ) -> None:
-    """Test that generated Document has all required fields."""
+    """Test that generated GeneratedPost has all required fields."""
     agent = WriterAgent(model="test")
 
     entries = [
@@ -232,18 +220,12 @@ async def test_writer_agent_output_has_required_fields(
             updated="2025-12-06T10:00:00Z",
         ),
     ]
-
     context = PipelineContext(library=content_library, run_id="test-run")
 
     result = await agent.generate(entries=entries, context=context)
 
-    # Check required fields
-    assert result.id  # Generated ID
-    assert result.title  # Non-empty title
-    assert result.content  # Non-empty content
-    assert result.doc_type == DocumentType.POST
-    assert result.status == DocumentStatus.DRAFT
-    assert result.updated  # Timestamp present
+    assert result.title
+    assert result.content
 
 
 @pytest.mark.asyncio
@@ -269,3 +251,20 @@ async def test_writer_agent_generates_markdown_content(
     # Content should be non-empty string
     assert isinstance(result.content, str)
     assert len(result.content) > 0
+
+
+class TestWriterAgentInterface:
+    """Test the public interface of the WriterAgent."""
+
+    @pytest.mark.asyncio
+    async def test_generate_returns_generated_post(
+        self, sample_entries: list[Entry], pipeline_context: PipelineContext
+    ) -> None:
+        """Generate should return a GeneratedPost object, not a Document."""
+        agent = WriterAgent(model="test")
+        result = await agent.generate(sample_entries, pipeline_context)
+
+        assert isinstance(result, GeneratedPost)
+        assert result.title
+        assert "Generated Blog Post" in result.title
+        assert result.content
