@@ -32,13 +32,8 @@ async def get_recent_posts(
     # Access ContentLibrary through context
     library = context.library
 
-    # Query posts repository for recent posts
-    all_posts = library.posts.list(doc_type=DocumentType.POST)
-
-    # Sort by updated timestamp (newest first)
-    all_posts.sort(key=lambda d: d.updated, reverse=True)
-
-    return all_posts[:limit]
+    # Delegate sorting and limiting to the repository
+    return library.posts.list(doc_type=DocumentType.POST, order_by="updated", limit=limit)
 
 
 async def search_prior_work(
