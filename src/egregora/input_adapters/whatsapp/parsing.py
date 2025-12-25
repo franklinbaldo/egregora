@@ -352,14 +352,9 @@ def _parse_whatsapp_lines(
             # ... rest of existing logic ...
             date_str, time_str, author_raw, message_part = match.groups()
 
-            try:
-                msg_date = _parse_message_date(date_str)
-                builder.current_date = msg_date
-                msg_time = _parse_message_time(time_str)
-            except WhatsAppParsingError as e:
-                logger.warning(f"Skipping line due to parsing error: {e}")
-                builder.flush()
-                continue
+            msg_date = _parse_message_date(date_str)
+            builder.current_date = msg_date
+            msg_time = _parse_message_time(time_str)
 
             timestamp = datetime.combine(builder.current_date, msg_time, tzinfo=tz).astimezone(UTC)
             builder.start_new_message(timestamp, author_raw, message_part)
