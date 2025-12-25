@@ -98,7 +98,7 @@ class TestEnricherAgentBasics:
 
     def test_enricher_agent_initializes_with_test_model(self) -> None:
         """EnricherAgent should initialize with TestModel for testing."""
-        agent = EnricherAgent(model="test")
+        agent = EnricherAgent.for_test()
         assert agent.model_name == "test"
 
     @pytest.mark.asyncio
@@ -108,7 +108,7 @@ class TestEnricherAgentBasics:
         pipeline_context: PipelineContext,
     ) -> None:
         """EnricherAgent should add description to entry with image."""
-        agent = EnricherAgent(model="test")
+        agent = EnricherAgent.for_test()
         enriched_entry = await agent.enrich(entry_with_image, pipeline_context)
 
         # Entry should have enriched content
@@ -126,7 +126,7 @@ class TestEnricherAgentBasics:
         pipeline_context: PipelineContext,
     ) -> None:
         """EnricherAgent should skip entries without media."""
-        agent = EnricherAgent(model="test")
+        agent = EnricherAgent.for_test()
         enriched_entry = await agent.enrich(entry_without_media, pipeline_context)
 
         # Entry should be unchanged
@@ -139,7 +139,7 @@ class TestEnricherAgentBasics:
         pipeline_context: PipelineContext,
     ) -> None:
         """EnricherAgent should preserve existing content when skip_existing=True."""
-        agent = EnricherAgent(model="test", skip_existing=True)
+        agent = EnricherAgent.for_test(skip_existing=True)
         enriched_entry = await agent.enrich(entry_with_existing_content, pipeline_context)
 
         # Entry content should be unchanged
@@ -164,7 +164,7 @@ class TestEnricherAgentFeedProcessing:
             entries=[entry_with_image, entry_without_media],
         )
 
-        agent = EnricherAgent(model="test")
+        agent = EnricherAgent.for_test()
         enriched_feed = await agent.enrich_feed(feed, pipeline_context)
 
         # Feed should have same number of entries
@@ -186,7 +186,7 @@ class TestEnricherAgentFeedProcessing:
             entries=[],
         )
 
-        agent = EnricherAgent(model="test")
+        agent = EnricherAgent.for_test()
         enriched_feed = await agent.enrich_feed(empty_feed, pipeline_context)
 
         # Feed should still be empty
@@ -217,7 +217,7 @@ class TestEnricherAgentMediaTypeSupport:
             ],
         )
 
-        agent = EnricherAgent(model="test")
+        agent = EnricherAgent.for_test()
         enriched = await agent.enrich(entry, pipeline_context)
         assert enriched.content
 
@@ -241,7 +241,7 @@ class TestEnricherAgentMediaTypeSupport:
             ],
         )
 
-        agent = EnricherAgent(model="test")
+        agent = EnricherAgent.for_test()
         enriched = await agent.enrich(entry, pipeline_context)
         assert enriched.content
 
@@ -265,26 +265,13 @@ class TestEnricherAgentMediaTypeSupport:
             ],
         )
 
-        agent = EnricherAgent(model="test")
+        agent = EnricherAgent.for_test()
         enriched = await agent.enrich(entry, pipeline_context)
         assert enriched.content
 
 
 class TestEnricherAgentConfiguration:
     """Test EnricherAgent configuration options."""
-
-    @pytest.mark.asyncio
-    async def test_enricher_with_custom_system_prompt(
-        self,
-        entry_with_image: Entry,
-        pipeline_context: PipelineContext,
-    ) -> None:
-        """EnricherAgent should support custom system prompts."""
-        custom_prompt = "You are a helpful assistant that describes images."
-        agent = EnricherAgent(model="test", system_prompt=custom_prompt)
-
-        enriched = await agent.enrich(entry_with_image, pipeline_context)
-        assert enriched.content
 
     @pytest.mark.asyncio
     async def test_enricher_skip_existing_content(
@@ -306,7 +293,7 @@ class TestEnricherAgentConfiguration:
             ],
         )
 
-        agent = EnricherAgent(model="test", skip_existing=True)
+        agent = EnricherAgent.for_test(skip_existing=True)
         enriched = await agent.enrich(entry, pipeline_context)
 
         # Content should be unchanged
