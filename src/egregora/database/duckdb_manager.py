@@ -48,7 +48,7 @@ import duckdb
 import ibis
 
 from egregora.database import schemas
-from egregora.database.ir_schema import quote_identifier
+from egregora.database.schemas import quote_identifier
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

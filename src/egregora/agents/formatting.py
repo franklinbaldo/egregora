@@ -15,7 +15,8 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from egregora.data_primitives.document import DocumentType
 
 if TYPE_CHECKING:
-    from egregora.agents.shared.annotations import Annotation, AnnotationStore
+    from egregora.agents.shared.annotations import AnnotationStore
+    from egregora.data_primitives.document import Document
     from egregora.output_adapters.base import OutputSink
 
 logger = logging.getLogger(__name__)
@@ -106,12 +107,14 @@ def build_conversation_xml(
     # Ensure msg_id exists (reuses existing logic)
     _ensure_msg_id_column(rows, ["msg_id", "timestamp", "author", "text"])
 
-    annotations_map: dict[str, list[Annotation]] = {}
+    annotations_map: dict[str, list[Document]] = {}
     if annotations_store is not None:
         for row in rows:
             msg_id_value = row.get("msg_id")
             if msg_id_value:
-                annotations_map[msg_id_value] = annotations_store.list_annotations_for_message(msg_id_value)
+                annotations_map[str(msg_id_value)] = annotations_store.list_annotations_for_message(
+                    str(msg_id_value)
+                )
 
     messages = []
     for row in rows:
@@ -130,7 +133,7 @@ def build_conversation_xml(
 
         if msg_id in annotations_map:
             for ann in annotations_map[msg_id]:
-                msg_data["notes"].append({"id": ann.id, "content": ann.commentary})
+                msg_data["notes"].append({"id": ann.document_id, "content": ann.content})
         messages.append(msg_data)
 
     templates_dir = Path(__file__).resolve().parents[1] / "templates"

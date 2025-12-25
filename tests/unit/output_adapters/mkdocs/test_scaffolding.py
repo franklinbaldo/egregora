@@ -19,7 +19,7 @@ def test_scaffold_site_creates_expected_layout(tmp_path: Path, scaffolder: MkDoc
     mkdocs_path, created = scaffolder.scaffold_site(tmp_path, site_name="Test Site")
 
     assert created is True
-    assert mkdocs_path == tmp_path / ".egregora" / "mkdocs.yml"
+    assert mkdocs_path == tmp_path / "mkdocs.yml"
     assert mkdocs_path.exists()
 
     mkdocs_config = safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
@@ -51,13 +51,13 @@ def test_resolve_paths_returns_site_configuration(tmp_path: Path, scaffolder: Mk
     assert site_config.site_name == "Resolved Site"
     assert site_config.docs_dir == tmp_path / "docs"
     assert site_config.posts_dir == site_config.docs_dir / "posts"
-    assert site_config.config_file == tmp_path / ".egregora" / "mkdocs.yml"
+    assert site_config.config_file == tmp_path / "mkdocs.yml"
 
 
 def test_overrides_are_in_egregora_dir(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:
     """Test that overrides/ is created in the .egregora directory."""
     scaffolder.scaffold_site(tmp_path, site_name="Clean Site")
 
-    # overrides/ should be in .egregora, not the root
-    assert (tmp_path / ".egregora" / "overrides").exists()
-    assert not (tmp_path / "overrides").exists()
+    # overrides/ should be in site root for mkdocs.yml to find it
+    assert (tmp_path / "overrides").exists()
+    assert not (tmp_path / ".egregora" / "overrides").exists()

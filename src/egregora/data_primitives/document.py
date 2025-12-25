@@ -46,6 +46,25 @@ class DocumentType(Enum):
     ANNOTATION = "annotation"  # Conversation annotations captured during writing
 
 
+@dataclass
+class Author:
+    """Represents an author of a document."""
+
+    id: str
+    name: str | None = None
+    email: str | None = None
+    uri: str | None = None
+
+
+@dataclass
+class Category:
+    """Represents a category or tag for a document."""
+
+    term: str
+    scheme: str | None = None
+    label: str | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class Document:
     r"""Content-addressed document produced by the pipeline.

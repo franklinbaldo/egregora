@@ -1,0 +1,131 @@
+"""Database Output Sink.
+
+This sink implements the OutputSink protocol but persists documents to the
+central ContentRepository (DuckDB) instead of the filesystem.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
+
+from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import DocumentMetadata, OutputSink, UrlContext, UrlConvention
+from egregora.database.repository import ContentRepository
+from egregora.output_adapters.conventions import StandardUrlConvention
+
+if TYPE_CHECKING:
+    from ibis.expr.types import Table
+
+
+class DbOutputSink(OutputSink):
+    """OutputSink implementation that persists to DuckDB via ContentRepository."""
+
+    def __init__(self, repository: ContentRepository, url_context: UrlContext | None = None) -> None:
+        self.repository = repository
+        self._url_convention = StandardUrlConvention()
+        self._ctx = url_context or UrlContext()
+
+    @property
+    def url_convention(self) -> UrlConvention:
+        return self._url_convention
+
+    @property
+    def url_context(self) -> UrlContext:
+        return self._ctx
+
+    def persist(self, document: Document) -> None:
+        """Persist document to the database repository."""
+        self.repository.save(document)
+
+    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
+        """Retrieve document from database."""
+        return self.repository.get(doc_type, identifier)
+
+    def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
+        """List documents from database as metadata."""
+        # ContentRepository.list returns dicts. We convert to DocumentMetadata.
+        for row in self.repository.list(doc_type):
+            # Identifier strategy: Use ID as storage identifier for DB
+            identifier = str(row.get("id"))
+
+            # Map doc_type string back to Enum if needed, or rely on caller filter
+            # repository.list(doc_type) ensures we get the right type.
+            # If doc_type is None, we need to infer from view 'type' column.
+            dtype = doc_type
+            if dtype is None and "type" in row:
+                try:
+                    # simplistic mapping from string "post" -> DocumentType.POST
+                    # This relies on view column 'type' matching convention
+                    type_str = row["type"].upper()
+                    if type_str == "POST":
+                        dtype = DocumentType.POST
+                    elif type_str == "PROFILE":
+                        dtype = DocumentType.PROFILE
+                    elif type_str == "JOURNAL":
+                        dtype = DocumentType.JOURNAL
+                    elif type_str == "MEDIA":
+                        dtype = DocumentType.MEDIA
+                    elif type_str == "ANNOTATION":
+                        dtype = DocumentType.ANNOTATION
+                except (KeyError, AttributeError, TypeError):
+                    pass
+
+            yield DocumentMetadata(
+                identifier=identifier,
+                doc_type=dtype,
+                metadata=row,  # Pass full row as metadata
+            )
+
+    def list_documents(self, doc_type: DocumentType | None = None) -> Table:
+        """Return Ibis table for RAG indexing."""
+        # Direct access to repository's DB connection for Ibis table
+        # We need to return a table with specific schema?
+        # OutputSink protocol says: columns storage_identifier, mtime_ns
+
+        # We can construct a query on the fly using Ibis
+        # This requires the underlying repository to expose Ibis tables
+
+        # Simplified:
+        if doc_type:
+            table_name = self.repository._get_table_for_type(doc_type)
+            if table_name:
+                t = self.repository.db.read_table(table_name)
+                # Mutate to match expected schema
+                return t.select(
+                    storage_identifier=t.id, mtime_ns=t.created_at.epoch_seconds() * 1_000_000_000
+                )
+
+        # Fallback or empty
+        return self.repository.db._empty_document_table()
+
+    def documents(self) -> Iterator[Document]:
+        """Iterate all documents."""
+        # Use repository.get_all which streams from view
+        # We assume get_all returns rows that allow us to fetch/reconstruct.
+        # However, for robustness and since get_all returns generic view rows (subset of columns),
+        # we should iterate per-type via list() which returns metadata, then fetch full docs.
+        # This is slower but safer for materialization.
+
+        # Iterate through all known types in the sink
+        known_types = [
+            DocumentType.POST,
+            DocumentType.PROFILE,
+            DocumentType.JOURNAL,
+            DocumentType.MEDIA,
+            DocumentType.ANNOTATION,
+        ]
+
+        for dtype in known_types:
+            for meta in self.list(dtype):
+                doc = self.read_document(dtype, meta.identifier)
+                if doc:
+                    yield doc
+
+    def get_format_instructions(self) -> str:
+        return "Database persistence mode."
+
+    def finalize_window(
+        self, window_label: str, profiles_updated: list[str], metadata: dict | None = None
+    ) -> None:
+        pass

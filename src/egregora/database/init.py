@@ -16,7 +16,17 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from egregora.database.ir_schema import IR_MESSAGE_SCHEMA, create_table_if_not_exists
+from egregora.database.schemas import (
+    ANNOTATIONS_SCHEMA,
+    DOCUMENTS_VIEW_SQL,
+    INGESTION_MESSAGE_SCHEMA,
+    JOURNALS_SCHEMA,
+    MEDIA_SCHEMA,
+    POSTS_SCHEMA,
+    PROFILES_SCHEMA,
+    TASKS_SCHEMA,
+    create_table_if_not_exists,
+)
 
 if TYPE_CHECKING:
     from ibis.backends.base import BaseBackend
@@ -27,22 +37,17 @@ logger = logging.getLogger(__name__)
 def initialize_database(backend: BaseBackend) -> None:
     """Initialize all database tables using Ibis schema definitions.
 
-    Creates the messages table with:
-    - All columns from IR_MESSAGE_SCHEMA
-    - PRIMARY KEY on event_id
-    - Indexes on ts, thread_id, author_uuid for query performance
+    Creates:
+    - posts, profiles, media, journals (Type-specific content tables)
+    - documents_view (Unified view)
+    - tasks (Background jobs)
+    - messages (Ingestion buffer - optional/legacy)
 
     Args:
         backend: Ibis backend (DuckDB, Postgres, etc.)
 
     Raises:
         Exception: If table creation fails
-
-    Example:
-        >>> import ibis
-        >>> backend = ibis.duckdb.connect("pipeline.db")
-        >>> initialize_database(backend)
-        >>> # All tables now exist and can be used
 
     """
     logger.info("Initializing database tables...")
@@ -53,44 +58,27 @@ def initialize_database(backend: BaseBackend) -> None:
     else:
         conn = backend
 
-    # Create IR messages table using Python schema definition
-    create_table_if_not_exists(conn, "messages", IR_MESSAGE_SCHEMA)
+    # 1. Type-Specific Tables (Append-Only)
+    create_table_if_not_exists(conn, "posts", POSTS_SCHEMA)
+    create_table_if_not_exists(conn, "profiles", PROFILES_SCHEMA)
+    create_table_if_not_exists(conn, "media", MEDIA_SCHEMA)
+    create_table_if_not_exists(conn, "journals", JOURNALS_SCHEMA)
+    create_table_if_not_exists(conn, "annotations", ANNOTATIONS_SCHEMA)
 
-    # Add PRIMARY KEY constraint (DuckDB doesn't support ALTER TABLE ADD PRIMARY KEY,
-    # so we need to handle this differently - create a unique index instead)
-    # Note: DuckDB's CREATE TABLE IF NOT EXISTS won't add constraints to existing tables
-    _execute_sql(
-        conn,
-        """
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_pk
-        ON messages(event_id)
-    """,
-    )
+    # 2. Unified View
+    _execute_sql(conn, DOCUMENTS_VIEW_SQL)
 
-    # Add indexes for query performance (matching original SQL schema)
-    _execute_sql(
-        conn,
-        """
-        CREATE INDEX IF NOT EXISTS idx_messages_ts
-        ON messages(ts)
-    """,
-    )
+    # 3. Tasks Table
+    create_table_if_not_exists(conn, "tasks", TASKS_SCHEMA)
 
-    _execute_sql(
-        conn,
-        """
-        CREATE INDEX IF NOT EXISTS idx_messages_thread
-        ON messages(thread_id)
-    """,
-    )
+    # 4. Ingestion / Messages Table (Legacy/Ingestion Support)
+    create_table_if_not_exists(conn, "messages", INGESTION_MESSAGE_SCHEMA)
 
-    _execute_sql(
-        conn,
-        """
-        CREATE INDEX IF NOT EXISTS idx_messages_author
-        ON messages(author_uuid)
-    """,
-    )
+    # Indexes for messages table (Ingestion performance)
+    _execute_sql(conn, "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_pk ON messages(event_id)")
+    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts)")
+    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id)")
+    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_author ON messages(author_uuid)")
 
     logger.info("✓ Database tables initialized successfully")
 
