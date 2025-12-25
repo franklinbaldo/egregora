@@ -78,7 +78,7 @@ import ibis
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputSink
-from egregora.database import ir_schema as database_schema
+from egregora.database import schemas as database_schema
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence

@@ -13,7 +13,8 @@ import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from egregora.database.ir_schema import TASKS_SCHEMA, quote_identifier
+from egregora.database.schemas import TASKS_SCHEMA
+from egregora.database.schemas import quote_identifier
 
 if TYPE_CHECKING:
     from egregora.database.duckdb_manager import DuckDBStorageManager
@@ -48,13 +49,13 @@ class TaskStore:
             msg = f"Failed to create tasks table: {e}"
             raise RuntimeError(msg) from e
 
-    def enqueue(self, task_type: str, payload: dict[str, Any], run_id: uuid.UUID) -> str:
+    def enqueue(self, task_type: str, payload: dict[str, Any], run_id: uuid.UUID | None = None) -> str:
         """Add a new task to the queue.
 
         Args:
             task_type: Identifier for the worker (e.g., "generate_banner")
             payload: JSON-serializable dictionary of task arguments
-            run_id: UUID of the pipeline run creating this task
+            run_id: UUID of the pipeline run creating this task (optional, deprecated)
 
         Returns:
             The generated task_id as a string
@@ -74,7 +75,6 @@ class TaskStore:
             "created_at": datetime.now(UTC),
             "processed_at": None,
             "error": None,
-            "run_id": str(run_id),
         }
 
         # Pass as a list to ensure it's treated as a row, not scalar values

@@ -21,7 +21,7 @@ import ibis.expr.datatypes as dt
 from dateutil import parser as date_parser
 from pydantic import BaseModel
 
-from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
+from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.exceptions import (
     DateParsingError,
     TimeParsingError,
@@ -408,7 +408,7 @@ def parse_source(
 
     if not rows:
         logger.warning("No messages found in %s", export.zip_path)
-        return ibis.memtable([], schema=IR_MESSAGE_SCHEMA)
+        return ibis.memtable([], schema=INGESTION_MESSAGE_SCHEMA)
 
     messages = ibis.memtable(rows)
     if "_import_order" in messages.columns:
@@ -463,4 +463,4 @@ def parse_source(
         created_by_run=created_by_literal,
     )
 
-    return result_table.select(*IR_MESSAGE_SCHEMA.names)
+    return result_table.select(*INGESTION_MESSAGE_SCHEMA.names)
