@@ -82,12 +82,11 @@ class FeedBannerGenerator:
 
     def __init__(
         self,
-        provider: ImageGenerationProvider | None = None,
+        provider: ImageGenerationProvider,
         prompts_dir: Path | None = None,
     ) -> None:
         """Initialize the feed-based banner generator."""
         self.provider = provider
-
         self.jinja_env = self._create_environment(prompts_dir)
 
     def _create_environment(self, configured: Path | None) -> Environment:
@@ -107,19 +106,9 @@ class FeedBannerGenerator:
             autoescape=select_autoescape(enabled_extensions=("jinja", "jinja2", "html", "xml")),
         )
 
-    def generate_from_feed(
-        self,
-        task_feed: Feed,
-        *,
-        batch_mode: bool = False,
-    ) -> Feed:
+    def generate_from_feed(self, task_feed: Feed) -> Feed:
         """Generate banners from a feed of tasks."""
-        results: list[BannerGenerationResult] = []
-
-        if batch_mode and isinstance(self.provider, GeminiImageGenerationProvider):
-            results = self._generate_batch(task_feed.entries)
-        else:
-            results = self._generate_sequential(task_feed.entries)
+        results = self._generate_sequential(task_feed.entries)
 
         output_entries = []
         for result in results:
@@ -141,64 +130,11 @@ class FeedBannerGenerator:
     def _generate_sequential(self, entries: list[Entry]) -> list[BannerGenerationResult]:
         """Generate banners sequentially for each task entry."""
         results = []
-
         for entry in entries:
             task = BannerTaskEntry(entry)
             banner_input = task.to_banner_input()
-
-            if self.provider:
-                result = self._generate_with_provider(task, banner_input)
-            else:
-                result = self._generate_with_default(task, banner_input)
-
+            result = self._generate_with_provider(task, banner_input)
             results.append(result)
-
-        return results
-
-    def _generate_batch(self, entries: list[Entry]) -> list[BannerGenerationResult]:
-        """Generate banners using batch API (for Gemini provider)."""
-        if not isinstance(self.provider, GeminiImageGenerationProvider):
-            return self._generate_sequential(entries)
-
-        results = []
-        tasks = [BannerTaskEntry(entry) for entry in entries]
-
-        requests = [
-            ImageGenerationRequest(
-                prompt=self._build_prompt(task.to_banner_input()),
-                response_modalities=["IMAGE"],
-                aspect_ratio="1:1",
-            )
-            for task in tasks
-        ]
-
-        for task, request in zip(tasks, requests, strict=True):
-            try:
-                batch_result = self.provider.generate(request)
-                if batch_result.has_image and batch_result.image_bytes:
-                    document = self._create_media_document(
-                        task.entry,
-                        batch_result.image_bytes,
-                        batch_result.mime_type or "image/png",
-                    )
-                    results.append(BannerGenerationResult(task.entry, document=document))
-                else:
-                    results.append(
-                        BannerGenerationResult(
-                            task.entry,
-                            error=batch_result.error or "Unknown error",
-                            error_code=batch_result.error_code or "GENERATION_FAILED",
-                        )
-                    )
-            except (RuntimeError, ValueError) as exc:
-                results.append(
-                    BannerGenerationResult(
-                        task.entry,
-                        error=str(exc),
-                        error_code="GENERATION_EXCEPTION",
-                    )
-                )
-
         return results
 
     def _generate_with_provider(
@@ -211,39 +147,14 @@ class FeedBannerGenerator:
             aspect_ratio="1:1",
         )
 
-        try:
-            result = self.provider.generate(request)
-            if result.has_image and result.image_bytes:
-                document = self._create_media_document(
-                    task.entry,
-                    result.image_bytes,
-                    result.mime_type or "image/png",
-                )
-                return BannerGenerationResult(task.entry, document=document)
-            return BannerGenerationResult(
+        result = self.provider.generate(request)
+        if result.has_image and result.image_bytes:
+            document = self._create_media_document(
                 task.entry,
-                error=result.error or "Unknown error",
-                error_code=result.error_code or "GENERATION_FAILED",
+                result.image_bytes,
+                result.mime_type or "image/png",
             )
-        except (RuntimeError, ValueError) as exc:
-            return BannerGenerationResult(
-                task.entry,
-                error=str(exc),
-                error_code="GENERATION_EXCEPTION",
-            )
-
-    def _generate_with_default(
-        self, task: BannerTaskEntry, banner_input: BannerInput
-    ) -> BannerGenerationResult:
-        """Generate banner using the default generate_banner function."""
-        result = generate_banner(**banner_input.model_dump())
-
-        if result.document:
-            if result.document.internal_metadata is None:
-                result.document.internal_metadata = {}
-            result.document.internal_metadata["task_id"] = task.entry.id
-
-            return BannerGenerationResult(task.entry, document=result.document)
+            return BannerGenerationResult(task.entry, document=document)
         return BannerGenerationResult(
             task.entry,
             error=result.error or "Unknown error",

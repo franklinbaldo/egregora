@@ -53,54 +53,29 @@ class GeminiV3BannerGenerator(ImageGenerationProvider):
         """
         logger.info("Generating banner with model %s", self._model)
 
-        try:
-            # Prepare configuration
-            config_params: dict[str, Any] = {}
-            if request.aspect_ratio:
-                 config_params["aspect_ratio"] = request.aspect_ratio
+        # Prepare configuration declaratively
+        config_params = {"aspect_ratio": request.aspect_ratio} if request.aspect_ratio else {}
 
-            # Call the API
-            # Note: SDK methods might vary slightly by version.
-            # We assume `models.generate_image` or similar exists.
-            # Based on recent SDKs, `models.generate_images` is common.
-            # If not available, we fall back to `models.generate_content` logic if multimodal.
-            # However, `google-genai` usually has `models.generate_images`.
+        response = self._client.models.generate_images(
+            model=self._model,
+            prompt=request.prompt,
+            config=(
+                types.GenerateImagesConfig(**config_params)
+                if config_params
+                else None
+            ),
+        )
 
-            response = self._client.models.generate_images(
-                model=self._model,
-                prompt=request.prompt,
-                config=types.GenerateImagesConfig(**config_params) if config_params else None
-            )
-
-            # Extract image
-            if not response.generated_images:
-                return ImageGenerationResult(
-                    image_bytes=None,
-                    mime_type=None,
-                    error="No images returned",
-                    error_code="NO_IMAGE"
-                )
-
-            # Get the first image
-            generated_image = response.generated_images[0]
-
-            # The SDK usually returns bytes directly or a base64 string depending on version.
-            # types.GeneratedImage usually has `image` (bytes) or `image_bytes`.
-            # Let's check typical attributes. usually `image.image_bytes`.
-
-            image_data = generated_image.image.image_bytes
-            mime_type = generated_image.image.mime_type or "image/png"
-
-            return ImageGenerationResult(
-                image_bytes=image_data,
-                mime_type=mime_type
-            )
-
-        except Exception as e:
-            logger.exception("Banner generation failed")
+        if not response.generated_images:
             return ImageGenerationResult(
                 image_bytes=None,
                 mime_type=None,
-                error=str(e),
-                error_code="GENERATION_EXCEPTION"
+                error="No images returned",
+                error_code="NO_IMAGE",
             )
+
+        generated_image = response.generated_images[0]
+        image_data = generated_image.image.image_bytes
+        mime_type = generated_image.image.mime_type or "image/png"
+
+        return ImageGenerationResult(image_bytes=image_data, mime_type=mime_type)

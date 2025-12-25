@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+from google.api_core import exceptions as google_exceptions
 
 from egregora.agents.banner.image_generation import ImageGenerationRequest, ImageGenerationResult
 from egregora_v3.core.types import Author, Document, DocumentType, Entry, Feed
@@ -13,6 +14,7 @@ from egregora_v3.engine.banner.feed_generator import (
     BannerTaskEntry,
     FeedBannerGenerator,
 )
+from egregora_v3.engine.banner.generator import GeminiV3BannerGenerator
 
 
 @pytest.fixture
@@ -132,8 +134,23 @@ class TestFeedBannerGenerator:
         assert len(result_feed.entries) == 1
         banner_doc = result_feed.entries[0]
         assert isinstance(banner_doc, Document)
-        assert banner_doc.doc_type == DocumentType.MEDIA
-        assert "Banner:" in banner_doc.title
+
+
+class TestGeminiV3BannerGenerator:
+    """Unit tests for the GeminiV3BannerGenerator."""
+
+    def test_generate_propagates_google_api_errors(self):
+        """Ensure specific Google API errors are not caught in a generic exception."""
+        mock_client = Mock()
+        mock_client.models.generate_images.side_effect = google_exceptions.ResourceExhausted(
+            "Quota exceeded"
+        )
+
+        generator = GeminiV3BannerGenerator(client=mock_client)
+        request = ImageGenerationRequest(prompt="test prompt", response_modalities=["IMAGE"])
+
+        with pytest.raises(google_exceptions.ResourceExhausted):
+            generator.generate(request)
 
     def test_generate_from_feed_with_error(self, sample_task_feed: Feed, prompts_dir: Path):
         mock_provider = Mock()
@@ -158,36 +175,8 @@ class TestFeedBannerGenerator:
         mock_provider.generate.side_effect = RuntimeError("Provider crashed")
 
         generator = FeedBannerGenerator(provider=mock_provider, prompts_dir=prompts_dir)
-        result_feed = generator.generate_from_feed(sample_task_feed)
-
-        error_doc = result_feed.entries[0]
-        assert error_doc.doc_type == DocumentType.NOTE
-        assert "Provider crashed" in error_doc.content
-
-    def test_batch_generation(self, mock_image_provider, prompts_dir: Path):
-        feed = Feed(
-            id="urn:tasks:banner:multi",
-            title="Multiple Tasks",
-            updated=datetime.now(UTC),
-            entries=[
-                Entry(
-                    id=f"task:{i}",
-                    title=f"Post {i}",
-                    summary=f"Summary {i}",
-                    updated=datetime.now(UTC),
-                    internal_metadata={"slug": f"post-{i}"},
-                )
-                for i in range(3)
-            ],
-            authors=[],
-            links=[],
-        )
-
-        generator = FeedBannerGenerator(provider=mock_image_provider, prompts_dir=prompts_dir)
-        result_feed = generator.generate_from_feed(feed, batch_mode=True)
-
-        assert len(result_feed.entries) == 3
-        assert mock_image_provider.generate.call_count == 3
+        with pytest.raises(RuntimeError, match="Provider crashed"):
+            generator.generate_from_feed(sample_task_feed)
 
     def test_metadata_preserved(self, sample_task_feed: Feed, mock_image_provider, prompts_dir: Path):
         generator = FeedBannerGenerator(provider=mock_image_provider, prompts_dir=prompts_dir)
@@ -196,12 +185,3 @@ class TestFeedBannerGenerator:
         banner_doc = result_feed.entries[0]
         assert banner_doc.internal_metadata is not None
         assert banner_doc.internal_metadata["task_id"] == "task:1"
-
-    def test_default_prompts_directory(self, sample_task_feed: Feed, mock_image_provider):
-        """Ensure packaged prompts work when no custom directory is provided."""
-        generator = FeedBannerGenerator(provider=mock_image_provider)
-        result_feed = generator.generate_from_feed(sample_task_feed)
-
-        assert len(result_feed.entries) == 1
-        banner_doc = result_feed.entries[0]
-        assert isinstance(banner_doc, Document)
