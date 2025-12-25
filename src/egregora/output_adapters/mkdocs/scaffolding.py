@@ -85,9 +85,10 @@ class MkDocsSiteScaffolder:
             templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
             env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
 
-            mkdocs_config_dir = site_paths.mkdocs_config_path.parent
             docs_dir = site_paths.docs_dir
-            docs_relative = Path(os.path.relpath(docs_dir, mkdocs_config_dir)).as_posix()
+            # Calculate relative to site_root (where mkdocs serve is typically run from)
+            # This ensures paths work correctly whether using symlink or direct file
+            docs_relative = Path(os.path.relpath(docs_dir, site_root)).as_posix()
             blog_relative = Path(os.path.relpath(site_paths.posts_dir, docs_dir)).as_posix()
 
             context = {
@@ -222,10 +223,10 @@ class MkDocsSiteScaffolder:
 
         stylesheets_dir = docs_dir / "stylesheets"
         stylesheets_dir.mkdir(parents=True, exist_ok=True)
-        custom_css_src = Path(env.loader.searchpath[0]) / "docs" / "stylesheets" / "custom.css"
-        custom_css_dest = stylesheets_dir / "custom.css"
-        if custom_css_src.exists() and not custom_css_dest.exists():
-            shutil.copy(custom_css_src, custom_css_dest)
+        extra_css_src = Path(env.loader.searchpath[0]) / "docs" / "stylesheets" / "extra.css"
+        extra_css_dest = stylesheets_dir / "extra.css"
+        if extra_css_src.exists() and not extra_css_dest.exists():
+            shutil.copy(extra_css_src, extra_css_dest)
 
         javascripts_dir = docs_dir / "javascripts"
         javascripts_dir.mkdir(parents=True, exist_ok=True)

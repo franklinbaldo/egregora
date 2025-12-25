@@ -373,6 +373,13 @@ async def write_posts_with_pydantic_agent(
     # Use tenacity for retries
     for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
         with attempt:
+            attempt_num = attempt.retry_state.attempt_number
+            logger.info(
+                "🖊️  [Writer] Starting LLM call for %s (attempt %d/%d)...",
+                context.window_label,
+                attempt_num,
+                RETRY_STOP.max_attempt_number if hasattr(RETRY_STOP, "max_attempt_number") else 3,
+            )
             # Execute model directly without tools
             result = await agent.run(
                 "Analyze the conversation context provided and write posts/profiles as needed.",
