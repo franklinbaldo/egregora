@@ -33,6 +33,9 @@ from ratelimit import limits, sleep_and_retry
 from tenacity import Retrying
 
 from egregora.agents.exceptions import (
+    AgentExecutionError,
+    FormatInstructionError,
+    JournalDataError,
     JournalFileSystemError,
     JournalTemplateError,
 )
@@ -263,9 +266,7 @@ def _save_journal_to_file(params: JournalEntryParams) -> str:
         raise JournalFileSystemError(path=journal_path_str, reason=str(e)) from e
     except (TypeError, AttributeError, ValueError) as e:
         # Catching other potential issues during doc creation
-        msg = f"Invalid data for journal: {e}"
-        logger.exception(msg)
-        raise JournalFileSystemError(path=journal_path_str, reason=msg) from e
+        raise JournalDataError(reason=str(e)) from e
 
 
 def _process_single_tool_result(
@@ -389,8 +390,10 @@ async def write_posts_with_pydantic_agent(
 
     if not result:
         # Should be unreachable due to reraise=True
-        msg = "Agent failed after retries"
-        raise RuntimeError(msg)
+        raise AgentExecutionError(
+            window_label=context.window_label,
+            reason="Agent failed to produce a result after retries.",
+        )
 
     usage = result.usage()
     if context.resources.usage:
@@ -466,7 +469,7 @@ async def _execute_writer_with_error_handling(
 
     Raises:
         PromptTooLargeError: If prompt exceeds model context window (propagated unchanged)
-        RuntimeError: For other agent failures (wrapped with context)
+        AgentExecutionError: For other agent failures (wrapped with context)
 
     """
     try:
@@ -476,12 +479,11 @@ async def _execute_writer_with_error_handling(
             context=deps,
         )
     except Exception as exc:
-        if isinstance(exc, PromptTooLargeError):
+        if isinstance(exc, (PromptTooLargeError, AgentExecutionError)):
             raise
 
-        msg = f"Writer agent failed for {deps.window_label}"
-        logger.exception(msg)
-        raise RuntimeError(msg) from exc
+        logger.exception("An unexpected error occurred in the writer agent for window %s", deps.window_label)
+        raise AgentExecutionError(window_label=deps.window_label, reason=str(exc)) from exc
 
 
 @dataclass
@@ -661,8 +663,8 @@ def load_format_instructions(site_root: Path | None, *, registry: OutputSinkRegi
     try:
         default_format = registry.get_format("mkdocs")
         return default_format.get_format_instructions()
-    except KeyError:
-        return ""
+    except KeyError as e:
+        raise FormatInstructionError(format_name="mkdocs", reason="Default format not found in registry.") from e
 
 
 def get_top_authors(table: Table, limit: int = 20) -> list[str]:
