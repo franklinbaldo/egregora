@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from egregora.agents.exceptions import WriterAgentExecutionError
+from egregora.agents.exceptions import AgentExecutionError
 from egregora.agents.types import WriterDeps
 from egregora.agents.writer import _execute_writer_with_error_handling
 
@@ -28,7 +28,7 @@ async def test_execute_writer_with_error_handling_raises_specific_exception(monk
     mock_deps.window_label = "test-window-label"
 
     # Act & Assert
-    with pytest.raises(WriterAgentExecutionError) as exc_info:
+    with pytest.raises(AgentExecutionError) as exc_info:
         await _execute_writer_with_error_handling(
             prompt="test prompt",
             config=mock_config,
@@ -37,4 +37,6 @@ async def test_execute_writer_with_error_handling_raises_specific_exception(monk
 
     # Assert exception details
     assert exc_info.value.window_label == "test-window-label"
-    assert "Writer agent failed for window 'test-window-label'" in str(exc_info.value)
+    assert "Agent execution failed for window 'test-window-label': Internal agent error" in str(
+        exc_info.value
+    )

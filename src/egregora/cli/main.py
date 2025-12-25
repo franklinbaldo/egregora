@@ -59,6 +59,10 @@ logging.basicConfig(
     ],
 )
 
+# Suppress annoying warning from google-genai about dual keys
+# "WARNING:google_genai._api_client:Both GOOGLE_API_KEY and GEMINI_API_KEY are set..."
+logging.getLogger("google_genai._api_client").setLevel(logging.ERROR)
+
 logger = logging.getLogger(__name__)
 
 

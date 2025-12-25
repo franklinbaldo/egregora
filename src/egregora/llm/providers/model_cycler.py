@@ -9,7 +9,6 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from egregora.utils.env import get_google_api_keys
-from egregora.utils.rate_limit import get_rate_limiter
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -98,7 +97,11 @@ class GeminiKeyRotator:
         call_fn: Callable[[str], Any],
         is_rate_limit_error: Callable[[Exception], bool] | None = None,
     ) -> Any:
-        """Call a function with automatic key rotation on rate limit errors.
+        """Call a function with automatic key rotation.
+
+        Features:
+        1. Proactive Rotation: Rotates key after every attempt (success or fail) to distribute load.
+        2. Reactive Rotation: Retries on 429 errors until all keys are exhausted.
 
         Args:
             call_fn: Function that takes an API key and makes the API call.
@@ -114,32 +117,57 @@ class GeminiKeyRotator:
         if is_rate_limit_error is None:
             is_rate_limit_error = default_rate_limit_check
 
-        self.reset()
+        # Track keys tried for this specific call to prevent infinite loops on 429s,
+        # but don't reset the global rotator state (to maintain round-robin across different calls).
+        keys_tried_for_request: set[str] = set()
 
-        while True:
+        # Determine max attempts (try all keys once)
+        max_attempts = len(self.api_keys)
+
+        for _ in range(max_attempts):
             api_key = self.current_key
+
+            # Avoid retrying the same key multiple times for the same request
+            if api_key in keys_tried_for_request:
+                # Should not happen in pure round-robin unless we wrapped around
+                if len(keys_tried_for_request) >= len(self.api_keys):
+                    break
+                self.next_key()
+                continue
+
+            keys_tried_for_request.add(api_key)
 
             try:
                 result = call_fn(api_key)
-                self.reset()
+
+                # Proactive rotation: Move to next key for the *next* request
+                # This ensures we distribute load even on success.
+                self.next_key()
+
                 return result
             except Exception as exc:
+                # Always rotate on error too
+                self.next_key()
+
                 if is_rate_limit_error(exc):
-                    # Log only the key index to avoid exposing sensitive data
+                    # Log warning but continue loop to try next key
                     logger.warning(
-                        "[KeyRotator] Rate limit encountered on API key index %d: %s",
+                        "[KeyRotator] Rate limit on key index %d (tried %d/%d): %s",
                         self.key_index,
+                        len(keys_tried_for_request),
+                        len(self.api_keys),
                         str(exc)[:100],
                     )
-
-                    next_key = self.next_key()
-                    if next_key is None:
-                        logger.exception("[KeyRotator] All API keys rate-limited")
-                        raise
                     continue
+
+                # Non-rate-limit error - propagate immediately
                 raise
 
-        return None  # Unreachable, but satisfies type checker
+        # If we exit loop, we exhausted all keys with rate limits
+        logger.error("[KeyRotator] All %d API keys exhausted/rate-limited", len(self.api_keys))
+        # Re-raise the last exception if we have one, or a generic error
+        msg = "All API keys exhausted"
+        raise RuntimeError(msg)
 
 
 class GeminiModelCycler:

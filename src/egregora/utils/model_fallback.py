@@ -223,8 +223,9 @@ def create_fallback_model(
     from egregora.llm.providers.rate_limited import RateLimitedModel
 
     # Helper to create model variations for all keys
-    def _create_variations(model_def: str | Model) -> list[Model]:
+    def _create_variations(model_def: str | Model) -> tuple[list[Model], list[str | None]]:
         variations: list[Model] = []
+        keys_used: list[str | None] = []
 
         # If it's a string definition for a Google model, create one variation per key
         if isinstance(model_def, str) and model_def.startswith("google-gla:"):
@@ -234,6 +235,7 @@ def create_fallback_model(
                     variations.append(RateLimitedModel(batch_model))
                 else:
                     variations.append(_resolve_and_wrap(model_def, api_key=key))
+                keys_used.append(key)
         # For non-Google models or instances, just return single item
         # (We assume non-Google models handle their own auth or don't use these keys)
         else:
@@ -245,30 +247,33 @@ def create_fallback_model(
 
             # Use first key as default if needed, or environment
             variations.append(_resolve_and_wrap(model_def, api_key=api_keys[0]))
+            keys_used.append(None) # Unknown or managed internally
 
-        return variations
+        return variations, keys_used
 
     # 1. Prepare Primary Variations
     # We want to try Primary with Key 1, then Primary with Key 2, etc.
-    primary_variations = _create_variations(primary_model)
+    primary_variations, primary_keys = _create_variations(primary_model)
     if not primary_variations:
         # Should not happen given logic above
         raise ValueError("Failed to create primary model")
 
-    primary_variations[0]
-    primary_variations[1:]
-
     # 2. Prepare Fallback Variations
     # For each fallback model, we try all keys
-    fallback_variations = []
+    fallback_variations: list[Model] = []
+    fallback_keys: list[str | None] = []
+
     for m in fallback_models:
-        fallback_variations.extend(_create_variations(m))
+        vars_, keys_ = _create_variations(m)
+        fallback_variations.extend(vars_)
+        fallback_keys.extend(keys_)
 
     # Combine: Primary + Rest of primaries + All fallbacks
     all_models = primary_variations + fallback_variations
+    all_keys = primary_keys + fallback_keys
 
     # Use our custom RotatingFallbackModel instead of pydantic-ai's FallbackModel
     # This rotates immediately on 429 errors rather than waiting between agent runs
     from egregora.llm.providers.rotating_fallback import RotatingFallbackModel
 
-    return RotatingFallbackModel(all_models)
+    return RotatingFallbackModel(all_models, model_keys=all_keys)
