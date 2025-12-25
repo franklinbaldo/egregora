@@ -335,7 +335,7 @@ def create_table_if_not_exists(
         conn.execute(create_sql)
 
 
-def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:
+def ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:
     """Convert Ibis data type to DuckDB SQL type string.
 
     Args:
@@ -658,5 +658,6 @@ __all__ = [
     "drop_runs_table",
     "ensure_identity_column",
     "ensure_runs_table_exists",
+    "ibis_to_duckdb_type",
     "quote_identifier",
 ]

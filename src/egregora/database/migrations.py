@@ -5,9 +5,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import ibis
-
-from egregora.database.ir_schema import UNIFIED_SCHEMA, create_table_if_not_exists, quote_identifier
+from egregora.database.ir_schema import (
+    UNIFIED_SCHEMA,
+    create_table_if_not_exists,
+    ibis_to_duckdb_type,
+    quote_identifier,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +83,7 @@ def migrate_documents_table(conn: Any) -> None:
 
             # Determine type from schema
             ibis_type = UNIFIED_SCHEMA[col_name]
-            sql_type = _ibis_type_to_sql(ibis_type)
+            sql_type = ibis_to_duckdb_type(ibis_type)
 
             # Get default value if available
             default_val = defaults.get(col_name, "NULL")
@@ -91,24 +94,3 @@ def migrate_documents_table(conn: Any) -> None:
                 conn.raw_sql(alter_sql)
             else:
                 conn.execute(alter_sql)
-
-
-def _ibis_type_to_sql(ibis_type: ibis.expr.datatypes.DataType) -> str:
-    """Helper to convert Ibis type to SQL type string for ALTER TABLE."""
-    # This duplicates logic from ir_schema._ibis_to_duckdb_type but that one is private.
-    # We should ideally expose it or duplicate it safely.
-    # For now, implementing a simplified version sufficient for the new columns.
-
-    if ibis_type.is_string():
-        return "VARCHAR"
-    if ibis_type.is_json():
-        return "JSON"
-    if ibis_type.is_timestamp():
-        return "TIMESTAMP WITH TIME ZONE"
-    if ibis_type.is_boolean():
-        return "BOOLEAN"
-    if ibis_type.is_integer():
-        return "BIGINT"
-
-    # Fallback
-    return str(ibis_type).upper()
