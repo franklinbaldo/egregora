@@ -96,7 +96,7 @@ egregora --version
 To build the documentation locally:
 
 ```bash
-uv sync --extra dev
+uv sync --all-extras
 uv run mkdocs serve
 ```
 
