@@ -15,88 +15,44 @@ class DuckDBDocumentRepository(DocumentRepository):
     """DuckDB-backed document storage."""
 
     def __init__(self, conn: ibis.BaseBackend) -> None:
+        if not hasattr(conn, "con"):
+            msg = "DuckDBDocumentRepository requires a raw DuckDB connection via the '.con' attribute."
+            raise ValueError(msg)
         self.conn = conn
         self.table_name = "documents"
 
     def initialize(self) -> None:
-        """Creates the table if it doesn't exist."""
-        # Check if table exists
-        if self.table_name not in self.conn.list_tables():
-            # Define schema based on Document fields
-            # We store the full Document as a JSON blob plus some extracted columns for querying
-            # Note: For DuckDB to support INSERT OR REPLACE (upsert), we need a primary key.
-            # Ibis 9.0 create_table doesn't easily expose PK creation via schema object directly in a backend-agnostic way often,
-            # but for DuckDB we can execute raw SQL to create table with PK.
-
-            if hasattr(self.conn, "con"):
-                # Use raw SQL to create table with PRIMARY KEY
-                self.conn.con.execute(f"""
-                    CREATE TABLE {self.table_name} (
-                        id VARCHAR PRIMARY KEY,
-                        doc_type VARCHAR,
-                        json_data JSON,
-                        updated TIMESTAMP
-                    )
-                """)
-            else:
-                # Fallback to Ibis create_table (might lack PK constraint)
-                schema = ibis.schema(
-                    {
-                        "id": "string",
-                        "doc_type": "string",
-                        "json_data": "json",
-                        "updated": "timestamp",
-                    }
-                )
-                self.conn.create_table(self.table_name, schema=schema)
-                # If we couldn't create PK, upsert might fail. We handle this in save.
+        """Creates the 'documents' table with a primary key if it doesn't exist."""
+        self.conn.con.execute(f"""
+            CREATE TABLE IF NOT EXISTS {self.table_name} (
+                id VARCHAR PRIMARY KEY,
+                doc_type VARCHAR,
+                json_data JSON,
+                updated TIMESTAMP
+            )
+        """)
 
     def _get_table(self) -> Table:
         return self.conn.table(self.table_name)
 
-    def save(self, doc: Document) -> Document:
-        """Saves a document to the repository."""
-        self._upsert_record(doc.id, doc.doc_type.value, doc.model_dump_json(), doc.updated)
-        return doc
+    def save(self, entry: Entry) -> Entry:
+        """Saves an Entry or Document to the repository."""
+        if isinstance(entry, Document):
+            doc_type_val = entry.doc_type.value
+        else:
+            doc_type_val = "_ENTRY_"
+
+        json_data = entry.model_dump_json()
+        self._upsert_record(entry.id, doc_type_val, json_data, entry.updated)
+        return entry
 
     def _upsert_record(self, record_id: str, doc_type: str, json_data: str, updated: datetime) -> None:
-        """Helper to upsert a record with handling for PK constraints."""
-        if hasattr(self.conn, "con"):
-            # Use parameterized INSERT OR REPLACE (upsert)
-            try:
-                query = f"""
-                    INSERT OR REPLACE INTO {self.table_name} (id, doc_type, json_data, updated)
-                    VALUES (?, ?, ?, ?)
-                """
-                self.conn.con.execute(query, [record_id, doc_type, json_data, updated])
-            except Exception as e:
-                # If "ON CONFLICT is a no-op" error occurs, it means no PK.
-                # Fallback to delete + insert pattern manually.
-                if "ON CONFLICT is a no-op" in str(e):
-                    self._manual_upsert_record(record_id, doc_type, json_data, updated)
-                else:
-                    raise
-        else:
-            self._manual_upsert_record(record_id, doc_type, json_data, updated)
-
-    def _manual_upsert(self, doc: Document, json_data: str) -> None:
-        """Deprecated: Use _manual_upsert_record instead."""
-        self._manual_upsert_record(doc.id, doc.doc_type.value, json_data, doc.updated)
-
-    def _manual_upsert_record(self, record_id: str, doc_type: str, json_data: str, updated: datetime) -> None:
-        """Manual delete + insert for backends/tables without PK constraint."""
-        # Safe delete first
-        with contextlib.suppress(Exception):
-            self.delete(record_id)
-
-        # Insert via Ibis
-        data = {
-            "id": record_id,
-            "doc_type": doc_type,
-            "json_data": json_data,
-            "updated": updated,
-        }
-        self.conn.insert(self.table_name, [data])
+        """Helper to perform a raw SQL upsert (INSERT OR REPLACE)."""
+        query = f"""
+            INSERT OR REPLACE INTO {self.table_name} (id, doc_type, json_data, updated)
+            VALUES (?, ?, ?, ?)
+        """
+        self.conn.con.execute(query, [record_id, doc_type, json_data, updated])
 
     def _hydrate_object(self, json_val: str | dict, doc_type_val: str) -> Entry:
         """Centralized helper to deserialize JSON into Entry or Document."""
@@ -141,23 +97,9 @@ class DuckDBDocumentRepository(DocumentRepository):
         return [self._hydrate_object(row["json_data"], row["doc_type"]) for _, row in result.iterrows()]
 
     def delete(self, doc_id: str) -> None:
-        """Deletes a document by ID."""
-        # Use parameterized query if possible via underlying connection
-        if hasattr(self.conn, "con"):
-            query = f"DELETE FROM {self.table_name} WHERE id = ?"
-            self.conn.con.execute(query, [doc_id])
-        else:
-            # Fallback to Ibis delete if available, otherwise raise error
-            # Refusing to use unsafe raw SQL interpolation.
-            try:
-                t = self._get_table()
-                # Ibis does not have a standard 'delete' method exposed on Table/Expression in all versions/backends
-                # But some backends might support it via extension or future versions.
-                # If this fails, we must error out rather than be unsafe.
-                t.filter(t.id == doc_id).delete()
-            except Exception as err:
-                msg = "Backend does not support a safe delete operation via Ibis or parameterized SQL."
-                raise NotImplementedError(msg) from err
+        """Deletes a document by ID using a parameterized query."""
+        query = f"DELETE FROM {self.table_name} WHERE id = ?"
+        self.conn.con.execute(query, [doc_id])
 
     def exists(self, doc_id: str) -> bool:
         """Checks if a document exists."""
@@ -178,18 +120,6 @@ class DuckDBDocumentRepository(DocumentRepository):
         return query.count().execute()
 
     # Entry methods
-
-    def save_entry(self, entry: Entry) -> None:
-        """Saves an Entry to the repository."""
-        if isinstance(entry, Document):
-            self.save(entry)
-            return
-
-        json_data = entry.model_dump_json()
-        doc_type_val = "_ENTRY_"
-
-        # Reuse helper for consistency
-        self._upsert_record(entry.id, doc_type_val, json_data, entry.updated)
 
     def get_entry(self, entry_id: str) -> Entry | None:
         """Retrieves an Entry (or Document) by ID."""
