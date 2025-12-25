@@ -63,7 +63,7 @@ Content 3
     (posts_dir / "not-a-post.txt").write_text("This is not a markdown file.")
 
     # 2. Run the function
-    new_authors_count = sync_authors_from_posts(posts_dir, docs_dir)
+    new_authors_count = sync_authors_from_posts(posts_dir)
 
     # 3. Assert the results
     assert new_authors_count == 2

@@ -4,7 +4,70 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from egregora.utils.filesystem import _find_authors_yml
+import frontmatter
+import yaml
+
+from egregora.utils.filesystem import _find_authors_yml, sync_authors_from_posts
+
+
+def _create_post(path: Path, authors: list[str] | None = None) -> None:
+    """Helper to create a markdown file with authors in frontmatter."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    post = frontmatter.Post(content=f"Content for {path.stem}", authors=authors or [])
+    path.write_text(frontmatter.dumps(post), encoding="utf-8")
+
+
+def test_sync_authors_from_posts_standard_layout(tmp_path: Path) -> None:
+    """Verify it syncs authors in a standard `docs/posts` layout."""
+    # Arrange
+    docs_dir = tmp_path / "docs"
+    posts_dir = docs_dir / "posts"
+    authors_path = docs_dir / ".authors.yml"
+    _create_post(posts_dir / "post1.md", authors=["author-one"])
+    _create_post(posts_dir / "post2.md", authors=["author-two"])
+
+    # Act
+    new_count = sync_authors_from_posts(posts_dir)
+
+    # Assert
+    assert new_count == 2
+    assert authors_path.exists()
+    authors_data = yaml.safe_load(authors_path.read_text())
+    assert "author-one" in authors_data
+    assert "author-two" in authors_data
+
+
+def test_sync_authors_from_posts_fallback_layout(tmp_path: Path) -> None:
+    """Verify it syncs authors using the fallback path resolution."""
+    # Arrange
+    posts_dir = tmp_path / "output" / "posts"
+    # The fallback path is output_dir.parent.parent / ".authors.yml"
+    authors_path = tmp_path / ".authors.yml"
+    _create_post(posts_dir / "post1.md", authors=["author-one"])
+
+    # Act
+    new_count = sync_authors_from_posts(posts_dir)
+
+    # Assert
+    assert new_count == 1
+    assert authors_path.exists()
+    authors_data = yaml.safe_load(authors_path.read_text())
+    assert "author-one" in authors_data
+
+
+def test_sync_authors_from_posts_no_authors(tmp_path: Path) -> None:
+    """Verify it does nothing if posts have no authors."""
+    # Arrange
+    posts_dir = tmp_path / "docs" / "posts"
+    authors_path = tmp_path / "docs" / ".authors.yml"
+    _create_post(posts_dir / "post1.md", authors=None)
+
+    # Act
+    new_count = sync_authors_from_posts(posts_dir)
+
+    # Assert
+    assert new_count == 0
+    assert not authors_path.exists()
 
 
 def test_find_authors_yml_standard_layout(tmp_path: Path) -> None:
