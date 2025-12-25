@@ -1,26 +1,22 @@
-"""TDD tests for WriterAgent.
+"""TDD tests for WriterAgent - written BEFORE implementation.
 
 Tests for V3 WriterAgent:
 - Generates Document from entries using Pydantic-AI
-- Uses structured output with output_type=Document
+- Uses async generator pattern for streaming
+- Structured output with output_type=Document
 - Mock-free testing with TestModel
-- Uses Jinja2 templates for prompts
 
 Following TDD Red-Green-Refactor cycle.
 """
-from datetime import UTC, datetime
 
 import ibis
 import pytest
-from pydantic_ai.models.test import TestModel
 
 from egregora_v3.core.catalog import ContentLibrary
 from egregora_v3.core.context import PipelineContext
-from egregora_v3.core.types import Document, DocumentStatus, DocumentType, Entry
-from egregora_v3.engine.agents.writer import WriterAgent
-from egregora_v3.engine.template_loader import TemplateLoader
+from egregora_v3.core.types import Entry
+from egregora_v3.engine.agents.writer import GeneratedPost, WriterAgent
 from egregora_v3.infra.repository.duckdb import DuckDBDocumentRepository
-
 
 # ========== Fixtures ==========
 
@@ -33,17 +29,13 @@ def sample_entries() -> list[Entry]:
             id="entry-1",
             title="Python Tutorial",
             summary="Learn Python basics",
-            content="Python is a great programming language for beginners.",
-            published=datetime(2024, 12, 1, 10, 0, 0, tzinfo=UTC),
-            updated=datetime(2024, 12, 1, 10, 0, 0, tzinfo=UTC),
+            updated="2025-12-06T10:00:00Z",
         ),
         Entry(
             id="entry-2",
             title="JavaScript Guide",
             summary="Modern JavaScript features",
-            content="ES6 introduced many powerful features to JavaScript.",
-            published=datetime(2024, 12, 2, 11, 0, 0, tzinfo=UTC),
-            updated=datetime(2024, 12, 2, 11, 0, 0, tzinfo=UTC),
+            updated="2025-12-06T11:00:00Z",
         ),
     ]
 
@@ -51,11 +43,17 @@ def sample_entries() -> list[Entry]:
 @pytest.fixture
 def content_library() -> ContentLibrary:
     """Create a content library for testing using in-memory DuckDB."""
+    # Use in-memory DuckDB repositories for testing
     conn = ibis.duckdb.connect(":memory:")
     repo = DuckDBDocumentRepository(conn)
     repo.initialize()
+
     return ContentLibrary(
-        posts=repo, media=repo, profiles=repo, journal=repo, enrichments=repo
+        posts=repo,
+        media=repo,
+        profiles=repo,
+        journal=repo,
+        enrichments=repo,
     )
 
 
@@ -63,84 +61,105 @@ def content_library() -> ContentLibrary:
 def pipeline_context(content_library: ContentLibrary) -> PipelineContext:
     """Create pipeline context for testing."""
     return PipelineContext(
-        library=content_library, run_id="test-run-123", metadata={"test": True}
+        library=content_library,
+        run_id="test-run-123",
+        metadata={"test": True},
     )
-
-
-@pytest.fixture
-def template_loader() -> TemplateLoader:
-    """Create a TemplateLoader for testing."""
-    return TemplateLoader()
-
-
-@pytest.fixture
-def test_model() -> TestModel:
-    """Create a TestModel instance for testing."""
-    valid_doc_dict = {
-        "id": "test-generated-post",
-        "title": "Generated Blog Post",
-        "content": "# Generated Blog Post\n\nThis is a test blog post.",
-        "doc_type": "post",
-        "status": "draft",
-        "updated": datetime.now(UTC).isoformat(),
-    }
-    return TestModel(custom_output_args=valid_doc_dict)
-
-
-# ========== Initialization Tests ==========
-
-
-class TestWriterAgentInitialization:
-    """Test WriterAgent initialization."""
-
-    def test_writer_agent_initialization_with_deps(
-        self, template_loader: TemplateLoader, test_model: TestModel
-    ) -> None:
-        """Test that WriterAgent can be initialized with dependencies."""
-        agent = WriterAgent(model=test_model, template_loader=template_loader)
-        assert agent is not None
-        assert agent.template_loader is template_loader
-
-    # This is the new failing test
-    def test_writer_agent_fails_without_dependencies(self) -> None:
-        """Test that WriterAgent raises TypeError without dependencies."""
-        with pytest.raises(TypeError):
-            WriterAgent()  # type: ignore
-
-        with pytest.raises(ValueError, match="Model must be a valid Pydantic-AI model instance"):
-            WriterAgent(model="test", template_loader=TemplateLoader())
 
 
 # ========== Basic Functionality Tests ==========
 
 
-@pytest.mark.asyncio
-async def test_writer_agent_generates_document(
-    sample_entries: list[Entry],
-    pipeline_context: PipelineContext,
-    template_loader: TemplateLoader,
-    test_model: TestModel,
-) -> None:
-    """Test that WriterAgent generates a Document from entries."""
-    agent = WriterAgent(model=test_model, template_loader=template_loader)
-    result = await agent.generate(entries=sample_entries, context=pipeline_context)
-    assert isinstance(result, Document)
+def test_writer_agent_initialization() -> None:
+    """Test that WriterAgent can be initialized."""
+    agent = WriterAgent(model="test")
+    assert agent is not None
+
+
+def test_writer_agent_has_generate_method() -> None:
+    """Test that WriterAgent has generate method."""
+    agent = WriterAgent(model="test")
+    assert hasattr(agent, "generate")
+    assert callable(agent.generate)
 
 
 @pytest.mark.asyncio
-async def test_writer_agent_structured_output(
+async def test_writer_agent_generates_generated_post(
     sample_entries: list[Entry],
     pipeline_context: PipelineContext,
-    template_loader: TemplateLoader,
-    test_model: TestModel,
 ) -> None:
-    """Test that WriterAgent returns structured Document output."""
-    agent = WriterAgent(model=test_model, template_loader=template_loader)
-    result = await agent.generate(entries=sample_entries, context=pipeline_context)
-    assert isinstance(result, Document)
+    """Test that WriterAgent generates a GeneratedPost from entries."""
+    agent = WriterAgent(model="test")
+
+    result = await agent.generate(
+        entries=sample_entries,
+        context=pipeline_context,
+    )
+
+    assert isinstance(result, GeneratedPost)
+    assert "Generated Blog Post" in result.title
+
+
+@pytest.mark.asyncio
+async def test_writer_agent_uses_test_model(content_library: ContentLibrary) -> None:
+    """Test that WriterAgent works with TestModel (no live API calls)."""
+    agent = WriterAgent(model="test")
+
+    entries = [
+        Entry(
+            id="test-1",
+            title="Test Entry",
+            summary="Test summary",
+            updated="2025-12-06T10:00:00Z",
+        ),
+    ]
+    context = PipelineContext(library=content_library, run_id="test-run")
+
+    result = await agent.generate(entries=entries, context=context)
+
+    assert isinstance(result, GeneratedPost)
+    assert "Generated Blog Post" in result.title
+
+
+@pytest.mark.asyncio
+async def test_writer_agent_structured_output(content_library: ContentLibrary) -> None:
+    """Test that WriterAgent returns structured GeneratedPost output."""
+    agent = WriterAgent(model="test")
+
+    entries = [
+        Entry(
+            id="test-1",
+            title="Test",
+            summary="Test summary",
+            updated="2025-12-06T10:00:00Z",
+        ),
+    ]
+    context = PipelineContext(library=content_library, run_id="test-run")
+
+    result = await agent.generate(entries=entries, context=context)
+
+    assert isinstance(result, GeneratedPost)
     assert result.title
     assert result.content
-    assert result.doc_type == DocumentType.POST
+
+
+# ========== Context Integration Tests ==========
+
+
+@pytest.mark.asyncio
+async def test_writer_agent_receives_pipeline_context(
+    sample_entries: list[Entry],
+    pipeline_context: PipelineContext,
+) -> None:
+    """Test that WriterAgent receives PipelineContext."""
+    agent = WriterAgent(model="test")
+
+    result = await agent.generate(
+        entries=sample_entries,
+        context=pipeline_context,
+    )
+
+    assert isinstance(result, GeneratedPost)
 
 
 # ========== Edge Cases ==========
@@ -148,59 +167,104 @@ async def test_writer_agent_structured_output(
 
 @pytest.mark.asyncio
 async def test_writer_agent_handles_empty_entries(
-    pipeline_context: PipelineContext,
-    template_loader: TemplateLoader,
-    test_model: TestModel,
+    content_library: ContentLibrary,
 ) -> None:
     """Test that WriterAgent handles empty entry list."""
-    agent = WriterAgent(model=test_model, template_loader=template_loader)
+    agent = WriterAgent(model="test")
+    context = PipelineContext(library=content_library, run_id="test-run")
+
+    # Should handle gracefully
     with pytest.raises(ValueError, match="at least one entry"):
-        await agent.generate(entries=[], context=pipeline_context)
-
-
-# ========== Prompt Template Tests ==========
-
-
-class TestWriterAgentPromptTemplates:
-    """Test WriterAgent prompt generation from Jinja2 templates."""
-
-    def test_writer_agent_loads_system_prompt_from_template(
-        self, template_loader: TemplateLoader, test_model: TestModel
-    ) -> None:
-        """WriterAgent should load system prompt from writer/system.jinja2."""
-        agent = WriterAgent(model=test_model, template_loader=template_loader)
-        system_prompt = agent._get_system_prompt()
-        assert "blog posts from feed entries" in system_prompt
-        assert "markdown formatting" in system_prompt
-
-    def test_user_prompt_includes_entry_summaries(
-        self,
-        sample_entries: list[Entry],
-        template_loader: TemplateLoader,
-        test_model: TestModel,
-    ) -> None:
-        """User prompt should include entry summaries when available."""
-        agent = WriterAgent(model=test_model, template_loader=template_loader)
-        user_prompt = agent._build_prompt(sample_entries)
-        assert "Learn Python basics" in user_prompt
-        assert "Modern JavaScript features" in user_prompt
-
-
-# ========== End-to-End Test ==========
+        await agent.generate(entries=[], context=context)
 
 
 @pytest.mark.asyncio
-async def test_writer_agent_generates_document_using_templates(
-    sample_entries: list[Entry],
-    pipeline_context: PipelineContext,
-    template_loader: TemplateLoader,
-    test_model: TestModel,
+async def test_writer_agent_handles_single_entry(
+    content_library: ContentLibrary,
 ) -> None:
-    """WriterAgent should generate a document using Jinja2 templates."""
-    agent = WriterAgent(model=test_model, template_loader=template_loader)
-    result = await agent.generate(entries=sample_entries, context=pipeline_context)
-    assert result is not None
+    """Test that WriterAgent handles single entry."""
+    agent = WriterAgent(model="test")
+
+    entries = [
+        Entry(
+            id="single",
+            title="Single Entry",
+            summary="Only one",
+            updated="2025-12-06T10:00:00Z",
+        ),
+    ]
+
+    context = PipelineContext(library=content_library, run_id="test-run")
+
+    result = await agent.generate(entries=entries, context=context)
+
+    assert isinstance(result, GeneratedPost)
+    assert result.title
+
+
+# ========== Output Validation Tests ==========
+
+
+@pytest.mark.asyncio
+async def test_writer_agent_output_has_required_fields(
+    content_library: ContentLibrary,
+) -> None:
+    """Test that generated GeneratedPost has all required fields."""
+    agent = WriterAgent(model="test")
+
+    entries = [
+        Entry(
+            id="test-1",
+            title="Test",
+            summary="Test summary",
+            updated="2025-12-06T10:00:00Z",
+        ),
+    ]
+    context = PipelineContext(library=content_library, run_id="test-run")
+
+    result = await agent.generate(entries=entries, context=context)
+
     assert result.title
     assert result.content
-    assert result.doc_type == "post"
-    assert result.status == "draft"
+
+
+@pytest.mark.asyncio
+async def test_writer_agent_generates_markdown_content(
+    content_library: ContentLibrary,
+) -> None:
+    """Test that WriterAgent generates markdown content."""
+    agent = WriterAgent(model="test")
+
+    entries = [
+        Entry(
+            id="test-1",
+            title="Test Post",
+            summary="Test summary",
+            updated="2025-12-06T10:00:00Z",
+        ),
+    ]
+
+    context = PipelineContext(library=content_library, run_id="test-run")
+
+    result = await agent.generate(entries=entries, context=context)
+
+    # Content should be non-empty string
+    assert isinstance(result.content, str)
+    assert len(result.content) > 0
+
+
+class TestWriterAgentInterface:
+    """Test the public interface of the WriterAgent."""
+
+    @pytest.mark.asyncio
+    async def test_generate_returns_generated_post(
+        self, sample_entries: list[Entry], pipeline_context: PipelineContext
+    ) -> None:
+        """Generate should return a GeneratedPost object, not a Document."""
+        agent = WriterAgent(model="test")
+        result = await agent.generate(sample_entries, pipeline_context)
+
+        assert isinstance(result, GeneratedPost)
+        assert result.title
+        assert "Generated Blog Post" in result.title
+        assert result.content

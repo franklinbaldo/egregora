@@ -3,14 +3,12 @@
 Uses Pydantic-AI for generating enrichments for media content.
 """
 
-from datetime import UTC, datetime
-
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
 from egregora_v3.core.context import PipelineContext
-from egregora_v3.core.types import Entry, Feed
+from egregora_v3.core.types import Entry
 from egregora_v3.engine.template_loader import TemplateLoader
 
 
@@ -36,47 +34,66 @@ class EnricherAgent:
 
     def __init__(
         self,
-        model: str,
+        model: str = "test",
         *,
         skip_existing: bool = False,
     ) -> None:
         """Initialize EnricherAgent.
 
         Args:
-            model: Model name (e.g., "google-gla:gemini-2.0-flash-vision")
+            model: Model name (e.g., "google-gla:gemini-2.0-flash-vision", "test")
             skip_existing: Skip entries that already have content
 
         """
         self.model_name = model
         self.skip_existing = skip_existing
+
+        # Initialize template loader for prompts
         self.template_loader = TemplateLoader()
 
+        # Create Pydantic-AI agent with structured output
+        if model == "test":
+            # Configure TestModel with valid EnrichmentResult dict for testing
+            valid_enrichment_dict = {
+                "description": "A beautiful sunset over the ocean with orange and pink clouds reflecting on the water.",
+                "confidence": 0.95,
+                "metadata": {"scene": "sunset", "location": "beach"},
+            }
+            model_instance = TestModel(custom_output_args=valid_enrichment_dict)
+        else:
+            model_instance = model  # type: ignore[assignment]
+
         self._agent: Agent[PipelineContext, EnrichmentResult] = Agent(
-            model=model,  # type: ignore[arg-type]
+            model=model_instance,
             output_type=EnrichmentResult,
-            system_prompt=self._get_system_prompt(),
+            system_prompt=self.template_loader.render_template(
+                "enricher/system.jinja2"
+            ),
         )
 
-    @classmethod
-    def for_test(cls, *, skip_existing: bool = False) -> "EnricherAgent":
-        """Create an EnricherAgent with a TestModel for testing."""
-        agent = cls(model="test", skip_existing=skip_existing)
+    def _has_media_enclosure(self, entry: Entry) -> bool:
+        """Check if entry has media enclosures.
 
-        # Configure TestModel with valid EnrichmentResult dict for testing
-        valid_enrichment_dict = {
-            "description": "A beautiful sunset over the ocean with orange and pink clouds reflecting on the water.",
-            "confidence": 0.95,
-            "metadata": {"scene": "sunset", "location": "beach"},
-        }
-        model_instance = TestModel(custom_output_args=valid_enrichment_dict)
+        Args:
+            entry: Entry to check
 
-        # Replace the agent's model with the test model
-        agent._agent.model = model_instance
-        return agent
+        Returns:
+            True if entry has media enclosures
 
-    def _get_system_prompt(self) -> str:
-        """Get default system prompt for the agent."""
-        return self.template_loader.render_template("enricher/system.jinja2")
+        """
+        if not entry.links:
+            return False
+
+        return any(
+            link.rel == "enclosure"
+            and link.type
+            and (
+                link.type.startswith("image/")
+                or link.type.startswith("audio/")
+                or link.type.startswith("video/")
+            )
+            for link in entry.links
+        )
 
     def _should_enrich(self, entry: Entry) -> bool:
         """Determine if entry should be enriched.
@@ -89,7 +106,7 @@ class EnricherAgent:
 
         """
         # Skip if no media
-        if not entry.has_enclosure:
+        if not self._has_media_enclosure(entry):
             return False
 
         # Skip if entry already has content and skip_existing=True
@@ -99,76 +116,31 @@ class EnricherAgent:
         self,
         entry: Entry,
         context: PipelineContext,
-    ) -> Entry:
-        """Enrich a single entry with media description.
+    ) -> EnrichmentResult | None:
+        """Generate enrichment for a single entry.
 
         Args:
             entry: Entry to enrich
             context: Pipeline context
 
         Returns:
-            Enriched entry (or original if no enrichment needed)
+            EnrichmentResult if successful, None if skipped
 
         """
         if not self._should_enrich(entry):
-            return entry
+            return None
 
-        # Build prompt from entry
+        # Build prompt from entry using template
         user_prompt = self._build_prompt(entry)
 
         # Run agent with context
         result = await self._agent.run(user_prompt, deps=context)
 
-        # Get enrichment from result
-        enrichment = result.output
-
-        # Merge new metadata with existing internal metadata
-        new_metadata = entry.internal_metadata | {
-            "enrichment_confidence": str(enrichment.confidence),
-            **{f"enrichment_{k}": v for k, v in enrichment.metadata.items()},
-        }
-
-        # Create enriched entry using model_copy for a declarative update
-        return entry.model_copy(
-            update={
-                "content": enrichment.description,
-                "updated": datetime.now(UTC),
-                "internal_metadata": new_metadata,
-            }
-        )
-
-    async def enrich_feed(
-        self,
-        feed: Feed,
-        context: PipelineContext,
-    ) -> Feed:
-        """Enrich all entries in a feed.
-
-        Args:
-            feed: Feed to enrich
-            context: Pipeline context
-
-        Returns:
-            Feed with enriched entries
-
-        """
-        enriched_entries = []
-        for entry in feed.entries:
-            enriched_entry = await self.enrich(entry, context)
-            enriched_entries.append(enriched_entry)
-
-        # Return new feed with enriched entries
-        return Feed(
-            id=feed.id,
-            title=feed.title,
-            updated=datetime.now(UTC),
-            authors=feed.authors,
-            links=feed.links,
-            entries=enriched_entries,
-        )
+        # Return structured output
+        return result.output
 
     def _build_prompt(self, entry: Entry) -> str:
-        """Build user prompt from entry.
+        """Build user prompt from entry using a Jinja2 template.
 
         Args:
             entry: Entry with media to describe
@@ -178,5 +150,5 @@ class EnricherAgent:
 
         """
         return self.template_loader.render_template(
-            "enricher/describe_media.jinja2", entry=entry
+            "enricher/enrich_media.jinja2", entry=entry
         )
