@@ -1,48 +1,46 @@
 """LanceDB Vector Store for V3.
 
 Simplified vector storage for semantic search over documents.
-Stores full documents (not chunks) with vector embeddings.
+Stores chunks with vector embeddings.
 """
 
 import json
 import logging
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Any
 
 import lancedb
 import numpy as np
 from lancedb.pydantic import LanceModel, Vector
 
 from egregora_v3.core.types import Author, Category, Document, DocumentStatus, DocumentType, Link
+from egregora_v3.core.ingestion import chunks_from_documents, RAGChunk
 
 logger = logging.getLogger(__name__)
 
 # Type alias for embedding functions
-# task_type should be "RETRIEVAL_DOCUMENT" for indexing, "RETRIEVAL_QUERY" for searching
 EmbedFn = Callable[[Sequence[str], str], list[list[float]]]
 
-# Default embedding dimension (adjust based on your model)
+# Default embedding dimension
 EMBEDDING_DIM = 768
 
 
 # Pydantic schema for LanceDB
 class DocumentVectorModel(LanceModel):
-    """Schema for documents stored in LanceDB.
+    """Schema for document chunks stored in LanceDB."""
 
-    Stores full documents with vector embeddings.
-    """
-
-    document_id: str  # Primary key
+    chunk_id: str  # Primary key (doc_id:index)
+    document_id: str
     vector: Vector(EMBEDDING_DIM)  # type: ignore[valid-type]
-    # Serialize full document as JSON for complete roundtrip
-    document_json: str
+    text: str
+    metadata_json: str  # Metadata including original doc info
 
 
 class LanceDBVectorStore:
     """LanceDB-based vector store for V3.
 
-    Simplified implementation that stores full documents (not chunks).
-    Supports indexing and semantic search.
+    Stores document chunks for fine-grained retrieval.
     """
 
     def __init__(
@@ -51,14 +49,7 @@ class LanceDBVectorStore:
         table_name: str,
         embed_fn: EmbedFn,
     ) -> None:
-        """Initialize LanceDB vector store.
-
-        Args:
-            db_dir: Directory for LanceDB database
-            table_name: Name of the table to store vectors
-            embed_fn: Function that takes texts and returns embeddings
-
-        """
+        """Initialize LanceDB vector store."""
         self._db_dir = Path(db_dir)
         self._table_name = table_name
         self._embed_fn = embed_fn
@@ -70,7 +61,6 @@ class LanceDBVectorStore:
         # Create or open table using Pydantic schema
         if table_name not in self._db.table_names():
             logger.info("Creating new LanceDB table: %s", table_name)
-            # Create empty table with schema
             self._table = self._db.create_table(
                 table_name,
                 schema=DocumentVectorModel,
@@ -83,21 +73,22 @@ class LanceDBVectorStore:
     def index_documents(self, docs: list[Document]) -> None:
         """Index documents into the vector store.
 
-        Args:
-            docs: List of documents to index
-
-        Each document is embedded based on its content and stored with
-        its full metadata for retrieval.
-
+        Chunks documents and embeds each chunk.
         """
         if not docs:
             logger.info("No documents to index")
             return
 
-        logger.info("Indexing %d documents", len(docs))
+        # Chunk the documents
+        chunks = chunks_from_documents(docs)
+        if not chunks:
+            logger.info("No chunks generated from documents")
+            return
 
-        # Extract texts for embedding (use title + content)
-        texts = [f"{doc.title}\n\n{doc.content or ''}" for doc in docs]
+        logger.info("Indexing %d chunks from %d documents", len(chunks), len(docs))
+
+        # Extract texts for embedding
+        texts = [chunk.text for chunk in chunks]
 
         # Compute embeddings
         try:
@@ -106,58 +97,46 @@ class LanceDBVectorStore:
             msg = f"Failed to compute embeddings: {e}"
             raise RuntimeError(msg) from e
 
-        if len(embeddings) != len(docs):
-            msg = f"Embedding count mismatch: got {len(embeddings)}, expected {len(docs)}"
+        if len(embeddings) != len(chunks):
+            msg = f"Embedding count mismatch: got {len(embeddings)}, expected {len(chunks)}"
             raise RuntimeError(msg)
 
         # Prepare rows using Pydantic models
         rows: list[DocumentVectorModel] = []
-        for doc, emb in zip(docs, embeddings, strict=True):
-            # Serialize document to JSON for storage
-            doc_json = doc.model_dump_json()
-
+        for chunk, emb in zip(chunks, embeddings, strict=True):
             rows.append(
                 DocumentVectorModel(
-                    document_id=doc.id,
+                    chunk_id=chunk.chunk_id,
+                    document_id=chunk.document_id,
                     vector=np.asarray(emb, dtype=np.float32),
-                    document_json=doc_json,
+                    text=chunk.text,
+                    metadata_json=json.dumps(chunk.metadata),
                 )
             )
 
         # Upsert documents (update if exists, insert if not)
         try:
-            # Use merge_insert for atomic upsert
             self._table.merge_insert(
-                "document_id"
+                "chunk_id"
             ).when_matched_update_all().when_not_matched_insert_all().execute(rows)
-            logger.info("Successfully indexed %d documents", len(rows))
+            logger.info("Successfully indexed %d chunks", len(rows))
         except Exception as e:
-            msg = f"Failed to upsert documents to LanceDB: {e}"
+            msg = f"Failed to upsert chunks to LanceDB: {e}"
             raise RuntimeError(msg) from e
 
-    def search(self, query: str, top_k: int = 5) -> list[Document]:
-        """Search for documents using semantic similarity.
-
-        Args:
-            query: Search query text
-            top_k: Maximum number of results to return
+    def search(self, query: str, top_k: int = 5) -> list[RAGChunk]:
+        """Search for chunks using semantic similarity.
 
         Returns:
-            List of Document objects ranked by relevance
-
+            List of RAGChunk objects containing text and metadata.
         """
         # Check if table is empty
         try:
-            # Try to count rows - if table doesn't exist or is empty, return empty list
             if self._table_name not in self._db.table_names():
                 return []
-
-            # Quick check for empty table
-            arrow_table = self._table.search().limit(1).to_arrow()
-            if len(arrow_table) == 0:
+            if len(self._table.search().limit(1).to_arrow()) == 0:
                 return []
         except Exception:  # noqa: BLE001
-            # Table might not exist yet
             return []
 
         # Embed query
@@ -177,49 +156,23 @@ class LanceDBVectorStore:
             msg = f"LanceDB search failed: {e}"
             raise RuntimeError(msg) from e
 
-        # Convert Arrow table to Documents
-        documents: list[Document] = []
+        results: list[RAGChunk] = []
         for row in arrow_table.to_pylist():
-            # Deserialize document from JSON
-            doc_json = row.get("document_json", "{}")
+            doc_json = row.get("metadata_json", "{}")
             try:
-                doc_dict = json.loads(doc_json)
-                # Reconstruct Document from dict
-                doc = self._reconstruct_document(doc_dict)
-                documents.append(doc)
-            except Exception as e:  # noqa: BLE001
-                logger.warning(
-                    "Failed to deserialize document %s: %s",
-                    row.get("document_id", "unknown"),
-                    e,
-                )
+                meta = json.loads(doc_json)
+                # Ensure distance/score is part of metadata if needed,
+                # but RAGChunk definition is strict.
+                # If RAGChunk needs score, we should update definition or pass it in metadata.
+                # For now, let's keep RAGChunk structure clean.
+
+                results.append(RAGChunk(
+                    chunk_id=row["chunk_id"],
+                    document_id=row["document_id"],
+                    text=row["text"],
+                    metadata=meta
+                ))
+            except Exception:
                 continue
 
-        logger.info("Found %d documents for query (top_k=%d)", len(documents), top_k)
-        return documents
-
-    def _reconstruct_document(self, doc_dict: dict) -> Document:
-        """Reconstruct a Document from a dictionary.
-
-        Args:
-            doc_dict: Dictionary containing document data
-
-        Returns:
-            Reconstructed Document object
-
-        """
-        # Convert enum strings back to enums
-        if "doc_type" in doc_dict:
-            doc_dict["doc_type"] = DocumentType(doc_dict["doc_type"])
-        if "status" in doc_dict:
-            doc_dict["status"] = DocumentStatus(doc_dict["status"])
-
-        # Convert nested objects
-        if doc_dict.get("authors"):
-            doc_dict["authors"] = [Author(**a) for a in doc_dict["authors"]]
-        if doc_dict.get("categories"):
-            doc_dict["categories"] = [Category(**c) for c in doc_dict["categories"]]
-        if doc_dict.get("links"):
-            doc_dict["links"] = [Link(**link) for link in doc_dict["links"]]
-
-        return Document(**doc_dict)
+        return results
