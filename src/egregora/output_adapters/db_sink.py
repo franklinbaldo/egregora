@@ -68,7 +68,7 @@ class DbOutputSink(OutputSink):
                         dtype = DocumentType.MEDIA
                     elif type_str == "ANNOTATION":
                         dtype = DocumentType.ANNOTATION
-                except:
+                except Exception:  # noqa: BLE001
                     pass
 
             yield DocumentMetadata(

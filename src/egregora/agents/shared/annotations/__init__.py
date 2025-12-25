@@ -20,11 +20,11 @@ Key Components:
 
 Schema:
     The annotations table follows this structure:
-    - id: INTEGER (auto-increment primary key)
+    - id: VARCHAR (auto-increment text ID)
     - parent_id: VARCHAR (message_id or annotation_id)
     - parent_type: VARCHAR ("message" or "annotation")
-    - author: VARCHAR (typically "egregora")
-    - commentary: VARCHAR (the annotation content; PII masking occurs upstream)
+    - author_id: VARCHAR (typically "egregora")
+    - content: VARCHAR (the annotation content; PII masking occurs upstream)
     - created_at: TIMESTAMP (UTC)
 
 Use Cases:
@@ -121,10 +121,10 @@ class Annotation:
 
     """
 
-    id: int
+    id: str
     parent_id: str
     parent_type: str
-    author: str
+    author_id: str
     commentary: str
     created_at: datetime
 
@@ -145,7 +145,7 @@ class Annotation:
             "title": f"Annotation {self.id}",
             "parent_id": self.parent_id,
             "parent_type": self.parent_type,
-            "author": self.author,  # Defaults to "egregora"
+            "author": self.author_id,  # Defaults to "egregora"
             "categories": ["Annotations"],
             "slug": slug,
             "date": self.created_at,
@@ -251,7 +251,7 @@ class AnnotationStore:
         with self.storage.connection() as conn:
             database_schema.add_primary_key(conn, ANNOTATIONS_TABLE, "id")
 
-        self.storage.ensure_sequence_default(ANNOTATIONS_TABLE, "id", sequence_name)
+        # Note: sequence default already set in try block above (lines 239-248)
         self._backend.raw_sql(
             f"\n            CREATE INDEX IF NOT EXISTS idx_annotations_parent_created\n            ON {ANNOTATIONS_TABLE} (parent_id, parent_type, created_at)\n            "
         )
@@ -286,21 +286,22 @@ class AnnotationStore:
         insert_row = ibis.memtable(
             [
                 {
-                    "id": annotation_id,
+                    "id": str(annotation_id),
                     "parent_id": parent_id,
                     "parent_type": parent_type,
-                    "author": ANNOTATION_AUTHOR,
-                    "commentary": commentary,
+                    "author_id": ANNOTATION_AUTHOR,
+                    "content": commentary,
                     "created_at": created_at,
+                    "source_checksum": None,
                 }
             ]
         )
         self._backend.insert(ANNOTATIONS_TABLE, insert_row)
         annotation = Annotation(
-            id=annotation_id,
+            id=str(annotation_id),
             parent_id=parent_id,
             parent_type=parent_type,
-            author=ANNOTATION_AUTHOR,
+            author_id=ANNOTATION_AUTHOR,
             commentary=commentary,
             created_at=created_at,
         )
@@ -320,12 +321,12 @@ class AnnotationStore:
     def list_annotations_for_message(self, msg_id: str) -> list[Annotation]:
         """Return annotations for ``msg_id`` ordered by creation time."""
         records = self._fetch_records(
-            f"\n            SELECT id, parent_id, parent_type, author, commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at ASC, id ASC\n            ",  # nosec B608 - ANNOTATIONS_TABLE is module constant
+            f"\n            SELECT id, parent_id, parent_type, author_id, content as commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at ASC, id ASC\n            ",  # nosec B608 - ANNOTATIONS_TABLE is module constant
             [msg_id],
         )
         return [self._row_to_annotation(row) for row in records]
 
-    def get_last_annotation_id(self, msg_id: str) -> int | None:
+    def get_last_annotation_id(self, msg_id: str) -> str | None:
         """Return the most recent annotation ID for ``msg_id`` if any exist."""
         # Use protocol method instead of accessing protected member
         with self.storage.connection() as conn:
@@ -334,12 +335,12 @@ class AnnotationStore:
                 [msg_id],
             )
             row = cursor.fetchone()
-            return int(row[0]) if row else None
+            return str(row[0]) if row else None
 
     def iter_all_annotations(self) -> Iterable[Annotation]:
         """Yield all annotations sorted by insertion order."""
         records = self._fetch_records(
-            f"\n            SELECT id, parent_id, parent_type, author, commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            ORDER BY created_at ASC, id ASC\n            "  # nosec B608 - ANNOTATIONS_TABLE is module constant
+            f"\n            SELECT id, parent_id, parent_type, author_id, content as commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            ORDER BY created_at ASC, id ASC\n            "  # nosec B608 - ANNOTATIONS_TABLE is module constant
         )
         for row in records:
             yield self._row_to_annotation(row)
@@ -409,10 +410,10 @@ class AnnotationStore:
         else:
             created_at = created_at.astimezone(UTC)
         return Annotation(
-            id=int(row["id"]),
+            id=str(row["id"]),
             parent_id=str(row["parent_id"]),
             parent_type=str(row["parent_type"]),
-            author=str(row["author"]),
+            author_id=str(row["author_id"]),
             commentary=str(row["commentary"]),
             created_at=created_at,
         )

@@ -72,10 +72,10 @@ class TestAnnotationStorePersistence:
 class TestAnnotationDocumentConversion:
     def test_to_document_creates_annotation_type(self) -> None:
         annotation = Annotation(
-            id=42,
+            id="42",
             parent_id="msg-123",
             parent_type="message",
-            author="egregora",
+            author_id="egregora",
             commentary="Test commentary",
             created_at=datetime.now(UTC),
         )
