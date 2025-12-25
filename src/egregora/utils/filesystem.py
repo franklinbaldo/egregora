@@ -38,19 +38,16 @@ def _extract_clean_date(date_obj: str | date | datetime) -> str:
 
     date_str = str(date_obj).strip()
 
-    # Search for a YYYY-MM-DD pattern anywhere in the string.
-    # This unifies the logic that previously had two separate checks.
     match = _DATE_PATTERN.search(date_str)
-    if match:
-        try:
-            # Validate that the matched pattern is a real date
-            return date.fromisoformat(match.group(1)).isoformat()
-        except ValueError:
-            # The matched pattern was not a valid date (e.g., "2023-99-99")
-            pass
+    if not match:
+        return date_str  # No date pattern found.
 
-    # Fallback to the original string if no valid date is found
-    return date_str
+    try:
+        # Validate that the matched pattern is a real date.
+        return date.fromisoformat(match.group(1)).isoformat()
+    except ValueError:
+        # The pattern was not a valid date (e.g., "2023-99-99"), so fallback.
+        return date_str
 
 
 def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
