@@ -23,3 +23,13 @@ class TimeParsingError(WhatsAppParsingError):
         if message is None:
             message = f"Failed to parse time string: '{self.time_str}'"
         super().__init__(message)
+
+
+class NoMessagesFoundError(WhatsAppParsingError):
+    """Raised when no messages are found in the source."""
+
+    def __init__(self, source_name: str) -> None:
+        """Initialize the exception."""
+        self.source_name = source_name
+        message = f"No messages found in '{source_name}'"
+        super().__init__(message)
