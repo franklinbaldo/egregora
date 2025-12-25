@@ -81,19 +81,41 @@ class DuckDBDocumentRepository(DocumentRepository):
         # We know it's a Document, so the cast is safe.
         return self._hydrate_object(row["json_data"], doc_type_val)
 
-    def list(self, *, doc_type: DocumentType | None = None) -> list[Document]:
-        """Lists documents, optionally filtered by type."""
+    def list(
+        self,
+        *,
+        doc_type: DocumentType | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[Document]:
+        """Lists documents, optionally filtered, sorted, and limited."""
         t = self._get_table()
         query = t
+
+        # Filtering
         if doc_type:
             query = query.filter(query.doc_type == doc_type.value)
         else:
-            # Exclude raw entries when listing all "Documents"
             query = query.filter(query.doc_type != "_ENTRY_")
 
-        result = query.select("doc_type", "json_data").execute()
+        # Sorting
+        if order_by:
+            order_desc = order_by.startswith("-")
+            order_col = order_by.lstrip("-")
 
-        # We know these are Documents, so the list comprehension cast is safe.
+            if hasattr(query, order_col):
+                col = getattr(query, order_col)
+                query = query.order_by(ibis.desc(col) if order_desc else col)
+            else:
+                # Handle sorting by fields inside the JSON blob if necessary in the future
+                # For now, we only support top-level columns like 'updated'.
+                pass
+
+        # Limiting
+        if limit:
+            query = query.limit(limit)
+
+        result = query.select("doc_type", "json_data").execute()
         return [self._hydrate_object(row["json_data"], row["doc_type"]) for _, row in result.iterrows()]
 
     def delete(self, doc_id: str) -> None:

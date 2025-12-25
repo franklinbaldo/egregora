@@ -8,7 +8,7 @@ from typing import Any
 from xml.etree.ElementTree import Element, register_namespace, SubElement, tostring
 
 import jinja2
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from egregora_v3.core.filters import format_datetime, normalize_content_type
 from egregora_v3.core.utils import slugify
@@ -173,50 +173,40 @@ class Document(Entry):
         """Get the semantic slug for this document."""
         return self.internal_metadata.get("slug")
 
+    @model_validator(mode="before")
     @classmethod
-    def create(  # noqa: PLR0913
-        cls,
-        content: str,
-        doc_type: DocumentType,
-        title: str,
-        *,
-        status: DocumentStatus = DocumentStatus.DRAFT,
-        internal_metadata: dict[str, Any] | None = None,
-        slug: str | None = None,
-        searchable: bool = True,
-        in_reply_to: InReplyTo | None = None,
-    ) -> "Document":
-        """Factory method to create a Document.
+    def _set_identity_and_timestamps(cls, data: Any) -> Any:
+        """Set identity (id, slug) and timestamps before validation.
 
-        Identity is always derived from the slug.
-        One good path over many flexible paths.
+        This allows for declarative instantiation of Document and its subclasses
+        without needing a factory method.
         """
-        if internal_metadata is None:
-            internal_metadata = {}
+        if not isinstance(data, dict):
+            return data  # Not a dict, let Pydantic handle it
 
-        # Generate slug from title if not provided.
-        if slug is not None:
-            final_slug = slug
-        else:
-            final_slug = slugify(title.strip())
+        # If 'id' is already set, respect it.
+        if "id" in data and data["id"]:
+            return data
 
-        if not final_slug:
-            msg = "Document must have a slug or a title to generate one."
-            raise ValueError(msg)
+        internal_metadata = data.get("internal_metadata", {})
+        slug = internal_metadata.get("slug")
 
-        internal_metadata["slug"] = final_slug
+        # If still no slug, generate from title if it exists
+        if not slug and data.get("title"):
+            slug = slugify(str(data["title"]).strip())
 
-        return cls(
-            id=final_slug,
-            title=title,
-            updated=datetime.now(UTC),
-            content=content,
-            doc_type=doc_type,
-            status=status,
-            internal_metadata=internal_metadata,
-            searchable=searchable,
-            in_reply_to=in_reply_to,
-        )
+        if slug:
+            # Set the derived values
+            data["id"] = slug
+            if "internal_metadata" not in data:
+                data["internal_metadata"] = {}
+            data["internal_metadata"]["slug"] = slug
+
+        # Set timestamp if not present
+        if "updated" not in data:
+            data["updated"] = datetime.now(UTC)
+
+        return data
 
 
 class Feed(BaseModel):

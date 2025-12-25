@@ -1,10 +1,11 @@
 import pytest
 from datetime import datetime, UTC
+from pydantic import ValidationError
 from egregora_v3.core.types import Document, DocumentType, DocumentStatus, Feed, Entry
 
-def test_document_create_generates_slug_from_title():
+def test_document_generates_slug_from_title():
     """Verify that a slug is generated from the title if not provided."""
-    doc = Document.create(
+    doc = Document(
         content="Hello world",
         doc_type=DocumentType.POST,
         title="  My First Post!  "
@@ -17,43 +18,42 @@ def test_document_create_generates_slug_from_title():
     assert isinstance(doc.updated, datetime)
 
 
-def test_document_create_uses_explicit_slug():
+def test_document_uses_explicit_slug():
     """Verify that an explicit slug is used for the slug and ID."""
-    doc = Document.create(
+    doc = Document(
         content="Hello world",
         doc_type=DocumentType.POST,
         title="My First Post",
-        slug="custom-slug"
+        internal_metadata={"slug": "custom-slug"}
     )
     assert doc.slug == "custom-slug"
     assert doc.id == "custom-slug"
 
 
-def test_document_create_raises_error_on_empty_title_and_slug():
-    """Verify that a ValueError is raised if a slug cannot be generated."""
-    with pytest.raises(ValueError, match="Document must have a slug or a title to generate one."):
-        Document.create(
+def test_document_raises_error_on_empty_title_and_slug():
+    """Verify that a ValidationError is raised if an id cannot be generated."""
+    with pytest.raises(ValidationError, match="Field required"):
+        Document(
+            content="Hello world",
+            doc_type=DocumentType.POST,
+            title=""
+        )
+
+    # An empty slug in metadata should also fail if there's no title
+    with pytest.raises(ValidationError, match="Field required"):
+        Document(
             content="Hello world",
             doc_type=DocumentType.POST,
             title="",
-            slug=""
+            internal_metadata={"slug": ""}
         )
 
-    # With the simplified logic, a title of "Untitled" with an explicit empty slug
-    # should also fail, as the final slug is empty.
-    with pytest.raises(ValueError, match="Document must have a slug or a title to generate one."):
-        Document.create(
-            content="Hello world",
-            doc_type=DocumentType.POST,
-            title="Untitled",
-            slug=""
-        )
 
 def test_feed_to_xml_handles_document_and_entry():
     """Verify that Feed.to_xml correctly serializes both Entry and Document types."""
     now = datetime.now(UTC)
 
-    doc = Document.create(
+    doc = Document(
         content="This is a document.",
         doc_type=DocumentType.POST,
         title="A Document"

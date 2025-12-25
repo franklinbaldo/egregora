@@ -22,7 +22,7 @@ def test_list_with_order_by_and_limit(duckdb_repo: DuckDBDocumentRepository):
     now = datetime.now(timezone.utc)
     docs = []
     for i in range(5):
-        doc = Document.create(
+        doc = Document(
             content=f"Post {i}",
             doc_type=DocumentType.POST,
             title=f"Post {i}",
@@ -36,7 +36,7 @@ def test_list_with_order_by_and_limit(duckdb_repo: DuckDBDocumentRepository):
     # ACT
     # Fetch the 3 most recent posts
     result = duckdb_repo.list(
-        doc_type=DocumentType.POST, order_by="updated", limit=3
+        doc_type=DocumentType.POST, order_by="-updated", limit=3
     )
 
     # ASSERT

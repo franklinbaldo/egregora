@@ -22,11 +22,10 @@ def xml_safe_text(min_size=0):
 
 def document_strategy():
     return st.builds(
-        Document.create,
+        Document,
         content=xml_safe_text(min_size=1),
         doc_type=st.sampled_from(DocumentType),
         title=xml_safe_text(min_size=1),
-        slug=st.one_of(st.none(), st.text(min_size=1, alphabet=st.characters(whitelist_categories=('L', 'N')))),
         searchable=st.booleans(),
     )
 
@@ -82,8 +81,8 @@ def test_document_id_stability():
     title = "My Title"
     doc_type = DocumentType.NOTE
 
-    doc1 = Document.create(content, doc_type, title)
-    doc2 = Document.create(content, doc_type, title)
+    doc1 = Document(content=content, doc_type=doc_type, title=title)
+    doc2 = Document(content=content, doc_type=doc_type, title=title)
 
     assert doc1.id == doc2.id
     assert doc1.id != title # Should be a hash
@@ -91,11 +90,11 @@ def test_document_id_stability():
 def test_document_semantic_identity():
     """Ensure slug is used as ID for semantic types."""
     slug = "my-custom-slug"
-    doc = Document.create(
-        "content",
-        DocumentType.POST,
-        "Title",
-        slug=slug
+    doc = Document(
+        content="content",
+        doc_type=DocumentType.POST,
+        title="Title",
+        internal_metadata={"slug": slug}
     )
 
     assert doc.id == slug

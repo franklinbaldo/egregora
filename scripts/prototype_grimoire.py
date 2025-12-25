@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from pydantic_ai import Agent
 
 from egregora.utils.model_fallback import create_fallback_model
-from egregora_v3.core.types import Document, DocumentType
+from egregora_v3.core.types import Document, DocumentStatus, DocumentType
 from egregora_v3.knowledge.concepts import ConceptExtraction, ConceptType, WikiPage
 
 # Setup logging
@@ -31,23 +31,23 @@ logger = logging.getLogger("grimoire")
 # --- Mock Data ---
 
 MOCK_CHATS = [
-    Document.create(
+    Document(
+        id="msg-001",
         content="Gary: Do you remember the Noodle Incident of 2018? It was wild.",
         doc_type=DocumentType.POST,
         title="Chat Log 2024-01-01",
-        id_override="msg-001",
     ),
-    Document.create(
+    Document(
+        id="msg-002",
         content="Alice: Yeah, the camping trip where Gary lost the noodles in the river.",
         doc_type=DocumentType.POST,
         title="Chat Log 2024-01-01",
-        id_override="msg-002",
     ),
-    Document.create(
+    Document(
+        id="msg-003",
         content="Bob: Classic Gary move. Just like when he lost the tent poles in 2019.",
         doc_type=DocumentType.POST,
         title="Chat Log 2024-01-02",
-        id_override="msg-003",
     ),
 ]
 
@@ -176,12 +176,13 @@ async def run_concept_mining() -> None:
                 aliases = result_run.data.aliases
 
             # Create the WikiPage Artifact
-            page = WikiPage.create_concept(
-                name=concept_name,
+            page = WikiPage(
+                title=concept_name,
                 content=content,
                 concept_type=concept_type,
                 evidence_refs=["mock-refs"],
                 aliases=aliases,
+                status=DocumentStatus.PUBLISHED,
             )
 
             logger.info("✨ GENERATED ARTIFACT:")

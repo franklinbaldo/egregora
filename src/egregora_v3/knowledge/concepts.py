@@ -53,37 +53,3 @@ class WikiPage(Document):
 
     # Backlinks to source Entries (Evidence)
     evidence_refs: list[str] = Field(default_factory=list)
-
-    @classmethod
-    def create_concept(
-        cls,
-        name: str,
-        content: str,
-        concept_type: ConceptType,
-        evidence_refs: list[str],
-        *,
-        aliases: list[str] | None = None,
-        relations: list[ConceptRelation] | None = None,
-        status: DocumentStatus = DocumentStatus.PUBLISHED,
-    ) -> "WikiPage":
-        """Factory for creating a WikiPage."""
-        # Call Document.create explicitly to get a base Document instance
-        # This avoids validation errors because Document.create() calls cls()
-        # and WikiPage requires extra fields not known to Document.create
-        doc = Document.create(
-            content=content,
-            doc_type=DocumentType.CONCEPT,
-            title=name,
-            status=status,
-            slug=name,  # Use name as semantic ID
-        )
-        # Use simple dictionary unpacking to ensure all fields are passed
-        data = doc.model_dump()
-        data.update({
-            "concept_type": concept_type,
-            "aliases": aliases or [],
-            "relations": relations or [],
-            "evidence_refs": evidence_refs,
-            "doc_type": DocumentType.CONCEPT,  # Ensure correct type
-        })
-        return cls(**data)
