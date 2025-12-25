@@ -132,9 +132,6 @@ class GeminiKeyRotator:
                         str(exc)[:100],
                     )
 
-                    # Refund token for immediate retry
-                    get_rate_limiter().refund()
-
                     next_key = self.next_key()
                     if next_key is None:
                         logger.exception("[KeyRotator] All API keys rate-limited")
@@ -243,9 +240,6 @@ class GeminiModelCycler:
             except Exception as exc:
                 if is_rate_limit_error(exc):
                     logger.warning("[ModelCycler] Rate limit on %s: %s", model, str(exc)[:100])
-
-                    # Refund token for immediate retry
-                    get_rate_limiter().refund()
 
                     next_model = self.next_model()
                     if next_model is None:

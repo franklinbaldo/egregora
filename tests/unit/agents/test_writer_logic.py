@@ -6,13 +6,20 @@ from unittest.mock import MagicMock, patch
 import pytest
 from jinja2.exceptions import TemplateNotFound
 
-from egregora.agents.exceptions import JournalFileSystemError, JournalTemplateError
+from egregora.agents.exceptions import (
+    AgentExecutionError,
+    FormatInstructionError,
+    JournalDataError,
+    JournalFileSystemError,
+    JournalTemplateError,
+)
 from egregora.agents.writer import (
     JournalEntry,
     JournalEntryParams,
     WindowProcessingParams,
     _process_single_tool_result,
     _save_journal_to_file,
+    load_format_instructions,
     write_posts_for_window,
 )
 
@@ -133,6 +140,54 @@ class TestWriterDecoupling:
 
         assert "Disk full" in str(exc_info.value)
 
+    @patch("egregora.agents.writer.Environment")
+    @patch("egregora.agents.writer.Document")
+    def test_save_journal_raises_data_error_on_type_error(self, mock_document, mock_env_cls):
+        """Test _save_journal_to_file raises JournalDataError on TypeError."""
+        # Arrange
+        mock_env = MagicMock()
+        mock_template = MagicMock()
+        mock_template.render.return_value = "Some content"
+        mock_env.get_template.return_value = mock_template
+        mock_env_cls.return_value = mock_env
+
+        mock_document.side_effect = TypeError("Invalid metadata")
+
+        params = JournalEntryParams(
+            intercalated_log=[JournalEntry("journal", "test", datetime.now())],
+            window_label="test-window",
+            output_format=MagicMock(),
+            posts_published=0,
+            profiles_updated=0,
+            window_start=datetime.now(),
+            window_end=datetime.now(),
+        )
+
+        # Act & Assert
+        with pytest.raises(JournalDataError) as exc_info:
+            _save_journal_to_file(params)
+
+        assert "Invalid metadata" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_execute_writer_raises_agent_execution_error():
+    """Test that _execute_writer_with_error_handling raises AgentExecutionError."""
+    # Arrange
+    with patch("egregora.agents.writer.write_posts_with_pydantic_agent") as mock_writer:
+        from egregora.agents.writer import _execute_writer_with_error_handling
+
+        mock_writer.side_effect = Exception("LLM provider outage")
+        mock_deps = MagicMock()
+        mock_deps.window_label = "test-window"
+
+        # Act & Assert
+        with pytest.raises(AgentExecutionError) as exc_info:
+            await _execute_writer_with_error_handling("prompt", MagicMock(), mock_deps)
+
+        assert "LLM provider outage" in str(exc_info.value)
+        assert "test-window" in str(exc_info.value)
+
 
 @pytest.mark.asyncio
 @patch("egregora.agents.writer.build_context_and_signature")
@@ -173,3 +228,17 @@ async def test_write_posts_for_window_smoke_test(
     mock_finalize.assert_called_once()
     mock_render.assert_called_once()
     mock_prepare_deps.assert_called_once()
+
+
+def test_load_format_instructions_raises_error_on_missing_format():
+    """Test that load_format_instructions raises an error if the format is not found."""
+    # Arrange
+    mock_registry = MagicMock()
+    mock_registry.detect_format.return_value = None
+    mock_registry.get_format.side_effect = KeyError("mkdocs")
+
+    # Act & Assert
+    with pytest.raises(FormatInstructionError) as exc_info:
+        load_format_instructions(site_root=None, registry=mock_registry)
+
+    assert "mkdocs" in str(exc_info.value)

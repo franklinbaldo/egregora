@@ -81,7 +81,13 @@ class DuckDBDocumentRepository(DocumentRepository):
         # We know it's a Document, so the cast is safe.
         return self._hydrate_object(row["json_data"], doc_type_val)
 
-    def list(self, *, doc_type: DocumentType | None = None) -> list[Document]:
+    def list(
+        self,
+        *,
+        doc_type: DocumentType | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[Document]:
         """Lists documents, optionally filtered by type."""
         t = self._get_table()
         query = t
@@ -91,6 +97,18 @@ class DuckDBDocumentRepository(DocumentRepository):
             # Exclude raw entries when listing all "Documents"
             query = query.filter(query.doc_type != "_ENTRY_")
 
+        if order_by:
+            if hasattr(query, order_by):
+                query = query.order_by(ibis.desc(order_by))
+            else:
+                # Handle cases where `order_by` is not a direct column (e.g., in JSON)
+                # For simplicity, this example assumes `updated` is the main sort key.
+                # A more robust solution might use raw SQL or more complex Ibis expressions.
+                if order_by == "updated":
+                    query = query.order_by(ibis.desc("updated"))
+
+        if limit:
+            query = query.limit(limit)
         result = query.select("doc_type", "json_data").execute()
 
         # We know these are Documents, so the list comprehension cast is safe.

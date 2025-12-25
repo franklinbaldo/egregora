@@ -59,24 +59,14 @@ class MkDocsPaths:
         preferred = (self.site_root / ".egregora" / "mkdocs.yml").resolve()
         legacy = (self.site_root / "mkdocs.yml").resolve()
 
-        if not preferred.exists() and legacy.exists():
+        if legacy.exists() and not preferred.exists():
             return legacy
-        return preferred
+        return self.mkdocs_config_path
 
     @property
     def mkdocs_config_path(self) -> Path:
-        """Preferred location for creating new mkdocs.yml.
-
-        Uses config.output.adapters[0].config_path if set,
-        otherwise defaults to mkdocs.yml in site_root.
-        """
-        adapters = getattr(self.config.output, "adapters", [])
-        if adapters:
-            adapter_config_path = adapters[0].config_path
-            if adapter_config_path:
-                return (self.site_root / adapter_config_path).resolve()
-
-        return (self.site_root / "mkdocs.yml").resolve()
+        """Preferred location for creating new mkdocs.yml."""
+        return self.egregora_dir / "mkdocs.yml"
 
     @property
     def blog_dir(self) -> str:

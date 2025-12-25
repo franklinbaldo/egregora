@@ -114,10 +114,7 @@ def extract_authors_from_post(md_file: Path) -> set[str]:
 
 def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> int:
     """Scan all posts and ensure every referenced author exists in .authors.yml."""
-    if docs_dir is None:
-        docs_dir = posts_dir.resolve().parent.parent
-
-    authors_path = docs_dir / ".authors.yml"
+    authors_path = find_authors_yml(posts_dir)
 
     all_author_ids: set[str] = set()
     for md_file in posts_dir.rglob("*.md"):
