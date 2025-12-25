@@ -22,6 +22,11 @@ from dateutil import parser as date_parser
 from pydantic import BaseModel
 
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
+from egregora.input_adapters.whatsapp.exceptions import (
+    DateParsingError,
+    TimeParsingError,
+    WhatsAppParsingError,
+)
 from egregora.input_adapters.whatsapp.utils import build_message_attrs
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
@@ -118,7 +123,7 @@ def _normalize_text(value: str, config: EgregoraConfig | None = None) -> str:
 
 
 @lru_cache(maxsize=1024)
-def _parse_message_date(token: str) -> date | None:
+def _parse_message_date(token: str) -> date:
     """Parse date token into a date object using multiple parsing strategies.
 
     Performance: Uses lru_cache since WhatsApp logs contain many repeated
@@ -126,7 +131,7 @@ def _parse_message_date(token: str) -> date | None:
     """
     normalized = token.strip()
     if not normalized:
-        return None
+        raise DateParsingError(token, "Date string is empty.")
 
     for strategy in _DATE_PARSING_STRATEGIES:
         try:
@@ -136,11 +141,11 @@ def _parse_message_date(token: str) -> date | None:
         except (TypeError, ValueError, OverflowError):
             continue
 
-    return None
+    raise DateParsingError(token)
 
 
 @lru_cache(maxsize=4096)
-def _parse_message_time(time_token: str) -> time | None:
+def _parse_message_time(time_token: str) -> time:
     """Parse time token into a time object (naive, for later localization).
 
     Performance:
@@ -150,7 +155,7 @@ def _parse_message_time(time_token: str) -> time | None:
     """
     token = time_token.strip()
     if not token:
-        return None
+        raise TimeParsingError(time_token, "Time string is empty.")
 
     # Fast path for standard HH:MM (e.g., "12:30", "09:15")
     # Checks length and digit presence to avoid splitting/parsing invalid strings
@@ -207,10 +212,10 @@ def _parse_message_time(time_token: str) -> time | None:
             parts = token.split(":")
             if len(parts) == PARTS_IN_TIME_STR:
                 return time(int(parts[0]), int(parts[1]))
-    except ValueError:
-        pass
+    except ValueError as e:
+        raise TimeParsingError(time_token) from e
 
-    return None
+    raise TimeParsingError(time_token)
 
 
 def _resolve_timezone(timezone: str | ZoneInfo | None) -> ZoneInfo:
@@ -347,13 +352,12 @@ def _parse_whatsapp_lines(
             # ... rest of existing logic ...
             date_str, time_str, author_raw, message_part = match.groups()
 
-            msg_date = _parse_message_date(date_str)
-            if msg_date:
+            try:
+                msg_date = _parse_message_date(date_str)
                 builder.current_date = msg_date
-
-            msg_time = _parse_message_time(time_str)
-
-            if not msg_time:
+                msg_time = _parse_message_time(time_str)
+            except WhatsAppParsingError as e:
+                logger.warning(f"Skipping line due to parsing error: {e}")
                 builder.flush()
                 continue
 
