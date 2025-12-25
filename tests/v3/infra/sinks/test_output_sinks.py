@@ -34,7 +34,7 @@ ATOM_NS = "http://www.w3.org/2005/Atom"
 @pytest.fixture
 def sample_feed() -> Feed:
     """Create a sample feed for testing."""
-    doc1 = Document.create(
+    doc1 = Document(
         content="# First Post\n\nThis is content.",
         doc_type=DocumentType.POST,
         title="First Post",
@@ -43,7 +43,7 @@ def sample_feed() -> Feed:
     doc1.authors = [Author(name="Alice", email="alice@example.com")]
     doc1.published = datetime(2025, 12, 5, tzinfo=UTC)
 
-    doc2 = Document.create(
+    doc2 = Document(
         content="Second post content.",
         doc_type=DocumentType.POST,
         title="Second Post",
@@ -259,14 +259,14 @@ def test_mkdocs_sink_creates_index_page(sample_feed: Feed, tmp_path: Path) -> No
 
 def test_mkdocs_sink_respects_document_status(tmp_path: Path) -> None:
     """Test that only PUBLISHED documents are exported."""
-    draft = Document.create(
+    draft = Document(
         content="Draft content",
         doc_type=DocumentType.POST,
         title="Draft Post",
         status=DocumentStatus.DRAFT,
     )
 
-    published = Document.create(
+    published = Document(
         content="Published content",
         doc_type=DocumentType.POST,
         title="Published Post",
@@ -340,7 +340,7 @@ def test_mkdocs_sink_cleans_existing_files(sample_feed: Feed, tmp_path: Path) ->
 def test_atom_xml_sink_handles_any_number_of_entries(num_entries: int) -> None:
     """Property: AtomXMLOutputSink handles any number of entries."""
     docs = [
-        Document.create(
+        Document(
             content=f"Content {i}",
             doc_type=DocumentType.POST,
             title=f"Post {i}",
@@ -370,7 +370,7 @@ def test_atom_xml_sink_handles_any_number_of_entries(num_entries: int) -> None:
 def test_mkdocs_sink_creates_correct_number_of_files(num_entries: int) -> None:
     """Property: MkDocsOutputSink creates one file per published document."""
     docs = [
-        Document.create(
+        Document(
             content=f"Content {i}",
             doc_type=DocumentType.POST,
             title=f"Post {i}",
@@ -397,7 +397,7 @@ def test_mkdocs_sink_creates_correct_number_of_files(num_entries: int) -> None:
 
 def test_atom_xml_sink_handles_special_characters_in_content(tmp_path: Path) -> None:
     """Test that sink properly escapes XML special characters."""
-    doc = Document.create(
+    doc = Document(
         content="Content with <tags> & \"quotes\" and 'apostrophes'",
         doc_type=DocumentType.POST,
         title="Special Characters",
@@ -418,7 +418,7 @@ def test_atom_xml_sink_handles_special_characters_in_content(tmp_path: Path) -> 
 
 def test_mkdocs_sink_handles_unicode_content(tmp_path: Path) -> None:
     """Test that sink handles Unicode characters correctly."""
-    doc = Document.create(
+    doc = Document(
         content="Unicode content: 你好世界 🎉 Olá",
         doc_type=DocumentType.POST,
         title="Unicode Test",
@@ -441,7 +441,7 @@ def test_mkdocs_sink_handles_unicode_content(tmp_path: Path) -> None:
 def test_mkdocs_sink_handles_documents_without_slug(tmp_path: Path) -> None:
     """Test that sink handles documents that don't have semantic slugs."""
     # NOTE type doesn't use semantic slugs, uses UUID
-    doc = Document.create(
+    doc = Document(
         content="Note content",
         doc_type=DocumentType.NOTE,
         title="A Note",
@@ -466,13 +466,13 @@ def test_mkdocs_get_filename_logic() -> None:
     sink = MkDocsOutputSink(output_dir=Path("dummy"))
 
     # 1. Prefers slug
-    doc_with_slug = Document.create(
+    doc_with_slug = Document(
         content="", doc_type=DocumentType.POST, title="A Title", slug="the-slug"
     )
     assert sink._get_filename(doc_with_slug) == "the-slug"
 
     # 2. Falls back to slugified title
-    doc_with_title = Document.create(
+    doc_with_title = Document(
         content="", doc_type=DocumentType.POST, title="A Different Title"
     )
     assert sink._get_filename(doc_with_title) == "a-different-title"

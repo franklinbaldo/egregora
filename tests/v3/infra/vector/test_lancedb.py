@@ -51,7 +51,7 @@ def vector_store(tmp_path: Path, mock_embed_fn) -> LanceDBVectorStore:
 @pytest.fixture
 def sample_documents() -> list[Document]:
     """Create sample documents for testing."""
-    doc1 = Document.create(
+    doc1 = Document(
         content="# Python Tutorial\n\nPython is a high-level programming language.",
         doc_type=DocumentType.POST,
         title="Python Tutorial",
@@ -59,7 +59,7 @@ def sample_documents() -> list[Document]:
     )
     doc1.authors = [Author(name="Alice")]
 
-    doc2 = Document.create(
+    doc2 = Document(
         content="# JavaScript Guide\n\nJavaScript is the language of the web.",
         doc_type=DocumentType.POST,
         title="JavaScript Guide",
@@ -67,7 +67,7 @@ def sample_documents() -> list[Document]:
     )
     doc2.authors = [Author(name="Bob")]
 
-    doc3 = Document.create(
+    doc3 = Document(
         content="# Rust Programming\n\nRust is a systems programming language.",
         doc_type=DocumentType.POST,
         title="Rust Programming",
@@ -95,7 +95,7 @@ def test_vector_store_creates_database_directory(tmp_path: Path, mock_embed_fn) 
 def test_vector_store_creates_table(vector_store: LanceDBVectorStore) -> None:
     """Test that vector store creates a table."""
     # Index a single document to ensure table exists
-    doc = Document.create(
+    doc = Document(
         content="Test content",
         doc_type=DocumentType.POST,
         title="Test",
@@ -137,7 +137,7 @@ def test_index_documents_with_unicode_content(
     vector_store: LanceDBVectorStore,
 ) -> None:
     """Test indexing documents with Unicode content."""
-    doc = Document.create(
+    doc = Document(
         content="Unicode content: 你好世界 🎉 Olá",
         doc_type=DocumentType.POST,
         title="Unicode Test",
@@ -230,7 +230,7 @@ def test_search_unicode_query(
     vector_store: LanceDBVectorStore,
 ) -> None:
     """Test search with Unicode query."""
-    doc = Document.create(
+    doc = Document(
         content="Chinese content: 你好世界",
         doc_type=DocumentType.POST,
         title="Chinese Post",
@@ -249,7 +249,7 @@ def test_reconstructed_document_has_all_fields(
     vector_store: LanceDBVectorStore,
 ) -> None:
     """Test that reconstructed documents have all required fields."""
-    doc = Document.create(
+    doc = Document(
         content="# Test Post\n\nContent here.",
         doc_type=DocumentType.POST,
         title="Test Post",
@@ -298,7 +298,7 @@ def test_index_document_with_very_long_content(
     # 100KB of content
     long_content = "x" * (100 * 1024)
 
-    doc = Document.create(
+    doc = Document(
         content=long_content,
         doc_type=DocumentType.POST,
         title="Long Document",
@@ -315,7 +315,7 @@ def test_index_document_with_minimal_fields(
 ) -> None:
     """Test indexing document with only required fields."""
     # Minimal document (no summary, authors, etc.)
-    doc = Document.create(
+    doc = Document(
         content="Minimal content",
         doc_type=DocumentType.NOTE,
         title="Minimal",
@@ -353,7 +353,7 @@ def test_index_and_search_workflow(
     """Test complete index and search workflow."""
     # Create documents
     docs = [
-        Document.create(
+        Document(
             content=fake.text(max_nb_chars=200),
             doc_type=DocumentType.POST,
             title=fake.sentence(),
