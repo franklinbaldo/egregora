@@ -414,7 +414,7 @@ def transform(data: Table) -> Table:
 
 ## Next Steps
 
-- [Privacy Model](privacy.md) - Deep dive on anonymization
-- [Knowledge Base](knowledge.md) - RAG and vector search
-- [Content Generation](generation.md) - LLM writer internals
+- [Privacy Model](guides/privacy.md) - Deep dive on anonymization
+- [Knowledge Base](guides/knowledge.md) - RAG and vector search
+- [Content Generation](guides/generation.md) - LLM writer internals
 - [Project Structure](#code-structure) - Detailed code organization

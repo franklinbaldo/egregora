@@ -385,5 +385,5 @@ Approximate storage requirements:
 ## Next Steps
 
 - [Content Generation](generation.md) - How the LLM writer works
-- [API Reference - RAG Module](../api/knowledge/rag.md) - Code documentation
-- [API Reference - Annotations](../api/knowledge/annotations.md) - Metadata details
+- [API Reference - RAG Module](../api-reference/knowledge/rag.md) - Code documentation
+- [API Reference - Annotations](../api-reference/knowledge/annotations.md) - Metadata details

@@ -274,6 +274,6 @@ class TableStorage(Protocol):
 
 ## Related Documentation
 
-- [CLAUDE.md](../CLAUDE.md) - Quick reference and key patterns
-- [Architecture Overview](../guide/architecture.md) - System architecture
-- [RAG Architecture](../api/knowledge/rag.md) - RAG implementation details
+- [CLAUDE.md](../../../CLAUDE.md) - Quick reference and key patterns
+- [Architecture Overview](../architecture.md) - System architecture
+- [RAG Architecture](../api-reference/knowledge/rag.md) - RAG implementation details

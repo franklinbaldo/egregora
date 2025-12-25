@@ -1,16 +1,23 @@
 # About Egregora
 
-Egregora is an open-source tool designed to reclaim your digital history from the walled gardens of chat applications.
+Egregora is an open-source engine designed to transform raw information streams into structured, intelligent knowledge feeds. It acts as a "Group Mind" synthesizer, reclaiming your digital history from walled gardens and turning it into a living, queryable knowledge base.
 
 ## Mission
 
-Our digital lives are increasingly fragmented across proprietary platforms. "Egregora" (derived from *egregore*) represents the distinct psychic entity that emerges from a collective group.
+Our digital lives are fragmented across proprietary platforms and ephemeral feeds. "Egregora" (derived from *egregore*) represents the distinct psychic entity that emerges from a collective group.
 
 This project aims to:
+1.  **Preserve** history in open, future-proof formats (Atom/RSS, Markdown, Parquet).
+2.  **Synthesize** signal from noise using composable AI agents.
+3.  **Empower** individuals to own their algorithms and data pipelines.
 
-1. **Preserve** your chat archives in a future-proof, plain-text format.
-2. **Respect Privacy** by processing everything locally.
-3. **Synthesize** meaning from noise using local or private AI.
+## Inspirations
+
+Egregora is spiritually inspired by tools that empowered user-driven data composition:
+
+*   **Yahoo Pipes:** For the vision of visual, user-defined data flow and transformation.
+*   **Google Reader:** For the ideal of a centralized, user-controlled consumption interface.
+*   **Atom Protocol:** For the robust, decentralized standard of information exchange.
 
 ## The Team
 
@@ -20,10 +27,10 @@ Egregora is built by [Franklin Baldo](https://github.com/franklinbaldo) and open
 
 Egregora stands on the shoulders of giants:
 
-- **[MkDocs Material](https://squidfunk.github.io/mkdocs-material/)**: The beautiful frontend for your archive.
-- **[Pydantic AI](https://github.com/pydantic/pydantic-ai)**: Robust agentic framework for LLM interactions.
-- **[LiteLLM](https://docs.litellm.ai/)**: Universal interface for any LLM provider.
-- **[DuckDB](https://duckdb.org/)**: High-performance local analytics database.
+*   **[MkDocs Material](https://squidfunk.github.io/mkdocs-material/)**: The beautiful frontend for your archive.
+*   **[Pydantic AI](https://github.com/pydantic/pydantic-ai)** & **[LlamaIndex](https://www.llamaindex.ai/)**: Frameworks for robust agentic reasoning.
+*   **[Ibis](https://ibis-project.org/)** & **[DuckDB](https://duckdb.org/)**: The backbone of our functional data transformations.
+*   **[LanceDB](https://lancedb.com/)**: Vector storage for our RAG engine.
 
 ## License
 
