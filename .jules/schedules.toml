@@ -13,7 +13,6 @@
 
 [schedules]
 # --- ⏱️ Hourly ---
-simplifier   = "0 * * * *"  # 📉 Complexity Reduction
 essentialist = "0 * * * *"  # 💎 Pragmatism & Cuts
 sapper       = "0 * * * *"  # 💣 Exception Structuring
 
@@ -26,6 +25,7 @@ sentinel     = "0 5 * * *"  # 05:00 - 🛡️ Security Audit
 builder      = "0 6 * * *"  # 06:00 - 🏗️ Data Architecture
 shepherd     = "0 7 * * *"  # 07:00 - 🧑‍🌾 Test Coverage
 janitor      = "0 8 * * *"  # 08:00 - 🧹 Code Hygiene
+simplifier   = "0 8 * * 1-5" # 08:00 - 📉 Complexity Reduction
 docs_curator = "0 9 * * *"  # 09:00 - 📚 Docs Gardening
 artisan      = "0 10 * * *" # 10:00 - 🔨 Code Craftsmanship
 palette      = "0 11 * * *" # 11:00 - 🎨 Design System
