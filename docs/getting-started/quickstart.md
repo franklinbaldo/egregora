@@ -210,6 +210,6 @@ chmod -R u+w .egregora/lancedb/
 
 ## Learn More
 
-- [Architecture Overview](../guide/architecture.md) - Understand the pipeline
-- [Privacy Model](../guide/privacy.md) - How anonymization works
-- [API Reference](../api/index.md) - Complete code documentation
+- [Architecture Overview](../v2/architecture.md) - Understand the pipeline
+- [Privacy Model](../v2/guides/privacy.md) - How anonymization works
+- [API Reference](../v2/api-reference/index.md) - Complete code documentation
