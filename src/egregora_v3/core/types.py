@@ -8,7 +8,7 @@ from typing import Any
 from xml.etree.ElementTree import Element, register_namespace, SubElement, tostring
 
 import jinja2
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from egregora_v3.core.filters import format_datetime, normalize_content_type
 from egregora_v3.core.utils import slugify
@@ -173,50 +173,40 @@ class Document(Entry):
         """Get the semantic slug for this document."""
         return self.internal_metadata.get("slug")
 
+    @model_validator(mode="before")
     @classmethod
-    def create(  # noqa: PLR0913
-        cls,
-        content: str,
-        doc_type: DocumentType,
-        title: str,
-        *,
-        status: DocumentStatus = DocumentStatus.DRAFT,
-        internal_metadata: dict[str, Any] | None = None,
-        slug: str | None = None,
-        searchable: bool = True,
-        in_reply_to: InReplyTo | None = None,
-    ) -> "Document":
-        """Factory method to create a Document.
+    def _generate_identity_from_title(cls, data: Any) -> Any:
+        """Declaratively generate id and slug from title if not provided."""
+        if isinstance(data, dict):
+            # If id is provided, trust it.
+            if data.get("id"):
+                return data
 
-        Identity is always derived from the slug.
-        One good path over many flexible paths.
-        """
-        if internal_metadata is None:
-            internal_metadata = {}
+            internal_metadata = data.get("internal_metadata", {})
 
-        # Generate slug from title if not provided.
-        if slug is not None:
-            final_slug = slug
-        else:
-            final_slug = slugify(title.strip())
+            # Generate slug from title if not provided explicitly.
+            final_slug = data.get("slug")
+            if not final_slug:
+                title = data.get("title", "")
+                if not title:
+                    # Let standard Pydantic validation handle the missing title error
+                    return data
+                final_slug = slugify(title.strip())
 
-        if not final_slug:
-            msg = "Document must have a slug or a title to generate one."
-            raise ValueError(msg)
+            if not final_slug:
+                msg = "Document must have a slug or a title to generate one."
+                raise ValueError(msg)
 
-        internal_metadata["slug"] = final_slug
+            # One good path: id is always the slug.
+            data["id"] = final_slug
+            internal_metadata["slug"] = final_slug
+            data["internal_metadata"] = internal_metadata
 
-        return cls(
-            id=final_slug,
-            title=title,
-            updated=datetime.now(UTC),
-            content=content,
-            doc_type=doc_type,
-            status=status,
-            internal_metadata=internal_metadata,
-            searchable=searchable,
-            in_reply_to=in_reply_to,
-        )
+            # Set a default updated timestamp if not provided
+            if "updated" not in data:
+                data["updated"] = datetime.now(UTC)
+
+        return data
 
 
 class Feed(BaseModel):

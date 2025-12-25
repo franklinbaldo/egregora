@@ -40,7 +40,7 @@ fake = Faker()
 @pytest.fixture
 def sample_feed() -> Feed:
     """Create a sample feed for testing."""
-    doc1 = Document.create(
+    doc1 = Document(
         content="# First Post\n\nThis is content.",
         doc_type=DocumentType.POST,
         title="First Post",
@@ -50,7 +50,7 @@ def sample_feed() -> Feed:
     doc1.published = datetime(2025, 12, 5, tzinfo=UTC)
     doc1.categories = [Category(term="tech", label="Technology")]
 
-    doc2 = Document.create(
+    doc2 = Document(
         content="Second post content.",
         doc_type=DocumentType.POST,
         title="Second Post",
@@ -59,7 +59,7 @@ def sample_feed() -> Feed:
     doc2.published = datetime(2025, 12, 6, tzinfo=UTC)
     doc2.authors = [Author(name="Bob")]
 
-    draft = Document.create(
+    draft = Document(
         content="Draft content",
         doc_type=DocumentType.POST,
         title="Draft Post",
@@ -227,7 +227,7 @@ def test_sqlite_sink_with_empty_feed(tmp_path: Path) -> None:
 
 def test_sqlite_sink_handles_unicode_content(tmp_path: Path) -> None:
     """Test that sink handles Unicode characters correctly."""
-    doc = Document.create(
+    doc = Document(
         content="Unicode content: 你好世界 🎉 Olá",
         doc_type=DocumentType.POST,
         title="Unicode Test",
@@ -407,7 +407,7 @@ def test_csv_sink_with_empty_feed(tmp_path: Path) -> None:
 
 def test_csv_sink_handles_unicode_content(tmp_path: Path) -> None:
     """Test that sink handles Unicode characters correctly."""
-    doc = Document.create(
+    doc = Document(
         content="Unicode content: 你好世界 🎉 Olá",
         doc_type=DocumentType.POST,
         title="Unicode Test",
@@ -432,7 +432,7 @@ def test_csv_sink_handles_unicode_content(tmp_path: Path) -> None:
 
 def test_csv_sink_handles_commas_and_quotes_in_content(tmp_path: Path) -> None:
     """Test that CSV properly escapes commas and quotes."""
-    doc = Document.create(
+    doc = Document(
         content='Content with "quotes" and, commas, and newlines\nhere',
         doc_type=DocumentType.POST,
         title="Special Characters",
@@ -479,7 +479,7 @@ def test_csv_sink_includes_timestamps(sample_feed: Feed, tmp_path: Path) -> None
 def test_sqlite_sink_handles_any_number_of_documents(num_docs: int) -> None:
     """Property: SQLiteOutputSink handles any number of documents."""
     docs = [
-        Document.create(
+        Document(
             content=f"Content {i}",
             doc_type=DocumentType.POST,
             title=f"Post {i}",
@@ -511,7 +511,7 @@ def test_sqlite_sink_handles_any_number_of_documents(num_docs: int) -> None:
 def test_csv_sink_handles_any_number_of_documents(num_docs: int) -> None:
     """Property: CSVOutputSink handles any number of documents."""
     docs = [
-        Document.create(
+        Document(
             content=f"Content {i}",
             doc_type=DocumentType.POST,
             title=f"Post {i}",

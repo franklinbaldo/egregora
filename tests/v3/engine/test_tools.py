@@ -52,8 +52,12 @@ async def test_search_prior_work_placeholder(mock_context: PipelineContext):
 async def test_get_document_by_id(mock_context: PipelineContext):
     """Tests retrieving a document by its ID."""
     doc_id = "test-doc-id"
-    expected_doc = Document.create(
-        content="Test", doc_type=DocumentType.POST, title="Test"
+    expected_doc = Document(
+        id=doc_id,
+        content="Test",
+        doc_type=DocumentType.POST,
+        title="Test",
+        updated=datetime.now(timezone.utc),
     )
     mock_context.library.get.return_value = expected_doc
 

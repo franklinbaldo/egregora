@@ -41,7 +41,7 @@ def test_initialize_creates_table(repo):
 
 def test_save_and_get_document(repo):
     """Tests saving and retrieving a document."""
-    doc = Document.create(content="Test content", doc_type=DocumentType.POST, title="Test Post")
+    doc = Document(content="Test content", doc_type=DocumentType.POST, title="Test Post")
     repo.save(doc)
 
     retrieved = repo.get(doc.id)
@@ -52,7 +52,7 @@ def test_save_and_get_document(repo):
 
 def test_save_is_upsert(repo):
     """Tests that saving an existing document updates it (upsert)."""
-    doc = Document.create(title="Original", content="Original", doc_type=DocumentType.POST)
+    doc = Document(title="Original", content="Original", doc_type=DocumentType.POST)
     repo.save(doc)
 
     # Modify and save again
@@ -71,7 +71,7 @@ def test_save_is_upsert(repo):
 
 def test_delete_document(repo):
     """Tests deleting a document."""
-    doc = Document.create(title="To Delete", content="...", doc_type=DocumentType.NOTE)
+    doc = Document(title="To Delete", content="...", doc_type=DocumentType.NOTE)
     repo.save(doc)
 
     assert repo.exists(doc.id)
@@ -92,7 +92,7 @@ def test_save_and_get_entry(repo):
 
 def test_save_handles_documents_and_entries(repo):
     """Tests that save correctly handles both Document and Entry instances."""
-    doc = Document.create(content="Test content", doc_type=DocumentType.POST, title="Test Post")
+    doc = Document(content="Test content", doc_type=DocumentType.POST, title="Test Post")
     entry = Entry(id="entry-1", title="Test Entry", updated=datetime.now(UTC), content="Entry Content")
 
     repo.save(doc)

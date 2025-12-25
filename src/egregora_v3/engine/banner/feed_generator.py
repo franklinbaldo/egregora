@@ -188,7 +188,7 @@ class FeedBannerGenerator:
         )
         content = base64.b64encode(image_data).decode("ascii")
 
-        doc = Document.create(
+        doc = Document(
             doc_type=DocumentType.MEDIA,
             title=f"Banner: {task_entry.title}",
             content=content,
@@ -204,7 +204,7 @@ class FeedBannerGenerator:
 
     def _create_error_document(self, result: BannerGenerationResult) -> Document:
         """Create an error document for failed generation."""
-        doc = Document.create(
+        doc = Document(
             doc_type=DocumentType.NOTE,
             title=f"Error: {result.task_entry.title}",
             content=f"Failed to generate banner: {result.error}",

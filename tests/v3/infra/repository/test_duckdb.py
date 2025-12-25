@@ -22,7 +22,7 @@ def test_list_with_order_by_and_limit(duckdb_repo: DuckDBDocumentRepository):
     now = datetime.now(timezone.utc)
     docs = []
     for i in range(5):
-        doc = Document.create(
+        doc = Document(
             content=f"Post {i}",
             doc_type=DocumentType.POST,
             title=f"Post {i}",
