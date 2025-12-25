@@ -1,86 +1,39 @@
-"""Database utilities, schemas, and infrastructure for Egregora.
+"""Egregora database layer.
 
-This package consolidates all persistence, state management, and infrastructure:
-- Schemas: IR schema definitions
-- Storage: DuckDB connection management
-- Streaming: Memory-efficient data access utilities
-- Tracking: Run observability and lineage
-- Views: Common transformations for downstream consumers
+This package provides a unified interface for data persistence and retrieval,
+abstracting away the underlying storage technology (e.g., DuckDB, LanceDB).
 
-**Philosophy**: Centralized infrastructure for state and side effects.
+Key modules:
+- :module:`duckdb_manager`: Centralized DuckDB connection and lifecycle management.
+- :module:`ir_schema`: Ibis schemas for intermediate representations (IR) of data.
+- :module:`protocols`: Abstract protocols for storage interfaces.
+- :module:`run_store`: Data access layer for pipeline run history.
+- :module:`sql`: SQL query rendering and management.
+- :module:`streaming`: Utilities for streaming data from storage.
+- :module:`tracking`: Pipeline run tracking with observability and lineage.
+- :module:`utils`: Shared database utilities.
 """
 
 from egregora.database import ir_schema as schemas
-from egregora.database.duckdb_manager import (
-    DuckDBStorageManager,
-    duckdb_backend,
-    temp_storage,
-)
-from egregora.database.init import initialize_database
-from egregora.database.ir_schema import (
-    RUNS_TABLE_SCHEMA,
-    create_runs_table,
-    ensure_runs_table_exists,
-)
-from egregora.database.streaming import (
-    copy_expr_to_ndjson,
-    copy_expr_to_parquet,
-    ensure_deterministic_order,
-    stream_ibis,
-)
+from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.protocols import StorageProtocol
+from egregora.database.run_store import RunStore
+from egregora.database.streaming import stream_ibis
 from egregora.database.tracking import (
     RunContext,
-    get_git_commit_sha,
     record_lineage,
-    record_run,
     run_stage_with_tracking,
 )
-from egregora.database.views import (
-    COMMON_VIEWS,
-    ViewBuilder,
-    chunks_sql,
-    chunks_view,
-    daily_aggregates_view,
-    get_view_builder,
-    hourly_aggregates_view,
-    list_common_views,
-    messages_with_media_view,
-    messages_with_text_view,
-)
+from egregora.database.utils import quote_identifier
 
 __all__ = [
-    # Views
-    "COMMON_VIEWS",
-    # Schemas
-    "RUNS_TABLE_SCHEMA",
-    # Storage
     "DuckDBStorageManager",
-    # Tracking & Observability
-    "RunContext",
-    "ViewBuilder",
-    "chunks_sql",
-    "chunks_view",
-    # Streaming
-    "copy_expr_to_ndjson",
-    "copy_expr_to_parquet",
-    # Runs table utilities
-    "create_runs_table",
-    "daily_aggregates_view",
-    "duckdb_backend",
-    "ensure_deterministic_order",
-    "ensure_runs_table_exists",
-    "get_git_commit_sha",
-    "get_view_builder",
-    "hourly_aggregates_view",
-    # Initialization
-    "initialize_database",
-    "list_common_views",
-    "messages_with_media_view",
-    "messages_with_text_view",
+    "quote_identifier",
     "record_lineage",
-    "record_run",
+    "RunContext",
     "run_stage_with_tracking",
+    "RunStore",
     "schemas",
+    "StorageProtocol",
     "stream_ibis",
-    "temp_storage",
 ]
