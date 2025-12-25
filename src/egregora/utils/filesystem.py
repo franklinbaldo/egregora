@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import UTC, date, datetime
+from itertools import count
 from typing import TYPE_CHECKING, Any
 
 import yaml
@@ -97,16 +98,19 @@ def _resolve_filepath(output_dir: Path, date_prefix: str, base_slug: str) -> tup
         A tuple containing the unique Path object and the final resolved slug.
 
     """
-    slug_candidate = base_slug
-    filename = f"{date_prefix}-{slug_candidate}.md"
-    filepath = safe_path_join(output_dir, filename)
-    suffix = 2
-    while filepath.exists():
-        slug_candidate = f"{base_slug}-{suffix}"
+    original_filename = f"{date_prefix}-{base_slug}.md"
+    original_filepath = safe_path_join(output_dir, original_filename)
+
+    if not original_filepath.exists():
+        return original_filepath, base_slug
+
+    for i in count(2):
+        slug_candidate = f"{base_slug}-{i}"
         filename = f"{date_prefix}-{slug_candidate}.md"
         filepath = safe_path_join(output_dir, filename)
-        suffix += 1
-    return filepath, slug_candidate
+        if not filepath.exists():
+            return filepath, slug_candidate
+    return None
 
 
 def _validate_post_metadata(metadata: dict[str, Any]) -> None:
