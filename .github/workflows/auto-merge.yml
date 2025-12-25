@@ -61,14 +61,17 @@ jobs:
       # SECURITY: Validate that PR only modifies dependency files for dependency bots
       - name: Validate PR changes
         if: |
-          (github.event_name == 'workflow_dispatch' && steps.pr-info.outputs.result != '' && (fromJSON(steps.pr-info.outputs.result).actor == 'dependabot[bot]' || fromJSON(steps.pr-info.outputs.result).actor == 'renovate[bot]')) ||
-          (github.event_name != 'workflow_dispatch' && (github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]'))
+          steps.pr-info.outputs.result != '' &&
+          ((github.event_name == 'workflow_dispatch' && (fromJSON(steps.pr-info.outputs.result).actor == 'dependabot[bot]' || fromJSON(steps.pr-info.outputs.result).actor == 'renovate[bot]')) ||
+          (github.event_name != 'workflow_dispatch' && (github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]')))
         uses: actions/github-script@v8
+        env:
+          PR_INFO_JSON: ${{ steps.pr-info.outputs.result }}
         with:
           script: |
-            const prInfoJson = '${{ steps.pr-info.outputs.result }}';
+            const prInfoJson = process.env.PR_INFO_JSON;
             if (!prInfoJson || prInfoJson.trim() === "") {
-              core.setFailed("PR info from previous step is empty.");
+              console.log("PR info is empty, skipping validation.");
               return;
             }
 
@@ -102,12 +105,15 @@ jobs:
             }
 
       - name: Convert draft to ready for review
+        if: steps.pr-info.outputs.result != ''
         uses: actions/github-script@v8
+        env:
+          PR_INFO_JSON: ${{ steps.pr-info.outputs.result }}
         with:
           script: |
-            const prInfoJson = '${{ steps.pr-info.outputs.result }}';
+            const prInfoJson = process.env.PR_INFO_JSON;
             if (!prInfoJson || prInfoJson.trim() === "") {
-              core.setFailed("PR info from previous step is empty.");
+              console.log("PR info is empty, skipping draft conversion.");
               return;
             }
 
@@ -144,12 +150,15 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Approve PR
+        if: steps.pr-info.outputs.result != ''
         uses: actions/github-script@v8
+        env:
+          PR_INFO_JSON: ${{ steps.pr-info.outputs.result }}
         with:
           script: |
-            const prInfoJson = '${{ steps.pr-info.outputs.result }}';
+            const prInfoJson = process.env.PR_INFO_JSON;
             if (!prInfoJson || prInfoJson.trim() === "") {
-              core.setFailed("PR info from previous step is empty.");
+              console.log("PR info is empty, skipping approval.");
               return;
             }
 
@@ -174,13 +183,17 @@ jobs:
             }
 
       - name: Enable auto-merge
+        if: steps.pr-info.outputs.result != ''
         uses: actions/github-script@v8
+        env:
+          PR_INFO_JSON: ${{ steps.pr-info.outputs.result }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const prInfoJson = '${{ steps.pr-info.outputs.result }}';
+            const prInfoJson = process.env.PR_INFO_JSON;
             if (!prInfoJson || prInfoJson.trim() === "") {
-              core.setFailed("PR info from previous step is empty.");
+              console.log("PR info is empty, skipping auto-merge.");
               return;
             }
 
@@ -188,7 +201,7 @@ jobs:
               const prInfo = JSON.parse(prInfoJson);
               const { owner, repo } = context.repo;
               const actor = prInfo.actor;
-              const updateType = '${{ steps.metadata.outputs.update-type }}';
+              const updateType = process.env.UPDATE_TYPE || '';
 
               const shouldAutoMerge = (actor === 'google-labs-jules[bot]') ||
                                       (updateType === 'version-update:semver-patch' ||
