@@ -100,6 +100,39 @@ def test_save_and_get_entry(repo):
     assert type(retrieved) is Entry
 
 
+def test_save_entry_handles_document_polymorphically(repo):
+    """
+    Tests that `save_entry` can correctly save a Document instance
+    without branching, ensuring it's stored with the correct doc_type.
+    This test locks in the behavior before refactoring the implementation
+    to remove the `isinstance` check.
+    """
+    # Arrange
+    doc = Document.create(
+        doc_type=DocumentType.POST,
+        title="A Polymorphic Post",
+        content="This document is saved as an entry.",
+    )
+
+    # Act
+    # This call should work, and the implementation will be simplified.
+    repo.save_entry(doc)
+
+    # Assert
+    # 1. Retrieve it as a generic Entry/Document to check high-level API
+    retrieved = repo.get_entry(doc.id)
+    assert isinstance(retrieved, Document)
+    assert retrieved.id == doc.id
+    assert retrieved.doc_type == DocumentType.POST
+    assert retrieved.title == "A Polymorphic Post"
+
+    # 2. Check the raw doc_type in the database to be absolutely sure
+    table = repo._get_table()
+    raw_record = table.filter(table.id == doc.id).execute()
+    assert not raw_record.empty
+    assert raw_record["doc_type"][0] == DocumentType.POST.value
+
+
 def test_get_entries_by_source(repo):
     source_id = "whatsapp-chat-123"
     other_source = "other-source"
