@@ -257,10 +257,10 @@ Yes, but requires code changes. Egregora uses Google's Gemini client, but you ca
 - [vLLM](https://vllm.ai/) for self-hosted serving
 - [LiteLLM](https://litellm.ai/) for unified API
 
-See [Development Guide](https://github.com/franklinbaldo/egregora/blob/main/CONTRIBUTING.md) for details.
+See [Development Guide](../../community/contributing.md) for details.
 
 ## Next Steps
 
 - [RAG & Knowledge Base](knowledge.md) - How retrieval works
 - [Content Generation](generation.md) - LLM writer internals
-- [API Reference - Privacy Module](../api/privacy/anonymizer.md) - Code documentation
+- [API Reference - Privacy Module](../api-reference/privacy/anonymizer.md) - Code documentation

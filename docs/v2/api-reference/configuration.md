@@ -260,6 +260,6 @@ config = overrides.build(base_config)
 
 ## See Also
 
-- [Getting Started - Configuration](../getting-started/configuration.md)
-- [Privacy Guide](../guide/privacy.md)
+- [Getting Started - Configuration](../../getting-started/configuration.md)
+- [Privacy Guide](../guides/privacy.md)
 - [RAG Configuration](knowledge/rag.md)

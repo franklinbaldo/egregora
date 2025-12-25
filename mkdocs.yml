@@ -154,43 +154,58 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Blog:
-    - Posts: posts/index.md
-    - Media: posts/media/index.md
-    - Tags: posts/tags.md
-    - Profiles: posts/profiles/index.md
-  - Demo: https://franklinbaldo.github.io/egregora/demo/
+  - About: about.md
+  - V2 (Current):
+    - Architecture: v2/architecture.md
+    - Guides:
+      - Privacy: v2/guides/privacy.md
+      - Knowledge Base: v2/guides/knowledge.md
+      - Content Generation: v2/guides/generation.md
+      - UX Vision: v2/guides/ux-vision.md
+    - API Reference:
+      - Overview: v2/api-reference/index.md
+      - Ingestion: v2/api-reference/ingestion/parser.md
+      - Privacy:
+        - Anonymizer: v2/api-reference/privacy/anonymizer.md
+        - Detector: v2/api-reference/privacy/detector.md
+      - Augmentation: v2/api-reference/augmentation/enrichment.md
+      - Knowledge:
+        - RAG: v2/api-reference/knowledge/rag.md
+        - Annotations: v2/api-reference/knowledge/annotations.md
+        - Ranking: v2/api-reference/knowledge/ranking.md
+      - Publication: v2/api-reference/output_adapters/mkdocs/scaffolding.md
+      - Core: v2/api-reference/data-primitives.md
+    - Architecture Docs:
+      - Protocols: v2/architecture/protocols.md
+      - URL Conventions: v2/architecture/url-conventions.md
+    - ADR:
+      - Index: v2/adr/README.md
+  - V3 (Next-Gen):
+    - Architecture:
+      - Overview: v3/architecture/overview.md
+      - Layers: v3/architecture/layers.md
+      - Data Model: v3/architecture/data-model.md
+      - Pipelines: v3/architecture/pipelines.md
+      - Agents: v3/architecture/agents.md
+      - Output Sinks: v3/architecture/output-sinks.md
+    - Roadmap: v3/roadmap.md
+    - API Reference: v3/api-reference/index.md
+    - Examples: v3/examples/index.md
   - Getting Started:
     - Installation: getting-started/installation.md
     - Quick Start: getting-started/quickstart.md
     - Configuration: getting-started/configuration.md
     - Deployment: getting-started/deployment.md
-  - User Guide:
-    - Architecture Overview: guide/architecture.md
-    - Technical Reference: reference.md
-    - Privacy & Anonymization: guide/privacy.md
-    - RAG & Knowledge Base: guide/knowledge.md
-    - Content Generation: guide/generation.md
-  - API Reference:
-    - Overview: api/index.md
-    - Ingestion:
-      - Parser: api/ingestion/parser.md
-    - Privacy:
-      - Anonymizer: api/privacy/anonymizer.md
-      - Detector: api/privacy/detector.md
-    - Augmentation:
-      - Enrichment: api/augmentation/enrichment.md
-    - Knowledge:
-      - RAG: api/knowledge/rag.md
-      - Annotations: api/knowledge/annotations.md
-      - Ranking: api/knowledge/ranking.md
-    - Publication:
-      - Scaffolding: api/output_adapters/mkdocs/scaffolding.md
-    - Core:
-      - Data Primitives: api/data-primitives.md
-  - Architecture:
-      - Protocols: architecture/protocols.md
-      - URL Conventions: architecture/url-conventions.md
+  - Reference:
+    - Technical Reference: reference/index.md
+  - Community:
+    - Contributing: community/contributing.md
+  - Demo: https://franklinbaldo.github.io/egregora/demo/
+  - Blog:
+    - Posts: posts/index.md
+    - Media: posts/media/index.md
+    - Tags: posts/tags.md
+    - Profiles: posts/profiles/index.md
 
 extra:
   # Build information (set by CI/CD workflow)
