@@ -42,7 +42,7 @@ from egregora.config.settings import (
 )
 from egregora.constants import SourceType, WindowUnit
 from egregora.data_primitives.protocols import OutputSink, UrlContext
-from egregora.database import initialize_database
+from egregora.database.ir_schema import ensure_messages_table_exists
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.run_store import RunStore
 from egregora.database.task_store import TaskStore
@@ -704,9 +704,6 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
         site_paths.site_root, run_params.config
     )
 
-    # Initialize database tables (CREATE TABLE IF NOT EXISTS)
-    initialize_database(pipeline_backend)
-
     client_instance = run_params.client or _create_gemini_client()
     cache_path = Path(run_params.config.paths.cache_dir)
     if cache_path.is_absolute():
@@ -811,6 +808,7 @@ def _parse_and_validate_source(
     adapter: any,
     input_path: Path,
     timezone: str,
+    ctx: PipelineContext,
     *,
     output_adapter: OutputSink | None = None,
     source_key: str | None = None,
@@ -822,12 +820,16 @@ def _parse_and_validate_source(
         adapter: Source adapter instance
         input_path: Path to input file
         timezone: Timezone string
+        ctx: Pipeline context
         output_adapter: Optional output adapter (used by adapters that reprocess existing sites)
 
     Returns:
         messages_table: Parsed messages table
 
     """
+    with ctx.storage.connection() as conn:
+        ensure_messages_table_exists(conn)
+
     key_label = f"[{source_key}] " if source_key else ""
     adapter_label = source_type or getattr(adapter, "source_name", "")
     logger.info("[bold cyan]📦 Parsing with adapter:[/] %s%s", key_label, adapter_label)
@@ -971,6 +973,7 @@ def _prepare_pipeline_data(
         adapter,
         run_params.input_path,
         timezone,
+        ctx,
         output_adapter=output_format,
         source_key=run_params.source_key,
         source_type=run_params.source_type,

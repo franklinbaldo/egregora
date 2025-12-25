@@ -17,7 +17,6 @@ from google import genai
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.types import WriterResources
 from egregora.data_primitives.protocols import UrlContext
-from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.orchestration.context import (
     PipelineConfig,
@@ -63,9 +62,6 @@ class PipelineFactory:
         _runtime_db_uri, pipeline_backend, runs_backend = PipelineFactory.create_database_backends(
             site_paths.site_root, run_params.config
         )
-
-        # Initialize database tables (CREATE TABLE IF NOT EXISTS)
-        initialize_database(pipeline_backend)
 
         client_instance = run_params.client or PipelineFactory.create_gemini_client()
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
