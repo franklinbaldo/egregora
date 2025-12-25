@@ -72,13 +72,13 @@ def pipeline_context(content_library: ContentLibrary) -> PipelineContext:
 
 def test_writer_agent_initialization() -> None:
     """Test that WriterAgent can be initialized."""
-    agent = WriterAgent(model="test")
+    agent = WriterAgent.for_test()
     assert agent is not None
 
 
 def test_writer_agent_has_generate_method() -> None:
     """Test that WriterAgent has generate method."""
-    agent = WriterAgent(model="test")
+    agent = WriterAgent.for_test()
     assert hasattr(agent, "generate")
     assert callable(agent.generate)
 
@@ -90,7 +90,7 @@ async def test_writer_agent_generates_document(
 ) -> None:
     """Test that WriterAgent generates a Document from entries."""
     # Use TestModel for deterministic testing
-    agent = WriterAgent(model="test")
+    agent = WriterAgent.for_test()
 
     # Generate document (TestModel is already configured in __init__)
     result = await agent.generate(
@@ -105,7 +105,7 @@ async def test_writer_agent_generates_document(
 @pytest.mark.asyncio
 async def test_writer_agent_uses_test_model(content_library: ContentLibrary) -> None:
     """Test that WriterAgent works with TestModel (no live API calls)."""
-    agent = WriterAgent(model="test")
+    agent = WriterAgent.for_test()
 
     # Should not make any HTTP requests
     entries = [
@@ -131,7 +131,7 @@ async def test_writer_agent_uses_test_model(content_library: ContentLibrary) -> 
 @pytest.mark.asyncio
 async def test_writer_agent_structured_output(content_library: ContentLibrary) -> None:
     """Test that WriterAgent returns structured Document output."""
-    agent = WriterAgent(model="test")
+    agent = WriterAgent.for_test()
 
     entries = [
         Entry(
@@ -162,7 +162,7 @@ async def test_writer_agent_receives_pipeline_context(
     pipeline_context: PipelineContext,
 ) -> None:
     """Test that WriterAgent receives PipelineContext."""
-    agent = WriterAgent(model="test")
+    agent = WriterAgent.for_test()
 
     # Context should be passed through
     result = await agent.generate(
@@ -182,7 +182,7 @@ async def test_writer_agent_handles_empty_entries(
     content_library: ContentLibrary,
 ) -> None:
     """Test that WriterAgent handles empty entry list."""
-    agent = WriterAgent(model="test")
+    agent = WriterAgent.for_test()
     context = PipelineContext(library=content_library, run_id="test-run")
 
     # Should handle gracefully
@@ -195,7 +195,7 @@ async def test_writer_agent_handles_single_entry(
     content_library: ContentLibrary,
 ) -> None:
     """Test that WriterAgent handles single entry."""
-    agent = WriterAgent(model="test")
+    agent = WriterAgent.for_test()
 
     entries = [
         Entry(
@@ -222,7 +222,7 @@ async def test_writer_agent_output_has_required_fields(
     content_library: ContentLibrary,
 ) -> None:
     """Test that generated Document has all required fields."""
-    agent = WriterAgent(model="test")
+    agent = WriterAgent.for_test()
 
     entries = [
         Entry(
@@ -251,7 +251,7 @@ async def test_writer_agent_generates_markdown_content(
     content_library: ContentLibrary,
 ) -> None:
     """Test that WriterAgent generates markdown content."""
-    agent = WriterAgent(model="test")
+    agent = WriterAgent.for_test()
 
     entries = [
         Entry(

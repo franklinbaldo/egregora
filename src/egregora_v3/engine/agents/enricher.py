@@ -11,6 +11,7 @@ from pydantic_ai.models.test import TestModel
 
 from egregora_v3.core.context import PipelineContext
 from egregora_v3.core.types import Entry, Feed
+from egregora_v3.engine.template_loader import TemplateLoader
 
 
 class EnrichmentResult(BaseModel):
@@ -35,55 +36,47 @@ class EnricherAgent:
 
     def __init__(
         self,
-        model: str = "test",
+        model: str,
         *,
         skip_existing: bool = False,
-        system_prompt: str | None = None,
     ) -> None:
         """Initialize EnricherAgent.
 
         Args:
-            model: Model name (e.g., "google-gla:gemini-2.0-flash-vision", "test")
+            model: Model name (e.g., "google-gla:gemini-2.0-flash-vision")
             skip_existing: Skip entries that already have content
-            system_prompt: Optional custom system prompt
 
         """
         self.model_name = model
         self.skip_existing = skip_existing
-        self.custom_system_prompt = system_prompt
-
-        # Create Pydantic-AI agent with structured output
-        if model == "test":
-            # Configure TestModel with valid EnrichmentResult dict for testing
-            valid_enrichment_dict = {
-                "description": "A beautiful sunset over the ocean with orange and pink clouds reflecting on the water.",
-                "confidence": 0.95,
-                "metadata": {"scene": "sunset", "location": "beach"},
-            }
-            model_instance = TestModel(custom_output_args=valid_enrichment_dict)
-        else:
-            model_instance = model  # type: ignore[assignment]
+        self.template_loader = TemplateLoader()
 
         self._agent: Agent[PipelineContext, EnrichmentResult] = Agent(
-            model=model_instance,
+            model=model,  # type: ignore[arg-type]
             output_type=EnrichmentResult,
-            system_prompt=system_prompt or self._get_default_system_prompt(),
+            system_prompt=self._get_system_prompt(),
         )
 
-    def _get_default_system_prompt(self) -> str:
-        """Get default system prompt for the agent.
+    @classmethod
+    def for_test(cls, *, skip_existing: bool = False) -> "EnricherAgent":
+        """Create an EnricherAgent with a TestModel for testing."""
+        agent = cls(model="test", skip_existing=skip_existing)
 
-        TODO: Replace with Jinja2 template in Phase 3.4
-        """
-        return """You are a helpful assistant that generates descriptions for media content.
+        # Configure TestModel with valid EnrichmentResult dict for testing
+        valid_enrichment_dict = {
+            "description": "A beautiful sunset over the ocean with orange and pink clouds reflecting on the water.",
+            "confidence": 0.95,
+            "metadata": {"scene": "sunset", "location": "beach"},
+        }
+        model_instance = TestModel(custom_output_args=valid_enrichment_dict)
 
-Given information about a media file (image, audio, or video), provide:
-- A clear, descriptive caption
-- Confidence score (0.0 to 1.0)
-- Relevant metadata tags
+        # Replace the agent's model with the test model
+        agent._agent.model = model_instance
+        return agent
 
-Be concise but informative. Focus on what's visible or audible in the media.
-"""
+    def _get_system_prompt(self) -> str:
+        """Get default system prompt for the agent."""
+        return self.template_loader.render_template("enricher/system.jinja2")
 
     def _has_media_enclosure(self, entry: Entry) -> bool:
         """Check if entry has media enclosures.
@@ -204,8 +197,6 @@ Be concise but informative. Focus on what's visible or audible in the media.
     def _build_prompt(self, entry: Entry) -> str:
         """Build user prompt from entry.
 
-        TODO: Replace with Jinja2 template in Phase 3.4
-
         Args:
             entry: Entry with media to describe
 
@@ -213,22 +204,6 @@ Be concise but informative. Focus on what's visible or audible in the media.
             Formatted prompt string
 
         """
-        lines = ["Describe the following media:", ""]
-
-        # Add title
-        lines.append(f"Title: {entry.title}")
-
-        # Add media information
-        if entry.links:
-            media_links = [link for link in entry.links if link.rel == "enclosure" and link.type]
-            if media_links:
-                lines.append("\nMedia files:")
-                lines.extend(f"- {link.href} ({link.type})" for link in media_links)
-
-        # Add existing content if any
-        if entry.content:
-            lines.append(f"\nExisting description: {entry.content}")
-
-        lines.append("\nProvide a clear, descriptive caption for this media content.")
-
-        return "\n".join(lines)
+        return self.template_loader.render_template(
+            "enricher/describe_media.jinja2", entry=entry
+        )
