@@ -325,7 +325,7 @@ def create_table_if_not_exists(
             conn.execute(f"DROP TABLE IF EXISTS {quote_identifier(table_name)}")
 
         columns_sql = ", ".join(
-            f"{quote_identifier(name)} {_ibis_to_duckdb_type(dtype)}" for name, dtype in schema.items()
+            f"{quote_identifier(name)} {ibis_to_duckdb_type(dtype)}" for name, dtype in schema.items()
         )
 
         # If we dropped the table, we must use CREATE TABLE.
@@ -366,7 +366,7 @@ def ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:
 
     # Handle nested types
     if callable(getattr(ibis_type, "is_array", None)) and ibis_type.is_array():
-        value_type = _ibis_to_duckdb_type(ibis_type.value_type)
+        value_type = ibis_to_duckdb_type(ibis_type.value_type)
         return f"{value_type}[]"
 
     # Fallback to string representation

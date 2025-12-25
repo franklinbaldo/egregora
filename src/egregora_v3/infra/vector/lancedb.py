@@ -7,6 +7,7 @@ Stores chunks with vector embeddings.
 import json
 import logging
 from collections.abc import Callable, Sequence
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -14,8 +15,15 @@ import lancedb
 import numpy as np
 from lancedb.pydantic import LanceModel, Vector
 
-from egregora_v3.core.types import Author, Category, Document, DocumentStatus, DocumentType, Link
 from egregora_v3.core.ingestion import chunks_from_documents, RAGChunk
+from egregora_v3.core.types import (
+    Author,
+    Category,
+    Document,
+    DocumentStatus,
+    DocumentType,
+    Link,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -124,11 +132,36 @@ class LanceDBVectorStore:
             msg = f"Failed to upsert chunks to LanceDB: {e}"
             raise RuntimeError(msg) from e
 
-    def search(self, query: str, top_k: int = 5) -> list[RAGChunk]:
-        """Search for chunks using semantic similarity.
+    def _reconstruct_document_from_chunk(self, chunk_data: dict[str, Any]) -> Document:
+        """Reconstructs a Document from a search result chunk."""
+        metadata = json.loads(chunk_data["metadata_json"])
+
+        # Reconstruct the document from the chunk's metadata.
+        # The content of the document is the chunk's text.
+        try:
+            doc = Document.model_validate(
+                {
+                    "id": chunk_data["document_id"],
+                    "content": chunk_data["text"],
+                    **metadata,
+                }
+            )
+            return doc
+        except Exception as e:
+            logger.error(
+                "Failed to reconstruct document from chunk %s. Metadata: %s, Error: %s",
+                chunk_data.get("chunk_id"),
+                metadata,
+                e,
+            )
+            # Re-raise to ensure test failures are clear
+            raise
+
+    def search(self, query: str, top_k: int = 5) -> list[Document]:
+        """Search for documents using semantic similarity.
 
         Returns:
-            List of RAGChunk objects containing text and metadata.
+            List of Document objects reconstructed from the most relevant chunks.
         """
         # Check if table is empty
         try:
@@ -156,23 +189,20 @@ class LanceDBVectorStore:
             msg = f"LanceDB search failed: {e}"
             raise RuntimeError(msg) from e
 
-        results: list[RAGChunk] = []
+        # Reconstruct documents from chunks. This approach returns one Document
+        # per relevant chunk. If multiple chunks from the same document are in
+        # top_k, that document may appear multiple times with different content.
+        documents: list[Document] = []
         for row in arrow_table.to_pylist():
-            doc_json = row.get("metadata_json", "{}")
             try:
-                meta = json.loads(doc_json)
-                # Ensure distance/score is part of metadata if needed,
-                # but RAGChunk definition is strict.
-                # If RAGChunk needs score, we should update definition or pass it in metadata.
-                # For now, let's keep RAGChunk structure clean.
-
-                results.append(RAGChunk(
-                    chunk_id=row["chunk_id"],
-                    document_id=row["document_id"],
-                    text=row["text"],
-                    metadata=meta
-                ))
-            except Exception:
+                doc = self._reconstruct_document_from_chunk(row)
+                documents.append(doc)
+            except (json.JSONDecodeError, TypeError, KeyError) as e:
+                logger.warning(
+                    "Failed to reconstruct document from chunk %s: %s",
+                    row.get("chunk_id"),
+                    e,
+                )
                 continue
 
-        return results
+        return documents
