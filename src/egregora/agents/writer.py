@@ -664,7 +664,9 @@ def load_format_instructions(site_root: Path | None, *, registry: OutputSinkRegi
         default_format = registry.get_format("mkdocs")
         return default_format.get_format_instructions()
     except KeyError as e:
-        raise FormatInstructionError(format_name="mkdocs", reason="Default format not found in registry.") from e
+        raise FormatInstructionError(
+            format_name="mkdocs", reason="Default format not found in registry."
+        ) from e
 
 
 def get_top_authors(table: Table, limit: int = 20) -> list[str]:

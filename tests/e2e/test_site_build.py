@@ -66,7 +66,7 @@ def test_generated_site_scaffolds_correctly(tmp_path: Path):
     scaffolder.scaffold(site_root, {"site_name": "Test Site"})
 
     # Verify key paths exist
-    assert (site_root / "mkdocs.yml").exists()
+    assert (site_root / ".egregora" / "mkdocs.yml").exists()
     assert (site_root / "docs").exists()
     assert (site_root / "docs" / "posts").exists()
     assert (site_root / "docs" / "posts" / "profiles").exists()
@@ -99,7 +99,7 @@ date: 2025-01-01
 
     # Try to build (may fail if mkdocs-material not installed, skip gracefully)
     result = subprocess.run(
-        [sys.executable, "-m", "mkdocs", "build", "-f", "mkdocs.yml"],
+        [sys.executable, "-m", "mkdocs", "build", "-f", ".egregora/mkdocs.yml"],
         check=False,
         cwd=site_root,
         capture_output=True,

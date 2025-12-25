@@ -86,8 +86,6 @@ class MkDocsSiteScaffolder:
             env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
 
             docs_dir = site_paths.docs_dir
-            # Calculate relative to site_root (where mkdocs serve is typically run from)
-            # This ensures paths work correctly whether using symlink or direct file
             docs_relative = Path(os.path.relpath(docs_dir, site_root)).as_posix()
             blog_relative = Path(os.path.relpath(site_paths.posts_dir, docs_dir)).as_posix()
 
@@ -97,26 +95,22 @@ class MkDocsSiteScaffolder:
                 "blog_dir": blog_relative,
                 "media_dir": Path(os.path.relpath(site_paths.media_dir, docs_dir)).as_posix(),
                 "docs_dir": docs_relative,
-                "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
+                "site_url": "https://example.com",
                 "now": datetime.now(UTC),
                 "generated_date": datetime.now(UTC).strftime("%Y-%m-%d"),
                 "default_writer_model": EgregoraConfig().models.writer,
                 "media_counts": {"urls": 0, "images": 0, "videos": 0, "audio": 0},
                 "recent_media": [],
                 "overrides_dir": "overrides",
-                # Posts list - empty on scaffold, populated by write pipeline updating index
                 "posts": [],
             }
 
-            new_mkdocs_path = site_paths.mkdocs_config_path
             if not site_exists:
                 mkdocs_template = env.get_template("mkdocs.yml.jinja")
                 mkdocs_content = mkdocs_template.render(**context)
-                new_mkdocs_path.parent.mkdir(parents=True, exist_ok=True)
-                new_mkdocs_path.write_text(mkdocs_content, encoding="utf-8")
-                logger.info("Created mkdocs.yml")
-            else:
-                new_mkdocs_path = mkdocs_path or legacy_mkdocs
+                mkdocs_path.parent.mkdir(parents=True, exist_ok=True)
+                mkdocs_path.write_text(mkdocs_content, encoding="utf-8")
+                logger.info("Created mkdocs.yml at %s", mkdocs_path)
 
             self._create_site_structure(site_paths, env, context)
         except Exception as e:
@@ -124,7 +118,7 @@ class MkDocsSiteScaffolder:
             raise RuntimeError(msg) from e
         else:
             logger.info("MkDocs site scaffold checked/updated at %s", site_root)
-            return (new_mkdocs_path, not site_exists)
+            return (mkdocs_path, not site_exists)
 
     def scaffold(self, path: Path, config: dict) -> None:
         site_name = config.get("site_name")
@@ -142,11 +136,11 @@ class MkDocsSiteScaffolder:
         except Exception as e:
             msg = f"Failed to resolve site paths: {e}"
             raise RuntimeError(msg) from e
-        config_file = site_paths.mkdocs_path
-        mkdocs_path = site_paths.mkdocs_path
+        config_file = site_paths.mkdocs_config_path
+        mkdocs_path = site_paths.mkdocs_path or config_file
         if mkdocs_path:
             try:
-                mkdocs_config = safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
+                mkdocs_config = safe_yaml_load(config_file.read_text(encoding="utf-8"))
             except yaml.YAMLError as exc:
                 logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
                 mkdocs_config = {}
