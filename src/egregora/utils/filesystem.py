@@ -9,6 +9,7 @@ It provides standard helpers for:
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from datetime import UTC, date, datetime
@@ -233,21 +234,62 @@ def _extract_authors_from_post(md_file: Path) -> set[str]:
         return set()
 
 
+def _load_authors_cache(cache_path: Path) -> dict[str, Any]:
+    """Load the author cache from a JSON file."""
+    if not cache_path.exists():
+        return {}
+    try:
+        with cache_path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_authors_cache(cache_path: Path, cache: dict[str, Any]) -> None:
+    """Save the author cache to a JSON file."""
+    try:
+        with cache_path.open("w", encoding="utf-8") as f:
+            json.dump(cache, f, indent=2)
+    except OSError as exc:
+        logger.warning("Failed to save author cache to %s: %s", cache_path, exc)
+
+
 def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> int:
     """Scan all posts and ensure every referenced author exists in .authors.yml."""
     if docs_dir is None:
         docs_dir = posts_dir.resolve().parent.parent
 
     authors_path = docs_dir / ".authors.yml"
+    cache_path = docs_dir / ".authors.cache.json"
 
+    cache = _load_authors_cache(cache_path)
+    new_cache: dict[str, Any] = {}
     all_author_ids: set[str] = set()
+
     for md_file in posts_dir.rglob("*.md"):
-        all_author_ids.update(_extract_authors_from_post(md_file))
+        file_path_str = str(md_file)
+        try:
+            mtime = md_file.stat().st_mtime
+            cached_entry = cache.get(file_path_str)
+
+            if cached_entry and cached_entry.get("mtime") == mtime:
+                authors = set(cached_entry.get("authors", []))
+            else:
+                authors = _extract_authors_from_post(md_file)
+
+            all_author_ids.update(authors)
+            new_cache[file_path_str] = {"mtime": mtime, "authors": sorted(authors)}
+        except FileNotFoundError:
+            # The file might have been deleted during the scan
+            logger.debug("File not found during author sync: %s", md_file)
+            continue
+
+    _save_authors_cache(cache_path, new_cache)
 
     if not all_author_ids:
         return 0
 
-    new_count = _update_authors_file(authors_path, list(all_author_ids))
+    new_count = _update_authors_file(authors_path, sorted(all_author_ids))
     if new_count > 0:
         logger.info("Synced %d new author(s) from posts to %s", new_count, authors_path)
 

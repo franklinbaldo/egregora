@@ -71,6 +71,8 @@ test = [
     "pytest-asyncio>=0.25",
     # Enhanced mocking with cleaner fixture-based API
     "pytest-mock>=3.14",
+    # Benchmark performance of critical functions
+    "pytest-benchmark>=4.0",
     # Realistic test data generation for Atom feeds and documents
     "faker>=34.1",
     # Time travel for deterministic timestamp testing
