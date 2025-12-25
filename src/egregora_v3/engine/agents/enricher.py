@@ -78,30 +78,6 @@ class EnricherAgent:
         """Get default system prompt for the agent."""
         return self.template_loader.render_template("enricher/system.jinja2")
 
-    def _has_media_enclosure(self, entry: Entry) -> bool:
-        """Check if entry has media enclosures.
-
-        Args:
-            entry: Entry to check
-
-        Returns:
-            True if entry has media enclosures
-
-        """
-        if not entry.links:
-            return False
-
-        return any(
-            link.rel == "enclosure"
-            and link.type
-            and (
-                link.type.startswith("image/")
-                or link.type.startswith("audio/")
-                or link.type.startswith("video/")
-            )
-            for link in entry.links
-        )
-
     def _should_enrich(self, entry: Entry) -> bool:
         """Determine if entry should be enriched.
 
@@ -113,7 +89,7 @@ class EnricherAgent:
 
         """
         # Skip if no media
-        if not self._has_media_enclosure(entry):
+        if not entry.has_enclosure:
             return False
 
         # Skip if entry already has content and skip_existing=True
@@ -146,22 +122,19 @@ class EnricherAgent:
         # Get enrichment from result
         enrichment = result.output
 
-        # Create enriched entry with updated content
-        return Entry(
-            id=entry.id,
-            title=entry.title,
-            content=enrichment.description,
-            summary=entry.summary,
-            published=entry.published,
-            updated=datetime.now(UTC),
-            authors=entry.authors,
-            links=entry.links,
-            categories=entry.categories,
-            internal_metadata=entry.internal_metadata
-            | {
-                "enrichment_confidence": str(enrichment.confidence),
-                **{f"enrichment_{k}": v for k, v in enrichment.metadata.items()},
-            },
+        # Merge new metadata with existing internal metadata
+        new_metadata = entry.internal_metadata | {
+            "enrichment_confidence": str(enrichment.confidence),
+            **{f"enrichment_{k}": v for k, v in enrichment.metadata.items()},
+        }
+
+        # Create enriched entry using model_copy for a declarative update
+        return entry.model_copy(
+            update={
+                "content": enrichment.description,
+                "updated": datetime.now(UTC),
+                "internal_metadata": new_metadata,
+            }
         )
 
     async def enrich_feed(
