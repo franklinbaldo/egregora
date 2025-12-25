@@ -7,7 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from egregora.utils.filesystem import _extract_clean_date, _find_authors_yml
+from egregora.utils.filesystem import (
+    _extract_clean_date,
+    _find_authors_yml,
+    _resolve_filepath,
+)
 
 
 def test_find_authors_yml_standard_layout(tmp_path: Path) -> None:
@@ -24,6 +28,27 @@ def test_find_authors_yml_standard_layout(tmp_path: Path) -> None:
 
     # Assert
     assert result == expected_path
+
+
+def test_resolve_filepath_handles_collisions(tmp_path: Path) -> None:
+    """Verify _resolve_filepath correctly appends a suffix to avoid collisions."""
+    # Arrange
+    output_dir = tmp_path / "posts"
+    output_dir.mkdir()
+    date_prefix = "2025-01-01"
+    base_slug = "my-post"
+
+    # Create a file that will cause a collision
+    (output_dir / f"{date_prefix}-{base_slug}.md").touch()
+    (output_dir / f"{date_prefix}-{base_slug}-2.md").touch()
+
+    # Act: The function should now resolve to the next available suffix, which is 3
+    resolved_path, final_slug = _resolve_filepath(output_dir, date_prefix, base_slug)
+
+    # Assert
+    assert final_slug == f"{base_slug}-3"
+    assert resolved_path == output_dir / f"{date_prefix}-{final_slug}.md"
+    assert (output_dir / f"{date_prefix}-{base_slug}.md").exists()  # Should not overwrite
 
 
 @pytest.mark.parametrize(
