@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from egregora.utils.filesystem import sync_authors_from_posts
+from egregora.utils.authors import sync_authors_from_posts
 
 
 def test_sync_authors_from_posts(tmp_path: Path):
