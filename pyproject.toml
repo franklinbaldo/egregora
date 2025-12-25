@@ -115,6 +115,11 @@ extend-exclude = [
     "tests/v3",
     "scripts",
     "docs/demo/.egregora",
+    "README.md",
+    "docs",
+    "community",
+    "mkdocs.yml",
+    "RFCs",
 ]
 
 [tool.ruff.lint]
