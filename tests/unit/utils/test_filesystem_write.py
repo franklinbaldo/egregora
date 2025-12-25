@@ -75,3 +75,21 @@ def test_write_markdown_post_handles_filename_collision(temp_output_dir: Path):
     frontmatter = yaml.safe_load(parts[1])
 
     assert frontmatter["slug"] == "test-post-2"
+
+
+@pytest.mark.parametrize(
+    "missing_key",
+    ["title", "slug", "date"],
+)
+def test_write_markdown_post_raises_error_on_missing_metadata(temp_output_dir: Path, missing_key: str):
+    """Test that write_markdown_post raises a ValueError if required metadata is missing."""
+    content = "This content will not be written."
+    metadata = {
+        "title": "Test Post",
+        "slug": "test-post",
+        "date": "2025-01-01",
+    }
+    del metadata[missing_key]
+
+    with pytest.raises(ValueError, match=f"Missing required metadata: {missing_key}"):
+        write_markdown_post(content, metadata, temp_output_dir)
