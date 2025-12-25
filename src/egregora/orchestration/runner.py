@@ -47,7 +47,7 @@ class PipelineRunner:
         self,
         windows_iterator: Any,
     ) -> tuple[dict[str, dict[str, list[str]]], datetime | None]:
-        """Process all windows with tracking and error handling.
+        """Process all windows.
 
         Args:
             windows_iterator: Iterator of Window objects

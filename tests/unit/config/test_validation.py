@@ -5,12 +5,25 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from egregora.config.exceptions import (
+    ConfigError,
+    ConfigNotFoundError,
+    ConfigValidationError,
+    InvalidDateFormatError,
+    InvalidRetrievalModeError,
+    InvalidTimezoneError,
+    SiteNotFoundError,
+)
 from egregora.config.settings import (
     DEFAULT_EMBEDDING_MODEL,
     DEFAULT_MODEL,
     EgregoraConfig,
+    find_egregora_config,
     load_egregora_config,
+    parse_date_arg,
     save_egregora_config,
+    validate_retrieval_config,
+    validate_timezone,
 )
 
 
@@ -49,10 +62,9 @@ writer = "gemini-flash-latest"
 """.lstrip()
     )
 
-    # Should create default config on validation error
-    config = load_egregora_config(tmp_path)
-    # Returns default config on error
-    assert config.models.writer == DEFAULT_MODEL
+    # Should raise ConfigValidationError
+    with pytest.raises(ConfigValidationError):
+        load_egregora_config(tmp_path)
 
 
 def test_config_validate_model_name_validator():
@@ -225,7 +237,7 @@ def test_config_requires_at_least_one_site(tmp_path: Path):
     config_file = tmp_path / ".egregora.toml"
     config_file.write_text("sites = {}")
 
-    with pytest.raises(ValueError, match="at least one site"):
+    with pytest.raises(ConfigError, match="at least one site"):
         load_egregora_config(tmp_path)
 
 
@@ -239,5 +251,32 @@ writer = "google-gla:gemini-pro-latest"
 """.lstrip()
     )
 
-    with pytest.raises(ValueError, match="not found"):
+    with pytest.raises(SiteNotFoundError, match="not found"):
         load_egregora_config(tmp_path, site="does-not-exist")
+
+
+def test_find_config_raises_not_found(tmp_path: Path):
+    """Test that find_egregora_config raises when no config is found."""
+    # Start search in an empty directory
+    with pytest.raises(ConfigNotFoundError):
+        find_egregora_config(tmp_path)
+
+
+def test_parse_date_arg_invalid_format():
+    """Test that parse_date_arg raises InvalidDateFormatError for invalid formats."""
+    with pytest.raises(InvalidDateFormatError):
+        parse_date_arg("2023-13-01")  # Invalid month
+    with pytest.raises(InvalidDateFormatError):
+        parse_date_arg("not-a-date")
+
+
+def test_validate_timezone_invalid_timezone():
+    """Test that validate_timezone raises InvalidTimezoneError for invalid timezones."""
+    with pytest.raises(InvalidTimezoneError):
+        validate_timezone("Invalid/Timezone")
+
+
+def test_validate_retrieval_config_invalid_mode():
+    """Test that validate_retrieval_config raises InvalidRetrievalModeError for invalid modes."""
+    with pytest.raises(InvalidRetrievalModeError):
+        validate_retrieval_config("invalid_mode")
