@@ -270,5 +270,5 @@ migrate()
 
 ## See Also
 
-- [Architecture Guide](../../guide/architecture.md#rag-retrieval-augmented-generation) - RAG system architecture
+- [Architecture Guide](../../architecture.md#rag-retrieval-augmented-generation) - RAG system architecture
 - [LanceDB Documentation](https://lancedb.github.io/lancedb/) - Underlying vector database

@@ -43,6 +43,7 @@ htmlcov/
 /site/
 **/output/site/
 !src/egregora/rendering/templates/site/
+.cache/
 
 # Environment
 .env
