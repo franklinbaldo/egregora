@@ -1348,7 +1348,7 @@ class EnrichmentWorker(BaseWorker):
         if model_name.startswith("google-gla:"):
             model_name = model_name.removeprefix("google-gla:")
 
-         # Build combined prompt with all images
+        # Build combined prompt with all images
         parts: list[dict[str, Any]] = []
 
         # Extract filenames and build prompt
@@ -1473,11 +1473,11 @@ class EnrichmentWorker(BaseWorker):
         from google.genai import types
 
         client = genai.Client(api_key=api_key)
-        
+
         # Strip prefix for direct API calls
         if model_name.startswith("google-gla:"):
             model_name = model_name.removeprefix("google-gla:")
-            
+
         results = []
 
         for req in requests:

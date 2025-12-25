@@ -107,11 +107,13 @@ class RotatingFallbackModel(Model):
             next_index = candidate_index if found_safe else start_index
 
             if not found_safe and self._model_keys:
-                 logger.warning("[SmartRotation] All keys excluded/exhausted. Ignoring exclusion and trying next available.")
-                 # Optional: Clear exclusion list to reset cycle?
-                 # self._excluded_keys.clear()
-                 # No, keeping them excluded allows "skipping" effectively if we have mix of good/bad in future,
-                 # but here we just fallback to standard rotation.
+                logger.warning(
+                    "[SmartRotation] All keys excluded/exhausted. Ignoring exclusion and trying next available."
+                )
+                # Optional: Clear exclusion list to reset cycle?
+                # self._excluded_keys.clear()
+                # No, keeping them excluded allows "skipping" effectively if we have mix of good/bad in future,
+                # but here we just fallback to standard rotation.
 
             logger.info(
                 "429 on %s (idx %d), rotating to %s (idx %d)",
@@ -133,7 +135,10 @@ class RotatingFallbackModel(Model):
                 succeeded_key = self._model_keys[index]
                 if succeeded_key and succeeded_key in self._excluded_keys:
                     self._excluded_keys.remove(succeeded_key)
-                    logger.info("[SmartRotation] Key ...%s recovered/succeeded, removed from exclusion", succeeded_key[-6:])
+                    logger.info(
+                        "[SmartRotation] Key ...%s recovered/succeeded, removed from exclusion",
+                        succeeded_key[-6:],
+                    )
 
     def _all_exhausted(self) -> bool:
         """Check if all models have recent 429s (full rotation without success)."""
