@@ -105,28 +105,27 @@ def chunks_from_documents(
         text = doc.content
         pieces = simple_chunk_text(text, max_chars=max_chars, overlap=chunk_overlap)
 
+        # Core metadata from document fields
+        # Exclude fields that are large, irrelevant for search, or handled separately
+        exclude_fields = {"content", "id"}
+        doc_metadata = doc.model_dump(mode="json", exclude=exclude_fields)
+
         for i, piece in enumerate(pieces):
             chunk_id = f"{doc.id}:{i}"
 
-            # Base metadata
-            metadata = {
-                "document_id": doc.id,
-                "doc_type": doc.doc_type.value,
-                "title": doc.title,
+            # Combine document metadata with chunk-specific info
+            chunk_metadata = {
+                **doc_metadata,
                 "chunk_index": i,
-                "updated": doc.updated.isoformat(),
             }
 
-            # Merge internal metadata if safe
-            if doc.internal_metadata:
-                 # Filter out complex objects if necessary, but DuckDB/LanceDB handles JSON
-                 metadata.update(doc.internal_metadata)
-
-            chunks.append(RAGChunk(
-                chunk_id=chunk_id,
-                document_id=doc.id,
-                text=piece,
-                metadata=metadata
-            ))
+            chunks.append(
+                RAGChunk(
+                    chunk_id=chunk_id,
+                    document_id=doc.id,
+                    text=piece,
+                    metadata=chunk_metadata,
+                )
+            )
 
     return chunks
