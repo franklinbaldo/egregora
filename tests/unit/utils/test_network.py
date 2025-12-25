@@ -67,31 +67,27 @@ def test_validate_public_url_resolve_failure(monkeypatch: pytest.MonkeyPatch) ->
 
 
 @respx.mock
-def test_validate_public_url_blocks_redirect_to_private_ip(
+def test_validate_public_url_does_not_follow_redirects(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test that a redirect to a private IP is blocked."""
+    """Test that validate_public_url only checks the initial URL."""
     public_url = "https://safe.com/redirect"
     private_hostname = "internal.local"
     private_url = f"http://{private_hostname}/secret"
 
-    # Mock DNS resolution for both hostnames
-    def mock_getaddrinfo(host, *args, **kwargs):
-        if host == "safe.com":
-            return _fake_addrinfo("93.184.216.34")  # Public IP
-        if host == private_hostname:
-            return _fake_addrinfo("192.168.1.1")  # Private IP
-        msg = f"getaddrinfo failed for {host}"
-        raise socket.gaierror(msg)
+    # Mock DNS resolution for the public hostname only.
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda host, *_, **__: _fake_addrinfo("93.184.216.34") if host == "safe.com" else [],
+    )
 
-    monkeypatch.setattr(socket, "getaddrinfo", mock_getaddrinfo)
-
-    # We mock a web server that redirects from the safe URL to the private one.
+    # Mock the redirect response. This should not be followed.
     respx.head(public_url).mock(return_value=Response(SEE_OTHER, headers={"Location": private_url}))
-    # The final destination should not be called, but we mock it just in case.
-    respx.head(private_url).mock(return_value=Response(200))
 
-    # The function should validate the initial URL, then follow the redirect,
-    # resolve the new hostname, and then fail on the private IP.
-    with pytest.raises(SSRFValidationError, match="URL resolves to blocked IP address"):
+    # The function should validate the initial URL successfully and NOT raise an error,
+    # because it no longer follows redirects.
+    try:
         validate_public_url(public_url)
+    except SSRFValidationError:
+        pytest.fail("validate_public_url should not have failed for the initial public URL")
