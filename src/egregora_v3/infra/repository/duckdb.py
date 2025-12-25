@@ -73,13 +73,27 @@ class DuckDBDocumentRepository(DocumentRepository):
         # We know it's a Document because of the filter, so the cast is safe.
         return self._hydrate_object(row["json_data"], row["doc_type"])
 
-    def list(self, *, doc_type: DocumentType | None = None) -> list[Document]:
-        """Lists documents, optionally filtered by type."""
+    def list(
+        self,
+        *,
+        doc_type: DocumentType | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[Document]:
+        """Lists documents, optionally filtered by type, with sorting and limiting."""
         t = self._get_table()
         # Always exclude raw entries.
         query = t.filter(t.doc_type != "_ENTRY_")
         if doc_type:
             query = query.filter(query.doc_type == doc_type.value)
+
+        # Add sorting and limiting to the query
+        if order_by:
+            # Default to descending order for fields like 'updated'
+            query = query.order_by(ibis.desc(order_by))
+
+        if limit:
+            query = query.limit(limit)
 
         result = query.select("doc_type", "json_data").execute()
 
