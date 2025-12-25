@@ -52,6 +52,10 @@ class RSSAdapter:
         """
         self.timeout = timeout
         self._http_client = httpx.Client(timeout=timeout)
+        self._feed_parsers = {
+            f"{{{ATOM_NS}}}feed": self._parse_atom_feed,
+            "rss": self._parse_rss2_feed,
+        }
 
     def __enter__(self) -> "RSSAdapter":
         """Enter context manager."""
@@ -90,13 +94,7 @@ class RSSAdapter:
             raise FileNotFoundError(msg)
 
         try:
-            # Security note: Using lxml.etree for XML parsing. While lxml is more
-            # resistant to XML bombs than stdlib xml.etree, parsing untrusted XML
-            # always carries some risk. lxml disables DTDs and entity expansion by
-            # default, making it safer for processing external feeds.
-            # See: https://lxml.de/FAQ.html#how-do-i-use-lxml-safely-as-a-web-service-endpoint
-            # We explicitly enforce safe parsing settings
-            parser = etree.XMLParser(resolve_entities=False, no_network=True)
+            parser = self._get_safe_xml_parser()
             tree = etree.parse(str(source), parser=parser)
             root = tree.getroot()
         except etree.XMLSyntaxError:
@@ -124,13 +122,7 @@ class RSSAdapter:
         response.raise_for_status()
 
         try:
-            # Security note: Using lxml.etree for XML parsing. While lxml is more
-            # resistant to XML bombs than stdlib xml.etree, parsing untrusted XML
-            # always carries some risk. lxml disables DTDs and entity expansion by
-            # default, making it safer for processing external feeds.
-            # See: https://lxml.de/FAQ.html#how-do-i-use-lxml-safely-as-a-web-service-endpoint
-            # We explicitly enforce safe parsing settings
-            parser = etree.XMLParser(resolve_entities=False, no_network=True)
+            parser = self._get_safe_xml_parser()
             root = etree.fromstring(response.content, parser=parser)
         except etree.XMLSyntaxError:
             logger.exception("Failed to parse XML from %s", url)
@@ -148,13 +140,10 @@ class RSSAdapter:
             Entry objects
 
         """
-        # Detect feed type
-        if root.tag == f"{{{ATOM_NS}}}feed":
-            # Atom feed
-            yield from self._parse_atom_feed(root)
-        elif root.tag == "rss":
-            # RSS 2.0 feed
-            yield from self._parse_rss2_feed(root)
+        # Heuristic: Data over logic. Use a dispatch table.
+        parser_func = self._feed_parsers.get(root.tag)
+        if parser_func:
+            yield from parser_func(root)
         else:
             logger.warning("Unknown feed type: %s", root.tag)
 
@@ -391,6 +380,16 @@ class RSSAdapter:
         )
 
     # ========== Utility Methods ==========
+
+    def _get_safe_xml_parser(self) -> etree.XMLParser:
+        """Return a security-hardened XML parser."""
+        # Security note: Using lxml.etree for XML parsing. While lxml is more
+        # resistant to XML bombs than stdlib xml.etree, parsing untrusted XML
+        # always carries some risk. lxml disables DTDs and entity expansion by
+        # default, making it safer for processing external feeds.
+        # See: https://lxml.de/FAQ.html#how-do-i-use-lxml-safely-as-a-web-service-endpoint
+        # We explicitly enforce safe parsing settings
+        return etree.XMLParser(resolve_entities=False, no_network=True)
 
     def _get_text(self, elem: etree._Element, tag: str) -> str | None:
         """Get text content of child element.
