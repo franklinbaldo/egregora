@@ -110,6 +110,23 @@ class Entry(BaseModel):
         """Type guard for Jinja templates."""
         return False
 
+    @property
+    def has_enclosure(self) -> bool:
+        """Check if entry has a media enclosure link."""
+        if not self.links:
+            return False
+
+        return any(
+            link.rel == "enclosure"
+            and link.type
+            and (
+                link.type.startswith("image/")
+                or link.type.startswith("audio/")
+                or link.type.startswith("video/")
+            )
+            for link in self.links
+        )
+
 
 # --- Application Domain ---
 
