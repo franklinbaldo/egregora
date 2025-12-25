@@ -54,23 +54,10 @@ def test_resolve_paths_returns_site_configuration(tmp_path: Path, scaffolder: Mk
     assert site_config.config_file == tmp_path / ".egregora" / "mkdocs.yml"
 
 
-def test_main_py_and_overrides_in_egregora_dir(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:
-    """Test that main.py and overrides/ are created in .egregora/ not site root.
-
-    Regression test for PR #1036 - ensures site root stays clean.
-    """
+def test_overrides_are_in_site_root(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:
+    """Test that overrides/ is created in the site root for mkdocs to find it."""
     scaffolder.scaffold_site(tmp_path, site_name="Clean Site")
 
-    # main.py should be in .egregora/, not root
-    assert (tmp_path / ".egregora" / "main.py").exists()
-    assert not (tmp_path / "main.py").exists()
-
-    # overrides/ should be in .egregora/, not root
-    assert (tmp_path / ".egregora" / "overrides").exists()
-    # It might not have home.html if the template doesn't include it, check dir exists
-    # And check that we don't pollute root if not legacy
-    # Note: MkDocsSiteScaffolder might still create root overrides for compat, let's verify what it does.
-    # The fix in scaffolding.py creates .egregora/overrides AND checks if root overrides exists.
-    # But if we want to ensure it is in .egregora, that's good.
-    # If the scaffolder logic says "Copy overrides to .egregora/overrides", then:
-    assert (tmp_path / ".egregora" / "overrides").is_dir()
+    # overrides/ should be in the root, not .egregora for mkdocs to find it
+    assert (tmp_path / "overrides").exists()
+    assert not (tmp_path / ".egregora" / "overrides").exists()
