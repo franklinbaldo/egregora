@@ -89,8 +89,8 @@ def test_egregora_directory_created(tmp_path: Path):
     assert egregora_dir.is_dir(), ".egregora should be a directory"
 
     # Verify mkdocs.yml exists in site root
-    mkdocs_yml = tmp_path / "mkdocs.yml"
-    assert mkdocs_yml.exists(), "mkdocs.yml should be created in site root"
+    mkdocs_yml = tmp_path / ".egregora" / "mkdocs.yml"
+    assert mkdocs_yml.exists(), "mkdocs.yml should be created in .egregora/"
 
     # Verify config exists in site root
     config_toml = tmp_path / ".egregora.toml"
@@ -137,7 +137,7 @@ def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):
     ensure_mkdocs_project(tmp_path)
 
     # Read mkdocs.yml from site root
-    mkdocs_path = tmp_path / "mkdocs.yml"
+    mkdocs_path = tmp_path / ".egregora" / "mkdocs.yml"
     assert mkdocs_path.exists()
 
     with mkdocs_path.open() as f:

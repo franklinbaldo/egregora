@@ -4,7 +4,7 @@ site_url: {{ site_url | default("http://127.0.0.1:8000") }}  # Update with your 
 # When using multiple sites from a shared repo, give each site its own mkdocs.yml via sites.<name>.output.adapters[*].config_path
 # repo_url: https://github.com/your-user/your-repo  # Uncomment to enable 'Edit on GitHub'
 # repo_name: your-repo
-docs_dir: {{ docs_dir }}
+docs_dir: ../{{ docs_dir }}
 site_dir: {{ site_dir | default("site") }}  # Set per-site to avoid build collisions in multi-site configs
 
 theme:
@@ -76,7 +76,7 @@ plugins:
       pagination_keep_content: true
       # Authors (automated via .authors.yml in docs root)
       authors: true
-      authors_file: docs/.authors.yml
+      authors_file: ../docs/.authors.yml
       # Categories
       categories: true
       # Archive
