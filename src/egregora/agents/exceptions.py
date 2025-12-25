@@ -21,3 +21,11 @@ class JournalFileSystemError(AgentLogicError):
         self.path = path
         self.reason = reason
         super().__init__(f"Filesystem error for journal at '{path}': {reason}")
+
+
+class WriterAgentExecutionError(AgentLogicError):
+    """Raised when the writer agent fails during execution."""
+
+    def __init__(self, window_label: str) -> None:
+        self.window_label = window_label
+        super().__init__(f"Writer agent failed for window '{window_label}'")
