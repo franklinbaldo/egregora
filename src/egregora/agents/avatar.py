@@ -300,14 +300,12 @@ def download_avatar_from_url(
 
     """
     logger.info("Downloading avatar from URL: %s", url)
-    _validate_avatar_url(url)
 
-    def _validate_redirect(response: httpx.Response) -> None:
-        """Event hook to validate each redirect URL."""
-        if response.is_redirect:
-            redirect_url = str(response.next_request.url)
-            logger.info("Following redirect to: %s", redirect_url)
-            _validate_avatar_url(redirect_url)
+    def _validate_request(request: httpx.Request) -> None:
+        """Event hook to validate the URL of every request just before it is sent."""
+        validation_url = str(request.url)
+        logger.debug("Validating request URL (pre-send): %s", validation_url)
+        _validate_avatar_url(validation_url)
 
     try:
         with (
@@ -315,7 +313,7 @@ def download_avatar_from_url(
                 timeout=timeout,
                 follow_redirects=True,
                 max_redirects=MAX_REDIRECT_HOPS,
-                event_hooks={"response": [_validate_redirect]},
+                event_hooks={"request": [_validate_request]},
             ) as client,
             client.stream("GET", url) as response,
         ):
