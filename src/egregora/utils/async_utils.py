@@ -8,10 +8,11 @@ from typing import Any
 
 
 def run_async_safely(coro: Any) -> Any:
-    """Run an async coroutine safely, handling nested event loops.
+    """Run an async coroutine from a synchronous context, safely handling nested event loops.
 
     If an event loop is already running (e.g., in Jupyter or nested calls),
-    this will use run_until_complete instead of asyncio.run().
+    this function will run the coroutine in a new thread to avoid a `RuntimeError`.
+    Otherwise, it uses `asyncio.run()`.
     """
     try:
         asyncio.get_running_loop()
