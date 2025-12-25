@@ -46,3 +46,18 @@ def test_pipeline_context_immutability(mock_library):
     # dataclasses.FrozenInstanceError is raised
     with pytest.raises(FrozenInstanceError):
         ctx.workspace_id = "new"
+
+
+def test_pipeline_context_full_metadata(mock_library):
+    """Tests the full_metadata property."""
+    context = PipelineContext(
+        library=mock_library,
+        run_id="test-run-123",
+        metadata={"extra": "data"},
+    )
+
+    expected_metadata = {
+        "run_id": "test-run-123",
+        "extra": "data",
+    }
+    assert context.full_metadata == expected_metadata

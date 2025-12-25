@@ -1,0 +1,14 @@
+Describe the following media:
+
+Title: {{ entry.title }}
+
+{% if entry.links %}
+Media files:
+{% for link in entry.links %}{% if link.rel == "enclosure" and link.type %}- {{ link.href }} ({{ link.type }})
+{% endif %}{% endfor %}
+{% endif %}
+{% if entry.content %}
+Existing description: {{ entry.content }}
+{% endif %}
+
+Provide a clear, descriptive caption for this media content.

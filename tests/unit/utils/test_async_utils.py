@@ -37,3 +37,19 @@ def test_run_async_safely_handles_runtime_error_gracefully():
         with patch("asyncio.run") as mock_run:
             run_async_safely(sample_coroutine())
             mock_run.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore:coroutine .* was never awaited")
+async def test_standard_asyncio_run_fails_in_running_loop():
+    """Verify that `asyncio.run()` fails inside a running event loop.
+
+    This test justifies the existence of `run_async_safely`.
+    """
+    # This test intentionally triggers a RuntimeError by calling asyncio.run()
+    # from within an already-running event loop (managed by pytest-asyncio).
+    # The warning "coroutine was never awaited" is an expected side effect of
+    # this specific error condition, as the RuntimeError is raised before the
+    # coroutine can be awaited. We filter it to keep the test output clean.
+    with pytest.raises(RuntimeError, match="cannot be called from a running event loop"):
+        asyncio.run(sample_coroutine())

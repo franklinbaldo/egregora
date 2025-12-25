@@ -117,11 +117,12 @@ class FeedBannerGenerator:
 
     def generate_from_feed(self, task_feed: Feed) -> Feed:
         """Generate banners from a feed of tasks."""
-        output_entries: list[Document] = []
-        for entry in task_feed.entries:
-            result = self._generate_one(entry)
-            if result.success:
-                output_entries.append(cast(Document, result.document))
+        results = self._generate_sequential(task_feed.entries)
+
+        output_entries = []
+        for result in results:
+            if result.success and result.document:
+                output_entries.append(result.document)
             else:
                 output_entries.append(self._create_error_document(result))
 
@@ -134,37 +135,39 @@ class FeedBannerGenerator:
             links=[],
         )
 
-    def _generate_one(self, entry: Entry) -> BannerGenerationResult:
-        """Generate a single banner from a task entry."""
-        task = BannerTaskEntry(entry)
-        banner_input = task.to_banner_input()
+    def _generate_sequential(self, entries: list[Entry]) -> list[BannerGenerationResult]:
+        """Generate banners sequentially for each task entry."""
+        results = []
+        for entry in entries:
+            task = BannerTaskEntry(entry)
+            banner_input = task.to_banner_input()
+            result = self._generate_with_provider(task, banner_input)
+            results.append(result)
+        return results
 
+    def _generate_with_provider(
+        self, task: BannerTaskEntry, banner_input: BannerInput
+    ) -> BannerGenerationResult:
+        """Generate banner using the configured provider."""
         request = ImageGenerationRequest(
             prompt=self._build_prompt(banner_input),
             response_modalities=["IMAGE"],
             aspect_ratio="1:1",
         )
 
-        try:
-            result = self.provider.generate(request)
-            if result.has_image and result.image_bytes:
-                document = self._create_media_document(
-                    task.entry,
-                    result.image_bytes,
-                    result.mime_type or "image/png",
-                )
-                return BannerGenerationResult(task.entry, document=document)
-            return BannerGenerationResult(
+        result = self.provider.generate(request)
+        if result.has_image and result.image_bytes:
+            document = self._create_media_document(
                 task.entry,
-                error=result.error or "Unknown error",
-                error_code=result.error_code or "GENERATION_FAILED",
+                result.image_bytes,
+                result.mime_type or "image/png",
             )
-        except (RuntimeError, ValueError) as exc:
-            return BannerGenerationResult(
-                task.entry,
-                error=str(exc),
-                error_code="GENERATION_EXCEPTION",
-            )
+            return BannerGenerationResult(task.entry, document=document)
+        return BannerGenerationResult(
+            task.entry,
+            error=result.error or "Unknown error",
+            error_code=result.error_code or "GENERATION_FAILED",
+        )
 
     def _build_prompt(self, banner_input: BannerInput) -> str:
         """Build the prompt for banner generation."""

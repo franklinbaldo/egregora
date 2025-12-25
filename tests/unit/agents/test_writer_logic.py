@@ -4,7 +4,9 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
+from jinja2.exceptions import TemplateNotFound
 
+from egregora.agents.exceptions import JournalFileSystemError, JournalTemplateError
 from egregora.agents.writer import (
     JournalEntry,
     JournalEntryParams,
@@ -77,6 +79,59 @@ class TestWriterDecoupling:
         # The content should PRESERVE "../media/" and NOT replace it with "/media/"
         assert "../media/image.jpg" in doc.content
         assert "/media/image.jpg" not in doc.content.replace("../media/", "")
+
+    @patch("egregora.agents.writer.Environment")
+    def test_save_journal_raises_template_error(self, mock_env_cls):
+        """Test that _save_journal_to_file raises JournalTemplateError on template issues."""
+        # Arrange
+        mock_env = MagicMock()
+        mock_env.get_template.side_effect = TemplateNotFound("journal.md.jinja")
+        mock_env_cls.return_value = mock_env
+
+        params = JournalEntryParams(
+            intercalated_log=[JournalEntry("journal", "test", datetime.now())],
+            window_label="test-window",
+            output_format=MagicMock(),
+            posts_published=0,
+            profiles_updated=0,
+            window_start=datetime.now(),
+            window_end=datetime.now(),
+        )
+
+        # Act & Assert
+        with pytest.raises(JournalTemplateError) as exc_info:
+            _save_journal_to_file(params)
+
+        assert "journal.md.jinja" in str(exc_info.value)
+
+    @patch("egregora.agents.writer.Environment")
+    def test_save_journal_raises_filesystem_error(self, mock_env_cls):
+        """Test that _save_journal_to_file raises JournalFileSystemError on file system issues."""
+        # Arrange
+        mock_env = MagicMock()
+        mock_template = MagicMock()
+        mock_template.render.return_value = "Some content"
+        mock_env.get_template.return_value = mock_template
+        mock_env_cls.return_value = mock_env
+
+        mock_output = MagicMock()
+        mock_output.persist.side_effect = OSError("Disk full")
+
+        params = JournalEntryParams(
+            intercalated_log=[JournalEntry("journal", "test", datetime.now())],
+            window_label="test-window",
+            output_format=mock_output,
+            posts_published=0,
+            profiles_updated=0,
+            window_start=datetime.now(),
+            window_end=datetime.now(),
+        )
+
+        # Act & Assert
+        with pytest.raises(JournalFileSystemError) as exc_info:
+            _save_journal_to_file(params)
+
+        assert "Disk full" in str(exc_info.value)
 
 
 @pytest.mark.asyncio

@@ -39,3 +39,8 @@ class PipelineContext:
         # Use object.__setattr__ since dataclass is frozen
         # We copy the dict to ensure the context holds its own version
         object.__setattr__(self, "metadata", dict(self.metadata))
+
+    @property
+    def full_metadata(self) -> dict[str, Any]:
+        """Return combined metadata with run_id."""
+        return {"run_id": self.run_id, **self.metadata}

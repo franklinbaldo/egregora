@@ -54,10 +54,10 @@ def test_resolve_paths_returns_site_configuration(tmp_path: Path, scaffolder: Mk
     assert site_config.config_file == tmp_path / ".egregora" / "mkdocs.yml"
 
 
-def test_overrides_are_in_site_root(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:
-    """Test that overrides/ is created in the site root for mkdocs to find it."""
+def test_overrides_are_in_egregora_dir(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:
+    """Test that overrides/ is created in the .egregora directory."""
     scaffolder.scaffold_site(tmp_path, site_name="Clean Site")
 
-    # overrides/ should be in the root, not .egregora for mkdocs to find it
-    assert (tmp_path / "overrides").exists()
-    assert not (tmp_path / ".egregora" / "overrides").exists()
+    # overrides/ should be in .egregora, not the root
+    assert (tmp_path / ".egregora" / "overrides").exists()
+    assert not (tmp_path / "overrides").exists()

@@ -15,36 +15,39 @@ class DuckDBDocumentRepository(DocumentRepository):
     """DuckDB-backed document storage."""
 
     def __init__(self, conn: ibis.BaseBackend) -> None:
+        if not hasattr(conn, "con"):
+            msg = "DuckDBDocumentRepository requires a raw DuckDB connection via the '.con' attribute."
+            raise ValueError(msg)
         self.conn = conn
         self.table_name = "documents"
 
     def initialize(self) -> None:
-        """Creates the table with a primary key if it doesn't exist."""
-        if self.table_name not in self.conn.list_tables():
-            # Enforce the creation of a PRIMARY KEY for reliable upserts.
-            # This follows the "One good path" heuristic, avoiding complex fallbacks.
-            self.conn.con.execute(f"""
-                CREATE TABLE {self.table_name} (
-                    id VARCHAR PRIMARY KEY,
-                    doc_type VARCHAR,
-                    json_data JSON,
-                    updated TIMESTAMP
-                )
-            """)
+        """Creates the 'documents' table with a primary key if it doesn't exist."""
+        self.conn.con.execute(f"""
+            CREATE TABLE IF NOT EXISTS {self.table_name} (
+                id VARCHAR PRIMARY KEY,
+                doc_type VARCHAR,
+                json_data JSON,
+                updated TIMESTAMP
+            )
+        """)
 
     def _get_table(self) -> Table:
         return self.conn.table(self.table_name)
 
-    def save(self, doc: Document) -> Document:
-        """Saves a document to the repository."""
-        self._upsert_record(doc.id, doc.doc_type.value, doc.model_dump_json(), doc.updated)
-        return doc
+    def save(self, entry: Entry) -> Entry:
+        """Saves an Entry or Document to the repository."""
+        if isinstance(entry, Document):
+            doc_type_val = entry.doc_type.value
+        else:
+            doc_type_val = "_ENTRY_"
+
+        json_data = entry.model_dump_json()
+        self._upsert_record(entry.id, doc_type_val, json_data, entry.updated)
+        return entry
 
     def _upsert_record(self, record_id: str, doc_type: str, json_data: str, updated: datetime) -> None:
-        """
-        Helper to upsert a record using a reliable INSERT OR REPLACE.
-        This assumes the table has a PRIMARY KEY, enforced by `initialize`.
-        """
+        """Helper to perform a raw SQL upsert (INSERT OR REPLACE)."""
         query = f"""
             INSERT OR REPLACE INTO {self.table_name} (id, doc_type, json_data, updated)
             VALUES (?, ?, ?, ?)
@@ -62,38 +65,31 @@ class DuckDBDocumentRepository(DocumentRepository):
     def get(self, doc_id: str) -> Document | None:
         """Retrieves a document by ID."""
         t = self._get_table()
-        # Push all filtering into the query for declarative style.
-        query = t.filter(t.id == doc_id).filter(t.doc_type != "_ENTRY_").select("doc_type", "json_data")
+        query = t.filter(t.id == doc_id).select("doc_type", "json_data")
         result = query.execute()
 
         if result.empty:
             return None
 
         row = result.iloc[0]
-        # We know it's a Document because of the filter, so the cast is safe.
-        return self._hydrate_object(row["json_data"], row["doc_type"])
+        doc_type_val = row["doc_type"]
 
-    def list(
-        self,
-        *,
-        doc_type: DocumentType | None = None,
-        order_by: str | None = None,
-        limit: int | None = None,
-    ) -> list[Document]:
-        """Lists documents, optionally filtered by type, with sorting and limiting."""
+        # get() specifically retrieves Documents, not raw Entries.
+        if doc_type_val == "_ENTRY_":
+            return None
+
+        # We know it's a Document, so the cast is safe.
+        return self._hydrate_object(row["json_data"], doc_type_val)
+
+    def list(self, *, doc_type: DocumentType | None = None) -> list[Document]:
+        """Lists documents, optionally filtered by type."""
         t = self._get_table()
-        # Always exclude raw entries.
-        query = t.filter(t.doc_type != "_ENTRY_")
+        query = t
         if doc_type:
             query = query.filter(query.doc_type == doc_type.value)
-
-        # Add sorting and limiting to the query
-        if order_by:
-            # Default to descending order for fields like 'updated'
-            query = query.order_by(ibis.desc(order_by))
-
-        if limit:
-            query = query.limit(limit)
+        else:
+            # Exclude raw entries when listing all "Documents"
+            query = query.filter(query.doc_type != "_ENTRY_")
 
         result = query.select("doc_type", "json_data").execute()
 
@@ -101,7 +97,7 @@ class DuckDBDocumentRepository(DocumentRepository):
         return [self._hydrate_object(row["json_data"], row["doc_type"]) for _, row in result.iterrows()]
 
     def delete(self, doc_id: str) -> None:
-        """Deletes a document by ID using a direct, parameterized query."""
+        """Deletes a document by ID using a parameterized query."""
         query = f"DELETE FROM {self.table_name} WHERE id = ?"
         self.conn.con.execute(query, [doc_id])
 
@@ -114,27 +110,16 @@ class DuckDBDocumentRepository(DocumentRepository):
     def count(self, *, doc_type: DocumentType | None = None) -> int:
         """Counts documents, optionally filtered by type."""
         t = self._get_table()
-        # Always exclude raw entries.
-        query = t.filter(t.doc_type != "_ENTRY_")
+        query = t
         if doc_type:
             query = query.filter(query.doc_type == doc_type.value)
+        else:
+            # Exclude raw entries if counting all "Documents"
+            query = query.filter(query.doc_type != "_ENTRY_")
 
         return query.count().execute()
 
     # Entry methods
-
-    def save_entry(self, entry: Entry) -> None:
-        """
-        Saves an Entry to the repository using polymorphism.
-        Relies on the `doc_type` attribute of the entry to determine its type,
-        avoiding imperative `isinstance` checks.
-        """
-        doc_type_val = getattr(entry, "doc_type", "_ENTRY_")
-        if isinstance(doc_type_val, DocumentType):
-            doc_type_val = doc_type_val.value
-
-        json_data = entry.model_dump_json()
-        self._upsert_record(entry.id, doc_type_val, json_data, entry.updated)
 
     def get_entry(self, entry_id: str) -> Entry | None:
         """Retrieves an Entry (or Document) by ID."""

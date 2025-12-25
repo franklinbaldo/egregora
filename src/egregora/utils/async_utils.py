@@ -8,19 +8,23 @@ from typing import Any
 
 
 def run_async_safely(coro: Any) -> Any:
-    """Run an async coroutine from a synchronous context, safely handling nested event loops.
+    """Run an async coroutine from a sync context, even if an event loop is already running.
 
-    If an event loop is already running (e.g., in Jupyter or nested calls),
-    this function will run the coroutine in a new thread to avoid a `RuntimeError`.
-    Otherwise, it uses `asyncio.run()`.
+    This is a common problem in environments like Jupyter or when nesting async calls
+    in a synchronous framework. Standard `asyncio.run()` will raise a RuntimeError
+    if an event loop is already active.
+
+    This function detects a running loop. If found, it runs the coroutine in a
+    new thread, avoiding the error. Otherwise, it uses the standard `asyncio.run()`.
     """
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        # No running loop - use asyncio.run()
+        # No event loop is running, so we can safely start one.
         return asyncio.run(coro)
     else:
-        # Loop is already running - run asyncio.run in a new thread.
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        # An event loop is already running.
+        # To avoid a RuntimeError, we run the new coroutine in a separate thread.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(asyncio.run, coro)
             return future.result()

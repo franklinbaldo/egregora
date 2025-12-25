@@ -41,9 +41,9 @@ def test_write_profile_doc_generates_fallback_avatar(adapter):
     # Check for prefix to be robust
     assert "avatar: https://avataaars.io/?" in content
 
-    # Verify avatar image in content (MkDocs macro)
-    # The adapter prepends the avatar macro to the content
-    assert "![Avatar]({{ page.meta.avatar }}){ align=left width=150 }" in content
+    # Verify avatar is NOT prepended to content body (it's only in frontmatter for index page use)
+    # Content should remain clean without avatar macro
+    assert "![Avatar]" not in content
 
 
 def test_get_profiles_data_generates_stats(adapter):

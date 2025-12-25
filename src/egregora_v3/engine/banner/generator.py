@@ -53,39 +53,29 @@ class GeminiV3BannerGenerator(ImageGenerationProvider):
         """
         logger.info("Generating banner with model %s", self._model)
 
-        try:
-            # Declaratively create config if aspect_ratio is present.
-            config = (
-                types.GenerateImagesConfig(aspect_ratio=request.aspect_ratio)
-                if request.aspect_ratio
+        # Prepare configuration declaratively
+        config_params = {"aspect_ratio": request.aspect_ratio} if request.aspect_ratio else {}
+
+        response = self._client.models.generate_images(
+            model=self._model,
+            prompt=request.prompt,
+            config=(
+                types.GenerateImagesConfig(**config_params)
+                if config_params
                 else None
-            )
+            ),
+        )
 
-            response = self._client.models.generate_images(
-                model=self._model, prompt=request.prompt, config=config
-            )
-
-            # Extract image
-            if not response.generated_images:
-                return ImageGenerationResult(
-                    image_bytes=None,
-                    mime_type=None,
-                    error="No images returned",
-                    error_code="NO_IMAGE",
-                )
-
-            # Get the first image
-            generated_image = response.generated_images[0]
-            image_data = generated_image.image.image_bytes
-            mime_type = generated_image.image.mime_type or "image/png"
-
-            return ImageGenerationResult(image_bytes=image_data, mime_type=mime_type)
-
-        except Exception as e:
-            logger.exception("Banner generation failed")
+        if not response.generated_images:
             return ImageGenerationResult(
                 image_bytes=None,
                 mime_type=None,
-                error=str(e),
-                error_code="GENERATION_EXCEPTION",
+                error="No images returned",
+                error_code="NO_IMAGE",
             )
+
+        generated_image = response.generated_images[0]
+        image_data = generated_image.image.image_bytes
+        mime_type = generated_image.image.mime_type or "image/png"
+
+        return ImageGenerationResult(image_bytes=image_data, mime_type=mime_type)
