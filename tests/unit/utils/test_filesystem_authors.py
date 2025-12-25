@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 import yaml
 
-from egregora.utils.filesystem import ensure_author_entries, sync_authors_from_posts
+from egregora.utils.authors import ensure_author_entries, sync_authors_from_posts
 
 if TYPE_CHECKING:
     from _pytest.logging import LogCaptureFixture
