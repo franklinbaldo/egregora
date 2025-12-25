@@ -14,15 +14,32 @@ description = "Curator evaluates blogs and updates TODO. Forge implements items 
 
 # High Priority - Critical for Excellence
 [[tasks.high_priority]]
+id = "fix-mkdocs-custom-dir"
+title = "Correct the `custom_dir` path in the `mkdocs.yml` template"
+description = """
+**Root Cause Analysis:** The `mkdocs build` command fails because the `theme.custom_dir` in `.egregora/mkdocs.yml` points to a directory in the site root (`overrides`), but the scaffolding logic is designed to place this directory inside `.egregora/`. This conflict was causing build failures. A workaround was implemented to force the `overrides` directory into the root, but the correct fix is to make the `mkdocs.yml` template point to the right place.
+
+1. **Locate Template:** Find the `mkdocs.yml.jinja` template file in `src/egregora/rendering/templates/site`.
+2. **Correct Path:** Change the `custom_dir` value from `overrides` to `.egregora/overrides`.
+3. **Revert Workaround:** The test `tests/unit/output_adapters/mkdocs/test_scaffolding.py::test_overrides_are_in_site_root` and the corresponding code in `scaffolding.py` should be reverted to place `overrides` back into the `.egregora` directory.
+**Verification:** After these changes, the `mkdocs build` command should succeed, and the test suite should pass.
+"""
+status = "pending"
+category = "infrastructure"
+assignee = "forge"
+
+
+[[tasks.high_priority]]
 id = "fix-broken-nav-links"
 title = "Fix broken navigation links in the site header"
 description = """
-The generated site has broken navigation links for "Media" and "About", which point to non-existent pages. This creates a poor user experience and gives the impression of an incomplete site.
-1. **Verify link paths**: Check the `nav` section of `mkdocs.yml` to ensure the paths for "Media" and "About" are correct.
-2. **Ensure file generation**: Confirm that the `media/index.md` and `about.md` files are being correctly generated in the `docs` directory during the site build.
-**Verification**: All links in the main navigation must resolve to a valid page without any 404 errors.
+The generated site has a broken navigation link for "Media". This creates a poor user experience and gives the impression of an incomplete site.
+**Review Finding (2025-12-25):** The "Media" link points to `posts/media/index.md`, which is incorrect. The target `demo/site/posts/media/` directory is not being generated at all during the build process. The "About" link appears to be working correctly.
+1. **Fix `mkdocs.yml` nav entry**: The path for "Media" in the `nav` section of the `mkdocs.yml` template must be corrected to point to a valid directory (e.g., `media/index.md` or similar, not inside `posts/`).
+2. **Ensure file generation**: Confirm that the corresponding media index file is being correctly generated in the `docs` directory during the site build.
+**Verification**: The "Media" link in the main navigation must resolve to a valid, styled page without any 404 errors.
 """
-status = "review"
+status = "pending"
 category = "navigation"
 assignee = "forge"
 
@@ -30,7 +47,7 @@ assignee = "forge"
 id = "baseline-lighthouse"
 title = "Generate demo and run Lighthouse audit"
 description = "Document baseline scores (Performance, A11y, Best Practices, SEO)."
-status = "pending"
+status = "in_progress"
 category = "baseline"
 assignee = "curator"
 
