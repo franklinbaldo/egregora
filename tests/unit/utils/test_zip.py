@@ -1,16 +1,16 @@
 """Tests for zip validation utilities."""
+
 from __future__ import annotations
 
 import io
 import zipfile
-from typing import List
 
 import pytest
 
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
 
 
-def create_in_memory_zip(filenames: List[str]) -> zipfile.ZipFile:
+def create_in_memory_zip(filenames: list[str]) -> zipfile.ZipFile:
     """Creates an in-memory zip file with the given filenames."""
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w") as zf:

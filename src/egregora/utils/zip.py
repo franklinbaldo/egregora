@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 if TYPE_CHECKING:
@@ -131,9 +130,7 @@ def _ensure_safe_path(member_name: str) -> None:
     """Check for unsafe path components in a zip member name."""
     # Check for absolute paths (POSIX, Windows, UNC) and drive prefixes.
     # Using string checks is more reliable for cross-platform validation than pathlib.
-    is_abs = member_name.startswith(("/", "\\")) or (
-        len(member_name) > 1 and member_name[1] == ":"
-    )
+    is_abs = member_name.startswith(("/", "\\")) or (len(member_name) > 1 and member_name[1] == ":")
     if is_abs:
         msg = f"ZIP member uses absolute path: {member_name}"
         raise ZipValidationError(msg)
