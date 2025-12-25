@@ -97,12 +97,10 @@ def ensure_author_entries(output_dir: Path, author_ids: list[str] | None) -> Non
 def _find_authors_yml(output_dir: Path) -> Path:
     """Finds the .authors.yml file by searching upwards for a `docs` directory."""
     current_dir = output_dir.resolve()
-    for _ in range(5):  # Limit search depth
-        if current_dir.name == "docs":
-            return current_dir / ".authors.yml"
-        if current_dir.parent == current_dir:
-            break
-        current_dir = current_dir.parent
+    # More robustly search up the tree for a 'docs' directory
+    for parent in [current_dir, *current_dir.parents]:
+        if parent.name == "docs":
+            return parent / ".authors.yml"
 
     logger.warning(
         "Could not find 'docs' directory in ancestry of %s. "
