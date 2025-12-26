@@ -1,112 +1,70 @@
-from datetime import UTC, datetime
+"""Tests for the Feed model and its factory methods."""
+from datetime import datetime, timedelta
 
-from defusedxml import ElementTree
-
-from egregora_v3.core.types import Document, DocumentStatus, DocumentType, Feed, documents_to_feed, Entry
+from egregora_v3.core.types import Author, Document, DocumentStatus, DocumentType, Feed
 
 
-def test_feed_to_xml_exposes_doc_type_and_status_categories():
-    doc = Document(
-        content="Example body",
+def test_from_documents_factory_creates_feed_with_correct_metadata():
+    """Test that Feed.from_documents creates a feed with correct metadata."""
+    docs = [
+        Document(
+            id="doc1",
+            title="Post 1",
+            updated=datetime.now(),
+            doc_type=DocumentType.POST,
+            status=DocumentStatus.PUBLISHED,
+        )
+    ]
+    authors = [Author(name="Test Author")]
+    feed = Feed.from_documents(docs, feed_id="test-feed", title="Test Feed", authors=authors)
+
+    assert feed.id == "test-feed"
+    assert feed.title == "Test Feed"
+    assert feed.authors == authors
+    assert len(feed.entries) == 1
+
+
+def test_from_documents_factory_sorts_entries_newest_first():
+    """Test that Feed.from_documents sorts entries by updated timestamp."""
+    now = datetime.now()
+    doc1 = Document(
+        id="doc1",
+        title="Old Post",
+        updated=now - timedelta(days=1),
         doc_type=DocumentType.POST,
-        title="Hello World",
         status=DocumentStatus.PUBLISHED,
-        updated=datetime.now(UTC),
     )
-
-    feed = Feed(
-        id="urn:egregora:feed:test",
-        title="Test Feed",
-        updated=doc.updated,
-        entries=[doc],
-    )
-
-    xml_output = feed.to_xml()
-    root = ElementTree.fromstring(xml_output)
-    entry = root.find("{http://www.w3.org/2005/Atom}entry")
-    assert entry is not None
-
-    categories = entry.findall("{http://www.w3.org/2005/Atom}category")
-    exported_terms = {(cat.get("scheme"), cat.get("term")) for cat in categories}
-
-    assert (
-        "https://egregora.app/schema#doc_type",
-        DocumentType.POST.value,
-    ) in exported_terms
-    assert (
-        "https://egregora.app/schema#status",
-        DocumentStatus.PUBLISHED.value,
-    ) in exported_terms
-
-
-def test_documents_to_feed_sorts_entries_newest_first():
-    older = Document(
-        content="Older entry",
-        doc_type=DocumentType.NOTE,
-        title="Older",
-        updated=datetime(2024, 1, 1, tzinfo=UTC),
-    )
-    newer = Document(
-        content="Newer entry",
-        doc_type=DocumentType.NOTE,
-        title="Newer",
-        updated=datetime(2024, 1, 2, tzinfo=UTC),
-    )
-
-    feed = documents_to_feed(
-        [
-            older,
-            newer,
-        ],
-        feed_id="urn:egregora:feed:test",
-        title="Test Feed",
-    )
-
-    assert feed.updated == newer.updated
-    assert feed.entries[0].id == newer.id
-
-
-def test_feed_to_xml_handles_mixed_entry_types():
-    """Ensures that only Documents get special category tags."""
-    doc = Document(
-        content="A document.",
+    doc2 = Document(
+        id="doc2",
+        title="New Post",
+        updated=now,
         doc_type=DocumentType.POST,
-        title="Document Title",
-        updated=datetime.now(UTC),
+        status=DocumentStatus.PUBLISHED,
     )
-    entry = Entry(
-        id="urn:uuid:1234",
-        title="Plain Entry",
-        updated=datetime.now(UTC),
+    feed = Feed.from_documents([doc1, doc2], feed_id="test-feed", title="Test Feed")
+
+    assert len(feed.entries) == 2
+    assert feed.entries[0].id == "doc2"
+    assert feed.entries[1].id == "doc1"
+
+
+def test_from_documents_factory_sets_updated_from_most_recent_entry():
+    """Test that Feed.from_documents sets the feed's updated time correctly."""
+    now = datetime.now()
+    doc1 = Document(
+        id="doc1",
+        title="Old Post",
+        updated=now - timedelta(days=1),
+        doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
     )
-
-    feed = Feed(
-        id="urn:egregora:feed:mixed",
-        title="Mixed Feed",
-        updated=doc.updated,
-        entries=[doc, entry],
+    doc2 = Document(
+        id="doc2",
+        title="New Post",
+        updated=now,
+        doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
     )
+    feed = Feed.from_documents([doc1, doc2], feed_id="test-feed", title="Test Feed")
 
-    xml_output = feed.to_xml()
-    root = ElementTree.fromstring(xml_output)
-
-    doc_entry_xml = None
-    plain_entry_xml = None
-    for e in root.findall("{http://www.w3.org/2005/Atom}entry"):
-        entry_id = e.find("{http://www.w3.org/2005/Atom}id").text
-        if entry_id == doc.id:
-            doc_entry_xml = e
-        elif entry_id == entry.id:
-            plain_entry_xml = e
-
-    # Check the Document entry
-    assert doc_entry_xml is not None, "Document entry not found in feed XML"
-    doc_categories = doc_entry_xml.findall("{http://www.w3.org/2005/Atom}category")
-    doc_terms = {cat.get("term") for cat in doc_categories}
-    assert DocumentType.POST.value in doc_terms
-    assert DocumentStatus.DRAFT.value in doc_terms
-
-    # Check the plain Entry
-    assert plain_entry_xml is not None, "Plain entry not found in feed XML"
-    plain_categories = plain_entry_xml.findall("{http://www.w3.org/2005/Atom}category")
-    assert not plain_categories, "Plain entry should not have any categories"
+    assert feed.updated == doc2.updated

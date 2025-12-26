@@ -12,13 +12,17 @@ from __future__ import annotations
 import logging
 import re
 from datetime import UTC, date, datetime
-from itertools import count
 from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from egregora.utils.authors import ensure_author_entries
 from egregora.utils.datetime_utils import parse_datetime_flexible
+from egregora.utils.exceptions import (
+    FrontmatterDateFormattingError,
+    MissingMetadataError,
+    UniqueFilenameError,
+)
 from egregora.utils.paths import safe_path_join, slugify
 
 if TYPE_CHECKING:
@@ -56,11 +60,13 @@ def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
     """Normalize a metadata date into the RSS-friendly ``YYYY-MM-DD HH:MM`` string."""
     try:
         dt = parse_datetime_flexible(raw_date, default_timezone=UTC)
+        if dt is None:
+            raise AttributeError("Parsed datetime is None")
         return dt.strftime("%Y-%m-%d %H:%M")
-    except AttributeError:
+    except (AttributeError, ValueError) as e:
         # This will be raised if parse_datetime_flexible returns None,
         # which covers all failure modes (None input, empty strings, bad data).
-        return str(raw_date).strip() if raw_date is not None else ""
+        raise FrontmatterDateFormattingError(str(raw_date), e) from e
 
 
 def _prepare_frontmatter(metadata: dict[str, Any], slug: str) -> dict[str, Any]:
@@ -85,7 +91,9 @@ def _prepare_frontmatter(metadata: dict[str, Any], slug: str) -> dict[str, Any]:
     return front_matter
 
 
-def _resolve_filepath(output_dir: Path, date_prefix: str, base_slug: str) -> tuple[Path, str]:
+def _resolve_filepath(
+    output_dir: Path, date_prefix: str, base_slug: str, max_attempts: int = 100
+) -> tuple[Path, str]:
     """Resolve a unique filepath and slug, handling collisions.
 
     Appends a numeric suffix to the slug if a file with the same name already exists.
@@ -94,9 +102,13 @@ def _resolve_filepath(output_dir: Path, date_prefix: str, base_slug: str) -> tup
         output_dir: The directory where the file will be saved.
         date_prefix: The YYYY-MM-DD date prefix for the filename.
         base_slug: The initial slug to use.
+        max_attempts: The maximum number of attempts to find a unique filename.
 
     Returns:
         A tuple containing the unique Path object and the final resolved slug.
+
+    Raises:
+        UniqueFilenameError: If a unique filename cannot be found after max_attempts.
 
     """
     original_filename = f"{date_prefix}-{base_slug}.md"
@@ -105,22 +117,22 @@ def _resolve_filepath(output_dir: Path, date_prefix: str, base_slug: str) -> tup
     if not original_filepath.exists():
         return original_filepath, base_slug
 
-    for i in count(2):
+    for i in range(2, max_attempts + 2):
         slug_candidate = f"{base_slug}-{i}"
         filename = f"{date_prefix}-{slug_candidate}.md"
         filepath = safe_path_join(output_dir, filename)
         if not filepath.exists():
             return filepath, slug_candidate
-    return None
+
+    raise UniqueFilenameError(base_slug, max_attempts)
 
 
 def _validate_post_metadata(metadata: dict[str, Any]) -> None:
     """Ensure required metadata keys are present."""
-    required = ["title", "slug", "date"]
-    for key in required:
-        if key not in metadata:
-            msg = f"Missing required metadata: {key}"
-            raise ValueError(msg)
+    required = {"title", "slug", "date"}
+    missing_keys = list(required - set(metadata.keys()))
+    if missing_keys:
+        raise MissingMetadataError(missing_keys)
 
 
 def _write_post_file(filepath: Path, content: str, front_matter: dict[str, Any]) -> None:

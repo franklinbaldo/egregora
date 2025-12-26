@@ -150,6 +150,33 @@ class Feed(BaseModel):
     authors: list[Author] = Field(default_factory=list)
     links: list[Link] = Field(default_factory=list)
 
+    @classmethod
+    def from_documents(
+        cls,
+        docs: list["Document"],
+        feed_id: str,
+        title: str,
+        authors: list[Author] | None = None,
+    ) -> "Feed":
+        """Factory to create a Feed from a list of documents."""
+        if not docs:
+            updated = datetime.now(UTC)
+        else:
+            updated = max(doc.updated for doc in docs)
+
+        # Sort documents by updated timestamp descending (newest first)
+        sorted_docs = sorted(docs, key=lambda d: d.updated, reverse=True)
+
+        return cls(id=feed_id, title=title, updated=updated, authors=authors or [], entries=sorted_docs)
+
+    def get_published_documents(self) -> list[Document]:
+        """Return a filtered list of published documents from the feed entries."""
+        return [
+            entry
+            for entry in self.entries
+            if isinstance(entry, Document) and entry.status == DocumentStatus.PUBLISHED
+        ]
+
     def to_xml(self) -> str:
         md = MarkdownIt()
         template = _jinja_env.get_template("atom.xml.jinja")
@@ -161,22 +188,3 @@ class Feed(BaseModel):
                 entry.content = md.render(entry.content).strip()
 
         return template.render(feed=feed_for_render).strip()
-
-def documents_to_feed(
-    docs: list[Document],
-    feed_id: str,
-    title: str,
-    authors: list[Author] | None = None,
-) -> Feed:
-    if not docs:
-        updated = datetime.now(UTC)
-    else:
-        updated = max(doc.updated for doc in docs)
-    sorted_docs = sorted(docs, key=lambda d: d.updated, reverse=True)
-    return Feed(
-        id=feed_id,
-        title=title,
-        updated=updated,
-        authors=authors or [],
-        entries=sorted_docs,
-    )

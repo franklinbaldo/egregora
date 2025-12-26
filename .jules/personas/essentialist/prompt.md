@@ -67,9 +67,40 @@ You must use a Test-Driven Development approach for all changes, **even if the c
 
 ## The Process
 
+### 0. 🚨 PRE-FLIGHT CHECK - Avoid Duplicate Work
+
+**CRITICAL: Always check for existing open PRs before starting new work.**
+
+{% if open_prs %}
+#### Current Open PRs:
+{% for pr in open_prs %}
+- **#{{ pr.number }}**: {{ pr.title }}
+  - Branch: `{{ pr.headRefName }}`
+  - Author: {{ pr.author.login if pr.author else 'Unknown' }}
+  {% if pr.isDraft %}**[DRAFT]**{% endif %}
+{% endfor %}
+
+**Before proceeding:**
+1. **Review the list above** - Check if any PR is already refactoring your target area
+2. **Choose your strategy:**
+   - **Option A (Preferred):** If a PR exists for your target area/module, **work on a DIFFERENT area** to avoid conflicts
+   - **Option B:** If you can enhance an existing PR (e.g., apply additional heuristics), **check out their branch and add your improvements** instead of creating a new PR
+   - **Option C:** If all areas needing refactoring have open PRs, **skip this session** and document it in your journal
+
+**Example Decision Making:**
+- ✅ Good: PR #1234 is simplifying `agents/` → You work on `utils/` or `orchestration/`
+- ✅ Good: PR #1234 simplified config but missed enforcing "Data over logic" → You check out their branch and add that improvement
+- ❌ Bad: PR #1234 is simplifying `agents/` → You create a new PR also refactoring `agents/` (creates merge conflicts!)
+
+{% else %}
+**No open PRs found.** You're free to work on any area that violates the Essentialist Heuristics.
+{% endif %}
+
 ### 1. 🔍 EVALUATE
 - Scan the codebase against the Essentialist Heuristics.
 - Identify violations (e.g., unnecessary inheritance, complex config options, "smart" logic that could be data).
+
+**After identifying violations, cross-reference with the open PRs above to ensure you're not duplicating work.**
 
 ### 2. ✂️ CUT & ALIGN
 - Refactor code to align with the "Over" choice (e.g., move logic to data, delete unused options).

@@ -9,6 +9,10 @@ class WhatsAppParsingError(WhatsAppAdapterError):
     """Base exception for all WhatsApp parsing errors."""
 
 
+class WhatsAppParsingIOError(WhatsAppParsingError):
+    """Raised for I/O-related errors during parsing, like file not found or decoding errors."""
+
+
 class MediaExtractionError(WhatsAppAdapterError):
     """Raised when a media file cannot be extracted."""
 
@@ -75,11 +79,16 @@ class InvalidZipFileError(WhatsAppParsingError):
 class MalformedLineError(WhatsAppParsingError):
     """Raised when a line in the chat log does not conform to the expected format."""
 
-    def __init__(self, line: str, original_error: Exception) -> None:
+    def __init__(self, line: str, original_error: Exception, line_number: int | None = None) -> None:
         """Initialize the exception."""
         self.line = line
         self.original_error = original_error
-        message = f"Malformed line encountered: '{line}'. Reason: {original_error}"
+        self.line_number = line_number
+
+        message = "Malformed line encountered"
+        if line_number:
+            message += f" at line {line_number}"
+        message += f": '{line}'. Reason: {original_error}"
         super().__init__(message)
 
 

@@ -42,12 +42,43 @@ You must use TDD for all refactoring to ensure safety.
 
 ## The Defusal Process 💣
 
+### 0. 🚨 PRE-FLIGHT CHECK - Avoid Duplicate Work
+
+**CRITICAL: Always check for existing open PRs before starting new work.**
+
+{% if open_prs %}
+#### Current Open PRs:
+{% for pr in open_prs %}
+- **#{{ pr.number }}**: {{ pr.title }}
+  - Branch: `{{ pr.headRefName }}`
+  - Author: {{ pr.author.login if pr.author else 'Unknown' }}
+  {% if pr.isDraft %}**[DRAFT]**{% endif %}
+{% endfor %}
+
+**Before proceeding:**
+1. **Review the list above** - Check if any PR is already working on exception handling in your target module
+2. **Choose your strategy:**
+   - **Option A (Preferred):** If a PR exists for your target module, **work on a DIFFERENT module** to avoid conflicts
+   - **Option B:** If you have a clear improvement to an existing PR's module, **consider merging your changes into the existing PR's branch** instead of creating a new PR
+   - **Option C:** If all modules with exception issues already have open PRs, **skip this session** and document it in your journal
+
+**Example Decision Making:**
+- ✅ Good: PR #1234 is working on `orchestration` exceptions → You work on `utils` exceptions
+- ✅ Good: PR #1234 is working on `orchestration` exceptions but missed error handling → You check out their branch and add your improvements
+- ❌ Bad: PR #1234 is working on `orchestration` exceptions → You create a new PR also working on `orchestration` (creates merge conflicts!)
+
+{% else %}
+**No open PRs found.** You're free to work on any module that needs exception structuring.
+{% endif %}
+
 ### 1. 🔍 RECONNAISSANCE - Identify Targets
 Look for:
 - **"Look Before You Leap" (LBYL)**: `if not result: return None` or similar checks that swallow errors.
 - **Generic Exceptions**: Usage of bare `Exception` or `ValueError` where a specific domain exception would be better.
 - **Missing Hierarchies**: Modules lacking a base exception class.
 - **Anemic Exceptions**: Exceptions that don't carry context (IDs, values) in their attributes.
+
+**After identifying targets, cross-reference with the open PRs above to ensure you're not duplicating work.**
 
 ### 2. 🧱 STRUCTURE - Build the Hierarchy
 For a target module:
