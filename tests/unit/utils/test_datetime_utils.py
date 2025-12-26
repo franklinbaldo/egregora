@@ -2,9 +2,62 @@
 
 from datetime import UTC, date, datetime, timedelta, timezone
 
-from egregora.utils.datetime_utils import parse_datetime_flexible
+import pytest
+
+from egregora.utils.datetime_utils import (
+    _to_datetime,
+    normalize_timezone,
+    parse_datetime_flexible,
+)
 
 
+# region: Tests for normalize_timezone
+def test_normalize_timezone_naive_datetime():
+    """Should make a naive datetime aware in the default timezone (UTC)."""
+    dt = datetime(2023, 1, 1, 12, 0, 0)
+    result = normalize_timezone(dt)
+    assert result.tzinfo == UTC
+    assert result.hour == 12  # Time should not change, only tzinfo attached
+
+
+def test_normalize_timezone_aware_datetime():
+    """Should convert an aware datetime to the default timezone (UTC)."""
+    tz = timezone(timedelta(hours=2))
+    dt = datetime(2023, 1, 1, 12, 0, 0, tzinfo=tz)
+    result = normalize_timezone(dt)
+    assert result.tzinfo == UTC
+    assert result.hour == 10  # 12:00 UTC+2 is 10:00 UTC
+
+
+def test_normalize_timezone_already_in_default_timezone():
+    """Should not change a datetime that is already in the default timezone."""
+    dt = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
+    result = normalize_timezone(dt)
+    assert result == dt
+    assert result.tzinfo == UTC
+
+
+def test_normalize_timezone_custom_default_timezone():
+    """Should respect a custom default timezone."""
+    custom_tz = timezone(timedelta(hours=-5))
+
+    # Test with naive datetime
+    dt_naive = datetime(2023, 1, 1, 12, 0, 0)
+    result_naive = normalize_timezone(dt_naive, default_timezone=custom_tz)
+    assert result_naive.tzinfo == custom_tz
+    assert result_naive.hour == 12
+
+    # Test with aware datetime
+    dt_aware = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
+    result_aware = normalize_timezone(dt_aware, default_timezone=custom_tz)
+    assert result_aware.tzinfo == custom_tz
+    assert result_aware.hour == 7  # 12:00 UTC is 7:00 UTC-5
+
+
+# endregion
+
+
+# region: Tests for _to_datetime
 class MockPandasTimestamp:
     """Mock for an object with a .to_pydatetime() method (like pandas.Timestamp)."""
 
@@ -15,6 +68,46 @@ class MockPandasTimestamp:
         return self._dt
 
 
+@pytest.mark.parametrize(
+    ("input_val", "expected"),
+    [
+        (datetime(2023, 1, 1, 10, 0, 0), datetime(2023, 1, 1, 10, 0, 0)),
+        (date(2023, 1, 1), datetime(2023, 1, 1, 0, 0, 0)),
+        ("2023-01-01T10:00:00", datetime(2023, 1, 1, 10, 0, 0)),
+        (
+            MockPandasTimestamp(datetime(2023, 1, 1, 10, 0, 0)),
+            datetime(2023, 1, 1, 10, 0, 0),
+        ),
+    ],
+)
+def test_to_datetime_valid_inputs(input_val, expected):
+    """Should convert various valid input types to a datetime object."""
+    assert _to_datetime(input_val) == expected
+
+
+@pytest.mark.parametrize(
+    "input_val",
+    [None, "", "   ", "not-a-date", 12345],
+)
+def test_to_datetime_invalid_inputs(input_val):
+    """Should return None for invalid or empty inputs."""
+    assert _to_datetime(input_val) is None
+
+
+def test_to_datetime_forwards_parser_kwargs():
+    """Should forward kwargs to the dateutil parser."""
+    raw = "01-02-2023"
+    # dayfirst=True should parse as Feb 1st, not Jan 2nd.
+    result = _to_datetime(raw, parser_kwargs={"dayfirst": True})
+    assert result is not None
+    assert result.month == 2
+    assert result.day == 1
+
+
+# endregion
+
+
+# region: Original tests for parse_datetime_flexible to ensure no regressions
 def test_parse_datetime_none_or_empty():
     """Should return None for None or empty string inputs."""
     assert parse_datetime_flexible(None) is None
@@ -125,10 +218,15 @@ def test_parse_datetime_parser_kwargs():
 
     # Default (US: Month-Day-Year) -> Jan 2nd
     res_default = parse_datetime_flexible(raw)
+    assert res_default is not None
     assert res_default.month == 1
     assert res_default.day == 2
 
     # Custom (Day-Month-Year) -> Feb 1st
     res_custom = parse_datetime_flexible(raw, parser_kwargs={"dayfirst": True})
+    assert res_custom is not None
     assert res_custom.month == 2
     assert res_custom.day == 1
+
+
+# endregion
