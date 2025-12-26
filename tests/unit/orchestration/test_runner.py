@@ -9,12 +9,21 @@ from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.exceptions import (
     CommandProcessingError,
     EnrichmentError,
+    MaxSplitDepthError,
+    MediaPersistenceError,
     OutputSinkError,
     ProfileGenerationError,
     WindowSizeError,
     WindowSplitError,
+    WindowValidationError,
 )
 from egregora.orchestration.runner import PipelineRunner
+
+
+@pytest.fixture
+def mock_create_writer_resources():
+    with patch("egregora.orchestration.runner.PipelineFactory.create_writer_resources") as mock:
+        yield mock
 
 
 def test_pipeline_runner_init():
@@ -60,6 +69,95 @@ def test_pipeline_runner_process_windows():
     assert max_ts == datetime(2023, 1, 2, 10, 0)
 
     runner.process_background_tasks.assert_called()
+
+
+def test_validate_window_size_raises_exception():
+    context = MagicMock(spec=PipelineContext)
+    runner = PipelineRunner(context)
+    window = MagicMock()
+    window.size = 100
+    window.window_index = 1
+    max_size = 50
+    with pytest.raises(WindowValidationError) as excinfo:
+        runner._validate_window_size(window, max_size)
+    assert "Window 1 failed validation" in str(excinfo.value)
+
+
+def test_process_window_with_auto_split_raises_max_depth_error():
+    context = MagicMock(spec=PipelineContext)
+    runner = PipelineRunner(context)
+    window = MagicMock()
+    window.start_time = datetime(2023, 1, 1)
+    window.end_time = datetime(2023, 1, 1, 1)
+    window.size = 10
+
+    with pytest.raises(MaxSplitDepthError) as excinfo:
+        runner._process_window_with_auto_split(window, depth=5, max_depth=5)
+    assert "Max split depth of 5 reached" in str(excinfo.value)
+
+
+def test_process_single_window_raises_output_sink_error():
+    context = MagicMock(spec=PipelineContext)
+    context.output_format = None
+    runner = PipelineRunner(context)
+    window = MagicMock()
+    window.start_time = datetime(2023, 1, 1)
+    window.end_time = datetime(2023, 1, 1, 1)
+
+    with pytest.raises(OutputSinkError) as excinfo:
+        runner._process_single_window(window)
+    assert "Output adapter must be initialized" in str(excinfo.value)
+
+
+@patch("egregora.orchestration.runner.process_media_for_window")
+def test_enrich_window_data_raises_media_persistence_error(mock_process_media):
+    context = MagicMock(spec=PipelineContext)
+    output_sink = MagicMock(spec=OutputSink)
+    output_sink.persist.side_effect = OSError("Disk full")
+    context.output_format = output_sink
+    context.enable_enrichment = False
+    runner = PipelineRunner(context)
+    window = MagicMock()
+    media_doc = MagicMock()
+    media_doc.document_id = "media.jpg"
+    mock_process_media.return_value = (MagicMock(), {"media.jpg": media_doc})
+
+    with pytest.raises(MediaPersistenceError) as excinfo:
+        runner._enrich_window_data(window, output_sink)
+    assert "Failed to persist media file 'media.jpg'" in str(excinfo.value)
+
+
+@patch("egregora.orchestration.runner.extract_commands_list")
+@patch("egregora.orchestration.runner.command_to_announcement")
+def test_handle_commands_raises_command_processing_error(mock_command_to_announcement, mock_extract_commands):
+    context = MagicMock(spec=PipelineContext)
+    output_sink = MagicMock(spec=OutputSink)
+    runner = PipelineRunner(context)
+    messages = [{"text": "/cmd"}]
+    mock_extract_commands.return_value = messages
+    mock_command_to_announcement.side_effect = ValueError("Invalid command")
+
+    with pytest.raises(CommandProcessingError) as excinfo:
+        runner._handle_commands(messages, output_sink)
+    assert "Failed to process command '/cmd'" in str(excinfo.value)
+
+
+@pytest.mark.usefixtures("mock_create_writer_resources")
+@patch("egregora.orchestration.runner.asyncio.run")
+def test_generate_posts_and_profiles_raises_profile_generation_error(mock_asyncio_run):
+    context = MagicMock(spec=PipelineContext)
+    output_sink = MagicMock(spec=OutputSink)
+    runner = PipelineRunner(context)
+    window = MagicMock()
+    window.start_time = datetime(2023, 1, 1)
+    mock_asyncio_run.side_effect = [
+        {"posts": [], "profiles": []},  # write_posts_for_window
+        ValueError("Failed to generate"),  # generate_profile_posts
+    ]
+    runner._extract_adapter_info = MagicMock(return_value=("", ""))
+
+    with pytest.raises(ProfileGenerationError):
+        runner._generate_posts_and_profiles(MagicMock(), [], window, output_sink)
 
 
 @patch("egregora.orchestration.runner.process_media_for_window")
