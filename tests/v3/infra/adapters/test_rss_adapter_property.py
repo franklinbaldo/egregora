@@ -7,7 +7,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from hypothesis import given
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from lxml import etree
 
@@ -72,6 +72,7 @@ def atom_entry_xml(draw: st.DrawFn) -> str:
 # ========== Property-Based Tests ==========
 
 
+@settings(suppress_health_check=[HealthCheck.too_slow])
 @given(atom_entry_xml())
 def test_parsing_atom_always_produces_valid_entry(atom_xml: str) -> None:
     """Property: Parsing any valid Atom feed always produces valid Entry objects."""
@@ -134,6 +135,7 @@ def test_atom_id_preservation(entry_id: str) -> None:
         assert entries[0].id == entry_id
 
 
+@settings(suppress_health_check=[HealthCheck.too_slow])
 @given(
     st.lists(
         st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=["Cc", "Cs"])),

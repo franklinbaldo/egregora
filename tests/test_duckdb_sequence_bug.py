@@ -13,6 +13,7 @@ import duckdb
 import pytest
 
 from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.exceptions import InvalidOperationError
 
 
 def test_sequence_values_single_thread():
@@ -209,7 +210,7 @@ def test_next_sequence_rejects_non_positive_count(tmp_path):
     manager = DuckDBStorageManager(tmp_path / "reject.duckdb")
     manager.ensure_sequence("test_seq", start=1)
 
-    with pytest.raises(ValueError, match="count must be positive"):
+    with pytest.raises(InvalidOperationError, match="count must be positive"):
         manager.next_sequence_values("test_seq", count=0)
 
     manager.close()

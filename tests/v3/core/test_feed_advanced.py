@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from faker import Faker
 from freezegun import freeze_time
-from hypothesis import given, settings
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from lxml import etree
 from syrupy.assertion import SnapshotAssertion
@@ -45,7 +45,7 @@ ATOM_NS = "http://www.w3.org/2005/Atom"
 def sample_feed() -> Feed:
     """Create a comprehensive sample feed with all features."""
     # Create documents with various features
-    doc1 = Document.create(
+    doc1 = Document(
         content="# First Post\n\nThis is the **first** post with *Markdown*.",
         doc_type=DocumentType.POST,
         title="First Post",
@@ -63,7 +63,7 @@ def sample_feed() -> Feed:
         ),
     ]
 
-    doc2 = Document.create(
+    doc2 = Document(
         content="Second post content.",
         doc_type=DocumentType.NOTE,
         title="Quick Note",
@@ -74,7 +74,7 @@ def sample_feed() -> Feed:
     ]
 
     # Document with threading
-    doc3 = Document.create(
+    doc3 = Document(
         content="Reply to first post.",
         doc_type=DocumentType.POST,
         title="Re: First Post",
@@ -126,7 +126,7 @@ def test_roundtrip_feed_to_xml_to_entries(sample_feed: Feed, tmp_path: Path) -> 
 @freeze_time("2025-12-06 10:00:00")
 def test_roundtrip_preserves_timestamps(tmp_path: Path) -> None:
     """Test that timestamps are preserved in roundtrip serialization."""
-    doc = Document.create(
+    doc = Document(
         content="Test content",
         doc_type=DocumentType.POST,
         title="Test Post",
@@ -270,7 +270,7 @@ def test_feed_xml_snapshot_regression(sample_feed: Feed, snapshot: SnapshotAsser
     # Freeze time for deterministic output
     with freeze_time("2025-12-06 10:00:00"):
         # Create deterministic feed
-        doc = Document.create(
+        doc = Document(
             content="Deterministic content",
             doc_type=DocumentType.POST,
             title="Deterministic Post",
@@ -293,6 +293,7 @@ def test_feed_xml_snapshot_regression(sample_feed: Feed, snapshot: SnapshotAsser
 # ========== Property-Based Tests ==========
 
 
+@settings(suppress_health_check=[HealthCheck.too_slow])
 @given(
     st.lists(
         st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=["Cc"])),
@@ -303,7 +304,7 @@ def test_feed_xml_snapshot_regression(sample_feed: Feed, snapshot: SnapshotAsser
 def test_documents_to_feed_count_invariant(titles: list[str]) -> None:
     """Property: Number of documents equals number of feed entries."""
     docs = [
-        Document.create(content=f"Content {i}", doc_type=DocumentType.NOTE, title=title)
+        Document(content=f"Content {i}", doc_type=DocumentType.NOTE, title=title)
         for i, title in enumerate(titles)
     ]
 
@@ -316,7 +317,7 @@ def test_documents_to_feed_count_invariant(titles: list[str]) -> None:
 def test_feed_to_xml_always_well_formed(num_entries: int) -> None:
     """Property: Feed.to_xml() always produces well-formed XML."""
     docs = [
-        Document.create(
+        Document(
             content=f"Content {i}",
             doc_type=DocumentType.POST,
             title=f"Post {i}",
@@ -369,13 +370,13 @@ def test_feed_preserves_title_exactly(title: str) -> None:
 
 def test_feed_with_threading_extension() -> None:
     """Test RFC 4685 threading extension (in-reply-to)."""
-    parent = Document.create(
+    parent = Document(
         content="Parent post",
         doc_type=DocumentType.POST,
         title="Parent",
     )
 
-    reply = Document.create(
+    reply = Document(
         content="Reply post",
         doc_type=DocumentType.POST,
         title="Re: Parent",
@@ -405,7 +406,7 @@ def test_feed_with_threading_extension() -> None:
 
 def test_feed_with_categories() -> None:
     """Test that categories are exported correctly."""
-    doc = Document.create(
+    doc = Document(
         content="Categorized content",
         doc_type=DocumentType.POST,
         title="Categorized Post",
@@ -455,14 +456,14 @@ def test_empty_feed_is_valid() -> None:
 @freeze_time("2025-12-06 15:30:45")
 def test_feed_updated_timestamp_reflects_newest_entry() -> None:
     """Test that feed.updated is set to the newest entry's timestamp."""
-    old_doc = Document.create(
+    old_doc = Document(
         content="Old",
         doc_type=DocumentType.POST,
         title="Old Post",
     )
     old_doc.updated = datetime(2025, 12, 1, tzinfo=UTC)
 
-    new_doc = Document.create(
+    new_doc = Document(
         content="New",
         doc_type=DocumentType.POST,
         title="New Post",
@@ -481,21 +482,21 @@ def test_feed_updated_timestamp_reflects_newest_entry() -> None:
 
 def test_feed_with_content_types() -> None:
     """Test different content types (text, html, markdown)."""
-    text_doc = Document.create(
+    text_doc = Document(
         content="Plain text content",
         doc_type=DocumentType.POST,
         title="Text Post",
     )
     text_doc.content_type = "text/plain"
 
-    html_doc = Document.create(
+    html_doc = Document(
         content="<p>HTML content</p>",
         doc_type=DocumentType.POST,
         title="HTML Post",
     )
     html_doc.content_type = "text/html"
 
-    markdown_doc = Document.create(
+    markdown_doc = Document(
         content="# Markdown content",
         doc_type=DocumentType.POST,
         title="Markdown Post",

@@ -24,8 +24,8 @@ from pydantic import BaseModel
 from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.exceptions import (
     DateParsingError,
+    NoMessagesFoundError,
     TimeParsingError,
-    WhatsAppParsingError,
 )
 from egregora.input_adapters.whatsapp.utils import build_message_attrs
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
@@ -351,18 +351,16 @@ def _parse_whatsapp_lines(
         if match:
             # ... rest of existing logic ...
             date_str, time_str, author_raw, message_part = match.groups()
-
             try:
                 msg_date = _parse_message_date(date_str)
                 builder.current_date = msg_date
                 msg_time = _parse_message_time(time_str)
-            except WhatsAppParsingError as e:
-                logger.warning(f"Skipping line due to parsing error: {e}")
-                builder.flush()
-                continue
 
-            timestamp = datetime.combine(builder.current_date, msg_time, tzinfo=tz).astimezone(UTC)
-            builder.start_new_message(timestamp, author_raw, message_part)
+                timestamp = datetime.combine(builder.current_date, msg_time, tzinfo=tz).astimezone(UTC)
+                builder.start_new_message(timestamp, author_raw, message_part)
+            except (DateParsingError, TimeParsingError) as e:
+                logger.warning("Could not parse timestamp, treating as continuation: %s (%s)", line, e)
+                builder.append_line(line, line)
 
         else:
             builder.append_line(line, line)
@@ -407,8 +405,7 @@ def parse_source(
     rows = _parse_whatsapp_lines(source, export, timezone)
 
     if not rows:
-        logger.warning("No messages found in %s", export.zip_path)
-        return ibis.memtable([], schema=INGESTION_MESSAGE_SCHEMA)
+        raise NoMessagesFoundError(str(export.zip_path))
 
     messages = ibis.memtable(rows)
     if "_import_order" in messages.columns:
