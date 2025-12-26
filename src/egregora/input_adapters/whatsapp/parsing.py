@@ -50,7 +50,7 @@ EMAIL_PATTERN = re.compile(_EMAIL_PATTERN_STR)
 PHONE_PATTERN = re.compile(_PHONE_PATTERN_STR)
 
 # Combined pattern using named groups for dynamic replacement in a single pass
-PII_PATTERN = re.compile(fr"(?P<email>{_EMAIL_PATTERN_STR})|(?P<phone>{_PHONE_PATTERN_STR})")
+PII_PATTERN = re.compile(rf"(?P<email>{_EMAIL_PATTERN_STR})|(?P<phone>{_PHONE_PATTERN_STR})")
 
 # Replacement strings as constants
 EMAIL_REPLACEMENT = "<EMAIL_REDACTED>"
