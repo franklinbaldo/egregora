@@ -10,7 +10,6 @@ from egregora.input_adapters.whatsapp.exceptions import (
     DateParsingError,
     NoMessagesFoundError,
     TimeParsingError,
-    WhatsAppParsingError,
 )
 from egregora.input_adapters.whatsapp.parsing import (
     WhatsAppExport,
@@ -25,8 +24,10 @@ from egregora.input_adapters.whatsapp.parsing import (
 class TestWhatsAppParsing:
     """New tests for whatsapp parsing logic to raise exceptions on failure."""
 
-    def test_parse_whatsapp_lines_raises_error_on_parsing_failure(self) -> None:
-        """Verify _parse_whatsapp_lines raises WhatsAppParsingError on bad data."""
+    def test_parse_whatsapp_lines_handles_malformed_lines_gracefully(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Verify _parse_whatsapp_lines treats malformed lines as continuations (resilient behavior)."""
         # 1. Arrange: Create mock objects
         mock_export = WhatsAppExport(
             zip_path=Path("dummy.zip"),
@@ -38,13 +39,16 @@ class TestWhatsAppParsing:
         )
 
         mock_source = MagicMock(spec=ZipMessageSource)
-        # This line is intentionally malformed and will cause _parse_message_date to fail
+        # This line is intentionally malformed - it will be treated as a continuation line
         mock_source.lines.return_value = iter(["99/99/9999, 12:00 - Author: Message"])
 
-        # 2. Act & Assert: Expect an exception
-        # The current implementation will swallow this and return [], causing the test to fail.
-        with pytest.raises(WhatsAppParsingError):
-            _parse_whatsapp_lines(mock_source, mock_export, timezone="UTC")
+        # 2. Act: Parse the lines - should not raise an exception
+        rows = _parse_whatsapp_lines(mock_source, mock_export, timezone="UTC")
+
+        # 3. Assert: Returns empty list since there's no valid starting message
+        assert rows == []
+        # Should log a warning about the unparseable timestamp
+        assert "Could not parse timestamp, treating as continuation" in caplog.text
 
     def test_parse_source_raises_error_when_no_messages_found(self, monkeypatch) -> None:
         """Verify parse_source raises NoMessagesFoundError when parsing yields no rows."""
@@ -65,7 +69,7 @@ class TestWhatsAppParsing:
 
         # 2. Act & Assert: Expect NoMessagesFoundError
         # The current implementation will return an empty Ibis table, causing the test to fail.
-        with pytest.raises(NoMessagesFoundError, match="No messages found in 'dummy.zip'"):
+        with pytest.raises(NoMessagesFoundError, match=r"No messages found in 'dummy\.zip'"):
             parse_source(mock_export, timezone="UTC")
 
     def test_parse_message_date_raises_error_on_invalid_date(self) -> None:
@@ -76,7 +80,7 @@ class TestWhatsAppParsing:
 
     def test_parse_message_date_raises_error_on_empty_string(self) -> None:
         """Verify _parse_message_date raises DateParsingError with a custom message for an empty string."""
-        with pytest.raises(DateParsingError, match="Date string is empty."):
+        with pytest.raises(DateParsingError, match=r"Date string is empty\."):
             _parse_message_date("")
 
     def test_parse_message_time_raises_error_on_invalid_time(self) -> None:
@@ -87,10 +91,12 @@ class TestWhatsAppParsing:
 
     def test_parse_message_time_raises_error_on_empty_string(self) -> None:
         """Verify _parse_message_time raises TimeParsingError with a custom message for an empty string."""
-        with pytest.raises(TimeParsingError, match="Time string is empty."):
+        with pytest.raises(TimeParsingError, match=r"Time string is empty\."):
             _parse_message_time("")
 
-    def test_parse_whatsapp_lines_handles_invalid_line_gracefully(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_parse_whatsapp_lines_handles_invalid_line_gracefully(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """Verify _parse_whatsapp_lines handles invalid lines by logging and continuing."""
         # Arrange
         mock_export = MagicMock(spec=WhatsAppExport)

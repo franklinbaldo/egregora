@@ -58,6 +58,7 @@ def feed_strategy():
 
 # --- Tests ---
 
+@settings(suppress_health_check=[HealthCheck.too_slow])
 @given(document_strategy())
 def test_document_invariants(doc: Document):
     """Test core invariants for Document creation."""

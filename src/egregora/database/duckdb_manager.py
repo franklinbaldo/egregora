@@ -533,7 +533,8 @@ class DuckDBStorageManager:
         state = self.get_sequence_state(name)
         if state is None:
             logger.error("Failed to create sequence %s - sequence not found after creation", name)
-            raise SequenceError(f"Sequence {name} was not created")
+            msg = f"Sequence {name} was not created"
+            raise SequenceError(msg)
         logger.debug("Sequence %s verified (start=%d)", name, state.start_value)
 
     def get_sequence_state(self, name: str) -> SequenceState:
@@ -631,7 +632,8 @@ class DuckDBStorageManager:
                 values = _fetch_values()
             except duckdb.Error as exc:
                 if not self._is_invalidated_error(exc):
-                    raise SequenceError(f"Database error fetching sequence '{sequence_name}'") from exc
+                    msg = f"Database error fetching sequence '{sequence_name}'"
+                    raise SequenceError(msg) from exc
 
                 # DuckDB occasionally invalidates the connection after a fatal internal error.
                 # Recreate the connection and retry once so the pipeline can continue.
@@ -651,9 +653,8 @@ class DuckDBStorageManager:
                     values = _fetch_values()
                 except duckdb.Error as retry_exc:
                     logger.exception("Retry after connection reset also failed: %s", retry_exc)
-                    raise SequenceError(
-                        f"Database error fetching sequence '{sequence_name}' after retry"
-                    ) from retry_exc
+                    msg = f"Database error fetching sequence '{sequence_name}' after retry"
+                    raise SequenceError(msg) from retry_exc
 
         return values
 

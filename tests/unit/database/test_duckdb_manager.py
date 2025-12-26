@@ -151,7 +151,9 @@ def test_sync_sequence_with_table_sequence_not_found(mocker):
         # Create a dummy table to prevent CatalogException
         storage.execute_sql("CREATE TABLE some_table (id INTEGER)")
         storage.execute_sql("INSERT INTO some_table VALUES (1)")
-        mocker.patch.object(storage, "get_sequence_state", side_effect=SequenceNotFoundError("non_existent_sequence"))
+        mocker.patch.object(
+            storage, "get_sequence_state", side_effect=SequenceNotFoundError("non_existent_sequence")
+        )
         with pytest.raises(SequenceNotFoundError):
             storage.sync_sequence_with_table("non_existent_sequence", table="some_table", column="id")
 

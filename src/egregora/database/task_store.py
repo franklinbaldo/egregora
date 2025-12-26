@@ -46,7 +46,6 @@ class TaskStore:
                 # Race condition - table was created by another worker, continue
                 return
             # Table doesn't exist and creation failed - this is a real error
-            msg = f"Failed to create tasks table: {e}"
             raise TableCreationError("tasks") from e
 
     def enqueue(self, task_type: str, payload: dict[str, Any], run_id: uuid.UUID | None = None) -> str:

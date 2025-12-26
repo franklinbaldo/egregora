@@ -35,11 +35,11 @@ jobs:
           script: |
             let pull_number;
             let pr_data;
-            
+
             console.log('=== Identify PR Step ===');
             console.log('Event:', context.eventName);
             console.log('Inputs:', JSON.stringify(context.payload.inputs || {}));
-            
+
             if (context.eventName === 'workflow_dispatch') {
               pull_number = parseInt(context.payload.inputs.pr_number);
               console.log('Fetching PR number:', pull_number);
@@ -56,12 +56,12 @@ jobs:
             }
 
             console.log('Setting outputs - number:', pull_number, 'actor:', pr_data.user.login, 'draft:', pr_data.draft);
-            
+
             core.setOutput('number', pull_number);
             core.setOutput('node_id', pr_data.node_id);
             core.setOutput('draft', String(pr_data.draft));
             core.setOutput('actor', pr_data.user.login);
-            
+
             console.log('=== Outputs set successfully ===');
 
       # SECURITY: Validate that PR only modifies dependency files for dependency bots
@@ -109,7 +109,7 @@ jobs:
           script: |
             const prNumber = parseInt(process.env.PR_NUMBER);
             const { owner, repo } = context.repo;
-            
+
             console.log('📝 Converting draft PR to ready for review...');
             await github.rest.pulls.update({
               owner,
@@ -144,12 +144,12 @@ jobs:
             const prNumber = parseInt(process.env.PR_NUMBER);
             const actor = process.env.PR_ACTOR;
             const { owner, repo } = context.repo;
-            
+
             const isJulesBot = actor === 'google-labs-jules[bot]' || actor === 'google-labs-jules';
             let approvalMessage = isJulesBot
               ? '✅ Auto-approved by CI workflow - Jules bot update'
               : '✅ Auto-approved by CI workflow - dependency update';
-            
+
             console.log('Approving PR', prNumber, 'actor:', actor, 'isJulesBot:', isJulesBot);
 
             await github.rest.pulls.createReview({
@@ -181,7 +181,7 @@ jobs:
             const shouldAutoMerge = isJulesBot ||
                                     (updateType === 'version-update:semver-patch' ||
                                      updateType === 'version-update:semver-minor');
-            
+
             console.log('Enable auto-merge check - actor:', actor, 'isJulesBot:', isJulesBot, 'updateType:', updateType, 'shouldAutoMerge:', shouldAutoMerge);
 
             if (shouldAutoMerge) {
@@ -205,7 +205,7 @@ jobs:
                   issue_number: prNumber,
                   body: `🤖 **Auto-merge enabled**\n\nThis PR will automatically merge when all required checks pass.\n\n_Reason: ${isJulesBot ? 'Jules bot update' : 'dependency update'}_`
                 });
-                
+
                 console.log('Auto-merge enabled successfully');
               } catch (error) {
                 console.log(`⚠️ Could not enable auto-merge: ${error.message}`);
