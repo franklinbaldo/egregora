@@ -23,7 +23,8 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       github.actor == 'dependabot[bot]' ||
       github.actor == 'renovate[bot]' ||
-      github.actor == 'google-labs-jules[bot]'
+      github.actor == 'google-labs-jules[bot]' ||
+      github.actor == 'google-labs-jules'
 
     steps:
       # Identify PR info for manual trigger
@@ -167,7 +168,8 @@ jobs:
               const { owner, repo } = context.repo;
               const actor = prInfo.actor;
 
-              let approvalMessage = actor === 'google-labs-jules[bot]'
+              const isJulesBot = actor === 'google-labs-jules[bot]' || actor === 'google-labs-jules';
+              let approvalMessage = isJulesBot
                 ? '✅ Auto-approved by CI workflow - Jules bot update'
                 : '✅ Auto-approved by CI workflow - dependency update';
 
@@ -203,7 +205,8 @@ jobs:
               const actor = prInfo.actor;
               const updateType = process.env.UPDATE_TYPE || '';
 
-              const shouldAutoMerge = (actor === 'google-labs-jules[bot]') ||
+              const isJulesBot = actor === 'google-labs-jules[bot]' || actor === 'google-labs-jules';
+              const shouldAutoMerge = isJulesBot ||
                                       (updateType === 'version-update:semver-patch' ||
                                        updateType === 'version-update:semver-minor');
 
@@ -226,7 +229,7 @@ jobs:
                     owner,
                     repo,
                     issue_number: prInfo.number,
-                    body: `🤖 **Auto-merge enabled**\n\nThis PR will automatically merge when all required checks pass.\n\n_Reason: ${actor === 'google-labs-jules[bot]' ? 'Jules bot update' : 'dependency update'}_`
+                    body: `🤖 **Auto-merge enabled**\n\nThis PR will automatically merge when all required checks pass.\n\n_Reason: ${isJulesBot ? 'Jules bot update' : 'dependency update'}_`
                   });
                 } catch (error) {
                   console.log(`⚠️ Could not enable auto-merge: ${error.message}`);
