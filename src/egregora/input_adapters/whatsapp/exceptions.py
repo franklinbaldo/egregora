@@ -23,3 +23,13 @@ class TimeParsingError(WhatsAppParsingError):
         if message is None:
             message = f"Failed to parse time string: '{self.time_str}'"
         super().__init__(message)
+
+
+class EmptyChatLogError(WhatsAppParsingError):
+    """Raised when the WhatsApp chat log file is empty."""
+
+    def __init__(self, path: str, message: str | None = None) -> None:
+        self.path = path
+        if message is None:
+            message = f"Chat log file is empty: '{self.path}'"
+        super().__init__(message)
