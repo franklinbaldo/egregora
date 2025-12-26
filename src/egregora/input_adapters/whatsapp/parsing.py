@@ -24,6 +24,7 @@ from pydantic import BaseModel
 from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.exceptions import (
     DateParsingError,
+    NoMessagesFoundError,
     TimeParsingError,
 )
 from egregora.input_adapters.whatsapp.utils import build_message_attrs
@@ -404,8 +405,7 @@ def parse_source(
     rows = _parse_whatsapp_lines(source, export, timezone)
 
     if not rows:
-        logger.warning("No messages found in %s", export.zip_path)
-        return ibis.memtable([], schema=INGESTION_MESSAGE_SCHEMA)
+        raise NoMessagesFoundError(str(export.zip_path))
 
     messages = ibis.memtable(rows)
     if "_import_order" in messages.columns:
