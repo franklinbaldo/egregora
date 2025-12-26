@@ -23,6 +23,7 @@ from pydantic import BaseModel
 
 from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.exceptions import (
+    ChatEncodingError,
     DateParsingError,
     MalformedLineError,
     NoMessagesFoundError,
@@ -325,8 +326,7 @@ class ZipMessageSource:
                     for line in text_stream:
                         yield _normalize_text(line.rstrip("\n"), self.config)
             except UnicodeDecodeError as exc:
-                msg = f"Failed to decode chat file '{self.export.chat_file}': {exc}"
-                raise ZipValidationError(msg) from exc
+                raise ChatEncodingError(self.export.chat_file, exc) from exc
 
 
 def _parse_whatsapp_lines(

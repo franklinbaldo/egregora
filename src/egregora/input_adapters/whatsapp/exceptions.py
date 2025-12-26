@@ -65,3 +65,14 @@ class MalformedLineError(WhatsAppParsingError):
         self.original_error = original_error
         message = f"Malformed line encountered: '{line}'. Reason: {original_error}"
         super().__init__(message)
+
+
+class ChatEncodingError(WhatsAppParsingError):
+    """Raised when the chat file cannot be decoded."""
+
+    def __init__(self, filename: str, original_error: UnicodeDecodeError) -> None:
+        """Initialize the exception."""
+        self.filename = filename
+        self.original_error = original_error
+        message = f"Failed to decode chat file '{filename}' due to encoding issue: {original_error}"
+        super().__init__(message)

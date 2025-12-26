@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Annotated
 if TYPE_CHECKING:
     import zipfile
 __all__ = [
+    "ZipError",
     "ZipValidationError",
     "ZipValidationSettings",
     "configure_default_limits",
@@ -17,7 +18,11 @@ __all__ = [
 ]
 
 
-class ZipValidationError(ValueError):
+class ZipError(Exception):
+    """Base exception for ZIP file processing errors."""
+
+
+class ZipValidationError(ZipError):
     """Raised when a ZIP archive fails validation checks."""
 
 
