@@ -77,8 +77,11 @@ This will:
 Launch a local preview server:
 
 ```bash
-uv sync --all-extras
-uv run mkdocs serve -f .egregora/mkdocs.yml
+# To serve, we need the mkdocs dependencies
+uvx --from git+https://github.com/franklinbaldo/egregora \
+  --with mkdocs-material \
+  --with mkdocs-blogging-plugin \
+  mkdocs serve -f .egregora/mkdocs.yml
 ```
 
 Open [http://localhost:8000](http://localhost:8000) in your browser. 🎉
@@ -211,5 +214,5 @@ chmod -R u+w .egregora/lancedb/
 
 ## Learn More
 
-- [Architecture Overview](../v3/architecture/index.md) - Understand the pipeline
-- [API Reference](../v3/api-reference/index.md) - Complete code documentation
+- [Technical Reference](../reference.md) - Learn about the architecture and CLI
+- [Code of the Weaver](../CLAUDE.md) - Guidelines for contributors
