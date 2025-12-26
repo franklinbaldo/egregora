@@ -13,18 +13,6 @@ class WhatsAppParsingIOError(WhatsAppParsingError):
     """Raised for I/O-related errors during parsing, like file not found or decoding errors."""
 
 
-class MediaExtractionError(WhatsAppAdapterError):
-    """Raised when a media file cannot be extracted."""
-
-    def __init__(self, media_reference: str, zip_path: str, reason: str) -> None:
-        """Initialize the exception."""
-        self.media_reference = media_reference
-        self.zip_path = zip_path
-        self.reason = reason
-        message = f"Failed to extract '{media_reference}' from '{zip_path}': {reason}"
-        super().__init__(message)
-
-
 class DateParsingError(WhatsAppParsingError):
     """Raised when a date string cannot be parsed."""
 
