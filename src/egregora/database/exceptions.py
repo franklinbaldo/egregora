@@ -59,3 +59,11 @@ class SequenceRetryFailedError(SequenceError):
     def __init__(self, sequence_name: str) -> None:
         self.sequence_name = sequence_name
         super().__init__(f"Database error for sequence '{sequence_name}' after retry")
+
+
+class TableInfoError(DatabaseError):
+    """Raised when fetching table metadata (e.g., columns) fails."""
+
+    def __init__(self, table_name: str) -> None:
+        self.table_name = table_name
+        super().__init__(f"Failed to retrieve metadata for table '{table_name}'")
