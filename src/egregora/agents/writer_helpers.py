@@ -70,9 +70,29 @@ def register_writer_tools(
 
     # Core Tools (Always available)
     @agent.tool
-    def write_post_tool(ctx: RunContext[WriterDeps], metadata: PostMetadata, content: str) -> WritePostResult:
-        meta_dict = metadata.model_dump(exclude_none=True)
-        meta_dict["model"] = ctx.deps.model_name
+    def write_post_tool(ctx: RunContext[WriterDeps], metadata: PostMetadata | dict | str, content: str) -> WritePostResult:
+        """Write a blog post with flexible metadata handling.
+        
+        Args:
+            ctx: Runtime context with dependencies
+            metadata: Post metadata as PostMetadata object, dict, or JSON string
+            content: Markdown content for the post
+            
+        Returns:
+            WritePostResult with status and document path
+        """
+        # Handle different metadata formats
+        if isinstance(metadata, PostMetadata):
+            meta_dict = metadata.model_dump(exclude_none=True)
+        elif isinstance(metadata, dict):
+            meta_dict = metadata
+        else:  # str
+            meta_dict = metadata  # Pass through to write_post for JSON parsing
+        
+        # Inject model name if we have a dict
+        if isinstance(meta_dict, dict):
+            meta_dict["model"] = ctx.deps.model_name
+        
         return ctx.deps.write_post(meta_dict, content)
 
     @agent.tool
