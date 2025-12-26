@@ -11,4 +11,4 @@ This section contains the auto-generated API reference for the V3 codebase (`src
 ## Infrastructure
 
 ::: egregora_v3.infra.vector.lancedb
-::: egregora_v3.infra.storage.duckdb
+::: egregora_v3.infra.repository.duckdb

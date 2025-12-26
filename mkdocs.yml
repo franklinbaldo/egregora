@@ -203,9 +203,6 @@ nav:
   - Demo: https://franklinbaldo.github.io/egregora/demo/
   - Blog:
     - Posts: posts/index.md
-    - Media: posts/media/index.md
-    - Tags: posts/tags.md
-    - Profiles: posts/profiles/index.md
 
 extra:
   # Build information (set by CI/CD workflow)
