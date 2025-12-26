@@ -154,7 +154,9 @@ class ModelKeyRotator:
                         continue
 
                     # All Gemini models+keys exhausted, try OpenRouter fallback
-                    logger.warning("[ModelKeyRotator] All Gemini models and keys exhausted, trying OpenRouter fallback")
+                    logger.warning(
+                        "[ModelKeyRotator] All Gemini models and keys exhausted, trying OpenRouter fallback"
+                    )
                     break
 
                 # Non-rate-limit error - propagate immediately
@@ -169,7 +171,10 @@ class ModelKeyRotator:
                     from egregora.utils.model_fallback import get_openrouter_free_models
 
                     self._openrouter_models = get_openrouter_free_models(modality="text")
-                    logger.info("[ModelKeyRotator] Fetched %d OpenRouter models for fallback", len(self._openrouter_models))
+                    logger.info(
+                        "[ModelKeyRotator] Fetched %d OpenRouter models for fallback",
+                        len(self._openrouter_models),
+                    )
 
                 # Try each OpenRouter model
                 for or_model in self._openrouter_models:
@@ -183,7 +188,9 @@ class ModelKeyRotator:
                     except Exception as exc:  # noqa: BLE001
                         last_exception = exc
                         if is_rate_limit_error(exc):
-                            logger.warning("[ModelKeyRotator] OpenRouter model %s rate limited, trying next", model_name)
+                            logger.warning(
+                                "[ModelKeyRotator] OpenRouter model %s rate limited, trying next", model_name
+                            )
                             continue
                         # Non-rate-limit error on OpenRouter - try next model
                         logger.warning("[ModelKeyRotator] OpenRouter model %s failed: %s", model_name, exc)

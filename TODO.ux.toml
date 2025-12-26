@@ -23,8 +23,10 @@ description = """
 2. **Correct Path:** Change the `custom_dir` value from `overrides` to `.egregora/overrides`.
 3. **Revert Workaround:** The test `tests/unit/output_adapters/mkdocs/test_scaffolding.py::test_overrides_are_in_site_root` and the corresponding code in `scaffolding.py` should be reverted to place `overrides` back into the `.egregora` directory.
 **Verification:** After these changes, the `mkdocs build` command should succeed, and the test suite should pass.
+
+**Curator's Note (2025-12-25):** Moving this back to 'pending'. The underlying issue is in the `mkdocs.yml.jinja` template. The `custom_dir` is hardcoded to `overrides`, which is incorrect. The previous fix was a workaround. The template itself must be corrected.
 """
-status = "review"
+status = "pending"
 category = "infrastructure"
 assignee = "forge"
 
@@ -44,12 +46,21 @@ category = "navigation"
 assignee = "forge"
 
 [[tasks.high_priority]]
-id = "baseline-lighthouse"
-title = "Generate demo and run Lighthouse audit"
-description = "Document baseline scores (Performance, A11y, Best Practices, SEO)."
-status = "in_progress"
-category = "baseline"
-assignee = "curator"
+id = "implement-lighthouse-audit-script"
+title = "Implement a script to run a Lighthouse audit"
+description = """
+**Curator's Finding (2025-12-25):** There is currently no tooling in the repository to run a Lighthouse audit. This is a blocker for establishing baseline UX metrics. A script is needed to automate this process.
+
+**Requirements:**
+1.  The script should be callable from the command line (e.g., `python .jules/scripts/run_lighthouse.py`).
+2.  It must be able to serve the generated site from `demo/.egregora/site`.
+3.  It should run a Lighthouse audit against the served site's index page.
+4.  The script should output the key scores (Performance, Accessibility, Best Practices, SEO) to the console.
+5.  Bonus: Have the script automatically update the `[lighthouse.current]` section in `TODO.ux.toml`.
+"""
+status = "pending"
+category = "infrastructure"
+assignee = "forge"
 
 # Medium Priority - Refinement & Polish
 [[tasks.medium_priority]]
