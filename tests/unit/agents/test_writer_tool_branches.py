@@ -40,13 +40,11 @@ def make_deps(tmp_path: Path) -> WriterDeps:
 
 
 def test_writer_deps_handles_invalid_search(monkeypatch, tmp_path):
-    deps = make_deps(tmp_path)
-
     monkeypatch.setattr(
         "egregora.agents.tools.writer_tools.search", lambda request: (_ for _ in ()).throw(ValueError("bad query"))
     )
 
-    result = deps.search_media("bad query")
+    result = search_media_impl("bad query")
 
     assert result.results == []
 
