@@ -1304,7 +1304,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             dataset = _prepare_pipeline_data(adapter, run_params, ctx)
 
             # Use PipelineRunner for execution
-            runner = PipelineRunner(dataset.context)
+            runner = PipelineRunner(dataset.context, checkpoint_path=dataset.checkpoint_path)
             results, max_processed_timestamp = runner.process_windows(dataset.windows_iterator)
 
             _index_media_into_rag(

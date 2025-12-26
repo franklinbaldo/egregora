@@ -29,7 +29,7 @@ GOOGLE_FALLBACK_MODELS = [
 ]
 
 
-def get_openrouter_free_models(modality: str = "text") -> list[str]:
+def get_openrouter_free_models(modality: str = "text", *, require_tools: bool = False) -> list[str]:
     """Fetch list of free OpenRouter models from their API.
 
     Args:
@@ -37,6 +37,7 @@ def get_openrouter_free_models(modality: str = "text") -> list[str]:
             - "text": Text-only models (for URL enrichment, writer, reader)
             - "vision": Models with image input support (for media enrichment)
             - "any": All free models regardless of modality
+        require_tools: If True, only return models that support tool-calling.
 
     Returns:
         List of model names in pydantic-ai format (e.g., 'openrouter:model/name')
@@ -47,9 +48,10 @@ def get_openrouter_free_models(modality: str = "text") -> list[str]:
     current_time = time.time()
 
     # Check cache validity
+    cache_key = f"{modality}_tools" if require_tools else modality
     if _free_models_cache and (current_time - _cache_timestamp < CACHE_TTL):
-        if modality in _free_models_cache:
-            return _free_models_cache[modality]
+        if cache_key in _free_models_cache:
+            return _free_models_cache[cache_key]
 
     free_models: list[str] = []
     try:
@@ -67,6 +69,11 @@ def get_openrouter_free_models(modality: str = "text") -> list[str]:
             # Check modality requirements
             architecture = model.get("architecture", {})
             input_modalities = architecture.get("input_modalities", [])
+            supports_tools = architecture.get("tool_use", False) or "tools" in str(model.get("description", "")).lower()
+
+            # Filter based on tool support if required
+            if require_tools and not supports_tools:
+                continue
 
             # Filter based on requested modality
             if modality == "text":
@@ -80,12 +87,15 @@ def get_openrouter_free_models(modality: str = "text") -> list[str]:
             else:  # "any"
                 free_models.append(f"openrouter:{model['id']}")
 
-        logger.info("Fetched %d free OpenRouter models for modality '%s'", len(free_models), modality)
+        logger.info(
+            "Fetched %d free OpenRouter models (modality=%s, require_tools=%s)",
+            len(free_models),
+            modality,
+            require_tools,
+        )
 
         # Update cache
-        if modality not in _free_models_cache:
-            _free_models_cache[modality] = []
-        _free_models_cache[modality] = free_models
+        _free_models_cache[cache_key] = free_models
         _cache_timestamp = current_time
 
     except (httpx.HTTPError, httpx.TimeoutException) as e:
@@ -136,7 +146,9 @@ def create_fallback_model(
     openrouter_models: list[str] = []
     if include_openrouter and os.environ.get("OPENROUTER_API_KEY"):
         try:
-            openrouter_models = get_openrouter_free_models(modality=modality)
+            # Most of our text models use tools (writer, agents)
+            require_tools = modality == "text"
+            openrouter_models = get_openrouter_free_models(modality=modality, require_tools=require_tools)
             if not openrouter_models and modality == "vision":
                 logger.info("No free OpenRouter vision models available, using Google models only")
         except (httpx.HTTPError, httpx.TimeoutException) as e:

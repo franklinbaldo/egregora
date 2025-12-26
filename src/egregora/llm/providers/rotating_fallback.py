@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
@@ -55,6 +56,7 @@ class RotatingFallbackModel(Model):
         self._lock = threading.Lock()
         self._consecutive_429s: dict[int, int] = {}  # Track 429s per model index
         self._excluded_keys: set[str] = set()
+        self._key_cooldowns: dict[str, float] = {}  # Map of API key to expiration timestamp
 
     @property
     def model_name(self) -> str:
@@ -87,28 +89,41 @@ class RotatingFallbackModel(Model):
                     self._excluded_keys.add(failed_key)
                     logger.warning("[SmartRotation] Key ...%s excluded due to 429", failed_key[-6:])
 
-            # Rotation Strategy:
-            # 1. Try to find next model whose key is NOT excluded
-            # 2. If all remaining options are excluded, ignore exclusion (full exhaustion) and just rotate to next
-
             start_index = (self._current_index + 1) % len(self._models)
+            current_time = time.time()
 
-            # Pass 1: Look for non-excluded key
+            # Pass 1: Look for non-excluded key that is NOT in cooldown
             candidate_index = start_index
             found_safe = False
             for _ in range(len(self._models)):
                 key = self._model_keys[candidate_index] if self._model_keys else None
-                # If key is None (unknown) or NOT in excluded, it's a candidate
-                if not key or key not in self._excluded_keys:
+                # Check status
+                is_excluded = key in self._excluded_keys if key else False
+                cooldown_expiry = self._key_cooldowns.get(key, 0) if key else 0
+                is_cooling = current_time < cooldown_expiry
+
+                if not is_excluded and not is_cooling:
                     found_safe = True
                     break
                 candidate_index = (candidate_index + 1) % len(self._models)
 
+            # Pass 2: If no "safe" found, try any that is NOT in cooldown (even if excluded)
+            if not found_safe:
+                candidate_index = start_index
+                for _ in range(len(self._models)):
+                    key = self._model_keys[candidate_index] if self._model_keys else None
+                    cooldown_expiry = self._key_cooldowns.get(key, 0) if key else 0
+                    if current_time >= cooldown_expiry:
+                        found_safe = True
+                        break
+                    candidate_index = (candidate_index + 1) % len(self._models)
+
             next_index = candidate_index if found_safe else start_index
 
-            if not found_safe and self._model_keys:
+            if not found_safe:
                 logger.warning(
-                    "[SmartRotation] All keys excluded/exhausted. Ignoring exclusion and trying next available."
+                    "[SmartRotation] ALL keys in cooldown. Forcing rotation to next model (idx %d)",
+                    next_index,
                 )
                 # Optional: Clear exclusion list to reset cycle?
                 # self._excluded_keys.clear()
@@ -135,10 +150,69 @@ class RotatingFallbackModel(Model):
                 succeeded_key = self._model_keys[index]
                 if succeeded_key and succeeded_key in self._excluded_keys:
                     self._excluded_keys.remove(succeeded_key)
+                if succeeded_key and succeeded_key in self._key_cooldowns:
+                    del self._key_cooldowns[succeeded_key]
+                if succeeded_key:
                     logger.info(
-                        "[SmartRotation] Key ...%s recovered/succeeded, removed from exclusion",
+                        "[SmartRotation] Key ...%s recovered/succeeded, removed from exclusion/cooldown",
                         succeeded_key[-6:],
                     )
+
+    def _apply_rate_limit_cooldown(self, failed_index: int, error: Exception) -> None:
+        """Apply cooldown to a key if rate limit information is available."""
+        if not self._model_keys:
+            return
+
+        key = self._model_keys[failed_index]
+        if not key:
+            return
+
+        delay = self._parse_retry_delay(error)
+        if delay:
+            # Add a small buffer to the requested delay
+            expiry = time.time() + delay + 1.0
+            with self._lock:
+                self._key_cooldowns[key] = expiry
+                logger.warning(
+                    "[SmartRotation] Key ...%s on cooldown for %.1fs (retryDelay matched)",
+                    key[-6:],
+                    delay,
+                )
+        else:
+            # Default fallback cooldown if no delay specified in error
+            expiry = time.time() + 30.0
+            with self._lock:
+                self._key_cooldowns[key] = expiry
+                logger.info("[SmartRotation] Key ...%s on default 30s cooldown", key[-6:])
+
+    def _parse_retry_delay(self, error: Exception) -> float | None:
+        """Parse retry delay from various error formats (Gemini, OpenRouter)."""
+        # 1. Check ModelHTTPError (Pydantic-AI)
+        if isinstance(error, ModelHTTPError) and error.body:
+            try:
+                # Gemini format: error.details[].retryDelay
+                details = error.body.get("error", {}).get("details", [])
+                for detail in details:
+                    if detail.get("@type") == "type.googleapis.com/google.rpc.RetryInfo":
+                        delay_str = detail.get("retryDelay", "")
+                        if delay_str.endswith("s"):
+                            return float(delay_str[:-1])
+            except (AttributeError, ValueError):
+                pass
+
+        # 2. Check string representation for "retry after X seconds" patterns
+        import re
+
+        err_msg = str(error)
+        match = re.search(r"retry after ([\d\.]+)s", err_msg, re.IGNORECASE)
+        if match:
+            return float(match.group(1))
+
+        match = re.search(r"retry in ([\d\.]+)s", err_msg, re.IGNORECASE)
+        if match:
+            return float(match.group(1))
+
+        return None
 
     def _all_exhausted(self) -> bool:
         """Check if all models have recent 429s (full rotation without success)."""
@@ -169,55 +243,23 @@ class RotatingFallbackModel(Model):
                 self._reset_429_count(current_idx)
                 return response
 
-            except ModelHTTPError as e:
-                last_exception = e
-                # Check if it's a 429
-                if e.status_code == 429:  # noqa: PLR2004
-                    attempts += 1
-                    self._rotate_on_429(current_idx)
-
-                    # If all models exhausted, break to raise
-                    if self._all_exhausted():
-                        logger.exception(
-                            "All %d models exhausted after 429s",
-                            len(self._models),
-                        )
-                        break
-
-                    # Continue to try next model
-                    continue
-
-                # Non-429 HTTP error - re-raise
-                raise
-
-            except httpx.HTTPStatusError as e:
-                last_exception = e
-                # Handle httpx-level 429 errors (in case pydantic-ai doesn't wrap them)
-                if e.response.status_code == 429:  # noqa: PLR2004
-                    attempts += 1
-                    self._rotate_on_429(current_idx)
-
-                    if self._all_exhausted():
-                        logger.exception("All models exhausted (httpx 429)")
-                        break
-                    continue
-                raise
-
             except Exception as e:
-                # Any other exception - check if it looks like a 429
+                # Always rotate on 429 or any error if we have more attempts/models
                 err_str = str(e).lower()
-                if "429" in err_str or "too many requests" in err_str or "rate limit" in err_str:
-                    last_exception = e
-                    attempts += 1
-                    self._rotate_on_429(current_idx)
+                is_rate_limit = "429" in err_str or "too many requests" in err_str or "rate limit" in err_str
+                
+                if is_rate_limit:
+                    self._apply_rate_limit_cooldown(current_idx, e)
+                
+                attempts += 1
+                self._rotate_on_429(current_idx)
 
-                    if self._all_exhausted():
-                        logger.exception("All models exhausted (generic 429)")
-                        break
-                    continue
-
-                # Not a 429 - re-raise immediately
-                raise
+                if self._all_exhausted() or attempts >= max_attempts:
+                    logger.exception("All models exhausted or max attempts reached. Last error: %s", e)
+                    raise
+                
+                logger.warning("Model index %d failed with %s, rotating...", current_idx, type(e).__name__)
+                continue
 
         # All attempts exhausted
         if last_exception:
@@ -248,15 +290,23 @@ class RotatingFallbackModel(Model):
                     yield stream
                     return
 
-            except ModelHTTPError as e:
-                if e.status_code == 429:  # noqa: PLR2004
-                    attempts += 1
-                    self._rotate_on_429(current_idx)
+            except Exception as e:
+                # Always rotate on 429 or any error if we have more attempts/models
+                err_str = str(e).lower()
+                is_rate_limit = "429" in err_str or "too many requests" in err_str or "rate limit" in err_str
+                
+                if is_rate_limit:
+                    self._apply_rate_limit_cooldown(current_idx, e)
+                
+                attempts += 1
+                self._rotate_on_429(current_idx)
 
-                    if self._all_exhausted():
-                        raise
-                    continue
-                raise
+                if self._all_exhausted() or attempts >= max_attempts:
+                    logger.exception("All models exhausted or max attempts reached in stream. Last error: %s", e)
+                    raise
+                
+                logger.warning("Model index %d failed in stream with %s, rotating...", current_idx, type(e).__name__)
+                continue
 
         msg = f"Max attempts ({max_attempts}) exceeded"
         raise RuntimeError(msg)

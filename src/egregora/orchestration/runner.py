@@ -23,10 +23,11 @@ from egregora.data_primitives.protocols import UrlContext
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.modules.media import process_media_for_window
-from egregora.transformations import split_window_into_n_parts
+from egregora.transformations import save_checkpoint, split_window_into_n_parts
 
 if TYPE_CHECKING:
     from datetime import datetime
+    from pathlib import Path
 
     import ibis.expr.types as ir
 
@@ -40,8 +41,9 @@ MIN_WINDOWS_WARNING_THRESHOLD = 5
 class PipelineRunner:
     """Orchestrates the execution of the pipeline window processing loop."""
 
-    def __init__(self, context: PipelineContext) -> None:
+    def __init__(self, context: PipelineContext, checkpoint_path: Path | None = None) -> None:
         self.context = context
+        self.checkpoint_path = checkpoint_path
 
     def process_windows(
         self,
@@ -117,6 +119,16 @@ class PipelineRunner:
             )
 
             windows_processed += 1
+
+            # Incremental checkpoint: save progress after each window
+            if self.checkpoint_path and max_processed_timestamp:
+                total_posts = sum(len(r.get("posts", [])) for r in results.values())
+                save_checkpoint(self.checkpoint_path, max_processed_timestamp, total_posts)
+                logger.debug(
+                    "💾 Checkpoint saved after window %d (processed up to %s)",
+                    windows_processed,
+                    max_processed_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                )
 
         return results, max_processed_timestamp
 
