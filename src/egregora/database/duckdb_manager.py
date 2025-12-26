@@ -51,6 +51,7 @@ from egregora.database import schemas
 from egregora.database.exceptions import (
     InvalidOperationError,
     InvalidTableNameError,
+    SequenceCreationError,
     SequenceError,
     SequenceFetchError,
     SequenceNotFoundError,
@@ -533,12 +534,12 @@ class DuckDBStorageManager:
         self._conn.execute(f"CREATE SEQUENCE IF NOT EXISTS {quoted_name} START {int(start)}")
         self._conn.commit()
         # Verify sequence was created
-        state = self.get_sequence_state(name)
-        if state is None:
-            logger.error("Failed to create sequence %s - sequence not found after creation", name)
-            msg = f"Sequence {name} was not created"
-            raise SequenceError(msg)
-        logger.debug("Sequence %s verified (start=%d)", name, state.start_value)
+        try:
+            state = self.get_sequence_state(name)
+            logger.debug("Sequence %s verified (start=%d)", name, state.start_value)
+        except SequenceNotFoundError as e:
+            logger.error("Failed to create sequence %s - not found after creation", name)
+            raise SequenceCreationError(name) from e
 
     def get_sequence_state(self, name: str) -> SequenceState:
         """Return metadata describing the current state of ``name``."""
