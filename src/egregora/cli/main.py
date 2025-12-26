@@ -22,8 +22,8 @@ from rich.table import Table
 from egregora.cli.read import read_app
 from egregora.config import load_egregora_config
 from egregora.constants import SourceType, WindowUnit
+from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
-from egregora.database.utils import get_simple_storage
 from egregora.diagnostics import HealthStatus, run_diagnostics
 from egregora.orchestration.pipelines.write import run_cli_flow
 from egregora.output_adapters.mkdocs.scaffolding import ensure_mkdocs_project
@@ -312,7 +312,7 @@ def top(
         console.print("Run 'egregora read' first to generate rankings")
         raise typer.Exit(1)
 
-    storage = get_simple_storage(db_path)
+    storage = DuckDBStorageManager(db_path)
     elo_store = EloStore(storage)
 
     top_posts = elo_store.get_top_posts(limit=limit).execute()
@@ -397,7 +397,7 @@ def show_reader_history(
         console.print("Run 'egregora read' first to generate rankings")
         raise typer.Exit(1)
 
-    storage = get_simple_storage(db_path)
+    storage = DuckDBStorageManager(db_path)
     elo_store = EloStore(storage)
 
     history = elo_store.get_comparison_history(

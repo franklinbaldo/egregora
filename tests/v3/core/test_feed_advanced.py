@@ -50,6 +50,7 @@ def sample_feed() -> Feed:
         doc_type=DocumentType.POST,
         title="First Post",
         status=DocumentStatus.PUBLISHED,
+        updated=datetime.now(UTC),
     )
     doc1.authors = [Author(name="Alice Smith", email="alice@example.com")]
     doc1.categories = [Category(term="technology", label="Technology")]
@@ -67,6 +68,7 @@ def sample_feed() -> Feed:
         content="Second post content.",
         doc_type=DocumentType.NOTE,
         title="Quick Note",
+        updated=datetime.now(UTC),
     )
     doc2.authors = [
         Author(name="Bob Jones", uri="https://bob.example.com"),
@@ -79,6 +81,7 @@ def sample_feed() -> Feed:
         doc_type=DocumentType.POST,
         title="Re: First Post",
         in_reply_to=InReplyTo(ref=doc1.id, href="https://example.com/first-post"),
+        updated=datetime.now(UTC),
     )
 
     return documents_to_feed(
@@ -130,10 +133,9 @@ def test_roundtrip_preserves_timestamps(tmp_path: Path) -> None:
         content="Test content",
         doc_type=DocumentType.POST,
         title="Test Post",
+        published=datetime(2025, 12, 5, 9, 0, 0, tzinfo=UTC),
+        updated=datetime(2025, 12, 6, 10, 0, 0, tzinfo=UTC),
     )
-    # Set published explicitly
-    doc.published = datetime(2025, 12, 5, 9, 0, 0, tzinfo=UTC)
-    doc.updated = datetime(2025, 12, 6, 10, 0, 0, tzinfo=UTC)
 
     feed = Feed(
         id="test-feed",
@@ -274,6 +276,7 @@ def test_feed_xml_snapshot_regression(sample_feed: Feed, snapshot: SnapshotAsser
             content="Deterministic content",
             doc_type=DocumentType.POST,
             title="Deterministic Post",
+            updated=datetime(2025, 12, 6, 10, 0, 0, tzinfo=UTC),
         )
         doc.authors = [Author(name="Test Author")]
 
@@ -304,7 +307,12 @@ def test_feed_xml_snapshot_regression(sample_feed: Feed, snapshot: SnapshotAsser
 def test_documents_to_feed_count_invariant(titles: list[str]) -> None:
     """Property: Number of documents equals number of feed entries."""
     docs = [
-        Document(content=f"Content {i}", doc_type=DocumentType.NOTE, title=title)
+        Document(
+            content=f"Content {i}",
+            doc_type=DocumentType.NOTE,
+            title=title,
+            updated=datetime.now(UTC),
+        )
         for i, title in enumerate(titles)
     ]
 
@@ -321,6 +329,7 @@ def test_feed_to_xml_always_well_formed(num_entries: int) -> None:
             content=f"Content {i}",
             doc_type=DocumentType.POST,
             title=f"Post {i}",
+            updated=datetime.now(UTC),
         )
         for i in range(num_entries)
     ]
@@ -374,6 +383,7 @@ def test_feed_with_threading_extension() -> None:
         content="Parent post",
         doc_type=DocumentType.POST,
         title="Parent",
+        updated=datetime.now(UTC),
     )
 
     reply = Document(
@@ -381,6 +391,7 @@ def test_feed_with_threading_extension() -> None:
         doc_type=DocumentType.POST,
         title="Re: Parent",
         in_reply_to=InReplyTo(ref=parent.id, href="https://example.com/parent"),
+        updated=datetime.now(UTC),
     )
 
     feed = documents_to_feed([parent, reply], feed_id="test", title="Threaded Feed")
@@ -410,6 +421,7 @@ def test_feed_with_categories() -> None:
         content="Categorized content",
         doc_type=DocumentType.POST,
         title="Categorized Post",
+        updated=datetime.now(UTC),
     )
     doc.categories = [
         Category(term="technology", scheme="http://example.com/scheme", label="Technology"),
@@ -460,15 +472,15 @@ def test_feed_updated_timestamp_reflects_newest_entry() -> None:
         content="Old",
         doc_type=DocumentType.POST,
         title="Old Post",
+        updated=datetime(2025, 12, 1, tzinfo=UTC),
     )
-    old_doc.updated = datetime(2025, 12, 1, tzinfo=UTC)
 
     new_doc = Document(
         content="New",
         doc_type=DocumentType.POST,
         title="New Post",
+        updated=datetime(2025, 12, 6, tzinfo=UTC),
     )
-    new_doc.updated = datetime(2025, 12, 6, tzinfo=UTC)
 
     feed = documents_to_feed([old_doc, new_doc], feed_id="test", title="Test Feed")
 
@@ -486,22 +498,25 @@ def test_feed_with_content_types() -> None:
         content="Plain text content",
         doc_type=DocumentType.POST,
         title="Text Post",
+        content_type="text/plain",
+        updated=datetime.now(UTC),
     )
-    text_doc.content_type = "text/plain"
 
     html_doc = Document(
         content="<p>HTML content</p>",
         doc_type=DocumentType.POST,
         title="HTML Post",
+        content_type="text/html",
+        updated=datetime.now(UTC),
     )
-    html_doc.content_type = "text/html"
 
     markdown_doc = Document(
         content="# Markdown content",
         doc_type=DocumentType.POST,
         title="Markdown Post",
+        content_type="text/markdown",
+        updated=datetime.now(UTC),
     )
-    markdown_doc.content_type = "text/markdown"
 
     feed = documents_to_feed(
         [text_doc, html_doc, markdown_doc],

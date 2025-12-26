@@ -123,12 +123,13 @@ def test_entry_with_categories():
 def test_feed_parses_as_valid_xml(snapshot):
     """Test that generated XML is valid and matches snapshot."""
     doc = Document(
+        id="test-post-123",
         content="Test content",
         doc_type=DocumentType.POST,
         title="Test Post",
-        slug="test-post-123",  # For stable ID
+        internal_metadata={"slug": "test-post-123"},  # For stable ID
+        updated=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
     )
-    doc.updated = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)  # For stable timestamp
 
     feed = documents_to_feed(
         [doc], feed_id="http://example.org/feed", title="Test Feed", authors=[Author(name="Alice")]

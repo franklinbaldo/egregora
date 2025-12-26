@@ -296,7 +296,6 @@ class TestWriteCommandDateFiltering:
             ],
         )
 
-        # Command should fail (either due to date format or API key validation)
         assert result.exit_code == 1, "Should fail with invalid input"
 
     def test_write_command_invalid_to_date_format(
