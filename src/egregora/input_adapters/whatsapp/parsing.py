@@ -318,17 +318,23 @@ class ZipMessageSource:
 
     def lines(self) -> Iterator[str]:
         """Yield normalized lines from the source file."""
-        with zipfile.ZipFile(self.export.zip_path) as zf:
-            validate_zip_contents(zf)
-            ensure_safe_member_size(zf, self.export.chat_file)
-            try:
+        try:
+            with zipfile.ZipFile(self.export.zip_path) as zf:
+                validate_zip_contents(zf)
+                ensure_safe_member_size(zf, self.export.chat_file)
                 with zf.open(self.export.chat_file) as raw:
                     text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
                     for line in text_stream:
                         yield _normalize_text(line.rstrip("\n"), self.config)
-            except UnicodeDecodeError as exc:
-                msg = f"Failed to decode chat file '{self.export.chat_file}' due to encoding issues: {exc}"
-                raise WhatsAppParsingIOError(msg) from exc
+        except (FileNotFoundError, PermissionError) as exc:
+            msg = f"Failed to open ZIP file at '{self.export.zip_path}': {exc}"
+            raise WhatsAppParsingIOError(msg) from exc
+        except KeyError as exc:
+            msg = f"Chat file '{self.export.chat_file}' not found in ZIP."
+            raise WhatsAppParsingIOError(msg) from exc
+        except UnicodeDecodeError as exc:
+            msg = f"Failed to decode chat file '{self.export.chat_file}' due to encoding issues: {exc}"
+            raise WhatsAppParsingIOError(msg) from exc
 
 
 def _parse_whatsapp_lines(
