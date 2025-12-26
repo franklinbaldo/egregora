@@ -135,6 +135,7 @@ jobs:
 
       - name: Approve PR
         if: steps.pr-info.outcome == 'success'
+        continue-on-error: true
         uses: actions/github-script@v8
         env:
           PR_NUMBER: ${{ steps.pr-info.outputs.number }}
@@ -152,13 +153,19 @@ jobs:
 
             console.log('Approving PR', prNumber, 'actor:', actor, 'isJulesBot:', isJulesBot);
 
-            await github.rest.pulls.createReview({
-              owner,
-              repo,
-              pull_number: prNumber,
-              event: 'APPROVE',
-              body: approvalMessage
-            });
+            try {
+              await github.rest.pulls.createReview({
+                owner,
+                repo,
+                pull_number: prNumber,
+                event: 'APPROVE',
+                body: approvalMessage
+              });
+              console.log('Approval successful');
+            } catch (error) {
+              console.log(`⚠️ Could not approve PR (may require manual approval): ${error.message}`);
+            }
+
 
       - name: Enable auto-merge
         if: steps.pr-info.outcome == 'success'
