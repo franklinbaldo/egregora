@@ -1021,22 +1021,37 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         # V3 Large File Support: If source_path is present, move/copy from there
         # instead of loading content into memory.
-        source_path = document.metadata.get("source_path")
-        if source_path:
-            src = Path(source_path)
-            if src.exists():
-                logger.debug("Moving media file from %s to %s", src, path)
-                # We use move to be efficient (atomic on same filesystem), falling back to copy if needed.
-                # Since the source is usually a temp staging file, moving is preferred.
+        source_path_str = document.metadata.get("source_path")
+        if source_path_str:
+            # Security: Validate source path to prevent path traversal attacks
+            # Source paths should be absolute or within expected staging directories
+            src = Path(source_path_str)
+
+            # Ensure source path is absolute and exists
+            if not src.is_absolute():
+                logger.warning("Rejecting relative source path (security): %s", source_path_str)
+            elif src.exists():
+                # Additional security: Ensure resolved path hasn't changed (symlink check)
                 try:
-                    shutil.move(src, path)
-                except OSError:
-                    # Fallback if cross-device or other issue
-                    shutil.copy2(src, path)
-                    with suppress(OSError):
-                        src.unlink()
-                return
-            logger.warning("Source path %s provided but does not exist, falling back to content", source_path)
+                    resolved_src = src.resolve(strict=True)
+                except (OSError, RuntimeError) as e:
+                    logger.warning("Failed to resolve source path %s: %s", src, e)
+                else:
+                    logger.debug("Moving media file from %s to %s", resolved_src, path)
+                    # We use move to be efficient (atomic on same filesystem), falling back to copy if needed.
+                    # Since the source is usually a temp staging file, moving is preferred.
+                    try:
+                        shutil.move(str(resolved_src), path)
+                    except OSError:
+                        # Fallback if cross-device or other issue
+                        shutil.copy2(str(resolved_src), path)
+                        with suppress(OSError):
+                            resolved_src.unlink()
+                    return
+            else:
+                logger.warning(
+                    "Source path %s provided but does not exist, falling back to content", source_path_str
+                )
 
         payload = (
             document.content if isinstance(document.content, bytes) else document.content.encode("utf-8")
