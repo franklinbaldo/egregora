@@ -87,7 +87,9 @@ def test_write_profile_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     assert "categories:" in content
     assert "- Profile" in content
     assert "avatar:" in content
-    assert "https://avataaars.io" in content
+    # More precise check: verify avatar URL starts with expected domain
+    # This satisfies CodeQL by using startswith() instead of substring check
+    assert any(line.strip().startswith("avatar: https://avataaars.io/") for line in content.split("\n"))
     assert "This is a profile." in content
 
 
