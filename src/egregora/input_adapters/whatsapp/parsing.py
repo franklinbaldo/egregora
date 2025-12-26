@@ -40,25 +40,49 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# Basic PII patterns
-EMAIL_PATTERN = re.compile(r"[\w\.-]+@[\w\.-]+\.\w+")
-PHONE_PATTERN = re.compile(r"(\+\d{1,2}\s?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}")
+# Basic PII patterns (as strings for reuse)
+_EMAIL_PATTERN_STR = r"[\w\.-]+@[\w\.-]+\.\w+"
+_PHONE_PATTERN_STR = r"(\+\d{1,2}\s?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}"
+
+# Compiled patterns for single use and for the combined pattern
+EMAIL_PATTERN = re.compile(_EMAIL_PATTERN_STR)
+PHONE_PATTERN = re.compile(_PHONE_PATTERN_STR)
+
+# Combined pattern using named groups for dynamic replacement in a single pass
+PII_PATTERN = re.compile(fr"(?P<email>{_EMAIL_PATTERN_STR})|(?P<phone>{_PHONE_PATTERN_STR})")
+
+# Replacement strings as constants
+EMAIL_REPLACEMENT = "<EMAIL_REDACTED>"
+PHONE_REPLACEMENT = "<PHONE_REDACTED>"
+
+
+def _pii_replacer(match: re.Match) -> str:
+    """Return the correct replacement string based on the named group that matched."""
+    if match.lastgroup == "email":
+        return EMAIL_REPLACEMENT
+    # The phone group will always be the last matched group if it exists
+    return PHONE_REPLACEMENT
 
 
 def scrub_pii(text: str, config: EgregoraConfig | None = None) -> str:
-    """Scrub PII from text."""
+    """Scrub PII from text using an optimized single-pass regex when possible."""
     if config and not config.privacy.pii_detection_enabled:
         return text
 
     # Defaults if config is None or flags are true
-    # If config is provided, respect its flags. If not, default to True (safe default).
     do_email = config.privacy.scrub_emails if config else True
     do_phone = config.privacy.scrub_phones if config else True
 
+    if do_email and do_phone:
+        # Optimized path: one pass for both patterns using a replacer function
+        return PII_PATTERN.sub(_pii_replacer, text)
     if do_email:
-        text = EMAIL_PATTERN.sub("<EMAIL_REDACTED>", text)
+        # Single pattern path for email only
+        return EMAIL_PATTERN.sub(EMAIL_REPLACEMENT, text)
     if do_phone:
-        text = PHONE_PATTERN.sub("<PHONE_REDACTED>", text)
+        # Single pattern path for phone only
+        return PHONE_PATTERN.sub(PHONE_REPLACEMENT, text)
+
     return text
 
 
