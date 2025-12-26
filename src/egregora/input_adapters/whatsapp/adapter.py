@@ -91,9 +91,11 @@ class WhatsAppAdapter(InputAdapter):
     def parse(self, input_path: Path, *, timezone: str | None = None, **_kwargs: _EmptyKwargs) -> ibis.Table:
         try:
             if not input_path.exists():
-                raise FileNotFoundError(f"Input path does not exist: {input_path}")
+                msg = f"Input path does not exist: {input_path}"
+                raise FileNotFoundError(msg)
             if not input_path.is_file() or not str(input_path).endswith(".zip"):
-                raise ValueError(f"Expected a ZIP file, got: {input_path}")
+                msg = f"Expected a ZIP file, got: {input_path}"
+                raise ValueError(msg)
 
             group_name, chat_file = discover_chat_file(input_path)
             export = WhatsAppExport(
@@ -115,7 +117,8 @@ class WhatsAppAdapter(InputAdapter):
             return messages_table
         except (FileNotFoundError, ValueError) as e:
             logger.exception("Validation failed for input path %s: %s", input_path, e)
-            raise WhatsAppAdapterError(f"Invalid input path: {input_path}") from e
+            msg = f"Invalid input path: {input_path}"
+            raise WhatsAppAdapterError(msg) from e
         except zipfile.BadZipFile as e:
             logger.exception("Invalid ZIP file provided at %s: %s", input_path, e)
             raise InvalidZipFileError(str(input_path)) from e
