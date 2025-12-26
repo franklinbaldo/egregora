@@ -26,11 +26,21 @@ class TestWhatsAppParsing:
         with pytest.raises(DateParsingError, match=f"Failed to parse date string: '{invalid_date_str}'"):
             _parse_message_date(invalid_date_str)
 
+    def test_parse_message_date_raises_error_on_empty_string(self) -> None:
+        """Verify _parse_message_date raises DateParsingError with a custom message for an empty string."""
+        with pytest.raises(DateParsingError, match="Date string is empty."):
+            _parse_message_date("")
+
     def test_parse_message_time_raises_error_on_invalid_time(self) -> None:
         """Verify _parse_message_time raises TimeParsingError for invalid times."""
         invalid_time_str = "not-a-time"
         with pytest.raises(TimeParsingError, match=f"Failed to parse time string: '{invalid_time_str}'"):
             _parse_message_time(invalid_time_str)
+
+    def test_parse_message_time_raises_error_on_empty_string(self) -> None:
+        """Verify _parse_message_time raises TimeParsingError with a custom message for an empty string."""
+        with pytest.raises(TimeParsingError, match="Time string is empty."):
+            _parse_message_time("")
 
     def test_parse_whatsapp_lines_handles_invalid_line_gracefully(self, caplog: pytest.LogCaptureFixture) -> None:
         """Verify _parse_whatsapp_lines handles invalid lines by logging and continuing."""
