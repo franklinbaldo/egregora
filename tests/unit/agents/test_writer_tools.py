@@ -123,7 +123,9 @@ class TestWriterToolsExtraction:
         # Arrange
         mock_store = Mock()
         mock_annotation = Mock(
-            document_id="ann-123", parent_id="msg-456", metadata={"parent_type": "message"}
+            document_id="ann-123",
+            parent_id="msg-456",
+            metadata={"parent_type": "message"},
         )
         mock_store.save_annotation.return_value = mock_annotation
         ctx = AnnotationContext(annotations_store=mock_store)
