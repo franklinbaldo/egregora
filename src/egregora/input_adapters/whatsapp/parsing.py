@@ -24,6 +24,7 @@ from pydantic import BaseModel
 from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.exceptions import (
     DateParsingError,
+    EmptyChatLogError,
     NoMessagesFoundError,
     TimeParsingError,
 )
@@ -355,7 +356,6 @@ def _parse_whatsapp_lines(
                 msg_date = _parse_message_date(date_str)
                 builder.current_date = msg_date
                 msg_time = _parse_message_time(time_str)
-
                 timestamp = datetime.combine(builder.current_date, msg_time, tzinfo=tz).astimezone(UTC)
                 builder.start_new_message(timestamp, author_raw, message_part)
             except (DateParsingError, TimeParsingError) as e:
