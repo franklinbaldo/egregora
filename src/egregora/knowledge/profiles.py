@@ -45,7 +45,13 @@ from typing import Annotated, Any
 import ibis.expr.types as ir
 import yaml
 
-from egregora.knowledge.exceptions import InvalidAliasError, ProfileNotFoundError, ProfileParsingError
+from egregora.knowledge.exceptions import (
+    InvalidAliasError,
+    ProfileError,
+    ProfileNotFoundError,
+    ProfileParseError,
+    ProfileParsingError,
+)
 
 logger = logging.getLogger(__name__)
 MAX_ALIAS_LENGTH = 40
@@ -163,8 +169,8 @@ AVATAR_HAIR_COLORS = [
 def _get_uuid_from_profile(profile_path: Path) -> str:
     """Extract UUID from profile frontmatter."""
     if not profile_path.exists():
-        raise ProfileParsingError(str(profile_path), "File does not exist.")
-
+        msg = f"Profile not found at {profile_path}"
+        raise ProfileNotFoundError(msg, path=str(profile_path))
     try:
         content = profile_path.read_text(encoding="utf-8")
         metadata = _parse_frontmatter(content)
@@ -176,11 +182,11 @@ def _get_uuid_from_profile(profile_path: Path) -> str:
         # Basic heuristic: UUID is 36 chars (with dashes) or 32 (hex)
         if len(stem) in (32, 36) and all(c in "0123456789abcdefABCDEF-" for c in stem):
             return stem
-
     except (OSError, UnicodeError, ValueError, TypeError) as e:
-        raise ProfileParsingError(str(profile_path), f"Could not read or parse file: {e}") from e
-
-    raise ProfileParsingError(str(profile_path), "No UUID found in frontmatter or filename.")
+        msg = f"Failed to parse profile {profile_path}: {e}"
+        raise ProfileParseError(msg, path=str(profile_path)) from e
+    msg = f"Could not extract UUID from {profile_path}"
+    raise ProfileParseError(msg, path=str(profile_path))
 
 
 def _find_profile_path(
@@ -200,15 +206,21 @@ def _find_profile_path(
 
     # Scan directory for legacy slug-based files
     if not profiles_dir.exists():
-        raise ProfileNotFoundError(author_uuid)
+        msg = f"Profiles directory not found for {author_uuid}"
+        raise ProfileNotFoundError(msg, author_uuid=author_uuid)
 
     for path in profiles_dir.glob("*.md"):
         if path.name == "index.md":
             continue
-        if _get_uuid_from_profile(path) == author_uuid:
-            return path
+        try:
+            if _get_uuid_from_profile(path) == author_uuid:
+                return path
+        except ProfileError:
+            # Ignore malformed profiles during search
+            continue
 
-    raise ProfileNotFoundError(author_uuid)
+    msg = f"No profile found for author {author_uuid}"
+    raise ProfileNotFoundError(msg, author_uuid=author_uuid)
 
 
 def _determine_profile_path(
@@ -243,10 +255,13 @@ def read_profile(
 
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
-    profile_path = _find_profile_path(author_uuid, profiles_dir)
-
-    logger.info("Reading profile for %s from %s", author_uuid, profile_path)
-    return profile_path.read_text(encoding="utf-8")
+    try:
+        profile_path = _find_profile_path(author_uuid, profiles_dir)
+        logger.info("Reading profile for %s from %s", author_uuid, profile_path)
+        return profile_path.read_text(encoding="utf-8")
+    except ProfileNotFoundError:
+        logger.info("No existing profile for %s", author_uuid)
+        return ""
 
 
 def write_profile(
@@ -269,7 +284,7 @@ def write_profile(
 
     # Find existing file to preserve identity/handle renames
     try:
-        existing_path = _find_profile_path(author_uuid, profiles_dir)
+        existing_path: Path | None = _find_profile_path(author_uuid, profiles_dir)
         metadata = _extract_profile_metadata(existing_path)
     except ProfileNotFoundError:
         existing_path = None
@@ -441,14 +456,15 @@ def _validate_alias(alias: str) -> str:
 
     """
     if not alias:
-        raise InvalidAliasError(alias, "must not be empty")
+        raise InvalidAliasError("Alias cannot be empty.", alias=alias)
     alias = alias.strip().strip("\"'")
     if not alias:
-        raise InvalidAliasError(alias, "must not be empty")
+        raise InvalidAliasError("Alias cannot be empty.", alias=alias)
     if not 1 <= len(alias) <= MAX_ALIAS_LENGTH:
-        raise InvalidAliasError(alias, f"cannot be longer than {MAX_ALIAS_LENGTH} characters")
+        msg = f"Alias length invalid: {len(alias)} chars (must be 1-{MAX_ALIAS_LENGTH})"
+        raise InvalidAliasError(msg, alias=alias)
     if any(ord(c) < ASCII_CONTROL_CHARS_THRESHOLD for c in alias):
-        raise InvalidAliasError(alias, "contains control characters")
+        raise InvalidAliasError("Alias contains control characters.", alias=alias)
     alias = alias.replace("&", "&amp;")
     alias = alias.replace("<", "&lt;")
     alias = alias.replace(">", "&gt;")
@@ -578,7 +594,7 @@ def apply_command_to_profile(
 
     # Locate existing profile using flexible lookup
     try:
-        profile_path: Path | None = _find_profile_path(author_uuid, profiles_dir)
+        profile_path = _find_profile_path(author_uuid, profiles_dir)
         content = profile_path.read_text(encoding="utf-8")
     except ProfileNotFoundError:
         # Create new profile with required frontmatter
@@ -727,12 +743,11 @@ def get_opted_out_authors(
     opted_out = set()
     for profile_path in profiles_dir.rglob("*.md"):
         try:
-            content = profile_path.read_text(encoding="utf-8")
-            if "Status: OPTED OUT" in content:
-                author_uuid = _get_uuid_from_profile(profile_path)
-                if author_uuid:
-                    opted_out.add(author_uuid)
-        except ProfileParsingError:
+            author_uuid = _get_uuid_from_profile(profile_path)
+            if author_uuid and is_opted_out(author_uuid, profiles_dir):
+                opted_out.add(author_uuid)
+        except ProfileError as e:
+            logger.warning("Skipping malformed profile %s: %s", profile_path, e)
             continue
     return opted_out
 
@@ -851,6 +866,7 @@ def remove_profile_avatar(
         content = profile_path.read_text(encoding="utf-8")
     except ProfileNotFoundError:
         profile_path = None
+        # Create new
         front_matter = {"uuid": author_uuid, "subject": author_uuid}
         content = f"---\n{yaml.dump(front_matter)}---\n\n# Profile: {author_uuid}\n\n"
 
