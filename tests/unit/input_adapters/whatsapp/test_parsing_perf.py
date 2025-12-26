@@ -73,6 +73,18 @@ def mock_config_phone_only():
     return MockConfig()
 
 
+@pytest.fixture
+def mock_config_pii_enabled_no_scrub():
+    """Mock config with PII detection on, but no scrub types selected."""
+
+    class MockConfig:
+        privacy = PrivacySettings(
+            pii_detection_enabled=True, scrub_emails=False, scrub_phones=False
+        )
+
+    return MockConfig()
+
+
 def test_scrub_pii_disabled(mock_config_pii_disabled):
     """Verify scrub_pii returns original text when PII detection is disabled."""
     text = "Contact me at test@example.com or on my number (123) 456-7890."
@@ -91,6 +103,12 @@ def test_scrub_pii_phone_only(mock_config_phone_only):
     text = "Contact me at test@example.com or on my number (123) 456-7890."
     expected = "Contact me at test@example.com or on my number <PHONE_REDACTED>."
     assert scrub_pii(text, mock_config_phone_only) == expected
+
+
+def test_scrub_pii_enabled_but_no_scrub_types(mock_config_pii_enabled_no_scrub):
+    """Verify scrub_pii returns original text when enabled but no types are selected."""
+    text = "Contact me at test@example.com or on my number (123) 456-7890."
+    assert scrub_pii(text, mock_config_pii_enabled_no_scrub) == text
 
 
 def test_scrub_pii_no_config():
