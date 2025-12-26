@@ -65,3 +65,13 @@ class MalformedLineError(WhatsAppParsingError):
         self.original_error = original_error
         message = f"Malformed line encountered: '{line}'. Reason: {original_error}"
         super().__init__(message)
+
+
+class ChatFileNotFoundError(WhatsAppParsingError):
+    """Raised when the chat .txt file cannot be found in the ZIP archive."""
+
+    def __init__(self, zip_path: str) -> None:
+        """Initialize the exception."""
+        self.zip_path = zip_path
+        message = f"No WhatsApp chat file found in {zip_path}"
+        super().__init__(message)

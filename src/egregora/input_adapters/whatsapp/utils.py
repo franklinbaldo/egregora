@@ -9,6 +9,7 @@ from pathlib import Path
 import ibis
 import ibis.expr.datatypes as dt
 
+from egregora.input_adapters.whatsapp.exceptions import ChatFileNotFoundError
 from egregora.orchestration.pipelines.modules.media import (
     ATTACHMENT_MARKERS,
     WA_MEDIA_PATTERN,
@@ -40,8 +41,7 @@ def discover_chat_file(zip_path: Path) -> tuple[str, str]:
             candidates.append((score, group_name, member))
 
         if not candidates:
-            msg = f"No WhatsApp chat file found in {zip_path}"
-            raise ValueError(msg)
+            raise ChatFileNotFoundError(str(zip_path))
 
         candidates.sort(reverse=True, key=lambda item: item[0])
         _, group_name, member = candidates[0]
