@@ -4,6 +4,7 @@ from typing import List, Optional
 from unittest.mock import Mock
 
 import pytest
+from datetime import UTC, datetime
 
 from egregora_v3.core.catalog import ContentLibrary
 from egregora_v3.core.ports import DocumentRepository
@@ -55,10 +56,11 @@ def test_content_library_facade():
     assert library.get_repo(DocumentType.NOTE) == mock_journal
 
     # Test save
-    doc = Document.create(
+    doc = Document(
         doc_type=DocumentType.POST,
         title="Test",
-        content="Content"
+        content="Content",
+        updated=datetime.now(UTC),
     )
     library.save(doc)
     mock_posts.mock.save.assert_called_once_with(doc)

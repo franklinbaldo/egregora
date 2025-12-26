@@ -297,8 +297,9 @@ class TestWriteCommandDateFiltering:
         )
 
         assert result.exit_code == 1, "Should fail with invalid date format"
-        assert "invalid" in result.stdout.lower() or "format" in result.stdout.lower(), (
-            f"Should report invalid format error, got: {result.stdout}"
+        assert result.exception is not None
+        assert "invalid" in str(result.exception).lower() or "format" in str(result.exception).lower(), (
+            f"Should report invalid format error, got: {result.exception}"
         )
 
     def test_write_command_invalid_to_date_format(

@@ -119,9 +119,7 @@ def test_key_rotator_handles_rate_limit_logging_without_attribute_error(caplog):
     assert result == "Success"
     # First key should hit rate limit and rotate to second key without AttributeError
     assert call_log == ["key-a", "key-b"]
-    assert any(
-        "[KeyRotator] Rate limit encountered on API key index" in record.message for record in caplog.records
-    )
+    assert any("[KeyRotator] Rate limit on key index" in record.message for record in caplog.records)
 
 
 if __name__ == "__main__":

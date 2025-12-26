@@ -45,11 +45,12 @@ ATOM_NS = "http://www.w3.org/2005/Atom"
 def sample_feed() -> Feed:
     """Create a comprehensive sample feed with all features."""
     # Create documents with various features
-    doc1 = Document.create(
+    doc1 = Document(
         content="# First Post\n\nThis is the **first** post with *Markdown*.",
         doc_type=DocumentType.POST,
         title="First Post",
         status=DocumentStatus.PUBLISHED,
+        updated=datetime.now(UTC),
     )
     doc1.authors = [Author(name="Alice Smith", email="alice@example.com")]
     doc1.categories = [Category(term="technology", label="Technology")]
@@ -63,10 +64,11 @@ def sample_feed() -> Feed:
         ),
     ]
 
-    doc2 = Document.create(
+    doc2 = Document(
         content="Second post content.",
         doc_type=DocumentType.NOTE,
         title="Quick Note",
+        updated=datetime.now(UTC),
     )
     doc2.authors = [
         Author(name="Bob Jones", uri="https://bob.example.com"),
@@ -74,11 +76,12 @@ def sample_feed() -> Feed:
     ]
 
     # Document with threading
-    doc3 = Document.create(
+    doc3 = Document(
         content="Reply to first post.",
         doc_type=DocumentType.POST,
         title="Re: First Post",
         in_reply_to=InReplyTo(ref=doc1.id, href="https://example.com/first-post"),
+        updated=datetime.now(UTC),
     )
 
     return documents_to_feed(
@@ -126,14 +129,13 @@ def test_roundtrip_feed_to_xml_to_entries(sample_feed: Feed, tmp_path: Path) -> 
 @freeze_time("2025-12-06 10:00:00")
 def test_roundtrip_preserves_timestamps(tmp_path: Path) -> None:
     """Test that timestamps are preserved in roundtrip serialization."""
-    doc = Document.create(
+    doc = Document(
         content="Test content",
         doc_type=DocumentType.POST,
         title="Test Post",
+        published=datetime(2025, 12, 5, 9, 0, 0, tzinfo=UTC),
+        updated=datetime(2025, 12, 6, 10, 0, 0, tzinfo=UTC),
     )
-    # Set published explicitly
-    doc.published = datetime(2025, 12, 5, 9, 0, 0, tzinfo=UTC)
-    doc.updated = datetime(2025, 12, 6, 10, 0, 0, tzinfo=UTC)
 
     feed = Feed(
         id="test-feed",
@@ -270,10 +272,11 @@ def test_feed_xml_snapshot_regression(sample_feed: Feed, snapshot: SnapshotAsser
     # Freeze time for deterministic output
     with freeze_time("2025-12-06 10:00:00"):
         # Create deterministic feed
-        doc = Document.create(
+        doc = Document(
             content="Deterministic content",
             doc_type=DocumentType.POST,
             title="Deterministic Post",
+            updated=datetime(2025, 12, 6, 10, 0, 0, tzinfo=UTC),
         )
         doc.authors = [Author(name="Test Author")]
 
@@ -303,7 +306,12 @@ def test_feed_xml_snapshot_regression(sample_feed: Feed, snapshot: SnapshotAsser
 def test_documents_to_feed_count_invariant(titles: list[str]) -> None:
     """Property: Number of documents equals number of feed entries."""
     docs = [
-        Document.create(content=f"Content {i}", doc_type=DocumentType.NOTE, title=title)
+        Document(
+            content=f"Content {i}",
+            doc_type=DocumentType.NOTE,
+            title=title,
+            updated=datetime.now(UTC),
+        )
         for i, title in enumerate(titles)
     ]
 
@@ -316,10 +324,11 @@ def test_documents_to_feed_count_invariant(titles: list[str]) -> None:
 def test_feed_to_xml_always_well_formed(num_entries: int) -> None:
     """Property: Feed.to_xml() always produces well-formed XML."""
     docs = [
-        Document.create(
+        Document(
             content=f"Content {i}",
             doc_type=DocumentType.POST,
             title=f"Post {i}",
+            updated=datetime.now(UTC),
         )
         for i in range(num_entries)
     ]
@@ -369,17 +378,19 @@ def test_feed_preserves_title_exactly(title: str) -> None:
 
 def test_feed_with_threading_extension() -> None:
     """Test RFC 4685 threading extension (in-reply-to)."""
-    parent = Document.create(
+    parent = Document(
         content="Parent post",
         doc_type=DocumentType.POST,
         title="Parent",
+        updated=datetime.now(UTC),
     )
 
-    reply = Document.create(
+    reply = Document(
         content="Reply post",
         doc_type=DocumentType.POST,
         title="Re: Parent",
         in_reply_to=InReplyTo(ref=parent.id, href="https://example.com/parent"),
+        updated=datetime.now(UTC),
     )
 
     feed = documents_to_feed([parent, reply], feed_id="test", title="Threaded Feed")
@@ -405,10 +416,11 @@ def test_feed_with_threading_extension() -> None:
 
 def test_feed_with_categories() -> None:
     """Test that categories are exported correctly."""
-    doc = Document.create(
+    doc = Document(
         content="Categorized content",
         doc_type=DocumentType.POST,
         title="Categorized Post",
+        updated=datetime.now(UTC),
     )
     doc.categories = [
         Category(term="technology", scheme="http://example.com/scheme", label="Technology"),
@@ -455,19 +467,19 @@ def test_empty_feed_is_valid() -> None:
 @freeze_time("2025-12-06 15:30:45")
 def test_feed_updated_timestamp_reflects_newest_entry() -> None:
     """Test that feed.updated is set to the newest entry's timestamp."""
-    old_doc = Document.create(
+    old_doc = Document(
         content="Old",
         doc_type=DocumentType.POST,
         title="Old Post",
+        updated=datetime(2025, 12, 1, tzinfo=UTC),
     )
-    old_doc.updated = datetime(2025, 12, 1, tzinfo=UTC)
 
-    new_doc = Document.create(
+    new_doc = Document(
         content="New",
         doc_type=DocumentType.POST,
         title="New Post",
+        updated=datetime(2025, 12, 6, tzinfo=UTC),
     )
-    new_doc.updated = datetime(2025, 12, 6, tzinfo=UTC)
 
     feed = documents_to_feed([old_doc, new_doc], feed_id="test", title="Test Feed")
 
@@ -481,26 +493,29 @@ def test_feed_updated_timestamp_reflects_newest_entry() -> None:
 
 def test_feed_with_content_types() -> None:
     """Test different content types (text, html, markdown)."""
-    text_doc = Document.create(
+    text_doc = Document(
         content="Plain text content",
         doc_type=DocumentType.POST,
         title="Text Post",
+        content_type="text/plain",
+        updated=datetime.now(UTC),
     )
-    text_doc.content_type = "text/plain"
 
-    html_doc = Document.create(
+    html_doc = Document(
         content="<p>HTML content</p>",
         doc_type=DocumentType.POST,
         title="HTML Post",
+        content_type="text/html",
+        updated=datetime.now(UTC),
     )
-    html_doc.content_type = "text/html"
 
-    markdown_doc = Document.create(
+    markdown_doc = Document(
         content="# Markdown content",
         doc_type=DocumentType.POST,
         title="Markdown Post",
+        content_type="text/markdown",
+        updated=datetime.now(UTC),
     )
-    markdown_doc.content_type = "text/markdown"
 
     feed = documents_to_feed(
         [text_doc, html_doc, markdown_doc],

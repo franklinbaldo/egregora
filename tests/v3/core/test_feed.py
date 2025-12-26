@@ -6,13 +6,13 @@ from egregora_v3.core.types import Document, DocumentStatus, DocumentType, Feed,
 
 
 def test_feed_to_xml_exposes_doc_type_and_status_categories():
-    doc = Document.create(
+    doc = Document(
         content="Example body",
         doc_type=DocumentType.POST,
         title="Hello World",
         status=DocumentStatus.PUBLISHED,
+        updated=datetime.now(UTC),
     )
-    doc.status = DocumentStatus.PUBLISHED
 
     feed = Feed(
         id="urn:egregora:feed:test",
@@ -40,19 +40,18 @@ def test_feed_to_xml_exposes_doc_type_and_status_categories():
 
 
 def test_documents_to_feed_sorts_entries_newest_first():
-    older = Document.create(
+    older = Document(
         content="Older entry",
         doc_type=DocumentType.NOTE,
         title="Older",
+        updated=datetime(2024, 1, 1, tzinfo=UTC),
     )
-    newer = Document.create(
+    newer = Document(
         content="Newer entry",
         doc_type=DocumentType.NOTE,
         title="Newer",
+        updated=datetime(2024, 1, 2, tzinfo=UTC),
     )
-
-    older.updated = datetime(2024, 1, 1, tzinfo=UTC)
-    newer.updated = datetime(2024, 1, 2, tzinfo=UTC)
 
     feed = documents_to_feed(
         [
@@ -69,10 +68,11 @@ def test_documents_to_feed_sorts_entries_newest_first():
 
 def test_feed_to_xml_handles_mixed_entry_types():
     """Ensures that only Documents get special category tags."""
-    doc = Document.create(
+    doc = Document(
         content="A document.",
         doc_type=DocumentType.POST,
         title="Document Title",
+        updated=datetime.now(UTC),
     )
     entry = Entry(
         id="urn:uuid:1234",
