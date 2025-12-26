@@ -723,10 +723,15 @@ def get_opted_out_authors(
     if not profiles_dir.exists():
         return set()
     opted_out = set()
-    for profile_path in profiles_dir.glob("*.md"):
-        author_uuid = _get_uuid_from_profile(profile_path)
-        if author_uuid and is_opted_out(author_uuid, profiles_dir):
-            opted_out.add(author_uuid)
+    for profile_path in profiles_dir.rglob("*.md"):
+        try:
+            content = profile_path.read_text(encoding="utf-8")
+            if "Status: OPTED OUT" in content:
+                author_uuid = _get_uuid_from_profile(profile_path)
+                if author_uuid:
+                    opted_out.add(author_uuid)
+        except ProfileParsingError:
+            continue
     return opted_out
 
 
