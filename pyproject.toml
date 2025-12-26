@@ -329,6 +329,7 @@ dev = [
     "mkdocs-rss-plugin>=1.17.7",
     "mkdocs-blogging-plugin>=2.2.11",
     "pytest-socket>=0.7.0",
+    "pytest-benchmark>=4.0.0",
 ]
 
 [tool.vulture]
