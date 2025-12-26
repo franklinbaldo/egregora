@@ -32,6 +32,14 @@ if TYPE_CHECKING:
     import ibis.expr.types as ir
 
     from egregora.input_adapters.base import MediaMapping
+from egregora.orchestration.exceptions import (
+    CommandProcessingError,
+    MaxSplitDepthError,
+    MediaPersistenceError,
+    OutputSinkError,
+    ProfileGenerationError,
+    WindowValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -152,11 +160,11 @@ class PipelineRunner:
     def _validate_window_size(self, window: Any, max_size: int) -> None:
         """Validate window doesn't exceed LLM context limits."""
         if window.size > max_size:
-            msg = (
-                f"Window {window.window_index} has {window.size} messages but max is {max_size}. "
+            reason = (
+                f"Window has {window.size} messages but max is {max_size}. "
                 f"Reduce --step-size to create smaller windows."
             )
-            raise ValueError(msg)
+            raise WindowValidationError(window.window_index, reason)
 
     def process_background_tasks(self) -> None:
         """Process pending background tasks."""
@@ -202,9 +210,8 @@ class PipelineRunner:
                 )
 
             if current_depth >= max_depth:
-                error_msg = f"Max split depth {max_depth} reached for window {window_label}."
-                logger.error("%s❌ %s", indent, error_msg)
-                raise RuntimeError(error_msg)
+                logger.error("%s❌ Max split depth %d reached for window %s", indent, max_depth, window_label)
+                raise MaxSplitDepthError(window_label, max_depth)
 
             try:
                 window_results = self._process_single_window(current_window, depth=current_depth)
@@ -230,7 +237,7 @@ class PipelineRunner:
 
         output_sink = self.context.output_format
         if output_sink is None:
-            raise RuntimeError("Output adapter must be initialized before processing windows.")
+            raise OutputSinkError("Output adapter must be initialized before processing windows.")
 
         enriched_table = self._enrich_window_data(window, output_sink)
         messages_list = self._get_messages_as_list(enriched_table)
@@ -266,6 +273,7 @@ class PipelineRunner:
                     output_sink.persist(media_doc)
                 except Exception as e:
                     logger.exception("Failed to write media file: %s", e)
+                    raise MediaPersistenceError(media_doc.document_id, e) from e
 
         if self.context.enable_enrichment:
             return self._perform_enrichment(window_table_processed, media_mapping)
@@ -295,7 +303,10 @@ class PipelineRunner:
                     output_sink.persist(announcement)
                     announcements_generated += 1
                 except Exception as exc:
-                    logger.exception("Failed to generate announcement: %s", exc)
+                    logger.exception(
+                        "Failed to generate announcement for command '%s': %s", cmd_msg.get("text"), exc
+                    )
+                    raise CommandProcessingError(cmd_msg.get("text", "N/A"), exc) from exc
         return announcements_generated
 
     def _generate_posts_and_profiles(
@@ -338,8 +349,10 @@ class PipelineRunner:
                     profiles.append(profile_doc.document_id)
                 except Exception as exc:
                     logger.exception("Failed to persist profile: %s", exc)
+                    raise ProfileGenerationError("Failed to persist profile") from exc
         except Exception as exc:
             logger.exception("Failed to generate profile posts: %s", exc)
+            raise ProfileGenerationError("Failed to generate profile posts") from exc
 
         return result
 
