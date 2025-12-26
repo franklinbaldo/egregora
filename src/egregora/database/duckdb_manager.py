@@ -622,7 +622,8 @@ class DuckDBStorageManager:
             # triggered by batching ``nextval`` in a single query.
             def _fetch_values() -> list[int]:
                 results: list[int] = []
-                sequence_literal = f"'{sequence_name.replace("'", "''")}'"
+                escaped_name = sequence_name.replace("'", "''")
+                sequence_literal = f"'{escaped_name}'"
                 for _ in range(count):
                     row = self.execute(f"SELECT nextval({sequence_literal})").fetchone()
                     if row is None:

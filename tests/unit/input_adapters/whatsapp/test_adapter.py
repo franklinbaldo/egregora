@@ -68,9 +68,6 @@ def test_parse_raises_adapter_error_on_parsing_error(adapter: WhatsAppAdapter, t
         mock_parse_source.side_effect = WhatsAppParsingError
         with pytest.raises(WhatsAppAdapterError):
             adapter.parse(zip_path)
-=======
-    """Provides a WhatsAppAdapter instance for testing."""
-    return WhatsAppAdapter()
 
 
 class TestWhatsAppAdapterMediaDelivery:
@@ -125,4 +122,3 @@ class TestWhatsAppAdapterMediaDelivery:
 
         with pytest.raises(MediaExtractionError):
             adapter.deliver_media("some_media.jpg", zip_path=zip_path)
->>>>>>> origin/sapper/whatsapp-exception-refactor-604718550409599398
