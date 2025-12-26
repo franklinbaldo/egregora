@@ -331,6 +331,10 @@ def download_avatar_from_url(
         msg = f"Too many redirects (>{MAX_REDIRECT_HOPS}) for URL: {url}"
         raise AvatarProcessingError(msg) from e
     except httpx.HTTPError as e:
+        # If the HTTP error was caused by our own validation, re-raise it directly
+        # to preserve the specific security message.
+        if isinstance(e.__cause__, AvatarProcessingError):
+            raise e.__cause__ from e
         logger.debug("HTTP error details: %s", e)
         msg = "Failed to download avatar. Please check the URL and try again."
         raise AvatarProcessingError(msg) from e
