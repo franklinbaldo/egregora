@@ -12,8 +12,6 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
-from egregora.agents.tools import writer_tools
-
 if TYPE_CHECKING:
     import uuid
     from datetime import datetime
@@ -198,51 +196,3 @@ class WriterDeps:
     @property
     def output_sink(self) -> OutputSink:
         return self.resources.output
-
-    def write_post(self, metadata: dict | str, content: str) -> WritePostResult:
-        """Write a blog post document."""
-        ctx = writer_tools.ToolContext(
-            output_sink=self.output_sink,
-            window_label=self.window_label,
-            task_store=self.resources.task_store,
-            run_id=self.resources.run_id,
-        )
-        return writer_tools.write_post_impl(ctx, metadata, content)
-
-    def read_profile(self, author_uuid: str) -> ReadProfileResult:
-        """Read an author's profile document."""
-        ctx = writer_tools.ToolContext(
-            output_sink=self.output_sink,
-            window_label=self.window_label,
-            task_store=self.resources.task_store,
-            run_id=self.resources.run_id,
-        )
-        return writer_tools.read_profile_impl(ctx, author_uuid)
-
-    def write_profile(self, author_uuid: str, content: str) -> WriteProfileResult:
-        """Write or update an author's profile."""
-        ctx = writer_tools.ToolContext(
-            output_sink=self.output_sink,
-            window_label=self.window_label,
-            task_store=self.resources.task_store,
-            run_id=self.resources.run_id,
-        )
-        return writer_tools.write_profile_impl(ctx, author_uuid, content)
-
-    def search_media(self, query: str, top_k: int = 5) -> SearchMediaResult:
-        """Search for relevant media using RAG."""
-        return writer_tools.search_media_impl(query, top_k)
-
-    def annotate(self, parent_id: str, parent_type: str, commentary: str) -> AnnotationResult:
-        """Create an annotation on a message or another annotation."""
-        ctx = writer_tools.AnnotationContext(annotations_store=self.resources.annotations_store)
-        return writer_tools.annotate_conversation_impl(ctx, parent_id, parent_type, commentary)
-
-    def generate_banner(self, post_slug: str, title: str, summary: str) -> BannerResult:
-        """Generate a banner image for a post."""
-        ctx = writer_tools.BannerContext(
-            output_sink=self.output_sink,
-            task_store=self.resources.task_store,
-            run_id=self.resources.run_id,
-        )
-        return writer_tools.generate_banner_impl(ctx, post_slug, title, summary)
