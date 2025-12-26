@@ -50,6 +50,13 @@ from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
+from egregora.orchestration.exceptions import (
+    ApiKeyInvalidError,
+    ApiKeyMissingError,
+    PipelineSetupError,
+    SiteNotInitializedError,
+    SourceNotFoundError,
+)
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.materializer import materialize_site
 from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
@@ -156,12 +163,11 @@ def _validate_api_key(output_dir: Path) -> None:
         api_keys = get_google_api_keys()
 
     if not api_keys:
-        console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
-        console.print(
-            "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key"
+        msg = (
+            "GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set. "
+            "Set the environment variable with your Google Gemini API key, or create a .env file."
         )
-        console.print("You can also create a .env file in the output directory or current directory.")
-        raise SystemExit(1)
+        raise ApiKeyMissingError(msg)
 
     if skip_validation:
         os.environ["GOOGLE_API_KEY"] = api_keys[0]
@@ -179,11 +185,10 @@ def _validate_api_key(output_dir: Path) -> None:
             validation_errors.append(str(e))
         except ImportError as e:
             console.print(f"[red]Error: {e}[/red]")
-            raise SystemExit(1) from e
+            raise
 
     joined = "\n\n".join(validation_errors)
-    console.print(f"[red]Error: {joined}[/red]")
-    raise SystemExit(1)
+    raise ApiKeyInvalidError(joined, validation_errors=validation_errors)
 
 
 def _prepare_write_config(
@@ -234,14 +239,14 @@ def _resolve_sources_to_run(
     site: SiteSettings = getattr(config, "site", None)
     if site is None or not site.sources:
         msg = "No sources configured under [site.sources] in .egregora.toml"
-        raise ValueError(msg)
+        raise SourceNotFoundError(msg)
 
     if requested_key:
         if requested_key in site.sources:
             return [(requested_key, site.sources[requested_key])]
         available = ", ".join(sorted(site.sources))
         msg = f"Unknown source key '{requested_key}'. Available sources: {available or 'none'}."
-        raise ValueError(msg)
+        raise SourceNotFoundError(msg)
 
     if site.default_source:
         if site.default_source not in site.sources:
@@ -249,7 +254,7 @@ def _resolve_sources_to_run(
                 f"Configured default_source '{site.default_source}' not found in [site.sources]. "
                 "Update .egregora.toml or pass --source to select a valid source key."
             )
-            raise ValueError(msg)
+            raise SourceNotFoundError(msg)
         return [(site.default_source, site.sources[site.default_source])]
 
     # Run all configured sources when no default is set
@@ -378,56 +383,36 @@ def run_cli_flow(
         logger.info("Initializing site in %s", output_dir)
         ensure_mkdocs_project(output_dir)
 
-    _validate_api_key(output_dir)
-
-    base_config = load_egregora_config(output_dir)
     try:
+        _validate_api_key(output_dir)
+        base_config = load_egregora_config(output_dir)
         sources_to_run = _resolve_sources_to_run(base_config, parsed_options.source)
-    except ValueError as exc:
-        console.print(f"[red]{exc}[/red]")
-        # For programmatic execution (tests), we might want to let the exception bubble up if not handled
-        # But CLI should exit gracefully.
-        # Since run_cli_flow is primarily for CLI, SystemExit(1) is correct behavior for CLI.
-        # However, tests might expect this.
-        raise SystemExit(1) from exc
 
-    runtime = RuntimeContext(
-        output_dir=output_dir,
-        input_file=parsed_options.input_file,
-        model_override=parsed_options.model,
-        debug=parsed_options.debug,
-    )
-
-    for source_key, source_settings in sources_to_run:
-        merged_options = _merge_source_overrides(
-            parsed_options, source_key=source_key, source_settings=source_settings
+        runtime = RuntimeContext(
+            output_dir=output_dir,
+            input_file=parsed_options.input_file,
+            model_override=parsed_options.model,
+            debug=parsed_options.debug,
         )
 
-        from_date_obj, to_date_obj = None, None
-        if merged_options.from_date:
-            try:
-                from_date_obj = parse_date_arg(merged_options.from_date, "from_date")
-            except ValueError as e:
-                console.print(f"[red]{e}[/red]")
-                raise SystemExit(1) from e
-        if merged_options.to_date:
-            try:
-                to_date_obj = parse_date_arg(merged_options.to_date, "to_date")
-            except ValueError as e:
-                console.print(f"[red]{e}[/red]")
-                raise SystemExit(1) from e
+        for source_key, source_settings in sources_to_run:
+            merged_options = _merge_source_overrides(
+                parsed_options, source_key=source_key, source_settings=source_settings
+            )
 
-        if merged_options.timezone:
-            try:
+            from_date_obj = (
+                parse_date_arg(merged_options.from_date, "from_date") if merged_options.from_date else None
+            )
+            to_date_obj = (
+                parse_date_arg(merged_options.to_date, "to_date") if merged_options.to_date else None
+            )
+
+            if merged_options.timezone:
                 validate_timezone(merged_options.timezone)
                 console.print(f"[green]Using timezone: {merged_options.timezone}[/green]")
-            except ValueError as e:
-                console.print(f"[red]{e}[/red]")
-                raise SystemExit(1) from e
 
-        egregora_config = _prepare_write_config(merged_options, from_date_obj, to_date_obj, base_config)
+            egregora_config = _prepare_write_config(merged_options, from_date_obj, to_date_obj, base_config)
 
-        try:
             console.print(
                 Panel(
                     f"[cyan]Source key:[/cyan] {source_key}\n"
@@ -450,10 +435,14 @@ def run_cli_flow(
             )
             run(run_params)
             console.print(f"[green]Processing completed successfully for source '{source_key}'.[/green]")
-        except Exception as e:
-            console.print_exception(show_locals=False)
-            console.print(f"[red]Pipeline failed for source '{source_key}': {e}[/]")
-            raise SystemExit(1) from e
+
+    except PipelineSetupError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise SystemExit(1) from e
+    except Exception as e:
+        console.print_exception(show_locals=False)
+        console.print(f"[red]An unexpected error occurred: {e}[/]")
+        raise SystemExit(1) from e
 
 
 def process_whatsapp_export(
@@ -648,12 +637,12 @@ def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> Mk
             f"No mkdocs.yml found for site at {output_dir}. "
             "Run 'egregora init <site-dir>' before processing exports."
         )
-        raise ValueError(msg)
+        raise SiteNotInitializedError(msg)
 
     docs_dir = site_paths.docs_dir
     if not docs_dir.exists():
         msg = f"Docs directory not found: {docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
-        raise ValueError(msg)
+        raise SiteNotInitializedError(msg)
 
     return site_paths
 
