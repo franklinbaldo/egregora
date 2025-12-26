@@ -54,3 +54,14 @@ class InvalidZipFileError(WhatsAppParsingError):
         if message is None:
             message = f"Invalid or corrupted ZIP file at '{zip_path}'"
         super().__init__(message)
+
+
+class MalformedLineError(WhatsAppParsingError):
+    """Raised when a line in the chat log does not conform to the expected format."""
+
+    def __init__(self, line: str, original_error: Exception) -> None:
+        """Initialize the exception."""
+        self.line = line
+        self.original_error = original_error
+        message = f"Malformed line encountered: '{line}'. Reason: {original_error}"
+        super().__init__(message)
