@@ -6,8 +6,8 @@
 
 .md-typeset {
   /*
-    The blog post font aligns with the main theme's font (Roboto), defined in mkdocs.yml,
-    ensuring a consistent reading experience across the entire site.
+    This file provides readability improvements for the blog post content.
+    The site-wide font (Roboto) is defined in the `mkdocs.yml` theme settings.
   */
   font-size: 1.1rem; /* Approx 17.6px, slightly larger for readability */
 }
