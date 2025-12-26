@@ -24,6 +24,7 @@ from pydantic import BaseModel
 from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.exceptions import (
     DateParsingError,
+    MalformedLineError,
     NoMessagesFoundError,
     TimeParsingError,
 )
@@ -358,8 +359,7 @@ def _parse_whatsapp_lines(
                 timestamp = datetime.combine(builder.current_date, msg_time, tzinfo=tz).astimezone(UTC)
                 builder.start_new_message(timestamp, author_raw, message_part)
             except (DateParsingError, TimeParsingError) as e:
-                logger.warning("Could not parse timestamp, treating as continuation: %s (%s)", line, e)
-                builder.append_line(line, line)
+                raise MalformedLineError(line, e) from e
 
         else:
             builder.append_line(line, line)
