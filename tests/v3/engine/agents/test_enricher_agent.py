@@ -1,14 +1,13 @@
 """Tests for the EnricherAgent."""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock
 from pydantic_ai import Agent
+from pydantic_ai.models.test import TestModel
 
 from egregora_v3.core.context import PipelineContext
 from egregora_v3.engine.agents.enricher import EnricherAgent, EnrichmentResult
-
-
-from pydantic_ai.models.test import TestModel
 
 
 @pytest.fixture
