@@ -1,3 +1,5 @@
+"""Unit tests for filesystem utilities."""
+
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -5,8 +7,17 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from egregora.utils.exceptions import MissingMetadataError, UniqueFilenameError
-from egregora.utils.filesystem import _extract_clean_date, write_markdown_post
+from egregora.utils.exceptions import (
+    FrontmatterDateFormattingError,
+    MissingMetadataError,
+    UniqueFilenameError,
+)
+from egregora.utils.filesystem import (
+    _extract_clean_date,
+    _validate_post_metadata,
+    format_frontmatter_datetime,
+    write_markdown_post,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -102,3 +113,10 @@ def test_write_markdown_post_raises_error_after_too_many_collisions(tmp_path: Pa
 
     assert exc_info.value.base_slug == "my-post"
     assert exc_info.value.attempts == 100
+
+
+def test_format_frontmatter_datetime_raises_on_invalid_date():
+    """Test that format_frontmatter_datetime raises on unparseable date."""
+    with pytest.raises(FrontmatterDateFormattingError) as excinfo:
+        format_frontmatter_datetime("not-a-real-date")
+    assert excinfo.value.date_str == "not-a-real-date"

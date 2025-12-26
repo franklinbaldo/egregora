@@ -18,7 +18,11 @@ import yaml
 
 from egregora.utils.authors import ensure_author_entries
 from egregora.utils.datetime_utils import parse_datetime_flexible
-from egregora.utils.exceptions import MissingMetadataError, UniqueFilenameError
+from egregora.utils.exceptions import (
+    FrontmatterDateFormattingError,
+    MissingMetadataError,
+    UniqueFilenameError,
+)
 from egregora.utils.paths import safe_path_join, slugify
 
 if TYPE_CHECKING:
@@ -56,11 +60,13 @@ def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
     """Normalize a metadata date into the RSS-friendly ``YYYY-MM-DD HH:MM`` string."""
     try:
         dt = parse_datetime_flexible(raw_date, default_timezone=UTC)
+        if dt is None:
+            raise AttributeError("Parsed datetime is None")
         return dt.strftime("%Y-%m-%d %H:%M")
-    except AttributeError:
+    except (AttributeError, ValueError) as e:
         # This will be raised if parse_datetime_flexible returns None,
         # which covers all failure modes (None input, empty strings, bad data).
-        return str(raw_date).strip() if raw_date is not None else ""
+        raise FrontmatterDateFormattingError(str(raw_date), e) from e
 
 
 def _prepare_frontmatter(metadata: dict[str, Any], slug: str) -> dict[str, Any]:
