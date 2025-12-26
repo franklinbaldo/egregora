@@ -1002,15 +1002,15 @@ def _prepare_pipeline_data(
     # V2 ARCHITECTURE: Persist ingested messages to the unified database
     # This ensures RAG, enrichment, and other downstream components can query the physical table.
     try:
-        if hasattr(ctx.state, "pipeline_backend") and ctx.state.pipeline_backend:
+        if hasattr(ctx.storage, "ibis_conn") and ctx.storage.ibis_conn:
             # We use a TRY block because the table might have a unique index on event_id.
             # Ideally we want INSERT OR IGNORE, but Ibis high-level insert may not support it easily.
             # So we check if messages table is empty or just attempt insertion.
             # If the adapter is WhatsApp, it currently returns a memtable or read_csv.
             logger.info("[bold cyan]💾 Persisting ingested messages to database...[/]")
-            ctx.state.pipeline_backend.insert("messages", messages_table)
+            ctx.storage.ibis_conn.insert("messages", messages_table)
             # Rebind messages_table to the physical table in the database for better performance
-            messages_table = ctx.state.pipeline_backend.table("messages")
+            messages_table = ctx.storage.ibis_conn.table("messages")
     except (ibis.common.exceptions.IbisError, AttributeError) as e:
         # If it fails (e.g. duplicate keys), we log a warning but continue with the ephemeral table
         # to avoid crashing the whole pipeline if some messages already exist.

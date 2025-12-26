@@ -14,8 +14,9 @@ making it easy to test with mocks and reuse in different contexts.
 from __future__ import annotations
 
 import logging
+import json
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import duckdb
 from pydantic import BaseModel
@@ -135,18 +136,27 @@ class BannerContext:
 # ==============================================================================
 
 
-def write_post_impl(ctx: ToolContext, metadata: dict, content: str) -> WritePostResult:
+def write_post_impl(ctx: ToolContext, metadata: dict | str, content: str) -> WritePostResult:
     """Write a blog post document.
 
     Args:
         ctx: Tool context with output sink and window label
-        metadata: Post metadata (title, date, tags, etc.)
+        metadata: Post metadata (title, date, tags, etc.) as dict or JSON string
         content: Post content in markdown
 
     Returns:
         WritePostResult with success status and document path
 
     """
+    # Fix: Handle metadata passed as JSON string (some models do this)
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except json.JSONDecodeError:
+            logger.warning("Failed to parse metadata JSON string: %s", metadata)
+            # Fallback to empty dict or keep as string (but Document expects dict)
+            metadata = {"title": "Untitled Post", "raw_metadata": metadata}
+
     # Fix: Unescape literal newlines that might have been escaped by the LLM
     content = content.replace("\\n", "\n")
 
@@ -287,9 +297,9 @@ def annotate_conversation_impl(
         )
         return AnnotationResult(
             status="success",
-            annotation_id=annotation.id,
-            parent_id=annotation.parent_id,
-            parent_type=annotation.parent_type,
+            annotation_id=annotation.document_id,
+            parent_id=annotation.parent_id or parent_id,
+            parent_type=annotation.metadata.get("parent_type", parent_type),
         )
     except (RuntimeError, ValueError, OSError, AttributeError, duckdb.Error) as exc:
         # We catch expected persistence exceptions here to prevent a single

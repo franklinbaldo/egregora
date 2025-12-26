@@ -89,13 +89,19 @@ class RotatingFallbackModel(Model):
                     self._excluded_keys.add(failed_key)
                     logger.warning("[SmartRotation] Key ...%s excluded due to 429", failed_key[-6:])
 
-            start_index = (self._current_index + 1) % len(self._models)
+            # Ensure we start looking AFTER the index that just failed
+            start_index = (failed_index + 1) % len(self._models)
             current_time = time.time()
 
             # Pass 1: Look for non-excluded key that is NOT in cooldown
             candidate_index = start_index
             found_safe = False
             for _ in range(len(self._models)):
+                # CRITICAL: Always skip the failed index in the first attempt to find a safe model
+                if candidate_index == failed_index:
+                    candidate_index = (candidate_index + 1) % len(self._models)
+                    continue
+
                 key = self._model_keys[candidate_index] if self._model_keys else None
                 # Check status
                 is_excluded = key in self._excluded_keys if key else False
@@ -107,10 +113,14 @@ class RotatingFallbackModel(Model):
                     break
                 candidate_index = (candidate_index + 1) % len(self._models)
 
-            # Pass 2: If no "safe" found, try any that is NOT in cooldown (even if excluded)
+            # Pass 2: If no "safe" found, try any that is NOT in cooldown (except failed_index)
             if not found_safe:
                 candidate_index = start_index
                 for _ in range(len(self._models)):
+                    if candidate_index == failed_index:
+                        candidate_index = (candidate_index + 1) % len(self._models)
+                        continue
+
                     key = self._model_keys[candidate_index] if self._model_keys else None
                     cooldown_expiry = self._key_cooldowns.get(key, 0) if key else 0
                     if current_time >= cooldown_expiry:
