@@ -32,6 +32,13 @@ from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import ensure_author_profile_index, generate_fallback_avatar_url
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
+from egregora.output_adapters.exceptions import (
+    AdapterNotInitializedError,
+    ConfigLoadError,
+    DocumentNotFoundError,
+    DocumentParsingError,
+    UnsupportedDocumentTypeError,
+)
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 from egregora.utils.datetime_utils import parse_datetime_flexible
@@ -177,7 +184,7 @@ class MkDocsAdapter(BaseOutputSink):
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
 
-    def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path | None:
+    def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path:
         """Resolve filesystem path for a document based on its type.
 
         UNIFIED: Posts, profiles, journals, and enrichment URLs all live in posts_dir.
@@ -191,59 +198,48 @@ class MkDocsAdapter(BaseOutputSink):
             Path to document or None if type unsupported
 
         """
-        match doc_type:
-            case DocumentType.PROFILE:
-                # Profiles: "author_uuid/slug" (preferred) or "author_uuid" (latest)
-                if "/" in identifier:
-                    author_uuid, slug = identifier.split("/", 1)
-                    return self.profiles_dir / author_uuid / f"{slug}.md"
-                author_dir = self.profiles_dir / identifier
-                if not author_dir.exists():
-                    return None
-                candidates = [p for p in author_dir.glob("*.md") if p.name != "index.md"]
-                if not candidates:
-                    return None
-                return max(candidates, key=lambda p: p.stat().st_mtime_ns)
-            case DocumentType.POST:
-                # Posts: dated filename (e.g., "2024-01-01-slug.md")
-                matches = list(self.posts_dir.glob(f"*-{identifier}.md"))
-                if matches:
-                    return max(matches, key=lambda p: p.stat().st_mtime)
-                return None
-            case DocumentType.JOURNAL:
-                # Journals: simple filename with slug in journal_dir
-                return self.journal_dir / f"{identifier.replace('/', '-')}.md"
-            case DocumentType.ENRICHMENT_URL:
-                # Enrichment URLs: inside media_dir/urls (ADR-0004)
-                return self.media_dir / "urls" / f"{identifier}.md"
-            case DocumentType.ENRICHMENT_MEDIA:
-                # Enrichment media: stays in media_dir (fallback)
-                return self.media_dir / f"{identifier}.md"
-            case DocumentType.ENRICHMENT_IMAGE:
-                # Image descriptions: media_dir/images/
-                return self.media_dir / "images" / f"{identifier}.md"
-            case DocumentType.ENRICHMENT_VIDEO:
-                # Video descriptions: media_dir/videos/
-                return self.media_dir / "videos" / f"{identifier}.md"
-            case DocumentType.ENRICHMENT_AUDIO:
-                # Audio descriptions: media_dir/audio/
-                return self.media_dir / "audio" / f"{identifier}.md"
-            case DocumentType.MEDIA:
-                # Media files: stay in media_dir
-                return self.media_dir / identifier
-            case _:
-                return None
+        path_map = {
+            DocumentType.PROFILE: self.profiles_dir,
+            DocumentType.POST: self.posts_dir,
+            DocumentType.JOURNAL: self.journal_dir,
+            DocumentType.ENRICHMENT_URL: self.media_dir / "urls",
+            DocumentType.ENRICHMENT_MEDIA: self.media_dir,
+            DocumentType.ENRICHMENT_IMAGE: self.media_dir / "images",
+            DocumentType.ENRICHMENT_VIDEO: self.media_dir / "videos",
+            DocumentType.ENRICHMENT_AUDIO: self.media_dir / "audio",
+            DocumentType.MEDIA: self.media_dir,
+        }
+        if doc_type not in path_map:
+            raise UnsupportedDocumentTypeError(str(doc_type))
 
-    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
+        base_path = path_map[doc_type]
+
+        if doc_type == DocumentType.PROFILE:
+            if "/" in identifier:
+                author_uuid, slug = identifier.split("/", 1)
+                return self.profiles_dir / author_uuid / f"{slug}.md"
+            author_dir = self.profiles_dir / identifier
+            if not author_dir.exists():
+                raise DocumentNotFoundError(doc_type.value, identifier)
+            candidates = [p for p in author_dir.glob("*.md") if p.name != "index.md"]
+            if not candidates:
+                raise DocumentNotFoundError(doc_type.value, identifier)
+            return max(candidates, key=lambda p: p.stat().st_mtime_ns)
+        if doc_type == DocumentType.POST:
+            matches = list(self.posts_dir.glob(f"*-{identifier}.md"))
+            if not matches:
+                raise DocumentNotFoundError(doc_type.value, identifier)
+            return max(matches, key=lambda p: p.stat().st_mtime)
+        if doc_type == DocumentType.JOURNAL:
+            return self.journal_dir / f"{identifier.replace('/', '-')}.md"
+
+        return base_path / identifier
+
+    def get(self, doc_type: DocumentType, identifier: str) -> Document:
         path = self._resolve_document_path(doc_type, identifier)
 
-        if path is None or not path.exists():
-            logger.debug(
-                "Document not found: %s/%s",
-                doc_type.value if isinstance(doc_type, DocumentType) else doc_type,
-                identifier,
-            )
-            return None
+        if not path.exists():
+            raise DocumentNotFoundError(doc_type.value, identifier)
 
         try:
             if doc_type == DocumentType.MEDIA:
@@ -252,9 +248,8 @@ class MkDocsAdapter(BaseOutputSink):
                 return Document(content=raw_bytes, type=doc_type, metadata=metadata)
             post = frontmatter.load(str(path))
             metadata, actual_content = post.metadata, post.content
-        except OSError:
-            logger.exception("Failed to read document at %s", path)
-            return None
+        except (OSError, yaml.YAMLError) as e:
+            raise DocumentParsingError(str(path), str(e)) from e
 
         return Document(content=actual_content, type=doc_type, metadata=metadata)
 
@@ -306,8 +301,7 @@ class MkDocsAdapter(BaseOutputSink):
         try:
             config = safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
         except yaml.YAMLError as exc:
-            logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
-            config = {}
+            raise ConfigLoadError(str(mkdocs_path), str(exc)) from exc
         return config
 
     def get_markdown_extensions(self) -> list[str]:
@@ -602,8 +596,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         """
         if not hasattr(self, "_site_root") or self._site_root is None:
-            msg = "MkDocsOutputAdapter not initialized - call initialize() first"
-            raise RuntimeError(msg)
+            raise AdapterNotInitializedError()
 
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()
@@ -734,12 +727,12 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             except (OSError, ValueError):
                 continue
 
-    def _document_from_path(self, path: Path, doc_type: DocumentType) -> Document | None:
+    def _document_from_path(self, path: Path, doc_type: DocumentType) -> Document:
         try:
             post = frontmatter.load(str(path))
             metadata, body = post.metadata, post.content
-        except OSError:
-            return None
+        except (OSError, yaml.YAMLError) as e:
+            raise DocumentParsingError(str(path), str(e)) from e
         metadata = metadata or {}
         slug_value = metadata.get("slug")
         if isinstance(slug_value, str) and slug_value.strip():
