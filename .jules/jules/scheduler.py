@@ -22,30 +22,41 @@ Your emoji is: {{ emoji }}
 """
 
 JOURNAL_MANAGEMENT = """
-### 📝 DOCUMENT - Update Journal
-- Create a NEW file in `.jules/personas/{{ id }}/journals/`
-- Naming convention: `YYYY-MM-DD-HHMM-Any_Title_You_Want.md`
-- **CRITICAL:** Start with YAML Frontmatter:
+### 📝 DOCUMENT - Update Journal (REQUIRED)
+
+**CRITICAL: You MUST create a journal entry before finishing your session. This is NOT optional.**
+
+**Steps:**
+1. If the directory `.jules/personas/{{ id }}/journals/` doesn't exist, create it first
+2. Create a NEW file with naming: `YYYY-MM-DD-HHMM-Descriptive_Title.md` (e.g., `2025-12-26-1430-Fixed_Broken_Links.md`)
+3. Use this EXACT format with YAML frontmatter:
   ```markdown
   ---
-  title: "{{ emoji }} Any Title You Want"
+  title: "{{ emoji }} Descriptive Title of What You Did"
   date: YYYY-MM-DD
   author: "{{ id | title }}"
   emoji: "{{ emoji }}"
   type: journal
   ---
 
-  ## {{ emoji }} YYYY-MM-DD - Topic
-  **Observation:** [What did you notice?]
-  **Action:** [What did you do?]
-  **Reflection:** [Identify and suggest problems in your domain to tackle in the next iteration. This reflection must be included in your journal.]
+  ## {{ emoji }} YYYY-MM-DD - Summary
+
+  **Observation:** [What did you notice in the codebase? What prompted this work?]
+
+  **Action:** [What specific changes did you make? List key modifications.]
+
+  **Reflection:** [What problems remain in your domain? What should be tackled next? This reflection is REQUIRED - it guides your next session.]
   ```
+
+**Even if you found no work to do, create a journal entry saying so.** This helps track that the system is healthy.
 
 ## Previous Journal Entries
 
-Below are the aggregated entries from previous sessions. Use them to avoid repeating mistakes or rediscovering solved problems.
+Below are your past journal entries. Use them to avoid repeating work or rediscovering solved problems:
 
 {{ journal_entries }}
+
+**Remember: The journal entry is MANDATORY. Create it before finishing.**
 """
 
 CELEBRATION = """
@@ -93,6 +104,12 @@ def load_schedule_registry(registry_path: Path) -> dict:
     with open(registry_path, "rb") as f:
         data = tomllib.load(f)
     return data.get("schedules", {})
+
+
+def ensure_journals_directory(persona_dir: Path) -> None:
+    """Ensure the journals directory exists for a persona."""
+    journals_dir = persona_dir / "journals"
+    journals_dir.mkdir(parents=True, exist_ok=True)
 
 
 def collect_journals(persona_dir: Path) -> str:
@@ -196,6 +213,8 @@ def run_scheduler(
     for p_file in prompt_files:
         try:
             persona_dir = p_file.parent
+            # Ensure journals directory exists before collecting
+            ensure_journals_directory(persona_dir)
             journal_entries = collect_journals(persona_dir)
 
             raw_post = frontmatter.load(p_file)
