@@ -5,6 +5,11 @@
 */
 
 .md-typeset {
+  /*
+    Align blog post font with the main theme's font (Roboto), as defined in mkdocs.yml.
+    This ensures a consistent reading experience across the entire site.
+  */
+  font-family: "Roboto", sans-serif;
   font-size: 1.1rem; /* Approx 17.6px, slightly larger for readability */
 }
 
