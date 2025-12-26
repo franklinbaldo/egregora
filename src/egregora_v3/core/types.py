@@ -1,68 +1,55 @@
 """Core Data Types for Egregora V3."""
 
-import hashlib
 import uuid
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 from xml.etree.ElementTree import Element, register_namespace, SubElement, tostring
 
-import jinja2
+from markdown_it import MarkdownIt
 from pydantic import BaseModel, Field, model_validator
+import jinja2
 
-from egregora_v3.core.filters import format_datetime, normalize_content_type
 from egregora_v3.core.utils import slugify
 
 # --- XML Configuration ---
-
-# Register namespaces globally to ensure pretty prefixes in all XML output
-# This is a module-level side effect, but necessary for clean Atom feeds.
 try:
     register_namespace("", "http://www.w3.org/2005/Atom")
     register_namespace("thr", "http://purl.org/syndication/thread/1.0")
-except Exception:  # pragma: no cover
-    # Best effort registration; may fail in some environments or if already registered
+except Exception:
     pass
 
 # --- Jinja2 Environment ---
-
-# Module-level Jinja2 environment for performance
-# Data over logic: Template is data, not code.
 _jinja_env = jinja2.Environment(
-    loader=jinja2.PackageLoader("egregora_v3.core", "."),
-    autoescape=True,
+    loader=jinja2.FileSystemLoader("src/egregora_v3/infra/sinks/templates/"),
+    autoescape=jinja2.select_autoescape(['html', 'xml']),
     trim_blocks=True,
     lstrip_blocks=True,
 )
 
-_jinja_env.filters["rfc3339"] = format_datetime
-_jinja_env.filters["content_type"] = normalize_content_type
-_jinja_env.globals["Document"] = "Document"  # Use string to avoid circular import issues if Document is used
+def format_iso_utc(dt: datetime) -> str:
+    return dt.isoformat()
 
+_jinja_env.filters['iso_utc'] = format_iso_utc
 
 # --- Atom Core Domain ---
-
-
 class Link(BaseModel):
     href: str
-    rel: str | None = None  # ex: "alternate", "enclosure", "self", "in-reply-to"
-    type: str | None = None  # ex: "text/html", "image/jpeg"
+    rel: str | None = None
+    type: str | None = None
     hreflang: str | None = None
     title: str | None = None
     length: int | None = None
-
 
 class Author(BaseModel):
     name: str
     email: str | None = None
     uri: str | None = None
 
-
 class Category(BaseModel):
-    term: str  # A tag or category
-    scheme: str | None = None  # URI of the taxonomy scheme
-    label: str | None = None  # Readable label
-
+    term: str
+    scheme: str | None = None
+    label: str | None = None
 
 class Source(BaseModel):
     id: str | None = None
@@ -70,67 +57,39 @@ class Source(BaseModel):
     updated: datetime | None = None
     links: list[Link] = Field(default_factory=list)
 
-
 class InReplyTo(BaseModel):
-    """Atom Threading Extension (RFC 4685)."""
-
-    ref: str  # ID of the parent entry
-    href: str | None = None  # Link to the parent entry
+    ref: str
+    href: str | None = None
     type: str | None = None
 
-
 class Entry(BaseModel):
-    id: str  # URI or stable unique ID
+    id: str
     title: str
     updated: datetime
     published: datetime | None = None
-
     links: list[Link] = Field(default_factory=list)
     authors: list[Author] = Field(default_factory=list)
     contributors: list[Author] = Field(default_factory=list)
     categories: list[Category] = Field(default_factory=list)
-
-    summary: str | None = None  # Short text / Teaser
-    content: str | None = None  # Main body (Markdown/HTML)
-    content_type: str | None = None  # ex: "text/markdown"
-
+    summary: str | None = None
+    content: str | None = None
+    content_type: str | None = None
     source: Source | None = None
-
-    # Threading (RFC 4685)
     in_reply_to: InReplyTo | None = None
-
-    # Public extensions (Atom compliant)
     extensions: dict[str, Any] = Field(default_factory=dict)
-
-    # Internal system metadata (not serialized to public Atom)
     internal_metadata: dict[str, Any] = Field(default_factory=dict)
 
     @property
     def is_document(self) -> bool:
-        """Type guard for Jinja templates."""
         return False
 
     @property
     def has_enclosure(self) -> bool:
-        """Check if entry has a media enclosure link."""
         if not self.links:
             return False
-
-        return any(
-            link.rel == "enclosure"
-            and link.type
-            and (
-                link.type.startswith("image/")
-                or link.type.startswith("audio/")
-                or link.type.startswith("video/")
-            )
-            for link in self.links
-        )
-
+        return any(link.rel == "enclosure" for link in self.links)
 
 # --- Application Domain ---
-
-
 class DocumentType(str, Enum):
     RECAP = "recap"
     NOTE = "note"
@@ -141,73 +100,47 @@ class DocumentType(str, Enum):
     ENRICHMENT = "enrichment"
     CONCEPT = "concept"
 
-
 class DocumentStatus(str, Enum):
     DRAFT = "draft"
     PUBLISHED = "published"
     ARCHIVED = "archived"
 
-
 class Document(Entry):
-    """Represents an artifact generated by Egregora.
-
-    Inherits from Entry to ensure Atom compatibility.
-    """
-
     doc_type: DocumentType
     status: DocumentStatus = DocumentStatus.DRAFT
-
-    # RAG Indexing Policy
     searchable: bool = True
-
-    # Suggestion for path for file-based OutputAdapters (MkDocs/Hugo)
     url_path: str | None = None
 
     @property
     def is_document(self) -> bool:
-        """Type guard for Jinja templates."""
         return True
 
     @property
     def slug(self) -> str | None:
-        """Get the semantic slug for this document."""
         return self.internal_metadata.get("slug")
 
     @model_validator(mode="before")
     @classmethod
     def _generate_identity_from_title(cls, data: Any) -> Any:
-        """Declaratively generate id and slug from title if not provided."""
         if isinstance(data, dict):
-            # If id is provided, trust it.
             if data.get("id"):
                 return data
-
             internal_metadata = data.get("internal_metadata", {})
-
-            # Generate slug from title if not provided explicitly.
             final_slug = data.get("slug")
             if not final_slug:
                 title = data.get("title", "")
                 if not title:
-                    # Let standard Pydantic validation handle the missing title error
                     return data
                 final_slug = slugify(title.strip())
-
             if not final_slug:
                 msg = "Document must have a slug or a title to generate one."
                 raise ValueError(msg)
-
-            # One good path: id is always the slug.
             data["id"] = final_slug
             internal_metadata["slug"] = final_slug
             data["internal_metadata"] = internal_metadata
-
-            # Set a default updated timestamp if not provided
             if "updated" not in data:
                 data["updated"] = datetime.now(UTC)
-
         return data
-
 
 class Feed(BaseModel):
     id: str
@@ -218,10 +151,16 @@ class Feed(BaseModel):
     links: list[Link] = Field(default_factory=list)
 
     def to_xml(self) -> str:
-        """Generate Atom XML feed (RFC 4287 compliant) using a Jinja2 template."""
+        md = MarkdownIt()
         template = _jinja_env.get_template("atom.xml.jinja")
-        return template.render(feed=self)
 
+        feed_for_render = self.model_copy(deep=True)
+
+        for entry in feed_for_render.entries:
+            if entry.content:
+                entry.content = md.render(entry.content).strip()
+
+        return template.render(feed=feed_for_render).strip()
 
 def documents_to_feed(
     docs: list[Document],
@@ -229,13 +168,15 @@ def documents_to_feed(
     title: str,
     authors: list[Author] | None = None,
 ) -> Feed:
-    """Aggregates documents into a valid Atom Feed."""
     if not docs:
         updated = datetime.now(UTC)
     else:
         updated = max(doc.updated for doc in docs)
-
-    # Sort documents by updated timestamp descending (newest first)
     sorted_docs = sorted(docs, key=lambda d: d.updated, reverse=True)
-
-    return Feed(id=feed_id, title=title, updated=updated, authors=authors or [], entries=sorted_docs)
+    return Feed(
+        id=feed_id,
+        title=title,
+        updated=updated,
+        authors=authors or [],
+        entries=sorted_docs,
+    )
