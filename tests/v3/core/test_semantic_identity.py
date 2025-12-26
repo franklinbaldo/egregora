@@ -1,6 +1,7 @@
 
 import uuid
 import pytest
+from pydantic import ValidationError
 
 from egregora_v3.core.types import Document, DocumentType
 

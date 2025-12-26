@@ -55,7 +55,7 @@ def test_content_library_facade():
     assert library.get_repo(DocumentType.NOTE) == mock_journal
 
     # Test save
-    doc = Document.create(
+    doc = Document(
         doc_type=DocumentType.POST,
         title="Test",
         content="Content"
