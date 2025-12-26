@@ -45,6 +45,8 @@ from typing import Annotated, Any
 import ibis.expr.types as ir
 import yaml
 
+from egregora.knowledge.exceptions import InvalidAliasError, ProfileNotFoundError, ProfileParsingError
+
 logger = logging.getLogger(__name__)
 MAX_ALIAS_LENGTH = 40
 ASCII_CONTROL_CHARS_THRESHOLD = 32
@@ -158,27 +160,33 @@ AVATAR_HAIR_COLORS = [
 ]
 
 
-def _get_uuid_from_profile(profile_path: Path) -> str | None:
+def _get_uuid_from_profile(profile_path: Path) -> str:
     """Extract UUID from profile frontmatter."""
     if not profile_path.exists():
-        return None
-    with contextlib.suppress(OSError, UnicodeError, ValueError, TypeError):
+        raise ProfileParsingError(str(profile_path), "File does not exist.")
+
+    try:
         content = profile_path.read_text(encoding="utf-8")
         metadata = _parse_frontmatter(content)
         if "uuid" in metadata:
             return str(metadata["uuid"])
+
         # Fallback for legacy files where filename IS the uuid
         stem = profile_path.stem
         # Basic heuristic: UUID is 36 chars (with dashes) or 32 (hex)
         if len(stem) in (32, 36) and all(c in "0123456789abcdefABCDEF-" for c in stem):
             return stem
-    return None
+
+    except (OSError, UnicodeError, ValueError, TypeError) as e:
+        raise ProfileParsingError(str(profile_path), f"Could not read or parse file: {e}") from e
+
+    raise ProfileParsingError(str(profile_path), "No UUID found in frontmatter or filename.")
 
 
 def _find_profile_path(
     author_uuid: str,
     profiles_dir: Path,
-) -> Path | None:
+) -> Path:
     """Find profile file for a given UUID, scanning directory if needed."""
     # Fast path: check if {uuid}/index.md exists (new structure)
     index_path = profiles_dir / author_uuid / "index.md"
@@ -192,7 +200,7 @@ def _find_profile_path(
 
     # Scan directory for legacy slug-based files
     if not profiles_dir.exists():
-        return None
+        raise ProfileNotFoundError(author_uuid)
 
     for path in profiles_dir.glob("*.md"):
         if path.name == "index.md":
@@ -200,7 +208,7 @@ def _find_profile_path(
         if _get_uuid_from_profile(path) == author_uuid:
             return path
 
-    return None
+    raise ProfileNotFoundError(author_uuid)
 
 
 def _determine_profile_path(
@@ -220,7 +228,7 @@ def _determine_profile_path(
 def read_profile(
     author_uuid: Annotated[str, "The UUID5 pseudonym of the author"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
-) -> Annotated[str, "The profile content as markdown, or an empty string if no profile exists"]:
+) -> Annotated[str, "The profile content as markdown"]:
     """Read the current profile for an author.
 
     Args:
@@ -228,15 +236,13 @@ def read_profile(
         profiles_dir: Directory where profiles are stored
 
     Returns:
-        The profile content as markdown, or empty string if no profile exists
+        The profile content as markdown
 
+    Raises:
+        ProfileNotFoundError: If no profile exists for the given author.
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
     profile_path = _find_profile_path(author_uuid, profiles_dir)
-
-    if not profile_path:
-        logger.info("No existing profile for %s", author_uuid)
-        return ""
 
     logger.info("Reading profile for %s from %s", author_uuid, profile_path)
     return profile_path.read_text(encoding="utf-8")
@@ -261,10 +267,11 @@ def write_profile(
     profiles_dir.mkdir(parents=True, exist_ok=True)
 
     # Find existing file to preserve identity/handle renames
-    existing_path = _find_profile_path(author_uuid, profiles_dir)
-    if existing_path:
+    try:
+        existing_path = _find_profile_path(author_uuid, profiles_dir)
         metadata = _extract_profile_metadata(existing_path)
-    else:
+    except ProfileNotFoundError:
+        existing_path = None
         metadata = {}
 
     if any(suspicious in content.lower() for suspicious in ["phone", "email", "@", "whatsapp", "real name"]):
@@ -419,25 +426,27 @@ def get_active_authors(
     return filtered_authors
 
 
-def _validate_alias(alias: str) -> str | None:
+def _validate_alias(alias: str) -> str:
     """Validate and sanitize alias input.
 
     Args:
         alias: Raw alias from user command
 
     Returns:
-        Sanitized alias or None if invalid
+        Sanitized alias
 
+    Raises:
+        InvalidAliasError: If the alias is invalid.
     """
     if not alias:
-        return None
+        raise InvalidAliasError(alias, "must not be empty")
     alias = alias.strip().strip("\"'")
+    if not alias:
+        raise InvalidAliasError(alias, "must not be empty")
     if not 1 <= len(alias) <= MAX_ALIAS_LENGTH:
-        logger.warning("Alias length invalid: %s chars (must be 1-%s)", len(alias), MAX_ALIAS_LENGTH)
-        return None
+        raise InvalidAliasError(alias, f"cannot be longer than {MAX_ALIAS_LENGTH} characters")
     if any(ord(c) < ASCII_CONTROL_CHARS_THRESHOLD for c in alias):
-        logger.warning("Alias contains control characters (rejected)")
-        return None
+        raise InvalidAliasError(alias, "contains control characters")
     alias = alias.replace("&", "&amp;")
     alias = alias.replace("<", "&lt;")
     alias = alias.replace(">", "&gt;")
@@ -466,17 +475,18 @@ def _handle_alias_command(
         if not isinstance(value, str):
             logger.warning("Invalid alias for %s (not a string)", context.author_uuid)
             return context.content
-        validated_value = _validate_alias(value)
-        if not validated_value:
-            logger.warning("Invalid alias for %s (rejected)", context.author_uuid)
+        try:
+            validated_value = _validate_alias(value)
+            content = _update_profile_metadata(
+                context.content,
+                "Display Preferences",
+                "alias",
+                f'- Alias: "{validated_value}" (set on {context.timestamp})\n- Public: true',
+            )
+            logger.info("Set alias for %s", context.author_uuid)
+        except InvalidAliasError as e:
+            logger.warning("Invalid alias for %s (rejected): %s", context.author_uuid, e)
             return context.content
-        content = _update_profile_metadata(
-            context.content,
-            "Display Preferences",
-            "alias",
-            f'- Alias: "{validated_value}" (set on {context.timestamp})\n- Public: true',
-        )
-        logger.info("Set alias for %s", context.author_uuid)
     elif cmd_type == "remove" and target == "alias":
         content = _update_profile_metadata(
             context.content,
@@ -565,19 +575,14 @@ def apply_command_to_profile(
     profiles_dir.mkdir(parents=True, exist_ok=True)
 
     # Locate existing profile using flexible lookup
-    profile_path = _find_profile_path(author_uuid, profiles_dir)
-
-    if profile_path:
+    try:
+        profile_path: Path | None = _find_profile_path(author_uuid, profiles_dir)
         content = profile_path.read_text(encoding="utf-8")
-        # Ensure header/frontmatter exists for consistency
-        # If it's a legacy file without frontmatter, we might want to add it eventually
-        # But _extract_profile_metadata handles parsing, so it's okay for now.
-    else:
+    except ProfileNotFoundError:
         # Create new profile with required frontmatter
+        profile_path = None
         front_matter = {"uuid": author_uuid, "subject": author_uuid}
         content = f"---\n{yaml.dump(front_matter)}---\n\n# Profile: {author_uuid}\n\n"
-        # Temporary path, will be determined correctly upon save
-        profile_path = profiles_dir / f"{author_uuid}.md"
 
     cmd_type = command["command"]
     target = command["target"]
@@ -596,14 +601,12 @@ def apply_command_to_profile(
     # Also parse legacy sections (like ## Display Preferences) to get alias
     _extract_legacy_metadata(content, metadata)
 
-    target_path = _determine_profile_path(
-        author_uuid, metadata, profiles_dir, current_path=profile_path if profile_path.exists() else None
-    )
+    target_path = _determine_profile_path(author_uuid, metadata, profiles_dir, current_path=profile_path)
 
     target_path.write_text(content, encoding="utf-8")
 
     # Rename/Cleanup
-    if profile_path and profile_path.exists() and profile_path.resolve() != target_path.resolve():
+    if profile_path and profile_path.resolve() != target_path.resolve():
         try:
             profile_path.unlink()
             logger.info("Renamed profile from %s to %s", profile_path.name, target_path.name)
@@ -696,10 +699,11 @@ def is_opted_out(
         True if opted out, False otherwise
 
     """
-    profile = read_profile(author_uuid, profiles_dir)
-    if not profile:
+    try:
+        profile = read_profile(author_uuid, profiles_dir)
+        return "Status: OPTED OUT" in profile
+    except ProfileNotFoundError:
         return False
-    return "Status: OPTED OUT" in profile
 
 
 def get_opted_out_authors(
@@ -783,15 +787,14 @@ def update_profile_avatar(
 
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
-    profile_path = _find_profile_path(author_uuid, profiles_dir)
-
-    if profile_path:
+    try:
+        profile_path: Path | None = _find_profile_path(author_uuid, profiles_dir)
         content = profile_path.read_text(encoding="utf-8")
-    else:
+    except ProfileNotFoundError:
+        profile_path = None
         # Create new
         front_matter = {"uuid": author_uuid, "subject": author_uuid}
         content = f"---\n{yaml.dump(front_matter)}---\n\n# Profile: {author_uuid}\n\n"
-        profile_path = profiles_dir / f"{author_uuid}.md"
 
     avatar_content = f"- URL: {avatar_url}\n- Set on: {timestamp}"
     logger.info("✅ Avatar set for %s: %s", author_uuid, avatar_url)
@@ -805,13 +808,11 @@ def update_profile_avatar(
     metadata = _parse_frontmatter(content)
     _extract_legacy_metadata(content, metadata)
 
-    target_path = _determine_profile_path(
-        author_uuid, metadata, profiles_dir, current_path=profile_path if profile_path.exists() else None
-    )
+    target_path = _determine_profile_path(author_uuid, metadata, profiles_dir, current_path=profile_path)
 
     target_path.write_text(content, encoding="utf-8")
 
-    if profile_path and profile_path.exists() and profile_path.resolve() != target_path.resolve():
+    if profile_path and profile_path.resolve() != target_path.resolve():
         with contextlib.suppress(OSError):
             profile_path.unlink()
 
@@ -838,26 +839,23 @@ def remove_profile_avatar(
 
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
-    profile_path = _find_profile_path(author_uuid, profiles_dir)
-
-    if profile_path:
+    try:
+        profile_path: Path | None = _find_profile_path(author_uuid, profiles_dir)
         content = profile_path.read_text(encoding="utf-8")
-    else:
+    except ProfileNotFoundError:
+        profile_path = None
         front_matter = {"uuid": author_uuid, "subject": author_uuid}
         content = f"---\n{yaml.dump(front_matter)}---\n\n# Profile: {author_uuid}\n\n"
-        profile_path = profiles_dir / f"{author_uuid}.md"
 
     avatar_content = f"- Status: None (removed on {timestamp})"
     content = _update_profile_metadata(content, "Avatar", "avatar", avatar_content)
 
     # Save
-    metadata = _extract_profile_metadata(profile_path) if profile_path.exists() else {}
-    target_path = _determine_profile_path(
-        author_uuid, metadata, profiles_dir, current_path=profile_path if profile_path.exists() else None
-    )
+    metadata = _extract_profile_metadata(profile_path) if profile_path else {}
+    target_path = _determine_profile_path(author_uuid, metadata, profiles_dir, current_path=profile_path)
     target_path.write_text(content, encoding="utf-8")
 
-    if profile_path and profile_path.exists() and profile_path.resolve() != target_path.resolve():
+    if profile_path and profile_path.resolve() != target_path.resolve():
         with contextlib.suppress(OSError):
             profile_path.unlink()
 
