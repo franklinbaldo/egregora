@@ -10,19 +10,25 @@ from pydantic_ai import Agent, RunContext
 
 from egregora.agents.banner.agent import is_banner_generation_available
 from egregora.agents.tools.writer_tools import (
+    AnnotationContext,
+    AnnotationResult,
     BannerContext,
     BannerResult,
-    SearchMediaResult,
-    generate_banner_impl,
-    search_media_impl,
-)
-from egregora.agents.types import (
-    AnnotationResult,
-    PostMetadata,
-    PromptTooLargeError,
     ReadProfileResult,
+    SearchMediaResult,
+    ToolContext,
     WritePostResult,
     WriteProfileResult,
+    annotate_conversation_impl,
+    generate_banner_impl,
+    read_profile_impl,
+    search_media_impl,
+    write_post_impl,
+    write_profile_impl,
+)
+from egregora.agents.types import (
+    PostMetadata,
+    PromptTooLargeError,
     WriterAgentReturn,
     WriterDeps,
 )
@@ -96,22 +102,41 @@ def register_writer_tools(
         if isinstance(meta_dict, dict):
             meta_dict["model"] = ctx.deps.model_name
 
-        return ctx.deps.write_post(meta_dict, content)
+        tool_ctx = ToolContext(
+            output_sink=ctx.deps.output_sink,
+            window_label=ctx.deps.window_label,
+            task_store=ctx.deps.resources.task_store,
+            run_id=ctx.deps.resources.run_id,
+        )
+        return write_post_impl(tool_ctx, meta_dict, content)
 
     @agent.tool
     def read_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str) -> ReadProfileResult:
-        return ctx.deps.read_profile(author_uuid)
+        tool_ctx = ToolContext(
+            output_sink=ctx.deps.output_sink,
+            window_label=ctx.deps.window_label,
+            task_store=ctx.deps.resources.task_store,
+            run_id=ctx.deps.resources.run_id,
+        )
+        return read_profile_impl(tool_ctx, author_uuid)
 
     @agent.tool
     def write_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str, content: str) -> WriteProfileResult:
-        return ctx.deps.write_profile(author_uuid, content)
+        tool_ctx = ToolContext(
+            output_sink=ctx.deps.output_sink,
+            window_label=ctx.deps.window_label,
+            task_store=ctx.deps.resources.task_store,
+            run_id=ctx.deps.resources.run_id,
+        )
+        return write_profile_impl(tool_ctx, author_uuid, content)
 
     @agent.tool
     def annotate_conversation_tool(
         ctx: RunContext[WriterDeps], parent_id: str, parent_type: str, commentary: str
     ) -> AnnotationResult:
         """Annotate a message or another annotation with commentary."""
-        return ctx.deps.annotate(parent_id, parent_type, commentary)
+        anno_ctx = AnnotationContext(annotations_store=ctx.deps.resources.annotations_store)
+        return annotate_conversation_impl(anno_ctx, parent_id, parent_type, commentary)
 
     # RAG Capability
     if config.rag.enabled:

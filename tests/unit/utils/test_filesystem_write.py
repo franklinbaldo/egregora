@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from egregora.utils.exceptions import MissingMetadataError, UniqueFilenameError
 from egregora.utils.filesystem import write_markdown_post
 
 
@@ -77,19 +78,34 @@ def test_write_markdown_post_handles_filename_collision(temp_output_dir: Path):
     assert frontmatter["slug"] == "test-post-2"
 
 
-@pytest.mark.parametrize(
-    "missing_key",
-    ["title", "slug", "date"],
-)
-def test_write_markdown_post_raises_error_on_missing_metadata(temp_output_dir: Path, missing_key: str):
-    """Test that write_markdown_post raises a ValueError if required metadata is missing."""
+def test_write_markdown_post_raises_error_on_missing_metadata(temp_output_dir: Path):
+    """Test that write_markdown_post raises MissingMetadataError if required metadata is missing."""
     content = "This content will not be written."
-    metadata = {
-        "title": "Test Post",
-        "slug": "test-post",
-        "date": "2025-01-01",
-    }
-    del metadata[missing_key]
+    metadata = {"title": "Test Post"}  # Missing slug and date
 
-    with pytest.raises(ValueError, match=f"Missing required metadata: {missing_key}"):
+    with pytest.raises(MissingMetadataError) as excinfo:
         write_markdown_post(content, metadata, temp_output_dir)
+
+    assert "slug" in str(excinfo.value)
+    assert "date" in str(excinfo.value)
+
+
+def test_write_markdown_post_unique_filename_error(temp_output_dir: Path):
+    """Verify it raises UniqueFilenameError after too many collisions."""
+    content = "Content."
+    metadata = {"title": "Full Post", "slug": "full-post", "date": "2023-03-03"}
+    output_dir = temp_output_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create files to cause collisions up to the limit (default 100 attempts)
+    base_filepath = output_dir / "2023-03-03-full-post.md"
+    base_filepath.touch()
+    for i in range(2, 102):
+        filepath = output_dir / f"2023-03-03-full-post-{i}.md"
+        filepath.touch()
+
+    with pytest.raises(UniqueFilenameError) as excinfo:
+        write_markdown_post(content, metadata, output_dir)
+
+    assert "full-post" in str(excinfo.value)
+    assert "100" in str(excinfo.value)
