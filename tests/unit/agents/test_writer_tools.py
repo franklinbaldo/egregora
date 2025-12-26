@@ -122,7 +122,11 @@ class TestWriterToolsExtraction:
         """Test annotate_conversation_impl saves annotation to store."""
         # Arrange
         mock_store = Mock()
-        mock_annotation = Mock(id="ann-123", parent_id="msg-456", parent_type="message")
+        # Mock the annotation object returned by the store
+        mock_annotation = Mock()
+        mock_annotation.document_id = "ann-123"
+        mock_annotation.parent_id = "msg-456"
+        mock_annotation.metadata = {"parent_type": "message"}
         mock_store.save_annotation.return_value = mock_annotation
         ctx = AnnotationContext(annotations_store=mock_store)
 
