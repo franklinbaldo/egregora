@@ -87,7 +87,7 @@ adapters = [{ type = "mkdocs", config_path = ".egregora/mkdocs.yml" }]
 
 If you only define one site/source, Egregora selects it automatically. When multiple entries exist, use `--site`/`--source` (or `EGREGORA_SITE`/`EGREGORA_SOURCE`) to choose explicitly. Legacy single-site configs without `[sites.*]` continue to work and are treated as a single implicit site. See the [Configuration Guide](docs/getting-started/configuration.md#sites-and-sources-multi-site-configs) for detailed rules and migration steps.
 
-👉 **[Full Configuration Reference](./docs/getting-started/configuration.md)**
+👉 **[Full Configuration Reference](docs/getting-started/configuration.md)**
 
 ### Customizing the AI
 
@@ -144,7 +144,7 @@ You can extend Egregora to read from other sources (e.g., Slack, Telegram) by im
 
 We welcome contributions! Please check out:
 
-* **[Technical Reference](./docs/reference.md):** Deep dive into CLI commands and architecture.
+* **[Technical Reference](docs/reference.md):** Deep dive into CLI commands and architecture.
 * **[Code of the Weaver](CLAUDE.md):** Guidelines for contributors and AI agents.
 
 To run tests:
