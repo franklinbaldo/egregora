@@ -111,18 +111,37 @@ jobs:
             const { owner, repo } = context.repo;
 
             console.log('📝 Converting draft PR to ready for review...');
-            await github.rest.pulls.update({
-              owner,
-              repo,
-              pull_number: prNumber,
-              draft: false
-            });
-            await github.rest.issues.createComment({
-              owner,
-              repo,
-              issue_number: prNumber,
-              body: '🤖 **Draft converted to ready for review**\n\nThis PR has been automatically marked as ready for review and will be auto-merged when CI passes.'
-            });
+            try {
+              const updateResult = await github.rest.pulls.update({
+                owner,
+                repo,
+                pull_number: prNumber,
+                draft: false
+              });
+              console.log('✅ Successfully converted PR from draft. New draft status:', updateResult.data.draft);
+
+              // Verify the change took effect
+              const { data: verifyPR } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: prNumber
+              });
+
+              if (verifyPR.draft === true) {
+                core.setFailed(`❌ PR is still in draft mode after update attempt. This may be a permissions issue.`);
+                return;
+              }
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body: '🤖 **Draft converted to ready for review**\n\nThis PR has been automatically marked as ready for review and will be auto-merged when CI passes.'
+              });
+            } catch (error) {
+              core.setFailed(`❌ Failed to convert draft to ready: ${error.message}`);
+              throw error;
+            }
 
       - name: Get PR metadata
         id: metadata
@@ -193,18 +212,41 @@ jobs:
 
             if (shouldAutoMerge) {
               try {
-                await github.graphql(`
+                const result = await github.graphql(`
                   mutation($pullRequestId: ID!) {
                     enablePullRequestAutoMerge(input: {
                       pullRequestId: $pullRequestId,
                       mergeMethod: SQUASH
                     }) {
-                      pullRequest { autoMergeRequest { enabledAt } }
+                      pullRequest {
+                        autoMergeRequest {
+                          enabledAt
+                          enabledBy {
+                            login
+                          }
+                        }
+                      }
                     }
                   }
                 `, {
                   pullRequestId: nodeId
                 });
+
+                console.log('✅ Auto-merge mutation result:', JSON.stringify(result, null, 2));
+
+                // Verify auto-merge was actually enabled
+                const { data: verifyPR } = await github.rest.pulls.get({
+                  owner,
+                  repo,
+                  pull_number: prNumber
+                });
+
+                if (verifyPR.auto_merge === null) {
+                  core.setFailed(`❌ Auto-merge is still null after enablement attempt. This may be a permissions issue or branch protection requirement.`);
+                  return;
+                }
+
+                console.log('✅ Verified auto-merge is enabled:', verifyPR.auto_merge);
 
                 await github.rest.issues.createComment({
                   owner,
@@ -213,8 +255,12 @@ jobs:
                   body: `🤖 **Auto-merge enabled**\n\nThis PR will automatically merge when all required checks pass.\n\n_Reason: ${isJulesBot ? 'Jules bot update' : 'dependency update'}_`
                 });
 
-                console.log('Auto-merge enabled successfully');
+                console.log('✅ Auto-merge enabled successfully');
               } catch (error) {
-                console.log(`⚠️ Could not enable auto-merge: ${error.message}`);
+                console.error(`❌ Failed to enable auto-merge: ${error.message}`);
+                core.setFailed(`Failed to enable auto-merge: ${error.message}`);
+                throw error;
               }
+            } else {
+              console.log('ℹ️ Skipping auto-merge - conditions not met');
             }
