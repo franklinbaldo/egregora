@@ -28,7 +28,6 @@ from egregora_v3.core.types import (
     Feed,
     InReplyTo,
     Link,
-    documents_to_feed,
 )
 from egregora_v3.infra.adapters.rss import RSSAdapter
 
@@ -84,7 +83,7 @@ def sample_feed() -> Feed:
         updated=datetime.now(UTC),
     )
 
-    return documents_to_feed(
+    return Feed.from_documents(
         docs=[doc1, doc2, doc3],
         feed_id="urn:uuid:feed-123",
         title="Comprehensive Test Feed",
@@ -316,7 +315,7 @@ def test_documents_to_feed_count_invariant(titles: list[str]) -> None:
         for i, title in enumerate(titles)
     ]
 
-    feed = documents_to_feed(docs, feed_id="test", title="Test Feed")
+    feed = Feed.from_documents(docs, feed_id="test", title="Test Feed")
 
     assert len(feed.entries) == len(docs)
 
@@ -334,7 +333,7 @@ def test_feed_to_xml_always_well_formed(num_entries: int) -> None:
         for i in range(num_entries)
     ]
 
-    feed = documents_to_feed(docs, feed_id="test-feed", title="Test Feed")
+    feed = Feed.from_documents(docs, feed_id="test-feed", title="Test Feed")
     xml_output = feed.to_xml()
 
     # Should parse without errors
@@ -394,7 +393,7 @@ def test_feed_with_threading_extension() -> None:
         updated=datetime.now(UTC),
     )
 
-    feed = documents_to_feed([parent, reply], feed_id="test", title="Threaded Feed")
+    feed = Feed.from_documents([parent, reply], feed_id="test", title="Threaded Feed")
     xml_output = feed.to_xml()
 
     root = etree.fromstring(xml_output.encode("utf-8"))
@@ -428,7 +427,7 @@ def test_feed_with_categories() -> None:
         Category(term="python", label="Python"),
     ]
 
-    feed = documents_to_feed([doc], feed_id="test", title="Feed with Categories")
+    feed = Feed.from_documents([doc], feed_id="test", title="Feed with Categories")
     xml_output = feed.to_xml()
 
     root = etree.fromstring(xml_output.encode("utf-8"))
@@ -482,7 +481,7 @@ def test_feed_updated_timestamp_reflects_newest_entry() -> None:
         updated=datetime(2025, 12, 6, tzinfo=UTC),
     )
 
-    feed = documents_to_feed([old_doc, new_doc], feed_id="test", title="Test Feed")
+    feed = Feed.from_documents([old_doc, new_doc], feed_id="test", title="Test Feed")
 
     # Feed updated should be the newest
     assert feed.updated == new_doc.updated
@@ -518,7 +517,7 @@ def test_feed_with_content_types() -> None:
         updated=datetime.now(UTC),
     )
 
-    feed = documents_to_feed(
+    feed = Feed.from_documents(
         [text_doc, html_doc, markdown_doc],
         feed_id="test",
         title="Content Types Feed",

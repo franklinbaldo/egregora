@@ -26,7 +26,6 @@ from egregora_v3.core.types import (
     DocumentStatus,
     DocumentType,
     Feed,
-    documents_to_feed,
 )
 from egregora_v3.infra.sinks.csv import CSVOutputSink
 from egregora_v3.infra.sinks.sqlite import SQLiteOutputSink
@@ -66,7 +65,7 @@ def sample_feed() -> Feed:
         status=DocumentStatus.DRAFT,
     )
 
-    return documents_to_feed(
+    return Feed.from_documents(
         docs=[doc1, doc2, draft],
         feed_id="urn:uuid:test-feed",
         title="Test Feed",
@@ -234,7 +233,7 @@ def test_sqlite_sink_handles_unicode_content(tmp_path: Path) -> None:
         status=DocumentStatus.PUBLISHED,
     )
 
-    feed = documents_to_feed([doc], feed_id="test", title="Test")
+    feed = Feed.from_documents([doc], feed_id="test", title="Test")
 
     db_file = tmp_path / "unicode.db"
     sink = SQLiteOutputSink(db_path=db_file)
@@ -414,7 +413,7 @@ def test_csv_sink_handles_unicode_content(tmp_path: Path) -> None:
         status=DocumentStatus.PUBLISHED,
     )
 
-    feed = documents_to_feed([doc], feed_id="test", title="Test")
+    feed = Feed.from_documents([doc], feed_id="test", title="Test")
 
     csv_file = tmp_path / "unicode.csv"
     sink = CSVOutputSink(csv_path=csv_file)
@@ -439,7 +438,7 @@ def test_csv_sink_handles_commas_and_quotes_in_content(tmp_path: Path) -> None:
         status=DocumentStatus.PUBLISHED,
     )
 
-    feed = documents_to_feed([doc], feed_id="test", title="Test")
+    feed = Feed.from_documents([doc], feed_id="test", title="Test")
 
     csv_file = tmp_path / "special.csv"
     sink = CSVOutputSink(csv_path=csv_file)
@@ -488,7 +487,7 @@ def test_sqlite_sink_handles_any_number_of_documents(num_docs: int) -> None:
         for i in range(num_docs)
     ]
 
-    feed = documents_to_feed(docs, feed_id="test", title="Test Feed")
+    feed = Feed.from_documents(docs, feed_id="test", title="Test Feed")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         db_file = Path(tmpdir) / f"feed_{num_docs}.db"
@@ -520,7 +519,7 @@ def test_csv_sink_handles_any_number_of_documents(num_docs: int) -> None:
         for i in range(num_docs)
     ]
 
-    feed = documents_to_feed(docs, feed_id="test", title="Test Feed")
+    feed = Feed.from_documents(docs, feed_id="test", title="Test Feed")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         csv_file = Path(tmpdir) / f"feed_{num_docs}.csv"
