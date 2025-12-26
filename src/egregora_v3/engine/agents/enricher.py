@@ -3,12 +3,12 @@
 Uses Pydantic-AI for generating enrichments for media content.
 """
 
+from typing import List
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
 from egregora_v3.core.context import PipelineContext
-from egregora_v3.core.types import Entry
 from egregora_v3.engine.template_loader import TemplateLoader
 
 
@@ -32,21 +32,14 @@ class EnricherAgent:
     Supports RunContext[PipelineContext] for dependency injection.
     """
 
-    def __init__(
-        self,
-        model: str = "test",
-        *,
-        skip_existing: bool = False,
-    ) -> None:
+    def __init__(self, model: str = "test") -> None:
         """Initialize EnricherAgent.
 
         Args:
             model: Model name (e.g., "google-gla:gemini-2.0-flash-vision", "test")
-            skip_existing: Skip entries that already have content
 
         """
         self.model_name = model
-        self.skip_existing = skip_existing
 
         # Initialize template loader for prompts
         self.template_loader = TemplateLoader()
@@ -71,67 +64,26 @@ class EnricherAgent:
             ),
         )
 
-    def _has_media_enclosure(self, entry: Entry) -> bool:
-        """Check if entry has media enclosures.
-
-        Args:
-            entry: Entry to check
-
-        Returns:
-            True if entry has media enclosures
-
-        """
-        if not entry.links:
-            return False
-
-        return any(
-            link.rel == "enclosure"
-            and link.type
-            and (
-                link.type.startswith("image/")
-                or link.type.startswith("audio/")
-                or link.type.startswith("video/")
-            )
-            for link in entry.links
-        )
-
-    def _should_enrich(self, entry: Entry) -> bool:
-        """Determine if entry should be enriched.
-
-        Args:
-            entry: Entry to check
-
-        Returns:
-            True if entry should be enriched
-
-        """
-        # Skip if no media
-        if not self._has_media_enclosure(entry):
-            return False
-
-        # Skip if entry already has content and skip_existing=True
-        return not (self.skip_existing and entry.content)
-
     async def enrich(
         self,
-        entry: Entry,
+        media_urls: List[str],
         context: PipelineContext,
     ) -> EnrichmentResult | None:
-        """Generate enrichment for a single entry.
+        """Generate enrichment for a list of media URLs.
 
         Args:
-            entry: Entry to enrich
+            media_urls: List of media URLs to enrich
             context: Pipeline context
 
         Returns:
-            EnrichmentResult if successful, None if skipped
+            EnrichmentResult if successful, None if no media URLs are provided.
 
         """
-        if not self._should_enrich(entry):
+        if not media_urls:
             return None
 
         # Build prompt from entry using template
-        user_prompt = self._build_prompt(entry)
+        user_prompt = self._build_prompt(media_urls)
 
         # Run agent with context
         result = await self._agent.run(user_prompt, deps=context)
@@ -139,16 +91,16 @@ class EnricherAgent:
         # Return structured output
         return result.output
 
-    def _build_prompt(self, entry: Entry) -> str:
-        """Build user prompt from entry using a Jinja2 template.
+    def _build_prompt(self, media_urls: List[str]) -> str:
+        """Build user prompt from a list of media URLs using a Jinja2 template.
 
         Args:
-            entry: Entry with media to describe
+            media_urls: List of media URLs to describe
 
         Returns:
             Formatted prompt string
 
         """
         return self.template_loader.render_template(
-            "enricher/enrich_media.jinja2", entry=entry
+            "enricher/enrich_media.jinja2", media_urls=media_urls
         )
