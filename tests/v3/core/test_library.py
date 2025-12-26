@@ -1,6 +1,7 @@
 
 from unittest.mock import Mock, patch
 import pytest
+from datetime import UTC, datetime
 
 from egregora_v3.core.catalog import ContentLibrary
 from egregora_v3.core.ports import DocumentRepository
@@ -32,7 +33,12 @@ def mock_library() -> ContentLibrary:
 def test_content_library_routing(mock_library: ContentLibrary, doc_type: DocumentType, repo_name: str):
     """Test that documents are saved to the correct repository based on their type."""
     # Arrange
-    doc = Document.create(content=f"Content for {doc_type.value}", doc_type=doc_type, title=f"Title {doc_type.value}")
+    doc = Document(
+        content=f"Content for {doc_type.value}",
+        doc_type=doc_type,
+        title=f"Title {doc_type.value}",
+        updated=datetime.now(UTC),
+    )
     target_repo: Mock = getattr(mock_library, repo_name)
 
     # Act

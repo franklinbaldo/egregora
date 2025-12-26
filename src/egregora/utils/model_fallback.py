@@ -247,7 +247,7 @@ def create_fallback_model(
 
             # Use first key as default if needed, or environment
             variations.append(_resolve_and_wrap(model_def, api_key=api_keys[0]))
-            keys_used.append(None) # Unknown or managed internally
+            keys_used.append(None)  # Unknown or managed internally
 
         return variations, keys_used
 

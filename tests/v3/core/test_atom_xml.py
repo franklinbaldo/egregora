@@ -7,11 +7,12 @@ from egregora_v3.core.types import Author, Document, DocumentStatus, DocumentTyp
 
 def test_feed_to_xml_serialization():
     """Test that a Feed can be serialized to valid Atom XML."""
-    entry = Document.create(
+    entry = Document(
+        id="test-post",
         doc_type=DocumentType.POST,
         title="Test Post",
         content="Hello World",
-        slug="test-post",
+        updated=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),
         internal_metadata={"slug": "test-post"},
     )
     # The filter normalizes "text/markdown" -> "text" or "html".
@@ -52,10 +53,11 @@ def test_feed_to_xml_serialization():
 
 def test_document_semantic_identity():
     """Test that Document enforces semantic identity (slug-based ID)."""
-    doc = Document.create(
+    doc = Document(
         doc_type=DocumentType.POST,
         title="  My Semantic Title  ",
         content="Content",
+        updated=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),
         # No slug provided, should derive from title
     )
 
@@ -63,10 +65,12 @@ def test_document_semantic_identity():
     assert doc.internal_metadata["slug"] == "my-semantic-title"
 
     # Explicit slug
-    doc2 = Document.create(
+    doc2 = Document(
         doc_type=DocumentType.POST,
         title="Title",
         content="Content",
-        slug="explicit-slug"
+        id="explicit-slug",
+        updated=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),
+        internal_metadata={"slug": "explicit-slug"},
     )
     assert doc2.id == "explicit-slug"

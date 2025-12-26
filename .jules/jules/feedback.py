@@ -62,7 +62,7 @@ def construct_prompt(pr_data: dict[str, Any], ci_checks: list[dict[str, Any]]) -
     """Construct the prompt for Jules."""
     pr_number = pr_data["number"]
     pr_title = pr_data["title"]
-    branch = pr_data["headRefName"]
+    branch = pr_data.get("headRefName") or pr_data.get("branch", "")
 
     # Analyze CI
     failed_checks = [c for c in ci_checks if c["state"] in ["FAILURE", "ERROR"]]

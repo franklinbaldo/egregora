@@ -44,7 +44,7 @@ class MockRepo(DocumentRepository):
 
 class MockAgent(Agent):
     def process(self, entries: list[Entry]) -> list[Document]:
-        return [Document.create(content="generated", doc_type=DocumentType.POST, title="Gen")]
+        return [Document(content="generated", doc_type=DocumentType.POST, title="Gen")]
 
 
 class MockOutputSink(OutputSink):

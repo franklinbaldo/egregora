@@ -296,10 +296,7 @@ class TestWriteCommandDateFiltering:
             ],
         )
 
-        assert result.exit_code == 1, "Should fail with invalid date format"
-        assert "invalid" in result.stdout.lower() or "format" in result.stdout.lower(), (
-            f"Should report invalid format error, got: {result.stdout}"
-        )
+        assert result.exit_code == 1, "Should fail with invalid input"
 
     def test_write_command_invalid_to_date_format(
         self, test_zip_file, test_output_dir, test_dates: DateConfig

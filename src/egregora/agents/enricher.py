@@ -788,7 +788,13 @@ class EnrichmentWorker(BaseWorker):
             async def _run_async() -> Any:
                 return await agent.run(prompt)
 
-            result = asyncio.run(_run_async())
+            # Create a new event loop for this thread to avoid "Event loop is closed" errors
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(_run_async())
+            finally:
+                loop.close()
 
         except Exception as e:
             logger.exception("Failed to enrich URL %s", url)
@@ -1317,7 +1323,13 @@ class EnrichmentWorker(BaseWorker):
         # Standard batch API (one request per image)
         model = GoogleBatchModel(api_key=api_key, model_name=model_name)
         try:
-            return asyncio.run(model.run_batch(requests))
+            # Create a new event loop for this thread to avoid "Event loop is closed" errors
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(model.run_batch(requests))
+            finally:
+                loop.close()
         except Exception as batch_exc:  # noqa: BLE001
             # Batch failed (likely quota exceeded) - fallback to individual calls
             logger.warning(
@@ -1348,7 +1360,7 @@ class EnrichmentWorker(BaseWorker):
         if model_name.startswith("google-gla:"):
             model_name = model_name.removeprefix("google-gla:")
 
-         # Build combined prompt with all images
+        # Build combined prompt with all images
         parts: list[dict[str, Any]] = []
 
         # Extract filenames and build prompt
@@ -1473,11 +1485,11 @@ class EnrichmentWorker(BaseWorker):
         from google.genai import types
 
         client = genai.Client(api_key=api_key)
-        
+
         # Strip prefix for direct API calls
         if model_name.startswith("google-gla:"):
             model_name = model_name.removeprefix("google-gla:")
-            
+
         results = []
 
         for req in requests:
