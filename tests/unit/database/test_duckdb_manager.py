@@ -4,6 +4,13 @@ import duckdb
 import pytest
 
 from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.exceptions import (
+    InvalidOperationError,
+    InvalidTableNameError,
+    SequenceError,
+    SequenceNotFoundError,
+    TableNotFoundError,
+)
 
 
 def test_from_ibis_backend_handles_duckdb_error_gracefully():
@@ -101,3 +108,66 @@ def test_reset_connection_raises_runtime_error_on_critical_failure(mock_connect)
     # 3. Call the method under test and assert it raises a RuntimeError
     with pytest.raises(RuntimeError, match="Critical failure"):
         storage_manager._reset_connection()
+
+
+def test_read_table_not_found():
+    """Test that read_table raises TableNotFoundError for a non-existent table."""
+    with DuckDBStorageManager() as storage:
+        with pytest.raises(TableNotFoundError):
+            storage.read_table("non_existent_table")
+
+
+def test_get_sequence_state_not_found():
+    """Test that get_sequence_state raises SequenceNotFoundError for a non-existent sequence."""
+    with DuckDBStorageManager() as storage:
+        with pytest.raises(SequenceNotFoundError):
+            storage.get_sequence_state("non_existent_sequence")
+
+
+def test_replace_rows_no_keys():
+    """Test that replace_rows raises InvalidOperationError when no keys are provided."""
+    with DuckDBStorageManager() as storage:
+        with pytest.raises(InvalidOperationError):
+            storage.replace_rows("some_table", None, by_keys={})
+
+
+def test_write_table_append_no_checkpoint():
+    """Test that write_table raises InvalidOperationError for append mode without checkpoint."""
+    with DuckDBStorageManager() as storage:
+        with pytest.raises(InvalidOperationError):
+            storage.write_table(None, "some_table", mode="append", checkpoint=False)
+
+
+def test_persist_atomic_invalid_name():
+    """Test that persist_atomic raises InvalidTableNameError for an invalid table name."""
+    with DuckDBStorageManager() as storage:
+        with pytest.raises(InvalidTableNameError):
+            storage.persist_atomic(None, "invalid-table-name", None)
+
+
+def test_sync_sequence_with_table_sequence_not_found(mocker):
+    """Test that sync_sequence_with_table raises SequenceNotFoundError if the sequence doesn't exist."""
+    with DuckDBStorageManager() as storage:
+        # Create a dummy table to prevent CatalogException
+        storage.execute_sql("CREATE TABLE some_table (id INTEGER)")
+        storage.execute_sql("INSERT INTO some_table VALUES (1)")
+        mocker.patch.object(storage, "get_sequence_state", side_effect=SequenceNotFoundError("non_existent_sequence"))
+        with pytest.raises(SequenceNotFoundError):
+            storage.sync_sequence_with_table("non_existent_sequence", table="some_table", column="id")
+
+
+def test_next_sequence_values_invalid_count():
+    """Test that next_sequence_values raises InvalidOperationError for a non-positive count."""
+    with DuckDBStorageManager() as storage:
+        with pytest.raises(InvalidOperationError):
+            storage.next_sequence_values("some_sequence", count=0)
+
+
+def test_next_sequence_values_fetch_fails(mocker):
+    """Test that next_sequence_values raises SequenceError when fetching a value fails."""
+    with DuckDBStorageManager() as storage:
+        storage.ensure_sequence("test_sequence")
+        # Mock the `execute` method on the storage manager itself, not the raw connection
+        mocker.patch.object(storage, "execute", side_effect=duckdb.Error("DB error"))
+        with pytest.raises(SequenceError):
+            storage.next_sequence_values("test_sequence")

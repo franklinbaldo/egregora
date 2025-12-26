@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 import ibis
 
 from egregora.database.elo_record import ComparisonRecord
+from egregora.database.exceptions import TableCreationError
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -101,8 +102,7 @@ class EloStore:
                 logger.debug("elo_ratings table already exists (race condition): %s", e)
             else:
                 # Table doesn't exist and creation failed - this is a real error
-                msg = f"Failed to create elo_ratings table: {e}"
-                raise RuntimeError(msg) from e
+                raise TableCreationError("elo_ratings") from e
 
         # Create comparison history table with race condition handling
         try:
@@ -118,8 +118,7 @@ class EloStore:
                 logger.debug("comparison_history table already exists (race condition): %s", e)
             else:
                 # Table doesn't exist and creation failed - this is a real error
-                msg = f"Failed to create comparison_history table: {e}"
-                raise RuntimeError(msg) from e
+                raise TableCreationError("comparison_history") from e
 
     def get_rating(self, post_slug: str) -> EloRating:
         """Get current ELO rating for a post.
