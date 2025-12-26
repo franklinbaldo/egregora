@@ -18,7 +18,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from lxml import etree
 
-from egregora_v3.core.types import Author, Document, DocumentStatus, DocumentType, Feed, documents_to_feed
+from egregora_v3.core.types import Author, Document, DocumentStatus, DocumentType, Feed
 from egregora_v3.infra.adapters.rss import RSSAdapter
 from egregora_v3.infra.sinks.atom_xml import AtomXMLOutputSink
 from egregora_v3.infra.sinks.mkdocs import MkDocsOutputSink
@@ -51,7 +51,7 @@ def sample_feed() -> Feed:
     )
     doc2.published = datetime(2025, 12, 6, tzinfo=UTC)
 
-    return documents_to_feed(
+    return Feed.from_documents(
         docs=[doc1, doc2],
         feed_id="urn:uuid:test-feed",
         title="Test Feed",
@@ -273,7 +273,7 @@ def test_mkdocs_sink_respects_document_status(tmp_path: Path) -> None:
         status=DocumentStatus.PUBLISHED,
     )
 
-    feed = documents_to_feed(
+    feed = Feed.from_documents(
         [draft, published],
         feed_id="test",
         title="Mixed Status Feed",
@@ -349,7 +349,7 @@ def test_atom_xml_sink_handles_any_number_of_entries(num_entries: int) -> None:
         for i in range(num_entries)
     ]
 
-    feed = documents_to_feed(docs, feed_id="test", title="Test Feed")
+    feed = Feed.from_documents(docs, feed_id="test", title="Test Feed")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         output_file = Path(tmpdir) / f"feed_{num_entries}.atom"
@@ -379,7 +379,7 @@ def test_mkdocs_sink_creates_correct_number_of_files(num_entries: int) -> None:
         for i in range(num_entries)
     ]
 
-    feed = documents_to_feed(docs, feed_id="test", title="Test Feed")
+    feed = Feed.from_documents(docs, feed_id="test", title="Test Feed")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         output_dir = Path(tmpdir) / f"docs_{num_entries}"
@@ -403,7 +403,7 @@ def test_atom_xml_sink_handles_special_characters_in_content(tmp_path: Path) -> 
         title="Special Characters",
     )
 
-    feed = documents_to_feed([doc], feed_id="test", title="Test")
+    feed = Feed.from_documents([doc], feed_id="test", title="Test")
 
     output_file = tmp_path / "feed.atom"
     sink = AtomXMLOutputSink(output_path=output_file)
@@ -425,7 +425,7 @@ def test_mkdocs_sink_handles_unicode_content(tmp_path: Path) -> None:
         status=DocumentStatus.PUBLISHED,
     )
 
-    feed = documents_to_feed([doc], feed_id="test", title="Test")
+    feed = Feed.from_documents([doc], feed_id="test", title="Test")
 
     output_dir = tmp_path / "docs"
     sink = MkDocsOutputSink(output_dir=output_dir)
@@ -448,7 +448,7 @@ def test_mkdocs_sink_handles_documents_without_slug(tmp_path: Path) -> None:
         status=DocumentStatus.PUBLISHED,
     )
 
-    feed = documents_to_feed([doc], feed_id="test", title="Test")
+    feed = Feed.from_documents([doc], feed_id="test", title="Test")
 
     output_dir = tmp_path / "docs"
     sink = MkDocsOutputSink(output_dir=output_dir)

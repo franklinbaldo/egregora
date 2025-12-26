@@ -217,25 +217,26 @@ class Feed(BaseModel):
     authors: list[Author] = Field(default_factory=list)
     links: list[Link] = Field(default_factory=list)
 
+    @classmethod
+    def from_documents(
+        cls,
+        docs: list["Document"],
+        feed_id: str,
+        title: str,
+        authors: list[Author] | None = None,
+    ) -> "Feed":
+        """Factory to create a Feed from a list of documents."""
+        if not docs:
+            updated = datetime.now(UTC)
+        else:
+            updated = max(doc.updated for doc in docs)
+
+        # Sort documents by updated timestamp descending (newest first)
+        sorted_docs = sorted(docs, key=lambda d: d.updated, reverse=True)
+
+        return cls(id=feed_id, title=title, updated=updated, authors=authors or [], entries=sorted_docs)
+
     def to_xml(self) -> str:
         """Generate Atom XML feed (RFC 4287 compliant) using a Jinja2 template."""
         template = _jinja_env.get_template("atom.xml.jinja")
         return template.render(feed=self)
-
-
-def documents_to_feed(
-    docs: list[Document],
-    feed_id: str,
-    title: str,
-    authors: list[Author] | None = None,
-) -> Feed:
-    """Aggregates documents into a valid Atom Feed."""
-    if not docs:
-        updated = datetime.now(UTC)
-    else:
-        updated = max(doc.updated for doc in docs)
-
-    # Sort documents by updated timestamp descending (newest first)
-    sorted_docs = sorted(docs, key=lambda d: d.updated, reverse=True)
-
-    return Feed(id=feed_id, title=title, updated=updated, authors=authors or [], entries=sorted_docs)
