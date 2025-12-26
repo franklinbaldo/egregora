@@ -1360,7 +1360,7 @@ class EnrichmentWorker(BaseWorker):
         if model_name.startswith("google-gla:"):
             model_name = model_name.removeprefix("google-gla:")
 
-         # Build combined prompt with all images
+        # Build combined prompt with all images
         parts: list[dict[str, Any]] = []
 
         # Extract filenames and build prompt
