@@ -37,12 +37,8 @@ class CSVOutputSink:
         # Create parent directories if needed
         self.csv_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Filter published documents
-        published_docs = [
-            entry
-            for entry in feed.entries
-            if isinstance(entry, Document) and entry.status == DocumentStatus.PUBLISHED
-        ]
+        # Delegate filtering to the Feed object
+        published_docs = feed.get_published_documents()
 
         # Define CSV fieldnames
         fieldnames = [

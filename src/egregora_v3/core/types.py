@@ -150,6 +150,14 @@ class Feed(BaseModel):
     authors: list[Author] = Field(default_factory=list)
     links: list[Link] = Field(default_factory=list)
 
+    def get_published_documents(self) -> list[Document]:
+        """Return a filtered list of published documents from the feed entries."""
+        return [
+            entry
+            for entry in self.entries
+            if isinstance(entry, Document) and entry.status == DocumentStatus.PUBLISHED
+        ]
+
     def to_xml(self) -> str:
         md = MarkdownIt()
         template = _jinja_env.get_template("atom.xml.jinja")
