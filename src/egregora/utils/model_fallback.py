@@ -69,7 +69,9 @@ def get_openrouter_free_models(modality: str = "text", *, require_tools: bool = 
             # Check modality requirements
             architecture = model.get("architecture", {})
             input_modalities = architecture.get("input_modalities", [])
-            supports_tools = architecture.get("tool_use", False) or "tools" in str(model.get("description", "")).lower()
+            supports_tools = (
+                architecture.get("tool_use", False) or "tools" in str(model.get("description", "")).lower()
+            )
 
             # Filter based on tool support if required
             if require_tools and not supports_tools:

@@ -227,8 +227,6 @@ class RotatingFallbackModel(Model):
         model_request_parameters: ModelRequestParameters,
     ) -> ModelResponse:
         """Make a request, rotating on 429 errors."""
-        import httpx
-
         attempts = 0
         max_attempts = len(self._models) * 2  # Allow up to 2 full rotations
         last_exception: Exception | None = None
@@ -247,17 +245,17 @@ class RotatingFallbackModel(Model):
                 # Always rotate on 429 or any error if we have more attempts/models
                 err_str = str(e).lower()
                 is_rate_limit = "429" in err_str or "too many requests" in err_str or "rate limit" in err_str
-                
+
                 if is_rate_limit:
                     self._apply_rate_limit_cooldown(current_idx, e)
-                
+
                 attempts += 1
                 self._rotate_on_429(current_idx)
 
                 if self._all_exhausted() or attempts >= max_attempts:
                     logger.exception("All models exhausted or max attempts reached. Last error: %s", e)
                     raise
-                
+
                 logger.warning("Model index %d failed with %s, rotating...", current_idx, type(e).__name__)
                 continue
 
@@ -294,18 +292,22 @@ class RotatingFallbackModel(Model):
                 # Always rotate on 429 or any error if we have more attempts/models
                 err_str = str(e).lower()
                 is_rate_limit = "429" in err_str or "too many requests" in err_str or "rate limit" in err_str
-                
+
                 if is_rate_limit:
                     self._apply_rate_limit_cooldown(current_idx, e)
-                
+
                 attempts += 1
                 self._rotate_on_429(current_idx)
 
                 if self._all_exhausted() or attempts >= max_attempts:
-                    logger.exception("All models exhausted or max attempts reached in stream. Last error: %s", e)
+                    logger.exception(
+                        "All models exhausted or max attempts reached in stream. Last error: %s", e
+                    )
                     raise
-                
-                logger.warning("Model index %d failed in stream with %s, rotating...", current_idx, type(e).__name__)
+
+                logger.warning(
+                    "Model index %d failed in stream with %s, rotating...", current_idx, type(e).__name__
+                )
                 continue
 
         msg = f"Max attempts ({max_attempts}) exceeded"
