@@ -111,10 +111,10 @@ class WhatsAppAdapter(InputAdapter):
             logger.debug("Parsed WhatsApp export with %s messages", messages_table.count().execute())
             return messages_table
         except WhatsAppParsingError as e:
-            logger.error("Failed to parse WhatsApp export at %s: %s", input_path, e)
+            logger.exception("Failed to parse WhatsApp export at %s: %s", input_path, e)
             raise
         except zipfile.BadZipFile as e:
-            logger.error("Invalid ZIP file provided at %s: %s", input_path, e)
+            logger.exception("Invalid ZIP file provided at %s: %s", input_path, e)
             raise InvalidZipFileError(str(input_path)) from e
 
     def deliver_media(self, media_reference: str, **kwargs: Unpack[DeliverMediaKwargs]) -> Document | None:
