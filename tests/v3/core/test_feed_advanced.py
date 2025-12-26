@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from faker import Faker
 from freezegun import freeze_time
-from hypothesis import given, settings
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from lxml import etree
 from syrupy.assertion import SnapshotAssertion
@@ -296,6 +296,7 @@ def test_feed_xml_snapshot_regression(sample_feed: Feed, snapshot: SnapshotAsser
 # ========== Property-Based Tests ==========
 
 
+@settings(suppress_health_check=[HealthCheck.too_slow])
 @given(
     st.lists(
         st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=["Cc"])),

@@ -1,17 +1,17 @@
 """E2E tests for the 'egregora show' and 'egregora top' CLI commands."""
 
-from pathlib import Path
-from datetime import datetime, timezone
 import uuid
+from datetime import UTC, datetime
+from pathlib import Path
 
-import pytest
 import ibis
+import pytest
 import tomli_w
 from typer.testing import CliRunner
 
 from egregora.cli.main import app
 from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.database.elo_store import ELO_RATINGS_SCHEMA, COMPARISON_HISTORY_SCHEMA, EloStore
+from egregora.database.elo_store import COMPARISON_HISTORY_SCHEMA, ELO_RATINGS_SCHEMA, EloStore
 
 # Create a CLI runner for testing
 runner = CliRunner()
@@ -45,7 +45,7 @@ def mock_site_root_with_db(tmp_path: Path, config_factory) -> Path:
     config.reader.database_path = ".egregora/reader.duckdb"
     config_path = site_root / ".egregora.toml"
 
-    config_dict = config.model_dump(mode='json')
+    config_dict = config.model_dump(mode="json")
     cleaned_config = clean_none_values(config_dict)
 
     with config_path.open("wb") as f:
@@ -72,7 +72,7 @@ def mock_site_root_without_db(tmp_path: Path, config_factory) -> Path:
     config.reader.database_path = ".egregora/reader.duckdb"
     config_path = site_root / ".egregora.toml"
 
-    config_dict = config.model_dump(mode='json')
+    config_dict = config.model_dump(mode="json")
     cleaned_config = clean_none_values(config_dict)
 
     with config_path.open("wb") as f:
@@ -85,7 +85,7 @@ def test_top_command(mock_site_root_with_db: Path):
     """Test the 'top' command with mock data."""
     db_path = mock_site_root_with_db / ".egregora/reader.duckdb"
     storage = DuckDBStorageManager(db_path)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Insert mock data
     mock_data = [
@@ -111,7 +111,7 @@ def test_show_reader_history_command(mock_site_root_with_db: Path):
     """Test the 'show reader-history' command with mock data."""
     db_path = mock_site_root_with_db / ".egregora/reader.duckdb"
     storage = DuckDBStorageManager(db_path)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Insert mock data
     mock_data = [

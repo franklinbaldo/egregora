@@ -1,4 +1,5 @@
 """Tests for WhatsApp parser."""
+
 import zipfile
 from datetime import date
 from pathlib import Path
@@ -8,10 +9,8 @@ import pytest
 
 from egregora.input_adapters.whatsapp.exceptions import (
     DateParsingError,
-    EmptyChatLogError,
     NoMessagesFoundError,
     TimeParsingError,
-    WhatsAppParsingError,
 )
 from egregora.input_adapters.whatsapp.parsing import (
     WhatsAppExport,
@@ -28,7 +27,11 @@ def whatsapp_export_with_malformed_line(tmp_path: Path) -> WhatsAppExport:
     """Creates a mock WhatsApp export ZIP with a malformed line."""
     zip_path = tmp_path / "whatsapp.zip"
     chat_file_name = "_chat.txt"
-    chat_content = "1/1/22, 12:00 - User 1: Hello\n" "99/99/99, 12:01 - User 2: This date is malformed\n" "1/1/22, 12:02 - User 3: World\n"
+    chat_content = (
+        "1/1/22, 12:00 - User 1: Hello\n"
+        "99/99/99, 12:01 - User 2: This date is malformed\n"
+        "1/1/22, 12:02 - User 3: World\n"
+    )
 
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr(chat_file_name, chat_content)

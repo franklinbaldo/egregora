@@ -24,7 +24,6 @@ from pydantic import BaseModel
 from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.exceptions import (
     DateParsingError,
-    EmptyChatLogError,
     NoMessagesFoundError,
     TimeParsingError,
 )
