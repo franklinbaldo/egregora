@@ -100,3 +100,55 @@ class ChatFileNotFoundError(WhatsAppParsingError):
         self.zip_path = zip_path
         message = f"No WhatsApp chat file found in {zip_path}"
         super().__init__(message)
+
+
+# Media Delivery Errors
+class MediaDeliveryError(WhatsAppParsingError):
+    """Base exception for errors related to media file delivery."""
+
+
+class InvalidMediaReferenceError(MediaDeliveryError):
+    """Raised for suspicious or invalid media references (e.g., path traversal)."""
+
+    def __init__(self, media_reference: str) -> None:
+        self.media_reference = media_reference
+        message = f"Invalid media reference provided: '{media_reference}'"
+        super().__init__(message)
+
+
+class MissingZipPathError(MediaDeliveryError):
+    """Raised when the zip_path keyword argument is missing."""
+
+    def __init__(self) -> None:
+        message = "'zip_path' keyword argument is required but was not provided."
+        super().__init__(message)
+
+
+class ZipPathNotFoundError(MediaDeliveryError):
+    """Raised when the provided ZIP file path does not exist."""
+
+    def __init__(self, zip_path: str) -> None:
+        self.zip_path = zip_path
+        message = f"ZIP file not found at the provided path: '{zip_path}'"
+        super().__init__(message)
+
+
+class MediaNotFoundError(MediaDeliveryError):
+    """Raised when the specified media file is not found within the ZIP archive."""
+
+    def __init__(self, media_reference: str, zip_path: str) -> None:
+        self.media_reference = media_reference
+        self.zip_path = zip_path
+        message = f"Media file '{media_reference}' not found in '{zip_path}'."
+        super().__init__(message)
+
+
+class MediaExtractionError(MediaDeliveryError):
+    """Raised for general errors during media extraction from the ZIP file."""
+
+    def __init__(self, media_reference: str, zip_path: str, original_error: Exception) -> None:
+        self.media_reference = media_reference
+        self.zip_path = zip_path
+        self.original_error = original_error
+        message = f"Failed to extract '{media_reference}' from '{zip_path}'. Reason: {original_error}"
+        super().__init__(message)
