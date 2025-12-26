@@ -43,3 +43,19 @@ class InvalidOperationError(DatabaseError):
 
 class SequenceError(DatabaseError):
     """Raised for errors during sequence operations."""
+
+
+class SequenceFetchError(SequenceError):
+    """Raised when fetching the next sequence value fails."""
+
+    def __init__(self, sequence_name: str) -> None:
+        self.sequence_name = sequence_name
+        super().__init__(f"Failed to fetch next value for sequence '{sequence_name}'")
+
+
+class SequenceRetryFailedError(SequenceError):
+    """Raised when a sequence operation fails even after a retry."""
+
+    def __init__(self, sequence_name: str) -> None:
+        self.sequence_name = sequence_name
+        super().__init__(f"Database error for sequence '{sequence_name}' after retry")
