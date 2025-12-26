@@ -33,3 +33,14 @@ class NoMessagesFoundError(WhatsAppParsingError):
         self.source_name = source_name
         message = f"No messages found in '{source_name}'"
         super().__init__(message)
+
+
+class InvalidZipFileError(WhatsAppParsingError):
+    """Raised when the ZIP file is corrupted or not a valid ZIP archive."""
+
+    def __init__(self, zip_path: str, message: str | None = None) -> None:
+        """Initialize the exception."""
+        self.zip_path = zip_path
+        if message is None:
+            message = f"Invalid or corrupted ZIP file at '{zip_path}'"
+        super().__init__(message)

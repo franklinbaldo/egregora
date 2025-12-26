@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, TypedDict, Unpack
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.input_adapters.whatsapp.commands import EGREGORA_COMMAND_PATTERN
+from egregora.input_adapters.whatsapp.exceptions import InvalidZipFileError, WhatsAppParsingError
 from egregora.input_adapters.whatsapp.parsing import WhatsAppExport, parse_source
 from egregora.input_adapters.whatsapp.utils import discover_chat_file
 from egregora.orchestration.pipelines.modules.media import detect_media_type
@@ -89,24 +90,32 @@ class WhatsAppAdapter(InputAdapter):
         if not input_path.is_file() or not str(input_path).endswith(".zip"):
             msg = f"Expected a ZIP file, got: {input_path}"
             raise ValueError(msg)
-        group_name, chat_file = discover_chat_file(input_path)
-        export = WhatsAppExport(
-            zip_path=input_path,
-            group_name=group_name,
-            group_slug=group_name.lower().replace(" ", "-"),
-            export_date=datetime.now(tz=UTC).date(),
-            chat_file=chat_file,
-            media_files=[],
-        )
-        messages_table = parse_source(
-            export,
-            timezone=timezone,
-            expose_raw_author=True,  # Always expose raw initially
-            config=self._config,
-        )
 
-        logger.debug("Parsed WhatsApp export with %s messages", messages_table.count().execute())
-        return messages_table
+        try:
+            group_name, chat_file = discover_chat_file(input_path)
+            export = WhatsAppExport(
+                zip_path=input_path,
+                group_name=group_name,
+                group_slug=group_name.lower().replace(" ", "-"),
+                export_date=datetime.now(tz=UTC).date(),
+                chat_file=chat_file,
+                media_files=[],
+            )
+            messages_table = parse_source(
+                export,
+                timezone=timezone,
+                expose_raw_author=True,  # Always expose raw initially
+                config=self._config,
+            )
+
+            logger.debug("Parsed WhatsApp export with %s messages", messages_table.count().execute())
+            return messages_table
+        except WhatsAppParsingError as e:
+            logger.error("Failed to parse WhatsApp export at %s: %s", input_path, e)
+            raise
+        except zipfile.BadZipFile as e:
+            logger.error("Invalid ZIP file provided at %s: %s", input_path, e)
+            raise InvalidZipFileError(str(input_path)) from e
 
     def deliver_media(self, media_reference: str, **kwargs: Unpack[DeliverMediaKwargs]) -> Document | None:
         """Deliver media file from WhatsApp ZIP as a Document."""
