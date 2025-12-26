@@ -10,8 +10,23 @@ from egregora.database.exceptions import (
     SequenceFetchError,
     SequenceNotFoundError,
     SequenceRetryFailedError,
+    TableInfoError,
     TableNotFoundError,
 )
+
+
+def test_get_table_columns_raises_table_info_error(mocker):
+    """Tests that get_table_columns raises TableInfoError on a database error."""
+    with DuckDBStorageManager() as storage:
+        # Mock the connection object itself to avoid patching a read-only attribute
+        mock_conn = MagicMock()
+        mock_conn.execute.side_effect = duckdb.Error("Simulated DB error")
+        mocker.patch.object(storage, "_conn", mock_conn)
+
+        with pytest.raises(TableInfoError) as exc_info:
+            storage.get_table_columns("any_table")
+
+        assert exc_info.value.table_name == "any_table"
 
 
 def test_from_ibis_backend_handles_duckdb_error_gracefully():
