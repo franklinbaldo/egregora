@@ -10,7 +10,11 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+import duckdb
 from pydantic import BaseModel, Field
+
+from egregora.agents.banner.agent import generate_banner
+from egregora.orchestration.persistence import persist_banner_document
 
 if TYPE_CHECKING:
     import uuid

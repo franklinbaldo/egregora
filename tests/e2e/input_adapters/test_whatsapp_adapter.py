@@ -27,7 +27,7 @@ from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 from egregora.input_adapters.whatsapp.commands import filter_egregora_messages
-from egregora.input_adapters.whatsapp.exceptions import MediaExtractionError, MediaNotFoundError
+from egregora.input_adapters.whatsapp.exceptions import MediaNotFoundError
 from egregora.input_adapters.whatsapp.parsing import parse_source
 from egregora.orchestration.pipelines.modules.media import process_media_for_window
 from egregora.transformations.windowing import Window

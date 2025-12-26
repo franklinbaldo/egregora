@@ -165,7 +165,9 @@ class TestWhatsAppParsing:
         # Mock the TextIOWrapper to simulate a decoding error
         mock_text_wrapper = MagicMock()
         mock_text_wrapper.__iter__.side_effect = decode_error
-        monkeypatch.setattr("egregora.input_adapters.whatsapp.parsing.io.TextIOWrapper", lambda *a, **kw: mock_text_wrapper)
+        monkeypatch.setattr(
+            "egregora.input_adapters.whatsapp.parsing.io.TextIOWrapper", lambda *a, **kw: mock_text_wrapper
+        )
 
         # Mock zipfile handling to avoid actual file operations
         mock_zip_instance = MagicMock()
@@ -175,7 +177,9 @@ class TestWhatsAppParsing:
 
         # Mock validation functions so they don't interfere
         monkeypatch.setattr("egregora.input_adapters.whatsapp.parsing.validate_zip_contents", lambda zf: None)
-        monkeypatch.setattr("egregora.input_adapters.whatsapp.parsing.ensure_safe_member_size", lambda zf, member: None)
+        monkeypatch.setattr(
+            "egregora.input_adapters.whatsapp.parsing.ensure_safe_member_size", lambda zf, member: None
+        )
 
         source = ZipMessageSource(export=mock_export)
 

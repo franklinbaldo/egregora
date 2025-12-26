@@ -8,7 +8,6 @@ from pydantic_ai import ModelRetry
 import egregora.rag as rag_pkg
 import egregora.rag.models as rag_models
 from egregora.agents.tools import writer_tools
-from egregora.data_primitives.document import Document, DocumentType
 from egregora.agents.tools.writer_tools import (
     AnnotationContext,
     AnnotationResult,
@@ -24,6 +23,7 @@ from egregora.agents.tools.writer_tools import (
     write_post_impl,
     write_profile_impl,
 )
+from egregora.data_primitives.document import Document, DocumentType
 
 
 class TestWriterToolsExtraction:
