@@ -1,18 +1,18 @@
 """Tests for structured exception handling in the MkDocsAdapter."""
 
-import pytest
-import yaml
 from pathlib import Path
 
+import pytest
+
 from egregora.data_primitives.document import DocumentType
-from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 from egregora.output_adapters.exceptions import (
+    AdapterNotInitializedError,
+    ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
-    ConfigLoadError,
     UnsupportedDocumentTypeError,
-    AdapterNotInitializedError,
 )
+from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 
 
 @pytest.fixture
