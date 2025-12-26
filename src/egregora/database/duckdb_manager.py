@@ -55,6 +55,7 @@ from egregora.database.exceptions import (
     SequenceFetchError,
     SequenceNotFoundError,
     SequenceRetryFailedError,
+    TableInfoError,
     TableNotFoundError,
 )
 from egregora.database.schemas import quote_identifier
@@ -512,8 +513,8 @@ class DuckDBStorageManager:
                 rows = self._conn.execute(
                     f"PRAGMA table_info({quoted_name})",
                 ).fetchall()
-            except duckdb.Error:
-                rows: list[tuple[str, ...]] = []
+            except duckdb.Error as e:
+                raise TableInfoError(table_name) from e
 
             # PRAGMA table_info returns: (cid, name, type, notnull, dflt_value, pk)
             # We want row[1] which is the column name, not row[0] which is the cid (int)
