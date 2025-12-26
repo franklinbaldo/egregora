@@ -1,4 +1,5 @@
 """Unit tests for the WhatsApp input adapter."""
+
 from __future__ import annotations
 
 import zipfile
@@ -53,9 +54,13 @@ def test_parse_raises_adapter_error_on_parsing_error(adapter: WhatsAppAdapter, t
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr("_chat.txt", "some content")
 
-    with pytest.raises(WhatsAppAdapterError), patch(
-        "egregora.input_adapters.whatsapp.adapter.discover_chat_file",
-        return_value=("Test Group", "_chat.txt"),
-    ), patch("egregora.input_adapters.whatsapp.parsing.parse_source") as mock_parse_source:
+    with (
+        patch(
+            "egregora.input_adapters.whatsapp.adapter.discover_chat_file",
+            return_value=("Test Group", "_chat.txt"),
+        ),
+        patch("egregora.input_adapters.whatsapp.parsing.parse_source") as mock_parse_source,
+    ):
         mock_parse_source.side_effect = WhatsAppParsingError
-        adapter.parse(zip_path)
+        with pytest.raises(WhatsAppAdapterError):
+            adapter.parse(zip_path)

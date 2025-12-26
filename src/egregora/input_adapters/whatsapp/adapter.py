@@ -15,6 +15,7 @@ from egregora.input_adapters.whatsapp.exceptions import (
     InvalidZipFileError,
     MediaExtractionError,
     WhatsAppAdapterError,
+    WhatsAppParsingError,
 )
 from egregora.input_adapters.whatsapp.parsing import WhatsAppExport, parse_source
 from egregora.input_adapters.whatsapp.utils import discover_chat_file
@@ -116,7 +117,8 @@ class WhatsAppAdapter(InputAdapter):
             return messages_table
         except WhatsAppParsingError as e:
             logger.exception("Failed to parse WhatsApp export at %s: %s", input_path, e)
-            raise WhatsAppAdapterError(f"Failed to parse {input_path}") from e
+            msg = f"Failed to parse {input_path}"
+            raise WhatsAppAdapterError(msg) from e
         except zipfile.BadZipFile as e:
             logger.exception("Invalid ZIP file provided at %s: %s", input_path, e)
             raise InvalidZipFileError(str(input_path)) from e

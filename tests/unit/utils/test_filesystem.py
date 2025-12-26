@@ -14,7 +14,6 @@ from egregora.utils.exceptions import (
 )
 from egregora.utils.filesystem import (
     _extract_clean_date,
-    _validate_post_metadata,
     format_frontmatter_datetime,
     write_markdown_post,
 )

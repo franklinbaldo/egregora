@@ -596,7 +596,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         """
         if not hasattr(self, "_site_root") or self._site_root is None:
-            raise AdapterNotInitializedError()
+            raise AdapterNotInitializedError
 
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()

@@ -113,12 +113,6 @@ class WriteProfileResult(BaseModel):
     caption: str | None = None
 
 
-class SearchMediaResult(BaseModel):
-    """Result from searching media."""
-
-    results: list[writer_tools.MediaItem]
-
-
 class MediaItem(BaseModel):
     """Represents a media item from search results."""
 

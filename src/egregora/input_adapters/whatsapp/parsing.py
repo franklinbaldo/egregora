@@ -28,7 +28,6 @@ from egregora.input_adapters.whatsapp.exceptions import (
     NoMessagesFoundError,
     TimeParsingError,
     WhatsAppParsingIOError,
-    WhatsAppParsingError,
 )
 from egregora.input_adapters.whatsapp.utils import build_message_attrs
 from egregora.utils.zip import ensure_safe_member_size, validate_zip_contents

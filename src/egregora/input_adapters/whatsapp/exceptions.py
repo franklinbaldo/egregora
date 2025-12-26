@@ -85,7 +85,7 @@ class MalformedLineError(WhatsAppParsingError):
         self.original_error = original_error
         self.line_number = line_number
 
-        message = f"Malformed line encountered"
+        message = "Malformed line encountered"
         if line_number:
             message += f" at line {line_number}"
         message += f": '{line}'. Reason: {original_error}"

@@ -50,7 +50,6 @@ from egregora.knowledge.exceptions import (
     ProfileError,
     ProfileNotFoundError,
     ProfileParseError,
-    ProfileParsingError,
 )
 
 logger = logging.getLogger(__name__)
