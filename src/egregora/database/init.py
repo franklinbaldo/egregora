@@ -18,13 +18,9 @@ from typing import TYPE_CHECKING, Any
 
 from egregora.database.schemas import (
     ANNOTATIONS_SCHEMA,
-    DOCUMENTS_VIEW_SQL,
     INGESTION_MESSAGE_SCHEMA,
-    JOURNALS_SCHEMA,
-    MEDIA_SCHEMA,
-    POSTS_SCHEMA,
-    PROFILES_SCHEMA,
     TASKS_SCHEMA,
+    UNIFIED_SCHEMA,
     create_table_if_not_exists,
 )
 
@@ -38,10 +34,10 @@ def initialize_database(backend: BaseBackend) -> None:
     """Initialize all database tables using Ibis schema definitions.
 
     Creates:
-    - posts, profiles, media, journals (Type-specific content tables)
-    - documents_view (Unified view)
+    - documents (V3 unified table)
     - tasks (Background jobs)
     - messages (Ingestion buffer - optional/legacy)
+    - annotations (Legacy support)
 
     Args:
         backend: Ibis backend (DuckDB, Postgres, etc.)
@@ -58,18 +54,25 @@ def initialize_database(backend: BaseBackend) -> None:
     else:
         conn = backend
 
-    # 1. Type-Specific Tables (Append-Only)
-    create_table_if_not_exists(conn, "posts", POSTS_SCHEMA)
-    create_table_if_not_exists(conn, "profiles", PROFILES_SCHEMA)
-    create_table_if_not_exists(conn, "media", MEDIA_SCHEMA)
-    create_table_if_not_exists(conn, "journals", JOURNALS_SCHEMA)
-    create_table_if_not_exists(conn, "annotations", ANNOTATIONS_SCHEMA)
+    # Check if a migration is needed before creating tables.
+    # The presence of `posts` is a strong signal of a legacy V2 database.
+    # The absence of `documents` confirms the migration hasn't run.
+    tables = conn.list_tables()
+    if "posts" in tables and "documents" not in tables:
+        logger.info("Legacy 'posts' table detected and 'documents' table not found. Running V3 migration...")
+        from egregora.database.migrations import migrate_to_unified_schema
 
-    # 2. Unified View
-    _execute_sql(conn, DOCUMENTS_VIEW_SQL)
+        migrate_to_unified_schema(conn)
+        logger.info("Migration complete.")
 
-    # 3. Tasks Table
+    # 1. V3 Unified Documents Table
+    create_table_if_not_exists(conn, "documents", UNIFIED_SCHEMA)
+
+    # 2. Tasks Table
     create_table_if_not_exists(conn, "tasks", TASKS_SCHEMA)
+
+    # 3. Annotations Table (for now)
+    create_table_if_not_exists(conn, "annotations", ANNOTATIONS_SCHEMA)
 
     # 4. Ingestion / Messages Table (Legacy/Ingestion Support)
     create_table_if_not_exists(conn, "messages", INGESTION_MESSAGE_SCHEMA)
