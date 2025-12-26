@@ -5,6 +5,60 @@ class WhatsAppParsingError(Exception):
     """Base exception for all WhatsApp parsing errors."""
 
 
+class WhatsAppAdapterError(WhatsAppParsingError):
+    """Base exception for adapter-level errors."""
+
+
+class MediaDeliveryError(WhatsAppAdapterError):
+    """Base exception for errors during media delivery."""
+
+
+class InvalidMediaReferenceError(MediaDeliveryError):
+    """Raised for suspicious or invalid media references (e.g., path traversal)."""
+
+    def __init__(self, media_reference: str) -> None:
+        self.media_reference = media_reference
+        message = f"Invalid or suspicious media reference: '{media_reference}'"
+        super().__init__(message)
+
+
+class MissingZipPathError(MediaDeliveryError):
+    """Raised when deliver_media is called without the required zip_path."""
+
+    def __init__(self) -> None:
+        message = "deliver_media() requires 'zip_path' keyword argument."
+        super().__init__(message)
+
+
+class ZipPathNotFoundError(MediaDeliveryError):
+    """Raised when the provided zip_path does not exist."""
+
+    def __init__(self, zip_path: str) -> None:
+        self.zip_path = zip_path
+        message = f"ZIP file for media delivery not found at: '{zip_path}'"
+        super().__init__(message)
+
+
+class MediaNotFoundError(MediaDeliveryError):
+    """Raised when the specified media file is not found within the ZIP archive."""
+
+    def __init__(self, zip_path: str, media_reference: str) -> None:
+        self.zip_path = zip_path
+        self.media_reference = media_reference
+        message = f"Media '{media_reference}' not found in '{zip_path}'"
+        super().__init__(message)
+
+
+class MediaExtractionError(MediaDeliveryError):
+    """Raised when an OS or ZIP-level error occurs during media extraction."""
+
+    def __init__(self, zip_path: str, media_reference: str) -> None:
+        self.zip_path = zip_path
+        self.media_reference = media_reference
+        message = f"Failed to extract '{media_reference}' from '{zip_path}'"
+        super().__init__(message)
+
+
 class DateParsingError(WhatsAppParsingError):
     """Raised when a date string cannot be parsed."""
 
