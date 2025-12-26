@@ -42,6 +42,7 @@ def initialize_database(backend: BaseBackend) -> None:
     - documents_view (Unified view)
     - tasks (Background jobs)
     - messages (Ingestion buffer - optional/legacy)
+    - annotations (Legacy support)
 
     Args:
         backend: Ibis backend (DuckDB, Postgres, etc.)

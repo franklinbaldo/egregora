@@ -97,7 +97,7 @@ To build the documentation locally:
 
 ```bash
 uv sync --all-extras
-uv run mkdocs serve
+uv run mkdocs serve -f .egregora/mkdocs.yml
 ```
 
 ### Linting

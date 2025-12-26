@@ -222,6 +222,54 @@ JOURNALS_SCHEMA = ibis.schema(
     }
 )
 
+# Unified view over all content tables
+DOCUMENTS_VIEW_SQL = """
+CREATE OR REPLACE VIEW documents_view AS
+    SELECT id, 'post' as type, content, created_at, title, slug, NULL as subject_uuid FROM posts
+    UNION ALL
+    SELECT id, 'profile' as type, content, created_at, title, NULL as slug, subject_uuid FROM profiles
+    UNION ALL
+    SELECT id, 'journal' as type, content, created_at, title, NULL as slug, NULL as subject_uuid FROM journals
+    UNION ALL
+    SELECT id, 'media' as type, content, created_at, NULL as title, NULL as slug, NULL as subject_uuid FROM media
+    UNION ALL
+    SELECT id, 'annotation' as type, content, created_at, NULL as title, NULL as slug, NULL as subject_uuid FROM annotations
+"""
+
+# ----------------------------------------------------------------------------
+# UNIFIED_SCHEMA (V3 Atom-Centric Model)
+# ----------------------------------------------------------------------------
+UNIFIED_SCHEMA = ibis.schema(
+    {
+        # Core Atom Fields
+        "id": dt.string,  # Primary Key: URI or stable unique ID
+        "title": dt.string,
+        "updated": dt.Timestamp(timezone="UTC"),
+        "published": dt.Timestamp(timezone="UTC", nullable=True),
+        # Atom Collections (stored as JSON for flexibility)
+        "links": dt.JSON,  # list[Link]
+        "authors": dt.JSON,  # list[Author]
+        "contributors": dt.JSON,  # list[Author]
+        "categories": dt.JSON,  # list[Category]
+        # Atom Content Fields
+        "summary": dt.String(nullable=True),
+        "content": dt.String(nullable=True),
+        "content_type": dt.String(nullable=True),
+        # Atom Source & Threading
+        "source": dt.JSON(nullable=True),  # Source model
+        "in_reply_to": dt.JSON(nullable=True),  # InReplyTo model
+        # V3 Document Fields (for generated content)
+        "doc_type": dt.String(nullable=True),  # DocumentType enum
+        "status": dt.String(nullable=True),  # DocumentStatus enum
+        "searchable": dt.Boolean(nullable=True),
+        "url_path": dt.String(nullable=True),
+        # Extensions & Metadata
+        "extensions": dt.JSON,
+        "internal_metadata": dt.JSON,
+    }
+)
+
+
 # ----------------------------------------------------------------------------
 # Tasks Schema (Asynchronous Background Tasks)
 # ----------------------------------------------------------------------------
@@ -238,23 +286,6 @@ TASKS_SCHEMA = ibis.schema(
         # Removing run_id dependency for clean break.
     }
 )
-
-# ============================================================================
-# Views
-# ============================================================================
-
-DOCUMENTS_VIEW_SQL = """
-CREATE OR REPLACE VIEW documents_view AS
-    SELECT id, 'post' as type, content, created_at, title, slug, NULL as subject_uuid FROM posts
-    UNION ALL
-    SELECT id, 'profile' as type, content, created_at, title, NULL as slug, subject_uuid FROM profiles
-    UNION ALL
-    SELECT id, 'journal' as type, content, created_at, title, NULL as slug, NULL as subject_uuid FROM journals
-    UNION ALL
-    SELECT id, 'media' as type, content, created_at, NULL as title, NULL as slug, NULL as subject_uuid FROM media
-    UNION ALL
-    SELECT id, 'annotation' as type, content, created_at, NULL as title, NULL as slug, NULL as subject_uuid FROM annotations
-"""
 
 # ============================================================================
 # Legacy / Ingestion Schemas (Moved from IR_SCHEMA)
@@ -373,7 +404,10 @@ RAG_SEARCH_RESULT_SCHEMA = ibis.schema(
 
 ANNOTATIONS_SCHEMA = ibis.schema(
     {
-        **BASE_COLUMNS,
+        "id": dt.string,
+        "content": dt.string,
+        "created_at": dt.timestamp,
+        "source_checksum": dt.string,
         "parent_id": dt.string,  # Reference to what is being annotated
         "parent_type": dt.string,  # 'message', 'post', 'annotation'
         "author_id": dt.string,  # Author of the annotation

@@ -270,6 +270,5 @@ egregora write export.zip \
 
 ## Next Steps
 
-- [Architecture Overview](../v2/architecture.md) - Understand the pipeline
-- [Privacy Model](../v2/guides/privacy.md) - Learn about anonymization
-- [API Reference](../v2/api-reference/index.md) - Dive into the code
+- [Architecture Overview](../v3/architecture/index.md) - Understand the pipeline
+- [API Reference](../v3/api-reference/index.md) - Dive into the code

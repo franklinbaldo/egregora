@@ -1,8 +1,24 @@
-"""Custom exceptions for the WhatsApp parser."""
+"""Custom exceptions for the WhatsApp adapter."""
 
 
-class WhatsAppParsingError(Exception):
+class WhatsAppAdapterError(Exception):
+    """Base exception for all WhatsApp adapter errors."""
+
+
+class WhatsAppParsingError(WhatsAppAdapterError):
     """Base exception for all WhatsApp parsing errors."""
+
+
+class MediaExtractionError(WhatsAppAdapterError):
+    """Raised when a media file cannot be extracted."""
+
+    def __init__(self, media_reference: str, zip_path: str, reason: str) -> None:
+        """Initialize the exception."""
+        self.media_reference = media_reference
+        self.zip_path = zip_path
+        self.reason = reason
+        message = f"Failed to extract '{media_reference}' from '{zip_path}': {reason}"
+        super().__init__(message)
 
 
 class DateParsingError(WhatsAppParsingError):
@@ -64,4 +80,14 @@ class MalformedLineError(WhatsAppParsingError):
         self.line = line
         self.original_error = original_error
         message = f"Malformed line encountered: '{line}'. Reason: {original_error}"
+        super().__init__(message)
+
+
+class ChatFileNotFoundError(WhatsAppParsingError):
+    """Raised when the chat .txt file cannot be found in the ZIP archive."""
+
+    def __init__(self, zip_path: str) -> None:
+        """Initialize the exception."""
+        self.zip_path = zip_path
+        message = f"No WhatsApp chat file found in {zip_path}"
         super().__init__(message)

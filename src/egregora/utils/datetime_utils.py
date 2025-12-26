@@ -30,6 +30,14 @@ def parse_datetime_flexible(
         A timezone-normalized ``datetime`` or ``None`` if parsing fails.
 
     """
+    dt = _to_datetime(value, parser_kwargs=parser_kwargs)
+    if dt is None:
+        return None
+    return normalize_timezone(dt, default_timezone=default_timezone)
+
+
+def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) -> datetime | None:
+    """Convert a value to a datetime object without timezone normalization."""
     if value is None:
         return None
 
@@ -37,26 +45,37 @@ def parse_datetime_flexible(
         value = value.to_pydatetime()
 
     if isinstance(value, datetime):
-        dt = value
-    elif isinstance(value, date):
-        dt = datetime.combine(value, datetime.min.time())
-    else:
-        raw = str(value).strip()
-        if not raw:
-            return None
-        try:
-            # dateutil.parser.parse can handle ISO 8601 strings,
-            # so we don't need a separate fromisoformat call.
-            dt = dateutil_parser.parse(raw, **(parser_kwargs or {}))
-        except (TypeError, ValueError, OverflowError):
-            return None
+        return value
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time())
 
+    raw = str(value).strip()
+    if not raw:
+        return None
+
+    try:
+        return dateutil_parser.parse(raw, **(parser_kwargs or {}))
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def normalize_timezone(dt: datetime, *, default_timezone: tzinfo = UTC) -> datetime:
+    """Normalize a datetime to a specific timezone.
+
+    - If the datetime is naive, it's made aware in the `default_timezone`.
+    - If the datetime is aware, it's converted to the `default_timezone`.
+
+    Args:
+        dt: The datetime to normalize.
+        default_timezone: The target timezone.
+
+    Returns:
+        A timezone-aware datetime.
+
+    """
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=default_timezone)
-    else:
-        dt = dt.astimezone(default_timezone)
-
-    return dt
+        return dt.replace(tzinfo=default_timezone)
+    return dt.astimezone(default_timezone)
 
 
-__all__ = ["parse_datetime_flexible"]
+__all__ = ["normalize_timezone", "parse_datetime_flexible"]

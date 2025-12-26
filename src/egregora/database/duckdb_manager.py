@@ -52,7 +52,9 @@ from egregora.database.exceptions import (
     InvalidOperationError,
     InvalidTableNameError,
     SequenceError,
+    SequenceFetchError,
     SequenceNotFoundError,
+    SequenceRetryFailedError,
     TableNotFoundError,
 )
 from egregora.database.schemas import quote_identifier
@@ -623,8 +625,7 @@ class DuckDBStorageManager:
                 for _ in range(count):
                     row = self.execute(f"SELECT nextval({sequence_literal})").fetchone()
                     if row is None:
-                        msg = f"Failed to fetch next value for sequence '{sequence_name}'"
-                        raise SequenceError(msg)
+                        raise SequenceFetchError(sequence_name)
                     results.append(int(row[0]))
                 return results
 
@@ -653,8 +654,7 @@ class DuckDBStorageManager:
                     values = _fetch_values()
                 except duckdb.Error as retry_exc:
                     logger.exception("Retry after connection reset also failed: %s", retry_exc)
-                    msg = f"Database error fetching sequence '{sequence_name}' after retry"
-                    raise SequenceError(msg) from retry_exc
+                    raise SequenceRetryFailedError(sequence_name) from retry_exc
 
         return values
 

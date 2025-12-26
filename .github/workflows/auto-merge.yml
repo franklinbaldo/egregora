@@ -19,12 +19,13 @@ jobs:
     name: Enable auto-merge for dependency and bot PRs
     runs-on: ubuntu-latest
     # Run for dependabot, renovate, or Jules bot PRs, or if manually triggered
+    # Check PR author, not workflow trigger actor
     if: |
       github.event_name == 'workflow_dispatch' ||
-      github.actor == 'dependabot[bot]' ||
-      github.actor == 'renovate[bot]' ||
-      github.actor == 'google-labs-jules[bot]' ||
-      github.actor == 'google-labs-jules'
+      github.event.pull_request.user.login == 'dependabot[bot]' ||
+      github.event.pull_request.user.login == 'renovate[bot]' ||
+      github.event.pull_request.user.login == 'google-labs-jules[bot]' ||
+      github.event.pull_request.user.login == 'google-labs-jules'
 
     steps:
       # Identify PR info for manual trigger
@@ -68,8 +69,7 @@ jobs:
       - name: Validate PR changes
         if: |
           steps.pr-info.outcome == 'success' &&
-          ((github.event_name == 'workflow_dispatch' && (steps.pr-info.outputs.actor == 'dependabot[bot]' || steps.pr-info.outputs.actor == 'renovate[bot]')) ||
-          (github.event_name != 'workflow_dispatch' && (github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]')))
+          (steps.pr-info.outputs.actor == 'dependabot[bot]' || steps.pr-info.outputs.actor == 'renovate[bot]')
         uses: actions/github-script@v8
         env:
           PR_NUMBER: ${{ steps.pr-info.outputs.number }}
@@ -146,8 +146,7 @@ jobs:
       - name: Get PR metadata
         id: metadata
         if: |
-          (github.event_name == 'workflow_dispatch' && steps.pr-info.outcome == 'success' && steps.pr-info.outputs.actor == 'dependabot[bot]') ||
-          (github.event_name != 'workflow_dispatch' && github.actor == 'dependabot[bot]')
+          steps.pr-info.outcome == 'success' && steps.pr-info.outputs.actor == 'dependabot[bot]'
         uses: dependabot/fetch-metadata@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}

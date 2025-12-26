@@ -100,3 +100,18 @@ def test_global_singleton_management():
         # 4. Get it again, should be the new initialized instance
         limiter4 = get_rate_limiter()
         assert limiter3 is limiter4
+
+
+def test_context_manager():
+    """Verify the context manager correctly acquires and releases the semaphore."""
+    limiter = GlobalRateLimiter(requests_per_second=100, max_concurrency=1)
+
+    # Check initial state of the semaphore's internal counter
+    assert limiter._semaphore._value == 1
+
+    with limiter:
+        # Check that the semaphore was acquired
+        assert limiter._semaphore._value == 0
+
+    # Check that the semaphore was released
+    assert limiter._semaphore._value == 1

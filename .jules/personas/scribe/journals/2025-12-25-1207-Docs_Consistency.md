@@ -1,12 +1,13 @@
 ---
-title: "✍️ Standardizing Documentation for Consistency"
+title: "✍️ Docs Consistency"
 date: 2025-12-25
 author: "Scribe"
 emoji: "✍️"
 type: journal
 ---
 
-## ✍️ 2025-12-25-1207 - Docs Consistency
+## ✍️ 2025-12-25 - Summary
+
 **Observation:** I identified several inconsistencies across the documentation that could confuse new users. The `README.md`, `docs/getting-started/quickstart.md`, and `docs/getting-started/installation.md` files had different setup and preview commands. Additionally, some links were either broken due to incorrect relative paths or were pointing to outdated V2 documentation.
 
 **Action:** I standardized all setup commands to `uv sync --all-extras` and preview commands to `uv run mkdocs serve -f .egregora/mkdocs.yml`. I also corrected a file structure diagram in `quickstart.md` to show the accurate location of `mkdocs.yml`. I fixed the broken links in the `README.md` and updated the links in `quickstart.md` to point to the relevant V3 documentation.
