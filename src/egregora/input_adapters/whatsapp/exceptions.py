@@ -1,8 +1,24 @@
-"""Custom exceptions for the WhatsApp parser."""
+"""Custom exceptions for the WhatsApp adapter."""
 
 
-class WhatsAppParsingError(Exception):
+class WhatsAppAdapterError(Exception):
+    """Base exception for all WhatsApp adapter errors."""
+
+
+class WhatsAppParsingError(WhatsAppAdapterError):
     """Base exception for all WhatsApp parsing errors."""
+
+
+class MediaExtractionError(WhatsAppAdapterError):
+    """Raised when a media file cannot be extracted."""
+
+    def __init__(self, media_reference: str, zip_path: str, reason: str) -> None:
+        """Initialize the exception."""
+        self.media_reference = media_reference
+        self.zip_path = zip_path
+        self.reason = reason
+        message = f"Failed to extract '{media_reference}' from '{zip_path}': {reason}"
+        super().__init__(message)
 
 
 class DateParsingError(WhatsAppParsingError):

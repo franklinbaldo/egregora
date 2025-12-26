@@ -27,9 +27,10 @@ from egregora.input_adapters.whatsapp.exceptions import (
     MalformedLineError,
     NoMessagesFoundError,
     TimeParsingError,
+    WhatsAppParsingError,
 )
 from egregora.input_adapters.whatsapp.utils import build_message_attrs
-from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
+from egregora.utils.zip import ensure_safe_member_size, validate_zip_contents
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -326,7 +327,7 @@ class ZipMessageSource:
                         yield _normalize_text(line.rstrip("\n"), self.config)
             except UnicodeDecodeError as exc:
                 msg = f"Failed to decode chat file '{self.export.chat_file}': {exc}"
-                raise ZipValidationError(msg) from exc
+                raise WhatsAppParsingError(msg) from exc
 
 
 def _parse_whatsapp_lines(

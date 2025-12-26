@@ -11,7 +11,12 @@ from typing import TYPE_CHECKING, Any, TypedDict, Unpack
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.input_adapters.whatsapp.commands import EGREGORA_COMMAND_PATTERN
-from egregora.input_adapters.whatsapp.exceptions import InvalidZipFileError, WhatsAppParsingError
+from egregora.input_adapters.whatsapp.exceptions import (
+    InvalidZipFileError,
+    MediaExtractionError,
+    WhatsAppAdapterError,
+    WhatsAppParsingError,
+)
 from egregora.input_adapters.whatsapp.parsing import WhatsAppExport, parse_source
 from egregora.input_adapters.whatsapp.utils import discover_chat_file
 from egregora.orchestration.pipelines.modules.media import detect_media_type
@@ -110,20 +115,20 @@ class WhatsAppAdapter(InputAdapter):
 
             logger.debug("Parsed WhatsApp export with %s messages", messages_table.count().execute())
             return messages_table
-        except WhatsAppParsingError as e:
+        except WhatsAppAdapterError as e:
             logger.exception("Failed to parse WhatsApp export at %s: %s", input_path, e)
             raise
         except zipfile.BadZipFile as e:
             logger.exception("Invalid ZIP file provided at %s: %s", input_path, e)
             raise InvalidZipFileError(str(input_path)) from e
 
-    def deliver_media(self, media_reference: str, **kwargs: Unpack[DeliverMediaKwargs]) -> Document | None:
+    def deliver_media(self, media_reference: str, **kwargs: Unpack[DeliverMediaKwargs]) -> Document:
         """Deliver media file from WhatsApp ZIP as a Document."""
         if not self._validate_media_reference(media_reference):
-            return None
+            raise MediaExtractionError(media_reference, "unknown", "Invalid media reference")
         zip_path = self._get_validated_zip_path(kwargs)
         if not zip_path:
-            return None
+            raise MediaExtractionError(media_reference, "unknown", "ZIP path not provided or invalid")
 
         return self._extract_media_from_zip(zip_path, media_reference)
 
@@ -145,14 +150,13 @@ class WhatsAppAdapter(InputAdapter):
             return None
         return zip_path
 
-    def _extract_media_from_zip(self, zip_path: Path, media_reference: str) -> Document | None:
+    def _extract_media_from_zip(self, zip_path: Path, media_reference: str) -> Document:
         try:
             with zipfile.ZipFile(zip_path, "r") as zf:
                 validate_zip_contents(zf)
                 found_path = self._find_media_in_zip(zf, media_reference)
                 if not found_path:
-                    logger.debug("Media file not found in ZIP: %s", media_reference)
-                    return None
+                    raise MediaExtractionError(media_reference, str(zip_path), "File not found in ZIP archive")
 
                 file_content = zf.read(found_path)
                 logger.debug("Delivered media: %s", media_reference)
@@ -171,12 +175,12 @@ class WhatsAppAdapter(InputAdapter):
                         "hide": ["navigation"],
                     },
                 )
-        except zipfile.BadZipFile:
-            logger.exception("Invalid ZIP file: %s", zip_path)
-            return None
-        except (KeyError, OSError, PermissionError):
-            logger.exception("Failed to extract %s from %s", media_reference, zip_path)
-            return None
+        except zipfile.BadZipFile as e:
+            raise MediaExtractionError(media_reference, str(zip_path), "Invalid ZIP file") from e
+        except (KeyError, OSError, PermissionError) as e:
+            raise MediaExtractionError(
+                media_reference, str(zip_path), f"Failed to extract file from ZIP: {e}"
+            ) from e
 
     def _find_media_in_zip(self, zf: zipfile.ZipFile, media_reference: str) -> str | None:
         for info in zf.infolist():
