@@ -208,13 +208,14 @@ class WriterDeps:
         # Fix: Handle metadata passed as JSON string (some models do this)
         if isinstance(metadata, str):
             import json
+
             try:
                 metadata = json.loads(metadata)
             except json.JSONDecodeError:
                 logger.warning("Failed to parse metadata JSON string: %s", metadata)
                 # Fallback to minimal metadata
                 metadata = {"title": "Untitled Post", "raw_metadata": metadata}
-        
+
         # Fix: Unescape literal newlines that might have been escaped by the LLM
         content = content.replace("\\n", "\n")
 
