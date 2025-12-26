@@ -53,10 +53,15 @@ class TemplateLoader:
 
     def _register_filters(self) -> None:
         """Register custom Jinja2 filters."""
-        self.env.filters["format_datetime"] = filters.format_datetime
-        self.env.filters["isoformat"] = filters.isoformat
-        self.env.filters["truncate_words"] = filters.truncate_words
-        self.env.filters["slugify"] = slugify
+        # Heuristic: Data over logic.
+        # Filters are defined declaratively and registered in a single step.
+        custom_filters = {
+            "format_datetime": filters.format_datetime,
+            "isoformat": filters.isoformat,
+            "truncate_words": filters.truncate_words,
+            "slugify": slugify,
+        }
+        self.env.filters.update(custom_filters)
 
     def load_template(self, template_name: str) -> Template:
         """Load a template by name.
