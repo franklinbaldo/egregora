@@ -42,10 +42,15 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
-from egregora.knowledge.exceptions import InvalidAliasError, ProfileNotFoundError, ProfileParseError
-
 import ibis.expr.types as ir
 import yaml
+
+from egregora.knowledge.exceptions import (
+    InvalidAliasError,
+    ProfileError,
+    ProfileNotFoundError,
+    ProfileParseError,
+)
 
 logger = logging.getLogger(__name__)
 MAX_ALIAS_LENGTH = 40
@@ -163,7 +168,8 @@ AVATAR_HAIR_COLORS = [
 def _get_uuid_from_profile(profile_path: Path) -> str:
     """Extract UUID from profile frontmatter."""
     if not profile_path.exists():
-        raise ProfileNotFoundError(f"Profile not found at {profile_path}", path=str(profile_path))
+        msg = f"Profile not found at {profile_path}"
+        raise ProfileNotFoundError(msg, path=str(profile_path))
     try:
         content = profile_path.read_text(encoding="utf-8")
         metadata = _parse_frontmatter(content)
@@ -175,10 +181,10 @@ def _get_uuid_from_profile(profile_path: Path) -> str:
         if len(stem) in (32, 36) and all(c in "0123456789abcdefABCDEF-" for c in stem):
             return stem
     except (OSError, UnicodeError, ValueError, TypeError) as e:
-        raise ProfileParseError(
-            f"Failed to parse profile {profile_path}: {e}", path=str(profile_path)
-        ) from e
-    raise ProfileParseError(f"Could not extract UUID from {profile_path}", path=str(profile_path))
+        msg = f"Failed to parse profile {profile_path}: {e}"
+        raise ProfileParseError(msg, path=str(profile_path)) from e
+    msg = f"Could not extract UUID from {profile_path}"
+    raise ProfileParseError(msg, path=str(profile_path))
 
 
 def _find_profile_path(
@@ -198,9 +204,8 @@ def _find_profile_path(
 
     # Scan directory for legacy slug-based files
     if not profiles_dir.exists():
-        raise ProfileNotFoundError(
-            f"Profiles directory not found for {author_uuid}", author_uuid=author_uuid
-        )
+        msg = f"Profiles directory not found for {author_uuid}"
+        raise ProfileNotFoundError(msg, author_uuid=author_uuid)
 
     for path in profiles_dir.glob("*.md"):
         if path.name == "index.md":
@@ -212,9 +217,8 @@ def _find_profile_path(
             # Ignore malformed profiles during search
             continue
 
-    raise ProfileNotFoundError(
-        f"No profile found for author {author_uuid}", author_uuid=author_uuid
-    )
+    msg = f"No profile found for author {author_uuid}"
+    raise ProfileNotFoundError(msg, author_uuid=author_uuid)
 
 
 def _determine_profile_path(
@@ -443,19 +447,19 @@ def _validate_alias(alias: str) -> str:
 
     Raises:
         InvalidAliasError: If the alias is invalid.
+
     """
     if not alias:
         raise InvalidAliasError("Alias cannot be empty.", alias=alias)
     alias = alias.strip().strip("\"'")
     if not 1 <= len(alias) <= MAX_ALIAS_LENGTH:
+        msg = f"Alias length invalid: {len(alias)} chars (must be 1-{MAX_ALIAS_LENGTH})"
         raise InvalidAliasError(
-            f"Alias length invalid: {len(alias)} chars (must be 1-{MAX_ALIAS_LENGTH})",
+            msg,
             alias=alias,
         )
     if any(ord(c) < ASCII_CONTROL_CHARS_THRESHOLD for c in alias):
-        raise InvalidAliasError(
-            "Alias contains control characters.", alias=alias
-        )
+        raise InvalidAliasError("Alias contains control characters.", alias=alias)
     alias = alias.replace("&", "&amp;")
     alias = alias.replace("<", "&lt;")
     alias = alias.replace(">", "&gt;")
@@ -494,9 +498,7 @@ def _handle_alias_command(
             )
             logger.info("Set alias for %s", context.author_uuid)
         except InvalidAliasError as e:
-            logger.warning(
-                "Invalid alias for %s (rejected): %s", context.author_uuid, e
-            )
+            logger.warning("Invalid alias for %s (rejected): %s", context.author_uuid, e)
             return context.content
     elif cmd_type == "remove" and target == "alias":
         content = _update_profile_metadata(
