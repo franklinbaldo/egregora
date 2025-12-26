@@ -115,9 +115,9 @@ class WhatsAppAdapter(InputAdapter):
 
             logger.debug("Parsed WhatsApp export with %s messages", messages_table.count().execute())
             return messages_table
-        except WhatsAppAdapterError as e:
+        except WhatsAppParsingError as e:
             logger.exception("Failed to parse WhatsApp export at %s: %s", input_path, e)
-            raise
+            raise WhatsAppAdapterError(f"Failed to parse {input_path}") from e
         except zipfile.BadZipFile as e:
             logger.exception("Invalid ZIP file provided at %s: %s", input_path, e)
             raise InvalidZipFileError(str(input_path)) from e
@@ -176,7 +176,7 @@ class WhatsAppAdapter(InputAdapter):
                     },
                 )
         except zipfile.BadZipFile as e:
-            raise MediaExtractionError(media_reference, str(zip_path), "Invalid ZIP file") from e
+            raise InvalidZipFileError(str(zip_path)) from e
         except (KeyError, OSError, PermissionError) as e:
             raise MediaExtractionError(
                 media_reference, str(zip_path), f"Failed to extract file from ZIP: {e}"
