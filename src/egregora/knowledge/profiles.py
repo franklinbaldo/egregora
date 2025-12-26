@@ -278,10 +278,11 @@ def write_profile(
     profiles_dir.mkdir(parents=True, exist_ok=True)
 
     # Find existing file to preserve identity/handle renames
-    existing_path = _find_profile_path(author_uuid, profiles_dir)
-    if existing_path:
+    try:
+        existing_path: Path | None = _find_profile_path(author_uuid, profiles_dir)
         metadata = _extract_profile_metadata(existing_path)
-    else:
+    except ProfileNotFoundError:
+        existing_path = None
         metadata = {}
 
     if any(suspicious in content.lower() for suspicious in ["phone", "email", "@", "whatsapp", "real name"]):
@@ -860,11 +861,11 @@ def remove_profile_avatar(
 
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
-    profile_path = _find_profile_path(author_uuid, profiles_dir)
-
-    if profile_path:
+    try:
+        profile_path: Path | None = _find_profile_path(author_uuid, profiles_dir)
         content = profile_path.read_text(encoding="utf-8")
-    else:
+    except ProfileNotFoundError:
+        # Create new
         front_matter = {"uuid": author_uuid, "subject": author_uuid}
         content = f"---\n{yaml.dump(front_matter)}---\n\n# Profile: {author_uuid}\n\n"
         profile_path = profiles_dir / f"{author_uuid}.md"
