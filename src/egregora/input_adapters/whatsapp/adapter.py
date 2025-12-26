@@ -89,14 +89,12 @@ class WhatsAppAdapter(InputAdapter):
         )
 
     def parse(self, input_path: Path, *, timezone: str | None = None, **_kwargs: _EmptyKwargs) -> ibis.Table:
-        if not input_path.exists():
-            msg = f"Input path does not exist: {input_path}"
-            raise FileNotFoundError(msg)
-        if not input_path.is_file() or not str(input_path).endswith(".zip"):
-            msg = f"Expected a ZIP file, got: {input_path}"
-            raise ValueError(msg)
-
         try:
+            if not input_path.exists():
+                raise FileNotFoundError(f"Input path does not exist: {input_path}")
+            if not input_path.is_file() or not str(input_path).endswith(".zip"):
+                raise ValueError(f"Expected a ZIP file, got: {input_path}")
+
             group_name, chat_file = discover_chat_file(input_path)
             export = WhatsAppExport(
                 zip_path=input_path,
@@ -115,13 +113,15 @@ class WhatsAppAdapter(InputAdapter):
 
             logger.debug("Parsed WhatsApp export with %s messages", messages_table.count().execute())
             return messages_table
-        except WhatsAppParsingError as e:
-            logger.exception("Failed to parse WhatsApp export at %s: %s", input_path, e)
-            msg = f"Failed to parse {input_path}"
-            raise WhatsAppAdapterError(msg) from e
+        except (FileNotFoundError, ValueError) as e:
+            logger.exception("Validation failed for input path %s: %s", input_path, e)
+            raise WhatsAppAdapterError(f"Invalid input path: {input_path}") from e
         except zipfile.BadZipFile as e:
             logger.exception("Invalid ZIP file provided at %s: %s", input_path, e)
             raise InvalidZipFileError(str(input_path)) from e
+        except WhatsAppParsingError as e:
+            logger.exception("Failed to parse WhatsApp export at %s: %s", input_path, e)
+            raise  # Re-raise the original, specific parsing error
 
     def deliver_media(self, media_reference: str, **kwargs: Unpack[DeliverMediaKwargs]) -> Document:
         """Deliver media file from WhatsApp ZIP as a Document."""
