@@ -27,6 +27,7 @@ from egregora.input_adapters.whatsapp.exceptions import (
     MalformedLineError,
     NoMessagesFoundError,
     TimeParsingError,
+    WhatsAppParsingIOError,
     WhatsAppParsingError,
 )
 from egregora.input_adapters.whatsapp.utils import build_message_attrs
@@ -350,8 +351,8 @@ class ZipMessageSource:
                     for line in text_stream:
                         yield _normalize_text(line.rstrip("\n"), self.config)
             except UnicodeDecodeError as exc:
-                msg = f"Failed to decode chat file '{self.export.chat_file}': {exc}"
-                raise WhatsAppParsingError(msg) from exc
+                msg = f"Failed to decode chat file '{self.export.chat_file}' due to encoding issues: {exc}"
+                raise WhatsAppParsingIOError(msg) from exc
 
 
 def _parse_whatsapp_lines(
@@ -371,7 +372,7 @@ def _parse_whatsapp_lines(
     )
 
     # Re-open source to read from start
-    for line in source.lines():
+    for i, line in enumerate(source.lines(), 1):
         match = line_pattern.match(line)  # Use dynamic pattern
 
         if match:
@@ -384,7 +385,7 @@ def _parse_whatsapp_lines(
                 timestamp = datetime.combine(builder.current_date, msg_time, tzinfo=tz).astimezone(UTC)
                 builder.start_new_message(timestamp, author_raw, message_part)
             except (DateParsingError, TimeParsingError) as e:
-                raise MalformedLineError(line, e) from e
+                raise MalformedLineError(line, e, line_number=i) from e
 
         else:
             builder.append_line(line, line)
