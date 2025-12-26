@@ -4,7 +4,7 @@ import pytest
 
 # This function does not exist yet, so this import will fail.
 from egregora.database.migrations import migrate_to_unified_schema
-from egregora.database.schemas import UNIFIED_SCHEMA, create_table_if_not_exists
+from egregora.database.schemas import create_table_if_not_exists
 
 # Define the legacy schemas directly in the test for isolation
 # This is what the database is expected to look like *before* the migration.

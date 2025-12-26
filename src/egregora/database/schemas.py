@@ -166,6 +166,76 @@ def create_index(
 # Core Tables (Append-Only)
 # ============================================================================
 
+# Common columns for all types
+BASE_COLUMNS = {
+    "id": dt.string,  # Deterministic UUID/Slug
+    "content": dt.string,  # Markdown/Text content
+    "created_at": dt.timestamp,  # Insertion time
+    "source_checksum": dt.string,  # Hash for deduplication/change detection
+}
+
+# 1. POSTS TABLE
+POSTS_SCHEMA = ibis.schema(
+    {
+        **BASE_COLUMNS,
+        "title": dt.string,
+        "slug": dt.string,
+        "date": dt.date,
+        "summary": dt.string,
+        "authors": dt.Array(dt.string),  # List of Author UUIDs
+        "tags": dt.Array(dt.string),
+        "status": dt.string,  # 'published', 'draft'
+    }
+)
+
+# 2. PROFILES TABLE
+PROFILES_SCHEMA = ibis.schema(
+    {
+        **BASE_COLUMNS,
+        "subject_uuid": dt.string,
+        "title": dt.string,  # Was 'name'
+        "alias": dt.string,
+        "summary": dt.string,  # Was 'bio'
+        "avatar_url": dt.string,
+        "interests": dt.Array(dt.string),
+    }
+)
+
+# 3. MEDIA TABLE (Metadata only, content is binary/external)
+MEDIA_SCHEMA = ibis.schema(
+    {
+        **BASE_COLUMNS,
+        "filename": dt.string,
+        "mime_type": dt.string,
+        "media_type": dt.string,  # 'image', 'video', 'audio'
+        "phash": dt.string,  # Perceptual hash for dedup
+    }
+)
+
+# 4. JOURNALS TABLE
+JOURNALS_SCHEMA = ibis.schema(
+    {
+        **BASE_COLUMNS,
+        "title": dt.string,  # Was 'window_label'
+        "window_start": dt.timestamp,
+        "window_end": dt.timestamp,
+    }
+)
+
+# Unified view over all content tables
+DOCUMENTS_VIEW_SQL = """
+CREATE OR REPLACE VIEW documents_view AS
+    SELECT id, 'post' as type, content, created_at, title, slug, NULL as subject_uuid FROM posts
+    UNION ALL
+    SELECT id, 'profile' as type, content, created_at, title, NULL as slug, subject_uuid FROM profiles
+    UNION ALL
+    SELECT id, 'journal' as type, content, created_at, title, NULL as slug, NULL as subject_uuid FROM journals
+    UNION ALL
+    SELECT id, 'media' as type, content, created_at, NULL as title, NULL as slug, NULL as subject_uuid FROM media
+    UNION ALL
+    SELECT id, 'annotation' as type, content, created_at, NULL as title, NULL as slug, NULL as subject_uuid FROM annotations
+"""
+
 # ----------------------------------------------------------------------------
 # UNIFIED_SCHEMA (V3 Atom-Centric Model)
 # ----------------------------------------------------------------------------

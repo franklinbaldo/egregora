@@ -240,6 +240,7 @@ def read_profile(
 
     Raises:
         ProfileNotFoundError: If no profile exists for the given author.
+
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
     profile_path = _find_profile_path(author_uuid, profiles_dir)
@@ -437,6 +438,7 @@ def _validate_alias(alias: str) -> str:
 
     Raises:
         InvalidAliasError: If the alias is invalid.
+
     """
     if not alias:
         raise InvalidAliasError(alias, "must not be empty")

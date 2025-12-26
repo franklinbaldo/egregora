@@ -1,3 +1,10 @@
+"""Database migration utilities for transitioning between schema versions.
+
+This module provides migration functions to upgrade the database from legacy
+multi-table schemas to the unified V3 schema. All migrations are designed to
+be idempotent and non-destructive.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -13,10 +20,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Constants for migration defaults
+SEARCHABLE_DEFAULT = True
+
 
 def migrate_to_unified_schema(con: BaseBackend) -> None:
-    """
-    Migrates a database from the legacy multi-table schema to the V3 unified schema.
+    """Migrates a database from the legacy multi-table schema to the V3 unified schema.
 
     This migration is designed to be idempotent. It checks for the existence of the
     `documents` table and will not run if it already exists.
@@ -29,8 +38,7 @@ def migrate_to_unified_schema(con: BaseBackend) -> None:
     """
     if "documents" in con.list_tables():
         logger.warning(
-            "Migration skipped: 'documents' table already exists. "
-            "Assuming migration has already been run."
+            "Migration skipped: 'documents' table already exists. Assuming migration has already been run."
         )
         return
 
@@ -55,12 +63,12 @@ def migrate_to_unified_schema(con: BaseBackend) -> None:
             categories=ibis.literal("[]").cast(dt.json),
             source=ibis.literal(None).cast(dt.json),
             in_reply_to=ibis.literal(None).cast(dt.json),
-            searchable=ibis.literal(True),
+            searchable=ibis.literal(SEARCHABLE_DEFAULT),
             url_path=ibis.literal(None).cast(dt.string),
             extensions=ibis.literal("{}").cast(dt.json),
             internal_metadata=ibis.literal("{}").cast(dt.json),
-            authors=posts.authors.cast(dt.json) # Keep as JSON array of strings for now
-        ).select(*UNIFIED_SCHEMA.names) # Ensure column order and selection matches
+            authors=posts.authors.cast(dt.json),  # Keep as JSON array of strings for now
+        ).select(*UNIFIED_SCHEMA.names)  # Ensure column order and selection matches
 
         con.insert("documents", posts_transformed)
 
@@ -84,7 +92,7 @@ def migrate_to_unified_schema(con: BaseBackend) -> None:
             source=ibis.literal(None).cast(dt.json),
             in_reply_to=ibis.literal(None).cast(dt.json),
             status=ibis.literal(None).cast(dt.string),
-            searchable=ibis.literal(True),
+            searchable=ibis.literal(SEARCHABLE_DEFAULT),
             url_path=ibis.literal(None).cast(dt.string),
             extensions=ibis.literal("{}").cast(dt.json),
             internal_metadata=ibis.struct({"alias": profiles["alias"]}),
@@ -109,7 +117,7 @@ def migrate_to_unified_schema(con: BaseBackend) -> None:
             source=ibis.literal(None).cast(dt.json),
             in_reply_to=ibis.literal(None).cast(dt.json),
             status=ibis.literal(None).cast(dt.string),
-            searchable=ibis.literal(True),
+            searchable=ibis.literal(SEARCHABLE_DEFAULT),
             url_path=ibis.literal(None).cast(dt.string),
             extensions=ibis.literal("{}").cast(dt.json),
             internal_metadata=ibis.literal("{}").cast(dt.json),
@@ -134,7 +142,7 @@ def migrate_to_unified_schema(con: BaseBackend) -> None:
             source=ibis.literal(None).cast(dt.json),
             in_reply_to=ibis.literal(None).cast(dt.json),
             status=ibis.literal(None).cast(dt.string),
-            searchable=ibis.literal(True),
+            searchable=ibis.literal(SEARCHABLE_DEFAULT),
             url_path=ibis.literal(None).cast(dt.string),
             extensions=ibis.literal("{}").cast(dt.json),
             internal_metadata=ibis.literal("{}").cast(dt.json),

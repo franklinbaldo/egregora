@@ -1,8 +1,11 @@
 """Unit tests for the profiles module."""
-import pytest
+
 from pathlib import Path
-from egregora.knowledge.profiles import read_profile, _get_uuid_from_profile, _validate_alias
-from egregora.knowledge.exceptions import ProfileNotFoundError, ProfileParsingError, InvalidAliasError
+
+import pytest
+
+from egregora.knowledge.exceptions import InvalidAliasError, ProfileNotFoundError, ProfileParsingError
+from egregora.knowledge.profiles import _get_uuid_from_profile, _validate_alias, read_profile
 
 
 def test_read_profile_not_found(tmp_path: Path):
@@ -28,7 +31,7 @@ def test_get_uuid_from_profile_parsing_error(tmp_path: Path):
 
 
 @pytest.mark.parametrize(
-    "alias, reason",
+    ("alias", "reason"),
     [
         ("", "must not be empty"),
         ("   ", "must not be empty"),

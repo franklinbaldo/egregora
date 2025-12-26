@@ -46,9 +46,7 @@ def mock_config_pii_disabled():
     """Mock EgregoraConfig with PII detection disabled."""
 
     class MockConfig:
-        privacy = PrivacySettings(
-            pii_detection_enabled=False, scrub_emails=True, scrub_phones=True
-        )
+        privacy = PrivacySettings(pii_detection_enabled=False, scrub_emails=True, scrub_phones=True)
 
     return MockConfig()
 
@@ -58,9 +56,7 @@ def mock_config_email_only():
     """Mock EgregoraConfig with email scrubbing only."""
 
     class MockConfig:
-        privacy = PrivacySettings(
-            pii_detection_enabled=True, scrub_emails=True, scrub_phones=False
-        )
+        privacy = PrivacySettings(pii_detection_enabled=True, scrub_emails=True, scrub_phones=False)
 
     return MockConfig()
 
@@ -70,9 +66,7 @@ def mock_config_phone_only():
     """Mock EgregoraConfig with phone scrubbing only."""
 
     class MockConfig:
-        privacy = PrivacySettings(
-            pii_detection_enabled=True, scrub_emails=False, scrub_phones=True
-        )
+        privacy = PrivacySettings(pii_detection_enabled=True, scrub_emails=False, scrub_phones=True)
 
     return MockConfig()
 
@@ -82,9 +76,7 @@ def mock_config_pii_enabled_no_scrub():
     """Mock config with PII detection on, but no scrub types selected."""
 
     class MockConfig:
-        privacy = PrivacySettings(
-            pii_detection_enabled=True, scrub_emails=False, scrub_phones=False
-        )
+        privacy = PrivacySettings(pii_detection_enabled=True, scrub_emails=False, scrub_phones=False)
 
     return MockConfig()
 

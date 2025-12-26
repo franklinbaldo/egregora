@@ -15,7 +15,6 @@ from egregora.input_adapters.whatsapp.exceptions import (
     InvalidZipFileError,
     MediaExtractionError,
     WhatsAppAdapterError,
-    WhatsAppParsingError,
 )
 from egregora.input_adapters.whatsapp.parsing import WhatsAppExport, parse_source
 from egregora.input_adapters.whatsapp.utils import discover_chat_file
@@ -156,7 +155,9 @@ class WhatsAppAdapter(InputAdapter):
                 validate_zip_contents(zf)
                 found_path = self._find_media_in_zip(zf, media_reference)
                 if not found_path:
-                    raise MediaExtractionError(media_reference, str(zip_path), "File not found in ZIP archive")
+                    raise MediaExtractionError(
+                        media_reference, str(zip_path), "File not found in ZIP archive"
+                    )
 
                 file_content = zf.read(found_path)
                 logger.debug("Delivered media: %s", media_reference)
