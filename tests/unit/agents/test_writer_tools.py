@@ -8,6 +8,7 @@ from pydantic_ai import ModelRetry
 import egregora.rag as rag_pkg
 import egregora.rag.models as rag_models
 from egregora.agents.tools import writer_tools
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.agents.tools.writer_tools import (
     AnnotationContext,
     AnnotationResult,
@@ -23,7 +24,6 @@ from egregora.agents.tools.writer_tools import (
     write_post_impl,
     write_profile_impl,
 )
-from egregora.data_primitives.document import DocumentType
 
 
 class TestWriterToolsExtraction:
@@ -122,8 +122,16 @@ class TestWriterToolsExtraction:
         """Test annotate_conversation_impl saves annotation to store."""
         # Arrange
         mock_store = Mock()
-        mock_annotation = Mock(id="ann-123", parent_id="msg-456", parent_type="message")
-        mock_store.save_annotation.return_value = mock_annotation
+        real_annotation = Document(
+            id="ann-123",
+            type=DocumentType.ANNOTATION,
+            content="Great point!",
+            metadata={
+                "parent_id": "msg-456",
+                "parent_type": "message",
+            },
+        )
+        mock_store.save_annotation.return_value = real_annotation
         ctx = AnnotationContext(annotations_store=mock_store)
 
         # Act
