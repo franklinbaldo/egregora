@@ -13,6 +13,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from egregora.database.exceptions import TableCreationError
 from egregora.database.schemas import TASKS_SCHEMA, quote_identifier
 
 if TYPE_CHECKING:
@@ -46,7 +47,7 @@ class TaskStore:
                 return
             # Table doesn't exist and creation failed - this is a real error
             msg = f"Failed to create tasks table: {e}"
-            raise RuntimeError(msg) from e
+            raise TableCreationError("tasks") from e
 
     def enqueue(self, task_type: str, payload: dict[str, Any], run_id: uuid.UUID | None = None) -> str:
         """Add a new task to the queue.
