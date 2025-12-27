@@ -93,26 +93,26 @@ class TestWhatsAppParsing:
             parse_source(mock_export, timezone="UTC")
 
     def test_parse_message_date_raises_error_on_invalid_date(self) -> None:
-        """Verify _parse_message_date raises DateParsingError for invalid dates."""
+        """Verify _parse_message_date returns None for invalid dates."""
         invalid_date_str = "not-a-date"
-        with pytest.raises(DateParsingError, match=f"Failed to parse date string: '{invalid_date_str}'"):
-            _parse_message_date(invalid_date_str)
+        result = _parse_message_date(invalid_date_str)
+        assert result is None
 
     def test_parse_message_date_raises_error_on_empty_string(self) -> None:
-        """Verify _parse_message_date raises DateParsingError with a custom message for an empty string."""
-        with pytest.raises(DateParsingError, match=r"Date string is empty\."):
-            _parse_message_date("")
+        """Verify _parse_message_date returns None for an empty string."""
+        result = _parse_message_date("")
+        assert result is None
 
     def test_parse_message_time_raises_error_on_invalid_time(self) -> None:
-        """Verify _parse_message_time raises TimeParsingError for invalid times."""
+        """Verify _parse_message_time returns None for invalid times."""
         invalid_time_str = "not-a-time"
-        with pytest.raises(TimeParsingError, match=f"Failed to parse time string: '{invalid_time_str}'"):
-            _parse_message_time(invalid_time_str)
+        result = _parse_message_time(invalid_time_str)
+        assert result is None
 
     def test_parse_message_time_raises_error_on_empty_string(self) -> None:
-        """Verify _parse_message_time raises TimeParsingError with a custom message for an empty string."""
-        with pytest.raises(TimeParsingError, match=r"Time string is empty\."):
-            _parse_message_time("")
+        """Verify _parse_message_time returns None for an empty string."""
+        result = _parse_message_time("")
+        assert result is None
 
     def test_parse_source_raises_error_on_empty_chat_log(
         self,
