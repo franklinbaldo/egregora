@@ -7,7 +7,7 @@ concurrency:
 
 # Minimal permissions by default
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 env:
@@ -329,8 +329,33 @@ jobs:
                   body: '🤖 **Draft converted to ready for review**\n\nAll CI tests have passed! This PR has been automatically marked as ready for review and will be merged.'
                 });
 
-                // Wait a moment for GitHub to process the draft conversion
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                // Verify draft status change with polling
+                console.log('⏳ Verifying draft status change...');
+                let attempts = 0;
+                const maxAttempts = 10;
+                let verified = false;
+
+                while (attempts < maxAttempts) {
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                  const { data: currentPR } = await github.rest.pulls.get({
+                    owner,
+                    repo,
+                    pull_number: prNumber
+                  });
+
+                  if (!currentPR.draft) {
+                    console.log(`✅ Verified PR is no longer draft after ${attempts + 1} attempts`);
+                    verified = true;
+                    break;
+                  }
+
+                  attempts++;
+                  console.log(`⏳ Still draft, attempt ${attempts}/${maxAttempts}`);
+                }
+
+                if (!verified) {
+                  throw new Error('Failed to verify draft status change after 10 seconds');
+                }
               } catch (error) {
                 core.setFailed(`❌ Failed to convert draft to ready: ${error.message}`);
                 throw error;
