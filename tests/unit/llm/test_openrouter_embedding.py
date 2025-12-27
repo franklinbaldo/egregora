@@ -100,3 +100,23 @@ class TestEmbedWithOpenRouter:
 
         call_args = mock_client.post.call_args
         assert "Bearer env-key" in call_args[1]["headers"]["Authorization"]
+
+    @patch("egregora.llm.providers.openrouter_embedding.httpx.Client")
+    def test_embed_with_openrouter_strips_quotes_from_api_key(self, mock_client_class):
+        """Should strip quotes from API key (common shell export issue)."""
+        mock_response = Mock()
+        mock_response.json.return_value = {"data": [{"embedding": [0.1]}]}
+        mock_client = Mock()
+        mock_client.post.return_value = mock_response
+        mock_client.__enter__ = Mock(return_value=mock_client)
+        mock_client.__exit__ = Mock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        # Test with quoted key from environment
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": '"quoted-key"'}):
+            embed_with_openrouter(["text"])
+
+        call_args = mock_client.post.call_args
+        # Should strip quotes
+        assert "Bearer quoted-key" in call_args[1]["headers"]["Authorization"]
+        assert "Bearer \"quoted-key\"" not in call_args[1]["headers"]["Authorization"]

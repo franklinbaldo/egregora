@@ -77,6 +77,9 @@ def embed_with_openrouter(
         msg = "OPENROUTER_API_KEY environment variable required for OpenRouter embeddings"
         raise ValueError(msg)
 
+    # Strip quotes from API key (common shell export issue: export KEY="value")
+    api_key = api_key.strip('"').strip("'")
+
     url = "https://openrouter.ai/api/v1/embeddings"
     headers = {
         "Authorization": f"Bearer {api_key}",
