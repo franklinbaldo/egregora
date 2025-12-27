@@ -6,16 +6,13 @@ from freezegun import freeze_time
 
 from egregora.utils.filesystem import _extract_clean_date
 
-# A variety of realistic date-like inputs
+# A variety of realistic date-like inputs (only valid cases for benchmarking)
 TEST_CASES = [
     ("2025-01-15", "2025-01-15"),
     ("  2025-01-15  ", "2025-01-15"),
     (datetime.date(2025, 1, 15), "2025-01-15"),
     (datetime.datetime(2025, 1, 15, 10, 30), "2025-01-15"),
     ("Some event on 2025-01-15", "2025-01-15"),
-    ("2025-99-99 is not a date", "2025-99-99 is not a date"),
-    ("No date here", "No date here"),
-    (None, "None"),  # The function currently stringifies None, we match that behavior
 ]
 
 

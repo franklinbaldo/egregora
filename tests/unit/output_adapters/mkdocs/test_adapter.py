@@ -141,7 +141,7 @@ def test_write_annotation_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
 
 
 def test_write_profile_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
-    """Verify _write_profile_doc adds fallback avatar and 'Profile' category."""
+    """Verify _write_profile_doc adds fallback avatar and 'Authors' category."""
     author_uuid = "a-unique-author-uuid"
     doc = Document(
         content="This is a profile.",
@@ -153,7 +153,7 @@ def test_write_profile_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     assert profile_path.exists()
     content = profile_path.read_text()
     assert "categories:" in content
-    assert "- Profile" in content
+    assert "- Authors" in content
     assert "avatar:" in content
     assert any(line.strip().startswith("avatar: https://avataaars.io/") for line in content.split("\n"))
     assert "This is a profile." in content
