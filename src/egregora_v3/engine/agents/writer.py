@@ -3,15 +3,15 @@
 Uses Pydantic-AI for structured output with output_type=Document.
 """
 
-from datetime import UTC, datetime
-
+from jinja2 import Environment, PackageLoader
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
 from egregora_v3.core.context import PipelineContext
 from egregora_v3.core.types import Entry
-from egregora_v3.engine.template_loader import TemplateLoader
+from egregora_v3.core.utils import slugify
+from egregora_v3.engine import filters
 
 
 class GeneratedPost(BaseModel):
@@ -36,11 +36,26 @@ class WriterAgent:
 
         """
         self.model_name = model
-        self.template_loader = TemplateLoader()
+
+        # Heuristic: Library over framework. Use Jinja2 directly.
+        # This removes the unnecessary TemplateLoader abstraction.
+        self.env = Environment(
+            loader=PackageLoader("egregora_v3.engine", "prompts"),
+            autoescape=False,
+            trim_blocks=True,
+            lstrip_blocks=True,
+        )
+        self.env.filters.update(
+            {
+                "format_datetime": filters.format_datetime,
+                "isoformat": filters.isoformat,
+                "truncate_words": filters.truncate_words,
+                "slugify": slugify,
+            }
+        )
 
         # Create Pydantic-AI agent with structured output
         if model == "test":
-            # Configure TestModel with a valid GeneratedPost dict
             valid_post_dict = {
                 "title": "Generated Blog Post",
                 "content": "# Generated Blog Post\n\nThis is a test blog post generated from entries.",
@@ -49,12 +64,11 @@ class WriterAgent:
         else:
             model_instance = model  # type: ignore[assignment]
 
+        system_prompt = self.env.get_template("writer/system.jinja2").render()
         self._agent: Agent[PipelineContext, GeneratedPost] = Agent(
             model=model_instance,
             output_type=GeneratedPost,
-            system_prompt=self.template_loader.render_template(
-                "writer/system.jinja2"
-            ),
+            system_prompt=system_prompt,
         )
 
     async def generate(
@@ -98,7 +112,5 @@ class WriterAgent:
             Formatted prompt string
 
         """
-        return self.template_loader.render_template(
-            "writer/generate_post.jinja2",
-            entries=entries,
-        )
+        template = self.env.get_template("writer/generate_post.jinja2")
+        return template.render(entries=entries)
