@@ -34,10 +34,29 @@ class InvalidFrontmatterError(UtilsError):
 class FrontmatterDateFormattingError(InvalidFrontmatterError):
     """Raised for date formatting errors in frontmatter."""
 
+    def __init__(self, date_str: str, original_exception: Exception) -> None:
+        self.date_str = date_str
+        self.original_exception = original_exception
+        super().__init__(
+            f"Failed to parse date string for frontmatter: '{self.date_str}'. "
+            f"Original error: {original_exception}"
+        )
+
 
 class MissingMetadataError(InvalidFrontmatterError):
     """Raised when required metadata is missing."""
 
+    def __init__(self, missing_keys: list[str]) -> None:
+        self.missing_keys = missing_keys
+        message = f"Missing required metadata keys: {', '.join(missing_keys)}"
+        super().__init__(message)
+
 
 class UniqueFilenameError(UtilsError):
     """Raised when a unique filename cannot be generated."""
+
+    def __init__(self, base_slug: str, attempts: int) -> None:
+        self.base_slug = base_slug
+        self.attempts = attempts
+        message = f"Could not generate a unique filename for slug '{base_slug}' after {attempts} attempts."
+        super().__init__(message)
