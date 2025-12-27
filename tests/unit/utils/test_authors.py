@@ -22,11 +22,11 @@ from egregora.utils.exceptions import (
 )
 
 
-def test_load_authors_yml_raises_on_missing_file(tmp_path: Path):
-    """Should raise AuthorsFileError if the file doesn't exist."""
+def test_load_authors_yml_returns_empty_dict_for_missing_file(tmp_path: Path):
+    """Should return empty dict if the file doesn't exist (will be created later)."""
     non_existent_file = tmp_path / ".authors.yml"
-    with pytest.raises(AuthorsFileError):
-        load_authors_yml(non_existent_file)
+    result = load_authors_yml(non_existent_file)
+    assert result == {}
 
 
 def test_load_authors_yml_raises_on_invalid_yaml(tmp_path: Path):

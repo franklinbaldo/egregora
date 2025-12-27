@@ -1,17 +1,14 @@
 from unittest.mock import MagicMock
 
-import pytest
-
 from egregora.data_primitives.document import DocumentType
 from egregora.output_adapters.db_sink import DbOutputSink
-from egregora.output_adapters.exceptions import DocumentNotFoundError
 
 
-def test_read_document_raises_not_found_error():
+def test_read_document_returns_none_for_missing_document():
     """
     Given a DbOutputSink with a repository that returns None
     When read_document is called
-    Then it should raise a DocumentNotFoundError.
+    Then it should return None (backward-compatible with callers expecting optional documents).
     """
     # Arrange
     mock_repo = MagicMock()
@@ -21,9 +18,8 @@ def test_read_document_raises_not_found_error():
     doc_type = DocumentType.POST
     identifier = "test-id"
 
-    # Act & Assert
-    with pytest.raises(DocumentNotFoundError) as excinfo:
-        sink.read_document(doc_type, identifier)
+    # Act
+    result = sink.read_document(doc_type, identifier)
 
-    assert excinfo.value.doc_type == doc_type.value
-    assert excinfo.value.identifier == identifier
+    # Assert
+    assert result is None
