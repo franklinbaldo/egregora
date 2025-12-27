@@ -50,6 +50,7 @@ class DocumentType(Enum):
     ENRICHMENT_AUDIO = "enrichment_audio"  # Audio descriptions
     MEDIA = "media"  # Downloaded media files (images, videos, audio)
     ANNOTATION = "annotation"  # Conversation annotations captured during writing
+    UNKNOWN = "unknown"  # Fallback for unrecognized document types
 
 
 @dataclass(frozen=True, slots=True)
