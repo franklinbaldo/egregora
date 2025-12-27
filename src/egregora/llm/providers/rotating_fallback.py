@@ -17,6 +17,11 @@ from typing import TYPE_CHECKING
 from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.models import Model, ModelRequestParameters, ModelSettings
 
+from egregora.llm.exceptions import (
+    AllModelsExhaustedError,
+    InvalidConfigurationError,
+)
+
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
@@ -43,12 +48,12 @@ class RotatingFallbackModel(Model):
 
         """
         if not models:
-            msg = "At least one model required"
-            raise ValueError(msg)
+            msg = "At least one model is required for the rotating fallback mechanism."
+            raise InvalidConfigurationError(msg)
 
         if model_keys and len(model_keys) != len(models):
-            msg = f"model_keys length ({len(model_keys)}) must match models length ({len(models)})"
-            raise ValueError(msg)
+            msg = f"The number of model_keys ({len(model_keys)}) must match the number of models ({len(models)})."
+            raise InvalidConfigurationError(msg)
 
         self._models = models
         self._model_keys = model_keys
@@ -239,7 +244,7 @@ class RotatingFallbackModel(Model):
         """Make a request, rotating on 429 errors."""
         attempts = 0
         max_attempts = len(self._models) * 2  # Allow up to 2 full rotations
-        last_exception: Exception | None = None
+        exceptions_encountered: list[Exception] = []
 
         while attempts < max_attempts:
             current_idx = self._current_index
@@ -251,10 +256,10 @@ class RotatingFallbackModel(Model):
                 self._reset_429_count(current_idx)
                 return response
 
-            except Exception as e:
-                # Always rotate on 429 or any error if we have more attempts/models
-                err_str = str(e).lower()
-                is_rate_limit = "429" in err_str or "too many requests" in err_str or "rate limit" in err_str
+            except ModelHTTPError as e:
+                exceptions_encountered.append(e)
+                # Explicitly check for 429 status code for rate limiting
+                is_rate_limit = e.status_code == 429
 
                 if is_rate_limit:
                     self._apply_rate_limit_cooldown(current_idx, e)
@@ -263,17 +268,49 @@ class RotatingFallbackModel(Model):
                 self._rotate_on_429(current_idx)
 
                 if self._all_exhausted() or attempts >= max_attempts:
-                    logger.exception("All models exhausted or max attempts reached. Last error: %s", e)
-                    raise
+                    logger.error(
+                        "All models exhausted after %d attempts. Failing with final exception.",
+                        attempts,
+                        exc_info=True,
+                    )
+                    raise AllModelsExhaustedError(
+                        f"All {len(self._models)} models failed.", causes=exceptions_encountered
+                    ) from e
 
-                logger.warning("Model index %d failed with %s, rotating...", current_idx, type(e).__name__)
+                logger.warning(
+                    "Model index %d failed with %s (status: %s), rotating...",
+                    current_idx,
+                    type(e).__name__,
+                    e.status_code,
+                )
+                continue
+            except Exception as e:
+                # Catch any other unexpected error, log it, and rotate.
+                exceptions_encountered.append(e)
+                attempts += 1
+                self._rotate_on_429(current_idx)
+
+                if self._all_exhausted() or attempts >= max_attempts:
+                    logger.error(
+                        "All models exhausted after unexpected error. Failing with final exception.",
+                        exc_info=True,
+                    )
+                    raise AllModelsExhaustedError(
+                        f"All {len(self._models)} models failed.", causes=exceptions_encountered
+                    ) from e
+
+                logger.warning(
+                    "Model index %d failed with unexpected error %s, rotating...",
+                    current_idx,
+                    type(e).__name__,
+                )
                 continue
 
-        # All attempts exhausted
-        if last_exception:
-            raise last_exception
-        msg = f"Max attempts ({max_attempts}) exceeded"
-        raise RuntimeError(msg)
+        # This part should be unreachable if the loop logic is correct
+        raise AllModelsExhaustedError(
+            f"Max attempts ({max_attempts}) exceeded without success.",
+            causes=exceptions_encountered,
+        )
 
     @asynccontextmanager
     async def request_stream(
@@ -285,6 +322,7 @@ class RotatingFallbackModel(Model):
         """Stream request with 429 rotation."""
         attempts = 0
         max_attempts = len(self._models) * 2
+        exceptions_encountered: list[Exception] = []
 
         while attempts < max_attempts:
             current_idx = self._current_index
@@ -298,10 +336,9 @@ class RotatingFallbackModel(Model):
                     yield stream
                     return
 
-            except Exception as e:
-                # Always rotate on 429 or any error if we have more attempts/models
-                err_str = str(e).lower()
-                is_rate_limit = "429" in err_str or "too many requests" in err_str or "rate limit" in err_str
+            except ModelHTTPError as e:
+                exceptions_encountered.append(e)
+                is_rate_limit = e.status_code == 429
 
                 if is_rate_limit:
                     self._apply_rate_limit_cooldown(current_idx, e)
@@ -310,15 +347,44 @@ class RotatingFallbackModel(Model):
                 self._rotate_on_429(current_idx)
 
                 if self._all_exhausted() or attempts >= max_attempts:
-                    logger.exception(
-                        "All models exhausted or max attempts reached in stream. Last error: %s", e
+                    logger.error(
+                        "All models exhausted in stream after %d attempts. Failing with final exception.",
+                        attempts,
+                        exc_info=True,
                     )
-                    raise
-
+                    raise AllModelsExhaustedError(
+                        f"All {len(self._models)} models failed in stream.",
+                        causes=exceptions_encountered,
+                    ) from e
                 logger.warning(
-                    "Model index %d failed in stream with %s, rotating...", current_idx, type(e).__name__
+                    "Model index %d failed in stream with %s (status: %s), rotating...",
+                    current_idx,
+                    type(e).__name__,
+                    e.status_code,
+                )
+                continue
+            except Exception as e:
+                exceptions_encountered.append(e)
+                attempts += 1
+                self._rotate_on_429(current_idx)
+
+                if self._all_exhausted() or attempts >= max_attempts:
+                    logger.error(
+                        "All models exhausted in stream after unexpected error. Failing with final exception.",
+                        exc_info=True,
+                    )
+                    raise AllModelsExhaustedError(
+                        f"All {len(self._models)} models failed in stream.",
+                        causes=exceptions_encountered,
+                    ) from e
+                logger.warning(
+                    "Model index %d failed in stream with unexpected error %s, rotating...",
+                    current_idx,
+                    type(e).__name__,
                 )
                 continue
 
-        msg = f"Max attempts ({max_attempts}) exceeded"
-        raise RuntimeError(msg)
+        raise AllModelsExhaustedError(
+            f"Max attempts ({max_attempts}) exceeded in stream without success.",
+            causes=exceptions_encountered,
+        )
