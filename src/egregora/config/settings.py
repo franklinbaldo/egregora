@@ -1268,6 +1268,16 @@ __all__ = [
 ]
 
 
+def get_google_api_key() -> str | None:
+    """Get Google API key from environment, checking both GEMINI and GOOGLE variables."""
+    return os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+
+
+def google_api_key_status() -> bool:
+    """Check if a Google API key is configured."""
+    return bool(get_google_api_key())
+
+
 def get_openrouter_api_key() -> str:
     """Get OpenRouter API key from environment."""
     api_key = os.environ.get("OPENROUTER_API_KEY")
