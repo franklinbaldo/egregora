@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
+
 from egregora.utils.env import get_google_api_key
 
 

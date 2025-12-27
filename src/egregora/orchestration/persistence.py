@@ -7,7 +7,6 @@ to ensure consistency between synchronous tools and asynchronous workers.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 from egregora.data_primitives.document import Document, DocumentType, OutputSink
 

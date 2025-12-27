@@ -64,6 +64,7 @@ def test_load_handles_non_dict_payload(enrichment_cache, mock_backend):
     assert enrichment_cache.load("non_dict_key") is None
     mock_backend.delete.assert_called_once_with("non_dict_key")
 
+
 def test_store_calls_backend_set(enrichment_cache, mock_backend):
     """Test that store calls the backend's set method."""
     payload = {"data": "test"}

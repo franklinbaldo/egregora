@@ -20,7 +20,7 @@ from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.paths import slugify
 
 if TYPE_CHECKING:
-    from egregora.data_primitives.protocols import OutputSink
+    from egregora.data_primitives.document import OutputSink
 
 logger = logging.getLogger(__name__)
 

@@ -35,7 +35,6 @@ theme:
     # Navigation
     - navigation.instant
     - navigation.instant.prefetch
-    - navigation.instant.progress
     - navigation.tracking
     - navigation.tabs
     - navigation.tabs.sticky

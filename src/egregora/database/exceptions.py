@@ -88,3 +88,31 @@ class TableInfoError(DatabaseError):
     def __init__(self, table_name: str) -> None:
         self.table_name = table_name
         super().__init__(f"Failed to retrieve metadata for table '{table_name}'")
+
+
+class RepositoryError(DatabaseError):
+    """Base exception for repository-related errors."""
+
+
+class DocumentNotFoundError(RepositoryError):
+    """Raised when a document is not found in the repository."""
+
+    def __init__(self, doc_type: str, identifier: str) -> None:
+        self.doc_type = doc_type
+        self.identifier = identifier
+        super().__init__(f"Document of type '{doc_type}' with identifier '{identifier}' not found")
+
+
+class UnsupportedDocumentTypeError(RepositoryError):
+    """Raised when an unsupported document type is used."""
+
+    def __init__(self, doc_type: str) -> None:
+        self.doc_type = doc_type
+        super().__init__(f"Unsupported document type: '{doc_type}'")
+
+
+class RepositoryQueryError(RepositoryError):
+    """Raised when a repository query fails."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)

@@ -7,7 +7,8 @@ concurrency:
 
 # Minimal permissions by default
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 env:
   PYTHON_VERSION: "3.12"
@@ -285,6 +286,454 @@ jobs:
           path: dist/
           retention-days: ${{ env.COVERAGE_RETENTION_DAYS }}
 
+  auto-fix-on-failure:
+    name: Auto-fix Failed Checks with Jules
+    runs-on: ubuntu-latest
+    needs: [pre-commit, test-unit, test-e2e]
+    if: |
+      github.event_name == 'pull_request' &&
+      !cancelled() &&
+      contains(needs.*.result, 'failure')
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--all-extras"
+
+      - name: Detect PR author and trigger auto-fix
+        uses: actions/github-script@v8
+        env:
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const prAuthor = context.payload.pull_request.user.login;
+            const isJulesPR = prAuthor === 'google-labs-jules[bot]' || prAuthor === 'google-labs-jules';
+
+            console.log('🔍 PR #' + prNumber + ' has failing checks');
+            console.log('👤 PR Author:', prAuthor);
+            console.log('🤖 Is Jules PR:', isJulesPR);
+
+            if (isJulesPR) {
+              console.log('♻️  Sending fix request to EXISTING Jules session...');
+            } else {
+              console.log('🆕 Will create NEW Jules session for auto-fix...');
+            }
+
+            // Call Jules auto-fix using curl
+            const { execSync } = require('child_process');
+            try {
+              const julesBaseUrl = process.env.JULES_BASE_URL || 'https://jules.googleapis.com/v1alpha';
+              const julesApiKey = process.env.JULES_API_KEY;
+
+              // Get PR details
+              const prJson = execSync(
+                `gh pr view ${prNumber} --json number,title,headRefName,baseRefName,body,files,comments`,
+                { encoding: 'utf-8' }
+              );
+              const prData = JSON.parse(prJson);
+
+              // Get session ID from comments
+              const sessionIdMatch = prData.comments
+                .map(c => c.body.match(/sessions\/[a-f0-9-]+/))
+                .find(m => m);
+              const sessionId = sessionIdMatch ? sessionIdMatch[0] : '';
+
+              // Check CI status
+              const ciChecks = execSync(
+                `gh pr checks ${prNumber} --json name,state,conclusion`,
+                { encoding: 'utf-8' }
+              );
+              const checks = JSON.parse(ciChecks);
+              const failedChecks = checks
+                .filter(c => c.conclusion === 'failure' || c.state === 'FAILURE')
+                .map(c => c.name)
+                .join(', ');
+
+              // Check for conflicts
+              const mergeableCheck = execSync(
+                `gh pr view ${prNumber} --json mergeable`,
+                { encoding: 'utf-8' }
+              );
+              const hasConflicts = JSON.parse(mergeableCheck).mergeable === 'CONFLICTING';
+
+              // If PR is healthy, skip
+              if (!failedChecks && !hasConflicts) {
+                console.log('✅ PR is healthy, no action needed');
+                return;
+              }
+
+              // Construct feedback
+              let feedback = `Issues detected in Pull Request #${prNumber}:\\n`;
+              if (hasConflicts) {
+                feedback += '- **Merge Conflicts** detected. Please rebase and resolve them.\\n';
+              }
+              if (failedChecks) {
+                feedback += `- **CI Failures**: ${failedChecks}\\n`;
+              }
+
+              const autonomousInstruction = '\\n\\n**🤖 CRITICAL - Full Autonomy Required:**\\n- **NEVER ask humans for help, approval, or implementation decisions**\\n- **ALWAYS make your own technical decisions** using your senior developer expertise\\n- **If tests fail:** Debug, fix the issue, adjust your approach - don\'t ask for help\\n- **You are a senior developer:** Trust your experience - ship working code confidently\\n';
+
+              let result = { status: 'pending' };
+
+              // Try to message existing session
+              if (sessionId) {
+                const message = `Hi Jules! Please fix these issues in PR #${prNumber}:\\n\\n${feedback}${autonomousInstruction}`;
+                try {
+                  execSync(
+                    `curl -sf -X POST "${julesBaseUrl}/sessions/${sessionId}:sendMessage" ` +
+                    `-H "Content-Type: application/json" ` +
+                    `-H "X-Goog-Api-Key: ${julesApiKey}" ` +
+                    `-d '${JSON.stringify({ message })}'`,
+                    { encoding: 'utf-8' }
+                  );
+                  result = { status: 'success', action: 'messaged_existing_session', session_id: sessionId };
+                } catch (e) {
+                  console.log('Failed to message existing session, will create new one');
+                }
+              }
+
+              // Create new session if needed
+              if (result.status === 'pending') {
+                const baseSha = execSync(`git rev-parse origin/${prData.baseRefName}`, { encoding: 'utf-8' }).trim();
+                const changedFiles = prData.files.map(f => `- ${f.path}`).join('\\n');
+
+                const prompt = `FIX REQUEST for Pull Request #${prNumber}: ${prData.title}
+
+## Context
+- **PR Number:** ${prNumber}
+- **Current Branch:** \`${prData.headRefName}\`
+- **Base Branch:** \`${prData.baseRefName}\`
+- **Base Branch Current SHA:** \`${baseSha}\`
+- **Changed Files in this PR:**
+${changedFiles}
+
+## Original PR Description
+${prData.body || ''}
+
+## Detected Problems to Fix
+${feedback}${autonomousInstruction}
+
+Please checkout the branch \`${prData.headRefName}\`, investigate the failures, fix them, and push an update.`;
+
+                const sessionPayload = JSON.stringify({
+                  prompt,
+                  title: `Fix #${prNumber}: ${prData.title}`,
+                  sourceContext: {
+                    source: 'sources/github/franklinbaldo/egregora',
+                    githubRepoContext: { startingBranch: prData.headRefName }
+                  },
+                  automationMode: 'AUTO_CREATE_PR'
+                });
+
+                const sessionResponse = execSync(
+                  `curl -sf -X POST "${julesBaseUrl}/sessions" ` +
+                  `-H "Content-Type: application/json" ` +
+                  `-H "X-Goog-Api-Key: ${julesApiKey}" ` +
+                  `-d '${sessionPayload}'`,
+                  { encoding: 'utf-8' }
+                );
+
+                const session = JSON.parse(sessionResponse);
+                result = { status: 'success', action: 'created_new_session', new_session_id: session.name };
+              }
+
+              console.log('✅ Auto-fix result:', result);
+
+              // Post comment based on result
+              let commentBody = '';
+              if (result.status === 'success') {
+                if (result.action === 'messaged_existing_session') {
+                  commentBody = `🤖 **Jules Auto-Fix Triggered**\n\n` +
+                    `Sent fix request to existing Jules session: \`${result.session_id}\`\n\n` +
+                    `Jules will analyze the failures and push fixes to this PR.`;
+                } else if (result.action === 'created_new_session') {
+                  commentBody = `🤖 **Jules Auto-Fix Session Created**\n\n` +
+                    `Created new Jules session: \`${result.new_session_id}\`\n\n` +
+                    `Jules is analyzing the failures and will create a fix.`;
+                }
+              } else if (result.error) {
+                commentBody = `⚠️ **Auto-fix failed**\n\nError: ${result.error}`;
+              }
+
+              if (commentBody) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body: commentBody
+                });
+              }
+            } catch (error) {
+              console.error('❌ Auto-fix error:', error.message);
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: `⚠️ **Auto-fix failed to trigger**\n\nError: ${error.message}\n\nPlease fix the issues manually.`
+              });
+            }
+
+  auto-merge-jules:
+    name: Auto-merge Jules Bot PRs
+    runs-on: ubuntu-latest
+    needs: [pre-commit, test-unit, test-e2e]
+    if: |
+      github.event_name == 'pull_request' &&
+      !cancelled() &&
+      !contains(needs.*.result, 'failure') &&
+      (github.event.pull_request.user.login == 'google-labs-jules[bot]' ||
+       github.event.pull_request.user.login == 'google-labs-jules')
+    timeout-minutes: 5
+    steps:
+      - name: Check PR status and merge
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const prNumber = context.payload.pull_request.number;
+            const isDraft = context.payload.pull_request.draft;
+
+            console.log('🤖 Jules Bot PR detected - PR #' + prNumber);
+            console.log('Draft status:', isDraft);
+
+            // Convert draft to ready if needed
+            if (isDraft) {
+              console.log('📝 Converting draft PR to ready for review...');
+              try {
+                await github.rest.pulls.update({
+                  owner,
+                  repo,
+                  pull_number: prNumber,
+                  draft: false
+                });
+                console.log('✅ Successfully converted PR from draft to ready');
+
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: prNumber,
+                  body: '🤖 **Draft converted to ready for review**\n\nAll CI tests have passed! This PR has been automatically marked as ready for review and will be merged.'
+                });
+
+                // Verify draft status change with polling
+                console.log('⏳ Verifying draft status change...');
+                let attempts = 0;
+                const maxAttempts = 10;
+                let verified = false;
+
+                while (attempts < maxAttempts) {
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                  const { data: currentPR } = await github.rest.pulls.get({
+                    owner,
+                    repo,
+                    pull_number: prNumber
+                  });
+
+                  if (!currentPR.draft) {
+                    console.log(`✅ Verified PR is no longer draft after ${attempts + 1} attempts`);
+                    verified = true;
+                    break;
+                  }
+
+                  attempts++;
+                  console.log(`⏳ Still draft, attempt ${attempts}/${maxAttempts}`);
+                }
+
+                if (!verified) {
+                  throw new Error('Failed to verify draft status change after 10 seconds');
+                }
+              } catch (error) {
+                core.setFailed(`❌ Failed to convert draft to ready: ${error.message}`);
+                throw error;
+              }
+            }
+
+            // Merge the PR
+            console.log('🔀 Merging PR...');
+            try {
+              const mergeResult = await github.rest.pulls.merge({
+                owner,
+                repo,
+                pull_number: prNumber,
+                commit_title: `${context.payload.pull_request.title} (#${prNumber})`,
+                commit_message: 'Auto-merged by CI after all tests passed',
+                merge_method: 'squash'
+              });
+
+              console.log('✅ PR merged successfully:', mergeResult.data.sha);
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body: '✅ **Auto-merged by CI**\n\nAll tests passed and the PR has been automatically merged!\n\nCommit: ' + mergeResult.data.sha
+              });
+            } catch (error) {
+              console.error(`❌ Failed to merge PR: ${error.message}`);
+
+              // Post a comment about the failure
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body: '⚠️ **Auto-merge failed**\n\n**CI Status:** All checks passed ✅\n- Pre-commit hooks: ✅ Passed\n- Unit tests: ✅ Passed\n- E2E tests: ✅ Passed\n\n**Merge Status:** ❌ Failed\n\n**Error Details:**\n```\n' + error.message + '\n```\n\n**Next Steps:**\nPlease merge this PR manually or investigate the merge failure. The code changes have been validated and all tests are passing.'
+              });
+
+              core.setFailed(`Failed to merge PR: ${error.message}`);
+              throw error;
+            }
+
+  auto-merge-deps:
+    name: Auto-merge Dependency Bot PRs
+    runs-on: ubuntu-latest
+    needs: [pre-commit, test-unit, test-e2e]
+    if: |
+      github.event_name == 'pull_request' &&
+      !cancelled() &&
+      !contains(needs.*.result, 'failure') &&
+      (github.event.pull_request.user.login == 'dependabot[bot]' ||
+       github.event.pull_request.user.login == 'renovate[bot]')
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate PR changes (security)
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const prNumber = context.payload.pull_request.number;
+            const actor = context.payload.pull_request.user.login;
+
+            console.log('🔍 Validating PR changes for', actor);
+
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner,
+              repo,
+              pull_number: prNumber
+            });
+
+            const allowedPatterns = [
+              /^package\.json$/,
+              /^package-lock\.json$/,
+              /^pyproject\.toml$/,
+              /^uv\.lock$/,
+              /^requirements.*\.txt$/,
+              /^\.github\/workflows\/.*\.yml$/
+            ];
+
+            const unauthorizedFiles = files.filter(file =>
+              !allowedPatterns.some(pattern => pattern.test(file.filename))
+            );
+
+            if (unauthorizedFiles.length > 0) {
+              const fileList = unauthorizedFiles.map(f => f.filename).join(', ');
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body: `⚠️ **Auto-merge blocked**\n\nThis PR modifies files outside the allowed dependency file patterns:\n${unauthorizedFiles.map(f => `- ${f.filename}`).join('\n')}\n\nPlease review manually.`
+              });
+
+              core.setFailed(`PR contains unauthorized file changes: ${fileList}`);
+              throw new Error(`PR contains unauthorized file changes: ${fileList}`);
+            } else {
+              console.log('✅ All file changes are authorized');
+            }
+
+      - name: Get dependabot metadata
+        id: metadata
+        if: github.event.pull_request.user.login == 'dependabot[bot]'
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if should auto-merge
+        id: should-merge
+        uses: actions/github-script@v8
+        env:
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          ACTOR: ${{ github.event.pull_request.user.login }}
+        with:
+          script: |
+            const updateType = process.env.UPDATE_TYPE || '';
+            const actor = process.env.ACTOR;
+
+            console.log('Actor:', actor);
+            console.log('Update type:', updateType);
+
+            // Renovate bot: always auto-merge
+            // Dependabot: only patch/minor updates
+            const shouldMerge = actor === 'renovate[bot]' ||
+                                updateType === 'version-update:semver-patch' ||
+                                updateType === 'version-update:semver-minor';
+
+            console.log('Should auto-merge:', shouldMerge);
+            core.setOutput('should_merge', shouldMerge);
+
+            if (!shouldMerge && actor === 'dependabot[bot]') {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: `ℹ️ **Auto-merge skipped**\n\nThis is a ${updateType} update. Only patch and minor updates are auto-merged.\n\nPlease review and merge manually.`
+              });
+            }
+
+      - name: Merge PR
+        if: steps.should-merge.outputs.should_merge == 'true'
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const prNumber = context.payload.pull_request.number;
+            const actor = context.payload.pull_request.user.login;
+
+            console.log(`🔀 Merging ${actor} PR #${prNumber}...`);
+
+            try {
+              const mergeResult = await github.rest.pulls.merge({
+                owner,
+                repo,
+                pull_number: prNumber,
+                commit_title: `${context.payload.pull_request.title} (#${prNumber})`,
+                commit_message: 'Auto-merged by CI after all tests passed',
+                merge_method: 'squash'
+              });
+
+              console.log('✅ PR merged successfully:', mergeResult.data.sha);
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body: `✅ **Auto-merged by CI**\n\nAll tests passed and the dependency update has been automatically merged!\n\nCommit: ${mergeResult.data.sha}`
+              });
+            } catch (error) {
+              console.error(`❌ Failed to merge PR: ${error.message}`);
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body: '⚠️ **Auto-merge failed**\n\n**CI Status:** All checks passed ✅\n- Pre-commit hooks: ✅ Passed\n- Unit tests: ✅ Passed\n- E2E tests: ✅ Passed\n- File validation: ✅ Passed\n\n**Merge Status:** ❌ Failed\n\n**Error Details:**\n```\n' + error.message + '\n```\n\n**Next Steps:**\nPlease merge this PR manually or investigate the merge failure. This dependency update has been validated and all tests are passing.'
+              });
+
+              core.setFailed(`Failed to merge PR: ${error.message}`);
+              throw error;
+            }
+
   quality:
     name: Code Quality Metrics
     runs-on: ubuntu-latest
@@ -328,7 +777,7 @@ jobs:
   summary:
     name: Workflow Summary
     runs-on: ubuntu-latest
-    needs: [pre-commit, test-unit, test-e2e, security, quality, build]
+    needs: [pre-commit, test-unit, test-e2e, security, quality, build, auto-fix-on-failure, auto-merge-jules, auto-merge-deps]
     if: always()
     steps:
       - name: Post summary
@@ -344,4 +793,7 @@ jobs:
           | Security | ${{ needs.security.result || 'skipped' }} |
           | Quality | ${{ needs.quality.result || 'skipped' }} |
           | Build | ${{ needs.build.result || 'skipped' }} |
+          | Auto-fix on Failure | ${{ needs['auto-fix-on-failure'].result || 'skipped' }} |
+          | Auto-merge Jules | ${{ needs['auto-merge-jules'].result || 'skipped' }} |
+          | Auto-merge Dependencies | ${{ needs['auto-merge-deps'].result || 'skipped' }} |
           EOF
