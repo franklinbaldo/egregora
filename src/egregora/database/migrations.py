@@ -150,3 +150,56 @@ def migrate_to_unified_schema(con: BaseBackend) -> None:
         con.insert("documents", media_transformed)
 
     logger.info("✓ Database migration completed successfully.")
+
+
+def migrate_documents_table(con: BaseBackend) -> None:
+    """Ensures the 'documents' table matches the UNIFIED_SCHEMA.
+
+    This function is idempotent. It checks for the existence of the 'documents'
+    table and adds any missing columns from the UNIFIED_SCHEMA. This is safer
+    for production environments than a full, destructive migration and handles
+    incremental updates gracefully.
+
+    Args:
+        con: An Ibis backend connection.
+
+    """
+    if "documents" not in con.list_tables():
+        logger.info("Skipping documents table migration: table does not exist. Creating from schema...")
+        create_table_if_not_exists(con, "documents", UNIFIED_SCHEMA)
+        return
+
+    logger.info("Checking 'documents' table for schema differences...")
+
+    try:
+        table = con.table("documents")
+        existing_columns = {c.lower() for c in table.columns}
+        target_columns = {c.lower() for c in UNIFIED_SCHEMA.names}
+
+        missing_columns = target_columns - existing_columns
+
+        if not missing_columns:
+            logger.info("✓ 'documents' table schema is up-to-date.")
+            return
+
+        logger.info(f"Missing columns found: {', '.join(missing_columns)}. Altering table...")
+
+        # To add columns, we need to execute raw SQL as Ibis doesn't have a high-level
+        # API for ALTER TABLE ADD COLUMN across all backends.
+        # Refactor: Use the shared, public `ibis_to_duckdb_type` function.
+        from egregora.database.schemas import ibis_to_duckdb_type
+
+        for col_name in missing_columns:
+            ibis_type = UNIFIED_SCHEMA[col_name]
+            sql_type = ibis_to_duckdb_type(ibis_type)
+            alter_sql = f'ALTER TABLE documents ADD COLUMN "{col_name}" {sql_type}'
+            logger.info(f"Executing: {alter_sql}")
+            # Use the standard Ibis API for raw DDL execution. This is more robust
+            # than trying to guess the underlying connection object.
+            con.raw_sql(alter_sql)
+
+        logger.info("✓ 'documents' table migration completed successfully.")
+
+    except Exception as e:
+        logger.error(f"Failed to migrate 'documents' table: {e}", exc_info=True)
+        raise
