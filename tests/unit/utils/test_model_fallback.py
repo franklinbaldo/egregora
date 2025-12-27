@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import httpx
 import pytest
-
-from egregora.utils.exceptions import ModelConfigurationError, OpenRouterAPIError
 from egregora.utils.model_fallback import (
     create_fallback_model,
     get_openrouter_free_models,
 )
+
+from egregora.utils.exceptions import ModelConfigurationError, OpenRouterAPIError
 
 
 def test_get_openrouter_free_models_raises_on_http_error(monkeypatch):

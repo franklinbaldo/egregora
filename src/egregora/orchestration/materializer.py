@@ -6,6 +6,7 @@ bridging the "Database Source of Truth" with the "Static Site Artifact".
 
 import logging
 from typing import TYPE_CHECKING
+
 from egregora.data_primitives.document import DocumentType
 
 if TYPE_CHECKING:

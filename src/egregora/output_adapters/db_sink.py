@@ -6,12 +6,13 @@ central ContentRepository (DuckDB) instead of the filesystem.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterator
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
-from egregora.data_primitives.protocols import OutputSink, UrlContext, UrlConvention, DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.output_adapters.conventions import StandardUrlConvention
+from egregora.data_primitives.protocols import DocumentMetadata, OutputSink, UrlContext, UrlConvention
 from egregora.database.repository import ContentRepository
+from egregora.output_adapters.conventions import StandardUrlConvention
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
 class DbOutputSink(OutputSink):
     """OutputSink implementation that persists to DuckDB via ContentRepository."""
 
-    def __init__(self, repository: ContentRepository, url_context: UrlContext | None = None):
+    def __init__(self, repository: ContentRepository, url_context: UrlContext | None = None) -> None:
         self.repository = repository
         self._url_convention = StandardUrlConvention()
         self._ctx = url_context or UrlContext()
@@ -57,18 +58,24 @@ class DbOutputSink(OutputSink):
                     # simplistic mapping from string "post" -> DocumentType.POST
                     # This relies on view column 'type' matching convention
                     type_str = row["type"].upper()
-                    if type_str == "POST": dtype = DocumentType.POST
-                    elif type_str == "PROFILE": dtype = DocumentType.PROFILE
-                    elif type_str == "JOURNAL": dtype = DocumentType.JOURNAL
-                    elif type_str == "MEDIA": dtype = DocumentType.MEDIA
-                    elif type_str == "ANNOTATION": dtype = DocumentType.ANNOTATION
-                except:
+                    if type_str == "POST":
+                        dtype = DocumentType.POST
+                    elif type_str == "PROFILE":
+                        dtype = DocumentType.PROFILE
+                    elif type_str == "JOURNAL":
+                        dtype = DocumentType.JOURNAL
+                    elif type_str == "MEDIA":
+                        dtype = DocumentType.MEDIA
+                    elif type_str == "ANNOTATION":
+                        dtype = DocumentType.ANNOTATION
+                except (KeyError, AttributeError):
+                    # Type conversion failed, leave dtype as None
                     pass
 
             yield DocumentMetadata(
                 identifier=identifier,
                 doc_type=dtype,
-                metadata=row # Pass full row as metadata
+                metadata=row  # Pass full row as metadata
             )
 
     def list_documents(self, doc_type: DocumentType | None = None) -> Table:

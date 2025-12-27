@@ -1146,8 +1146,8 @@ def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
             tagged_count = generate_semantic_taxonomy(dataset.context.output_format, dataset.context.config)
             if tagged_count > 0:
                 logger.info("[green]✓ Applied semantic tags to %d posts[/]", tagged_count)
-        except Exception as e:
-            # Non-critical failure
+        except Exception as e:  # noqa: BLE001
+            # Non-critical failure - catch all exceptions to prevent pipeline abort
             logger.warning("Auto-taxonomy failed: %s", e)
 
 

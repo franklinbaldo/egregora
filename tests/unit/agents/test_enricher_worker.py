@@ -1,8 +1,8 @@
 import os
-import pytest
 from unittest.mock import MagicMock, patch
 
-from pydantic_ai.exceptions import UsageLimitExceeded, ModelHTTPError
+import pytest
+from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 
 from egregora.agents.enricher import EnrichmentWorker
 from egregora.config.settings import EgregoraConfig

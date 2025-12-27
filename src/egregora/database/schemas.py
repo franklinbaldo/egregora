@@ -5,12 +5,13 @@ This module defines the strictly typed, append-only tables for the new architect
 
 from __future__ import annotations
 
+import logging
+from typing import Any
+
+import duckdb
 import ibis
 import ibis.expr.datatypes as dt
 
-import logging
-from typing import Any
-import duckdb
 from egregora.database.utils import quote_identifier
 
 logger = logging.getLogger(__name__)
