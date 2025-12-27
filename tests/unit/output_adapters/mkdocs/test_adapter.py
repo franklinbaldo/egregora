@@ -6,10 +6,14 @@ import pytest
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.output_adapters.exceptions import (
-    ProfileNotFoundError,
-    ProfileGenerationError,
+    AdapterNotInitializedError,
     CollisionResolutionError,
+    ConfigLoadError,
     DocumentNotFoundError,
+    DocumentParsingError,
+    ProfileGenerationError,
+    ProfileNotFoundError,
+    UnsupportedDocumentTypeError,
 )
 from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 
@@ -203,3 +207,49 @@ def test_get_raises_not_found_error(mkdocs_adapter):
     """
     with pytest.raises(DocumentNotFoundError):
         mkdocs_adapter.get(DocumentType.POST, "non-existent-post")
+
+
+def test_load_config_raises_error_on_invalid_yaml(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
+    """
+    Given an mkdocs.yml file with invalid YAML content
+    When load_config is called
+    Then it should raise a ConfigLoadError.
+    """
+    mkdocs_yml = tmp_path / "mkdocs.yml"
+    mkdocs_yml.write_text("site_name: My Site\ninvalid_yaml: [")
+
+    with pytest.raises(ConfigLoadError):
+        mkdocs_adapter.load_config(tmp_path)
+
+
+def test_resolve_document_path_raises_unsupported_type_error(mkdocs_adapter: MkDocsAdapter):
+    """
+    Given an unsupported document type
+    When _resolve_document_path is called
+    Then it should raise UnsupportedDocumentTypeError.
+    """
+    with pytest.raises(UnsupportedDocumentTypeError):
+        mkdocs_adapter._resolve_document_path("unsupported", "some-id")
+
+
+def test_resolve_document_path_raises_adapter_not_initialized_error():
+    """
+    Given an uninitialized MkDocsAdapter
+    When resolve_document_path is called
+    Then it should raise AdapterNotInitializedError.
+    """
+    adapter = MkDocsAdapter()  # Not initialized
+    with pytest.raises(AdapterNotInitializedError):
+        adapter.resolve_document_path("some/path.md")
+
+
+def test_get_raises_document_parsing_error(mkdocs_adapter: MkDocsAdapter):
+    """
+    Given a malformed document file
+    When get is called
+    Then it should raise DocumentParsingError.
+    """
+    post_path = mkdocs_adapter.posts_dir / "2024-01-01-malformed-post.md"
+    post_path.write_text("---\ntitle: Malformed\ninvalid_yaml: [\n---")
+    with pytest.raises(DocumentParsingError):
+        mkdocs_adapter.get(DocumentType.POST, "malformed-post")
