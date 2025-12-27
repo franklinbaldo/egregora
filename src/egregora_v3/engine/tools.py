@@ -114,13 +114,3 @@ async def get_pipeline_metadata(
 
     """
     return context.full_metadata
-
-
-# Tool registry for easy discovery
-TOOLS = [
-    get_recent_posts,
-    search_prior_work,
-    get_document_by_id,
-    count_documents_by_type,
-    get_pipeline_metadata,
-]

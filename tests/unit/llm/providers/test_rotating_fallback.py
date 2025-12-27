@@ -1,10 +1,11 @@
-
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from pydantic_ai.exceptions import ModelHTTPError
-from egregora.llm.exceptions import AllModelsExhaustedError, InvalidConfigurationError
+import pytest
 from egregora.llm.providers.rotating_fallback import RotatingFallbackModel
+from pydantic_ai.exceptions import ModelHTTPError
+
+from egregora.llm.exceptions import AllModelsExhaustedError, InvalidConfigurationError
+
 
 # A custom error to prove we are not relying on string matching
 class CustomRateLimitError(ModelHTTPError):
