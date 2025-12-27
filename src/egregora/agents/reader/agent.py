@@ -20,7 +20,7 @@ from tenacity import Retrying
 from egregora.agents.reader.models import PostComparison, ReaderFeedback
 from egregora.config.settings import EgregoraConfig
 from egregora.resources.prompts import render_prompt
-from egregora.utils.model_fallback import create_fallback_model
+from egregora.utils.env import get_google_api_key
 from egregora.utils.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 
 if TYPE_CHECKING:
@@ -93,7 +93,14 @@ Evaluate both posts and determine which is better quality overall.
     model_name = model or config.models.reader
     system_prompt = render_prompt("reader_system.jinja")
 
-    model = create_fallback_model(model_name)
+    from pydantic_ai.models.google import GoogleModel
+    from pydantic_ai.providers.google import GoogleProvider
+
+    provider = GoogleProvider(api_key=get_google_api_key())
+    model = GoogleModel(
+        model_name.removeprefix("google-gla:"),
+        provider=provider,
+    )
     agent = Agent(model=model, output_type=ComparisonResult, system_prompt=system_prompt)
 
     logger.debug("Comparing posts: %s vs %s", request.post_a_slug, request.post_b_slug)
