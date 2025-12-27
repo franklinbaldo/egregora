@@ -19,7 +19,10 @@ import yaml
 from egregora.utils.authors import ensure_author_entries
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.exceptions import (
-    DateTimeParsingError,
+    DateExtractionError,
+    DirectoryCreationError,
+    FileWriteError,
+    FrontmatterDateFormattingError,
     MissingMetadataError,
     UniqueFilenameError,
 )
@@ -45,23 +48,28 @@ def _extract_clean_date(date_obj: str | date | datetime) -> str:
 
     match = _DATE_PATTERN.search(date_str)
     if not match:
-        return date_str  # No date pattern found.
+        raise DateExtractionError(date_str)
 
     # Use our robust parser on the *matched part* of the string.
-    # This will raise DateTimeParsingError if the matched pattern is not a valid date.
     parsed_dt = parse_datetime_flexible(match.group(1))
-    return parsed_dt.date().isoformat()
+    if parsed_dt:
+        return parsed_dt.date().isoformat()
+
+    # The pattern was not a valid date (e.g., "2023-99-99"), so fallback.
+    raise DateExtractionError(date_str)
 
 
 def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
     """Normalize a metadata date into the RSS-friendly ``YYYY-MM-DD HH:MM`` string."""
     try:
         dt = parse_datetime_flexible(raw_date, default_timezone=UTC)
+        if dt is None:
+            raise AttributeError("Parsed datetime is None")
         return dt.strftime("%Y-%m-%d %H:%M")
-    except (DateTimeParsingError, AttributeError, ValueError) as e:
-        # Catches parsing failures from the flexible parser as well as any
-        # downstream formatting errors.
-        raise DateTimeParsingError(f"Failed to parse date for frontmatter: '{raw_date}'", original_exception=e) from e
+    except (AttributeError, ValueError) as e:
+        # This will be raised if parse_datetime_flexible returns None,
+        # which covers all failure modes (None input, empty strings, bad data).
+        raise FrontmatterDateFormattingError(str(raw_date), e) from e
 
 
 def _prepare_frontmatter(metadata: dict[str, Any], slug: str) -> dict[str, Any]:
@@ -134,14 +142,20 @@ def _write_post_file(filepath: Path, content: str, front_matter: dict[str, Any])
     """Construct the full post content and write it to a file."""
     yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
     full_post = f"---\n{yaml_front}---\n\n{content}"
-    filepath.write_text(full_post, encoding="utf-8")
+    try:
+        filepath.write_text(full_post, encoding="utf-8")
+    except OSError as e:
+        raise FileWriteError(str(filepath), e) from e
 
 
 def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:
     """Save a markdown post with YAML front matter and unique slugging."""
     _validate_post_metadata(metadata)
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        raise DirectoryCreationError(str(output_dir), e) from e
 
     date_prefix = _extract_clean_date(metadata["date"])
     base_slug = slugify(metadata["slug"])

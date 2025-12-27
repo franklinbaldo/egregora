@@ -32,17 +32,49 @@ class MissingPostMetadataError(FilesystemError):
         super().__init__(f"Missing required metadata key: '{self.missing_key}'")
 
 
-class DateTimeUtilsError(Exception):
-    """Base exception for datetime utility errors."""
+class FrontmatterDateFormattingError(FilesystemError):
+    """Raised when a date string for frontmatter cannot be parsed."""
 
-
-class DateTimeParsingError(DateTimeUtilsError):
-    """Raised when a date/time string cannot be parsed."""
-
-    def __init__(self, value: str, original_exception: Exception | None = None) -> None:
-        self.value = value
+    def __init__(self, date_str: str, original_exception: Exception) -> None:
+        self.date_str = date_str
         self.original_exception = original_exception
-        message = f"Failed to parse date/time string: '{self.value}'"
-        if original_exception:
-            message += f". Original error: {original_exception}"
+        super().__init__(
+            f"Failed to parse date string for frontmatter: '{self.date_str}'. "
+            f"Original error: {original_exception}"
+        )
+
+
+class FilesystemOperationError(FilesystemError):
+    """Base exception for file I/O errors."""
+
+    def __init__(self, path: str, original_exception: Exception, message: str | None = None) -> None:
+        self.path = path
+        self.original_exception = original_exception
+        if message is None:
+            message = f"An error occurred at path: {self.path}. Original error: {original_exception}"
+        super().__init__(message)
+
+
+class DirectoryCreationError(FilesystemOperationError):
+    """Raised when creating a directory fails."""
+
+    def __init__(self, path: str, original_exception: Exception) -> None:
+        message = f"Failed to create directory at: {path}. Original error: {original_exception}"
+        super().__init__(path, original_exception, message=message)
+
+
+class FileWriteError(FilesystemOperationError):
+    """Raised when writing a file fails."""
+
+    def __init__(self, path: str, original_exception: Exception) -> None:
+        message = f"Failed to write file to: {path}. Original error: {original_exception}"
+        super().__init__(path, original_exception, message=message)
+
+
+class DateExtractionError(FilesystemError):
+    """Raised when a date cannot be extracted from a string."""
+
+    def __init__(self, date_str: str) -> None:
+        self.date_str = date_str
+        message = f"Could not extract a valid date from '{self.date_str}'"
         super().__init__(message)
