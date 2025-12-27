@@ -225,12 +225,13 @@ def test_resolve_document_path_raises_adapter_not_initialized_error():
 AUTHOR_UUID = "d944f0f7-9226-4880-a6a2-11a3d2d472b1"
 
 
-def test_build_author_profile_raises_incomplete_error_if_no_name(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
+def test_build_author_profile_raises_incomplete_error_if_no_name(
+    mkdocs_adapter: MkDocsAdapter, tmp_path: Path
+):
     """Test that _build_author_profile raises IncompleteProfileError if no name is ever found."""
     author_dir = tmp_path / "posts" / "authors" / AUTHOR_UUID
     author_dir.mkdir(parents=True, exist_ok=True)
     mkdocs_adapter.posts_dir = tmp_path / "posts"
-
 
     # Create a post file with frontmatter that is missing the author's name
     post_content = f"""---
@@ -271,7 +272,7 @@ This file has unclosed YAML.
 
     # The adapter needs a documents() method that returns something for this test.
     # Let's mock it to return an empty list to isolate the parsing logic.
-    mkdocs_adapter.documents = lambda: []
+    mkdocs_adapter.documents = list
 
     with pytest.raises(DocumentParsingError, match=f"Failed to parse document at '{profile_path}'"):
         mkdocs_adapter.get_profiles_data()
@@ -312,6 +313,8 @@ def test_url_to_path_raises_for_profile_missing_subject(mkdocs_adapter: MkDocsAd
     # The URL context is needed for the method to run
     mkdocs_adapter._ctx = UrlContext(base_url="http://localhost:8000", site_prefix="", base_path=Path.cwd())
 
-    with pytest.raises(ProfileMetadataError, match=f"PROFILE document '{doc_id}' missing required metadata field: 'subject'"):
+    with pytest.raises(
+        ProfileMetadataError, match=f"PROFILE document '{doc_id}' missing required metadata field: 'subject'"
+    ):
         # The URL can be simple for this test, as the logic branch is determined by doc type
         mkdocs_adapter._url_to_path("/profiles/a-profile", profile_doc)

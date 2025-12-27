@@ -7,11 +7,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from egregora.input_adapters.whatsapp.exceptions import (
-    DateParsingError,
-    MalformedLineError,
-    NoMessagesFoundError,
-)
 from egregora.input_adapters.whatsapp.parsing import (
     WhatsAppExport,
     ZipMessageSource,

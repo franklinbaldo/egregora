@@ -5,7 +5,6 @@ from datetime import time
 import pytest
 
 from egregora.config.settings import PrivacySettings
-from egregora.input_adapters.whatsapp.exceptions import TimeParsingError
 from egregora.input_adapters.whatsapp.parsing import _parse_message_time, scrub_pii
 
 

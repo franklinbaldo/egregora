@@ -764,6 +764,7 @@ async def _execute_writer_with_error_handling(
         logger.exception("Writer agent failed for %s", deps.window_label)
         raise WriterAgentExecutionError(deps.window_label, str(exc)) from exc
 
+
 @dataclass
 class WriterFinalizationParams:
     """Parameters for finalizing writer results."""
