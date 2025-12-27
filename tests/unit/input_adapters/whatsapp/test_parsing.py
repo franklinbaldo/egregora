@@ -117,10 +117,10 @@ class TestWhatsAppParsing:
         whatsapp_export_with_empty_chat: WhatsAppExport,
     ) -> None:
         """
-        Verify that parse_source raises NoMessagesFoundError for empty chat files.
+        Verify that parse_source returns empty table for empty chat files.
         """
-        with pytest.raises(NoMessagesFoundError):
-            parse_source(export=whatsapp_export_with_empty_chat, timezone="UTC")
+        result = parse_source(export=whatsapp_export_with_empty_chat, timezone="UTC")
+        assert result.count().execute() == 0
 
     def test_parse_whatsapp_lines_raises_malformed_line_error(self) -> None:
         """Verify _parse_whatsapp_lines raises MalformedLineError for lines with parsing errors."""
