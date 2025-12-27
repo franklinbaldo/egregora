@@ -17,7 +17,7 @@ from egregora.agents.banner.agent import generate_banner
 from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
 from egregora.rag import search
 from egregora.rag.models import RAGQueryRequest
-from egregora_v3.core.types import Document, DocumentType
+from egregora_v3.core.types import Author, Document, DocumentType
 
 if TYPE_CHECKING:
     import uuid
@@ -220,16 +220,27 @@ class WriterDeps:
         # Fix: Unescape literal newlines that might have been escaped by the LLM
         content = content.replace("\\n", "\n")
 
+        # Ensure doc_type is present, default to POST
+        if "doc_type" not in metadata:
+            metadata["doc_type"] = DocumentType.POST
+
+        # Convert author strings to Author objects
+        if "authors" in metadata and isinstance(metadata["authors"], list):
+            authors = []
+            for author in metadata["authors"]:
+                if isinstance(author, str):
+                    authors.append(Author(name=author))
+                elif isinstance(author, dict) and "name" in author:
+                    authors.append(Author(**author))
+            metadata["authors"] = authors
+
         doc = Document(
-            content=content,
-            type=DocumentType.POST,
-            metadata=metadata,
-            source_window=self.window_label,
+            content=content, source_window=self.window_label, **metadata
         )
 
         self.resources.output.persist(doc)
-        logger.info("Writer agent saved post (doc_id: %s)", doc.document_id)
-        return WritePostResult(status="success", path=doc.document_id)
+        logger.info("Writer agent saved post (doc_id: %s)", doc.id)
+        return WritePostResult(status="success", path=doc.id)
 
     def read_profile(self, author_uuid: str) -> ReadProfileResult:
         """Read an author's profile document."""

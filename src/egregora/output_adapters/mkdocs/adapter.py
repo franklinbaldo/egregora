@@ -536,6 +536,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _scan_for_documents(self, filter_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
         """Scan all known document directories for markdown files."""
+        # Note: self_reflection_adapter was failing because it would find the index.md
+        # in posts/ and count it as a post. Now we exclude all index.md files.
         exclude_names = {"index.md", "tags.md"}
         # Scan the entire docs_dir, which contains posts, profiles, media, etc.
         for path in self.docs_dir.rglob("*.md"):
@@ -669,8 +671,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             return DocumentType.POST
 
         # If we're here, it's not in a known directory.
-        # This could be a top-level file. Default to POST.
-        return DocumentType.POST
+        # This could be a top-level file like about.md. We should not treat it as a POST.
+        # Return a type that will be filtered out by the scanner.
+        return DocumentType.ANNOUNCEMENT
 
     def _list_from_unified_dir(
         self,

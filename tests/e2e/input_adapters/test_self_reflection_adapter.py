@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
+from egregora.data_primitives.document import DocumentType
 from egregora.input_adapters.self_reflection import SelfInputAdapter
 from egregora.output_adapters import create_default_output_registry, create_output_sink
 
@@ -45,7 +46,8 @@ def test_self_adapter_parses_existing_site(tmp_path: Path):
     _write_markdown(post_one, "Sample", "sample-post", "Body text 1")
     _write_markdown(post_two, "Second", "second-post", "Body text 2")
 
-    table = adapter.parse(tmp_path, output_adapter=output_format)
+    # Filter for posts to avoid counting scaffolded pages like about.md
+    table = adapter.parse(tmp_path, output_adapter=output_format, doc_type=DocumentType.POST)
     dataframe = table.execute()
 
     assert set(dataframe.columns) == set(table.schema().names)
