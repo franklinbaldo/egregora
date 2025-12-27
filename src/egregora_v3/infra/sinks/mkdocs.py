@@ -1,7 +1,7 @@
 """MkDocs Output Sink for publishing feeds as Markdown files."""
 
 from pathlib import Path
-
+import yaml
 from egregora_v3.core.types import Document, DocumentStatus, Feed
 from egregora_v3.core.utils import slugify
 
@@ -101,7 +101,18 @@ class MkDocsOutputSink:
                 return slug
 
         # Fallback to slugified ID
-        return slugify(doc.id, max_len=60) or doc.id
+        return next(
+            (
+                s
+                for s in (
+                    doc.slug,
+                    slugify(doc.title, max_len=60) if doc.title else None,
+                    slugify(doc.id, max_len=60),
+                )
+                if s
+            ),
+            doc.id,
+        )
 
     def _generate_frontmatter(self, doc: Document) -> str:
         """Generate YAML frontmatter for a document.
@@ -113,39 +124,36 @@ class MkDocsOutputSink:
             YAML frontmatter string with --- delimiters
 
         """
-        lines = ["---"]
+        frontmatter_data = {}
 
         # Title
-        # Escape quotes in title
-        title_escaped = doc.title.replace('"', '\\"')
-        lines.append(f'title: "{title_escaped}"')
+        frontmatter_data["title"] = doc.title
 
         # Date (use published if available, otherwise updated)
         date = doc.published or doc.updated
-        lines.append(f"date: {date.strftime('%Y-%m-%d')}")
+        frontmatter_data["date"] = date.strftime("%Y-%m-%d")
 
         # Authors
         if doc.authors:
             if len(doc.authors) == 1:
-                lines.append(f"author: {doc.authors[0].name}")
+                frontmatter_data["author"] = doc.authors[0].name
             else:
-                lines.append("authors:")
-                lines.extend(f"  - {author.name}" for author in doc.authors)
+                frontmatter_data["authors"] = [author.name for author in doc.authors]
 
         # Categories/tags
         if doc.categories:
-            lines.append("tags:")
-            lines.extend(f"  - {category.term}" for category in doc.categories)
+            frontmatter_data["tags"] = [category.term for category in doc.categories]
 
         # Document type
-        lines.append(f"type: {doc.doc_type.value}")
+        frontmatter_data["type"] = doc.doc_type.value
 
         # Status
-        lines.append(f"status: {doc.status.value}")
+        frontmatter_data["status"] = doc.status.value
 
-        lines.append("---")
+        # Use safe_dump for clean output
+        yaml_str = yaml.dump(frontmatter_data, sort_keys=False, default_flow_style=False)
 
-        return "\n".join(lines)
+        return f"---\n{yaml_str}---\n"
 
     def _write_index(self, feed: Feed, published_docs: list[Document]) -> None:
         """Write index.md listing all published posts.
