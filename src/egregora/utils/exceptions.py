@@ -60,3 +60,19 @@ class UniqueFilenameError(UtilsError):
         self.attempts = attempts
         message = f"Could not generate a unique filename for slug '{base_slug}' after {attempts} attempts."
         super().__init__(message)
+
+
+class ModelError(UtilsError):
+    """Base class for model-related errors."""
+
+
+class ModelFallbackError(ModelError):
+    """Raised during model fallback operations."""
+
+
+class OpenRouterAPIError(ModelError):
+    """Raised when the OpenRouter API call fails."""
+
+
+class ModelConfigurationError(ModelError):
+    """Raised for model configuration errors."""
