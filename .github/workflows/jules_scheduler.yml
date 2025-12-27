@@ -31,106 +31,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
 
       - name: Run Jules Scheduler
         if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          JULES_BASE_URL: https://jules.googleapis.com/v1alpha
+          PYTHONPATH: .jules
         run: |
-          set -euo pipefail
+          args=(tick)
 
-          DRY_RUN="${{ inputs.dry_run }}"
-          RUN_ALL="${{ inputs.run_all }}"
-          PROMPT_ID="${{ inputs.prompt_id }}"
-          REPO_OWNER="franklinbaldo"
-          REPO_NAME="egregora"
-
-          # Get current hour in UTC
-          CURRENT_HOUR=$(date -u +%H)
-          CURRENT_DOW=$(date -u +%u)  # 1=Monday, 7=Sunday
-
-          # Read schedules from registry
-          SCHEDULES_FILE=".jules/schedules.toml"
-
-          # Process each persona
-          for PERSONA_DIR in .jules/personas/*/; do
-            [[ -d "$PERSONA_DIR" ]] || continue
-
-            PROMPT_FILE="${PERSONA_DIR}prompt.md"
-            [[ -f "$PROMPT_FILE" ]] || continue
-
-            # Parse frontmatter to get id, enabled, schedule
-            PERSONA_ID=$(awk '/^---$/,/^---$/ {if (/^id:/) {gsub(/^id: *"?|"?$/, ""); print}}' "$PROMPT_FILE")
-            ENABLED=$(awk '/^---$/,/^---$/ {if (/^enabled:/) {gsub(/^enabled: */, ""); print}}' "$PROMPT_FILE")
-            TITLE=$(awk '/^---$/,/^---$/ {if (/^title:/) {gsub(/^title: *"?|"?$/, ""); print}}' "$PROMPT_FILE")
-            BRANCH=$(awk '/^---$/,/^---$/ {if (/^branch:/) {gsub(/^branch: *"?|"?$/, ""); print}}' "$PROMPT_FILE")
-            SCHEDULE=$(awk '/^---$/,/^---$/ {if (/^schedule:/) {gsub(/^schedule: *"?|"?$/, ""); print}}' "$PROMPT_FILE")
-
-            # Set defaults
-            ENABLED="${ENABLED:-true}"
-            BRANCH="${BRANCH:-main}"
-            TITLE="${TITLE:-Task: $PERSONA_ID}"
-
-            # Skip if filtering by prompt_id
-            if [[ -n "$PROMPT_ID" && "$PERSONA_ID" != "$PROMPT_ID" ]]; then
-              continue
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ "${{ inputs.run_all }}" = "true" ]; then
+              args+=(--all)
             fi
-
-            # Skip if disabled (unless specifically requested)
-            if [[ "$ENABLED" != "true" && "$PERSONA_ID" != "$PROMPT_ID" ]]; then
-              continue
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              args+=(--dry-run)
             fi
-
-            # Check if should run based on schedule
-            SHOULD_RUN=false
-
-            if [[ "$RUN_ALL" == "true" || "$PERSONA_ID" == "$PROMPT_ID" ]]; then
-              SHOULD_RUN=true
-            elif [[ -n "$SCHEDULE" ]]; then
-              # Parse cron schedule (simplified: "min hour dom month dow")
-              read -r SCHED_MIN SCHED_HOUR SCHED_DOM SCHED_MONTH SCHED_DOW <<< "$SCHEDULE"
-
-              # Check hour match
-              if [[ "$SCHED_HOUR" == "*" || "$SCHED_HOUR" == "$CURRENT_HOUR" ]]; then
-                # Check day of week match (convert: cron 0=Sun, bash 7=Sun)
-                CRON_DOW=$((CURRENT_DOW % 7))
-                if [[ "$SCHED_DOW" == "*" || "$SCHED_DOW" == "$CRON_DOW" ]]; then
-                  SHOULD_RUN=true
-                fi
-              fi
+            if [ -n "${{ inputs.prompt_id }}" ]; then
+              args+=(--prompt-id "${{ inputs.prompt_id }}")
             fi
+          fi
 
-            if [[ "$SHOULD_RUN" == "true" && "$DRY_RUN" != "true" ]]; then
-              # Extract prompt body (everything after second ---)
-              PROMPT_BODY=$(awk '/^---$/{n++; next} n>=2' "$PROMPT_FILE")
-
-              # Create Jules session
-              echo "Creating Jules session for persona: $PERSONA_ID"
-              curl -sf -X POST \
-                "${JULES_BASE_URL}/sessions" \
-                -H "Content-Type: application/json" \
-                -H "X-Goog-Api-Key: ${JULES_API_KEY}" \
-                -d "$(jq -n \
-                  --arg prompt "$PROMPT_BODY" \
-                  --arg title "$TITLE" \
-                  --arg branch "$BRANCH" \
-                  --arg owner "$REPO_OWNER" \
-                  --arg repo "$REPO_NAME" \
-                  '{
-                    prompt: $prompt,
-                    title: $title,
-                    sourceContext: {
-                      source: ("sources/github/" + $owner + "/" + $repo),
-                      githubRepoContext: {startingBranch: $branch}
-                    },
-                    automationMode: "AUTO_CREATE_PR"
-                  }')" || echo "Failed to create session for $PERSONA_ID"
-            elif [[ "$SHOULD_RUN" == "true" ]]; then
-              echo "[DRY RUN] Would create session for: $PERSONA_ID"
-            fi
-          done
+          # Using Python CLI with Jinja2 templating for complex persona prompts
+          uv run --with requests --with python-frontmatter --with jinja2 --with typer --with pydantic python -m jules.cli schedule "${args[@]}"
 
       - name: Run Jules Feedback Loop
         # Run on schedule or if requested manually (unless prompt_id is specific for something else, but safe to run)
