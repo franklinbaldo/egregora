@@ -22,14 +22,12 @@ from typing import TYPE_CHECKING
 import ibis
 import pytest
 
-from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import UrlContext, UrlConvention
-from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
+from egregora.data_primitives.document import Document, DocumentType, UrlContext, UrlConvention
+from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 from egregora.input_adapters.whatsapp.commands import filter_egregora_messages
-from egregora.input_adapters.whatsapp.exceptions import MediaNotFoundError
 from egregora.input_adapters.whatsapp.parsing import parse_source
-from egregora.orchestration.pipelines.modules.media import process_media_for_window
+from egregora.ops.media import process_media_for_window
 from egregora.transformations.windowing import Window
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
 
@@ -82,7 +80,7 @@ def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
-    assert set(table.columns) == set(INGESTION_MESSAGE_SCHEMA.names)
+    assert set(table.columns) == set(IR_MESSAGE_SCHEMA.names)
     assert table.count().execute() == 10
     messages = table["text"].execute().tolist()
     assert all(message is not None and message.strip() for message in messages)
@@ -125,7 +123,7 @@ def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
-    expected_columns = set(INGESTION_MESSAGE_SCHEMA.names)
+    expected_columns = set(IR_MESSAGE_SCHEMA.names)
     assert set(table.columns) == expected_columns
 
 
@@ -216,9 +214,7 @@ def test_media_extraction_creates_expected_files(whatsapp_fixture: WhatsAppFixtu
     assert len(doc.content) > 0
 
     # Test extracting a non-existent file
-    with pytest.raises(MediaNotFoundError) as excinfo:
-        adapter.deliver_media("non_existent.jpg", zip_path=whatsapp_fixture.zip_path)
-    assert "not found in" in str(excinfo.value)
+    assert adapter.deliver_media("non_existent.jpg", zip_path=whatsapp_fixture.zip_path) is None
 
 
 def test_media_references_replaced_in_messages(

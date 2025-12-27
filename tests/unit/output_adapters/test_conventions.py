@@ -9,8 +9,7 @@ import inspect
 import pytest
 
 import egregora.output_adapters.conventions as conventions_module
-from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import UrlContext
+from egregora.data_primitives.document import Document, DocumentType, UrlContext
 from egregora.output_adapters.conventions import StandardUrlConvention, _remove_url_extension
 
 

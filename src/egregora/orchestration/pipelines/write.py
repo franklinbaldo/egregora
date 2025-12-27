@@ -41,7 +41,7 @@ from egregora.config.settings import (
     validate_timezone,
 )
 from egregora.constants import SourceType, WindowUnit
-from egregora.data_primitives.protocols import OutputSink, UrlContext
+from egregora.data_primitives.document import OutputSink, UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.repository import ContentRepository
