@@ -759,10 +759,10 @@ async def _execute_writer_with_error_handling(
         if isinstance(exc, PromptTooLargeError):
             raise
 
-        msg = f"Writer agent failed for {deps.window_label}"
-        logger.exception(msg)
-        raise RuntimeError(msg) from exc
+        from egregora.agents.exceptions import WriterAgentExecutionError
 
+        logger.exception("Writer agent failed for %s", deps.window_label)
+        raise WriterAgentExecutionError(deps.window_label, str(exc)) from exc
 
 @dataclass
 class WriterFinalizationParams:
