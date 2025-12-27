@@ -32,27 +32,17 @@ class MissingPostMetadataError(FilesystemError):
         super().__init__(f"Missing required metadata key: '{self.missing_key}'")
 
 
-class FrontmatterDateFormattingError(FilesystemError):
-    """Raised when a date string for frontmatter cannot be parsed."""
+class DateTimeUtilsError(Exception):
+    """Base exception for datetime utility errors."""
 
-    def __init__(self, date_str: str, original_exception: Exception) -> None:
-        self.date_str = date_str
+
+class DateTimeParsingError(DateTimeUtilsError):
+    """Raised when a date/time string cannot be parsed."""
+
+    def __init__(self, value: str, original_exception: Exception | None = None) -> None:
+        self.value = value
         self.original_exception = original_exception
-        super().__init__(
-            f"Failed to parse date string for frontmatter: '{self.date_str}'. "
-            f"Original error: {original_exception}"
-        )
-
-
-class CacheError(Exception):
-    """Base exception for cache-related errors."""
-
-
-class CacheDeserializationError(CacheError):
-    """Raised when a cache entry cannot be deserialized."""
-
-    def __init__(self, key: str, original_exception: Exception) -> None:
-        self.key = key
-        self.original_exception = original_exception
-        message = f"Failed to deserialize cache entry for key '{key}'. Original error: {original_exception}"
+        message = f"Failed to parse date/time string: '{self.value}'"
+        if original_exception:
+            message += f". Original error: {original_exception}"
         super().__init__(message)

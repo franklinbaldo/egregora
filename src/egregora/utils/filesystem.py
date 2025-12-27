@@ -14,10 +14,15 @@ import re
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
 
-import frontmatter
 import yaml
 
+from egregora.utils.authors import ensure_author_entries
 from egregora.utils.datetime_utils import parse_datetime_flexible
+from egregora.utils.exceptions import (
+    DateTimeParsingError,
+    MissingMetadataError,
+    UniqueFilenameError,
+)
 from egregora.utils.paths import safe_path_join, slugify
 
 if TYPE_CHECKING:
@@ -38,178 +43,116 @@ def _extract_clean_date(date_obj: str | date | datetime) -> str:
 
     date_str = str(date_obj).strip()
 
-    # First, try to parse the whole string directly
-    try:
-        # This handles "YYYY-MM-DD" and other ISO-like formats
-        return date.fromisoformat(date_str[:ISO_DATE_LENGTH]).isoformat()
-    except (ValueError, TypeError):
-        pass
-
-    # If direct parsing fails, search for a date pattern
     match = _DATE_PATTERN.search(date_str)
-    if match:
-        clean_date_str = match.group(1)
-        try:
-            # Validate that the matched pattern is a real date
-            return date.fromisoformat(clean_date_str).isoformat()
-        except ValueError:
-            pass  # The matched pattern was not a valid date
+    if not match:
+        return date_str  # No date pattern found.
 
-    # Fallback to the original string if no valid date is found
-    return date_str
+    # Use our robust parser on the *matched part* of the string.
+    # This will raise DateTimeParsingError if the matched pattern is not a valid date.
+    parsed_dt = parse_datetime_flexible(match.group(1))
+    return parsed_dt.date().isoformat()
 
 
 def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
     """Normalize a metadata date into the RSS-friendly ``YYYY-MM-DD HH:MM`` string."""
-    if raw_date is None:
-        return ""
-
-    dt = parse_datetime_flexible(raw_date, default_timezone=UTC)
-    if dt is None:
-        return str(raw_date).strip()
-
-    return dt.strftime("%Y-%m-%d %H:%M")
-
-
-def ensure_author_entries(output_dir: Path, author_ids: list[str] | None) -> None:
-    """Ensure every referenced author has an entry in `.authors.yml`.
-
-    This logic is specific to MkDocs/Material theme but stored here for reuse
-    if other adapters adopt similar conventions.
-    """
-    if not author_ids:
-        return
-
-    authors_path = _find_authors_yml(output_dir)
-    authors = _load_authors_yml(authors_path)
-
-    new_ids = _register_new_authors(authors, author_ids)
-
-    if new_ids:
-        _save_authors_yml(authors_path, authors, len(new_ids))
-
-
-def _find_authors_yml(output_dir: Path) -> Path:
-    """Finds the .authors.yml file assuming a standard project structure."""
-    # Assumes output_dir is something like /path/to/docs/posts/posts
-    docs_dir = output_dir.resolve().parent.parent
-    return docs_dir / ".authors.yml"
-
-
-def _load_authors_yml(path: Path) -> dict:
     try:
-        return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except (OSError, yaml.YAMLError):
-        return {}
+        dt = parse_datetime_flexible(raw_date, default_timezone=UTC)
+        return dt.strftime("%Y-%m-%d %H:%M")
+    except (DateTimeParsingError, AttributeError, ValueError) as e:
+        # Catches parsing failures from the flexible parser as well as any
+        # downstream formatting errors.
+        raise DateTimeParsingError(f"Failed to parse date for frontmatter: '{raw_date}'", original_exception=e) from e
 
 
-def _register_new_authors(authors: dict, author_ids: list[str]) -> list[str]:
-    new_ids = []
-    for author_id in author_ids:
-        if author_id and author_id not in authors:
-            authors[author_id] = {
-                "name": author_id,
-                "url": f"profiles/{author_id}.md",
-            }
-            new_ids.append(author_id)
-    return new_ids
+def _prepare_frontmatter(metadata: dict[str, Any], slug: str) -> dict[str, Any]:
+    """Prepare the YAML frontmatter dictionary from post metadata.
 
+    Args:
+        metadata: The raw metadata dictionary for the post.
+        slug: The final, resolved slug for the post.
 
-def _save_authors_yml(path: Path, authors: dict, count: int) -> None:
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            yaml.dump(authors, default_flow_style=False, allow_unicode=True, sort_keys=False),
-            encoding="utf-8",
-        )
-        logger.info("Registered %d new author(s) in %s", count, path)
-    except OSError as exc:
-        logger.warning("Failed to update %s: %s", path, exc)
+    Returns:
+        A dictionary containing the formatted frontmatter.
 
-
-def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:
-    """Save a markdown post with YAML front matter and unique slugging.
-
-    Handles:
-    - Slug generation and collision resolution
-    - Date formatting
-    - Frontmatter serialization
-    - Author registration (side effect)
     """
-    required = ["title", "slug", "date"]
-    for key in required:
-        if key not in metadata:
-            msg = f"Missing required metadata: {key}"
-            raise ValueError(msg)
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    raw_date = metadata["date"]
-    date_prefix = _extract_clean_date(raw_date)
-
-    base_slug = slugify(metadata["slug"])
-    slug_candidate = base_slug
-    filename = f"{date_prefix}-{slug_candidate}.md"
-    filepath = safe_path_join(output_dir, filename)
-    suffix = 2
-    while filepath.exists():
-        slug_candidate = f"{base_slug}-{suffix}"
-        filename = f"{date_prefix}-{slug_candidate}.md"
-        filepath = safe_path_join(output_dir, filename)
-        suffix += 1
-
     front_matter = {
         "title": metadata["title"],
-        "slug": slug_candidate,
-        "date": format_frontmatter_datetime(raw_date),
+        "slug": slug,
+        "date": format_frontmatter_datetime(metadata["date"]),
     }
-
-    # Copy optional metadata fields
     for key in ["tags", "summary", "authors", "category"]:
         if key in metadata:
             front_matter[key] = metadata[key]
+    return front_matter
 
-    if "authors" in metadata:
-        ensure_author_entries(output_dir, front_matter.get("authors"))
 
+def _resolve_filepath(
+    output_dir: Path, date_prefix: str, base_slug: str, max_attempts: int = 100
+) -> tuple[Path, str]:
+    """Resolve a unique filepath and slug, handling collisions.
+
+    Appends a numeric suffix to the slug if a file with the same name already exists.
+
+    Args:
+        output_dir: The directory where the file will be saved.
+        date_prefix: The YYYY-MM-DD date prefix for the filename.
+        base_slug: The initial slug to use.
+        max_attempts: The maximum number of attempts to find a unique filename.
+
+    Returns:
+        A tuple containing the unique Path object and the final resolved slug.
+
+    Raises:
+        UniqueFilenameError: If a unique filename cannot be found after max_attempts.
+
+    """
+    original_filename = f"{date_prefix}-{base_slug}.md"
+    original_filepath = safe_path_join(output_dir, original_filename)
+
+    if not original_filepath.exists():
+        return original_filepath, base_slug
+
+    for i in range(2, max_attempts + 2):
+        slug_candidate = f"{base_slug}-{i}"
+        filename = f"{date_prefix}-{slug_candidate}.md"
+        filepath = safe_path_join(output_dir, filename)
+        if not filepath.exists():
+            return filepath, slug_candidate
+
+    raise UniqueFilenameError(base_slug, max_attempts)
+
+
+def _validate_post_metadata(metadata: dict[str, Any]) -> None:
+    """Ensure required metadata keys are present."""
+    required = {"title", "slug", "date"}
+    missing_keys = list(required - set(metadata.keys()))
+    if missing_keys:
+        raise MissingMetadataError(missing_keys)
+
+
+def _write_post_file(filepath: Path, content: str, front_matter: dict[str, Any]) -> None:
+    """Construct the full post content and write it to a file."""
     yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
     full_post = f"---\n{yaml_front}---\n\n{content}"
     filepath.write_text(full_post, encoding="utf-8")
+
+
+def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:
+    """Save a markdown post with YAML front matter and unique slugging."""
+    _validate_post_metadata(metadata)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    date_prefix = _extract_clean_date(metadata["date"])
+    base_slug = slugify(metadata["slug"])
+
+    filepath, final_slug = _resolve_filepath(output_dir, date_prefix, base_slug)
+
+    front_matter = _prepare_frontmatter(metadata, final_slug)
+
+    if "authors" in front_matter:
+        ensure_author_entries(output_dir, front_matter.get("authors"))
+
+    _write_post_file(filepath, content, front_matter)
+
     return str(filepath)
-
-
-def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> int:
-    """Scan all posts and ensure every referenced author exists in .authors.yml."""
-    if docs_dir is None:
-        # Derive docs_dir: posts_dir is typically docs/posts/posts, so go up 2 levels
-        docs_dir = posts_dir.resolve().parent.parent
-
-    authors_path = docs_dir / ".authors.yml"
-    authors = _load_authors_yml(authors_path)
-
-    all_author_ids: set[str] = set()
-    for md_file in posts_dir.rglob("*.md"):
-        try:
-            post = frontmatter.load(md_file)
-            post_authors = post.metadata.get("authors")
-            if not post_authors:
-                continue
-
-            # Ensure authors are always treated as a list
-            if not isinstance(post_authors, list):
-                post_authors = [post_authors]
-
-            all_author_ids.update(str(author) for author in post_authors if author)
-
-        except (OSError, ValueError) as exc:
-            logger.debug("Skipping %s: %s", md_file, exc)
-            continue
-
-    # Register missing authors, sorting for deterministic output
-    new_ids = _register_new_authors(authors, sorted(list(all_author_ids)))
-
-    if new_ids:
-        _save_authors_yml(authors_path, authors, len(new_ids))
-        logger.info("Synced %d new author(s) from posts to %s", len(new_ids), authors_path)
-
-    return len(new_ids)

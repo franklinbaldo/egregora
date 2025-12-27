@@ -5,8 +5,6 @@ from datetime import UTC, date, datetime, timedelta, timezone
 import pytest
 
 from egregora.utils.datetime_utils import (
-    _parse_obj_to_datetime,
-    _parse_str_to_datetime,
     _to_datetime,
     normalize_timezone,
     parse_datetime_flexible,
@@ -75,63 +73,53 @@ class MockPandasTimestamp:
     [
         (datetime(2023, 1, 1, 10, 0, 0), datetime(2023, 1, 1, 10, 0, 0)),
         (date(2023, 1, 1), datetime(2023, 1, 1, 0, 0, 0)),
+        ("2023-01-01T10:00:00", datetime(2023, 1, 1, 10, 0, 0)),
         (
             MockPandasTimestamp(datetime(2023, 1, 1, 10, 0, 0)),
             datetime(2023, 1, 1, 10, 0, 0),
         ),
-        (123, None),
-        ("a string", None),
     ],
 )
-def test_parse_obj_to_datetime_valid_inputs(input_val, expected):
+def test_to_datetime_valid_inputs(input_val, expected):
     """Should convert various valid input types to a datetime object."""
-    assert _parse_obj_to_datetime(input_val) == expected
+    assert _to_datetime(input_val) == expected
+
+
+from egregora.utils.exceptions import DateTimeParsingError
 
 
 @pytest.mark.parametrize(
-    ("input_val", "expected"),
-    [
-        ("2023-01-01T10:00:00", datetime(2023, 1, 1, 10, 0, 0)),
-        ("  2023-01-01 10:00  ", datetime(2023, 1, 1, 10, 0, 0)),
-        ("", None),
-        ("   ", None),
-        ("not-a-date", None),
-    ],
+    "input_val",
+    [None, "", "   ", "not-a-date", 12345, "2023-99-99"],
 )
-def test_parse_str_to_datetime_valid_inputs(input_val, expected):
-    """Should convert various valid input types to a datetime object."""
-    assert _parse_str_to_datetime(input_val) == expected
+def test_to_datetime_invalid_inputs_raise_exception(input_val):
+    """Should raise DateTimeParsingError for invalid or empty inputs."""
+    with pytest.raises(DateTimeParsingError):
+        _to_datetime(input_val)
 
 
-def test_parse_str_to_datetime_forwards_parser_kwargs():
+def test_to_datetime_forwards_parser_kwargs():
     """Should forward kwargs to the dateutil parser."""
     raw = "01-02-2023"
     # dayfirst=True should parse as Feb 1st, not Jan 2nd.
-    result = _parse_str_to_datetime(raw, parser_kwargs={"dayfirst": True})
+    result = _to_datetime(raw, parser_kwargs={"dayfirst": True})
     assert result is not None
     assert result.month == 2
     assert result.day == 1
-
-
-def test_to_datetime_routes_correctly():
-    """Should route to the correct parser based on type."""
-    # Test string routing
-    assert _to_datetime("2023-01-01") == datetime(2023, 1, 1)
-    # Test object routing
-    assert _to_datetime(date(2023, 1, 1)) == datetime(2023, 1, 1)
-    # Test None routing
-    assert _to_datetime(None) is None
 
 
 # endregion
 
 
 # region: Original tests for parse_datetime_flexible to ensure no regressions
-def test_parse_datetime_none_or_empty():
-    """Should return None for None or empty string inputs."""
-    assert parse_datetime_flexible(None) is None
-    assert parse_datetime_flexible("") is None
-    assert parse_datetime_flexible("   ") is None
+@pytest.mark.parametrize(
+    "invalid_input",
+    [None, "", "   ", "not a date", "!!!", "2023-99-99"],
+)
+def test_parse_datetime_flexible_invalid_inputs_raise_exception(invalid_input):
+    """Should raise DateTimeParsingError for invalid, None, or empty string inputs."""
+    with pytest.raises(DateTimeParsingError):
+        parse_datetime_flexible(invalid_input)
 
 
 def test_parse_datetime_existing_datetime_naive():
@@ -198,12 +186,6 @@ def test_parse_datetime_fuzzy_string():
     assert result.day == 1
     assert result.hour == 12
     assert result.tzinfo == UTC
-
-
-def test_parse_datetime_invalid_string():
-    """Should return None for unparseable strings."""
-    assert parse_datetime_flexible("not a date") is None
-    assert parse_datetime_flexible("!!!") is None
 
 
 def test_parse_datetime_with_to_pydatetime():
