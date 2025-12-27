@@ -45,6 +45,9 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
         'aaaaaaaaaaaaaaaaaaaa'
 
     """
+    if text is None:
+        return ""
+
     # Normalize Unicode to ASCII using NFKD (preserves transliteration).
     normalized = normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
 

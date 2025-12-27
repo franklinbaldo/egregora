@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from dateutil.parser import parse as parse_date
 from pydantic_ai import Agent, RunContext
 
 from egregora.agents.banner.agent import is_banner_generation_available
@@ -95,7 +98,34 @@ def register_writer_tools(
         elif isinstance(metadata, dict):
             meta_dict = metadata
         else:  # str
-            meta_dict = metadata  # Pass through to write_post for JSON parsing
+            try:
+                meta_dict = json.loads(metadata)
+            except json.JSONDecodeError:
+                logger.warning("Could not parse metadata string: %s", metadata)
+                meta_dict = {}
+
+        # Ensure required fields for Document model
+        if "id" not in meta_dict:
+            # Generate a deterministic ID
+            slug = meta_dict.get("slug")
+            if slug:
+                meta_dict["id"] = str(uuid.uuid5(uuid.NAMESPACE_DNS, slug))
+            else:
+                title = meta_dict.get("title", "")
+                date = meta_dict.get("date", "")
+                meta_dict["id"] = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{title}-{date}"))
+
+        if "updated" not in meta_dict and "date" in meta_dict:
+            try:
+                parsed_date = parse_date(meta_dict["date"])
+                if parsed_date.tzinfo is None:
+                    parsed_date = parsed_date.replace(tzinfo=UTC)
+                meta_dict["updated"] = parsed_date
+            except (ValueError, TypeError):
+                logger.warning("Could not parse date '%s', using current time.", meta_dict["date"])
+                meta_dict["updated"] = datetime.now(UTC)
+        elif "updated" not in meta_dict:
+            meta_dict["updated"] = datetime.now(UTC)
 
         # Inject model name if we have a dict
         if isinstance(meta_dict, dict):
