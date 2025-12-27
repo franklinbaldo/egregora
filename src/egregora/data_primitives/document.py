@@ -239,6 +239,19 @@ class DocumentCollection:
         return iter(self.documents)
 
 
+@dataclass
+class DocumentMetadata:
+    """Lightweight description of a document available in an output sink.
+
+    Used for efficient document enumeration without loading full content.
+    Returned by OutputSink.list() for memory-efficient iteration.
+    """
+
+    identifier: str
+    doc_type: DocumentType | None
+    metadata: dict[str, object]
+
+
 @dataclass(frozen=True, slots=True)
 class MediaAsset(Document):
     r"""Specialized Document for binary media assets managed by the pipeline."""
