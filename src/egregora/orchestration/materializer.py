@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
 def materialize_site(source: "DbOutputSink", destination: "MkDocsAdapter") -> None:
     """Sync all documents from DB to Filesystem."""
     logger.info("🧱 [bold cyan]Materializing site from database...[/]")
@@ -26,7 +27,7 @@ def materialize_site(source: "DbOutputSink", destination: "MkDocsAdapter") -> No
         DocumentType.PROFILE,
         DocumentType.JOURNAL,
         DocumentType.MEDIA,
-        DocumentType.ANNOTATION
+        DocumentType.ANNOTATION,
     ]:
         # We need a robust iterator that yields full Document objects
         # DbOutputSink.list() yields metadata. We can use that to fetch docs.

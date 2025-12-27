@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 # Helper Functions
 # ============================================================================
 
+
 def create_table_if_not_exists(
     conn: Any, table_name: str, schema: ibis.Schema, *, overwrite: bool = False
 ) -> None:
@@ -167,51 +168,59 @@ def create_index(
 
 # Common columns for all types
 BASE_COLUMNS = {
-    "id": dt.string,           # Deterministic UUID/Slug
-    "content": dt.string,      # Markdown/Text content
-    "created_at": dt.timestamp,# Insertion time
-    "source_checksum": dt.string, # Hash for deduplication/change detection
+    "id": dt.string,  # Deterministic UUID/Slug
+    "content": dt.string,  # Markdown/Text content
+    "created_at": dt.timestamp,  # Insertion time
+    "source_checksum": dt.string,  # Hash for deduplication/change detection
 }
 
 # 1. POSTS TABLE
-POSTS_SCHEMA = ibis.schema({
-    **BASE_COLUMNS,
-    "title": dt.string,
-    "slug": dt.string,
-    "date": dt.date,
-    "summary": dt.string,
-    "authors": dt.Array(dt.string), # List of Author UUIDs
-    "tags": dt.Array(dt.string),
-    "status": dt.string,            # 'published', 'draft'
-})
+POSTS_SCHEMA = ibis.schema(
+    {
+        **BASE_COLUMNS,
+        "title": dt.string,
+        "slug": dt.string,
+        "date": dt.date,
+        "summary": dt.string,
+        "authors": dt.Array(dt.string),  # List of Author UUIDs
+        "tags": dt.Array(dt.string),
+        "status": dt.string,  # 'published', 'draft'
+    }
+)
 
 # 2. PROFILES TABLE
-PROFILES_SCHEMA = ibis.schema({
-    **BASE_COLUMNS,
-    "subject_uuid": dt.string,
-    "title": dt.string, # Was 'name'
-    "alias": dt.string,
-    "summary": dt.string, # Was 'bio'
-    "avatar_url": dt.string,
-    "interests": dt.Array(dt.string),
-})
+PROFILES_SCHEMA = ibis.schema(
+    {
+        **BASE_COLUMNS,
+        "subject_uuid": dt.string,
+        "title": dt.string,  # Was 'name'
+        "alias": dt.string,
+        "summary": dt.string,  # Was 'bio'
+        "avatar_url": dt.string,
+        "interests": dt.Array(dt.string),
+    }
+)
 
 # 3. MEDIA TABLE (Metadata only, content is binary/external)
-MEDIA_SCHEMA = ibis.schema({
-    **BASE_COLUMNS,
-    "filename": dt.string,
-    "mime_type": dt.string,
-    "media_type": dt.string, # 'image', 'video', 'audio'
-    "phash": dt.string,      # Perceptual hash for dedup
-})
+MEDIA_SCHEMA = ibis.schema(
+    {
+        **BASE_COLUMNS,
+        "filename": dt.string,
+        "mime_type": dt.string,
+        "media_type": dt.string,  # 'image', 'video', 'audio'
+        "phash": dt.string,  # Perceptual hash for dedup
+    }
+)
 
 # 4. JOURNALS TABLE
-JOURNALS_SCHEMA = ibis.schema({
-    **BASE_COLUMNS,
-    "title": dt.string, # Was 'window_label'
-    "window_start": dt.timestamp,
-    "window_end": dt.timestamp,
-})
+JOURNALS_SCHEMA = ibis.schema(
+    {
+        **BASE_COLUMNS,
+        "title": dt.string,  # Was 'window_label'
+        "window_start": dt.timestamp,
+        "window_end": dt.timestamp,
+    }
+)
 
 # ----------------------------------------------------------------------------
 # Tasks Schema (Asynchronous Background Tasks)
@@ -366,8 +375,8 @@ ANNOTATIONS_SCHEMA = ibis.schema(
     {
         **BASE_COLUMNS,
         "parent_id": dt.string,  # Reference to what is being annotated
-        "parent_type": dt.string, # 'message', 'post', 'annotation'
-        "author_id": dt.string, # Author of the annotation
+        "parent_type": dt.string,  # 'message', 'post', 'annotation'
+        "author_id": dt.string,  # Author of the annotation
         # "commentary" is mapped to "content" in BASE_COLUMNS
     }
 )

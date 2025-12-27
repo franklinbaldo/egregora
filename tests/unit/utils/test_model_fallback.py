@@ -1,4 +1,5 @@
 """Tests for the model_fallback utility."""
+
 from __future__ import annotations
 
 import httpx

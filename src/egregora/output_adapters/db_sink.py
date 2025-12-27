@@ -75,7 +75,7 @@ class DbOutputSink(OutputSink):
             yield DocumentMetadata(
                 identifier=identifier,
                 doc_type=dtype,
-                metadata=row  # Pass full row as metadata
+                metadata=row,  # Pass full row as metadata
             )
 
     def list_documents(self, doc_type: DocumentType | None = None) -> Table:
@@ -93,7 +93,9 @@ class DbOutputSink(OutputSink):
             if table_name:
                 t = self.repository.db.read_table(table_name)
                 # Mutate to match expected schema
-                return t.select(storage_identifier=t.id, mtime_ns=t.created_at.epoch_seconds() * 1_000_000_000)
+                return t.select(
+                    storage_identifier=t.id, mtime_ns=t.created_at.epoch_seconds() * 1_000_000_000
+                )
 
         # Fallback or empty
         return self.repository.db._empty_document_table()
@@ -112,7 +114,7 @@ class DbOutputSink(OutputSink):
             DocumentType.PROFILE,
             DocumentType.JOURNAL,
             DocumentType.MEDIA,
-            DocumentType.ANNOTATION
+            DocumentType.ANNOTATION,
         ]
 
         for dtype in known_types:
@@ -124,5 +126,7 @@ class DbOutputSink(OutputSink):
     def get_format_instructions(self) -> str:
         return "Database persistence mode."
 
-    def finalize_window(self, window_label: str, profiles_updated: list[str], metadata: dict | None = None) -> None:
+    def finalize_window(
+        self, window_label: str, profiles_updated: list[str], metadata: dict | None = None
+    ) -> None:
         pass

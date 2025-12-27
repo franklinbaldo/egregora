@@ -37,7 +37,9 @@ class ZipMemberSizeError(ZipValidationError):
         self.member_name = member_name
         self.member_size = member_size
         self.max_member_size = max_member_size
-        super().__init__(f"ZIP member '{member_name}' ({member_size} bytes) exceeds maximum size of {max_member_size} bytes")
+        super().__init__(
+            f"ZIP member '{member_name}' ({member_size} bytes) exceeds maximum size of {max_member_size} bytes"
+        )
 
 
 class ZipTotalSizeError(ZipValidationError):
