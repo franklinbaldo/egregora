@@ -242,7 +242,9 @@ class MkDocsAdapter(BaseOutputSink):
                 # Media files: stay in media_dir
                 return self.media_dir / identifier
             case _:
-                raise UnsupportedDocumentTypeError(doc_type.value)
+                # Handle both enum and string types
+                doc_type_str = doc_type.value if hasattr(doc_type, "value") else str(doc_type)
+                raise UnsupportedDocumentTypeError(doc_type_str)
 
     def get(self, doc_type: DocumentType, identifier: str) -> Document:
         path = self._resolve_document_path(doc_type, identifier)
@@ -258,6 +260,9 @@ class MkDocsAdapter(BaseOutputSink):
             post = frontmatter.load(str(path))
             metadata, actual_content = post.metadata, post.content
         except OSError as e:
+            raise DocumentParsingError(str(path), str(e)) from e
+        except Exception as e:
+            # Catch YAML parsing errors and other frontmatter exceptions
             raise DocumentParsingError(str(path), str(e)) from e
 
         return Document(content=actual_content, type=doc_type, metadata=metadata)
@@ -309,6 +314,8 @@ class MkDocsAdapter(BaseOutputSink):
         try:
             config = safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
         except yaml.YAMLError as exc:
+            raise ConfigLoadError(str(mkdocs_path), str(exc)) from exc
+        except (OSError, FileNotFoundError) as exc:
             raise ConfigLoadError(str(mkdocs_path), str(exc)) from exc
         return config
 
@@ -604,8 +611,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         """
         if not hasattr(self, "_site_root") or self._site_root is None:
-            msg = "MkDocsOutputAdapter not initialized - call initialize() first"
-            raise RuntimeError(msg)
+            raise AdapterNotInitializedError("MkDocsOutputAdapter")
 
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()
