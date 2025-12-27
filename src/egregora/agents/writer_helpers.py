@@ -23,7 +23,6 @@ from egregora.agents.tools.writer_tools import (
     generate_banner_impl,
     read_profile_impl,
     search_media_impl,
-    write_post_impl,
     write_profile_impl,
 )
 from egregora.agents.types import (
@@ -102,13 +101,7 @@ def register_writer_tools(
         if isinstance(meta_dict, dict):
             meta_dict["model"] = ctx.deps.model_name
 
-        tool_ctx = ToolContext(
-            output_sink=ctx.deps.output_sink,
-            window_label=ctx.deps.window_label,
-            task_store=ctx.deps.resources.task_store,
-            run_id=ctx.deps.resources.run_id,
-        )
-        return write_post_impl(tool_ctx, meta_dict, content)
+        return ctx.deps.write_post(meta_dict, content)
 
     @agent.tool
     def read_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str) -> ReadProfileResult:
