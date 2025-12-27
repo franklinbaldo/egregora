@@ -26,7 +26,6 @@ from egregora.agents.writer_helpers import (
     validate_prompt_fits,
 )
 from egregora.config.settings import google_api_key_status
-from egregora.utils.model_fallback import create_fallback_model
 
 if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig
@@ -69,7 +68,8 @@ async def create_writer_model(
         )
         raise ValueError(msg)
 
-    model = create_fallback_model(config.models.writer, use_google_batch=False)
+    # Infer model from config string (e.g., "google-gla:gemini-2.0-flash")
+    model = infer_model(config.models.writer)
     # Validate prompt fits (only check for real models)
     await validate_prompt_fits(prompt, config.models.writer, config, context.window_label)
     return model
