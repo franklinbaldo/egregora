@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 import xml.etree.ElementTree as ET
-from pathlib import Path
 
 import pytest
 from hypothesis import given, settings, HealthCheck, strategies as st
@@ -14,7 +13,6 @@ from egregora_v3.core.types import (
     Link,
     InReplyTo
 )
-from egregora_v3.infra.sinks.atom import AtomSink
 
 # --- Strategies ---
 
@@ -28,7 +26,6 @@ def document_strategy():
         content=xml_safe_text(min_size=1),
         doc_type=st.sampled_from(DocumentType),
         title=xml_safe_text(min_size=1),
-        slug=st.one_of(st.none(), st.text(min_size=1, alphabet=st.characters(whitelist_categories=('L', 'N')))),
         searchable=st.booleans(),
     )
 
@@ -58,18 +55,8 @@ def feed_strategy():
         entries=st.lists(entry_strategy(), max_size=5)
     )
 
-# --- Helpers ---
-
-def render_feed(feed: Feed, tmp_path: Path) -> str:
-    """Helper to render a feed to XML using AtomSink."""
-    output_path = tmp_path / "feed.xml"
-    sink = AtomSink(output_path)
-    sink.publish(feed)
-    return output_path.read_text(encoding="utf-8")
-
 # --- Tests ---
 
-@settings(suppress_health_check=[HealthCheck.too_slow])
 @given(document_strategy())
 def test_document_invariants(doc: Document):
     """Test core invariants for Document creation."""
@@ -107,7 +94,7 @@ def test_document_semantic_identity():
         content="content",
         doc_type=DocumentType.POST,
         title="Title",
-        slug=slug
+        internal_metadata={"slug": slug}
     )
 
     assert doc.id == slug
@@ -120,9 +107,9 @@ def test_document_semantic_identity():
 # Therefore, we suppress the check to ensure stability.
 @settings(suppress_health_check=[HealthCheck.too_slow], deadline=None)
 @given(feed_strategy())
-def test_feed_xml_validity(feed: Feed, tmp_path: Path):
+def test_feed_xml_validity(feed: Feed):
     """Test that generated XML is valid and parseable."""
-    xml_str = render_feed(feed, tmp_path)
+    xml_str = feed.to_xml()
 
     # 1. Must be parseable
     root = ET.fromstring(xml_str)
@@ -139,7 +126,7 @@ def test_feed_xml_validity(feed: Feed, tmp_path: Path):
     # 4. Check Threading Namespace if present
     # This is harder to test with ElementTree simplistic API, but if it parsed, it's well-formed.
 
-def test_threading_extension_xml(tmp_path: Path):
+def test_threading_extension_xml():
     """Specific test for RFC 4685 threading output."""
     entry = Entry(
         id="child",
@@ -154,7 +141,7 @@ def test_threading_extension_xml(tmp_path: Path):
         entries=[entry]
     )
 
-    xml_str = render_feed(feed, tmp_path)
+    xml_str = feed.to_xml()
 
     # We expect thr:in-reply-to
     assert 'xmlns:thr="http://purl.org/syndication/thread/1.0"' in xml_str

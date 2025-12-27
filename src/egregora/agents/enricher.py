@@ -34,6 +34,7 @@ from pydantic import BaseModel
 
 # UrlContextTool is the client-side fetcher (alias for WebFetchTool) suitable for pydantic-ai
 from pydantic_ai import Agent, RunContext, UrlContextTool
+from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import BinaryContent
 
 from egregora.config.settings import EnrichmentSettings
@@ -45,7 +46,7 @@ from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
-from egregora.utils.model_fallback import create_fallback_model
+from egregora.utils.env import get_google_api_key
 from egregora.utils.paths import slugify
 from egregora.utils.zip import validate_zip_contents
 
@@ -761,13 +762,21 @@ class EnrichmentWorker(BaseWorker):
 
     def _enrich_single_url(self, task_data: dict) -> tuple[dict, EnrichmentOutput | None, str | None]:
         """Enrich a single URL with fallback support (sync wrapper)."""
+        from pydantic_ai.models.google import GoogleModel
+        from pydantic_ai.providers.google import GoogleProvider
+
         task = task_data["task"]
         url = task_data["url"]
         prompt = task_data["prompt"]
 
         try:
             # Create agent with fallback
-            model = create_fallback_model(self.ctx.config.models.enricher)
+            model_name = self.ctx.config.models.enricher
+            provider = GoogleProvider(api_key=get_google_api_key())
+            model = GoogleModel(
+                model_name.removeprefix("google-gla:"),
+                provider=provider,
+            )
 
             # REGISTER TOOLS:
             # 1. UrlContextTool: Standard client-side fetcher (primary)
@@ -989,9 +998,7 @@ class EnrichmentWorker(BaseWorker):
             rotator = ModelKeyRotator(models=rotation_models)
 
             def call_with_model_and_key(model: str, api_key: str) -> str:
-                from egregora.llm.providers.openrouter import create_llm_client
-
-                client = create_llm_client(model=model, api_key=api_key)
+                client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
                     model=model,
                     contents=[{"parts": [{"text": combined_prompt}]}],
@@ -1304,21 +1311,11 @@ class EnrichmentWorker(BaseWorker):
         self, requests: list[dict[str, Any]], task_map: dict[str, dict[str, Any]]
     ) -> list[Any]:
         """Execute media enrichments based on configured strategy."""
-        from egregora.llm.providers.openrouter import is_openrouter_model
-
         model_name = self.ctx.config.models.enricher_vision
-
-        # Detect which API key to use based on model format
-        if is_openrouter_model(model_name):
-            api_key = os.environ.get("OPENROUTER_API_KEY")
-            if not api_key:
-                msg = f"OPENROUTER_API_KEY required for model: {model_name}"
-                raise ValueError(msg)
-        else:
-            api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-            if not api_key:
-                msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for media enrichment"
-                raise ValueError(msg)
+        api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for media enrichment"
+            raise ValueError(msg)
 
         # Use strategy-based dispatch
         strategy = getattr(self.enrichment_config, "strategy", "individual")
@@ -1335,14 +1332,8 @@ class EnrichmentWorker(BaseWorker):
         # Standard batch API (one request per image)
         model = GoogleBatchModel(api_key=api_key, model_name=model_name)
         try:
-            # Create a new event loop for this thread to avoid "Event loop is closed" errors
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                return loop.run_until_complete(model.run_batch(requests))
-            finally:
-                loop.close()
-        except Exception as batch_exc:  # noqa: BLE001
+            return asyncio.run(model.run_batch(requests))
+        except (UsageLimitExceeded, ModelHTTPError) as batch_exc:
             # Batch failed (likely quota exceeded) - fallback to individual calls
             logger.warning(
                 "Batch API failed (%s), falling back to individual calls for %d requests",
@@ -1407,53 +1398,33 @@ class EnrichmentWorker(BaseWorker):
         # Build the request: prompt first, then all images
         request_parts = [{"text": combined_prompt}, *parts]
 
-        # Check if configured model is OpenRouter - if so, skip Gemini rotation
-        from egregora.llm.providers.openrouter import is_openrouter_model
+        # Build model+key rotator if enabled
+        from egregora.llm.providers.model_key_rotator import ModelKeyRotator
 
-        if is_openrouter_model(model_name):
-            # OpenRouter model - use it directly without rotation
-            from egregora.llm.providers.openrouter import create_llm_client
+        rotation_enabled = getattr(self.enrichment_config, "model_rotation_enabled", True)
+        rotation_models = getattr(self.enrichment_config, "rotation_models", None)
 
-            client = create_llm_client(model=model_name, api_key=api_key)
+        if rotation_enabled:
+            rotator = ModelKeyRotator(models=rotation_models)
+
+            def call_with_model_and_key(model: str, api_key: str) -> str:
+                client = genai.Client(api_key=api_key)
+                response = client.models.generate_content(
+                    model=model,
+                    contents=[{"parts": request_parts}],
+                    config=types.GenerateContentConfig(response_mime_type="application/json"),
+                )
+                return response.text or ""
+
+            response_text = rotator.call_with_rotation(call_with_model_and_key)
+        else:
+            # No rotation - use configured model and API key
             response = client.models.generate_content(
                 model=model_name,
                 contents=[{"parts": request_parts}],
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
             response_text = response.text if response.text else ""
-        else:
-            # Gemini model - use rotation if enabled
-            from egregora.llm.providers.model_key_rotator import ModelKeyRotator
-
-            rotation_enabled = getattr(self.enrichment_config, "model_rotation_enabled", True)
-            rotation_models = getattr(self.enrichment_config, "rotation_models", None)
-
-            if rotation_enabled:
-                rotator = ModelKeyRotator(models=rotation_models)
-
-                def call_with_model_and_key(model: str, api_key: str) -> str:
-                    from egregora.llm.providers.openrouter import create_llm_client
-
-                    client = create_llm_client(model=model, api_key=api_key)
-                    response = client.models.generate_content(
-                        model=model,
-                        contents=[{"parts": request_parts}],
-                        config=types.GenerateContentConfig(response_mime_type="application/json"),
-                    )
-                    return response.text or ""
-
-                response_text = rotator.call_with_rotation(call_with_model_and_key)
-            else:
-                # No rotation - use configured model and API key
-                from egregora.llm.providers.openrouter import create_llm_client
-
-                client = create_llm_client(model=model_name, api_key=api_key)
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=[{"parts": request_parts}],
-                    config=types.GenerateContentConfig(response_mime_type="application/json"),
-                )
-                response_text = response.text if response.text else ""
 
         logger.debug(
             "[MediaEnricher] Single-call response received. Length: %d characters.", len(response_text)

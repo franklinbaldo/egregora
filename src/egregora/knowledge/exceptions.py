@@ -14,17 +14,8 @@ class ProfileNotFoundError(ProfileError):
         self.path = path
 
 
-class ProfileParsingError(ProfileError):
-    """Raised when a profile file cannot be parsed."""
-
-    def __init__(self, profile_path: str, message: str) -> None:
-        self.profile_path = profile_path
-        self.path = profile_path
-        super().__init__(f"Failed to parse profile at {profile_path}: {message}")
-
-
 class ProfileParseError(ProfileError):
-    """Raised when a profile file is malformed."""
+    """Raised when a profile file cannot be parsed."""
 
     def __init__(self, message: str, *, path: str | None = None) -> None:
         super().__init__(message)

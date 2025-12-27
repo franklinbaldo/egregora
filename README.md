@@ -22,13 +22,16 @@ Egregora transforms a WhatsApp export (ZIP) into a static website powered by [Ma
 
 ### 1. Installation
 
-For detailed setup instructions, see the [**Installation Guide**](docs/getting-started/installation.md).
+Install Egregora using [uv](https://github.com/astral-sh/uv) (requires Python 3.12+):
 
 ```bash
-# Quick start:
+uv tool install git+https://github.com/franklinbaldo/egregora
+```
+
+You will also need a Google Gemini API key (free tier available):
+
+```bash
 export GOOGLE_API_KEY="your-api-key"
-alias eg="uvx --from git+https://github.com/franklinbaldo/egregora egregora"
-eg --help
 ```
 
 ### 2. The Workflow
@@ -36,21 +39,23 @@ eg --help
 **1. Initialize a new site:**
 
 ```bash
-eg init ./my-blog
+egregora init ./my-blog
 cd my-blog
 ```
+
+Egregora automatically bootstraps `.egregora` (mkdocs config, cache, RAG, and LanceDB directories) when you run `egregora init` or `egregora write`. Use `python scripts/bootstrap_site.py ./my-blog` (or `python ../scripts/bootstrap_site.py .` from inside the site) only if you need to regenerate the scaffolding manually.
 
 **2. Generate posts from your chat export:**
 
 ```bash
-eg write path/to/chat_export.zip --output=.
+egregora write path/to/chat_export.zip --output=.
 ```
 
 **3. Preview your site:**
 
 ```bash
-# The 'serve' command is a pass-through to 'mkdocs serve'
-eg serve -f .egregora/mkdocs.yml
+uv sync --all-extras
+uv run mkdocs serve -f .egregora/mkdocs.yml
 ```
 
 *Visit <http://localhost:8000> to read your new blog.*
@@ -139,8 +144,8 @@ You can extend Egregora to read from other sources (e.g., Slack, Telegram) by im
 
 We welcome contributions! Please check out:
 
-* **[Technical Reference](docs/reference/index.md):** Deep dive into CLI commands and architecture.
-* **[Code of the Weaver](docs/CLAUDE.md):** Guidelines for contributors and AI agents.
+* **[Technical Reference](docs/reference.md):** Deep dive into CLI commands and architecture.
+* **[Code of the Weaver](CLAUDE.md):** Guidelines for contributors and AI agents.
 
 To run tests:
 

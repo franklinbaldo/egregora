@@ -43,7 +43,7 @@ def test_embed_fn_uses_rag_settings_for_router(
     monkeypatch: pytest.MonkeyPatch,
     config_factory,  # Use factory fixture
 ) -> None:
-    """Embedding router should be constructed with configured RAG settings via strategy pattern."""
+    """Embedding router should be constructed with configured RAG settings."""
 
     # Use factory to create config with specific test values
     config = config_factory(
@@ -54,14 +54,11 @@ def test_embed_fn_uses_rag_settings_for_router(
 
     monkeypatch.setattr(egregora_config, "load_egregora_config", lambda _path=None: config)
 
-    # Mock the strategy to verify it's called correctly
-    mock_strategy = Mock()
-    mock_strategy.embed.return_value = [[0.1]]
+    created_router = Mock()
+    created_router.embed.return_value = [[0.1]]
 
-    from egregora.rag.strategies import EmbeddingProviderFactory
-
-    factory_mock = Mock(return_value=mock_strategy)
-    monkeypatch.setattr(EmbeddingProviderFactory, "create", factory_mock)
+    get_router_mock = Mock(return_value=created_router)
+    monkeypatch.setattr(rag, "get_embedding_router", get_router_mock)
 
     class DummyBackend:
         def __init__(self, *, embed_fn, **_: object) -> None:
@@ -72,11 +69,8 @@ def test_embed_fn_uses_rag_settings_for_router(
     # Get backend (which will initialize with embed_fn)
     rag.get_backend()
 
-    # Call embed_fn to trigger strategy usage
+    # Call embed_fn to trigger router usage
     rag.embed_fn(("hello",), "RETRIEVAL_DOCUMENT")
 
-    # Verify factory was called with correct model
-    factory_mock.assert_called_once_with("models/test-embedding")
-
-    # Verify strategy was called with the text
-    mock_strategy.embed.assert_called_once_with(["hello"], task_type="RETRIEVAL_DOCUMENT")
+    # Verify router was called with the text
+    created_router.embed.assert_called_once_with(["hello"], task_type="RETRIEVAL_DOCUMENT")

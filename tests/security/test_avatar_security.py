@@ -38,20 +38,3 @@ def test_ssrf_error_message_is_not_masked(tmp_path: Path):
     assert "resolves to blocked IP" in error_message
     assert "Access to private/internal networks is not allowed" in error_message
     assert "Failed to download avatar" not in error_message
-
-
-@respx.mock
-def test_ssrf_direct_attempt_is_blocked(tmp_path: Path):
-    """
-    Verify that a direct attempt to access a private URL is blocked.
-    """
-    # Mock the request to the private URL. The validation should prevent this from being called.
-    respx.get(PRIVATE_URL).mock(return_value=Response(200, content=b"fake-image-data"))
-
-    with pytest.raises(AvatarProcessingError) as exc_info:
-        download_avatar_from_url(url=PRIVATE_URL, media_dir=tmp_path)
-
-    error_message = str(exc_info.value)
-    assert "resolves to blocked IP" in error_message
-    assert "Access to private/internal networks is not allowed" in error_message
-    assert "Failed to download avatar" not in error_message

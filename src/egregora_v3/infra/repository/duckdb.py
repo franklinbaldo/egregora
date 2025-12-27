@@ -88,30 +88,34 @@ class DuckDBDocumentRepository(DocumentRepository):
         order_by: str | None = None,
         limit: int | None = None,
     ) -> list[Document]:
-        """Lists documents, optionally filtered by type."""
+        """Lists documents, optionally filtered, sorted, and limited."""
         t = self._get_table()
         query = t
+
+        # Filtering
         if doc_type:
             query = query.filter(query.doc_type == doc_type.value)
         else:
-            # Exclude raw entries when listing all "Documents"
             query = query.filter(query.doc_type != "_ENTRY_")
 
+        # Sorting
         if order_by:
-            if hasattr(query, order_by):
-                query = query.order_by(ibis.desc(order_by))
-            else:
-                # Handle cases where `order_by` is not a direct column (e.g., in JSON)
-                # For simplicity, this example assumes `updated` is the main sort key.
-                # A more robust solution might use raw SQL or more complex Ibis expressions.
-                if order_by == "updated":
-                    query = query.order_by(ibis.desc("updated"))
+            order_desc = order_by.startswith("-")
+            order_col = order_by.lstrip("-")
 
+            if hasattr(query, order_col):
+                col = getattr(query, order_col)
+                query = query.order_by(ibis.desc(col) if order_desc else col)
+            else:
+                # Handle sorting by fields inside the JSON blob if necessary in the future
+                # For now, we only support top-level columns like 'updated'.
+                pass
+
+        # Limiting
         if limit:
             query = query.limit(limit)
-        result = query.select("doc_type", "json_data").execute()
 
-        # We know these are Documents, so the list comprehension cast is safe.
+        result = query.select("doc_type", "json_data").execute()
         return [self._hydrate_object(row["json_data"], row["doc_type"]) for _, row in result.iterrows()]
 
     def delete(self, doc_id: str) -> None:

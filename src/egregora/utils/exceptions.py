@@ -1,38 +1,39 @@
-"""Exceptions for the utils package."""
-
-from __future__ import annotations
+"""Custom exceptions for filesystem operations."""
 
 
-class UtilsError(Exception):
-    """Base class for exceptions in this module."""
+class FilesystemError(Exception):
+    """Base exception for filesystem-related errors."""
 
 
-class AuthorsFileError(UtilsError):
-    """Base class for errors related to the .authors.yml file."""
+class MissingMetadataError(FilesystemError):
+    """Raised when required metadata for a post is missing."""
+
+    def __init__(self, missing_keys: list[str]) -> None:
+        self.missing_keys = missing_keys
+        message = f"Missing required metadata keys: {', '.join(missing_keys)}"
+        super().__init__(message)
 
 
-class AuthorsFileParseError(AuthorsFileError):
-    """Raised when the .authors.yml file cannot be parsed."""
+class UniqueFilenameError(FilesystemError):
+    """Raised when a unique filename cannot be generated after a set number of attempts."""
+
+    def __init__(self, base_slug: str, attempts: int) -> None:
+        self.base_slug = base_slug
+        self.attempts = attempts
+        message = f"Could not generate a unique filename for slug '{base_slug}' after {attempts} attempts."
+        super().__init__(message)
 
 
-class AuthorsFileIOError(AuthorsFileError):
-    """Raised when there is an error reading or writing the .authors.yml file."""
+class MissingPostMetadataError(FilesystemError):
+    """Raised when required post metadata is missing."""
+
+    def __init__(self, missing_key: str) -> None:
+        self.missing_key = missing_key
+        super().__init__(f"Missing required metadata key: '{self.missing_key}'")
 
 
-class PostParseError(UtilsError):
-    """Raised when a post file cannot be parsed."""
-
-
-class PathResolutionError(UtilsError):
-    """Raised when a path cannot be resolved."""
-
-
-class InvalidFrontmatterError(UtilsError):
-    """Raised for invalid frontmatter."""
-
-
-class FrontmatterDateFormattingError(InvalidFrontmatterError):
-    """Raised for date formatting errors in frontmatter."""
+class FrontmatterDateFormattingError(FilesystemError):
+    """Raised when a date string for frontmatter cannot be parsed."""
 
     def __init__(self, date_str: str, original_exception: Exception) -> None:
         self.date_str = date_str
@@ -43,20 +44,51 @@ class FrontmatterDateFormattingError(InvalidFrontmatterError):
         )
 
 
-class MissingMetadataError(InvalidFrontmatterError):
-    """Raised when required metadata is missing."""
+class FilesystemOperationError(FilesystemError):
+    """Base exception for file I/O errors."""
 
-    def __init__(self, missing_keys: list[str]) -> None:
-        self.missing_keys = missing_keys
-        message = f"Missing required metadata keys: {', '.join(missing_keys)}"
+    def __init__(self, path: str, original_exception: Exception, message: str | None = None) -> None:
+        self.path = path
+        self.original_exception = original_exception
+        if message is None:
+            message = f"An error occurred at path: {self.path}. Original error: {original_exception}"
         super().__init__(message)
 
 
-class UniqueFilenameError(UtilsError):
-    """Raised when a unique filename cannot be generated."""
+class DirectoryCreationError(FilesystemOperationError):
+    """Raised when creating a directory fails."""
 
-    def __init__(self, base_slug: str, attempts: int) -> None:
-        self.base_slug = base_slug
-        self.attempts = attempts
-        message = f"Could not generate a unique filename for slug '{base_slug}' after {attempts} attempts."
+    def __init__(self, path: str, original_exception: Exception) -> None:
+        message = f"Failed to create directory at: {path}. Original error: {original_exception}"
+        super().__init__(path, original_exception, message=message)
+
+
+class FileWriteError(FilesystemOperationError):
+    """Raised when writing a file fails."""
+
+    def __init__(self, path: str, original_exception: Exception) -> None:
+        message = f"Failed to write file to: {path}. Original error: {original_exception}"
+        super().__init__(path, original_exception, message=message)
+
+
+class DateExtractionError(FilesystemError):
+    """Raised when a date cannot be extracted from a string."""
+
+    def __init__(self, date_str: str) -> None:
+        self.date_str = date_str
+        message = f"Could not extract a valid date from '{self.date_str}'"
+        super().__init__(message)
+
+
+class CacheError(Exception):
+    """Base exception for cache-related errors."""
+
+
+class CacheDeserializationError(CacheError):
+    """Raised when a cache entry cannot be deserialized."""
+
+    def __init__(self, key: str, original_exception: Exception) -> None:
+        self.key = key
+        self.original_exception = original_exception
+        message = f"Failed to deserialize cache entry for key '{key}'. Original error: {original_exception}"
         super().__init__(message)
