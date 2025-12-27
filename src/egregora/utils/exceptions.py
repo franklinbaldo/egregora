@@ -94,6 +94,10 @@ class CacheDeserializationError(CacheError):
         super().__init__(message)
 
 
+class UtilsError(Exception):
+    """Base exception for utilities-related errors."""
+
+
 class ModelError(UtilsError):
     """Base class for model-related errors."""
 
