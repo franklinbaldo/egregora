@@ -18,7 +18,56 @@ __all__ = [
 
 
 class ZipValidationError(ValueError):
-    """Raised when a ZIP archive fails validation checks."""
+    """Base exception for ZIP archive validation errors."""
+
+
+class ZipMemberCountError(ZipValidationError):
+    """Raised when a ZIP archive exceeds the maximum number of members."""
+
+    def __init__(self, member_count: int, max_member_count: int):
+        self.member_count = member_count
+        self.max_member_count = max_member_count
+        super().__init__(f"ZIP archive contains too many files ({member_count} > {max_member_count})")
+
+
+class ZipMemberSizeError(ZipValidationError):
+    """Raised when a member in a ZIP archive exceeds the maximum allowed size."""
+
+    def __init__(self, member_name: str, member_size: int, max_member_size: int):
+        self.member_name = member_name
+        self.member_size = member_size
+        self.max_member_size = max_member_size
+        super().__init__(f"ZIP member '{member_name}' ({member_size} bytes) exceeds maximum size of {max_member_size} bytes")
+
+
+class ZipTotalSizeError(ZipValidationError):
+    """Raised when the total uncompressed size of a ZIP archive exceeds the maximum."""
+
+    def __init__(self, total_size: int, max_total_size: int):
+        self.total_size = total_size
+        self.max_total_size = max_total_size
+        super().__init__(f"ZIP archive uncompressed size ({total_size} bytes) exceeds {max_total_size} bytes")
+
+
+class ZipCompressionBombError(ZipValidationError):
+    """Raised when a ZIP member has a suspiciously high compression ratio."""
+
+    def __init__(self, member_name: str, ratio: float, max_ratio: float):
+        self.member_name = member_name
+        self.ratio = ratio
+        self.max_ratio = max_ratio
+        super().__init__(
+            f"ZIP member '{member_name}' has suspicious compression ratio "
+            f"({self.ratio:.1f}:1 > {self.max_ratio}:1). This may indicate a zip bomb attack."
+        )
+
+
+class ZipPathTraversalError(ZipValidationError):
+    """Raised when a ZIP member's path is unsafe (absolute or traversal)."""
+
+    def __init__(self, member_name: str):
+        self.member_name = member_name
+        super().__init__(f"ZIP member path is unsafe: '{member_name}'")
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,29 +136,22 @@ def validate_zip_contents(
     total_size = 0
     members = zf.infolist()
     if len(members) > limits.max_member_count:
-        msg = f"ZIP archive contains too many files ({len(members)} > {limits.max_member_count})"
-        raise ZipValidationError(msg)
+        raise ZipMemberCountError(len(members), limits.max_member_count)
+
     for info in members:
         _ensure_safe_path(info.filename)
         if info.file_size > limits.max_member_size:
-            msg = f"ZIP member '{info.filename}' exceeds maximum size of {limits.max_member_size} bytes"
-            raise ZipValidationError(msg)
+            raise ZipMemberSizeError(info.filename, info.file_size, limits.max_member_size)
 
         # Check compression ratio to detect zip bombs
         if info.compress_size > 0 and info.file_size > 0:
             ratio = info.file_size / info.compress_size
             if ratio > limits.max_compression_ratio:
-                msg = (
-                    f"ZIP member '{info.filename}' has suspicious compression ratio "
-                    f"({ratio:.1f}:1 > {limits.max_compression_ratio}:1). "
-                    f"This may indicate a zip bomb attack."
-                )
-                raise ZipValidationError(msg)
+                raise ZipCompressionBombError(info.filename, ratio, limits.max_compression_ratio)
 
         total_size += info.file_size
         if total_size > limits.max_total_size:
-            msg = f"ZIP archive uncompressed size exceeds {limits.max_total_size} bytes"
-            raise ZipValidationError(msg)
+            raise ZipTotalSizeError(total_size, limits.max_total_size)
 
 
 def ensure_safe_member_size(
@@ -122,8 +164,7 @@ def ensure_safe_member_size(
     limits = limits or _ZipConfig.defaults
     info = zf.getinfo(member_name)
     if info.file_size > limits.max_member_size:
-        msg = f"ZIP member '{member_name}' exceeds maximum size of {limits.max_member_size} bytes"
-        raise ZipValidationError(msg)
+        raise ZipMemberSizeError(member_name, info.file_size, limits.max_member_size)
 
 
 def _ensure_safe_path(member_name: str) -> None:
@@ -132,12 +173,10 @@ def _ensure_safe_path(member_name: str) -> None:
     # Using string checks is more reliable for cross-platform validation than pathlib.
     is_abs = member_name.startswith(("/", "\\")) or (len(member_name) > 1 and member_name[1] == ":")
     if is_abs:
-        msg = f"ZIP member uses absolute path: {member_name}"
-        raise ZipValidationError(msg)
+        raise ZipPathTraversalError(member_name)
 
     # Check for path traversal. Normalizing separators and wrapping with slashes
     # handles cases like '../foo', 'foo/..', and 'foo/../bar'.
     normalized_path = member_name.replace("\\", "/")
     if "/../" in f"/{normalized_path}/":
-        msg = f"ZIP member attempts path traversal: {member_name}"
-        raise ZipValidationError(msg)
+        raise ZipPathTraversalError(member_name)
