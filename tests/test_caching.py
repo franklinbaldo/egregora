@@ -1,3 +1,4 @@
+import json
 import shutil
 import tempfile
 from pathlib import Path
@@ -5,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from egregora.utils.cache import CacheTier, PipelineCache, make_enrichment_cache_key
+from egregora.utils.exceptions import CacheDeserializationError
 
 
 @pytest.fixture
@@ -80,3 +82,64 @@ def test_force_refresh(temp_cache_dir):
 
     writer_refresh_cache.close()
     enrichment_refresh_cache.close()
+
+
+def test_enrichment_deserialization_error(temp_cache_dir, mocker):
+    """Verify deserialization errors are caught and the key is deleted."""
+    cache = PipelineCache(temp_cache_dir)
+    key = "corrupted-key"
+
+    # Mock the backend's get method to simulate a JSON decoding error
+    mocker.patch.object(
+        cache.enrichment.backend,
+        "get",
+        side_effect=json.JSONDecodeError("mock error", "", 0),
+    )
+    # Spy on the delete method to ensure it's called
+    delete_spy = mocker.spy(cache.enrichment.backend, "delete")
+
+    # The load method should catch the JSON error, raise our custom exception,
+    # and delete the corrupted key.
+    with pytest.raises(CacheDeserializationError):
+        cache.enrichment.load(key)
+
+    delete_spy.assert_called_once_with(key)
+    cache.close()
+
+
+def test_rag_cache_persistence(temp_cache_dir):
+    """Verify that RAG cache persists to disk."""
+    cache = PipelineCache(temp_cache_dir)
+    key = "test-rag-key"
+    value = {"embeddings": [0.1, 0.2, 0.3], "metadata": {"source": "test.txt"}}
+
+    # Store in cache
+    cache.rag.set(key, value)
+    cache.close()
+
+    # Re-open cache
+    new_cache = PipelineCache(temp_cache_dir)
+    loaded = new_cache.rag.get(key)
+
+    assert loaded is not None
+    assert loaded["embeddings"] == [0.1, 0.2, 0.3]
+    new_cache.close()
+
+
+def test_enrichment_invalid_payload_type(temp_cache_dir, mocker):
+    """Verify that a non-dict payload is handled gracefully."""
+    cache = PipelineCache(temp_cache_dir)
+    key = "invalid-payload-key"
+
+    # Store a non-dictionary value
+    cache.enrichment.backend.set(key, "this is a string, not a dict")
+
+    # Spy on the delete method
+    delete_spy = mocker.spy(cache.enrichment.backend, "delete")
+
+    # The load method should return None and delete the invalid entry
+    loaded = cache.enrichment.load(key)
+    assert loaded is None
+
+    delete_spy.assert_called_once_with(key)
+    cache.close()
