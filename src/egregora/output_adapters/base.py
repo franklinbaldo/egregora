@@ -14,6 +14,11 @@ import ibis.expr.datatypes as dt
 import yaml
 
 from egregora.data_primitives import DocumentMetadata, OutputSink, UrlConvention
+from egregora.output_adapters.exceptions import (
+    FilenameGenerationError,
+    FrontmatterParsingError,
+    RegistryNotProvidedError,
+)
 from egregora.utils import safe_path_join, slugify
 
 if TYPE_CHECKING:
@@ -61,7 +66,7 @@ class BaseOutputSink(OutputSink, ABC):
         """Persist a document so it becomes available at its canonical path."""
 
     @abstractmethod
-    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
+    def get(self, doc_type: DocumentType, identifier: str) -> Document:
         """Retrieve a single document by its ``doc_type`` primary identifier."""
 
     @property
@@ -123,7 +128,7 @@ class BaseOutputSink(OutputSink, ABC):
 
         return ibis.memtable(rows, schema=DOCUMENT_INVENTORY_SCHEMA)
 
-    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
+    def read_document(self, doc_type: DocumentType, identifier: str) -> Document:
         """Backward-compatible alias for :meth:`get`."""
         return self.get(doc_type, identifier)
 
@@ -237,8 +242,7 @@ class BaseOutputSink(OutputSink, ABC):
             if not filepath.exists():
                 return filepath
 
-        msg = f"Could not generate unique filename after {max_attempts} attempts: {filename_pattern}"
-        raise RuntimeError(msg)
+        raise FilenameGenerationError(filename_pattern, max_attempts)
 
     def parse_frontmatter(self, content: str) -> tuple[dict, str]:
         """Parse frontmatter from markdown content."""
@@ -257,8 +261,7 @@ class BaseOutputSink(OutputSink, ABC):
         try:
             metadata = yaml.safe_load(frontmatter_text) or {}
         except yaml.YAMLError as e:
-            msg = f"Invalid YAML frontmatter: {e}"
-            raise ValueError(msg) from e
+            raise FrontmatterParsingError(str(e)) from e
 
         return metadata, body
 
@@ -330,8 +333,7 @@ def create_output_sink(
 ) -> BaseOutputSink:
     """Create and initialize a BaseOutputSink based on configuration."""
     if registry is None:
-        msg = "An OutputSinkRegistry instance must be provided to create output formats."
-        raise ValueError(msg)
+        raise RegistryNotProvidedError()
 
     output_format = registry.get_format(format_type)
     output_format.initialize(site_root)
