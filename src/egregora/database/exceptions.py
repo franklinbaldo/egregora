@@ -5,20 +5,33 @@ class DatabaseError(Exception):
     """Base exception for database-related errors."""
 
 
-class TableNotFoundError(DatabaseError):
+class DatabaseObjectError(DatabaseError):
+    """Base for errors related to a specific database object (e.g., table, sequence)."""
+
+    def __init__(self, object_type: str, object_name: str, message: str | None = None) -> None:
+        self.object_type = object_type
+        self.object_name = object_name
+        if message is None:
+            message = f"{object_type.capitalize()} '{object_name}' not found"
+        super().__init__(message)
+
+
+class TableNotFoundError(DatabaseObjectError):
     """Raised when a table is not found in the database."""
 
     def __init__(self, table_name: str) -> None:
-        self.table_name = table_name
-        super().__init__(f"Table '{table_name}' not found in database")
+        super().__init__(
+            object_type="table",
+            object_name=table_name,
+            message=f"Table '{table_name}' not found in database",
+        )
 
 
-class SequenceNotFoundError(DatabaseError):
+class SequenceNotFoundError(DatabaseObjectError):
     """Raised when a sequence is not found in the database."""
 
     def __init__(self, sequence_name: str) -> None:
-        self.sequence_name = sequence_name
-        super().__init__(f"Sequence '{sequence_name}' not found")
+        super().__init__(object_type="sequence", object_name=sequence_name)
 
 
 class TableCreationError(DatabaseError):
