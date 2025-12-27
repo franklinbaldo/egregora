@@ -68,7 +68,15 @@ class PipelineFactory:
         # Initialize database tables (CREATE TABLE IF NOT EXISTS)
         initialize_database(pipeline_backend)
 
-        client_instance = run_params.client or PipelineFactory.create_gemini_client()
+        # Create appropriate client based on model configuration
+        if run_params.client:
+            client_instance = run_params.client
+        else:
+            from egregora.llm.providers.openrouter import create_llm_client
+            # Use writer model to determine which client to create
+            writer_model = run_params.config.models.writer
+            client_instance = create_llm_client(model=writer_model)
+
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
         site_paths.egregora_dir.mkdir(parents=True, exist_ok=True)

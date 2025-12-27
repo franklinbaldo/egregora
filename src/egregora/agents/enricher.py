@@ -989,7 +989,8 @@ class EnrichmentWorker(BaseWorker):
             rotator = ModelKeyRotator(models=rotation_models)
 
             def call_with_model_and_key(model: str, api_key: str) -> str:
-                client = genai.Client(api_key=api_key)
+                from egregora.llm.providers.openrouter import create_llm_client
+                client = create_llm_client(model=model, api_key=api_key)
                 response = client.models.generate_content(
                     model=model,
                     contents=[{"parts": [{"text": combined_prompt}]}],
@@ -1405,7 +1406,8 @@ class EnrichmentWorker(BaseWorker):
             rotator = ModelKeyRotator(models=rotation_models)
 
             def call_with_model_and_key(model: str, api_key: str) -> str:
-                client = genai.Client(api_key=api_key)
+                from egregora.llm.providers.openrouter import create_llm_client
+                client = create_llm_client(model=model, api_key=api_key)
                 response = client.models.generate_content(
                     model=model,
                     contents=[{"parts": request_parts}],
