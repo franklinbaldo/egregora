@@ -1442,12 +1442,14 @@ class EnrichmentWorker(BaseWorker):
                 response_text = rotator.call_with_rotation(call_with_model_and_key)
             else:
                 # No rotation - use configured model and API key
-            response = client.models.generate_content(
-                model=model_name,
-                contents=[{"parts": request_parts}],
-                config=types.GenerateContentConfig(response_mime_type="application/json"),
-            )
-            response_text = response.text if response.text else ""
+                from egregora.llm.providers.openrouter import create_llm_client
+                client = create_llm_client(model=model_name, api_key=api_key)
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=[{"parts": request_parts}],
+                    config=types.GenerateContentConfig(response_mime_type="application/json"),
+                )
+                response_text = response.text if response.text else ""
 
         logger.debug(
             "[MediaEnricher] Single-call response received. Length: %d characters.", len(response_text)
