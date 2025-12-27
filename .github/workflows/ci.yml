@@ -397,6 +397,149 @@ jobs:
               throw error;
             }
 
+  auto-merge-deps:
+    name: Auto-merge Dependency Bot PRs
+    runs-on: ubuntu-latest
+    needs: [pre-commit, test-unit, test-e2e]
+    if: |
+      github.event_name == 'pull_request' &&
+      !cancelled() &&
+      !contains(needs.*.result, 'failure') &&
+      (github.event.pull_request.user.login == 'dependabot[bot]' ||
+       github.event.pull_request.user.login == 'renovate[bot]')
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate PR changes (security)
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const prNumber = context.payload.pull_request.number;
+            const actor = context.payload.pull_request.user.login;
+
+            console.log('🔍 Validating PR changes for', actor);
+
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner,
+              repo,
+              pull_number: prNumber
+            });
+
+            const allowedPatterns = [
+              /^package\.json$/,
+              /^package-lock\.json$/,
+              /^pyproject\.toml$/,
+              /^uv\.lock$/,
+              /^requirements.*\.txt$/,
+              /^\.github\/workflows\/.*\.yml$/
+            ];
+
+            const unauthorizedFiles = files.filter(file =>
+              !allowedPatterns.some(pattern => pattern.test(file.filename))
+            );
+
+            if (unauthorizedFiles.length > 0) {
+              const fileList = unauthorizedFiles.map(f => f.filename).join(', ');
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body: `⚠️ **Auto-merge blocked**\n\nThis PR modifies files outside the allowed dependency file patterns:\n${unauthorizedFiles.map(f => `- ${f.filename}`).join('\n')}\n\nPlease review manually.`
+              });
+
+              core.setFailed(`PR contains unauthorized file changes: ${fileList}`);
+              throw new Error(`PR contains unauthorized file changes: ${fileList}`);
+            } else {
+              console.log('✅ All file changes are authorized');
+            }
+
+      - name: Get dependabot metadata
+        id: metadata
+        if: github.event.pull_request.user.login == 'dependabot[bot]'
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if should auto-merge
+        id: should-merge
+        uses: actions/github-script@v8
+        env:
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          ACTOR: ${{ github.event.pull_request.user.login }}
+        with:
+          script: |
+            const updateType = process.env.UPDATE_TYPE || '';
+            const actor = process.env.ACTOR;
+
+            console.log('Actor:', actor);
+            console.log('Update type:', updateType);
+
+            // Renovate bot: always auto-merge
+            // Dependabot: only patch/minor updates
+            const shouldMerge = actor === 'renovate[bot]' ||
+                                updateType === 'version-update:semver-patch' ||
+                                updateType === 'version-update:semver-minor';
+
+            console.log('Should auto-merge:', shouldMerge);
+            core.setOutput('should_merge', shouldMerge);
+
+            if (!shouldMerge && actor === 'dependabot[bot]') {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: `ℹ️ **Auto-merge skipped**\n\nThis is a ${updateType} update. Only patch and minor updates are auto-merged.\n\nPlease review and merge manually.`
+              });
+            }
+
+      - name: Merge PR
+        if: steps.should-merge.outputs.should_merge == 'true'
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const prNumber = context.payload.pull_request.number;
+            const actor = context.payload.pull_request.user.login;
+
+            console.log(`🔀 Merging ${actor} PR #${prNumber}...`);
+
+            try {
+              const mergeResult = await github.rest.pulls.merge({
+                owner,
+                repo,
+                pull_number: prNumber,
+                commit_title: `${context.payload.pull_request.title} (#${prNumber})`,
+                commit_message: 'Auto-merged by CI after all tests passed',
+                merge_method: 'squash'
+              });
+
+              console.log('✅ PR merged successfully:', mergeResult.data.sha);
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body: `✅ **Auto-merged by CI**\n\nAll tests passed and the dependency update has been automatically merged!\n\nCommit: ${mergeResult.data.sha}`
+              });
+            } catch (error) {
+              console.error(`❌ Failed to merge PR: ${error.message}`);
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body: `⚠️ **Auto-merge failed**\n\nAll tests passed, but automatic merge failed. Please merge manually.\n\nError: ${error.message}`
+              });
+
+              core.setFailed(`Failed to merge PR: ${error.message}`);
+              throw error;
+            }
+
   quality:
     name: Code Quality Metrics
     runs-on: ubuntu-latest
@@ -440,7 +583,7 @@ jobs:
   summary:
     name: Workflow Summary
     runs-on: ubuntu-latest
-    needs: [pre-commit, test-unit, test-e2e, security, quality, build, auto-merge-jules]
+    needs: [pre-commit, test-unit, test-e2e, security, quality, build, auto-merge-jules, auto-merge-deps]
     if: always()
     steps:
       - name: Post summary
@@ -457,4 +600,5 @@ jobs:
           | Quality | ${{ needs.quality.result || 'skipped' }} |
           | Build | ${{ needs.build.result || 'skipped' }} |
           | Auto-merge Jules | ${{ needs['auto-merge-jules'].result || 'skipped' }} |
+          | Auto-merge Dependencies | ${{ needs['auto-merge-deps'].result || 'skipped' }} |
           EOF
