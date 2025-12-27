@@ -20,7 +20,6 @@ from egregora.utils.authors import ensure_author_entries
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.exceptions import (
     DateTimeParsingError,
-    FrontmatterDateFormattingError,
     MissingMetadataError,
     UniqueFilenameError,
 )
@@ -62,7 +61,7 @@ def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
     except (DateTimeParsingError, AttributeError, ValueError) as e:
         # Catches parsing failures from the flexible parser as well as any
         # downstream formatting errors.
-        raise FrontmatterDateFormattingError(str(raw_date), e) from e
+        raise DateTimeParsingError(f"Failed to parse date for frontmatter: '{raw_date}'", original_exception=e) from e
 
 
 def _prepare_frontmatter(metadata: dict[str, Any], slug: str) -> dict[str, Any]:

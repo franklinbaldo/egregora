@@ -36,18 +36,6 @@ class DateTimeUtilsError(Exception):
     """Base exception for datetime utility errors."""
 
 
-class FrontmatterDateFormattingError(DateTimeUtilsError):
-    """Raised when a date string for frontmatter cannot be parsed."""
-
-    def __init__(self, date_str: str, original_exception: Exception) -> None:
-        self.date_str = date_str
-        self.original_exception = original_exception
-        super().__init__(
-            f"Failed to parse date string for frontmatter: '{self.date_str}'. "
-            f"Original error: {original_exception}"
-        )
-
-
 class DateTimeParsingError(DateTimeUtilsError):
     """Raised when a date/time string cannot be parsed."""
 

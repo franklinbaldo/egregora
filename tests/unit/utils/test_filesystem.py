@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 import pytest
 
 from egregora.utils.exceptions import (
-    FrontmatterDateFormattingError,
     MissingMetadataError,
     UniqueFilenameError,
 )
@@ -128,6 +127,7 @@ def test_write_markdown_post_raises_error_after_too_many_collisions(tmp_path: Pa
 
 def test_format_frontmatter_datetime_raises_on_invalid_date():
     """Test that format_frontmatter_datetime raises on unparseable date."""
-    with pytest.raises(FrontmatterDateFormattingError) as excinfo:
+    with pytest.raises(DateTimeParsingError) as excinfo:
         format_frontmatter_datetime("not-a-real-date")
-    assert excinfo.value.date_str == "not-a-real-date"
+    assert "Failed to parse date for frontmatter" in str(excinfo.value)
+    assert "not-a-real-date" in str(excinfo.value)
