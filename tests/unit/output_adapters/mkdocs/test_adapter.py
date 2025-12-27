@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
-from unittest.mock import patch
 
 from egregora.data_primitives.document import Document, DocumentType, UrlContext
 from egregora.output_adapters.exceptions import (
@@ -30,10 +30,12 @@ def mkdocs_adapter(tmp_path: Path) -> MkDocsAdapter:
 
 # --- Sapper's Refactored Exception Tests ---
 
+
 def test_get_raises_document_not_found_error(mkdocs_adapter: MkDocsAdapter):
     """Verify get() raises DocumentNotFoundError for a non-existent document."""
     with pytest.raises(DocumentNotFoundError):
         mkdocs_adapter.get(DocumentType.POST, "non-existent-slug")
+
 
 def test_document_from_path_raises_document_parsing_error(mkdocs_adapter: MkDocsAdapter):
     """Verify _document_from_path() raises DocumentParsingError on OSError."""
@@ -41,15 +43,18 @@ def test_document_from_path_raises_document_parsing_error(mkdocs_adapter: MkDocs
         with pytest.raises(DocumentParsingError):
             mkdocs_adapter._document_from_path(Path("non-existent.md"), DocumentType.POST)
 
+
 def test_get_author_profile_raises_profile_not_found_error(mkdocs_adapter: MkDocsAdapter):
     """Verify get_author_profile() raises ProfileNotFoundError for a non-existent author."""
     with pytest.raises(ProfileNotFoundError):
         mkdocs_adapter.get_author_profile("non-existent-uuid")
 
+
 def test_get_document_id_at_path_raises_document_not_found_error(mkdocs_adapter: MkDocsAdapter):
     """Verify _get_document_id_at_path() raises DocumentNotFoundError for a non-existent file."""
     with pytest.raises(DocumentNotFoundError):
         mkdocs_adapter._get_document_id_at_path(Path("non-existent.md"))
+
 
 def test_get_document_id_at_path_raises_document_parsing_error(mkdocs_adapter: MkDocsAdapter, tmp_path):
     """Verify _get_document_id_at_path() raises DocumentParsingError on OSError."""
@@ -59,10 +64,12 @@ def test_get_document_id_at_path_raises_document_parsing_error(mkdocs_adapter: M
         with pytest.raises(DocumentParsingError):
             mkdocs_adapter._get_document_id_at_path(mock_path)
 
+
 def test_load_config_raises_config_load_error_on_file_not_found(mkdocs_adapter: MkDocsAdapter):
     """Verify load_config() raises ConfigLoadError when mkdocs.yml is missing."""
     with pytest.raises(ConfigLoadError):
         mkdocs_adapter.load_config(mkdocs_adapter.site_root)
+
 
 def test_load_config_raises_config_load_error_on_yaml_error(mkdocs_adapter: MkDocsAdapter, tmp_path):
     """Verify load_config() raises ConfigLoadError on YAMLError."""
@@ -72,10 +79,12 @@ def test_load_config_raises_config_load_error_on_yaml_error(mkdocs_adapter: MkDo
         with pytest.raises(ConfigLoadError):
             mkdocs_adapter.load_config(tmp_path)
 
+
 def test_resolve_document_path_raises_unsupported_type_error(mkdocs_adapter: MkDocsAdapter):
     """Verify _resolve_document_path() raises UnsupportedDocumentTypeError for an unsupported type."""
     with pytest.raises(UnsupportedDocumentTypeError):
         mkdocs_adapter._resolve_document_path("unsupported", "some-id")
+
 
 def test_get_raises_document_parsing_error(mkdocs_adapter: MkDocsAdapter):
     """Verify get() raises DocumentParsingError for a malformed document file."""
@@ -84,7 +93,9 @@ def test_get_raises_document_parsing_error(mkdocs_adapter: MkDocsAdapter):
     with pytest.raises(DocumentParsingError):
         mkdocs_adapter.get(DocumentType.POST, "malformed-post")
 
+
 # --- Restored and Merged Core Functionality Tests ---
+
 
 def test_write_post_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     """Verify _write_post_doc writes correct frontmatter and content."""
@@ -92,8 +103,11 @@ def test_write_post_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
         content="This is the post content.",
         type=DocumentType.POST,
         metadata={
-            "title": "Test Post", "date": "2024-01-01", "authors": ["author-uuid-1"],
-            "tags": ["testing", "refactor"], "summary": "A test post summary.",
+            "title": "Test Post",
+            "date": "2024-01-01",
+            "authors": ["author-uuid-1"],
+            "tags": ["testing", "refactor"],
+            "summary": "A test post summary.",
         },
     )
     post_path = tmp_path / "test-post.md"
@@ -102,6 +116,7 @@ def test_write_post_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     content = post_path.read_text()
     assert "title: Test Post" in content
     assert "This is the post content." in content
+
 
 def test_write_journal_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     """Verify _write_journal_doc adds 'Journal' category."""
@@ -113,6 +128,7 @@ def test_write_journal_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     assert "- Journal" in content
     assert "journal entry." in content
 
+
 def test_write_annotation_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     """Verify _write_annotation_doc adds 'Annotations' category."""
     doc = Document(content="annotation.", type=DocumentType.ANNOTATION, metadata={"title": "Annotation"})
@@ -122,6 +138,7 @@ def test_write_annotation_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     content = annotation_path.read_text()
     assert "- Annotations" in content
     assert "annotation." in content
+
 
 def test_write_profile_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     """Verify _write_profile_doc adds fallback avatar and 'Profile' category."""
@@ -141,6 +158,7 @@ def test_write_profile_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     assert any(line.strip().startswith("avatar: https://avataaars.io/") for line in content.split("\n"))
     assert "This is a profile." in content
 
+
 def test_write_enrichment_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     """Verify _write_enrichment_doc adds 'Enrichment' category."""
     doc = Document(
@@ -154,11 +172,13 @@ def test_write_enrichment_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     assert "- Enrichment" in content
     assert "This is an enrichment." in content
 
+
 def test_write_profile_doc_raises_on_missing_uuid(mkdocs_adapter):
     """Verify _write_profile_doc raises ProfileGenerationError on missing UUID."""
     doc = Document(content="profile.", type=DocumentType.PROFILE, metadata={"name": "Test Author"})
     with pytest.raises(ProfileGenerationError):
         mkdocs_adapter._write_profile_doc(doc, Path("/fake/path.md"))
+
 
 def test_write_media_doc_from_content(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     """Verify _write_media_doc writes binary content correctly."""
@@ -168,6 +188,7 @@ def test_write_media_doc_from_content(mkdocs_adapter: MkDocsAdapter, tmp_path: P
     mkdocs_adapter._write_media_doc(doc, media_path)
     assert media_path.exists()
     assert media_path.read_bytes() == media_content
+
 
 def test_write_media_doc_from_source_path(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     """Verify _write_media_doc moves a file from a source path."""
@@ -181,6 +202,7 @@ def test_write_media_doc_from_source_path(mkdocs_adapter: MkDocsAdapter, tmp_pat
     assert not source_path.exists()
     assert media_path.read_bytes() == source_content
 
+
 def test_resolve_collision_raises_error_after_max_attempts(mkdocs_adapter, tmp_path):
     """Verify _resolve_collision raises CollisionResolutionError after max attempts."""
     base_path = tmp_path / "test.txt"
@@ -193,6 +215,7 @@ def test_resolve_collision_raises_error_after_max_attempts(mkdocs_adapter, tmp_p
             mkdocs_adapter._resolve_collision(base_path, "new-doc-id", max_attempts=max_attempts)
         assert excinfo.value.path == str(base_path)
         assert excinfo.value.max_attempts == max_attempts
+
 
 def test_resolve_document_path_raises_adapter_not_initialized_error():
     """Verify calling resolve_document_path on an uninitialized adapter raises an error."""

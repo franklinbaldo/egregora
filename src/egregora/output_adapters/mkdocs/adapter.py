@@ -36,11 +36,11 @@ from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.exceptions import (
+    ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
-    UnsupportedDocumentTypeError,
     ProfileNotFoundError,
-    ConfigLoadError,
+    UnsupportedDocumentTypeError,
 )
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load

@@ -18,9 +18,9 @@ from egregora.utils.filesystem import (
     _extract_clean_date,
     _resolve_filepath,
     _validate_post_metadata,
+    _write_post_file,
     format_frontmatter_datetime,
     write_markdown_post,
-    _write_post_file,
 )
 
 
@@ -183,6 +183,7 @@ def test_write_markdown_post_raises_file_write_error(tmp_path: Path, monkeypatch
 
 # endregion
 
+
 # region: Coverage tests
 def test_write_post_file_raises_file_write_error():
     """Verify that _write_post_file raises FileWriteError on OSError."""
@@ -210,5 +211,6 @@ def test_extract_clean_date_raises_on_none():
         _extract_clean_date(None)
     assert "Could not extract a valid date" in str(excinfo.value)
     assert "None" in str(excinfo.value)
+
 
 # endregion
