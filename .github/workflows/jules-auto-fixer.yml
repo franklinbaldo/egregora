@@ -24,8 +24,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
         with:
-          fetch-depth: 0
+          python-version: "3.12"
+          extras: "--all-extras"
 
       - name: Identify PR
         id: pr-info
@@ -82,93 +86,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
-          JULES_BASE_URL: https://jules.googleapis.com/v1alpha
+          PYTHONPATH: .jules
         run: |
-          set -euo pipefail
-
-          PR_NUMBER="${{ steps.pr-info.outputs.pr_number }}"
-
-          # Get PR details
-          PR_JSON=$(gh pr view "$PR_NUMBER" --json number,title,headRefName,baseRefName,body,files,comments)
-          PR_TITLE=$(echo "$PR_JSON" | jq -r '.title')
-          PR_BRANCH=$(echo "$PR_JSON" | jq -r '.headRefName')
-          BASE_BRANCH=$(echo "$PR_JSON" | jq -r '.baseRefName')
-          PR_BODY=$(echo "$PR_JSON" | jq -r '.body // ""')
-
-          # Get session ID from PR comments
-          SESSION_ID=$(echo "$PR_JSON" | jq -r '.comments[] | select(.body | contains("Jules Session:")) | .body' | grep -oP 'sessions/[a-f0-9-]+' | head -n1 || echo "")
-
-          # Check CI status
-          CI_CHECKS=$(gh pr checks "$PR_NUMBER" --json name,state,conclusion || echo "[]")
-          FAILED_CHECKS=$(echo "$CI_CHECKS" | jq -r '[.[] | select(.conclusion == "failure" or .state == "FAILURE")] | .[].name' | paste -sd, -)
-
-          # Check for merge conflicts
-          HAS_CONFLICTS=$(gh pr view "$PR_NUMBER" --json mergeable | jq -r 'if .mergeable == "CONFLICTING" then "true" else "false" end')
-
-          # If PR is healthy, exit
-          if [[ -z "$FAILED_CHECKS" && "$HAS_CONFLICTS" == "false" ]]; then
-            echo "PR is healthy, no action needed"
-            exit 0
-          fi
-
-          # Construct feedback message
-          FEEDBACK="Issues detected in Pull Request #${PR_NUMBER}:\n"
-          if [[ "$HAS_CONFLICTS" == "true" ]]; then
-            FEEDBACK="${FEEDBACK}- **Merge Conflicts** detected. Please rebase and resolve them.\n"
-          fi
-          if [[ -n "$FAILED_CHECKS" ]]; then
-            FEEDBACK="${FEEDBACK}- **CI Failures**: ${FAILED_CHECKS}\n"
-          fi
-
-          AUTONOMOUS_INSTRUCTION="\n\n**🤖 CRITICAL - Full Autonomy Required:**\n- **NEVER ask humans for help, approval, or implementation decisions**\n- **ALWAYS make your own technical decisions** using your senior developer expertise\n- **If tests fail:** Debug, fix the issue, adjust your approach - don't ask for help\n- **You are a senior developer:** Trust your experience - ship working code confidently\n"
-
-          # Try to message existing session
-          if [[ -n "$SESSION_ID" ]]; then
-            MESSAGE="Hi Jules! Please fix these issues in PR #${PR_NUMBER}:\n\n${FEEDBACK}${AUTONOMOUS_INSTRUCTION}"
-
-            curl -sf -X POST \
-              "${JULES_BASE_URL}/sessions/${SESSION_ID}:sendMessage" \
-              -H "Content-Type: application/json" \
-              -H "X-Goog-Api-Key: ${JULES_API_KEY}" \
-              -d "$(jq -n --arg msg "$MESSAGE" '{message: $msg}')" && exit 0 || true
-          fi
-
-          # Create new session if messaging failed or no session exists
-          BASE_SHA=$(git rev-parse "origin/${BASE_BRANCH}")
-          CHANGED_FILES=$(echo "$PR_JSON" | jq -r '.files[].path' | sed 's/^/- /' | paste -sd'\n' -)
-
-          PROMPT="FIX REQUEST for Pull Request #${PR_NUMBER}: ${PR_TITLE}
-
-## Context
-- **PR Number:** ${PR_NUMBER}
-- **Current Branch:** \`${PR_BRANCH}\`
-- **Base Branch:** \`${BASE_BRANCH}\`
-- **Base Branch Current SHA:** \`${BASE_SHA}\`
-- **Changed Files in this PR:**
-${CHANGED_FILES}
-
-## Original PR Description
-${PR_BODY}
-
-## Detected Problems to Fix
-${FEEDBACK}${AUTONOMOUS_INSTRUCTION}
-
-Please checkout the branch \`${PR_BRANCH}\`, investigate the failures, fix them, and push an update."
-
-          curl -sf -X POST \
-            "${JULES_BASE_URL}/sessions" \
-            -H "Content-Type: application/json" \
-            -H "X-Goog-Api-Key: ${JULES_API_KEY}" \
-            -d "$(jq -n \
-              --arg prompt "$PROMPT" \
-              --arg title "Fix #${PR_NUMBER}: ${PR_TITLE}" \
-              --arg branch "$PR_BRANCH" \
-              '{
-                prompt: $prompt,
-                title: $title,
-                sourceContext: {
-                  source: "sources/github/franklinbaldo/egregora",
-                  githubRepoContext: {startingBranch: $branch}
-                },
-                automationMode: "AUTO_CREATE_PR"
-              }')"
+          uv run --with requests --with typer --with pydantic python -m jules.cli autofix analyze ${{ steps.pr-info.outputs.pr_number }}
