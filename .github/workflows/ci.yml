@@ -326,16 +326,124 @@ jobs:
               console.log('🆕 Will create NEW Jules session for auto-fix...');
             }
 
-            // Call Jules auto-fix script via Python
+            // Call Jules auto-fix using curl
             const { execSync } = require('child_process');
             try {
-              // Set PYTHONPATH to include .jules directory
-              const output = execSync(
-                `PYTHONPATH=.jules:$PYTHONPATH uv run python -c "from jules.auto_fix import auto_reply_to_jules; import json; result = auto_reply_to_jules(${prNumber}); print(json.dumps(result))"`,
-                { encoding: 'utf-8', cwd: process.env.GITHUB_WORKSPACE }
-              );
+              const julesBaseUrl = process.env.JULES_BASE_URL || 'https://jules.googleapis.com/v1alpha';
+              const julesApiKey = process.env.JULES_API_KEY;
 
-              const result = JSON.parse(output.trim());
+              // Get PR details
+              const prJson = execSync(
+                `gh pr view ${prNumber} --json number,title,headRefName,baseRefName,body,files,comments`,
+                { encoding: 'utf-8' }
+              );
+              const prData = JSON.parse(prJson);
+
+              // Get session ID from comments
+              const sessionIdMatch = prData.comments
+                .map(c => c.body.match(/sessions\/[a-f0-9-]+/))
+                .find(m => m);
+              const sessionId = sessionIdMatch ? sessionIdMatch[0] : '';
+
+              // Check CI status
+              const ciChecks = execSync(
+                `gh pr checks ${prNumber} --json name,state,conclusion`,
+                { encoding: 'utf-8' }
+              );
+              const checks = JSON.parse(ciChecks);
+              const failedChecks = checks
+                .filter(c => c.conclusion === 'failure' || c.state === 'FAILURE')
+                .map(c => c.name)
+                .join(', ');
+
+              // Check for conflicts
+              const mergeableCheck = execSync(
+                `gh pr view ${prNumber} --json mergeable`,
+                { encoding: 'utf-8' }
+              );
+              const hasConflicts = JSON.parse(mergeableCheck).mergeable === 'CONFLICTING';
+
+              // If PR is healthy, skip
+              if (!failedChecks && !hasConflicts) {
+                console.log('✅ PR is healthy, no action needed');
+                return;
+              }
+
+              // Construct feedback
+              let feedback = `Issues detected in Pull Request #${prNumber}:\\n`;
+              if (hasConflicts) {
+                feedback += '- **Merge Conflicts** detected. Please rebase and resolve them.\\n';
+              }
+              if (failedChecks) {
+                feedback += `- **CI Failures**: ${failedChecks}\\n`;
+              }
+
+              const autonomousInstruction = '\\n\\n**🤖 CRITICAL - Full Autonomy Required:**\\n- **NEVER ask humans for help, approval, or implementation decisions**\\n- **ALWAYS make your own technical decisions** using your senior developer expertise\\n- **If tests fail:** Debug, fix the issue, adjust your approach - don\'t ask for help\\n- **You are a senior developer:** Trust your experience - ship working code confidently\\n';
+
+              let result = { status: 'pending' };
+
+              // Try to message existing session
+              if (sessionId) {
+                const message = `Hi Jules! Please fix these issues in PR #${prNumber}:\\n\\n${feedback}${autonomousInstruction}`;
+                try {
+                  execSync(
+                    `curl -sf -X POST "${julesBaseUrl}/sessions/${sessionId}:sendMessage" ` +
+                    `-H "Content-Type: application/json" ` +
+                    `-H "X-Goog-Api-Key: ${julesApiKey}" ` +
+                    `-d '${JSON.stringify({ message })}'`,
+                    { encoding: 'utf-8' }
+                  );
+                  result = { status: 'success', action: 'messaged_existing_session', session_id: sessionId };
+                } catch (e) {
+                  console.log('Failed to message existing session, will create new one');
+                }
+              }
+
+              // Create new session if needed
+              if (result.status === 'pending') {
+                const baseSha = execSync(`git rev-parse origin/${prData.baseRefName}`, { encoding: 'utf-8' }).trim();
+                const changedFiles = prData.files.map(f => `- ${f.path}`).join('\\n');
+
+                const prompt = `FIX REQUEST for Pull Request #${prNumber}: ${prData.title}
+
+## Context
+- **PR Number:** ${prNumber}
+- **Current Branch:** \`${prData.headRefName}\`
+- **Base Branch:** \`${prData.baseRefName}\`
+- **Base Branch Current SHA:** \`${baseSha}\`
+- **Changed Files in this PR:**
+${changedFiles}
+
+## Original PR Description
+${prData.body || ''}
+
+## Detected Problems to Fix
+${feedback}${autonomousInstruction}
+
+Please checkout the branch \`${prData.headRefName}\`, investigate the failures, fix them, and push an update.`;
+
+                const sessionPayload = JSON.stringify({
+                  prompt,
+                  title: `Fix #${prNumber}: ${prData.title}`,
+                  sourceContext: {
+                    source: 'sources/github/franklinbaldo/egregora',
+                    githubRepoContext: { startingBranch: prData.headRefName }
+                  },
+                  automationMode: 'AUTO_CREATE_PR'
+                });
+
+                const sessionResponse = execSync(
+                  `curl -sf -X POST "${julesBaseUrl}/sessions" ` +
+                  `-H "Content-Type: application/json" ` +
+                  `-H "X-Goog-Api-Key: ${julesApiKey}" ` +
+                  `-d '${sessionPayload}'`,
+                  { encoding: 'utf-8' }
+                );
+
+                const session = JSON.parse(sessionResponse);
+                result = { status: 'success', action: 'created_new_session', new_session_id: session.name };
+              }
+
               console.log('✅ Auto-fix result:', result);
 
               // Post comment based on result
