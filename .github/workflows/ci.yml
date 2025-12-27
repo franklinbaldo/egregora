@@ -390,22 +390,7 @@ jobs:
                 owner,
                 repo,
                 issue_number: prNumber,
-                body: `⚠️ **Auto-merge failed**
-
-**CI Status:** All checks passed ✅
-- Pre-commit hooks: ✅ Passed
-- Unit tests: ✅ Passed
-- E2E tests: ✅ Passed
-
-**Merge Status:** ❌ Failed
-
-**Error Details:**
-\`\`\`
-${error.message}
-\`\`\`
-
-**Next Steps:**
-Please merge this PR manually or investigate the merge failure. The code changes have been validated and all tests are passing.`
+                body: '⚠️ **Auto-merge failed**\n\n**CI Status:** All checks passed ✅\n- Pre-commit hooks: ✅ Passed\n- Unit tests: ✅ Passed\n- E2E tests: ✅ Passed\n\n**Merge Status:** ❌ Failed\n\n**Error Details:**\n```\n' + error.message + '\n```\n\n**Next Steps:**\nPlease merge this PR manually or investigate the merge failure. The code changes have been validated and all tests are passing.'
               });
 
               core.setFailed(`Failed to merge PR: ${error.message}`);
@@ -548,23 +533,7 @@ Please merge this PR manually or investigate the merge failure. The code changes
                 owner,
                 repo,
                 issue_number: prNumber,
-                body: `⚠️ **Auto-merge failed**
-
-**CI Status:** All checks passed ✅
-- Pre-commit hooks: ✅ Passed
-- Unit tests: ✅ Passed
-- E2E tests: ✅ Passed
-- File validation: ✅ Passed
-
-**Merge Status:** ❌ Failed
-
-**Error Details:**
-\`\`\`
-${error.message}
-\`\`\`
-
-**Next Steps:**
-Please merge this PR manually or investigate the merge failure. This dependency update has been validated and all tests are passing.`
+                body: '⚠️ **Auto-merge failed**\n\n**CI Status:** All checks passed ✅\n- Pre-commit hooks: ✅ Passed\n- Unit tests: ✅ Passed\n- E2E tests: ✅ Passed\n- File validation: ✅ Passed\n\n**Merge Status:** ❌ Failed\n\n**Error Details:**\n```\n' + error.message + '\n```\n\n**Next Steps:**\nPlease merge this PR manually or investigate the merge failure. This dependency update has been validated and all tests are passing.'
               });
 
               core.setFailed(`Failed to merge PR: ${error.message}`);
