@@ -46,6 +46,7 @@ from egregora.config.exceptions import (
     InvalidDateFormatError,
     InvalidRetrievalModeError,
     InvalidTimezoneError,
+    MissingApiKeyError,
     SiteNotFoundError,
 )
 from egregora.constants import SourceType, WindowUnit
@@ -59,24 +60,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL = "google-gla:gemini-2.5-flash"  # Use latest stable model (pydantic-ai format)
 DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
 DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash"  # (google-sdk format uses models/ prefix via validator)
-EMBEDDING_DIM = 768  # Default embedding vector dimensions for Gemini
+EMBEDDING_DIM = 768  # Embedding vector dimensions
 DEFAULT_SITE_NAME = "default"
-
-
-def get_embedding_dimension(model: str) -> int:
-    """Get embedding dimension for a given model.
-
-    Args:
-        model: Model identifier (e.g., "qwen/qwen3-embedding-0.6b" or "models/gemini-embedding-001")
-
-    Returns:
-        Vector dimension for the model
-
-    """
-    from egregora.llm.providers.openrouter_embedding import get_embedding_dimension as get_dim
-
-    return get_dim(model)
-
 
 # Quota defaults
 DEFAULT_DAILY_LLM_REQUESTS = 100  # Conservative default
@@ -139,7 +124,7 @@ class ModelSettings(BaseModel):
     # Special models with their own defaults (direct Gemini API usage)
     embedding: GoogleModelName = Field(
         default=DEFAULT_EMBEDDING_MODEL,
-        description="Model for vector embeddings (Google GenAI format: models/... or OpenRouter format: provider/model)",
+        description="Model for vector embeddings (Google GenAI format: models/...)",
     )
     banner: GoogleModelName = Field(
         default=DEFAULT_BANNER_MODEL,
@@ -163,10 +148,7 @@ class ModelSettings(BaseModel):
             raise ValueError(msg)
         return v
 
-    # No validator needed for embedding - the EmbeddingProviderFactory handles format validation
-    # via the strategy pattern. Invalid models will raise UnsupportedModelError at runtime.
-
-    @field_validator("banner")
+    @field_validator("embedding", "banner")
     @classmethod
     def validate_google_model_format(cls, v: str) -> str:
         """Validate Google GenAI SDK model name format."""
@@ -864,7 +846,6 @@ def find_egregora_config(start_dir: Path, *, site: str | None = None) -> Path:
 
     Raises:
         ConfigNotFoundError: If the config file cannot be found
-
     """
     current = start_dir.expanduser().resolve()
     for candidate in (current, *current.parents):
@@ -925,7 +906,6 @@ def _normalize_sites_config(file_data: dict[str, Any], site: str | None = None) 
     Raises:
         ValueError: If sites are missing/invalid
         SiteNotFoundError: If the requested site is not found
-
     """
     sites_data: dict[str, Any]
     if "sites" in file_data:
@@ -969,7 +949,6 @@ def load_egregora_config(site_root: Path | None = None, *, site: str | None = No
     Raises:
         ConfigValidationError: If config file contains invalid data
         ConfigNotFoundError: If the config file cannot be found and a default one is not created.
-
     """
     if site_root is None:
         site_root = Path.cwd()
@@ -1015,8 +994,7 @@ def load_egregora_config(site_root: Path | None = None, *, site: str | None = No
         raise ConfigValidationError(e.errors()) from e
     except (OSError, ValueError) as e:
         logger.exception("Failed to read or parse config from %s", config_path)
-        msg = f"Failed to process config file: {e}"
-        raise ConfigError(msg) from e
+        raise ConfigError(f"Failed to process config file: {e}") from e
 
 
 def create_default_config(site_root: Path, *, site: str = DEFAULT_SITE_NAME) -> EgregoraConfig:
@@ -1083,7 +1061,7 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path, *, site: str =
 # ============================================================================
 
 
-def parse_date_arg(date_str: str, _arg_name: str = "date") -> date:
+def parse_date_arg(date_str: str, arg_name: str = "date") -> date:
     """Parse a date string in YYYY-MM-DD format.
 
     Args:
@@ -1095,7 +1073,6 @@ def parse_date_arg(date_str: str, _arg_name: str = "date") -> date:
 
     Raises:
         InvalidDateFormatError: If date_str is not in YYYY-MM-DD format
-
     """
     try:
         return datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=UTC).date()
@@ -1114,7 +1091,6 @@ def validate_timezone(timezone_str: str) -> ZoneInfo:
 
     Raises:
         InvalidTimezoneError: If timezone_str is not a valid timezone identifier
-
     """
     try:
         return ZoneInfo(timezone_str)
@@ -1296,8 +1272,3 @@ def get_openrouter_api_key() -> str:
 def openrouter_api_key_status() -> bool:
     """Check if OPENROUTER_API_KEY is configured."""
     return bool(os.environ.get("OPENROUTER_API_KEY"))
-
-
-def is_demo_mode() -> bool:
-    """Check if the application is running in demo mode."""
-    return os.getenv("EGREGORA_DEMO_MODE", "false").lower() in ("true", "1", "yes")
