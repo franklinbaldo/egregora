@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.models import infer_model
 
 from egregora.agents.banner.agent import is_banner_generation_available
 from egregora.agents.capabilities import (

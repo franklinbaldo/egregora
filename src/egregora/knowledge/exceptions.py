@@ -22,6 +22,10 @@ class ProfileParseError(ProfileError):
         self.path = path
 
 
+# Alias for backward compatibility
+ProfileParsingError = ProfileParseError
+
+
 class InvalidAliasError(ProfileError):
     """Raised when a profile alias is invalid."""
 
