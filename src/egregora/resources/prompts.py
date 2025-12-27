@@ -35,6 +35,7 @@ class TemplateLoader:
         Args:
             site_dir: Optional custom prompts directory (e.g., site root).
                          If provided, it takes precedence over package defaults.
+
         """
         self.site_dir = site_dir
         self.search_paths = self._resolve_search_paths()
@@ -70,6 +71,7 @@ class TemplateLoader:
 
         Returns:
             Raw template content string
+
         """
         for search_path in self.search_paths:
             template_path = search_path / template_name
@@ -88,6 +90,7 @@ class PromptManager:
 
         Args:
             search_paths: A list of paths to search for templates, in order of priority.
+
         """
         self.search_paths = search_paths
         self.env = self._create_environment()
@@ -110,6 +113,7 @@ class PromptManager:
 
         Returns:
             Rendered string
+
         """
         template = self.env.get_template(template_name)
         return template.render(**context)
@@ -126,6 +130,7 @@ class PromptManager:
 
         Returns:
             Raw template content string
+
         """
         loader = TemplateLoader(site_dir)
         return loader.get_template_content(template_name)
@@ -141,6 +146,7 @@ class PromptManager:
 
         Returns:
             Number of files copied
+
         """
         if not PACKAGE_PROMPTS_DIR.exists():
             logger.warning("Package prompts directory not found: %s", PACKAGE_PROMPTS_DIR)

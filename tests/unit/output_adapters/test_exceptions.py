@@ -1,13 +1,15 @@
 """Tests for custom exceptions in output adapters."""
 
+import pytest
+
 from egregora.output_adapters.exceptions import (
     AdapterNotInitializedError,
     CollisionResolutionError,
     ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
-    FrontmatterParsingError,
     FilenameGenerationError,
+    FrontmatterParsingError,
     ProfileGenerationError,
     ProfileNotFoundError,
     RegistryNotProvidedError,
@@ -33,7 +35,11 @@ def test_document_not_found_error(doc_type, identifier, expected_message):
 @pytest.mark.parametrize(
     "path, reason, expected_message",
     [
-        ("/path/to/doc.md", "Invalid format", "Failed to parse document at '/path/to/doc.md': Invalid format"),
+        (
+            "/path/to/doc.md",
+            "Invalid format",
+            "Failed to parse document at '/path/to/doc.md': Invalid format",
+        ),
         ("another/doc.txt", "UTF-8 error", "Failed to parse document at 'another/doc.txt': UTF-8 error"),
     ],
 )
@@ -53,7 +59,11 @@ def test_document_parsing_error(path, reason, expected_message):
             "YAML error",
             "Failed to load or parse config at '/path/to/config.yml': YAML error",
         ),
-        ("site.toml", "TOML syntax error", "Failed to load or parse config at 'site.toml': TOML syntax error"),
+        (
+            "site.toml",
+            "TOML syntax error",
+            "Failed to load or parse config at 'site.toml': TOML syntax error",
+        ),
     ],
 )
 def test_config_load_error(path, reason, expected_message):
