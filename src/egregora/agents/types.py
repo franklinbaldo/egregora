@@ -14,7 +14,10 @@ import duckdb
 from pydantic import BaseModel, Field
 
 from egregora.agents.banner.agent import generate_banner
-from egregora.orchestration.persistence import persist_banner_document
+from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
+from egregora.rag import search
+from egregora.rag.models import RAGQueryRequest
+from egregora_v3.core.types import Document, DocumentType
 
 if TYPE_CHECKING:
     import uuid

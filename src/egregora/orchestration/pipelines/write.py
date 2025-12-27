@@ -153,6 +153,7 @@ def _validate_api_key(output_dir: Path, model: str | None = None) -> None:
     Args:
         output_dir: Output directory path (for loading .env)
         model: Optional model name to detect provider
+
     """
     # Check if using OpenRouter
     from egregora.llm.providers.openrouter import is_openrouter_model
@@ -728,6 +729,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
         client_instance = run_params.client
     else:
         from egregora.llm.providers.openrouter import create_llm_client
+
         # Use writer model to determine which client to create
         writer_model = run_params.config.models.writer
         client_instance = create_llm_client(model=writer_model)

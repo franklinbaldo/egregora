@@ -79,7 +79,7 @@ class TestOpenRouterStrategy:
         strategy = EmbeddingProviderFactory.create("qwen/qwen3-embedding-0.6b")
 
         with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ProviderNotAvailableError, match="OpenRouter.*API key"):
+            with pytest.raises(ProviderNotAvailableError, match=r"OpenRouter.*API key"):
                 strategy.embed(["text1"])
 
 
@@ -117,7 +117,7 @@ class TestGeminiStrategy:
         strategy = EmbeddingProviderFactory.create("models/gemini-embedding-001")
 
         with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ProviderNotAvailableError, match="Gemini.*API key"):
+            with pytest.raises(ProviderNotAvailableError, match=r"Gemini.*API key"):
                 strategy.embed(["text1"])
 
 

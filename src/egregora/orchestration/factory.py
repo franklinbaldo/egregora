@@ -73,6 +73,7 @@ class PipelineFactory:
             client_instance = run_params.client
         else:
             from egregora.llm.providers.openrouter import create_llm_client
+
             # Use writer model to determine which client to create
             writer_model = run_params.config.models.writer
             client_instance = create_llm_client(model=writer_model)

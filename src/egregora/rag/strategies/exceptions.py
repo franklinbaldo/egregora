@@ -9,13 +9,11 @@ from __future__ import annotations
 class EmbeddingStrategyError(Exception):
     """Base exception for embedding strategy errors."""
 
-    pass
-
 
 class ProviderNotAvailableError(EmbeddingStrategyError):
     """Raised when an embedding provider is not available (missing API key, etc.)."""
 
-    def __init__(self, provider: str, reason: str):
+    def __init__(self, provider: str, reason: str) -> None:
         self.provider = provider
         self.reason = reason
         super().__init__(f"Embedding provider '{provider}' not available: {reason}")
@@ -24,7 +22,7 @@ class ProviderNotAvailableError(EmbeddingStrategyError):
 class UnsupportedModelError(EmbeddingStrategyError):
     """Raised when a model format is not supported by any strategy."""
 
-    def __init__(self, model: str):
+    def __init__(self, model: str) -> None:
         self.model = model
         super().__init__(
             f"Unsupported embedding model format: {model}\n"
@@ -37,20 +35,19 @@ class UnsupportedModelError(EmbeddingStrategyError):
 class EmbeddingDimensionMismatchError(EmbeddingStrategyError):
     """Raised when embedding dimensions don't match expected dimensions."""
 
-    def __init__(self, expected: int, actual: int, model: str):
+    def __init__(self, expected: int, actual: int, model: str) -> None:
         self.expected = expected
         self.actual = actual
         self.model = model
         super().__init__(
-            f"Embedding dimension mismatch for model '{model}': "
-            f"expected {expected}, got {actual}"
+            f"Embedding dimension mismatch for model '{model}': expected {expected}, got {actual}"
         )
 
 
 class EmbeddingAPIError(EmbeddingStrategyError):
     """Raised when the embedding API call fails."""
 
-    def __init__(self, provider: str, status_code: int | None, message: str):
+    def __init__(self, provider: str, status_code: int | None, message: str) -> None:
         self.provider = provider
         self.status_code = status_code
         self.message = message
@@ -59,9 +56,9 @@ class EmbeddingAPIError(EmbeddingStrategyError):
 
 
 __all__ = [
+    "EmbeddingAPIError",
+    "EmbeddingDimensionMismatchError",
     "EmbeddingStrategyError",
     "ProviderNotAvailableError",
     "UnsupportedModelError",
-    "EmbeddingDimensionMismatchError",
-    "EmbeddingAPIError",
 ]

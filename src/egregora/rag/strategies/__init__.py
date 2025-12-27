@@ -9,7 +9,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Literal
 
-TaskType = Literal["RETRIEVAL_QUERY", "RETRIEVAL_DOCUMENT", "SEMANTIC_SIMILARITY", "CLASSIFICATION", "CLUSTERING"]
+TaskType = Literal[
+    "RETRIEVAL_QUERY", "RETRIEVAL_DOCUMENT", "SEMANTIC_SIMILARITY", "CLASSIFICATION", "CLUSTERING"
+]
 
 
 class EmbeddingStrategy(ABC):
@@ -34,6 +36,7 @@ class EmbeddingStrategy(ABC):
 
         Returns:
             List of embedding vectors
+
         """
         ...
 
@@ -58,22 +61,24 @@ class EmbeddingProviderFactory:
 
         Raises:
             ValueError: If model format is not recognized
+
         """
         from egregora.llm.providers.openrouter_embedding import is_openrouter_embedding_model
 
         if is_openrouter_embedding_model(model):
             from egregora.rag.strategies.openrouter_strategy import OpenRouterEmbeddingStrategy
+
             return OpenRouterEmbeddingStrategy(model)
-        elif model.startswith("models/"):
+        if model.startswith("models/"):
             from egregora.rag.strategies.gemini_strategy import GeminiEmbeddingStrategy
+
             return GeminiEmbeddingStrategy(model)
-        else:
-            msg = f"Unsupported embedding model format: {model}"
-            raise ValueError(msg)
+        msg = f"Unsupported embedding model format: {model}"
+        raise ValueError(msg)
 
 
 __all__ = [
-    "EmbeddingStrategy",
     "EmbeddingProviderFactory",
+    "EmbeddingStrategy",
     "TaskType",
 ]

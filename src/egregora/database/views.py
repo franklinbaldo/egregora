@@ -7,7 +7,6 @@ directly from this module or look them up via the ``COMMON_VIEWS`` mapping.
 
 import logging
 from collections.abc import Callable
-from typing import TypeAlias
 
 import ibis
 from ibis.expr.types import Table
@@ -15,7 +14,7 @@ from ibis.expr.types import Table
 logger = logging.getLogger(__name__)
 
 # Type alias for view builder functions
-ViewBuilder: TypeAlias = Callable[[Table], Table]
+type ViewBuilder = Callable[[Table], Table]
 
 
 def chunks_view(ir: Table) -> Table:

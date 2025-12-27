@@ -28,6 +28,7 @@ def is_openrouter_embedding_model(model: str) -> bool:
 
     Returns:
         True if model follows OpenRouter format (contains /)
+
     """
     return "/" in model and not model.startswith("models/")
 
@@ -40,13 +41,13 @@ def get_embedding_dimension(model: str) -> int:
 
     Returns:
         Vector dimension for the model
+
     """
     if is_openrouter_embedding_model(model):
         # OpenRouter model - look up dimension
         return OPENROUTER_EMBEDDING_DIMS.get(model, DEFAULT_OPENROUTER_EMBEDDING_DIM)
-    else:
-        # Gemini model - use standard 768
-        return 768
+    # Gemini model - use standard 768
+    return 768
 
 
 def embed_with_openrouter(
@@ -69,6 +70,7 @@ def embed_with_openrouter(
     Raises:
         ValueError: If API key is missing
         httpx.HTTPError: If API request fails
+
     """
     api_key = api_key or os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
@@ -93,5 +95,4 @@ def embed_with_openrouter(
 
     # Extract embeddings from response
     # OpenAI-compatible format: {"data": [{"embedding": [...]}, ...]}
-    embeddings = [item["embedding"] for item in data["data"]]
-    return embeddings
+    return [item["embedding"] for item in data["data"]]

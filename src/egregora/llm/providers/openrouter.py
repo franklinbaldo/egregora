@@ -24,6 +24,7 @@ def is_openrouter_model(model: str) -> bool:
 
     Returns:
         True if model follows OpenRouter format (contains /)
+
     """
     return "/" in model
 
@@ -35,11 +36,12 @@ class OpenRouterClient:
     routing calls to OpenRouter's OpenAI-compatible API.
     """
 
-    def __init__(self, api_key: str | None = None):
+    def __init__(self, api_key: str | None = None) -> None:
         """Initialize OpenRouter client.
 
         Args:
             api_key: OpenRouter API key (defaults to OPENROUTER_API_KEY env var)
+
         """
         self.api_key = api_key or os.environ.get("OPENROUTER_API_KEY")
         if not self.api_key:
@@ -54,7 +56,7 @@ class OpenRouterClient:
     class ModelsNamespace:
         """Namespace for model operations (Gemini-compatible)."""
 
-        def __init__(self, client: OpenAI):
+        def __init__(self, client: OpenAI) -> None:
             self._client = client
 
         def generate_content(
@@ -72,6 +74,7 @@ class OpenRouterClient:
 
             Returns:
                 Response object with .text attribute
+
             """
             # Convert Gemini format to OpenAI format
             messages = []
@@ -97,7 +100,7 @@ class OpenRouterClient:
 
             # Wrap in Gemini-like response object
             class Response:
-                def __init__(self, openai_response):
+                def __init__(self, openai_response: Any) -> None:
                     self.text = openai_response.choices[0].message.content
                     self._response = openai_response
 
@@ -130,6 +133,7 @@ def create_llm_client(model: str | None = None, api_key: str | None = None) -> A
         >>> # Gemini models (no /)
         >>> client = create_llm_client("gemini-1.5-flash")
         >>> client = create_llm_client("gemini-2.0-flash-exp")
+
     """
     # Detect provider from model format
     if model and is_openrouter_model(model):
@@ -139,9 +143,4 @@ def create_llm_client(model: str | None = None, api_key: str | None = None) -> A
     # Default to Gemini
     from google import genai
 
-    if api_key:
-        return genai.Client(api_key=api_key)
-
-    # Use default Gemini client with retry config
-    from egregora.orchestration.pipelines.write import _create_gemini_client
-    return _create_gemini_client()
+    return genai.Client(api_key=api_key) if api_key else genai.Client()

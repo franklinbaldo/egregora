@@ -71,9 +71,12 @@ def get_embedding_dimension(model: str) -> int:
 
     Returns:
         Vector dimension for the model
+
     """
     from egregora.llm.providers.openrouter_embedding import get_embedding_dimension as get_dim
+
     return get_dim(model)
+
 
 # Quota defaults
 DEFAULT_DAILY_LLM_REQUESTS = 100  # Conservative default
@@ -168,17 +171,16 @@ class ModelSettings(BaseModel):
         if v.startswith("models/"):
             # Gemini format
             return v
-        elif "/" in v and not v.startswith("models/"):
+        if "/" in v and not v.startswith("models/"):
             # OpenRouter format (e.g., qwen/qwen3-embedding-0.6b)
             return v
-        else:
-            msg = (
-                f"Invalid embedding model format: {v!r}\n"
-                f"Expected formats:\n"
-                f"  - Gemini: models/gemini-embedding-001\n"
-                f"  - OpenRouter: qwen/qwen3-embedding-0.6b"
-            )
-            raise ValueError(msg)
+        msg = (
+            f"Invalid embedding model format: {v!r}\n"
+            f"Expected formats:\n"
+            f"  - Gemini: models/gemini-embedding-001\n"
+            f"  - OpenRouter: qwen/qwen3-embedding-0.6b"
+        )
+        raise ValueError(msg)
 
     @field_validator("banner")
     @classmethod

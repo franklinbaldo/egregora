@@ -990,6 +990,7 @@ class EnrichmentWorker(BaseWorker):
 
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 from egregora.llm.providers.openrouter import create_llm_client
+
                 client = create_llm_client(model=model, api_key=api_key)
                 response = client.models.generate_content(
                     model=model,
@@ -1412,6 +1413,7 @@ class EnrichmentWorker(BaseWorker):
         if is_openrouter_model(model_name):
             # OpenRouter model - use it directly without rotation
             from egregora.llm.providers.openrouter import create_llm_client
+
             client = create_llm_client(model=model_name, api_key=api_key)
             response = client.models.generate_content(
                 model=model_name,
@@ -1431,6 +1433,7 @@ class EnrichmentWorker(BaseWorker):
 
                 def call_with_model_and_key(model: str, api_key: str) -> str:
                     from egregora.llm.providers.openrouter import create_llm_client
+
                     client = create_llm_client(model=model, api_key=api_key)
                     response = client.models.generate_content(
                         model=model,
@@ -1443,6 +1446,7 @@ class EnrichmentWorker(BaseWorker):
             else:
                 # No rotation - use configured model and API key
                 from egregora.llm.providers.openrouter import create_llm_client
+
                 client = create_llm_client(model=model_name, api_key=api_key)
                 response = client.models.generate_content(
                     model=model_name,

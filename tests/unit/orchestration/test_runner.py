@@ -8,13 +8,10 @@ from egregora.data_primitives.protocols import OutputSink
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.exceptions import (
     CommandProcessingError,
-    EnrichmentError,
     MaxSplitDepthError,
     MediaPersistenceError,
     OutputSinkError,
     ProfileGenerationError,
-    WindowSizeError,
-    WindowSplitError,
     WindowValidationError,
 )
 from egregora.orchestration.runner import PipelineRunner

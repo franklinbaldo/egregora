@@ -134,7 +134,6 @@ def embed_fn(
     if is_openrouter_embedding_model(model):
         # Use OpenRouter for embedding
         return embed_with_openrouter(list(texts), model=model, task_type=task_type)
-    else:
-        # Use Gemini embedding router
-        router = get_embedding_router(model=model)
-        return router.embed(list(texts), task_type=task_type)
+    # Use Gemini embedding router
+    router = get_embedding_router(model=model)
+    return router.embed(list(texts), task_type=task_type)
