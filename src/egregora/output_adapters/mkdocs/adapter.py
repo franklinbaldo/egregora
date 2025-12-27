@@ -13,7 +13,6 @@ MODERN (2025-11-18): Imports site path resolution from
 
 from __future__ import annotations
 
-import html
 import logging
 import shutil
 from collections import Counter
@@ -26,22 +25,10 @@ import frontmatter
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
-from egregora.data_primitives import DocumentMetadata
-from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import UrlContext, UrlConvention
-from egregora.knowledge.profiles import ensure_author_profile_index, generate_fallback_avatar_url
+from egregora.data_primitives.document import Document, DocumentMetadata, DocumentType, UrlContext, UrlConvention
+from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
-from egregora.output_adapters.exceptions import (
-    AdapterNotInitializedError,
-    CollisionResolutionError,
-    ConfigLoadError,
-    DocumentNotFoundError,
-    DocumentParsingError,
-    ProfileGenerationError,
-    ProfileNotFoundError,
-    UnsupportedDocumentTypeError,
-)
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 from egregora.utils.datetime_utils import parse_datetime_flexible
@@ -187,7 +174,7 @@ class MkDocsAdapter(BaseOutputSink):
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
 
-    def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path:
+    def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path | None:
         """Resolve filesystem path for a document based on its type.
 
         UNIFIED: Posts, profiles, journals, and enrichment URLs all live in posts_dir.
@@ -201,45 +188,59 @@ class MkDocsAdapter(BaseOutputSink):
             Path to document or None if type unsupported
 
         """
-        path_map = {
-            DocumentType.PROFILE: self.profiles_dir,
-            DocumentType.POST: self.posts_dir,
-            DocumentType.JOURNAL: self.journal_dir,
-            DocumentType.ENRICHMENT_URL: self.media_dir / "urls",
-            DocumentType.ENRICHMENT_MEDIA: self.media_dir,
-            DocumentType.ENRICHMENT_IMAGE: self.media_dir / "images",
-            DocumentType.ENRICHMENT_VIDEO: self.media_dir / "videos",
-            DocumentType.ENRICHMENT_AUDIO: self.media_dir / "audio",
-            DocumentType.MEDIA: self.media_dir,
-        }
-        if doc_type not in path_map:
-            raise UnsupportedDocumentTypeError(str(doc_type))
+        match doc_type:
+            case DocumentType.PROFILE:
+                # Profiles: "author_uuid/slug" (preferred) or "author_uuid" (latest)
+                if "/" in identifier:
+                    author_uuid, slug = identifier.split("/", 1)
+                    return self.profiles_dir / author_uuid / f"{slug}.md"
+                author_dir = self.profiles_dir / identifier
+                if not author_dir.exists():
+                    return None
+                candidates = [p for p in author_dir.glob("*.md") if p.name != "index.md"]
+                if not candidates:
+                    return None
+                return max(candidates, key=lambda p: p.stat().st_mtime_ns)
+            case DocumentType.POST:
+                # Posts: dated filename (e.g., "2024-01-01-slug.md")
+                matches = list(self.posts_dir.glob(f"*-{identifier}.md"))
+                if matches:
+                    return max(matches, key=lambda p: p.stat().st_mtime)
+                return None
+            case DocumentType.JOURNAL:
+                # Journals: simple filename with slug in journal_dir
+                return self.journal_dir / f"{identifier.replace('/', '-')}.md"
+            case DocumentType.ENRICHMENT_URL:
+                # Enrichment URLs: inside media_dir/urls (ADR-0004)
+                return self.media_dir / "urls" / f"{identifier}.md"
+            case DocumentType.ENRICHMENT_MEDIA:
+                # Enrichment media: stays in media_dir (fallback)
+                return self.media_dir / f"{identifier}.md"
+            case DocumentType.ENRICHMENT_IMAGE:
+                # Image descriptions: media_dir/images/
+                return self.media_dir / "images" / f"{identifier}.md"
+            case DocumentType.ENRICHMENT_VIDEO:
+                # Video descriptions: media_dir/videos/
+                return self.media_dir / "videos" / f"{identifier}.md"
+            case DocumentType.ENRICHMENT_AUDIO:
+                # Audio descriptions: media_dir/audio/
+                return self.media_dir / "audio" / f"{identifier}.md"
+            case DocumentType.MEDIA:
+                # Media files: stay in media_dir
+                return self.media_dir / identifier
+            case _:
+                return None
 
-        base_path = path_map[doc_type]
-
-        if doc_type == DocumentType.PROFILE:
-            if "/" in identifier:
-                author_uuid, slug = identifier.split("/", 1)
-                return self.profiles_dir / author_uuid / f"{slug}.md"
-            author_dir = self.profiles_dir / identifier
-            if not author_dir.exists():
-                raise DocumentNotFoundError(doc_type.value, identifier)
-            candidates = [p for p in author_dir.glob("*.md") if p.name != "index.md"]
-            if not candidates:
-                raise DocumentNotFoundError(doc_type.value, identifier)
-            return max(candidates, key=lambda p: p.stat().st_mtime_ns)
-        if doc_type == DocumentType.POST:
-            matches = list(self.posts_dir.glob(f"*-{identifier}.md"))
-            if not matches:
-                raise DocumentNotFoundError(doc_type.value, identifier)
-            return max(matches, key=lambda p: p.stat().st_mtime)
-        if doc_type == DocumentType.JOURNAL:
-            return self.journal_dir / f"{identifier.replace('/', '-')}.md"
-
-        return base_path / identifier
-
-    def get(self, doc_type: DocumentType, identifier: str) -> Document:
+    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
         path = self._resolve_document_path(doc_type, identifier)
+
+        if path is None or not path.exists():
+            logger.debug(
+                "Document not found: %s/%s",
+                doc_type.value if isinstance(doc_type, DocumentType) else doc_type,
+                identifier,
+            )
+            return None
 
         try:
             if doc_type == DocumentType.MEDIA:
@@ -248,8 +249,9 @@ class MkDocsAdapter(BaseOutputSink):
                 return Document(content=raw_bytes, type=doc_type, metadata=metadata)
             post = frontmatter.load(str(path))
             metadata, actual_content = post.metadata, post.content
-        except (OSError, yaml.YAMLError) as e:
-            raise DocumentParsingError(str(path), str(e)) from e
+        except OSError:
+            logger.exception("Failed to read document at %s", path)
+            return None
 
         return Document(content=actual_content, type=doc_type, metadata=metadata)
 
@@ -301,7 +303,8 @@ class MkDocsAdapter(BaseOutputSink):
         try:
             config = safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
         except yaml.YAMLError as exc:
-            raise ConfigLoadError(str(mkdocs_path), str(exc)) from exc
+            logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
+            config = {}
         return config
 
     def get_markdown_extensions(self) -> list[str]:
@@ -497,7 +500,7 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
 Use consistent, meaningful tags across posts to build a useful taxonomy.
 """
 
-    def documents(self, doc_type: DocumentType | None = None) -> Iterator[Document]:
+    def documents(self) -> Iterator[Document]:
         """Return all MkDocs documents as Document instances (lazy iterator)."""
         if not hasattr(self, "_site_root") or self._site_root is None:
             return
@@ -507,7 +510,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # but get() expects a simpler identifier for some types (e.g., "slug" for posts).
         # To reliably load all listed documents, we bypass the identifier resolution logic
         # and load directly from the known path found by list().
-        for meta in self.list(doc_type=doc_type):
+        for meta in self.list():
             if meta.doc_type and "path" in meta.metadata:
                 doc_path = Path(str(meta.metadata["path"]))
                 # Bypass identifier resolution by loading directly from path
@@ -532,25 +535,18 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             return
 
         # Scan docs/posts recursively and classify documents by path + frontmatter.
-        yield from self._scan_for_documents(doc_type)
+        yield from self._list_from_posts_tree(doc_type)
 
-    def _scan_for_documents(self, filter_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
-        """Scan all known document directories for markdown files."""
+    def _list_from_posts_tree(self, filter_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
         exclude_names = {"index.md", "tags.md"}
-        # Scan the entire docs_dir, which contains posts, profiles, media, etc.
-        for path in self.docs_dir.rglob("*.md"):
+        for path in self.posts_dir.rglob("*.md"):
             if not path.is_file() or path.name in exclude_names:
                 continue
-
+            if self.media_dir in path.parents and path.name == "index.md":
+                continue
             detected_type = self._detect_document_type(path)
             if filter_type is not None and detected_type != filter_type:
                 continue
-
-            # Skip md files that are not a primary document type
-            # (e.g. intermediate indexes in media folders)
-            if detected_type not in self._writers:
-                continue
-
             identifier = str(path.relative_to(self._site_root))
             try:
                 mtime_ns = path.stat().st_mtime_ns
@@ -603,7 +599,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         """
         if not hasattr(self, "_site_root") or self._site_root is None:
-            raise AdapterNotInitializedError
+            msg = "MkDocsOutputAdapter not initialized - call initialize() first"
+            raise RuntimeError(msg)
 
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()
@@ -628,32 +625,25 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _detect_document_type(self, path: Path) -> DocumentType:
         """Detect document type from path and (when needed) frontmatter."""
+        try:
+            relative = path.relative_to(self.posts_dir)
+        except ValueError:
+            relative = path
 
-        def _is_child(p: Path, parent: Path) -> bool:
-            """Check if p is a child of parent, compatible with Python < 3.9."""
-            try:
-                p.relative_to(parent)
-                return True
-            except ValueError:
-                return False
-
-        # Use is_relative_to for robust path checking
-        if _is_child(path, self.profiles_dir):
+        parts = relative.parts
+        if parts[:1] == ("profiles",):
             return DocumentType.PROFILE
-        if _is_child(path, self.urls_dir):
+        if parts[:2] == ("media", "urls"):
             return DocumentType.ENRICHMENT_URL
-        if _is_child(path, self.media_dir):
+        if parts[:1] == ("media",):
             return DocumentType.ENRICHMENT_MEDIA
-        if _is_child(path, self.journal_dir):
-            return DocumentType.JOURNAL
-        if _is_child(path, self.posts_dir / "annotations"):
+        if parts[:2] == ("annotations",):
             return DocumentType.ANNOTATION
 
-        # Fallback to frontmatter-based detection for journal/annotations
         try:
             post = frontmatter.load(str(path))
             metadata = post.metadata
-        except (OSError, yaml.YAMLError):
+        except OSError:
             metadata = {}
 
         categories = (metadata or {}).get("categories", [])
@@ -663,13 +653,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             return DocumentType.JOURNAL
         if "Annotations" in categories:
             return DocumentType.ANNOTATION
-
-        # Default to POST for anything else in docs/posts
-        if _is_child(path, self.posts_dir):
-            return DocumentType.POST
-
-        # If we're here, it's not in a known directory.
-        # This could be a top-level file. Default to POST.
         return DocumentType.POST
 
     def _list_from_unified_dir(
@@ -748,12 +731,12 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             except (OSError, ValueError):
                 continue
 
-    def _document_from_path(self, path: Path, doc_type: DocumentType) -> Document:
+    def _document_from_path(self, path: Path, doc_type: DocumentType) -> Document | None:
         try:
             post = frontmatter.load(str(path))
             metadata, body = post.metadata, post.content
-        except (OSError, yaml.YAMLError) as e:
-            raise DocumentParsingError(str(path), str(e)) from e
+        except OSError:
+            return None
         metadata = metadata or {}
         slug_value = metadata.get("slug")
         if isinstance(slug_value, str) and slug_value.strip():
@@ -944,6 +927,31 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if "authors" in metadata:
             ensure_author_entries(path.parent, metadata.get("authors"))
 
+        # Add related posts based on shared tags
+        current_tags = set(metadata.get("tags", []))
+        current_slug = metadata.get("slug")
+        if current_tags and current_slug:
+            all_posts = list(self.documents())
+            related_posts_list = []
+            for post in all_posts:
+                if post.type != DocumentType.POST:
+                    continue
+                post_slug = post.metadata.get("slug")
+                if post_slug == current_slug:
+                    continue
+                post_tags = set(post.metadata.get("tags", []))
+                shared_tags = current_tags & post_tags
+                if shared_tags:
+                    related_posts_list.append(
+                        {
+                            "title": post.metadata.get("title"),
+                            "url": self.url_convention.canonical_url(post, self._ctx),
+                            "reading_time": post.metadata.get("reading_time", 5),
+                        }
+                    )
+            if related_posts_list:
+                metadata["related_posts"] = related_posts_list
+
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
@@ -979,7 +987,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
         if not author_uuid:
             msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
-            raise ProfileGenerationError(msg)
+            raise ValueError(msg)
 
         # Use standard frontmatter writing logic
         metadata = dict(document.metadata or {})
@@ -987,17 +995,17 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Add type for categorization
         metadata["type"] = "profile"
 
-        # Ensure avatar is present in frontmatter (for profile index page to use)
+        # Ensure avatar is present (fallback if needed)
         if "avatar" not in metadata:
             metadata["avatar"] = generate_fallback_avatar_url(author_uuid)
 
-        # Add Profile category using helper (handles malformed data)
-        metadata = self._ensure_category(metadata, "Profile")
+        # Add Authors category using helper (handles malformed data)
+        metadata = self._ensure_category(metadata, "Authors")
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
-        posts = list(self.documents(doc_type=DocumentType.POST))
-        author_posts_docs = [post for post in posts if author_uuid in post.metadata.get("authors", [])]
+        all_posts = list(self.documents())
+        author_posts_docs = [post for post in all_posts if author_uuid in post.metadata.get("authors", [])]
         metadata["posts"] = [
             {
                 "title": post.metadata.get("title"),
@@ -1007,10 +1015,15 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             for post in author_posts_docs
         ]
 
-        # Write content directly (avatar is in frontmatter for index page, not in content body)
-        full_content = f"---\n{yaml_front}---\n\n{document.content}"
+        # Prepend avatar using MkDocs macros syntax
+        # This matches the logic in profiles.py but ensures it happens even when writing via adapter
+        # Note: We use double braces {{ }} for Jinja2 syntax, so in f-string we need quadruple braces {{{{ }}}}
+        content_with_avatar = (
+            f"![Avatar]({{{{ page.meta.avatar }}}}){{ align=left width=150 }}\n\n{document.content}"
+        )
+
+        full_content = f"---\n{yaml_front}---\n\n{content_with_avatar}"
         path.write_text(full_content, encoding="utf-8")
-        ensure_author_profile_index(author_uuid, self.profiles_dir)
 
     def _write_enrichment_doc(self, document: Document, path: Path) -> None:
         metadata = self._ensure_hidden(document.metadata.copy())
@@ -1035,37 +1048,22 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         # V3 Large File Support: If source_path is present, move/copy from there
         # instead of loading content into memory.
-        source_path_str = document.metadata.get("source_path")
-        if source_path_str:
-            # Security: Validate source path to prevent path traversal attacks
-            # Source paths should be absolute or within expected staging directories
-            src = Path(source_path_str)
-
-            # Ensure source path is absolute and exists
-            if not src.is_absolute():
-                logger.warning("Rejecting relative source path (security): %s", source_path_str)
-            elif src.exists():
-                # Additional security: Ensure resolved path hasn't changed (symlink check)
+        source_path = document.metadata.get("source_path")
+        if source_path:
+            src = Path(source_path)
+            if src.exists():
+                logger.debug("Moving media file from %s to %s", src, path)
+                # We use move to be efficient (atomic on same filesystem), falling back to copy if needed.
+                # Since the source is usually a temp staging file, moving is preferred.
                 try:
-                    resolved_src = src.resolve(strict=True)
-                except (OSError, RuntimeError) as e:
-                    logger.warning("Failed to resolve source path %s: %s", src, e)
-                else:
-                    logger.debug("Moving media file from %s to %s", resolved_src, path)
-                    # We use move to be efficient (atomic on same filesystem), falling back to copy if needed.
-                    # Since the source is usually a temp staging file, moving is preferred.
-                    try:
-                        shutil.move(str(resolved_src), path)
-                    except OSError:
-                        # Fallback if cross-device or other issue
-                        shutil.copy2(str(resolved_src), path)
-                        with suppress(OSError):
-                            resolved_src.unlink()
-                    return
-            else:
-                logger.warning(
-                    "Source path %s provided but does not exist, falling back to content", source_path_str
-                )
+                    shutil.move(src, path)
+                except OSError:
+                    # Fallback if cross-device or other issue
+                    shutil.copy2(src, path)
+                    with suppress(OSError):
+                        src.unlink()
+                return
+            logger.warning("Source path %s provided but does not exist, falling back to content", source_path)
 
         payload = (
             document.content if isinstance(document.content, bytes) else document.content.encode("utf-8")
@@ -1128,7 +1126,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         )
         return document.document_id
 
-    def _resolve_collision(self, path: Path, document_id: str, max_attempts: int = 1000) -> Path:
+    def _resolve_collision(self, path: Path, document_id: str) -> Path:
         stem = path.stem
         suffix = path.suffix
         parent = path.parent
@@ -1142,8 +1140,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             if existing_doc_id == document_id:
                 return new_path
             counter += 1
+            max_attempts = 1000
             if counter > max_attempts:
-                raise CollisionResolutionError(str(path), max_attempts)
+                msg = f"Failed to resolve collision for {path} after {max_attempts} attempts"
+                raise RuntimeError(msg)
 
     # ============================================================================
     # Phase 2: Dynamic Data Population for UX Templates
@@ -1197,7 +1197,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
     def get_profiles_data(self) -> list[dict[str, Any]]:
         """Extract profile metadata for profiles index, including calculated stats."""
         profiles = []
-        posts = list(self.documents(doc_type=DocumentType.POST))  # Inefficient, but necessary for stats
+        all_posts = list(self.documents())  # Inefficient, but necessary for stats
 
         if not hasattr(self, "profiles_dir") or not self.profiles_dir.exists():
             return profiles
@@ -1213,7 +1213,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
                 author_posts = [
                     post
-                    for post in posts
+                    for post in all_posts
                     if post.metadata and author_uuid in post.metadata.get("authors", [])
                 ]
 
@@ -1357,11 +1357,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Render using Jinja template
         try:
             templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
-            # Security: Enable autoescape for .jinja templates to prevent XSS
-            env = Environment(
-                loader=FileSystemLoader(str(templates_dir)),
-                autoescape=select_autoescape(["html", "htm", "xml", "jinja"]),
-            )
+            env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
             template = env.get_template("partials/author_cards.jinja")
             author_cards_html = template.render(authors=authors_data)
             return content.rstrip() + "\n" + author_cards_html
@@ -1381,9 +1377,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         # Collect all tags from posts
         tag_counts: Counter = Counter()
-        posts = list(self.documents(doc_type=DocumentType.POST))
+        all_posts = list(self.documents())
 
-        for post in posts:
+        for post in all_posts:
+            if post.type != DocumentType.POST:
+                continue
             tags = post.metadata.get("tags", [])
             for tag in tags:
                 if isinstance(tag, str) and tag.strip():
@@ -1436,11 +1434,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         except (OSError, TemplateError):
             logger.exception("Failed to regenerate tags page")
 
-    def get_author_profile(self, author_uuid: str) -> dict:
+    def get_author_profile(self, author_uuid: str) -> dict | None:
         """Public alias for _build_author_profile."""
         return self._build_author_profile(author_uuid)
 
-    def _build_author_profile(self, author_uuid: str) -> dict:
+    def _build_author_profile(self, author_uuid: str) -> dict | None:
         """Build author profile by scanning all their posts chronologically.
 
         Sequential metadata updates: later posts override earlier values.
@@ -1449,16 +1447,13 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             author_uuid: UUID of the author
 
         Returns:
-            Profile dictionary with derived state.
-
-        Raises:
-            ProfileNotFoundError: If no posts are found for the author.
+            Profile dictionary with derived state, or None if no posts found
 
         """
         # Use full UUID for consistency
         author_dir = self.posts_dir / "authors" / author_uuid
         if not author_dir.exists():
-            raise ProfileNotFoundError(author_uuid)
+            return None
 
         posts = sorted(author_dir.glob("*.md"), key=lambda p: p.stem)
 
@@ -1507,7 +1502,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             )
 
         if not profile["name"]:
-            raise ProfileNotFoundError(author_uuid)
+            return None  # No valid profile without a name
 
         profile["interests"] = sorted(profile["interests"])
         return profile
@@ -1525,43 +1520,26 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Generate avatar HTML if available
         avatar_html = ""
         if profile.get("avatar"):
-            # Avatar URL should be safe if generated by system, but if user provided, it might need checking.
-            # Markdown image syntax handles URL encoding usually, but we assume URL is valid.
             avatar_html = f"![Avatar]({profile['avatar']}){{ align=left width=150 }}\n\n"
 
         # Build post list (newest first)
-        # Escape titles to prevent XSS in link text
         posts_md = "\n".join(
-            [
-                f"- [{html.escape(str(p.get('title', '')))}]({p['slug']}.md) - {p['date']}"
-                for p in reversed(profile["posts"])
-            ]
+            [f"- [{p['title']}]({p['slug']}.md) - {p['date']}" for p in reversed(profile["posts"])]
         )
 
-        # Build frontmatter using yaml.dump to ensure valid YAML and safe escaping
-        frontmatter_data = {
-            "title": profile["name"],
-            "type": "profile",
-            "uuid": profile["uuid"],
-            "avatar": profile.get("avatar", ""),
-            "bio": profile.get("bio", ""),
-            "interests": profile.get("interests", []),
-        }
-        yaml_front = yaml.dump(
-            frontmatter_data, default_flow_style=False, allow_unicode=True, sort_keys=False
-        )
-
-        # Escape content for Body to prevent XSS
-        safe_name = html.escape(str(profile.get("name", "")))
-        safe_bio = html.escape(str(profile.get("bio", "")))
-        safe_interests = [html.escape(str(i)) for i in profile.get("interests", [])]
-
+        # Build frontmatter
         return f"""---
-{yaml_front}---
+title: {profile["name"]}
+type: profile
+uuid: {profile["uuid"]}
+avatar: {profile.get("avatar", "")}
+bio: {profile.get("bio", "")}
+interests: {profile.get("interests", [])}
+---
 
-{avatar_html}# {safe_name}
+{avatar_html}# {profile["name"]}
 
-{safe_bio}
+{profile.get("bio", "")}
 
 ## Posts ({len(profile["posts"])})
 
@@ -1569,7 +1547,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
 ## Interests
 
-{", ".join(safe_interests)}
+{", ".join(profile.get("interests", []))}
 """
 
 

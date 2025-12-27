@@ -34,12 +34,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import UrlConvention
+from egregora.data_primitives.document import Document, DocumentType, UrlConvention
 from egregora.utils.paths import slugify
 
 if TYPE_CHECKING:
-    from egregora.data_primitives.protocols import UrlContext
+    from egregora.data_primitives.document import UrlContext
 
 
 EXPECTED_PARTS_WITH_PATH = 2

@@ -79,8 +79,10 @@ def test_config_validate_model_name_validator():
         EgregoraConfig(models={"writer": "gemini-flash-latest"})
     assert "Invalid Pydantic-AI model format" in str(exc.value)
 
-    # NOTE: Embedding model validation is handled by EmbeddingProviderFactory at runtime,
-    # not at config load time. This allows for flexible provider support via strategy pattern.
+    # Invalid embedding format (missing models/ prefix)
+    with pytest.raises(ValidationError) as exc:
+        EgregoraConfig(models={"embedding": "gemini-embedding-001"})
+    assert "Invalid Google GenAI model format" in str(exc.value)
 
 
 def test_config_validate_cross_field_rag_requires_lancedb():
@@ -228,6 +230,9 @@ writer = "google-gla:gemini-2.5-flash"
 
     assert primary.models.writer == "google-gla:gemini-pro-latest"
     assert secondary.models.writer == "google-gla:gemini-2.5-flash"
+
+
+from egregora.config.exceptions import ConfigError
 
 
 def test_config_requires_at_least_one_site(tmp_path: Path):

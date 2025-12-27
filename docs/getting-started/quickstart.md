@@ -4,18 +4,20 @@ This guide will walk you through generating your first blog post from a WhatsApp
 
 ## Prerequisites
 
-- You have installed Python 3.12+ and [uv](https://github.com/astral-sh/uv).
-- You have a [Google Gemini API key](https://ai.google.dev/gemini-api/docs/api-key).
-- You have created the `eg` alias as described in the [Installation guide](installation.md).
+- Python 3.12+
+- [uv](https://github.com/astral-sh/uv) installed
+- [Google Gemini API key](https://ai.google.dev/gemini-api/docs/api-key)
 
 ## Step 1: Initialize Your Blog
 
 Create a new blog site:
 
 ```bash
-eg init my-blog
+uvx --from git+https://github.com/franklinbaldo/egregora egregora init my-blog
 cd my-blog
 ```
+
+Running `egregora init` or the next `egregora write` call will automatically create `.egregora` (mkdocs config plus cache/RAG/LanceDB paths). If you ever need to rehydrate the scaffolding manually, run `python scripts/bootstrap_site.py ./my-blog` from the repo root or `python ../scripts/bootstrap_site.py .` from within the site directory.
 
 This creates a minimal MkDocs site structure:
 
@@ -50,7 +52,7 @@ export GOOGLE_API_KEY="your-api-key-here"
 ## Step 4: Process the Export
 
 ```bash
-eg write \
+uvx --from git+https://github.com/franklinbaldo/egregora egregora write \
   whatsapp-export.zip \
   --output-dir=. \
   --timezone='America/New_York'
@@ -75,8 +77,8 @@ This will:
 Launch a local preview server:
 
 ```bash
-# 'eg serve' is a pass-through to 'mkdocs serve'
-eg serve -f .egregora/mkdocs.yml
+uv sync --all-extras
+uv run mkdocs serve -f .egregora/mkdocs.yml
 ```
 
 Open [http://localhost:8000](http://localhost:8000) in your browser. 🎉
@@ -120,13 +122,13 @@ Process another export or adjust windowing:
 
 ```bash
 # Daily windowing (default)
-eg write another-export.zip --output-dir=. --step-size=1 --step-unit=days
+egregora write another-export.zip --output-dir=. --step-size=1 --step-unit=days
 
 # Hourly windowing for active chats
-eg write export.zip --step-size=4 --step-unit=hours
+egregora write export.zip --step-size=4 --step-unit=hours
 
 # Message-based windowing
-eg write export.zip --step-size=100 --step-unit=messages
+egregora write export.zip --step-size=100 --step-unit=messages
 ```
 
 ### Enable Enrichment
@@ -134,7 +136,7 @@ eg write export.zip --step-size=100 --step-unit=messages
 Use LLM to enrich URLs and media:
 
 ```bash
-eg write export.zip --enable-enrichment
+egregora write export.zip --enable-enrichment
 ```
 
 ### Rank Your Content
@@ -142,8 +144,8 @@ eg write export.zip --enable-enrichment
 Use ELO comparisons to identify your best posts:
 
 ```bash
-eg read rank docs/posts/
-eg top --limit=10
+egregora read rank docs/posts/
+egregora top --limit=10
 ```
 
 ### Check Pipeline Runs
@@ -151,31 +153,31 @@ eg top --limit=10
 View pipeline execution history:
 
 ```bash
-eg runs list
-eg runs show <run_id>
+egregora runs list
+egregora runs show <run_id>
 ```
 
 ## Common Options
 
 ```bash
 # Daily windowing instead of default
-eg write export.zip --step-size=1 --step-unit=days
+egregora write export.zip --step-size=1 --step-unit=days
 
 # Enable URL/media enrichment
-eg write export.zip --enable-enrichment
+egregora write export.zip --enable-enrichment
 
 # Custom date range
-eg write export.zip --from-date=2025-01-01 --to-date=2025-01-31
+egregora write export.zip --from-date=2025-01-01 --to-date=2025-01-31
 
 # Different model
-eg write export.zip --model=google-gla:gemini-pro-latest
+egregora write export.zip --model=google-gla:gemini-pro-latest
 
 # Incremental processing (resume previous run)
-eg write export.zip --resume
+egregora write export.zip --resume
 
 # Invalidate cache tiers
-eg write export.zip --refresh=writer  # Regenerate posts
-eg write export.zip --refresh=all     # Full rebuild
+egregora write export.zip --refresh=writer  # Regenerate posts
+egregora write export.zip --refresh=all     # Full rebuild
 ```
 
 ## Troubleshooting
@@ -209,5 +211,5 @@ chmod -R u+w .egregora/lancedb/
 
 ## Learn More
 
-- [Technical Reference](../reference/index.md) - Learn about the architecture and CLI
-- [Code of the Weaver](../CLAUDE.md) - Guidelines for contributors
+- [Architecture Overview](../v3/architecture/index.md) - Understand the pipeline
+- [API Reference](../v3/api-reference/index.md) - Complete code documentation

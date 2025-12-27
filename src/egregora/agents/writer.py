@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 import ibis.common.exceptions
+from google import genai
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
 from pydantic_ai import UsageLimits
@@ -32,41 +33,31 @@ from pydantic_ai.messages import (
 from ratelimit import limits, sleep_and_retry
 from tenacity import Retrying
 
-from egregora.agents.exceptions import (
-    AgentExecutionError,
-    FormatInstructionError,
-    JournalDataError,
-    JournalFileSystemError,
-    JournalTemplateError,
+from egregora.agents.formatting import (
+    build_conversation_xml,
+    load_journal_memory,
 )
 from egregora.agents.types import (
     PromptTooLargeError,
     WriterDeps,
     WriterResources,
 )
-from egregora.agents.writer_context import (
-    RESULT_KEY_POSTS,
-    RESULT_KEY_PROFILES,
-    WriterContext,
-    WriterContextParams,
-    WriterDepsParams,
-    build_context_and_signature,
-    check_writer_cache,
-    index_new_content_in_rag,
-    prepare_writer_dependencies,
-)
 from egregora.agents.writer_helpers import (
     process_tool_result,
 )
 from egregora.agents.writer_setup import (
+    configure_writer_capabilities,
     create_writer_model,
     setup_writer_agent,
 )
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.infra.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
+from egregora.knowledge.profiles import get_active_authors
 from egregora.output_adapters import OutputSinkRegistry, create_default_output_registry
-from egregora.resources.prompts import render_prompt
-from egregora.utils.cache import PipelineCache
-from egregora.utils.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
+from egregora.rag import index_documents, reset_backend
+from egregora.resources.prompts import PromptManager, render_prompt
+from egregora.transformations.windowing import generate_window_signature
+from egregora.utils.cache import CacheTier, PipelineCache
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -74,10 +65,14 @@ if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig
     from egregora.data_primitives.protocols import OutputSink
     from egregora.orchestration.context import PipelineContext
+    from egregora.utils.metrics import UsageTracker
 
 logger = logging.getLogger(__name__)
 
-# Constants
+# Constants for RAG and journaling
+MAX_RAG_QUERY_BYTES = 30000
+
+# Template names
 WRITER_TEMPLATE_NAME = "writer.jinja"
 JOURNAL_TEMPLATE_NAME = "journal.md.jinja"
 TEMPLATES_DIR_NAME = "templates"
@@ -91,10 +86,141 @@ JOURNAL_TYPE_TEXT = "journal"
 JOURNAL_TYPE_TOOL_CALL = "tool_call"
 JOURNAL_TYPE_TOOL_RETURN = "tool_return"
 
+# Result keys
+RESULT_KEY_POSTS = "posts"
+RESULT_KEY_PROFILES = "profiles"
+
 # Type aliases for improved type safety
 MessageHistory = Sequence[ModelRequest | ModelResponse]
 LLMClient = Any
 AgentModel = Any
+
+
+# ============================================================================
+# Context Building (RAG & Profiles)
+# ============================================================================
+
+
+@dataclass
+class RagContext:
+    """RAG query result with formatted text and metadata."""
+
+    text: str
+    records: list[dict[str, Any]]
+
+
+@dataclass
+class WriterContext:
+    """Encapsulates all contextual data required for the writer agent prompt."""
+
+    conversation_xml: str
+    rag_context: str
+    profiles_context: str
+    journal_memory: str
+    active_authors: list[str]
+    format_instructions: str
+    custom_instructions: str
+    source_context: str
+    date_label: str
+    pii_prevention: dict[str, Any] | None = None  # LLM-native PII prevention settings
+
+    @property
+    def template_context(self) -> dict[str, Any]:
+        """Return context dictionary for Jinja template rendering."""
+        return {
+            "conversation_xml": self.conversation_xml,
+            "rag_context": self.rag_context,
+            "profiles_context": self.profiles_context,
+            "journal_memory": self.journal_memory,
+            "active_authors": ", ".join(self.active_authors),
+            "format_instructions": self.format_instructions,
+            "custom_instructions": self.custom_instructions,
+            "source_context": self.source_context,
+            "date": self.date_label,
+            "enable_memes": False,
+            "pii_prevention": self.pii_prevention,
+        }
+
+
+def _truncate_for_embedding(text: str, byte_limit: int = MAX_RAG_QUERY_BYTES) -> str:
+    """Clamp markdown payloads before embedding to respect API limits."""
+    encoded = text.encode("utf-8")
+    if len(encoded) <= byte_limit:
+        return text
+    truncated = encoded[:byte_limit]
+    truncated_text = truncated.decode("utf-8", errors="ignore").rstrip()
+    logger.info(
+        "Truncated RAG query markdown from %s bytes to %s bytes to fit embedding limits",
+        len(encoded),
+        byte_limit,
+    )
+    return truncated_text + "\n\n<!-- truncated for RAG query -->"
+
+
+@dataclass
+class WriterContextParams:
+    """Parameters for building writer context."""
+
+    table: Table
+    resources: WriterResources
+    cache: PipelineCache
+    config: EgregoraConfig
+    window_label: str
+    adapter_content_summary: str
+    adapter_generation_instructions: str
+
+
+def _build_writer_context(params: WriterContextParams) -> WriterContext:
+    """Collect contextual inputs used when rendering the writer prompt."""
+    messages_table = params.table.to_pyarrow()
+    conversation_xml = build_conversation_xml(messages_table, params.resources.annotations_store)
+
+    # CACHE INVALIDATION STRATEGY:
+    # RAG and Profiles context building moved to dynamic system prompts for lazy evaluation.
+    # This creates a cache trade-off:
+    #
+    # Trade-off: Cache signature includes conversation XML but NOT RAG/Profile results
+    # - Pro: Avoids expensive RAG/Profile computation for signature calculation
+    # - Con: Cache hit may use stale data if RAG index changes but conversation doesn't
+    #
+    # Mitigation strategies (not currently implemented):
+    # 1. Include RAG index version/timestamp in signature
+    # 2. Add cache TTL for RAG-enabled runs
+    # 3. Manual cache invalidation when RAG index is updated
+    #
+    # Current behavior: Cache is conversation-scoped only. If RAG data changes
+    # but conversation is identical, cached results will be used.
+    # This is acceptable for most use cases where conversation changes drive cache invalidation.
+
+    rag_context = ""  # Dynamically injected via @agent.system_prompt
+    profiles_context = ""  # Dynamically injected via @agent.system_prompt
+
+    journal_memory = load_journal_memory(params.resources.output)
+    active_authors = get_active_authors(params.table)
+
+    format_instructions = params.resources.output.get_format_instructions()
+    custom_instructions = params.config.writer.custom_instructions or ""
+    if params.adapter_generation_instructions:
+        custom_instructions = "\n\n".join(
+            filter(None, [custom_instructions, params.adapter_generation_instructions])
+        )
+
+    pii_prevention = None
+    if params.config.privacy.pii_detection_enabled:
+        pii_prevention = params.config.privacy.model_dump()
+
+    return WriterContext(
+        conversation_xml=conversation_xml,
+        rag_context=rag_context,
+        profiles_context=profiles_context,
+        journal_memory=journal_memory,
+        active_authors=active_authors,
+        format_instructions=format_instructions,
+        custom_instructions=custom_instructions,
+        source_context=params.adapter_content_summary,
+        date_label=params.window_label,
+        pii_prevention=pii_prevention,
+    )
 
 
 # ============================================================================
@@ -208,18 +334,17 @@ class JournalEntryParams:
     total_tokens: int = 0
 
 
-def _save_journal_to_file(params: JournalEntryParams) -> str:
+def _save_journal_to_file(params: JournalEntryParams) -> str | None:
     """Save journal entry to markdown file."""
     intercalated_log = params.intercalated_log
     if not intercalated_log:
-        return ""
+        return None
 
     templates_dir = Path(__file__).resolve().parents[1] / TEMPLATES_DIR_NAME
     now_utc = datetime.now(tz=UTC)
     window_start_iso = params.window_start.astimezone(UTC).isoformat()
     window_end_iso = params.window_end.astimezone(UTC).isoformat()
     journal_slug = now_utc.strftime("%Y-%m-%d-%H-%M-%S")
-    journal_path_str = f"journal/{journal_slug}.md"
 
     try:
         # Security: Enable autoescape for markdown/jinja templates to prevent XSS in journals
@@ -259,14 +384,17 @@ def _save_journal_to_file(params: JournalEntryParams) -> str:
         )
         params.output_format.persist(doc)
         logger.info("Saved journal entry: %s", doc.document_id)
+    except (TemplateNotFound, TemplateError):
+        logger.exception("Journal template error")
+    except (OSError, PermissionError):
+        logger.exception("File system error during journal creation")
+    except (TypeError, AttributeError):
+        logger.exception("Invalid data for journal")
+    except ValueError:
+        logger.exception("Invalid journal document")
+    else:
         return doc.document_id
-    except (TemplateNotFound, TemplateError) as e:
-        raise JournalTemplateError(template_name=JOURNAL_TEMPLATE_NAME, reason=str(e)) from e
-    except (OSError, PermissionError) as e:
-        raise JournalFileSystemError(path=journal_path_str, reason=str(e)) from e
-    except (TypeError, AttributeError, ValueError) as e:
-        # Catching other potential issues during doc creation
-        raise JournalDataError(reason=str(e)) from e
+    return None
 
 
 def _process_single_tool_result(
@@ -336,7 +464,7 @@ def _prepare_deps(
         run_id=ctx.run_id,
     )
 
-    return prepare_writer_dependencies(
+    return _prepare_writer_dependencies(
         WriterDepsParams(
             window_start=window_start,
             window_end=window_end,
@@ -358,8 +486,13 @@ async def write_posts_with_pydantic_agent(
     """Execute the writer flow using Pydantic-AI agent tooling."""
     logger.info("Running writer via Pydantic-AI backend")
 
+    active_capabilities = configure_writer_capabilities(config, context)
+    if active_capabilities:
+        caps_list = ", ".join(capability.name for capability in active_capabilities)
+        logger.info("Writer capabilities enabled: %s", caps_list)
+
     model = await create_writer_model(config, context, prompt, test_model)
-    agent = setup_writer_agent(model, prompt, config)
+    agent = setup_writer_agent(model, prompt, active_capabilities)
 
     if context.resources.quota:
         context.resources.quota.reserve(1)
@@ -374,13 +507,6 @@ async def write_posts_with_pydantic_agent(
     # Use tenacity for retries
     for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
         with attempt:
-            attempt_num = attempt.retry_state.attempt_number
-            logger.info(
-                "🖊️  [Writer] Starting LLM call for %s (attempt %d/%d)...",
-                context.window_label,
-                attempt_num,
-                RETRY_STOP.max_attempt_number if hasattr(RETRY_STOP, "max_attempt_number") else 3,
-            )
             # Execute model directly without tools
             result = await agent.run(
                 "Analyze the conversation context provided and write posts/profiles as needed.",
@@ -390,10 +516,8 @@ async def write_posts_with_pydantic_agent(
 
     if not result:
         # Should be unreachable due to reraise=True
-        raise AgentExecutionError(
-            window_label=context.window_label,
-            reason="Agent failed to produce a result after retries.",
-        )
+        msg = "Agent failed after retries"
+        raise RuntimeError(msg)
 
     usage = result.usage()
     if context.resources.usage:
@@ -420,19 +544,18 @@ async def write_posts_with_pydantic_agent(
                     datetime.now(tz=UTC),
                 )
             ]
-    if intercalated_log:
-        _save_journal_to_file(
-            JournalEntryParams(
-                intercalated_log=intercalated_log,
-                window_label=context.window_label,
-                output_format=context.resources.output,
-                posts_published=len(saved_posts),
-                profiles_updated=len(saved_profiles),
-                window_start=context.window_start,
-                window_end=context.window_end,
-                total_tokens=result.usage().total_tokens if result.usage() else 0,
-            )
+    _save_journal_to_file(
+        JournalEntryParams(
+            intercalated_log=intercalated_log,
+            window_label=context.window_label,
+            output_format=context.resources.output,
+            posts_published=len(saved_posts),
+            profiles_updated=len(saved_profiles),
+            window_start=context.window_start,
+            window_end=context.window_end,
+            total_tokens=result.usage().total_tokens if result.usage() else 0,
         )
+    )
 
     logger.info(
         "Writer agent completed: period=%s posts=%d profiles=%d tokens=%d",
@@ -457,6 +580,160 @@ def _render_writer_prompt(
     )
 
 
+def _cast_uuid_columns_to_str(table: Table) -> Table:
+    """Ensure UUID-like columns are serialised to strings."""
+    return table.mutate(
+        event_id=table.event_id.cast(str),
+        author_uuid=table.author_uuid.cast(str),
+        thread_id=table.thread_id.cast(str),
+        created_by_run=table.created_by_run.cast(str),
+    )
+
+
+def _check_writer_cache(
+    cache: PipelineCache, signature: str, window_label: str, usage_tracker: UsageTracker | None = None
+) -> dict[str, list[str]] | None:
+    """Check L3 cache for cached writer results.
+
+    Args:
+        cache: Pipeline cache instance
+        signature: Window signature for cache lookup
+        window_label: Human-readable window label for logging
+        usage_tracker: Optional usage tracker to record cache hits
+
+    Returns:
+        Cached result if found, None otherwise
+
+    """
+    if cache.should_refresh(CacheTier.WRITER):
+        return None
+
+    cached_result = cache.writer.get(signature)
+    if cached_result:
+        logger.info("⚡ [L3 Cache Hit] Skipping Writer LLM for window %s", window_label)
+        if usage_tracker:
+            # Record a cache hit (0 tokens) to track efficiency
+            pass
+    return cached_result
+
+
+def _index_new_content_in_rag(
+    resources: WriterResources,
+    saved_posts: list[str],
+    saved_profiles: list[str],
+) -> None:
+    """Index newly created content in RAG system.
+
+    Args:
+        resources: Writer resources including RAG configuration
+        saved_posts: List of post identifiers that were created
+        saved_profiles: List of profile identifiers that were updated
+
+    """
+    # Check if RAG is enabled and we have posts to index
+    if not (resources.retrieval_config.enabled and saved_posts):
+        return
+
+    try:
+        # Read the newly saved post documents
+        docs: list[Document] = []
+        for post_id in saved_posts:
+            # Try to read the document from output format
+            # The output format should have a way to read documents by identifier
+            if hasattr(resources.output, "documents"):
+                # Find the matching document in the output format's documents
+                for doc in resources.output.documents():
+                    if doc.type == DocumentType.POST and post_id in str(doc.metadata.get("slug", "")):
+                        docs.append(doc)
+                        break
+
+        if docs:
+            index_documents(docs)
+            logger.info("Indexed %d new posts in RAG", len(docs))
+        else:
+            logger.debug("No new documents to index in RAG")
+
+    except (ConnectionError, TimeoutError, RuntimeError) as exc:
+        # Non-critical: Pipeline continues even if RAG indexing fails
+        logger.warning("RAG backend unavailable for indexing, skipping: %s", exc)
+    except (ValueError, TypeError) as exc:
+        logger.warning("Invalid document data for RAG indexing, skipping: %s", exc)
+    except (OSError, PermissionError) as exc:
+        logger.warning("Cannot access RAG storage, skipping indexing: %s", exc)
+    finally:
+        # Reset backend to clear loop-bound clients (httpx) as defensive programming
+        # NOTE: Not strictly needed in sync mode but prevents potential issues
+        # if async operations are added in the future or called from async contexts
+        reset_backend()
+
+
+@dataclass
+class WriterDepsParams:
+    """Parameters for creating WriterDeps."""
+
+    window_start: datetime
+    window_end: datetime
+    resources: WriterResources
+    model_name: str
+    table: Table | None = None
+    config: EgregoraConfig | None = None
+    conversation_xml: str = ""
+    active_authors: list[str] | None = None
+    adapter_content_summary: str = ""
+    adapter_generation_instructions: str = ""
+
+
+def _prepare_writer_dependencies(params: WriterDepsParams) -> WriterDeps:
+    """Create WriterDeps from window parameters and resources."""
+    window_label = f"{params.window_start:%Y-%m-%d %H:%M} to {params.window_end:%H:%M}"
+
+    return WriterDeps(
+        resources=params.resources,
+        window_start=params.window_start,
+        window_end=params.window_end,
+        window_label=window_label,
+        model_name=params.model_name,
+        table=params.table,
+        config=params.config,
+        conversation_xml=params.conversation_xml,
+        active_authors=params.active_authors or [],
+        adapter_content_summary=params.adapter_content_summary,
+        adapter_generation_instructions=params.adapter_generation_instructions,
+    )
+
+
+def _build_context_and_signature(
+    params: WriterContextParams,
+    prompts_dir: Path | None,
+) -> tuple[WriterContext, str]:
+    """Build writer context and calculate cache signature.
+
+    Returns:
+        Tuple of (writer_context, cache_signature)
+
+    """
+    table_with_str_uuids = _cast_uuid_columns_to_str(params.table)
+
+    # Generate context for both prompt and signature
+    # This now just generates the base context (XML, Journal) which is cheap(er)
+    # We update params with casted table
+    params.table = table_with_str_uuids
+    writer_context = _build_writer_context(params)
+
+    # Get template content for signature calculation
+    template_content = PromptManager.get_template_content("writer.jinja", custom_prompts_dir=prompts_dir)
+
+    # Calculate signature using data (XML) + logic (template) + engine
+    signature = generate_window_signature(
+        table_with_str_uuids,
+        params.config,
+        template_content,
+        xml_content=writer_context.conversation_xml,
+    )
+
+    return writer_context, signature
+
+
 async def _execute_writer_with_error_handling(
     prompt: str,
     config: EgregoraConfig,
@@ -469,7 +746,7 @@ async def _execute_writer_with_error_handling(
 
     Raises:
         PromptTooLargeError: If prompt exceeds model context window (propagated unchanged)
-        AgentExecutionError: For other agent failures (wrapped with context)
+        RuntimeError: For other agent failures (wrapped with context)
 
     """
     try:
@@ -479,11 +756,12 @@ async def _execute_writer_with_error_handling(
             context=deps,
         )
     except Exception as exc:
-        if isinstance(exc, (PromptTooLargeError, AgentExecutionError)):
+        if isinstance(exc, PromptTooLargeError):
             raise
 
-        logger.exception("An unexpected error occurred in the writer agent for window %s", deps.window_label)
-        raise AgentExecutionError(window_label=deps.window_label, reason=str(exc)) from exc
+        msg = f"Writer agent failed for {deps.window_label}"
+        logger.exception(msg)
+        raise RuntimeError(msg) from exc
 
 
 @dataclass
@@ -508,12 +786,13 @@ def _finalize_writer_results(params: WriterFinalizationParams) -> dict[str, list
     # Finalize output adapter
     params.resources.output.finalize_window(
         window_label=params.deps.window_label,
+        posts_created=params.saved_posts,
         profiles_updated=params.saved_profiles,
         metadata=None,
     )
 
     # Index newly created content in RAG
-    index_new_content_in_rag(params.resources, params.saved_posts, params.saved_profiles)
+    _index_new_content_in_rag(params.resources, params.saved_posts, params.saved_profiles)
 
     # Update L3 cache
     result_payload = {RESULT_KEY_POSTS: params.saved_posts, RESULT_KEY_PROFILES: params.saved_profiles}
@@ -535,7 +814,7 @@ class WindowProcessingParams:
     adapter_content_summary: str = ""
     adapter_generation_instructions: str = ""
     run_id: str | None = None
-    is_demo: bool = False
+    smoke_test: bool = False
 
 
 async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
@@ -544,10 +823,9 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
     This acts as the public entry point, orchestrating the setup and execution
     of the writer agent.
     """
-    if params.is_demo:
-        logger.info("🤖 Demo mode: Skipping writer agent and returning mock data.")
-        return {RESULT_KEY_POSTS: ["demo-post-1", "demo-post-2"], RESULT_KEY_PROFILES: ["demo-profile-1"]}
-
+    if params.smoke_test:
+        logger.info("Smoke test mode: skipping writer agent.")
+        return {RESULT_KEY_POSTS: [], RESULT_KEY_PROFILES: []}
     if params.table.count().execute() == 0:
         return {RESULT_KEY_POSTS: [], RESULT_KEY_PROFILES: []}
 
@@ -559,7 +837,7 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
 
     # 2. Build context and calculate signature
     # We need to build context first to get XML for signature
-    writer_context, signature = build_context_and_signature(
+    writer_context, signature = _build_context_and_signature(
         WriterContextParams(
             table=params.table,
             resources=resources,
@@ -573,7 +851,7 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
     )
 
     # 3. Check L3 cache
-    cached_result = check_writer_cache(
+    cached_result = _check_writer_cache(
         params.cache,
         signature,
         f"{params.window_start:%Y-%m-%d %H:%M} to {params.window_end:%H:%M}",
@@ -599,6 +877,7 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
                 # Posts exist, call finalize_window to mark completion and return
                 resources.output.finalize_window(
                     window_label=f"{params.window_start:%Y-%m-%d %H:%M} to {params.window_end:%H:%M}",
+                    posts_created=cached_posts,
                     profiles_updated=cached_result.get(RESULT_KEY_PROFILES, []),
                     metadata=None,
                 )
@@ -610,7 +889,7 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
     logger.info("Using Pydantic AI backend for writer")
 
     # 4. Create Deps with the generated context
-    deps = prepare_writer_dependencies(
+    deps = _prepare_writer_dependencies(
         WriterDepsParams(
             window_start=params.window_start,
             window_end=params.window_end,
@@ -636,7 +915,11 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
 
     prompt = _render_writer_prompt(writer_context, deps.resources.prompts_dir)
 
-    saved_posts, saved_profiles = await _execute_writer_with_error_handling(prompt, params.config, deps)
+    if getattr(params.config.pipeline, "economic_mode", False):
+        logger.info("💰 Economic Mode enabled: Using simple generation (no tools)")
+        saved_posts, saved_profiles = await _execute_economic_writer(prompt, params.config, deps)
+    else:
+        saved_posts, saved_profiles = await _execute_writer_with_error_handling(prompt, params.config, deps)
 
     # 6. Finalize results (output, RAG indexing, caching)
     return _finalize_writer_results(
@@ -651,6 +934,100 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
     )
 
 
+async def _execute_economic_writer(
+    prompt: str,
+    config: EgregoraConfig,
+    deps: WriterDeps,
+) -> tuple[list[str], list[str]]:
+    """Execute writer in economic mode (one-shot, no tools, no streaming)."""
+    # 1. Create simple model for generation
+    model_name = config.models.writer
+    # Handle pydantic-ai prefix
+    if model_name.startswith("google-gla:"):
+        model_name = model_name.replace("google-gla:", "models/")
+
+    # We use genai directly for simple generation to bypass pydantic-ai overhead/tools
+    # Or we can use pydantic-ai agent without tools.
+    # Let's use pydantic-ai agent without tools for consistency in dependency injection if needed,
+    # BUT the user asked for "content generation instead of streaming" and "avoid tool usage".
+
+    # Simple approach: Use genai.Client directly if available in deps, or creating one.
+    # deps.resources.client should be a genai.Client
+    client = deps.resources.client
+    if not client:
+        # Fallback creation if not in deps
+        client = genai.Client()
+
+    # We need to render system instructions (including RAG etc)
+    # The current prompt variable contains the USER prompt (conversation XML).
+    # We need the system instructions.
+
+    # In full agent mode, system prompts are dynamic.
+    # Here we should probably construct a simple system instruction or use the configured override.
+    system_instruction = config.writer.economic_system_instruction
+    if not system_instruction:
+        system_instruction = (
+            "You are an expert blog post writer. "
+            "Analyze the provided conversation log and write a blog post summarizing it. "
+            "Return ONLY the markdown content of the post. "
+            "Do not use any tools."
+        )
+
+    # Add custom instructions if available (append to base/override instruction)
+    if deps.config and deps.config.writer.custom_instructions:
+        system_instruction += f"\n\n{deps.config.writer.custom_instructions}"
+
+    temperature = config.writer.economic_temperature
+
+    logger.info("Generating content (Economic Mode, temp=%.1f)...", temperature)
+
+    try:
+        response = client.models.generate_content(
+            model=model_name,
+            contents=[prompt],
+            config=genai.types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                temperature=temperature,
+            ),
+        )
+
+        content = response.text or ""
+
+        # Extract title from content if possible
+        title = f"Summary: {deps.window_start.strftime('%Y-%m-%d')}"
+        lines = content.strip().splitlines()
+        if lines and lines[0].startswith("# "):
+            potential_title = lines[0][2:].strip()
+            if potential_title:
+                title = potential_title
+
+        # Save content as a post
+        # We need to manually create a document since we aren't using the tool
+        # Generate a slug/filename
+        slug = f"{deps.window_start.strftime('%Y-%m-%d')}-summary"
+
+        doc = Document(
+            content=content,
+            type=DocumentType.POST,
+            metadata={
+                "slug": slug,
+                "date": deps.window_start.strftime("%Y-%m-%d"),
+                "title": title,
+            },
+            source_window=deps.window_label,
+        )
+
+        deps.resources.output.persist(doc)
+        logger.info("Saved economic post: %s", doc.document_id)
+
+        return [doc.document_id], []
+
+    except Exception as e:
+        logger.exception("Economic writer failed")
+        msg = f"Economic writer failed: {e}"
+        raise RuntimeError(msg) from e
+
+
 def load_format_instructions(site_root: Path | None, *, registry: OutputSinkRegistry | None = None) -> str:
     """Load output format instructions for the writer agent."""
     registry = registry or create_default_output_registry()
@@ -663,10 +1040,8 @@ def load_format_instructions(site_root: Path | None, *, registry: OutputSinkRegi
     try:
         default_format = registry.get_format("mkdocs")
         return default_format.get_format_instructions()
-    except KeyError as e:
-        raise FormatInstructionError(
-            format_name="mkdocs", reason="Default format not found in registry."
-        ) from e
+    except KeyError:
+        return ""
 
 
 def get_top_authors(table: Table, limit: int = 20) -> list[str]:

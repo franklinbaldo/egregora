@@ -1,27 +1,10 @@
 # Installation
 
-## Prerequisites
+Egregora requires Python 3.12+ and uses [uv](https://github.com/astral-sh/uv) for package management.
 
-- Python 3.12+
-- A [Google Gemini API key](https://ai.google.dev/gemini-api/docs/api-key)
+## Install uv
 
-Before you begin, make sure to set your API key as an environment variable:
-
-=== "macOS/Linux"
-
-    ```bash
-    export GOOGLE_API_KEY="your-google-gemini-api-key"
-    ```
-
-=== "Windows (PowerShell)"
-
-    ```powershell
-    $Env:GOOGLE_API_KEY = "your-google-gemini-api-key"
-    ```
-
-## Install `uv`
-
-First, install `uv` if you haven't already:
+First, install uv if you haven't already:
 
 === "macOS/Linux"
 
@@ -39,28 +22,31 @@ First, install `uv` if you haven't already:
 
 ### From GitHub (Recommended)
 
-This is the best way to run the latest version of Egregora without creating conflicts in your local environment. All `egregora` commands should be run via `uvx`.
-
-To simplify this, we recommend creating a shell alias:
+Install directly from the repository using uvx:
 
 ```bash
-# Add this to your ~/.bashrc, ~/.zshrc, etc.
-alias eg="uvx --from git+https://github.com/franklinbaldo/egregora egregora"
+uvx --from git+https://github.com/franklinbaldo/egregora egregora --help
 ```
 
-Now you can use `eg` for all commands:
+This will install and run Egregora without any local installation. Use `uvx` for all commands:
 
 ```bash
 # Initialize a new blog
-eg init my-blog
+uvx --from git+https://github.com/franklinbaldo/egregora egregora init my-blog
 
 # Process WhatsApp export
-eg write export.zip
+uvx --from git+https://github.com/franklinbaldo/egregora egregora write export.zip
 ```
 
-### From Source (for Development)
+### From PyPI
 
-If you want to contribute to Egregora:
+```bash
+uv tool install egregora
+```
+
+### From Source
+
+For development (works on Windows, Linux, and macOS):
 
 ```bash
 git clone https://github.com/franklinbaldo/egregora.git
@@ -77,25 +63,41 @@ uv run pre-commit install
 uv run pytest tests/
 ```
 
-See the [Code of the Weaver](../CLAUDE.md) for full development setup.
+See [Contributing Guide](https://github.com/franklinbaldo/egregora/blob/main/CONTRIBUTING.md) for full development setup.
+
+## API Key Setup
+
+Egregora uses Google's Gemini API for content generation. Get a free API key at [https://ai.google.dev/gemini-api/docs/api-key](https://ai.google.dev/gemini-api/docs/api-key).
+
+=== "macOS/Linux"
+
+    ```bash
+    export GOOGLE_API_KEY="your-google-gemini-api-key"
+    ```
+
+=== "Windows (PowerShell)"
+
+    ```powershell
+    $Env:GOOGLE_API_KEY = "your-google-gemini-api-key"
+    ```
 
 ## Verify Installation
 
 Test that everything is working:
 
 ```bash
-eg --version
+egregora --version
 ```
 
 ## Optional Dependencies
 
 ### Documentation
 
-To build the documentation locally (from a source checkout):
+To build the documentation locally:
 
 ```bash
 uv sync --all-extras
-uv run mkdocs serve
+uv run mkdocs serve -f .egregora/mkdocs.yml
 ```
 
 ### Linting

@@ -1,78 +1,63 @@
-"""Tests for filesystem utilities."""
-
 from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
+import yaml
 
-from egregora.utils.exceptions import (
-    FrontmatterDateFormattingError,
-    MissingMetadataError,
-)
-from egregora.utils.filesystem import write_markdown_post
-
-BASE_METADATA = {
-    "title": "Test Title",
-    "slug": "test-slug",
-    "date": "2023-01-01",
-}
+from egregora.utils.filesystem import sync_authors_from_posts
 
 
-def test_write_markdown_post_missing_title_raises_error(tmp_path: Path):
-    """Verify it raises MissingMetadataError if 'title' is missing."""
-    metadata = BASE_METADATA.copy()
-    del metadata["title"]
-    with pytest.raises(MissingMetadataError, match="title"):
-        write_markdown_post("content", metadata, tmp_path)
+def test_sync_authors_from_posts(tmp_path: Path):
+    # 1. Arrange
+    docs_dir = tmp_path / "docs"
+    posts_dir = docs_dir / "posts" / "posts"
+    posts_dir.mkdir(parents=True)
 
+    # Create mock posts
+    post1_content = """---
+authors:
+  - frodo
+  - sam
+---
+A hobbit's tale.
+"""
+    (posts_dir / "post1.md").write_text(post1_content, "utf-8")
 
-def test_write_markdown_post_missing_slug_raises_error(tmp_path: Path):
-    """Verify it raises MissingMetadataError if 'slug' is missing."""
-    metadata = BASE_METADATA.copy()
-    del metadata["slug"]
-    with pytest.raises(MissingMetadataError, match="slug"):
-        write_markdown_post("content", metadata, tmp_path)
+    post2_content = """---
+authors: bilbo
+---
+There and back again.
+"""
+    (posts_dir / "post2.md").write_text(post2_content, "utf-8")
 
+    post3_content = """---
+# No authors here
+---
+Just a story.
+"""
+    (posts_dir / "post3.md").write_text(post3_content, "utf-8")
 
-def test_write_markdown_post_missing_date_raises_error(tmp_path: Path):
-    """Verify it raises MissingMetadataError if 'date' is missing."""
-    metadata = BASE_METADATA.copy()
-    del metadata["date"]
-    with pytest.raises(MissingMetadataError, match="date"):
-        write_markdown_post("content", metadata, tmp_path)
-
-
-def test_write_markdown_post_invalid_date_raises_error(tmp_path: Path):
-    """Verify it raises FrontmatterDateFormattingError for a bad date."""
-    metadata = BASE_METADATA.copy()
-    metadata["date"] = "not-a-real-date"
-    with pytest.raises(FrontmatterDateFormattingError):
-        write_markdown_post("content", metadata, tmp_path)
-
-
-def test_write_markdown_post_success(tmp_path: Path):
-    """Verify it writes a valid markdown file on success."""
-    content = "This is the post content."
-    metadata = {
-        "title": "My Test Post",
-        "slug": "my-test-post",
-        "date": "2023-11-20",
-        "tags": ["testing", "python"],
+    # Pre-existing authors file
+    authors_yml_path = docs_dir / ".authors.yml"
+    existing_authors = {
+        "gandalf": {
+            "name": "gandalf",
+            "url": "profiles/gandalf.md",
+        }
     }
+    authors_yml_path.write_text(yaml.dump(existing_authors), "utf-8")
 
-    filepath_str = write_markdown_post(content, metadata, tmp_path)
-    filepath = Path(filepath_str)
+    # 2. Act
+    new_authors_count = sync_authors_from_posts(posts_dir, docs_dir)
 
-    assert filepath.exists()
-    assert filepath.name == "2023-11-20-my-test-post.md"
+    # 3. Assert
+    assert new_authors_count == 3  # frodo, sam, bilbo
 
-    # Verify content
-    from frontmatter import load
-
-    post = load(filepath)
-    assert post.content.strip() == content
-    assert post["title"] == "My Test Post"
-    assert post["slug"] == "my-test-post"
-    assert post["date"] == "2023-11-20 00:00"
-    assert post["tags"] == ["testing", "python"]
+    final_authors = yaml.safe_load(authors_yml_path.read_text("utf-8"))
+    assert "frodo" in final_authors
+    assert "sam" in final_authors
+    assert "bilbo" in final_authors
+    assert "gandalf" in final_authors  # Existing author preserved
+    assert final_authors["sam"]["name"] == "sam"
+    assert final_authors["bilbo"]["url"] == "profiles/bilbo.md"
+    assert len(final_authors) == 4
