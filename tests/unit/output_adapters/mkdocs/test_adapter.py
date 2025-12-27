@@ -259,13 +259,13 @@ def test_get_profiles_data_raises_on_corrupt_file(mkdocs_adapter: MkDocsAdapter,
     author_dir.mkdir(parents=True, exist_ok=True)
 
     # Create a profile file with invalid YAML frontmatter
-    corrupt_content = \"\"\"---
+    corrupt_content = """---
 title: Corrupt Profile
 date: 2024-01-01
 authors: [
 ---
 This file has unclosed YAML.
-\"\"\"
+"""
     profile_path = author_dir / "profile.md"
     profile_path.write_text(corrupt_content)
 
@@ -285,13 +285,13 @@ def test_get_recent_media_raises_on_corrupt_file(mkdocs_adapter: MkDocsAdapter, 
     mkdocs_adapter.urls_dir = urls_dir
 
     # Create a media file with invalid YAML frontmatter
-    corrupt_content = \"\"\"---
+    corrupt_content = """---
 title: Corrupt Media
 url: http://example.com
 summary: [
 ---
 This file has unclosed YAML.
-\"\"\"
+"""
     media_path = urls_dir / "corrupt-media.md"
     media_path.write_text(corrupt_content)
 
