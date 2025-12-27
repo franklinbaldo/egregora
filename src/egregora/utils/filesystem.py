@@ -10,7 +10,6 @@ It provides standard helpers for:
 from __future__ import annotations
 
 import logging
-import re
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -31,29 +30,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
-_DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 
 def _extract_clean_date(date_obj: str | date | datetime) -> str:
     """Extract a clean ``YYYY-MM-DD`` date from user-provided input."""
-    if isinstance(date_obj, datetime):
-        return date_obj.date().isoformat()
-    if isinstance(date_obj, date):
-        return date_obj.isoformat()
-
-    date_str = str(date_obj).strip()
-
-    match = _DATE_PATTERN.search(date_str)
-    if not match:
-        return date_str  # No date pattern found.
-
-    # Use our robust parser on the *matched part* of the string.
-    parsed_dt = parse_datetime_flexible(match.group(1))
+    # `parse_datetime_flexible` can handle date/datetime objects and strings.
+    parsed_dt = parse_datetime_flexible(date_obj)
     if parsed_dt:
         return parsed_dt.date().isoformat()
 
-    # The pattern was not a valid date (e.g., "2023-99-99"), so fallback.
-    return date_str
+    # If parsing fails, return the original string representation as a fallback.
+    # The `str(date_obj)` handles the `None` case, returning "None", which
+    # matches original behavior.
+    return str(date_obj).strip()
 
 
 def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
