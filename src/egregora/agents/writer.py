@@ -35,6 +35,7 @@ from tenacity import Retrying
 from egregora.agents.exceptions import (
     JournalFileSystemError,
     JournalTemplateError,
+    WriterAgentExecutionError,
 )
 from egregora.agents.types import (
     PromptTooLargeError,
@@ -373,6 +374,13 @@ async def write_posts_with_pydantic_agent(
     # Use tenacity for retries
     for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
         with attempt:
+            attempt_num = attempt.retry_state.attempt_number
+            logger.info(
+                "🖊️  [Writer] Starting LLM call for %s (attempt %d/%d)...",
+                context.window_label,
+                attempt_num,
+                RETRY_STOP.max_attempt_number if hasattr(RETRY_STOP, "max_attempt_number") else 3,
+            )
             # Execute model directly without tools
             result = await agent.run(
                 "Analyze the conversation context provided and write posts/profiles as needed.",
@@ -459,7 +467,7 @@ async def _execute_writer_with_error_handling(
 
     Raises:
         PromptTooLargeError: If prompt exceeds model context window (propagated unchanged)
-        RuntimeError: For other agent failures (wrapped with context)
+        WriterAgentExecutionError: For other agent failures (wrapped with context)
 
     """
     try:
@@ -472,14 +480,9 @@ async def _execute_writer_with_error_handling(
         if isinstance(exc, PromptTooLargeError):
             raise
 
-        from egregora.agents.exceptions import WriterAgentExecutionError
-
         msg = f"Writer agent failed for {deps.window_label}"
         logger.exception(msg)
-        raise WriterAgentExecutionError(
-            window_label=deps.window_label,
-            reason=str(exc),
-        ) from exc
+        raise WriterAgentExecutionError(window_label=deps.window_label, reason=str(exc)) from exc
 
 
 @dataclass

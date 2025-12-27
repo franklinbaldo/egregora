@@ -135,6 +135,30 @@ class TestWriterDecoupling:
 
 
 @pytest.mark.asyncio
+@patch("egregora.agents.writer.write_posts_with_pydantic_agent")
+async def test_execute_writer_raises_specific_exception(mock_pydantic_writer, test_config):
+    """Test that _execute_writer_with_error_handling raises a specific exception."""
+    from egregora.agents.exceptions import WriterAgentExecutionError
+    from egregora.agents.writer import _execute_writer_with_error_handling
+
+    # Arrange
+    mock_pydantic_writer.side_effect = Exception("LLM provider outage")
+    mock_deps = MagicMock()
+    mock_deps.window_label = "test-window"
+
+    # Act & Assert
+    with pytest.raises(WriterAgentExecutionError) as exc_info:
+        await _execute_writer_with_error_handling(
+            prompt="test prompt",
+            config=test_config,
+            deps=mock_deps,
+        )
+
+    assert "LLM provider outage" in str(exc_info.value.__cause__)
+    assert "test-window" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
 @patch("egregora.agents.writer.build_context_and_signature")
 @patch("egregora.agents.writer.check_writer_cache")
 @patch("egregora.agents.writer.prepare_writer_dependencies")
