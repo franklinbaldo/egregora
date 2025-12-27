@@ -43,13 +43,15 @@ def _extract_clean_date(date_obj: str | date | datetime) -> str:
     if not match:
         return date_str  # No date pattern found.
 
-    # Use our robust parser on the *matched part* of the string.
-    parsed_dt = parse_datetime_flexible(match.group(1))
-    if parsed_dt:
-        return parsed_dt.date().isoformat()
-
-    # The pattern was not a valid date (e.g., "2023-99-99"), so fallback.
-    return date_str
+    # Validate the matched part of the string.
+    try:
+        # Use strptime for strict YYYY-MM-DD validation.
+        datetime.strptime(match.group(1), "%Y-%m-%d")
+        return match.group(1)
+    except ValueError:
+        # The pattern was not a valid date (e.g., "2023-99-99"), so fallback to
+        # returning the original stripped string.
+        return date_str
 
 
 def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
