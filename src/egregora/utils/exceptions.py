@@ -42,3 +42,19 @@ class FrontmatterDateFormattingError(FilesystemError):
             f"Failed to parse date string for frontmatter: '{self.date_str}'. "
             f"Original error: {original_exception}"
         )
+
+
+class DateTimeUtilsError(Exception):
+    """Base exception for datetime utility errors."""
+
+
+class DateTimeParsingError(DateTimeUtilsError):
+    """Raised when a date/time string cannot be parsed."""
+
+    def __init__(self, value: str, original_exception: Exception | None = None) -> None:
+        self.value = value
+        self.original_exception = original_exception
+        message = f"Failed to parse date/time string: '{self.value}'"
+        if original_exception:
+            message += f". Original error: {original_exception}"
+        super().__init__(message)

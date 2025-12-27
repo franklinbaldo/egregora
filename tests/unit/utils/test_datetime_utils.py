@@ -85,13 +85,17 @@ def test_to_datetime_valid_inputs(input_val, expected):
     assert _to_datetime(input_val) == expected
 
 
+from egregora.utils.exceptions import DateTimeParsingError
+
+
 @pytest.mark.parametrize(
     "input_val",
-    [None, "", "   ", "not-a-date", 12345],
+    [None, "", "   ", "not-a-date", 12345, "2023-99-99"],
 )
-def test_to_datetime_invalid_inputs(input_val):
-    """Should return None for invalid or empty inputs."""
-    assert _to_datetime(input_val) is None
+def test_to_datetime_invalid_inputs_raise_exception(input_val):
+    """Should raise DateTimeParsingError for invalid or empty inputs."""
+    with pytest.raises(DateTimeParsingError):
+        _to_datetime(input_val)
 
 
 def test_to_datetime_forwards_parser_kwargs():
@@ -108,11 +112,14 @@ def test_to_datetime_forwards_parser_kwargs():
 
 
 # region: Original tests for parse_datetime_flexible to ensure no regressions
-def test_parse_datetime_none_or_empty():
-    """Should return None for None or empty string inputs."""
-    assert parse_datetime_flexible(None) is None
-    assert parse_datetime_flexible("") is None
-    assert parse_datetime_flexible("   ") is None
+@pytest.mark.parametrize(
+    "invalid_input",
+    [None, "", "   ", "not a date", "!!!", "2023-99-99"],
+)
+def test_parse_datetime_flexible_invalid_inputs_raise_exception(invalid_input):
+    """Should raise DateTimeParsingError for invalid, None, or empty string inputs."""
+    with pytest.raises(DateTimeParsingError):
+        parse_datetime_flexible(invalid_input)
 
 
 def test_parse_datetime_existing_datetime_naive():
@@ -179,12 +186,6 @@ def test_parse_datetime_fuzzy_string():
     assert result.day == 1
     assert result.hour == 12
     assert result.tzinfo == UTC
-
-
-def test_parse_datetime_invalid_string():
-    """Should return None for unparseable strings."""
-    assert parse_datetime_flexible("not a date") is None
-    assert parse_datetime_flexible("!!!") is None
 
 
 def test_parse_datetime_with_to_pydatetime():

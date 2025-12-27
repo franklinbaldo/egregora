@@ -22,6 +22,9 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
+from egregora.utils.exceptions import DateTimeParsingError
+
+
 @pytest.mark.parametrize(
     ("input_date", "expected"),
     [
@@ -31,17 +34,26 @@ if TYPE_CHECKING:
         ("  2023-10-26T10:30:00Z  ", "2023-10-26"),
         ("Some random string 2023-10-26", "2023-10-26"),
         ("No date here", "No date here"),
-        ("2023-99-99", "2023-99-99"),  # Invalid date pattern
         ("", ""),
     ],
 )
-def test_extract_clean_date(input_date, expected):
+def test_extract_clean_date_valid_inputs(input_date, expected):
     """
-    GIVEN: Various date-like inputs (string, date, datetime).
+    GIVEN: Various valid date-like inputs.
     WHEN: The _extract_clean_date function is called.
     THEN: It should return a clean YYYY-MM-DD string or the original string if no date is found.
     """
     assert _extract_clean_date(input_date) == expected
+
+
+def test_extract_clean_date_raises_on_invalid_pattern():
+    """
+    GIVEN: A string with a date pattern that is not a valid date.
+    WHEN: The _extract_clean_date function is called.
+    THEN: It should raise a DateTimeParsingError.
+    """
+    with pytest.raises(DateTimeParsingError):
+        _extract_clean_date("2023-99-99")
 
 
 def test_write_markdown_post_missing_metadata_raises_error(tmp_path: Path):
