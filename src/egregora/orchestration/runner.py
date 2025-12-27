@@ -5,6 +5,7 @@ This module encapsulates the execution of the pipeline logic, separating it from
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 from collections import deque
@@ -18,15 +19,23 @@ from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.types import PromptTooLargeError
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
-from egregora.data_primitives.document import UrlContext
-from egregora.ops.media import process_media_for_window
+from egregora.data_primitives.protocols import UrlContext
 from egregora.orchestration.context import PipelineContext
+from egregora.orchestration.exceptions import (
+    CommandProcessingError,
+    EnrichmentError,
+    OutputSinkError,
+    ProfileGenerationError,
+    WindowSizeError,
+    WindowSplitError,
+)
 from egregora.orchestration.factory import PipelineFactory
-from egregora.transformations import split_window_into_n_parts
-from egregora.utils.async_utils import run_async_safely
+from egregora.orchestration.pipelines.modules.media import process_media_for_window
+from egregora.transformations import save_checkpoint, split_window_into_n_parts
 
 if TYPE_CHECKING:
     from datetime import datetime
+    from pathlib import Path
 
     import ibis.expr.types as ir
 
@@ -40,14 +49,15 @@ MIN_WINDOWS_WARNING_THRESHOLD = 5
 class PipelineRunner:
     """Orchestrates the execution of the pipeline window processing loop."""
 
-    def __init__(self, context: PipelineContext) -> None:
+    def __init__(self, context: PipelineContext, checkpoint_path: Path | None = None) -> None:
         self.context = context
+        self.checkpoint_path = checkpoint_path
 
     def process_windows(
         self,
         windows_iterator: Any,
     ) -> tuple[dict[str, dict[str, list[str]]], datetime | None]:
-        """Process all windows with tracking and error handling.
+        """Process all windows.
 
         Args:
             windows_iterator: Iterator of Window objects
@@ -118,6 +128,16 @@ class PipelineRunner:
 
             windows_processed += 1
 
+            # Incremental checkpoint: save progress after each window
+            if self.checkpoint_path and max_processed_timestamp:
+                total_posts = sum(len(r.get("posts", [])) for r in results.values())
+                save_checkpoint(self.checkpoint_path, max_processed_timestamp, total_posts)
+                logger.debug(
+                    "💾 Checkpoint saved after window %d (processed up to %s)",
+                    windows_processed,
+                    max_processed_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                )
+
         return results, max_processed_timestamp
 
     def _calculate_max_window_size(self) -> int:
@@ -144,7 +164,7 @@ class PipelineRunner:
                 f"Window {window.window_index} has {window.size} messages but max is {max_size}. "
                 f"Reduce --step-size to create smaller windows."
             )
-            raise ValueError(msg)
+            raise WindowSizeError(msg)
 
     def process_background_tasks(self) -> None:
         """Process pending background tasks."""
@@ -192,7 +212,7 @@ class PipelineRunner:
             if current_depth >= max_depth:
                 error_msg = f"Max split depth {max_depth} reached for window {window_label}."
                 logger.error("%s❌ %s", indent, error_msg)
-                raise RuntimeError(error_msg)
+                raise WindowSplitError(error_msg)
 
             try:
                 window_results = self._process_single_window(current_window, depth=current_depth)
@@ -214,13 +234,31 @@ class PipelineRunner:
         """Process a single window with media extraction, enrichment, and post writing."""
         indent = "  " * depth
         window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
-
         logger.info("%s➡️  [bold]%s[/] — %s messages (depth=%d)", indent, window_label, window.size, depth)
 
         output_sink = self.context.output_format
         if output_sink is None:
-            raise RuntimeError("Output adapter must be initialized before processing windows.")
+            raise OutputSinkError("Output adapter must be initialized before processing windows.")
 
+        enriched_table = self._enrich_window_data(window, output_sink)
+        messages_list = self._get_messages_as_list(enriched_table)
+
+        announcements_generated = self._handle_commands(messages_list, output_sink)
+        clean_messages_list = filter_commands(messages_list)
+
+        result = self._generate_posts_and_profiles(enriched_table, clean_messages_list, window, output_sink)
+
+        self._log_window_summary(
+            result,
+            announcements_generated,
+            indent,
+            window_label,
+        )
+
+        return {window_label: result}
+
+    def _enrich_window_data(self, window: Any, output_sink: Any) -> ir.Table:
+        """Handle media processing and data enrichment for a window."""
         url_context = self.context.url_context or UrlContext()
         window_table_processed, media_mapping = process_media_for_window(
             window_table=window.table,
@@ -235,25 +273,28 @@ class PipelineRunner:
                 try:
                     output_sink.persist(media_doc)
                 except Exception as e:
-                    logger.exception("Failed to write media file: %s", e)
+                    msg = f"Failed to write media file: {e}"
+                    raise EnrichmentError(msg) from e
 
         if self.context.enable_enrichment:
-            enriched_table = self._perform_enrichment(window_table_processed, media_mapping)
-        else:
-            enriched_table = window_table_processed
+            return self._perform_enrichment(window_table_processed, media_mapping)
 
-        resources = PipelineFactory.create_writer_resources(self.context)
-        adapter_summary, adapter_instructions = self._extract_adapter_info()
+        return window_table_processed
 
-        # Convert table to list for command processing
+    def _get_messages_as_list(self, table: ir.Table | list[dict]) -> list[dict]:
+        """Convert an Ibis table to a list of dicts, handling multiple input types."""
+        if isinstance(table, list):
+            return table
         try:
-            messages_list = enriched_table.execute().to_pylist()
+            return table.execute().to_pylist()
         except (AttributeError, TypeError):
             try:
-                messages_list = enriched_table.to_pylist()
+                return table.to_pylist()
             except (AttributeError, TypeError):
-                messages_list = enriched_table if isinstance(enriched_table, list) else []
+                return []
 
+    def _handle_commands(self, messages_list: list[dict], output_sink: Any) -> int:
+        """Extract and process commands, generating announcements."""
         command_messages = extract_commands_list(messages_list)
         announcements_generated = 0
         if command_messages:
@@ -263,9 +304,20 @@ class PipelineRunner:
                     output_sink.persist(announcement)
                     announcements_generated += 1
                 except Exception as exc:
-                    logger.exception("Failed to generate announcement: %s", exc)
+                    msg = f"Failed to generate announcement: {exc}"
+                    raise CommandProcessingError(msg) from exc
+        return announcements_generated
 
-        clean_messages_list = filter_commands(messages_list)
+    def _generate_posts_and_profiles(
+        self,
+        enriched_table: ir.Table,
+        clean_messages_list: list[dict],
+        window: Any,
+        output_sink: Any,
+    ) -> dict[str, list[str]]:
+        """Generate and persist posts and profiles for the window."""
+        resources = PipelineFactory.create_writer_resources(self.context)
+        adapter_summary, adapter_instructions = self._extract_adapter_info()
 
         params = WindowProcessingParams(
             table=enriched_table,
@@ -277,15 +329,15 @@ class PipelineRunner:
             adapter_content_summary=adapter_summary,
             adapter_generation_instructions=adapter_instructions,
             run_id=str(self.context.run_id) if self.context.run_id else None,
+            is_demo=self.context.config_obj.is_demo,
         )
 
-        result = run_async_safely(write_posts_for_window(params))
-        posts = result.get("posts", [])
+        result = asyncio.run(write_posts_for_window(params))
         profiles = result.get("profiles", [])
 
         window_date = window.start_time.strftime("%Y-%m-%d")
         try:
-            profile_docs = run_async_safely(
+            profile_docs = asyncio.run(
                 generate_profile_posts(
                     ctx=self.context, messages=clean_messages_list, window_date=window_date
                 )
@@ -295,18 +347,30 @@ class PipelineRunner:
                     output_sink.persist(profile_doc)
                     profiles.append(profile_doc.document_id)
                 except Exception as exc:
-                    logger.exception("Failed to persist profile: %s", exc)
+                    msg = f"Failed to persist profile: {exc}"
+                    raise ProfileGenerationError(msg) from exc
         except Exception as exc:
-            logger.exception("Failed to generate profile posts: %s", exc)
+            msg = f"Failed to generate profile posts: {exc}"
+            raise ProfileGenerationError(msg) from exc
 
-        # Scheduled tasks are returned as "pending:<task_id>"
+        return result
+
+    def _log_window_summary(
+        self,
+        result: dict[str, list[str]],
+        announcements_generated: int,
+        indent: str,
+        window_label: str,
+    ) -> None:
+        """Log a summary of the items generated for a window."""
+        posts = result.get("posts", [])
+        profiles = result.get("profiles", [])
+
         scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
         generated_posts = len(posts) - scheduled_posts
-
         scheduled_profiles = sum(1 for p in profiles if isinstance(p, str) and p.startswith("pending:"))
         generated_profiles = len(profiles) - scheduled_profiles
 
-        # Construct status message
         status_parts = []
         if generated_posts > 0:
             status_parts.append(f"{generated_posts} posts")
@@ -320,15 +384,7 @@ class PipelineRunner:
             status_parts.append(f"{announcements_generated} announcements")
 
         status_msg = ", ".join(status_parts) if status_parts else "0 items"
-
-        logger.info(
-            "%s[green]✔ Generated[/] %s for %s",
-            indent,
-            status_msg,
-            window_label,
-        )
-
-        return {window_label: result}
+        logger.info("%s[green]✔ Generated[/] %s for %s", indent, status_msg, window_label)
 
     def _perform_enrichment(
         self,

@@ -13,14 +13,6 @@ from egregora_v3.core.utils import slugify
 from egregora_v3.engine import filters
 
 
-def _get_default_template_dir() -> Path:
-    """Resolve the default template directory using importlib.resources."""
-    # Use importlib.resources for robust resource loading.
-    # This works in both development and packaged deployments.
-    # The result is a Traversable, which is compatible with Path.
-    return Path(files("egregora_v3.engine").joinpath("prompts"))
-
-
 class TemplateLoader:
     """Loads and renders Jinja2 templates for agent prompts.
 
@@ -37,7 +29,16 @@ class TemplateLoader:
             template_dir: Path to template directory. Defaults to src/egregora_v3/engine/prompts
 
         """
-        self.template_dir = template_dir or _get_default_template_dir()
+        if template_dir is None:
+            # Use importlib.resources for robust resource loading
+            # Works in both development and packaged deployments
+            package_prompts = files("egregora_v3.engine").joinpath("prompts")
+
+            # Convert to Path - resources may return Traversable
+            # For packaged apps, this extracts to temp location if needed
+            template_dir = Path(str(package_prompts))
+
+        self.template_dir = template_dir
 
         # Create Jinja2 environment
         self.env = Environment(

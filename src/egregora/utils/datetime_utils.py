@@ -7,8 +7,6 @@ from typing import TYPE_CHECKING, Any
 
 from dateutil import parser as dateutil_parser
 
-from egregora.utils.exceptions import DateTimeParsingError
-
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -18,29 +16,30 @@ def parse_datetime_flexible(
     *,
     default_timezone: tzinfo = UTC,
     parser_kwargs: Mapping[str, Any] | None = None,
-) -> datetime:
+) -> datetime | None:
     """Parse a datetime value using a flexible approach.
 
     Args:
-        value: Datetime-like input (datetime/date/str/other).
+        value: Datetime-like input (datetime/date/str/other). ``None`` or empty strings
+            return ``None``.
         default_timezone: Timezone assigned to naive datetimes and used for
             normalization when a timezone is present.
         parser_kwargs: Additional keyword arguments forwarded to ``dateutil.parser``.
 
     Returns:
-        A timezone-normalized ``datetime``.
+        A timezone-normalized ``datetime`` or ``None`` if parsing fails.
 
-    Raises:
-        DateTimeParsingError: If the value cannot be parsed.
     """
     dt = _to_datetime(value, parser_kwargs=parser_kwargs)
+    if dt is None:
+        return None
     return normalize_timezone(dt, default_timezone=default_timezone)
 
 
-def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) -> datetime:
+def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) -> datetime | None:
     """Convert a value to a datetime object without timezone normalization."""
     if value is None:
-        raise DateTimeParsingError("None")
+        return None
 
     if hasattr(value, "to_pydatetime"):
         value = value.to_pydatetime()
@@ -52,12 +51,12 @@ def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) 
 
     raw = str(value).strip()
     if not raw:
-        raise DateTimeParsingError(str(value))
+        return None
 
     try:
         return dateutil_parser.parse(raw, **(parser_kwargs or {}))
-    except (TypeError, ValueError, OverflowError) as e:
-        raise DateTimeParsingError(raw, original_exception=e) from e
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def normalize_timezone(dt: datetime, *, default_timezone: tzinfo = UTC) -> datetime:

@@ -41,7 +41,7 @@ def test_create_context(mock_run_params):
             return_value=("mock_db_uri", MagicMock(), MagicMock()),
         ) as mock_create_db,
         patch("egregora.orchestration.factory.initialize_database") as mock_init_db,
-        patch("egregora.llm.providers.openrouter.create_llm_client") as mock_create_client,
+        patch.object(PipelineFactory, "create_gemini_client") as mock_create_client,
         patch("egregora.orchestration.factory.PipelineCache") as mock_cache,
         patch("egregora.orchestration.factory.DuckDBStorageManager") as mock_storage,
         patch("egregora.orchestration.factory.create_default_output_registry") as mock_create_registry,

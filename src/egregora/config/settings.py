@@ -43,13 +43,16 @@ from egregora.config.exceptions import (
     ConfigError,
     ConfigNotFoundError,
     ConfigValidationError,
-    InvalidDateFormatError,
     InvalidRetrievalModeError,
-    InvalidTimezoneError,
-    MissingApiKeyError,
     SiteNotFoundError,
 )
 from egregora.constants import SourceType, WindowUnit
+from egregora.orchestration.exceptions import (
+    InvalidDateArgumentError as InvalidDateFormatError,
+)
+from egregora.orchestration.exceptions import (
+    InvalidTimezoneArgumentError as InvalidTimezoneError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -846,6 +849,7 @@ def find_egregora_config(start_dir: Path, *, site: str | None = None) -> Path:
 
     Raises:
         ConfigNotFoundError: If the config file cannot be found
+
     """
     current = start_dir.expanduser().resolve()
     for candidate in (current, *current.parents):
@@ -906,6 +910,7 @@ def _normalize_sites_config(file_data: dict[str, Any], site: str | None = None) 
     Raises:
         ValueError: If sites are missing/invalid
         SiteNotFoundError: If the requested site is not found
+
     """
     sites_data: dict[str, Any]
     if "sites" in file_data:
@@ -949,6 +954,7 @@ def load_egregora_config(site_root: Path | None = None, *, site: str | None = No
     Raises:
         ConfigValidationError: If config file contains invalid data
         ConfigNotFoundError: If the config file cannot be found and a default one is not created.
+
     """
     if site_root is None:
         site_root = Path.cwd()
@@ -994,7 +1000,8 @@ def load_egregora_config(site_root: Path | None = None, *, site: str | None = No
         raise ConfigValidationError(e.errors()) from e
     except (OSError, ValueError) as e:
         logger.exception("Failed to read or parse config from %s", config_path)
-        raise ConfigError(f"Failed to process config file: {e}") from e
+        msg = f"Failed to process config file: {e}"
+        raise ConfigError(msg) from e
 
 
 def create_default_config(site_root: Path, *, site: str = DEFAULT_SITE_NAME) -> EgregoraConfig:
@@ -1061,7 +1068,7 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path, *, site: str =
 # ============================================================================
 
 
-def parse_date_arg(date_str: str, arg_name: str = "date") -> date:
+def parse_date_arg(date_str: str, _arg_name: str = "date") -> date:
     """Parse a date string in YYYY-MM-DD format.
 
     Args:
@@ -1073,6 +1080,7 @@ def parse_date_arg(date_str: str, arg_name: str = "date") -> date:
 
     Raises:
         InvalidDateFormatError: If date_str is not in YYYY-MM-DD format
+
     """
     try:
         return datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=UTC).date()
@@ -1091,6 +1099,7 @@ def validate_timezone(timezone_str: str) -> ZoneInfo:
 
     Raises:
         InvalidTimezoneError: If timezone_str is not a valid timezone identifier
+
     """
     try:
         return ZoneInfo(timezone_str)

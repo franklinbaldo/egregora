@@ -13,6 +13,7 @@ import pytest
 from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.models import Model
 
+from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.llm.providers.rotating_fallback import RotatingFallbackModel
 
 
@@ -119,7 +120,7 @@ async def test_all_keys_exhausted_raises_quickly():
     rotating_model = RotatingFallbackModel(models)
 
     start_time = time.monotonic()
-    with pytest.raises(ModelHTTPError) as exc_info:
+    with pytest.raises(AllModelsExhaustedError) as exc_info:
         await rotating_model.request(
             messages=[],
             model_settings=None,
@@ -127,8 +128,12 @@ async def test_all_keys_exhausted_raises_quickly():
         )
     elapsed_time = time.monotonic() - start_time
 
-    # Should raise 429 error
-    assert exc_info.value.status_code == 429
+    # Should raise the structured exhaustion error
+    assert exc_info.type is AllModelsExhaustedError
+    # The new exception should contain the history of failures
+    assert len(exc_info.value.causes) >= 2
+    assert all(isinstance(e, ModelHTTPError) for e in exc_info.value.causes)
+    assert all(e.status_code == 429 for e in exc_info.value.causes)
 
     # Should exhaust quickly (under 2 seconds for full rotation cycle)
     assert elapsed_time < 2.0, f"Exhaustion took {elapsed_time:.2f}s, expected < 2s"
