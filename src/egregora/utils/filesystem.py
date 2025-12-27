@@ -10,6 +10,7 @@ It provides standard helpers for:
 from __future__ import annotations
 
 import logging
+import re
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -34,7 +35,15 @@ ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
 
 def _extract_clean_date(date_obj: str | date | datetime) -> str:
     """Extract a clean ``YYYY-MM-DD`` date from user-provided input."""
-    # `parse_datetime_flexible` can handle date/datetime objects and strings.
+    if isinstance(date_obj, str):
+        # First, try to find a date pattern in the string.
+        # This handles cases like "Some random string 2023-10-26".
+        match = re.search(r"\d{4}-\d{2}-\d{2}", date_obj)
+        if match:
+            return match.group(0)
+
+    # For other types or if regex fails, use the flexible parser.
+    # `parse_datetime_flexible` can handle date/datetime objects and simple date strings.
     parsed_dt = parse_datetime_flexible(date_obj)
     if parsed_dt:
         return parsed_dt.date().isoformat()
