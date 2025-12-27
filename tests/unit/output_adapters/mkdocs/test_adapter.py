@@ -233,7 +233,7 @@ def test_build_author_profile_raises_incomplete_error_if_no_name(mkdocs_adapter:
 
 
     # Create a post file with frontmatter that is missing the author's name
-    post_content = f\"\"\"---
+    post_content = f"""---
 title: A Post Without Author Name
 date: 2024-01-01
 authors:
