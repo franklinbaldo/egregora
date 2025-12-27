@@ -998,8 +998,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Ensure UUID is in metadata
         author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
         if not author_uuid:
+            from egregora.output_adapters.exceptions import ProfileGenerationError
+
             msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
-            raise ValueError(msg)
+            raise ProfileGenerationError(msg)
 
         # Use standard frontmatter writing logic
         metadata = dict(document.metadata or {})
