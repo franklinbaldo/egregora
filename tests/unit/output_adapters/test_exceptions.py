@@ -7,8 +7,10 @@ from egregora.output_adapters.exceptions import (
     DocumentNotFoundError,
     DocumentParsingError,
     FrontmatterParsingError,
+    FilenameGenerationError,
     ProfileGenerationError,
     ProfileNotFoundError,
+    RegistryNotProvidedError,
     UnsupportedDocumentTypeError,
 )
 
@@ -50,6 +52,14 @@ def test_adapter_not_initialized_error():
     assert str(err) == "Adapter has not been initialized. Call initialize() first."
 
 
+def test_filename_generation_error():
+    """Test that FilenameGenerationError formats its message correctly."""
+    err = FilenameGenerationError("test-pattern", 5)
+    assert err.pattern == "test-pattern"
+    assert err.max_attempts == 5
+    assert str(err) == "Could not generate unique filename for 'test-pattern' after 5 attempts."
+
+
 def test_frontmatter_parsing_error():
     """Test that FrontmatterParsingError formats its message correctly."""
     err = FrontmatterParsingError("Missing key")
@@ -76,3 +86,9 @@ def test_collision_resolution_error():
     assert err.path == "/path/to/file.md"
     assert err.max_attempts == 100
     assert str(err) == "Failed to resolve collision for '/path/to/file.md' after 100 attempts."
+
+
+def test_registry_not_provided_error():
+    """Test that RegistryNotProvidedError has the correct default message."""
+    err = RegistryNotProvidedError()
+    assert str(err) == "An OutputSinkRegistry instance must be provided."
