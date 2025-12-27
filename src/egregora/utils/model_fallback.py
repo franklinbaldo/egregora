@@ -102,7 +102,7 @@ def get_openrouter_free_models(modality: str = "text", *, require_tools: bool = 
         _free_models_cache[cache_key] = free_models
         _cache_timestamp = current_time
 
-    except (httpx.HTTPError, httpx.TimeoutException) as e:
+    except httpx.HTTPError as e:
         msg = f"Failed to fetch OpenRouter free models: {e}"
         raise OpenRouterAPIError(msg) from e
 
