@@ -669,8 +669,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             return DocumentType.POST
 
         # If we're here, it's not in a known directory.
-        # This could be a top-level file. Default to POST.
-        return DocumentType.POST
+        # This could be a top-level file like about.md.
+        # Classify as UNKNOWN to prevent it from being treated as a post.
+        return DocumentType.UNKNOWN
 
     def _list_from_unified_dir(
         self,
