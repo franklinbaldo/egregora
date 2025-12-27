@@ -12,7 +12,9 @@ from egregora.output_adapters.exceptions import (
     ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
+    IncompleteProfileError,
     ProfileGenerationError,
+    ProfileMetadataError,
     ProfileNotFoundError,
     UnsupportedDocumentTypeError,
 )
@@ -26,9 +28,6 @@ def mkdocs_adapter(tmp_path: Path) -> MkDocsAdapter:
     url_context = UrlContext(base_url="http://localhost", site_prefix="", base_path=tmp_path)
     adapter.initialize(tmp_path, url_context=url_context)
     return adapter
-
-
-# --- Sapper's Refactored Exception Tests ---
 
 
 def test_get_raises_document_not_found_error(mkdocs_adapter: MkDocsAdapter):
@@ -92,9 +91,6 @@ def test_get_raises_document_parsing_error(mkdocs_adapter: MkDocsAdapter):
     post_path.write_text("---\ntitle: Malformed\ninvalid_yaml: [\n---")
     with pytest.raises(DocumentParsingError):
         mkdocs_adapter.get(DocumentType.POST, "malformed-post")
-
-
-# --- Restored and Merged Core Functionality Tests ---
 
 
 def test_write_post_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
@@ -222,3 +218,100 @@ def test_resolve_document_path_raises_adapter_not_initialized_error():
     adapter = MkDocsAdapter()
     with pytest.raises(AdapterNotInitializedError):
         adapter.resolve_document_path("some/path.md")
+
+
+# --- Sapper's New Exception Tests ---
+
+AUTHOR_UUID = "d944f0f7-9226-4880-a6a2-11a3d2d472b1"
+
+
+def test_build_author_profile_raises_incomplete_error_if_no_name(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
+    """Test that _build_author_profile raises IncompleteProfileError if no name is ever found."""
+    author_dir = tmp_path / "posts" / "authors" / AUTHOR_UUID
+    author_dir.mkdir(parents=True, exist_ok=True)
+    mkdocs_adapter.posts_dir = tmp_path / "posts"
+
+
+    # Create a post file with frontmatter that is missing the author's name
+    post_content = f\"\"\"---
+title: A Post Without Author Name
+date: 2024-01-01
+authors:
+  - uuid: {AUTHOR_UUID}
+    # 'name' field is intentionally omitted
+    bio: "A bio."
+---
+
+Content of the post.
+\"\"\"
+    (author_dir / "2024-01-01-post.md").write_text(post_content)
+
+    with pytest.raises(IncompleteProfileError, match="Profile for author .* is incomplete: No name found"):
+        mkdocs_adapter._build_author_profile(AUTHOR_UUID)
+
+
+def test_get_profiles_data_raises_on_corrupt_file(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
+    """Test that get_profiles_data raises DocumentParsingError for a corrupt profile file."""
+    # Setup a valid directory structure
+    profiles_dir = tmp_path / "profiles"
+    mkdocs_adapter.profiles_dir = profiles_dir
+    author_dir = profiles_dir / AUTHOR_UUID
+    author_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create a profile file with invalid YAML frontmatter
+    corrupt_content = \"\"\"---
+title: Corrupt Profile
+date: 2024-01-01
+authors: [
+---
+This file has unclosed YAML.
+\"\"\"
+    profile_path = author_dir / "profile.md"
+    profile_path.write_text(corrupt_content)
+
+    # The adapter needs a documents() method that returns something for this test.
+    # Let's mock it to return an empty list to isolate the parsing logic.
+    mkdocs_adapter.documents = lambda: []
+
+    with pytest.raises(DocumentParsingError, match=f"Failed to parse document at '{profile_path}'"):
+        mkdocs_adapter.get_profiles_data()
+
+
+def test_get_recent_media_raises_on_corrupt_file(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
+    """Test that get_recent_media raises DocumentParsingError for a corrupt media file."""
+    # Setup a valid directory structure
+    urls_dir = tmp_path / "media" / "urls"
+    urls_dir.mkdir(parents=True, exist_ok=True)
+    mkdocs_adapter.urls_dir = urls_dir
+
+    # Create a media file with invalid YAML frontmatter
+    corrupt_content = \"\"\"---
+title: Corrupt Media
+url: http://example.com
+summary: [
+---
+This file has unclosed YAML.
+\"\"\"
+    media_path = urls_dir / "corrupt-media.md"
+    media_path.write_text(corrupt_content)
+
+    with pytest.raises(DocumentParsingError, match=f"Failed to parse document at '{media_path}'"):
+        mkdocs_adapter.get_recent_media()
+
+
+def test_url_to_path_raises_for_profile_missing_subject(mkdocs_adapter: MkDocsAdapter):
+    """Test _url_to_path raises ProfileMetadataError for a PROFILE doc missing 'subject'."""
+    # Create a document of type PROFILE but without the 'subject' metadata
+    profile_doc = Document(
+        content="This is a profile.",
+        type=DocumentType.PROFILE,
+        metadata={"title": "A Profile", "slug": "a-profile"},  # Missing 'subject'
+    )
+    doc_id = profile_doc.document_id
+
+    # The URL context is needed for the method to run
+    mkdocs_adapter._ctx = UrlContext(base_url="http://localhost:8000", site_prefix="", base_path=Path.cwd())
+
+    with pytest.raises(ProfileMetadataError, match=f"PROFILE document '{doc_id}' missing required metadata field: 'subject'"):
+        # The URL can be simple for this test, as the logic branch is determined by doc type
+        mkdocs_adapter._url_to_path("/profiles/a-profile", profile_doc)

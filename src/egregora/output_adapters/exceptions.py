@@ -79,6 +79,26 @@ class ProfileGenerationError(OutputAdapterError):
         super().__init__(message)
 
 
+class IncompleteProfileError(ProfileGenerationError):
+    """Raised when a profile is missing essential data like a name."""
+
+    def __init__(self, author_uuid: str, reason: str) -> None:
+        self.author_uuid = author_uuid
+        self.reason = reason
+        super().__init__(f"Profile for author '{author_uuid}' is incomplete: {reason}")
+
+
+class ProfileMetadataError(ProfileGenerationError):
+    """Raised when a document of type PROFILE is missing required metadata."""
+
+    def __init__(self, document_id: str, missing_field: str) -> None:
+        self.document_id = document_id
+        self.missing_field = missing_field
+        super().__init__(
+            f"PROFILE document '{document_id}' missing required metadata field: '{missing_field}'"
+        )
+
+
 class CollisionResolutionError(OutputAdapterError):
     """Raised when a filename collision cannot be resolved."""
 

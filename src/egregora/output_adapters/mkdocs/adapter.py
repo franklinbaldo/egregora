@@ -785,12 +785,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 # PROFILE posts (Egregora writing ABOUT author) go to author's folder
                 subject_uuid = document.metadata.get("subject")
                 if not subject_uuid:
-                    msg = (
-                        f"PROFILE document missing required 'subject' metadata. "
-                        f"Document ID: {document.document_id}, URL: {url_path}. "
-                        f"All PROFILE documents must include 'subject' to identify the author being profiled."
-                    )
-                    raise ValueError(msg)
+                    raise ProfileMetadataError(document.document_id, "subject")
 
                 # Successfully routing to author-specific directory
                 profile_dir = self.profiles_dir / str(subject_uuid)
@@ -1259,8 +1254,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                     }
                 )
             except (OSError, yaml.YAMLError) as e:
-                logger.warning("Failed to parse profile %s: %s", profile_path, e)
-                continue
+                # Fail fast on parsing errors instead of swallowing them
+                raise DocumentParsingError(str(profile_path), str(e)) from e
 
         return profiles
 
@@ -1308,8 +1303,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                     }
                 )
             except (OSError, yaml.YAMLError) as e:
-                logger.warning("Failed to parse media %s: %s", media_path, e)
-                continue
+                raise DocumentParsingError(str(media_path), str(e)) from e
 
         return media_items
 
@@ -1515,7 +1509,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             )
 
         if not profile["name"]:
-            return None  # No valid profile without a name
+            # No valid profile without a name
+            raise IncompleteProfileError(author_uuid, "No name found in any of the author's posts")
 
         profile["interests"] = sorted(profile["interests"])
         return profile
