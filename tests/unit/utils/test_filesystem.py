@@ -108,6 +108,43 @@ def test_write_markdown_post_success(tmp_path: Path):
     assert "---" in file_content
     assert "Hello" in file_content
 
+
+def test_write_markdown_post_with_full_metadata(tmp_path: Path):
+    """Verify that write_markdown_post handles a full set of metadata."""
+    content = "This is the post content."
+    metadata = {
+        "title": "Full Metadata Test",
+        "slug": "full-metadata-test",
+        "date": "2023-10-27 10:00",
+        "authors": ["Author One", "Author Two"],
+        "tags": ["testing", "metadata"],
+        "summary": "This is a test summary.",
+        "category": "Technology",
+    }
+    output_dir = tmp_path
+
+    with patch("egregora.utils.filesystem.ensure_author_entries") as mock_ensure_authors:
+        filepath_str = write_markdown_post(content, metadata, output_dir)
+        filepath = Path(filepath_str)
+
+        assert filepath.exists()
+        mock_ensure_authors.assert_called_once_with(output_dir, ["Author One", "Author Two"])
+
+        file_content = filepath.read_text()
+        assert "title: Full Metadata Test" in file_content
+        assert "slug: full-metadata-test" in file_content
+        assert "date: 2023-10-27 10:00" in file_content
+        assert "authors:" in file_content
+        assert "- Author One" in file_content
+        assert "- Author Two" in file_content
+        assert "tags:" in file_content
+        assert "- testing" in file_content
+        assert "- metadata" in file_content
+        assert "summary: This is a test summary." in file_content
+        assert "category: Technology" in file_content
+        assert content in file_content
+
+
 def test_write_markdown_post_raises_directory_creation_error(tmp_path: Path, monkeypatch):
     """Verify that write_markdown_post raises DirectoryCreationError on mkdir failure."""
     mock_mkdir = MagicMock(side_effect=OSError("Permission denied"))
