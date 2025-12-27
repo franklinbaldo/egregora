@@ -10,6 +10,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -62,6 +63,7 @@ from egregora.agents.writer_setup import (
     create_writer_model,
     setup_writer_agent,
 )
+from egregora.config.settings import is_demo_mode
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.output_adapters import OutputSinkRegistry, create_default_output_registry
 from egregora.resources.prompts import render_prompt
@@ -481,6 +483,10 @@ async def _execute_writer_with_error_handling(
     except Exception as exc:
         if isinstance(exc, (PromptTooLargeError, AgentExecutionError)):
             raise
+
+        if is_demo_mode():
+            logger.warning("DEMO MODE: Writer agent failed but we are ignoring it.")
+            return [], []
 
         logger.exception("An unexpected error occurred in the writer agent for window %s", deps.window_label)
         raise AgentExecutionError(window_label=deps.window_label, reason=str(exc)) from exc

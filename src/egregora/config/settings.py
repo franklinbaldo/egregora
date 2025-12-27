@@ -1296,3 +1296,8 @@ def get_openrouter_api_key() -> str:
 def openrouter_api_key_status() -> bool:
     """Check if OPENROUTER_API_KEY is configured."""
     return bool(os.environ.get("OPENROUTER_API_KEY"))
+
+
+def is_demo_mode() -> bool:
+    """Check if the application is running in demo mode."""
+    return os.getenv("EGREGORA_DEMO_MODE", "false").lower() in ("true", "1", "yes")

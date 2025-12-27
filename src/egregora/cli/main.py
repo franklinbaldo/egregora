@@ -1,6 +1,7 @@
 """Main Typer application for Egregora."""
 
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Annotated
@@ -458,6 +459,10 @@ def demo(
 ) -> None:
     """Generate a demo site from a sample WhatsApp export."""
     console.print("[bold cyan]Generating demo site...[/bold cyan]")
+    # DEMO MODE: Prevent live API calls and skip key validation for local demo.
+    os.environ["EGREGORA_DEMO_MODE"] = "true"
+    os.environ["EGREGORA_SKIP_API_KEY_VALIDATION"] = "true"
+
     # Resolve the path to the sample input file relative to this script's location
     # to ensure it's found regardless of the current working directory.
     project_root = Path(__file__).resolve().parent.parent.parent.parent
