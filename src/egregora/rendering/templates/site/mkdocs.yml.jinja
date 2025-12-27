@@ -32,24 +32,35 @@ theme:
         icon: material/brightness-4
         name: Switch to light mode
   features:
+    # Navigation
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
     - navigation.tracking
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.prune
     - navigation.indexes
     - navigation.top
-    - navigation.instant
     - navigation.footer
-    - navigation.path
-    - navigation.breadcrumbs
-    - toc.integrate
-    - header.autohide
+    # Search
+    - search.suggest
     - search.highlight
     - search.share
-    - search.suggest
+    # Header
+    - header.autohide
+    # Content
     - content.code.copy
+    - content.code.annotate
+    - content.code.select
     - content.tabs.link
     - content.tooltips
+    # Table of contents
+    - toc.follow
+    - toc.integrate
 
 plugins:
   - social
