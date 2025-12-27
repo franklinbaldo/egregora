@@ -76,8 +76,9 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import ibis
 
-from egregora.data_primitives.document import Document, DocumentType, OutputSink
-from egregora.database import ir_schema as database_schema
+from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import OutputSink
+from egregora.database import schemas as database_schema
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -307,8 +308,8 @@ class AnnotationStore:
         if self.output_sink:
             try:
                 self.output_sink.persist(annotation.to_document())
-            except Exception as e:
-                logger.warning("Failed to persist annotation %s: %s", annotation.id, e)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Failed to persist annotation %s: %s", annotation.id, exc)
 
         return annotation
 

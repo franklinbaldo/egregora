@@ -22,15 +22,8 @@ from dateutil import parser as date_parser
 from pydantic import BaseModel
 
 from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
-from egregora.input_adapters.whatsapp.exceptions import (
-    DateParsingError,
-    MalformedLineError,
-    NoMessagesFoundError,
-    TimeParsingError,
-    WhatsAppParsingIOError,
-)
 from egregora.input_adapters.whatsapp.utils import build_message_attrs
-from egregora.utils.zip import ensure_safe_member_size, validate_zip_contents
+from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -42,49 +35,25 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# Basic PII patterns (as strings for reuse)
-_EMAIL_PATTERN_STR = r"[\w\.-]+@[\w\.-]+\.\w+"
-_PHONE_PATTERN_STR = r"(\+\d{1,2}\s?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}"
-
-# Compiled patterns for single use and for the combined pattern
-EMAIL_PATTERN = re.compile(_EMAIL_PATTERN_STR)
-PHONE_PATTERN = re.compile(_PHONE_PATTERN_STR)
-
-# Combined pattern using named groups for dynamic replacement in a single pass
-PII_PATTERN = re.compile(rf"(?P<email>{_EMAIL_PATTERN_STR})|(?P<phone>{_PHONE_PATTERN_STR})")
-
-# Replacement strings as constants
-EMAIL_REPLACEMENT = "<EMAIL_REDACTED>"
-PHONE_REPLACEMENT = "<PHONE_REDACTED>"
-
-
-def _pii_replacer(match: re.Match) -> str:
-    """Return the correct replacement string based on the named group that matched."""
-    if match.lastgroup == "email":
-        return EMAIL_REPLACEMENT
-    # The phone group will always be the last matched group if it exists
-    return PHONE_REPLACEMENT
+# Basic PII patterns
+EMAIL_PATTERN = re.compile(r"[\w\.-]+@[\w\.-]+\.\w+")
+PHONE_PATTERN = re.compile(r"(\+\d{1,2}\s?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}")
 
 
 def scrub_pii(text: str, config: EgregoraConfig | None = None) -> str:
-    """Scrub PII from text using an optimized single-pass regex when possible."""
+    """Scrub PII from text."""
     if config and not config.privacy.pii_detection_enabled:
         return text
 
     # Defaults if config is None or flags are true
+    # If config is provided, respect its flags. If not, default to True (safe default).
     do_email = config.privacy.scrub_emails if config else True
     do_phone = config.privacy.scrub_phones if config else True
 
-    if do_email and do_phone:
-        # Optimized path: one pass for both patterns using a replacer function
-        return PII_PATTERN.sub(_pii_replacer, text)
     if do_email:
-        # Single pattern path for email only
-        return EMAIL_PATTERN.sub(EMAIL_REPLACEMENT, text)
+        text = EMAIL_PATTERN.sub("<EMAIL_REDACTED>", text)
     if do_phone:
-        # Single pattern path for phone only
-        return PHONE_PATTERN.sub(PHONE_REPLACEMENT, text)
-
+        text = PHONE_PATTERN.sub("<PHONE_REDACTED>", text)
     return text
 
 
@@ -149,7 +118,7 @@ def _normalize_text(value: str, config: EgregoraConfig | None = None) -> str:
 
 
 @lru_cache(maxsize=1024)
-def _parse_message_date(token: str) -> date:
+def _parse_message_date(token: str) -> date | None:
     """Parse date token into a date object using multiple parsing strategies.
 
     Performance: Uses lru_cache since WhatsApp logs contain many repeated
@@ -157,7 +126,7 @@ def _parse_message_date(token: str) -> date:
     """
     normalized = token.strip()
     if not normalized:
-        raise DateParsingError(token, "Date string is empty.")
+        return None
 
     for strategy in _DATE_PARSING_STRATEGIES:
         try:
@@ -167,11 +136,11 @@ def _parse_message_date(token: str) -> date:
         except (TypeError, ValueError, OverflowError):
             continue
 
-    raise DateParsingError(token)
+    return None
 
 
 @lru_cache(maxsize=4096)
-def _parse_message_time(time_token: str) -> time:
+def _parse_message_time(time_token: str) -> time | None:
     """Parse time token into a time object (naive, for later localization).
 
     Performance:
@@ -181,7 +150,7 @@ def _parse_message_time(time_token: str) -> time:
     """
     token = time_token.strip()
     if not token:
-        raise TimeParsingError(time_token, "Time string is empty.")
+        return None
 
     # Fast path for standard HH:MM (e.g., "12:30", "09:15")
     # Checks length and digit presence to avoid splitting/parsing invalid strings
@@ -238,10 +207,10 @@ def _parse_message_time(time_token: str) -> time:
             parts = token.split(":")
             if len(parts) == PARTS_IN_TIME_STR:
                 return time(int(parts[0]), int(parts[1]))
-    except ValueError as e:
-        raise TimeParsingError(time_token) from e
+    except ValueError:
+        pass
 
-    raise TimeParsingError(time_token)
+    return None
 
 
 def _resolve_timezone(timezone: str | ZoneInfo | None) -> ZoneInfo:
@@ -341,23 +310,17 @@ class ZipMessageSource:
 
     def lines(self) -> Iterator[str]:
         """Yield normalized lines from the source file."""
-        try:
-            with zipfile.ZipFile(self.export.zip_path) as zf:
-                validate_zip_contents(zf)
-                ensure_safe_member_size(zf, self.export.chat_file)
+        with zipfile.ZipFile(self.export.zip_path) as zf:
+            validate_zip_contents(zf)
+            ensure_safe_member_size(zf, self.export.chat_file)
+            try:
                 with zf.open(self.export.chat_file) as raw:
                     text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
                     for line in text_stream:
                         yield _normalize_text(line.rstrip("\n"), self.config)
-        except (FileNotFoundError, PermissionError) as exc:
-            msg = f"Failed to open ZIP file at '{self.export.zip_path}': {exc}"
-            raise WhatsAppParsingIOError(msg) from exc
-        except KeyError as exc:
-            msg = f"Chat file '{self.export.chat_file}' not found in ZIP."
-            raise WhatsAppParsingIOError(msg) from exc
-        except UnicodeDecodeError as exc:
-            msg = f"Failed to decode chat file '{self.export.chat_file}' due to encoding issues: {exc}"
-            raise WhatsAppParsingIOError(msg) from exc
+            except UnicodeDecodeError as exc:
+                msg = f"Failed to decode chat file '{self.export.chat_file}': {exc}"
+                raise ZipValidationError(msg) from exc
 
 
 def _parse_whatsapp_lines(
@@ -377,20 +340,25 @@ def _parse_whatsapp_lines(
     )
 
     # Re-open source to read from start
-    for i, line in enumerate(source.lines(), 1):
+    for line in source.lines():
         match = line_pattern.match(line)  # Use dynamic pattern
 
         if match:
             # ... rest of existing logic ...
             date_str, time_str, author_raw, message_part = match.groups()
-            try:
-                msg_date = _parse_message_date(date_str)
+
+            msg_date = _parse_message_date(date_str)
+            if msg_date:
                 builder.current_date = msg_date
-                msg_time = _parse_message_time(time_str)
-                timestamp = datetime.combine(builder.current_date, msg_time, tzinfo=tz).astimezone(UTC)
-                builder.start_new_message(timestamp, author_raw, message_part)
-            except (DateParsingError, TimeParsingError) as e:
-                raise MalformedLineError(line, e, line_number=i) from e
+
+            msg_time = _parse_message_time(time_str)
+
+            if not msg_time:
+                builder.flush()
+                continue
+
+            timestamp = datetime.combine(builder.current_date, msg_time, tzinfo=tz).astimezone(UTC)
+            builder.start_new_message(timestamp, author_raw, message_part)
 
         else:
             builder.append_line(line, line)
@@ -435,7 +403,8 @@ def parse_source(
     rows = _parse_whatsapp_lines(source, export, timezone)
 
     if not rows:
-        raise NoMessagesFoundError(str(export.zip_path))
+        logger.warning("No messages found in %s", export.zip_path)
+        return ibis.memtable([], schema=INGESTION_MESSAGE_SCHEMA)
 
     messages = ibis.memtable(rows)
     if "_import_order" in messages.columns:
