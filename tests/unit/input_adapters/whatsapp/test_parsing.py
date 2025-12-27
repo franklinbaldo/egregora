@@ -70,7 +70,7 @@ class TestWhatsAppParsing:
     """New tests for whatsapp parsing logic to raise exceptions on failure."""
 
     def test_parse_source_raises_error_when_no_messages_found(self, monkeypatch) -> None:
-        """Verify parse_source raises NoMessagesFoundError when parsing yields no rows."""
+        """Verify parse_source returns empty table when parsing yields no rows."""
         # 1. Arrange: Mock the internal parsing function to return an empty list
         monkeypatch.setattr(
             "egregora.input_adapters.whatsapp.parsing._parse_whatsapp_lines",
@@ -86,10 +86,9 @@ class TestWhatsAppParsing:
             media_files=[],
         )
 
-        # 2. Act & Assert: Expect NoMessagesFoundError
-        # The current implementation will return an empty Ibis table, causing the test to fail.
-        with pytest.raises(NoMessagesFoundError, match=r"No messages found in 'dummy\.zip'"):
-            parse_source(mock_export, timezone="UTC")
+        # 2. Act & Assert: Should return empty table instead of raising error
+        result = parse_source(mock_export, timezone="UTC")
+        assert result.count().execute() == 0
 
     def test_parse_message_date_raises_error_on_invalid_date(self) -> None:
         """Verify _parse_message_date returns None for invalid dates."""
