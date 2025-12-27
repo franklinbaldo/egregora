@@ -94,7 +94,9 @@ class ProfileMetadataError(ProfileGenerationError):
     def __init__(self, document_id: str, missing_field: str) -> None:
         self.document_id = document_id
         self.missing_field = missing_field
-        super().__init__(f"PROFILE document '{document_id}' missing required metadata field: '{missing_field}'")
+        super().__init__(
+            f"PROFILE document '{document_id}' missing required metadata field: '{missing_field}'"
+        )
 
 
 class CollisionResolutionError(OutputAdapterError):

@@ -22,7 +22,7 @@ import uuid
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
@@ -39,13 +39,12 @@ from pydantic_ai.messages import BinaryContent
 
 from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.database.message_repository import MessageRepository
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.llm.providers.google_batch import GoogleBatchModel
-from egregora.orchestration.pipelines.modules.media import extract_urls, find_media_references
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
-from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.env import get_google_api_key
 from egregora.utils.paths import slugify
 from egregora.utils.zip import validate_zip_contents
@@ -77,16 +76,6 @@ _UUID_PATTERN = re.compile(r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-
 # ---------------------------------------------------------------------------
 # Shared Models & Helpers
 # ---------------------------------------------------------------------------
-
-
-def ensure_datetime(value: datetime | str | Any) -> datetime:
-    """Convert various datetime representations to Python datetime."""
-    parsed = parse_datetime_flexible(value, default_timezone=UTC)
-    if parsed is not None:
-        return parsed
-
-    msg = f"Unsupported datetime type: {type(value)}"
-    raise TypeError(msg)
 
 
 def load_file_as_binary_content(file_path: Path, max_size_mb: int = 20) -> BinaryContent:
@@ -333,7 +322,8 @@ def _enqueue_url_enrichments(
     if not enable_url or max_enrichments <= 0:
         return 0
 
-    candidates = _extract_url_candidates(messages_table, max_enrichments)
+    repo = MessageRepository(messages_table._find_backend())
+    candidates = repo.get_url_enrichment_candidates(messages_table, max_enrichments)
 
     # Pre-check database for already enriched URLs to avoid redundant tasks
     urls_to_check = [c[0] for c in candidates]
@@ -394,7 +384,10 @@ def _enqueue_media_enrichments(
     if not config.enable_media or config.max_enrichments <= 0:
         return 0
 
-    candidates = _extract_media_candidates(messages_table, config.media_mapping, config.max_enrichments)
+    repo = MessageRepository(messages_table._find_backend())
+    candidates = repo.get_media_enrichment_candidates(
+        messages_table, config.media_mapping, config.max_enrichments
+    )
 
     # Pre-check database for already enriched media to avoid redundant tasks
     media_ids_to_check = [c[1].document_id for c in candidates]
@@ -457,189 +450,6 @@ def _serialize_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
         "created_at": (created_at.isoformat() if hasattr(created_at, "isoformat") else created_at),
         "created_by_run": _uuid_to_str(metadata.get("created_by_run")),
     }
-
-
-def _process_url_row(
-    row: dict[str, Any],
-    url_metadata: dict[str, dict[str, Any]],
-    discovered_count: int,
-    max_enrichments: int,
-) -> int:
-    """Process a single row for URL extraction."""
-    message = row.get("text")
-    if not message:
-        return discovered_count
-    urls = extract_urls(message)
-    if not urls:
-        return discovered_count
-
-    timestamp = ensure_datetime(row.get("ts")) if row.get("ts") else None
-    row_metadata = {
-        "ts": timestamp,
-        "event_id": _uuid_to_str(row.get("event_id")),
-        "tenant_id": row.get("tenant_id"),
-        "source": row.get("source"),
-        "thread_id": _uuid_to_str(row.get("thread_id")),
-        "author_uuid": _uuid_to_str(row.get("author_uuid")),
-        "created_at": row.get("created_at"),
-        "created_by_run": _uuid_to_str(row.get("created_by_run")),
-    }
-
-    for url in urls[:3]:
-        existing = url_metadata.get(url)
-        if existing is None:
-            url_metadata[url] = row_metadata.copy()
-            discovered_count += 1
-            if discovered_count >= max_enrichments:
-                return discovered_count
-        else:
-            # Keep earliest timestamp
-            existing_ts = existing.get("ts")
-            if timestamp is not None and (existing_ts is None or timestamp < existing_ts):
-                existing.update(row_metadata)
-    return discovered_count
-
-
-def _extract_url_candidates(messages_table: Table, max_enrichments: int) -> list[tuple[str, dict[str, Any]]]:
-    """Extract unique URL candidates with metadata, up to max_enrichments."""
-    if max_enrichments <= 0:
-        return []
-
-    url_metadata: dict[str, dict[str, Any]] = {}
-    discovered_count = 0
-
-    for batch in _iter_table_batches(
-        messages_table.select(
-            "ts",
-            "text",
-            "event_id",
-            "tenant_id",
-            "source",
-            "thread_id",
-            "author_uuid",
-            "created_at",
-            "created_by_run",
-        )
-    ):
-        for row in batch:
-            if discovered_count >= max_enrichments:
-                break
-            discovered_count = _process_url_row(row, url_metadata, discovered_count, max_enrichments)
-
-        if discovered_count >= max_enrichments:
-            break
-
-    sorted_items = sorted(
-        url_metadata.items(),
-        key=lambda item: (item[1]["ts"] is None, item[1]["ts"]),
-    )
-    return sorted_items[:max_enrichments]
-
-
-def _extract_media_candidates(
-    messages_table: Table, media_mapping: MediaMapping, limit: int
-) -> list[tuple[str, Document, dict[str, Any]]]:
-    """Extract unique Media candidates with metadata.
-
-    This function scans messages for media references and queues them for enrichment.
-    It does NOT validate existence or load content at this stage - that happens
-    during the enrichment task execution (lazy loading).
-    """
-    if limit <= 0:
-        return []
-
-    # Note: media_mapping is passed but ignored to avoid pre-extraction overhead.
-    # Validation happens lazily in the enricher worker.
-
-    unique_media: set[str] = set()
-    metadata_lookup: dict[str, dict[str, Any]] = {}
-
-    # We still need to construct pseudo-Documents to maintain the return signature
-    # until we can refactor the return type.
-    document_lookup: dict[str, Document] = {}
-
-    for batch in _iter_table_batches(
-        messages_table.select(
-            "ts",
-            "text",
-            "event_id",
-            "tenant_id",
-            "source",
-            "thread_id",
-            "author_uuid",
-            "created_at",
-            "created_by_run",
-        )
-    ):
-        for row in batch:
-            if len(unique_media) >= limit:
-                break
-
-            message = row.get("text")
-            if not message:
-                continue
-
-            refs = find_media_references(message)
-            refs.extend(_MARKDOWN_LINK_PATTERN.findall(message))
-            # Detect UUID patterns if they are used as references
-            uuid_refs = _UUID_PATTERN.findall(message)
-            # Filter UUIDs to avoid false positives (simple heuristic)
-            refs.extend([u for u in uuid_refs if "media" in str(row)])
-
-            if not refs:
-                continue
-
-            timestamp = ensure_datetime(row.get("ts")) if row.get("ts") else None
-            row_metadata = {
-                "ts": timestamp,
-                "event_id": _uuid_to_str(row.get("event_id")),
-                "tenant_id": row.get("tenant_id"),
-                "source": row.get("source"),
-                "thread_id": _uuid_to_str(row.get("thread_id")),
-                "author_uuid": _uuid_to_str(row.get("author_uuid")),
-                "created_at": row.get("created_at"),
-                "created_by_run": _uuid_to_str(row.get("created_by_run")),
-            }
-
-            for ref in set(refs):
-                # Simple deduplication by reference string
-                if ref in unique_media:
-                    # Update metadata with earliest timestamp if needed
-                    existing = metadata_lookup.get(ref)
-                    if existing:
-                        existing_ts = existing.get("ts")
-                        if existing_ts and timestamp and timestamp < existing_ts:
-                            existing.update(row_metadata)
-                    continue
-
-                # New candidate found
-                unique_media.add(ref)
-                metadata_lookup[ref] = row_metadata.copy()
-
-                # Create a placeholder Document
-                # We use the ref as the filename since we haven't resolved it yet
-                # The ID is deterministic based on the ref
-                doc_id = str(uuid.uuid5(uuid.NAMESPACE_URL, ref))
-                document_lookup[ref] = Document(
-                    content=b"",  # Empty content for placeholder
-                    type=DocumentType.MEDIA,
-                    id=doc_id,  # Deterministic ID
-                    metadata={
-                        "filename": ref,
-                        "original_filename": ref,
-                        "media_type": mimetypes.guess_type(ref)[0] or "application/octet-stream",
-                    },
-                )
-
-        if len(unique_media) >= limit:
-            break
-
-    # Sort by timestamp
-    sorted_refs = sorted(
-        unique_media, key=lambda r: (metadata_lookup[r]["ts"] is None, metadata_lookup[r]["ts"])
-    )
-
-    return [(ref, document_lookup[ref], metadata_lookup[ref]) for ref in sorted_refs[:limit]]
 
 
 class EnrichmentWorker(BaseWorker):
