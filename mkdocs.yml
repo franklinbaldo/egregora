@@ -45,7 +45,6 @@ theme:
     - navigation.prune
     - navigation.indexes
     - navigation.top
-    - navigation.footer
     # Search
     - search.suggest
     - search.highlight
