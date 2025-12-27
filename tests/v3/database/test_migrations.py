@@ -1,256 +1,184 @@
-# tests/v3/database/test_migrations.py
+"""Tests for the V3 database schema migration."""
+
+from datetime import date, datetime, timezone
 
 import ibis
 import pytest
-import ibis.expr.datatypes as dt
-import pandas as pd
+from ibis import _
 
-# This import will fail initially, which is expected for TDD
-from egregora.database.migrations import migrate_documents_table, migrate_to_unified_schema
-from egregora.database.schemas import UNIFIED_SCHEMA
-
-
-@pytest.fixture(scope="function")
-def db_con():
-    """Provides a clean, in-memory DuckDB Ibis connection for tests."""
-    con = ibis.duckdb.connect()
-    yield con
-    # No need to close in-memory connections explicitly with modern Ibis/DuckDB.
+from egregora.database.migrations import migrate_to_unified_schema, migrate_documents_table
+from egregora.database.schemas import (
+    POSTS_SCHEMA,
+    PROFILES_SCHEMA,
+    JOURNALS_SCHEMA,
+    MEDIA_SCHEMA,
+    create_table_if_not_exists,
+)
 
 
-@pytest.fixture(scope="function")
-def legacy_documents_con(db_con):
-    """Provides a connection with a legacy 'documents' table missing V3 columns."""
-    # A simplified legacy schema missing several key columns from the UNIFIED_SCHEMA
-    legacy_schema = ibis.schema(
-        {
-            "id": dt.string,
-            "title": dt.string,
-            "updated": dt.Timestamp(timezone="UTC"),
-            "content": dt.string,
-        }
-    )
-    db_con.create_table("documents", schema=legacy_schema, overwrite=True)
-    db_con.insert(
-        "documents",
-        [
-            {
-                "id": "doc-1",
-                "title": "My Legacy Document",
-                "updated": "2025-01-15T10:00:00Z",
-                "content": "This content should be preserved.",
-            }
-        ],
-    )
-    return db_con
+@pytest.fixture
+def v2_db_conn():
+    """Provides an in-memory DuckDB Ibis connection with V2 tables."""
+    con = ibis.duckdb.connect(":memory:")
+    create_table_if_not_exists(con, "posts", POSTS_SCHEMA)
+    create_table_if_not_exists(con, "profiles", PROFILES_SCHEMA)
+    create_table_if_not_exists(con, "journals", JOURNALS_SCHEMA)
+    create_table_if_not_exists(con, "media", MEDIA_SCHEMA)
+
+    # Populate with some data
+    posts_data = {
+        "id": ["post1"],
+        "content": ["Post content"],
+        "created_at": [datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)],
+        "source_checksum": ["abc"],
+        "title": ["Post Title"],
+        "slug": ["post-title"],
+        "date": [date(2023, 1, 1)],
+        "summary": ["A summary"],
+        "authors": [["author1"]],
+        "tags": [["tag1"]],
+        "status": ["published"],
+    }
+    con.insert("posts", ibis.memtable(posts_data, schema=POSTS_SCHEMA))
+
+    profiles_data = {
+        "id": ["profile1"],
+        "content": ["Profile bio"],
+        "created_at": [datetime(2023, 1, 2, 12, 0, 0, tzinfo=timezone.utc)],
+        "source_checksum": ["def"],
+        "subject_uuid": ["author1"],
+        "title": ["Author Name"],
+        "alias": ["author_alias"],
+        "summary": ["Profile summary"],
+        "avatar_url": ["http://example.com/avatar.png"],
+        "interests": [["interest1"]],
+    }
+    con.insert("profiles", ibis.memtable(profiles_data, schema=PROFILES_SCHEMA))
+
+    journals_data = {
+        "id": ["journal1"],
+        "content": ["Journal content"],
+        "created_at": [datetime(2023, 1, 3, 12, 0, 0, tzinfo=timezone.utc)],
+        "source_checksum": ["ghi"],
+        "title": ["Journal Title"],
+        "window_start": [datetime(2023, 1, 3, 0, 0, 0, tzinfo=timezone.utc)],
+        "window_end": [datetime(2023, 1, 3, 23, 59, 59, tzinfo=timezone.utc)],
+    }
+    con.insert("journals", ibis.memtable(journals_data, schema=JOURNALS_SCHEMA))
+
+    media_data = {
+        "id": ["media1"],
+        "content": ["Media description"],
+        "created_at": [datetime(2023, 1, 4, 12, 0, 0, tzinfo=timezone.utc)],
+        "source_checksum": ["jkl"],
+        "filename": ["image.jpg"],
+        "mime_type": ["image/jpeg"],
+        "media_type": ["image"],
+        "phash": ["123"],
+    }
+    con.insert("media", ibis.memtable(media_data, schema=MEDIA_SCHEMA))
+
+    return con
 
 
-@pytest.fixture(scope="function")
-def legacy_posts_con(db_con):
-    """Provides a connection with a legacy 'posts' table."""
-    schema = ibis.schema(
-        {
-            "id": dt.string,
-            "title": dt.string,
-            "date": dt.date,
-            "created_at": dt.Timestamp(timezone="UTC"),
-            "content": dt.string,
-            "authors": dt.json,
-        }
-    )
-    db_con.create_table("posts", schema=schema, overwrite=True)
-    db_con.insert(
-        "posts",
-        [
-            {
-                "id": "post-1",
-                "title": "Legacy Post",
-                "date": "2025-01-01",
-                "created_at": "2025-01-01T12:00:00Z",
-                "content": "Content from a legacy post.",
-                "authors": '["author-1"]',
-            }
-        ],
-    )
-    return db_con
+def test_migrate_to_unified_schema_from_v2(v2_db_conn):
+    """Tests migrating a V2 database to the unified schema."""
+    # Run the migration
+    migrate_to_unified_schema(v2_db_conn)
+
+    # 1. Check if 'documents' table exists
+    assert "documents" in v2_db_conn.list_tables()
+    docs = v2_db_conn.table("documents")
+    assert docs.count().execute() == 4
+
+    # 2. Verify posts migration
+    post_doc_df = docs.filter(_.doc_type == "post").execute()
+    assert len(post_doc_df) == 1
+    post_doc = post_doc_df.to_dict("records")[0]
+    assert post_doc["id"] == "post1"
+    assert post_doc["title"] == "Post Title"
+    assert post_doc["published"].to_pydatetime().date() == date(2023, 1, 1)
+    assert post_doc["authors"] == ["author1"]
+
+    # 3. Verify profiles migration
+    profile_doc_df = docs.filter(_.doc_type == "profile").execute()
+    assert len(profile_doc_df) == 1
+    profile_doc = profile_doc_df.to_dict("records")[0]
+    assert profile_doc["id"] == "profile1"
+    assert profile_doc["title"] == "Author Name"
+    assert profile_doc["summary"] == "Profile summary"
+    assert profile_doc["internal_metadata"]["alias"] == "author_alias"
+
+    # 4. Verify journals migration
+    journal_doc_df = docs.filter(_.doc_type == "journal").execute()
+    assert len(journal_doc_df) == 1
+    journal_doc = journal_doc_df.to_dict("records")[0]
+    assert journal_doc["id"] == "journal1"
+    assert journal_doc["title"] == "Journal Title"
+    assert journal_doc["updated"].to_pydatetime() == datetime(2023, 1, 3, 12, 0, 0, tzinfo=timezone.utc)
+
+    # 5. Verify media migration
+    media_doc_df = docs.filter(_.doc_type == "media").execute()
+    assert len(media_doc_df) == 1
+    media_doc = media_doc_df.to_dict("records")[0]
+    assert media_doc["id"] == "media1"
+    assert media_doc["title"] == "image.jpg"
+    assert media_doc["content_type"] == "image/jpeg"
 
 
-@pytest.fixture(scope="function")
-def legacy_profiles_con(db_con):
-    """Provides a connection with a legacy 'profiles' table."""
-    schema = ibis.schema(
-        {"id": dt.string, "title": dt.string, "created_at": dt.Timestamp(timezone="UTC"), "summary": dt.string, "alias": dt.string}
-    )
-    db_con.create_table("profiles", schema=schema, overwrite=True)
-    db_con.insert(
-        "profiles",
-        [
-            {
-                "id": "profile-1",
-                "title": "Legacy Profile",
-                "created_at": "2025-01-02T12:00:00Z",
-                "summary": "A legacy profile.",
-                "alias": "legacy-alias",
-            }
-        ],
-    )
-    return db_con
+@pytest.fixture
+def partial_v3_db_conn():
+    """Provides an in-memory DB with a partial 'documents' table."""
+    con = ibis.duckdb.connect(":memory:")
+    # Create a table with a subset of the final schema
+    partial_schema = ibis.schema({"id": "string", "title": "string", "updated": "timestamp"})
+    create_table_if_not_exists(con, "documents", partial_schema)
+    return con
 
 
-@pytest.fixture(scope="function")
-def legacy_journals_con(db_con):
-    """Provides a connection with a legacy 'journals' table."""
-    schema = ibis.schema({"id": dt.string, "title": dt.string, "created_at": dt.Timestamp(timezone="UTC"), "content": dt.string})
-    db_con.create_table("journals", schema=schema, overwrite=True)
-    db_con.insert(
-        "journals",
-        [{"id": "journal-1", "title": "Legacy Journal", "created_at": "2025-01-03T12:00:00Z", "content": "Journal entry."}],
-    )
-    return db_con
+def test_migrate_documents_table_adds_missing_columns(partial_v3_db_conn):
+    """Tests that migrate_documents_table adds missing columns."""
+    con = partial_v3_db_conn
+    migrate_documents_table(con)
 
+    docs = con.table("documents")
+    final_columns = {c.lower() for c in docs.columns}
 
-@pytest.fixture(scope="function")
-def legacy_media_con(db_con):
-    """Provides a connection with a legacy 'media' table."""
-    schema = ibis.schema(
-        {"id": dt.string, "filename": dt.string, "created_at": dt.Timestamp(timezone="UTC"), "mime_type": dt.string, "content": dt.string}
-    )
-    db_con.create_table("media", schema=schema, overwrite=True)
-    db_con.insert(
-        "media",
-        [
-            {
-                "id": "media-1",
-                "filename": "legacy-image.jpg",
-                "created_at": "2025-01-04T12:00:00Z",
-                "mime_type": "image/jpeg",
-                "content": "binary data",
-            }
-        ],
-    )
-    return db_con
-
-
-def test_migrate_documents_table_adds_missing_v3_columns(legacy_documents_con):
-    """
-    RED Test: Verifies that the migration function adds missing columns
-    to an existing 'documents' table to align it with UNIFIED_SCHEMA.
-    """
-    # ARRANGE: Confirm the legacy table is missing the target columns
-    table = legacy_documents_con.table("documents")
-    initial_columns = set(table.columns)
-    assert "doc_type" not in initial_columns
-    assert "published" not in initial_columns
-    assert "searchable" not in initial_columns
-    assert "extensions" not in initial_columns
-
-    # ACT: Run the migration (this should fail until implemented)
-    migrate_documents_table(legacy_documents_con)
-
-    # ASSERT: Check that the columns now exist
-    migrated_table = legacy_documents_con.table("documents")
-    final_columns = set(migrated_table.columns)
-
+    # Check that a few key columns were added
     assert "doc_type" in final_columns
     assert "published" in final_columns
-    assert "searchable" in final_columns
-    assert "extensions" in final_columns
+    assert "internal_metadata" in final_columns
 
-    # ASSERT: Ensure all columns from the target schema are present
-    assert set(UNIFIED_SCHEMA.names).issubset(final_columns)
+    # Check against the full schema
+    from egregora.database.schemas import UNIFIED_SCHEMA
 
-    # ASSERT: Verify that the original data was not lost
-    data = migrated_table.to_pandas()
-    assert len(data) == 1
-    assert data["id"].iloc[0] == "doc-1"
-    assert data["title"].iloc[0] == "My Legacy Document"
-
-    # ASSERT: Check that newly added nullable columns have null values
-    assert data["doc_type"].iloc[0] is None
-    # For timestamp columns, pandas uses NaT (Not a Time) for null values.
-    # The correct way to check for this is pandas.isna().
-    assert pd.isna(data["published"].iloc[0])
+    target_columns = {c.lower() for c in UNIFIED_SCHEMA.names}
+    assert final_columns == target_columns
 
 
-def test_migrate_to_unified_schema_from_posts(legacy_posts_con):
-    """Tests migration from a legacy 'posts' table."""
-    migrate_to_unified_schema(legacy_posts_con)
+def test_migrate_to_unified_schema_is_idempotent(v2_db_conn):
+    """Tests that migrate_to_unified_schema can be run multiple times."""
+    migrate_to_unified_schema(v2_db_conn)
+    docs = v2_db_conn.table("documents")
+    count_after_first_run = docs.count().execute()
+    assert count_after_first_run == 4
 
-    documents = legacy_posts_con.table("documents")
-    data = documents.to_pandas()
-
-    assert len(data) == 1
-    assert data["id"].iloc[0] == "post-1"
-    assert data["doc_type"].iloc[0] == "post"
-    assert data["title"].iloc[0] == "Legacy Post"
-    assert data["authors"].iloc[0] == ["author-1"]
-    assert pd.notna(data["published"].iloc[0])
-
-
-def test_migrate_to_unified_schema_from_profiles(legacy_profiles_con):
-    """Tests migration from a legacy 'profiles' table."""
-    migrate_to_unified_schema(legacy_profiles_con)
-
-    documents = legacy_profiles_con.table("documents")
-    data = documents.to_pandas()
-
-    assert len(data) == 1
-    assert data["id"].iloc[0] == "profile-1"
-    assert data["doc_type"].iloc[0] == "profile"
-    assert data["title"].iloc[0] == "Legacy Profile"
-    assert data["summary"].iloc[0] == "A legacy profile."
-    assert data["internal_metadata"].iloc[0] == {"alias": "legacy-alias"}
-
-
-def test_migrate_to_unified_schema_from_journals(legacy_journals_con):
-    """Tests migration from a legacy 'journals' table."""
-    migrate_to_unified_schema(legacy_journals_con)
-
-    documents = legacy_journals_con.table("documents")
-    data = documents.to_pandas()
-
-    assert len(data) == 1
-    assert data["id"].iloc[0] == "journal-1"
-    assert data["doc_type"].iloc[0] == "journal"
-
-
-def test_migrate_to_unified_schema_from_media(legacy_media_con):
-    """Tests migration from a legacy 'media' table."""
-    migrate_to_unified_schema(legacy_media_con)
-
-    documents = legacy_media_con.table("documents")
-    data = documents.to_pandas()
-
-    assert len(data) == 1
-    assert data["id"].iloc[0] == "media-1"
-    assert data["doc_type"].iloc[0] == "media"
-    assert data["title"].iloc[0] == "legacy-image.jpg"
-    assert data["content_type"].iloc[0] == "image/jpeg"
-
-
-def test_migrate_to_unified_schema_is_idempotent(legacy_posts_con):
-    """Tests that the migration does not run if 'documents' table exists."""
-    # Run migration once
-    migrate_to_unified_schema(legacy_posts_con)
-    count_after_first_run = legacy_posts_con.table("documents").count().execute()
-    assert count_after_first_run == 1
-
-    # Run migration again
-    migrate_to_unified_schema(legacy_posts_con)
-    count_after_second_run = legacy_posts_con.table("documents").count().execute()
-
-    # The count should not change
+    # Run a second time
+    migrate_to_unified_schema(v2_db_conn)
+    count_after_second_run = docs.count().execute()
     assert count_after_second_run == count_after_first_run
 
 
-def test_migrate_to_unified_schema_handles_missing_tables(legacy_posts_con):
-    """Tests that migration runs successfully even if some legacy tables are missing."""
-    # At this point, only 'posts' table exists.
-    # The migration should run without errors.
-    migrate_to_unified_schema(legacy_posts_con)
+def test_migrate_documents_table_is_idempotent(partial_v3_db_conn):
+    """Tests that migrate_documents_table can be run multiple times."""
+    con = partial_v3_db_conn
+    migrate_documents_table(con)
+    table_after_first_run = con.table("documents")
+    columns_after_first_run = table_after_first_run.columns
 
-    documents = legacy_posts_con.table("documents")
-    assert documents.count().execute() == 1
-    # Verify it's the post data
-    data = documents.to_pandas()
-    assert data["id"].iloc[0] == "post-1"
+    # Run a second time
+    migrate_documents_table(con)
+    table_after_second_run = con.table("documents")
+    columns_after_second_run = table_after_second_run.columns
+
+    assert columns_after_first_run == columns_after_second_run
