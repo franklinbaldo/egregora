@@ -71,9 +71,11 @@ def load_authors_yml(path: Path) -> dict:
     try:
         return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except OSError as exc:
-        raise AuthorsFileError(f"Could not read authors file at {path}") from exc
+        msg = f"Could not read authors file at {path}"
+        raise AuthorsFileError(msg) from exc
     except yaml.YAMLError as exc:
-        raise AuthorsFileParseError(f"Could not parse authors file at {path}") from exc
+        msg = f"Could not parse authors file at {path}"
+        raise AuthorsFileParseError(msg) from exc
 
 
 def register_new_authors(authors: dict, author_ids: list[str]) -> list[str]:
@@ -99,7 +101,8 @@ def save_authors_yml(path: Path, authors: dict, count: int) -> None:
         )
         logger.info("Registered %d new author(s) in %s", count, path)
     except OSError as exc:
-        raise AuthorsFileIOError(f"Failed to write authors file at {path}") from exc
+        msg = f"Failed to write authors file at {path}"
+        raise AuthorsFileIOError(msg) from exc
 
 
 def extract_authors_from_post(md_file: Path) -> set[str]:
@@ -117,7 +120,8 @@ def extract_authors_from_post(md_file: Path) -> set[str]:
         return {str(a) for a in authors_meta if a}
 
     except OSError as exc:
-        raise PostParseError(f"Could not parse post file at {md_file}") from exc
+        msg = f"Could not parse post file at {md_file}"
+        raise PostParseError(msg) from exc
 
 
 def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> int:

@@ -1,5 +1,5 @@
 """Tests for custom exceptions in output adapters."""
-import pytest
+
 from egregora.output_adapters.exceptions import (
     AdapterNotInitializedError,
     CollisionResolutionError,

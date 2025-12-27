@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock
+
 import pytest
 
 from egregora.data_primitives.document import DocumentType

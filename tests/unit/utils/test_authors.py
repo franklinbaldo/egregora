@@ -83,12 +83,11 @@ def test_sync_authors_from_posts_handles_parse_error(tmp_path: Path):
 
     def mock_extract(md_file: Path):
         if "bad_post" in str(md_file):
-            raise PostParseError(f"mock error for {md_file}")
+            msg = f"mock error for {md_file}"
+            raise PostParseError(msg)
         return original_extract(md_file)
 
-    with patch(
-        "egregora.utils.authors.extract_authors_from_post", side_effect=mock_extract
-    ) as mock:
+    with patch("egregora.utils.authors.extract_authors_from_post", side_effect=mock_extract) as mock:
         new_count = sync_authors_from_posts(posts_dir)
         assert mock.call_count == 2
 
