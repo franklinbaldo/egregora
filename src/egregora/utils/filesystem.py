@@ -20,7 +20,7 @@ from egregora.utils.authors import ensure_author_entries
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.exceptions import (
     FrontmatterDateFormattingError,
-    MissingPostMetadataError,
+    MissingMetadataError,
     UniqueFilenameError,
 )
 from egregora.utils.paths import safe_path_join, slugify
@@ -132,7 +132,7 @@ def _validate_post_metadata(metadata: dict[str, Any]) -> None:
     required = {"title", "slug", "date"}
     missing_keys = list(required - set(metadata.keys()))
     if missing_keys:
-        raise MissingPostMetadataError(missing_keys)
+        raise MissingMetadataError(missing_keys)
 
 
 def _write_post_file(filepath: Path, content: str, front_matter: dict[str, Any]) -> None:

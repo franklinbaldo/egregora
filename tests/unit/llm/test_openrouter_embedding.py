@@ -119,4 +119,4 @@ class TestEmbedWithOpenRouter:
         call_args = mock_client.post.call_args
         # Should strip quotes
         assert "Bearer quoted-key" in call_args[1]["headers"]["Authorization"]
-        assert "Bearer \"quoted-key\"" not in call_args[1]["headers"]["Authorization"]
+        assert 'Bearer "quoted-key"' not in call_args[1]["headers"]["Authorization"]

@@ -20,7 +20,7 @@ from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from egregora.rag.backend import VectorStore
-from egregora.rag.embedding_router import TaskType, get_embedding_router
+from egregora.rag.embedding_router import TaskType
 from egregora.rag.lancedb_backend import LanceDBRAGBackend
 from egregora.rag.models import RAGQueryRequest, RAGQueryResponse
 
