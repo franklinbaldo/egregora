@@ -105,7 +105,10 @@ def embed_fn(
     task_type: TaskType = "RETRIEVAL_DOCUMENT",
     model: str | None = None,
 ) -> list[list[float]]:
-    """Generate embeddings for a list of texts using the configured router.
+    """Generate embeddings for a list of texts using strategy pattern.
+
+    Uses EmbeddingProviderFactory to route to appropriate provider
+    (OpenRouter, Gemini, etc.) based on model format.
 
     Args:
         texts: Tuple of strings to embed (tuple for lru_cache)
@@ -117,10 +120,7 @@ def embed_fn(
 
     """
     from egregora.config import load_egregora_config
-    from egregora.llm.providers.openrouter_embedding import (
-        embed_with_openrouter,
-        is_openrouter_embedding_model,
-    )
+    from egregora.rag.strategies import EmbeddingProviderFactory
 
     if model is None:
         try:
@@ -130,10 +130,6 @@ def embed_fn(
             # Fallback if config fails
             model = "models/gemini-embedding-001"
 
-    # Route to appropriate provider based on model format
-    if is_openrouter_embedding_model(model):
-        # Use OpenRouter for embedding
-        return embed_with_openrouter(list(texts), model=model, task_type=task_type)
-    # Use Gemini embedding router
-    router = get_embedding_router(model=model)
-    return router.embed(list(texts), task_type=task_type)
+    # Use strategy pattern for provider routing
+    strategy = EmbeddingProviderFactory.create(model)
+    return strategy.embed(list(texts), task_type=task_type)
