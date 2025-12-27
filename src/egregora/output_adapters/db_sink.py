@@ -39,12 +39,13 @@ class DbOutputSink(OutputSink):
         """Persist document to the database repository."""
         self.repository.save(document)
 
-    def read_document(self, doc_type: DocumentType, identifier: str) -> Document:
-        """Retrieve document from database."""
-        document = self.repository.get(doc_type, identifier)
-        if document is None:
-            raise DocumentNotFoundError(doc_type.value, identifier)
-        return document
+    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
+        """Retrieve document from database.
+
+        Returns None if document is not found to maintain compatibility
+        with callers that expect optional documents (e.g., profiles).
+        """
+        return self.repository.get(doc_type, identifier)
 
     def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
         """List documents from database as metadata."""

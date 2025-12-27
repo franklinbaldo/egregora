@@ -70,6 +70,9 @@ def load_authors_yml(path: Path) -> dict:
     """Loads the .authors.yml file."""
     try:
         return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except FileNotFoundError:
+        # Return empty dict if file doesn't exist - it will be created later
+        return {}
     except OSError as exc:
         msg = f"Could not read authors file at {path}"
         raise AuthorsFileError(msg) from exc
