@@ -1,5 +1,6 @@
-import pytest
 from pathlib import Path
+
+import pytest
 
 from egregora.output_adapters.base import BaseOutputSink, create_output_sink
 from egregora.output_adapters.exceptions import (
@@ -7,18 +8,35 @@ from egregora.output_adapters.exceptions import (
     RegistryNotProvidedError,
 )
 
+
 # A dummy implementation of the abstract class for testing concrete methods
 class DummySink(BaseOutputSink):
-    def persist(self, document): pass
-    def get(self, doc_type, identifier): pass
+    def persist(self, document):
+        pass
+
+    def get(self, doc_type, identifier):
+        pass
+
     @property
-    def url_convention(self): pass
+    def url_convention(self):
+        pass
+
     @property
-    def format_type(self): pass
-    def supports_site(self, site_root): pass
-    def get_markdown_extensions(self): pass
-    def get_format_instructions(self): pass
-    def initialize(self, site_root): pass
+    def format_type(self):
+        pass
+
+    def supports_site(self, site_root):
+        pass
+
+    def get_markdown_extensions(self):
+        pass
+
+    def get_format_instructions(self):
+        pass
+
+    def initialize(self, site_root):
+        pass
+
     def documents(self):
         return iter([])
 
@@ -41,6 +59,7 @@ def test_generate_unique_filename_raises_error_after_max_attempts(tmp_path):
 
     assert excinfo.value.pattern == filename_pattern
     assert excinfo.value.max_attempts == max_attempts
+
 
 def test_create_output_sink_raises_error_if_registry_is_none():
     """
