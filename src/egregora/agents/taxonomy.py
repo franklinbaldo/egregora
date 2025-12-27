@@ -2,8 +2,7 @@
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
-
-from egregora.utils.model_fallback import create_fallback_model
+from egregora.utils.env import get_google_api_key
 
 
 class ClusterInput(BaseModel):
@@ -30,7 +29,14 @@ class GlobalTaxonomyResult(BaseModel):
 
 def create_global_taxonomy_agent(model_name: str) -> Agent[None, GlobalTaxonomyResult]:
     """Create the global taxonomy agent with fallback support."""
-    model = create_fallback_model(model_name)
+    from pydantic_ai.models.google import GoogleModel
+    from pydantic_ai.providers.google import GoogleProvider
+
+    provider = GoogleProvider(api_key=get_google_api_key())
+    model = GoogleModel(
+        model_name.removeprefix("google-gla:"),
+        provider=provider,
+    )
 
     system_prompt = """
     You are the Chief Taxonomist for a large technical archive.

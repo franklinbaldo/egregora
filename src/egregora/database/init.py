@@ -17,15 +17,15 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from egregora.database.schemas import (
-    ANNOTATIONS_SCHEMA,
-    DOCUMENTS_VIEW_SQL,
-    INGESTION_MESSAGE_SCHEMA,
-    JOURNALS_SCHEMA,
-    MEDIA_SCHEMA,
     POSTS_SCHEMA,
     PROFILES_SCHEMA,
+    MEDIA_SCHEMA,
+    JOURNALS_SCHEMA,
     TASKS_SCHEMA,
+    ANNOTATIONS_SCHEMA,
+    DOCUMENTS_VIEW_SQL,
     create_table_if_not_exists,
+    INGESTION_MESSAGE_SCHEMA
 )
 
 if TYPE_CHECKING:
@@ -42,7 +42,6 @@ def initialize_database(backend: BaseBackend) -> None:
     - documents_view (Unified view)
     - tasks (Background jobs)
     - messages (Ingestion buffer - optional/legacy)
-    - annotations (Legacy support)
 
     Args:
         backend: Ibis backend (DuckDB, Postgres, etc.)

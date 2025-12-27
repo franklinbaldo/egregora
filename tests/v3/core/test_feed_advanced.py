@@ -1,7 +1,7 @@
-"""Advanced tests for Atom Sink demonstrating battle-tested libraries.
+"""Advanced tests for Feed.to_xml() demonstrating battle-tested libraries.
 
 Tests:
-1. Roundtrip serialization (parse → Feed → publish)
+1. Roundtrip serialization (parse → Feed → to_xml())
 2. RFC 4287 schema validation with xmlschema
 3. Property-based testing with Hypothesis
 4. Snapshot testing with syrupy for regression detection
@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from faker import Faker
 from freezegun import freeze_time
-from hypothesis import HealthCheck, given, settings
+from hypothesis import given, settings
 from hypothesis import strategies as st
 from lxml import etree
 from syrupy.assertion import SnapshotAssertion
@@ -28,25 +28,14 @@ from egregora_v3.core.types import (
     Feed,
     InReplyTo,
     Link,
+    documents_to_feed,
 )
 from egregora_v3.infra.adapters.rss import RSSAdapter
-from egregora_v3.infra.sinks.atom import AtomSink
 
 fake = Faker()
 
 # Atom namespace
 ATOM_NS = "http://www.w3.org/2005/Atom"
-
-
-# ========== Helpers ==========
-
-
-def render_feed(feed: Feed, tmp_path: Path) -> str:
-    """Helper to render a feed to XML using AtomSink."""
-    output_path = tmp_path / "feed.xml"
-    sink = AtomSink(output_path)
-    sink.publish(feed)
-    return output_path.read_text(encoding="utf-8")
 
 
 # ========== Fixtures ==========
@@ -61,7 +50,6 @@ def sample_feed() -> Feed:
         doc_type=DocumentType.POST,
         title="First Post",
         status=DocumentStatus.PUBLISHED,
-        updated=datetime.now(UTC),
     )
     doc1.authors = [Author(name="Alice Smith", email="alice@example.com")]
     doc1.categories = [Category(term="technology", label="Technology")]
@@ -79,7 +67,6 @@ def sample_feed() -> Feed:
         content="Second post content.",
         doc_type=DocumentType.NOTE,
         title="Quick Note",
-        updated=datetime.now(UTC),
     )
     doc2.authors = [
         Author(name="Bob Jones", uri="https://bob.example.com"),
@@ -92,10 +79,9 @@ def sample_feed() -> Feed:
         doc_type=DocumentType.POST,
         title="Re: First Post",
         in_reply_to=InReplyTo(ref=doc1.id, href="https://example.com/first-post"),
-        updated=datetime.now(UTC),
     )
 
-    return Feed.from_documents(
+    return documents_to_feed(
         docs=[doc1, doc2, doc3],
         feed_id="urn:uuid:feed-123",
         title="Comprehensive Test Feed",
@@ -107,9 +93,9 @@ def sample_feed() -> Feed:
 
 
 def test_roundtrip_feed_to_xml_to_entries(sample_feed: Feed, tmp_path: Path) -> None:
-    """Test roundtrip: Feed → publish → parse → Feed."""
+    """Test roundtrip: Feed → to_xml() → parse → Feed."""
     # Export to XML
-    xml_output = render_feed(sample_feed, tmp_path)
+    xml_output = sample_feed.to_xml()
 
     # Write to file
     feed_file = tmp_path / "exported_feed.atom"
@@ -144,9 +130,10 @@ def test_roundtrip_preserves_timestamps(tmp_path: Path) -> None:
         content="Test content",
         doc_type=DocumentType.POST,
         title="Test Post",
-        published=datetime(2025, 12, 5, 9, 0, 0, tzinfo=UTC),
-        updated=datetime(2025, 12, 6, 10, 0, 0, tzinfo=UTC),
     )
+    # Set published explicitly
+    doc.published = datetime(2025, 12, 5, 9, 0, 0, tzinfo=UTC)
+    doc.updated = datetime(2025, 12, 6, 10, 0, 0, tzinfo=UTC)
 
     feed = Feed(
         id="test-feed",
@@ -156,7 +143,7 @@ def test_roundtrip_preserves_timestamps(tmp_path: Path) -> None:
     )
 
     # Export and parse
-    xml_output = render_feed(feed, tmp_path)
+    xml_output = feed.to_xml()
     feed_file = tmp_path / "test.atom"
     feed_file.write_text(xml_output)
 
@@ -173,7 +160,7 @@ def test_roundtrip_preserves_timestamps(tmp_path: Path) -> None:
 
 def test_roundtrip_preserves_authors(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that authors are preserved in roundtrip."""
-    xml_output = render_feed(sample_feed, tmp_path)
+    xml_output = sample_feed.to_xml()
     feed_file = tmp_path / "test.atom"
     feed_file.write_text(xml_output)
 
@@ -188,7 +175,7 @@ def test_roundtrip_preserves_authors(sample_feed: Feed, tmp_path: Path) -> None:
 
 def test_roundtrip_preserves_links(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that links (including enclosures) are preserved."""
-    xml_output = render_feed(sample_feed, tmp_path)
+    xml_output = sample_feed.to_xml()
     feed_file = tmp_path / "test.atom"
     feed_file.write_text(xml_output)
 
@@ -214,12 +201,12 @@ def test_roundtrip_preserves_links(sample_feed: Feed, tmp_path: Path) -> None:
 # ========== RFC 4287 Schema Validation ==========
 
 
-def test_feed_validates_against_atom_rfc_4287_schema(sample_feed: Feed, tmp_path: Path) -> None:
+def test_feed_validates_against_atom_rfc_4287_schema(sample_feed: Feed) -> None:
     """Test that generated XML validates against Atom 1.0 schema."""
     xmlschema = pytest.importorskip("xmlschema")
     assert xmlschema is not None
 
-    xml_output = render_feed(sample_feed, tmp_path)
+    xml_output = sample_feed.to_xml()
 
     # Parse with lxml for better error messages
     try:
@@ -237,9 +224,9 @@ def test_feed_validates_against_atom_rfc_4287_schema(sample_feed: Feed, tmp_path
     assert root.find("atom:updated", ns) is not None, "Feed must have updated element"
 
 
-def test_feed_entries_have_required_elements(sample_feed: Feed, tmp_path: Path) -> None:
+def test_feed_entries_have_required_elements(sample_feed: Feed) -> None:
     """Test that all entries have required Atom elements."""
-    xml_output = render_feed(sample_feed, tmp_path)
+    xml_output = sample_feed.to_xml()
     root = etree.fromstring(xml_output.encode("utf-8"))
 
     ns = {"atom": ATOM_NS}
@@ -254,9 +241,9 @@ def test_feed_entries_have_required_elements(sample_feed: Feed, tmp_path: Path) 
         assert entry.find("atom:updated", ns) is not None, "Entry must have updated"
 
 
-def test_feed_datetime_format_rfc_3339_compliant(sample_feed: Feed, tmp_path: Path) -> None:
+def test_feed_datetime_format_rfc_3339_compliant(sample_feed: Feed) -> None:
     """Test that datetimes are formatted as RFC 3339 (required by Atom)."""
-    xml_output = render_feed(sample_feed, tmp_path)
+    xml_output = sample_feed.to_xml()
     root = etree.fromstring(xml_output.encode("utf-8"))
 
     ns = {"atom": ATOM_NS}
@@ -266,17 +253,15 @@ def test_feed_datetime_format_rfc_3339_compliant(sample_feed: Feed, tmp_path: Pa
     assert updated_elem is not None
     updated_text = updated_elem.text
 
-    # RFC 3339 format: 2025-12-06T10:00:00Z or with offset
-    rfc3339_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$"
+    # RFC 3339 format: 2025-12-06T10:00:00Z
+    rfc3339_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
     assert re.match(rfc3339_pattern, updated_text), f"Invalid RFC 3339 format: {updated_text}"
 
 
 # ========== Snapshot Testing ==========
 
 
-def test_feed_xml_snapshot_regression(
-    sample_feed: Feed, snapshot: SnapshotAssertion, tmp_path: Path
-) -> None:
+def test_feed_xml_snapshot_regression(sample_feed: Feed, snapshot: SnapshotAssertion) -> None:
     """Snapshot test to detect unintended changes in XML output.
 
     This test will fail if the XML structure changes, helping catch regressions.
@@ -289,7 +274,6 @@ def test_feed_xml_snapshot_regression(
             content="Deterministic content",
             doc_type=DocumentType.POST,
             title="Deterministic Post",
-            updated=datetime(2025, 12, 6, 10, 0, 0, tzinfo=UTC),
         )
         doc.authors = [Author(name="Test Author")]
 
@@ -300,7 +284,7 @@ def test_feed_xml_snapshot_regression(
             entries=[doc],
         )
 
-        xml_output = render_feed(feed, tmp_path)
+        xml_output = feed.to_xml()
 
         # Snapshot comparison
         assert xml_output == snapshot
@@ -309,7 +293,6 @@ def test_feed_xml_snapshot_regression(
 # ========== Property-Based Tests ==========
 
 
-@settings(suppress_health_check=[HealthCheck.too_slow])
 @given(
     st.lists(
         st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=["Cc"])),
@@ -320,35 +303,29 @@ def test_feed_xml_snapshot_regression(
 def test_documents_to_feed_count_invariant(titles: list[str]) -> None:
     """Property: Number of documents equals number of feed entries."""
     docs = [
-        Document(
-            content=f"Content {i}",
-            doc_type=DocumentType.NOTE,
-            title=title,
-            updated=datetime.now(UTC),
-        )
+        Document(content=f"Content {i}", doc_type=DocumentType.NOTE, title=title)
         for i, title in enumerate(titles)
     ]
 
-    feed = Feed.from_documents(docs, feed_id="test", title="Test Feed")
+    feed = documents_to_feed(docs, feed_id="test", title="Test Feed")
 
     assert len(feed.entries) == len(docs)
 
 
 @given(st.integers(min_value=1, max_value=10))
-def test_feed_to_xml_always_well_formed(num_entries: int, tmp_path: Path) -> None:
-    """Property: AtomSink always produces well-formed XML."""
+def test_feed_to_xml_always_well_formed(num_entries: int) -> None:
+    """Property: Feed.to_xml() always produces well-formed XML."""
     docs = [
         Document(
             content=f"Content {i}",
             doc_type=DocumentType.POST,
             title=f"Post {i}",
-            updated=datetime.now(UTC),
         )
         for i in range(num_entries)
     ]
 
-    feed = Feed.from_documents(docs, feed_id="test-feed", title="Test Feed")
-    xml_output = render_feed(feed, tmp_path)
+    feed = documents_to_feed(docs, feed_id="test-feed", title="Test Feed")
+    xml_output = feed.to_xml()
 
     # Should parse without errors
     root = etree.fromstring(xml_output.encode("utf-8"))
@@ -370,7 +347,7 @@ def test_feed_to_xml_always_well_formed(num_entries: int, tmp_path: Path) -> Non
         ),
     )
 )
-def test_feed_preserves_title_exactly(title: str, tmp_path: Path) -> None:
+def test_feed_preserves_title_exactly(title: str) -> None:
     """Property: Feed titles are preserved exactly in XML."""
     feed = Feed(
         id="test-id",
@@ -379,7 +356,7 @@ def test_feed_preserves_title_exactly(title: str, tmp_path: Path) -> None:
         entries=[],
     )
 
-    xml_output = render_feed(feed, tmp_path)
+    xml_output = feed.to_xml()
     root = etree.fromstring(xml_output.encode("utf-8"))
 
     title_elem = root.find(f"{{{ATOM_NS}}}title")
@@ -390,13 +367,12 @@ def test_feed_preserves_title_exactly(title: str, tmp_path: Path) -> None:
 # ========== Complex Scenarios ==========
 
 
-def test_feed_with_threading_extension(tmp_path: Path) -> None:
+def test_feed_with_threading_extension() -> None:
     """Test RFC 4685 threading extension (in-reply-to)."""
     parent = Document(
         content="Parent post",
         doc_type=DocumentType.POST,
         title="Parent",
-        updated=datetime.now(UTC),
     )
 
     reply = Document(
@@ -404,11 +380,10 @@ def test_feed_with_threading_extension(tmp_path: Path) -> None:
         doc_type=DocumentType.POST,
         title="Re: Parent",
         in_reply_to=InReplyTo(ref=parent.id, href="https://example.com/parent"),
-        updated=datetime.now(UTC),
     )
 
-    feed = Feed.from_documents([parent, reply], feed_id="test", title="Threaded Feed")
-    xml_output = render_feed(feed, tmp_path)
+    feed = documents_to_feed([parent, reply], feed_id="test", title="Threaded Feed")
+    xml_output = feed.to_xml()
 
     root = etree.fromstring(xml_output.encode("utf-8"))
 
@@ -428,21 +403,20 @@ def test_feed_with_threading_extension(tmp_path: Path) -> None:
     assert in_reply_to_elem.get("ref") == parent.id
 
 
-def test_feed_with_categories(tmp_path: Path) -> None:
+def test_feed_with_categories() -> None:
     """Test that categories are exported correctly."""
     doc = Document(
         content="Categorized content",
         doc_type=DocumentType.POST,
         title="Categorized Post",
-        updated=datetime.now(UTC),
     )
     doc.categories = [
         Category(term="technology", scheme="http://example.com/scheme", label="Technology"),
         Category(term="python", label="Python"),
     ]
 
-    feed = Feed.from_documents([doc], feed_id="test", title="Feed with Categories")
-    xml_output = render_feed(feed, tmp_path)
+    feed = documents_to_feed([doc], feed_id="test", title="Feed with Categories")
+    xml_output = feed.to_xml()
 
     root = etree.fromstring(xml_output.encode("utf-8"))
     entry = root.find(f"{{{ATOM_NS}}}entry")
@@ -457,7 +431,7 @@ def test_feed_with_categories(tmp_path: Path) -> None:
     assert "python" in category_terms
 
 
-def test_empty_feed_is_valid(tmp_path: Path) -> None:
+def test_empty_feed_is_valid() -> None:
     """Test that empty feed (no entries) is still valid Atom."""
     feed = Feed(
         id="empty-feed",
@@ -466,7 +440,7 @@ def test_empty_feed_is_valid(tmp_path: Path) -> None:
         entries=[],
     )
 
-    xml_output = render_feed(feed, tmp_path)
+    xml_output = feed.to_xml()
     root = etree.fromstring(xml_output.encode("utf-8"))
 
     assert root.tag == f"{{{ATOM_NS}}}feed"
@@ -485,17 +459,17 @@ def test_feed_updated_timestamp_reflects_newest_entry() -> None:
         content="Old",
         doc_type=DocumentType.POST,
         title="Old Post",
-        updated=datetime(2025, 12, 1, tzinfo=UTC),
     )
+    old_doc.updated = datetime(2025, 12, 1, tzinfo=UTC)
 
     new_doc = Document(
         content="New",
         doc_type=DocumentType.POST,
         title="New Post",
-        updated=datetime(2025, 12, 6, tzinfo=UTC),
     )
+    new_doc.updated = datetime(2025, 12, 6, tzinfo=UTC)
 
-    feed = Feed.from_documents([old_doc, new_doc], feed_id="test", title="Test Feed")
+    feed = documents_to_feed([old_doc, new_doc], feed_id="test", title="Test Feed")
 
     # Feed updated should be the newest
     assert feed.updated == new_doc.updated
@@ -505,39 +479,36 @@ def test_feed_updated_timestamp_reflects_newest_entry() -> None:
     assert feed.entries[1].id == old_doc.id
 
 
-def test_feed_with_content_types(tmp_path: Path) -> None:
+def test_feed_with_content_types() -> None:
     """Test different content types (text, html, markdown)."""
     text_doc = Document(
         content="Plain text content",
         doc_type=DocumentType.POST,
         title="Text Post",
-        content_type="text/plain",
-        updated=datetime.now(UTC),
     )
+    text_doc.content_type = "text/plain"
 
     html_doc = Document(
         content="<p>HTML content</p>",
         doc_type=DocumentType.POST,
         title="HTML Post",
-        content_type="text/html",
-        updated=datetime.now(UTC),
     )
+    html_doc.content_type = "text/html"
 
     markdown_doc = Document(
         content="# Markdown content",
         doc_type=DocumentType.POST,
         title="Markdown Post",
-        content_type="text/markdown",
-        updated=datetime.now(UTC),
     )
+    markdown_doc.content_type = "text/markdown"
 
-    feed = Feed.from_documents(
+    feed = documents_to_feed(
         [text_doc, html_doc, markdown_doc],
         feed_id="test",
         title="Content Types Feed",
     )
 
-    xml_output = render_feed(feed, tmp_path)
+    xml_output = feed.to_xml()
     root = etree.fromstring(xml_output.encode("utf-8"))
 
     entries = root.findall(f"{{{ATOM_NS}}}entry")

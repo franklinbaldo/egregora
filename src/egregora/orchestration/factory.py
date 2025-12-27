@@ -16,7 +16,7 @@ from google import genai
 
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.types import WriterResources
-from egregora.data_primitives.protocols import UrlContext
+from egregora.data_primitives.document import UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.repository import ContentRepository
@@ -68,16 +68,7 @@ class PipelineFactory:
         # Initialize database tables (CREATE TABLE IF NOT EXISTS)
         initialize_database(pipeline_backend)
 
-        # Create appropriate client based on model configuration
-        if run_params.client:
-            client_instance = run_params.client
-        else:
-            from egregora.llm.providers.openrouter import create_llm_client
-
-            # Use writer model to determine which client to create
-            writer_model = run_params.config.models.writer
-            client_instance = create_llm_client(model=writer_model)
-
+        client_instance = run_params.client or PipelineFactory.create_gemini_client()
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
         site_paths.egregora_dir.mkdir(parents=True, exist_ok=True)

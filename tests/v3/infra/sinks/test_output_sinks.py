@@ -18,7 +18,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from lxml import etree
 
-from egregora_v3.core.types import Author, Document, DocumentStatus, DocumentType, Feed
+from egregora_v3.core.types import Author, Document, DocumentStatus, DocumentType, Feed, documents_to_feed
 from egregora_v3.infra.adapters.rss import RSSAdapter
 from egregora_v3.infra.sinks.atom_xml import AtomXMLOutputSink
 from egregora_v3.infra.sinks.mkdocs import MkDocsOutputSink
@@ -51,7 +51,7 @@ def sample_feed() -> Feed:
     )
     doc2.published = datetime(2025, 12, 6, tzinfo=UTC)
 
-    return Feed.from_documents(
+    return documents_to_feed(
         docs=[doc1, doc2],
         feed_id="urn:uuid:test-feed",
         title="Test Feed",
@@ -141,16 +141,26 @@ def test_atom_xml_sink_creates_parent_directories(sample_feed: Feed, tmp_path: P
     """Test that sink creates parent directories if they don't exist."""
     output_file = tmp_path / "deeply" / "nested" / "directory" / "feed.atom"
 
-    # The sink itself does not create parent directories; this is handled
-    # by the file system operations within the sink.
-    # We need to ensure the parent exists before publishing.
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-
     sink = AtomXMLOutputSink(output_path=output_file)
     sink.publish(sample_feed)
 
     assert output_file.exists()
     assert output_file.parent.exists()
+
+
+@freeze_time("2025-12-06 15:30:00")
+def test_atom_xml_sink_uses_feed_to_xml(sample_feed: Feed, tmp_path: Path) -> None:
+    """Test that sink uses Feed.to_xml() internally."""
+    output_file = tmp_path / "feed.atom"
+    sink = AtomXMLOutputSink(output_path=output_file)
+
+    sink.publish(sample_feed)
+
+    # Output should match Feed.to_xml()
+    expected_xml = sample_feed.to_xml()
+    actual_xml = output_file.read_text()
+
+    assert actual_xml == expected_xml
 
 
 def test_atom_xml_sink_with_empty_feed(tmp_path: Path) -> None:
@@ -263,7 +273,7 @@ def test_mkdocs_sink_respects_document_status(tmp_path: Path) -> None:
         status=DocumentStatus.PUBLISHED,
     )
 
-    feed = Feed.from_documents(
+    feed = documents_to_feed(
         [draft, published],
         feed_id="test",
         title="Mixed Status Feed",
@@ -339,7 +349,7 @@ def test_atom_xml_sink_handles_any_number_of_entries(num_entries: int) -> None:
         for i in range(num_entries)
     ]
 
-    feed = Feed.from_documents(docs, feed_id="test", title="Test Feed")
+    feed = documents_to_feed(docs, feed_id="test", title="Test Feed")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         output_file = Path(tmpdir) / f"feed_{num_entries}.atom"
@@ -369,7 +379,7 @@ def test_mkdocs_sink_creates_correct_number_of_files(num_entries: int) -> None:
         for i in range(num_entries)
     ]
 
-    feed = Feed.from_documents(docs, feed_id="test", title="Test Feed")
+    feed = documents_to_feed(docs, feed_id="test", title="Test Feed")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         output_dir = Path(tmpdir) / f"docs_{num_entries}"
@@ -393,7 +403,7 @@ def test_atom_xml_sink_handles_special_characters_in_content(tmp_path: Path) -> 
         title="Special Characters",
     )
 
-    feed = Feed.from_documents([doc], feed_id="test", title="Test")
+    feed = documents_to_feed([doc], feed_id="test", title="Test")
 
     output_file = tmp_path / "feed.atom"
     sink = AtomXMLOutputSink(output_path=output_file)
@@ -415,7 +425,7 @@ def test_mkdocs_sink_handles_unicode_content(tmp_path: Path) -> None:
         status=DocumentStatus.PUBLISHED,
     )
 
-    feed = Feed.from_documents([doc], feed_id="test", title="Test")
+    feed = documents_to_feed([doc], feed_id="test", title="Test")
 
     output_dir = tmp_path / "docs"
     sink = MkDocsOutputSink(output_dir=output_dir)
@@ -438,7 +448,7 @@ def test_mkdocs_sink_handles_documents_without_slug(tmp_path: Path) -> None:
         status=DocumentStatus.PUBLISHED,
     )
 
-    feed = Feed.from_documents([doc], feed_id="test", title="Test")
+    feed = documents_to_feed([doc], feed_id="test", title="Test")
 
     output_dir = tmp_path / "docs"
     sink = MkDocsOutputSink(output_dir=output_dir)
@@ -457,7 +467,7 @@ def test_mkdocs_get_filename_logic() -> None:
 
     # 1. Prefers slug
     doc_with_slug = Document(
-        content="", doc_type=DocumentType.POST, title="A Title", slug="the-slug"
+        content="", doc_type=DocumentType.POST, title="A Title", internal_metadata={"slug": "the-slug"}
     )
     assert sink._get_filename(doc_with_slug) == "the-slug"
 

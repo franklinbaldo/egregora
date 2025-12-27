@@ -26,7 +26,7 @@ description = """
 
 **Curator's Note (2025-12-25):** Moving this back to 'pending'. The underlying issue is in the `mkdocs.yml.jinja` template. The `custom_dir` is hardcoded to `overrides`, which is incorrect. The previous fix was a workaround. The template itself must be corrected.
 """
-status = "pending"
+status = "review"
 category = "infrastructure"
 assignee = "forge"
 
@@ -58,7 +58,7 @@ description = """
 4.  The script should output the key scores (Performance, Accessibility, Best Practices, SEO) to the console.
 5.  Bonus: Have the script automatically update the `[lighthouse.current]` section in `TODO.ux.toml`.
 """
-status = "pending"
+status = "review"
 category = "infrastructure"
 assignee = "forge"
 
