@@ -17,7 +17,7 @@ theme:
   language: en
   palette:
     # Light mode
-    - media: "(prefers-color-scheme: light)"
+    - media: '(prefers-color-scheme: light)'
       scheme: default
       primary: teal
       accent: amber
@@ -25,7 +25,7 @@ theme:
         icon: material/brightness-7
         name: Switch to dark mode
     # Dark mode
-    - media: "(prefers-color-scheme: dark)"
+    - media: '(prefers-color-scheme: dark)'
       scheme: slate
       primary: teal
       accent: amber
