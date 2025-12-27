@@ -1,10 +1,27 @@
 # Installation
 
-Egregora requires Python 3.12+ and uses [uv](https://github.com/astral-sh/uv) for package management.
+## Prerequisites
 
-## Install uv
+- Python 3.12+
+- A [Google Gemini API key](https://ai.google.dev/gemini-api/docs/api-key)
 
-First, install uv if you haven't already:
+Before you begin, make sure to set your API key as an environment variable:
+
+=== "macOS/Linux"
+
+    ```bash
+    export GOOGLE_API_KEY="your-google-gemini-api-key"
+    ```
+
+=== "Windows (PowerShell)"
+
+    ```powershell
+    $Env:GOOGLE_API_KEY = "your-google-gemini-api-key"
+    ```
+
+## Install `uv`
+
+First, install `uv` if you haven't already:
 
 === "macOS/Linux"
 
@@ -22,21 +39,23 @@ First, install uv if you haven't already:
 
 ### From GitHub (Recommended)
 
-This is the best way to run the latest version of Egregora without creating conflicts in your local environment.
+This is the best way to run the latest version of Egregora without creating conflicts in your local environment. All `egregora` commands should be run via `uvx`.
+
+To simplify this, we recommend creating a shell alias:
 
 ```bash
-# Run any command by prefixing it with uvx
-uvx --from git+https://github.com/franklinbaldo/egregora egregora --help
+# Add this to your ~/.bashrc, ~/.zshrc, etc.
+alias eg="uvx --from git+https://github.com/franklinbaldo/egregora egregora"
 ```
 
-This will run Egregora without any local installation. Use `uvx` for all commands:
+Now you can use `eg` for all commands:
 
 ```bash
 # Initialize a new blog
-uvx --from git+https://github.com/franklinbaldo/egregora egregora init my-blog
+eg init my-blog
 
 # Process WhatsApp export
-uvx --from git+https://github.com/franklinbaldo/egregora egregora write export.zip
+eg write export.zip
 ```
 
 ### From Source (for Development)
@@ -60,28 +79,12 @@ uv run pytest tests/
 
 See the [Code of the Weaver](../CLAUDE.md) for full development setup.
 
-## API Key Setup
-
-Egregora uses Google's Gemini API for content generation. Get a free API key at [https://ai.google.dev/gemini-api/docs/api-key](https://ai.google.dev/gemini-api/docs/api-key).
-
-=== "macOS/Linux"
-
-    ```bash
-    export GOOGLE_API_KEY="your-google-gemini-api-key"
-    ```
-
-=== "Windows (PowerShell)"
-
-    ```powershell
-    $Env:GOOGLE_API_KEY = "your-google-gemini-api-key"
-    ```
-
 ## Verify Installation
 
 Test that everything is working:
 
 ```bash
-egregora --version
+eg --version
 ```
 
 ## Optional Dependencies
