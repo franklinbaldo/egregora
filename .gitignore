@@ -82,3 +82,4 @@ list_models.py
 reproduce_*.py
 blog_generation.log
 demo/
+coverage.xml
