@@ -92,3 +92,19 @@ class CacheDeserializationError(CacheError):
         self.original_exception = original_exception
         message = f"Failed to deserialize cache entry for key '{key}'. Original error: {original_exception}"
         super().__init__(message)
+
+
+class ModelError(UtilsError):
+    """Base class for model-related errors."""
+
+
+class ModelFallbackError(ModelError):
+    """Raised during model fallback operations."""
+
+
+class OpenRouterAPIError(ModelError):
+    """Raised when the OpenRouter API call fails."""
+
+
+class ModelConfigurationError(ModelError):
+    """Raised for model configuration errors."""
