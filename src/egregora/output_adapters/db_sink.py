@@ -13,6 +13,7 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import DocumentMetadata, OutputSink, UrlContext, UrlConvention
 from egregora.database.repository import ContentRepository
 from egregora.output_adapters.conventions import StandardUrlConvention
+from egregora.output_adapters.exceptions import DocumentNotFoundError
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -38,9 +39,12 @@ class DbOutputSink(OutputSink):
         """Persist document to the database repository."""
         self.repository.save(document)
 
-    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
+    def read_document(self, doc_type: DocumentType, identifier: str) -> Document:
         """Retrieve document from database."""
-        return self.repository.get(doc_type, identifier)
+        document = self.repository.get(doc_type, identifier)
+        if document is None:
+            raise DocumentNotFoundError(doc_type.value, identifier)
+        return document
 
     def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
         """List documents from database as metadata."""
