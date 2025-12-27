@@ -532,18 +532,25 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             return
 
         # Scan docs/posts recursively and classify documents by path + frontmatter.
-        yield from self._list_from_posts_tree(doc_type)
+        yield from self._scan_for_documents(doc_type)
 
-    def _list_from_posts_tree(self, filter_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
+    def _scan_for_documents(self, filter_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
+        """Scan all known document directories for markdown files."""
         exclude_names = {"index.md", "tags.md"}
-        for path in self.posts_dir.rglob("*.md"):
+        # Scan the entire docs_dir, which contains posts, profiles, media, etc.
+        for path in self.docs_dir.rglob("*.md"):
             if not path.is_file() or path.name in exclude_names:
                 continue
-            if self.media_dir in path.parents and path.name == "index.md":
-                continue
+
             detected_type = self._detect_document_type(path)
             if filter_type is not None and detected_type != filter_type:
                 continue
+
+            # Skip md files that are not a primary document type
+            # (e.g. intermediate indexes in media folders)
+            if detected_type not in self._writers:
+                continue
+
             identifier = str(path.relative_to(self._site_root))
             try:
                 mtime_ns = path.stat().st_mtime_ns
@@ -621,25 +628,32 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _detect_document_type(self, path: Path) -> DocumentType:
         """Detect document type from path and (when needed) frontmatter."""
-        try:
-            relative = path.relative_to(self.posts_dir)
-        except ValueError:
-            relative = path
 
-        parts = relative.parts
-        if parts[:1] == ("profiles",):
+        def _is_child(p: Path, parent: Path) -> bool:
+            """Check if p is a child of parent, compatible with Python < 3.9."""
+            try:
+                p.relative_to(parent)
+                return True
+            except ValueError:
+                return False
+
+        # Use is_relative_to for robust path checking
+        if _is_child(path, self.profiles_dir):
             return DocumentType.PROFILE
-        if parts[:2] == ("media", "urls"):
+        if _is_child(path, self.urls_dir):
             return DocumentType.ENRICHMENT_URL
-        if parts[:1] == ("media",):
+        if _is_child(path, self.media_dir):
             return DocumentType.ENRICHMENT_MEDIA
-        if parts[:2] == ("annotations",):
+        if _is_child(path, self.journal_dir):
+            return DocumentType.JOURNAL
+        if _is_child(path, self.posts_dir / "annotations"):
             return DocumentType.ANNOTATION
 
+        # Fallback to frontmatter-based detection for journal/annotations
         try:
             post = frontmatter.load(str(path))
             metadata = post.metadata
-        except OSError:
+        except (OSError, yaml.YAMLError):
             metadata = {}
 
         categories = (metadata or {}).get("categories", [])
@@ -649,6 +663,13 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             return DocumentType.JOURNAL
         if "Annotations" in categories:
             return DocumentType.ANNOTATION
+
+        # Default to POST for anything else in docs/posts
+        if _is_child(path, self.posts_dir):
+            return DocumentType.POST
+
+        # If we're here, it's not in a known directory.
+        # This could be a top-level file. Default to POST.
         return DocumentType.POST
 
     def _list_from_unified_dir(
