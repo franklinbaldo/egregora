@@ -1303,11 +1303,21 @@ class EnrichmentWorker(BaseWorker):
         self, requests: list[dict[str, Any]], task_map: dict[str, dict[str, Any]]
     ) -> list[Any]:
         """Execute media enrichments based on configured strategy."""
+        from egregora.llm.providers.openrouter import is_openrouter_model
+
         model_name = self.ctx.config.models.enricher_vision
-        api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for media enrichment"
-            raise ValueError(msg)
+
+        # Detect which API key to use based on model format
+        if is_openrouter_model(model_name):
+            api_key = os.environ.get("OPENROUTER_API_KEY")
+            if not api_key:
+                msg = f"OPENROUTER_API_KEY required for model: {model_name}"
+                raise ValueError(msg)
+        else:
+            api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+            if not api_key:
+                msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for media enrichment"
+                raise ValueError(msg)
 
         # Use strategy-based dispatch
         strategy = getattr(self.enrichment_config, "strategy", "individual")
@@ -1396,28 +1406,42 @@ class EnrichmentWorker(BaseWorker):
         # Build the request: prompt first, then all images
         request_parts = [{"text": combined_prompt}, *parts]
 
-        # Build model+key rotator if enabled
-        from egregora.llm.providers.model_key_rotator import ModelKeyRotator
+        # Check if configured model is OpenRouter - if so, skip Gemini rotation
+        from egregora.llm.providers.openrouter import is_openrouter_model
 
-        rotation_enabled = getattr(self.enrichment_config, "model_rotation_enabled", True)
-        rotation_models = getattr(self.enrichment_config, "rotation_models", None)
-
-        if rotation_enabled:
-            rotator = ModelKeyRotator(models=rotation_models)
-
-            def call_with_model_and_key(model: str, api_key: str) -> str:
-                from egregora.llm.providers.openrouter import create_llm_client
-                client = create_llm_client(model=model, api_key=api_key)
-                response = client.models.generate_content(
-                    model=model,
-                    contents=[{"parts": request_parts}],
-                    config=types.GenerateContentConfig(response_mime_type="application/json"),
-                )
-                return response.text or ""
-
-            response_text = rotator.call_with_rotation(call_with_model_and_key)
+        if is_openrouter_model(model_name):
+            # OpenRouter model - use it directly without rotation
+            from egregora.llm.providers.openrouter import create_llm_client
+            client = create_llm_client(model=model_name, api_key=api_key)
+            response = client.models.generate_content(
+                model=model_name,
+                contents=[{"parts": request_parts}],
+                config=types.GenerateContentConfig(response_mime_type="application/json"),
+            )
+            response_text = response.text if response.text else ""
         else:
-            # No rotation - use configured model and API key
+            # Gemini model - use rotation if enabled
+            from egregora.llm.providers.model_key_rotator import ModelKeyRotator
+
+            rotation_enabled = getattr(self.enrichment_config, "model_rotation_enabled", True)
+            rotation_models = getattr(self.enrichment_config, "rotation_models", None)
+
+            if rotation_enabled:
+                rotator = ModelKeyRotator(models=rotation_models)
+
+                def call_with_model_and_key(model: str, api_key: str) -> str:
+                    from egregora.llm.providers.openrouter import create_llm_client
+                    client = create_llm_client(model=model, api_key=api_key)
+                    response = client.models.generate_content(
+                        model=model,
+                        contents=[{"parts": request_parts}],
+                        config=types.GenerateContentConfig(response_mime_type="application/json"),
+                    )
+                    return response.text or ""
+
+                response_text = rotator.call_with_rotation(call_with_model_and_key)
+            else:
+                # No rotation - use configured model and API key
             response = client.models.generate_content(
                 model=model_name,
                 contents=[{"parts": request_parts}],
