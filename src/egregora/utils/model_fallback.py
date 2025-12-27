@@ -11,8 +11,10 @@ from pydantic_ai.models import Model
 
 from egregora.llm.providers import GoogleBatchModel
 from egregora.utils.env import get_google_api_key, get_google_api_keys
+from egregora.utils.exceptions import ModelConfigurationError, OpenRouterAPIError
 
 logger = logging.getLogger(__name__)
+
 
 # Cache for OpenRouter free models to avoid repeated API calls
 _free_models_cache: dict[str, list[str]] = {}
@@ -101,9 +103,8 @@ def get_openrouter_free_models(modality: str = "text", *, require_tools: bool = 
         _cache_timestamp = current_time
 
     except (httpx.HTTPError, httpx.TimeoutException) as e:
-        logger.warning("Failed to fetch OpenRouter free models: %s. No OpenRouter fallback available.", e)
-        # Return empty list if API call fails - do not use hardcoded fallbacks
-        free_models = []
+        msg = f"Failed to fetch OpenRouter free models: {e}"
+        raise OpenRouterAPIError(msg) from e
 
     return free_models
 
@@ -207,7 +208,7 @@ def create_fallback_model(
                 openrouter_api_key = os.environ.get("OPENROUTER_API_KEY")
                 if not openrouter_api_key:
                     msg = "OPENROUTER_API_KEY environment variable required for OpenRouter models"
-                    raise ValueError(msg)
+                    raise ModelConfigurationError(msg)
 
                 openrouter_provider = OpenRouterProvider(api_key=openrouter_api_key)
                 model = OpenRouterModel(
@@ -223,7 +224,7 @@ def create_fallback_model(
                 )
         else:
             msg = f"Unknown model type: {type(model_def)}"
-            raise TypeError(msg)
+            raise ModelConfigurationError(msg)
 
         return RateLimitedModel(model)
 
