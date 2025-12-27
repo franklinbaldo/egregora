@@ -333,7 +333,7 @@ def create_output_sink(
 ) -> BaseOutputSink:
     """Create and initialize a BaseOutputSink based on configuration."""
     if registry is None:
-        raise RegistryNotProvidedError()
+        raise RegistryNotProvidedError
 
     output_format = registry.get_format(format_type)
     output_format.initialize(site_root)

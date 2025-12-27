@@ -8,7 +8,7 @@ import pytest
 
 from egregora.utils.exceptions import (
     FrontmatterDateFormattingError,
-    MissingPostMetadataError,
+    MissingMetadataError,
 )
 from egregora.utils.filesystem import write_markdown_post
 
@@ -20,26 +20,26 @@ BASE_METADATA = {
 
 
 def test_write_markdown_post_missing_title_raises_error(tmp_path: Path):
-    """Verify it raises MissingPostMetadataError if 'title' is missing."""
+    """Verify it raises MissingMetadataError if 'title' is missing."""
     metadata = BASE_METADATA.copy()
     del metadata["title"]
-    with pytest.raises(MissingPostMetadataError, match="title"):
+    with pytest.raises(MissingMetadataError, match="title"):
         write_markdown_post("content", metadata, tmp_path)
 
 
 def test_write_markdown_post_missing_slug_raises_error(tmp_path: Path):
-    """Verify it raises MissingPostMetadataError if 'slug' is missing."""
+    """Verify it raises MissingMetadataError if 'slug' is missing."""
     metadata = BASE_METADATA.copy()
     del metadata["slug"]
-    with pytest.raises(MissingPostMetadataError, match="slug"):
+    with pytest.raises(MissingMetadataError, match="slug"):
         write_markdown_post("content", metadata, tmp_path)
 
 
 def test_write_markdown_post_missing_date_raises_error(tmp_path: Path):
-    """Verify it raises MissingPostMetadataError if 'date' is missing."""
+    """Verify it raises MissingMetadataError if 'date' is missing."""
     metadata = BASE_METADATA.copy()
     del metadata["date"]
-    with pytest.raises(MissingPostMetadataError, match="date"):
+    with pytest.raises(MissingMetadataError, match="date"):
         write_markdown_post("content", metadata, tmp_path)
 
 

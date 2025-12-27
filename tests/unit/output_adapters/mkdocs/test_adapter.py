@@ -189,7 +189,7 @@ def test_resolve_collision_raises_error_after_max_attempts(mkdocs_adapter, tmp_p
 
     # Mock _get_document_id_at_path to always return a conflicting ID
     with pytest.MonkeyPatch.context() as m:
-        m.setattr(mkdocs_adapter, '_get_document_id_at_path', lambda path: "some-other-id")
+        m.setattr(mkdocs_adapter, "_get_document_id_at_path", lambda path: "some-other-id")
 
         with pytest.raises(CollisionResolutionError) as excinfo:
             # Call the method with a low max_attempts value

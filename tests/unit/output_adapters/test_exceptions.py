@@ -1,13 +1,15 @@
 """Tests for custom exceptions in output adapters."""
+
 import pytest
+
 from egregora.output_adapters.exceptions import (
     AdapterNotInitializedError,
     CollisionResolutionError,
     ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
-    FrontmatterParsingError,
     FilenameGenerationError,
+    FrontmatterParsingError,
     ProfileGenerationError,
     ProfileNotFoundError,
     RegistryNotProvidedError,
@@ -16,7 +18,7 @@ from egregora.output_adapters.exceptions import (
 
 
 @pytest.mark.parametrize(
-    "doc_type, identifier, expected_message",
+    ("doc_type", "identifier", "expected_message"),
     [
         ("post", "my-post", "Document of type 'post' with identifier 'my-post' not found."),
         ("page", "about-us", "Document of type 'page' with identifier 'about-us' not found."),
@@ -31,9 +33,13 @@ def test_document_not_found_error(doc_type, identifier, expected_message):
 
 
 @pytest.mark.parametrize(
-    "path, reason, expected_message",
+    ("path", "reason", "expected_message"),
     [
-        ("/path/to/doc.md", "Invalid format", "Failed to parse document at '/path/to/doc.md': Invalid format"),
+        (
+            "/path/to/doc.md",
+            "Invalid format",
+            "Failed to parse document at '/path/to/doc.md': Invalid format",
+        ),
         ("another/doc.txt", "UTF-8 error", "Failed to parse document at 'another/doc.txt': UTF-8 error"),
     ],
 )
@@ -46,14 +52,18 @@ def test_document_parsing_error(path, reason, expected_message):
 
 
 @pytest.mark.parametrize(
-    "path, reason, expected_message",
+    ("path", "reason", "expected_message"),
     [
         (
             "/path/to/config.yml",
             "YAML error",
             "Failed to load or parse config at '/path/to/config.yml': YAML error",
         ),
-        ("site.toml", "TOML syntax error", "Failed to load or parse config at 'site.toml': TOML syntax error"),
+        (
+            "site.toml",
+            "TOML syntax error",
+            "Failed to load or parse config at 'site.toml': TOML syntax error",
+        ),
     ],
 )
 def test_config_load_error(path, reason, expected_message):
@@ -65,7 +75,7 @@ def test_config_load_error(path, reason, expected_message):
 
 
 @pytest.mark.parametrize(
-    "doc_type, expected_message",
+    ("doc_type", "expected_message"),
     [
         ("video", "Unsupported document type: 'video'"),
         ("audio", "Unsupported document type: 'audio'"),
@@ -79,7 +89,7 @@ def test_unsupported_document_type_error(doc_type, expected_message):
 
 
 @pytest.mark.parametrize(
-    "message, expected_message",
+    ("message", "expected_message"),
     [
         (None, "Adapter has not been initialized. Call initialize() first."),
         ("Custom error message", "Custom error message"),
@@ -92,7 +102,7 @@ def test_adapter_not_initialized_error(message, expected_message):
 
 
 @pytest.mark.parametrize(
-    "pattern, max_attempts, expected_message",
+    ("pattern", "max_attempts", "expected_message"),
     [
         (
             "test-pattern",
@@ -111,7 +121,7 @@ def test_filename_generation_error(pattern, max_attempts, expected_message):
 
 
 @pytest.mark.parametrize(
-    "reason, expected_message",
+    ("reason", "expected_message"),
     [
         ("Missing key", "Invalid YAML frontmatter: Missing key"),
         ("Invalid indentation", "Invalid YAML frontmatter: Invalid indentation"),
@@ -125,7 +135,7 @@ def test_frontmatter_parsing_error(reason, expected_message):
 
 
 @pytest.mark.parametrize(
-    "author_uuid, expected_message",
+    ("author_uuid", "expected_message"),
     [
         ("uuid-123", "Profile for author 'uuid-123' not found."),
         ("another-uuid", "Profile for author 'another-uuid' not found."),
@@ -139,7 +149,7 @@ def test_profile_not_found_error(author_uuid, expected_message):
 
 
 @pytest.mark.parametrize(
-    "message, expected_message",
+    ("message", "expected_message"),
     [
         ("Missing name", "Missing name"),
         ("Invalid email", "Invalid email"),
@@ -152,7 +162,7 @@ def test_profile_generation_error(message, expected_message):
 
 
 @pytest.mark.parametrize(
-    "path, max_attempts, expected_message",
+    ("path", "max_attempts", "expected_message"),
     [
         (
             "/path/to/file.md",
@@ -171,7 +181,7 @@ def test_collision_resolution_error(path, max_attempts, expected_message):
 
 
 @pytest.mark.parametrize(
-    "message, expected_message",
+    ("message", "expected_message"),
     [
         (None, "An OutputSinkRegistry instance must be provided."),
         ("A custom error message", "A custom error message"),
