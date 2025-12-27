@@ -243,7 +243,7 @@ authors:
 ---
 
 Content of the post.
-\"\"\"
+"""
     (author_dir / "2024-01-01-post.md").write_text(post_content)
 
     with pytest.raises(IncompleteProfileError, match="Profile for author .* is incomplete: No name found"):
