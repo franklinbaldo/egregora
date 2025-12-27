@@ -34,9 +34,12 @@ from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.exceptions import (
     AdapterNotInitializedError,
+    CollisionResolutionError,
     ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
+    ProfileGenerationError,
+    ProfileNotFoundError,
     UnsupportedDocumentTypeError,
 )
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
@@ -237,9 +240,6 @@ class MkDocsAdapter(BaseOutputSink):
 
     def get(self, doc_type: DocumentType, identifier: str) -> Document:
         path = self._resolve_document_path(doc_type, identifier)
-
-        if not path.exists():
-            raise DocumentNotFoundError(doc_type.value, identifier)
 
         try:
             if doc_type == DocumentType.MEDIA:
@@ -958,7 +958,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
         if not author_uuid:
             msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
-            raise ValueError(msg)
+            raise ProfileGenerationError(msg)
 
         # Use standard frontmatter writing logic
         metadata = dict(document.metadata or {})
@@ -1107,7 +1107,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         )
         return document.document_id
 
-    def _resolve_collision(self, path: Path, document_id: str) -> Path:
+    def _resolve_collision(self, path: Path, document_id: str, max_attempts: int = 1000) -> Path:
         stem = path.stem
         suffix = path.suffix
         parent = path.parent
@@ -1121,10 +1121,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             if existing_doc_id == document_id:
                 return new_path
             counter += 1
-            max_attempts = 1000
             if counter > max_attempts:
-                msg = f"Failed to resolve collision for {path} after {max_attempts} attempts"
-                raise RuntimeError(msg)
+                raise CollisionResolutionError(str(path), max_attempts)
 
     # ============================================================================
     # Phase 2: Dynamic Data Population for UX Templates
@@ -1419,11 +1417,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         except (OSError, TemplateError):
             logger.exception("Failed to regenerate tags page")
 
-    def get_author_profile(self, author_uuid: str) -> dict | None:
+    def get_author_profile(self, author_uuid: str) -> dict:
         """Public alias for _build_author_profile."""
         return self._build_author_profile(author_uuid)
 
-    def _build_author_profile(self, author_uuid: str) -> dict | None:
+    def _build_author_profile(self, author_uuid: str) -> dict:
         """Build author profile by scanning all their posts chronologically.
 
         Sequential metadata updates: later posts override earlier values.
@@ -1432,13 +1430,16 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             author_uuid: UUID of the author
 
         Returns:
-            Profile dictionary with derived state, or None if no posts found
+            Profile dictionary with derived state.
+
+        Raises:
+            ProfileNotFoundError: If no posts are found for the author.
 
         """
         # Use full UUID for consistency
         author_dir = self.posts_dir / "authors" / author_uuid
         if not author_dir.exists():
-            return None
+            raise ProfileNotFoundError(author_uuid)
 
         posts = sorted(author_dir.glob("*.md"), key=lambda p: p.stem)
 
@@ -1487,7 +1488,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             )
 
         if not profile["name"]:
-            return None  # No valid profile without a name
+            raise ProfileNotFoundError(author_uuid)
 
         profile["interests"] = sorted(profile["interests"])
         return profile

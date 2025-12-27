@@ -5,6 +5,16 @@ from pathlib import Path
 import pytest
 
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.output_adapters.exceptions import (
+    AdapterNotInitializedError,
+    CollisionResolutionError,
+    ConfigLoadError,
+    DocumentNotFoundError,
+    DocumentParsingError,
+    ProfileGenerationError,
+    ProfileNotFoundError,
+    UnsupportedDocumentTypeError,
+)
 from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 
 
@@ -136,3 +146,110 @@ def test_write_media_doc_from_source_path(mkdocs_adapter: MkDocsAdapter, tmp_pat
     assert media_path.exists()
     assert not source_path.exists()  # shutil.move should remove the source
     assert media_path.read_bytes() == source_content
+
+
+def test_get_author_profile_raises_not_found(mkdocs_adapter):
+    """
+    Given an author UUID that does not exist
+    When get_author_profile is called
+    Then it should raise ProfileNotFoundError.
+    """
+    with pytest.raises(ProfileNotFoundError):
+        mkdocs_adapter.get_author_profile("non-existent-uuid")
+
+
+def test_write_profile_doc_raises_generation_error_on_missing_uuid(mkdocs_adapter):
+    """
+    Given a profile document with no UUID in its metadata
+    When _write_profile_doc is called
+    Then it should raise a ProfileGenerationError.
+    """
+    doc = Document(
+        content="This is a profile.",
+        type=DocumentType.PROFILE,
+        metadata={"name": "Test Author"},  # Missing 'uuid'
+    )
+    profile_path = Path("/fake/path.md")
+    with pytest.raises(ProfileGenerationError):
+        mkdocs_adapter._write_profile_doc(doc, profile_path)
+
+
+def test_resolve_collision_raises_error_after_max_attempts(mkdocs_adapter, tmp_path):
+    """
+    Given a path with many conflicting files
+    When _resolve_collision is called with a low max_attempts
+    Then it should raise a CollisionResolutionError.
+    """
+    base_path = tmp_path / "test.txt"
+    base_path.touch()
+    max_attempts = 3
+    for i in range(1, max_attempts + 2):
+        # Create colliding files that _resolve_collision will find
+        (tmp_path / f"test-{i}.txt").touch()
+
+    # Mock _get_document_id_at_path to always return a conflicting ID
+    with pytest.MonkeyPatch.context() as m:
+        m.setattr(mkdocs_adapter, '_get_document_id_at_path', lambda path: "some-other-id")
+
+        with pytest.raises(CollisionResolutionError) as excinfo:
+            # Call the method with a low max_attempts value
+            mkdocs_adapter._resolve_collision(base_path, "new-doc-id", max_attempts=max_attempts)
+
+        assert excinfo.value.path == str(base_path)
+        assert excinfo.value.max_attempts == max_attempts
+
+
+def test_get_raises_not_found_error(mkdocs_adapter):
+    """
+    Given a document type and an identifier that does not exist
+    When get is called
+    Then it should raise DocumentNotFoundError.
+    """
+    with pytest.raises(DocumentNotFoundError):
+        mkdocs_adapter.get(DocumentType.POST, "non-existent-post")
+
+
+def test_load_config_raises_error_on_invalid_yaml(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
+    """
+    Given an mkdocs.yml file with invalid YAML content
+    When load_config is called
+    Then it should raise a ConfigLoadError.
+    """
+    mkdocs_yml = tmp_path / "mkdocs.yml"
+    mkdocs_yml.write_text("site_name: My Site\ninvalid_yaml: [")
+
+    with pytest.raises(ConfigLoadError):
+        mkdocs_adapter.load_config(tmp_path)
+
+
+def test_resolve_document_path_raises_unsupported_type_error(mkdocs_adapter: MkDocsAdapter):
+    """
+    Given an unsupported document type
+    When _resolve_document_path is called
+    Then it should raise UnsupportedDocumentTypeError.
+    """
+    with pytest.raises(UnsupportedDocumentTypeError):
+        mkdocs_adapter._resolve_document_path("unsupported", "some-id")
+
+
+def test_resolve_document_path_raises_adapter_not_initialized_error():
+    """
+    Given an uninitialized MkDocsAdapter
+    When resolve_document_path is called
+    Then it should raise AdapterNotInitializedError.
+    """
+    adapter = MkDocsAdapter()  # Not initialized
+    with pytest.raises(AdapterNotInitializedError):
+        adapter.resolve_document_path("some/path.md")
+
+
+def test_get_raises_document_parsing_error(mkdocs_adapter: MkDocsAdapter):
+    """
+    Given a malformed document file
+    When get is called
+    Then it should raise DocumentParsingError.
+    """
+    post_path = mkdocs_adapter.posts_dir / "2024-01-01-malformed-post.md"
+    post_path.write_text("---\ntitle: Malformed\ninvalid_yaml: [\n---")
+    with pytest.raises(DocumentParsingError):
+        mkdocs_adapter.get(DocumentType.POST, "malformed-post")
