@@ -23,11 +23,11 @@ from egregora.data_primitives.protocols import UrlContext
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.exceptions import (
     CommandProcessingError,
-    MaxSplitDepthError,
-    MediaPersistenceError,
+    EnrichmentError,
     OutputSinkError,
     ProfileGenerationError,
-    WindowValidationError,
+    WindowSizeError,
+    WindowSplitError,
 )
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.modules.media import process_media_for_window
@@ -160,11 +160,11 @@ class PipelineRunner:
     def _validate_window_size(self, window: Any, max_size: int) -> None:
         """Validate window doesn't exceed LLM context limits."""
         if window.size > max_size:
-            reason = (
-                f"Window has {window.size} messages but max is {max_size}. "
+            msg = (
+                f"Window {window.window_index} has {window.size} messages but max is {max_size}. "
                 f"Reduce --step-size to create smaller windows."
             )
-            raise WindowValidationError(window.window_index, reason)
+            raise WindowSizeError(msg)
 
     def process_background_tasks(self) -> None:
         """Process pending background tasks."""
@@ -210,8 +210,9 @@ class PipelineRunner:
                 )
 
             if current_depth >= max_depth:
-                logger.error("%s❌ Max split depth %d reached for window %s", indent, max_depth, window_label)
-                raise MaxSplitDepthError(window_label, max_depth)
+                error_msg = f"Max split depth {max_depth} reached for window {window_label}."
+                logger.error("%s❌ %s", indent, error_msg)
+                raise WindowSplitError(error_msg)
 
             try:
                 window_results = self._process_single_window(current_window, depth=current_depth)
@@ -272,8 +273,8 @@ class PipelineRunner:
                 try:
                     output_sink.persist(media_doc)
                 except Exception as e:
-                    logger.exception("Failed to write media file: %s", e)
-                    raise MediaPersistenceError(media_doc.document_id, e) from e
+                    msg = f"Failed to write media file: {e}"
+                    raise EnrichmentError(msg) from e
 
         if self.context.enable_enrichment:
             return self._perform_enrichment(window_table_processed, media_mapping)
@@ -303,10 +304,8 @@ class PipelineRunner:
                     output_sink.persist(announcement)
                     announcements_generated += 1
                 except Exception as exc:
-                    logger.exception(
-                        "Failed to generate announcement for command '%s': %s", cmd_msg.get("text"), exc
-                    )
-                    raise CommandProcessingError(cmd_msg.get("text", "N/A"), exc) from exc
+                    msg = f"Failed to generate announcement: {exc}"
+                    raise CommandProcessingError(msg) from exc
         return announcements_generated
 
     def _generate_posts_and_profiles(
@@ -348,11 +347,11 @@ class PipelineRunner:
                     output_sink.persist(profile_doc)
                     profiles.append(profile_doc.document_id)
                 except Exception as exc:
-                    logger.exception("Failed to persist profile: %s", exc)
-                    raise ProfileGenerationError("Failed to persist profile") from exc
+                    msg = f"Failed to persist profile: {exc}"
+                    raise ProfileGenerationError(msg) from exc
         except Exception as exc:
-            logger.exception("Failed to generate profile posts: %s", exc)
-            raise ProfileGenerationError("Failed to generate profile posts") from exc
+            msg = f"Failed to generate profile posts: {exc}"
+            raise ProfileGenerationError(msg) from exc
 
         return result
 

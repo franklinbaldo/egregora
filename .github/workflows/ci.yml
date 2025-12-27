@@ -7,8 +7,7 @@ concurrency:
 
 # Minimal permissions by default
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 env:
   PYTHON_VERSION: "3.12"
@@ -286,117 +285,6 @@ jobs:
           path: dist/
           retention-days: ${{ env.COVERAGE_RETENTION_DAYS }}
 
-  auto-merge-jules:
-    name: Auto-merge Jules Bot PRs
-    runs-on: ubuntu-latest
-    needs: [pre-commit, test-unit, test-e2e]
-    if: |
-      github.event_name == 'pull_request' &&
-      !cancelled() &&
-      !contains(needs.*.result, 'failure') &&
-      (github.event.pull_request.user.login == 'google-labs-jules[bot]' ||
-       github.event.pull_request.user.login == 'google-labs-jules')
-    timeout-minutes: 5
-    steps:
-      - name: Check PR status and merge
-        uses: actions/github-script@v8
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const { owner, repo } = context.repo;
-            const prNumber = context.payload.pull_request.number;
-            const isDraft = context.payload.pull_request.draft;
-
-            console.log('🤖 Jules Bot PR detected - PR #' + prNumber);
-            console.log('Draft status:', isDraft);
-
-            // Convert draft to ready if needed
-            if (isDraft) {
-              console.log('📝 Converting draft PR to ready for review...');
-              try {
-                await github.rest.pulls.update({
-                  owner,
-                  repo,
-                  pull_number: prNumber,
-                  draft: false
-                });
-                console.log('✅ Successfully converted PR from draft to ready');
-
-                await github.rest.issues.createComment({
-                  owner,
-                  repo,
-                  issue_number: prNumber,
-                  body: '🤖 **Draft converted to ready for review**\n\nAll CI tests have passed! This PR has been automatically marked as ready for review and will be merged.'
-                });
-
-                // Verify draft status change with polling
-                console.log('⏳ Verifying draft status change...');
-                let attempts = 0;
-                const maxAttempts = 10;
-                let verified = false;
-
-                while (attempts < maxAttempts) {
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                  const { data: currentPR } = await github.rest.pulls.get({
-                    owner,
-                    repo,
-                    pull_number: prNumber
-                  });
-
-                  if (!currentPR.draft) {
-                    console.log(`✅ Verified PR is no longer draft after ${attempts + 1} attempts`);
-                    verified = true;
-                    break;
-                  }
-
-                  attempts++;
-                  console.log(`⏳ Still draft, attempt ${attempts}/${maxAttempts}`);
-                }
-
-                if (!verified) {
-                  throw new Error('Failed to verify draft status change after 10 seconds');
-                }
-              } catch (error) {
-                core.setFailed(`❌ Failed to convert draft to ready: ${error.message}`);
-                throw error;
-              }
-            }
-
-            // Merge the PR
-            console.log('🔀 Merging PR...');
-            try {
-              const mergeResult = await github.rest.pulls.merge({
-                owner,
-                repo,
-                pull_number: prNumber,
-                commit_title: `${context.payload.pull_request.title} (#${prNumber})`,
-                commit_message: 'Auto-merged by CI after all tests passed',
-                merge_method: 'squash'
-              });
-
-              console.log('✅ PR merged successfully:', mergeResult.data.sha);
-
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number: prNumber,
-                body: '✅ **Auto-merged by CI**\n\nAll tests passed and the PR has been automatically merged!\n\nCommit: ' + mergeResult.data.sha
-              });
-            } catch (error) {
-              console.error(`❌ Failed to merge PR: ${error.message}`);
-
-              // Post a comment about the failure
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number: prNumber,
-                body: '⚠️ **Auto-merge failed**\n\nAll tests passed, but automatic merge failed. Please merge manually.\n\nError: ' + error.message
-              });
-
-              core.setFailed(`Failed to merge PR: ${error.message}`);
-              throw error;
-            }
-
   quality:
     name: Code Quality Metrics
     runs-on: ubuntu-latest
@@ -440,7 +328,7 @@ jobs:
   summary:
     name: Workflow Summary
     runs-on: ubuntu-latest
-    needs: [pre-commit, test-unit, test-e2e, security, quality, build, auto-merge-jules]
+    needs: [pre-commit, test-unit, test-e2e, security, quality, build]
     if: always()
     steps:
       - name: Post summary
@@ -456,5 +344,4 @@ jobs:
           | Security | ${{ needs.security.result || 'skipped' }} |
           | Quality | ${{ needs.quality.result || 'skipped' }} |
           | Build | ${{ needs.build.result || 'skipped' }} |
-          | Auto-merge Jules | ${{ needs['auto-merge-jules'].result || 'skipped' }} |
           EOF

@@ -147,38 +147,8 @@ def _load_dotenv_if_available(output_dir: Path) -> None:
         dotenv.load_dotenv()  # Check CWD as well
 
 
-def _validate_api_key(output_dir: Path, model: str | None = None) -> None:
-    """Validate that API key is set and valid.
-
-    Args:
-        output_dir: Output directory path (for loading .env)
-        model: Optional model name to detect provider
-
-    """
-    # Check if using OpenRouter
-    from egregora.llm.providers.openrouter import is_openrouter_model
-
-    using_openrouter = model and is_openrouter_model(model)
-
-    if using_openrouter:
-        # OpenRouter validation
-        openrouter_key = os.environ.get("OPENROUTER_API_KEY")
-        if not openrouter_key:
-            _load_dotenv_if_available(output_dir)
-            openrouter_key = os.environ.get("OPENROUTER_API_KEY")
-
-        if not openrouter_key:
-            msg = (
-                "OPENROUTER_API_KEY environment variable not set. "
-                f"Model '{model}' requires OpenRouter. "
-                "Set the environment variable with your OpenRouter API key, or create a .env file."
-            )
-            raise ApiKeyMissingError(msg)
-
-        console.print(f"[green]✓ Using OpenRouter for model: {model}[/green]")
-        return
-
-    # Gemini validation (existing logic)
+def _validate_api_key(output_dir: Path) -> None:
+    """Validate that API key is set and valid."""
     skip_validation = os.getenv("EGREGORA_SKIP_API_KEY_VALIDATION", "").strip().lower() in {
         "1",
         "true",
@@ -414,7 +384,7 @@ def run_cli_flow(
         ensure_mkdocs_project(output_dir)
 
     try:
-        _validate_api_key(output_dir, model=parsed_options.model)
+        _validate_api_key(output_dir)
         base_config = load_egregora_config(output_dir)
         sources_to_run = _resolve_sources_to_run(base_config, parsed_options.source)
 
@@ -724,16 +694,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
     initialize_database(pipeline_backend)
 
-    # Create appropriate client based on model configuration
-    if run_params.client:
-        client_instance = run_params.client
-    else:
-        from egregora.llm.providers.openrouter import create_llm_client
-
-        # Use writer model to determine which client to create
-        writer_model = run_params.config.models.writer
-        client_instance = create_llm_client(model=writer_model)
-
+    client_instance = run_params.client or _create_gemini_client()
     cache_path = Path(run_params.config.paths.cache_dir)
     if cache_path.is_absolute():
         cache_dir = cache_path

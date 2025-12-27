@@ -8,7 +8,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from egregora.input_adapters.whatsapp.exceptions import (
-    ChatEncodingError,
     DateParsingError,
     MalformedLineError,
     NoMessagesFoundError,
@@ -148,45 +147,3 @@ class TestWhatsAppParsing:
         # 3. Assert exception context
         assert excinfo.value.line == malformed_line
         assert isinstance(excinfo.value.original_error, DateParsingError)
-
-    def test_zipmessagesource_raises_chatencodingerror_on_unicode_decode_error(self, monkeypatch) -> None:
-        """Verify ZipMessageSource raises ChatEncodingError on a UnicodeDecodeError."""
-        # 1. Arrange
-        mock_export = WhatsAppExport(
-            zip_path=Path("dummy.zip"),
-            group_name="Test Group",
-            group_slug="test-group",
-            export_date=date(2023, 1, 1),
-            chat_file="_chat.txt",
-            media_files=[],
-        )
-        decode_error = UnicodeDecodeError("utf-8", b"\x80", 0, 1, "invalid start byte")
-
-        # Mock the TextIOWrapper to simulate a decoding error
-        mock_text_wrapper = MagicMock()
-        mock_text_wrapper.__iter__.side_effect = decode_error
-        monkeypatch.setattr(
-            "egregora.input_adapters.whatsapp.parsing.io.TextIOWrapper", lambda *a, **kw: mock_text_wrapper
-        )
-
-        # Mock zipfile handling to avoid actual file operations
-        mock_zip_instance = MagicMock()
-        mock_zip_context = MagicMock()
-        mock_zip_context.__enter__.return_value = mock_zip_instance
-        monkeypatch.setattr("zipfile.ZipFile", lambda *a, **kw: mock_zip_context)
-
-        # Mock validation functions so they don't interfere
-        monkeypatch.setattr("egregora.input_adapters.whatsapp.parsing.validate_zip_contents", lambda zf: None)
-        monkeypatch.setattr(
-            "egregora.input_adapters.whatsapp.parsing.ensure_safe_member_size", lambda zf, member: None
-        )
-
-        source = ZipMessageSource(export=mock_export)
-
-        # 2. Act & Assert
-        with pytest.raises(ChatEncodingError) as excinfo:
-            list(source.lines())
-
-        # 3. Assert on the exception context
-        assert excinfo.value.filename == mock_export.chat_file
-        assert excinfo.value.original_error is decode_error

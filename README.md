@@ -25,8 +25,7 @@ Egregora transforms a WhatsApp export (ZIP) into a static website powered by [Ma
 Install Egregora using [uv](https://github.com/astral-sh/uv) (requires Python 3.12+):
 
 ```bash
-# Run once to test the installation
-uvx --from git+https://github.com/franklinbaldo/egregora egregora --help
+uv tool install git+https://github.com/franklinbaldo/egregora
 ```
 
 You will also need a Google Gemini API key (free tier available):
@@ -49,18 +48,14 @@ Egregora automatically bootstraps `.egregora` (mkdocs config, cache, RAG, and La
 **2. Generate posts from your chat export:**
 
 ```bash
-# All 'egregora' commands should be prefixed with the uvx installer
-uvx --from git+https://github.com/franklinbaldo/egregora egregora write path/to/chat_export.zip --output=.
+egregora write path/to/chat_export.zip --output=.
 ```
 
 **3. Preview your site:**
 
 ```bash
-# To serve, we need the mkdocs dependencies
-uvx --from git+https://github.com/franklinbaldo/egregora \
-  --with mkdocs-material \
-  --with mkdocs-blogging-plugin \
-  mkdocs serve -f .egregora/mkdocs.yml
+uv sync --all-extras
+uv run mkdocs serve -f .egregora/mkdocs.yml
 ```
 
 *Visit <http://localhost:8000> to read your new blog.*

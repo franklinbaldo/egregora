@@ -22,14 +22,13 @@ First, install uv if you haven't already:
 
 ### From GitHub (Recommended)
 
-This is the best way to run the latest version of Egregora without creating conflicts in your local environment.
+Install directly from the repository using uvx:
 
 ```bash
-# Run any command by prefixing it with uvx
 uvx --from git+https://github.com/franklinbaldo/egregora egregora --help
 ```
 
-This will run Egregora without any local installation. Use `uvx` for all commands:
+This will install and run Egregora without any local installation. Use `uvx` for all commands:
 
 ```bash
 # Initialize a new blog
@@ -39,9 +38,15 @@ uvx --from git+https://github.com/franklinbaldo/egregora egregora init my-blog
 uvx --from git+https://github.com/franklinbaldo/egregora egregora write export.zip
 ```
 
-### From Source (for Development)
+### From PyPI
 
-If you want to contribute to Egregora:
+```bash
+uv tool install egregora
+```
+
+### From Source
+
+For development (works on Windows, Linux, and macOS):
 
 ```bash
 git clone https://github.com/franklinbaldo/egregora.git
@@ -58,7 +63,7 @@ uv run pre-commit install
 uv run pytest tests/
 ```
 
-See the [Code of the Weaver](../CLAUDE.md) for full development setup.
+See [Contributing Guide](https://github.com/franklinbaldo/egregora/blob/main/CONTRIBUTING.md) for full development setup.
 
 ## API Key Setup
 
@@ -88,11 +93,11 @@ egregora --version
 
 ### Documentation
 
-To build the documentation locally (from a source checkout):
+To build the documentation locally:
 
 ```bash
 uv sync --all-extras
-uv run mkdocs serve
+uv run mkdocs serve -f .egregora/mkdocs.yml
 ```
 
 ### Linting
