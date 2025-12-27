@@ -45,11 +45,7 @@ def is_jina_embedding_model(model: str) -> bool:
 
     """
     model_lower = model.lower()
-    return (
-        model_lower.startswith("jina-embeddings-")
-        or "jina-ai/" in model_lower
-        or "jinaai/" in model_lower
-    )
+    return model_lower.startswith("jina-embeddings-") or "jina-ai/" in model_lower or "jinaai/" in model_lower
 
 
 def get_embedding_dimension(model: str) -> int:
@@ -80,6 +76,7 @@ def embed_with_jina(
         "separation",
     ]
     | None = None,
+    *,
     normalized: bool = True,
 ) -> list[list[float]]:
     """Embed texts using Jina AI API.
@@ -130,5 +127,4 @@ def embed_with_jina(
 
         # Extract embeddings from response
         # Jina API returns: {"data": [{"embedding": [...]}, ...]}
-        embeddings = [item["embedding"] for item in data["data"]]
-        return embeddings
+        return [item["embedding"] for item in data["data"]]
