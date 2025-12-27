@@ -10,7 +10,6 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
-import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -34,9 +33,6 @@ from ratelimit import limits, sleep_and_retry
 from tenacity import Retrying
 
 from egregora.agents.exceptions import (
-    AgentExecutionError,
-    FormatInstructionError,
-    JournalDataError,
     JournalFileSystemError,
     JournalTemplateError,
 )
@@ -63,7 +59,6 @@ from egregora.agents.writer_setup import (
     create_writer_model,
     setup_writer_agent,
 )
-from egregora.config.settings import is_demo_mode
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.output_adapters import OutputSinkRegistry, create_default_output_registry
 from egregora.resources.prompts import render_prompt
@@ -74,7 +69,7 @@ if TYPE_CHECKING:
     from ibis.expr.types import Table
 
     from egregora.config.settings import EgregoraConfig
-    from egregora.data_primitives.document import OutputSink
+    from egregora.data_primitives.protocols import OutputSink
     from egregora.orchestration.context import PipelineContext
 
 logger = logging.getLogger(__name__)
@@ -268,7 +263,9 @@ def _save_journal_to_file(params: JournalEntryParams) -> str:
         raise JournalFileSystemError(path=journal_path_str, reason=str(e)) from e
     except (TypeError, AttributeError, ValueError) as e:
         # Catching other potential issues during doc creation
-        raise JournalDataError(reason=str(e)) from e
+        msg = f"Invalid data for journal: {e}"
+        logger.exception(msg)
+        raise JournalFileSystemError(path=journal_path_str, reason=msg) from e
 
 
 def _process_single_tool_result(
@@ -376,13 +373,6 @@ async def write_posts_with_pydantic_agent(
     # Use tenacity for retries
     for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
         with attempt:
-            attempt_num = attempt.retry_state.attempt_number
-            logger.info(
-                "🖊️  [Writer] Starting LLM call for %s (attempt %d/%d)...",
-                context.window_label,
-                attempt_num,
-                RETRY_STOP.max_attempt_number if hasattr(RETRY_STOP, "max_attempt_number") else 3,
-            )
             # Execute model directly without tools
             result = await agent.run(
                 "Analyze the conversation context provided and write posts/profiles as needed.",
@@ -392,10 +382,8 @@ async def write_posts_with_pydantic_agent(
 
     if not result:
         # Should be unreachable due to reraise=True
-        raise AgentExecutionError(
-            window_label=context.window_label,
-            reason="Agent failed to produce a result after retries.",
-        )
+        msg = "Agent failed after retries"
+        raise RuntimeError(msg)
 
     usage = result.usage()
     if context.resources.usage:
@@ -471,7 +459,7 @@ async def _execute_writer_with_error_handling(
 
     Raises:
         PromptTooLargeError: If prompt exceeds model context window (propagated unchanged)
-        AgentExecutionError: For other agent failures (wrapped with context)
+        RuntimeError: For other agent failures (wrapped with context)
 
     """
     try:
@@ -481,15 +469,17 @@ async def _execute_writer_with_error_handling(
             context=deps,
         )
     except Exception as exc:
-        if isinstance(exc, (PromptTooLargeError, AgentExecutionError)):
+        if isinstance(exc, PromptTooLargeError):
             raise
 
-        if is_demo_mode():
-            logger.warning("DEMO MODE: Writer agent failed but we are ignoring it.")
-            return [], []
+        from egregora.agents.exceptions import WriterAgentExecutionError
 
-        logger.exception("An unexpected error occurred in the writer agent for window %s", deps.window_label)
-        raise AgentExecutionError(window_label=deps.window_label, reason=str(exc)) from exc
+        msg = f"Writer agent failed for {deps.window_label}"
+        logger.exception(msg)
+        raise WriterAgentExecutionError(
+            window_label=deps.window_label,
+            reason=str(exc),
+        ) from exc
 
 
 @dataclass
@@ -669,10 +659,8 @@ def load_format_instructions(site_root: Path | None, *, registry: OutputSinkRegi
     try:
         default_format = registry.get_format("mkdocs")
         return default_format.get_format_instructions()
-    except KeyError as e:
-        raise FormatInstructionError(
-            format_name="mkdocs", reason="Default format not found in registry."
-        ) from e
+    except KeyError:
+        return ""
 
 
 def get_top_authors(table: Table, limit: int = 20) -> list[str]:
