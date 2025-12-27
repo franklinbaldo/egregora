@@ -57,18 +57,20 @@ def migrate_to_unified_schema(con: BaseBackend) -> None:
             doc_type=ibis.literal("post"),
             published=posts.date.cast(dt.Timestamp(timezone="UTC")),
             updated=posts.created_at,
+            summary=ibis.literal(None).cast(dt.string),
             content_type=ibis.literal(None).cast(dt.string),
             links=ibis.literal("[]").cast(dt.json),
+            authors=posts.authors.cast(dt.json),
             contributors=ibis.literal("[]").cast(dt.json),
             categories=ibis.literal("[]").cast(dt.json),
             source=ibis.literal(None).cast(dt.json),
             in_reply_to=ibis.literal(None).cast(dt.json),
+            status=ibis.literal(None).cast(dt.string),
             searchable=ibis.literal(SEARCHABLE_DEFAULT),
             url_path=ibis.literal(None).cast(dt.string),
             extensions=ibis.literal("{}").cast(dt.json),
             internal_metadata=ibis.literal("{}").cast(dt.json),
-            authors=posts.authors.cast(dt.json),  # Keep as JSON array of strings for now
-        ).select(*UNIFIED_SCHEMA.names)  # Ensure column order and selection matches
+        ).select(*UNIFIED_SCHEMA.names)
 
         con.insert("documents", posts_transformed)
 
@@ -78,12 +80,12 @@ def migrate_to_unified_schema(con: BaseBackend) -> None:
         profiles = con.table("profiles")
 
         # For profiles, we'll pack extra fields into internal_metadata
-        # A more complex migration could build a proper JSON object.
         profiles_transformed = profiles.mutate(
             doc_type=ibis.literal("profile"),
             published=ibis.literal(None).cast(dt.Timestamp(timezone="UTC")),
             updated=profiles.created_at,
             summary=profiles.summary,
+            content=ibis.literal(None).cast(dt.string),
             content_type=ibis.literal(None).cast(dt.string),
             links=ibis.literal("[]").cast(dt.json),
             authors=ibis.literal("[]").cast(dt.json),
