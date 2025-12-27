@@ -1,7 +1,7 @@
 """TDD tests for Output Sinks - written BEFORE implementation.
 
 Tests for:
-1. AtomXMLOutputSink - Publishes Feed as Atom XML file
+1. AtomSink - Publishes Feed as Atom XML file
 2. MkDocsOutputSink - Publishes Feed as MkDocs markdown files
 
 Following TDD Red-Green-Refactor cycle.
@@ -20,7 +20,7 @@ from lxml import etree
 
 from egregora_v3.core.types import Author, Document, DocumentStatus, DocumentType, Feed, documents_to_feed
 from egregora_v3.infra.adapters.rss import RSSAdapter
-from egregora_v3.infra.sinks.atom_xml import AtomXMLOutputSink
+from egregora_v3.infra.sinks.atom import AtomSink
 from egregora_v3.infra.sinks.mkdocs import MkDocsOutputSink
 
 fake = Faker()
@@ -59,13 +59,13 @@ def sample_feed() -> Feed:
     )
 
 
-# ========== AtomXMLOutputSink Tests ==========
+# ========== AtomSink Tests ==========
 
 
 def test_atom_xml_sink_creates_file(sample_feed: Feed, tmp_path: Path) -> None:
-    """Test that AtomXMLOutputSink creates an Atom XML file."""
+    """Test that AtomSink creates an Atom XML file."""
     output_file = tmp_path / "feed.atom"
-    sink = AtomXMLOutputSink(output_path=output_file)
+    sink = AtomSink(output_path=output_file)
 
     sink.publish(sample_feed)
 
@@ -76,7 +76,7 @@ def test_atom_xml_sink_creates_file(sample_feed: Feed, tmp_path: Path) -> None:
 def test_atom_xml_sink_produces_valid_xml(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that output is valid, parseable XML."""
     output_file = tmp_path / "feed.atom"
-    sink = AtomXMLOutputSink(output_path=output_file)
+    sink = AtomSink(output_path=output_file)
 
     sink.publish(sample_feed)
 
@@ -89,7 +89,7 @@ def test_atom_xml_sink_produces_valid_xml(sample_feed: Feed, tmp_path: Path) -> 
 def test_atom_xml_sink_preserves_entries(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that all entries are preserved in output."""
     output_file = tmp_path / "feed.atom"
-    sink = AtomXMLOutputSink(output_path=output_file)
+    sink = AtomSink(output_path=output_file)
 
     sink.publish(sample_feed)
 
@@ -101,9 +101,9 @@ def test_atom_xml_sink_preserves_entries(sample_feed: Feed, tmp_path: Path) -> N
 
 
 def test_atom_xml_sink_roundtrip_with_rss_adapter(sample_feed: Feed, tmp_path: Path) -> None:
-    """Test full roundtrip: Feed → AtomXMLOutputSink → RSSAdapter → Feed."""
+    """Test full roundtrip: Feed → AtomSink → RSSAdapter → Feed."""
     output_file = tmp_path / "feed.atom"
-    sink = AtomXMLOutputSink(output_path=output_file)
+    sink = AtomSink(output_path=output_file)
 
     # Publish feed
     sink.publish(sample_feed)
@@ -128,7 +128,7 @@ def test_atom_xml_sink_overwrites_existing_file(sample_feed: Feed, tmp_path: Pat
     # Create initial file
     output_file.write_text("old content")
 
-    sink = AtomXMLOutputSink(output_path=output_file)
+    sink = AtomSink(output_path=output_file)
     sink.publish(sample_feed)
 
     # Should be replaced with valid XML
@@ -141,7 +141,7 @@ def test_atom_xml_sink_creates_parent_directories(sample_feed: Feed, tmp_path: P
     """Test that sink creates parent directories if they don't exist."""
     output_file = tmp_path / "deeply" / "nested" / "directory" / "feed.atom"
 
-    sink = AtomXMLOutputSink(output_path=output_file)
+    sink = AtomSink(output_path=output_file)
     sink.publish(sample_feed)
 
     assert output_file.exists()
@@ -152,7 +152,7 @@ def test_atom_xml_sink_creates_parent_directories(sample_feed: Feed, tmp_path: P
 def test_atom_xml_sink_uses_feed_to_xml(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that sink uses Feed.to_xml() internally."""
     output_file = tmp_path / "feed.atom"
-    sink = AtomXMLOutputSink(output_path=output_file)
+    sink = AtomSink(output_path=output_file)
 
     sink.publish(sample_feed)
 
@@ -173,7 +173,7 @@ def test_atom_xml_sink_with_empty_feed(tmp_path: Path) -> None:
     )
 
     output_file = tmp_path / "empty.atom"
-    sink = AtomXMLOutputSink(output_path=output_file)
+    sink = AtomSink(output_path=output_file)
 
     sink.publish(empty_feed)
 
@@ -338,7 +338,7 @@ def test_mkdocs_sink_cleans_existing_files(sample_feed: Feed, tmp_path: Path) ->
 
 @given(st.integers(min_value=1, max_value=20))
 def test_atom_xml_sink_handles_any_number_of_entries(num_entries: int) -> None:
-    """Property: AtomXMLOutputSink handles any number of entries."""
+    """Property: AtomSink handles any number of entries."""
     docs = [
         Document(
             content=f"Content {i}",
@@ -353,7 +353,7 @@ def test_atom_xml_sink_handles_any_number_of_entries(num_entries: int) -> None:
 
     with tempfile.TemporaryDirectory() as tmpdir:
         output_file = Path(tmpdir) / f"feed_{num_entries}.atom"
-        sink = AtomXMLOutputSink(output_path=output_file)
+        sink = AtomSink(output_path=output_file)
 
         sink.publish(feed)
 
@@ -406,7 +406,7 @@ def test_atom_xml_sink_handles_special_characters_in_content(tmp_path: Path) -> 
     feed = documents_to_feed([doc], feed_id="test", title="Test")
 
     output_file = tmp_path / "feed.atom"
-    sink = AtomXMLOutputSink(output_path=output_file)
+    sink = AtomSink(output_path=output_file)
 
     sink.publish(feed)
 
