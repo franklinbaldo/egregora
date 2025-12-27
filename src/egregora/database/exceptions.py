@@ -61,6 +61,14 @@ class SequenceRetryFailedError(SequenceError):
         super().__init__(f"Database error for sequence '{sequence_name}' after retry")
 
 
+class SequenceCreationError(SequenceError):
+    """Raised when creating a sequence fails verification."""
+
+    def __init__(self, sequence_name: str) -> None:
+        self.sequence_name = sequence_name
+        super().__init__(f"Failed to create or verify sequence '{sequence_name}'")
+
+
 class TableInfoError(DatabaseError):
     """Raised when fetching table metadata (e.g., columns) fails."""
 
