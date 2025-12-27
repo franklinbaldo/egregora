@@ -16,7 +16,7 @@ import json
 import logging
 import os
 from contextlib import contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
 from pathlib import Path
@@ -33,32 +33,24 @@ from rich.panel import Panel
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.config import RuntimeContext, load_egregora_config
-from egregora.config.settings import (
-    EgregoraConfig,
-    SiteSettings,
-    SourceSettings,
-    parse_date_arg,
-    validate_timezone,
-)
+from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
 from egregora.constants import SourceType, WindowUnit
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.run_store import RunStore
 from egregora.database.task_store import TaskStore
 from egregora.database.utils import resolve_db_uri
-from egregora.database.repository import ContentRepository
-from egregora.output_adapters.db_sink import DbOutputSink
-from egregora.orchestration.materializer import materialize_site
+from egregora.init import ensure_mkdocs_project
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
+from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
-from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.runner import PipelineRunner
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import MkDocsPaths
-from egregora.output_adapters.mkdocs.scaffolding import ensure_mkdocs_project
 from egregora.rag import index_documents, reset_backend
 from egregora.transformations import (
     WindowConfig,
@@ -89,12 +81,34 @@ __all__ = ["WhatsAppProcessOptions", "WriteCommandOptions", "process_whatsapp_ex
 MIN_WINDOWS_WARNING_THRESHOLD = 5
 
 
+def run_async_safely(coro: Any) -> Any:
+    """Run an async coroutine safely, handling nested event loops.
+
+    If an event loop is already running (e.g., in Jupyter or nested calls),
+    this will use run_until_complete instead of asyncio.run().
+    """
+    import asyncio
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop - use asyncio.run()
+        return asyncio.run(coro)
+    else:
+        # Loop is already running - use run_until_complete in a new thread
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(asyncio.run, coro)
+            return future.result()
+
+
 @dataclass
 class WriteCommandOptions:
     """Options for the write command."""
 
     input_file: Path
-    source: str | None
+    source: SourceType
     output: Path
     step_size: int
     step_unit: WindowUnit
@@ -108,9 +122,9 @@ class WriteCommandOptions:
     use_full_context_window: bool
     max_windows: int | None
     resume: bool
+    economic_mode: bool
     refresh: str | None
     force: bool
-    site: str | None
     debug: bool
 
 
@@ -134,7 +148,6 @@ class WhatsAppProcessOptions:
     use_full_context_window: bool = False
     client: genai.Client | None = None
     refresh: str | None = None
-    site: str | None = None
 
 
 def _load_dotenv_if_available(output_dir: Path) -> None:
@@ -190,13 +203,10 @@ def _validate_api_key(output_dir: Path) -> None:
 
 
 def _prepare_write_config(
-    options: WriteCommandOptions,
-    from_date_obj: date_type | None,
-    to_date_obj: date_type | None,
-    base_config: EgregoraConfig,
+    options: WriteCommandOptions, from_date_obj: date_type | None, to_date_obj: date_type | None
 ) -> Any:
     """Prepare Egregora configuration from options."""
-    base_config = load_egregora_config(options.output, site=options.site)
+    base_config = load_egregora_config(options.output)
     models_update: dict[str, str] = {}
     if options.model:
         models_update = {
@@ -230,56 +240,6 @@ def _prepare_write_config(
     )
 
 
-def _resolve_sources_to_run(
-    config: EgregoraConfig, requested_key: str | None
-) -> list[tuple[str, SourceSettings]]:
-    """Return the ordered list of sources to execute for this run."""
-    site: SiteSettings = getattr(config, "site", None)
-    if site is None or not site.sources:
-        msg = "No sources configured under [site.sources] in .egregora.toml"
-        raise ValueError(msg)
-
-    if requested_key:
-        if requested_key in site.sources:
-            return [(requested_key, site.sources[requested_key])]
-        available = ", ".join(sorted(site.sources))
-        msg = f"Unknown source key '{requested_key}'. Available sources: {available or 'none'}."
-        raise ValueError(msg)
-
-    if site.default_source:
-        if site.default_source not in site.sources:
-            msg = (
-                f"Configured default_source '{site.default_source}' not found in [site.sources]. "
-                "Update .egregora.toml or pass --source to select a valid source key."
-            )
-            raise ValueError(msg)
-        return [(site.default_source, site.sources[site.default_source])]
-
-    # Run all configured sources when no default is set
-    return [(key, site.sources[key]) for key in sorted(site.sources)]
-
-
-def _merge_source_overrides(
-    options: WriteCommandOptions, *, source_key: str, source_settings: SourceSettings
-) -> WriteCommandOptions:
-    """Apply per-source overrides, ensuring adapter selection is taken from config."""
-    overrides = source_settings.overrides
-    return replace(
-        options,
-        source=source_settings.adapter,
-        step_size=overrides.step_size or options.step_size,
-        step_unit=overrides.step_unit or options.step_unit,
-        overlap=overrides.overlap_ratio if overrides.overlap_ratio is not None else options.overlap,
-        enable_enrichment=overrides.enable_enrichment
-        if overrides.enable_enrichment is not None
-        else options.enable_enrichment,
-        from_date=overrides.from_date or options.from_date,
-        to_date=overrides.to_date or options.to_date,
-        timezone=overrides.timezone or options.timezone,
-        max_windows=overrides.max_windows if overrides.max_windows is not None else options.max_windows,
-    )
-
-
 def _resolve_write_options(
     input_file: Path,
     options_json: str | None,
@@ -294,7 +254,9 @@ def _resolve_write_options(
             overrides = json.loads(options_json)
             # Update with JSON overrides, converting enums if strings
             for k, v in overrides.items():
-                if k == "step_unit" and isinstance(v, str):
+                if k == "source" and isinstance(v, str):
+                    defaults[k] = SourceType(v)
+                elif k == "step_unit" and isinstance(v, str):
                     defaults[k] = WindowUnit(v)
                 elif k == "output" and isinstance(v, str):
                     defaults[k] = Path(v)
@@ -311,7 +273,6 @@ def run_cli_flow(
     input_file: Path,
     *,
     output: Path = Path("site"),
-    site: str | None = None,
     source: SourceType = SourceType.WHATSAPP,
     step_size: int = 100,
     step_unit: WindowUnit = WindowUnit.MESSAGES,
@@ -325,17 +286,17 @@ def run_cli_flow(
     use_full_context_window: bool = False,
     max_windows: int | None = None,
     resume: bool = True,
+    economic_mode: bool = False,
     refresh: str | None = None,
     force: bool = False,
     debug: bool = False,
     options: str | None = None,
-    is_demo: bool = False,
+    smoke_test: bool = False,
 ) -> None:
     """Execute the write flow from CLI arguments."""
     cli_values = {
         "source": source,
         "output": output,
-        "site": site,
         "step_size": step_size,
         "step_unit": step_unit,
         "overlap": overlap,
@@ -348,6 +309,7 @@ def run_cli_flow(
         "use_full_context_window": use_full_context_window,
         "max_windows": max_windows,
         "resume": resume,
+        "economic_mode": economic_mode,
         "refresh": refresh,
         "force": force,
         "debug": debug,
@@ -361,6 +323,28 @@ def run_cli_flow(
 
     if parsed_options.debug:
         logging.getLogger().setLevel(logging.DEBUG)
+
+    from_date_obj, to_date_obj = None, None
+    if parsed_options.from_date:
+        try:
+            from_date_obj = parse_date_arg(parsed_options.from_date, "from_date")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise SystemExit(1) from e
+    if parsed_options.to_date:
+        try:
+            to_date_obj = parse_date_arg(parsed_options.to_date, "to_date")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise SystemExit(1) from e
+
+    if parsed_options.timezone:
+        try:
+            validate_timezone(parsed_options.timezone)
+            console.print(f"[green]Using timezone: {parsed_options.timezone}[/green]")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise SystemExit(1) from e
 
     output_dir = parsed_options.output.expanduser().resolve()
 
@@ -383,16 +367,7 @@ def run_cli_flow(
 
     _validate_api_key(output_dir)
 
-    base_config = load_egregora_config(output_dir)
-    try:
-        sources_to_run = _resolve_sources_to_run(base_config, parsed_options.source)
-    except ValueError as exc:
-        console.print(f"[red]{exc}[/red]")
-        # For programmatic execution (tests), we might want to let the exception bubble up if not handled
-        # But CLI should exit gracefully.
-        # Since run_cli_flow is primarily for CLI, SystemExit(1) is correct behavior for CLI.
-        # However, tests might expect this.
-        raise SystemExit(1) from exc
+    egregora_config = _prepare_write_config(parsed_options, from_date_obj, to_date_obj)
 
     runtime = RuntimeContext(
         output_dir=output_dir,
@@ -401,62 +376,28 @@ def run_cli_flow(
         debug=parsed_options.debug,
     )
 
-    for source_key, source_settings in sources_to_run:
-        merged_options = _merge_source_overrides(
-            parsed_options, source_key=source_key, source_settings=source_settings
+    try:
+        console.print(
+            Panel(
+                f"[cyan]Source:[/cyan] {parsed_options.source.value}\n[cyan]Input:[/cyan] {parsed_options.input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {parsed_options.step_size} {parsed_options.step_unit.value}",
+                title="⚙️  Egregora Pipeline",
+                border_style="cyan",
+            )
         )
-
-        from_date_obj, to_date_obj = None, None
-        if merged_options.from_date:
-            try:
-                from_date_obj = parse_date_arg(merged_options.from_date, "from_date")
-            except ValueError as e:
-                console.print(f"[red]{e}[/red]")
-                raise SystemExit(1) from e
-        if merged_options.to_date:
-            try:
-                to_date_obj = parse_date_arg(merged_options.to_date, "to_date")
-            except ValueError as e:
-                console.print(f"[red]{e}[/red]")
-                raise SystemExit(1) from e
-
-        if merged_options.timezone:
-            try:
-                validate_timezone(merged_options.timezone)
-                console.print(f"[green]Using timezone: {merged_options.timezone}[/green]")
-            except ValueError as e:
-                console.print(f"[red]{e}[/red]")
-                raise SystemExit(1) from e
-
-        egregora_config = _prepare_write_config(merged_options, from_date_obj, to_date_obj, base_config)
-
-        try:
-            console.print(
-                Panel(
-                    f"[cyan]Source key:[/cyan] {source_key}\n"
-                    f"[cyan]Adapter:[/cyan] {merged_options.source}\n"
-                    f"[cyan]Input:[/cyan] {merged_options.input_file}\n"
-                    f"[cyan]Output:[/cyan] {output_dir}\n"
-                    f"[cyan]Windowing:[/cyan] {merged_options.step_size} {merged_options.step_unit.value}",
-                    title="⚙️  Egregora Pipeline",
-                    border_style="cyan",
-                )
-            )
-            run_params = PipelineRunParams(
-                output_dir=runtime.output_dir,
-                config=egregora_config,
-                source_type=merged_options.source,
-                source_key=source_key,
-                input_path=runtime.input_file,
-                refresh="all" if merged_options.force else merged_options.refresh,
-                is_demo=is_demo,
-            )
-            run(run_params)
-            console.print(f"[green]Processing completed successfully for source '{source_key}'.[/green]")
-        except Exception as e:
-            console.print_exception(show_locals=False)
-            console.print(f"[red]Pipeline failed for source '{source_key}': {e}[/]")
-            raise SystemExit(1) from e
+        run_params = PipelineRunParams(
+            output_dir=runtime.output_dir,
+            config=egregora_config,
+            source_type=parsed_options.source.value,
+            input_path=runtime.input_file,
+            refresh="all" if parsed_options.force else parsed_options.refresh,
+            smoke_test=smoke_test,
+        )
+        run(run_params)
+        console.print("[green]Processing completed successfully.[/green]")
+    except Exception as e:
+        console.print_exception(show_locals=False)
+        console.print(f"[red]Pipeline failed: {e}[/]")
+        raise SystemExit(1) from e
 
 
 def process_whatsapp_export(
@@ -471,7 +412,7 @@ def process_whatsapp_export(
     if opts.gemini_api_key:
         os.environ["GOOGLE_API_KEY"] = opts.gemini_api_key
 
-    base_config = load_egregora_config(output_dir, site=opts.site)
+    base_config = load_egregora_config(output_dir)
 
     # Apply CLI model override to all text generation models if provided
     models_update = {}
@@ -501,7 +442,7 @@ def process_whatsapp_export(
                 }
             ),
             "enrichment": base_config.enrichment.model_copy(update={"enabled": opts.enable_enrichment}),
-            # RAG settings: no runtime overrides needed (uses config from .egregora.toml)
+            # RAG settings: no runtime overrides needed (uses config from .egregora/config.yml)
             # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch were legacy DuckDB VSS settings
             "rag": base_config.rag,
             **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
@@ -530,7 +471,6 @@ class PreparedPipelineData:
     context: PipelineContext
     enable_enrichment: bool
     embedding_model: str
-    fs_adapter: Any | None = None
 
 
 # _create_writer_resources REMOVED - functionality moved to PipelineFactory.create_writer_resources
@@ -589,8 +529,8 @@ def _extract_adapter_info(ctx: PipelineContext) -> tuple[str, str]:
 def _create_database_backends(
     site_root: Path,
     config: EgregoraConfig,
-) -> tuple[str, any]:
-    """Create database backend for pipeline.
+) -> tuple[str, any, any]:
+    """Create database backends for pipeline and runs tracking.
 
     Uses Ibis for database abstraction, allowing future migration to
     other databases (Postgres, SQLite, etc.) via connection strings.
@@ -600,7 +540,7 @@ def _create_database_backends(
         config: Egregora configuration
 
     Returns:
-        Tuple of (runtime_db_uri, pipeline_backend).
+        Tuple of (runtime_db_uri, pipeline_backend, runs_backend).
 
     Notes:
         DuckDB file URIs with the pattern ``duckdb:///./relative/path.duckdb`` are
@@ -635,9 +575,9 @@ def _create_database_backends(
     runtime_db_uri, pipeline_backend = _validate_and_connect(
         config.database.pipeline_db, "database.pipeline_db"
     )
-    # Runs DB tracking removed
+    _runs_db_uri, runs_backend = _validate_and_connect(config.database.runs_db, "database.runs_db")
 
-    return runtime_db_uri, pipeline_backend
+    return runtime_db_uri, pipeline_backend, runs_backend
 
 
 def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> MkDocsPaths:
@@ -688,14 +628,14 @@ def _create_gemini_client() -> genai.Client:
     return genai.Client(http_options=http_options)
 
 
-def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineContext, any]:
+def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineContext, any, any]:
     """Create pipeline context with all resources and configuration.
 
     Args:
         run_params: Aggregated pipeline run parameters
 
     Returns:
-        Tuple of (PipelineContext, pipeline_backend)
+        Tuple of (PipelineContext, pipeline_backend, runs_backend)
         The backends are returned for cleanup by the context manager.
 
     """
@@ -703,7 +643,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
 
     refresh_tiers = {r.strip().lower() for r in (run_params.refresh or "").split(",") if r.strip()}
     site_paths = _resolve_site_paths_or_raise(resolved_output, run_params.config)
-    _runtime_db_uri, pipeline_backend = _create_database_backends(
+    _runtime_db_uri, pipeline_backend, runs_backend = _create_database_backends(
         site_paths.site_root, run_params.config
     )
 
@@ -724,23 +664,18 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     storage = DuckDBStorageManager.from_ibis_backend(pipeline_backend)
     annotations_store = AnnotationStore(storage)
 
-    # Initialize Repository and DB Sink (New V2 Architecture)
-    content_repo = ContentRepository(storage)
-
-    url_ctx = UrlContext(
-        base_url="",
-        site_prefix="",  # FIX: Empty prefix because MkDocsAdapter prepends media_dir
-        base_path=site_paths.site_root,
-    )
-
-    db_sink = DbOutputSink(content_repo, url_ctx)
-
     # Initialize TaskStore for async operations
     task_store = TaskStore(storage)
 
     _init_global_rate_limiter(run_params.config.quota)
 
     output_registry = create_default_output_registry()
+
+    url_ctx = UrlContext(
+        base_url="",
+        site_prefix="",  # FIX: Empty prefix because MkDocsAdapter prepends media_dir
+        base_path=site_paths.site_root,
+    )
 
     config_obj = PipelineConfig(
         config=run_params.config,
@@ -751,7 +686,6 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
         profiles_dir=site_paths.profiles_dir,
         media_dir=site_paths.media_dir,
         url_context=url_ctx,
-        is_demo=run_params.is_demo,
     )
 
     state = PipelineState(
@@ -765,24 +699,15 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
         annotations_store=annotations_store,
         usage_tracker=UsageTracker(),
         output_registry=output_registry,
+        smoke_test=run_params.smoke_test,
     )
-
-    # Inject DB Sink as the primary output format
-    # Note: We override the default factory output_format logic here
-    state.output_format = db_sink
-
-    # We still need the filesystem adapter for materialization later
-    # We'll attach it to the context for easy access or create it later
-    # For now, let's keep it in a custom attribute or just re-create it.
-    # Actually, `PipelineFactory.create_output_adapter` creates it.
-    # Let's assume we create it in `run` if needed.
 
     # Inject TaskStore into state/context
     state.task_store = task_store
 
     ctx = PipelineContext(config_obj, state)
 
-    return ctx, pipeline_backend
+    return ctx, pipeline_backend, runs_backend
 
 
 @contextmanager
@@ -793,29 +718,36 @@ def _pipeline_environment(run_params: PipelineRunParams) -> any:
         run_params: Aggregated pipeline run parameters
 
     Yields:
-        PipelineContext for use in the pipeline
+        Tuple of (PipelineContext, runs_backend) for use in the pipeline
 
     """
     options = getattr(ibis, "options", None)
     old_backend = getattr(options, "default_backend", None) if options else None
-    ctx, pipeline_backend = _create_pipeline_context(run_params)
+    ctx, pipeline_backend, runs_backend = _create_pipeline_context(run_params)
 
     if options is not None:
         options.default_backend = pipeline_backend
 
     try:
-        yield ctx
+        yield ctx, runs_backend
     finally:
         try:
             ctx.cache.close()
         finally:
-            if options is not None:
-                options.default_backend = old_backend
-            backend_close = getattr(pipeline_backend, "close", None)
-            if callable(backend_close):
-                backend_close()
-            elif hasattr(pipeline_backend, "con") and hasattr(pipeline_backend.con, "close"):
-                pipeline_backend.con.close()
+            try:
+                close_method = getattr(runs_backend, "close", None)
+                if callable(close_method):
+                    close_method()
+                elif hasattr(runs_backend, "con") and hasattr(runs_backend.con, "close"):
+                    runs_backend.con.close()
+            finally:
+                if options is not None:
+                    options.default_backend = old_backend
+                backend_close = getattr(pipeline_backend, "close", None)
+                if callable(backend_close):
+                    backend_close()
+                elif hasattr(pipeline_backend, "con") and hasattr(pipeline_backend.con, "close"):
+                    pipeline_backend.con.close()
 
 
 def _parse_and_validate_source(
@@ -824,8 +756,6 @@ def _parse_and_validate_source(
     timezone: str,
     *,
     output_adapter: OutputSink | None = None,
-    source_key: str | None = None,
-    source_type: str | None = None,
 ) -> ir.Table:
     """Parse source and return messages table.
 
@@ -839,9 +769,7 @@ def _parse_and_validate_source(
         messages_table: Parsed messages table
 
     """
-    key_label = f"[{source_key}] " if source_key else ""
-    adapter_label = source_type or getattr(adapter, "source_name", "")
-    logger.info("[bold cyan]📦 Parsing with adapter:[/] %s%s", key_label, adapter_label)
+    logger.info("[bold cyan]📦 Parsing with adapter:[/] %s", adapter.source_name)
     messages_table = adapter.parse(input_path, timezone=timezone, output_adapter=output_adapter)
     total_messages = messages_table.count().execute()
     logger.info("[green]✅ Parsed[/] %s messages", total_messages)
@@ -969,39 +897,17 @@ def _prepare_pipeline_data(
     vision_model = config.models.enricher_vision
     embedding_model = config.models.embedding
 
-    # DB Sink is already injected in _create_pipeline_context's state
-    # But we need the FS adapter for parsing (some adapters might use it for looking up existing files? No, only 'output_adapter' arg)
-    # AND for materialization.
-
-    fs_adapter = PipelineFactory.create_output_adapter(
+    output_format = PipelineFactory.create_output_adapter(
         config,
         run_params.output_dir,
         site_root=ctx.site_root,
         registry=ctx.output_registry,
         url_context=ctx.url_context,
     )
-
-    # Ensure ctx uses DB sink
-    if isinstance(ctx.state.output_format, DbOutputSink):
-        # Good, already set
-        pass
-    else:
-        # Fallback if _create_pipeline_context didn't set it (legacy path)
-        pass
-
-    # We pass the fs_adapter to parse logic if it needs to read existing site state?
-    # WhatsApp parser uses output_adapter to check for duplicates?
-    # Ideally it should check the DB now.
-    # But for migration, let's pass the DB sink! It implements OutputSink.
-    output_sink = ctx.output_format
+    ctx = ctx.with_output_format(output_format)
 
     messages_table = _parse_and_validate_source(
-        adapter,
-        run_params.input_path,
-        timezone,
-        output_adapter=output_sink,
-        source_key=run_params.source_key,
-        source_type=run_params.source_type,
+        adapter, run_params.input_path, timezone, output_adapter=output_format
     )
     _setup_content_directories(ctx)
     messages_table = _process_commands_and_avatars(messages_table, ctx, vision_model)
@@ -1060,7 +966,6 @@ def _prepare_pipeline_data(
         context=ctx,
         enable_enrichment=enable_enrichment,
         embedding_model=embedding_model,
-        fs_adapter=fs_adapter,
     )
 
 
@@ -1241,12 +1146,110 @@ def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
             tagged_count = generate_semantic_taxonomy(dataset.context.output_format, dataset.context.config)
             if tagged_count > 0:
                 logger.info("[green]✓ Applied semantic tags to %d posts[/]", tagged_count)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # Non-critical failure
             logger.warning("Auto-taxonomy failed: %s", e)
 
 
-# Run tracking removed
+def _record_run_start(run_store: RunStore | None, run_id: uuid.UUID, started_at: datetime) -> None:
+    """Record the start of a pipeline run in the database.
+
+    Args:
+        run_store: Run store for tracking (None to skip tracking)
+        run_id: Unique identifier for this run
+        started_at: Timestamp when run started
+
+    """
+    if run_store is None:
+        return
+
+    try:
+        run_store.mark_run_started(
+            run_id=run_id,
+            stage="write",
+            started_at=started_at,
+        )
+    except (OSError, PermissionError) as exc:
+        logger.debug("Failed to record run start (database unavailable): %s", exc)
+    except ValueError as exc:
+        logger.debug("Failed to record run start (invalid data): %s", exc)
+
+
+def _record_run_completion(
+    run_store: RunStore | None,
+    run_id: uuid.UUID,
+    started_at: datetime,
+    results: dict[str, dict[str, list[str]]],
+) -> None:
+    """Record successful completion of a pipeline run.
+
+    Args:
+        run_store: Run store for tracking (None to skip tracking)
+        run_id: Unique identifier for this run
+        started_at: Timestamp when run started
+        results: Results dict mapping window labels to posts/profiles
+
+    """
+    if run_store is None:
+        return
+
+    try:
+        finished_at = datetime.now(UTC)
+        duration_seconds = (finished_at - started_at).total_seconds()
+
+        total_posts = sum(len(r.get("posts", [])) for r in results.values())
+        total_profiles = sum(len(r.get("profiles", [])) for r in results.values())
+        num_windows = len(results)
+
+        run_store.mark_run_completed(
+            run_id=run_id,
+            finished_at=finished_at,
+            duration_seconds=duration_seconds,
+            rows_out=total_posts + total_profiles,
+        )
+        logger.debug(
+            "Recorded pipeline run: %s (posts=%d, profiles=%d, windows=%d)",
+            run_id,
+            total_posts,
+            total_profiles,
+            num_windows,
+        )
+    except (OSError, PermissionError) as exc:
+        logger.debug("Failed to record run completion (database unavailable): %s", exc)
+    except ValueError as exc:
+        logger.debug("Failed to record run completion (invalid data): %s", exc)
+
+
+def _record_run_failure(
+    run_store: RunStore | None, run_id: uuid.UUID, started_at: datetime, exc: Exception
+) -> None:
+    """Record failure of a pipeline run.
+
+    Args:
+        run_store: Run store for tracking (None to skip tracking)
+        run_id: Unique identifier for this run
+        started_at: Timestamp when run started
+        exc: Exception that caused the failure
+
+    """
+    if run_store is None:
+        return
+
+    try:
+        finished_at = datetime.now(UTC)
+        duration_seconds = (finished_at - started_at).total_seconds()
+        error_msg = f"{type(exc).__name__}: {exc!s}"
+
+        run_store.mark_run_failed(
+            run_id=run_id,
+            finished_at=finished_at,
+            duration_seconds=duration_seconds,
+            error=error_msg[:500],
+        )
+    except (OSError, PermissionError) as tracking_exc:
+        logger.debug("Failed to record run failure (database unavailable): %s", tracking_exc)
+    except ValueError as tracking_exc:
+        logger.debug("Failed to record run failure (invalid data): %s", tracking_exc)
 
 
 def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
@@ -1259,22 +1262,13 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
         Dict mapping window labels to {'posts': [...], 'profiles': [...]}
 
     """
-    if run_params.source_key:
-        logger.info(
-            "[bold cyan]🚀 Starting pipeline for source:[/] %s (adapter=%s)",
-            run_params.source_key,
-            run_params.source_type,
-        )
-    else:
-        logger.info("[bold cyan]🚀 Starting pipeline for adapter:[/] %s", run_params.source_type)
+    logger.info("[bold cyan]🚀 Starting pipeline for source:[/] %s", run_params.source_type)
 
     # Create adapter with config for privacy settings
     # Instead of using singleton from registry, instantiate with config
     adapter_cls = ADAPTER_REGISTRY.get(run_params.source_type)
     if adapter_cls is None:
-        msg = f"Unknown source type '{run_params.source_type}'"
-        if run_params.source_key:
-            msg += f" (from source key '{run_params.source_key}')"
+        msg = f"Unknown source type: {run_params.source_type}"
         raise ValueError(msg)
 
     # Instantiate adapter with config if it supports it (WhatsApp does)
@@ -1288,7 +1282,20 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
     run_id = run_params.run_id
     started_at = run_params.start_time
 
-    with _pipeline_environment(run_params) as ctx:
+    with _pipeline_environment(run_params) as (ctx, runs_backend):
+        # Create RunStore from backend for abstracted run tracking
+        runs_conn = getattr(runs_backend, "con", None)
+        run_store = None
+        if runs_conn is not None:
+            # Properly wrap the connection to ensure ibis_conn is synchronized
+            temp_storage = DuckDBStorageManager.from_connection(runs_conn)
+            run_store = RunStore(temp_storage)
+        else:
+            logger.warning("Unable to access DuckDB connection for run tracking - runs will not be recorded")
+
+        # Record run start
+        _record_run_start(run_store, run_id, started_at)
+
         try:
             dataset = _prepare_pipeline_data(adapter, run_params, ctx)
 
@@ -1311,24 +1318,34 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             # Process remaining background tasks after all windows are done
             runner.process_background_tasks()
 
-            # Materialize to Filesystem
-            if dataset.fs_adapter:
-                materialize_site(dataset.context.output_format, dataset.fs_adapter)
+            # Regenerate tags page with word cloud visualization
+            if hasattr(dataset.context.output_format, "regenerate_tags_page"):
+                try:
+                    logger.info("[bold cyan]🏷️  Regenerating tags page with word cloud...[/]")
+                    dataset.context.output_format.regenerate_tags_page()
+                except (OSError, AttributeError, TypeError) as e:
+                    logger.warning("Failed to regenerate tags page: %s", e)
 
-                # Regenerate tags page on the FS adapter
-                if hasattr(dataset.fs_adapter, "regenerate_tags_page"):
-                    try:
-                        logger.info("[bold cyan]🏷️  Regenerating tags page with word cloud...[/]")
-                        dataset.fs_adapter.regenerate_tags_page()
-                    except (OSError, AttributeError, TypeError) as e:
-                        logger.warning("Failed to regenerate tags page: %s", e)
+            # Update run to completed
+            _record_run_completion(run_store, run_id, started_at, results)
 
             logger.info("[bold green]🎉 Pipeline completed successfully![/]")
 
         except KeyboardInterrupt:
             logger.warning("[yellow]⚠️  Pipeline cancelled by user (Ctrl+C)[/]")
+            # Mark run as cancelled (using failed status with specific error message)
+            if run_store:
+                with contextlib.suppress(Exception):
+                    run_store.mark_run_failed(
+                        run_id=run_id,
+                        finished_at=datetime.now(UTC),
+                        duration_seconds=(datetime.now(UTC) - started_at).total_seconds(),
+                        error="Cancelled by user (KeyboardInterrupt)",
+                    )
             raise  # Re-raise to allow proper cleanup
         except Exception as exc:
+            # Broad catch is intentional: record failure for any exception, then re-raise
+            _record_run_failure(run_store, run_id, started_at, exc)
             raise  # Re-raise original exception to preserve error context
 
         return results

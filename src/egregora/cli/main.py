@@ -1,7 +1,6 @@
 """Main Typer application for Egregora."""
 
 import logging
-import os
 import sys
 from pathlib import Path
 from typing import Annotated
@@ -20,14 +19,15 @@ from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.table import Table
 
+from egregora.cli.db import db_app
 from egregora.cli.read import read_app
 from egregora.config import load_egregora_config
 from egregora.constants import SourceType, WindowUnit
-from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
+from egregora.database.utils import get_simple_storage
 from egregora.diagnostics import HealthStatus, run_diagnostics
+from egregora.init import ensure_mkdocs_project
 from egregora.orchestration.pipelines.write import run_cli_flow
-from egregora.output_adapters.mkdocs.scaffolding import ensure_mkdocs_project
 
 app = typer.Typer(
     name="egregora",
@@ -37,6 +37,7 @@ app = typer.Typer(
 app.add_typer(read_app)
 
 # Database subcommands
+app.add_typer(db_app)
 
 # Show subcommands
 show_app = typer.Typer(
@@ -59,10 +60,6 @@ logging.basicConfig(
         )
     ],
 )
-
-# Suppress annoying warning from google-genai about dual keys
-# "WARNING:google_genai._api_client:Both GOOGLE_API_KEY and GEMINI_API_KEY are set..."
-logging.getLogger("google_genai._api_client").setLevel(logging.ERROR)
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +107,7 @@ def init(
                 f"📝 Docs directory: {docs_dir}\n\n"
                 f"[bold]Next steps:[/bold]\n"
                 f"1. Generate content:\n   [cyan]egregora write path/to/chat_export.zip --output-dir {output_dir}[/cyan]\n"
-                f"2. Preview the site:\n   [cyan]cd {output_dir}[/cyan]\n   [cyan]uvx --with mkdocs-material --with mkdocs-rss-plugin --with mkdocs-macros-plugin --with mkdocs-glightbox --with mkdocs-blogging-plugin mkdocs serve[/cyan]",
+                f"2. Preview the site:\n   [cyan]cd {output_dir}[/cyan]\n   [cyan]uvx --with mkdocs-material --with mkdocs-rss-plugin mkdocs serve[/cyan]",
                 title="🛠️ Initialization Complete",
                 border_style="green",
             )
@@ -126,83 +123,15 @@ def init(
 
 
 @app.command()
-def rehydrate(
-    site_root: Annotated[
-        Path,
-        typer.Argument(help="Directory path of the site to rehydrate (defaults to current directory)"),
-    ] = Path(),
-    *,
-    site_name: Annotated[
-        str | None,
-        typer.Option(
-            "--site-name",
-            "--name",
-            help="Optional site name used when initializing MkDocs scaffolding",
-        ),
-    ] = None,
-) -> None:
-    """Rehydrate the .egregora scaffolding for an existing site.
-
-    Use this after cloning a repository or when the .egregora directory
-    is missing or incomplete. This ensures mkdocs.yml, cache, RAG, and
-    LanceDB directories are properly set up.
-
-    Examples:
-        egregora rehydrate              # Rehydrate current directory
-        egregora rehydrate ./my-blog    # Rehydrate specific site
-        egregora rehydrate . --name "My Blog"
-
-    """
-    resolved_root = site_root.expanduser().resolve()
-    resolved_root.mkdir(parents=True, exist_ok=True)
-
-    docs_dir, created = ensure_mkdocs_project(resolved_root, site_name=site_name)
-
-    status = "Created" if created else "Verified"
-    if created:
-        console.print(
-            Panel(
-                f"[bold green]✅ {status} MkDocs scaffolding[/bold green]\n\n"
-                f"📁 Site root: {resolved_root}\n"
-                f"📝 Docs directory: {docs_dir}\n\n"
-                "[bold]The .egregora directory is now ready.[/bold]",
-                title="🔄 Rehydration Complete",
-                border_style="green",
-            )
-        )
-    else:
-        console.print(
-            Panel(
-                f"[bold cyan]✅ {status} MkDocs scaffolding[/bold cyan]\n\n"
-                f"📁 Site root: {resolved_root}\n"
-                f"📝 Docs directory: {docs_dir}\n\n"
-                "[dim]Scaffolding already exists and is valid.[/dim]",
-                title="🔄 Rehydration Complete",
-                border_style="cyan",
-            )
-        )
-
-
-@app.command()
 def write(
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
     output: Annotated[
         Path, typer.Option("--output-dir", "-o", help="Directory for the generated site")
     ] = Path("site"),
-    site: Annotated[
-        str | None,
-        typer.Option(
-            "--site",
-            help="Site identifier to use from the multi-site configuration (default site if omitted)",
-        ),
-    ] = None,
     source: Annotated[
-        str | None,
-        typer.Option(
-            "--source-type", "-s", help="Configured source key to run (defaults to [site.default_source])"
-        ),
-    ] = None,
+        SourceType, typer.Option("--source-type", "-s", help="Source format of the input")
+    ] = SourceType.WHATSAPP,
     step_size: Annotated[int, typer.Option(help="Window size (messages or hours)")] = 100,
     step_unit: Annotated[WindowUnit, typer.Option(help="Unit for windowing")] = WindowUnit.MESSAGES,
     overlap: Annotated[float, typer.Option(help="Overlap ratio between windows (0.0-1.0)")] = 0.0,
@@ -226,6 +155,13 @@ def write(
         bool,
         typer.Option("--resume/--no-resume", help="Resume from last checkpoint if available"),
     ] = True,
+    economic_mode: Annotated[
+        bool,
+        typer.Option(
+            "--economic-mode",
+            help="Enable economic mode (reduces LLM calls to 2 per window)",
+        ),
+    ] = False,
     refresh: Annotated[
         str | None,
         typer.Option(help="Force refresh components (writer, rag, enrichment, all)"),
@@ -251,7 +187,6 @@ def write(
         step_unit=step_unit,
         overlap=overlap,
         enable_enrichment=enable_enrichment,
-        site=site,
         from_date=from_date,
         to_date=to_date,
         timezone=timezone,
@@ -260,6 +195,7 @@ def write(
         use_full_context_window=use_full_context_window,
         max_windows=max_windows,
         resume=resume,
+        economic_mode=economic_mode,
         refresh=refresh,
         force=force,
         debug=debug,
@@ -271,12 +207,8 @@ def write(
 def top(
     site_root: Annotated[
         Path,
-        typer.Argument(help="Site root directory containing .egregora.toml"),
+        typer.Argument(help="Site root directory containing .egregora/config.yml"),
     ],
-    site: Annotated[
-        str | None,
-        typer.Option("--site", help="Site identifier to use from the multi-site configuration"),
-    ] = None,
     limit: Annotated[
         int,
         typer.Option(
@@ -304,7 +236,7 @@ def top(
         console.print("Run 'egregora init' or 'egregora write' first to create a site")
         raise typer.Exit(1)
 
-    config = load_egregora_config(site_root, site=site)
+    config = load_egregora_config(site_root)
 
     db_path = site_root / config.reader.database_path
 
@@ -313,7 +245,7 @@ def top(
         console.print("Run 'egregora read' first to generate rankings")
         raise typer.Exit(1)
 
-    storage = DuckDBStorageManager(db_path)
+    storage = get_simple_storage(db_path)
     elo_store = EloStore(storage)
 
     top_posts = elo_store.get_top_posts(limit=limit).execute()
@@ -349,12 +281,8 @@ def top(
 def show_reader_history(
     site_root: Annotated[
         Path,
-        typer.Argument(help="Site root directory containing .egregora.toml"),
+        typer.Argument(help="Site root directory containing .egregora/config.yml"),
     ],
-    site: Annotated[
-        str | None,
-        typer.Option("--site", help="Site identifier to use from the multi-site configuration"),
-    ] = None,
     post_slug: Annotated[
         str | None,
         typer.Option(
@@ -389,7 +317,7 @@ def show_reader_history(
         console.print("Run 'egregora init' or 'egregora write' first to create a site")
         raise typer.Exit(1)
 
-    config = load_egregora_config(site_root, site=site)
+    config = load_egregora_config(site_root)
 
     db_path = site_root / config.reader.database_path
 
@@ -398,7 +326,7 @@ def show_reader_history(
         console.print("Run 'egregora read' first to generate rankings")
         raise typer.Exit(1)
 
-    storage = DuckDBStorageManager(db_path)
+    storage = get_simple_storage(db_path)
     elo_store = EloStore(storage)
 
     history = elo_store.get_comparison_history(
@@ -456,13 +384,16 @@ def demo(
             help="The directory to output the demo site to.",
         ),
     ] = Path("demo"),
+    smoke_test: Annotated[
+        bool,
+        typer.Option(
+            "--smoke-test",
+            help="Run in smoke test mode (no API calls).",
+        ),
+    ] = True,
 ) -> None:
     """Generate a demo site from a sample WhatsApp export."""
     console.print("[bold cyan]Generating demo site...[/bold cyan]")
-    # DEMO MODE: Prevent live API calls and skip key validation for local demo.
-    os.environ["EGREGORA_DEMO_MODE"] = "true"
-    os.environ["EGREGORA_SKIP_API_KEY_VALIDATION"] = "true"
-
     # Resolve the path to the sample input file relative to this script's location
     # to ensure it's found regardless of the current working directory.
     project_root = Path(__file__).resolve().parent.parent.parent.parent
@@ -474,7 +405,7 @@ def demo(
     run_cli_flow(
         input_file=sample_input,
         output=output_dir,
-        source=SourceType.WHATSAPP.value,
+        source=SourceType.WHATSAPP,
         step_size=100,
         step_unit=WindowUnit.MESSAGES,
         overlap=0.0,
@@ -482,22 +413,23 @@ def demo(
         from_date=None,
         to_date=None,
         timezone=None,
-        model=None,
+        model="google-gla:gemini-flash-latest",
         max_prompt_tokens=400000,
         use_full_context_window=False,
-        max_windows=2,
+        max_windows=1,
         resume=True,
+        economic_mode=True,
         refresh=None,
         force=True,  # Always force a refresh for the demo
         debug=False,
         options=None,
-        is_demo=True,
+        smoke_test=smoke_test,
     )
     console.print(
         Panel(
             "[bold green]✅ Demo site generated successfully![/bold green]\n\n"
             "To view the site, run:\n"
-            "[cyan]cd demo && uvx --with mkdocs-material --with mkdocs-rss-plugin --with mkdocs-macros-plugin --with mkdocs-glightbox --with mkdocs-blogging-plugin mkdocs serve[/cyan]",
+            "[cyan]cd demo && uvx --with mkdocs-material --with mkdocs-rss-plugin mkdocs serve[/cyan]",
             title="🚀 Demo Complete",
             border_style="green",
         )
@@ -557,7 +489,3 @@ def _run_doctor_checks(*, verbose: bool) -> None:
 
     if error_count > 0:
         raise typer.Exit(1)
-
-
-if __name__ == "__main__":
-    app()

@@ -55,6 +55,7 @@ class PipelineRunParams:
     is_demo: bool = False
     run_id: UUID = field(default_factory=uuid.uuid4)
     start_time: datetime = field(default_factory=lambda: datetime.now(UTC))
+    smoke_test: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,6 +150,7 @@ class PipelineState:
     usage_tracker: UsageTracker | None = None
     output_registry: OutputSinkRegistry | None = None
     embedding_router: EmbeddingRouter | None = None
+    smoke_test: bool = False
 
 
 @dataclass(frozen=True, slots=True)

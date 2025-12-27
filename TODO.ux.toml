@@ -58,7 +58,7 @@ description = """
 4.  The script should output the key scores (Performance, Accessibility, Best Practices, SEO) to the console.
 5.  Bonus: Have the script automatically update the `[lighthouse.current]` section in `TODO.ux.toml`.
 """
-status = "pending"
+status = "review"
 category = "infrastructure"
 assignee = "forge"
 
