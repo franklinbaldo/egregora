@@ -224,7 +224,7 @@ def build_context_and_signature(
     writer_context = build_writer_context(params)
 
     # Get template content for signature calculation
-    template_content = PromptManager.get_template_content("writer.jinja", custom_prompts_dir=prompts_dir)
+    template_content = PromptManager.get_template_content("writer.jinja", site_dir=prompts_dir)
 
     # Calculate signature using data (XML) + logic (template) + engine
     signature = generate_window_signature(
