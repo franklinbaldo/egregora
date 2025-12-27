@@ -73,8 +73,10 @@ class EmbeddingProviderFactory:
             from egregora.rag.strategies.gemini_strategy import GeminiEmbeddingStrategy
 
             return GeminiEmbeddingStrategy(model)
-        msg = f"Unsupported embedding model format: {model}"
-        raise ValueError(msg)
+
+        from egregora.rag.strategies.exceptions import UnsupportedModelError
+
+        raise UnsupportedModelError(model)
 
 
 __all__ = [
