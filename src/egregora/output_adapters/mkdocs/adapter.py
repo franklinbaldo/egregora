@@ -29,6 +29,13 @@ from egregora.data_primitives.document import Document, DocumentMetadata, Docume
 from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
+from egregora.output_adapters.exceptions import (
+    DocumentNotFoundError,
+    DocumentParsingError,
+    UnsupportedDocumentTypeError,
+    ProfileNotFoundError,
+    ConfigLoadError,
+)
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 from egregora.utils.datetime_utils import parse_datetime_flexible
@@ -174,7 +181,7 @@ class MkDocsAdapter(BaseOutputSink):
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
 
-    def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path | None:
+    def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path:
         """Resolve filesystem path for a document based on its type.
 
         UNIFIED: Posts, profiles, journals, and enrichment URLs all live in posts_dir.
@@ -185,7 +192,7 @@ class MkDocsAdapter(BaseOutputSink):
             identifier: Document identifier
 
         Returns:
-            Path to document or None if type unsupported
+            Path to document
 
         """
         match doc_type:
@@ -196,17 +203,17 @@ class MkDocsAdapter(BaseOutputSink):
                     return self.profiles_dir / author_uuid / f"{slug}.md"
                 author_dir = self.profiles_dir / identifier
                 if not author_dir.exists():
-                    return None
+                    raise DocumentNotFoundError(doc_type.value, identifier)
                 candidates = [p for p in author_dir.glob("*.md") if p.name != "index.md"]
                 if not candidates:
-                    return None
+                    raise DocumentNotFoundError(doc_type.value, identifier)
                 return max(candidates, key=lambda p: p.stat().st_mtime_ns)
             case DocumentType.POST:
                 # Posts: dated filename (e.g., "2024-01-01-slug.md")
                 matches = list(self.posts_dir.glob(f"*-{identifier}.md"))
-                if matches:
-                    return max(matches, key=lambda p: p.stat().st_mtime)
-                return None
+                if not matches:
+                    raise DocumentNotFoundError(doc_type.value, identifier)
+                return max(matches, key=lambda p: p.stat().st_mtime)
             case DocumentType.JOURNAL:
                 # Journals: simple filename with slug in journal_dir
                 return self.journal_dir / f"{identifier.replace('/', '-')}.md"
@@ -229,18 +236,13 @@ class MkDocsAdapter(BaseOutputSink):
                 # Media files: stay in media_dir
                 return self.media_dir / identifier
             case _:
-                return None
+                raise UnsupportedDocumentTypeError(doc_type.value)
 
-    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
+    def get(self, doc_type: DocumentType, identifier: str) -> Document:
         path = self._resolve_document_path(doc_type, identifier)
 
-        if path is None or not path.exists():
-            logger.debug(
-                "Document not found: %s/%s",
-                doc_type.value if isinstance(doc_type, DocumentType) else doc_type,
-                identifier,
-            )
-            return None
+        if not path.exists():
+            raise DocumentNotFoundError(doc_type.value, identifier)
 
         try:
             if doc_type == DocumentType.MEDIA:
@@ -249,9 +251,8 @@ class MkDocsAdapter(BaseOutputSink):
                 return Document(content=raw_bytes, type=doc_type, metadata=metadata)
             post = frontmatter.load(str(path))
             metadata, actual_content = post.metadata, post.content
-        except OSError:
-            logger.exception("Failed to read document at %s", path)
-            return None
+        except OSError as e:
+            raise DocumentParsingError(str(path), str(e)) from e
 
         return Document(content=actual_content, type=doc_type, metadata=metadata)
 
@@ -298,13 +299,11 @@ class MkDocsAdapter(BaseOutputSink):
         site_paths = MkDocsPaths(site_root)
         mkdocs_path = site_paths.mkdocs_path
         if not mkdocs_path:
-            msg = f"No mkdocs.yml found in {site_root}"
-            raise FileNotFoundError(msg)
+            raise ConfigLoadError(str(site_root), "No mkdocs.yml found")
         try:
             config = safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
         except yaml.YAMLError as exc:
-            logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
-            config = {}
+            raise ConfigLoadError(str(mkdocs_path), str(exc)) from exc
         return config
 
     def get_markdown_extensions(self) -> list[str]:
@@ -731,12 +730,12 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             except (OSError, ValueError):
                 continue
 
-    def _document_from_path(self, path: Path, doc_type: DocumentType) -> Document | None:
+    def _document_from_path(self, path: Path, doc_type: DocumentType) -> Document:
         try:
             post = frontmatter.load(str(path))
             metadata, body = post.metadata, post.content
-        except OSError:
-            return None
+        except OSError as e:
+            raise DocumentParsingError(str(path), str(e)) from e
         metadata = metadata or {}
         slug_value = metadata.get("slug")
         if isinstance(slug_value, str) and slug_value.strip():
@@ -1088,15 +1087,14 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         metadata["nav_exclude"] = metadata.get("nav_exclude", True)
         return metadata
 
-    def _get_document_id_at_path(self, path: Path) -> str | None:
+    def _get_document_id_at_path(self, path: Path) -> str:
         if not path.exists():
-            return None
+            raise DocumentNotFoundError("Unknown", str(path))
 
         try:
             raw_content = path.read_text(encoding="utf-8")
         except OSError as exc:
-            logger.warning("Failed to read existing document at %s: %s", path, exc)
-            return None
+            raise DocumentParsingError(str(path), str(exc)) from exc
 
         body = raw_content
         metadata: dict[str, Any] = {}
@@ -1434,11 +1432,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         except (OSError, TemplateError):
             logger.exception("Failed to regenerate tags page")
 
-    def get_author_profile(self, author_uuid: str) -> dict | None:
+    def get_author_profile(self, author_uuid: str) -> dict:
         """Public alias for _build_author_profile."""
         return self._build_author_profile(author_uuid)
 
-    def _build_author_profile(self, author_uuid: str) -> dict | None:
+    def _build_author_profile(self, author_uuid: str) -> dict:
         """Build author profile by scanning all their posts chronologically.
 
         Sequential metadata updates: later posts override earlier values.
@@ -1447,13 +1445,13 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             author_uuid: UUID of the author
 
         Returns:
-            Profile dictionary with derived state, or None if no posts found
+            Profile dictionary with derived state
 
         """
         # Use full UUID for consistency
         author_dir = self.posts_dir / "authors" / author_uuid
         if not author_dir.exists():
-            return None
+            raise ProfileNotFoundError(author_uuid)
 
         posts = sorted(author_dir.glob("*.md"), key=lambda p: p.stem)
 
