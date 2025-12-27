@@ -434,7 +434,9 @@ def demo(
     if not google_api_key_status():
         _run_offline_demo(output_dir)
     else:
-        console.print("[bold cyan]🚀 API key found. Generating full demo site with LLM content...[/bold cyan]")
+        console.print(
+            "[bold cyan]🚀 API key found. Generating full demo site with LLM content...[/bold cyan]"
+        )
         project_root = Path(__file__).resolve().parent.parent.parent.parent
         sample_input = project_root / "tests/fixtures/Conversa do WhatsApp com Teste.zip"
         if not sample_input.exists():

@@ -11,14 +11,13 @@ This module orchestrates the high-level flow for the 'write' command, coordinati
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
@@ -35,19 +34,18 @@ from egregora.agents.shared.annotations import AnnotationStore
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
 from egregora.constants import SourceType, WindowUnit
-from egregora.data_primitives.protocols import OutputSink, UrlContext
+from egregora.data_primitives.document import OutputSink, UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.database.run_store import RunStore
 from egregora.database.task_store import TaskStore
 from egregora.database.utils import resolve_db_uri
-from egregora.init import ensure_mkdocs_project
+from egregora.init.scaffolding import ensure_mkdocs_project
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
-from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
+from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.runner import PipelineRunner
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import MkDocsPaths
@@ -69,8 +67,6 @@ except ImportError:
     dotenv = None
 
 if TYPE_CHECKING:
-    import uuid
-
     import ibis.expr.types as ir
 
 
@@ -1151,107 +1147,6 @@ def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
             logger.warning("Auto-taxonomy failed: %s", e)
 
 
-def _record_run_start(run_store: RunStore | None, run_id: uuid.UUID, started_at: datetime) -> None:
-    """Record the start of a pipeline run in the database.
-
-    Args:
-        run_store: Run store for tracking (None to skip tracking)
-        run_id: Unique identifier for this run
-        started_at: Timestamp when run started
-
-    """
-    if run_store is None:
-        return
-
-    try:
-        run_store.mark_run_started(
-            run_id=run_id,
-            stage="write",
-            started_at=started_at,
-        )
-    except (OSError, PermissionError) as exc:
-        logger.debug("Failed to record run start (database unavailable): %s", exc)
-    except ValueError as exc:
-        logger.debug("Failed to record run start (invalid data): %s", exc)
-
-
-def _record_run_completion(
-    run_store: RunStore | None,
-    run_id: uuid.UUID,
-    started_at: datetime,
-    results: dict[str, dict[str, list[str]]],
-) -> None:
-    """Record successful completion of a pipeline run.
-
-    Args:
-        run_store: Run store for tracking (None to skip tracking)
-        run_id: Unique identifier for this run
-        started_at: Timestamp when run started
-        results: Results dict mapping window labels to posts/profiles
-
-    """
-    if run_store is None:
-        return
-
-    try:
-        finished_at = datetime.now(UTC)
-        duration_seconds = (finished_at - started_at).total_seconds()
-
-        total_posts = sum(len(r.get("posts", [])) for r in results.values())
-        total_profiles = sum(len(r.get("profiles", [])) for r in results.values())
-        num_windows = len(results)
-
-        run_store.mark_run_completed(
-            run_id=run_id,
-            finished_at=finished_at,
-            duration_seconds=duration_seconds,
-            rows_out=total_posts + total_profiles,
-        )
-        logger.debug(
-            "Recorded pipeline run: %s (posts=%d, profiles=%d, windows=%d)",
-            run_id,
-            total_posts,
-            total_profiles,
-            num_windows,
-        )
-    except (OSError, PermissionError) as exc:
-        logger.debug("Failed to record run completion (database unavailable): %s", exc)
-    except ValueError as exc:
-        logger.debug("Failed to record run completion (invalid data): %s", exc)
-
-
-def _record_run_failure(
-    run_store: RunStore | None, run_id: uuid.UUID, started_at: datetime, exc: Exception
-) -> None:
-    """Record failure of a pipeline run.
-
-    Args:
-        run_store: Run store for tracking (None to skip tracking)
-        run_id: Unique identifier for this run
-        started_at: Timestamp when run started
-        exc: Exception that caused the failure
-
-    """
-    if run_store is None:
-        return
-
-    try:
-        finished_at = datetime.now(UTC)
-        duration_seconds = (finished_at - started_at).total_seconds()
-        error_msg = f"{type(exc).__name__}: {exc!s}"
-
-        run_store.mark_run_failed(
-            run_id=run_id,
-            finished_at=finished_at,
-            duration_seconds=duration_seconds,
-            error=error_msg[:500],
-        )
-    except (OSError, PermissionError) as tracking_exc:
-        logger.debug("Failed to record run failure (database unavailable): %s", tracking_exc)
-    except ValueError as tracking_exc:
-        logger.debug("Failed to record run failure (invalid data): %s", tracking_exc)
-
-
 def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
     """Run the complete write pipeline workflow.
 
@@ -1279,23 +1174,8 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
         adapter = adapter_cls()
 
     # Generate run ID and timestamp for tracking
-    run_id = run_params.run_id
-    started_at = run_params.start_time
 
-    with _pipeline_environment(run_params) as (ctx, runs_backend):
-        # Create RunStore from backend for abstracted run tracking
-        runs_conn = getattr(runs_backend, "con", None)
-        run_store = None
-        if runs_conn is not None:
-            # Properly wrap the connection to ensure ibis_conn is synchronized
-            temp_storage = DuckDBStorageManager.from_connection(runs_conn)
-            run_store = RunStore(temp_storage)
-        else:
-            logger.warning("Unable to access DuckDB connection for run tracking - runs will not be recorded")
-
-        # Record run start
-        _record_run_start(run_store, run_id, started_at)
-
+    with _pipeline_environment(run_params) as (ctx, _runs_backend):
         try:
             dataset = _prepare_pipeline_data(adapter, run_params, ctx)
 
@@ -1326,26 +1206,13 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
                 except (OSError, AttributeError, TypeError) as e:
                     logger.warning("Failed to regenerate tags page: %s", e)
 
-            # Update run to completed
-            _record_run_completion(run_store, run_id, started_at, results)
-
             logger.info("[bold green]🎉 Pipeline completed successfully![/]")
 
         except KeyboardInterrupt:
             logger.warning("[yellow]⚠️  Pipeline cancelled by user (Ctrl+C)[/]")
-            # Mark run as cancelled (using failed status with specific error message)
-            if run_store:
-                with contextlib.suppress(Exception):
-                    run_store.mark_run_failed(
-                        run_id=run_id,
-                        finished_at=datetime.now(UTC),
-                        duration_seconds=(datetime.now(UTC) - started_at).total_seconds(),
-                        error="Cancelled by user (KeyboardInterrupt)",
-                    )
             raise  # Re-raise to allow proper cleanup
-        except Exception as exc:
+        except Exception:
             # Broad catch is intentional: record failure for any exception, then re-raise
-            _record_run_failure(run_store, run_id, started_at, exc)
             raise  # Re-raise original exception to preserve error context
 
         return results

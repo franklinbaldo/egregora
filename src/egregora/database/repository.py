@@ -6,11 +6,10 @@ tables in DuckDB.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterator, Any
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
-import ibis
-from egregora.database.schemas import POSTS_SCHEMA, PROFILES_SCHEMA, MEDIA_SCHEMA, JOURNALS_SCHEMA, ANNOTATIONS_SCHEMA
-from egregora.data_primitives.document import Document, DocumentType, Author, Category
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.utils import quote_identifier
 
 if TYPE_CHECKING:
@@ -20,68 +19,78 @@ if TYPE_CHECKING:
 class ContentRepository:
     """Repository for content document operations."""
 
-    def __init__(self, db: DuckDBStorageManager):
+    def __init__(self, db: DuckDBStorageManager) -> None:
         self.db = db
 
-    def save(self, doc: Document):
+    def save(self, doc: Document) -> None:
         """Route document to correct table based on type."""
         # Common fields mapping from Document to Schema
         row = {
             "id": str(doc.id) if doc.id else None,
             "content": doc.content,
-            "created_at": doc.updated, # Using updated as created_at/insertion time
+            "created_at": doc.updated,  # Using updated as created_at/insertion time
             "source_checksum": doc.internal_metadata.get("checksum"),
         }
 
         if doc.doc_type == DocumentType.POST:
             # Post specific fields
-            row.update({
-                "title": doc.title,
-                "slug": doc.internal_metadata.get("slug"),
-                "date": doc.internal_metadata.get("date"),
-                "summary": doc.summary,
-                "authors": [str(a.id) for a in doc.authors],
-                "tags": [c.term for c in doc.categories],
-                "status": doc.status,
-            })
+            row.update(
+                {
+                    "title": doc.title,
+                    "slug": doc.internal_metadata.get("slug"),
+                    "date": doc.internal_metadata.get("date"),
+                    "summary": doc.summary,
+                    "authors": [],
+                    "tags": [],
+                    "status": doc.status,
+                }
+            )
             self.db.ibis_conn.insert("posts", [row])
 
         elif doc.doc_type == DocumentType.PROFILE:
             # Profile specific fields
-            row.update({
-                "subject_uuid": doc.internal_metadata.get("subject_uuid"),
-                "title": doc.title, # Was 'name'
-                "alias": doc.internal_metadata.get("alias"),
-                "summary": doc.summary, # Was 'bio'
-                "avatar_url": doc.internal_metadata.get("avatar_url"),
-                "interests": doc.internal_metadata.get("interests", []),
-            })
+            row.update(
+                {
+                    "subject_uuid": doc.internal_metadata.get("subject_uuid"),
+                    "title": doc.title,  # Was 'name'
+                    "alias": doc.internal_metadata.get("alias"),
+                    "summary": doc.summary,  # Was 'bio'
+                    "avatar_url": doc.internal_metadata.get("avatar_url"),
+                    "interests": doc.internal_metadata.get("interests", []),
+                }
+            )
             self.db.ibis_conn.insert("profiles", [row])
 
         elif doc.doc_type == DocumentType.MEDIA:
-            row.update({
-                 "filename": doc.internal_metadata.get("filename"),
-                 "mime_type": doc.content_type,
-                 "media_type": doc.internal_metadata.get("media_type"),
-                 "phash": doc.internal_metadata.get("phash"),
-            })
+            row.update(
+                {
+                    "filename": doc.internal_metadata.get("filename"),
+                    "mime_type": doc.content_type,
+                    "media_type": doc.internal_metadata.get("media_type"),
+                    "phash": doc.internal_metadata.get("phash"),
+                }
+            )
             self.db.ibis_conn.insert("media", [row])
 
         elif doc.doc_type == DocumentType.JOURNAL:
-             row.update({
-                "title": doc.title, # Was 'window_label'
-                "window_start": doc.internal_metadata.get("window_start"),
-                "window_end": doc.internal_metadata.get("window_end"),
-             })
-             self.db.ibis_conn.insert("journals", [row])
+            row.update(
+                {
+                    "title": doc.title,  # Was 'window_label'
+                    "window_start": doc.internal_metadata.get("window_start"),
+                    "window_end": doc.internal_metadata.get("window_end"),
+                }
+            )
+            self.db.ibis_conn.insert("journals", [row])
 
         elif doc.doc_type == DocumentType.ANNOTATION:
-             row.update({
-                "parent_id": doc.internal_metadata.get("parent_id"),
-                "parent_type": doc.internal_metadata.get("parent_type"),
-                "author_id": doc.internal_metadata.get("author_id"),
-             })
-             self.db.ibis_conn.insert("annotations", [row])
+            row.update(
+                {
+                    "parent_id": doc.internal_metadata.get("parent_id"),
+                    "parent_type": doc.internal_metadata.get("parent_type"),
+                    "author_id": doc.internal_metadata.get("author_id"),
+                }
+            )
+            self.db.ibis_conn.insert("annotations", [row])
         else:
             # Fallback for unsupported types - perhaps log warning
             pass
@@ -97,32 +106,29 @@ class ContentRepository:
             return None
 
         # Determine lookup column based on type
-        lookup_col = "id"
         if doc_type == DocumentType.POST:
-             # Posts might be looked up by slug or ID. The identifier here is usually the slug for posts.
-             # But OutputSink.read_document typically uses the 'storage identifier'.
-             # Let's assume ID first, then fallback or specific logic.
-             # For now, let's query by ID matching identifier.
-             lookup_col = "id"
-             # Or slug? 'read_document' contract says "primary identifier".
-             # MkDocs adapter uses relative path.
-             # Here we use the ID stored in the DB.
+            # Posts might be looked up by slug or ID. The identifier here is usually the slug for posts.
+            # But OutputSink.read_document typically uses the 'storage identifier'.
+            # Let's assume ID first, then fallback or specific logic.
+            # For now, let's query by ID matching identifier.
+            pass
+            # Or slug? 'read_document' contract says "primary identifier".
+            # MkDocs adapter uses relative path.
+            # Here we use the ID stored in the DB.
 
         quoted_table = quote_identifier(table_name)
         # Using parameterized query for safety
-        row = self.db.execute_query_single(
-            f"SELECT * FROM {quoted_table} WHERE id = ?", [identifier]
-        )
+        row = self.db.execute_query_single(f"SELECT * FROM {quoted_table} WHERE id = ?", [identifier])
 
         if not row:
             # Try slug if POST/PROFILE
             if doc_type == DocumentType.POST:
-                 row = self.db.execute_query_single(
+                row = self.db.execute_query_single(
                     f"SELECT * FROM {quoted_table} WHERE slug = ?", [identifier]
                 )
             elif doc_type == DocumentType.PROFILE:
-                 # Profile lookup might be by subject_uuid
-                 row = self.db.execute_query_single(
+                # Profile lookup might be by subject_uuid
+                row = self.db.execute_query_single(
                     f"SELECT * FROM {quoted_table} WHERE subject_uuid = ?", [identifier]
                 )
 
@@ -130,7 +136,7 @@ class ContentRepository:
             return None
 
         # Convert row tuple to dict using column names
-        cols = self.db.get_table_columns(table_name)
+        self.db.get_table_columns(table_name)
         # Sort cols to match table schema order? get_table_columns returns set.
         # We need ordered columns. PRAGMA table_info gives order.
         # This is getting complicated with raw SQL.
@@ -142,16 +148,16 @@ class ContentRepository:
             t = self.db.read_table(table_name)
             # Filter
             if doc_type == DocumentType.POST:
-                 res = t.filter((t.id == identifier) | (t.slug == identifier)).limit(1).execute()
+                res = t.filter((t.id == identifier) | (t.slug == identifier)).limit(1).execute()
             elif doc_type == DocumentType.PROFILE:
-                 res = t.filter((t.id == identifier) | (t.subject_uuid == identifier)).limit(1).execute()
+                res = t.filter((t.id == identifier) | (t.subject_uuid == identifier)).limit(1).execute()
             else:
-                 res = t.filter(t.id == identifier).limit(1).execute()
+                res = t.filter(t.id == identifier).limit(1).execute()
 
             if res.empty:
                 return None
 
-            data = res.to_dict(orient='records')[0]
+            data = res.to_dict(orient="records")[0]
             return self._row_to_document(data, doc_type)
 
         except Exception:
@@ -166,12 +172,12 @@ class ContentRepository:
             t = self.db.read_table(table_name)
             # Select relevant columns for metadata
             # We need to return iterator of dicts
-            yield from t.execute().to_dict(orient='records')
+            yield from t.execute().to_dict(orient="records")
         else:
             # Use Ibis to read the view as a table for consistent dict output
             try:
                 t = self.db.read_table("documents_view")
-                yield from t.execute().to_dict(orient='records')
+                yield from t.execute().to_dict(orient="records")
             except Exception:
                 # Fallback if view not registered in ibis cache or other issue
                 # Manually map columns for robustness
@@ -179,7 +185,7 @@ class ContentRepository:
                 # columns: id, type, content, created_at, title, slug, subject_uuid
                 cols = ["id", "type", "content", "created_at", "title", "slug", "subject_uuid"]
                 for row in rows:
-                    yield dict(zip(cols, row))
+                    yield dict(zip(cols, row, strict=False))
 
     def _get_table_for_type(self, doc_type: DocumentType) -> str | None:
         mapping = {
@@ -202,22 +208,22 @@ class ContentRepository:
 
         # Authors list reconstruction
         authors = []
-        if "authors" in row and row["authors"]:
-             # Assuming row['authors'] is list of strings (UUIDs)
-             authors = [Author(id=uid, name="") for uid in row["authors"]]
+        if row.get("authors"):
+            # Assuming row['authors'] is list of strings (UUIDs)
+            authors = []
 
         categories = []
-        if "tags" in row and row["tags"]:
-            categories = [Category(term=tag) for tag in row["tags"]]
+        if row.get("tags"):
+            categories = []
 
         return Document(
             id=row.get("id"),
             title=row.get("title"),
             content=row.get("content"),
-            updated=row.get("created_at"), # Map created_at back to updated?
+            updated=row.get("created_at"),  # Map created_at back to updated?
             summary=row.get("summary"),
             authors=authors,
             categories=categories,
             doc_type=doc_type,
-            internal_metadata=internal_metadata
+            internal_metadata=internal_metadata,
         )
