@@ -36,6 +36,7 @@ from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.exceptions import (
+    AdapterNotInitializedError,
     ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
@@ -1136,7 +1137,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         )
         return document.document_id
 
-    def _resolve_collision(self, path: Path, document_id: str) -> Path:
+    def _resolve_collision(self, path: Path, document_id: str, max_attempts: int = 1000) -> Path:
         stem = path.stem
         suffix = path.suffix
         parent = path.parent
@@ -1150,10 +1151,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             if existing_doc_id == document_id:
                 return new_path
             counter += 1
-            max_attempts = 1000
             if counter > max_attempts:
-                msg = f"Failed to resolve collision for {path} after {max_attempts} attempts"
-                raise RuntimeError(msg)
+                from egregora.output_adapters.exceptions import CollisionResolutionError
+
+                raise CollisionResolutionError(str(path), max_attempts)
 
     # ============================================================================
     # Phase 2: Dynamic Data Population for UX Templates
