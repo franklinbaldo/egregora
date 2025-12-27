@@ -79,8 +79,15 @@ class TestConfigValidation:
         assert config.embedding == "qwen/qwen3-embedding-0.6b"
 
     def test_config_rejects_invalid_embedding_model_format(self):
-        """Config should reject invalid embedding model formats."""
+        """Config accepts any string, but factory rejects invalid embedding models at runtime."""
         from egregora.config.settings import ModelSettings
+        from egregora.rag.strategies import EmbeddingProviderFactory
+        from egregora.rag.strategies.exceptions import UnsupportedModelError
 
-        with pytest.raises(ValueError, match="Invalid embedding model format"):
-            ModelSettings(embedding="invalid-model-name")
+        # Config validation no longer checks embedding format (strategy pattern handles it)
+        config = ModelSettings(embedding="invalid-model-name")
+        assert config.embedding == "invalid-model-name"
+
+        # Factory validates at runtime
+        with pytest.raises(UnsupportedModelError, match="Unsupported embedding model"):
+            EmbeddingProviderFactory.create("invalid-model-name")

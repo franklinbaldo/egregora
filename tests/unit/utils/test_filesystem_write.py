@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from egregora.utils.exceptions import MissingPostMetadataError, UniqueFilenameError
+from egregora.utils.exceptions import MissingMetadataError, UniqueFilenameError
 from egregora.utils.filesystem import write_markdown_post
 
 
@@ -79,11 +79,11 @@ def test_write_markdown_post_handles_filename_collision(temp_output_dir: Path):
 
 
 def test_write_markdown_post_raises_error_on_missing_metadata(temp_output_dir: Path):
-    """Test that write_markdown_post raises MissingPostMetadataError if required metadata is missing."""
+    """Test that write_markdown_post raises MissingMetadataError if required metadata is missing."""
     content = "This content will not be written."
     metadata = {"title": "Test Post"}  # Missing slug and date
 
-    with pytest.raises(MissingPostMetadataError) as excinfo:
+    with pytest.raises(MissingMetadataError) as excinfo:
         write_markdown_post(content, metadata, temp_output_dir)
 
     assert "slug" in str(excinfo.value)
