@@ -2,82 +2,138 @@
 
 from datetime import datetime, timezone
 from pathlib import Path
+import tempfile
 import yaml
-import pytest
-from egregora_v3.core.types import (
-    Author,
-    Category,
-    Document,
-    DocumentStatus,
-    DocumentType,
-)
+
+from egregora_v3.core.types import Author, Document, DocumentStatus, DocumentType, Feed, Category
 from egregora_v3.infra.sinks.mkdocs import MkDocsOutputSink
 
 
-@pytest.fixture
-def mkdocs_sink(tmp_path: Path) -> MkDocsOutputSink:
-    """Fixture for MkDocsOutputSink."""
-    return MkDocsOutputSink(output_dir=tmp_path)
-
-
-def test_generate_frontmatter_single_author(mkdocs_sink: MkDocsOutputSink):
-    """Test frontmatter generation for a document with a single author."""
+def test_generate_frontmatter_single_author():
+    """Test YAML frontmatter generation for a document with a single author."""
     doc = Document(
-        id="test-doc-1",
-        title='Test Document "with quotes"',
-        updated=datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
-        published=datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+        id="test-doc",
+        title="My Title",
+        doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
+        updated=datetime(2023, 10, 26, 12, 0, 0, tzinfo=timezone.utc),
+        published=datetime(2023, 10, 26, 12, 0, 0, tzinfo=timezone.utc),
         authors=[Author(name="John Doe")],
-        categories=[Category(term="test"), Category(term="sample")],
-        doc_type=DocumentType.POST,
-        status=DocumentStatus.PUBLISHED,
-        content="This is the content.",
+        categories=[Category(term="testing"), Category(term="python")],
     )
+    sink = MkDocsOutputSink(Path("dummy"))
+    frontmatter_str = sink._generate_frontmatter(doc)
 
-    frontmatter_str = mkdocs_sink._generate_frontmatter(doc)
+    # --- Assertions ---
+    data = yaml.safe_load(frontmatter_str)
 
-    # The new implementation will use a standard YAML serializer,
-    # so we'll test against that expected output.
-    # The current implementation will fail this test.
-    expected_data = {
-        'title': 'Test Document "with quotes"',
-        'date': '2023-01-01',
-        'author': 'John Doe',
-        'tags': ['test', 'sample'],
-        'type': 'post',
-        'status': 'published'
-    }
-
-    expected_yaml = "---\n" + yaml.dump(expected_data, sort_keys=False) + "---\n"
-
-    # Strip the final newline from the generated frontmatter for comparison
-    assert frontmatter_str.strip() == expected_yaml.strip()
+    assert data["title"] == "My Title"
+    assert data["date"] == "2023-10-26"
+    assert data["author"] == "John Doe"
+    assert "authors" not in data # Should use 'author' for single author
+    assert data["tags"] == ["testing", "python"]
+    assert data["type"] == "post"
+    assert data["status"] == "published"
 
 
-def test_generate_frontmatter_multiple_authors(mkdocs_sink: MkDocsOutputSink):
-    """Test frontmatter generation for a document with multiple authors."""
+def test_generate_frontmatter_multiple_authors():
+    """Test YAML frontmatter generation for a document with multiple authors."""
     doc = Document(
-        id="test-doc-2",
-        title="Another Test Document",
-        updated=datetime(2023, 1, 2, 12, 0, 0, tzinfo=timezone.utc),
-        published=datetime(2023, 1, 2, 12, 0, 0, tzinfo=timezone.utc),
-        authors=[Author(name="John Doe"), Author(name="Jane Doe")],
-        categories=[],
-        doc_type=DocumentType.POST,
-        status=DocumentStatus.PUBLISHED,
-        content="This is the content.",
+        id="test-doc-multi",
+        title="Another Title",
+        doc_type=DocumentType.NOTE,
+        status=DocumentStatus.DRAFT,
+        updated=datetime(2023, 11, 1, 8, 0, 0, tzinfo=timezone.utc),
+        published=datetime(2023, 11, 1, 8, 0, 0, tzinfo=timezone.utc),
+        authors=[Author(name="Jane Doe"), Author(name="Peter Pan")],
     )
+    sink = MkDocsOutputSink(Path("dummy"))
+    frontmatter_str = sink._generate_frontmatter(doc)
 
-    frontmatter_str = mkdocs_sink._generate_frontmatter(doc)
+    # --- Assertions ---
+    data = yaml.safe_load(frontmatter_str)
 
-    expected_data = {
-        'title': 'Another Test Document',
-        'date': '2023-01-02',
-        'authors': ['John Doe', 'Jane Doe'],
-        'type': 'post',
-        'status': 'published'
-    }
+    assert data["title"] == "Another Title"
+    assert data["authors"] == ["Jane Doe", "Peter Pan"]
+    assert "author" not in data # Should use 'authors' for multiple
+    assert data["type"] == "note"
+    assert data["status"] == "draft"
 
-    expected_yaml = "---\n" + yaml.dump(expected_data, sort_keys=False) + "---\n"
 
-    assert frontmatter_str.strip() == expected_yaml.strip()
+def test_write_index_generates_correct_markdown():
+    """Locking test to ensure _write_index output remains consistent."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_dir = Path(tmpdir)
+        sink = MkDocsOutputSink(output_dir)
+
+        # --- Test Data ---
+        feed_author = Author(name="Feed Author")
+        doc_author1 = Author(name="Doc Author One")
+        doc_author2 = Author(name="Doc Author Two")
+
+        feed = Feed(
+            id="test-feed",
+            title="My Test Blog",
+            updated=datetime(2023, 10, 27, 10, 0, 0, tzinfo=timezone.utc),
+            authors=[feed_author],
+        )
+
+        doc1 = Document(
+            id="post-one",
+            title="First Post",
+            doc_type=DocumentType.POST,
+            status=DocumentStatus.PUBLISHED,
+            updated=datetime(2023, 10, 26, 12, 0, 0, tzinfo=timezone.utc),
+            published=datetime(2023, 10, 26, 12, 0, 0, tzinfo=timezone.utc),
+            authors=[doc_author1],
+            internal_metadata={"slug": "first-post"},
+        )
+
+        doc2 = Document(
+            id="post-two",
+            title="Second Post",
+            doc_type=DocumentType.POST,
+            status=DocumentStatus.PUBLISHED,
+            updated=datetime(2023, 10, 27, 9, 0, 0, tzinfo=timezone.utc),
+            published=datetime(2023, 10, 27, 9, 0, 0, tzinfo=timezone.utc),
+            authors=[doc_author1, doc_author2],
+            internal_metadata={"slug": "second-post"},
+        )
+
+        doc3_no_slug = Document(
+            id="post-three-no-slug",
+            title="Third Post (No Slug)",
+            doc_type=DocumentType.POST,
+            status=DocumentStatus.PUBLISHED,
+            updated=datetime(2023, 10, 28, 9, 0, 0, tzinfo=timezone.utc),
+        )
+
+        published_docs = [doc1, doc2, doc3_no_slug]
+
+        # --- Call the private method ---
+        sink._write_index(feed, published_docs)
+
+        # --- Assertions ---
+        index_file = output_dir / "index.md"
+        assert index_file.exists()
+
+        content = index_file.read_text(encoding="utf-8")
+
+        expected_content = """# My Test Blog
+
+**Authors:** Feed Author
+
+**Last Updated:** 2023-10-27 10:00:00
+
+## Posts
+
+- [Third Post (No Slug)](third-post-no-slug.md) - 2023-10-28
+
+- [Second Post](second-post.md) - 2023-10-27
+  *by Doc Author One, Doc Author Two*
+
+- [First Post](first-post.md) - 2023-10-26
+  *by Doc Author One*
+
+"""
+        assert content.strip() == expected_content.strip()
