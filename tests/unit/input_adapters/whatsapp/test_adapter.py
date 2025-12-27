@@ -46,8 +46,8 @@ def test_deliver_media_raises_invalid_zip_error_on_bad_zip(adapter: WhatsAppAdap
 
 
 def test_deliver_media_raises_media_extraction_error_on_missing_zip_path(adapter: WhatsAppAdapter) -> None:
-    """Test `deliver_media` raises MediaExtractionError if zip_path is missing."""
-    with pytest.raises(MediaExtractionError):
+    """Test `deliver_media` raises MissingZipPathError if zip_path is missing."""
+    with pytest.raises(MissingZipPathError):
         adapter.deliver_media("some_media.jpg")
 
 
@@ -99,11 +99,11 @@ class TestWhatsAppAdapterMediaDelivery:
             adapter.deliver_media("missing_media.jpg", zip_path=zip_path)
 
     def test_deliver_media_with_bad_zip_file_raises_exception(self, adapter: WhatsAppAdapter, tmp_path):
-        """Verify that a corrupted zip file raises MediaExtractionError."""
+        """Verify that a corrupted zip file raises InvalidZipFileError."""
         zip_path = tmp_path / "bad.zip"
         zip_path.write_text("this is not a zip file")
 
-        with pytest.raises(MediaExtractionError):
+        with pytest.raises(InvalidZipFileError):
             adapter.deliver_media("some_media.jpg", zip_path=zip_path)
 
     @patch("zipfile.ZipFile")

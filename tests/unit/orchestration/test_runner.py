@@ -225,7 +225,7 @@ def test_process_single_window_orchestration(
 
 
 def test_validate_window_size_raises_exception_on_oversized_window():
-    """Verify _validate_window_size raises WindowSizeError for oversized windows."""
+    """Verify _validate_window_size raises WindowValidationError for oversized windows."""
     # Arrange
     mock_context = Mock()
     runner = PipelineRunner(context=mock_context)
@@ -235,13 +235,13 @@ def test_validate_window_size_raises_exception_on_oversized_window():
     max_size = 50
 
     # Act & Assert
-    expected_msg = "Window 1 has 100 messages but max is 50. Reduce --step-size to create smaller windows."
-    with pytest.raises(WindowSizeError, match=expected_msg):
+    expected_msg = "Window has 100 messages but max is 50. Reduce --step-size to create smaller windows."
+    with pytest.raises(WindowValidationError, match=expected_msg):
         runner._validate_window_size(mock_window, max_size)
 
 
 def test_process_window_with_auto_split_raises_on_max_depth(monkeypatch):
-    """Verify _process_window_with_auto_split raises WindowSplitError at max depth."""
+    """Verify _process_window_with_auto_split raises MaxSplitDepthError at max depth."""
     # Arrange
     mock_context = Mock()
     runner = PipelineRunner(context=mock_context)
@@ -267,7 +267,7 @@ def test_process_window_with_auto_split_raises_on_max_depth(monkeypatch):
 
     # Act & Assert
     max_depth = 3
-    with pytest.raises(WindowSplitError, match=f"Max split depth {max_depth} reached"):
+    with pytest.raises(MaxSplitDepthError, match=f"Max split depth of {max_depth} reached"):
         runner._process_window_with_auto_split(mock_window, depth=0, max_depth=max_depth)
 
 
@@ -289,7 +289,7 @@ def test_process_single_window_raises_on_missing_output_sink():
 
 
 def test_enrich_window_data_raises_on_media_persistence_failure(monkeypatch):
-    """Verify _enrich_window_data raises EnrichmentError on media persistence failure."""
+    """Verify _enrich_window_data raises MediaPersistenceError on media persistence failure."""
     # Arrange
     mock_context = Mock()
     mock_context.enable_enrichment = False  # To isolate the media persistence logic
@@ -311,7 +311,7 @@ def test_enrich_window_data_raises_on_media_persistence_failure(monkeypatch):
     )
 
     # Act & Assert
-    with pytest.raises(EnrichmentError, match="Failed to write media file"):
+    with pytest.raises(MediaPersistenceError, match="Failed to persist media"):
         runner._enrich_window_data(MagicMock(), mock_output_sink)
 
 
@@ -332,7 +332,7 @@ def test_handle_commands_raises_on_announcement_failure(monkeypatch):
     )
 
     # Act & Assert
-    with pytest.raises(CommandProcessingError, match="Failed to generate announcement"):
+    with pytest.raises(CommandProcessingError, match="Failed to process command"):
         runner._handle_commands([mock_command_message], mock_output_sink)
 
 
@@ -360,7 +360,7 @@ def test_generate_posts_and_profiles_raises_on_persist_profile_failure(monkeypat
     )
 
     # Act & Assert
-    with pytest.raises(ProfileGenerationError, match="Failed to persist profile"):
+    with pytest.raises(ProfileGenerationError, match="Failed to generate profile posts"):
         runner._generate_posts_and_profiles(
             enriched_table=MagicMock(),
             clean_messages_list=[],
