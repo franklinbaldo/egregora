@@ -390,7 +390,22 @@ jobs:
                 owner,
                 repo,
                 issue_number: prNumber,
-                body: '⚠️ **Auto-merge failed**\n\nAll tests passed, but automatic merge failed. Please merge manually.\n\nError: ' + error.message
+                body: `⚠️ **Auto-merge failed**
+
+**CI Status:** All checks passed ✅
+- Pre-commit hooks: ✅ Passed
+- Unit tests: ✅ Passed
+- E2E tests: ✅ Passed
+
+**Merge Status:** ❌ Failed
+
+**Error Details:**
+\`\`\`
+${error.message}
+\`\`\`
+
+**Next Steps:**
+Please merge this PR manually or investigate the merge failure. The code changes have been validated and all tests are passing.`
               });
 
               core.setFailed(`Failed to merge PR: ${error.message}`);
@@ -533,7 +548,23 @@ jobs:
                 owner,
                 repo,
                 issue_number: prNumber,
-                body: `⚠️ **Auto-merge failed**\n\nAll tests passed, but automatic merge failed. Please merge manually.\n\nError: ${error.message}`
+                body: `⚠️ **Auto-merge failed**
+
+**CI Status:** All checks passed ✅
+- Pre-commit hooks: ✅ Passed
+- Unit tests: ✅ Passed
+- E2E tests: ✅ Passed
+- File validation: ✅ Passed
+
+**Merge Status:** ❌ Failed
+
+**Error Details:**
+\`\`\`
+${error.message}
+\`\`\`
+
+**Next Steps:**
+Please merge this PR manually or investigate the merge failure. This dependency update has been validated and all tests are passing.`
               });
 
               core.setFailed(`Failed to merge PR: ${error.message}`);
