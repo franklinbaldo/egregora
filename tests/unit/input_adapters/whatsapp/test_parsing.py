@@ -11,7 +11,6 @@ from egregora.input_adapters.whatsapp.exceptions import (
     DateParsingError,
     MalformedLineError,
     NoMessagesFoundError,
-    TimeParsingError,
 )
 from egregora.input_adapters.whatsapp.parsing import (
     WhatsAppExport,
