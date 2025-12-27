@@ -78,3 +78,17 @@ class DateExtractionError(FilesystemError):
         self.date_str = date_str
         message = f"Could not extract a valid date from '{self.date_str}'"
         super().__init__(message)
+
+
+class CacheError(Exception):
+    """Base exception for cache-related errors."""
+
+
+class CacheDeserializationError(CacheError):
+    """Raised when a cache entry cannot be deserialized."""
+
+    def __init__(self, key: str, original_exception: Exception) -> None:
+        self.key = key
+        self.original_exception = original_exception
+        message = f"Failed to deserialize cache entry for key '{key}'. Original error: {original_exception}"
+        super().__init__(message)
