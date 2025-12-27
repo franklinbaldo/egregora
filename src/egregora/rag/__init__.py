@@ -20,7 +20,7 @@ from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from egregora.rag.backend import VectorStore
-from egregora.rag.embedding_router import TaskType, get_embedding_router
+from egregora.rag.embedding_router import TaskType
 from egregora.rag.lancedb_backend import LanceDBRAGBackend
 from egregora.rag.models import RAGQueryRequest, RAGQueryResponse
 
@@ -105,7 +105,10 @@ def embed_fn(
     task_type: TaskType = "RETRIEVAL_DOCUMENT",
     model: str | None = None,
 ) -> list[list[float]]:
-    """Generate embeddings for a list of texts using the configured router.
+    """Generate embeddings for a list of texts using strategy pattern.
+
+    Uses EmbeddingProviderFactory to route to appropriate provider
+    (OpenRouter, Gemini, etc.) based on model format.
 
     Args:
         texts: Tuple of strings to embed (tuple for lru_cache)
@@ -117,6 +120,7 @@ def embed_fn(
 
     """
     from egregora.config import load_egregora_config
+    from egregora.rag.strategies import EmbeddingProviderFactory
 
     if model is None:
         try:
@@ -126,5 +130,6 @@ def embed_fn(
             # Fallback if config fails
             model = "models/gemini-embedding-001"
 
-    router = get_embedding_router(model=model)
-    return router.embed(list(texts), task_type=task_type)
+    # Use strategy pattern for provider routing
+    strategy = EmbeddingProviderFactory.create(model)
+    return strategy.embed(list(texts), task_type=task_type)

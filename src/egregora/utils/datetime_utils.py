@@ -40,7 +40,24 @@ def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) 
     """Convert a value to a datetime object without timezone normalization."""
     if value is None:
         return None
+    if isinstance(value, str):
+        return _parse_str_to_datetime(value, parser_kwargs=parser_kwargs)
+    return _parse_obj_to_datetime(value)
 
+
+def _parse_str_to_datetime(raw: str, *, parser_kwargs: Mapping[str, Any] | None = None) -> datetime | None:
+    """Parse a string into a datetime object."""
+    stripped = raw.strip()
+    if not stripped:
+        return None
+    try:
+        return dateutil_parser.parse(stripped, **(parser_kwargs or {}))
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _parse_obj_to_datetime(value: Any) -> datetime | None:
+    """Parse a non-string object into a datetime object."""
     if hasattr(value, "to_pydatetime"):
         value = value.to_pydatetime()
 
@@ -48,15 +65,7 @@ def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) 
         return value
     if isinstance(value, date):
         return datetime.combine(value, datetime.min.time())
-
-    raw = str(value).strip()
-    if not raw:
-        return None
-
-    try:
-        return dateutil_parser.parse(raw, **(parser_kwargs or {}))
-    except (TypeError, ValueError, OverflowError):
-        return None
+    return None
 
 
 def normalize_timezone(dt: datetime, *, default_timezone: tzinfo = UTC) -> datetime:

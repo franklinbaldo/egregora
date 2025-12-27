@@ -5,6 +5,8 @@ from datetime import UTC, date, datetime, timedelta, timezone
 import pytest
 
 from egregora.utils.datetime_utils import (
+    _parse_obj_to_datetime,
+    _parse_str_to_datetime,
     _to_datetime,
     normalize_timezone,
     parse_datetime_flexible,
@@ -73,35 +75,52 @@ class MockPandasTimestamp:
     [
         (datetime(2023, 1, 1, 10, 0, 0), datetime(2023, 1, 1, 10, 0, 0)),
         (date(2023, 1, 1), datetime(2023, 1, 1, 0, 0, 0)),
-        ("2023-01-01T10:00:00", datetime(2023, 1, 1, 10, 0, 0)),
         (
             MockPandasTimestamp(datetime(2023, 1, 1, 10, 0, 0)),
             datetime(2023, 1, 1, 10, 0, 0),
         ),
+        (123, None),
+        ("a string", None),
     ],
 )
-def test_to_datetime_valid_inputs(input_val, expected):
+def test_parse_obj_to_datetime_valid_inputs(input_val, expected):
     """Should convert various valid input types to a datetime object."""
-    assert _to_datetime(input_val) == expected
+    assert _parse_obj_to_datetime(input_val) == expected
 
 
 @pytest.mark.parametrize(
-    "input_val",
-    [None, "", "   ", "not-a-date", 12345],
+    ("input_val", "expected"),
+    [
+        ("2023-01-01T10:00:00", datetime(2023, 1, 1, 10, 0, 0)),
+        ("  2023-01-01 10:00  ", datetime(2023, 1, 1, 10, 0, 0)),
+        ("", None),
+        ("   ", None),
+        ("not-a-date", None),
+    ],
 )
-def test_to_datetime_invalid_inputs(input_val):
-    """Should return None for invalid or empty inputs."""
-    assert _to_datetime(input_val) is None
+def test_parse_str_to_datetime_valid_inputs(input_val, expected):
+    """Should convert various valid input types to a datetime object."""
+    assert _parse_str_to_datetime(input_val) == expected
 
 
-def test_to_datetime_forwards_parser_kwargs():
+def test_parse_str_to_datetime_forwards_parser_kwargs():
     """Should forward kwargs to the dateutil parser."""
     raw = "01-02-2023"
     # dayfirst=True should parse as Feb 1st, not Jan 2nd.
-    result = _to_datetime(raw, parser_kwargs={"dayfirst": True})
+    result = _parse_str_to_datetime(raw, parser_kwargs={"dayfirst": True})
     assert result is not None
     assert result.month == 2
     assert result.day == 1
+
+
+def test_to_datetime_routes_correctly():
+    """Should route to the correct parser based on type."""
+    # Test string routing
+    assert _to_datetime("2023-01-01") == datetime(2023, 1, 1)
+    # Test object routing
+    assert _to_datetime(date(2023, 1, 1)) == datetime(2023, 1, 1)
+    # Test None routing
+    assert _to_datetime(None) is None
 
 
 # endregion
