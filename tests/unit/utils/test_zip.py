@@ -15,6 +15,9 @@ from egregora.utils.zip import (
     ZipValidationError,
     ZipValidationSettings,
     validate_zip_contents,
+    get_zip_info,
+    ensure_safe_member_size,
+    configure_default_limits,
 )
 
 # A small 1x1 transparent PNG for testing
@@ -110,3 +113,82 @@ def test_validate_zip_path_traversal(path):
     with pytest.raises(ZipPathTraversalError) as excinfo:
         validate_zip_contents(zf)
     assert excinfo.value.member_name == path
+
+
+def test_get_zip_info():
+    """Test that zip member metadata is retrieved correctly."""
+    # Mock zip file with one compressed member and one not
+    mock_info1 = zipfile.ZipInfo("file1.txt")
+    mock_info1.file_size = 100
+    mock_info1.compress_size = 50
+
+    mock_info2 = zipfile.ZipInfo("file2.txt")
+    mock_info2.file_size = 200
+    mock_info2.compress_size = 0  # Should result in a 1.0 ratio
+
+    mock_zip = MagicMock(spec=zipfile.ZipFile)
+    mock_zip.infolist.return_value = [mock_info1, mock_info2]
+
+    info = get_zip_info(mock_zip)
+    assert "file1.txt" in info
+    assert info["file1.txt"]["file_size"] == 100
+    assert info["file1.txt"]["compress_size"] == 50
+    assert info["file1.txt"]["compression_ratio"] == 2.0
+
+    assert "file2.txt" in info
+    assert info["file2.txt"]["file_size"] == 200
+    assert info["file2.txt"]["compress_size"] == 0
+    assert info["file2.txt"]["compression_ratio"] == 1.0
+
+
+def test_ensure_safe_member_size_valid():
+    """Test that a member with a valid size passes the check."""
+    limits = ZipValidationSettings(max_member_size=100)
+    mock_info = zipfile.ZipInfo("safe_file.txt")
+    mock_info.file_size = 50
+
+    mock_zip = MagicMock(spec=zipfile.ZipFile)
+    mock_zip.getinfo.return_value = mock_info
+
+    try:
+        ensure_safe_member_size(mock_zip, "safe_file.txt", limits=limits)
+    except ZipMemberSizeError:
+        pytest.fail("ensure_safe_member_size raised ZipMemberSizeError unexpectedly")
+
+
+def test_ensure_safe_member_size_exceeded():
+    """Test that a member exceeding the size limit raises an exception."""
+    limits = ZipValidationSettings(max_member_size=100)
+    mock_info = zipfile.ZipInfo("large_file.txt")
+    mock_info.file_size = 200
+
+    mock_zip = MagicMock(spec=zipfile.ZipFile)
+    mock_zip.getinfo.return_value = mock_info
+
+    with pytest.raises(ZipMemberSizeError) as excinfo:
+        ensure_safe_member_size(mock_zip, "large_file.txt", limits=limits)
+
+    assert excinfo.value.member_name == "large_file.txt"
+    assert excinfo.value.member_size == 200
+    assert excinfo.value.max_member_size == 100
+
+
+def test_configure_default_limits():
+    """Test that default validation limits can be reconfigured."""
+    # Create new default limits
+    new_defaults = ZipValidationSettings(max_member_count=1)
+    configure_default_limits(new_defaults)
+
+    # Create a zip with 2 members, which should fail with the new defaults
+    files = {"file1.txt": b"1", "file2.txt": b"2"}
+    zf = create_test_zip(files)
+
+    with pytest.raises(ZipMemberCountError) as excinfo:
+        # Call validation without explicit limits to use the new defaults
+        validate_zip_contents(zf)
+
+    assert excinfo.value.member_count == 2
+    assert excinfo.value.max_member_count == 1
+
+    # Restore original defaults to avoid affecting other tests
+    configure_default_limits(ZipValidationSettings())
