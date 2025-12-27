@@ -19,6 +19,7 @@ from egregora.utils.filesystem import (
     format_frontmatter_datetime,
     _resolve_filepath,
     write_markdown_post,
+    _write_post_file,
 )
 
 # region: Tests for _extract_clean_date
@@ -108,6 +109,43 @@ def test_write_markdown_post_success(tmp_path: Path):
     assert "---" in file_content
     assert "Hello" in file_content
 
+
+def test_write_markdown_post_with_full_metadata(tmp_path: Path):
+    """Verify that write_markdown_post handles a full set of metadata."""
+    content = "This is the post content."
+    metadata = {
+        "title": "Full Metadata Test",
+        "slug": "full-metadata-test",
+        "date": "2023-10-27 10:00",
+        "authors": ["Author One", "Author Two"],
+        "tags": ["testing", "metadata"],
+        "summary": "This is a test summary.",
+        "category": "Technology",
+    }
+    output_dir = tmp_path
+
+    with patch("egregora.utils.filesystem.ensure_author_entries") as mock_ensure_authors:
+        filepath_str = write_markdown_post(content, metadata, output_dir)
+        filepath = Path(filepath_str)
+
+        assert filepath.exists()
+        mock_ensure_authors.assert_called_once_with(output_dir, ["Author One", "Author Two"])
+
+        file_content = filepath.read_text()
+        assert "title: Full Metadata Test" in file_content
+        assert "slug: full-metadata-test" in file_content
+        assert "date: 2023-10-27 10:00" in file_content
+        assert "authors:" in file_content
+        assert "- Author One" in file_content
+        assert "- Author Two" in file_content
+        assert "tags:" in file_content
+        assert "- testing" in file_content
+        assert "- metadata" in file_content
+        assert "summary: This is a test summary." in file_content
+        assert "category: Technology" in file_content
+        assert content in file_content
+
+
 def test_write_markdown_post_raises_directory_creation_error(tmp_path: Path, monkeypatch):
     """Verify that write_markdown_post raises DirectoryCreationError on mkdir failure."""
     mock_mkdir = MagicMock(side_effect=OSError("Permission denied"))
@@ -123,5 +161,35 @@ def test_write_markdown_post_raises_file_write_error(tmp_path: Path, monkeypatch
     metadata = {"title": "t", "slug": "s", "date": "2023-01-01"}
     with pytest.raises(FileWriteError):
         write_markdown_post("c", metadata, tmp_path)
+
+# endregion
+
+# region: Coverage tests
+def test_write_post_file_raises_file_write_error():
+    """Verify that _write_post_file raises FileWriteError on OSError."""
+    mock_path = MagicMock(spec=Path)
+    mock_path.write_text.side_effect = OSError("Disk full")
+
+    with pytest.raises(FileWriteError) as excinfo:
+        _write_post_file(mock_path, "content", {"key": "value"})
+
+    assert "Disk full" in str(excinfo.value)
+    assert str(mock_path) in str(excinfo.value)
+
+
+def test_format_frontmatter_datetime_raises_on_none():
+    """Verify that format_frontmatter_datetime raises an error on None input."""
+    with pytest.raises(FrontmatterDateFormattingError) as excinfo:
+        format_frontmatter_datetime(None)
+
+    assert "Failed to parse date string for frontmatter: 'None'" in str(excinfo.value)
+
+
+def test_extract_clean_date_raises_on_none():
+    """Verify that _extract_clean_date raises an error on None input."""
+    with pytest.raises(DateExtractionError) as excinfo:
+        _extract_clean_date(None)
+    assert "Could not extract a valid date" in str(excinfo.value)
+    assert "None" in str(excinfo.value)
 
 # endregion
