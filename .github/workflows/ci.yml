@@ -286,6 +286,92 @@ jobs:
           path: dist/
           retention-days: ${{ env.COVERAGE_RETENTION_DAYS }}
 
+  auto-fix-on-failure:
+    name: Auto-fix Failed Checks with Jules
+    runs-on: ubuntu-latest
+    needs: [pre-commit, test-unit, test-e2e]
+    if: |
+      github.event_name == 'pull_request' &&
+      !cancelled() &&
+      contains(needs.*.result, 'failure')
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--all-extras"
+
+      - name: Detect PR author and trigger auto-fix
+        uses: actions/github-script@v8
+        env:
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const prAuthor = context.payload.pull_request.user.login;
+            const isJulesPR = prAuthor === 'google-labs-jules[bot]' || prAuthor === 'google-labs-jules';
+
+            console.log('🔍 PR #' + prNumber + ' has failing checks');
+            console.log('👤 PR Author:', prAuthor);
+            console.log('🤖 Is Jules PR:', isJulesPR);
+
+            if (isJulesPR) {
+              console.log('♻️  Sending fix request to EXISTING Jules session...');
+            } else {
+              console.log('🆕 Will create NEW Jules session for auto-fix...');
+            }
+
+            // Call Jules auto-fix script via Python
+            const { execSync } = require('child_process');
+            try {
+              // Set PYTHONPATH to include .jules directory
+              const output = execSync(
+                `PYTHONPATH=.jules:$PYTHONPATH uv run python -c "from jules.auto_fix import auto_reply_to_jules; import json; result = auto_reply_to_jules(${prNumber}); print(json.dumps(result))"`,
+                { encoding: 'utf-8', cwd: process.env.GITHUB_WORKSPACE }
+              );
+
+              const result = JSON.parse(output.trim());
+              console.log('✅ Auto-fix result:', result);
+
+              // Post comment based on result
+              let commentBody = '';
+              if (result.status === 'success') {
+                if (result.action === 'messaged_existing_session') {
+                  commentBody = `🤖 **Jules Auto-Fix Triggered**\n\n` +
+                    `Sent fix request to existing Jules session: \`${result.session_id}\`\n\n` +
+                    `Jules will analyze the failures and push fixes to this PR.`;
+                } else if (result.action === 'created_new_session') {
+                  commentBody = `🤖 **Jules Auto-Fix Session Created**\n\n` +
+                    `Created new Jules session: \`${result.new_session_id}\`\n\n` +
+                    `Jules is analyzing the failures and will create a fix.`;
+                }
+              } else if (result.error) {
+                commentBody = `⚠️ **Auto-fix failed**\n\nError: ${result.error}`;
+              }
+
+              if (commentBody) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body: commentBody
+                });
+              }
+            } catch (error) {
+              console.error('❌ Auto-fix error:', error.message);
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: `⚠️ **Auto-fix failed to trigger**\n\nError: ${error.message}\n\nPlease fix the issues manually.`
+              });
+            }
+
   auto-merge-jules:
     name: Auto-merge Jules Bot PRs
     runs-on: ubuntu-latest
@@ -583,7 +669,7 @@ jobs:
   summary:
     name: Workflow Summary
     runs-on: ubuntu-latest
-    needs: [pre-commit, test-unit, test-e2e, security, quality, build, auto-merge-jules, auto-merge-deps]
+    needs: [pre-commit, test-unit, test-e2e, security, quality, build, auto-fix-on-failure, auto-merge-jules, auto-merge-deps]
     if: always()
     steps:
       - name: Post summary
@@ -599,6 +685,7 @@ jobs:
           | Security | ${{ needs.security.result || 'skipped' }} |
           | Quality | ${{ needs.quality.result || 'skipped' }} |
           | Build | ${{ needs.build.result || 'skipped' }} |
+          | Auto-fix on Failure | ${{ needs['auto-fix-on-failure'].result || 'skipped' }} |
           | Auto-merge Jules | ${{ needs['auto-merge-jules'].result || 'skipped' }} |
           | Auto-merge Dependencies | ${{ needs['auto-merge-deps'].result || 'skipped' }} |
           EOF
