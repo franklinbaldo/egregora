@@ -32,7 +32,11 @@ class MissingPostMetadataError(FilesystemError):
         super().__init__(f"Missing required metadata key: '{self.missing_key}'")
 
 
-class FrontmatterDateFormattingError(FilesystemError):
+class DateTimeUtilsError(Exception):
+    """Base exception for datetime utility errors."""
+
+
+class FrontmatterDateFormattingError(DateTimeUtilsError):
     """Raised when a date string for frontmatter cannot be parsed."""
 
     def __init__(self, date_str: str, original_exception: Exception) -> None:
@@ -42,10 +46,6 @@ class FrontmatterDateFormattingError(FilesystemError):
             f"Failed to parse date string for frontmatter: '{self.date_str}'. "
             f"Original error: {original_exception}"
         )
-
-
-class DateTimeUtilsError(Exception):
-    """Base exception for datetime utility errors."""
 
 
 class DateTimeParsingError(DateTimeUtilsError):
