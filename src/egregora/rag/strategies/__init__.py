@@ -63,12 +63,22 @@ class EmbeddingProviderFactory:
             ValueError: If model format is not recognized
 
         """
+        from egregora.llm.providers.jina_embedding import is_jina_embedding_model
         from egregora.llm.providers.openrouter_embedding import is_openrouter_embedding_model
 
+        # Check for Jina models
+        if is_jina_embedding_model(model):
+            from egregora.rag.strategies.jina_strategy import JinaEmbeddingStrategy
+
+            return JinaEmbeddingStrategy(model)
+
+        # Check for OpenRouter models
         if is_openrouter_embedding_model(model):
             from egregora.rag.strategies.openrouter_strategy import OpenRouterEmbeddingStrategy
 
             return OpenRouterEmbeddingStrategy(model)
+
+        # Check for Gemini models
         if model.startswith("models/"):
             from egregora.rag.strategies.gemini_strategy import GeminiEmbeddingStrategy
 

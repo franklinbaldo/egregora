@@ -79,10 +79,8 @@ def test_config_validate_model_name_validator():
         EgregoraConfig(models={"writer": "gemini-flash-latest"})
     assert "Invalid Pydantic-AI model format" in str(exc.value)
 
-    # Invalid embedding format (missing models/ prefix and not OpenRouter format)
-    with pytest.raises(ValidationError) as exc:
-        EgregoraConfig(models={"embedding": "gemini-embedding-001"})
-    assert "Invalid embedding model format" in str(exc.value)
+    # NOTE: Embedding model validation is handled by EmbeddingProviderFactory at runtime,
+    # not at config load time. This allows for flexible provider support via strategy pattern.
 
 
 def test_config_validate_cross_field_rag_requires_lancedb():

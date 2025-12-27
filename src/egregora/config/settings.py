@@ -163,24 +163,8 @@ class ModelSettings(BaseModel):
             raise ValueError(msg)
         return v
 
-    @field_validator("embedding")
-    @classmethod
-    def validate_embedding_model_format(cls, v: str) -> str:
-        """Validate embedding model format (Gemini or OpenRouter)."""
-        # Accept both Gemini (models/...) and OpenRouter (provider/model) formats
-        if v.startswith("models/"):
-            # Gemini format
-            return v
-        if "/" in v and not v.startswith("models/"):
-            # OpenRouter format (e.g., qwen/qwen3-embedding-0.6b)
-            return v
-        msg = (
-            f"Invalid embedding model format: {v!r}\n"
-            f"Expected formats:\n"
-            f"  - Gemini: models/gemini-embedding-001\n"
-            f"  - OpenRouter: qwen/qwen3-embedding-0.6b"
-        )
-        raise ValueError(msg)
+    # No validator needed for embedding - the EmbeddingProviderFactory handles format validation
+    # via the strategy pattern. Invalid models will raise UnsupportedModelError at runtime.
 
     @field_validator("banner")
     @classmethod
