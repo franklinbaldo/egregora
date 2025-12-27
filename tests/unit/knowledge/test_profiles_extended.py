@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from egregora.knowledge.exceptions import ProfileNotFoundError, ProfileParseError
+from egregora.knowledge.exceptions import ProfileNotFoundError, ProfileParsingError
 from egregora.knowledge.profiles import (
     _find_profile_path,
     _get_uuid_from_profile,
@@ -52,7 +52,7 @@ Profile content."""
 
 
 def test_get_uuid_from_profile_no_uuid():
-    """Test that _get_uuid_from_profile raises ProfileParsingError when no UUID is found."""
+    """Test that _get_uuid_from_profile raises ProfileParseError when no UUID is found."""
     profile_content = """---
 name: "Test User"
 ---
@@ -60,7 +60,7 @@ Profile content."""
     profile_path = Path("test_profile.md")
     profile_path.write_text(profile_content)
 
-    with pytest.raises(ProfileParseError):
+    with pytest.raises(ProfileParsingError):
         _get_uuid_from_profile(profile_path)
 
     profile_path.unlink()

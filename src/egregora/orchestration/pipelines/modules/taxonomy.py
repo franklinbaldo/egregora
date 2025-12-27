@@ -14,7 +14,7 @@ import numpy as np
 
 from egregora.agents.taxonomy import create_global_taxonomy_agent
 from egregora.config.settings import EgregoraConfig
-from egregora.data_primitives.protocols import OutputSink
+from egregora.data_primitives.document import OutputSink
 from egregora.rag import get_backend
 
 logger = logging.getLogger(__name__)

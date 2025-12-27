@@ -9,10 +9,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from egregora.data_primitives.document import Document, DocumentType
-
-if TYPE_CHECKING:
-    from egregora.data_primitives.protocols import OutputSink
+from egregora.data_primitives.document import Document, DocumentType, OutputSink
 
 logger = logging.getLogger(__name__)
 

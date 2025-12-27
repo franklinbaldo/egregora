@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING, Annotated, Any, Protocol
 
 import diskcache
 
+from egregora.utils.exceptions import CacheDeserializationError
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -111,7 +113,7 @@ class EnrichmentCache:
                 e,
             )
             self.backend.delete(key)
-            return None
+            raise CacheDeserializationError(key, e) from e
 
         if value is None:
             return None

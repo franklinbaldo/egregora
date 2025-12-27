@@ -192,8 +192,8 @@ class FeedBannerGenerator:
             doc_type=DocumentType.MEDIA,
             title=f"Banner: {task_entry.title}",
             content=content,
-            slug=slug,
             internal_metadata={
+                "slug": slug,
                 "task_id": task_entry.id,
                 "generated_at": datetime.now(UTC).isoformat(),
             },

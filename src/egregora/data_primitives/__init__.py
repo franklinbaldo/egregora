@@ -13,9 +13,12 @@ consume and publish it).
 
 from typing import NewType
 
-from egregora.data_primitives.document import Document, DocumentCollection, DocumentType, MediaAsset
-from egregora.data_primitives.protocols import (
+from egregora.data_primitives.document import (
+    Document,
+    DocumentCollection,
     DocumentMetadata,
+    DocumentType,
+    MediaAsset,
     OutputSink,
     SiteScaffolder,
     UrlContext,

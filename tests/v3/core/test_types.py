@@ -1,117 +1,97 @@
-"""Tests for the core data types in Egregora V3."""
-
-from datetime import datetime
 import pytest
-from egregora_v3.core.types import Document, DocumentType, DocumentStatus, Entry, Link, Feed
-from egregora_v3.knowledge.concepts import WikiPage, ConceptType
+from datetime import datetime, UTC
+from pydantic import ValidationError
+from egregora_v3.core.types import Document, DocumentType, DocumentStatus, Feed, Entry
 
-def test_document_constructor_generates_identity():
-    """Tests that the default Document constructor can generate id/slug."""
-    now = datetime.now()
+def test_document_generates_slug_from_title():
+    """Verify that a slug is generated from the title if not provided."""
     doc = Document(
-        title="Hello World",
-        updated=now,
-        content="This is a test.",
+        content="Hello world",
         doc_type=DocumentType.POST,
-        status=DocumentStatus.DRAFT,
+        title="  My First Post!  "
     )
-    assert doc.id == "hello-world"
-    assert doc.slug == "hello-world"
-    assert doc.title == "Hello World"
+    assert doc.slug == "my-first-post"
+    assert doc.id == "my-first-post"
+    assert doc.title == "  My First Post!  "
+    assert doc.doc_type == DocumentType.POST
+    assert doc.status == DocumentStatus.DRAFT
+    assert isinstance(doc.updated, datetime)
 
 
-def test_wikipage_constructor_creates_concept():
-    """Tests that the WikiPage constructor can be used directly."""
-    now = datetime.now()
-    wikipage = WikiPage(
-        title="Test Concept",
-        updated=now,
-        content="This is the body of the concept.",
-        concept_type=ConceptType.TERM,
-        evidence_refs=["doc1", "doc2"],
-    )
-    assert wikipage.id == "test-concept"
-    assert wikipage.slug == "test-concept"
-    assert wikipage.concept_type == ConceptType.TERM
-    assert wikipage.doc_type == DocumentType.CONCEPT
-
-
-def test_entry_has_enclosure_property():
-    """Tests the has_enclosure property on the Entry model."""
-    now = datetime.now()
-    # Entry with no links
-    entry_no_links = Entry(id="1", title="No Links", updated=now)
-    assert not entry_no_links.has_enclosure
-    # Entry with a non-enclosure link
-    entry_other_link = Entry(
-        id="2",
-        title="Other Link",
-        updated=now,
-        links=[Link(href="http://example.com", rel="alternate")],
-    )
-    assert not entry_other_link.has_enclosure
-    # Entry with an enclosure link
-    entry_with_enclosure = Entry(
-        id="3",
-        title="With Enclosure",
-        updated=now,
-        links=[
-            Link(
-                href="http://example.com/image.jpg",
-                rel="enclosure",
-                type="image/jpeg",
-            )
-        ],
-    )
-    assert entry_with_enclosure.has_enclosure
-    # Entry with multiple links, one of which is an enclosure
-    entry_mixed_links = Entry(
-        id="4",
-        title="Mixed Links",
-        updated=now,
-        links=[
-            Link(href="http://example.com", rel="alternate"),
-            Link(
-                href="http://example.com/image.jpg",
-                rel="enclosure",
-                type="image/jpeg",
-            ),
-        ],
-    )
-    assert entry_mixed_links.has_enclosure
-
-
-def test_feed_get_published_documents():
-    """Tests the get_published_documents method on the Feed model."""
-    now = datetime.now()
-    # 1. A published document
-    published_doc = Document(
-        title="Published Post",
+def test_document_uses_explicit_slug():
+    """Verify that an explicit slug is used for the slug and ID."""
+    doc = Document(
+        content="Hello world",
         doc_type=DocumentType.POST,
-        status=DocumentStatus.PUBLISHED,
-        updated=now,
+        title="My First Post",
+        internal_metadata={"slug": "custom-slug"}
     )
-    # 2. A draft document
-    draft_doc = Document(
-        title="Draft Post",
+    assert doc.slug == "custom-slug"
+    assert doc.id == "custom-slug"
+
+
+def test_document_raises_error_on_empty_title_and_slug():
+    """Verify that a ValidationError is raised if an id cannot be generated."""
+    with pytest.raises(ValidationError, match="Field required"):
+        Document(
+            content="Hello world",
+            doc_type=DocumentType.POST,
+            title=""
+        )
+
+    # An empty slug in metadata should also fail if there's no title
+    with pytest.raises(ValidationError, match="Field required"):
+        Document(
+            content="Hello world",
+            doc_type=DocumentType.POST,
+            title="",
+            internal_metadata={"slug": ""}
+        )
+
+
+def test_feed_to_xml_handles_document_and_entry():
+    """Verify that Feed.to_xml correctly serializes both Entry and Document types."""
+    now = datetime.now(UTC)
+
+    doc = Document(
+        content="This is a document.",
         doc_type=DocumentType.POST,
-        status=DocumentStatus.DRAFT,
-        updated=now,
+        title="A Document"
     )
-    # 3. A plain entry (not a document)
-    plain_entry = Entry(id="plain-entry", title="Just an Entry", updated=now)
+
+    entry = Entry(
+        id="plain-entry-1",
+        title="A Plain Entry",
+        updated=now
+    )
 
     feed = Feed(
         id="test-feed",
         title="My Test Feed",
         updated=now,
-        entries=[published_doc, draft_doc, plain_entry],
+        entries=[doc, entry]
     )
 
-    # Call the method to be tested
-    published_only = feed.get_published_documents()
+    xml_output = feed.to_xml()
 
-    # Assertions
-    assert len(published_only) == 1
-    assert published_only[0].id == published_doc.id
-    assert published_only[0].status == DocumentStatus.PUBLISHED
+    # Assert that the Document-specific fields are present for the Document entry
+    doc_type_category = f'<category term="{doc.doc_type.value}" scheme="https://egregora.app/schema#doc_type" label="Document Type" />'
+    status_category = f'<category term="{doc.status.value}" scheme="https://egregora.app/schema#status" label="Document Status" />'
+
+    assert f"<id>{doc.id}</id>" in xml_output
+    assert doc_type_category in xml_output
+    assert status_category in xml_output
+
+    # Assert that the Document-specific fields are NOT present for the plain Entry
+    entry_start_index = xml_output.find(f"<id>{entry.id}</id>")
+    entry_end_index = xml_output.find("</entry>", entry_start_index)
+    entry_xml_block = xml_output[entry_start_index:entry_end_index]
+
+    assert "doc_type" not in entry_xml_block
+    assert "status" not in entry_xml_block
+
+
+def test_jinja_env_does_not_contain_isinstance():
+    """Verify that the 'isinstance' function is not exposed to the Jinja environment."""
+    from egregora_v3.core.types import _jinja_env
+    assert "isinstance" not in _jinja_env.globals

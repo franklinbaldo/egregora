@@ -19,6 +19,9 @@ import yaml
 from egregora.utils.authors import ensure_author_entries
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.exceptions import (
+    DateExtractionError,
+    DirectoryCreationError,
+    FileWriteError,
     FrontmatterDateFormattingError,
     MissingMetadataError,
     UniqueFilenameError,
@@ -36,29 +39,24 @@ _DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 def _extract_clean_date(date_obj: str | date | datetime) -> str:
     """Extract a clean ``YYYY-MM-DD`` date from user-provided input."""
-    # Handle date/datetime objects directly
     if isinstance(date_obj, datetime):
         return date_obj.date().isoformat()
     if isinstance(date_obj, date):
         return date_obj.isoformat()
 
-    # Process string-like inputs
     date_str = str(date_obj).strip()
+
     match = _DATE_PATTERN.search(date_str)
-
     if not match:
-        return date_str  # No YYYY-MM-DD pattern found
+        raise DateExtractionError(date_str)
 
-    # Found a pattern, now validate if it's a real date
-    potential_date = match.group(1)
-    try:
-        datetime.strptime(potential_date, "%Y-%m-%d")
-        # It's a valid date, return the clean string
-        return potential_date
-    except ValueError:
-        # The pattern looked like a date but wasn't (e.g., 2023-02-30)
-        # Fallback to the original stripped string
-        return date_str
+    # Use our robust parser on the *matched part* of the string.
+    parsed_dt = parse_datetime_flexible(match.group(1))
+    if parsed_dt:
+        return parsed_dt.date().isoformat()
+
+    # The pattern was not a valid date (e.g., "2023-99-99"), so fallback.
+    raise DateExtractionError(date_str)
 
 
 def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
@@ -144,14 +142,20 @@ def _write_post_file(filepath: Path, content: str, front_matter: dict[str, Any])
     """Construct the full post content and write it to a file."""
     yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
     full_post = f"---\n{yaml_front}---\n\n{content}"
-    filepath.write_text(full_post, encoding="utf-8")
+    try:
+        filepath.write_text(full_post, encoding="utf-8")
+    except OSError as e:
+        raise FileWriteError(str(filepath), e) from e
 
 
 def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:
     """Save a markdown post with YAML front matter and unique slugging."""
     _validate_post_metadata(metadata)
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        raise DirectoryCreationError(str(output_dir), e) from e
 
     date_prefix = _extract_clean_date(metadata["date"])
     base_slug = slugify(metadata["slug"])

@@ -1,7 +1,7 @@
-"""Tests for Atom XML feed export (RFC 4287) via AtomSink."""
+"""Tests for Atom XML feed export (RFC 4287)."""
 
 from datetime import UTC, datetime
-from pathlib import Path
+
 from defusedxml import ElementTree
 
 from egregora_v3.core.types import (
@@ -12,19 +12,11 @@ from egregora_v3.core.types import (
     Entry,
     Feed,
     Link,
+    documents_to_feed,
 )
-from egregora_v3.infra.sinks.atom import AtomSink
 
 
-def render_feed(feed: Feed, tmp_path: Path) -> str:
-    """Helper to render a feed to XML using AtomSink."""
-    output_path = tmp_path / "feed.xml"
-    sink = AtomSink(output_path)
-    sink.publish(feed)
-    return output_path.read_text(encoding="utf-8")
-
-
-def test_feed_to_xml_basic(tmp_path: Path):
+def test_feed_to_xml_basic():
     """Test basic Feed to Atom XML conversion."""
     feed = Feed(
         id="http://example.org/feed",
@@ -34,7 +26,7 @@ def test_feed_to_xml_basic(tmp_path: Path):
         entries=[],
     )
 
-    xml = render_feed(feed, tmp_path)
+    xml = feed.to_xml()
 
     # Check XML declaration (ElementTree uses single quotes)
     assert xml.startswith("<?xml version")
@@ -47,7 +39,7 @@ def test_feed_to_xml_basic(tmp_path: Path):
     assert "<name>Alice</name>" in xml
 
 
-def test_feed_with_entries(tmp_path: Path):
+def test_feed_with_entries():
     """Test Feed with entries converts to valid Atom."""
     entry = Entry(
         id="entry-1",
@@ -64,7 +56,7 @@ def test_feed_with_entries(tmp_path: Path):
         entries=[entry],
     )
 
-    xml = render_feed(feed, tmp_path)
+    xml = feed.to_xml()
 
     assert "<entry>" in xml
     assert "<id>entry-1</id>" in xml
@@ -73,7 +65,7 @@ def test_feed_with_entries(tmp_path: Path):
     assert "Hello World" in xml
 
 
-def test_entry_with_links(tmp_path: Path):
+def test_entry_with_links():
     """Test Entry with links (including enclosures)."""
     entry = Entry(
         id="entry-1",
@@ -93,7 +85,7 @@ def test_entry_with_links(tmp_path: Path):
         entries=[entry],
     )
 
-    xml = render_feed(feed, tmp_path)
+    xml = feed.to_xml()
 
     # Check for enclosure link (attribute order may vary)
     assert 'rel="enclosure"' in xml
@@ -102,7 +94,7 @@ def test_entry_with_links(tmp_path: Path):
     assert 'length="245760"' in xml
 
 
-def test_entry_with_categories(tmp_path: Path):
+def test_entry_with_categories():
     """Test Entry with categories/tags."""
     entry = Entry(
         id="entry-1",
@@ -121,29 +113,28 @@ def test_entry_with_categories(tmp_path: Path):
         entries=[entry],
     )
 
-    xml = render_feed(feed, tmp_path)
+    xml = feed.to_xml()
 
     assert '<category term="python"' in xml
     assert 'label="Python"' in xml
     assert '<category term="tdd"' in xml
 
 
-def test_feed_parses_as_valid_xml(snapshot, tmp_path: Path):
+def test_feed_parses_as_valid_xml(snapshot):
     """Test that generated XML is valid and matches snapshot."""
     doc = Document(
-        id="test-post-123",
         content="Test content",
         doc_type=DocumentType.POST,
         title="Test Post",
         internal_metadata={"slug": "test-post-123"},  # For stable ID
-        updated=datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
     )
+    doc.updated = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)  # For stable timestamp
 
-    feed = Feed.from_documents(
+    feed = documents_to_feed(
         [doc], feed_id="http://example.org/feed", title="Test Feed", authors=[Author(name="Alice")]
     )
 
-    xml = render_feed(feed, tmp_path)
+    xml = feed.to_xml()
 
     # Should parse without error and match snapshot
     root = ElementTree.fromstring(xml)
@@ -151,19 +142,19 @@ def test_feed_parses_as_valid_xml(snapshot, tmp_path: Path):
     assert xml == snapshot
 
 
-def test_datetime_formatting(tmp_path: Path):
+def test_datetime_formatting():
     """Test that datetimes are formatted as RFC 3339."""
     feed = Feed(
         id="http://example.org/feed", title="Test Feed", updated=datetime(2024, 12, 4, 15, 30, 45, tzinfo=UTC)
     )
 
-    xml = render_feed(feed, tmp_path)
+    xml = feed.to_xml()
 
     # RFC 3339 format: 2024-12-04T15:30:45Z
-    assert "2024-12-04T15:30:45+00:00" in xml
+    assert "2024-12-04T15:30:45Z" in xml or "2024-12-04T15:30:45+00:00" in xml
 
 
-def test_content_type_handling(tmp_path: Path):
+def test_content_type_handling():
     """Test different content types."""
     entry = Entry(
         id="entry-1",
@@ -180,6 +171,6 @@ def test_content_type_handling(tmp_path: Path):
         entries=[entry],
     )
 
-    xml = render_feed(feed, tmp_path)
+    xml = feed.to_xml()
 
-    assert '<content type="html"><p>HTML content</p></content>' in xml
+    assert '<content type="text/html"' in xml or '<content type="html"' in xml

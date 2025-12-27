@@ -43,12 +43,16 @@ from egregora.config.exceptions import (
     ConfigError,
     ConfigNotFoundError,
     ConfigValidationError,
-    InvalidDateFormatError,
     InvalidRetrievalModeError,
-    InvalidTimezoneError,
     SiteNotFoundError,
 )
 from egregora.constants import SourceType, WindowUnit
+from egregora.orchestration.exceptions import (
+    InvalidDateArgumentError as InvalidDateFormatError,
+)
+from egregora.orchestration.exceptions import (
+    InvalidTimezoneArgumentError as InvalidTimezoneError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,24 +63,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL = "google-gla:gemini-2.5-flash"  # Use latest stable model (pydantic-ai format)
 DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
 DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash"  # (google-sdk format uses models/ prefix via validator)
-EMBEDDING_DIM = 768  # Default embedding vector dimensions for Gemini
+EMBEDDING_DIM = 768  # Embedding vector dimensions
 DEFAULT_SITE_NAME = "default"
-
-
-def get_embedding_dimension(model: str) -> int:
-    """Get embedding dimension for a given model.
-
-    Args:
-        model: Model identifier (e.g., "qwen/qwen3-embedding-0.6b" or "models/gemini-embedding-001")
-
-    Returns:
-        Vector dimension for the model
-
-    """
-    from egregora.llm.providers.openrouter_embedding import get_embedding_dimension as get_dim
-
-    return get_dim(model)
-
 
 # Quota defaults
 DEFAULT_DAILY_LLM_REQUESTS = 100  # Conservative default
@@ -139,7 +127,7 @@ class ModelSettings(BaseModel):
     # Special models with their own defaults (direct Gemini API usage)
     embedding: GoogleModelName = Field(
         default=DEFAULT_EMBEDDING_MODEL,
-        description="Model for vector embeddings (Google GenAI format: models/... or OpenRouter format: provider/model)",
+        description="Model for vector embeddings (Google GenAI format: models/...)",
     )
     banner: GoogleModelName = Field(
         default=DEFAULT_BANNER_MODEL,
@@ -163,10 +151,7 @@ class ModelSettings(BaseModel):
             raise ValueError(msg)
         return v
 
-    # No validator needed for embedding - the EmbeddingProviderFactory handles format validation
-    # via the strategy pattern. Invalid models will raise UnsupportedModelError at runtime.
-
-    @field_validator("banner")
+    @field_validator("embedding", "banner")
     @classmethod
     def validate_google_model_format(cls, v: str) -> str:
         """Validate Google GenAI SDK model name format."""
@@ -1281,6 +1266,16 @@ __all__ = [
     "validate_retrieval_config",
     "validate_timezone",
 ]
+
+
+def get_google_api_key() -> str | None:
+    """Get Google API key from environment, checking both GEMINI and GOOGLE variables."""
+    return os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+
+
+def google_api_key_status() -> bool:
+    """Check if a Google API key is configured."""
+    return bool(get_google_api_key())
 
 
 def get_openrouter_api_key() -> str:
