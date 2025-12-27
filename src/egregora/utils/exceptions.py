@@ -42,3 +42,17 @@ class FrontmatterDateFormattingError(FilesystemError):
             f"Failed to parse date string for frontmatter: '{self.date_str}'. "
             f"Original error: {original_exception}"
         )
+
+
+class CacheError(Exception):
+    """Base exception for cache-related errors."""
+
+
+class CacheDeserializationError(CacheError):
+    """Raised when a cache entry cannot be deserialized."""
+
+    def __init__(self, key: str, original_exception: Exception) -> None:
+        self.key = key
+        self.original_exception = original_exception
+        message = f"Failed to deserialize cache entry for key '{key}'. Original error: {original_exception}"
+        super().__init__(message)
