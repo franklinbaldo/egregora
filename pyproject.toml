@@ -36,6 +36,7 @@ dependencies = [
     "lxml>=5.4",
     "tomli-w>=1.2.0",
     "google-api-core",
+    "openai>=2.8.1",
 ]
 
 [project.scripts]

@@ -36,37 +36,6 @@ async def get_recent_posts(
     return library.posts.list(doc_type=DocumentType.POST, order_by="updated", limit=limit)
 
 
-async def search_prior_work(
-    context: PipelineContext,
-    query: str,
-    limit: int = 5,
-) -> list[dict[str, Any]]:
-    """Search prior work using vector similarity.
-
-    Args:
-        context: Pipeline context for dependency injection
-        query: Search query text
-        limit: Maximum number of results to return (default: 5)
-
-    Returns:
-        List of search results with document metadata and similarity scores
-
-    Note:
-        This is a placeholder implementation. Full RAG search would require:
-        - Vector embeddings of documents
-        - Configured vector store (LanceDB)
-        - Embedding model for query vectorization
-
-    """
-    # Placeholder: In a real implementation, this would:
-    # 1. Generate embedding for query using embedding model
-    # 2. Search vector store for similar documents
-    # 3. Return results with similarity scores
-
-    # For now, return empty list (vector store integration pending)
-    return []
-
-
 async def get_document_by_id(
     context: PipelineContext,
     doc_id: str,
@@ -119,7 +88,6 @@ async def get_pipeline_metadata(
 # Tool registry for easy discovery
 TOOLS = [
     get_recent_posts,
-    search_prior_work,
     get_document_by_id,
     count_documents_by_type,
     get_pipeline_metadata,

@@ -1,0 +1,96 @@
+"""Strategy pattern for RAG embedding providers.
+
+This module defines a clean abstraction for embedding providers, following the
+strategy pattern to decouple provider-specific logic from the RAG system.
+"""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from typing import Literal
+
+TaskType = Literal[
+    "RETRIEVAL_QUERY", "RETRIEVAL_DOCUMENT", "SEMANTIC_SIMILARITY", "CLASSIFICATION", "CLUSTERING"
+]
+
+
+class EmbeddingStrategy(ABC):
+    """Abstract base class for embedding providers."""
+
+    @abstractmethod
+    def get_dimension(self) -> int:
+        """Get the vector dimension for this provider's model."""
+        ...
+
+    @abstractmethod
+    def embed(
+        self,
+        texts: list[str],
+        task_type: TaskType = "RETRIEVAL_DOCUMENT",
+    ) -> list[list[float]]:
+        """Generate embeddings for a list of texts.
+
+        Args:
+            texts: List of strings to embed
+            task_type: Type of embedding task
+
+        Returns:
+            List of embedding vectors
+
+        """
+        ...
+
+    @abstractmethod
+    def is_available(self) -> bool:
+        """Check if the provider is available (API key set, etc.)."""
+        ...
+
+
+class EmbeddingProviderFactory:
+    """Factory for creating embedding strategy instances based on model name."""
+
+    @staticmethod
+    def create(model: str) -> EmbeddingStrategy:
+        """Create an embedding strategy for the given model.
+
+        Args:
+            model: Model identifier (e.g., "models/gemini-embedding-001" or "qwen/qwen3-embedding-0.6b")
+
+        Returns:
+            Appropriate EmbeddingStrategy instance
+
+        Raises:
+            ValueError: If model format is not recognized
+
+        """
+        from egregora.llm.providers.jina_embedding import is_jina_embedding_model
+        from egregora.llm.providers.openrouter_embedding import is_openrouter_embedding_model
+
+        # Check for Jina models
+        if is_jina_embedding_model(model):
+            from egregora.rag.strategies.jina_strategy import JinaEmbeddingStrategy
+
+            return JinaEmbeddingStrategy(model)
+
+        # Check for OpenRouter models
+        if is_openrouter_embedding_model(model):
+            from egregora.rag.strategies.openrouter_strategy import OpenRouterEmbeddingStrategy
+
+            return OpenRouterEmbeddingStrategy(model)
+
+        # Check for Gemini models
+        if model.startswith("models/"):
+            from egregora.rag.strategies.gemini_strategy import GeminiEmbeddingStrategy
+
+            return GeminiEmbeddingStrategy(model)
+
+        from egregora.rag.strategies.exceptions import UnsupportedModelError
+
+        raise UnsupportedModelError(model)
+
+
+__all__ = [
+    "EmbeddingProviderFactory",
+    "EmbeddingStrategy",
+    "TaskType",
+]
