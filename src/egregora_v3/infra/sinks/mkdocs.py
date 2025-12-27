@@ -41,11 +41,7 @@ class MkDocsOutputSink:
         self._clean_markdown_files()
 
         # Filter published documents
-        published_docs = [
-            entry
-            for entry in feed.entries
-            if isinstance(entry, Document) and entry.status == DocumentStatus.PUBLISHED
-        ]
+        published_docs = feed.get_published_documents()
 
         # Write individual markdown files
         for doc in published_docs:

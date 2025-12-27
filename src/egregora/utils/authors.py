@@ -8,13 +8,6 @@ from typing import TYPE_CHECKING
 import frontmatter
 import yaml
 
-from egregora.utils.exceptions import (
-    AuthorsFileError,
-    AuthorsFileIOError,
-    AuthorsFileParseError,
-    PostParseError,
-)
-
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -70,15 +63,8 @@ def load_authors_yml(path: Path) -> dict:
     """Loads the .authors.yml file."""
     try:
         return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except FileNotFoundError:
-        # Return empty dict if file doesn't exist - it will be created later
+    except (OSError, yaml.YAMLError):
         return {}
-    except OSError as exc:
-        msg = f"Could not read authors file at {path}"
-        raise AuthorsFileError(msg) from exc
-    except yaml.YAMLError as exc:
-        msg = f"Could not parse authors file at {path}"
-        raise AuthorsFileParseError(msg) from exc
 
 
 def register_new_authors(authors: dict, author_ids: list[str]) -> list[str]:
@@ -104,8 +90,7 @@ def save_authors_yml(path: Path, authors: dict, count: int) -> None:
         )
         logger.info("Registered %d new author(s) in %s", count, path)
     except OSError as exc:
-        msg = f"Failed to write authors file at {path}"
-        raise AuthorsFileIOError(msg) from exc
+        logger.warning("Failed to update %s: %s", path, exc)
 
 
 def extract_authors_from_post(md_file: Path) -> set[str]:
@@ -123,8 +108,8 @@ def extract_authors_from_post(md_file: Path) -> set[str]:
         return {str(a) for a in authors_meta if a}
 
     except OSError as exc:
-        msg = f"Could not parse post file at {md_file}"
-        raise PostParseError(msg) from exc
+        logger.debug("Skipping %s: %s", md_file, exc)
+        return set()
 
 
 def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> int:
@@ -133,10 +118,7 @@ def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> in
 
     all_author_ids: set[str] = set()
     for md_file in posts_dir.rglob("*.md"):
-        try:
-            all_author_ids.update(extract_authors_from_post(md_file))
-        except PostParseError as exc:
-            logger.warning("Skipping post %s: %s", md_file, exc)
+        all_author_ids.update(extract_authors_from_post(md_file))
 
     if not all_author_ids:
         return 0

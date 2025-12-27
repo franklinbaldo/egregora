@@ -7,72 +7,177 @@ from egregora.output_adapters.exceptions import (
     DocumentNotFoundError,
     DocumentParsingError,
     FrontmatterParsingError,
+    FilenameGenerationError,
     ProfileGenerationError,
     ProfileNotFoundError,
+    RegistryNotProvidedError,
     UnsupportedDocumentTypeError,
 )
 
 
-def test_document_not_found_error():
+@pytest.mark.parametrize(
+    "doc_type, identifier, expected_message",
+    [
+        ("post", "my-post", "Document of type 'post' with identifier 'my-post' not found."),
+        ("page", "about-us", "Document of type 'page' with identifier 'about-us' not found."),
+    ],
+)
+def test_document_not_found_error(doc_type, identifier, expected_message):
     """Test that DocumentNotFoundError formats its message correctly."""
-    err = DocumentNotFoundError("post", "my-post")
-    assert err.doc_type == "post"
-    assert err.identifier == "my-post"
-    assert str(err) == "Document of type 'post' with identifier 'my-post' not found."
+    err = DocumentNotFoundError(doc_type, identifier)
+    assert err.doc_type == doc_type
+    assert err.identifier == identifier
+    assert str(err) == expected_message
 
 
-def test_document_parsing_error():
+@pytest.mark.parametrize(
+    "path, reason, expected_message",
+    [
+        ("/path/to/doc.md", "Invalid format", "Failed to parse document at '/path/to/doc.md': Invalid format"),
+        ("another/doc.txt", "UTF-8 error", "Failed to parse document at 'another/doc.txt': UTF-8 error"),
+    ],
+)
+def test_document_parsing_error(path, reason, expected_message):
     """Test that DocumentParsingError formats its message correctly."""
-    err = DocumentParsingError("/path/to/doc.md", "Invalid format")
-    assert err.path == "/path/to/doc.md"
-    assert err.reason == "Invalid format"
-    assert str(err) == "Failed to parse document at '/path/to/doc.md': Invalid format"
+    err = DocumentParsingError(path, reason)
+    assert err.path == path
+    assert err.reason == reason
+    assert str(err) == expected_message
 
 
-def test_config_load_error():
+@pytest.mark.parametrize(
+    "path, reason, expected_message",
+    [
+        (
+            "/path/to/config.yml",
+            "YAML error",
+            "Failed to load or parse config at '/path/to/config.yml': YAML error",
+        ),
+        ("site.toml", "TOML syntax error", "Failed to load or parse config at 'site.toml': TOML syntax error"),
+    ],
+)
+def test_config_load_error(path, reason, expected_message):
     """Test that ConfigLoadError formats its message correctly."""
-    err = ConfigLoadError("/path/to/config.yml", "YAML error")
-    assert err.path == "/path/to/config.yml"
-    assert err.reason == "YAML error"
-    assert str(err) == "Failed to load or parse config at '/path/to/config.yml': YAML error"
+    err = ConfigLoadError(path, reason)
+    assert err.path == path
+    assert err.reason == reason
+    assert str(err) == expected_message
 
 
-def test_unsupported_document_type_error():
+@pytest.mark.parametrize(
+    "doc_type, expected_message",
+    [
+        ("video", "Unsupported document type: 'video'"),
+        ("audio", "Unsupported document type: 'audio'"),
+    ],
+)
+def test_unsupported_document_type_error(doc_type, expected_message):
     """Test that UnsupportedDocumentTypeError formats its message correctly."""
-    err = UnsupportedDocumentTypeError("video")
-    assert err.doc_type == "video"
-    assert str(err) == "Unsupported document type: 'video'"
+    err = UnsupportedDocumentTypeError(doc_type)
+    assert err.doc_type == doc_type
+    assert str(err) == expected_message
 
 
-def test_adapter_not_initialized_error():
-    """Test that AdapterNotInitializedError has the correct default message."""
-    err = AdapterNotInitializedError()
-    assert str(err) == "Adapter has not been initialized. Call initialize() first."
+@pytest.mark.parametrize(
+    "message, expected_message",
+    [
+        (None, "Adapter has not been initialized. Call initialize() first."),
+        ("Custom error message", "Custom error message"),
+    ],
+)
+def test_adapter_not_initialized_error(message, expected_message):
+    """Test that AdapterNotInitializedError has the correct message."""
+    err = AdapterNotInitializedError(message) if message else AdapterNotInitializedError()
+    assert str(err) == expected_message
 
 
-def test_frontmatter_parsing_error():
+@pytest.mark.parametrize(
+    "pattern, max_attempts, expected_message",
+    [
+        (
+            "test-pattern",
+            5,
+            "Could not generate unique filename for 'test-pattern' after 5 attempts.",
+        ),
+        ("image-{uuid}", 10, "Could not generate unique filename for 'image-{uuid}' after 10 attempts."),
+    ],
+)
+def test_filename_generation_error(pattern, max_attempts, expected_message):
+    """Test that FilenameGenerationError formats its message correctly."""
+    err = FilenameGenerationError(pattern, max_attempts)
+    assert err.pattern == pattern
+    assert err.max_attempts == max_attempts
+    assert str(err) == expected_message
+
+
+@pytest.mark.parametrize(
+    "reason, expected_message",
+    [
+        ("Missing key", "Invalid YAML frontmatter: Missing key"),
+        ("Invalid indentation", "Invalid YAML frontmatter: Invalid indentation"),
+    ],
+)
+def test_frontmatter_parsing_error(reason, expected_message):
     """Test that FrontmatterParsingError formats its message correctly."""
-    err = FrontmatterParsingError("Missing key")
-    assert err.reason == "Missing key"
-    assert str(err) == "Invalid YAML frontmatter: Missing key"
+    err = FrontmatterParsingError(reason)
+    assert err.reason == reason
+    assert str(err) == expected_message
 
 
-def test_profile_not_found_error():
+@pytest.mark.parametrize(
+    "author_uuid, expected_message",
+    [
+        ("uuid-123", "Profile for author 'uuid-123' not found."),
+        ("another-uuid", "Profile for author 'another-uuid' not found."),
+    ],
+)
+def test_profile_not_found_error(author_uuid, expected_message):
     """Test that ProfileNotFoundError formats its message correctly."""
-    err = ProfileNotFoundError("uuid-123")
-    assert err.author_uuid == "uuid-123"
-    assert str(err) == "Profile for author 'uuid-123' not found."
+    err = ProfileNotFoundError(author_uuid)
+    assert err.author_uuid == author_uuid
+    assert str(err) == expected_message
 
 
-def test_profile_generation_error():
+@pytest.mark.parametrize(
+    "message, expected_message",
+    [
+        ("Missing name", "Missing name"),
+        ("Invalid email", "Invalid email"),
+    ],
+)
+def test_profile_generation_error(message, expected_message):
     """Test that ProfileGenerationError formats its message correctly."""
-    err = ProfileGenerationError("Missing name")
-    assert str(err) == "Missing name"
+    err = ProfileGenerationError(message)
+    assert str(err) == expected_message
 
 
-def test_collision_resolution_error():
+@pytest.mark.parametrize(
+    "path, max_attempts, expected_message",
+    [
+        (
+            "/path/to/file.md",
+            100,
+            "Failed to resolve collision for '/path/to/file.md' after 100 attempts.",
+        ),
+        ("another/path.txt", 50, "Failed to resolve collision for 'another/path.txt' after 50 attempts."),
+    ],
+)
+def test_collision_resolution_error(path, max_attempts, expected_message):
     """Test that CollisionResolutionError formats its message correctly."""
-    err = CollisionResolutionError("/path/to/file.md", 100)
-    assert err.path == "/path/to/file.md"
-    assert err.max_attempts == 100
-    assert str(err) == "Failed to resolve collision for '/path/to/file.md' after 100 attempts."
+    err = CollisionResolutionError(path, max_attempts)
+    assert err.path == path
+    assert err.max_attempts == max_attempts
+    assert str(err) == expected_message
+
+
+@pytest.mark.parametrize(
+    "message, expected_message",
+    [
+        (None, "An OutputSinkRegistry instance must be provided."),
+        ("A custom error message", "A custom error message"),
+    ],
+)
+def test_registry_not_provided_error(message, expected_message):
+    """Test that RegistryNotProvidedError has the correct message."""
+    err = RegistryNotProvidedError(message) if message else RegistryNotProvidedError()
+    assert str(err) == expected_message

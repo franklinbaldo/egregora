@@ -7,6 +7,7 @@ from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.exceptions import (
     InvalidOperationError,
     InvalidTableNameError,
+    SequenceCreationError,
     SequenceFetchError,
     SequenceNotFoundError,
     SequenceRetryFailedError,
@@ -203,4 +204,15 @@ def test_next_sequence_values_raises_retry_failed_error(mocker):
 
         with pytest.raises(SequenceRetryFailedError) as exc_info:
             storage.next_sequence_values("test_sequence")
+        assert exc_info.value.sequence_name == "test_sequence"
+
+
+def test_ensure_sequence_raises_creation_error_on_verification_failure(mocker):
+    """Test ensure_sequence raises SequenceCreationError if verification fails."""
+    with DuckDBStorageManager() as storage:
+        # Mock get_sequence_state to fail verification after the CREATE call
+        mocker.patch.object(storage, "get_sequence_state", side_effect=SequenceNotFoundError("test_sequence"))
+
+        with pytest.raises(SequenceCreationError) as exc_info:
+            storage.ensure_sequence("test_sequence")
         assert exc_info.value.sequence_name == "test_sequence"

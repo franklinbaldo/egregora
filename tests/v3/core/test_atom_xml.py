@@ -1,11 +1,13 @@
 """Tests for V3 Core Types and Atom Serialization."""
 
 from datetime import UTC, datetime
+from pathlib import Path
 
-from egregora_v3.core.types import Author, Document, DocumentStatus, DocumentType, Entry, Feed, Link
+from egregora_v3.core.types import Author, Document, DocumentType, Feed, Link
+from egregora_v3.infra.sinks.atom import AtomSink
 
 
-def test_feed_to_xml_serialization():
+def test_feed_to_xml_serialization(tmp_path: Path):
     """Test that a Feed can be serialized to valid Atom XML."""
     entry = Document(
         id="test-post",
@@ -15,10 +17,7 @@ def test_feed_to_xml_serialization():
         updated=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),
         internal_metadata={"slug": "test-post"},
     )
-    # The filter normalizes "text/markdown" -> "text" or "html".
-    # Let's check filters.py: "text/markdown" -> "text"
     entry.content_type = "text/markdown"
-
     entry.authors = [Author(name="Test Author", email="test@example.com")]
     entry.published = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
 
@@ -31,7 +30,10 @@ def test_feed_to_xml_serialization():
         links=[Link(href="http://example.com/feed", rel="self")],
     )
 
-    xml_output = feed.to_xml()
+    output_path = tmp_path / "feed.xml"
+    sink = AtomSink(output_path)
+    sink.publish(feed)
+    xml_output = output_path.read_text(encoding="utf-8")
 
     # Basic assertions
     assert '<?xml version=\'1.0\' encoding=\'UTF-8\'?>' in xml_output
@@ -44,8 +46,7 @@ def test_feed_to_xml_serialization():
     assert '<entry>' in xml_output
     assert '<title>Test Post</title>' in xml_output
     assert '<id>test-post</id>' in xml_output
-    # The filter converts "text/markdown" to "text"
-    assert '<content type="text">Hello World</content>' in xml_output
+    assert '<content type="text/markdown"><p>Hello World</p>\n</content>' in xml_output
     # Check for document type category
     assert 'term="post"' in xml_output
     assert 'scheme="https://egregora.app/schema#doc_type"' in xml_output

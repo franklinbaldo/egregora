@@ -1,7 +1,8 @@
 """Centralized prompt template management.
 
 This module replaces `egregora.prompt_templates` and provides:
-- Unified `PromptManager` class
+- `TemplateLoader` for resolving prompt search paths
+- `PromptManager` for rendering Jinja2 templates
 - Logic for resolving prompt overrides (User > Package)
 - Helper for copying default prompts to a new site
 
@@ -25,46 +26,76 @@ logger = logging.getLogger(__name__)
 PACKAGE_PROMPTS_DIR = Path(__file__).parents[1] / "prompts"
 
 
-class PromptManager:
-    """Manages Jinja2 environment for prompts with override support."""
+class TemplateLoader:
+    """Resolves and provides search paths for Jinja2 templates."""
 
-    def __init__(self, prompts_dir: Path | None = None) -> None:
-        """Initialize prompt manager.
+    def __init__(self, site_dir: Path | None = None) -> None:
+        """Initialize template loader.
 
         Args:
-            prompts_dir: Optional custom prompts directory (e.g., site/.egregora/prompts).
+            site_dir: Optional custom prompts directory (e.g., site root).
                          If provided, it takes precedence over package defaults.
-
         """
-        self.prompts_dir = prompts_dir
-        self.env = self._create_environment()
+        self.site_dir = site_dir
+        self.search_paths = self._resolve_search_paths()
 
-    def _create_environment(self) -> Environment:
-        """Create Jinja2 environment with fallback prompt directories."""
+    def _resolve_search_paths(self) -> list[Path]:
+        """Get the ordered list of directories to search for templates."""
         search_paths: list[Path] = []
 
-        # Add custom prompts directory if it exists
-        if self.prompts_dir and self.prompts_dir.is_dir():
-            # Check if prompts_dir is a site root with .egregora/prompts subdirectory
-            # This handles cases where user passes site_root instead of prompts_dir
-            egregora_prompts = self.prompts_dir / ".egregora" / "prompts"
+        if self.site_dir and self.site_dir.is_dir():
+            egregora_prompts = self.site_dir / ".egregora" / "prompts"
             if egregora_prompts.is_dir():
                 search_paths.append(egregora_prompts)
                 logger.debug("Using custom prompts from: %s", egregora_prompts)
             else:
-                search_paths.append(self.prompts_dir)
-                logger.debug("Using custom prompts from: %s", self.prompts_dir)
+                search_paths.append(self.site_dir)
+                logger.debug("Using custom prompts from: %s", self.site_dir)
 
-        # Always add package prompts as fallback
         if PACKAGE_PROMPTS_DIR.is_dir():
             search_paths.append(PACKAGE_PROMPTS_DIR)
         else:
             logger.warning("Package prompts directory not found at %s", PACKAGE_PROMPTS_DIR)
 
         logger.debug("Prompt search paths: %s", search_paths)
+        return search_paths
 
+    def get_template_content(self, template_name: str) -> str:
+        """Retrieve raw content of a template from the resolved search paths.
+
+        Used for signature generation (hashing logic) without rendering.
+
+        Args:
+            template_name: Name of the template (e.g. "writer.jinja")
+
+        Returns:
+            Raw template content string
+        """
+        for search_path in self.search_paths:
+            template_path = search_path / template_name
+            if template_path.exists():
+                return template_path.read_text(encoding="utf-8")
+
+        logger.warning("Template '%s' not found in search paths: %s", template_name, self.search_paths)
+        return ""
+
+
+class PromptManager:
+    """Manages Jinja2 environment for prompts with override support."""
+
+    def __init__(self, search_paths: list[Path]) -> None:
+        """Initialize prompt manager.
+
+        Args:
+            search_paths: A list of paths to search for templates, in order of priority.
+        """
+        self.search_paths = search_paths
+        self.env = self._create_environment()
+
+    def _create_environment(self) -> Environment:
+        """Create Jinja2 environment with fallback prompt directories."""
         return Environment(
-            loader=FileSystemLoader(search_paths),
+            loader=FileSystemLoader(self.search_paths),
             autoescape=select_autoescape(enabled_extensions=()),
             trim_blocks=True,
             lstrip_blocks=True,
@@ -79,39 +110,25 @@ class PromptManager:
 
         Returns:
             Rendered string
-
         """
         template = self.env.get_template(template_name)
         return template.render(**context)
 
     @staticmethod
-    def get_template_content(template_name: str, custom_prompts_dir: Path | None = None) -> str:
+    def get_template_content(template_name: str, site_dir: Path | None = None) -> str:
         """Retrieve raw content of a template, prioritizing custom overrides.
 
-        Used for signature generation (hashing logic) without rendering.
+        This is a convenience static method. For heavy use, create a TemplateLoader instance.
 
         Args:
             template_name: Name of the template (e.g. "writer.jinja")
-            custom_prompts_dir: Optional directory for user overrides
+            site_dir: Optional directory for user overrides
 
         Returns:
             Raw template content string
-
         """
-        # Check custom directory first
-        if custom_prompts_dir:
-            custom_path = custom_prompts_dir / template_name
-            if custom_path.exists():
-                return custom_path.read_text(encoding="utf-8")
-
-        # Check default package location
-        default_path = PACKAGE_PROMPTS_DIR / template_name
-        if default_path.exists():
-            return default_path.read_text(encoding="utf-8")
-
-        # Fallback (should rarely happen if installed correctly)
-        logger.warning("Template %s not found in custom or package paths", template_name)
-        return ""
+        loader = TemplateLoader(site_dir)
+        return loader.get_template_content(template_name)
 
     @staticmethod
     def copy_defaults(target_dir: Path) -> int:
@@ -124,7 +141,6 @@ class PromptManager:
 
         Returns:
             Number of files copied
-
         """
         if not PACKAGE_PROMPTS_DIR.exists():
             logger.warning("Package prompts directory not found: %s", PACKAGE_PROMPTS_DIR)
@@ -137,7 +153,6 @@ class PromptManager:
             rel_path = source_file.relative_to(PACKAGE_PROMPTS_DIR)
             target_file = target_dir / rel_path
 
-            # Only copy if target doesn't exist (preserve customizations)
             if not target_file.exists():
                 target_file.parent.mkdir(parents=True, exist_ok=True)
                 try:
@@ -153,21 +168,23 @@ class PromptManager:
 
 
 # Global instance for simple use cases (package defaults only)
-_default_manager = PromptManager()
+_default_loader = TemplateLoader()
+_default_manager = PromptManager(_default_loader.search_paths)
 
 
 def render_prompt(
     template_name: str,
     *,
-    prompts_dir: Path | None = None,
+    site_dir: Path | None = None,
     **context: Any,
 ) -> str:
     """Helper function to render a prompt without managing instance lifecycle.
 
     This maintains API compatibility with the old `prompt_templates.py`.
     """
-    if prompts_dir:
-        manager = PromptManager(prompts_dir)
+    if site_dir:
+        loader = TemplateLoader(site_dir)
+        manager = PromptManager(loader.search_paths)
     else:
         manager = _default_manager
 

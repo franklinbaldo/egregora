@@ -1,22 +1,30 @@
+from __future__ import annotations
+
 from unittest.mock import MagicMock
+
+import pytest
 
 from egregora.data_primitives.document import DocumentType
 from egregora.output_adapters.db_sink import DbOutputSink
 
 
-def test_read_document_returns_none_for_missing_document():
+@pytest.fixture
+def mock_repository() -> MagicMock:
+    """Provides a mock ContentRepository."""
+    return MagicMock()
+
+
+def test_read_document_returns_none_for_missing_document(mock_repository: MagicMock):
     """
     Given a DbOutputSink with a repository that returns None
     When read_document is called
     Then it should return None (backward-compatible with callers expecting optional documents).
     """
     # Arrange
-    mock_repo = MagicMock()
-    mock_repo.get.return_value = None
-    sink = DbOutputSink(repository=mock_repo)
-
+    mock_repository.get.return_value = None
+    sink = DbOutputSink(repository=mock_repository)
     doc_type = DocumentType.POST
-    identifier = "test-id"
+    identifier = "non-existent-id"
 
     # Act
     result = sink.read_document(doc_type, identifier)

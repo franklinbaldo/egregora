@@ -4,33 +4,17 @@ import uuid
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
-from xml.etree.ElementTree import Element, register_namespace, SubElement, tostring
 
-from markdown_it import MarkdownIt
 from pydantic import BaseModel, Field, model_validator
-import jinja2
 
 from egregora_v3.core.utils import slugify
 
-# --- XML Configuration ---
-try:
-    register_namespace("", "http://www.w3.org/2005/Atom")
-    register_namespace("thr", "http://purl.org/syndication/thread/1.0")
-except Exception:
-    pass
-
-# --- Jinja2 Environment ---
-_jinja_env = jinja2.Environment(
-    loader=jinja2.FileSystemLoader("src/egregora_v3/infra/sinks/templates/"),
-    autoescape=jinja2.select_autoescape(['html', 'xml']),
-    trim_blocks=True,
-    lstrip_blocks=True,
-)
 
 def format_iso_utc(dt: datetime) -> str:
-    return dt.isoformat()
+    """Provides a consistent ISO 8601 format with UTC timezone for templates."""
+    # Ensure 'Z' for Zulu time, required by some strict RFC3339 parsers and snapshots
+    return dt.isoformat().replace("+00:00", "Z")
 
-_jinja_env.filters['iso_utc'] = format_iso_utc
 
 # --- Atom Core Domain ---
 class Link(BaseModel):
@@ -41,15 +25,18 @@ class Link(BaseModel):
     title: str | None = None
     length: int | None = None
 
+
 class Author(BaseModel):
     name: str
     email: str | None = None
     uri: str | None = None
 
+
 class Category(BaseModel):
     term: str
     scheme: str | None = None
     label: str | None = None
+
 
 class Source(BaseModel):
     id: str | None = None
@@ -57,10 +44,12 @@ class Source(BaseModel):
     updated: datetime | None = None
     links: list[Link] = Field(default_factory=list)
 
+
 class InReplyTo(BaseModel):
     ref: str
     href: str | None = None
     type: str | None = None
+
 
 class Entry(BaseModel):
     id: str
@@ -89,6 +78,7 @@ class Entry(BaseModel):
             return False
         return any(link.rel == "enclosure" for link in self.links)
 
+
 # --- Application Domain ---
 class DocumentType(str, Enum):
     RECAP = "recap"
@@ -100,10 +90,12 @@ class DocumentType(str, Enum):
     ENRICHMENT = "enrichment"
     CONCEPT = "concept"
 
+
 class DocumentStatus(str, Enum):
     DRAFT = "draft"
     PUBLISHED = "published"
     ARCHIVED = "archived"
+
 
 class Document(Entry):
     doc_type: DocumentType
@@ -142,6 +134,7 @@ class Document(Entry):
                 data["updated"] = datetime.now(UTC)
         return data
 
+
 class Feed(BaseModel):
     id: str
     title: str
@@ -176,15 +169,3 @@ class Feed(BaseModel):
             for entry in self.entries
             if isinstance(entry, Document) and entry.status == DocumentStatus.PUBLISHED
         ]
-
-    def to_xml(self) -> str:
-        md = MarkdownIt()
-        template = _jinja_env.get_template("atom.xml.jinja")
-
-        feed_for_render = self.model_copy(deep=True)
-
-        for entry in feed_for_render.entries:
-            if entry.content:
-                entry.content = md.render(entry.content).strip()
-
-        return template.render(feed=feed_for_render).strip()

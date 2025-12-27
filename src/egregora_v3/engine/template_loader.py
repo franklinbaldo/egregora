@@ -15,13 +15,10 @@ from egregora_v3.engine import filters
 
 def _get_default_template_dir() -> Path:
     """Resolve the default template directory using importlib.resources."""
-    # Use importlib.resources for robust resource loading
-    # Works in both development and packaged deployments
-    package_prompts = files("egregora_v3.engine").joinpath("prompts")
-
-    # Convert to Path - resources may return Traversable
-    # For packaged apps, this extracts to temp location if needed
-    return Path(str(package_prompts))
+    # Use importlib.resources for robust resource loading.
+    # This works in both development and packaged deployments.
+    # The result is a Traversable, which is compatible with Path.
+    return Path(files("egregora_v3.engine").joinpath("prompts"))
 
 
 class TemplateLoader:

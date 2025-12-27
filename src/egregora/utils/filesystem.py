@@ -36,24 +36,29 @@ _DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 def _extract_clean_date(date_obj: str | date | datetime) -> str:
     """Extract a clean ``YYYY-MM-DD`` date from user-provided input."""
+    # Handle date/datetime objects directly
     if isinstance(date_obj, datetime):
         return date_obj.date().isoformat()
     if isinstance(date_obj, date):
         return date_obj.isoformat()
 
+    # Process string-like inputs
     date_str = str(date_obj).strip()
-
     match = _DATE_PATTERN.search(date_str)
+
     if not match:
-        return date_str  # No date pattern found.
+        return date_str  # No YYYY-MM-DD pattern found
 
-    # Use our robust parser on the *matched part* of the string.
-    parsed_dt = parse_datetime_flexible(match.group(1))
-    if parsed_dt:
-        return parsed_dt.date().isoformat()
-
-    # The pattern was not a valid date (e.g., "2023-99-99"), so fallback.
-    return date_str
+    # Found a pattern, now validate if it's a real date
+    potential_date = match.group(1)
+    try:
+        datetime.strptime(potential_date, "%Y-%m-%d")
+        # It's a valid date, return the clean string
+        return potential_date
+    except ValueError:
+        # The pattern looked like a date but wasn't (e.g., 2023-02-30)
+        # Fallback to the original stripped string
+        return date_str
 
 
 def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:

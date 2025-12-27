@@ -41,21 +41,20 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
         "- **You are a senior developer:** Trust your experience - ship working code confidently\n"
     )
 
-    # 1. Try to message active session
+    # 1. Try to message existing session (even if completed)
     if session_id:
         try:
             session = client.get_session(session_id)
-            state = session.get("state")
-            if state not in ["COMPLETED", "FAILED"]:
-                client.send_message(
-                    session_id,
-                    f"Hi Jules! Please fix these issues in PR #{pr_number}:\n\n{feedback}{autonomous_instruction}",
-                )
-                return {"status": "success", "action": "messaged_active_session", "session_id": session_id}
+            # Always send message to existing session, regardless of state
+            client.send_message(
+                session_id,
+                f"Hi Jules! Please fix these issues in PR #{pr_number}:\n\n{feedback}{autonomous_instruction}",
+            )
+            return {"status": "success", "action": "messaged_existing_session", "session_id": session_id}
         except Exception:
             pass
 
-    # 2. Start a NEW session
+    # 2. Only create a NEW session if no session_id exists
     base_sha = get_base_sha(details["base_branch"], repo_path=repo_root)
     files_list = "\n".join([f"- {f}" for f in details["changed_files"]])
 

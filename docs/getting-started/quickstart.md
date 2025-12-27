@@ -4,20 +4,18 @@ This guide will walk you through generating your first blog post from a WhatsApp
 
 ## Prerequisites
 
-- Python 3.12+
-- [uv](https://github.com/astral-sh/uv) installed
-- [Google Gemini API key](https://ai.google.dev/gemini-api/docs/api-key)
+- You have installed Python 3.12+ and [uv](https://github.com/astral-sh/uv).
+- You have a [Google Gemini API key](https://ai.google.dev/gemini-api/docs/api-key).
+- You have created the `eg` alias as described in the [Installation guide](installation.md).
 
 ## Step 1: Initialize Your Blog
 
 Create a new blog site:
 
 ```bash
-uvx --from git+https://github.com/franklinbaldo/egregora egregora init my-blog
+eg init my-blog
 cd my-blog
 ```
-
-Running `egregora init` or the next `egregora write` call will automatically create `.egregora` (mkdocs config plus cache/RAG/LanceDB paths). If you ever need to rehydrate the scaffolding manually, run `python scripts/bootstrap_site.py ./my-blog` from the repo root or `python ../scripts/bootstrap_site.py .` from within the site directory.
 
 This creates a minimal MkDocs site structure:
 
@@ -52,7 +50,7 @@ export GOOGLE_API_KEY="your-api-key-here"
 ## Step 4: Process the Export
 
 ```bash
-uvx --from git+https://github.com/franklinbaldo/egregora egregora write \
+eg write \
   whatsapp-export.zip \
   --output-dir=. \
   --timezone='America/New_York'
@@ -77,11 +75,8 @@ This will:
 Launch a local preview server:
 
 ```bash
-# To serve, we need the mkdocs dependencies
-uvx --from git+https://github.com/franklinbaldo/egregora \
-  --with mkdocs-material \
-  --with mkdocs-blogging-plugin \
-  mkdocs serve -f .egregora/mkdocs.yml
+# 'eg serve' is a pass-through to 'mkdocs serve'
+eg serve -f .egregora/mkdocs.yml
 ```
 
 Open [http://localhost:8000](http://localhost:8000) in your browser. 🎉
@@ -125,13 +120,13 @@ Process another export or adjust windowing:
 
 ```bash
 # Daily windowing (default)
-egregora write another-export.zip --output-dir=. --step-size=1 --step-unit=days
+eg write another-export.zip --output-dir=. --step-size=1 --step-unit=days
 
 # Hourly windowing for active chats
-egregora write export.zip --step-size=4 --step-unit=hours
+eg write export.zip --step-size=4 --step-unit=hours
 
 # Message-based windowing
-egregora write export.zip --step-size=100 --step-unit=messages
+eg write export.zip --step-size=100 --step-unit=messages
 ```
 
 ### Enable Enrichment
@@ -139,7 +134,7 @@ egregora write export.zip --step-size=100 --step-unit=messages
 Use LLM to enrich URLs and media:
 
 ```bash
-egregora write export.zip --enable-enrichment
+eg write export.zip --enable-enrichment
 ```
 
 ### Rank Your Content
@@ -147,8 +142,8 @@ egregora write export.zip --enable-enrichment
 Use ELO comparisons to identify your best posts:
 
 ```bash
-egregora read rank docs/posts/
-egregora top --limit=10
+eg read rank docs/posts/
+eg top --limit=10
 ```
 
 ### Check Pipeline Runs
@@ -156,31 +151,31 @@ egregora top --limit=10
 View pipeline execution history:
 
 ```bash
-egregora runs list
-egregora runs show <run_id>
+eg runs list
+eg runs show <run_id>
 ```
 
 ## Common Options
 
 ```bash
 # Daily windowing instead of default
-egregora write export.zip --step-size=1 --step-unit=days
+eg write export.zip --step-size=1 --step-unit=days
 
 # Enable URL/media enrichment
-egregora write export.zip --enable-enrichment
+eg write export.zip --enable-enrichment
 
 # Custom date range
-egregora write export.zip --from-date=2025-01-01 --to-date=2025-01-31
+eg write export.zip --from-date=2025-01-01 --to-date=2025-01-31
 
 # Different model
-egregora write export.zip --model=google-gla:gemini-pro-latest
+eg write export.zip --model=google-gla:gemini-pro-latest
 
 # Incremental processing (resume previous run)
-egregora write export.zip --resume
+eg write export.zip --resume
 
 # Invalidate cache tiers
-egregora write export.zip --refresh=writer  # Regenerate posts
-egregora write export.zip --refresh=all     # Full rebuild
+eg write export.zip --refresh=writer  # Regenerate posts
+eg write export.zip --refresh=all     # Full rebuild
 ```
 
 ## Troubleshooting
@@ -214,5 +209,5 @@ chmod -R u+w .egregora/lancedb/
 
 ## Learn More
 
-- [Technical Reference](../reference.md) - Learn about the architecture and CLI
+- [Technical Reference](../reference/index.md) - Learn about the architecture and CLI
 - [Code of the Weaver](../CLAUDE.md) - Guidelines for contributors
