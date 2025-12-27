@@ -497,7 +497,7 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
 Use consistent, meaningful tags across posts to build a useful taxonomy.
 """
 
-    def documents(self) -> Iterator[Document]:
+    def documents(self, doc_type: DocumentType | None = None) -> Iterator[Document]:
         """Return all MkDocs documents as Document instances (lazy iterator)."""
         if not hasattr(self, "_site_root") or self._site_root is None:
             return
@@ -507,7 +507,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # but get() expects a simpler identifier for some types (e.g., "slug" for posts).
         # To reliably load all listed documents, we bypass the identifier resolution logic
         # and load directly from the known path found by list().
-        for meta in self.list():
+        for meta in self.list(doc_type=doc_type):
             if meta.doc_type and "path" in meta.metadata:
                 doc_path = Path(str(meta.metadata["path"]))
                 # Bypass identifier resolution by loading directly from path
@@ -996,8 +996,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
-        all_posts = list(self.documents())
-        author_posts_docs = [post for post in all_posts if author_uuid in post.metadata.get("authors", [])]
+        posts = list(self.documents(doc_type=DocumentType.POST))
+        author_posts_docs = [post for post in posts if author_uuid in post.metadata.get("authors", [])]
         metadata["posts"] = [
             {
                 "title": post.metadata.get("title"),
@@ -1199,7 +1199,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
     def get_profiles_data(self) -> list[dict[str, Any]]:
         """Extract profile metadata for profiles index, including calculated stats."""
         profiles = []
-        all_posts = list(self.documents())  # Inefficient, but necessary for stats
+        posts = list(self.documents(doc_type=DocumentType.POST))  # Inefficient, but necessary for stats
 
         if not hasattr(self, "profiles_dir") or not self.profiles_dir.exists():
             return profiles
@@ -1215,7 +1215,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
                 author_posts = [
                     post
-                    for post in all_posts
+                    for post in posts
                     if post.metadata and author_uuid in post.metadata.get("authors", [])
                 ]
 
@@ -1383,11 +1383,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         # Collect all tags from posts
         tag_counts: Counter = Counter()
-        all_posts = list(self.documents())
+        posts = list(self.documents(doc_type=DocumentType.POST))
 
-        for post in all_posts:
-            if post.type != DocumentType.POST:
-                continue
+        for post in posts:
             tags = post.metadata.get("tags", [])
             for tag in tags:
                 if isinstance(tag, str) and tag.strip():
