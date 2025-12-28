@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 import os
 
-import google.genai as genai
+from google import genai
 from google.api_core import exceptions as google_exceptions
 from pydantic import BaseModel, Field
 from tenacity import Retrying

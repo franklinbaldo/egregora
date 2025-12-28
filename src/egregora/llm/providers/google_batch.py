@@ -8,14 +8,21 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import google.genai as genai
 import httpx
+from google import genai
 from google.genai import types
-from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UsageLimitExceeded
+from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models import Model, ModelRequestParameters, ModelSettings
 from pydantic_ai.usage import RequestUsage
 from tenacity import RetryError, retry, retry_if_result, stop_after_delay, wait_fixed
+
+from egregora.llm.exceptions import (
+    BatchJobFailedError,
+    BatchJobTimeoutError,
+    BatchResultDownloadError,
+    InvalidLLMResponseError,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -95,8 +102,8 @@ class GoogleBatchModel(Model):
                 status_code=code or 0, model_name=self.model_name, body=message or str(first.error)
             )
         if not first.response:
-            msg = f"No response returned for {self.model_name}"
-            raise ModelAPIError(msg)
+            msg = f"No response returned for model {self.model_name}"
+            raise InvalidLLMResponseError(msg)
 
         text = self._extract_text(first.response)
         usage = RequestUsage()
@@ -254,13 +261,17 @@ class GoogleBatchModel(Model):
 
         try:
             job = _get_job_with_retry()
-        except RetryError:
+        except RetryError as e:
             # Tenacity raises RetryError when retries are exhausted (timeout)
             msg = "Batch job polling timed out"
-            raise ModelAPIError(msg) from None
+            raise BatchJobTimeoutError(msg, job_name=job_name) from e
 
         if job.state.name != "SUCCEEDED":
-            raise ModelHTTPError(status_code=0, model_name=self.model_name, body=str(job.error))
+            raise BatchJobFailedError(
+                "Batch job failed",
+                job_name=job_name,
+                error_payload=job.error,
+            )
 
         return job
 
@@ -268,9 +279,13 @@ class GoogleBatchModel(Model):
         self, client: Any, output_uri: str, requests: list[dict[str, Any]]
     ) -> list[BatchResult]:
         # httpx.get is blocking
-        with httpx.Client() as http_client:
-            resp = http_client.get(output_uri)
-            resp.raise_for_status()
+        try:
+            with httpx.Client() as http_client:
+                resp = http_client.get(output_uri)
+                resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            msg = "Failed to download batch results"
+            raise BatchResultDownloadError(msg, url=output_uri) from e
 
         lines = resp.text.splitlines()
         results: list[BatchResult] = []
