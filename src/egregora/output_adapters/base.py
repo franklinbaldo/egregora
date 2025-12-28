@@ -15,6 +15,7 @@ import yaml
 
 from egregora.data_primitives import DocumentMetadata, OutputSink, UrlConvention
 from egregora.output_adapters.exceptions import (
+    AdapterNotDetectedError,
     FilenameGenerationError,
     FrontmatterParsingError,
     RegistryNotProvidedError,
@@ -313,7 +314,7 @@ class OutputSinkRegistry:
             instance = format_class()  # type: ignore[abstract]
             if instance.supports_site(site_root):
                 return instance
-        return None
+        raise AdapterNotDetectedError(str(site_root))
 
     def list_formats(self) -> list[str]:
         """List all registered output format types."""
