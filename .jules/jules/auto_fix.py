@@ -3,7 +3,7 @@
 from typing import Any
 
 from jules.client import JulesClient
-from jules.github import fetch_failed_logs_summary, get_base_sha, get_pr_details_via_gh
+from jules.github import fetch_failed_logs_summary, get_pr_details_via_gh
 
 
 def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
@@ -41,53 +41,25 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
         "- **You are a senior developer:** Trust your experience - ship working code confidently\n"
     )
 
-    # 1. Try to message existing session (even if completed)
-    if session_id:
-        try:
-            session = client.get_session(session_id)
-            # Always send message to existing session, regardless of state
-            client.send_message(
-                session_id,
-                f"Hi Jules! Please fix these issues in PR #{pr_number}:\n\n{feedback}{autonomous_instruction}",
-            )
-            return {"status": "success", "action": "messaged_existing_session", "session_id": session_id}
-        except Exception:
-            pass
-
-    # 2. Only create a NEW session if no session_id exists
-    base_sha = get_base_sha(details["base_branch"], repo_path=repo_root)
-    files_list = "\n".join([f"- {f}" for f in details["changed_files"]])
-
-    new_prompt = (
-        f"FIX REQUEST for Pull Request #{pr_number}: {details['title']}\n\n"
-        f"## Context\n"
-        f"- **PR Number:** {pr_number}\n"
-        f"- **Current Branch:** `{details['branch']}`\n"
-        f"- **Base Branch:** `{details['base_branch']}`\n"
-        f"- **Base Branch Current SHA:** `{base_sha}`\n"
-        f"- **Changed Files in this PR:**\n{files_list}\n\n"
-        f"## Original PR Description\n"
-        f"{details['body']}\n\n"
-        f"## Detected Problems to Fix\n"
-        f"{feedback}"
-        f"{autonomous_instruction}\n"
-        f"Please checkout the branch `{details['branch']}`, investigate the failures, fix them, and push an update."
-    )
-
-    try:
-        new_session = client.create_session(
-            prompt=new_prompt,
-            owner="franklinbaldo",  # TODO: parameterize
-            repo="egregora",  # TODO: parameterize
-            branch=details["branch"],
-            title=f"Fix #{pr_number}: {details['title']}",
-            automation_mode="AUTO_CREATE_PR",
-        )
+    # Only send message to existing session - never create new sessions
+    if not session_id:
         return {
-            "status": "success",
-            "action": "created_new_session",
-            "new_session_id": new_session.get("name"),  # Resource name
+            "status": "skipped",
+            "message": f"No session_id found for PR #{pr_number}. Auto-fix only works with existing Jules sessions.",
             "branch": details["branch"],
         }
+
+    try:
+        session = client.get_session(session_id)
+        # Always send message to existing session, regardless of state
+        client.send_message(
+            session_id,
+            f"Hi Jules! Please fix these issues in PR #{pr_number}:\n\n{feedback}{autonomous_instruction}",
+        )
+        return {"status": "success", "action": "messaged_existing_session", "session_id": session_id}
     except Exception as e:
-        return {"error": f"Failed to start new session: {e!s}"}
+        return {
+            "status": "error",
+            "message": f"Failed to send message to session {session_id}: {e!s}",
+            "session_id": session_id,
+        }
