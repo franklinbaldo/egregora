@@ -45,6 +45,7 @@ from egregora.llm.providers.google_batch import GoogleBatchModel
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
+from egregora.utils.datetime_utils import ensure_datetime
 from egregora.utils.env import get_google_api_key
 from egregora.utils.paths import slugify
 from egregora.utils.zip import validate_zip_contents

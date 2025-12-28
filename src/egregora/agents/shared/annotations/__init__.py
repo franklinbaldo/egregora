@@ -76,7 +76,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import ibis
 
-from egregora.data_primitives.document import Document, OutputSink
+from egregora.data_primitives.document import Document, DocumentType, OutputSink
 from egregora.database import schemas as database_schema
 
 if TYPE_CHECKING:
