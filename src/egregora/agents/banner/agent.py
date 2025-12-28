@@ -9,22 +9,61 @@ interpretation and generation in a single API call.
 
 from __future__ import annotations
 
+import base64
+import json
 import logging
 import os
+import tempfile
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
-import google.generativeai as genai
+import google.genai as genai
+import httpx
 from google.api_core import exceptions as google_exceptions
+from google.genai import types
 from pydantic import BaseModel, Field
 from tenacity import Retrying
 
-from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
-from egregora.agents.banner.image_generation import ImageGenerationRequest
 from egregora.config import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.resources.prompts import render_prompt
 from egregora.utils.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+
 logger = logging.getLogger(__name__)
+
+_POLL_INTERVAL = 10.0
+_TIMEOUT = 600.0  # 10 minutes for batch
+
+
+@dataclass
+class ImageGenerationRequest:
+    """Request parameters for generating an image."""
+
+    prompt: str
+    response_modalities: Sequence[str]
+    aspect_ratio: str | None = None
+
+
+@dataclass
+class ImageGenerationResult:
+    """Normalized response from an image generation provider."""
+
+    image_bytes: bytes | None
+    mime_type: str | None
+    debug_text: str | None = None
+    error: str | None = None
+    error_code: str | None = None
+
+    @property
+    def has_image(self) -> bool:
+        """True when binary image data is available."""
+        return self.image_bytes is not None and self.mime_type is not None
 
 
 class BannerInput(BaseModel):
@@ -43,7 +82,6 @@ class BannerOutput(BaseModel):
     (saving, paths, URLs) are handled by upper layers.
     """
 
-    # Document is a dataclass (not a Pydantic model), so no ConfigDict/arbitrary-types hook is required.
     document: Document | None = None
     error: str | None = None
     error_code: str | None = Field(
@@ -61,8 +99,115 @@ class BannerOutput(BaseModel):
         return self.document is not None
 
 
+def _build_payload(request: ImageGenerationRequest) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "key": "banner-req",
+        "request": {
+            "contents": [{"parts": [{"text": request.prompt}]}],
+            "generation_config": {},
+        },
+    }
+    if request.response_modalities:
+        payload["request"]["generation_config"]["responseModalities"] = list(request.response_modalities)
+    return payload
+
+
+def _write_payload(payload: dict[str, Any]) -> Path:
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".jsonl") as temp_file:
+        temp_file.write(json.dumps(payload) + "\n")
+        return Path(temp_file.name)
+
+
+def _upload_payload(client: Any, temp_path: Path) -> types.File:
+    return client.files.upload(
+        path=temp_path,
+        display_name="banner-batch",
+        mime_type="application/json",
+    )
+
+
+def _create_batch_job(client: Any, model: str, src: str) -> types.BatchJob:
+    job = client.batches.create(
+        model=model,
+        src=src,
+        config=types.CreateBatchJobConfig(display_name="banner-batch-job"),
+    )
+    logger.info("Created banner batch job: %s", job.name)
+    return job
+
+
+def _wait_for_completion(client: Any, job_name: str) -> types.BatchJob | None:
+    start_time = time.time()
+    while time.time() - start_time < _TIMEOUT:
+        job = client.batches.get(name=job_name)
+        if job.state.name in ("PROCESSING", "PENDING", "STATE_UNSPECIFIED"):
+            time.sleep(_POLL_INTERVAL)
+            continue
+        return job
+    return None
+
+
+def _download_result(output_uri: str) -> dict[str, Any]:
+    response = httpx.get(output_uri, timeout=_TIMEOUT)
+    response.raise_for_status()
+    line = response.text.strip()
+    return {"error": "Empty result file"} if not line else json.loads(line)
+
+
+def _decode_inline_data(inline: dict[str, Any]) -> tuple[bytes | None, str | None]:
+    data_field = inline.get("data")
+    image_bytes: bytes | None = None
+    if isinstance(data_field, str):
+        image_bytes = base64.b64decode(data_field)
+    elif isinstance(data_field, bytes):
+        image_bytes = data_field
+    return image_bytes, inline.get("mimeType")
+
+
+def _extract_image(data: dict[str, Any]) -> ImageGenerationResult:
+    if "error" in data:
+        return ImageGenerationResult(
+            image_bytes=None,
+            mime_type=None,
+            error=str(data["error"]),
+            error_code="GENERATION_ERROR",
+        )
+
+    candidates = data.get("response", {}).get("candidates", [])
+    image_bytes: bytes | None = None
+    mime_type: str | None = None
+    debug_text_parts: list[str] = []
+
+    for candidate in candidates:
+        for part in candidate.get("content", {}).get("parts", []):
+            text = part.get("text")
+            if text:
+                debug_text_parts.append(text)
+            inline = part.get("inlineData")
+            if inline and image_bytes is None:
+                image_bytes, mime_type = _decode_inline_data(inline)
+
+    debug_text = "\n".join(debug_text_parts) if debug_text_parts else None
+
+    return (
+        ImageGenerationResult(
+            image_bytes=None,
+            mime_type=None,
+            debug_text=debug_text,
+            error="No image data found in response",
+            error_code="NO_IMAGE",
+        )
+        if image_bytes is None
+        else ImageGenerationResult(image_bytes=image_bytes, mime_type=mime_type, debug_text=debug_text)
+    )
+
+
+def _cleanup_temp_file(temp_path: Path) -> None:
+    if temp_path.exists():
+        temp_path.unlink()
+
+
 def _build_image_prompt(input_data: BannerInput) -> str:
-    """Build the image generation prompt from post metadata."""
     return render_prompt(
         "banner.jinja",
         post_title=input_data.post_title,
@@ -71,24 +216,48 @@ def _build_image_prompt(input_data: BannerInput) -> str:
 
 
 def _generate_banner_image(
-    client: genai.Client,
+    client: Any,
     input_data: BannerInput,
     image_model: str,
     generation_request: ImageGenerationRequest,
 ) -> BannerOutput:
-    """Generate banner image using Gemini multimodal image model."""
     logger.info("Generating banner with %s for: %s", image_model, input_data.post_title)
 
     try:
-        provider = GeminiImageGenerationProvider(client=client, model=image_model)
-        result = provider.generate(generation_request)
+        payload = _build_payload(generation_request)
+        temp_path = _write_payload(payload)
+        try:
+            uploaded_file = _upload_payload(client, temp_path)
+            job = _create_batch_job(client, image_model, uploaded_file.name)
+            completed_job = _wait_for_completion(client, job.name)
+
+            if completed_job is None:
+                result = ImageGenerationResult(
+                    image_bytes=None,
+                    mime_type=None,
+                    error="Batch job timed out",
+                    error_code="TIMEOUT",
+                )
+            elif completed_job.state.name != "SUCCEEDED":
+                error_msg = f"Batch job failed with state {completed_job.state.name}: {completed_job.error}"
+                logger.error(error_msg)
+                result = ImageGenerationResult(
+                    image_bytes=None,
+                    mime_type=None,
+                    error=error_msg,
+                    error_code="BATCH_FAILED",
+                )
+            else:
+                data = _download_result(completed_job.output_uri)
+                result = _extract_image(data)
+        finally:
+            _cleanup_temp_file(temp_path)
 
         if not result.has_image:
             error_message = result.error or "Image generation returned no data"
             logger.error("%s for post '%s'", error_message, input_data.post_title)
             return BannerOutput(error=error_message, error_code=result.error_code)
 
-        # Create Document with binary content
         document = Document(
             content=result.image_bytes,
             type=DocumentType.MEDIA,
@@ -99,10 +268,6 @@ def _generate_banner_image(
                 "language": input_data.language,
             },
         )
-
-        if result.debug_text:
-            logger.debug("Banner generation debug text: %s", result.debug_text)
-
         return BannerOutput(document=document, debug_text=result.debug_text)
 
     except google_exceptions.GoogleAPICallError as e:
@@ -116,34 +281,9 @@ def generate_banner(
     slug: str | None = None,
     language: str = "pt-BR",
 ) -> BannerOutput:
-    """Generate a banner image using the Gemini multimodal image model.
-
-    This is a single-model approach: gemini-2.0-flash-exp-image handles both
-    creative interpretation and image generation in one API call.
-
-    The function returns a Document with binary image content. Filesystem
-    operations (saving to disk, URL generation) are handled by upper layers.
-
-    Args:
-        post_title: Title of the blog post
-        post_summary: Summary of the post content
-        slug: Optional post slug for metadata
-        language: Content language (default: pt-BR)
-
-    Returns:
-        BannerOutput with Document containing binary image or error message
-
-    Note:
-        Requires GOOGLE_API_KEY environment variable to be set.
-
-    """
-    # Client reads GOOGLE_API_KEY from environment automatically
     client = genai.Client()
-
-    # Load configuration
     config = EgregoraConfig()
     image_model = config.models.banner
-
     input_data = BannerInput(
         post_title=post_title,
         post_summary=post_summary,
@@ -167,10 +307,4 @@ def generate_banner(
 
 
 def is_banner_generation_available() -> bool:
-    """Check if banner generation is available (GOOGLE_API_KEY is set).
-
-    Returns:
-        True if GOOGLE_API_KEY environment variable is set
-
-    """
     return bool(os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY"))
