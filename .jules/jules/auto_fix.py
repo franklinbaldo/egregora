@@ -49,19 +49,29 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
             "branch": details["branch"],
         }
 
+    # Step 1: Get the session (separate error handling)
     try:
         session = client.get_session(session_id)
         session_state = session.get("state", "UNKNOWN")
-
-        # Log session state for visibility (helps with debugging)
         print(f"📡 Session {session_id} state: {session_state}")
+    except Exception as e:
+        return {
+            "status": "error",
+            "error_type": "get_session_failed",
+            "message": f"Failed to retrieve session {session_id}: {e!s}",
+            "session_id": session_id,
+        }
 
-        # Send message to session (works for ACTIVE, COMPLETED, and most states)
-        # Jules can reopen completed sessions or work with active ones
-        client.send_message(
-            session_id,
-            f"Hi Jules! Please fix these issues in PR #{pr_number}:\n\n{feedback}{autonomous_instruction}",
-        )
+    # Step 2: Send message to session (separate error handling)
+    try:
+        message_text = f"Hi Jules! Please fix these issues in PR #{pr_number}:\n\n{feedback}{autonomous_instruction}"
+        response = client.send_message(session_id, message_text)
+
+        # Validate response (send_message should return a dict)
+        if not isinstance(response, dict):
+            print(f"⚠️  Unexpected response from send_message: {response}")
+
+        print(f"✅ Message sent successfully to session {session_id}")
 
         return {
             "status": "success",
@@ -72,6 +82,8 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
     except Exception as e:
         return {
             "status": "error",
-            "message": f"Failed to send message to session {session_id}: {e!s}",
+            "error_type": "send_message_failed",
+            "message": f"Failed to send message to session {session_id} (state: {session_state}): {e!s}",
             "session_id": session_id,
+            "session_state": session_state,
         }
