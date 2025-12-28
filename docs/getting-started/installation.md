@@ -96,7 +96,11 @@ egregora --version
 To build the documentation locally:
 
 ```bash
-uv tool run --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox mkdocs serve -f .egregora/mkdocs.yml
+# 1. Install doc dependencies (only once)
+uv sync --extra docs
+
+# 2. Preview your site
+mkdocs serve -f .egregora/mkdocs.yml
 ```
 
 ### Linting
