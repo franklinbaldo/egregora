@@ -776,7 +776,7 @@ class EnrichmentWorker(BaseWorker):
 
         Sends all URLs together with a combined prompt asking for JSON dict result.
         """
-        import google.genai as genai
+        from google import genai
         from google.genai import types
 
         api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
@@ -1093,7 +1093,7 @@ class EnrichmentWorker(BaseWorker):
         file_size = file_path.stat().st_size
 
         if file_size > threshold_bytes:
-            import google.genai as genai
+            from google import genai
 
             logger.info(
                 "File %s is %.2f MB (threshold: %d MB), using File API upload",
@@ -1171,7 +1171,7 @@ class EnrichmentWorker(BaseWorker):
         Sends all images together with a combined prompt asking for JSON dict with
         results keyed by filename. This reduces 12 API calls to 1.
         """
-        import google.genai as genai
+        from google import genai
         from google.genai import types
 
         client = genai.Client(api_key=api_key)
@@ -1301,7 +1301,7 @@ class EnrichmentWorker(BaseWorker):
         api_key: str,
     ) -> list[Any]:
         """Execute media enrichment requests individually (fallback when batch fails)."""
-        import google.genai as genai
+        from google import genai
         from google.genai import types
 
         client = genai.Client(api_key=api_key)

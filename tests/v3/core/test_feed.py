@@ -4,7 +4,7 @@ import tempfile
 
 from defusedxml import ElementTree
 
-from egregora_v3.core.types import Document, DocumentStatus, DocumentType, Feed, documents_to_feed, Entry
+from egregora_v3.core.types import Document, DocumentStatus, DocumentType, Feed, Entry
 from egregora_v3.infra.sinks.atom import AtomSink
 
 
@@ -66,7 +66,7 @@ def test_documents_to_feed_sorts_entries_newest_first():
     older.updated = datetime(2024, 1, 1, tzinfo=UTC)
     newer.updated = datetime(2024, 1, 2, tzinfo=UTC)
 
-    feed = documents_to_feed(
+    feed = Feed.from_documents(
         [
             older,
             newer,
@@ -122,3 +122,31 @@ def test_feed_to_xml_handles_mixed_entry_types():
     assert plain_entry_xml is not None, "Plain entry not found in feed XML"
     plain_categories = plain_entry_xml.findall("{http://www.w3.org/2005/Atom}category")
     assert not plain_categories, "Plain entry should not have any categories"
+
+
+def test_feed_from_documents_factory_method():
+    older = Document(
+        content="Older entry",
+        doc_type=DocumentType.NOTE,
+        title="Older",
+    )
+    newer = Document(
+        content="Newer entry",
+        doc_type=DocumentType.NOTE,
+        title="Newer",
+    )
+
+    older.updated = datetime(2024, 1, 1, tzinfo=UTC)
+    newer.updated = datetime(2024, 1, 2, tzinfo=UTC)
+
+    feed = Feed.from_documents(
+        [
+            older,
+            newer,
+        ],
+        feed_id="urn:egregora:feed:test",
+        title="Test Feed",
+    )
+
+    assert feed.updated == newer.updated
+    assert feed.entries[0].id == newer.id

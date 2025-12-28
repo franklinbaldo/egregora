@@ -8,8 +8,8 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import google.genai as genai
 import httpx
+from google import genai
 from google.genai import types
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
