@@ -78,4 +78,14 @@ def normalize_timezone(dt: datetime, *, default_timezone: tzinfo = UTC) -> datet
     return dt.astimezone(default_timezone)
 
 
-__all__ = ["normalize_timezone", "parse_datetime_flexible"]
+def ensure_datetime(value: datetime | str | Any) -> datetime:
+    """Convert various datetime representations to Python datetime."""
+    parsed = parse_datetime_flexible(value, default_timezone=UTC)
+    if parsed is not None:
+        return parsed
+
+    msg = f"Unsupported datetime type: {type(value)}"
+    raise TypeError(msg)
+
+
+__all__ = ["ensure_datetime", "normalize_timezone", "parse_datetime_flexible"]

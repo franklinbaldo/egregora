@@ -203,8 +203,8 @@ async def test_write_posts_for_window_smoke_test(
 @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
 async def test_execute_writer_raises_specific_error(mock_writer_agent, test_config):
     """Test that _execute_writer_with_error_handling raises a specific, structured exception."""
-    from egregora.agents.writer import _execute_writer_with_error_handling
     from egregora.agents.exceptions import WriterAgentExecutionError
+    from egregora.agents.writer import _execute_writer_with_error_handling
 
     # Arrange
     original_error = ValueError("Underlying agent error")

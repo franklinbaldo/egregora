@@ -25,16 +25,22 @@ import frontmatter
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
-from egregora.data_primitives.document import Document, DocumentMetadata, DocumentType, UrlContext, UrlConvention
+from egregora.data_primitives.document import (
+    Document,
+    DocumentMetadata,
+    DocumentType,
+    UrlContext,
+    UrlConvention,
+)
 from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.exceptions import (
+    ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
-    UnsupportedDocumentTypeError,
     ProfileNotFoundError,
-    ConfigLoadError,
+    UnsupportedDocumentTypeError,
 )
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
