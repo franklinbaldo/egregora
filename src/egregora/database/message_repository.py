@@ -150,7 +150,7 @@ class MessageRepository:
                 "author_uuid",
                 "created_at",
                 "created_by_run",
-            )
+            ).order_by("ts")
         ):
             for row in batch:
                 if len(unique_media) >= limit:
@@ -181,7 +181,7 @@ class MessageRepository:
                         existing = metadata_lookup.get(ref)
                         if existing:
                             existing_ts = existing.get("ts")
-                            if existing_ts and timestamp and timestamp < existing_ts:
+                            if timestamp is not None and (existing_ts is None or timestamp < existing_ts):
                                 existing.update(row_metadata)
                         continue
 

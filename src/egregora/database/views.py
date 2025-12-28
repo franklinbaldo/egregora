@@ -14,7 +14,7 @@ from ibis.expr.types import Table
 logger = logging.getLogger(__name__)
 
 # Type alias for view builder functions
-type ViewBuilder = Callable[[Table], Table]
+ViewBuilder = Callable[[Table], Table]
 
 
 def chunks_view(ir: Table) -> Table:
