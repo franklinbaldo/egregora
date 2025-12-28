@@ -384,10 +384,16 @@ def _save_journal_to_file(params: JournalEntryParams) -> str | None:
         )
         params.output_format.persist(doc)
         logger.info("Saved journal entry: %s", doc.document_id)
-    except (TemplateNotFound, TemplateError):
+    except (TemplateNotFound, TemplateError) as e:
+        from egregora.agents.exceptions import JournalTemplateError
+
         logger.exception("Journal template error")
-    except (OSError, PermissionError):
+        raise JournalTemplateError(JOURNAL_TEMPLATE_NAME, str(e)) from e
+    except (OSError, PermissionError) as e:
+        from egregora.agents.exceptions import JournalFileSystemError
+
         logger.exception("File system error during journal creation")
+        raise JournalFileSystemError("journal file", str(e)) from e
     except (TypeError, AttributeError):
         logger.exception("Invalid data for journal")
     except ValueError:
