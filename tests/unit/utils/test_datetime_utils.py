@@ -9,7 +9,10 @@ from egregora.utils.datetime_utils import (
     normalize_timezone,
     parse_datetime_flexible,
 )
-from egregora.utils.exceptions import DateTimeParsingError
+from egregora.utils.exceptions import (
+    DateTimeParsingError,
+    InvalidDateTimeInputError,
+)
 
 
 # region: Tests for normalize_timezone
@@ -88,10 +91,20 @@ def test_to_datetime_valid_inputs(input_val, expected):
 
 @pytest.mark.parametrize(
     "input_val",
-    [None, "", "   ", "not-a-date", 12345],
+    [None, "", "   "],
 )
-def test_to_datetime_invalid_inputs(input_val):
-    """Should raise DateTimeParsingError for invalid or empty inputs."""
+def test_to_datetime_empty_inputs_raise_invalid_error(input_val):
+    """Should raise InvalidDateTimeInputError for None or empty/whitespace strings."""
+    with pytest.raises(InvalidDateTimeInputError):
+        _to_datetime(input_val)
+
+
+@pytest.mark.parametrize(
+    "input_val",
+    ["not-a-date", 12345],
+)
+def test_to_datetime_unparseable_inputs_raise_parsing_error(input_val):
+    """Should raise DateTimeParsingError for values that are not parsable as dates."""
     with pytest.raises(DateTimeParsingError):
         _to_datetime(input_val)
 
@@ -111,12 +124,12 @@ def test_to_datetime_forwards_parser_kwargs():
 
 # region: Original tests for parse_datetime_flexible to ensure no regressions
 def test_parse_datetime_none_or_empty():
-    """Should raise DateTimeParsingError for None or empty string inputs."""
-    with pytest.raises(DateTimeParsingError):
+    """Should raise InvalidDateTimeInputError for None or empty string inputs."""
+    with pytest.raises(InvalidDateTimeInputError):
         parse_datetime_flexible(None)
-    with pytest.raises(DateTimeParsingError):
+    with pytest.raises(InvalidDateTimeInputError):
         parse_datetime_flexible("")
-    with pytest.raises(DateTimeParsingError):
+    with pytest.raises(InvalidDateTimeInputError):
         parse_datetime_flexible("   ")
 
 
