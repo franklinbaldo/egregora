@@ -40,6 +40,7 @@ def parse_datetime_flexible(
     Returns:
         A timezone-aware ``datetime`` object normalized to the ``default_timezone``,
         or ``None`` if parsing is unsuccessful.
+
     """
     if value is None:
         return None
@@ -79,6 +80,7 @@ def normalize_timezone(dt: datetime, *, default_timezone: tzinfo = UTC) -> datet
 
     Returns:
         A timezone-aware datetime.
+
     """
     if dt.tzinfo is None:
         return dt.replace(tzinfo=default_timezone)
@@ -99,6 +101,7 @@ def ensure_datetime(value: datetime | str | Any) -> datetime:
 
     Raises:
         TypeError: If the value cannot be converted to a ``datetime``.
+
     """
     parsed = parse_datetime_flexible(value, default_timezone=UTC)
     if parsed is not None:
