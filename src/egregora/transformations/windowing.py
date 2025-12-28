@@ -38,6 +38,7 @@ from ibis.expr.types import Table
 
 from egregora.agents.formatting import build_conversation_xml
 from egregora.config.settings import EgregoraConfig
+from egregora.transformations.exceptions import InvalidSplitError, InvalidStepUnitError
 
 logger = logging.getLogger(__name__)
 
@@ -213,8 +214,7 @@ def create_windows(
             overlap_ratio=normalized_ratio,
         )
     else:
-        msg = f"Unknown step_unit: {config.step_unit}. Must be 'messages', 'hours', 'days', or 'bytes'."
-        raise ValueError(msg)
+        raise InvalidStepUnitError(config.step_unit)
 
 
 def _prepare_message_windows(
@@ -525,13 +525,12 @@ def split_window_into_n_parts(window: Window, n: int) -> list[Window]:
         List of windows (may be shorter than n if some time ranges are empty)
 
     Raises:
-        ValueError: If n < 2
+        InvalidSplitError: If n < 2
 
     """
     min_splits = 2
     if n < min_splits:
-        msg = f"Cannot split into {n} parts (must be >= {min_splits})"
-        raise ValueError(msg)
+        raise InvalidSplitError(n)
 
     duration = window.end_time - window.start_time
     part_duration = duration / n
