@@ -242,6 +242,41 @@ def test_mkdocs_sink_preserves_markdown_content(sample_feed: Feed, tmp_path: Pat
     assert "This is content." in content
 
 
+def test_mkdocs_sink_generates_correct_frontmatter_structure(tmp_path: Path) -> None:
+    """Test that the generated frontmatter is valid YAML with the correct structure."""
+    import yaml
+
+    doc = Document.create(
+        content="Test content.",
+        doc_type=DocumentType.POST,
+        title='Test Post with "Quotes"',
+        status=DocumentStatus.PUBLISHED,
+    )
+    doc.authors = [Author(name="Dr. Foo", email="foo@bar.com")]
+    doc.published = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
+
+    feed = documents_to_feed([doc], feed_id="test", title="Test Feed")
+    output_dir = tmp_path / "docs"
+    sink = MkDocsOutputSink(output_dir=output_dir)
+
+    sink.publish(feed)
+
+    md_content = (output_dir / "test-post-with-quotes.md").read_text()
+
+    # Extract frontmatter string
+    _, fm_str, _ = md_content.split("---", 2)
+
+    # Parse with pyyaml
+    frontmatter = yaml.safe_load(fm_str)
+
+    assert isinstance(frontmatter, dict)
+    assert frontmatter["title"] == 'Test Post with "Quotes"'
+    assert frontmatter["date"] == "2025-01-01"
+    assert frontmatter["author"] == "Dr. Foo"
+    assert frontmatter["type"] == "post"
+    assert frontmatter["status"] == "published"
+
+
 def test_mkdocs_sink_creates_index_page(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that sink creates an index.md page listing all posts."""
     output_dir = tmp_path / "docs"
