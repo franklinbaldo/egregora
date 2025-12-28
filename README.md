@@ -144,7 +144,7 @@ You can extend Egregora to read from other sources (e.g., Slack, Telegram) by im
 
 We welcome contributions! Please check out:
 
-* **[Technical Reference](docs/reference.md):** Deep dive into CLI commands and architecture.
+* **[Technical Reference](docs/v3/api-reference/):** Deep dive into CLI commands and architecture.
 * **[Code of the Weaver](CLAUDE.md):** Guidelines for contributors and AI agents.
 
 To run tests:
