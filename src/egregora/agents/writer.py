@@ -33,6 +33,7 @@ from pydantic_ai.messages import (
 from ratelimit import limits, sleep_and_retry
 from tenacity import Retrying
 
+from egregora.agents.exceptions import JournalFileSystemError, JournalTemplateError
 from egregora.agents.formatting import (
     build_conversation_xml,
     load_journal_memory,
@@ -334,7 +335,13 @@ class JournalEntryParams:
 
 
 def _save_journal_to_file(params: JournalEntryParams) -> str | None:
-    """Save journal entry to markdown file."""
+    """Save journal entry to markdown file.
+
+    Raises:
+        JournalTemplateError: If the journal template cannot be loaded or rendered
+        JournalFileSystemError: If the journal file cannot be written to the filesystem
+
+    """
     intercalated_log = params.intercalated_log
     if not intercalated_log:
         return None
@@ -383,17 +390,15 @@ def _save_journal_to_file(params: JournalEntryParams) -> str | None:
         )
         params.output_format.persist(doc)
         logger.info("Saved journal entry: %s", doc.document_id)
-    except (TemplateNotFound, TemplateError):
-        logger.exception("Journal template error")
-    except (OSError, PermissionError):
-        logger.exception("File system error during journal creation")
-    except (TypeError, AttributeError):
-        logger.exception("Invalid data for journal")
-    except ValueError:
-        logger.exception("Invalid journal document")
-    else:
         return doc.document_id
-    return None
+    except (TemplateNotFound, TemplateError) as exc:
+        msg = f"Journal template error for window {params.window_label}: {exc}"
+        logger.exception(msg)
+        raise JournalTemplateError(msg) from exc
+    except (OSError, PermissionError) as exc:
+        msg = f"File system error during journal creation for window {params.window_label}: {exc}"
+        logger.exception(msg)
+        raise JournalFileSystemError(msg) from exc
 
 
 def _process_single_tool_result(
