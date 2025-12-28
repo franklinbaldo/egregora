@@ -110,6 +110,15 @@ class DateTimeError(Exception):
     """Base exception for datetime parsing and manipulation errors."""
 
 
+class InvalidDateTimeInputError(DateTimeError):
+    """Raised when the input value for a datetime operation is invalid (e.g., None, empty string)."""
+
+    def __init__(self, value: str, reason: str) -> None:
+        self.value = value
+        self.reason = reason
+        super().__init__(f"Invalid datetime input '{value}': {reason}")
+
+
 class DateTimeParsingError(DateTimeError):
     """Raised when a string cannot be parsed into a datetime object."""
 

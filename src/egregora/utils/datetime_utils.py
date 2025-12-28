@@ -7,7 +7,10 @@ from typing import TYPE_CHECKING, Any
 
 from dateutil import parser as dateutil_parser
 
-from egregora.utils.exceptions import DateTimeParsingError
+from egregora.utils.exceptions import (
+    DateTimeParsingError,
+    InvalidDateTimeInputError,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -32,7 +35,8 @@ def parse_datetime_flexible(
         A timezone-normalized ``datetime``.
 
     Raises:
-        DateTimeParsingError: if parsing fails or input is None/empty.
+        InvalidDateTimeInputError: if the input is None or an empty string.
+        DateTimeParsingError: if parsing fails.
     """
     dt = _to_datetime(value, parser_kwargs=parser_kwargs)
     return normalize_timezone(dt, default_timezone=default_timezone)
@@ -41,7 +45,7 @@ def parse_datetime_flexible(
 def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) -> datetime:
     """Convert a value to a datetime object without timezone normalization."""
     if value is None:
-        raise DateTimeParsingError("None", ValueError("Input value cannot be None"))
+        raise InvalidDateTimeInputError("None", "Input value cannot be None")
 
     if hasattr(value, "to_pydatetime"):
         value = value.to_pydatetime()
@@ -53,7 +57,9 @@ def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) 
 
     raw = str(value).strip()
     if not raw:
-        raise DateTimeParsingError("", ValueError("Input value cannot be an empty string"))
+        raise InvalidDateTimeInputError(
+            str(value), "Input value cannot be an empty or whitespace-only string"
+        )
 
     try:
         return dateutil_parser.parse(raw, **(parser_kwargs or {}))
@@ -84,7 +90,7 @@ def ensure_datetime(value: datetime | str | Any) -> datetime:
     """Convert various datetime representations to Python datetime."""
     try:
         return parse_datetime_flexible(value, default_timezone=UTC)
-    except DateTimeParsingError as e:
+    except (DateTimeParsingError, InvalidDateTimeInputError) as e:
         msg = f"Unsupported datetime type: {type(value)}"
         raise TypeError(msg) from e
 
