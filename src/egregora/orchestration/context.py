@@ -18,7 +18,7 @@ from uuid import UUID
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import google.generativeai as genai
+    import google.genai as genai
 
     from egregora.agents.shared.annotations import AnnotationStore
     from egregora.config.settings import EgregoraConfig

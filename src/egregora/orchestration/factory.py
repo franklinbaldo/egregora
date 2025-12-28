@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
-import google.generativeai as genai
+import google.genai as genai
 import ibis
 
 from egregora.agents.shared.annotations import AnnotationStore

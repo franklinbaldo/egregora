@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import google.generativeai as genai
+import google.genai as genai
 import ibis
 import ibis.common.exceptions
 from jinja2 import Environment, FileSystemLoader, select_autoescape
