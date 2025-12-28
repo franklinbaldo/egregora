@@ -21,6 +21,7 @@ from egregora.input_adapters.whatsapp.parsing import (
     _parse_whatsapp_lines,
     parse_source,
 )
+from egregora.utils.zip import ZipValidationError
 
 
 @pytest.fixture
@@ -61,6 +62,27 @@ def whatsapp_export_with_empty_chat(tmp_path: Path) -> WhatsAppExport:
         zip_path=zip_path,
         group_name="Test Group Empty",
         group_slug="test-group-empty",
+        export_date=date(2022, 1, 1),
+        chat_file=chat_file_name,
+        media_files=[],
+    )
+
+
+@pytest.fixture
+def whatsapp_export_with_invalid_encoding(tmp_path: Path) -> WhatsAppExport:
+    """Creates a mock WhatsApp export ZIP with invalid UTF-8 content."""
+    zip_path = tmp_path / "whatsapp_invalid_encoding.zip"
+    chat_file_name = "_chat.txt"
+    # This byte sequence is invalid in UTF-8
+    invalid_content = b"1/1/22, 12:00 - User 1: Hello\nThis is some invalid text: \x80\n"
+
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr(chat_file_name, invalid_content)
+
+    return WhatsAppExport(
+        zip_path=zip_path,
+        group_name="Test Group Invalid Encoding",
+        group_slug="test-group-invalid-encoding",
         export_date=date(2022, 1, 1),
         chat_file=chat_file_name,
         media_files=[],
@@ -147,3 +169,34 @@ class TestWhatsAppParsing:
         # 3. Assert exception context
         assert excinfo.value.line == malformed_line
         assert isinstance(excinfo.value.original_error, DateParsingError)
+
+
+    def test_parse_whatsapp_lines_raises_malformed_line_error_on_time_error(self) -> None:
+        """Verify _parse_whatsapp_lines raises MalformedLineError on TimeParsingError."""
+        mock_export = WhatsAppExport(
+            zip_path=Path("dummy.zip"),
+            group_name="Test Group",
+            group_slug="test-group",
+            export_date=date(2023, 1, 1),
+            chat_file="_chat.txt",
+            media_files=[],
+        )
+        mock_source = MagicMock(spec=ZipMessageSource)
+        malformed_line = "01/01/2023, 99:99 - Author: Message"
+        mock_source.lines.return_value = iter([malformed_line])
+
+        with pytest.raises(MalformedLineError) as excinfo:
+            _parse_whatsapp_lines(mock_source, mock_export, timezone="UTC")
+
+        assert excinfo.value.line == malformed_line
+        assert isinstance(excinfo.value.original_error, TimeParsingError)
+
+
+    def test_zip_message_source_raises_error_on_decode_error(
+        self,
+        whatsapp_export_with_invalid_encoding: WhatsAppExport,
+    ) -> None:
+        """Verify ZipMessageSource raises ZipValidationError on UnicodeDecodeError."""
+        source = ZipMessageSource(export=whatsapp_export_with_invalid_encoding)
+        with pytest.raises(ZipValidationError, match="Failed to decode chat file"):
+            list(source.lines())
