@@ -16,7 +16,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import google.generativeai as genai
 import ibis
 import ibis.common.exceptions
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -59,6 +58,7 @@ from egregora.utils.cache import CacheTier, PipelineCache
 from egregora.utils.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 
 if TYPE_CHECKING:
+    import google.generativeai as genai
     from ibis.expr.types import Table
 
     from egregora.config.settings import EgregoraConfig
@@ -934,6 +934,8 @@ async def _execute_economic_writer(
     deps: WriterDeps,
 ) -> tuple[list[str], list[str]]:
     """Execute writer in economic mode (one-shot, no tools, no streaming)."""
+    import google.generativeai as genai  # Lazy import at runtime
+
     # 1. Create simple model for generation
     model_name = config.models.writer
     # Handle pydantic-ai prefix
