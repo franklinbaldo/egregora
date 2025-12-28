@@ -1,4 +1,5 @@
 """Tests for the refactored datetime utilities."""
+
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta, timezone
@@ -110,9 +111,7 @@ def test_normalize_timezone_handles_naive_and_aware():
 def test_ensure_datetime_valid():
     """Should return a valid datetime for supported inputs."""
     assert ensure_datetime("2023-01-01") == datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC)
-    assert ensure_datetime(datetime(2023, 1, 1)) == datetime(
-        2023, 1, 1, 0, 0, 0, tzinfo=UTC
-    )
+    assert ensure_datetime(datetime(2023, 1, 1)) == datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC)
 
 
 def test_ensure_datetime_invalid_raises_type_error():

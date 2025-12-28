@@ -23,9 +23,9 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
-import google.genai as genai
 import ibis
 import ibis.common.exceptions
+from google import genai
 from rich.console import Console
 from rich.panel import Panel
 

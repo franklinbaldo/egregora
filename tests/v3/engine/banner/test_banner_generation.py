@@ -1,4 +1,4 @@
-"""Tests for the V3 feed-based banner generator."""
+"""Tests for the V3 simplified banner generation function."""
 
 from __future__ import annotations
 
@@ -6,14 +6,22 @@ from datetime import datetime, UTC
 from unittest.mock import MagicMock
 
 import pytest
+from jinja2 import DictLoader, Environment, select_autoescape
 
 from egregora.agents.banner.image_generation import (
     ImageGenerationProvider,
     ImageGenerationRequest,
     ImageGenerationResult,
 )
-from egregora_v3.core.types import Document, DocumentType, Entry, Feed
-from egregora_v3.engine.banner.feed_generator import FeedBannerGenerator
+from egregora_v3.core.types import Document, DocumentType, Entry
+from egregora_v3.engine.banner.feed_generator import generate_banner_document
+
+
+@pytest.fixture
+def jinja_env() -> Environment:
+    """Provides a simple Jinja2 environment for testing."""
+    loader = DictLoader({"banner.jinja": "Prompt: {{ post_title }} - {{ post_summary }}"})
+    return Environment(loader=loader, autoescape=select_autoescape())
 
 
 class MockImageGenerationProvider(ImageGenerationProvider):
@@ -41,10 +49,10 @@ class MockImageGenerationProvider(ImageGenerationProvider):
 
 
 @pytest.fixture
-def task_feed() -> Feed:
-    """Provides a sample feed of banner generation tasks."""
+def task_entry() -> Entry:
+    """Provides a sample entry for banner generation."""
     now = datetime.now(UTC)
-    entry = Entry(
+    return Entry(
         id="test-entry",
         title="Test Title",
         updated=now,
@@ -52,29 +60,19 @@ def task_feed() -> Feed:
         content="Test Content",
         internal_metadata={"slug": "test-title", "language": "en-US"},
     )
-    return Feed(id="test-feed", title="Test Feed", updated=now, entries=[entry])
 
 
-def test_generator_requires_provider():
-    """Verify the generator raises TypeError if provider is missing."""
-    with pytest.raises(TypeError):
-        FeedBannerGenerator()
-
-
-def test_generate_from_feed_success(task_feed: Feed):
-    """Verify successful generation of a banner."""
+def test_generate_banner_document_from_entry_success(
+    task_entry: Entry, jinja_env: Environment
+):
+    """Verify successful generation of a banner document from an entry."""
     # Arrange
     mock_provider = MockImageGenerationProvider(should_succeed=True)
-    generator = FeedBannerGenerator(provider=mock_provider)
 
     # Act
-    result_feed = generator.generate_from_feed(task_feed)
+    result_doc = generate_banner_document(task_entry, mock_provider, jinja_env)
 
     # Assert
-    assert len(result_feed.entries) == 1
-    assert mock_provider.generate_called
-
-    result_doc = result_feed.entries[0]
     assert isinstance(result_doc, Document)
     assert result_doc.doc_type == DocumentType.MEDIA
     assert result_doc.title == "Banner: Test Title"
@@ -83,21 +81,21 @@ def test_generate_from_feed_success(task_feed: Feed):
     assert result_doc.internal_metadata["task_id"] == "test-entry"
 
 
-def test_generate_from_feed_failure(task_feed: Feed):
+def test_generate_banner_document_from_entry_failure(
+    task_entry: Entry, jinja_env: Environment
+):
     """Verify error document creation on failure."""
     # Arrange
     mock_provider = MockImageGenerationProvider(should_succeed=False)
-    generator = FeedBannerGenerator(provider=mock_provider)
 
     # Act
-    result_feed = generator.generate_from_feed(task_feed)
+    result_doc = generate_banner_document(task_entry, mock_provider, jinja_env)
 
     # Assert
-    assert len(result_feed.entries) == 1
-    assert mock_provider.generate_called
-
-    error_doc = result_feed.entries[0]
-    assert isinstance(error_doc, Document)
-    assert error_doc.doc_type == DocumentType.NOTE
-    assert error_doc.title == "Error: Test Title"
-    assert "TEST_FAILURE" in error_doc.internal_metadata.get("error_code", "")
+    assert isinstance(result_doc, Document)
+    assert result_doc.doc_type == DocumentType.NOTE
+    assert result_doc.title == "Error: Test Title"
+    assert "task_id" in result_doc.internal_metadata
+    assert result_doc.internal_metadata["task_id"] == "test-entry"
+    assert "error_code" in result_doc.internal_metadata
+    assert result_doc.internal_metadata["error_code"] == "TEST_FAILURE"
