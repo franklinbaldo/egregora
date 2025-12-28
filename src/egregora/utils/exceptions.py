@@ -166,3 +166,16 @@ class AuthorExtractionError(AuthorsError):
             f"Failed to extract author(s) from post: {self.path}. Original error: {original_exception}"
         )
 
+
+class DateTimeError(Exception):
+    """Base exception for datetime parsing and manipulation errors."""
+
+
+class DateTimeParsingError(DateTimeError):
+    """Raised when a string cannot be parsed into a datetime object."""
+
+    def __init__(self, value: str, original_exception: Exception) -> None:
+        self.value = value
+        self.original_exception = original_exception
+        super().__init__(f"Failed to parse datetime from '{value}': {original_exception}")
+
