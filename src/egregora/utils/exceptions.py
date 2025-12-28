@@ -92,3 +92,15 @@ class CacheDeserializationError(CacheError):
         self.original_exception = original_exception
         message = f"Failed to deserialize cache entry for key '{key}'. Original error: {original_exception}"
         super().__init__(message)
+
+
+class CachePayloadTypeError(CacheError):
+    """Raised when a cache entry has an unexpected type."""
+
+    def __init__(self, key: str, payload_type: type) -> None:
+        self.key = key
+        self.payload_type = payload_type
+        message = (
+            f"Unexpected cache payload type for key '{key}': got {payload_type.__name__}, expected dict."
+        )
+        super().__init__(message)

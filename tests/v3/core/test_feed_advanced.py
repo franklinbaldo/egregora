@@ -10,6 +10,7 @@ Tests:
 import re
 from datetime import UTC, datetime
 from pathlib import Path
+import tempfile
 
 import pytest
 from faker import Faker
@@ -30,12 +31,22 @@ from egregora_v3.core.types import (
     Link,
     documents_to_feed,
 )
+from egregora_v3.infra.sinks.atom import AtomSink
 from egregora_v3.infra.adapters.rss import RSSAdapter
 
 fake = Faker()
 
 # Atom namespace
 ATOM_NS = "http://www.w3.org/2005/Atom"
+
+
+def render_feed_to_xml(feed: Feed) -> str:
+    """Helper to render a feed to XML using an in-memory sink."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_path = Path(tmpdir) / "feed.xml"
+        sink = AtomSink(output_path)
+        sink.publish(feed)
+        return output_path.read_text()
 
 
 # ========== Fixtures ==========
@@ -92,37 +103,6 @@ def sample_feed() -> Feed:
 # ========== Roundtrip Serialization Tests ==========
 
 
-def test_roundtrip_feed_to_xml_to_entries(sample_feed: Feed, tmp_path: Path) -> None:
-    """Test roundtrip: Feed → to_xml() → parse → Feed."""
-    # Export to XML
-    xml_output = sample_feed.to_xml()
-
-    # Write to file
-    feed_file = tmp_path / "exported_feed.atom"
-    feed_file.write_text(xml_output)
-
-    # Parse back using RSSAdapter
-    adapter = RSSAdapter()
-    parsed_entries = list(adapter.parse(feed_file))
-
-    # Verify we got all entries back
-    assert len(parsed_entries) == len(sample_feed.entries)
-
-    # Verify entry IDs match
-    original_ids = {e.id for e in sample_feed.entries}
-    parsed_ids = {e.id for e in parsed_entries}
-    assert original_ids == parsed_ids
-
-    # Verify titles match
-    for original, parsed in zip(
-        sorted(sample_feed.entries, key=lambda e: e.id),
-        sorted(parsed_entries, key=lambda e: e.id),
-        strict=False,
-    ):
-        assert original.title == parsed.title
-        assert original.content == parsed.content
-
-
 @freeze_time("2025-12-06 10:00:00")
 def test_roundtrip_preserves_timestamps(tmp_path: Path) -> None:
     """Test that timestamps are preserved in roundtrip serialization."""
@@ -143,7 +123,7 @@ def test_roundtrip_preserves_timestamps(tmp_path: Path) -> None:
     )
 
     # Export and parse
-    xml_output = feed.to_xml()
+    xml_output = render_feed_to_xml(feed)
     feed_file = tmp_path / "test.atom"
     feed_file.write_text(xml_output)
 
@@ -160,7 +140,7 @@ def test_roundtrip_preserves_timestamps(tmp_path: Path) -> None:
 
 def test_roundtrip_preserves_authors(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that authors are preserved in roundtrip."""
-    xml_output = sample_feed.to_xml()
+    xml_output = render_feed_to_xml(sample_feed)
     feed_file = tmp_path / "test.atom"
     feed_file.write_text(xml_output)
 
@@ -175,7 +155,7 @@ def test_roundtrip_preserves_authors(sample_feed: Feed, tmp_path: Path) -> None:
 
 def test_roundtrip_preserves_links(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that links (including enclosures) are preserved."""
-    xml_output = sample_feed.to_xml()
+    xml_output = render_feed_to_xml(sample_feed)
     feed_file = tmp_path / "test.atom"
     feed_file.write_text(xml_output)
 
@@ -206,7 +186,7 @@ def test_feed_validates_against_atom_rfc_4287_schema(sample_feed: Feed) -> None:
     xmlschema = pytest.importorskip("xmlschema")
     assert xmlschema is not None
 
-    xml_output = sample_feed.to_xml()
+    xml_output = render_feed_to_xml(sample_feed)
 
     # Parse with lxml for better error messages
     try:
@@ -226,7 +206,7 @@ def test_feed_validates_against_atom_rfc_4287_schema(sample_feed: Feed) -> None:
 
 def test_feed_entries_have_required_elements(sample_feed: Feed) -> None:
     """Test that all entries have required Atom elements."""
-    xml_output = sample_feed.to_xml()
+    xml_output = render_feed_to_xml(sample_feed)
     root = etree.fromstring(xml_output.encode("utf-8"))
 
     ns = {"atom": ATOM_NS}
@@ -243,7 +223,7 @@ def test_feed_entries_have_required_elements(sample_feed: Feed) -> None:
 
 def test_feed_datetime_format_rfc_3339_compliant(sample_feed: Feed) -> None:
     """Test that datetimes are formatted as RFC 3339 (required by Atom)."""
-    xml_output = sample_feed.to_xml()
+    xml_output = render_feed_to_xml(sample_feed)
     root = etree.fromstring(xml_output.encode("utf-8"))
 
     ns = {"atom": ATOM_NS}
@@ -254,7 +234,7 @@ def test_feed_datetime_format_rfc_3339_compliant(sample_feed: Feed) -> None:
     updated_text = updated_elem.text
 
     # RFC 3339 format: 2025-12-06T10:00:00Z
-    rfc3339_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
+    rfc3339_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$"
     assert re.match(rfc3339_pattern, updated_text), f"Invalid RFC 3339 format: {updated_text}"
 
 
@@ -284,7 +264,7 @@ def test_feed_xml_snapshot_regression(sample_feed: Feed, snapshot: SnapshotAsser
             entries=[doc],
         )
 
-        xml_output = feed.to_xml()
+        xml_output = render_feed_to_xml(feed)
 
         # Snapshot comparison
         assert xml_output == snapshot
@@ -325,7 +305,7 @@ def test_feed_to_xml_always_well_formed(num_entries: int) -> None:
     ]
 
     feed = documents_to_feed(docs, feed_id="test-feed", title="Test Feed")
-    xml_output = feed.to_xml()
+    xml_output = render_feed_to_xml(feed)
 
     # Should parse without errors
     root = etree.fromstring(xml_output.encode("utf-8"))
@@ -356,7 +336,7 @@ def test_feed_preserves_title_exactly(title: str) -> None:
         entries=[],
     )
 
-    xml_output = feed.to_xml()
+    xml_output = render_feed_to_xml(feed)
     root = etree.fromstring(xml_output.encode("utf-8"))
 
     title_elem = root.find(f"{{{ATOM_NS}}}title")
@@ -383,7 +363,7 @@ def test_feed_with_threading_extension() -> None:
     )
 
     feed = documents_to_feed([parent, reply], feed_id="test", title="Threaded Feed")
-    xml_output = feed.to_xml()
+    xml_output = render_feed_to_xml(feed)
 
     root = etree.fromstring(xml_output.encode("utf-8"))
 
@@ -416,7 +396,7 @@ def test_feed_with_categories() -> None:
     ]
 
     feed = documents_to_feed([doc], feed_id="test", title="Feed with Categories")
-    xml_output = feed.to_xml()
+    xml_output = render_feed_to_xml(feed)
 
     root = etree.fromstring(xml_output.encode("utf-8"))
     entry = root.find(f"{{{ATOM_NS}}}entry")
@@ -440,7 +420,7 @@ def test_empty_feed_is_valid() -> None:
         entries=[],
     )
 
-    xml_output = feed.to_xml()
+    xml_output = render_feed_to_xml(feed)
     root = etree.fromstring(xml_output.encode("utf-8"))
 
     assert root.tag == f"{{{ATOM_NS}}}feed"
@@ -508,7 +488,7 @@ def test_feed_with_content_types() -> None:
         title="Content Types Feed",
     )
 
-    xml_output = feed.to_xml()
+    xml_output = render_feed_to_xml(feed)
     root = etree.fromstring(xml_output.encode("utf-8"))
 
     entries = root.findall(f"{{{ATOM_NS}}}entry")

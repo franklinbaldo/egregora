@@ -45,6 +45,7 @@ from egregora.llm.providers.google_batch import GoogleBatchModel
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
+from egregora.utils.datetime_utils import ensure_datetime
 from egregora.utils.env import get_google_api_key
 from egregora.utils.paths import slugify
 from egregora.utils.zip import validate_zip_contents
@@ -769,8 +770,8 @@ class EnrichmentWorker(BaseWorker):
 
         Sends all URLs together with a combined prompt asking for JSON dict result.
         """
-        from google import genai
-        from google.genai import types
+        import google.generativeai as genai
+        from google.generativeai import types
 
         api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         if not api_key:
@@ -1086,7 +1087,7 @@ class EnrichmentWorker(BaseWorker):
         file_size = file_path.stat().st_size
 
         if file_size > threshold_bytes:
-            from google import genai
+            import google.generativeai as genai
 
             logger.info(
                 "File %s is %.2f MB (threshold: %d MB), using File API upload",
@@ -1164,8 +1165,8 @@ class EnrichmentWorker(BaseWorker):
         Sends all images together with a combined prompt asking for JSON dict with
         results keyed by filename. This reduces 12 API calls to 1.
         """
-        from google import genai
-        from google.genai import types
+        import google.generativeai as genai
+        from google.generativeai import types
 
         client = genai.Client(api_key=api_key)
 
@@ -1294,8 +1295,8 @@ class EnrichmentWorker(BaseWorker):
         api_key: str,
     ) -> list[Any]:
         """Execute media enrichment requests individually (fallback when batch fails)."""
-        from google import genai
-        from google.genai import types
+        import google.generativeai as genai
+        from google.generativeai import types
 
         client = genai.Client(api_key=api_key)
 

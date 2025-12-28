@@ -144,6 +144,8 @@ class ContentRepository:
         # But for robustness, let's just fetch as dict using column names from ibis schema.
 
         # Simplified: Use Ibis
+        from ibis.common.exceptions import IbisError
+
         try:
             t = self.db.read_table(table_name)
             # Filter
@@ -160,7 +162,7 @@ class ContentRepository:
             data = res.to_dict(orient="records")[0]
             return self._row_to_document(data, doc_type)
 
-        except Exception:
+        except IbisError:
             return None
 
     def list(self, doc_type: DocumentType | None = None) -> Iterator[dict]:
@@ -175,10 +177,12 @@ class ContentRepository:
             yield from t.execute().to_dict(orient="records")
         else:
             # Use Ibis to read the view as a table for consistent dict output
+            from ibis.common.exceptions import IbisError
+
             try:
                 t = self.db.read_table("documents_view")
                 yield from t.execute().to_dict(orient="records")
-            except Exception:
+            except IbisError:
                 # Fallback if view not registered in ibis cache or other issue
                 # Manually map columns for robustness
                 rows = self.db.execute("SELECT * FROM documents_view").fetchall()
@@ -201,10 +205,11 @@ class ContentRepository:
         """Convert a DB row to a Document object."""
         # Reconstruct Document
         # internal_metadata needs to be populated from specific columns
-        internal_metadata = {}
-        for k, v in row.items():
-            if k not in ["content", "id", "created_at", "updated", "title", "summary"]:
-                internal_metadata[k] = v
+        internal_metadata = {
+            k: v
+            for k, v in row.items()
+            if k not in ["content", "id", "created_at", "updated", "title", "summary"]
+        }
 
         # Authors list reconstruction
         authors = []

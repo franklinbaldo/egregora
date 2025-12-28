@@ -619,7 +619,8 @@ class DuckDBStorageManager:
             # triggered by batching ``nextval`` in a single query.
             def _fetch_values() -> list[int]:
                 results: list[int] = []
-                sequence_literal = f"'{sequence_name.replace("'", "''")}'"
+                escaped_name = sequence_name.replace("'", "''")
+                sequence_literal = f"'{escaped_name}'"
                 for _ in range(count):
                     row = self._conn.execute(f"SELECT nextval({sequence_literal})").fetchone()
                     if row is None:
@@ -662,12 +663,9 @@ class DuckDBStorageManager:
                 logger.warning("Sequence '%s' not found, creating it", sequence_name)
                 self.ensure_sequence(sequence_name)
                 # Retry the query
+                escaped_name = sequence_name.replace("'", "''")
                 values = [
-                    int(
-                        self._conn.execute(
-                            f"SELECT nextval('{sequence_name.replace("'", "''")}')"
-                        ).fetchone()[0]
-                    )
+                    int(self._conn.execute(f"SELECT nextval('{escaped_name}')").fetchone()[0])
                     for _ in range(count)
                 ]
             else:

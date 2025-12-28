@@ -39,6 +39,8 @@ from egregora.output_adapters.exceptions import (
     ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
+    IncompleteProfileError,
+    ProfileMetadataError,
     ProfileNotFoundError,
     UnsupportedDocumentTypeError,
 )
@@ -130,7 +132,9 @@ class MkDocsAdapter(BaseOutputSink):
 
         # Initialize Jinja2 environment for template-based rendering
         templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
-        self._template_env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
+        self._template_env = Environment(
+            loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape()
+        )
 
         self._initialized = True
 

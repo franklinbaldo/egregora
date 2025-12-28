@@ -70,7 +70,7 @@ def messages_table(db_connection: DuckDBBackend) -> ibis.expr.types.Table:
     ]
 
     # Ibis 9.x requires converting data to a DataFrame first
-    import pandas as pd
+    import pandas as pd  # noqa: TID251
 
     df = pd.DataFrame(test_data)
 
@@ -155,7 +155,7 @@ def test_get_media_enrichment_candidates(db_connection):
         },
     ]
 
-    import pandas as pd
+    import pandas as pd  # noqa: TID251
 
     df = pd.DataFrame(test_data)
 
@@ -195,7 +195,7 @@ def test_get_media_enrichment_candidates_with_uuid(db_connection):
         },
     ]
 
-    import pandas as pd
+    import pandas as pd  # noqa: TID251
 
     df = pd.DataFrame(test_data)
 

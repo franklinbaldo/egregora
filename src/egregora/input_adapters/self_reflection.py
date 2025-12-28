@@ -73,6 +73,7 @@ class SelfInputAdapter(InputAdapter):
         *,
         output_adapter: OutputSink | None = None,
         timezone: str | None = None,
+        doc_type: DocumentType = DocumentType.POST,
         **_: Any,
     ) -> ibis.Table:
         if output_adapter is None:
@@ -82,8 +83,8 @@ class SelfInputAdapter(InputAdapter):
         _docs_dir, site_root = self._resolve_docs_dir(input_path)
         documents = [
             doc
-            for doc in output_adapter.documents()
-            if doc.type == DocumentType.POST and doc.metadata.get("slug") not in {"index", "tags"}
+            for doc in output_adapter.documents(doc_type=doc_type)
+            if doc.metadata.get("slug") not in {"index", "tags"}
         ]
         if not documents:
             msg = f"No posts published by {output_adapter.__class__.__name__}"

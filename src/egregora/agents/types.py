@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from datetime import datetime
     from pathlib import Path
 
-    from google import genai
+    import google.generativeai as genai
     from ibis.expr.types import Table
 
     from egregora.agents.shared.annotations import AnnotationStore

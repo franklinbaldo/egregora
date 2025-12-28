@@ -16,9 +16,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import google.generativeai as genai
 import ibis
 import ibis.common.exceptions
-from google import genai
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
 from pydantic_ai import UsageLimits
@@ -46,18 +46,17 @@ from egregora.agents.writer_helpers import (
     process_tool_result,
 )
 from egregora.agents.writer_setup import (
-    configure_writer_capabilities,
     create_writer_model,
     setup_writer_agent,
 )
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.infra.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.knowledge.profiles import get_active_authors
 from egregora.output_adapters import OutputSinkRegistry, create_default_output_registry
 from egregora.rag import index_documents, reset_backend
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
 from egregora.utils.cache import CacheTier, PipelineCache
+from egregora.utils.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -486,13 +485,8 @@ async def write_posts_with_pydantic_agent(
     """Execute the writer flow using Pydantic-AI agent tooling."""
     logger.info("Running writer via Pydantic-AI backend")
 
-    active_capabilities = configure_writer_capabilities(config, context)
-    if active_capabilities:
-        caps_list = ", ".join(capability.name for capability in active_capabilities)
-        logger.info("Writer capabilities enabled: %s", caps_list)
-
     model = await create_writer_model(config, context, prompt, test_model)
-    agent = setup_writer_agent(model, prompt, active_capabilities)
+    agent = setup_writer_agent(model, prompt)
 
     if context.resources.quota:
         context.resources.quota.reserve(1)

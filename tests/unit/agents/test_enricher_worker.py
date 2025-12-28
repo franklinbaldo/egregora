@@ -5,14 +5,13 @@ import pytest
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 
 from egregora.agents.enricher import EnrichmentWorker
-from egregora.config.settings import EgregoraConfig
 
 
 @pytest.fixture
-def mock_context():
+def mock_context(config_factory):
     """Provides a mock PipelineContext for the EnrichmentWorker."""
     ctx = MagicMock()
-    ctx.config = EgregoraConfig()
+    ctx.config = config_factory()
     # Configure required nested properties for the media batch code path
     ctx.config.models.enricher_vision = "gemini-pro-vision"
     ctx.config.enrichment.strategy = "batch_all"
