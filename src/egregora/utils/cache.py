@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Annotated, Any, Protocol
 
 import diskcache
 
-from egregora.utils.exceptions import CacheDeserializationError
+from egregora.utils.exceptions import CacheDeserializationError, CachePayloadTypeError
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -120,7 +120,7 @@ class EnrichmentCache:
         if not isinstance(value, dict):
             logger.warning("Unexpected cache payload type for key %s; clearing entry", key)
             self.backend.delete(key)
-            return None
+            raise CachePayloadTypeError(key, type(value))
         return value
 
     def store(
