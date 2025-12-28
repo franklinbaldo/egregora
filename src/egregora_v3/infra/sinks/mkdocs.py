@@ -22,6 +22,18 @@ class MkDocsOutputSink:
 
         """
         self.output_dir = Path(output_dir)
+        self._jinja_env = self._setup_jinja_env()
+
+    def _setup_jinja_env(self) -> "jinja2.Environment":
+        """Configure Jinja2 environment for rendering templates."""
+        from jinja2 import Environment, PackageLoader
+
+        return Environment(
+            loader=PackageLoader("egregora_v3.infra.sinks", "templates"),
+            autoescape=False,  # We are generating Markdown, not HTML
+            trim_blocks=True,
+            lstrip_blocks=True,
+        )
 
     def publish(self, feed: Feed) -> None:
         """Publish the feed as MkDocs markdown files.
@@ -70,7 +82,7 @@ class MkDocsOutputSink:
         frontmatter = self._generate_frontmatter(doc)
 
         # Combine frontmatter + content
-        content = f"{frontmatter}\n{doc.content or ''}"
+        content = f"---\n{frontmatter}---\n\n{doc.content or ''}"
 
         # Write file
         output_file.write_text(content, encoding="utf-8")
@@ -134,12 +146,10 @@ class MkDocsOutputSink:
         frontmatter_data["status"] = doc.status.value
 
         # Serialize to YAML
-        yaml_str = yaml.dump(frontmatter_data, sort_keys=False, default_flow_style=False)
-
-        return f"---\n{yaml_str}---\n"
+        return yaml.dump(frontmatter_data, sort_keys=False, default_flow_style=False)
 
     def _write_index(self, feed: Feed, published_docs: list[Document]) -> None:
-        """Write index.md listing all published posts.
+        """Write index.md listing all published posts using a Jinja2 template.
 
         Args:
             feed: The Feed being published
@@ -148,49 +158,20 @@ class MkDocsOutputSink:
         """
         index_file = self.output_dir / "index.md"
 
-        lines = []
+        # Enhance documents with their target filenames for the template
+        docs_with_filenames = []
+        for doc in published_docs:
+            filename = self._get_filename(doc)
+            docs_with_filenames.append({"doc": doc, "filename": filename})
 
-        # Title
-        lines.append(f"# {feed.title}")
-        lines.append("")
+        # Sort documents by date, newest first, for the template
+        sorted_docs = sorted(
+            docs_with_filenames,
+            key=lambda d: d["doc"].published or d["doc"].updated,
+            reverse=True,
+        )
 
-        # Feed metadata
-        if feed.authors:
-            author_names = ", ".join(author.name for author in feed.authors)
-            lines.append(f"**Authors:** {author_names}")
-            lines.append("")
+        template = self._jinja_env.get_template("index.md.jinja")
+        content = template.render(feed=feed, sorted_docs_data=sorted_docs)
 
-        lines.append(f"**Last Updated:** {feed.updated.strftime('%Y-%m-%d %H:%M:%S')}")
-        lines.append("")
-
-        # Posts list
-        lines.append("## Posts")
-        lines.append("")
-
-        if not published_docs:
-            lines.append("*No posts yet.*")
-        else:
-            # Sort by date, newest first
-            sorted_docs = sorted(
-                published_docs,
-                key=lambda d: d.published or d.updated,
-                reverse=True,
-            )
-
-            for doc in sorted_docs:
-                filename = self._get_filename(doc)
-                date = doc.published or doc.updated
-                date_str = date.strftime("%Y-%m-%d")
-
-                # Markdown link
-                lines.append(f"- [{doc.title}]({filename}.md) - {date_str}")
-
-                # Add authors if available
-                if doc.authors:
-                    author_names = ", ".join(author.name for author in doc.authors)
-                    lines.append(f"  *by {author_names}*")
-
-                lines.append("")
-
-        content = "\n".join(lines)
         index_file.write_text(content, encoding="utf-8")
