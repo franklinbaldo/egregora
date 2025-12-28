@@ -104,3 +104,57 @@ class CachePayloadTypeError(CacheError):
             f"Unexpected cache payload type for key '{key}': got {payload_type.__name__}, expected dict."
         )
         super().__init__(message)
+
+
+class AuthorsError(Exception):
+    """Base exception for author management errors."""
+
+
+class AuthorsFileError(AuthorsError):
+    """Base exception for errors related to the .authors.yml file."""
+
+    def __init__(self, path: str, original_exception: Exception | None = None) -> None:
+        self.path = path
+        self.original_exception = original_exception
+        super().__init__(f"An error occurred involving authors file at: {path}")
+
+
+class AuthorsFileLoadError(AuthorsFileError):
+    """Raised when the .authors.yml file cannot be read from the filesystem."""
+
+    def __init__(self, path: str, original_exception: Exception) -> None:
+        super().__init__(path, original_exception)
+        self.message = (
+            f"Failed to load authors file from path: {self.path}. Original error: {original_exception}"
+        )
+
+
+class AuthorsFileParseError(AuthorsFileError):
+    """Raised when the .authors.yml file is malformed and cannot be parsed."""
+
+    def __init__(self, path: str, original_exception: Exception) -> None:
+        super().__init__(path, original_exception)
+        self.message = (
+            f"Failed to parse YAML from authors file: {self.path}. Original error: {original_exception}"
+        )
+
+
+class AuthorsFileSaveError(AuthorsFileError):
+    """Raised when the .authors.yml file cannot be written to the filesystem."""
+
+    def __init__(self, path: str, original_exception: Exception) -> None:
+        super().__init__(path, original_exception)
+        self.message = (
+            f"Failed to save authors file to path: {self.path}. Original error: {original_exception}"
+        )
+
+
+class AuthorExtractionError(AuthorsError):
+    """Raised when author information cannot be extracted from a post."""
+
+    def __init__(self, path: str, original_exception: Exception) -> None:
+        self.path = path
+        self.original_exception = original_exception
+        super().__init__(
+            f"Failed to extract author(s) from post: {self.path}. Original error: {original_exception}"
+        )
