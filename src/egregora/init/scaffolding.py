@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import cast
 
 from egregora.data_primitives.document import SiteScaffolder
+from egregora.init.exceptions import ScaffoldingExecutionError, ScaffoldingPathError
 from egregora.output_adapters import create_default_output_registry, create_output_sink
 from egregora.output_adapters.mkdocs import MkDocsPaths
 
@@ -50,8 +51,7 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
             site_paths = MkDocsPaths(site_root)
             return (site_paths.docs_dir, False)
         except (ValueError, KeyError, OSError) as e:
-            logger.debug("Failed to derive MkDocs paths, falling back to default: %s", e)
-            return (site_root / "docs", False)
+            raise ScaffoldingPathError(site_root, e) from e
 
     # Cast to SiteScaffolder for type checking
     scaffolder = cast("SiteScaffolder", output_format)
@@ -64,9 +64,8 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
             scaffolder.scaffold(site_root, {"site_name": site_name})
             # Generic scaffold doesn't return created status, assume True if no error
             created = True
-    except Exception:
-        logger.exception("Failed to scaffold site")
-        raise
+    except Exception as e:
+        raise ScaffoldingExecutionError(site_root, e) from e
 
     # Return docs_dir for backward compatibility
     site_paths = MkDocsPaths(site_root)
