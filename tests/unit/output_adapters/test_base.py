@@ -2,8 +2,13 @@ from pathlib import Path
 
 import pytest
 
-from egregora.output_adapters.base import BaseOutputSink, create_output_sink
+from egregora.output_adapters.base import (
+    BaseOutputSink,
+    OutputSinkRegistry,
+    create_output_sink,
+)
 from egregora.output_adapters.exceptions import (
+    AdapterNotDetectedError,
     FilenameGenerationError,
     RegistryNotProvidedError,
 )
@@ -59,10 +64,6 @@ def test_generate_unique_filename_raises_error_after_max_attempts(tmp_path):
 
     assert excinfo.value.pattern == filename_pattern
     assert excinfo.value.max_attempts == max_attempts
-
-
-from egregora.output_adapters.base import OutputSinkRegistry
-from egregora.output_adapters.exceptions import AdapterNotDetectedError
 
 
 def test_create_output_sink_raises_error_if_registry_is_none():
