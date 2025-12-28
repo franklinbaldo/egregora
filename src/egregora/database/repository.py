@@ -212,12 +212,10 @@ class ContentRepository:
         }
 
         # Authors list reconstruction
-        authors = []
         # if row.get("authors"):
         #     # Assuming row['authors'] is list of strings (UUIDs)
         #     authors = [Author(id=uid, name="") for uid in row["authors"]]
 
-        categories = []
         # if row.get("tags"):
         #     categories = [Category(term=tag) for tag in row["tags"]]
 

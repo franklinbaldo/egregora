@@ -13,7 +13,7 @@ from egregora.agents.banner.image_generation import (
     ImageGenerationResult,
 )
 from egregora_v3.core.types import Document, DocumentType, Entry, Feed
-from egregora_v3.engine.banner.feed_generator import BannerTaskEntry, FeedBannerGenerator
+from egregora_v3.engine.banner.feed_generator import FeedBannerGenerator
 
 
 class MockImageGenerationProvider(ImageGenerationProvider):
@@ -103,40 +103,18 @@ def test_generate_from_feed_failure(task_feed: Feed):
     assert "TEST_FAILURE" in error_doc.internal_metadata.get("error_code", "")
 
 
-def test_banner_task_entry_adapter():
-    """Verify the BannerTaskEntry adapter correctly extracts data."""
-    now = datetime.now(UTC)
-    entry = Entry(
-        id="task-1",
-        title="My Post",
-        updated=now,
-        summary="A summary.",
-        internal_metadata={"slug": "my-post", "language": "fr-FR"},
-    )
-    task = BannerTaskEntry(entry)
+def test_internal_entry_to_banner_input_conversion(task_feed: Feed):
+    """Verify the internal conversion from Entry to BannerInput is correct."""
+    # Arrange
+    mock_provider = MockImageGenerationProvider()
+    generator = FeedBannerGenerator(provider=mock_provider)
+    entry = task_feed.entries[0]
 
-    assert task.title == "My Post"
-    assert task.summary == "A summary."
-    assert task.slug == "my-post"
-    assert task.language == "fr-FR"
+    # Act
+    banner_input = generator._entry_to_banner_input(entry)
 
-    banner_input = task.to_banner_input()
-    assert banner_input.post_title == "My Post"
-    assert banner_input.post_summary == "A summary."
-    assert banner_input.slug == "my-post"
-    assert banner_input.language == "fr-FR"
-
-
-def test_banner_task_entry_adapter_defaults():
-    """Verify the BannerTaskEntry adapter handles missing data."""
-    now = datetime.now(UTC)
-    entry = Entry(
-        id="task-2",
-        title="Another Post",
-        updated=now,
-    )
-    task = BannerTaskEntry(entry)
-
-    assert task.summary == ""
-    assert task.slug is None
-    assert task.language == "pt-BR"  # Default language
+    # Assert
+    assert banner_input.post_title == "Test Title"
+    assert banner_input.post_summary == "Test Summary"
+    assert banner_input.slug == "test-title"
+    assert banner_input.language == "en-US"
