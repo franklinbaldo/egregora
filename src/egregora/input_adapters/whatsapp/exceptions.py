@@ -140,3 +140,13 @@ class MediaExtractionError(MediaDeliveryError):
         self.original_error = original_error
         message = f"Failed to extract '{media_reference}' from '{zip_path}'. Reason: {original_error}"
         super().__init__(message)
+
+
+class MediaNotFoundErrorInZip(MediaDeliveryError):
+    """Raised when a media file is not found in the zip archive."""
+
+    def __init__(self, zip_path: str, media_reference: str) -> None:
+        self.zip_path = zip_path
+        self.media_reference = media_reference
+        message = f"Media file '{media_reference}' not found in '{zip_path}'"
+        super().__init__(message)
