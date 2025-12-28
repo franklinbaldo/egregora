@@ -84,7 +84,7 @@ def test_demo_directory_is_up_to_date(tmp_path: Path):
         source_type=SourceType.WHATSAPP.value,
         input_path=SAMPLE_INPUT_FILE,
         refresh="all",  # `force=True` in the CLI command translates to this
-        smoke_test=True,  # Run in offline mode to avoid API errors
+            smoke_test=True,  # Run in offline mode to avoid API errors
     )
 
     # Run the pipeline to generate the fresh demo

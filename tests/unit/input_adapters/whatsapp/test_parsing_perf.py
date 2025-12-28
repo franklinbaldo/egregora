@@ -5,6 +5,7 @@ from datetime import time
 import pytest
 
 from egregora.config.settings import PrivacySettings
+from egregora.input_adapters.whatsapp.exceptions import TimeParsingError
 from egregora.input_adapters.whatsapp.parsing import _parse_message_time, scrub_pii
 
 
@@ -140,9 +141,14 @@ def test_parse_message_time_variations():
 
 
 def test_parse_message_time_invalid():
-    """Verify invalid inputs return None."""
-    assert _parse_message_time("") is None
-    assert _parse_message_time("invalid") is None
-    assert _parse_message_time("12:60") is None  # Invalid minute
-    assert _parse_message_time("25:00") is None  # Invalid hour
-    assert _parse_message_time("10:30 XM") is None  # Invalid suffix
+    """Verify invalid inputs raise TimeParsingError."""
+    with pytest.raises(TimeParsingError):
+        _parse_message_time("")
+    with pytest.raises(TimeParsingError):
+        _parse_message_time("invalid")
+    with pytest.raises(TimeParsingError):
+        _parse_message_time("12:60")  # Invalid minute
+    with pytest.raises(TimeParsingError):
+        _parse_message_time("25:00")  # Invalid hour
+    with pytest.raises(TimeParsingError):
+        _parse_message_time("10:30 XM")  # Invalid suffix

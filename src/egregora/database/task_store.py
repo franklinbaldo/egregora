@@ -13,7 +13,8 @@ import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from egregora.database.schemas import TASKS_SCHEMA, quote_identifier
+from egregora.database.schemas import TASKS_SCHEMA
+from egregora.database.schemas import quote_identifier
 
 if TYPE_CHECKING:
     from egregora.database.duckdb_manager import DuckDBStorageManager
