@@ -104,3 +104,12 @@ class CachePayloadTypeError(CacheError):
             f"Unexpected cache payload type for key '{key}': got {payload_type.__name__}, expected dict."
         )
         super().__init__(message)
+
+
+class CacheKeyNotFoundError(CacheError):
+    """Raised when a key is not found in the cache."""
+
+    def __init__(self, key: str) -> None:
+        self.key = key
+        message = f"Key not found in cache: '{key}'"
+        super().__init__(message)

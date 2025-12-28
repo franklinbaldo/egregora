@@ -366,12 +366,15 @@ def _enrich_avatar(
     """Enrich avatar with LLM description using the media enrichment agent."""
     cache_key = make_enrichment_cache_key(kind="media", identifier=str(avatar_path))
     if context.cache:
-        cached = context.cache.load(cache_key)
-        if cached and cached.get("markdown"):
-            logger.info("Using cached enrichment for avatar: %s", avatar_path.name)
-            enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
-            enrichment_path.write_text(cached["markdown"], encoding="utf-8")
-            return
+        try:
+            cached = context.cache.load(cache_key)
+            if cached and cached.get("markdown"):
+                logger.info("Using cached enrichment for avatar: %s", avatar_path.name)
+                enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
+                enrichment_path.write_text(cached["markdown"], encoding="utf-8")
+                return
+        except CacheKeyNotFoundError:
+            pass  # Not an error, just a cache miss
 
     try:
         binary_content = load_file_as_binary_content(avatar_path)

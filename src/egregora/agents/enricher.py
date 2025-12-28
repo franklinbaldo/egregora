@@ -354,8 +354,11 @@ def _enqueue_url_enrichments(
             continue
 
         cache_key = make_enrichment_cache_key(kind="url", identifier=url)
-        if context.cache.load(cache_key) is not None:
+        try:
+            context.cache.load(cache_key)
             continue
+        except CacheKeyNotFoundError:
+            pass
 
         payload = {
             "type": "url",
@@ -419,8 +422,11 @@ def _enqueue_media_enrichments(
             continue
 
         cache_key = make_enrichment_cache_key(kind="media", identifier=media_doc.document_id)
-        if context.cache.load(cache_key) is not None:
+        try:
+            context.cache.load(cache_key)
             continue
+        except CacheKeyNotFoundError:
+            pass
 
         payload = {
             "type": "media",

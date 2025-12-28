@@ -4,7 +4,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from egregora.utils.cache import EnrichmentCache
-from egregora.utils.exceptions import CacheDeserializationError
+from egregora.utils.exceptions import (
+    CacheDeserializationError,
+    CacheKeyNotFoundError,
+    CachePayloadTypeError,
+)
 
 
 @pytest.fixture
@@ -19,10 +23,11 @@ def enrichment_cache(mock_backend):
     return EnrichmentCache(backend=mock_backend)
 
 
-def test_load_returns_none_if_key_not_found(enrichment_cache, mock_backend):
-    """Test that load returns None when a key is not in the cache."""
+def test_load_raises_key_not_found_error(enrichment_cache, mock_backend):
+    """Test that load raises CacheKeyNotFoundError when a key is not in the cache."""
     mock_backend.get.return_value = None
-    assert enrichment_cache.load("nonexistent_key") is None
+    with pytest.raises(CacheKeyNotFoundError):
+        enrichment_cache.load("nonexistent_key")
     mock_backend.get.assert_called_once_with("nonexistent_key")
 
 
@@ -59,9 +64,10 @@ def test_load_handles_value_error(enrichment_cache, mock_backend):
 
 
 def test_load_handles_non_dict_payload(enrichment_cache, mock_backend):
-    """Test that load returns None and deletes the key for a non-dict payload."""
+    """Test that load raises CachePayloadTypeError and deletes the key for a non-dict payload."""
     mock_backend.get.return_value = "not a dictionary"
-    assert enrichment_cache.load("non_dict_key") is None
+    with pytest.raises(CachePayloadTypeError):
+        enrichment_cache.load("non_dict_key")
     mock_backend.delete.assert_called_once_with("non_dict_key")
 
 
