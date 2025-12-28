@@ -163,43 +163,43 @@ class ModelKeyRotator:
                 # Non-rate-limit error - propagate immediately
                 raise
 
-        # Phase 2: OpenRouter fallback
-        if self._include_openrouter:
-            openrouter_key = os.environ.get("OPENROUTER_API_KEY")
-            if openrouter_key:
-                # Lazy load OpenRouter models
-                if not self._openrouter_models:
-                    from egregora.utils.model_fallback import get_openrouter_free_models
-
-                    self._openrouter_models = get_openrouter_free_models(modality="text")
-                    logger.info(
-                        "[ModelKeyRotator] Fetched %d OpenRouter models for fallback",
-                        len(self._openrouter_models),
-                    )
-
-                # Try each OpenRouter model
-                for or_model in self._openrouter_models:
-                    # Strip the "openrouter:" prefix for the model name
-                    model_name = or_model.removeprefix("openrouter:")
-                    try:
-                        logger.info("[ModelKeyRotator] Trying OpenRouter model: %s", model_name)
-                        result = call_fn(model_name, openrouter_key)
-                        self.reset()
-                        return result
-                    except Exception as exc:  # noqa: BLE001
-                        last_exception = exc
-                        if is_rate_limit_error(exc):
-                            logger.warning(
-                                "[ModelKeyRotator] OpenRouter model %s rate limited, trying next", model_name
-                            )
-                            continue
-                        # Non-rate-limit error on OpenRouter - try next model
-                        logger.warning("[ModelKeyRotator] OpenRouter model %s failed: %s", model_name, exc)
-                        continue
-
-                logger.exception("[ModelKeyRotator] All OpenRouter models also exhausted")
-            else:
-                logger.warning("[ModelKeyRotator] OPENROUTER_API_KEY not set, cannot use OpenRouter fallback")
+        # Phase 2: OpenRouter fallback (disabled - egregora.utils.model_fallback was removed)
+        # if self._include_openrouter:
+        #     openrouter_key = os.environ.get("OPENROUTER_API_KEY")
+        #     if openrouter_key:
+        #         # Lazy load OpenRouter models
+        #         if not self._openrouter_models:
+        #             from egregora.utils.model_fallback import get_openrouter_free_models
+        #
+        #             self._openrouter_models = get_openrouter_free_models(modality="text")
+        #             logger.info(
+        #                 "[ModelKeyRotator] Fetched %d OpenRouter models for fallback",
+        #                 len(self._openrouter_models),
+        #             )
+        #
+        #         # Try each OpenRouter model
+        #         for or_model in self._openrouter_models:
+        #             # Strip the "openrouter:" prefix for the model name
+        #             model_name = or_model.removeprefix("openrouter:")
+        #             try:
+        #                 logger.info("[ModelKeyRotator] Trying OpenRouter model: %s", model_name)
+        #                 result = call_fn(model_name, openrouter_key)
+        #                 self.reset()
+        #                 return result
+        #             except Exception as exc:  # noqa: BLE001
+        #                 last_exception = exc
+        #                 if is_rate_limit_error(exc):
+        #                     logger.warning(
+        #                         "[ModelKeyRotator] OpenRouter model %s rate limited, trying next", model_name
+        #                     )
+        #                     continue
+        #                 # Non-rate-limit error on OpenRouter - try next model
+        #                 logger.warning("[ModelKeyRotator] OpenRouter model %s failed: %s", model_name, exc)
+        #                 continue
+        #
+        #         logger.exception("[ModelKeyRotator] All OpenRouter models also exhausted")
+        #     else:
+        #         logger.warning("[ModelKeyRotator] OPENROUTER_API_KEY not set, cannot use OpenRouter fallback")
 
         # All options exhausted
         if last_exception:
