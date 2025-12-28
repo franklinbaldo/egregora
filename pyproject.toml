@@ -35,6 +35,7 @@ dependencies = [
     "lxml>=5.4",
     "tomli-w>=1.2.0",
     "google-api-core",
+    "google-generativeai",
 ]
 
 [project.scripts]
@@ -80,7 +81,6 @@ test = [
     # Snapshot testing for Atom XML and prompt templates
     "syrupy>=4.9",
     "respx>=0.22.0",
-    "google-generativeai",
 ]
 
 [build-system]
