@@ -121,3 +121,28 @@ class RegistryNotProvidedError(OutputAdapterError):
 
     def __init__(self, message: str = "An OutputSinkRegistry instance must be provided.") -> None:
         super().__init__(message)
+
+
+class AdapterNotDetectedError(OutputAdapterError):
+    """Raised when no suitable output adapter could be detected for a site."""
+
+    def __init__(self, site_root: str) -> None:
+        self.site_root = site_root
+        super().__init__(f"Could not detect a suitable output adapter for site at '{site_root}'.")
+
+
+class IndexGenerationError(OutputAdapterError):
+    """Raised when a regenerated index page (main, profiles, media) fails."""
+
+    def __init__(self, index_name: str, reason: str) -> None:
+        self.index_name = index_name
+        self.reason = reason
+        super().__init__(f"Failed to generate '{index_name}' index page: {reason}")
+
+
+class TagsPageGenerationError(OutputAdapterError):
+    """Raised when the tags page fails to regenerate."""
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(f"Failed to regenerate tags page: {reason}")

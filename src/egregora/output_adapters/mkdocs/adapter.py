@@ -36,6 +36,7 @@ from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.exceptions import (
+    AdapterNotInitializedError,
     ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
@@ -251,7 +252,7 @@ class MkDocsAdapter(BaseOutputSink):
                 # Media files: stay in media_dir
                 return self.media_dir / identifier
             case _:
-                raise UnsupportedDocumentTypeError(doc_type.value)
+                raise UnsupportedDocumentTypeError(str(doc_type))
 
     def get(self, doc_type: DocumentType, identifier: str) -> Document:
         path = self._resolve_document_path(doc_type, identifier)
@@ -266,7 +267,7 @@ class MkDocsAdapter(BaseOutputSink):
                 return Document(content=raw_bytes, type=doc_type, metadata=metadata)
             post = frontmatter.load(str(path))
             metadata, actual_content = post.metadata, post.content
-        except OSError as e:
+        except (OSError, yaml.YAMLError) as e:
             raise DocumentParsingError(str(path), str(e)) from e
 
         return Document(content=actual_content, type=doc_type, metadata=metadata)
@@ -613,8 +614,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         """
         if not hasattr(self, "_site_root") or self._site_root is None:
-            msg = "MkDocsOutputAdapter not initialized - call initialize() first"
-            raise RuntimeError(msg)
+            raise AdapterNotInitializedError("MkDocsOutputAdapter not initialized - call initialize() first")
 
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()
