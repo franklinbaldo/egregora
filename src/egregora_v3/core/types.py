@@ -8,6 +8,7 @@ from typing import Any
 from xml.etree.ElementTree import Element, register_namespace, SubElement, tostring
 
 import jinja2
+from markdown_it import MarkdownIt
 from pydantic import BaseModel, Field, model_validator
 
 from egregora_v3.core.filters import format_datetime, normalize_content_type
@@ -28,6 +29,7 @@ except Exception:  # pragma: no cover
 
 # Module-level Jinja2 environment for performance
 # Data over logic: Template is data, not code.
+_md = MarkdownIt("commonmark", {"html": True})
 _jinja_env = jinja2.Environment(
     loader=jinja2.PackageLoader("egregora_v3.core", "."),
     autoescape=True,
@@ -104,6 +106,13 @@ class Entry(BaseModel):
 
     # Internal system metadata (not serialized to public Atom)
     internal_metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def html_content(self) -> str | None:
+        """Render markdown content to HTML."""
+        if self.content:
+            return _md.render(self.content).strip()
+        return None
 
     @property
     def is_document(self) -> bool:
