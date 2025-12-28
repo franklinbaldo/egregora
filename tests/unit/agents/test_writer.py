@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from egregora.agents.exceptions import AgentExecutionError
+from egregora.agents.exceptions import WriterAgentExecutionError as AgentExecutionError
 from egregora.agents.types import WriterDeps
 from egregora.agents.writer import _execute_writer_with_error_handling
 

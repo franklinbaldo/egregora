@@ -2,7 +2,7 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
-from egregora.data_primitives.protocols import OutputSink
+from egregora.data_primitives.document import OutputSink
 
 from egregora.agents.types import PromptTooLargeError
 from egregora.orchestration.context import PipelineContext
