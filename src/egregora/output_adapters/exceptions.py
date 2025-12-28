@@ -32,6 +32,14 @@ class ConfigLoadError(OutputAdapterError):
         super().__init__(f"Failed to load or parse config at '{path}': {reason}")
 
 
+class MarkdownExtensionsError(ConfigLoadError):
+    """Raised when markdown extensions cannot be determined due to a config error."""
+
+    def __init__(self, path: str, reason: str) -> None:
+        """Initialize the exception."""
+        super().__init__(path, f"Failed to load configuration to determine markdown extensions: {reason}")
+
+
 class UnsupportedDocumentTypeError(OutputAdapterError):
     """Raised when an operation is attempted on an unsupported document type."""
 
@@ -94,7 +102,9 @@ class ProfileMetadataError(ProfileGenerationError):
     def __init__(self, document_id: str, missing_field: str) -> None:
         self.document_id = document_id
         self.missing_field = missing_field
-        super().__init__(f"PROFILE document '{document_id}' missing required metadata field: '{missing_field}'")
+        super().__init__(
+            f"PROFILE document '{document_id}' missing required metadata field: '{missing_field}'"
+        )
 
 
 class CollisionResolutionError(OutputAdapterError):

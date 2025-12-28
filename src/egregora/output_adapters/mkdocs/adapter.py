@@ -25,16 +25,23 @@ import frontmatter
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
-from egregora.data_primitives.document import Document, DocumentMetadata, DocumentType, UrlContext, UrlConvention
+from egregora.data_primitives.document import (
+    Document,
+    DocumentMetadata,
+    DocumentType,
+    UrlContext,
+    UrlConvention,
+)
 from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.exceptions import (
+    ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
-    UnsupportedDocumentTypeError,
+    MarkdownExtensionsError,
     ProfileNotFoundError,
-    ConfigLoadError,
+    UnsupportedDocumentTypeError,
 )
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
@@ -329,8 +336,8 @@ class MkDocsAdapter(BaseOutputSink):
                         ]
                     if isinstance(markdown_extensions, dict):
                         return list(markdown_extensions.keys())
-            except (FileNotFoundError, ValueError):
-                pass
+            except ConfigLoadError as e:
+                raise MarkdownExtensionsError(str(self.site_root), "Could not load mkdocs.yml") from e
 
         # Fallback defaults
         return [
