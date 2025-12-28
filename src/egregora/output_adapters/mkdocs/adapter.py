@@ -74,6 +74,7 @@ class MkDocsAdapter(BaseOutputSink):
         self._url_convention = StandardUrlConvention()
         self._index: dict[str, Path] = {}
         self._ctx: UrlContext | None = None
+        self._template_env: Environment | None = None
 
     def initialize(self, site_root: Path, url_context: UrlContext | None = None) -> None:
         """Initializes the adapter with all necessary paths and dependencies."""
@@ -120,6 +121,10 @@ class MkDocsAdapter(BaseOutputSink):
             DocumentType.ENRICHMENT_AUDIO: self._write_enrichment_doc,
             DocumentType.ANNOTATION: self._write_annotation_doc,
         }
+
+        # Initialize Jinja2 environment for template-based rendering
+        templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
+        self._template_env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
 
         self._initialized = True
 
@@ -609,18 +614,19 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
     # which aggregates stats dynamically. The adapter should focus on persistence (OutputSink)
     # and not orchestration logic.
 
-    # def finalize_window(
-    #    self,
-    #    window_label: str,
-    #    posts_created: list[str],
-    #    profiles_updated: list[str],
-    #    metadata: dict[str, Any] | None = None,
-    # ) -> None:
-    #    """Post-processing hook called after writer agent completes a window.
-    #
-    #    Regenerates the profiles index page to include any newly created or updated profiles.
-    #    """
-    #    ...
+    def finalize_window(
+        self,
+        window_label: str,
+        posts_created: list[str],
+        profiles_updated: list[str],
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Post-processing hook called after writer agent completes a window."""
+        logger.info("Finalizing window: %s", window_label)
+        self.regenerate_main_index()
+        self.regenerate_profiles_index()
+        self.regenerate_media_index()
+        self.regenerate_tags_page()
 
     def _detect_document_type(self, path: Path) -> DocumentType:
         """Detect document type from path and (when needed) frontmatter."""
@@ -1425,6 +1431,77 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         except (OSError, TemplateError):
             logger.exception("Failed to regenerate tags page")
+
+    def regenerate_main_index(self) -> None:
+        """Regenerates the main index.md from a template."""
+        if not self._initialized:
+            logger.warning("Adapter not initialized, skipping main index regeneration.")
+            return
+
+        try:
+            stats = self.get_site_stats()
+            recent_media = self.get_recent_media(limit=5)
+            profiles = self.get_profiles_data()
+
+            template = self._template_env.get_template("docs/index.md.jinja")
+            content = template.render(
+                stats=stats,
+                recent_media=recent_media,
+                profiles=profiles,
+                generated_date=datetime.now(UTC).strftime("%Y-%m-%d"),
+            )
+
+            index_path = self.docs_dir / "index.md"
+            index_path.write_text(content, encoding="utf-8")
+            logger.info("Regenerated main index page at %s", index_path)
+
+        except (OSError, TemplateError):
+            logger.exception("Failed to regenerate main index page")
+
+    def regenerate_profiles_index(self) -> None:
+        """Regenerates the profiles index.md from a template."""
+        if not self._initialized:
+            logger.warning("Adapter not initialized, skipping profiles index regeneration.")
+            return
+
+        try:
+            profiles = self.get_profiles_data()
+
+            template = self._template_env.get_template("docs/profiles/index.md.jinja")
+            content = template.render(
+                profiles=profiles,
+                generated_date=datetime.now(UTC).strftime("%Y-%m-%d"),
+            )
+
+            index_path = self.profiles_dir / "index.md"
+            index_path.write_text(content, encoding="utf-8")
+            logger.info("Regenerated profiles index page with %d profiles at %s", len(profiles), index_path)
+
+        except (OSError, TemplateError):
+            logger.exception("Failed to regenerate profiles index page")
+
+    def regenerate_media_index(self) -> None:
+        """Regenerates the media index.md from a template."""
+        if not self._initialized:
+            logger.warning("Adapter not initialized, skipping media index regeneration.")
+            return
+
+        try:
+            # Use a higher limit for the index page to show more items
+            recent_media = self.get_recent_media(limit=50)
+
+            template = self._template_env.get_template("docs/media/index.md.jinja")
+            content = template.render(
+                media_items=recent_media,
+                generated_date=datetime.now(UTC).strftime("%Y-%m-%d"),
+            )
+
+            index_path = self.media_dir / "index.md"
+            index_path.write_text(content, encoding="utf-8")
+            logger.info("Regenerated media index page with %d items at %s", len(recent_media), index_path)
+
+        except (OSError, TemplateError):
+            logger.exception("Failed to regenerate media index page")
 
     def get_author_profile(self, author_uuid: str) -> dict:
         """Public alias for _build_author_profile."""

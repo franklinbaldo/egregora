@@ -293,3 +293,106 @@ def test_url_to_path_raises_for_profile_missing_subject(mkdocs_adapter: MkDocsAd
     with pytest.raises(ProfileMetadataError, match=f"PROFILE document '{doc_id}' missing required metadata field: 'subject'"):
         # The URL can be simple for this test, as the logic branch is determined by doc type
         mkdocs_adapter._url_to_path("/profiles/a-profile", profile_doc)
+
+
+# ============================================================================
+# Phase 2: Dynamic Site Generation Tests
+# ============================================================================
+
+def test_regenerate_main_index(mkdocs_adapter: MkDocsAdapter):
+    """Verify regenerate_main_index creates index.md with correct content."""
+    # 1. Mock the data-fetching methods
+    mock_stats_data = {'post_count': 10, 'profile_count': 5, 'media_count': 20, 'journal_count': 2}
+    mock_media_data = [{'title': 'Recent Media Item', 'url': '/media/recent', 'summary': 'A summary.'}]
+    mock_profiles_data = [{'name': 'Dr. Test Author', 'uuid': 'uuid1', 'bio': 'Bio of test author.', 'post_count': 5}]
+
+    with patch.object(mkdocs_adapter, 'get_site_stats', return_value=mock_stats_data) as mock_stats, \
+         patch.object(mkdocs_adapter, 'get_recent_media', return_value=mock_media_data) as mock_media, \
+         patch.object(mkdocs_adapter, 'get_profiles_data', return_value=mock_profiles_data) as mock_profiles:
+
+        # 2. Call the method
+        mkdocs_adapter.regenerate_main_index()
+
+        # 3. Verify file creation
+        index_path = mkdocs_adapter.docs_dir / "index.md"
+        assert index_path.exists(), "index.md was not created"
+
+        # 4. Verify content
+        content = index_path.read_text()
+        assert "10</strong> Posts" in content
+        assert "5</strong> Profiles" in content
+        assert "20</strong> Media" in content
+        assert "2</strong> Journal" in content
+        assert "Recent Media Item" in content
+        assert "Dr. Test Author" in content
+
+        # 5. Verify mocks were called
+        mock_stats.assert_called_once()
+        mock_media.assert_called_once_with(limit=5)
+        mock_profiles.assert_called_once()
+
+def test_regenerate_profiles_index(mkdocs_adapter: MkDocsAdapter):
+    """Verify regenerate_profiles_index creates index.md with correct profile data."""
+    # 1. Mock the data-fetching method
+    mock_profiles_data = [
+        {'name': 'Author One', 'uuid': 'uuid1', 'bio': 'Bio 1', 'post_count': 10, 'avatar': '/path/to/avatar1.png'},
+        {'name': 'Author Two', 'uuid': 'uuid2', 'bio': 'Bio 2', 'post_count': 5, 'avatar': '/path/to/avatar2.png'}
+    ]
+
+    with patch.object(mkdocs_adapter, 'get_profiles_data', return_value=mock_profiles_data) as mock_profiles:
+        # 2. Call the method
+        mkdocs_adapter.regenerate_profiles_index()
+
+        # 3. Verify file creation
+        index_path = mkdocs_adapter.profiles_dir / "index.md"
+        assert index_path.exists(), "profiles/index.md was not created"
+
+        # 4. Verify content
+        content = index_path.read_text()
+        assert "Profiles" in content
+        assert "Author One" in content
+        assert "Bio 2" in content
+        assert "10 Posts" in content
+        assert "(5 Posts)" in content  # Check post count formatting
+
+        # 5. Verify mock was called
+        mock_profiles.assert_called_once()
+
+def test_regenerate_media_index(mkdocs_adapter: MkDocsAdapter):
+    """Verify regenerate_media_index creates index.md with correct media data."""
+    # 1. Mock the data-fetching method
+    mock_media_data = [
+        {'title': 'Media One', 'url': '/media/one', 'summary': 'Summary 1.'},
+        {'title': 'Media Two', 'url': '/media/two', 'summary': 'Summary 2.'}
+    ]
+
+    with patch.object(mkdocs_adapter, 'get_recent_media', return_value=mock_media_data) as mock_media:
+        # 2. Call the method
+        mkdocs_adapter.regenerate_media_index()
+
+        # 3. Verify file creation
+        index_path = mkdocs_adapter.media_dir / "index.md"
+        assert index_path.exists(), "media/index.md was not created"
+
+        # 4. Verify content
+        content = index_path.read_text()
+        assert "Media Index" in content
+        assert "Media One" in content
+        assert "Summary 2." in content
+
+        # 5. Verify mock was called
+        mock_media.assert_called_once_with(limit=50)
+
+def test_finalize_window_calls_regenerate_methods(mkdocs_adapter: MkDocsAdapter):
+    """Verify finalize_window() calls all the necessary regenerate methods."""
+    with patch.object(mkdocs_adapter, 'regenerate_main_index') as mock_main, \
+         patch.object(mkdocs_adapter, 'regenerate_profiles_index') as mock_profiles, \
+         patch.object(mkdocs_adapter, 'regenerate_media_index') as mock_media, \
+         patch.object(mkdocs_adapter, 'regenerate_tags_page') as mock_tags:
+
+        mkdocs_adapter.finalize_window("test-window", [], [], {})
+
+        mock_main.assert_called_once()
+        mock_profiles.assert_called_once()
+        mock_media.assert_called_once()
+        mock_tags.assert_called_once()
