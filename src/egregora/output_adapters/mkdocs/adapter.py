@@ -895,8 +895,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         """
         try:
             return frontmatter.load(str(path)).metadata
-        except OSError:
-            return {}
+        except OSError as e:
+            raise DocumentParsingError(str(path), str(e)) from e
 
     # Document Writing Strategies ---------------------------------------------
 

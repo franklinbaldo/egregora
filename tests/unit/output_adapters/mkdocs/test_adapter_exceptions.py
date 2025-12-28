@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import frontmatter
 import pytest
 
 from egregora.data_primitives.document import DocumentType
@@ -10,6 +11,7 @@ from egregora.output_adapters.exceptions import (
     ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
+    FrontmatterParsingError,
     UnsupportedDocumentTypeError,
 )
 from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
@@ -71,3 +73,22 @@ def test_resolve_document_path_raises_adapter_not_initialized_error():
     adapter = MkDocsAdapter()  # Not initialized
     with pytest.raises(AdapterNotInitializedError):
         adapter.resolve_document_path("some/path.md")
+
+
+def test_parse_frontmatter_raises_on_os_error(adapter: MkDocsAdapter, monkeypatch):
+    """Verify _parse_frontmatter raises DocumentParsingError on OSError."""
+    # This test targets the private method _parse_frontmatter.
+    # The original implementation swallowed OSError and returned {}.
+    # The refactored version should raise a specific exception.
+    mock_path = Path("/mock/path.md")
+
+    def mock_load_raises_os_error(*args, **kwargs):
+        raise OSError("Disk read error")
+
+    monkeypatch.setattr(frontmatter, "load", mock_load_raises_os_error)
+
+    with pytest.raises(DocumentParsingError) as excinfo:
+        adapter._parse_frontmatter(mock_path)
+
+    assert "Disk read error" in str(excinfo.value)
+    assert str(mock_path) in str(excinfo.value)
