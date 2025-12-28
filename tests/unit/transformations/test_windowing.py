@@ -149,12 +149,27 @@ def test_split_window_into_n_parts():
     assert parts[1].size == 50
 
 
-def test_invalid_config():
-    """Test invalid configuration raises error."""
+from egregora.transformations.exceptions import InvalidSplitError, InvalidStepUnitError
+
+
+def test_invalid_config_raises_specific_error():
+    """Test invalid configuration raises a structured exception."""
     table = create_test_table(10)
     config = WindowConfig(step_unit="invalid")
-    with pytest.raises(ValueError, match="Unknown step_unit"):
+    with pytest.raises(InvalidStepUnitError) as exc_info:
         list(create_windows(table, config=config))
+    assert exc_info.value.step_unit == "invalid"
+
+
+def test_split_window_invalid_n_raises_specific_error():
+    """Test splitting a window with n < 2 raises a structured exception."""
+    table = create_test_table(100)
+    config = WindowConfig(step_size=100, step_unit="messages")
+    windows = list(create_windows(table, config=config))
+    main_window = windows[0]
+    with pytest.raises(InvalidSplitError) as exc_info:
+        split_window_into_n_parts(main_window, 1)
+    assert exc_info.value.n == 1
 
 
 def test_checkpoint_operations(tmp_path):
