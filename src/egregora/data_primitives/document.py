@@ -35,8 +35,17 @@ class DocumentMetadata:
     pass
 
 
+@dataclass
 class UrlContext:
-    pass
+    """Context for URL generation.
+
+    Attributes:
+        base_url: The base URL for the site (e.g., "https://example.com")
+        site_prefix: Optional site prefix/path (e.g., "blog")
+    """
+
+    base_url: str | None = None
+    site_prefix: str | None = None
 
 
 class UrlConvention:
