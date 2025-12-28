@@ -11,8 +11,8 @@ import pytest
 from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 from egregora.input_adapters.whatsapp.exceptions import (
     InvalidZipFileError,
-    MediaExtractionError,
-    MediaNotFoundErrorInZip,
+    MediaNotFoundError,
+    MissingZipPathError,
     WhatsAppAdapterError,
     WhatsAppParsingError,
 )
@@ -42,9 +42,9 @@ def test_deliver_media_raises_invalid_zip_error_on_bad_zip(adapter: WhatsAppAdap
         adapter.deliver_media("some_media.jpg", zip_path=bad_zip)
 
 
-def test_deliver_media_raises_media_extraction_error_on_missing_zip_path(adapter: WhatsAppAdapter) -> None:
-    """Test `deliver_media` raises MediaExtractionError if zip_path is missing."""
-    with pytest.raises(MediaExtractionError):
+def test_deliver_media_raises_missing_zip_path_error(adapter: WhatsAppAdapter) -> None:
+    """Test `deliver_media` raises MissingZipPathError if zip_path is missing."""
+    with pytest.raises(MissingZipPathError):
         adapter.deliver_media("some_media.jpg")
 
 
@@ -68,14 +68,14 @@ def test_parse_raises_adapter_error_on_parsing_error(adapter: WhatsAppAdapter, t
 
 
 def test_deliver_media_raises_on_missing_file(adapter: WhatsAppAdapter, tmp_path: Path):
-    """Test `deliver_media` raises MediaNotFoundErrorInZip when a file is not in the zip."""
+    """Test `deliver_media` raises MediaNotFoundError when a file is not in the zip."""
     # Create a dummy zip file
     zip_path = tmp_path / "test.zip"
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr("some_other_file.txt", "dummy content")
 
     # Call deliver_media with a non-existent file and assert it raises
-    with pytest.raises(MediaNotFoundErrorInZip) as exc_info:
+    with pytest.raises(MediaNotFoundError) as exc_info:
         adapter.deliver_media("non_existent_file.jpg", zip_path=zip_path)
 
     assert "non_existent_file.jpg" in str(exc_info.value)

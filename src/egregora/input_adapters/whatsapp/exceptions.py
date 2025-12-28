@@ -91,7 +91,7 @@ class ChatFileNotFoundError(WhatsAppParsingError):
 
 
 # Media Delivery Errors
-class MediaDeliveryError(WhatsAppParsingError):
+class MediaDeliveryError(WhatsAppAdapterError):
     """Base exception for errors related to media file delivery."""
 
 
@@ -121,16 +121,6 @@ class ZipPathNotFoundError(MediaDeliveryError):
         super().__init__(message)
 
 
-class MediaNotFoundError(MediaDeliveryError):
-    """Raised when the specified media file is not found within the ZIP archive."""
-
-    def __init__(self, media_reference: str, zip_path: str) -> None:
-        self.media_reference = media_reference
-        self.zip_path = zip_path
-        message = f"Media file '{media_reference}' not found in '{zip_path}'."
-        super().__init__(message)
-
-
 class MediaExtractionError(MediaDeliveryError):
     """Raised for general errors during media extraction from the ZIP file."""
 
@@ -142,7 +132,7 @@ class MediaExtractionError(MediaDeliveryError):
         super().__init__(message)
 
 
-class MediaNotFoundErrorInZip(MediaDeliveryError):
+class MediaNotFoundError(MediaDeliveryError):
     """Raised when a media file is not found in the zip archive."""
 
     def __init__(self, zip_path: str, media_reference: str) -> None:
