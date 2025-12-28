@@ -54,12 +54,25 @@ class DuckDBDocumentRepository(DocumentRepository):
         """
         self.conn.con.execute(query, [record_id, doc_type, json_data, updated])
 
-    def _hydrate_object(self, json_val: str | dict, doc_type_val: str) -> Entry:
-        """Centralized helper to deserialize JSON into Entry or Document."""
+    def _hydrate_entry(self, json_val: str | dict, doc_type_val: str) -> Entry:
+        """Deserialize JSON into an Entry or Document, depending on its type."""
         is_document = doc_type_val in _DOCUMENT_TYPE_VALUES
-
         model_class = Document if is_document else Entry
-        validator = model_class.model_validate if isinstance(json_val, dict) else model_class.model_validate_json
+        validator = (
+            model_class.model_validate
+            if isinstance(json_val, dict)
+            else model_class.model_validate_json
+        )
+        return validator(json_val)
+
+    def _hydrate_document(self, json_val: str | dict) -> Document:
+        """Deserialize JSON into a Document."""
+        # This helper assumes the caller has already confirmed the object is a Document.
+        validator = (
+            Document.model_validate
+            if isinstance(json_val, dict)
+            else Document.model_validate_json
+        )
         return validator(json_val)
 
     def get(self, doc_id: str) -> Document | None:
@@ -79,7 +92,7 @@ class DuckDBDocumentRepository(DocumentRepository):
             return None
 
         # We know it's a Document, so the cast is safe.
-        return self._hydrate_object(row["json_data"], doc_type_val)
+        return self._hydrate_document(row["json_data"])
 
     def list(
         self,
@@ -116,7 +129,7 @@ class DuckDBDocumentRepository(DocumentRepository):
             query = query.limit(limit)
 
         result = query.select("doc_type", "json_data").execute()
-        return [self._hydrate_object(row["json_data"], row["doc_type"]) for _, row in result.iterrows()]
+        return [self._hydrate_document(row["json_data"]) for _, row in result.iterrows()]
 
     def delete(self, doc_id: str) -> None:
         """Deletes a document by ID using a parameterized query."""
@@ -153,7 +166,7 @@ class DuckDBDocumentRepository(DocumentRepository):
             return None
 
         row = result.iloc[0]
-        return self._hydrate_object(row["json_data"], row["doc_type"])
+        return self._hydrate_entry(row["json_data"], row["doc_type"])
 
     def get_entries_by_source(self, source_id: str) -> builtins.list[Entry]:
         """Lists entries by source ID using raw SQL for reliable JSON extraction."""
@@ -165,4 +178,4 @@ class DuckDBDocumentRepository(DocumentRepository):
         sql = f"SELECT json_data, doc_type FROM {self.table_name} WHERE json_extract_string(json_data, '$.source.id') = ?"
         result = self.conn.con.execute(sql, [source_id]).fetch_df()
 
-        return [self._hydrate_object(row["json_data"], row["doc_type"]) for _, row in result.iterrows()]
+        return [self._hydrate_entry(row["json_data"], row["doc_type"]) for _, row in result.iterrows()]
