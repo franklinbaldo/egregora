@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from egregora.knowledge.exceptions import ProfileNotFoundError, ProfileParseError as ProfileParsingError
+from egregora.knowledge.exceptions import ProfileNotFoundError
+from egregora.knowledge.exceptions import ProfileParseError as ProfileParsingError
 from egregora.knowledge.profiles import (
     _find_profile_path,
     _get_uuid_from_profile,
