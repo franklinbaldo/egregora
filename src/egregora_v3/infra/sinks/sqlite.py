@@ -43,13 +43,7 @@ class SQLiteOutputSink:
         cursor = conn.cursor()
         self._create_table(cursor)
 
-        published_docs = [
-            entry
-            for entry in feed.entries
-            if isinstance(entry, Document) and entry.status == DocumentStatus.PUBLISHED
-        ]
-
-        for doc in published_docs:
+        for doc in feed.get_published_documents():
             record = self._document_to_record(doc)
             self._insert_document(cursor, record)
 
