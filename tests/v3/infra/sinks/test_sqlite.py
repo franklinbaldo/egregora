@@ -14,7 +14,7 @@ from egregora_v3.core.types import (
     Feed,
     Link,
 )
-from egregora_v3.infra.sinks.sqlite import SQLiteOutputSink
+from egregora_v3.infra.sinks.sqlite import SQLiteOutputSink, _document_to_record
 
 
 @pytest.fixture
@@ -147,11 +147,10 @@ def test_publish_writes_only_published_documents(tmp_path: Path, mixed_feed: Fee
 
 def test_document_to_record_serializes_correctly(sample_feed: Feed):
     """Verify the new serialization method works as expected."""
-    sink = SQLiteOutputSink(Path("dummy.db"))
     doc = sample_feed.entries[0]
     assert isinstance(doc, Document)
 
-    record = sink._document_to_record(doc)
+    record = _document_to_record(doc)
 
     assert isinstance(record, dict)
     assert record["id"] == "published-doc-1"

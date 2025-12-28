@@ -5,7 +5,24 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from egregora_v3.core.types import Document, DocumentStatus, Feed
+from egregora_v3.core.types import Document, Feed
+
+
+def _document_to_record(doc: Document) -> dict[str, Any]:
+    """Serialize a Document to a dictionary for database insertion."""
+    return {
+        "id": doc.id,
+        "title": doc.title,
+        "content": doc.content,
+        "summary": doc.summary,
+        "doc_type": doc.doc_type.value,
+        "status": doc.status.value,
+        "published": doc.published.isoformat() if doc.published else None,
+        "updated": doc.updated.isoformat(),
+        "authors": json.dumps([author.model_dump() for author in doc.authors]) if doc.authors else None,
+        "categories": json.dumps([cat.model_dump() for cat in doc.categories]) if doc.categories else None,
+        "links": json.dumps([link.model_dump() for link in doc.links]) if doc.links else None,
+    }
 
 
 class SQLiteOutputSink:
@@ -44,8 +61,8 @@ class SQLiteOutputSink:
         self._create_table(cursor)
 
         for doc in feed.get_published_documents():
-            record = self._document_to_record(doc)
-            self._insert_document(cursor, record)
+            record = _document_to_record(doc)
+            self._insert_record(cursor, record)
 
         conn.commit()
         conn.close()
@@ -68,23 +85,7 @@ class SQLiteOutputSink:
             )
         """)
 
-    def _document_to_record(self, doc: Document) -> dict[str, Any]:
-        """Serialize a Document to a dictionary for database insertion."""
-        return {
-            "id": doc.id,
-            "title": doc.title,
-            "content": doc.content,
-            "summary": doc.summary,
-            "doc_type": doc.doc_type.value,
-            "status": doc.status.value,
-            "published": doc.published.isoformat() if doc.published else None,
-            "updated": doc.updated.isoformat(),
-            "authors": json.dumps([author.model_dump() for author in doc.authors]) if doc.authors else None,
-            "categories": json.dumps([cat.model_dump() for cat in doc.categories]) if doc.categories else None,
-            "links": json.dumps([link.model_dump() for link in doc.links]) if doc.links else None,
-        }
-
-    def _insert_document(self, cursor: sqlite3.Cursor, record: dict[str, Any]) -> None:
+    def _insert_record(self, cursor: sqlite3.Cursor, record: dict[str, Any]) -> None:
         """Insert a single document record into the database."""
         cursor.execute(
             """
