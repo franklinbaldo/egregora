@@ -21,7 +21,7 @@
     {%- if entry.published %}<published>{{ entry.published | iso_utc }}</published>{%- endif -%}
     {%- if entry.summary %}<summary>{{ entry.summary | e }}</summary>{%- endif -%}
     {%- if entry.content -%}
-    <content type="{{ entry.content_type | content_type }}">{{ entry.content | e }}</content>
+    <content type="{%- if entry.content_type %}{{ entry.content_type }}{% else %}html{% endif -%}">{{ entry.content | e }}</content>
     {%- endif -%}
     {%- for author in entry.authors -%}
     <author>
