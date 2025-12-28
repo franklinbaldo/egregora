@@ -22,8 +22,7 @@ from typing import TYPE_CHECKING
 import ibis
 import pytest
 
-from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import UrlContext, UrlConvention
+from egregora.data_primitives.document import Document, DocumentType, UrlContext, UrlConvention
 from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 from egregora.input_adapters.whatsapp.commands import filter_egregora_messages

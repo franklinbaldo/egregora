@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 
 from egregora.agents.types import PromptTooLargeError
-from egregora.data_primitives.protocols import OutputSink
+from egregora.data_primitives.document import OutputSink
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.exceptions import (
     CommandProcessingError,

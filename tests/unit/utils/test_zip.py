@@ -2,7 +2,7 @@
 
 import io
 import zipfile
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -14,10 +14,10 @@ from egregora.utils.zip import (
     ZipTotalSizeError,
     ZipValidationError,
     ZipValidationSettings,
-    validate_zip_contents,
-    get_zip_info,
-    ensure_safe_member_size,
     configure_default_limits,
+    ensure_safe_member_size,
+    get_zip_info,
+    validate_zip_contents,
 )
 
 # A small 1x1 transparent PNG for testing

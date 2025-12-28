@@ -25,16 +25,25 @@ import frontmatter
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
-from egregora.data_primitives.document import Document, DocumentMetadata, DocumentType, UrlContext, UrlConvention
+from egregora.data_primitives.document import (
+    Document,
+    DocumentMetadata,
+    DocumentType,
+    UrlContext,
+    UrlConvention,
+)
 from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.exceptions import (
+    AdapterNotInitializedError,
+    ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
-    UnsupportedDocumentTypeError,
+    IncompleteProfileError,
+    ProfileMetadataError,
     ProfileNotFoundError,
-    ConfigLoadError,
+    UnsupportedDocumentTypeError,
 )
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
@@ -236,7 +245,9 @@ class MkDocsAdapter(BaseOutputSink):
                 # Media files: stay in media_dir
                 return self.media_dir / identifier
             case _:
-                raise UnsupportedDocumentTypeError(doc_type.value)
+                # Handle both enum and string types
+                doc_type_str = doc_type.value if hasattr(doc_type, "value") else str(doc_type)
+                raise UnsupportedDocumentTypeError(doc_type_str)
 
     def get(self, doc_type: DocumentType, identifier: str) -> Document:
         path = self._resolve_document_path(doc_type, identifier)
@@ -252,6 +263,9 @@ class MkDocsAdapter(BaseOutputSink):
             post = frontmatter.load(str(path))
             metadata, actual_content = post.metadata, post.content
         except OSError as e:
+            raise DocumentParsingError(str(path), str(e)) from e
+        except Exception as e:
+            # Catch YAML parsing errors and other frontmatter exceptions
             raise DocumentParsingError(str(path), str(e)) from e
 
         return Document(content=actual_content, type=doc_type, metadata=metadata)
@@ -303,6 +317,8 @@ class MkDocsAdapter(BaseOutputSink):
         try:
             config = safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
         except yaml.YAMLError as exc:
+            raise ConfigLoadError(str(mkdocs_path), str(exc)) from exc
+        except (OSError, FileNotFoundError) as exc:
             raise ConfigLoadError(str(mkdocs_path), str(exc)) from exc
         return config
 
@@ -598,8 +614,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         """
         if not hasattr(self, "_site_root") or self._site_root is None:
-            msg = "MkDocsOutputAdapter not initialized - call initialize() first"
-            raise RuntimeError(msg)
+            raise AdapterNotInitializedError("MkDocsOutputAdapter")
 
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()
@@ -980,8 +995,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Ensure UUID is in metadata
         author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
         if not author_uuid:
+            from egregora.output_adapters.exceptions import ProfileGenerationError
+
             msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
-            raise ValueError(msg)
+            raise ProfileGenerationError(msg)
 
         # Use standard frontmatter writing logic
         metadata = dict(document.metadata or {})
@@ -1119,7 +1136,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         )
         return document.document_id
 
-    def _resolve_collision(self, path: Path, document_id: str) -> Path:
+    def _resolve_collision(self, path: Path, document_id: str, max_attempts: int = 1000) -> Path:
         stem = path.stem
         suffix = path.suffix
         parent = path.parent
@@ -1133,10 +1150,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             if existing_doc_id == document_id:
                 return new_path
             counter += 1
-            max_attempts = 1000
             if counter > max_attempts:
-                msg = f"Failed to resolve collision for {path} after {max_attempts} attempts"
-                raise RuntimeError(msg)
+                from egregora.output_adapters.exceptions import CollisionResolutionError
+
+                raise CollisionResolutionError(str(path), max_attempts)
 
     # ============================================================================
     # Phase 2: Dynamic Data Population for UX Templates

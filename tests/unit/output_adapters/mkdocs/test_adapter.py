@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
-from unittest.mock import patch
 
 from egregora.data_primitives.document import Document, DocumentType, UrlContext
 from egregora.output_adapters.exceptions import (
@@ -29,10 +29,12 @@ def mkdocs_adapter(tmp_path: Path) -> MkDocsAdapter:
     adapter.initialize(tmp_path, url_context=url_context)
     return adapter
 
+
 def test_get_raises_document_not_found_error(mkdocs_adapter: MkDocsAdapter):
     """Verify get() raises DocumentNotFoundError for a non-existent document."""
     with pytest.raises(DocumentNotFoundError):
         mkdocs_adapter.get(DocumentType.POST, "non-existent-slug")
+
 
 def test_document_from_path_raises_document_parsing_error(mkdocs_adapter: MkDocsAdapter):
     """Verify _document_from_path() raises DocumentParsingError on OSError."""
@@ -40,15 +42,18 @@ def test_document_from_path_raises_document_parsing_error(mkdocs_adapter: MkDocs
         with pytest.raises(DocumentParsingError):
             mkdocs_adapter._document_from_path(Path("non-existent.md"), DocumentType.POST)
 
+
 def test_get_author_profile_raises_profile_not_found_error(mkdocs_adapter: MkDocsAdapter):
     """Verify get_author_profile() raises ProfileNotFoundError for a non-existent author."""
     with pytest.raises(ProfileNotFoundError):
         mkdocs_adapter.get_author_profile("non-existent-uuid")
 
+
 def test_get_document_id_at_path_raises_document_not_found_error(mkdocs_adapter: MkDocsAdapter):
     """Verify _get_document_id_at_path() raises DocumentNotFoundError for a non-existent file."""
     with pytest.raises(DocumentNotFoundError):
         mkdocs_adapter._get_document_id_at_path(Path("non-existent.md"))
+
 
 def test_get_document_id_at_path_raises_document_parsing_error(mkdocs_adapter: MkDocsAdapter, tmp_path):
     """Verify _get_document_id_at_path() raises DocumentParsingError on OSError."""
@@ -58,10 +63,12 @@ def test_get_document_id_at_path_raises_document_parsing_error(mkdocs_adapter: M
         with pytest.raises(DocumentParsingError):
             mkdocs_adapter._get_document_id_at_path(mock_path)
 
+
 def test_load_config_raises_config_load_error_on_file_not_found(mkdocs_adapter: MkDocsAdapter):
     """Verify load_config() raises ConfigLoadError when mkdocs.yml is missing."""
     with pytest.raises(ConfigLoadError):
         mkdocs_adapter.load_config(mkdocs_adapter.site_root)
+
 
 def test_load_config_raises_config_load_error_on_yaml_error(mkdocs_adapter: MkDocsAdapter, tmp_path):
     """Verify load_config() raises ConfigLoadError on YAMLError."""
@@ -71,10 +78,12 @@ def test_load_config_raises_config_load_error_on_yaml_error(mkdocs_adapter: MkDo
         with pytest.raises(ConfigLoadError):
             mkdocs_adapter.load_config(tmp_path)
 
+
 def test_resolve_document_path_raises_unsupported_type_error(mkdocs_adapter: MkDocsAdapter):
     """Verify _resolve_document_path() raises UnsupportedDocumentTypeError for an unsupported type."""
     with pytest.raises(UnsupportedDocumentTypeError):
         mkdocs_adapter._resolve_document_path("unsupported", "some-id")
+
 
 def test_get_raises_document_parsing_error(mkdocs_adapter: MkDocsAdapter):
     """Verify get() raises DocumentParsingError for a malformed document file."""
@@ -83,14 +92,18 @@ def test_get_raises_document_parsing_error(mkdocs_adapter: MkDocsAdapter):
     with pytest.raises(DocumentParsingError):
         mkdocs_adapter.get(DocumentType.POST, "malformed-post")
 
+
 def test_write_post_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     """Verify _write_post_doc writes correct frontmatter and content."""
     doc = Document(
         content="This is the post content.",
         type=DocumentType.POST,
         metadata={
-            "title": "Test Post", "date": "2024-01-01", "authors": ["author-uuid-1"],
-            "tags": ["testing", "refactor"], "summary": "A test post summary.",
+            "title": "Test Post",
+            "date": "2024-01-01",
+            "authors": ["author-uuid-1"],
+            "tags": ["testing", "refactor"],
+            "summary": "A test post summary.",
         },
     )
     post_path = tmp_path / "test-post.md"
@@ -99,6 +112,7 @@ def test_write_post_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     content = post_path.read_text()
     assert "title: Test Post" in content
     assert "This is the post content." in content
+
 
 def test_write_journal_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     """Verify _write_journal_doc adds 'Journal' category."""
@@ -110,6 +124,7 @@ def test_write_journal_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     assert "- Journal" in content
     assert "journal entry." in content
 
+
 def test_write_annotation_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     """Verify _write_annotation_doc adds 'Annotations' category."""
     doc = Document(content="annotation.", type=DocumentType.ANNOTATION, metadata={"title": "Annotation"})
@@ -120,8 +135,9 @@ def test_write_annotation_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     assert "- Annotations" in content
     assert "annotation." in content
 
+
 def test_write_profile_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
-    """Verify _write_profile_doc adds fallback avatar and 'Profile' category."""
+    """Verify _write_profile_doc adds fallback avatar and 'Authors' category."""
     author_uuid = "a-unique-author-uuid"
     doc = Document(
         content="This is a profile.",
@@ -133,10 +149,11 @@ def test_write_profile_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     assert profile_path.exists()
     content = profile_path.read_text()
     assert "categories:" in content
-    assert "- Profile" in content
+    assert "- Authors" in content
     assert "avatar:" in content
     assert any(line.strip().startswith("avatar: https://avataaars.io/") for line in content.split("\n"))
     assert "This is a profile." in content
+
 
 def test_write_enrichment_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     """Verify _write_enrichment_doc adds 'Enrichment' category."""
@@ -151,11 +168,13 @@ def test_write_enrichment_doc(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     assert "- Enrichment" in content
     assert "This is an enrichment." in content
 
+
 def test_write_profile_doc_raises_on_missing_uuid(mkdocs_adapter):
     """Verify _write_profile_doc raises ProfileGenerationError on missing UUID."""
     doc = Document(content="profile.", type=DocumentType.PROFILE, metadata={"name": "Test Author"})
     with pytest.raises(ProfileGenerationError):
         mkdocs_adapter._write_profile_doc(doc, Path("/fake/path.md"))
+
 
 def test_write_media_doc_from_content(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     """Verify _write_media_doc writes binary content correctly."""
@@ -165,6 +184,7 @@ def test_write_media_doc_from_content(mkdocs_adapter: MkDocsAdapter, tmp_path: P
     mkdocs_adapter._write_media_doc(doc, media_path)
     assert media_path.exists()
     assert media_path.read_bytes() == media_content
+
 
 def test_write_media_doc_from_source_path(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
     """Verify _write_media_doc moves a file from a source path."""
@@ -177,6 +197,7 @@ def test_write_media_doc_from_source_path(mkdocs_adapter: MkDocsAdapter, tmp_pat
     assert media_path.exists()
     assert not source_path.exists()
     assert media_path.read_bytes() == source_content
+
 
 def test_resolve_collision_raises_error_after_max_attempts(mkdocs_adapter, tmp_path):
     """Verify _resolve_collision raises CollisionResolutionError after max attempts."""
@@ -191,6 +212,7 @@ def test_resolve_collision_raises_error_after_max_attempts(mkdocs_adapter, tmp_p
         assert excinfo.value.path == str(base_path)
         assert excinfo.value.max_attempts == max_attempts
 
+
 def test_resolve_document_path_raises_adapter_not_initialized_error():
     """Verify calling resolve_document_path on an uninitialized adapter raises an error."""
     adapter = MkDocsAdapter()
@@ -203,15 +225,16 @@ def test_resolve_document_path_raises_adapter_not_initialized_error():
 AUTHOR_UUID = "d944f0f7-9226-4880-a6a2-11a3d2d472b1"
 
 
-def test_build_author_profile_raises_incomplete_error_if_no_name(mkdocs_adapter: MkDocsAdapter, tmp_path: Path):
+def test_build_author_profile_raises_incomplete_error_if_no_name(
+    mkdocs_adapter: MkDocsAdapter, tmp_path: Path
+):
     """Test that _build_author_profile raises IncompleteProfileError if no name is ever found."""
     author_dir = tmp_path / "posts" / "authors" / AUTHOR_UUID
     author_dir.mkdir(parents=True, exist_ok=True)
     mkdocs_adapter.posts_dir = tmp_path / "posts"
 
-
     # Create a post file with frontmatter that is missing the author's name
-    post_content = f\"\"\"---
+    post_content = f"""---
 title: A Post Without Author Name
 date: 2024-01-01
 authors:
@@ -221,7 +244,7 @@ authors:
 ---
 
 Content of the post.
-\"\"\"
+"""
     (author_dir / "2024-01-01-post.md").write_text(post_content)
 
     with pytest.raises(IncompleteProfileError, match="Profile for author .* is incomplete: No name found"):
@@ -237,19 +260,19 @@ def test_get_profiles_data_raises_on_corrupt_file(mkdocs_adapter: MkDocsAdapter,
     author_dir.mkdir(parents=True, exist_ok=True)
 
     # Create a profile file with invalid YAML frontmatter
-    corrupt_content = \"\"\"---
+    corrupt_content = """---
 title: Corrupt Profile
 date: 2024-01-01
 authors: [
 ---
 This file has unclosed YAML.
-\"\"\"
+"""
     profile_path = author_dir / "profile.md"
     profile_path.write_text(corrupt_content)
 
     # The adapter needs a documents() method that returns something for this test.
     # Let's mock it to return an empty list to isolate the parsing logic.
-    mkdocs_adapter.documents = lambda: []
+    mkdocs_adapter.documents = list
 
     with pytest.raises(DocumentParsingError, match=f"Failed to parse document at '{profile_path}'"):
         mkdocs_adapter.get_profiles_data()
@@ -263,13 +286,13 @@ def test_get_recent_media_raises_on_corrupt_file(mkdocs_adapter: MkDocsAdapter, 
     mkdocs_adapter.urls_dir = urls_dir
 
     # Create a media file with invalid YAML frontmatter
-    corrupt_content = \"\"\"---
+    corrupt_content = """---
 title: Corrupt Media
 url: http://example.com
 summary: [
 ---
 This file has unclosed YAML.
-\"\"\"
+"""
     media_path = urls_dir / "corrupt-media.md"
     media_path.write_text(corrupt_content)
 
@@ -290,6 +313,8 @@ def test_url_to_path_raises_for_profile_missing_subject(mkdocs_adapter: MkDocsAd
     # The URL context is needed for the method to run
     mkdocs_adapter._ctx = UrlContext(base_url="http://localhost:8000", site_prefix="", base_path=Path.cwd())
 
-    with pytest.raises(ProfileMetadataError, match=f"PROFILE document '{doc_id}' missing required metadata field: 'subject'"):
+    with pytest.raises(
+        ProfileMetadataError, match=f"PROFILE document '{doc_id}' missing required metadata field: 'subject'"
+    ):
         # The URL can be simple for this test, as the logic branch is determined by doc type
         mkdocs_adapter._url_to_path("/profiles/a-profile", profile_doc)

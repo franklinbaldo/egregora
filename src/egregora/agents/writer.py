@@ -51,19 +51,19 @@ from egregora.agents.writer_setup import (
     setup_writer_agent,
 )
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.infra.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.knowledge.profiles import get_active_authors
 from egregora.output_adapters import OutputSinkRegistry, create_default_output_registry
 from egregora.rag import index_documents, reset_backend
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
 from egregora.utils.cache import CacheTier, PipelineCache
+from egregora.utils.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
     from egregora.config.settings import EgregoraConfig
-    from egregora.data_primitives.protocols import OutputSink
+    from egregora.data_primitives.document import OutputSink
     from egregora.orchestration.context import PipelineContext
     from egregora.utils.metrics import UsageTracker
 
@@ -384,10 +384,16 @@ def _save_journal_to_file(params: JournalEntryParams) -> str | None:
         )
         params.output_format.persist(doc)
         logger.info("Saved journal entry: %s", doc.document_id)
-    except (TemplateNotFound, TemplateError):
+    except (TemplateNotFound, TemplateError) as e:
+        from egregora.agents.exceptions import JournalTemplateError
+
         logger.exception("Journal template error")
-    except (OSError, PermissionError):
+        raise JournalTemplateError(JOURNAL_TEMPLATE_NAME, str(e)) from e
+    except (OSError, PermissionError) as e:
+        from egregora.agents.exceptions import JournalFileSystemError
+
         logger.exception("File system error during journal creation")
+        raise JournalFileSystemError("journal file", str(e)) from e
     except (TypeError, AttributeError):
         logger.exception("Invalid data for journal")
     except ValueError:
@@ -759,9 +765,10 @@ async def _execute_writer_with_error_handling(
         if isinstance(exc, PromptTooLargeError):
             raise
 
-        msg = f"Writer agent failed for {deps.window_label}"
-        logger.exception(msg)
-        raise RuntimeError(msg) from exc
+        from egregora.agents.exceptions import WriterAgentExecutionError
+
+        logger.exception("Writer agent failed for %s", deps.window_label)
+        raise WriterAgentExecutionError(deps.window_label, str(exc)) from exc
 
 
 @dataclass
