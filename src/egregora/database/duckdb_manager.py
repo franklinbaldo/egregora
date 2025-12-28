@@ -48,7 +48,7 @@ import duckdb
 import ibis
 
 from egregora.database import schemas
-from egregora.database.exceptions import TableInfoError
+from egregora.database.exceptions import TableInfoError, TableNotFoundError
 from egregora.database.schemas import quote_identifier
 
 if TYPE_CHECKING:
@@ -505,6 +505,8 @@ class DuckDBStorageManager:
                 rows = self._conn.execute(
                     f"PRAGMA table_info({quoted_name})",
                 ).fetchall()
+            except duckdb.CatalogException as e:
+                raise TableNotFoundError(table_name) from e
             except duckdb.Error as e:
                 raise TableInfoError(table_name) from e
 

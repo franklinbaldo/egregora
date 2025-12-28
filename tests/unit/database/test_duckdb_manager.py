@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import duckdb
 import pytest
 
-from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.duckdb_manager import DuckDBStorageManager, temp_storage
 from egregora.database.exceptions import (
     InvalidOperationError,
     InvalidTableNameError,
@@ -216,3 +216,10 @@ def test_ensure_sequence_raises_creation_error_on_verification_failure(mocker):
         with pytest.raises(SequenceCreationError) as exc_info:
             storage.ensure_sequence("test_sequence")
         assert exc_info.value.sequence_name == "test_sequence"
+
+
+def test_get_table_columns_raises_table_not_found_for_missing_table():
+    """get_table_columns should raise TableNotFoundError for a non-existent table."""
+    storage = temp_storage()
+    with pytest.raises(TableNotFoundError):
+        storage.get_table_columns("non_existent_table")
