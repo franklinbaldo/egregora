@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
-from egregora.data_primitives.document import Author, Category, Document, DocumentType
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.utils import quote_identifier
 
 if TYPE_CHECKING:
@@ -40,8 +40,8 @@ class ContentRepository:
                     "slug": doc.internal_metadata.get("slug"),
                     "date": doc.internal_metadata.get("date"),
                     "summary": doc.summary,
-                    "authors": [str(a.id) for a in doc.authors],
-                    "tags": [c.term for c in doc.categories],
+                    # "authors": [str(a.id) for a in doc.authors],
+                    # "tags": [c.term for c in doc.categories],
                     "status": doc.status,
                 }
             )
@@ -213,13 +213,13 @@ class ContentRepository:
 
         # Authors list reconstruction
         authors = []
-        if row.get("authors"):
-            # Assuming row['authors'] is list of strings (UUIDs)
-            authors = [Author(id=uid, name="") for uid in row["authors"]]
+        # if row.get("authors"):
+        #     # Assuming row['authors'] is list of strings (UUIDs)
+        #     authors = [Author(id=uid, name="") for uid in row["authors"]]
 
         categories = []
-        if row.get("tags"):
-            categories = [Category(term=tag) for tag in row["tags"]]
+        # if row.get("tags"):
+        #     categories = [Category(term=tag) for tag in row["tags"]]
 
         return Document(
             id=row.get("id"),
@@ -227,8 +227,8 @@ class ContentRepository:
             content=row.get("content"),
             updated=row.get("created_at"),  # Map created_at back to updated?
             summary=row.get("summary"),
-            authors=authors,
-            categories=categories,
+            # authors=authors,
+            # categories=categories,
             doc_type=doc_type,
             internal_metadata=internal_metadata,
         )
