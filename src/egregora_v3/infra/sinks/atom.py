@@ -23,7 +23,7 @@ class AtomSink:
         """Configures the Jinja2 environment."""
         env = jinja2.Environment(
             loader=jinja2.PackageLoader("egregora_v3.infra.sinks", "templates"),
-            autoescape=jinja2.select_autoescape(['html', 'xml']),
+            autoescape=jinja2.select_autoescape(['xml']),
             trim_blocks=True,
             lstrip_blocks=True,
         )

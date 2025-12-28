@@ -5,13 +5,10 @@ import uuid
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
-from xml.etree.ElementTree import Element, register_namespace, SubElement, tostring
 
 import jinja2
 from markdown_it import MarkdownIt
 from pydantic import BaseModel, Field, model_validator
-
-from egregora_v3.core.filters import format_datetime, normalize_content_type
 from egregora_v3.core.utils import slugify
 
 # --- XML Configuration ---
@@ -19,6 +16,7 @@ from egregora_v3.core.utils import slugify
 # Register namespaces globally to ensure pretty prefixes in all XML output
 # This is a module-level side effect, but necessary for clean Atom feeds.
 try:
+    from xml.etree.ElementTree import register_namespace
     register_namespace("", "http://www.w3.org/2005/Atom")
     register_namespace("thr", "http://purl.org/syndication/thread/1.0")
 except Exception:  # pragma: no cover
@@ -30,6 +28,7 @@ except Exception:  # pragma: no cover
 # Module-level Jinja2 environment for performance
 # Data over logic: Template is data, not code.
 _md = MarkdownIt("commonmark", {"html": True})
+from egregora_v3.core.filters import format_datetime, normalize_content_type
 _jinja_env = jinja2.Environment(
     loader=jinja2.PackageLoader("egregora_v3.core", "."),
     autoescape=True,
@@ -225,11 +224,6 @@ class Feed(BaseModel):
     entries: list[Entry] = Field(default_factory=list)
     authors: list[Author] = Field(default_factory=list)
     links: list[Link] = Field(default_factory=list)
-
-    def to_xml(self) -> str:
-        """Generate Atom XML feed (RFC 4287 compliant) using a Jinja2 template."""
-        template = _jinja_env.get_template("atom.xml.jinja")
-        return template.render(feed=self)
 
 
 def documents_to_feed(

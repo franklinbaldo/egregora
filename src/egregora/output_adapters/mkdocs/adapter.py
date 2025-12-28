@@ -39,6 +39,8 @@ from egregora.output_adapters.exceptions import (
     ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
+    IncompleteProfileError,
+    ProfileMetadataError,
     ProfileNotFoundError,
     UnsupportedDocumentTypeError,
 )

@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <feed xmlns="http://www.w3.org/2005/Atom" xmlns:thr="http://purl.org/syndication/thread/1.0">
   <id>{{ feed.id }}</id>
-  <title>{{ feed.title }}</title>
+  <title>{{ feed.title | e }}</title>
   <updated>{{ feed.updated | iso_utc }}</updated>
   {%- for author in feed.authors -%}
   <author>
@@ -16,12 +16,12 @@
   {%- for entry in feed.entries -%}
   <entry>
     <id>{{ entry.id }}</id>
-    <title>{{ entry.title }}</title>
+    <title>{{ entry.title | e }}</title>
     <updated>{{ entry.updated | iso_utc }}</updated>
     {%- if entry.published %}<published>{{ entry.published | iso_utc }}</published>{%- endif -%}
-    {%- if entry.summary %}<summary>{{ entry.summary }}</summary>{%- endif -%}
-    {%- if entry.html_content -%}
-    <content type="html">{{ entry.html_content }}</content>
+    {%- if entry.summary %}<summary>{{ entry.summary | e }}</summary>{%- endif -%}
+    {%- if entry.content -%}
+    <content type="{{ entry.content_type | content_type }}">{{ entry.content | e }}</content>
     {%- endif -%}
     {%- for author in entry.authors -%}
     <author>
