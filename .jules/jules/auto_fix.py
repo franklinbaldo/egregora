@@ -51,12 +51,24 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
 
     try:
         session = client.get_session(session_id)
-        # Always send message to existing session, regardless of state
+        session_state = session.get("state", "UNKNOWN")
+
+        # Log session state for visibility (helps with debugging)
+        print(f"📡 Session {session_id} state: {session_state}")
+
+        # Send message to session (works for ACTIVE, COMPLETED, and most states)
+        # Jules can reopen completed sessions or work with active ones
         client.send_message(
             session_id,
             f"Hi Jules! Please fix these issues in PR #{pr_number}:\n\n{feedback}{autonomous_instruction}",
         )
-        return {"status": "success", "action": "messaged_existing_session", "session_id": session_id}
+
+        return {
+            "status": "success",
+            "action": "messaged_existing_session",
+            "session_id": session_id,
+            "session_state": session_state,
+        }
     except Exception as e:
         return {
             "status": "error",
