@@ -11,11 +11,14 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import TYPE_CHECKING
 
-import google.generativeai as genai
-from google.api_core import exceptions as google_exceptions
 from pydantic import BaseModel, Field
 from tenacity import Retrying
+
+if TYPE_CHECKING:
+    import google.generativeai as genai
+    from google.api_core import exceptions as google_exceptions
 
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
 from egregora.agents.banner.image_generation import ImageGenerationRequest
@@ -76,7 +79,7 @@ def _build_image_prompt(input_data: BannerInput) -> str:
 
 
 def _generate_banner_image(
-    client: genai.Client,
+    client: "genai.Client",
     input_data: BannerInput,
     image_model: str,
     generation_request: ImageGenerationRequest,
@@ -142,6 +145,9 @@ def generate_banner(
         Requires GOOGLE_API_KEY environment variable to be set.
 
     """
+    # Lazy import at runtime
+    import google.generativeai as genai
+
     # Client reads GOOGLE_API_KEY from environment automatically
     client = genai.Client()
 

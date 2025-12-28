@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
-import google.generativeai as genai
 import ibis
 
 from egregora.agents.shared.annotations import AnnotationStore
@@ -36,6 +35,8 @@ from egregora.utils.cache import PipelineCache
 from egregora.utils.metrics import UsageTracker
 
 if TYPE_CHECKING:
+    import google.generativeai as genai
+
     from egregora.config.settings import EgregoraConfig
 
 logger = logging.getLogger(__name__)
@@ -277,11 +278,13 @@ class PipelineFactory:
         )
 
     @staticmethod
-    def create_gemini_client() -> genai.Client:
+    def create_gemini_client() -> "genai.Client":
         """Create a Gemini client with retry configuration.
 
         The client reads the API key from GOOGLE_API_KEY environment variable automatically.
         """
+        import google.generativeai as genai  # Lazy import at runtime
+
         http_options = genai.types.HttpOptions(
             retryOptions=genai.types.HttpRetryOptions(
                 attempts=5,
