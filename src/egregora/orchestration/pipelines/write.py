@@ -35,18 +35,19 @@ from egregora.agents.shared.annotations import AnnotationStore
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
 from egregora.constants import SourceType, WindowUnit
-from egregora.data_primitives.document import OutputSink, UrlContext
+from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.run_store import RunStore
 from egregora.database.task_store import TaskStore
 from egregora.database.utils import resolve_db_uri
 from egregora.init import ensure_mkdocs_project
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
+from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
-from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.runner import PipelineRunner
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import MkDocsPaths
@@ -1145,12 +1146,12 @@ def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
             tagged_count = generate_semantic_taxonomy(dataset.context.output_format, dataset.context.config)
             if tagged_count > 0:
                 logger.info("[green]✓ Applied semantic tags to %d posts[/]", tagged_count)
-        except Exception as e:  # noqa: BLE001
-            # Non-critical failure - catch all exceptions to prevent pipeline abort
+        except Exception as e:
+            # Non-critical failure
             logger.warning("Auto-taxonomy failed: %s", e)
 
 
-def _record_run_start(run_store: None, run_id: uuid.UUID, started_at: datetime) -> None:
+def _record_run_start(run_store: RunStore | None, run_id: uuid.UUID, started_at: datetime) -> None:
     """Record the start of a pipeline run in the database.
 
     Args:
@@ -1175,7 +1176,7 @@ def _record_run_start(run_store: None, run_id: uuid.UUID, started_at: datetime) 
 
 
 def _record_run_completion(
-    run_store: None,
+    run_store: RunStore | None,
     run_id: uuid.UUID,
     started_at: datetime,
     results: dict[str, dict[str, list[str]]],
@@ -1219,7 +1220,9 @@ def _record_run_completion(
         logger.debug("Failed to record run completion (invalid data): %s", exc)
 
 
-def _record_run_failure(run_store: None, run_id: uuid.UUID, started_at: datetime, exc: Exception) -> None:
+def _record_run_failure(
+    run_store: RunStore | None, run_id: uuid.UUID, started_at: datetime, exc: Exception
+) -> None:
     """Record failure of a pipeline run.
 
     Args:
@@ -1279,9 +1282,16 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
     run_id = run_params.run_id
     started_at = run_params.start_time
 
-    with _pipeline_environment(run_params) as (ctx, _runs_backend):
-        # RunStore was removed - run tracking disabled for now
+    with _pipeline_environment(run_params) as (ctx, runs_backend):
+        # Create RunStore from backend for abstracted run tracking
+        runs_conn = getattr(runs_backend, "con", None)
         run_store = None
+        if runs_conn is not None:
+            # Properly wrap the connection to ensure ibis_conn is synchronized
+            temp_storage = DuckDBStorageManager.from_connection(runs_conn)
+            run_store = RunStore(temp_storage)
+        else:
+            logger.warning("Unable to access DuckDB connection for run tracking - runs will not be recorded")
 
         # Record run start
         _record_run_start(run_store, run_id, started_at)

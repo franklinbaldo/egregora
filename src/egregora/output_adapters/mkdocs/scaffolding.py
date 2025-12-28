@@ -226,9 +226,9 @@ class MkDocsSiteScaffolder:
                 content = template.render(**context)
                 target_path.write_text(content, encoding="utf-8")
 
-        # The `overrides` dir belongs inside `.egregora` alongside the `mkdocs.yml` that uses it.
-        # The `custom_dir` path is relative to the config file, so `overrides` is the correct value.
-        overrides_dest = site_paths.egregora_dir / "overrides"
+        # Create overrides in site root (since mkdocs.yml is now in site root)
+        # It must be relative to mkdocs.yml location for custom_dir to work
+        overrides_dest = site_paths.site_root / "overrides"
         if not overrides_dest.exists():
             overrides_src = Path(env.loader.searchpath[0]) / "overrides"
             if overrides_src.exists():

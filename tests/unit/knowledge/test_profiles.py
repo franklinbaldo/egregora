@@ -1,6 +1,7 @@
 """Unit tests for the profile knowledge module."""
 
 import uuid
+from pathlib import Path
 
 from egregora.knowledge import profiles
 

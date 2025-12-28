@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from pydantic_ai import Agent, RunContext
-from pydantic_ai.models import infer_model
 
 from egregora.agents.banner.agent import is_banner_generation_available
 from egregora.agents.capabilities import (
@@ -27,6 +26,7 @@ from egregora.agents.writer_helpers import (
     validate_prompt_fits,
 )
 from egregora.config.settings import google_api_key_status
+from egregora.utils.model_fallback import create_fallback_model
 
 if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig
@@ -69,8 +69,7 @@ async def create_writer_model(
         )
         raise ValueError(msg)
 
-    # Infer model from config string (e.g., "google-gla:gemini-2.0-flash")
-    model = infer_model(config.models.writer)
+    model = create_fallback_model(config.models.writer, use_google_batch=False)
     # Validate prompt fits (only check for real models)
     await validate_prompt_fits(prompt, config.models.writer, config, context.window_label)
     return model

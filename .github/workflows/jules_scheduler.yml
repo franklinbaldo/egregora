@@ -31,106 +31,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
 
       - name: Run Jules Scheduler
         if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          JULES_BASE_URL: https://jules.googleapis.com/v1alpha
+          PYTHONPATH: .jules
         run: |
-          set -euo pipefail
+          args=(tick)
 
-          DRY_RUN="${{ inputs.dry_run }}"
-          RUN_ALL="${{ inputs.run_all }}"
-          PROMPT_ID="${{ inputs.prompt_id }}"
-          REPO_OWNER="franklinbaldo"
-          REPO_NAME="egregora"
-
-          # Get current hour in UTC
-          CURRENT_HOUR=$(date -u +%H)
-          CURRENT_DOW=$(date -u +%u)  # 1=Monday, 7=Sunday
-
-          # Read schedules from registry
-          SCHEDULES_FILE=".jules/schedules.toml"
-
-          # Process each persona
-          for PERSONA_DIR in .jules/personas/*/; do
-            [[ -d "$PERSONA_DIR" ]] || continue
-
-            PROMPT_FILE="${PERSONA_DIR}prompt.md"
-            [[ -f "$PROMPT_FILE" ]] || continue
-
-            # Parse frontmatter to get id, enabled, schedule
-            PERSONA_ID=$(awk '/^---$/,/^---$/ {if (/^id:/) {gsub(/^id: *"?|"?$/, ""); print}}' "$PROMPT_FILE")
-            ENABLED=$(awk '/^---$/,/^---$/ {if (/^enabled:/) {gsub(/^enabled: */, ""); print}}' "$PROMPT_FILE")
-            TITLE=$(awk '/^---$/,/^---$/ {if (/^title:/) {gsub(/^title: *"?|"?$/, ""); print}}' "$PROMPT_FILE")
-            BRANCH=$(awk '/^---$/,/^---$/ {if (/^branch:/) {gsub(/^branch: *"?|"?$/, ""); print}}' "$PROMPT_FILE")
-            SCHEDULE=$(awk '/^---$/,/^---$/ {if (/^schedule:/) {gsub(/^schedule: *"?|"?$/, ""); print}}' "$PROMPT_FILE")
-
-            # Set defaults
-            ENABLED="${ENABLED:-true}"
-            BRANCH="${BRANCH:-main}"
-            TITLE="${TITLE:-Task: $PERSONA_ID}"
-
-            # Skip if filtering by prompt_id
-            if [[ -n "$PROMPT_ID" && "$PERSONA_ID" != "$PROMPT_ID" ]]; then
-              continue
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ "${{ inputs.run_all }}" = "true" ]; then
+              args+=(--all)
             fi
-
-            # Skip if disabled (unless specifically requested)
-            if [[ "$ENABLED" != "true" && "$PERSONA_ID" != "$PROMPT_ID" ]]; then
-              continue
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              args+=(--dry-run)
             fi
-
-            # Check if should run based on schedule
-            SHOULD_RUN=false
-
-            if [[ "$RUN_ALL" == "true" || "$PERSONA_ID" == "$PROMPT_ID" ]]; then
-              SHOULD_RUN=true
-            elif [[ -n "$SCHEDULE" ]]; then
-              # Parse cron schedule (simplified: "min hour dom month dow")
-              read -r SCHED_MIN SCHED_HOUR SCHED_DOM SCHED_MONTH SCHED_DOW <<< "$SCHEDULE"
-
-              # Check hour match
-              if [[ "$SCHED_HOUR" == "*" || "$SCHED_HOUR" == "$CURRENT_HOUR" ]]; then
-                # Check day of week match (convert: cron 0=Sun, bash 7=Sun)
-                CRON_DOW=$((CURRENT_DOW % 7))
-                if [[ "$SCHED_DOW" == "*" || "$SCHED_DOW" == "$CRON_DOW" ]]; then
-                  SHOULD_RUN=true
-                fi
-              fi
+            if [ -n "${{ inputs.prompt_id }}" ]; then
+              args+=(--prompt-id "${{ inputs.prompt_id }}")
             fi
+          fi
 
-            if [[ "$SHOULD_RUN" == "true" && "$DRY_RUN" != "true" ]]; then
-              # Extract prompt body (everything after second ---)
-              PROMPT_BODY=$(awk '/^---$/{n++; next} n>=2' "$PROMPT_FILE")
-
-              # Create Jules session
-              echo "Creating Jules session for persona: $PERSONA_ID"
-              curl -sf -X POST \
-                "${JULES_BASE_URL}/sessions" \
-                -H "Content-Type: application/json" \
-                -H "X-Goog-Api-Key: ${JULES_API_KEY}" \
-                -d "$(jq -n \
-                  --arg prompt "$PROMPT_BODY" \
-                  --arg title "$TITLE" \
-                  --arg branch "$BRANCH" \
-                  --arg owner "$REPO_OWNER" \
-                  --arg repo "$REPO_NAME" \
-                  '{
-                    prompt: $prompt,
-                    title: $title,
-                    sourceContext: {
-                      source: ("sources/github/" + $owner + "/" + $repo),
-                      githubRepoContext: {startingBranch: $branch}
-                    },
-                    automationMode: "AUTO_CREATE_PR"
-                  }')" || echo "Failed to create session for $PERSONA_ID"
-            elif [[ "$SHOULD_RUN" == "true" ]]; then
-              echo "[DRY RUN] Would create session for: $PERSONA_ID"
-            fi
-          done
+          # Using new CLI
+          uv run --with requests --with python-frontmatter --with jinja2 --with typer --with pydantic python -m jules.cli schedule "${args[@]}"
 
       - name: Run Jules Feedback Loop
         # Run on schedule or if requested manually (unless prompt_id is specific for something else, but safe to run)
@@ -139,102 +64,12 @@ jobs:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          JULES_BASE_URL: https://jules.googleapis.com/v1alpha
+          PYTHONPATH: .jules
         run: |
-          set -euo pipefail
+           args=()
+           if [ "${{ inputs.dry_run }}" = "true" ]; then
+              args+=(--dry-run)
+           fi
 
-          DRY_RUN="${{ inputs.dry_run }}"
-          AUTHOR_FILTER="app/google-labs-jules"
-
-          # Get list of open PRs by Jules
-          PRS=$(gh pr list --author "$AUTHOR_FILTER" --state open --json number,title,headRefName,url,author,isDraft)
-
-          echo "$PRS" | jq -c '.[]' | while read -r PR_SUMMARY; do
-            PR_NUM=$(echo "$PR_SUMMARY" | jq -r '.number')
-
-            # Get detailed PR info
-            PR_DETAILS=$(gh pr view "$PR_NUM" --json number,title,headRefName,baseRefName,body,statusCheckRollup,latestReviews,comments,commits,mergeable)
-
-            # Check if PR needs feedback (CI failed or changes requested)
-            CI_FAILED=$(echo "$PR_DETAILS" | jq -r '[.statusCheckRollup[]? | select(.conclusion == "FAILURE" or .conclusion == "ERROR" or .state == "FAILURE")] | length > 0')
-            CHANGES_REQUESTED=$(echo "$PR_DETAILS" | jq -r '[.latestReviews[]? | select(.state == "CHANGES_REQUESTED")] | length > 0')
-
-            if [[ "$CI_FAILED" == "false" && "$CHANGES_REQUESTED" == "false" ]]; then
-              echo "PR #$PR_NUM is healthy, skipping"
-              continue
-            fi
-
-            # Check if we should skip (loop prevention - check if last comment is feedback and is newer than last commit)
-            COMMENTS=$(echo "$PR_DETAILS" | jq -r '.comments')
-            LAST_FEEDBACK=$(echo "$COMMENTS" | jq -r '[.[] | select(.body | contains("# Task: Fix Pull Request") or contains("<!-- # Task: Fix Pull Request -->"))] | .[-1] // empty')
-
-            if [[ -n "$LAST_FEEDBACK" ]]; then
-              LAST_COMMIT_DATE=$(echo "$PR_DETAILS" | jq -r '.commits[-1].committedDate // ""')
-              LAST_FEEDBACK_DATE=$(echo "$LAST_FEEDBACK" | jq -r '.createdAt // ""')
-
-              if [[ -n "$LAST_COMMIT_DATE" && -n "$LAST_FEEDBACK_DATE" && "$LAST_FEEDBACK_DATE" > "$LAST_COMMIT_DATE" ]]; then
-                echo "PR #$PR_NUM already has recent feedback, skipping"
-                continue
-              fi
-            fi
-
-            # Get session ID from comments
-            SESSION_ID=$(echo "$COMMENTS" | jq -r '.[] | select(.body | contains("Jules Session:")) | .body' | grep -oP 'sessions/[a-f0-9-]+' | head -n1 || echo "")
-
-            # Construct feedback prompt
-            PR_TITLE=$(echo "$PR_DETAILS" | jq -r '.title')
-            PR_BRANCH=$(echo "$PR_DETAILS" | jq -r '.headRefName')
-
-            # Get failed checks details
-            FAILED_CHECKS=$(gh pr checks "$PR_NUM" --json name,state,url,conclusion | jq -r '[.[] | select(.conclusion == "failure" or .state == "FAILURE")] | map("- **\(.name)**: \(.url // "No URL")") | join("\n")')
-
-            PROMPT="# Task: Fix Pull Request #${PR_NUM}
-
-Your Pull Request \"${PR_TITLE}\" on branch \`${PR_BRANCH}\` has received feedback that needs attention.
-
-## CI Failures
-${FAILED_CHECKS}
-
-## Instructions
-1. Analyze the feedback above.
-2. Examine the code in the current branch (\`${PR_BRANCH}\`).
-3. Fix the reported issues (CI failures or review comments).
-4. Commit and push your changes."
-
-            if [[ "$DRY_RUN" != "true" ]]; then
-              # Try to send message to existing session
-              if [[ -n "$SESSION_ID" ]]; then
-                curl -sf -X POST \
-                  "${JULES_BASE_URL}/sessions/${SESSION_ID}:sendMessage" \
-                  -H "Content-Type: application/json" \
-                  -H "X-Goog-Api-Key: ${JULES_API_KEY}" \
-                  -d "$(jq -n --arg msg "$PROMPT" '{message: $msg}')" && \
-                  gh pr comment "$PR_NUM" --body "🤖 Feedback sent to Jules session.
-<!-- # Task: Fix Pull Request -->" && \
-                  continue || true
-              fi
-
-              # Create new session if no existing session
-              curl -sf -X POST \
-                "${JULES_BASE_URL}/sessions" \
-                -H "Content-Type: application/json" \
-                -H "X-Goog-Api-Key: ${JULES_API_KEY}" \
-                -d "$(jq -n \
-                  --arg prompt "$PROMPT" \
-                  --arg title "Fix PR #${PR_NUM}: ${PR_TITLE}" \
-                  --arg branch "$PR_BRANCH" \
-                  '{
-                    prompt: $prompt,
-                    title: $title,
-                    sourceContext: {
-                      source: "sources/github/franklinbaldo/egregora",
-                      githubRepoContext: {startingBranch: $branch}
-                    },
-                    automationMode: "AUTO_CREATE_PR"
-                  }')" && \
-                gh pr comment "$PR_NUM" --body "🤖 Feedback sent to Jules session.
-<!-- # Task: Fix Pull Request -->"
-            else
-              echo "[DRY RUN] Would send feedback for PR #$PR_NUM"
-            fi
-          done
+           # Run the feedback script
+           uv run --with requests --with typer --with pydantic python -m jules.cli feedback loop "${args[@]}"

@@ -18,10 +18,10 @@ from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.types import PromptTooLargeError
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
-from egregora.data_primitives.document import UrlContext
+from egregora.data_primitives.protocols import UrlContext
+from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.factory import PipelineFactory
-from egregora.orchestration.pipelines.modules.media import process_media_for_window
 from egregora.transformations import split_window_into_n_parts
 from egregora.utils.async_utils import run_async_safely
 

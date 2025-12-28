@@ -24,7 +24,7 @@ class ZipValidationError(ValueError):
 class ZipMemberCountError(ZipValidationError):
     """Raised when a ZIP archive exceeds the maximum number of members."""
 
-    def __init__(self, member_count: int, max_member_count: int) -> None:
+    def __init__(self, member_count: int, max_member_count: int):
         self.member_count = member_count
         self.max_member_count = max_member_count
         super().__init__(f"ZIP archive contains too many files ({member_count} > {max_member_count})")
@@ -33,19 +33,17 @@ class ZipMemberCountError(ZipValidationError):
 class ZipMemberSizeError(ZipValidationError):
     """Raised when a member in a ZIP archive exceeds the maximum allowed size."""
 
-    def __init__(self, member_name: str, member_size: int, max_member_size: int) -> None:
+    def __init__(self, member_name: str, member_size: int, max_member_size: int):
         self.member_name = member_name
         self.member_size = member_size
         self.max_member_size = max_member_size
-        super().__init__(
-            f"ZIP member '{member_name}' ({member_size} bytes) exceeds maximum size of {max_member_size} bytes"
-        )
+        super().__init__(f"ZIP member '{member_name}' ({member_size} bytes) exceeds maximum size of {max_member_size} bytes")
 
 
 class ZipTotalSizeError(ZipValidationError):
     """Raised when the total uncompressed size of a ZIP archive exceeds the maximum."""
 
-    def __init__(self, total_size: int, max_total_size: int) -> None:
+    def __init__(self, total_size: int, max_total_size: int):
         self.total_size = total_size
         self.max_total_size = max_total_size
         super().__init__(f"ZIP archive uncompressed size ({total_size} bytes) exceeds {max_total_size} bytes")
@@ -54,7 +52,7 @@ class ZipTotalSizeError(ZipValidationError):
 class ZipCompressionBombError(ZipValidationError):
     """Raised when a ZIP member has a suspiciously high compression ratio."""
 
-    def __init__(self, member_name: str, ratio: float, max_ratio: float) -> None:
+    def __init__(self, member_name: str, ratio: float, max_ratio: float):
         self.member_name = member_name
         self.ratio = ratio
         self.max_ratio = max_ratio
@@ -67,7 +65,7 @@ class ZipCompressionBombError(ZipValidationError):
 class ZipPathTraversalError(ZipValidationError):
     """Raised when a ZIP member's path is unsafe (absolute or traversal)."""
 
-    def __init__(self, member_name: str) -> None:
+    def __init__(self, member_name: str):
         self.member_name = member_name
         super().__init__(f"ZIP member path is unsafe: '{member_name}'")
 
