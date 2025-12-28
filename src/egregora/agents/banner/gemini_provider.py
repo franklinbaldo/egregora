@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import httpx
+from google.genai import types
 
 from egregora.agents.banner.image_generation import (
     ImageGenerationProvider,
@@ -19,8 +20,7 @@ from egregora.agents.banner.image_generation import (
 )
 
 if TYPE_CHECKING:
-    import google.generativeai as genai
-    from google.generativeai import types
+    from google import genai
 
 logger = logging.getLogger(__name__)
 

@@ -1,5 +1,5 @@
-"""Initialization utilities."""
+"""Initialization utilities for Egregora."""
 
+from egregora.init.scaffolding import ensure_mkdocs_project
 
-def ensure_mkdocs_project() -> None:
-    """Placeholder for ensuring MkDocs project exists."""
+__all__ = ["ensure_mkdocs_project"]

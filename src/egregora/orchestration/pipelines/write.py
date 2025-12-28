@@ -25,6 +25,7 @@ from zoneinfo import ZoneInfo
 
 import ibis
 import ibis.common.exceptions
+from google import genai
 from rich.console import Console
 from rich.panel import Panel
 

@@ -13,9 +13,10 @@ from egregora.data_primitives.document import (
     Document,
     DocumentMetadata,
     DocumentType,
+    OutputSink,
+    UrlContext,
     UrlConvention,
 )
-from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database.repository import ContentRepository
 from egregora.output_adapters.conventions import StandardUrlConvention
 
