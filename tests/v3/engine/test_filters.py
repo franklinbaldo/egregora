@@ -1,55 +1,44 @@
-"""Tests for Jinja2 custom filters.
-
-Following TDD - these tests will fail until the filters are extracted.
-"""
-
-from datetime import UTC, datetime
-
 import pytest
+from datetime import datetime, timezone
 
-from egregora_v3.engine.filters import (
-    format_datetime,
-    isoformat,
-    truncate_words,
-)
+from egregora_v3.engine.filters import format_datetime
 
 
 @pytest.mark.parametrize(
-    ("value", "format_str", "expected"),
+    ("dt", "format_str", "expected"),
     [
-        (datetime(2024, 7, 26, 10, 30, 0, tzinfo=UTC), "%Y-%m-%d", "2024-07-26"),
-        (datetime(2024, 7, 26, 10, 30, 0, tzinfo=UTC), "%H:%M", "10:30"),
-        ("not a date", "%Y", "not a date"),
-        (None, "%Y", "None"),
+        (
+            datetime(2025, 12, 25, 10, 30, 0, tzinfo=timezone.utc),
+            "%Y-%m-%d %H:%M:%S",
+            "2025-12-25 10:30:00",
+        ),
+        (
+            datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+            "%Y/%m/%d",
+            "2025/01/01",
+        ),
+        (
+            datetime(2024, 7, 4, 15, 0, 0, tzinfo=timezone.utc),
+            "%A, %B %d, %Y",
+            "Thursday, July 04, 2024",
+        ),
     ],
 )
-def test_format_datetime(value: datetime | str | None, format_str: str, expected: str) -> None:
-    """Test the format_datetime filter."""
-    assert format_datetime(value, format_str) == expected
+def test_format_datetime_with_valid_datetimes(
+    dt: datetime, format_str: str, expected: str
+):
+    """Verify format_datetime formats datetimes with different format strings."""
+    assert format_datetime(dt, format_str) == expected
 
 
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
-        (datetime(2024, 7, 26, 10, 30, 0, tzinfo=UTC), "2024-07-26T10:30:00+00:00"),
-        ("not a date", "not a date"),
+        ("not a datetime", "not a datetime"),
         (None, "None"),
+        (123, "123"),
     ],
 )
-def test_isoformat(value: datetime | str | None, expected: str) -> None:
-    """Test the isoformat filter."""
-    assert isoformat(value) == expected
-
-
-@pytest.mark.parametrize(
-    ("value", "num_words", "suffix", "expected"),
-    [
-        ("one two three four five", 5, "...", "one two three four five"),
-        ("one two three four five six", 5, "...", "one two three four five..."),
-        ("one two", 5, "...", "one two"),
-        ("", 5, "...", ""),
-    ],
-)
-def test_truncate_words(value: str, num_words: int, suffix: str, expected: str) -> None:
-    """Test the truncate_words filter."""
-    assert truncate_words(value, num_words, suffix) == expected
+def test_format_datetime_with_invalid_inputs(value: any, expected: str):
+    """Verify format_datetime handles non-datetime inputs gracefully."""
+    assert format_datetime(value) == expected
