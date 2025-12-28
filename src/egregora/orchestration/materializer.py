@@ -6,6 +6,7 @@ bridging the "Database Source of Truth" with the "Static Site Artifact".
 
 import logging
 from typing import TYPE_CHECKING
+
 from egregora.data_primitives.document import DocumentType
 
 if TYPE_CHECKING:
@@ -13,6 +14,7 @@ if TYPE_CHECKING:
     from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 
 logger = logging.getLogger(__name__)
+
 
 def materialize_site(source: "DbOutputSink", destination: "MkDocsAdapter") -> None:
     """Sync all documents from DB to Filesystem."""
@@ -25,7 +27,7 @@ def materialize_site(source: "DbOutputSink", destination: "MkDocsAdapter") -> No
         DocumentType.PROFILE,
         DocumentType.JOURNAL,
         DocumentType.MEDIA,
-        DocumentType.ANNOTATION
+        DocumentType.ANNOTATION,
     ]:
         # We need a robust iterator that yields full Document objects
         # DbOutputSink.list() yields metadata. We can use that to fetch docs.

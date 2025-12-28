@@ -2,8 +2,13 @@
 from pathlib import Path
 import jinja2
 from markdown_it import MarkdownIt
+from datetime import datetime, UTC
 
-from egregora_v3.core.types import Feed, format_iso_utc
+from egregora_v3.core.types import Feed
+
+def format_iso_utc(dt: datetime) -> str:
+    """Formats a datetime object to an ISO 8601 string in UTC."""
+    return dt.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 def content_type_filter(value: str | None) -> str:
     """Jinja2 filter to provide a default content type."""
@@ -32,12 +37,5 @@ class AtomSink:
     def publish(self, feed: Feed):
         """Renders the feed to XML and writes it to the output path."""
         template = self._jinja_env.get_template("atom.xml.jinja")
-
-        feed_for_render = feed.model_copy(deep=True)
-
-        for entry in feed_for_render.entries:
-            if entry.content:
-                entry.content = self._md.render(entry.content).strip()
-
-        xml_content = template.render(feed=feed_for_render).strip()
+        xml_content = template.render(feed=feed).strip()
         self.output_path.write_text(xml_content)

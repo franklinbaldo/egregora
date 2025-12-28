@@ -20,8 +20,8 @@
     <updated>{{ entry.updated | iso_utc }}</updated>
     {%- if entry.published %}<published>{{ entry.published | iso_utc }}</published>{%- endif -%}
     {%- if entry.summary %}<summary>{{ entry.summary }}</summary>{%- endif -%}
-    {%- if entry.content -%}
-    <content type="{{ entry.content_type | content_type }}">{{ entry.content }}</content>
+    {%- if entry.html_content -%}
+    <content type="html">{{ entry.html_content }}</content>
     {%- endif -%}
     {%- for author in entry.authors -%}
     <author>

@@ -232,9 +232,6 @@ writer = "google-gla:gemini-2.5-flash"
     assert secondary.models.writer == "google-gla:gemini-2.5-flash"
 
 
-from egregora.config.exceptions import ConfigError
-
-
 def test_config_requires_at_least_one_site(tmp_path: Path):
     """Validate that at least one site entry is present."""
     config_file = tmp_path / ".egregora.toml"
