@@ -2,7 +2,7 @@
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from google.genai import types
+from google.generativeai import types
 
 from egregora.agents.banner.image_generation import (
     ImageGenerationRequest,
