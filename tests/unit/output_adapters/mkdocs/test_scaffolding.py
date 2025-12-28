@@ -63,6 +63,7 @@ from egregora.output_adapters.exceptions import (
     ConfigLoadError,
     FileSystemScaffoldError,
     PathResolutionError,
+    ScaffoldingError,
     TemplateRenderingError,
 )
 
@@ -128,3 +129,32 @@ def test_resolve_paths_raises_path_resolution_error(scaffolder: MkDocsSiteScaffo
 
     assert "Failed to resolve paths for site" in str(excinfo.value)
     assert "Test path error" in str(excinfo.value)
+
+
+def test_scaffold_site_raises_scaffolding_error_on_unexpected_exception(
+    scaffolder: MkDocsSiteScaffolder, tmp_path: Path
+):
+    """Test that scaffold_site raises ScaffoldingError on an unexpected exception."""
+    site_root = tmp_path / "test_site"
+    site_name = "Test Site"
+
+    with patch(
+        "egregora.output_adapters.mkdocs.scaffolding.MkDocsSiteScaffolder._create_site_structure",
+        side_effect=Exception("Unexpected error"),
+    ):
+        with pytest.raises(ScaffoldingError) as excinfo:
+            scaffolder.scaffold_site(site_root, site_name)
+
+    assert "An unexpected error occurred during scaffolding" in str(excinfo.value)
+    assert "Unexpected error" in str(excinfo.value)
+
+
+def test_resolve_paths_raises_value_error_for_invalid_site(scaffolder: MkDocsSiteScaffolder, tmp_path: Path):
+    """Test that resolve_paths raises ValueError for an invalid site."""
+    invalid_site_root = tmp_path / "invalid_site"
+    invalid_site_root.mkdir()
+
+    with pytest.raises(ValueError) as excinfo:
+        scaffolder.resolve_paths(invalid_site_root)
+
+    assert "is not a valid MkDocs site" in str(excinfo.value)
