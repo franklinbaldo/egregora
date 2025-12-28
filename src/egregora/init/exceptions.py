@@ -18,7 +18,8 @@ class ScaffoldingPathError(ScaffoldingError):
         self.site_root = site_root
         super().__init__(
             f"Failed to derive MkDocs paths for site root '{site_root}'. "
-            "The directory may be misconfigured or an I/O error occurred."
+            f"The directory may be misconfigured or an I/O error occurred. "
+            f"Reason: {original_exception}"
         )
         self.__cause__ = original_exception
 
@@ -28,5 +29,5 @@ class ScaffoldingExecutionError(ScaffoldingError):
 
     def __init__(self, site_root: Path, original_exception: Exception) -> None:
         self.site_root = site_root
-        super().__init__(f"Failed to scaffold site at root '{site_root}'.")
+        super().__init__(f"Failed to scaffold site at root '{site_root}'. Reason: {original_exception}")
         self.__cause__ = original_exception
