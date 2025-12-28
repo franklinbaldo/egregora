@@ -22,23 +22,23 @@ First, install uv if you haven't already:
 
 ### From GitHub (Recommended)
 
-Install directly from the repository using uvx:
+Install the latest version directly from the repository:
 
 ```bash
-uvx --from git+https://github.com/franklinbaldo/egregora egregora --help
+uv tool install git+https://github.com/franklinbaldo/egregora
 ```
 
-This will install and run Egregora without any local installation. Use `uvx` for all commands:
+Once installed, you can use the `egregora` command directly:
 
 ```bash
 # Initialize a new blog
-uvx --from git+https://github.com/franklinbaldo/egregora egregora init my-blog
+egregora init my-blog
 
 # Process WhatsApp export
-uvx --from git+https://github.com/franklinbaldo/egregora egregora write export.zip
+egregora write export.zip
 ```
 
-### From PyPI
+### From PyPI (Stable)
 
 ```bash
 uv tool install egregora
@@ -96,8 +96,7 @@ egregora --version
 To build the documentation locally:
 
 ```bash
-uv sync --all-extras
-uv run mkdocs serve -f .egregora/mkdocs.yml
+uv tool run --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox mkdocs serve -f .egregora/mkdocs.yml
 ```
 
 ### Linting
