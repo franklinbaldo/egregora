@@ -631,7 +631,7 @@ class DuckDBStorageManager:
                 escaped_name = sequence_name.replace("'", "''")
                 sequence_literal = f"'{escaped_name}'"
                 for _ in range(count):
-                    row = self._conn.execute(f"SELECT nextval({sequence_literal})").fetchone()
+                    row = self.execute(f"SELECT nextval({sequence_literal})").fetchone()
                     if row is None:
                         raise SequenceFetchError(sequence_name)
                     results.append(int(row[0]))
@@ -649,8 +649,9 @@ class DuckDBStorageManager:
                 self._reset_connection()
 
                 # After connection reset, ensure sequence exists (may have been lost)
-                state = self.get_sequence_state(sequence_name)
-                if state is None:
+                try:
+                    self.get_sequence_state(sequence_name)
+                except SequenceNotFoundError:
                     logger.warning(
                         "Sequence '%s' not found after connection reset, recreating", sequence_name
                     )
@@ -665,8 +666,9 @@ class DuckDBStorageManager:
         # Defensive check: if query returns empty, sequence might not exist
         if not values:
             # Check if sequence exists
-            state = self.get_sequence_state(sequence_name)
-            if state is None:
+            try:
+                self.get_sequence_state(sequence_name)
+            except SequenceNotFoundError:
                 # Sequence doesn't exist - create it
                 logger.warning("Sequence '%s' not found, creating it", sequence_name)
                 self.ensure_sequence(sequence_name)
