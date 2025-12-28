@@ -10,6 +10,11 @@ from egregora_v3.core.types import Document, DocumentType, Entry
 
 _DOCUMENT_TYPE_VALUES = {item.value for item in DocumentType}
 
+_MODEL_MAP = {
+    **{item.value: Document for item in DocumentType},
+    "_ENTRY_": Entry,
+}
+
 
 class DuckDBDocumentRepository(DocumentRepository):
     """DuckDB-backed document storage."""
@@ -56,30 +61,23 @@ class DuckDBDocumentRepository(DocumentRepository):
 
     def _hydrate_object(self, json_val: str | dict, doc_type_val: str) -> Entry:
         """Centralized helper to deserialize JSON into Entry or Document."""
-        is_document = doc_type_val in _DOCUMENT_TYPE_VALUES
-
-        model_class = Document if is_document else Entry
+        model_class = _MODEL_MAP.get(doc_type_val, Entry)  # Default to Entry for safety
         validator = model_class.model_validate if isinstance(json_val, dict) else model_class.model_validate_json
         return validator(json_val)
 
     def get(self, doc_id: str) -> Document | None:
         """Retrieves a document by ID."""
         t = self._get_table()
-        query = t.filter(t.id == doc_id).select("doc_type", "json_data")
+        # Filter out raw entries at the database level
+        query = t.filter(t.id == doc_id, t.doc_type != "_ENTRY_").select("doc_type", "json_data")
         result = query.execute()
 
         if result.empty:
             return None
 
         row = result.iloc[0]
-        doc_type_val = row["doc_type"]
-
-        # get() specifically retrieves Documents, not raw Entries.
-        if doc_type_val == "_ENTRY_":
-            return None
-
-        # We know it's a Document, so the cast is safe.
-        return self._hydrate_object(row["json_data"], doc_type_val)
+        # We know it's a Document because of the filter, so the cast is safe.
+        return self._hydrate_object(row["json_data"], row["doc_type"])
 
     def list(
         self,
