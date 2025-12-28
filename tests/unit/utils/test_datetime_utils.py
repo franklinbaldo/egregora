@@ -120,3 +120,32 @@ def test_ensure_datetime_invalid_raises_type_error():
         ensure_datetime(None)
     with pytest.raises(TypeError, match="Unsupported datetime type"):
         ensure_datetime("not-a-datetime")
+
+
+@pytest.mark.parametrize(
+    "invalid_str_date",
+    [
+        "This is not a date at all",  # ValueError from dateutil
+        "9999-99-99",  # ValueError from datetime
+        "10000-01-01T00:00:00Z",  # OverflowError
+    ],
+)
+def test_parse_datetime_flexible_handles_string_parsing_errors(invalid_str_date: str):
+    """Should return None for strings that cause parsing errors like ValueError or OverflowError."""
+    assert parse_datetime_flexible(invalid_str_date) is None
+
+
+@pytest.mark.parametrize(
+    "unsupported_type",
+    [
+        12345,  # int
+        123.45,  # float
+        b"binary-string",
+        [],  # list
+        {},  # dict
+        object(),
+    ],
+)
+def test_parse_datetime_flexible_unsupported_types(unsupported_type: Any):
+    """Should return None for unsupported input types that are not datetimes, dates, or strings."""
+    assert parse_datetime_flexible(unsupported_type) is None
