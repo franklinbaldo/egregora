@@ -53,7 +53,6 @@ def test_csv_sink_publishes_only_published_documents(
     sink = CSVOutputSink(csv_path)
 
     # 2. Action
-    # This should fail with AttributeError: 'Feed' object has no attribute 'get_published_documents'
     sink.publish(sample_feed)
 
     # 3. Verification
