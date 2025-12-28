@@ -3,7 +3,8 @@ from pathlib import Path
 import jinja2
 from markdown_it import MarkdownIt
 
-from egregora_v3.core.types import Feed, format_iso_utc
+from egregora_v3.core.types import Feed
+from egregora_v3.core.filters import format_datetime
 
 def content_type_filter(value: str | None) -> str:
     """Jinja2 filter to provide a default content type."""
@@ -21,11 +22,11 @@ class AtomSink:
         """Configures the Jinja2 environment."""
         env = jinja2.Environment(
             loader=jinja2.PackageLoader("egregora_v3.infra.sinks", "templates"),
-            autoescape=jinja2.select_autoescape(['html', 'xml']),
+            autoescape=jinja2.select_autoescape(['xml']),
             trim_blocks=True,
             lstrip_blocks=True,
         )
-        env.filters['iso_utc'] = format_iso_utc
+        env.filters['iso_utc'] = format_datetime
         env.filters['content_type'] = content_type_filter
         return env
 

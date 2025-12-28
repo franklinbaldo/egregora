@@ -1,8 +1,20 @@
 from datetime import UTC, datetime
+from pathlib import Path
+import tempfile
 
 from defusedxml import ElementTree
 
 from egregora_v3.core.types import Document, DocumentStatus, DocumentType, Feed, documents_to_feed, Entry
+from egregora_v3.infra.sinks.atom import AtomSink
+
+
+def render_feed_to_xml(feed: Feed) -> str:
+    """Helper to render a feed to XML using an in-memory sink."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_path = Path(tmpdir) / "feed.xml"
+        sink = AtomSink(output_path)
+        sink.publish(feed)
+        return output_path.read_text()
 
 
 def test_feed_to_xml_exposes_doc_type_and_status_categories():
@@ -21,7 +33,7 @@ def test_feed_to_xml_exposes_doc_type_and_status_categories():
         entries=[doc],
     )
 
-    xml_output = feed.to_xml()
+    xml_output = render_feed_to_xml(feed)
     root = ElementTree.fromstring(xml_output)
     entry = root.find("{http://www.w3.org/2005/Atom}entry")
     assert entry is not None
@@ -87,7 +99,7 @@ def test_feed_to_xml_handles_mixed_entry_types():
         entries=[doc, entry],
     )
 
-    xml_output = feed.to_xml()
+    xml_output = render_feed_to_xml(feed)
     root = ElementTree.fromstring(xml_output)
 
     doc_entry_xml = None

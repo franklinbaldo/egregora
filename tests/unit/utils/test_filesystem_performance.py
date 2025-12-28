@@ -19,7 +19,7 @@ TEST_CASES = [
 ]
 
 
-@pytest.mark.parametrize("input_val, expected", TEST_CASES)
+@pytest.mark.parametrize(("input_val", "expected"), TEST_CASES)
 def test_extract_clean_date_benchmark(benchmark, input_val, expected):
     """Benchmark the performance of the original _extract_clean_date function."""
     # This test serves a dual purpose:

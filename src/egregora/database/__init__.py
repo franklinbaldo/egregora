@@ -38,8 +38,6 @@ from egregora.database.views import (
 __all__ = [
     # Views
     "COMMON_VIEWS",
-    # Schemas
-    "schemas",
     # Storage
     "DuckDBStorageManager",
     "ViewBuilder",
@@ -58,6 +56,8 @@ __all__ = [
     "list_common_views",
     "messages_with_media_view",
     "messages_with_text_view",
+    # Schemas
+    "schemas",
     "stream_ibis",
     "temp_storage",
 ]
