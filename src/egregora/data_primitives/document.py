@@ -70,10 +70,12 @@ class UrlContext:
 
     Attributes:
         base_url: The base URL for the site (e.g., "https://example.com")
+        base_path: The base filesystem path for the site
         site_prefix: Optional site prefix/path (e.g., "blog")
     """
 
     base_url: str | None = None
+    base_path: str | None = None
     site_prefix: str | None = None
 
 

@@ -160,16 +160,21 @@ def write_post_impl(ctx: ToolContext, metadata: dict | str, content: str) -> Wri
     # Fix: Unescape literal newlines that might have been escaped by the LLM
     content = content.replace("\\n", "\n")
 
+    # Generate a unique ID for the document
+    import hashlib
+    doc_id = hashlib.sha256(f"{ctx.window_label}-{metadata.get('title', 'untitled')}".encode()).hexdigest()[:16]
+
     doc = Document(
+        id=doc_id,
+        title=metadata.get("title", "Untitled Post"),
         content=content,
-        type=DocumentType.POST,
-        metadata=metadata,
-        source_window=ctx.window_label,
+        doc_type=DocumentType.POST,
+        metadata={**metadata, "source_window": ctx.window_label},
     )
 
     ctx.output_sink.persist(doc)
-    logger.info("Writer agent saved post (doc_id: %s)", doc.document_id)
-    return WritePostResult(status="success", path=doc.document_id)
+    logger.info("Writer agent saved post (doc_id: %s)", doc.id)
+    return WritePostResult(status="success", path=doc.id)
 
 
 def read_profile_impl(ctx: ToolContext, author_uuid: str) -> ReadProfileResult:

@@ -23,8 +23,10 @@ def mock_output_sink():
     # Create some dummy documents
     docs = [
         Document(
+            id=f"post-{i}",
+            title=f"Post {i}",
             content=f"Content {i}",
-            type=DocumentType.POST,
+            doc_type=DocumentType.POST,
             metadata={
                 "title": f"Post {i}",
                 "summary": f"Summary {i}",
