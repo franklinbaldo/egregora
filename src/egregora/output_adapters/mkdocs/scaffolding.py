@@ -17,9 +17,17 @@ from typing import Any
 
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
+from yaml import YAMLError
 
 from egregora.config.settings import EgregoraConfig, create_default_config
 from egregora.output_adapters.base import SiteConfiguration
+from egregora.output_adapters.exceptions import (
+    ConfigLoadError,
+    FileSystemScaffoldError,
+    PathResolutionError,
+    ScaffoldingError,
+    TemplateRenderingError,
+)
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.resources.prompts import PromptManager
 
@@ -113,9 +121,13 @@ class MkDocsSiteScaffolder:
                 logger.info("Created mkdocs.yml at %s", mkdocs_path)
 
             self._create_site_structure(site_paths, env, context)
+        except TemplateError as e:
+            raise TemplateRenderingError(template_name="unknown", reason=str(e)) from e
+        except OSError as e:
+            raise FileSystemScaffoldError(path=str(site_root), operation="write_text", reason=str(e)) from e
         except Exception as e:
-            msg = f"Failed to scaffold MkDocs site: {e}"
-            raise RuntimeError(msg) from e
+            msg = f"An unexpected error occurred during scaffolding: {e}"
+            raise ScaffoldingError(msg) from e
         else:
             logger.info("MkDocs site scaffold checked/updated at %s", site_root)
             return (mkdocs_path, not site_exists)
@@ -134,16 +146,14 @@ class MkDocsSiteScaffolder:
         try:
             site_paths = MkDocsPaths(site_root)
         except Exception as e:
-            msg = f"Failed to resolve site paths: {e}"
-            raise RuntimeError(msg) from e
+            raise PathResolutionError(site_root=str(site_root), reason=str(e)) from e
         config_file = site_paths.mkdocs_config_path
         mkdocs_path = site_paths.mkdocs_path or config_file
         if mkdocs_path:
             try:
                 mkdocs_config = safe_yaml_load(config_file.read_text(encoding="utf-8"))
-            except yaml.YAMLError as exc:
-                logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
-                mkdocs_config = {}
+            except YAMLError as exc:
+                raise ConfigLoadError(path=str(mkdocs_path), reason=str(exc)) from exc
         else:
             logger.debug("mkdocs.yml not found in %s", site_root)
             mkdocs_config = {}

@@ -54,6 +54,19 @@ def test_resolve_paths_returns_site_configuration(tmp_path: Path, scaffolder: Mk
     assert site_config.config_file == tmp_path / ".egregora" / "mkdocs.yml"
 
 
+from unittest.mock import patch
+
+from jinja2 import TemplateError
+from yaml import YAMLError
+
+from egregora.output_adapters.exceptions import (
+    ConfigLoadError,
+    FileSystemScaffoldError,
+    PathResolutionError,
+    TemplateRenderingError,
+)
+
+
 def test_overrides_are_in_egregora_dir(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:
     """Test that overrides/ is created in the .egregora directory."""
     scaffolder.scaffold_site(tmp_path, site_name="Clean Site")
@@ -61,3 +74,57 @@ def test_overrides_are_in_egregora_dir(tmp_path: Path, scaffolder: MkDocsSiteSca
     # overrides/ should be in site root for mkdocs.yml to find it
     assert (tmp_path / "overrides").exists()
     assert not (tmp_path / ".egregora" / "overrides").exists()
+
+
+def test_scaffold_site_raises_template_rendering_error(scaffolder: MkDocsSiteScaffolder, tmp_path: Path):
+    """Test that scaffold_site raises TemplateRenderingError on a Jinja2 error."""
+    site_root = tmp_path / "test_site"
+    site_name = "Test Site"
+
+    with patch("jinja2.Environment.get_template", side_effect=TemplateError("Test template error")):
+        with pytest.raises(TemplateRenderingError) as excinfo:
+            scaffolder.scaffold_site(site_root, site_name)
+
+    assert "Failed to render template" in str(excinfo.value)
+    assert "Test template error" in str(excinfo.value)
+
+
+def test_scaffold_site_raises_filesystem_scaffold_error(scaffolder: MkDocsSiteScaffolder, tmp_path: Path):
+    """Test that scaffold_site raises FileSystemScaffoldError on an OSError."""
+    site_root = tmp_path / "test_site"
+    site_name = "Test Site"
+
+    with patch("pathlib.Path.write_text", side_effect=OSError("Test OS error")):
+        with pytest.raises(FileSystemScaffoldError) as excinfo:
+            scaffolder.scaffold_site(site_root, site_name)
+
+    assert "File system operation 'write_text' failed" in str(excinfo.value)
+    assert "Test OS error" in str(excinfo.value)
+
+
+def test_resolve_paths_raises_config_load_error(scaffolder: MkDocsSiteScaffolder, tmp_path: Path):
+    """Test that resolve_paths raises ConfigLoadError on a YAMLError."""
+    site_root = tmp_path / "test_site"
+    (site_root / ".egregora" / "mkdocs.yml").parent.mkdir(parents=True)
+    (site_root / ".egregora" / "mkdocs.yml").touch()
+
+    with patch("egregora.output_adapters.mkdocs.scaffolding.safe_yaml_load", side_effect=YAMLError("Test YAML error")):
+        with pytest.raises(ConfigLoadError) as excinfo:
+            scaffolder.resolve_paths(site_root)
+
+    assert "Failed to load or parse config" in str(excinfo.value)
+    assert "Test YAML error" in str(excinfo.value)
+
+
+def test_resolve_paths_raises_path_resolution_error(scaffolder: MkDocsSiteScaffolder, tmp_path: Path):
+    """Test that resolve_paths raises PathResolutionError on a general error."""
+    site_root = tmp_path / "test_site"
+    (site_root / ".egregora" / "mkdocs.yml").parent.mkdir(parents=True)
+    (site_root / ".egregora" / "mkdocs.yml").touch()
+
+    with patch("egregora.output_adapters.mkdocs.paths.MkDocsPaths.__init__", side_effect=Exception("Test path error")):
+        with pytest.raises(PathResolutionError) as excinfo:
+            scaffolder.resolve_paths(site_root)
+
+    assert "Failed to resolve paths for site" in str(excinfo.value)
+    assert "Test path error" in str(excinfo.value)
