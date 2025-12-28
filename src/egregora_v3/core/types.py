@@ -211,6 +211,14 @@ class Feed(BaseModel):
     authors: list[Author] = Field(default_factory=list)
     links: list[Link] = Field(default_factory=list)
 
+    def get_published_documents(self) -> list[Document]:
+        """Filters the feed's entries and returns only published Documents."""
+        return [
+            entry
+            for entry in self.entries
+            if isinstance(entry, Document) and entry.status == DocumentStatus.PUBLISHED
+        ]
+
 
 def documents_to_feed(
     docs: list[Document],
