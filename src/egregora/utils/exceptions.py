@@ -122,7 +122,9 @@ class AuthorsError(Exception):
 class AuthorsFileError(AuthorsError):
     """Base exception for errors related to the .authors.yml file."""
 
-    def __init__(self, path: str, original_exception: Exception | None = None, message: str | None = None) -> None:
+    def __init__(
+        self, path: str, original_exception: Exception | None = None, message: str | None = None
+    ) -> None:
         self.path = path
         self.original_exception = original_exception
         if message is None:
@@ -142,9 +144,7 @@ class AuthorsFileParseError(AuthorsFileError):
     """Raised when the .authors.yml file is malformed and cannot be parsed."""
 
     def __init__(self, path: str, original_exception: Exception) -> None:
-        message = (
-            f"Failed to parse YAML from authors file: {path}. Original error: {original_exception}"
-        )
+        message = f"Failed to parse YAML from authors file: {path}. Original error: {original_exception}"
         super().__init__(path, original_exception, message=message)
 
 
@@ -178,4 +178,3 @@ class DateTimeParsingError(DateTimeError):
         self.value = value
         self.original_exception = original_exception
         super().__init__(f"Failed to parse datetime from '{value}': {original_exception}")
-

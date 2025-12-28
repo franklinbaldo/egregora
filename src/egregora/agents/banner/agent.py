@@ -38,6 +38,7 @@ class BannerInput(BaseModel):
 
 from pydantic import ConfigDict
 
+
 class BannerOutput(BaseModel):
     """Output from banner generation.
 

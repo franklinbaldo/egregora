@@ -33,6 +33,7 @@ def parse_datetime_flexible(
 
     Raises:
         DateTimeParsingError: if parsing fails or input is None/empty.
+
     """
     dt = _to_datetime(value, parser_kwargs=parser_kwargs)
     return normalize_timezone(dt, default_timezone=default_timezone)
@@ -47,7 +48,6 @@ def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) 
     if hasattr(value, "to_pydatetime") and callable(value.to_pydatetime):
         value = value.to_pydatetime()
 
-    dt = None
     if isinstance(value, datetime):
         return value
     if isinstance(value, date):
@@ -75,6 +75,7 @@ def normalize_timezone(dt: datetime, *, default_timezone: tzinfo = UTC) -> datet
 
     Returns:
         A timezone-aware datetime.
+
     """
     if dt.tzinfo is None:
         return dt.replace(tzinfo=default_timezone)

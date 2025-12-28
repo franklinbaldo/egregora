@@ -1,4 +1,5 @@
 """Tests for the refactored datetime utilities."""
+
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta, timezone
@@ -9,7 +10,6 @@ from freezegun import freeze_time
 
 from egregora.utils.datetime_utils import (
     ensure_datetime,
-    normalize_timezone,
     parse_datetime_flexible,
 )
 from egregora.utils.exceptions import DateTimeParsingError
@@ -214,9 +214,7 @@ def test_parse_datetime_parser_kwargs():
 def test_ensure_datetime_valid():
     """Should return a valid datetime for supported inputs."""
     assert ensure_datetime("2023-01-01") == datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC)
-    assert ensure_datetime(datetime(2023, 1, 1)) == datetime(
-        2023, 1, 1, 0, 0, 0, tzinfo=UTC
-    )
+    assert ensure_datetime(datetime(2023, 1, 1)) == datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC)
 
 
 def test_ensure_datetime_invalid_raises_type_error():
@@ -225,4 +223,3 @@ def test_ensure_datetime_invalid_raises_type_error():
         ensure_datetime(None)
     with pytest.raises(TypeError, match="Unsupported datetime type"):
         ensure_datetime("not-a-datetime")
-

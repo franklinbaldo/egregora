@@ -47,6 +47,7 @@ from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import ensure_datetime
 from egregora.utils.env import get_google_api_key
+from egregora.utils.exceptions import CacheKeyNotFoundError
 from egregora.utils.paths import slugify
 from egregora.utils.zip import validate_zip_contents
 
@@ -182,16 +183,6 @@ def _uuid_to_str(value: uuid.UUID | str | None) -> str | None:
     if value is None:
         return None
     return str(value)
-
-
-def ensure_datetime(value: Any) -> datetime:
-    """Ensure a value is a datetime object."""
-    if isinstance(value, datetime):
-        return value
-    if isinstance(value, str):
-        return datetime.fromisoformat(value)
-    # Add other type conversions as needed
-    return datetime.now()
 
 
 def _safe_timestamp_plus_one(timestamp: datetime | str | Any) -> datetime:

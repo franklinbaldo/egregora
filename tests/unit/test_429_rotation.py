@@ -1,13 +1,13 @@
 import time
 
 import pytest
-from egregora.utils.model_fallback import create_fallback_model
 from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.messages import TextPart
 from pydantic_ai.models import Model, ModelRequestParameters, ModelResponse
 from pydantic_ai.usage import RequestUsage
 
 from egregora.llm.providers.rate_limited import RateLimitedModel
+from egregora.utils.model_fallback import create_fallback_model
 from egregora.utils.rate_limit import init_rate_limiter
 
 

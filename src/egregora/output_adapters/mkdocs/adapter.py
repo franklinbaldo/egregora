@@ -42,7 +42,6 @@ from egregora.output_adapters.exceptions import (
     DocumentNotFoundError,
     DocumentParsingError,
     IncompleteProfileError,
-    MarkdownExtensionsError,
     ProfileMetadataError,
     ProfileNotFoundError,
     UnsupportedDocumentTypeError,
