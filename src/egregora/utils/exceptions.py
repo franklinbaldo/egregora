@@ -113,40 +113,38 @@ class AuthorsError(Exception):
 class AuthorsFileError(AuthorsError):
     """Base exception for errors related to the .authors.yml file."""
 
-    def __init__(self, path: str, original_exception: Exception | None = None) -> None:
+    def __init__(self, path: str, original_exception: Exception | None = None, message: str | None = None) -> None:
         self.path = path
         self.original_exception = original_exception
-        super().__init__(f"An error occurred involving authors file at: {path}")
+        if message is None:
+            message = f"An error occurred involving authors file at: {path}"
+        super().__init__(message)
 
 
 class AuthorsFileLoadError(AuthorsFileError):
     """Raised when the .authors.yml file cannot be read from the filesystem."""
 
     def __init__(self, path: str, original_exception: Exception) -> None:
-        super().__init__(path, original_exception)
-        self.message = (
-            f"Failed to load authors file from path: {self.path}. Original error: {original_exception}"
-        )
+        message = f"Failed to load authors file from path: {path}. Original error: {original_exception}"
+        super().__init__(path, original_exception, message=message)
 
 
 class AuthorsFileParseError(AuthorsFileError):
     """Raised when the .authors.yml file is malformed and cannot be parsed."""
 
     def __init__(self, path: str, original_exception: Exception) -> None:
-        super().__init__(path, original_exception)
-        self.message = (
-            f"Failed to parse YAML from authors file: {self.path}. Original error: {original_exception}"
+        message = (
+            f"Failed to parse YAML from authors file: {path}. Original error: {original_exception}"
         )
+        super().__init__(path, original_exception, message=message)
 
 
 class AuthorsFileSaveError(AuthorsFileError):
     """Raised when the .authors.yml file cannot be written to the filesystem."""
 
     def __init__(self, path: str, original_exception: Exception) -> None:
-        super().__init__(path, original_exception)
-        self.message = (
-            f"Failed to save authors file to path: {self.path}. Original error: {original_exception}"
-        )
+        message = f"Failed to save authors file to path: {path}. Original error: {original_exception}"
+        super().__init__(path, original_exception, message=message)
 
 
 class AuthorExtractionError(AuthorsError):
