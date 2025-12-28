@@ -1,3 +1,6 @@
+# Egregora Project Documentation Configuration
+# This file is aligned with the scaffolding template to ensure consistency.
+
 site_name: Egregora Documentation
 site_description: Transform WhatsApp conversations into intelligent, privacy-first blogs powered by AI
 site_url: https://franklinbaldo.github.io/egregora/
@@ -10,6 +13,7 @@ copyright: |
 
 theme:
   name: material
+  custom_dir: docs/overrides
   language: en
   palette:
     # Light mode
@@ -69,9 +73,10 @@ theme:
 
 plugins:
   - social
-  - macros
   - search:
+      lang: en
       separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+  - macros
   - mkdocstrings:
       handlers:
         python:
@@ -102,54 +107,56 @@ plugins:
       cache_safe: true
 
 markdown_extensions:
-  # Python Markdown
-  - abbr
-  - admonition
-  - attr_list
-  - def_list
-  - footnotes
-  - md_in_html
-  - tables
-  - toc:
-      permalink: true
-      permalink_title: Anchor link to this section for reference
-      toc_depth: 3
-  # Python Markdown Extensions
-  - pymdownx.arithmatex:
-      generic: true
-  - pymdownx.betterem:
-      smart_enable: all
-  - pymdownx.caret
-  - pymdownx.details
-  - pymdownx.emoji:
-      emoji_index: !!python/name:material.extensions.emoji.twemoji
-      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  # Code blocks and diagrams
   - pymdownx.highlight:
       anchor_linenums: true
+      linenums: true
       line_spans: __span
       pygments_lang_class: true
-      auto_title: true
-      linenums: true
-  - pymdownx.inlinehilite
-  - pymdownx.keys
-  - pymdownx.mark
-  - pymdownx.smartsymbols
-  - pymdownx.snippets:
-      auto_append:
-        - includes/abbreviations.md
-      check_paths: false
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.tabbed:
-      alternate_style: true
-      combine_header_slug: true
+
+  # Content enhancements
+  - abbr
+  - admonition
+  - def_list
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - footnotes
   - pymdownx.tasklist:
       custom_checkbox: true
-      clickable_checkbox: false
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      auto_append:
+        - includes/abbreviations.md
+
+  # Navigation and structure
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - attr_list
+  - tables
+  - md_in_html
+
+  # Math rendering
+  - pymdownx.arithmatex:
+      generic: true
+
+  # Technical writing & formatting
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
   - pymdownx.tilde
+  - pymdownx.tabbed:
+      alternate_style: true
 
 nav:
   - Home: index.md
@@ -200,11 +207,9 @@ nav:
   - Community:
     - Contributing: community/contributing.md
   - Demo: https://franklinbaldo.github.io/egregora/demo/
-  - Blog:
-    - Posts: posts/index.md
 
 extra:
-  # Build information (set by CI/CD workflow)
+  generator: false
   build:
     timestamp: "__BUILD_TIMESTAMP__"
     commit: "__BUILD_COMMIT__"
