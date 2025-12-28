@@ -21,6 +21,12 @@ if TYPE_CHECKING:
 _MARKDOWN_LINK_PATTERN = re.compile(r"(?:!\[|\[)[^\]]*\]\([^)]*?([^/)]+\.\w+)\)")
 _UUID_PATTERN = re.compile(r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+)")
 
+# Pattern to match simple media filenames with known extensions
+_MEDIA_FILE_PATTERN = re.compile(
+    r"\b([\w\-\.]+\.(?:jpg|jpeg|png|gif|webp|mp4|mov|3gp|avi|opus|ogg|mp3|m4a|aac|pdf|doc|docx))\b",
+    re.IGNORECASE,
+)
+
 
 class MessageRepository:
     """Provides an interface for querying the messages table."""
@@ -207,6 +213,7 @@ class MessageRepository:
         """Find media references in a message."""
         refs = find_media_references(message)
         refs.extend(_MARKDOWN_LINK_PATTERN.findall(message))
+        refs.extend(_MEDIA_FILE_PATTERN.findall(message))
         uuid_refs = _UUID_PATTERN.findall(message)
-        refs.extend([u for u in uuid_refs if "media" in str(row)])
+        refs.extend([u for u in uuid_refs if row.get("media_type")])
         return refs

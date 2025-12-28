@@ -26,17 +26,19 @@ def test_media_batch_usage_limit_fallback(mock_context):
     Verify that _execute_media_batch falls back to individual calls
     when GoogleBatchModel.run_batch raises UsageLimitExceeded.
     """
+    # Override strategy to test standard batch API path
+    mock_context.config.enrichment.strategy = "individual"
+
     worker = EnrichmentWorker(ctx=mock_context)
     requests = [{"tag": "1"}, {"tag": "2"}]
     task_map = {"1": {}, "2": {}}
 
     with (
-        patch("egregora.agents.enricher.GoogleBatchModel"),
+        patch("egregora.agents.enricher.GoogleBatchModel") as mock_batch_model,
         patch.object(worker, "_execute_media_individual", return_value=[]) as mock_fallback,
-        patch("egregora.agents.enricher.asyncio.run") as mock_asyncio_run,
     ):
         # Configure the mock to raise the specific exception
-        mock_asyncio_run.side_effect = UsageLimitExceeded("Quota exceeded")
+        mock_batch_model.return_value.run_batch.side_effect = UsageLimitExceeded("Quota exceeded")
 
         # Execute the method
         worker._execute_media_batch(requests, task_map)
@@ -50,17 +52,19 @@ def test_media_batch_http_error_fallback(mock_context):
     Verify that _execute_media_batch falls back to individual calls
     when GoogleBatchModel.run_batch raises ModelHTTPError.
     """
+    # Override strategy to test standard batch API path
+    mock_context.config.enrichment.strategy = "individual"
+
     worker = EnrichmentWorker(ctx=mock_context)
     requests = [{"tag": "1"}, {"tag": "2"}]
     task_map = {"1": {}, "2": {}}
 
     with (
-        patch("egregora.agents.enricher.GoogleBatchModel"),
+        patch("egregora.agents.enricher.GoogleBatchModel") as mock_batch_model,
         patch.object(worker, "_execute_media_individual", return_value=[]) as mock_fallback,
-        patch("egregora.agents.enricher.asyncio.run") as mock_asyncio_run,
     ):
         # Configure the mock to raise the specific exception
-        mock_asyncio_run.side_effect = ModelHTTPError(status_code=500, model_name="test", body="Server error")
+        mock_batch_model.return_value.run_batch.side_effect = ModelHTTPError(status_code=500, model_name="test", body="Server error")
 
         # Execute the method
         worker._execute_media_batch(requests, task_map)

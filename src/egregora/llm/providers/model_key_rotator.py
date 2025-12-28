@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.llm.providers.model_cycler import (
     DEFAULT_GEMINI_MODELS,
     GeminiKeyRotator,
@@ -202,9 +203,12 @@ class ModelKeyRotator:
 
         # All options exhausted
         if last_exception:
-            raise last_exception
+            raise AllModelsExhaustedError(
+                "All models and keys exhausted",
+                causes=[last_exception],
+            ) from last_exception
         msg = "All models and keys exhausted"
-        raise RuntimeError(msg)
+        raise AllModelsExhaustedError(msg)
 
 
 def create_model_key_rotator(
