@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 
 from dateutil import parser as dateutil_parser
 
+from egregora.utils.exceptions import DateTimeParsingError
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -16,30 +18,30 @@ def parse_datetime_flexible(
     *,
     default_timezone: tzinfo = UTC,
     parser_kwargs: Mapping[str, Any] | None = None,
-) -> datetime | None:
+) -> datetime:
     """Parse a datetime value using a flexible approach.
 
     Args:
         value: Datetime-like input (datetime/date/str/other). ``None`` or empty strings
-            return ``None``.
+            will raise an exception.
         default_timezone: Timezone assigned to naive datetimes and used for
             normalization when a timezone is present.
         parser_kwargs: Additional keyword arguments forwarded to ``dateutil.parser``.
 
     Returns:
-        A timezone-normalized ``datetime`` or ``None`` if parsing fails.
+        A timezone-normalized ``datetime``.
 
+    Raises:
+        DateTimeParsingError: if parsing fails or input is None/empty.
     """
     dt = _to_datetime(value, parser_kwargs=parser_kwargs)
-    if dt is None:
-        return None
     return normalize_timezone(dt, default_timezone=default_timezone)
 
 
-def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) -> datetime | None:
+def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) -> datetime:
     """Convert a value to a datetime object without timezone normalization."""
     if value is None:
-        return None
+        raise DateTimeParsingError("None", ValueError("Input value cannot be None"))
 
     if hasattr(value, "to_pydatetime"):
         value = value.to_pydatetime()
@@ -51,12 +53,12 @@ def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) 
 
     raw = str(value).strip()
     if not raw:
-        return None
+        raise DateTimeParsingError("", ValueError("Input value cannot be an empty string"))
 
     try:
         return dateutil_parser.parse(raw, **(parser_kwargs or {}))
-    except (TypeError, ValueError, OverflowError):
-        return None
+    except (TypeError, ValueError, OverflowError) as e:
+        raise DateTimeParsingError(raw, e) from e
 
 
 def normalize_timezone(dt: datetime, *, default_timezone: tzinfo = UTC) -> datetime:
@@ -80,12 +82,11 @@ def normalize_timezone(dt: datetime, *, default_timezone: tzinfo = UTC) -> datet
 
 def ensure_datetime(value: datetime | str | Any) -> datetime:
     """Convert various datetime representations to Python datetime."""
-    parsed = parse_datetime_flexible(value, default_timezone=UTC)
-    if parsed is not None:
-        return parsed
-
-    msg = f"Unsupported datetime type: {type(value)}"
-    raise TypeError(msg)
+    try:
+        return parse_datetime_flexible(value, default_timezone=UTC)
+    except DateTimeParsingError as e:
+        msg = f"Unsupported datetime type: {type(value)}"
+        raise TypeError(msg) from e
 
 
 __all__ = ["ensure_datetime", "normalize_timezone", "parse_datetime_flexible"]
