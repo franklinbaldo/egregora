@@ -5,7 +5,7 @@ import uuid
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
-
+from markdown_it import MarkdownIt
 from pydantic import BaseModel, Field, model_validator
 from egregora_v3.core.utils import slugify
 
@@ -99,6 +99,15 @@ class Entry(BaseModel):
             )
             for link in self.links
         )
+
+    def render_content_as_html(self, md: MarkdownIt | None = None):
+        """Renders markdown content to HTML in-place."""
+        if self.content and (
+            self.content_type is None or "markdown" in self.content_type.lower()
+        ):
+            md_engine = md or MarkdownIt("commonmark", {"html": True})
+            self.content = md_engine.render(self.content).strip()
+            self.content_type = "html"
 
 
 # --- Application Domain ---

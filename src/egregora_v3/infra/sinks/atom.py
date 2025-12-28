@@ -37,8 +37,7 @@ class AtomSink:
         feed_for_render = feed.model_copy(deep=True)
 
         for entry in feed_for_render.entries:
-            if entry.content:
-                entry.content = self._md.render(entry.content).strip()
+            entry.render_content_as_html(self._md)
 
         xml_content = template.render(feed=feed_for_render).strip()
         self.output_path.write_text(xml_content)
