@@ -17,7 +17,11 @@ from typing import TYPE_CHECKING, Annotated, Any, Protocol
 
 import diskcache
 
-from egregora.utils.exceptions import CacheDeserializationError, CachePayloadTypeError
+from egregora.utils.exceptions import (
+    CacheDeserializationError,
+    CacheKeyNotFoundError,
+    CachePayloadTypeError,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -102,7 +106,7 @@ class EnrichmentCache:
 
     def load(
         self, key: Annotated[str, "The cache key to look up"]
-    ) -> Annotated[dict[str, Any] | None, "The cached payload, or None if not found"]:
+    ) -> Annotated[dict[str, Any], "The cached payload, or None if not found"]:
         """Return cached payload when present."""
         try:
             value = self.backend.get(key)
@@ -116,7 +120,7 @@ class EnrichmentCache:
             raise CacheDeserializationError(key, e) from e
 
         if value is None:
-            return None
+            raise CacheKeyNotFoundError(key)
         if not isinstance(value, dict):
             logger.warning("Unexpected cache payload type for key %s; clearing entry", key)
             self.backend.delete(key)
