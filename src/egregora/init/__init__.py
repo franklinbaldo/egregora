@@ -1,1 +1,5 @@
-"""Initialization utilities for Egregora."""
+"""Initialization utilities."""
+
+def ensure_mkdocs_project():
+    """Placeholder for ensuring MkDocs project exists."""
+    pass

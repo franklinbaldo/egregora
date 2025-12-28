@@ -184,6 +184,16 @@ def _uuid_to_str(value: uuid.UUID | str | None) -> str | None:
     return str(value)
 
 
+def ensure_datetime(value: Any) -> datetime:
+    """Ensure a value is a datetime object."""
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        return datetime.fromisoformat(value)
+    # Add other type conversions as needed
+    return datetime.now()
+
+
 def _safe_timestamp_plus_one(timestamp: datetime | str | Any) -> datetime:
     dt_value = ensure_datetime(timestamp)
     return dt_value + timedelta(seconds=1)

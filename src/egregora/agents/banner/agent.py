@@ -36,12 +36,16 @@ class BannerInput(BaseModel):
     language: str = Field(default="pt-BR", description="Content language")
 
 
+from pydantic import ConfigDict
+
 class BannerOutput(BaseModel):
     """Output from banner generation.
 
     Contains a Document with binary image content. Filesystem operations
     (saving, paths, URLs) are handled by upper layers.
     """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     # Document is a dataclass (not a Pydantic model), so no ConfigDict/arbitrary-types hook is required.
     document: Document | None = None
