@@ -9,8 +9,13 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
-from egregora.data_primitives.document import Document, DocumentMetadata, DocumentType
-from egregora.data_primitives.protocols import OutputSink, UrlContext, UrlConvention
+from egregora.data_primitives.document import (
+    Document,
+    DocumentMetadata,
+    DocumentType,
+    UrlConvention,
+)
+from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database.repository import ContentRepository
 from egregora.output_adapters.conventions import StandardUrlConvention
 
