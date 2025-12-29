@@ -178,3 +178,19 @@ class PathResolutionError(ScaffoldingError):
         self.site_root = site_root
         self.reason = reason
         super().__init__(f"Failed to resolve paths for site at '{site_root}': {reason}")
+
+
+class SiteNotSupportedError(ScaffoldingError):
+    """Raised when site discovery fails because the directory is not a supported site type."""
+
+    def __init__(self, site_root: str, reason: str | None = None) -> None:
+        self.site_root = site_root
+        self.reason = reason
+        message = f"Directory '{site_root}' is not a supported site"
+        if reason:
+            message += f": {reason}"
+        super().__init__(message)
+
+
+class ScaffoldConfigLoadError(ConfigLoadError, ScaffoldingError):
+    """Raised when config loading fails during a scaffolding operation."""

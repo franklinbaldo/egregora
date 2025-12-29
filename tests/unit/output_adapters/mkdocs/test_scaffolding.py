@@ -64,6 +64,7 @@ from egregora.output_adapters.exceptions import (
     FileSystemScaffoldError,
     PathResolutionError,
     ScaffoldingError,
+    SiteNotSupportedError,
     TemplateRenderingError,
 )
 
@@ -99,7 +100,7 @@ def test_scaffold_site_raises_filesystem_scaffold_error(scaffolder: MkDocsSiteSc
         with pytest.raises(FileSystemScaffoldError) as excinfo:
             scaffolder.scaffold_site(site_root, site_name)
 
-    assert "File system operation 'write_text' failed" in str(excinfo.value)
+    assert "File system operation 'write' failed" in str(excinfo.value)
     assert "Test OS error" in str(excinfo.value)
 
 
@@ -149,12 +150,14 @@ def test_scaffold_site_raises_scaffolding_error_on_unexpected_exception(
     assert "Unexpected error" in str(excinfo.value)
 
 
-def test_resolve_paths_raises_value_error_for_invalid_site(scaffolder: MkDocsSiteScaffolder, tmp_path: Path):
-    """Test that resolve_paths raises ValueError for an invalid site."""
+def test_resolve_paths_raises_site_not_supported_error_for_invalid_site(
+    scaffolder: MkDocsSiteScaffolder, tmp_path: Path
+):
+    """Test that resolve_paths raises SiteNotSupportedError for an invalid site."""
     invalid_site_root = tmp_path / "invalid_site"
     invalid_site_root.mkdir()
 
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(SiteNotSupportedError) as excinfo:
         scaffolder.resolve_paths(invalid_site_root)
 
-    assert "is not a valid MkDocs site" in str(excinfo.value)
+    assert "is not a supported site" in str(excinfo.value)
