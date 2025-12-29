@@ -17,9 +17,18 @@ from typing import Any
 
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
+from yaml import YAMLError
 
 from egregora.config.settings import EgregoraConfig, create_default_config
 from egregora.output_adapters.base import SiteConfiguration
+from egregora.output_adapters.exceptions import (
+    FileSystemScaffoldError,
+    PathResolutionError,
+    ScaffoldConfigLoadError,
+    ScaffoldingError,
+    SiteNotSupportedError,
+    TemplateRenderingError,
+)
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.resources.prompts import PromptManager
 
@@ -113,12 +122,21 @@ class MkDocsSiteScaffolder:
                 logger.info("Created mkdocs.yml at %s", mkdocs_path)
 
             self._create_site_structure(site_paths, env, context)
+        except TemplateError as e:
+            # Try to get template name from exception, default to "unknown"
+            template_name = getattr(e, "name", "unknown") or "unknown"
+            raise TemplateRenderingError(template_name=template_name, reason=str(e)) from e
+        except OSError as e:
+            raise FileSystemScaffoldError(path=str(site_root), operation="write", reason=str(e)) from e
+        except ScaffoldingError:
+            # Re-raise known scaffolding errors without wrapping them.
+            raise
         except Exception as e:
-            msg = f"Failed to scaffold MkDocs site: {e}"
-            raise RuntimeError(msg) from e
+            msg = f"An unexpected error occurred during scaffolding at '{site_root}': {e}"
+            raise ScaffoldingError(msg) from e
         else:
             logger.info("MkDocs site scaffold checked/updated at %s", site_root)
-            return (mkdocs_path, not site_exists)
+            return mkdocs_path, not site_exists
 
     def scaffold(self, path: Path, config: dict) -> None:
         site_name = config.get("site_name")
@@ -129,24 +147,23 @@ class MkDocsSiteScaffolder:
     def resolve_paths(self, site_root: Path) -> SiteConfiguration:
         """Resolve all paths for an existing MkDocs site."""
         if not self.supports_site(site_root):
-            msg = f"{site_root} is not a valid MkDocs site (no mkdocs.yml found)"
-            raise ValueError(msg)
+            reason = "no mkdocs.yml found"
+            raise SiteNotSupportedError(site_root=str(site_root), reason=reason)
         try:
             site_paths = MkDocsPaths(site_root)
         except Exception as e:
-            msg = f"Failed to resolve site paths: {e}"
-            raise RuntimeError(msg) from e
+            raise PathResolutionError(site_root=str(site_root), reason=str(e)) from e
+
         config_file = site_paths.mkdocs_config_path
         mkdocs_path = site_paths.mkdocs_path or config_file
-        if mkdocs_path:
-            try:
-                mkdocs_config = safe_yaml_load(config_file.read_text(encoding="utf-8"))
-            except yaml.YAMLError as exc:
-                logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
-                mkdocs_config = {}
-        else:
+        if not mkdocs_path or not config_file.exists():
             logger.debug("mkdocs.yml not found in %s", site_root)
             mkdocs_config = {}
+        else:
+            try:
+                mkdocs_config = safe_yaml_load(config_file.read_text(encoding="utf-8"))
+            except (YAMLError, OSError) as exc:
+                raise ScaffoldConfigLoadError(path=str(mkdocs_path), reason=str(exc)) from exc
         return SiteConfiguration(
             site_root=site_paths.site_root,
             site_name=mkdocs_config.get("site_name", "Egregora Site"),

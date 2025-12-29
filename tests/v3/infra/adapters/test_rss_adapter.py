@@ -240,6 +240,35 @@ def test_rss2_item_fields_mapped_correctly(
     assert len(first_entry.content) > 0
 
 
+@freeze_time("2025-12-06 10:00:00")
+def test_rss2_item_with_invalid_pubdate_is_handled(rss_adapter: RSSAdapter, tmp_path: Path) -> None:
+    """Test that an RSS item with an invalid pubDate is handled gracefully."""
+    rss_with_invalid_date = f"""<?xml version="1.0" encoding="utf-8"?>
+    <rss version="2.0">
+        <channel>
+            <title>Test Feed</title>
+            <link>https://example.com</link>
+            <description>Test Description</description>
+            <item>
+                <title>Invalid Date</title>
+                <link>https://example.com/invalid-date</link>
+                <guid>https://example.com/invalid-date</guid>
+                <pubDate>not-a-valid-date</pubDate>
+                <description>Content</description>
+            </item>
+        </channel>
+    </rss>"""
+
+    feed_file = tmp_path / "invalid_date.rss"
+    feed_file.write_text(rss_with_invalid_date)
+
+    entries = list(rss_adapter.parse(feed_file))
+
+    assert len(entries) == 1
+    # Should default to datetime.now(UTC)
+    assert entries[0].updated == datetime(2025, 12, 6, 10, 0, 0, tzinfo=UTC)
+
+
 # ========== Test Edge Cases ==========
 
 
@@ -300,6 +329,23 @@ def test_parse_missing_required_fields_skips_entry(rss_adapter: RSSAdapter, tmp_
     # Only the valid entry should be returned
     assert len(entries) == 1
     assert entries[0].id == "valid-entry"
+
+
+def test_parse_unknown_feed_type(rss_adapter: RSSAdapter, tmp_path: Path) -> None:
+    """Test that an unknown feed type is handled gracefully."""
+    unknown_feed = """<?xml version="1.0" encoding="utf-8"?>
+    <unknownfeed>
+        <item>
+            <title>Some Title</title>
+        </item>
+    </unknownfeed>"""
+
+    feed_file = tmp_path / "unknown.xml"
+    feed_file.write_text(unknown_feed)
+
+    entries = list(rss_adapter.parse(feed_file))
+
+    assert len(entries) == 0
 
 
 # ========== Test HTTP Error Handling ==========
@@ -434,6 +480,33 @@ def test_atom_entry_links_parsed(rss_adapter: RSSAdapter, tmp_path: Path) -> Non
     assert enclosure.href == "https://example.com/image.jpg"
     assert enclosure.type == "image/jpeg"
     assert enclosure.length == 12345
+
+
+@freeze_time("2025-12-06 10:00:00")
+def test_atom_link_without_href_is_skipped(rss_adapter: RSSAdapter, tmp_path: Path) -> None:
+    """Test that an Atom link with no href attribute is skipped."""
+    atom_with_bad_link = """<?xml version="1.0" encoding="utf-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+        <title>Test Feed</title>
+        <link href="https://example.com"/>
+        <updated>2025-12-06T10:00:00Z</updated>
+
+        <entry>
+            <id>bad-link-entry</id>
+            <title>Entry with a Bad Link</title>
+            <updated>2025-12-06T10:00:00Z</updated>
+            <content>Content</content>
+            <link rel="alternate"/>
+        </entry>
+    </feed>"""
+
+    feed_file = tmp_path / "bad_link.atom"
+    feed_file.write_text(atom_with_bad_link)
+
+    entries = list(rss_adapter.parse(feed_file))
+
+    assert len(entries) == 1
+    assert len(entries[0].links) == 0
 
 
 # ========== Test Iterator Protocol ==========

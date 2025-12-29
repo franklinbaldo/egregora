@@ -52,7 +52,6 @@ from egregora.utils.cache import (
 )
 from egregora.utils.datetime_utils import ensure_datetime
 from egregora.utils.env import get_google_api_key
-from egregora.utils.exceptions import CacheKeyNotFoundError
 from egregora.utils.paths import slugify
 from egregora.utils.zip import validate_zip_contents
 
@@ -122,7 +121,7 @@ def _normalize_slug(candidate: str | None, identifier: str) -> str:
         raise ValueError(msg)
 
     value = slugify(candidate.strip())
-    if not value:
+    if not value or value == "post":
         msg = f"LLM slug '{candidate}' is invalid after normalization for: {identifier[:100]}"
         raise ValueError(msg)
 

@@ -12,10 +12,14 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.input_adapters.whatsapp.commands import EGREGORA_COMMAND_PATTERN
 from egregora.input_adapters.whatsapp.exceptions import (
+    InvalidMediaReferenceError,
     InvalidZipFileError,
     MediaExtractionError,
+    MediaNotFoundError,
+    MissingZipPathError,
     WhatsAppAdapterError,
     WhatsAppParsingError,
+    ZipPathNotFoundError,
 )
 from egregora.input_adapters.whatsapp.parsing import WhatsAppExport, parse_source
 from egregora.input_adapters.whatsapp.utils import discover_chat_file
@@ -124,46 +128,36 @@ class WhatsAppAdapter(InputAdapter):
             raise InvalidZipFileError(str(input_path)) from e
         except WhatsAppParsingError as e:
             logger.exception("Failed to parse WhatsApp export at %s: %s", input_path, e)
-            msg = f"Failed to parse WhatsApp export: {input_path}"
+            msg = f"Failed to parse WhatsApp export: {e}"
             raise WhatsAppAdapterError(msg) from e
 
     def deliver_media(self, media_reference: str, **kwargs: Unpack[DeliverMediaKwargs]) -> Document:
         """Deliver media file from WhatsApp ZIP as a Document."""
-        if not self._validate_media_reference(media_reference):
-            raise MediaExtractionError(media_reference, "unknown", "Invalid media reference")
+        self._validate_media_reference(media_reference)
         zip_path = self._get_validated_zip_path(kwargs)
-        if not zip_path:
-            raise MediaExtractionError(media_reference, "unknown", "ZIP path not provided or invalid")
-
         return self._extract_media_from_zip(zip_path, media_reference)
 
-    def _validate_media_reference(self, media_reference: str) -> bool:
+    def _validate_media_reference(self, media_reference: str) -> None:
         if ".." in media_reference or "/" in media_reference or "\\" in media_reference:
             logger.warning("Suspicious media reference (path traversal attempt): %s", media_reference)
-            return False
-        return True
+            raise InvalidMediaReferenceError(media_reference)
 
-    def _get_validated_zip_path(self, kwargs: DeliverMediaKwargs) -> Path | None:
-        zip_path = kwargs.get("zip_path")
-        if not zip_path:
-            logger.warning("deliver_media() called without zip_path kwarg")
-            return None
-        if not isinstance(zip_path, Path):
-            zip_path = Path(zip_path)
+    def _get_validated_zip_path(self, kwargs: DeliverMediaKwargs) -> Path:
+        zip_path_raw = kwargs.get("zip_path")
+        if not zip_path_raw:
+            raise MissingZipPathError
+
+        zip_path = Path(zip_path_raw) if not isinstance(zip_path_raw, Path) else zip_path_raw
+
         if not zip_path.exists():
-            logger.warning("ZIP file does not exist: %s", zip_path)
-            return None
+            raise ZipPathNotFoundError(str(zip_path))
         return zip_path
 
     def _extract_media_from_zip(self, zip_path: Path, media_reference: str) -> Document:
         try:
             with zipfile.ZipFile(zip_path, "r") as zf:
                 validate_zip_contents(zf)
-                found_path = self._find_media_in_zip(zf, media_reference)
-                if not found_path:
-                    raise MediaExtractionError(
-                        media_reference, str(zip_path), "File not found in ZIP archive"
-                    )
+                found_path = self._find_media_in_zip(zip_path, zf, media_reference)
 
                 file_content = zf.read(found_path)
                 logger.debug("Delivered media: %s", media_reference)
@@ -189,13 +183,13 @@ class WhatsAppAdapter(InputAdapter):
                 media_reference, str(zip_path), f"Failed to extract file from ZIP: {e}"
             ) from e
 
-    def _find_media_in_zip(self, zf: zipfile.ZipFile, media_reference: str) -> str | None:
+    def _find_media_in_zip(self, zip_path: Path, zf: zipfile.ZipFile, media_reference: str) -> str:
         for info in zf.infolist():
             if info.is_dir():
                 continue
             if Path(info.filename).name.lower() == media_reference.lower():
                 return info.filename
-        return None
+        raise MediaNotFoundError(str(zip_path), media_reference)
 
     def _detect_media_type(self, media_path: Path) -> str | None:
         return detect_media_type(media_path)
