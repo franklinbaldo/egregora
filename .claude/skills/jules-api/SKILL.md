@@ -122,7 +122,7 @@ Claude: "I'll create a Jules session to review your authentication code.
          Jules works asynchronously and will create a PR with feedback.
 
          Session ID: 123456789
-         URL: https://jules.google.com/sessions/123456789
+         URL: https://jules.google.com/session/123456789
 
          ⏱️  Jules typically completes tasks in ~10 minutes.
          You can continue other work while Jules reviews. I can check

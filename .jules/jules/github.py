@@ -145,7 +145,8 @@ def _extract_session_id(branch: str, body: str, comments: list[dict[str, Any]] |
             if match:
                 session_id = match.group(1)
             else:
-                match = re.search(r"/sessions/([a-zA-Z0-9-]+)", body)
+                # Match both /session/ (singular, web UI) and /sessions/ (plural, API)
+                match = re.search(r"/sessions?/([a-zA-Z0-9-]+)", body)
                 if match:
                     session_id = match.group(1)
 
