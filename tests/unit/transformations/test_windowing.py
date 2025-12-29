@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 import ibis
 import pytest
 
+from egregora.transformations.exceptions import InvalidSplitError, InvalidStepUnitError
 from egregora.transformations.windowing import (
     WindowConfig,
     create_windows,
@@ -147,9 +148,6 @@ def test_split_window_into_n_parts():
     # Messages are exactly 1 per min. So 50 messages each.
     assert parts[0].size == 50
     assert parts[1].size == 50
-
-
-from egregora.transformations.exceptions import InvalidSplitError, InvalidStepUnitError
 
 
 def test_invalid_config_raises_specific_error():
