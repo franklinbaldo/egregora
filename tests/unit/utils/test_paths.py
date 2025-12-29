@@ -83,6 +83,11 @@ class TestSlugifyUnicode:
         # Emoji removed, but the spaces remain as hyphens
         assert result == "hello--world"
 
+    def test_nfkd_normalization_chars(self):
+        """BEHAVIOR: Characters normalized by NFKD are handled."""
+        # For example, the registered trademark symbol ® is stripped
+        assert slugify("Registered®") == "registered"
+
 
 class TestSlugifyEdgeCases:
     """Test edge cases and boundary conditions."""

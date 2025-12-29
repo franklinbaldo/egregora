@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 import ibis.common.exceptions
-from google import genai
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
 from pydantic_ai import UsageLimits
@@ -60,7 +59,6 @@ from egregora.utils.cache import CacheTier, PipelineCache
 from egregora.utils.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 
 if TYPE_CHECKING:
-    import google.generativeai as genai
     from ibis.expr.types import Table
 
     from egregora.config.settings import EgregoraConfig

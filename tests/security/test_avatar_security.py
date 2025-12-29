@@ -1,5 +1,5 @@
-from pathlib import Path
 import socket
+from pathlib import Path
 
 import pytest
 import respx
@@ -34,11 +34,12 @@ def test_ssrf_error_message_is_not_masked(tmp_path: Path, monkeypatch: pytest.Mo
     An attacker could use a redirect from a public URL to a private one. The initial
     check might pass, but the redirect should be caught, and the error should be specific.
     """
+
     # Mock DNS resolution: example.com -> public IP, 127.0.0.1 -> itself
     def mock_getaddrinfo(host, *_args, **_kwargs):
         if host == "example.com":
             return _fake_addrinfo("93.184.216.34")  # Public IP
-        elif host == "127.0.0.1":
+        if host == "127.0.0.1":
             return _fake_addrinfo("127.0.0.1")  # Loopback IP (private)
         return []
 

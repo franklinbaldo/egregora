@@ -10,8 +10,6 @@ This test ensures that:
 import ast
 import sys
 from pathlib import Path
-from typing import Set, List, Tuple
-
 
 # Allowed V3 → V2 imports (temporary legacy dependencies)
 ALLOWED_V3_TO_V2_IMPORTS = {
@@ -30,15 +28,15 @@ ALLOWED_V3_TO_V2_IMPORTS = {
 }
 
 
-def find_python_files(directory: Path) -> List[Path]:
+def find_python_files(directory: Path) -> list[Path]:
     """Find all Python files in directory."""
     return list(directory.rglob("*.py"))
 
 
-def get_imports_from_file(file_path: Path) -> Set[str]:
+def get_imports_from_file(file_path: Path) -> set[str]:
     """Extract all import statements from a Python file (full module names)."""
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         tree = ast.parse(content, filename=str(file_path))
@@ -53,12 +51,11 @@ def get_imports_from_file(file_path: Path) -> Set[str]:
                     imports.add(node.module)  # Keep full module name
 
         return imports
-    except (SyntaxError, UnicodeDecodeError) as e:
-        print(f"⚠️  Warning: Could not parse {file_path}: {e}")
+    except (SyntaxError, UnicodeDecodeError):
         return set()
 
 
-def check_v2_to_v3_imports() -> List[Tuple[Path, Set[str]]]:
+def check_v2_to_v3_imports() -> list[tuple[Path, set[str]]]:
     """Check if V2 imports from V3 (NOT ALLOWED)."""
     violations = []
     v2_root = Path("src/egregora")
@@ -80,7 +77,7 @@ def check_v2_to_v3_imports() -> List[Tuple[Path, Set[str]]]:
     return violations
 
 
-def check_v3_to_v2_imports() -> List[Tuple[Path, Set[str]]]:
+def check_v3_to_v2_imports() -> list[tuple[Path, set[str]]]:
     """Check if V3 imports from V2 (RESTRICTED - only allowed exceptions)."""
     violations = []
     v3_root = Path("src/egregora_v3")
@@ -127,71 +124,40 @@ def check_v3_to_v2_imports() -> List[Tuple[Path, Set[str]]]:
     return violations
 
 
-def test_v2_v3_separation():
+def test_v2_v3_separation() -> int:
     """Main test function."""
-    print("=" * 70)
-    print("V2/V3 SEPARATION TEST")
-    print("=" * 70)
-    print()
-
     all_passed = True
 
     # Test 1: V2 must NOT import from V3
-    print("Test 1: V2 (egregora/) must NOT import from V3 (egregora_v3/)")
-    print("-" * 70)
     v2_to_v3 = check_v2_to_v3_imports()
 
     if v2_to_v3:
         all_passed = False
-        print("❌ FAILED: V2 imports from V3 detected!")
-        for file_path, imports in v2_to_v3:
-            print(f"  {file_path}:")
-            for imp in imports:
-                print(f"    - {imp}")
+        for _file_path, imports in v2_to_v3:
+            for _imp in imports:
+                pass
     else:
-        print("✅ PASSED: V2 does not import from V3")
-    print()
+        pass
 
     # Test 2: V3 should minimize imports from V2
-    print("Test 2: V3 (egregora_v3/) should minimize imports from V2 (egregora/)")
-    print("-" * 70)
     v3_to_v2 = check_v3_to_v2_imports()
 
     if v3_to_v2:
         all_passed = False
-        print("❌ FAILED: Unexpected V3 → V2 imports detected!")
-        print("   (Only allowed exceptions should exist)")
-        for file_path, imports in v3_to_v2:
-            print(f"  {file_path}:")
-            for imp in imports:
-                print(f"    - {imp}")
-        print()
-        print("  If these imports are intentional, add them to ALLOWED_V3_TO_V2_IMPORTS")
+        for _file_path, imports in v3_to_v2:
+            for _imp in imports:
+                pass
     else:
-        print("✅ PASSED: V3 only has allowed imports from V2")
-    print()
+        pass
 
     # Summary
-    print("=" * 70)
-    print("SUMMARY")
-    print("=" * 70)
 
     # Count allowed V3 → V2 imports
-    total_allowed = sum(len(imports) for imports in ALLOWED_V3_TO_V2_IMPORTS.values())
-
-    print(f"V2 → V3 violations: {len(v2_to_v3)} (must be 0)")
-    print(f"V3 → V2 violations: {len(v3_to_v2)} (must be 0)")
-    print(f"V3 → V2 allowed exceptions: {total_allowed} imports")
-    print()
+    sum(len(imports) for imports in ALLOWED_V3_TO_V2_IMPORTS.values())
 
     if all_passed:
-        print("✅ ALL TESTS PASSED")
-        print("V2 and V3 are properly separated!")
         return 0
-    else:
-        print("❌ TESTS FAILED")
-        print("V2/V3 separation violated - fix imports above")
-        return 1
+    return 1
 
 
 if __name__ == "__main__":

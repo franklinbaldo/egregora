@@ -75,7 +75,7 @@ def create_session(
 
 ### Official Documentation
 - POST to `/sessions/{id}:sendMessage`
-- Parameter: `message` (the prompt to send)
+- Parameter: `prompt` (the prompt to send)
 - Responses appear asynchronously as activities
 
 ### Our Implementation
@@ -86,13 +86,13 @@ def send_message(self, session_id: str, message: str) -> dict[str, Any]:
         session_id = session_id.split("/")[-1]
 
     url = f"{self.base_url}/sessions/{session_id}:sendMessage"
-    data = {"message": message}
+    data = {"prompt": message}
     response = requests.post(url, headers=self._get_headers(), json=data)
 ```
 
 **✅ Status:** Correct
 - Using correct `:sendMessage` endpoint
-- Proper payload with `message` field
+- Proper payload with `prompt` field (per API spec)
 - Good handling of full resource names (sessions/UUID)
 
 ---

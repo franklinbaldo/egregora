@@ -32,11 +32,12 @@ def parse_datetime_flexible(
         parser_kwargs: Additional keyword arguments forwarded to ``dateutil.parser``.
 
     Returns:
-        A timezone-normalized ``datetime``.
+        A timezone-aware ``datetime`` object normalized to the ``default_timezone``.
 
     Raises:
         InvalidDateTimeInputError: if the input is None or an empty string.
         DateTimeParsingError: if parsing fails.
+
     """
     dt = _to_datetime(value, parser_kwargs=parser_kwargs)
     return normalize_timezone(dt, default_timezone=default_timezone)
@@ -87,7 +88,21 @@ def normalize_timezone(dt: datetime, *, default_timezone: tzinfo = UTC) -> datet
 
 
 def ensure_datetime(value: datetime | str | Any) -> datetime:
-    """Convert various datetime representations to Python datetime."""
+    """Parse a value into a timezone-aware datetime, raising TypeError on failure.
+
+    This serves as a strict version of ``parse_datetime_flexible``, suitable for
+    cases where a valid datetime is required.
+
+    Args:
+        value: The value to convert.
+
+    Returns:
+        A timezone-aware ``datetime`` object.
+
+    Raises:
+        TypeError: If the value cannot be converted to a ``datetime``.
+
+    """
     try:
         return parse_datetime_flexible(value, default_timezone=UTC)
     except (DateTimeParsingError, InvalidDateTimeInputError) as e:

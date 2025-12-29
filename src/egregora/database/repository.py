@@ -15,7 +15,6 @@ from egregora.database.exceptions import (
     DocumentNotFoundError,
     UnsupportedDocumentTypeError,
 )
-from egregora.database.utils import quote_identifier
 
 if TYPE_CHECKING:
     from egregora.database.duckdb_manager import DuckDBStorageManager
@@ -127,7 +126,8 @@ class ContentRepository:
             return self._row_to_document(data, doc_type)
 
         except IbisError as e:
-            raise DatabaseOperationError(f"Failed to get document: {e}") from e
+            msg = f"Failed to get document: {e}"
+            raise DatabaseOperationError(msg) from e
 
     def list(self, doc_type: DocumentType | None = None) -> Iterator[dict]:
         """List documents metadata."""

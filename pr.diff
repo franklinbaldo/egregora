@@ -1,0 +1,3649 @@
+diff --git a/src/egregora/agents/banner/agent.py b/src/egregora/agents/banner/agent.py
+index adf70b5..f7a2827 100644
+--- a/src/egregora/agents/banner/agent.py
++++ b/src/egregora/agents/banner/agent.py
+@@ -9,38 +9,14 @@ interpretation and generation in a single API call.
+
+ from __future__ import annotations
+
+-import importlib.util
+ import logging
+ import os
+-import sys
+-from typing import TYPE_CHECKING
+
++from google import genai
++from google.api_core import exceptions as google_exceptions
+ from pydantic import BaseModel, Field
+ from tenacity import Retrying
+
+-if TYPE_CHECKING:
+-    import google.generativeai as genai
+-    from google.api_core import exceptions as google_exceptions
+-
+-google_api_core_spec = (
+-    "google.api_core" in sys.modules or importlib.util.find_spec("google.api_core") is not None
+-)
+-if google_api_core_spec:
+-    from google.api_core import exceptions as google_exceptions
+-else:  # pragma: no cover - exercised when Google SDKs are absent
+-
+-    class GoogleAPICallError(Exception):
+-        """Stub for google.api_core.exceptions.GoogleAPICallError."""
+-
+-    class ResourceExhausted(GoogleAPICallError):
+-        """Stub for google.api_core.exceptions.ResourceExhausted."""
+-
+-    class _GoogleExceptions:
+-        GoogleAPICallError = GoogleAPICallError
+-        ResourceExhausted = ResourceExhausted
+-
+-    google_exceptions = _GoogleExceptions()
+-
+ from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
+ from egregora.agents.banner.image_generation import ImageGenerationRequest
+ from egregora.config import EgregoraConfig
+@@ -60,9 +36,6 @@ class BannerInput(BaseModel):
+     language: str = Field(default="pt-BR", description="Content language")
+
+
+-from pydantic import ConfigDict
+-
+-
+ class BannerOutput(BaseModel):
+     """Output from banner generation.
+
+@@ -70,8 +43,6 @@ class BannerOutput(BaseModel):
+     (saving, paths, URLs) are handled by upper layers.
+     """
+
+-    model_config = ConfigDict(arbitrary_types_allowed=True)
+-
+     # Document is a dataclass (not a Pydantic model), so no ConfigDict/arbitrary-types hook is required.
+     document: Document | None = None
+     error: str | None = None
+@@ -166,9 +137,11 @@ def generate_banner(
+         Requires GOOGLE_API_KEY environment variable to be set.
+
+     """
+-    # Lazy import at runtime
+-    import google.generativeai as genai
+-
++    if not is_banner_generation_available():
++        return BannerOutput(
++            error="Banner generation is not available. Please set GOOGLE_API_KEY.",
++            error_code="NOT_CONFIGURED",
++        )
+     # Client reads GOOGLE_API_KEY from environment automatically
+     client = genai.Client()
+
+diff --git a/src/egregora/agents/banner/worker.py b/src/egregora/agents/banner/worker.py
+index 1cdd431..60c302d 100644
+--- a/src/egregora/agents/banner/worker.py
++++ b/src/egregora/agents/banner/worker.py
+@@ -7,6 +7,11 @@ import logging
+ from typing import TYPE_CHECKING, Any
+
+ from egregora.agents.banner.batch_processor import BannerBatchProcessor, BannerTaskEntry
++from egregora.agents.exceptions import (
++    BannerError,
++    BannerTaskDataError,
++    BannerTaskPayloadError,
++)
+ from egregora.orchestration.persistence import persist_banner_document
+ from egregora.orchestration.worker_base import BaseWorker
+
+@@ -30,13 +35,14 @@ class BannerWorker(BaseWorker):
+
+         parsed_tasks: list[BannerTaskEntry] = []
+         invalid = 0
+-
+         for task in tasks:
+-            entry = self._parse_task(task)
+-            if entry is None:
++            try:
++                entry = self._parse_task(task)
++                parsed_tasks.append(entry)
++            except BannerError as e:
++                logger.warning("Invalid banner task %s: %s", task.get("task_id", "N/A"), e)
+                 invalid += 1
+                 continue
+-            parsed_tasks.append(entry)
+
+         if not parsed_tasks:
+             return invalid
+@@ -65,31 +71,34 @@ class BannerWorker(BaseWorker):
+
+         return processed + invalid
+
+-    def _parse_task(self, task: dict[str, Any]) -> BannerTaskEntry | None:
++    def _parse_task(self, task: dict[str, Any]) -> BannerTaskEntry:
+         task_id = str(task.get("task_id", ""))
+         raw_payload = task.get("payload")
+
+         if not raw_payload:
+-            logger.warning("Task %s missing payload", task_id)
+-            self.task_store.mark_failed(task.get("task_id"), "Missing payload")
+-            return None
++            self.task_store.mark_failed(task_id, "Missing payload")
++            raise BannerTaskPayloadError(task_id, "Missing payload")
+
+         payload = raw_payload
+         if isinstance(raw_payload, str):
+             try:
+                 payload = json.loads(raw_payload)
+             except json.JSONDecodeError as exc:
+-                logger.warning("Invalid banner payload for %s: %s", task_id, exc)
+-                self.task_store.mark_failed(task.get("task_id"), "Invalid payload JSON")
+-                return None
++                self.task_store.mark_failed(task_id, "Invalid payload JSON")
++                raise BannerTaskPayloadError(task_id, "Invalid payload JSON") from exc
+
+         post_slug = payload.get("post_slug")
+         title = payload.get("title")
+
+-        if not post_slug or not title:
+-            logger.warning("Banner task %s missing slug/title", task_id)
+-            self.task_store.mark_failed(task.get("task_id"), "Missing slug/title")
+-            return None
++        missing_fields = []
++        if not post_slug:
++            missing_fields.append("post_slug")
++        if not title:
++            missing_fields.append("title")
++
++        if missing_fields:
++            self.task_store.mark_failed(task_id, "Missing slug/title")
++            raise BannerTaskDataError(task_id, missing_fields)
+
+         summary = payload.get("summary") or ""
+         language = payload.get("language") or "pt-BR"
+diff --git a/src/egregora/agents/enricher.py b/src/egregora/agents/enricher.py
+index 4fe1747..fb422d6 100644
+--- a/src/egregora/agents/enricher.py
++++ b/src/egregora/agents/enricher.py
+@@ -52,7 +52,6 @@ from egregora.utils.cache import (
+ )
+ from egregora.utils.datetime_utils import ensure_datetime
+ from egregora.utils.env import get_google_api_key
+-from egregora.utils.exceptions import CacheKeyNotFoundError
+ from egregora.utils.paths import slugify
+ from egregora.utils.zip import validate_zip_contents
+
+@@ -122,7 +121,7 @@ def _normalize_slug(candidate: str | None, identifier: str) -> str:
+         raise ValueError(msg)
+
+     value = slugify(candidate.strip())
+-    if not value:
++    if not value or value == "post":
+         msg = f"LLM slug '{candidate}' is invalid after normalization for: {identifier[:100]}"
+         raise ValueError(msg)
+
+diff --git a/src/egregora/agents/exceptions.py b/src/egregora/agents/exceptions.py
+index 03948cf..247b79a 100644
+--- a/src/egregora/agents/exceptions.py
++++ b/src/egregora/agents/exceptions.py
+@@ -11,15 +11,3 @@ class EnrichmentError(AgentError):
+
+ class MediaStagingError(EnrichmentError):
+     """Raised when a media file cannot be staged for enrichment."""
+-
+-
+-class JournalError(AgentError):
+-    """Base exception for journal-related errors."""
+-
+-
+-class JournalTemplateError(JournalError):
+-    """Raised when a journal template cannot be loaded or rendered."""
+-
+-
+-class JournalFileSystemError(JournalError):
+-    """Raised when a journal file cannot be written to the filesystem."""
+diff --git a/src/egregora/init/exceptions.py b/src/egregora/init/exceptions.py
+new file mode 100644
+index 0000000..b4719c1
+--- /dev/null
++++ b/src/egregora/init/exceptions.py
+@@ -0,0 +1,34 @@
++"""Exceptions for the site initialization and scaffolding process."""
++
++from __future__ import annotations
++
++from typing import TYPE_CHECKING
++
++if TYPE_CHECKING:
++    from pathlib import Path
++
++
++class ScaffoldingError(Exception):
++    """Base exception for scaffolding errors."""
++
++
++class ScaffoldingPathError(ScaffoldingError):
++    """Raised when site path resolution fails."""
++
++    def __init__(self, site_root: Path, original_exception: Exception) -> None:
++        self.site_root = site_root
++        super().__init__(
++            f"Failed to derive MkDocs paths for site root '{site_root}'. "
++            f"The directory may be misconfigured or an I/O error occurred. "
++            f"Reason: {original_exception}"
++        )
++        self.__cause__ = original_exception
++
++
++class ScaffoldingExecutionError(ScaffoldingError):
++    """Raised when the scaffolding execution fails."""
++
++    def __init__(self, site_root: Path, original_exception: Exception) -> None:
++        self.site_root = site_root
++        super().__init__(f"Failed to scaffold site at root '{site_root}'. Reason: {original_exception}")
++        self.__cause__ = original_exception
+diff --git a/src/egregora/init/scaffolding.py b/src/egregora/init/scaffolding.py
+index 17cc65e..afcd7a8 100644
+--- a/src/egregora/init/scaffolding.py
++++ b/src/egregora/init/scaffolding.py
+@@ -8,7 +8,10 @@ MODERN (Phase N): Refactored to use OutputAdapter abstraction.
+
+ import logging
+ from pathlib import Path
++from typing import cast
+
++from egregora.data_primitives.document import SiteScaffolder
++from egregora.init.exceptions import ScaffoldingExecutionError, ScaffoldingPathError
+ from egregora.output_adapters import create_default_output_registry, create_output_sink
+ from egregora.output_adapters.mkdocs import MkDocsPaths
+
+@@ -41,31 +44,28 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
+     registry = create_default_output_registry()
+     output_format = create_output_sink(site_root, format_type="mkdocs", registry=registry)
+
+-    # Check if output format supports scaffolding (duck typing)
+-    if not hasattr(output_format, "scaffold_site") and not hasattr(output_format, "scaffold"):
++    if not isinstance(output_format, SiteScaffolder):
+         logger.info("Output format %s does not support scaffolding", output_format)
+         # Fallback for non-scaffolding adapters
+         try:
+             site_paths = MkDocsPaths(site_root)
+             return (site_paths.docs_dir, False)
+         except (ValueError, KeyError, OSError) as e:
+-            logger.debug("Failed to derive MkDocs paths, falling back to default: %s", e)
+-            return (site_root / "docs", False)
++            raise ScaffoldingPathError(site_root, e) from e
++
++    # Cast to SiteScaffolder for type checking
++    scaffolder = cast("SiteScaffolder", output_format)
+
+     try:
+         # Prefer specific implementation if available to get accurate 'created' status
+         if hasattr(output_format, "scaffold_site"):
+             _, created = output_format.scaffold_site(site_root, site_name)
+-        elif hasattr(output_format, "scaffold"):
+-            output_format.scaffold(site_root, {"site_name": site_name})
++        else:
++            scaffolder.scaffold(site_root, {"site_name": site_name})
+             # Generic scaffold doesn't return created status, assume True if no error
+             created = True
+-        else:
+-            # No scaffolding method available
+-            created = False
+-    except Exception:
+-        logger.exception("Failed to scaffold site")
+-        raise
++    except Exception as e:
++        raise ScaffoldingExecutionError(site_root, e) from e
+
+     # Return docs_dir for backward compatibility
+     site_paths = MkDocsPaths(site_root)
+diff --git a/src/egregora/input_adapters/whatsapp/adapter.py b/src/egregora/input_adapters/whatsapp/adapter.py
+index 6cc2f49..8bd42a1 100644
+--- a/src/egregora/input_adapters/whatsapp/adapter.py
++++ b/src/egregora/input_adapters/whatsapp/adapter.py
+@@ -12,10 +12,14 @@ from egregora.data_primitives.document import Document, DocumentType
+ from egregora.input_adapters.base import AdapterMeta, InputAdapter
+ from egregora.input_adapters.whatsapp.commands import EGREGORA_COMMAND_PATTERN
+ from egregora.input_adapters.whatsapp.exceptions import (
++    InvalidMediaReferenceError,
+     InvalidZipFileError,
+     MediaExtractionError,
++    MediaNotFoundError,
++    MissingZipPathError,
+     WhatsAppAdapterError,
+     WhatsAppParsingError,
++    ZipPathNotFoundError,
+ )
+ from egregora.input_adapters.whatsapp.parsing import WhatsAppExport, parse_source
+ from egregora.input_adapters.whatsapp.utils import discover_chat_file
+@@ -124,46 +128,36 @@ class WhatsAppAdapter(InputAdapter):
+             raise InvalidZipFileError(str(input_path)) from e
+         except WhatsAppParsingError as e:
+             logger.exception("Failed to parse WhatsApp export at %s: %s", input_path, e)
+-            msg = f"Failed to parse WhatsApp export: {input_path}"
++            msg = f"Failed to parse WhatsApp export: {e}"
+             raise WhatsAppAdapterError(msg) from e
+
+     def deliver_media(self, media_reference: str, **kwargs: Unpack[DeliverMediaKwargs]) -> Document:
+         """Deliver media file from WhatsApp ZIP as a Document."""
+-        if not self._validate_media_reference(media_reference):
+-            raise MediaExtractionError(media_reference, "unknown", "Invalid media reference")
++        self._validate_media_reference(media_reference)
+         zip_path = self._get_validated_zip_path(kwargs)
+-        if not zip_path:
+-            raise MediaExtractionError(media_reference, "unknown", "ZIP path not provided or invalid")
+-
+         return self._extract_media_from_zip(zip_path, media_reference)
+
+-    def _validate_media_reference(self, media_reference: str) -> bool:
++    def _validate_media_reference(self, media_reference: str) -> None:
+         if ".." in media_reference or "/" in media_reference or "\\" in media_reference:
+             logger.warning("Suspicious media reference (path traversal attempt): %s", media_reference)
+-            return False
+-        return True
+-
+-    def _get_validated_zip_path(self, kwargs: DeliverMediaKwargs) -> Path | None:
+-        zip_path = kwargs.get("zip_path")
+-        if not zip_path:
+-            logger.warning("deliver_media() called without zip_path kwarg")
+-            return None
+-        if not isinstance(zip_path, Path):
+-            zip_path = Path(zip_path)
++            raise InvalidMediaReferenceError(media_reference)
++
++    def _get_validated_zip_path(self, kwargs: DeliverMediaKwargs) -> Path:
++        zip_path_raw = kwargs.get("zip_path")
++        if not zip_path_raw:
++            raise MissingZipPathError
++
++        zip_path = Path(zip_path_raw) if not isinstance(zip_path_raw, Path) else zip_path_raw
++
+         if not zip_path.exists():
+-            logger.warning("ZIP file does not exist: %s", zip_path)
+-            return None
++            raise ZipPathNotFoundError(str(zip_path))
+         return zip_path
+
+     def _extract_media_from_zip(self, zip_path: Path, media_reference: str) -> Document:
+         try:
+             with zipfile.ZipFile(zip_path, "r") as zf:
+                 validate_zip_contents(zf)
+-                found_path = self._find_media_in_zip(zf, media_reference)
+-                if not found_path:
+-                    raise MediaExtractionError(
+-                        media_reference, str(zip_path), "File not found in ZIP archive"
+-                    )
++                found_path = self._find_media_in_zip(zip_path, zf, media_reference)
+
+                 file_content = zf.read(found_path)
+                 logger.debug("Delivered media: %s", media_reference)
+@@ -189,13 +183,13 @@ class WhatsAppAdapter(InputAdapter):
+                 media_reference, str(zip_path), f"Failed to extract file from ZIP: {e}"
+             ) from e
+
+-    def _find_media_in_zip(self, zf: zipfile.ZipFile, media_reference: str) -> str | None:
++    def _find_media_in_zip(self, zip_path: Path, zf: zipfile.ZipFile, media_reference: str) -> str:
+         for info in zf.infolist():
+             if info.is_dir():
+                 continue
+             if Path(info.filename).name.lower() == media_reference.lower():
+                 return info.filename
+-        return None
++        raise MediaNotFoundError(str(zip_path), media_reference)
+
+     def _detect_media_type(self, media_path: Path) -> str | None:
+         return detect_media_type(media_path)
+diff --git a/src/egregora/input_adapters/whatsapp/exceptions.py b/src/egregora/input_adapters/whatsapp/exceptions.py
+index 6ac1428..a3d1cbd 100644
+--- a/src/egregora/input_adapters/whatsapp/exceptions.py
++++ b/src/egregora/input_adapters/whatsapp/exceptions.py
+@@ -30,10 +30,6 @@ class WhatsAppParsingError(WhatsAppError):
+ class ChatFileNotFoundError(WhatsAppParsingError):
+     """Raised when the chat file cannot be found in the ZIP archive."""
+
+-    def __init__(self, zip_path: str) -> None:
+-        self.zip_path = zip_path
+-        super().__init__(f"No WhatsApp chat file found in {zip_path}")
+-
+
+ class DateParsingError(WhatsAppParsingError):
+     """Raised when a date string cannot be parsed."""
+diff --git a/src/egregora/llm/exceptions.py b/src/egregora/llm/exceptions.py
+index 3509c86..79f3206 100644
+--- a/src/egregora/llm/exceptions.py
++++ b/src/egregora/llm/exceptions.py
+@@ -1,30 +1,37 @@
+-"""Custom exceptions for LLM providers."""
++"""Custom exceptions for LLM provider interactions."""
+
+
+ class LLMProviderError(Exception):
+-    """Base exception for LLM provider errors."""
++    """Base exception for all LLM provider related errors."""
+
+
+-class RotatingFallbackError(LLMProviderError):
+-    """Base exception for errors in the rotating fallback model."""
++class BatchJobError(LLMProviderError):
++    """Base exception for errors related to batch job processing."""
+
++    def __init__(self, message: str, job_name: str | None = None) -> None:
++        self.job_name = job_name
++        super().__init__(f"{message}. Job: {job_name}" if job_name else message)
+
+-class AllModelsExhaustedError(RotatingFallbackError):
+-    """Raised when all models in the fallback rotation are exhausted."""
+
+-    def __init__(self, message: str, causes: list[Exception] | None = None) -> None:
+-        """Initialize with a list of underlying causes."""
+-        self.causes = causes or []
+-        super().__init__(message)
++class BatchJobFailedError(BatchJobError):
++    """Exception raised when a batch job completes in a failed state."""
+
+-    def __str__(self) -> str:
+-        """Append causes to the string representation."""
+-        base_msg = super().__str__()
+-        if not self.causes:
+-            return base_msg
+-        causes_str = ", ".join(f"{type(e).__name__}: {e}" for e in self.causes)
+-        return f"{base_msg}\nUnderlying causes: [{causes_str}]"
++    def __init__(self, message: str, job_name: str | None = None, error_payload: dict | None = None) -> None:
++        self.error_payload = error_payload
++        super().__init__(message, job_name)
+
+
+-class InvalidConfigurationError(RotatingFallbackError):
+-    """Raised when the rotating fallback model is misconfigured."""
++class BatchJobTimeoutError(BatchJobError):
++    """Exception raised when polling a batch job for completion times out."""
++
++
++class BatchResultDownloadError(LLMProviderError):
++    """Exception raised when results of a batch job cannot be downloaded."""
++
++    def __init__(self, message: str, url: str) -> None:
++        self.url = url
++        super().__init__(f"{message}. URL: {url}")
++
++
++class InvalidLLMResponseError(LLMProviderError):
++    """Exception raised when the LLM response is empty or invalid."""
+diff --git a/src/egregora/llm/providers/google_batch.py b/src/egregora/llm/providers/google_batch.py
+index f81b2f4..66e2466 100644
+--- a/src/egregora/llm/providers/google_batch.py
++++ b/src/egregora/llm/providers/google_batch.py
+@@ -9,16 +9,24 @@ from dataclasses import dataclass
+ from typing import TYPE_CHECKING, Any
+
+ import httpx
+-from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UsageLimitExceeded
++from google import genai
++from google.genai import types
++from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
+ from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+ from pydantic_ai.models import Model, ModelRequestParameters, ModelSettings
+ from pydantic_ai.usage import RequestUsage
+ from tenacity import RetryError, retry, retry_if_result, stop_after_delay, wait_fixed
+
++from egregora.llm.exceptions import (
++    BatchJobFailedError,
++    BatchJobTimeoutError,
++    BatchResultDownloadError,
++    InvalidLLMResponseError,
++)
++
+ if TYPE_CHECKING:
+     from collections.abc import Iterable
+
+-
+ logger = logging.getLogger(__name__)
+
+ HTTP_TOO_MANY_REQUESTS = 429
+@@ -94,8 +102,8 @@ class GoogleBatchModel(Model):
+                 status_code=code or 0, model_name=self.model_name, body=message or str(first.error)
+             )
+         if not first.response:
+-            msg = f"No response returned for {self.model_name}"
+-            raise ModelAPIError(msg)
++            msg = f"No response returned for model {self.model_name}"
++            raise InvalidLLMResponseError(msg)
+
+         text = self._extract_text(first.response)
+         usage = RequestUsage()
+@@ -122,9 +130,6 @@ class GoogleBatchModel(Model):
+             List of BatchResult objects containing responses or errors.
+
+         """
+-        import google.generativeai as genai  # Lazy import at runtime
+-        from google.generativeai import types
+-
+         if not requests:
+             return []
+
+@@ -170,8 +175,6 @@ class GoogleBatchModel(Model):
+
+     def _extract_inline_results(self, job: Any, requests: list[dict[str, Any]]) -> list[BatchResult]:
+         """Extract results from inline batch response."""
+-        import google.generativeai as genai  # Lazy import at runtime
+-
+         results: list[BatchResult] = []
+
+         # For inline requests, results come in job.dest.inline_responses
+@@ -258,13 +261,17 @@ class GoogleBatchModel(Model):
+
+         try:
+             job = _get_job_with_retry()
+-        except RetryError:
++        except RetryError as e:
+             # Tenacity raises RetryError when retries are exhausted (timeout)
+             msg = "Batch job polling timed out"
+-            raise ModelAPIError(msg) from None
++            raise BatchJobTimeoutError(msg, job_name=job_name) from e
+
+         if job.state.name != "SUCCEEDED":
+-            raise ModelHTTPError(status_code=0, model_name=self.model_name, body=str(job.error))
++            raise BatchJobFailedError(
++                "Batch job failed",
++                job_name=job_name,
++                error_payload=job.error,
++            )
+
+         return job
+
+@@ -272,9 +279,13 @@ class GoogleBatchModel(Model):
+         self, client: Any, output_uri: str, requests: list[dict[str, Any]]
+     ) -> list[BatchResult]:
+         # httpx.get is blocking
+-        with httpx.Client() as http_client:
+-            resp = http_client.get(output_uri)
+-            resp.raise_for_status()
++        try:
++            with httpx.Client() as http_client:
++                resp = http_client.get(output_uri)
++                resp.raise_for_status()
++        except httpx.HTTPStatusError as e:
++            msg = "Failed to download batch results"
++            raise BatchResultDownloadError(msg, url=output_uri) from e
+
+         lines = resp.text.splitlines()
+         results: list[BatchResult] = []
+diff --git a/src/egregora/output_adapters/exceptions.py b/src/egregora/output_adapters/exceptions.py
+index 14b2445..3587cd9 100644
+--- a/src/egregora/output_adapters/exceptions.py
++++ b/src/egregora/output_adapters/exceptions.py
+@@ -146,3 +146,51 @@ class TagsPageGenerationError(OutputAdapterError):
+     def __init__(self, reason: str) -> None:
+         self.reason = reason
+         super().__init__(f"Failed to regenerate tags page: {reason}")
++
++
++class ScaffoldingError(OutputAdapterError):
++    """Base class for errors during site scaffolding."""
++
++
++class TemplateRenderingError(ScaffoldingError):
++    """Raised when a Jinja2 template fails to render."""
++
++    def __init__(self, template_name: str, reason: str) -> None:
++        self.template_name = template_name
++        self.reason = reason
++        super().__init__(f"Failed to render template '{template_name}': {reason}")
++
++
++class FileSystemScaffoldError(ScaffoldingError):
++    """Raised when a file system operation fails during scaffolding."""
++
++    def __init__(self, path: str, operation: str, reason: str) -> None:
++        self.path = path
++        self.operation = operation
++        self.reason = reason
++        super().__init__(f"File system operation '{operation}' failed at '{path}': {reason}")
++
++
++class PathResolutionError(ScaffoldingError):
++    """Raised when site paths cannot be resolved."""
++
++    def __init__(self, site_root: str, reason: str) -> None:
++        self.site_root = site_root
++        self.reason = reason
++        super().__init__(f"Failed to resolve paths for site at '{site_root}': {reason}")
++
++
++class SiteNotSupportedError(ScaffoldingError):
++    """Raised when site discovery fails because the directory is not a supported site type."""
++
++    def __init__(self, site_root: str, reason: str | None = None) -> None:
++        self.site_root = site_root
++        self.reason = reason
++        message = f"Directory '{site_root}' is not a supported site"
++        if reason:
++            message += f": {reason}"
++        super().__init__(message)
++
++
++class ScaffoldConfigLoadError(ConfigLoadError, ScaffoldingError):
++    """Raised when config loading fails during a scaffolding operation."""
+diff --git a/src/egregora/output_adapters/mkdocs/scaffolding.py b/src/egregora/output_adapters/mkdocs/scaffolding.py
+index c644087..a1644fb 100644
+--- a/src/egregora/output_adapters/mkdocs/scaffolding.py
++++ b/src/egregora/output_adapters/mkdocs/scaffolding.py
+@@ -17,9 +17,18 @@ from typing import Any
+
+ import yaml
+ from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
++from yaml import YAMLError
+
+ from egregora.config.settings import EgregoraConfig, create_default_config
+ from egregora.output_adapters.base import SiteConfiguration
++from egregora.output_adapters.exceptions import (
++    FileSystemScaffoldError,
++    PathResolutionError,
++    ScaffoldConfigLoadError,
++    ScaffoldingError,
++    SiteNotSupportedError,
++    TemplateRenderingError,
++)
+ from egregora.output_adapters.mkdocs.paths import MkDocsPaths
+ from egregora.resources.prompts import PromptManager
+
+@@ -113,12 +122,21 @@ class MkDocsSiteScaffolder:
+                 logger.info("Created mkdocs.yml at %s", mkdocs_path)
+
+             self._create_site_structure(site_paths, env, context)
++        except TemplateError as e:
++            # Try to get template name from exception, default to "unknown"
++            template_name = getattr(e, "name", "unknown") or "unknown"
++            raise TemplateRenderingError(template_name=template_name, reason=str(e)) from e
++        except OSError as e:
++            raise FileSystemScaffoldError(path=str(site_root), operation="write", reason=str(e)) from e
++        except ScaffoldingError:
++            # Re-raise known scaffolding errors without wrapping them.
++            raise
+         except Exception as e:
+-            msg = f"Failed to scaffold MkDocs site: {e}"
+-            raise RuntimeError(msg) from e
++            msg = f"An unexpected error occurred during scaffolding at '{site_root}': {e}"
++            raise ScaffoldingError(msg) from e
+         else:
+             logger.info("MkDocs site scaffold checked/updated at %s", site_root)
+-            return (mkdocs_path, not site_exists)
++            return mkdocs_path, not site_exists
+
+     def scaffold(self, path: Path, config: dict) -> None:
+         site_name = config.get("site_name")
+@@ -129,24 +147,23 @@ class MkDocsSiteScaffolder:
+     def resolve_paths(self, site_root: Path) -> SiteConfiguration:
+         """Resolve all paths for an existing MkDocs site."""
+         if not self.supports_site(site_root):
+-            msg = f"{site_root} is not a valid MkDocs site (no mkdocs.yml found)"
+-            raise ValueError(msg)
++            reason = "no mkdocs.yml found"
++            raise SiteNotSupportedError(site_root=str(site_root), reason=reason)
+         try:
+             site_paths = MkDocsPaths(site_root)
+         except Exception as e:
+-            msg = f"Failed to resolve site paths: {e}"
+-            raise RuntimeError(msg) from e
++            raise PathResolutionError(site_root=str(site_root), reason=str(e)) from e
++
+         config_file = site_paths.mkdocs_config_path
+         mkdocs_path = site_paths.mkdocs_path or config_file
+-        if mkdocs_path:
+-            try:
+-                mkdocs_config = safe_yaml_load(config_file.read_text(encoding="utf-8"))
+-            except yaml.YAMLError as exc:
+-                logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
+-                mkdocs_config = {}
+-        else:
++        if not mkdocs_path or not config_file.exists():
+             logger.debug("mkdocs.yml not found in %s", site_root)
+             mkdocs_config = {}
++        else:
++            try:
++                mkdocs_config = safe_yaml_load(config_file.read_text(encoding="utf-8"))
++            except (YAMLError, OSError) as exc:
++                raise ScaffoldConfigLoadError(path=str(mkdocs_path), reason=str(exc)) from exc
+         return SiteConfiguration(
+             site_root=site_paths.site_root,
+             site_name=mkdocs_config.get("site_name", "Egregora Site"),
+diff --git a/src/egregora/rag/__init__.py b/src/egregora/rag/__init__.py
+index 77e3573..59913d4 100644
+--- a/src/egregora/rag/__init__.py
++++ b/src/egregora/rag/__init__.py
+@@ -24,6 +24,9 @@ from egregora.rag.embedding_router import TaskType, get_embedding_router
+ from egregora.rag.lancedb_backend import LanceDBRAGBackend
+ from egregora.rag.models import RAGQueryRequest, RAGQueryResponse
+
++if TYPE_CHECKING:
++    from egregora.data_primitives.document import Document
++
+ logger = logging.getLogger(__name__)
+
+
+diff --git a/src/egregora/utils/datetime_utils.py b/src/egregora/utils/datetime_utils.py
+index 243241d..3243fd6 100644
+--- a/src/egregora/utils/datetime_utils.py
++++ b/src/egregora/utils/datetime_utils.py
+@@ -32,7 +32,7 @@ def parse_datetime_flexible(
+         parser_kwargs: Additional keyword arguments forwarded to ``dateutil.parser``.
+
+     Returns:
+-        A timezone-normalized ``datetime``.
++        A timezone-aware ``datetime`` object normalized to the ``default_timezone``.
+
+     Raises:
+         InvalidDateTimeInputError: if the input is None or an empty string.
+@@ -88,7 +88,21 @@ def normalize_timezone(dt: datetime, *, default_timezone: tzinfo = UTC) -> datet
+
+
+ def ensure_datetime(value: datetime | str | Any) -> datetime:
+-    """Convert various datetime representations to Python datetime."""
++    """Parse a value into a timezone-aware datetime, raising TypeError on failure.
++
++    This serves as a strict version of ``parse_datetime_flexible``, suitable for
++    cases where a valid datetime is required.
++
++    Args:
++        value: The value to convert.
++
++    Returns:
++        A timezone-aware ``datetime`` object.
++
++    Raises:
++        TypeError: If the value cannot be converted to a ``datetime``.
++
++    """
+     try:
+         return parse_datetime_flexible(value, default_timezone=UTC)
+     except (DateTimeParsingError, InvalidDateTimeInputError) as e:
+diff --git a/src/egregora_v3/core/types.py b/src/egregora_v3/core/types.py
+index 61a30ff..a38ff2d 100644
+--- a/src/egregora_v3/core/types.py
++++ b/src/egregora_v3/core/types.py
+@@ -5,6 +5,7 @@ import uuid
+ from datetime import UTC, datetime
+ from enum import Enum
+ from typing import Any
++from xml.etree.ElementTree import Element, register_namespace, SubElement, tostring
+
+ from markdown_it import MarkdownIt
+ from pydantic import BaseModel, Field, model_validator
+@@ -120,15 +121,6 @@ class Entry(BaseModel):
+             for link in self.links
+         )
+
+-    def render_content_as_html(self, md: MarkdownIt | None = None):
+-        """Renders markdown content to HTML in-place."""
+-        if self.content and (
+-            self.content_type is None or "markdown" in self.content_type.lower()
+-        ):
+-            md_engine = md or MarkdownIt("commonmark", {"html": True})
+-            self.content = md_engine.render(self.content).strip()
+-            self.content_type = "html"
+-
+
+ # --- Application Domain ---
+
+@@ -219,28 +211,99 @@ class Feed(BaseModel):
+     authors: list[Author] = Field(default_factory=list)
+     links: list[Link] = Field(default_factory=list)
+
+-    def get_published_documents(self) -> list[Document]:
+-        """Filters the feed's entries and returns only published Documents."""
+-        return [
+-            entry
+-            for entry in self.entries
+-            if isinstance(entry, Document) and entry.status == DocumentStatus.PUBLISHED
+-        ]
+-
+-
+-def documents_to_feed(
+-    docs: list[Document],
+-    feed_id: str,
+-    title: str,
+-    authors: list[Author] | None = None,
+-) -> Feed:
+-    """Aggregates documents into a valid Atom Feed."""
+-    if not docs:
+-        updated = datetime.now(UTC)
+-    else:
+-        updated = max(doc.updated for doc in docs)
+-
+-    # Sort documents by updated timestamp descending (newest first)
+-    sorted_docs = sorted(docs, key=lambda d: d.updated, reverse=True)
+-
+-    return Feed(id=feed_id, title=title, updated=updated, authors=authors or [], entries=sorted_docs)
++    def to_xml(self) -> str:
++        """Serialize the feed to an Atom XML string."""
++        # Create the root element with namespaces
++        root = Element("feed")
++        root.set("xmlns", "http://www.w3.org/2005/Atom")
++        root.set("xmlns:thr", "http://purl.org/syndication/thread/1.0")
++
++        # --- Feed Metadata ---
++        SubElement(root, "id").text = self.id
++        SubElement(root, "title").text = self.title
++        SubElement(root, "updated").text = self.updated.isoformat().replace("+00:00", "Z")
++
++        for author in self.authors:
++            author_elem = SubElement(root, "author")
++            SubElement(author_elem, "name").text = author.name
++            if author.email:
++                SubElement(author_elem, "email").text = author.email
++
++        for link in self.links:
++            link_elem = SubElement(root, "link", attrib={"href": link.href})
++            if link.rel:
++                link_elem.set("rel", link.rel)
++            if link.type:
++                link_elem.set("type", link.type)
++
++        # --- Entries ---
++        for entry in self.entries:
++            entry_elem = SubElement(root, "entry")
++            SubElement(entry_elem, "id").text = entry.id
++            SubElement(entry_elem, "title").text = entry.title
++            SubElement(entry_elem, "updated").text = entry.updated.isoformat().replace("+00:00", "Z")
++
++            if entry.published:
++                SubElement(entry_elem, "published").text = entry.published.isoformat().replace("+00:00", "Z")
++
++            for author in entry.authors:
++                author_elem = SubElement(entry_elem, "author")
++                SubElement(author_elem, "name").text = author.name
++
++            if entry.content:
++                content_type = entry.content_type or "text/plain"
++                content_elem = SubElement(entry_elem, "content")
++                content_elem.text = entry.content
++                if content_type in ["text/html", "text/xhtml"]:
++                    content_elem.set("type", "html")
++                elif content_type == "text/markdown":
++                    content_elem.set("type", "text")
++                else:
++                    content_elem.set("type", content_type)
++
++            if isinstance(entry, Document):
++                # Add doc_type and status as categories for filtering
++                SubElement(
++                    entry_elem,
++                    "category",
++                    attrib={
++                        "scheme": "https://egregora.app/schema#doc_type",
++                        "term": entry.doc_type.value,
++                    },
++                )
++                SubElement(
++                    entry_elem,
++                    "category",
++                    attrib={
++                        "scheme": "https://egregora.app/schema#status",
++                        "term": entry.status.value,
++                    },
++                )
++
++        # Serialize to string
++        return tostring(root, encoding="unicode", xml_declaration=True)
++
++    @classmethod
++    def from_documents(
++        cls,
++        docs: list["Document"],
++        feed_id: str,
++        title: str,
++        authors: list[Author] | None = None,
++    ) -> "Feed":
++        """Aggregates documents into a valid Atom Feed."""
++        if not docs:
++            updated = datetime.now(UTC)
++        else:
++            updated = max(doc.updated for doc in docs)
++
++        # Sort documents by updated timestamp descending (newest first)
++        sorted_docs = sorted(docs, key=lambda d: d.updated, reverse=True)
++
++        return cls(
++            id=feed_id,
++            title=title,
++            updated=updated,
++            authors=authors or [],
++            entries=sorted_docs,
++        )
+diff --git a/src/egregora_v3/engine/prompts/base.jinja2 b/src/egregora_v3/engine/prompts/base.jinja2
+index 5e665b0..262e930 100644
+--- a/src/egregora_v3/engine/prompts/base.jinja2
++++ b/src/egregora_v3/engine/prompts/base.jinja2
+@@ -1,15 +1,2 @@
+-You are a helpful AI assistant working with the Egregora V3 publishing system.
+-
+-Current date: {{ current_date | format_datetime }}
+-Run ID: {{ run_id }}
+-
+-{% block instructions %}
+-{% endblock %}
+-
+-{% block guidelines %}
+-Guidelines:
+-- Use clear, professional language
+-- Follow markdown formatting conventions
+-- Be concise but informative
+-- Maintain consistency in style and tone
+-{% endblock %}
++{# Base template #}
++{% block content %}{% endblock %}
+diff --git a/src/egregora_v3/infra/sinks/atom.py b/src/egregora_v3/infra/sinks/atom.py
+index 8b18aa9..ef69ec6 100644
+--- a/src/egregora_v3/infra/sinks/atom.py
++++ b/src/egregora_v3/infra/sinks/atom.py
+@@ -1,24 +1,16 @@
+ from pathlib import Path
+ import jinja2
+-from markdown_it import MarkdownIt
+
+-from egregora_v3.core.types import Feed
+ from egregora_v3.core.filters import format_datetime
++from egregora_v3.core.types import Feed
+
+-def content_type_filter(value: str | None) -> str:
+-    """Jinja2 filter to provide a default content type."""
+-    return value if value is not None else "html"
+
+ class AtomSink:
+     """A sink for writing Atom feeds to XML files."""
+
+     def __init__(self, output_path: Path):
+         self.output_path = output_path
+-        self._jinja_env = self._setup_jinja_env()
+-        self._md = MarkdownIt("commonmark", {"html": True})
+
+-    def _setup_jinja_env(self) -> jinja2.Environment:
+-        """Configures the Jinja2 environment."""
+         env = jinja2.Environment(
+             loader=jinja2.PackageLoader("egregora_v3.infra.sinks", "templates"),
+             autoescape=jinja2.select_autoescape(['xml']),
+@@ -26,17 +18,10 @@ class AtomSink:
+             lstrip_blocks=True,
+         )
+         env.filters['iso_utc'] = format_datetime
+-        env.filters['content_type'] = content_type_filter
+-        return env
++        self._jinja_env = env
+
+     def publish(self, feed: Feed):
+         """Renders the feed to XML and writes it to the output path."""
+         template = self._jinja_env.get_template("atom.xml.jinja")
+-
+-        feed_for_render = feed.model_copy(deep=True)
+-
+-        for entry in feed_for_render.entries:
+-            entry.render_content_as_html(self._md)
+-
+-        xml_content = template.render(feed=feed_for_render).strip()
++        xml_content = template.render(feed=feed).strip()
+         self.output_path.write_text(xml_content)
+diff --git a/src/egregora_v3/infra/sinks/sqlite.py b/src/egregora_v3/infra/sinks/sqlite.py
+index 1f90cf0..31f3fd3 100644
+--- a/src/egregora_v3/infra/sinks/sqlite.py
++++ b/src/egregora_v3/infra/sinks/sqlite.py
+@@ -2,10 +2,43 @@
+
+ import json
+ import sqlite3
++from collections import OrderedDict
+ from pathlib import Path
+ from typing import Any
+
+-from egregora_v3.core.types import Document, DocumentStatus, Feed
++from egregora_v3.core.types import Document, Feed
++
++
++TABLE_SCHEMA = OrderedDict([
++    ("id", "TEXT PRIMARY KEY"),
++    ("title", "TEXT NOT NULL"),
++    ("content", "TEXT"),
++    ("summary", "TEXT"),
++    ("doc_type", "TEXT NOT NULL"),
++    ("status", "TEXT NOT NULL"),
++    ("published", "TEXT"),
++    ("updated", "TEXT NOT NULL"),
++    ("authors", "TEXT"),
++    ("categories", "TEXT"),
++    ("links", "TEXT"),
++])
++
++
++def _document_to_record(doc: Document) -> dict[str, Any]:
++    """Serialize a Document to a dictionary for database insertion."""
++    return {
++        "id": doc.id,
++        "title": doc.title,
++        "content": doc.content,
++        "summary": doc.summary,
++        "doc_type": doc.doc_type.value,
++        "status": doc.status.value,
++        "published": doc.published.isoformat() if doc.published else None,
++        "updated": doc.updated.isoformat(),
++        "authors": json.dumps([author.model_dump() for author in doc.authors]) if doc.authors else None,
++        "categories": json.dumps([cat.model_dump() for cat in doc.categories]) if doc.categories else None,
++        "links": json.dumps([link.model_dump() for link in doc.links]) if doc.links else None,
++    }
+
+
+ class SQLiteOutputSink:
+@@ -43,73 +76,22 @@ class SQLiteOutputSink:
+         cursor = conn.cursor()
+         self._create_table(cursor)
+
+-        published_docs = [
+-            entry
+-            for entry in feed.entries
+-            if isinstance(entry, Document) and entry.status == DocumentStatus.PUBLISHED
+-        ]
+-
+-        for doc in published_docs:
+-            record = self._document_to_record(doc)
+-            self._insert_document(cursor, record)
++        for doc in feed.get_published_documents():
++            record = _document_to_record(doc)
++            self._insert_record(cursor, record)
+
+         conn.commit()
+         conn.close()
+
+     def _create_table(self, cursor: sqlite3.Cursor) -> None:
+-        """Create the documents table."""
+-        cursor.execute("""
+-            CREATE TABLE documents (
+-                id TEXT PRIMARY KEY,
+-                title TEXT NOT NULL,
+-                content TEXT,
+-                summary TEXT,
+-                doc_type TEXT NOT NULL,
+-                status TEXT NOT NULL,
+-                published TEXT,
+-                updated TEXT NOT NULL,
+-                authors TEXT,
+-                categories TEXT,
+-                links TEXT
+-            )
+-        """)
+-
+-    def _document_to_record(self, doc: Document) -> dict[str, Any]:
+-        """Serialize a Document to a dictionary for database insertion."""
+-        return {
+-            "id": doc.id,
+-            "title": doc.title,
+-            "content": doc.content,
+-            "summary": doc.summary,
+-            "doc_type": doc.doc_type.value,
+-            "status": doc.status.value,
+-            "published": doc.published.isoformat() if doc.published else None,
+-            "updated": doc.updated.isoformat(),
+-            "authors": json.dumps([author.model_dump() for author in doc.authors]) if doc.authors else None,
+-            "categories": json.dumps([cat.model_dump() for cat in doc.categories]) if doc.categories else None,
+-            "links": json.dumps([link.model_dump() for link in doc.links]) if doc.links else None,
+-        }
+-
+-    def _insert_document(self, cursor: sqlite3.Cursor, record: dict[str, Any]) -> None:
++        """Create the documents table from TABLE_SCHEMA."""
++        columns = ", ".join(f"{name} {dtype}" for name, dtype in TABLE_SCHEMA.items())
++        cursor.execute(f"CREATE TABLE documents ({columns})")
++
++    def _insert_record(self, cursor: sqlite3.Cursor, record: dict[str, Any]) -> None:
+         """Insert a single document record into the database."""
+-        cursor.execute(
+-            """
+-            INSERT INTO documents (
+-                id, title, content, summary, doc_type, status,
+-                published, updated, authors, categories, links
+-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+-            """,
+-            (
+-                record["id"],
+-                record["title"],
+-                record["content"],
+-                record["summary"],
+-                record["doc_type"],
+-                record["status"],
+-                record["published"],
+-                record["updated"],
+-                record["authors"],
+-                record["categories"],
+-                record["links"],
+-            ),
+-        )
++        columns = ", ".join(TABLE_SCHEMA.keys())
++        placeholders = ", ".join("?" for _ in TABLE_SCHEMA)
++        values = tuple(record[key] for key in TABLE_SCHEMA)
++
++        cursor.execute(f"INSERT INTO documents ({columns}) VALUES ({placeholders})", values)
+diff --git a/test_full_pipeline.py b/test_full_pipeline.py
+index e3459c4..dbe970b 100755
+--- a/test_full_pipeline.py
++++ b/test_full_pipeline.py
+@@ -46,6 +46,21 @@ def test_full_pipeline_with_openrouter() -> bool | None:
+         ),
+     )
+
++    pytest.importorskip(
++        "google.generativeai",
++        reason=(
++            "google.generativeai is required for the OpenRouter pipeline test; "
++            "install it to exercise the full pipeline."
++        ),
++    )
++    pytest.importorskip(
++        "cryptography",
++        reason=(
++            "cryptography is required for google.generativeai/OpenRouter integration; "
++            "install it to exercise the full pipeline."
++        ),
++    )
++
+     # Try to import the pipeline (this will test if dependencies work)
+     try:
+         # Test basic imports first
+diff --git a/tests/test_enricher_exceptions.py b/tests/test_enricher_exceptions.py
+new file mode 100644
+index 0000000..773eefa
+--- /dev/null
++++ b/tests/test_enricher_exceptions.py
+@@ -0,0 +1,62 @@
++"""Test for file staging exceptions in the EnrichmentWorker."""
++
++import zipfile
++from pathlib import Path
++from unittest.mock import Mock
++
++import pytest
++
++from egregora.agents.enricher import EnrichmentWorker
++from egregora.agents.exceptions import MediaStagingError
++
++
++class MockPipelineContext:
++    """Mock context for testing."""
++
++    def __init__(self, input_path=None):
++        self.config = Mock()
++        self.config.enrichment.strategy = "individual"
++        self.task_store = Mock()
++        self.storage = Mock()
++        self.input_path = input_path
++        self.output_dir = Path("/tmp/test")
++        self.site_root = Path("/tmp/test-site")
++
++
++def test_stage_file_raises_error_if_no_filename():
++    """Verify MediaStagingError is raised if the task payload is missing a filename."""
++    ctx = MockPipelineContext()
++    worker = EnrichmentWorker(ctx)
++    task = {"task_id": "test_task"}
++    payload = {"original_filename": None, "filename": None}
++    with pytest.raises(MediaStagingError, match="No filename in task payload"):
++        worker._stage_file(task, payload)
++
++
++def test_stage_file_raises_error_if_zip_not_found():
++    """Verify MediaStagingError is raised if the input_path (zip file) is not available."""
++    ctx = MockPipelineContext(input_path=Path("/non/existent/file.zip"))
++    worker = EnrichmentWorker(ctx)
++    task = {"task_id": "test_task"}
++    payload = {"original_filename": "test.jpg", "filename": "test.jpg"}
++    with pytest.raises(MediaStagingError, match="Input path not available"):
++        worker._stage_file(task, payload)
++
++
++def test_stage_file_raises_error_if_media_not_in_zip():
++    """Verify MediaStagingError is raised if the media file is not found in the zip archive."""
++    # Create a dummy zip file for testing
++    zip_path = Path("/tmp/test.zip")
++    with zipfile.ZipFile(zip_path, "w") as zf:
++        zf.writestr("info.txt", "this is a test zip file")
++
++    ctx = MockPipelineContext(input_path=zip_path)
++    worker = EnrichmentWorker(ctx)
++    task = {"task_id": "test_task"}
++    payload = {"original_filename": "non_existent.jpg", "filename": "non_existent.jpg"}
++
++    with pytest.raises(MediaStagingError, match="not found in ZIP"):
++        worker._stage_file(task, payload)
++
++    # Clean up the dummy zip file
++    zip_path.unlink()
+diff --git a/tests/unit/agents/banner/test_agent.py b/tests/unit/agents/banner/test_agent.py
+index 41a6017..2766646 100644
+--- a/tests/unit/agents/banner/test_agent.py
++++ b/tests/unit/agents/banner/test_agent.py
+@@ -1,32 +1,107 @@
+-import logging
+-from unittest.mock import patch
++from unittest.mock import MagicMock, patch
+
+-import pytest
++from google.api_core import exceptions as google_exceptions
+
+-from egregora.agents.banner.agent import generate_banner
++from egregora.agents.banner.agent import generate_banner, is_banner_generation_available
++from egregora.agents.banner.image_generation import ImageGenerationResult
+
+
+-@patch("google.generativeai.Client")
+-@patch("egregora.agents.banner.agent._generate_banner_image", side_effect=ValueError("Unexpected test error"))
+-def test_generate_banner_propagates_unexpected_error(mock_generate, mock_client, caplog):
+-    """
+-    Given an unexpected error occurs inside the banner generation logic
+-    When the generate_banner function is called
+-    Then the original exception should be propagated
+-    And the generic "unexpected error" message should NOT be logged.
+-    """
++# Test for is_banner_generation_available
++@patch("os.environ.get")
++def test_is_banner_generation_available_when_key_is_set(mock_get_env):
++    mock_get_env.return_value = "fake-key"
++    assert is_banner_generation_available() is True
++
++
++@patch("os.environ.get")
++def test_is_banner_generation_available_when_key_is_not_set(mock_get_env):
++    mock_get_env.return_value = None
++    assert is_banner_generation_available() is False
++
++
++@patch("egregora.agents.banner.agent.is_banner_generation_available", return_value=False)
++def test_generate_banner_when_not_available(mock_is_available):
++    """Test that generate_banner returns an error when the feature is not available."""
++    # Act
++    result = generate_banner("A Title", "A summary")
++
++    # Assert
++    assert result.success is False
++    assert result.document is None
++    assert "Banner generation is not available" in result.error
++    assert result.error_code == "NOT_CONFIGURED"
++
++
++# Test for generate_banner and its integration with _generate_banner_image
++@patch("egregora.agents.banner.agent.is_banner_generation_available", return_value=True)
++@patch("egregora.agents.banner.agent.GeminiImageGenerationProvider")
++@patch("egregora.agents.banner.agent.genai.Client")
++def test_generate_banner_success_with_debug_text(mock_client, mock_provider_cls, mock_is_available):
++    """Test successful banner generation including debug text path."""
+     # Arrange
+-    # Mocks are set up via decorators.
+-
+-    # Act & Assert
+-    # We expect the ValueError to be raised from our mock.
+-    with pytest.raises(ValueError, match="Unexpected test error"):
+-        with caplog.at_level(logging.ERROR):
+-            generate_banner("A Title", "A summary")
+-
+-    # Before refactoring, the `except Exception` block will catch the ValueError,
+-    # log the "unexpected error" message, and then re-raise. This will cause
+-    # the assertion below to fail.
+-    # After refactoring (removing the block), the error will propagate directly,
+-    # and the unwanted log message will not be present, allowing this test to pass.
+-    assert "An unexpected error occurred during banner generation" not in caplog.text
++    mock_provider_instance = MagicMock()
++    mock_provider_cls.return_value = mock_provider_instance
++
++    mock_result = ImageGenerationResult(
++        image_bytes=b"image data",
++        mime_type="image/png",
++        debug_text="Some debug info",
++    )
++    mock_provider_instance.generate.return_value = mock_result
++
++    # Act
++    result = generate_banner("A Title", "A summary")
++
++    # Assert
++    assert result.success is True
++    assert result.document is not None
++    assert result.document.content == b"image data"
++    assert result.debug_text == "Some debug info"
++
++
++@patch("egregora.agents.banner.agent.is_banner_generation_available", return_value=True)
++@patch("egregora.agents.banner.agent.GeminiImageGenerationProvider")
++@patch("egregora.agents.banner.agent.genai.Client")
++def test_generate_banner_failure_no_image_data(mock_client, mock_provider_cls, mock_is_available):
++    """Test banner generation failure when provider returns no image."""
++    # Arrange
++    mock_provider_instance = MagicMock()
++    mock_provider_cls.return_value = mock_provider_instance
++
++    mock_result = ImageGenerationResult(
++        image_bytes=None,
++        mime_type=None,
++        error="No image generated",
++        error_code="NO_IMAGE",
++        debug_text="Some debug info",
++    )
++    mock_provider_instance.generate.return_value = mock_result
++
++    # Act
++    result = generate_banner("A Title", "A summary")
++
++    # Assert
++    assert result.success is False
++    assert result.document is None
++    assert result.error == "No image generated"
++    assert result.error_code == "NO_IMAGE"
++
++
++@patch("egregora.agents.banner.agent.is_banner_generation_available", return_value=True)
++@patch("egregora.agents.banner.agent.GeminiImageGenerationProvider")
++@patch("egregora.agents.banner.agent.genai.Client")
++def test_generate_banner_handles_google_api_call_error(mock_client, mock_provider_cls, mock_is_available):
++    """Test that GoogleAPICallError during generation is handled gracefully."""
++    # Arrange
++    mock_provider_instance = MagicMock()
++    mock_provider_cls.return_value = mock_provider_instance
++    mock_provider_instance.generate.side_effect = google_exceptions.GoogleAPICallError("API error")
++
++    # Act
++    result = generate_banner("A Title", "A summary")
++
++    # Assert
++    assert result.success is False
++    assert result.document is None
++    assert result.error == "GoogleAPICallError"
++    assert result.error_code == "GENERATION_EXCEPTION"
+diff --git a/tests/unit/agents/banner/test_worker.py b/tests/unit/agents/banner/test_worker.py
+new file mode 100644
+index 0000000..57024e0
+--- /dev/null
++++ b/tests/unit/agents/banner/test_worker.py
+@@ -0,0 +1,219 @@
++"""Unit tests for the BannerWorker."""
++
++import json
++from unittest.mock import MagicMock, Mock, patch
++
++import pytest
++
++from egregora.agents.banner.worker import BannerWorker
++from egregora.agents.exceptions import BannerTaskDataError, BannerTaskPayloadError
++
++
++@pytest.fixture
++def mock_context():
++    """Fixture for a mocked PipelineContext."""
++    ctx = Mock()
++    ctx.task_store = MagicMock()
++    return ctx
++
++
++def test_parse_task_missing_payload(mock_context):
++    """Should raise BannerTaskPayloadError if payload is missing."""
++    worker = BannerWorker(mock_context)
++    task = {"task_id": "123"}
++
++    with pytest.raises(BannerTaskPayloadError, match="Missing payload"):
++        worker._parse_task(task)
++
++    mock_context.task_store.mark_failed.assert_called_once_with("123", "Missing payload")
++
++
++def test_parse_task_invalid_json_payload(mock_context):
++    """Should raise BannerTaskPayloadError if payload is invalid JSON."""
++    worker = BannerWorker(mock_context)
++    task = {"task_id": "456", "payload": "{not json}"}
++
++    with pytest.raises(BannerTaskPayloadError, match="Invalid payload JSON"):
++        worker._parse_task(task)
++
++    mock_context.task_store.mark_failed.assert_called_once_with("456", "Invalid payload JSON")
++
++
++def test_parse_task_missing_required_data(mock_context):
++    """Should raise BannerTaskDataError if slug or title is missing."""
++    worker = BannerWorker(mock_context)
++    payload = {"summary": "A summary"}
++    task = {"task_id": "789", "payload": json.dumps(payload)}
++
++    with pytest.raises(BannerTaskDataError) as excinfo:
++        worker._parse_task(task)
++
++    assert "post_slug" in str(excinfo.value)
++    assert "title" in str(excinfo.value)
++    mock_context.task_store.mark_failed.assert_called_once_with("789", "Missing slug/title")
++
++
++def test_parse_task_missing_title(mock_context):
++    """Should raise BannerTaskDataError if title is missing."""
++    worker = BannerWorker(mock_context)
++    payload = {"post_slug": "a-slug"}
++    task = {"task_id": "789", "payload": json.dumps(payload)}
++
++    with pytest.raises(BannerTaskDataError) as excinfo:
++        worker._parse_task(task)
++
++    assert "title" in str(excinfo.value)
++    mock_context.task_store.mark_failed.assert_called_once_with("789", "Missing slug/title")
++
++
++def test_parse_task_success(mock_context):
++    """Should successfully parse a valid task."""
++    worker = BannerWorker(mock_context)
++    payload = {
++        "post_slug": "a-slug",
++        "title": "A Title",
++        "summary": "A summary",
++        "language": "en-US",
++        "run_id": "run-abc",
++    }
++    task = {"task_id": "101", "payload": json.dumps(payload)}
++
++    entry = worker._parse_task(task)
++
++    assert entry is not None
++    assert entry.task_id == "101"
++    assert entry.slug == "a-slug"
++    assert entry.title == "A Title"
++    assert entry.summary == "A summary"
++    assert entry.language == "en-US"
++    assert entry.metadata == {"run_id": "run-abc"}
++    mock_context.task_store.mark_failed.assert_not_called()
++
++
++def test_run_no_tasks(mock_context):
++    """Should return 0 if there are no pending tasks."""
++    mock_context.task_store.fetch_pending.return_value = []
++    worker = BannerWorker(mock_context)
++
++    result = worker.run()
++
++    assert result == 0
++    mock_context.task_store.fetch_pending.assert_called_once_with(task_type="generate_banner")
++
++
++@patch("egregora.agents.banner.worker.persist_banner_document")
++@patch("egregora.agents.banner.worker.BannerBatchProcessor")
++def test_run_with_mixed_tasks(mock_processor, mock_persist, mock_context):
++    """Should handle a mix of valid and invalid tasks."""
++    valid_task_payload = {"post_slug": "a-slug", "title": "A Title"}
++    tasks = [
++        {"task_id": "1", "payload": json.dumps(valid_task_payload)},
++        {"task_id": "2"},
++        {"task_id": "3", "payload": json.dumps({"post_slug": "another-slug"})},
++    ]
++    mock_context.task_store.fetch_pending.return_value = tasks
++
++    mock_generator = mock_processor.return_value
++    mock_result = Mock()
++    mock_result.success = True
++    mock_result.document = Mock()
++    mock_result.task = Mock()
++    mock_result.task.task_id = "1"
++    mock_generator.process_tasks.return_value = [mock_result]
++    mock_persist.return_value = "/path/to/banner.png"
++
++    worker = BannerWorker(mock_context)
++    result = worker.run()
++
++    assert result == 3
++
++    assert mock_generator.process_tasks.call_count == 1
++    processed_tasks_args = mock_generator.process_tasks.call_args[0][0]
++    assert len(processed_tasks_args) == 1
++    assert processed_tasks_args[0].task_id == "1"
++
++    calls = mock_context.task_store.mark_failed.call_args_list
++    assert len(calls) == 2
++    assert calls[0].args == ("2", "Missing payload")
++    assert calls[1].args == ("3", "Missing slug/title")
++
++    mock_persist.assert_called_once()
++    mock_context.task_store.mark_completed.assert_called_once_with("1")
++
++
++@patch("egregora.agents.banner.worker.persist_banner_document")
++@patch("egregora.agents.banner.worker.BannerBatchProcessor")
++def test_run_success(mock_processor, mock_persist, mock_context):
++    """Should handle a successful banner generation."""
++    valid_task_payload = {"post_slug": "a-slug", "title": "A Title"}
++    tasks = [{"task_id": "1", "payload": json.dumps(valid_task_payload)}]
++    mock_context.task_store.fetch_pending.return_value = tasks
++
++    mock_generator = mock_processor.return_value
++    mock_result = Mock()
++    mock_result.success = True
++    mock_result.document = Mock()
++    mock_result.task = Mock()
++    mock_result.task.task_id = "1"
++    mock_generator.process_tasks.return_value = [mock_result]
++    mock_persist.return_value = "/path/to/banner.png"
++
++    worker = BannerWorker(mock_context)
++    result = worker.run()
++
++    assert result == 1
++
++    mock_generator.process_tasks.assert_called_once()
++    mock_persist.assert_called_once()
++    mock_context.task_store.mark_completed.assert_called_once_with("1")
++    mock_context.task_store.mark_failed.assert_not_called()
++
++
++@patch("egregora.agents.banner.worker.persist_banner_document")
++@patch("egregora.agents.banner.worker.BannerBatchProcessor")
++def test_run_with_failed_generation(mock_processor, mock_persist, mock_context):
++    """Should handle a failed banner generation."""
++    valid_task_payload = {"post_slug": "a-slug", "title": "A Title"}
++    tasks = [{"task_id": "1", "payload": json.dumps(valid_task_payload)}]
++    mock_context.task_store.fetch_pending.return_value = tasks
++
++    mock_generator = mock_processor.return_value
++    mock_result = Mock()
++    mock_result.success = False
++    mock_result.error = "Something went wrong"
++    mock_result.task = Mock()
++    mock_result.task.task_id = "1"
++    mock_generator.process_tasks.return_value = [mock_result]
++
++    worker = BannerWorker(mock_context)
++    result = worker.run()
++
++    assert result == 1
++
++    mock_generator.process_tasks.assert_called_once()
++    mock_persist.assert_not_called()
++    mock_context.task_store.mark_completed.assert_not_called()
++    mock_context.task_store.mark_failed.assert_called_once_with("1", "Something went wrong")
++
++
++@patch("egregora.agents.banner.worker.BannerBatchProcessor")
++def test_run_with_all_invalid_tasks(mock_processor, mock_context):
++    """Should handle a mix of valid and invalid tasks."""
++    tasks = [
++        {"task_id": "2"},
++        {"task_id": "3", "payload": json.dumps({"post_slug": "another-slug"})},
++    ]
++    mock_context.task_store.fetch_pending.return_value = tasks
++    mock_generator = mock_processor.return_value
++
++    worker = BannerWorker(mock_context)
++    result = worker.run()
++
++    assert result == 2
++
++    mock_generator.process_tasks.assert_not_called()
++    calls = mock_context.task_store.mark_failed.call_args_list
++    assert len(calls) == 2
++    assert calls[0].args == ("2", "Missing payload")
++    assert calls[1].args == ("3", "Missing slug/title")
++    mock_context.task_store.mark_completed.assert_not_called()
+diff --git a/tests/unit/agents/test_enricher_logic.py b/tests/unit/agents/test_enricher_logic.py
+new file mode 100644
+index 0000000..83153f7
+--- /dev/null
++++ b/tests/unit/agents/test_enricher_logic.py
+@@ -0,0 +1,259 @@
++"""Unit tests for the enrichment agent's logic."""
++
++import tempfile
++import unittest
++import zipfile
++from pathlib import Path
++from unittest.mock import MagicMock
++
++import pytest
++
++from egregora.agents.enricher import EnrichmentWorker, _normalize_slug, load_file_as_binary_content
++from egregora.agents.exceptions import MediaStagingError
++
++
++class TestEnrichmentWorkerStageFile(unittest.TestCase):
++    def setUp(self):
++        self.temp_dir = tempfile.TemporaryDirectory()
++        self.mock_ctx = MagicMock()
++        self.mock_ctx.input_path = Path(self.temp_dir.name) / "archive.zip"
++        self.worker = EnrichmentWorker(ctx=self.mock_ctx)
++
++    def tearDown(self):
++        self.worker.close()
++        self.temp_dir.cleanup()
++
++    def test_stage_file_success(self):
++        """Test successful staging of a file from a ZIP archive."""
++        zip_path = self.mock_ctx.input_path
++        with zipfile.ZipFile(zip_path, "w") as zf:
++            zf.writestr("test_file.txt", "some content")
++
++        worker = EnrichmentWorker(ctx=self.mock_ctx)
++        task = {"task_id": "123"}
++        payload = {
++            "filename": "test_file.txt",
++            "original_filename": "test_file.txt",
++        }
++        staged_path = worker._stage_file(task, payload)
++
++        self.assertTrue(staged_path.exists())
++        self.assertIn("123_test_file.txt", str(staged_path))
++        with open(staged_path) as f:
++            self.assertEqual(f.read(), "some content")
++        worker.close()
++
++    def test_stage_file_zip_not_found(self):
++        """Test MediaStagingError is raised when the ZIP file does not exist."""
++        self.mock_ctx.input_path = Path(self.temp_dir.name) / "non_existent.zip"
++        worker = EnrichmentWorker(ctx=self.mock_ctx)
++        task = {"task_id": "123"}
++        payload = {"filename": "test_file.txt"}
++
++        with pytest.raises(MediaStagingError):
++            worker._stage_file(task, payload)
++        worker.close()
++
++    def test_stage_file_corrupt_zip(self):
++        """Test MediaStagingError is raised when the ZIP file is corrupt."""
++        zip_path = self.mock_ctx.input_path
++        with open(zip_path, "w") as f:
++            f.write("this is not a zip file")
++
++        worker = EnrichmentWorker(ctx=self.mock_ctx)
++        task = {"task_id": "123"}
++        payload = {"filename": "test_file.txt"}
++
++        with pytest.raises(MediaStagingError):
++            worker._stage_file(task, payload)
++        worker.close()
++
++    def test_stage_file_no_filename_in_payload(self):
++        """Test MediaStagingError is raised when filename is missing from payload."""
++        zip_path = self.mock_ctx.input_path
++        with zipfile.ZipFile(zip_path, "w") as zf:
++            zf.writestr("test_file.txt", "some content")
++
++        worker = EnrichmentWorker(ctx=self.mock_ctx)
++        task = {"task_id": "123"}
++        payload = {}  # Empty payload
++
++        with pytest.raises(MediaStagingError):
++            worker._stage_file(task, payload)
++        worker.close()
++
++
++class TestEnrichmentWorkerClose(unittest.TestCase):
++    def setUp(self):
++        self.temp_dir = tempfile.TemporaryDirectory()
++        self.mock_ctx = MagicMock()
++        self.mock_ctx.input_path = Path(self.temp_dir.name) / "archive.zip"
++
++    def tearDown(self):
++        self.temp_dir.cleanup()
++
++    def test_close_closes_zip_handle_and_cleans_up_staging_dir(self):
++        """Verify that the close method closes the zip handle and cleans up the staging directory."""
++        # Create a dummy zip file
++        zip_path = self.mock_ctx.input_path
++        with zipfile.ZipFile(zip_path, "w") as zf:
++            zf.writestr("test_file.txt", "some content")
++
++        worker = EnrichmentWorker(ctx=self.mock_ctx)
++
++        # Get a reference to the zip_handle and staging_dir before they are closed
++        zip_handle = worker.zip_handle
++        zip_handle.close = MagicMock()
++        staging_dir = worker.staging_dir
++        staging_dir.cleanup = MagicMock()
++
++        # Call the close method
++        worker.close()
++
++        # Assert that the cleanup methods were called
++        zip_handle.close.assert_called_once()
++        staging_dir.cleanup.assert_called_once()
++
++
++class TestNormalizeSlug(unittest.TestCase):
++    def test_normalize_slug_valid(self):
++        self.assertEqual(_normalize_slug("A Valid Slug", "id"), "a-valid-slug")
++
++    def test_normalize_slug_none(self):
++        with pytest.raises(ValueError):
++            _normalize_slug(None, "id")
++
++    def test_normalize_slug_empty(self):
++        with pytest.raises(ValueError):
++            _normalize_slug("  ", "id")
++
++    def test_normalize_slug_invalid_after_slugify(self):
++        with pytest.raises(ValueError):
++            _normalize_slug("!@#$", "id")
++
++    def test_normalize_slug_post_is_invalid(self):
++        """Test that 'post' is considered an invalid slug after normalization."""
++        with pytest.raises(ValueError):
++            _normalize_slug("post", "some-identifier")
++
++
++class TestLoadFileAsBinaryContent(unittest.TestCase):
++    def setUp(self):
++        self.temp_dir = tempfile.TemporaryDirectory()
++        self.test_file = Path(self.temp_dir.name) / "test.txt"
++
++    def tearDown(self):
++        self.temp_dir.cleanup()
++
++    def test_load_file_as_binary_content_success(self):
++        with open(self.test_file, "wb") as f:
++            f.write(b"test content")
++
++        binary_content = load_file_as_binary_content(self.test_file)
++        self.assertEqual(binary_content.data, b"test content")
++        self.assertEqual(binary_content.media_type, "text/plain")
++
++    def test_load_file_as_binary_content_file_not_found(self):
++        with pytest.raises(FileNotFoundError):
++            load_file_as_binary_content(Path(self.temp_dir.name) / "non_existent.txt")
++
++    def test_load_file_as_binary_content_file_too_large(self):
++        with open(self.test_file, "wb") as f:
++            f.write(b"a" * (21 * 1024 * 1024))  # 21MB
++
++        with pytest.raises(ValueError):
++            load_file_as_binary_content(self.test_file, max_size_mb=20)
++
++
++import json
++
++
++class TestParseMediaResult(unittest.TestCase):
++    def setUp(self):
++        self.mock_ctx = MagicMock()
++        self.worker = EnrichmentWorker(ctx=self.mock_ctx)
++        self.worker.task_store = MagicMock()
++        self.task = {"task_id": "media-task-1", "_parsed_payload": {"filename": "image.jpg"}}
++
++    def test_parse_media_result_success(self):
++        """Test successful parsing of a valid media result."""
++        response_text = json.dumps(
++            {
++                "slug": "a-great-image",
++                "markdown": "This is a great image.",
++                "description": "A description.",
++                "alt_text": "Alt text.",
++            }
++        )
++        mock_res = MagicMock()
++        mock_res.response = {"text": response_text}
++
++        result = self.worker._parse_media_result(mock_res, self.task)
++
++        self.assertIsNotNone(result)
++        _payload, slug_value, markdown = result
++        self.assertEqual(slug_value, "a-great-image")
++        self.assertEqual(markdown, "This is a great image.")
++        self.worker.task_store.mark_failed.assert_not_called()
++
++    def test_parse_media_result_malformed_json(self):
++        """Test that malformed JSON is handled correctly."""
++        mock_res = MagicMock()
++        mock_res.response = {"text": "{'bad-json':"}
++
++        result = self.worker._parse_media_result(mock_res, self.task)
++
++        self.assertIsNone(result)
++        self.worker.task_store.mark_failed.assert_called_once()
++        args, _ = self.worker.task_store.mark_failed.call_args
++        self.assertEqual(args[0], "media-task-1")
++        self.assertIn("Parse error", args[1])
++
++    def test_parse_media_result_missing_slug(self):
++        """Test that a missing slug is handled correctly."""
++        response_text = json.dumps({"markdown": "some markdown"})
++        mock_res = MagicMock()
++        mock_res.response = {"text": response_text}
++
++        result = self.worker._parse_media_result(mock_res, self.task)
++
++        self.assertIsNone(result)
++        self.worker.task_store.mark_failed.assert_called_once_with("media-task-1", "Missing slug or markdown")
++
++    def test_parse_media_result_missing_markdown_with_fallback(self):
++        """Test fallback markdown construction when 'markdown' is missing."""
++        response_text = json.dumps(
++            {
++                "slug": "fallback-slug",
++                "description": "A fallback description.",
++                "alt_text": "Fallback alt text.",
++            }
++        )
++        mock_res = MagicMock()
++        mock_res.response = {"text": response_text}
++
++        self.task["_parsed_payload"]["filename"] = "test.png"
++
++        result = self.worker._parse_media_result(mock_res, self.task)
++
++        self.assertIsNotNone(result)
++        _payload, slug_value, markdown = result
++        self.assertEqual(slug_value, "fallback-slug")
++        self.assertIn("A fallback description.", markdown)
++        self.assertIn("![Fallback alt text.](fallback-slug.png)", markdown)
++        self.worker.task_store.mark_failed.assert_not_called()
++
++    def test_parse_media_result_missing_markdown_and_fallback(self):
++        """Test failure when markdown and fallback fields are missing."""
++        response_text = json.dumps({"slug": "no-content"})
++        mock_res = MagicMock()
++        mock_res.response = {"text": response_text}
++
++        result = self.worker._parse_media_result(mock_res, self.task)
++
++        self.assertIsNone(result)
++        self.worker.task_store.mark_failed.assert_called_once_with("media-task-1", "Missing slug or markdown")
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/tests/unit/init/test_scaffolding.py b/tests/unit/init/test_scaffolding.py
+new file mode 100644
+index 0000000..e0bba48
+--- /dev/null
++++ b/tests/unit/init/test_scaffolding.py
+@@ -0,0 +1,57 @@
++from pathlib import Path
++from unittest.mock import Mock, patch
++
++import pytest
++
++from egregora.data_primitives.document import SiteScaffolder
++from egregora.init.exceptions import ScaffoldingExecutionError, ScaffoldingPathError
++from egregora.init.scaffolding import ensure_mkdocs_project
++
++
++@patch("egregora.init.scaffolding.create_output_sink")
++def test_ensure_mkdocs_project_raises_on_path_resolution_failure(mock_create_output_sink, tmp_path: Path):
++    """
++    GIVEN a non-scaffolding adapter and a failing MkDocsPaths resolution
++    WHEN ensure_mkdocs_project is called
++    THEN it should raise a specific ScaffoldingPathError instead of swallowing the error.
++    """
++    site_root = tmp_path
++    original_error = OSError("Test OS Error: Permission denied")
++
++    # Configure the mock to return an object that is NOT a SiteScaffolder.
++    # This forces the code to enter the `if not isinstance(...)` block.
++    mock_create_output_sink.return_value = Mock(spec=[])
++
++    # This mock simulates the failure in the `try...except` block I'm targeting.
++    with patch("egregora.init.scaffolding.MkDocsPaths", side_effect=original_error):
++        with pytest.raises(ScaffoldingPathError) as exc_info:
++            ensure_mkdocs_project(site_root)
++
++        # Check that the custom exception was raised with the correct context.
++        assert exc_info.value.site_root == site_root
++        assert exc_info.value.__cause__ is original_error
++
++
++@patch("egregora.init.scaffolding.create_output_sink")
++def test_ensure_mkdocs_project_raises_on_scaffolding_failure(mock_create_output_sink, tmp_path: Path):
++    """
++    GIVEN a scaffolding adapter that fails during scaffold execution
++    WHEN ensure_mkdocs_project is called
++    THEN it should raise a specific ScaffoldingExecutionError.
++    """
++    site_root = tmp_path
++    original_error = RuntimeError("Test Scaffolding Error")
++
++    # Mock the scaffolder and its scaffold method to raise an error.
++    mock_scaffolder = Mock(spec=SiteScaffolder)
++    # The spec requires the method to be explicitly part of the mock's interface
++    mock_scaffolder.scaffold = Mock(side_effect=original_error)
++    mock_create_output_sink.return_value = mock_scaffolder
++
++    with patch("egregora.init.scaffolding.hasattr", return_value=False):
++        with pytest.raises(ScaffoldingExecutionError) as exc_info:
++            ensure_mkdocs_project(site_root)
++
++    # Check that the custom exception was raised with the correct context.
++    assert exc_info.value.site_root == site_root
++    assert exc_info.value.__cause__ is original_error
+diff --git a/tests/unit/input_adapters/whatsapp/test_adapter.py b/tests/unit/input_adapters/whatsapp/test_adapter.py
+index b0ddb07..eaeae4a 100644
+--- a/tests/unit/input_adapters/whatsapp/test_adapter.py
++++ b/tests/unit/input_adapters/whatsapp/test_adapter.py
+@@ -10,10 +10,13 @@ import pytest
+
+ from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
+ from egregora.input_adapters.whatsapp.exceptions import (
++    InvalidMediaReferenceError,
+     InvalidZipFileError,
+-    MediaExtractionError,
++    MediaNotFoundError,
++    MissingZipPathError,
+     WhatsAppAdapterError,
+     WhatsAppParsingError,
++    ZipPathNotFoundError,
+ )
+
+
+@@ -41,12 +44,31 @@ def test_deliver_media_raises_invalid_zip_error_on_bad_zip(adapter: WhatsAppAdap
+         adapter.deliver_media("some_media.jpg", zip_path=bad_zip)
+
+
+-def test_deliver_media_raises_media_extraction_error_on_missing_zip_path(adapter: WhatsAppAdapter) -> None:
+-    """Test `deliver_media` raises MediaExtractionError if zip_path is missing."""
+-    with pytest.raises(MediaExtractionError):
++def test_deliver_media_raises_missing_zip_path_error(adapter: WhatsAppAdapter) -> None:
++    """Test `deliver_media` raises MissingZipPathError if zip_path is missing."""
++    with pytest.raises(MissingZipPathError):
+         adapter.deliver_media("some_media.jpg")
+
+
++def test_deliver_media_raises_zip_path_not_found_error(adapter: WhatsAppAdapter, tmp_path: Path) -> None:
++    """Test `deliver_media` raises ZipPathNotFoundError if zip_path does not exist."""
++    non_existent_zip = tmp_path / "non_existent.zip"
++    with pytest.raises(ZipPathNotFoundError):
++        adapter.deliver_media("some_media.jpg", zip_path=non_existent_zip)
++
++
++def test_deliver_media_raises_invalid_media_reference_error(adapter: WhatsAppAdapter) -> None:
++    """Test `deliver_media` raises InvalidMediaReferenceError for suspicious media references."""
++    suspicious_references = [
++        "../some_media.jpg",
++        "/etc/passwd",
++        "some_dir/../../some_media.jpg",
++    ]
++    for ref in suspicious_references:
++        with pytest.raises(InvalidMediaReferenceError):
++            adapter.deliver_media(ref)
++
++
+ def test_parse_raises_adapter_error_on_parsing_error(adapter: WhatsAppAdapter, tmp_path: Path) -> None:
+     """Test `parse` raises WhatsAppAdapterError on a parsing error."""
+     # We can use a valid zip file here, as the parsing is mocked.
+@@ -59,8 +81,23 @@ def test_parse_raises_adapter_error_on_parsing_error(adapter: WhatsAppAdapter, t
+             "egregora.input_adapters.whatsapp.adapter.discover_chat_file",
+             return_value=("Test Group", "_chat.txt"),
+         ),
+-        patch("egregora.input_adapters.whatsapp.parsing.parse_source") as mock_parse_source,
++        patch("egregora.input_adapters.whatsapp.adapter.parse_source") as mock_parse_source,
+     ):
+-        mock_parse_source.side_effect = WhatsAppParsingError
++        mock_parse_source.side_effect = WhatsAppParsingError("mock error")
+         with pytest.raises(WhatsAppAdapterError):
+             adapter.parse(zip_path)
++
++
++def test_deliver_media_raises_on_missing_file(adapter: WhatsAppAdapter, tmp_path: Path):
++    """Test `deliver_media` raises MediaNotFoundError when a file is not in the zip."""
++    # Create a dummy zip file
++    zip_path = tmp_path / "test.zip"
++    with zipfile.ZipFile(zip_path, "w") as zf:
++        zf.writestr("some_other_file.txt", "dummy content")
++
++    # Call deliver_media with a non-existent file and assert it raises
++    with pytest.raises(MediaNotFoundError) as exc_info:
++        adapter.deliver_media("non_existent_file.jpg", zip_path=zip_path)
++
++    assert "non_existent_file.jpg" in str(exc_info.value)
++    assert str(zip_path) in str(exc_info.value)
+diff --git a/tests/unit/llm/providers/test_google_batch.py b/tests/unit/llm/providers/test_google_batch.py
+new file mode 100644
+index 0000000..e1e9c69
+--- /dev/null
++++ b/tests/unit/llm/providers/test_google_batch.py
+@@ -0,0 +1,186 @@
++"""Unit tests for the GoogleBatchModel LLM provider."""
++
++from unittest.mock import MagicMock, patch
++
++import httpx
++import pytest
++from google import genai as genai_client
++from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
++
++from egregora.llm.exceptions import (
++    BatchJobFailedError,
++    BatchJobTimeoutError,
++    BatchResultDownloadError,
++    InvalidLLMResponseError,
++)
++from egregora.llm.providers.google_batch import GoogleBatchModel
++
++
++class TestGoogleBatchModel:
++    """Tests for the GoogleBatchModel."""
++
++    @pytest.fixture
++    def model(self) -> GoogleBatchModel:
++        """Fixture for GoogleBatchModel."""
++        return GoogleBatchModel(api_key="test-key", model_name="gemini-1.5-flash")
++
++    def test_poll_job_raises_batch_job_failed_on_failure_state(self, model: GoogleBatchModel):
++        """
++        GIVEN a batch job that completes with a 'FAILED' state
++        WHEN _poll_job is called
++        THEN it should raise a BatchJobFailedError
++        """
++        mock_client = MagicMock()
++        mock_job = MagicMock()
++        mock_job.state.name = "FAILED"
++        # The actual error object is not a dict, but a protobuf message.
++        # We mock its structure.
++        mock_job.error.code = 500
++        mock_job.error.message = "Internal error"
++        mock_client.batches.get.return_value = mock_job
++
++        # Temporarily disable the tenacity retry for this test to fail fast
++        with patch("tenacity.retry", lambda **kwargs: lambda f: f):
++            with pytest.raises(BatchJobFailedError) as exc_info:
++                model._poll_job(mock_client, "test-job")
++
++        assert "Batch job failed" in str(exc_info.value)
++        assert exc_info.value.job_name == "test-job"
++        assert exc_info.value.error_payload.code == 500
++
++    def test_poll_job_raises_batch_job_timeout_on_retry_error(self, model: GoogleBatchModel):
++        """
++        GIVEN a batch job that times out during polling
++        WHEN _poll_job is called
++        THEN it should raise a BatchJobTimeoutError
++        """
++        # Set a very short timeout for the test
++        model.timeout = 0.1
++        model.poll_interval = 0.05
++
++        mock_client = MagicMock()
++        mock_processing_job = MagicMock()
++        mock_processing_job.state.name = "PROCESSING"
++        mock_client.batches.get.return_value = mock_processing_job
++
++        with pytest.raises(BatchJobTimeoutError) as exc_info:
++            model._poll_job(mock_client, "test-job-timeout")
++
++        assert "Batch job polling timed out" in str(exc_info.value)
++        assert exc_info.value.job_name == "test-job-timeout"
++
++    def test_download_results_raises_download_error_on_http_error(self, model: GoogleBatchModel):
++        """
++        GIVEN an HTTP error during result download
++        WHEN _download_results is called
++        THEN it should raise a BatchResultDownloadError
++        """
++        mock_client = MagicMock()
++        with (
++            patch(
++                "httpx.Client.get",
++                side_effect=httpx.HTTPStatusError("404 Not Found", request=MagicMock(), response=MagicMock()),
++            ),
++            pytest.raises(BatchResultDownloadError) as exc_info,
++        ):
++            model._download_results(mock_client, "http://invalid-url", [])
++
++        assert "Failed to download batch results" in str(exc_info.value)
++        assert exc_info.value.url == "http://invalid-url"
++
++    @pytest.mark.asyncio
++    async def test_request_raises_invalid_response_error_on_empty_response(self, model: GoogleBatchModel):
++        """
++        GIVEN a successful batch run that returns no response content
++        WHEN request is called
++        THEN it should raise an InvalidLLMResponseError
++        """
++        mock_result = MagicMock()
++        mock_result.error = None
++        mock_result.response = None
++        with (
++            patch.object(model, "run_batch", return_value=[mock_result]),
++            pytest.raises(InvalidLLMResponseError) as exc_info,
++        ):
++            await model.request([], None, None)
++
++        assert "No response returned for model" in str(exc_info.value)
++
++    @pytest.mark.asyncio
++    async def test_request_raises_usage_limit_exceeded_on_quota_error(self, model: GoogleBatchModel):
++        """
++        GIVEN a batch run that returns a quota error
++        WHEN request is called
++        THEN it should raise a UsageLimitExceeded error
++        """
++        mock_result = MagicMock()
++        mock_result.error = {"code": 429, "message": "Quota exceeded for model"}
++        mock_result.response = None
++        with (
++            patch.object(model, "run_batch", return_value=[mock_result]),
++            pytest.raises(UsageLimitExceeded) as exc_info,
++        ):
++            await model.request([], None, None)
++
++        assert "Quota exceeded" in str(exc_info.value)
++
++    @pytest.mark.asyncio
++    async def test_request_raises_model_http_error_on_generic_error(self, model: GoogleBatchModel):
++        """
++        GIVEN a batch run that returns a generic error
++        WHEN request is called
++        THEN it should raise a ModelHTTPError
++        """
++        mock_result = MagicMock()
++        mock_result.error = {"code": 500, "message": "Internal Server Error"}
++        mock_result.response = None
++        with (
++            patch.object(model, "run_batch", return_value=[mock_result]),
++            pytest.raises(ModelHTTPError) as exc_info,
++        ):
++            await model.request([], None, None)
++
++        assert "Internal Server Error" in str(exc_info.value)
++        assert exc_info.value.status_code == 500
++
++    def test_run_batch_raises_usage_limit_exceeded_on_quota_error(self, model: GoogleBatchModel):
++        """
++        GIVEN a ClientError with a 429 status code
++        WHEN run_batch is called
++        THEN it should raise a UsageLimitExceeded error
++        """
++        with patch("google.genai.errors.ClientError.__init__", return_value=None):
++            error = genai_client.errors.ClientError()
++            error.code = 429
++            error.message = "Quota exceeded"
++
++            mock_client_instance = MagicMock()
++            mock_client_instance.batches.create.side_effect = error
++            with (
++                patch.object(genai_client, "Client", return_value=mock_client_instance),
++                pytest.raises(UsageLimitExceeded) as exc_info,
++            ):
++                model.run_batch([{"tag": "req-0", "contents": [], "config": {}}])
++
++            assert "Quota Exceeded" in str(exc_info.value)
++
++    def test_run_batch_raises_model_http_error_on_generic_error(self, model: GoogleBatchModel):
++        """
++        GIVEN a generic ClientError
++        WHEN run_batch is called
++        THEN it should raise a ModelHTTPError
++        """
++        with patch("google.genai.errors.ClientError.__init__", return_value=None):
++            error = genai_client.errors.ClientError("Internal Server Error")
++            error.code = 500
++
++            mock_client_instance = MagicMock()
++            mock_client_instance.batches.create.side_effect = error
++            with (
++                patch.object(genai_client, "Client", return_value=mock_client_instance),
++                pytest.raises(ModelHTTPError) as exc_info,
++            ):
++                model.run_batch([{"tag": "req-0", "contents": [], "config": {}}])
++
++            assert "Internal Server Error" in str(exc_info.value)
++            assert exc_info.value.status_code == 500
+diff --git a/tests/unit/output_adapters/mkdocs/test_scaffolding.py b/tests/unit/output_adapters/mkdocs/test_scaffolding.py
+index e4ee31f..9631f7c 100644
+--- a/tests/unit/output_adapters/mkdocs/test_scaffolding.py
++++ b/tests/unit/output_adapters/mkdocs/test_scaffolding.py
+@@ -54,9 +54,114 @@ def test_resolve_paths_returns_site_configuration(tmp_path: Path, scaffolder: Mk
+     assert site_config.config_file == tmp_path / ".egregora" / "mkdocs.yml"
+
+
++from unittest.mock import patch
++
++from jinja2 import TemplateError
++from yaml import YAMLError
++
++from egregora.output_adapters.exceptions import (
++    ConfigLoadError,
++    FileSystemScaffoldError,
++    PathResolutionError,
++    ScaffoldingError,
++    SiteNotSupportedError,
++    TemplateRenderingError,
++)
++
++
+ def test_overrides_are_in_egregora_dir(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:
+     """Test that overrides/ is created in the .egregora directory."""
+     scaffolder.scaffold_site(tmp_path, site_name="Clean Site")
+
+     # overrides/ should be in site root for mkdocs.yml to find it
+-    assert (tmp_path / ".egregora" / "overrides").exists()
++    assert (tmp_path / "overrides").exists()
++    assert not (tmp_path / ".egregora" / "overrides").exists()
++
++
++def test_scaffold_site_raises_template_rendering_error(scaffolder: MkDocsSiteScaffolder, tmp_path: Path):
++    """Test that scaffold_site raises TemplateRenderingError on a Jinja2 error."""
++    site_root = tmp_path / "test_site"
++    site_name = "Test Site"
++
++    with patch("jinja2.Environment.get_template", side_effect=TemplateError("Test template error")):
++        with pytest.raises(TemplateRenderingError) as excinfo:
++            scaffolder.scaffold_site(site_root, site_name)
++
++    assert "Failed to render template" in str(excinfo.value)
++    assert "Test template error" in str(excinfo.value)
++
++
++def test_scaffold_site_raises_filesystem_scaffold_error(scaffolder: MkDocsSiteScaffolder, tmp_path: Path):
++    """Test that scaffold_site raises FileSystemScaffoldError on an OSError."""
++    site_root = tmp_path / "test_site"
++    site_name = "Test Site"
++
++    with patch("pathlib.Path.write_text", side_effect=OSError("Test OS error")):
++        with pytest.raises(FileSystemScaffoldError) as excinfo:
++            scaffolder.scaffold_site(site_root, site_name)
++
++    assert "File system operation 'write' failed" in str(excinfo.value)
++    assert "Test OS error" in str(excinfo.value)
++
++
++def test_resolve_paths_raises_config_load_error(scaffolder: MkDocsSiteScaffolder, tmp_path: Path):
++    """Test that resolve_paths raises ConfigLoadError on a YAMLError."""
++    site_root = tmp_path / "test_site"
++    (site_root / ".egregora" / "mkdocs.yml").parent.mkdir(parents=True)
++    (site_root / ".egregora" / "mkdocs.yml").touch()
++
++    with patch(
++        "egregora.output_adapters.mkdocs.scaffolding.safe_yaml_load", side_effect=YAMLError("Test YAML error")
++    ):
++        with pytest.raises(ConfigLoadError) as excinfo:
++            scaffolder.resolve_paths(site_root)
++
++    assert "Failed to load or parse config" in str(excinfo.value)
++    assert "Test YAML error" in str(excinfo.value)
++
++
++def test_resolve_paths_raises_path_resolution_error(scaffolder: MkDocsSiteScaffolder, tmp_path: Path):
++    """Test that resolve_paths raises PathResolutionError on a general error."""
++    site_root = tmp_path / "test_site"
++    (site_root / ".egregora" / "mkdocs.yml").parent.mkdir(parents=True)
++    (site_root / ".egregora" / "mkdocs.yml").touch()
++
++    with patch(
++        "egregora.output_adapters.mkdocs.paths.MkDocsPaths.__init__", side_effect=Exception("Test path error")
++    ):
++        with pytest.raises(PathResolutionError) as excinfo:
++            scaffolder.resolve_paths(site_root)
++
++    assert "Failed to resolve paths for site" in str(excinfo.value)
++    assert "Test path error" in str(excinfo.value)
++
++
++def test_scaffold_site_raises_scaffolding_error_on_unexpected_exception(
++    scaffolder: MkDocsSiteScaffolder, tmp_path: Path
++):
++    """Test that scaffold_site raises ScaffoldingError on an unexpected exception."""
++    site_root = tmp_path / "test_site"
++    site_name = "Test Site"
++
++    with patch(
++        "egregora.output_adapters.mkdocs.scaffolding.MkDocsSiteScaffolder._create_site_structure",
++        side_effect=Exception("Unexpected error"),
++    ):
++        with pytest.raises(ScaffoldingError) as excinfo:
++            scaffolder.scaffold_site(site_root, site_name)
++
++    assert "An unexpected error occurred during scaffolding" in str(excinfo.value)
++    assert "Unexpected error" in str(excinfo.value)
++
++
++def test_resolve_paths_raises_site_not_supported_error_for_invalid_site(
++    scaffolder: MkDocsSiteScaffolder, tmp_path: Path
++):
++    """Test that resolve_paths raises SiteNotSupportedError for an invalid site."""
++    invalid_site_root = tmp_path / "invalid_site"
++    invalid_site_root.mkdir()
++
++    with pytest.raises(SiteNotSupportedError) as excinfo:
++        scaffolder.resolve_paths(invalid_site_root)
++
++    assert "is not a supported site" in str(excinfo.value)
+diff --git a/tests/unit/output_adapters/test_base.py b/tests/unit/output_adapters/test_base.py
+index fe157c3..0edf414 100644
+--- a/tests/unit/output_adapters/test_base.py
++++ b/tests/unit/output_adapters/test_base.py
+@@ -2,8 +2,13 @@ from pathlib import Path
+
+ import pytest
+
+-from egregora.output_adapters.base import BaseOutputSink, create_output_sink
++from egregora.output_adapters.base import (
++    BaseOutputSink,
++    OutputSinkRegistry,
++    create_output_sink,
++)
+ from egregora.output_adapters.exceptions import (
++    AdapterNotDetectedError,
+     FilenameGenerationError,
+     RegistryNotProvidedError,
+ )
+@@ -61,10 +66,6 @@ def test_generate_unique_filename_raises_error_after_max_attempts(tmp_path):
+     assert excinfo.value.max_attempts == max_attempts
+
+
+-from egregora.output_adapters.base import OutputSinkRegistry
+-from egregora.output_adapters.exceptions import AdapterNotDetectedError
+-
+-
+ def test_create_output_sink_raises_error_if_registry_is_none():
+     """
+     Given a call to create_output_sink without a registry
+diff --git a/tests/unit/transformations/test_windowing.py b/tests/unit/transformations/test_windowing.py
+index d18c22c..8016724 100644
+--- a/tests/unit/transformations/test_windowing.py
++++ b/tests/unit/transformations/test_windowing.py
+@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
+ import ibis
+ import pytest
+
++from egregora.transformations.exceptions import InvalidSplitError, InvalidStepUnitError
+ from egregora.transformations.windowing import (
+     WindowConfig,
+     create_windows,
+@@ -149,9 +150,6 @@ def test_split_window_into_n_parts():
+     assert parts[1].size == 50
+
+
+-from egregora.transformations.exceptions import InvalidSplitError, InvalidStepUnitError
+-
+-
+ def test_invalid_config_raises_specific_error():
+     """Test invalid configuration raises a structured exception."""
+     table = create_test_table(10)
+diff --git a/tests/v3/core/test_atom_sink_basic.py b/tests/v3/core/test_atom_sink_basic.py
+index 00e84ab..b2e5734 100644
+--- a/tests/v3/core/test_atom_sink_basic.py
++++ b/tests/v3/core/test_atom_sink_basic.py
+@@ -14,7 +14,6 @@ from egregora_v3.core.types import (
+     Entry,
+     Feed,
+     Link,
+-    documents_to_feed,
+ )
+ from egregora_v3.infra.sinks.atom import AtomSink
+
+@@ -142,7 +141,7 @@ def test_feed_parses_as_valid_xml(snapshot):
+     )
+     doc.updated = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)  # For stable timestamp
+
+-    feed = documents_to_feed(
++    feed = Feed.from_documents(
+         [doc], feed_id="http://example.org/feed", title="Test Feed", authors=[Author(name="Alice")]
+     )
+
+diff --git a/tests/v3/core/test_feed.py b/tests/v3/core/test_feed.py
+index f6e188a..5b847ec 100644
+--- a/tests/v3/core/test_feed.py
++++ b/tests/v3/core/test_feed.py
+@@ -1,10 +1,10 @@
+-from datetime import UTC, datetime
++from datetime import UTC, datetime, timedelta
+ from pathlib import Path
+ import tempfile
+
+ from defusedxml import ElementTree
+
+-from egregora_v3.core.types import Document, DocumentStatus, DocumentType, Feed, documents_to_feed, Entry
++from egregora_v3.core.types import Author, Document, DocumentStatus, DocumentType, Feed, Entry
+ from egregora_v3.infra.sinks.atom import AtomSink
+
+
+@@ -66,7 +66,7 @@ def test_documents_to_feed_sorts_entries_newest_first():
+     older.updated = datetime(2024, 1, 1, tzinfo=UTC)
+     newer.updated = datetime(2024, 1, 2, tzinfo=UTC)
+
+-    feed = documents_to_feed(
++    feed = Feed.from_documents(
+         [
+             older,
+             newer,
+@@ -79,6 +79,39 @@ def test_documents_to_feed_sorts_entries_newest_first():
+     assert feed.entries[0].id == newer.id
+
+
++def test_feed_from_documents_handles_empty_list():
++    """Feed from empty docs list should have recent 'updated' timestamp."""
++    feed = Feed.from_documents(
++        [],
++        feed_id="urn:egregora:feed:empty",
++        title="Empty Feed",
++    )
++
++    now = datetime.now(UTC)
++    assert not feed.entries
++    assert now - feed.updated < timedelta(seconds=5)
++
++
++def test_feed_from_documents_with_authors():
++    """Tests that authors are correctly added to the feed."""
++    doc = Document(
++        content="A document.",
++        doc_type=DocumentType.POST,
++        title="Document Title",
++    )
++    author = Author(name="Test Author")
++
++    feed = Feed.from_documents(
++        docs=[doc],
++        feed_id="urn:egregora:feed:with-authors",
++        title="Feed With Authors",
++        authors=[author],
++    )
++
++    assert feed.authors
++    assert feed.authors[0].name == "Test Author"
++
++
+ def test_feed_to_xml_handles_mixed_entry_types():
+     """Ensures that only Documents get special category tags."""
+     doc = Document(
+@@ -122,3 +155,31 @@ def test_feed_to_xml_handles_mixed_entry_types():
+     assert plain_entry_xml is not None, "Plain entry not found in feed XML"
+     plain_categories = plain_entry_xml.findall("{http://www.w3.org/2005/Atom}category")
+     assert not plain_categories, "Plain entry should not have any categories"
++
++
++def test_feed_from_documents_factory_method():
++    older = Document(
++        content="Older entry",
++        doc_type=DocumentType.NOTE,
++        title="Older",
++    )
++    newer = Document(
++        content="Newer entry",
++        doc_type=DocumentType.NOTE,
++        title="Newer",
++    )
++
++    older.updated = datetime(2024, 1, 1, tzinfo=UTC)
++    newer.updated = datetime(2024, 1, 2, tzinfo=UTC)
++
++    feed = Feed.from_documents(
++        [
++            older,
++            newer,
++        ],
++        feed_id="urn:egregora:feed:test",
++        title="Test Feed",
++    )
++
++    assert feed.updated == newer.updated
++    assert feed.entries[0].id == newer.id
+diff --git a/tests/v3/core/test_feed_advanced.py b/tests/v3/core/test_feed_advanced.py
+index 5a0690f..a0c98a7 100644
+--- a/tests/v3/core/test_feed_advanced.py
++++ b/tests/v3/core/test_feed_advanced.py
+@@ -29,7 +29,6 @@ from egregora_v3.core.types import (
+     Feed,
+     InReplyTo,
+     Link,
+-    documents_to_feed,
+ )
+ from egregora_v3.infra.sinks.atom import AtomSink
+ from egregora_v3.infra.adapters.rss import RSSAdapter
+@@ -92,7 +91,7 @@ def sample_feed() -> Feed:
+         in_reply_to=InReplyTo(ref=doc1.id, href="https://example.com/first-post"),
+     )
+
+-    return documents_to_feed(
++    return Feed.from_documents(
+         docs=[doc1, doc2, doc3],
+         feed_id="urn:uuid:feed-123",
+         title="Comprehensive Test Feed",
+@@ -287,7 +286,7 @@ def test_documents_to_feed_count_invariant(titles: list[str]) -> None:
+         for i, title in enumerate(titles)
+     ]
+
+-    feed = documents_to_feed(docs, feed_id="test", title="Test Feed")
++    feed = Feed.from_documents(docs, feed_id="test", title="Test Feed")
+
+     assert len(feed.entries) == len(docs)
+
+@@ -304,7 +303,7 @@ def test_feed_to_xml_always_well_formed(num_entries: int) -> None:
+         for i in range(num_entries)
+     ]
+
+-    feed = documents_to_feed(docs, feed_id="test-feed", title="Test Feed")
++    feed = Feed.from_documents(docs, feed_id="test-feed", title="Test Feed")
+     xml_output = render_feed_to_xml(feed)
+
+     # Should parse without errors
+@@ -362,7 +361,7 @@ def test_feed_with_threading_extension() -> None:
+         in_reply_to=InReplyTo(ref=parent.id, href="https://example.com/parent"),
+     )
+
+-    feed = documents_to_feed([parent, reply], feed_id="test", title="Threaded Feed")
++    feed = Feed.from_documents([parent, reply], feed_id="test", title="Threaded Feed")
+     xml_output = render_feed_to_xml(feed)
+
+     root = etree.fromstring(xml_output.encode("utf-8"))
+@@ -395,7 +394,7 @@ def test_feed_with_categories() -> None:
+         Category(term="python", label="Python"),
+     ]
+
+-    feed = documents_to_feed([doc], feed_id="test", title="Feed with Categories")
++    feed = Feed.from_documents([doc], feed_id="test", title="Feed with Categories")
+     xml_output = render_feed_to_xml(feed)
+
+     root = etree.fromstring(xml_output.encode("utf-8"))
+@@ -449,7 +448,7 @@ def test_feed_updated_timestamp_reflects_newest_entry() -> None:
+     )
+     new_doc.updated = datetime(2025, 12, 6, tzinfo=UTC)
+
+-    feed = documents_to_feed([old_doc, new_doc], feed_id="test", title="Test Feed")
++    feed = Feed.from_documents([old_doc, new_doc], feed_id="test", title="Test Feed")
+
+     # Feed updated should be the newest
+     assert feed.updated == new_doc.updated
+@@ -482,7 +481,7 @@ def test_feed_with_content_types() -> None:
+     )
+     markdown_doc.content_type = "text/markdown"
+
+-    feed = documents_to_feed(
++    feed = Feed.from_documents(
+         [text_doc, html_doc, markdown_doc],
+         feed_id="test",
+         title="Content Types Feed",
+diff --git a/tests/v3/engine/banner/test_banner_generation.py b/tests/v3/engine/banner/test_banner_generation.py
+new file mode 100644
+index 0000000..b9bcb86
+--- /dev/null
++++ b/tests/v3/engine/banner/test_banner_generation.py
+@@ -0,0 +1,101 @@
++"""Tests for the V3 simplified banner generation function."""
++
++from __future__ import annotations
++
++from datetime import datetime, UTC
++from unittest.mock import MagicMock
++
++import pytest
++from jinja2 import DictLoader, Environment, select_autoescape
++
++from egregora.agents.banner.image_generation import (
++    ImageGenerationProvider,
++    ImageGenerationRequest,
++    ImageGenerationResult,
++)
++from egregora_v3.core.types import Document, DocumentType, Entry
++from egregora_v3.engine.banner.feed_generator import generate_banner_document
++
++
++@pytest.fixture
++def jinja_env() -> Environment:
++    """Provides a simple Jinja2 environment for testing."""
++    loader = DictLoader({"banner.jinja": "Prompt: {{ post_title }} - {{ post_summary }}"})
++    return Environment(loader=loader, autoescape=select_autoescape())
++
++
++class MockImageGenerationProvider(ImageGenerationProvider):
++    """A mock image generation provider for testing."""
++
++    def __init__(self, should_succeed: bool = True):
++        self.should_succeed = should_succeed
++        self.generate_called = False
++        self.last_request = None
++
++    def generate(self, request: ImageGenerationRequest) -> ImageGenerationResult:
++        self.generate_called = True
++        self.last_request = request
++        if self.should_succeed:
++            return ImageGenerationResult(
++                image_bytes=b"fake-image-bytes",
++                mime_type="image/png",
++            )
++        return ImageGenerationResult(
++            image_bytes=None,
++            mime_type=None,
++            error="Generation failed",
++            error_code="TEST_FAILURE",
++        )
++
++
++@pytest.fixture
++def task_entry() -> Entry:
++    """Provides a sample entry for banner generation."""
++    now = datetime.now(UTC)
++    return Entry(
++        id="test-entry",
++        title="Test Title",
++        updated=now,
++        summary="Test Summary",
++        content="Test Content",
++        internal_metadata={"slug": "test-title", "language": "en-US"},
++    )
++
++
++def test_generate_banner_document_from_entry_success(
++    task_entry: Entry, jinja_env: Environment
++):
++    """Verify successful generation of a banner document from an entry."""
++    # Arrange
++    mock_provider = MockImageGenerationProvider(should_succeed=True)
++
++    # Act
++    result_doc = generate_banner_document(task_entry, mock_provider, jinja_env)
++
++    # Assert
++    assert isinstance(result_doc, Document)
++    assert result_doc.doc_type == DocumentType.MEDIA
++    assert result_doc.title == "Banner: Test Title"
++    assert result_doc.content_type == "image/png"
++    assert "task_id" in result_doc.internal_metadata
++    assert result_doc.internal_metadata["task_id"] == "test-entry"
++
++
++def test_generate_banner_document_from_entry_failure(
++    task_entry: Entry, jinja_env: Environment
++):
++    """Verify error document creation on failure."""
++    # Arrange
++    mock_provider = MockImageGenerationProvider(should_succeed=False)
++
++    # Act
++    result_doc = generate_banner_document(task_entry, mock_provider, jinja_env)
++
++    # Assert
++    assert isinstance(result_doc, Document)
++    assert result_doc.doc_type == DocumentType.NOTE
++    assert result_doc.title == "Error: Test Title"
++    assert "task_id" in result_doc.internal_metadata
++    assert result_doc.internal_metadata["task_id"] == "test-entry"
++    assert "error_code" in result_doc.internal_metadata
++    assert result_doc.internal_metadata["error_code"] == "TEST_FAILURE"
+diff --git a/tests/v3/engine/banner/test_feed_generator.py b/tests/v3/engine/banner/test_feed_generator.py
+index e2f642c..b3722a8 100644
+--- a/tests/v3/engine/banner/test_feed_generator.py
++++ b/tests/v3/engine/banner/test_feed_generator.py
+@@ -13,7 +13,7 @@ from egregora.agents.banner.image_generation import (
+     ImageGenerationResult,
+ )
+ from egregora_v3.core.types import Document, DocumentType, Entry, Feed
+-from egregora_v3.engine.banner.feed_generator import BannerTaskEntry, FeedBannerGenerator
++from egregora_v3.engine.banner.feed_generator import FeedBannerGenerator
+
+
+ class MockImageGenerationProvider(ImageGenerationProvider):
+@@ -101,42 +101,3 @@ def test_generate_from_feed_failure(task_feed: Feed):
+     assert error_doc.doc_type == DocumentType.NOTE
+     assert error_doc.title == "Error: Test Title"
+     assert "TEST_FAILURE" in error_doc.internal_metadata.get("error_code", "")
+-
+-
+-def test_banner_task_entry_adapter():
+-    """Verify the BannerTaskEntry adapter correctly extracts data."""
+-    now = datetime.now(UTC)
+-    entry = Entry(
+-        id="task-1",
+-        title="My Post",
+-        updated=now,
+-        summary="A summary.",
+-        internal_metadata={"slug": "my-post", "language": "fr-FR"},
+-    )
+-    task = BannerTaskEntry(entry)
+-
+-    assert task.title == "My Post"
+-    assert task.summary == "A summary."
+-    assert task.slug == "my-post"
+-    assert task.language == "fr-FR"
+-
+-    banner_input = task.to_banner_input()
+-    assert banner_input.post_title == "My Post"
+-    assert banner_input.post_summary == "A summary."
+-    assert banner_input.slug == "my-post"
+-    assert banner_input.language == "fr-FR"
+-
+-
+-def test_banner_task_entry_adapter_defaults():
+-    """Verify the BannerTaskEntry adapter handles missing data."""
+-    now = datetime.now(UTC)
+-    entry = Entry(
+-        id="task-2",
+-        title="Another Post",
+-        updated=now,
+-    )
+-    task = BannerTaskEntry(entry)
+-
+-    assert task.summary == ""
+-    assert task.slug is None
+-    assert task.language == "pt-BR"  # Default language
+diff --git a/tests/v3/infra/adapters/test_rss_adapter.py b/tests/v3/infra/adapters/test_rss_adapter.py
+index a7b4d3f..437b2cb 100644
+--- a/tests/v3/infra/adapters/test_rss_adapter.py
++++ b/tests/v3/infra/adapters/test_rss_adapter.py
+@@ -240,6 +240,35 @@ def test_rss2_item_fields_mapped_correctly(
+     assert len(first_entry.content) > 0
+
+
++@freeze_time("2025-12-06 10:00:00")
++def test_rss2_item_with_invalid_pubdate_is_handled(rss_adapter: RSSAdapter, tmp_path: Path) -> None:
++    """Test that an RSS item with an invalid pubDate is handled gracefully."""
++    rss_with_invalid_date = f"""<?xml version="1.0" encoding="utf-8"?>
++    <rss version="2.0">
++        <channel>
++            <title>Test Feed</title>
++            <link>https://example.com</link>
++            <description>Test Description</description>
++            <item>
++                <title>Invalid Date</title>
++                <link>https://example.com/invalid-date</link>
++                <guid>https://example.com/invalid-date</guid>
++                <pubDate>not-a-valid-date</pubDate>
++                <description>Content</description>
++            </item>
++        </channel>
++    </rss>"""
++
++    feed_file = tmp_path / "invalid_date.rss"
++    feed_file.write_text(rss_with_invalid_date)
++
++    entries = list(rss_adapter.parse(feed_file))
++
++    assert len(entries) == 1
++    # Should default to datetime.now(UTC)
++    assert entries[0].updated == datetime(2025, 12, 6, 10, 0, 0, tzinfo=UTC)
++
++
+ # ========== Test Edge Cases ==========
+
+
+@@ -302,6 +331,23 @@ def test_parse_missing_required_fields_skips_entry(rss_adapter: RSSAdapter, tmp_
+     assert entries[0].id == "valid-entry"
+
+
++def test_parse_unknown_feed_type(rss_adapter: RSSAdapter, tmp_path: Path) -> None:
++    """Test that an unknown feed type is handled gracefully."""
++    unknown_feed = """<?xml version="1.0" encoding="utf-8"?>
++    <unknownfeed>
++        <item>
++            <title>Some Title</title>
++        </item>
++    </unknownfeed>"""
++
++    feed_file = tmp_path / "unknown.xml"
++    feed_file.write_text(unknown_feed)
++
++    entries = list(rss_adapter.parse(feed_file))
++
++    assert len(entries) == 0
++
++
+ # ========== Test HTTP Error Handling ==========
+
+
+@@ -436,6 +482,33 @@ def test_atom_entry_links_parsed(rss_adapter: RSSAdapter, tmp_path: Path) -> Non
+     assert enclosure.length == 12345
+
+
++@freeze_time("2025-12-06 10:00:00")
++def test_atom_link_without_href_is_skipped(rss_adapter: RSSAdapter, tmp_path: Path) -> None:
++    """Test that an Atom link with no href attribute is skipped."""
++    atom_with_bad_link = """<?xml version="1.0" encoding="utf-8"?>
++    <feed xmlns="http://www.w3.org/2005/Atom">
++        <title>Test Feed</title>
++        <link href="https://example.com"/>
++        <updated>2025-12-06T10:00:00Z</updated>
++
++        <entry>
++            <id>bad-link-entry</id>
++            <title>Entry with a Bad Link</title>
++            <updated>2025-12-06T10:00:00Z</updated>
++            <content>Content</content>
++            <link rel="alternate"/>
++        </entry>
++    </feed>"""
++
++    feed_file = tmp_path / "bad_link.atom"
++    feed_file.write_text(atom_with_bad_link)
++
++    entries = list(rss_adapter.parse(feed_file))
++
++    assert len(entries) == 1
++    assert len(entries[0].links) == 0
++
++
+ # ========== Test Iterator Protocol ==========
+
+
+diff --git a/tests/v3/infra/sinks/test_atom_sink.py b/tests/v3/infra/sinks/test_atom_sink.py
+new file mode 100644
+index 0000000..22bec7b
+--- /dev/null
++++ b/tests/v3/infra/sinks/test_atom_sink.py
+@@ -0,0 +1,65 @@
++
++import tempfile
++from pathlib import Path
++from datetime import datetime, UTC
++from freezegun import freeze_time
++import pytest
++
++from egregora_v3.core.types import Feed, Entry, Author, Link, Category, InReplyTo
++from egregora_v3.infra.sinks.atom import AtomSink
++
++
++@pytest.fixture
++def sample_feed():
++    """Provides a comprehensive Feed object for testing."""
++    return Feed(
++        id="urn:uuid:60a76c80-d399-11d9-b93C-0003939e0af6",
++        title="Test Feed",
++        updated=datetime(2025, 12, 25, 12, 0, 0, tzinfo=UTC),
++        authors=[Author(name="Test Author", email="test@example.com")],
++        links=[Link(href="http://example.com/", rel="alternate")],
++        entries=[
++            Entry(
++                id="urn:uuid:1225c695-cfb8-4ebb-aaaa-80da344efa6a",
++                title="Test Entry",
++                updated=datetime(2025, 12, 25, 12, 0, 0, tzinfo=UTC),
++                published=datetime(2025, 12, 25, 10, 0, 0, tzinfo=UTC),
++                summary="This is a test summary.",
++                content="<p>This is the test content.</p>",
++                content_type="html",
++                authors=[Author(name="Entry Author")],
++                links=[Link(href="http://example.com/entry", rel="alternate")],
++                categories=[Category(term="test", scheme="http://example.com/tags")],
++                in_reply_to=InReplyTo(ref="urn:uuid:parent-entry")
++            )
++        ]
++    )
++
++
++def test_atom_sink_produces_correct_xml(sample_feed, tmp_path):
++    """
++    Tests that the AtomSink generates a complete and correct XML file.
++    This is a locking test to ensure refactoring does not change the output.
++    """
++    output_path = tmp_path / "feed.xml"
++    sink = AtomSink(output_path)
++
++    sink.publish(sample_feed)
++
++    assert output_path.exists()
++    generated_xml = output_path.read_text().strip()
++
++    # This file does not exist yet, so the test will fail.
++    # We will create it in the next step to lock the behavior.
++    expected_xml_path = Path(__file__).parent / "fixtures" / "expected_atom.xml"
++
++    # UNCOMMENT THE FOLLOWING BLOCK TO RE-GENERATE THE GOLDEN FIXTURE
++    # expected_xml_path.parent.mkdir(exist_ok=True)
++    # expected_xml_path.write_text(generated_xml)
++    # pytest.fail("Re-generated golden fixture. Now comment out this block and re-run.")
++
++    assert expected_xml_path.exists(), f"Golden fixture missing: {expected_xml_path}"
++
++    expected_xml = expected_xml_path.read_text().strip()
++
++    assert generated_xml == expected_xml
+diff --git a/tests/v3/infra/sinks/test_output_sinks.py b/tests/v3/infra/sinks/test_output_sinks.py
+index 7fd7d1c..a6a5628 100644
+--- a/tests/v3/infra/sinks/test_output_sinks.py
++++ b/tests/v3/infra/sinks/test_output_sinks.py
+@@ -18,7 +18,7 @@ from hypothesis import given
+ from hypothesis import strategies as st
+ from lxml import etree
+
+-from egregora_v3.core.types import Author, Document, DocumentStatus, DocumentType, Feed, documents_to_feed
++from egregora_v3.core.types import Author, Document, DocumentStatus, DocumentType, Feed
+ from egregora_v3.infra.adapters.rss import RSSAdapter
+ from egregora_v3.infra.sinks.atom import AtomSink
+ from egregora_v3.infra.sinks.mkdocs import MkDocsOutputSink
+@@ -51,7 +51,7 @@ def sample_feed() -> Feed:
+     )
+     doc2.published = datetime(2025, 12, 6, tzinfo=UTC)
+
+-    return documents_to_feed(
++    return Feed.from_documents(
+         docs=[doc1, doc2],
+         feed_id="urn:uuid:test-feed",
+         title="Test Feed",
+@@ -255,7 +255,7 @@ def test_mkdocs_sink_generates_correct_frontmatter_structure(tmp_path: Path) ->
+     doc.authors = [Author(name="Dr. Foo", email="foo@bar.com")]
+     doc.published = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
+
+-    feed = documents_to_feed([doc], feed_id="test", title="Test Feed")
++    feed = Feed.from_documents([doc], feed_id="test", title="Test Feed")
+     output_dir = tmp_path / "docs"
+     sink = MkDocsOutputSink(output_dir=output_dir)
+
+@@ -308,7 +308,7 @@ def test_mkdocs_sink_respects_document_status(tmp_path: Path) -> None:
+         status=DocumentStatus.PUBLISHED,
+     )
+
+-    feed = documents_to_feed(
++    feed = Feed.from_documents(
+         [draft, published],
+         feed_id="test",
+         title="Mixed Status Feed",
+@@ -384,7 +384,7 @@ def test_atom_xml_sink_handles_any_number_of_entries(num_entries: int) -> None:
+         for i in range(num_entries)
+     ]
+
+-    feed = documents_to_feed(docs, feed_id="test", title="Test Feed")
++    feed = Feed.from_documents(docs, feed_id="test", title="Test Feed")
+
+     with tempfile.TemporaryDirectory() as tmpdir:
+         output_file = Path(tmpdir) / f"feed_{num_entries}.atom"
+@@ -414,7 +414,7 @@ def test_mkdocs_sink_creates_correct_number_of_files(num_entries: int) -> None:
+         for i in range(num_entries)
+     ]
+
+-    feed = documents_to_feed(docs, feed_id="test", title="Test Feed")
++    feed = Feed.from_documents(docs, feed_id="test", title="Test Feed")
+
+     with tempfile.TemporaryDirectory() as tmpdir:
+         output_dir = Path(tmpdir) / f"docs_{num_entries}"
+@@ -438,7 +438,7 @@ def test_atom_xml_sink_handles_special_characters_in_content(tmp_path: Path) ->
+         title="Special Characters",
+     )
+
+-    feed = documents_to_feed([doc], feed_id="test", title="Test")
++    feed = Feed.from_documents([doc], feed_id="test", title="Test")
+
+     output_file = tmp_path / "feed.atom"
+     sink = AtomSink(output_path=output_file)
+@@ -460,7 +460,7 @@ def test_mkdocs_sink_handles_unicode_content(tmp_path: Path) -> None:
+         status=DocumentStatus.PUBLISHED,
+     )
+
+-    feed = documents_to_feed([doc], feed_id="test", title="Test")
++    feed = Feed.from_documents([doc], feed_id="test", title="Test")
+
+     output_dir = tmp_path / "docs"
+     sink = MkDocsOutputSink(output_dir=output_dir)
+@@ -483,7 +483,7 @@ def test_mkdocs_sink_handles_documents_without_slug(tmp_path: Path) -> None:
+         status=DocumentStatus.PUBLISHED,
+     )
+
+-    feed = documents_to_feed([doc], feed_id="test", title="Test")
++    feed = Feed.from_documents([doc], feed_id="test", title="Test")
+
+     output_dir = tmp_path / "docs"
+     sink = MkDocsOutputSink(output_dir=output_dir)
+diff --git a/tests/v3/infra/sinks/test_sqlite.py b/tests/v3/infra/sinks/test_sqlite.py
+index 6527916..ab8c585 100644
+--- a/tests/v3/infra/sinks/test_sqlite.py
++++ b/tests/v3/infra/sinks/test_sqlite.py
+@@ -6,23 +6,23 @@ from pathlib import Path
+ import pytest
+
+ from egregora_v3.core.types import (
++    Author,
+     Category,
+     Document,
+     DocumentStatus,
+     DocumentType,
+     Feed,
+     Link,
+-    Author,
+ )
+-from egregora_v3.infra.sinks.sqlite import SQLiteOutputSink
++from egregora_v3.infra.sinks.sqlite import SQLiteOutputSink, _document_to_record
+
+
+ @pytest.fixture
+-def sample_feed() -> Feed:
+-    """Provides a sample Feed with one published document."""
+-    doc = Document(
+-        id="test-doc-1",
+-        title="Test Document",
++def published_doc() -> Document:
++    """Provides a single published document."""
++    return Document(
++        id="published-doc-1",
++        title="Published Document",
+         content="This is the content.",
+         summary="A summary.",
+         doc_type=DocumentType.POST,
+@@ -33,7 +33,41 @@ def sample_feed() -> Feed:
+         categories=[Category(term="testing")],
+         links=[Link(href="http://example.com/link")],
+     )
+-    return Feed(id="test-feed", title="Test Feed", updated=doc.updated, entries=[doc])
++
++
++@pytest.fixture
++def draft_doc() -> Document:
++    """Provides a single draft document."""
++    return Document(
++        id="draft-doc-1",
++        title="Draft Document",
++        content="This is a draft.",
++        doc_type=DocumentType.POST,
++        status=DocumentStatus.DRAFT,
++        updated=datetime(2023, 1, 3, 12, 0, 0, tzinfo=timezone.utc),
++    )
++
++
++@pytest.fixture
++def sample_feed(published_doc: Document) -> Feed:
++    """Provides a sample Feed with one published document."""
++    return Feed(
++        id="test-feed",
++        title="Test Feed",
++        updated=published_doc.updated,
++        entries=[published_doc],
++    )
++
++
++@pytest.fixture
++def mixed_feed(published_doc: Document, draft_doc: Document) -> Feed:
++    """Provides a sample Feed with both published and draft documents."""
++    return Feed(
++        id="mixed-feed",
++        title="Mixed Feed",
++        updated=draft_doc.updated,
++        entries=[published_doc, draft_doc],
++    )
+
+
+ def test_publish_creates_database_and_writes_document(
+@@ -52,7 +86,7 @@ def test_publish_creates_database_and_writes_document(
+     # Verify content
+     conn = sqlite3.connect(db_path)
+     cursor = conn.cursor()
+-    cursor.execute("SELECT * FROM documents WHERE id = ?", ("test-doc-1",))
++    cursor.execute("SELECT * FROM documents WHERE id = ?", ("published-doc-1",))
+     row = cursor.fetchone()
+     conn.close()
+
+@@ -70,8 +104,8 @@ def test_publish_creates_database_and_writes_document(
+         categories,
+         links,
+     ) = row
+-    assert id_val == "test-doc-1"
+-    assert title == "Test Document"
++    assert id_val == "published-doc-1"
++    assert title == "Published Document"
+     assert doc_type == "post"
+     assert status == "published"
+     assert published == "2023-01-01T12:00:00+00:00"
+@@ -81,17 +115,46 @@ def test_publish_creates_database_and_writes_document(
+     assert '"href": "http://example.com/link"' in links
+
+
++def test_publish_writes_only_published_documents(tmp_path: Path, mixed_feed: Feed):
++    """
++    Locking Test: Verify that the sink correctly filters for published documents.
++    """
++    db_path = tmp_path / "output.db"
++    sink = SQLiteOutputSink(db_path)
++
++    # Act
++    sink.publish(mixed_feed)
++
++    # Assert
++    conn = sqlite3.connect(db_path)
++    cursor = conn.cursor()
++
++    # Check that the published document is there
++    cursor.execute("SELECT id FROM documents WHERE id = ?", ("published-doc-1",))
++    assert cursor.fetchone() is not None
++
++    # Check that the draft document is NOT there
++    cursor.execute("SELECT id FROM documents WHERE id = ?", ("draft-doc-1",))
++    assert cursor.fetchone() is None
++
++    # Check that there is only one row in total
++    cursor.execute("SELECT COUNT(*) FROM documents")
++    count = cursor.fetchone()[0]
++    conn.close()
++
++    assert count == 1
++
++
+ def test_document_to_record_serializes_correctly(sample_feed: Feed):
+     """Verify the new serialization method works as expected."""
+-    sink = SQLiteOutputSink(Path("dummy.db"))
+     doc = sample_feed.entries[0]
+     assert isinstance(doc, Document)
+
+-    record = sink._document_to_record(doc)
++    record = _document_to_record(doc)
+
+     assert isinstance(record, dict)
+-    assert record["id"] == "test-doc-1"
+-    assert record["title"] == "Test Document"
++    assert record["id"] == "published-doc-1"
++    assert record["title"] == "Published Document"
+     assert record["doc_type"] == "post"
+     assert record["status"] == "published"
+     assert record["published"] == "2023-01-01T12:00:00+00:00"
+diff --git a/tests/v3/infra/sinks/test_sqlite_csv_sinks.py b/tests/v3/infra/sinks/test_sqlite_csv_sinks.py
+deleted file mode 100644
+index d894abc..0000000
+--- a/tests/v3/infra/sinks/test_sqlite_csv_sinks.py
++++ /dev/null
+@@ -1,535 +0,0 @@
+-"""TDD tests for SQLite and CSV Output Sinks - written BEFORE implementation.
+-
+-Tests for:
+-1. SQLiteOutputSink - Exports Feed to SQLite database
+-2. CSVOutputSink - Exports Feed to CSV files
+-
+-Following TDD Red-Green-Refactor cycle.
+-"""
+-
+-import csv
+-import json
+-import sqlite3
+-import tempfile
+-from datetime import UTC, datetime
+-from pathlib import Path
+-
+-import pytest
+-from faker import Faker
+-from hypothesis import given, settings
+-from hypothesis import strategies as st
+-
+-from egregora_v3.core.types import (
+-    Author,
+-    Category,
+-    Document,
+-    DocumentStatus,
+-    DocumentType,
+-    Feed,
+-)
+-from egregora_v3.infra.sinks.csv import CSVOutputSink
+-from egregora_v3.infra.sinks.sqlite import SQLiteOutputSink
+-
+-fake = Faker()
+-
+-
+-# ========== Fixtures ==========
+-
+-
+-@pytest.fixture
+-def sample_feed() -> Feed:
+-    """Create a sample feed for testing."""
+-    doc1 = Document(
+-        content="# First Post\n\nThis is content.",
+-        doc_type=DocumentType.POST,
+-        title="First Post",
+-        status=DocumentStatus.PUBLISHED,
+-    )
+-    doc1.authors = [Author(name="Alice", email="alice@example.com")]
+-    doc1.published = datetime(2025, 12, 5, tzinfo=UTC)
+-    doc1.categories = [Category(term="tech", label="Technology")]
+-
+-    doc2 = Document(
+-        content="Second post content.",
+-        doc_type=DocumentType.POST,
+-        title="Second Post",
+-        status=DocumentStatus.PUBLISHED,
+-    )
+-    doc2.published = datetime(2025, 12, 6, tzinfo=UTC)
+-    doc2.authors = [Author(name="Bob")]
+-
+-    draft = Document(
+-        content="Draft content",
+-        doc_type=DocumentType.POST,
+-        title="Draft Post",
+-        status=DocumentStatus.DRAFT,
+-    )
+-
+-    return Feed.from_documents(
+-        docs=[doc1, doc2, draft],
+-        feed_id="urn:uuid:test-feed",
+-        title="Test Feed",
+-        authors=[Author(name="Feed Author")],
+-    )
+-
+-
+-# ========== SQLiteOutputSink Tests ==========
+-
+-
+-def test_sqlite_sink_creates_database_file(sample_feed: Feed, tmp_path: Path) -> None:
+-    """Test that SQLiteOutputSink creates a SQLite database file."""
+-    db_file = tmp_path / "feed.db"
+-    sink = SQLiteOutputSink(db_path=db_file)
+-
+-    sink.publish(sample_feed)
+-
+-    assert db_file.exists()
+-
+-
+-def test_sqlite_sink_creates_documents_table(sample_feed: Feed, tmp_path: Path) -> None:
+-    """Test that sink creates a 'documents' table."""
+-    db_file = tmp_path / "feed.db"
+-    sink = SQLiteOutputSink(db_path=db_file)
+-
+-    sink.publish(sample_feed)
+-
+-    # Verify table exists
+-    conn = sqlite3.connect(db_file)
+-    cursor = conn.cursor()
+-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='documents'")
+-    result = cursor.fetchone()
+-    conn.close()
+-
+-    assert result is not None
+-    assert result[0] == "documents"
+-
+-
+-def test_sqlite_sink_stores_all_published_documents(sample_feed: Feed, tmp_path: Path) -> None:
+-    """Test that only PUBLISHED documents are stored."""
+-    db_file = tmp_path / "feed.db"
+-    sink = SQLiteOutputSink(db_path=db_file)
+-
+-    sink.publish(sample_feed)
+-
+-    # Query documents
+-    conn = sqlite3.connect(db_file)
+-    cursor = conn.cursor()
+-    cursor.execute("SELECT COUNT(*) FROM documents")
+-    count = cursor.fetchone()[0]
+-    conn.close()
+-
+-    # Only 2 published documents (not the draft)
+-    assert count == 2
+-
+-
+-def test_sqlite_sink_stores_document_fields(sample_feed: Feed, tmp_path: Path) -> None:
+-    """Test that document fields are stored correctly."""
+-    db_file = tmp_path / "feed.db"
+-    sink = SQLiteOutputSink(db_path=db_file)
+-
+-    sink.publish(sample_feed)
+-
+-    # Query first document
+-    conn = sqlite3.connect(db_file)
+-    cursor = conn.cursor()
+-    cursor.execute("SELECT id, title, content, doc_type, status FROM documents ORDER BY title LIMIT 1")
+-    row = cursor.fetchone()
+-    conn.close()
+-
+-    assert row is not None
+-    _doc_id, title, content, doc_type, status = row
+-
+-    assert title == "First Post"
+-    assert "# First Post" in content
+-    assert doc_type == "post"
+-    assert status == "published"
+-
+-
+-def test_sqlite_sink_stores_authors_as_json(sample_feed: Feed, tmp_path: Path) -> None:
+-    """Test that authors are stored as JSON."""
+-    db_file = tmp_path / "feed.db"
+-    sink = SQLiteOutputSink(db_path=db_file)
+-
+-    sink.publish(sample_feed)
+-
+-    conn = sqlite3.connect(db_file)
+-    cursor = conn.cursor()
+-    cursor.execute("SELECT authors FROM documents WHERE title='First Post'")
+-    authors_json = cursor.fetchone()[0]
+-    conn.close()
+-
+-    authors = json.loads(authors_json)
+-    assert len(authors) == 1
+-    assert authors[0]["name"] == "Alice"
+-    assert authors[0]["email"] == "alice@example.com"
+-
+-
+-def test_sqlite_sink_overwrites_existing_database(sample_feed: Feed, tmp_path: Path) -> None:
+-    """Test that sink clears existing data before publishing."""
+-    db_file = tmp_path / "feed.db"
+-
+-    # Create initial database with data
+-    conn = sqlite3.connect(db_file)
+-    cursor = conn.cursor()
+-    cursor.execute("CREATE TABLE documents (id TEXT, title TEXT)")
+-    cursor.execute("INSERT INTO documents VALUES ('old-id', 'Old Title')")
+-    conn.commit()
+-    conn.close()
+-
+-    sink = SQLiteOutputSink(db_path=db_file)
+-    sink.publish(sample_feed)
+-
+-    # Old data should be gone
+-    conn = sqlite3.connect(db_file)
+-    cursor = conn.cursor()
+-    cursor.execute("SELECT COUNT(*) FROM documents WHERE title='Old Title'")
+-    count = cursor.fetchone()[0]
+-    conn.close()
+-
+-    assert count == 0
+-
+-
+-def test_sqlite_sink_creates_parent_directories(sample_feed: Feed, tmp_path: Path) -> None:
+-    """Test that sink creates parent directories if they don't exist."""
+-    db_file = tmp_path / "deeply" / "nested" / "directory" / "feed.db"
+-
+-    sink = SQLiteOutputSink(db_path=db_file)
+-    sink.publish(sample_feed)
+-
+-    assert db_file.exists()
+-    assert db_file.parent.exists()
+-
+-
+-def test_sqlite_sink_with_empty_feed(tmp_path: Path) -> None:
+-    """Test that sink handles empty feed (no entries)."""
+-    empty_feed = Feed(
+-        id="empty-feed",
+-        title="Empty Feed",
+-        updated=datetime.now(UTC),
+-        entries=[],
+-    )
+-
+-    db_file = tmp_path / "empty.db"
+-    sink = SQLiteOutputSink(db_path=db_file)
+-
+-    sink.publish(empty_feed)
+-
+-    # Database should exist with empty table
+-    conn = sqlite3.connect(db_file)
+-    cursor = conn.cursor()
+-    cursor.execute("SELECT COUNT(*) FROM documents")
+-    count = cursor.fetchone()[0]
+-    conn.close()
+-
+-    assert count == 0
+-
+-
+-def test_sqlite_sink_handles_unicode_content(tmp_path: Path) -> None:
+-    """Test that sink handles Unicode characters correctly."""
+-    doc = Document(
+-        content="Unicode content: 你好世界 🎉 Olá",
+-        doc_type=DocumentType.POST,
+-        title="Unicode Test",
+-        status=DocumentStatus.PUBLISHED,
+-    )
+-
+-    feed = Feed.from_documents([doc], feed_id="test", title="Test")
+-
+-    db_file = tmp_path / "unicode.db"
+-    sink = SQLiteOutputSink(db_path=db_file)
+-
+-    sink.publish(feed)
+-
+-    # Verify Unicode preserved
+-    conn = sqlite3.connect(db_file)
+-    cursor = conn.cursor()
+-    cursor.execute("SELECT content FROM documents")
+-    content = cursor.fetchone()[0]
+-    conn.close()
+-
+-    assert "你好世界" in content
+-    assert "🎉" in content
+-    assert "Olá" in content
+-
+-
+-def test_sqlite_sink_includes_timestamps(sample_feed: Feed, tmp_path: Path) -> None:
+-    """Test that published and updated timestamps are stored."""
+-    db_file = tmp_path / "feed.db"
+-    sink = SQLiteOutputSink(db_path=db_file)
+-
+-    sink.publish(sample_feed)
+-
+-    conn = sqlite3.connect(db_file)
+-    cursor = conn.cursor()
+-    cursor.execute("SELECT published, updated FROM documents WHERE title='First Post'")
+-    row = cursor.fetchone()
+-    conn.close()
+-
+-    assert row is not None
+-    published, updated = row
+-    assert published is not None
+-    assert updated is not None
+-
+-
+-# ========== CSVOutputSink Tests ==========
+-
+-
+-def test_csv_sink_creates_csv_file(sample_feed: Feed, tmp_path: Path) -> None:
+-    """Test that CSVOutputSink creates a CSV file."""
+-    csv_file = tmp_path / "feed.csv"
+-    sink = CSVOutputSink(csv_path=csv_file)
+-
+-    sink.publish(sample_feed)
+-
+-    assert csv_file.exists()
+-
+-
+-def test_csv_sink_has_header_row(sample_feed: Feed, tmp_path: Path) -> None:
+-    """Test that CSV file has header row."""
+-    csv_file = tmp_path / "feed.csv"
+-    sink = CSVOutputSink(csv_path=csv_file)
+-
+-    sink.publish(sample_feed)
+-
+-    with csv_file.open(newline="", encoding="utf-8") as f:
+-        reader = csv.DictReader(f)
+-        fieldnames = reader.fieldnames
+-
+-    assert fieldnames is not None
+-    assert "id" in fieldnames
+-    assert "title" in fieldnames
+-    assert "content" in fieldnames
+-    assert "doc_type" in fieldnames
+-    assert "status" in fieldnames
+-
+-
+-def test_csv_sink_exports_only_published_documents(sample_feed: Feed, tmp_path: Path) -> None:
+-    """Test that only PUBLISHED documents are exported."""
+-    csv_file = tmp_path / "feed.csv"
+-    sink = CSVOutputSink(csv_path=csv_file)
+-
+-    sink.publish(sample_feed)
+-
+-    with csv_file.open(newline="", encoding="utf-8") as f:
+-        reader = csv.DictReader(f)
+-        rows = list(reader)
+-
+-    # Only 2 published documents (not the draft)
+-    assert len(rows) == 2
+-
+-
+-def test_csv_sink_preserves_document_data(sample_feed: Feed, tmp_path: Path) -> None:
+-    """Test that document data is preserved in CSV."""
+-    csv_file = tmp_path / "feed.csv"
+-    sink = CSVOutputSink(csv_path=csv_file)
+-
+-    sink.publish(sample_feed)
+-
+-    with csv_file.open(newline="", encoding="utf-8") as f:
+-        reader = csv.DictReader(f)
+-        rows = list(reader)
+-
+-    # Find "First Post"
+-    first_post = next((r for r in rows if r["title"] == "First Post"), None)
+-    assert first_post is not None
+-    assert first_post["doc_type"] == "post"
+-    assert first_post["status"] == "published"
+-    assert "# First Post" in first_post["content"]
+-
+-
+-def test_csv_sink_exports_authors_as_json(sample_feed: Feed, tmp_path: Path) -> None:
+-    """Test that authors are exported as JSON string."""
+-    csv_file = tmp_path / "feed.csv"
+-    sink = CSVOutputSink(csv_path=csv_file)
+-
+-    sink.publish(sample_feed)
+-
+-    with csv_file.open(newline="", encoding="utf-8") as f:
+-        reader = csv.DictReader(f)
+-        rows = list(reader)
+-
+-    first_post = next((r for r in rows if r["title"] == "First Post"), None)
+-    authors = json.loads(first_post["authors"])
+-
+-    assert len(authors) == 1
+-    assert authors[0]["name"] == "Alice"
+-
+-
+-def test_csv_sink_overwrites_existing_file(sample_feed: Feed, tmp_path: Path) -> None:
+-    """Test that sink overwrites existing CSV file."""
+-    csv_file = tmp_path / "feed.csv"
+-
+-    # Create initial file
+-    csv_file.write_text("old,content\n1,2\n")
+-
+-    sink = CSVOutputSink(csv_path=csv_file)
+-    sink.publish(sample_feed)
+-
+-    # Should be replaced with new CSV
+-    content = csv_file.read_text()
+-    assert "old,content" not in content
+-    assert "First Post" in content
+-
+-
+-def test_csv_sink_creates_parent_directories(sample_feed: Feed, tmp_path: Path) -> None:
+-    """Test that sink creates parent directories if they don't exist."""
+-    csv_file = tmp_path / "deeply" / "nested" / "directory" / "feed.csv"
+-
+-    sink = CSVOutputSink(csv_path=csv_file)
+-    sink.publish(sample_feed)
+-
+-    assert csv_file.exists()
+-    assert csv_file.parent.exists()
+-
+-
+-def test_csv_sink_with_empty_feed(tmp_path: Path) -> None:
+-    """Test that sink handles empty feed (no entries)."""
+-    empty_feed = Feed(
+-        id="empty-feed",
+-        title="Empty Feed",
+-        updated=datetime.now(UTC),
+-        entries=[],
+-    )
+-
+-    csv_file = tmp_path / "empty.csv"
+-    sink = CSVOutputSink(csv_path=csv_file)
+-
+-    sink.publish(empty_feed)
+-
+-    # CSV should exist with header row only
+-    with csv_file.open(newline="", encoding="utf-8") as f:
+-        reader = csv.DictReader(f)
+-        rows = list(reader)
+-
+-    assert len(rows) == 0
+-
+-
+-def test_csv_sink_handles_unicode_content(tmp_path: Path) -> None:
+-    """Test that sink handles Unicode characters correctly."""
+-    doc = Document(
+-        content="Unicode content: 你好世界 🎉 Olá",
+-        doc_type=DocumentType.POST,
+-        title="Unicode Test",
+-        status=DocumentStatus.PUBLISHED,
+-    )
+-
+-    feed = Feed.from_documents([doc], feed_id="test", title="Test")
+-
+-    csv_file = tmp_path / "unicode.csv"
+-    sink = CSVOutputSink(csv_path=csv_file)
+-
+-    sink.publish(feed)
+-
+-    with csv_file.open(newline="", encoding="utf-8") as f:
+-        reader = csv.DictReader(f)
+-        row = next(reader)
+-
+-    assert "你好世界" in row["content"]
+-    assert "🎉" in row["content"]
+-    assert "Olá" in row["content"]
+-
+-
+-def test_csv_sink_handles_commas_and_quotes_in_content(tmp_path: Path) -> None:
+-    """Test that CSV properly escapes commas and quotes."""
+-    doc = Document(
+-        content='Content with "quotes" and, commas, and newlines\nhere',
+-        doc_type=DocumentType.POST,
+-        title="Special Characters",
+-        status=DocumentStatus.PUBLISHED,
+-    )
+-
+-    feed = Feed.from_documents([doc], feed_id="test", title="Test")
+-
+-    csv_file = tmp_path / "special.csv"
+-    sink = CSVOutputSink(csv_path=csv_file)
+-
+-    sink.publish(feed)
+-
+-    # Read back and verify
+-    with csv_file.open(newline="", encoding="utf-8") as f:
+-        reader = csv.DictReader(f)
+-        row = next(reader)
+-
+-    assert '"quotes"' in row["content"]
+-    assert ", commas," in row["content"]
+-
+-
+-def test_csv_sink_includes_timestamps(sample_feed: Feed, tmp_path: Path) -> None:
+-    """Test that published and updated timestamps are included."""
+-    csv_file = tmp_path / "feed.csv"
+-    sink = CSVOutputSink(csv_path=csv_file)
+-
+-    sink.publish(sample_feed)
+-
+-    with csv_file.open(newline="", encoding="utf-8") as f:
+-        reader = csv.DictReader(f)
+-        row = next(reader)
+-
+-    assert "published" in reader.fieldnames or "updated" in reader.fieldnames
+-    # At least one timestamp should be present
+-    assert row.get("published") or row.get("updated")
+-
+-
+-# ========== Property-Based Tests ==========
+-
+-
+-@settings(deadline=None)
+-@given(st.integers(min_value=1, max_value=20))
+-def test_sqlite_sink_handles_any_number_of_documents(num_docs: int) -> None:
+-    """Property: SQLiteOutputSink handles any number of documents."""
+-    docs = [
+-        Document(
+-            content=f"Content {i}",
+-            doc_type=DocumentType.POST,
+-            title=f"Post {i}",
+-            status=DocumentStatus.PUBLISHED,
+-        )
+-        for i in range(num_docs)
+-    ]
+-
+-    feed = Feed.from_documents(docs, feed_id="test", title="Test Feed")
+-
+-    with tempfile.TemporaryDirectory() as tmpdir:
+-        db_file = Path(tmpdir) / f"feed_{num_docs}.db"
+-        sink = SQLiteOutputSink(db_path=db_file)
+-
+-        sink.publish(feed)
+-
+-        # Verify all documents in database
+-        conn = sqlite3.connect(db_file)
+-        cursor = conn.cursor()
+-        cursor.execute("SELECT COUNT(*) FROM documents")
+-        count = cursor.fetchone()[0]
+-        conn.close()
+-
+-        assert count == num_docs
+-
+-
+-@settings(deadline=None)
+-@given(st.integers(min_value=1, max_value=20))
+-def test_csv_sink_handles_any_number_of_documents(num_docs: int) -> None:
+-    """Property: CSVOutputSink handles any number of documents."""
+-    docs = [
+-        Document(
+-            content=f"Content {i}",
+-            doc_type=DocumentType.POST,
+-            title=f"Post {i}",
+-            status=DocumentStatus.PUBLISHED,
+-        )
+-        for i in range(num_docs)
+-    ]
+-
+-    feed = Feed.from_documents(docs, feed_id="test", title="Test Feed")
+-
+-    with tempfile.TemporaryDirectory() as tmpdir:
+-        csv_file = Path(tmpdir) / f"feed_{num_docs}.csv"
+-        sink = CSVOutputSink(csv_path=csv_file)
+-
+-        sink.publish(feed)
+-
+-        # Verify all documents in CSV
+-        with csv_file.open(newline="", encoding="utf-8") as f:
+-            reader = csv.DictReader(f)
+-            rows = list(reader)
+-
+-        assert len(rows) == num_docs

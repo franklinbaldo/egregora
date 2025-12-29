@@ -2,10 +2,43 @@
 
 import json
 import sqlite3
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
-from egregora_v3.core.types import Document, DocumentStatus, Feed
+from egregora_v3.core.types import Document, Feed
+
+
+TABLE_SCHEMA = OrderedDict([
+    ("id", "TEXT PRIMARY KEY"),
+    ("title", "TEXT NOT NULL"),
+    ("content", "TEXT"),
+    ("summary", "TEXT"),
+    ("doc_type", "TEXT NOT NULL"),
+    ("status", "TEXT NOT NULL"),
+    ("published", "TEXT"),
+    ("updated", "TEXT NOT NULL"),
+    ("authors", "TEXT"),
+    ("categories", "TEXT"),
+    ("links", "TEXT"),
+])
+
+
+def _document_to_record(doc: Document) -> dict[str, Any]:
+    """Serialize a Document to a dictionary for database insertion."""
+    return {
+        "id": doc.id,
+        "title": doc.title,
+        "content": doc.content,
+        "summary": doc.summary,
+        "doc_type": doc.doc_type.value,
+        "status": doc.status.value,
+        "published": doc.published.isoformat() if doc.published else None,
+        "updated": doc.updated.isoformat(),
+        "authors": json.dumps([author.model_dump() for author in doc.authors]) if doc.authors else None,
+        "categories": json.dumps([cat.model_dump() for cat in doc.categories]) if doc.categories else None,
+        "links": json.dumps([link.model_dump() for link in doc.links]) if doc.links else None,
+    }
 
 
 class SQLiteOutputSink:
@@ -23,6 +56,9 @@ class SQLiteOutputSink:
 
         """
         self.db_path = Path(db_path)
+        columns = ", ".join(TABLE_SCHEMA.keys())
+        placeholders = ", ".join("?" for _ in TABLE_SCHEMA)
+        self._insert_statement = f"INSERT INTO documents ({columns}) VALUES ({placeholders})"
 
     def publish(self, feed: Feed) -> None:
         """Publish the feed to a SQLite database.
@@ -43,73 +79,18 @@ class SQLiteOutputSink:
         cursor = conn.cursor()
         self._create_table(cursor)
 
-        published_docs = [
-            entry
-            for entry in feed.entries
-            if isinstance(entry, Document) and entry.status == DocumentStatus.PUBLISHED
+        records = [
+            tuple(_document_to_record(doc)[key] for key in TABLE_SCHEMA)
+            for doc in feed.get_published_documents()
         ]
 
-        for doc in published_docs:
-            record = self._document_to_record(doc)
-            self._insert_document(cursor, record)
+        if records:
+            cursor.executemany(self._insert_statement, records)
 
         conn.commit()
         conn.close()
 
     def _create_table(self, cursor: sqlite3.Cursor) -> None:
-        """Create the documents table."""
-        cursor.execute("""
-            CREATE TABLE documents (
-                id TEXT PRIMARY KEY,
-                title TEXT NOT NULL,
-                content TEXT,
-                summary TEXT,
-                doc_type TEXT NOT NULL,
-                status TEXT NOT NULL,
-                published TEXT,
-                updated TEXT NOT NULL,
-                authors TEXT,
-                categories TEXT,
-                links TEXT
-            )
-        """)
-
-    def _document_to_record(self, doc: Document) -> dict[str, Any]:
-        """Serialize a Document to a dictionary for database insertion."""
-        return {
-            "id": doc.id,
-            "title": doc.title,
-            "content": doc.content,
-            "summary": doc.summary,
-            "doc_type": doc.doc_type.value,
-            "status": doc.status.value,
-            "published": doc.published.isoformat() if doc.published else None,
-            "updated": doc.updated.isoformat(),
-            "authors": json.dumps([author.model_dump() for author in doc.authors]) if doc.authors else None,
-            "categories": json.dumps([cat.model_dump() for cat in doc.categories]) if doc.categories else None,
-            "links": json.dumps([link.model_dump() for link in doc.links]) if doc.links else None,
-        }
-
-    def _insert_document(self, cursor: sqlite3.Cursor, record: dict[str, Any]) -> None:
-        """Insert a single document record into the database."""
-        cursor.execute(
-            """
-            INSERT INTO documents (
-                id, title, content, summary, doc_type, status,
-                published, updated, authors, categories, links
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                record["id"],
-                record["title"],
-                record["content"],
-                record["summary"],
-                record["doc_type"],
-                record["status"],
-                record["published"],
-                record["updated"],
-                record["authors"],
-                record["categories"],
-                record["links"],
-            ),
-        )
+        """Create the documents table from TABLE_SCHEMA."""
+        columns = ", ".join(f"{name} {dtype}" for name, dtype in TABLE_SCHEMA.items())
+        cursor.execute(f"CREATE TABLE documents ({columns})")

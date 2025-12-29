@@ -279,7 +279,7 @@ class PipelineFactory:
         )
 
     @staticmethod
-    def create_gemini_client() -> "genai.Client":
+    def create_gemini_client() -> genai.Client:
         """Create a Gemini client with retry configuration.
 
         The client reads the API key from GOOGLE_API_KEY environment variable automatically.
