@@ -1,6 +1,6 @@
 # Egregora
->
-> *Turn your chaotic group chat into a structured, readable blog.*
+
+*Turn noisy conversations and feeds into a polished, privacy-aware knowledge site.*
 
 [![CI](https://github.com/franklinbaldo/egregora/actions/workflows/ci.yml/badge.svg)](https://github.com/franklinbaldo/egregora/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/franklinbaldo/egregora/actions/workflows/codeql.yml/badge.svg)](https://github.com/franklinbaldo/egregora/actions/workflows/codeql.yml)
@@ -8,148 +8,131 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![uv](https://img.shields.io/badge/uv-powered-FF6C37.svg)](https://github.com/astral-sh/uv)
-[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
-[![Pydantic-AI](https://img.shields.io/badge/Pydantic--AI-type--safe-00D9FF.svg)](https://ai.pydantic.dev/)
 [![Docs](https://img.shields.io/badge/docs-live-green.svg)](https://franklinbaldo.github.io/egregora/)
 
-**Egregora** is a tool that reads your chat history and writes a blog. It uses AI to filter noise, synthesize conversations, and generate engaging posts. It is designed to run locally, keeping your data private by default, while using modern LLMs (like Gemini or OpenRouter) to do the heavy lifting of writing and formatting.
+Egregora ingests chat exports (WhatsApp, RSS, and more), anonymizes participants, enriches content with LLM agents, and publishes an MkDocs site you can host anywhere. Pipelines run locally by default, while letting you opt into cloud models when you want more horsepower.
 
 ---
 
-## 🚀 Getting Started
+## What makes Egregora different?
 
-Egregora transforms a WhatsApp export (ZIP) into a static website powered by [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/).
+- **Composable agents:** Writer, Editor, Enricher, and Reader agents collaborate to summarize, enrich, score, and illustrate each post.
+- **Feed-first architecture:** Everything becomes structured feed entries, enabling repeatable pipelines and interop with the wider RSS ecosystem.
+- **Privacy aware:** Names are replaced with stable IDs before content leaves your machine; caching and RAG live in local DuckDB + LanceDB stores.
+- **Production-grade outputs:** Generates MkDocs sites (Material theme) with banners, media captions, and ranking signals ready for deployment.
+- **Extensible inputs:** Ships with WhatsApp and Atom/RSS adapters; implement your own adapter to ingest any text stream.
 
-### 1. Installation
+---
 
-Install Egregora using [uv](https://github.com/astral-sh/uv) (requires Python 3.12+):
+## Quickstart (5 minutes)
+
+Requirements: Python 3.12+, [uv](https://github.com/astral-sh/uv), and a [Google Gemini API key](https://ai.google.dev/gemini-api/docs/api-key).
 
 ```bash
+# 1) Install or run the CLI
+uvx --from git+https://github.com/franklinbaldo/egregora egregora --help
+# or cache it locally:
 uv tool install git+https://github.com/franklinbaldo/egregora
-```
 
-You will also need a Google Gemini API key (free tier available):
+# 2) Export a WhatsApp chat (.zip) without media for privacy
 
-```bash
-export GOOGLE_API_KEY="your-api-key"
-```
-
-### 2. The Workflow
-
-**1. Initialize a new site:**
-
-```bash
-egregora init ./my-blog
+# 3) Create a site scaffold
+uvx --from git+https://github.com/franklinbaldo/egregora egregora init my-blog
 cd my-blog
-```
 
-Egregora automatically bootstraps `.egregora` (mkdocs config, cache, RAG, and LanceDB directories) when you run `egregora init` or `egregora write`. Use `python scripts/bootstrap_site.py ./my-blog` (or `python ../scripts/bootstrap_site.py .` from inside the site) only if you need to regenerate the scaffolding manually.
+# 4) Provide your model credentials
+export GOOGLE_API_KEY="your-api-key"
 
-**2. Generate posts from your chat export:**
+# 5) Generate posts
+uvx --from git+https://github.com/franklinbaldo/egregora egregora write \
+  path/to/export.zip \
+  --output-dir=. \
+  --timezone="America/New_York"
 
-```bash
-egregora write path/to/chat_export.zip --output=.
-```
-
-**3. Preview your site:**
-
-```bash
+# 6) Preview the site
 uv sync --all-extras
 uv run mkdocs serve -f .egregora/mkdocs.yml
 ```
 
-*Visit <http://localhost:8000> to read your new blog.*
+The `write` command parses the export, anonymizes names, builds a LanceDB index for retrieval, and emits Markdown posts under `docs/posts/`. Visit <http://localhost:8000> to read the site.
 
 ---
 
-## 🛠️ Configuration
+## Configure your pipeline
 
-Egregora is highly configurable via the `.egregora.toml` file generated in your site directory.
-
-* **Models:** Switch between models (e.g., `google-gla:gemini-flash-latest`) or use OpenRouter.
-* **Pipeline:** Adjust how many days of chat form a single post (`step_size`, `step_unit`).
-
-### Multi-site configs & reusable sources
-
-Register inputs once and point multiple sites at them using `[sources.*]` and `[sites.<name>]` blocks:
+Egregora stores run settings in `.egregora.toml`. A minimal multi-site configuration looks like:
 
 ```toml
-[sources.whatsapp_export]
+[sources.chat]
 type = "whatsapp"
 path = "exports/friends.zip"
 
-[sites.default]
-sources = ["whatsapp_export"]
+[sites.blog]
+sources = ["chat"]
 
-[sites.default.output]
+[sites.blog.output]
 adapters = [{ type = "mkdocs", config_path = ".egregora/mkdocs.yml" }]
 ```
 
-If you only define one site/source, Egregora selects it automatically. When multiple entries exist, use `--site`/`--source` (or `EGREGORA_SITE`/`EGREGORA_SOURCE`) to choose explicitly. Legacy single-site configs without `[sites.*]` continue to work and are treated as a single implicit site. See the [Configuration Guide](docs/getting-started/configuration.md#sites-and-sources-multi-site-configs) for detailed rules and migration steps.
+Key knobs to adjust:
 
-👉 **[Full Configuration Reference](docs/getting-started/configuration.md)**
+- **Windowing:** `--step-size` and `--step-unit` (hours, days, messages) control how messages are grouped into posts.
+- **Models:** `--model` or `[writer]/[enricher]/[banner]` blocks select the provider (e.g., `google-gla:gemini-flash-latest` or OpenRouter models).
+- **Enrichment:** `--enable-enrichment` pulls in media and URL context; use `--refresh` to invalidate caches tier-by-tier.
+- **Target site/source:** When multiple entries exist, pick one explicitly with `--site` and `--source` or the `EGREGORA_SITE`/`EGREGORA_SOURCE` env vars.
 
-### Customizing the AI
-
-* **Prompts:** Edit `.egregora/prompts/writer.jinja` to change the tone and style of the writing.
-* **Instructions:** Add custom instructions in `.egregora.toml` under `[writer]` `custom_instructions`.
-
----
-
-## ✨ Features
-
-### 🧠 Context & Memory (RAG)
-
-Egregora uses **LanceDB** to build a vector knowledge base of your conversations. When writing a new post, the AI "remembers" related discussions from the past, adding depth and continuity to the narrative.
-
-### 🖼️ Rich Media
-
-Images and videos shared in the chat are automatically extracted, optimized, and embedded in the posts. An "Enricher" agent analyzes images to provide descriptions for the Writer agent.
-
-### 🎨 Visuals
-
-A dedicated **Banner Agent** generates unique cover images for each post based on its content, giving your blog a polished look.
-
-### 📊 Ranking & Quality
-
-The **Reader Agent** uses an ELO rating system to evaluate and rank posts, helping you surface the best content from your archives.
+Prompts live under `.egregora/prompts/`—tweak them to change tone, writing style, or image prompts. See the [Configuration guide](docs/getting-started/configuration.md) for full details.
 
 ---
 
-## 👩‍💻 Developer Guide
+## Frequently used commands
 
-Egregora is built with a focus on performance and maintainability.
+```bash
+# Resume a previous run without rebuilding embeddings
+egregora write export.zip --resume
 
-### Project Structure
+# Focus on a date range
+egregora write export.zip --from-date=2025-01-01 --to-date=2025-01-31
 
-* `src/egregora/orchestration/`: High-level workflows that coordinate the pipeline.
-* `src/egregora/agents/`: AI logic powered by **Pydantic-AI**.
-* `src/egregora/database/`: Data persistence using **DuckDB** and **LanceDB**.
-* `src/egregora/input_adapters/`: Logic for reading different data sources.
+# Rank generated posts with ELO comparisons
+egregora read rank docs/posts/
+egregora top --limit=10
 
-### Performance (Internals)
+# Inspect recent pipeline runs
+egregora runs list
+egregora runs show <run_id>
+```
 
-We use **Ibis** and **DuckDB** to handle large datasets efficiently.
-
-* **Streaming:** Large ZIP files are processed without loading everything into RAM.
-* **Functional Transforms:** Data flows through pure functions (`Table -> Table`) for speed and reliability.
-
-### Adding New Adapters
-
-You can extend Egregora to read from other sources (e.g., Slack, Telegram) by implementing the `InputAdapter` protocol in `src/egregora/input_adapters/base.py`.
+If you installed with `uv tool install`, the `egregora` command is available directly. Otherwise prefix with `uvx --from git+https://github.com/franklinbaldo/egregora`.
 
 ---
 
-## 🤝 Contributing
+## Developing and contributing
 
-We welcome contributions! Please check out:
-
-* **[Technical Reference](docs/v3/api-reference/):** Deep dive into CLI commands and architecture.
-* **[Code of the Weaver](CLAUDE.md):** Guidelines for contributors and AI agents.
-
-To run tests:
+Clone the repo and set up a local environment with uv:
 
 ```bash
 uv sync --all-extras
-uv run pytest tests/
+
+# Lint and format
+uv run ruff format .
+uv run ruff check .
+
+# Tests
+uv run pytest
+
+# Types (run when touching typed interfaces)
+uv run mypy .
+
+# Documentation
+uv run mkdocs build
 ```
+
+Relevant directories:
+
+- `src/egregora/agents/` — LLM-driven agents (writer, editor, enricher, reader, banner).
+- `src/egregora/input_adapters/` — Data ingress points; implement a new adapter to support another feed.
+- `src/egregora/orchestration/` — Pipelines that coordinate ingestion, enrichment, and publishing.
+- `src/egregora/database/` — DuckDB + LanceDB storage and retrieval helpers.
+
+For a guided walkthrough of the architecture, start with the [V3 overview](docs/v3/architecture/overview.md) and the [Quickstart](docs/getting-started/quickstart.md).
