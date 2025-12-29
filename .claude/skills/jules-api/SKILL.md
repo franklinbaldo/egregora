@@ -251,7 +251,7 @@ Send user feedback or additional instructions to an active session.
 **Request Body**:
 ```json
 {
-  "message": "Your message or feedback"
+  "prompt": "Your message or feedback"
 }
 ```
 
@@ -260,7 +260,7 @@ Send user feedback or additional instructions to an active session.
 curl -X POST https://jules.googleapis.com/v1alpha/sessions/abc123:sendMessage \
   -H "X-Goog-Api-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"message": "Please add more test coverage for edge cases"}'
+  -d '{"prompt": "Please add more test coverage for edge cases"}'
 ```
 
 ### 5. Approve Plan
