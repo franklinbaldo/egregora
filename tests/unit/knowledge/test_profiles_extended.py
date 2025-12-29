@@ -5,12 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-<<<<<<< HEAD
 from egregora.knowledge.exceptions import ProfileNotFoundError, ProfileParseError
-=======
-from egregora.knowledge.exceptions import ProfileNotFoundError
-from egregora.knowledge.exceptions import ProfileParseError as ProfileParsingError
->>>>>>> origin/essentialist/refactor-feed-creation-factory-method-9112-8197777158512917774
 from egregora.knowledge.profiles import (
     _find_profile_path,
     _get_uuid_from_profile,
