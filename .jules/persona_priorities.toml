@@ -1,0 +1,48 @@
+# Jules Persona Priority Configuration
+# Defines which personas can run when the build is broken vs stable.
+
+[priorities]
+# Critical personas that ALWAYS run, even when tests are failing.
+# These personas are focused on fixing the build and stabilizing the repo.
+critical = [
+    "sheriff",    # 🤠 Test Stability - Fixes flaky/broken tests
+    "janitor",    # 🧹 Code Hygiene - Fixes import errors, linting issues
+    "sentinel",   # 🛡️ Security - Critical security fixes
+]
+
+# High priority personas that run when build is mostly stable but may have minor issues
+high_priority = [
+    "shepherd",   # 🧑‍🌾 Test Coverage - Adds tests
+    "builder",    # 🏗️ Data Architecture - Schema fixes
+    "sapper",     # 💣 Exception Structuring - Error handling
+]
+
+# Normal priority personas that only run when all tests pass
+normal_priority = [
+    "essentialist", # 💎 Pragmatism & Cuts
+    "curator",      # 🎭 UX Evaluation
+    "refactor",     # 🔧 Code Improvements
+    "visionary",    # 🔮 Moonshot Strategy
+    "bolt",         # ⚡ Performance Check
+    "artisan",      # 🔨 Code Craftsmanship
+    "palette",      # 🎨 Design System
+    "scribe",       # ✍️ Technical Writing
+    "forge",        # ⚒️ Feature Implementation
+    "weaver",       # 🕸️ Integration Build
+    "simplifier",   # 📉 Complexity Reduction
+    "docs_curator", # 📚 Docs Gardening
+]
+
+[build_status]
+# Configuration for determining build health
+# The scheduler should check if tests pass before allowing non-critical personas
+
+# Command to check if tests pass (exit code 0 = pass, non-zero = fail)
+test_command = "uv run pytest tests/ -q --tb=no"
+
+# If true, block normal_priority personas when test_command fails
+block_on_test_failure = true
+
+# If true, allow high_priority personas even when some tests fail
+# (as long as imports work and basic functionality is intact)
+allow_high_priority_on_partial_failure = true

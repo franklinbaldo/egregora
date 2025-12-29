@@ -35,3 +35,12 @@ class BatchResultDownloadError(LLMProviderError):
 
 class InvalidLLMResponseError(LLMProviderError):
     """Exception raised when the LLM response is empty or invalid."""
+
+
+class AllModelsExhaustedError(LLMProviderError):
+    """Raised when all models in the fallback rotation are exhausted."""
+
+    def __init__(self, message: str, causes: list[Exception] | None = None) -> None:
+        """Initialize with a list of underlying causes."""
+        self.causes = causes or []
+        super().__init__(message)
