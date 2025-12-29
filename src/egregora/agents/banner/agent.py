@@ -22,15 +22,18 @@ if TYPE_CHECKING:
     import google.generativeai as genai
     from google.api_core import exceptions as google_exceptions
 
-google_api_core_spec = "google.api_core" in sys.modules or importlib.util.find_spec("google.api_core") is not None
+google_api_core_spec = (
+    "google.api_core" in sys.modules or importlib.util.find_spec("google.api_core") is not None
+)
 if google_api_core_spec:
     from google.api_core import exceptions as google_exceptions
 else:  # pragma: no cover - exercised when Google SDKs are absent
+
     class GoogleAPICallError(Exception):
-        """Stub for google.api_core.exceptions.GoogleAPICallError"""
+        """Stub for google.api_core.exceptions.GoogleAPICallError."""
 
     class ResourceExhausted(GoogleAPICallError):
-        """Stub for google.api_core.exceptions.ResourceExhausted"""
+        """Stub for google.api_core.exceptions.ResourceExhausted."""
 
     class _GoogleExceptions:
         GoogleAPICallError = GoogleAPICallError
@@ -97,7 +100,7 @@ def _build_image_prompt(input_data: BannerInput) -> str:
 
 
 def _generate_banner_image(
-    client: "genai.Client",
+    client: genai.Client,
     input_data: BannerInput,
     image_model: str,
     generation_request: ImageGenerationRequest,
