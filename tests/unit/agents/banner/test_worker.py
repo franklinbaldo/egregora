@@ -1,7 +1,7 @@
 """Unit tests for the BannerWorker."""
 
 import json
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -88,3 +88,132 @@ def test_parse_task_success(mock_context):
     assert entry.language == "en-US"
     assert entry.metadata == {"run_id": "run-abc"}
     mock_context.task_store.mark_failed.assert_not_called()
+
+
+def test_run_no_tasks(mock_context):
+    """Should return 0 if there are no pending tasks."""
+    mock_context.task_store.fetch_pending.return_value = []
+    worker = BannerWorker(mock_context)
+
+    result = worker.run()
+
+    assert result == 0
+    mock_context.task_store.fetch_pending.assert_called_once_with(task_type="generate_banner")
+
+
+@patch("egregora.agents.banner.worker.persist_banner_document")
+@patch("egregora.agents.banner.worker.BannerBatchProcessor")
+def test_run_with_mixed_tasks(mock_processor, mock_persist, mock_context):
+    """Should handle a mix of valid and invalid tasks."""
+    valid_task_payload = {"post_slug": "a-slug", "title": "A Title"}
+    tasks = [
+        {"task_id": "1", "payload": json.dumps(valid_task_payload)},
+        {"task_id": "2"},
+        {"task_id": "3", "payload": json.dumps({"post_slug": "another-slug"})},
+    ]
+    mock_context.task_store.fetch_pending.return_value = tasks
+
+    mock_generator = mock_processor.return_value
+    mock_result = Mock()
+    mock_result.success = True
+    mock_result.document = Mock()
+    mock_result.task = Mock()
+    mock_result.task.task_id = "1"
+    mock_generator.process_tasks.return_value = [mock_result]
+    mock_persist.return_value = "/path/to/banner.png"
+
+    worker = BannerWorker(mock_context)
+    result = worker.run()
+
+    assert result == 3
+
+    assert mock_generator.process_tasks.call_count == 1
+    processed_tasks_args = mock_generator.process_tasks.call_args[0][0]
+    assert len(processed_tasks_args) == 1
+    assert processed_tasks_args[0].task_id == "1"
+
+    calls = mock_context.task_store.mark_failed.call_args_list
+    assert len(calls) == 2
+    assert calls[0].args == ("2", "Missing payload")
+    assert calls[1].args == ("3", "Missing slug/title")
+
+    mock_persist.assert_called_once()
+    mock_context.task_store.mark_completed.assert_called_once_with("1")
+
+
+@patch("egregora.agents.banner.worker.persist_banner_document")
+@patch("egregora.agents.banner.worker.BannerBatchProcessor")
+def test_run_success(mock_processor, mock_persist, mock_context):
+    """Should handle a successful banner generation."""
+    valid_task_payload = {"post_slug": "a-slug", "title": "A Title"}
+    tasks = [{"task_id": "1", "payload": json.dumps(valid_task_payload)}]
+    mock_context.task_store.fetch_pending.return_value = tasks
+
+    mock_generator = mock_processor.return_value
+    mock_result = Mock()
+    mock_result.success = True
+    mock_result.document = Mock()
+    mock_result.task = Mock()
+    mock_result.task.task_id = "1"
+    mock_generator.process_tasks.return_value = [mock_result]
+    mock_persist.return_value = "/path/to/banner.png"
+
+    worker = BannerWorker(mock_context)
+    result = worker.run()
+
+    assert result == 1
+
+    mock_generator.process_tasks.assert_called_once()
+    mock_persist.assert_called_once()
+    mock_context.task_store.mark_completed.assert_called_once_with("1")
+    mock_context.task_store.mark_failed.assert_not_called()
+
+
+@patch("egregora.agents.banner.worker.persist_banner_document")
+@patch("egregora.agents.banner.worker.BannerBatchProcessor")
+def test_run_with_failed_generation(mock_processor, mock_persist, mock_context):
+    """Should handle a failed banner generation."""
+    valid_task_payload = {"post_slug": "a-slug", "title": "A Title"}
+    tasks = [{"task_id": "1", "payload": json.dumps(valid_task_payload)}]
+    mock_context.task_store.fetch_pending.return_value = tasks
+
+    mock_generator = mock_processor.return_value
+    mock_result = Mock()
+    mock_result.success = False
+    mock_result.error = "Something went wrong"
+    mock_result.task = Mock()
+    mock_result.task.task_id = "1"
+    mock_generator.process_tasks.return_value = [mock_result]
+
+    worker = BannerWorker(mock_context)
+    result = worker.run()
+
+    assert result == 1
+
+    mock_generator.process_tasks.assert_called_once()
+    mock_persist.assert_not_called()
+    mock_context.task_store.mark_completed.assert_not_called()
+    mock_context.task_store.mark_failed.assert_called_once_with("1", "Something went wrong")
+
+
+@patch("egregora.agents.banner.worker.BannerBatchProcessor")
+def test_run_with_all_invalid_tasks(mock_processor, mock_context):
+    """Should handle a mix of valid and invalid tasks."""
+    tasks = [
+        {"task_id": "2"},
+        {"task_id": "3", "payload": json.dumps({"post_slug": "another-slug"})},
+    ]
+    mock_context.task_store.fetch_pending.return_value = tasks
+    mock_generator = mock_processor.return_value
+
+    worker = BannerWorker(mock_context)
+    result = worker.run()
+
+    assert result == 2
+
+    mock_generator.process_tasks.assert_not_called()
+    calls = mock_context.task_store.mark_failed.call_args_list
+    assert len(calls) == 2
+    assert calls[0].args == ("2", "Missing payload")
+    assert calls[1].args == ("3", "Missing slug/title")
+    mock_context.task_store.mark_completed.assert_not_called()
