@@ -4,6 +4,8 @@ from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
+from google import genai as genai_client
+from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 
 from egregora.llm.exceptions import (
     BatchJobFailedError,
@@ -103,3 +105,78 @@ class TestGoogleBatchModel:
             await model.request([], None, None)
 
         assert "No response returned for model" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_request_raises_usage_limit_exceeded_on_quota_error(self, model: GoogleBatchModel):
+        """
+        GIVEN a batch run that returns a quota error
+        WHEN request is called
+        THEN it should raise a UsageLimitExceeded error
+        """
+        mock_result = MagicMock()
+        mock_result.error = {"code": 429, "message": "Quota exceeded for model"}
+        mock_result.response = None
+        with patch.object(model, "run_batch", return_value=[mock_result]), pytest.raises(
+            UsageLimitExceeded
+        ) as exc_info:
+            await model.request([], None, None)
+
+        assert "Quota exceeded" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_request_raises_model_http_error_on_generic_error(self, model: GoogleBatchModel):
+        """
+        GIVEN a batch run that returns a generic error
+        WHEN request is called
+        THEN it should raise a ModelHTTPError
+        """
+        mock_result = MagicMock()
+        mock_result.error = {"code": 500, "message": "Internal Server Error"}
+        mock_result.response = None
+        with patch.object(model, "run_batch", return_value=[mock_result]), pytest.raises(
+            ModelHTTPError
+        ) as exc_info:
+            await model.request([], None, None)
+
+        assert "Internal Server Error" in str(exc_info.value)
+        assert exc_info.value.status_code == 500
+
+    def test_run_batch_raises_usage_limit_exceeded_on_quota_error(self, model: GoogleBatchModel):
+        """
+        GIVEN a ClientError with a 429 status code
+        WHEN run_batch is called
+        THEN it should raise a UsageLimitExceeded error
+        """
+        with patch("google.genai.errors.ClientError.__init__", return_value=None):
+            error = genai_client.errors.ClientError()
+            error.code = 429
+            error.message = "Quota exceeded"
+
+            mock_client_instance = MagicMock()
+            mock_client_instance.batches.create.side_effect = error
+            with patch.object(
+                genai_client, "Client", return_value=mock_client_instance
+            ), pytest.raises(UsageLimitExceeded) as exc_info:
+                model.run_batch([{"tag": "req-0", "contents": [], "config": {}}])
+
+            assert "Quota Exceeded" in str(exc_info.value)
+
+    def test_run_batch_raises_model_http_error_on_generic_error(self, model: GoogleBatchModel):
+        """
+        GIVEN a generic ClientError
+        WHEN run_batch is called
+        THEN it should raise a ModelHTTPError
+        """
+        with patch("google.genai.errors.ClientError.__init__", return_value=None):
+            error = genai_client.errors.ClientError("Internal Server Error")
+            error.code = 500
+
+            mock_client_instance = MagicMock()
+            mock_client_instance.batches.create.side_effect = error
+            with patch.object(
+                genai_client, "Client", return_value=mock_client_instance
+            ), pytest.raises(ModelHTTPError) as exc_info:
+                model.run_batch([{"tag": "req-0", "contents": [], "config": {}}])
+
+            assert "Internal Server Error" in str(exc_info.value)
+            assert exc_info.value.status_code == 500
