@@ -170,6 +170,7 @@ class TestWhatsAppParsing:
         assert excinfo.value.line == malformed_line
         assert isinstance(excinfo.value.original_error, DateParsingError)
 
+
     def test_parse_whatsapp_lines_raises_malformed_line_error_on_time_error(self) -> None:
         """Verify _parse_whatsapp_lines raises MalformedLineError on TimeParsingError."""
         mock_export = WhatsAppExport(
@@ -189,6 +190,7 @@ class TestWhatsAppParsing:
 
         assert excinfo.value.line == malformed_line
         assert isinstance(excinfo.value.original_error, TimeParsingError)
+
 
     def test_zip_message_source_raises_error_on_decode_error(
         self,
