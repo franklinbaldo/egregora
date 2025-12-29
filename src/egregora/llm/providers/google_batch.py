@@ -9,6 +9,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import httpx
+<<<<<<< HEAD
+=======
+from google import genai
+from google.genai import types
+>>>>>>> origin/essentialist/refactor-feed-creation-factory-method-9112-8197777158512917774
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models import Model, ModelRequestParameters, ModelSettings
