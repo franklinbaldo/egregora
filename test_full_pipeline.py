@@ -46,7 +46,6 @@ def test_full_pipeline_with_openrouter() -> bool | None:
         ),
     )
 
-    print("\nChecking optional dependencies...")
     pytest.importorskip(
         "google.generativeai",
         reason=(
@@ -61,7 +60,6 @@ def test_full_pipeline_with_openrouter() -> bool | None:
             "install it to exercise the full pipeline."
         ),
     )
-    print("✓ Optional dependencies available")
 
     # Try to import the pipeline (this will test if dependencies work)
     try:

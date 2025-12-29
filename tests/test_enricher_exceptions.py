@@ -1,11 +1,13 @@
 """Test for file staging exceptions in the EnrichmentWorker."""
-import pytest
-from unittest.mock import Mock, patch
-from pathlib import Path
 import zipfile
+from pathlib import Path
+from unittest.mock import Mock
+
+import pytest
 
 from egregora.agents.enricher import EnrichmentWorker
 from egregora.agents.exceptions import MediaStagingError
+
 
 class MockPipelineContext:
     """Mock context for testing."""

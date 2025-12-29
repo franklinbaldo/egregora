@@ -3,7 +3,9 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+
+import pytest
 
 from egregora.agents.enricher import EnrichmentWorker, _normalize_slug, load_file_as_binary_content
 from egregora.agents.exceptions import MediaStagingError
@@ -36,7 +38,7 @@ class TestEnrichmentWorkerStageFile(unittest.TestCase):
 
         self.assertTrue(staged_path.exists())
         self.assertIn("123_test_file.txt", str(staged_path))
-        with open(staged_path, "r") as f:
+        with open(staged_path) as f:
             self.assertEqual(f.read(), "some content")
         worker.close()
 
@@ -47,7 +49,7 @@ class TestEnrichmentWorkerStageFile(unittest.TestCase):
         task = {"task_id": "123"}
         payload = {"filename": "test_file.txt"}
 
-        with self.assertRaises(MediaStagingError):
+        with pytest.raises(MediaStagingError):
             worker._stage_file(task, payload)
         worker.close()
 
@@ -61,7 +63,7 @@ class TestEnrichmentWorkerStageFile(unittest.TestCase):
         task = {"task_id": "123"}
         payload = {"filename": "test_file.txt"}
 
-        with self.assertRaises(MediaStagingError):
+        with pytest.raises(MediaStagingError):
             worker._stage_file(task, payload)
         worker.close()
 
@@ -75,7 +77,7 @@ class TestEnrichmentWorkerStageFile(unittest.TestCase):
         task = {"task_id": "123"}
         payload = {}  # Empty payload
 
-        with self.assertRaises(MediaStagingError):
+        with pytest.raises(MediaStagingError):
             worker._stage_file(task, payload)
         worker.close()
 
@@ -118,20 +120,20 @@ class TestNormalizeSlug(unittest.TestCase):
         self.assertEqual(_normalize_slug("A Valid Slug", "id"), "a-valid-slug")
 
     def test_normalize_slug_none(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             _normalize_slug(None, "id")
 
     def test_normalize_slug_empty(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             _normalize_slug("  ", "id")
 
     def test_normalize_slug_invalid_after_slugify(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             _normalize_slug("!@#$", "id")
 
     def test_normalize_slug_post_is_invalid(self):
         """Test that 'post' is considered an invalid slug after normalization."""
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             _normalize_slug("post", "some-identifier")
 
 
@@ -152,14 +154,14 @@ class TestLoadFileAsBinaryContent(unittest.TestCase):
         self.assertEqual(binary_content.media_type, "text/plain")
 
     def test_load_file_as_binary_content_file_not_found(self):
-        with self.assertRaises(FileNotFoundError):
+        with pytest.raises(FileNotFoundError):
             load_file_as_binary_content(Path(self.temp_dir.name) / "non_existent.txt")
 
     def test_load_file_as_binary_content_file_too_large(self):
         with open(self.test_file, "wb") as f:
             f.write(b"a" * (21 * 1024 * 1024))  # 21MB
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             load_file_as_binary_content(self.test_file, max_size_mb=20)
 
 

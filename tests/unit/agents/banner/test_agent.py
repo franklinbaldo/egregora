@@ -1,10 +1,8 @@
-import logging
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-import pytest
 from google.api_core import exceptions as google_exceptions
 
-from egregora.agents.banner.agent import generate_banner, is_banner_generation_available, BannerOutput
+from egregora.agents.banner.agent import generate_banner, is_banner_generation_available
 from egregora.agents.banner.image_generation import ImageGenerationResult
 
 
