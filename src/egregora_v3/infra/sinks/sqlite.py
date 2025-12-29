@@ -2,10 +2,26 @@
 
 import json
 import sqlite3
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
 from egregora_v3.core.types import Document, Feed
+
+
+TABLE_SCHEMA = OrderedDict([
+    ("id", "TEXT PRIMARY KEY"),
+    ("title", "TEXT NOT NULL"),
+    ("content", "TEXT"),
+    ("summary", "TEXT"),
+    ("doc_type", "TEXT NOT NULL"),
+    ("status", "TEXT NOT NULL"),
+    ("published", "TEXT"),
+    ("updated", "TEXT NOT NULL"),
+    ("authors", "TEXT"),
+    ("categories", "TEXT"),
+    ("links", "TEXT"),
+])
 
 
 def _document_to_record(doc: Document) -> dict[str, Any]:
@@ -68,43 +84,14 @@ class SQLiteOutputSink:
         conn.close()
 
     def _create_table(self, cursor: sqlite3.Cursor) -> None:
-        """Create the documents table."""
-        cursor.execute("""
-            CREATE TABLE documents (
-                id TEXT PRIMARY KEY,
-                title TEXT NOT NULL,
-                content TEXT,
-                summary TEXT,
-                doc_type TEXT NOT NULL,
-                status TEXT NOT NULL,
-                published TEXT,
-                updated TEXT NOT NULL,
-                authors TEXT,
-                categories TEXT,
-                links TEXT
-            )
-        """)
+        """Create the documents table from TABLE_SCHEMA."""
+        columns = ", ".join(f"{name} {dtype}" for name, dtype in TABLE_SCHEMA.items())
+        cursor.execute(f"CREATE TABLE documents ({columns})")
 
     def _insert_record(self, cursor: sqlite3.Cursor, record: dict[str, Any]) -> None:
         """Insert a single document record into the database."""
-        cursor.execute(
-            """
-            INSERT INTO documents (
-                id, title, content, summary, doc_type, status,
-                published, updated, authors, categories, links
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                record["id"],
-                record["title"],
-                record["content"],
-                record["summary"],
-                record["doc_type"],
-                record["status"],
-                record["published"],
-                record["updated"],
-                record["authors"],
-                record["categories"],
-                record["links"],
-            ),
-        )
+        columns = ", ".join(TABLE_SCHEMA.keys())
+        placeholders = ", ".join("?" for _ in TABLE_SCHEMA)
+        values = tuple(record[key] for key in TABLE_SCHEMA)
+
+        cursor.execute(f"INSERT INTO documents ({columns}) VALUES ({placeholders})", values)
