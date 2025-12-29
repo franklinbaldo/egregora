@@ -41,7 +41,7 @@ The generated site has a broken navigation link for "Media". This creates a poor
 2. **Ensure file generation**: Confirm that the corresponding media index file is being correctly generated in the `docs` directory during the site build.
 **Verification**: The "Media" link in the main navigation must resolve to a valid, styled page without any 404 errors.
 """
-status = "pending"
+status = "review"
 category = "navigation"
 assignee = "forge"
 

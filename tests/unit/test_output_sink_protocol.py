@@ -24,6 +24,7 @@ def test_finalize_window_signature(tmp_path: Path) -> None:
     try:
         adapter.finalize_window(
             window_label="test_window",
+            posts_created=["post1"],
             profiles_updated=["profile1"],
             metadata={},
         )

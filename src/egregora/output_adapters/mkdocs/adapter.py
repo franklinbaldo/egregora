@@ -37,6 +37,7 @@ from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.exceptions import (
     AdapterNotInitializedError,
+    CollisionResolutionError,
     ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
@@ -996,8 +997,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Ensure UUID is in metadata
         author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
         if not author_uuid:
-            msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
-            raise ValueError(msg)
+            raise ProfileMetadataError(document.document_id, "'uuid' or 'author_uuid'")
 
         # Use standard frontmatter writing logic
         metadata = dict(document.metadata or {})
@@ -1025,14 +1025,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             for post in author_posts_docs
         ]
 
-        # Prepend avatar using MkDocs macros syntax
-        # This matches the logic in profiles.py but ensures it happens even when writing via adapter
-        # Note: We use double braces {{ }} for Jinja2 syntax, so in f-string we need quadruple braces {{{{ }}}}
-        content_with_avatar = (
-            f"![Avatar]({{{{ page.meta.avatar }}}}){{ align=left width=150 }}\n\n{document.content}"
-        )
-
-        full_content = f"---\n{yaml_front}---\n\n{content_with_avatar}"
+        # Avatar is in frontmatter only - not prepended to content
+        # This allows the template/theme to handle avatar rendering
+        full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
     def _write_enrichment_doc(self, document: Document, path: Path) -> None:
@@ -1151,8 +1146,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             counter += 1
             max_attempts = 1000
             if counter > max_attempts:
-                msg = f"Failed to resolve collision for {path} after {max_attempts} attempts"
-                raise RuntimeError(msg)
+                raise CollisionResolutionError(str(path), max_attempts)
 
     # ============================================================================
     # Phase 2: Dynamic Data Population for UX Templates

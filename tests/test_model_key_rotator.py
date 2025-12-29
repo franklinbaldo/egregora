@@ -2,6 +2,7 @@
 
 import logging
 
+from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.llm.providers.model_cycler import GeminiKeyRotator
 from egregora.llm.providers.model_key_rotator import ModelKeyRotator
 
@@ -70,8 +71,14 @@ def test_model_key_rotator_fails_when_all_exhausted():
         rotator.call_with_rotation(always_fails)
         msg = "Should have raised exception"
         raise AssertionError(msg)
-    except RuntimeError as exc:
-        assert "429" in str(exc)
+    except AllModelsExhaustedError as exc:
+        # Should have the wrapper message
+        assert "All models and keys exhausted" in str(exc)
+        # Should preserve the underlying cause
+        assert exc.causes
+        assert len(exc.causes) == 1
+        assert isinstance(exc.causes[0], RuntimeError)
+        assert "429" in str(exc.causes[0])
 
 
 def test_model_key_rotator_succeeds_on_first_try():

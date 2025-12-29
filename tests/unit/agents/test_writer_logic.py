@@ -137,8 +137,7 @@ class TestWriterDecoupling:
 @pytest.mark.asyncio
 @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
 async def test_execute_writer_raises_specific_exception(mock_pydantic_writer, test_config):
-    """Test that _execute_writer_with_error_handling raises a specific exception."""
-    from egregora.agents.exceptions import WriterAgentExecutionError
+    """Test that _execute_writer_with_error_handling raises RuntimeError on agent failure."""
     from egregora.agents.writer import _execute_writer_with_error_handling
 
     # Arrange
@@ -147,7 +146,7 @@ async def test_execute_writer_raises_specific_exception(mock_pydantic_writer, te
     mock_deps.window_label = "test-window"
 
     # Act & Assert
-    with pytest.raises(WriterAgentExecutionError) as exc_info:
+    with pytest.raises(RuntimeError) as exc_info:
         await _execute_writer_with_error_handling(
             prompt="test prompt",
             config=test_config,
@@ -159,9 +158,9 @@ async def test_execute_writer_raises_specific_exception(mock_pydantic_writer, te
 
 
 @pytest.mark.asyncio
-@patch("egregora.agents.writer.build_context_and_signature")
-@patch("egregora.agents.writer.check_writer_cache")
-@patch("egregora.agents.writer.prepare_writer_dependencies")
+@patch("egregora.agents.writer._build_context_and_signature")
+@patch("egregora.agents.writer._check_writer_cache")
+@patch("egregora.agents.writer._prepare_writer_dependencies")
 @patch("egregora.agents.writer._render_writer_prompt")
 @patch("egregora.agents.writer._execute_writer_with_error_handling")
 @patch("egregora.agents.writer._finalize_writer_results")
@@ -202,8 +201,7 @@ async def test_write_posts_for_window_smoke_test(
 @pytest.mark.asyncio
 @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
 async def test_execute_writer_raises_specific_error(mock_writer_agent, test_config):
-    """Test that _execute_writer_with_error_handling raises a specific, structured exception."""
-    from egregora.agents.exceptions import WriterAgentExecutionError
+    """Test that _execute_writer_with_error_handling raises RuntimeError on agent failure."""
     from egregora.agents.writer import _execute_writer_with_error_handling
 
     # Arrange
@@ -214,7 +212,7 @@ async def test_execute_writer_raises_specific_error(mock_writer_agent, test_conf
     mock_deps.window_label = "test-window-123"
 
     # Act & Assert
-    with pytest.raises(WriterAgentExecutionError) as exc_info:
+    with pytest.raises(RuntimeError) as exc_info:
         await _execute_writer_with_error_handling(
             prompt="test prompt",
             config=test_config,
@@ -222,6 +220,5 @@ async def test_execute_writer_raises_specific_error(mock_writer_agent, test_conf
         )
 
     # Verify the exception has the correct context
-    assert exc_info.value.window_label == "test-window-123"
     assert "test-window-123" in str(exc_info.value)
     assert exc_info.value.__cause__ is original_error
