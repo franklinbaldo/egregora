@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python environment
         id: setup_uv
@@ -75,7 +75,7 @@ jobs:
     if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true') }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python environment
         id: setup_uv
@@ -139,7 +139,7 @@ jobs:
     if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true') }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python environment
         id: setup_uv
@@ -207,7 +207,7 @@ jobs:
       security-events: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python environment
         id: setup_uv
@@ -253,7 +253,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python environment
         id: setup_uv
@@ -293,7 +293,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python environment
         id: setup_uv
