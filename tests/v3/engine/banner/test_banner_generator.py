@@ -158,3 +158,29 @@ def test_gemini_v3_banner_generator_handles_no_mime_type(
     assert result.image_bytes == b"test_image_bytes"
     assert result.mime_type == "image/png"  # Should fallback to default
     assert result.error is None
+
+
+def test_gemini_v3_banner_generator_handles_no_image_data(
+    mock_genai_client: MagicMock,
+):
+    """Verify generator returns an error if the response contains no image data."""
+    # Setup
+    generator = GeminiV3BannerGenerator(client=mock_genai_client)
+    request = ImageGenerationRequest(
+        prompt="A test prompt", response_modalities=["IMAGE"]
+    )
+
+    mock_generated_image = Mock()
+    mock_generated_image.image = None  # No image data
+
+    mock_response = Mock()
+    mock_response.generated_images = [mock_generated_image]
+    mock_genai_client.models.generate_images.return_value = mock_response
+
+    # Execute
+    result = generator.generate(request)
+
+    # Verify
+    assert result.image_bytes is None
+    assert result.error == "No images returned"
+    assert result.error_code == "NO_IMAGE"

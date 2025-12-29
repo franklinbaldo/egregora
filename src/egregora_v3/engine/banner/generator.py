@@ -84,6 +84,14 @@ class GeminiV3BannerGenerator(ImageGenerationProvider):
             )
 
         generated_image = response.generated_images[0]
+        if not generated_image.image:
+            return ImageGenerationResult(
+                image_bytes=None,
+                mime_type=None,
+                error="No images returned",
+                error_code="NO_IMAGE",
+            )
+
         image_data = generated_image.image.image_bytes
         mime_type = generated_image.image.mime_type or "image/png"
 
