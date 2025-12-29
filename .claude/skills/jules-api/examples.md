@@ -5,7 +5,7 @@
 ### 1. Setup Authentication
 
 ```bash
-# Get your API key from https://jules.google.com/settings#api
+# Get your API key from https://jules.google/settings#api
 # Then export it as an environment variable
 export JULES_API_KEY="your-api-key-here"
 

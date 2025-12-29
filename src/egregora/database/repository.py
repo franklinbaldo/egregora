@@ -156,6 +156,8 @@ class ContentRepository:
         return _list_all_generator()
 
     def _get_table_for_type(self, doc_type: DocumentType) -> str:
+        if not isinstance(doc_type, DocumentType):
+            raise UnsupportedDocumentTypeError(str(doc_type))
         mapping = {
             DocumentType.POST: "posts",
             DocumentType.PROFILE: "profiles",

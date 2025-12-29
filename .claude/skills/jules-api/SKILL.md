@@ -293,7 +293,7 @@ curl https://jules.googleapis.com/v1alpha/sessions/abc123/activities \
 To use the Jules API, you need an API key:
 
 1. **Get your API key**:
-   - Visit https://jules.google.com/settings#api
+   - Visit https://jules.google/settings#api
    - Create a new API key (max 3 keys allowed)
    - Copy the API key
 
