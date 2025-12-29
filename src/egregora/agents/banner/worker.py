@@ -7,6 +7,11 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from egregora.agents.banner.batch_processor import BannerBatchProcessor, BannerTaskEntry
+from egregora.agents.exceptions import (
+    BannerError,
+    BannerTaskDataError,
+    BannerTaskPayloadError,
+)
 from egregora.orchestration.persistence import persist_banner_document
 from egregora.orchestration.worker_base import BaseWorker
 
@@ -30,13 +35,14 @@ class BannerWorker(BaseWorker):
 
         parsed_tasks: list[BannerTaskEntry] = []
         invalid = 0
-
         for task in tasks:
-            entry = self._parse_task(task)
-            if entry is None:
+            try:
+                entry = self._parse_task(task)
+                parsed_tasks.append(entry)
+            except BannerError as e:
+                logger.warning("Invalid banner task %s: %s", task.get("task_id", "N/A"), e)
                 invalid += 1
                 continue
-            parsed_tasks.append(entry)
 
         if not parsed_tasks:
             return invalid
@@ -65,31 +71,34 @@ class BannerWorker(BaseWorker):
 
         return processed + invalid
 
-    def _parse_task(self, task: dict[str, Any]) -> BannerTaskEntry | None:
+    def _parse_task(self, task: dict[str, Any]) -> BannerTaskEntry:
         task_id = str(task.get("task_id", ""))
         raw_payload = task.get("payload")
 
         if not raw_payload:
-            logger.warning("Task %s missing payload", task_id)
-            self.task_store.mark_failed(task.get("task_id"), "Missing payload")
-            return None
+            self.task_store.mark_failed(task_id, "Missing payload")
+            raise BannerTaskPayloadError(task_id, "Missing payload")
 
         payload = raw_payload
         if isinstance(raw_payload, str):
             try:
                 payload = json.loads(raw_payload)
             except json.JSONDecodeError as exc:
-                logger.warning("Invalid banner payload for %s: %s", task_id, exc)
-                self.task_store.mark_failed(task.get("task_id"), "Invalid payload JSON")
-                return None
+                self.task_store.mark_failed(task_id, "Invalid payload JSON")
+                raise BannerTaskPayloadError(task_id, "Invalid payload JSON") from exc
 
         post_slug = payload.get("post_slug")
         title = payload.get("title")
 
-        if not post_slug or not title:
-            logger.warning("Banner task %s missing slug/title", task_id)
-            self.task_store.mark_failed(task.get("task_id"), "Missing slug/title")
-            return None
+        missing_fields = []
+        if not post_slug:
+            missing_fields.append("post_slug")
+        if not title:
+            missing_fields.append("title")
+
+        if missing_fields:
+            self.task_store.mark_failed(task_id, "Missing slug/title")
+            raise BannerTaskDataError(task_id, missing_fields)
 
         summary = payload.get("summary") or ""
         language = payload.get("language") or "pt-BR"

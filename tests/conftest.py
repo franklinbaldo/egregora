@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import sys
 import zipfile
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-import sys
 from types import ModuleType, SimpleNamespace
 from zoneinfo import ZoneInfo
 
@@ -52,11 +52,9 @@ def stub_google_generativeai():
 
     exceptions_module = ModuleType("google.api_core.exceptions")
 
-    class GoogleAPICallError(Exception):
-        ...
+    class GoogleAPICallError(Exception): ...
 
-    class ResourceExhausted(GoogleAPICallError):
-        ...
+    class ResourceExhausted(GoogleAPICallError): ...
 
     exceptions_module.GoogleAPICallError = GoogleAPICallError
     exceptions_module.ResourceExhausted = ResourceExhausted
@@ -65,8 +63,7 @@ def stub_google_generativeai():
     genai_module = ModuleType("google.generativeai")
 
     class Client:
-        def __init__(self, *args, **kwargs):
-            ...
+        def __init__(self, *args, **kwargs): ...
 
     genai_module.Client = Client
 

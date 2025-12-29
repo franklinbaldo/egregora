@@ -31,8 +31,10 @@ class TestAnnotationStorePersistence:
         mock_output_sink = MagicMock()
 
         # Patch the database schema functions used during initialization
-        with patch('egregora.agents.shared.annotations.database_schema.create_table_if_not_exists'), \
-             patch('egregora.agents.shared.annotations.database_schema.add_primary_key'):
+        with (
+            patch("egregora.agents.shared.annotations.database_schema.create_table_if_not_exists"),
+            patch("egregora.agents.shared.annotations.database_schema.add_primary_key"),
+        ):
             store = AnnotationStore(storage=mock_storage, output_sink=mock_output_sink)
 
         annotation = store.save_annotation(
@@ -69,8 +71,12 @@ class TestAnnotationStorePersistence:
         # Mock connection and cursor for SQL execution
         mock_cursor = MagicMock()
         mock_cursor.description = [
-            ("id",), ("parent_id",), ("parent_type",),
-            ("author",), ("commentary",), ("created_at",)
+            ("id",),
+            ("parent_id",),
+            ("parent_type",),
+            ("author",),
+            ("commentary",),
+            ("created_at",),
         ]
         mock_cursor.fetchall.return_value = [
             (1, "msg-1", "message", "egregora", "test annotation", datetime.now(UTC))
@@ -81,8 +87,10 @@ class TestAnnotationStorePersistence:
         mock_storage.connection.return_value.__enter__.return_value = mock_conn
 
         # Patch the database schema functions used during initialization
-        with patch('egregora.agents.shared.annotations.database_schema.create_table_if_not_exists'), \
-             patch('egregora.agents.shared.annotations.database_schema.add_primary_key'):
+        with (
+            patch("egregora.agents.shared.annotations.database_schema.create_table_if_not_exists"),
+            patch("egregora.agents.shared.annotations.database_schema.add_primary_key"),
+        ):
             store = AnnotationStore(storage=mock_storage)
 
         annotations = store.list_annotations_for_message("msg-1")

@@ -23,7 +23,7 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'failure' || github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
@@ -39,7 +39,7 @@ jobs:
           set -euo pipefail
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "pr_number=${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
-            echo "is_jules=true" >> $GITHUB_OUTPUT
+            echo "has_pr=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -60,29 +60,25 @@ jobs:
 
           if [[ -z "$PR_URL" ]]; then
             echo "No pull request associated with this workflow_run; skipping Jules auto-fix."
-            echo "is_jules=false" >> $GITHUB_OUTPUT
+            echo "has_pr=false" >> $GITHUB_OUTPUT
             exit 0
           fi
 
           PR_JSON=$(curl -s -H "Authorization: Bearer $GH_TOKEN" "$PR_URL")
-          PR_USER=$(echo "$PR_JSON" | jq -r '.user.login // empty')
           PR_NUMBER=$(echo "$PR_JSON" | jq -r '.number // empty')
 
           if [[ -z "$PR_NUMBER" ]]; then
             echo "Failed to determine PR number from $PR_URL"
-            echo "is_jules=false" >> $GITHUB_OUTPUT
+            echo "has_pr=false" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          if [[ "$PR_USER" == "google-labs-jules[bot]" ]]; then
-            echo "is_jules=true" >> $GITHUB_OUTPUT
-            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-          else
-            echo "is_jules=false" >> $GITHUB_OUTPUT
-          fi
+          # Run auto-fix for ALL PRs (not just Jules PRs)
+          echo "has_pr=true" >> $GITHUB_OUTPUT
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
 
       - name: Trigger Jules Auto-Fix
-        if: steps.pr-info.outputs.is_jules == 'true'
+        if: steps.pr-info.outputs.has_pr == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # For gh CLI to post comments

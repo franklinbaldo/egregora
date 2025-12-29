@@ -1,10 +1,11 @@
 """Jules Auto-Fixer."""
 
+import os
 import subprocess
 from typing import Any
 
 from jules.client import JulesClient
-from jules.github import fetch_failed_logs_summary, get_pr_details_via_gh
+from jules.github import fetch_failed_logs_summary, get_base_sha, get_pr_details_via_gh
 
 
 def post_pr_comment(pr_number: int, comment: str, repo_path: str = ".") -> None:
@@ -60,20 +61,104 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
         "- **You are a senior developer:** Trust your experience - ship working code confidently\n"
     )
 
-    # Only send message to existing session - never create new sessions
+    # Decision point: Send message to existing session OR create new session
     if not session_id:
-        comment = (
-            "## 🤖 Auto-Fix: Skipped\n\n"
-            "⚠️ **No session ID found** - This PR was not created by Jules or the session ID could not be extracted.\n\n"
-            "Auto-fix only works with PRs created by Jules that have an associated session ID."
-        )
-        post_pr_comment(pr_number, comment)
+        # PR is NOT from Jules - create a new session to fix it
+        print(f"📋 No session_id found - creating NEW Jules session for PR #{pr_number}")
 
-        return {
-            "status": "skipped",
-            "message": f"No session_id found for PR #{pr_number}. Auto-fix only works with existing Jules sessions.",
-            "branch": details["branch"],
-        }
+        # Get repo info from environment
+        repo_full = os.environ.get("GITHUB_REPOSITORY", "franklinbaldo/egregora")
+        owner, repo = repo_full.split("/") if "/" in repo_full else ("franklinbaldo", "egregora")
+
+        # Get base branch SHA for context
+        base_sha = get_base_sha(details["base_branch"], repo_path=repo_root)
+        files_list = "\n".join([f"- `{f}`" for f in details["changed_files"]])
+
+        # Construct comprehensive prompt with all PR details and errors
+        new_session_prompt = (
+            f"# Fix Pull Request #{pr_number}: {details['title']}\n\n"
+            f"## Context\n"
+            f"- **PR Number**: #{pr_number}\n"
+            f"- **Current Branch**: `{details['branch']}`\n"
+            f"- **Base Branch**: `{details['base_branch']}`\n"
+            f"- **Base Branch Current SHA**: `{base_sha}`\n"
+            f"- **Author**: {details.get('author', {}).get('login', 'Unknown')}\n\n"
+            f"## Changed Files\n"
+            f"{files_list}\n\n"
+            f"## Original PR Description\n"
+            f"{details['body'] or '_(No description provided)_'}\n\n"
+            f"## Problems to Fix\n"
+            f"{feedback}"
+            f"{autonomous_instruction}\n\n"
+            f"## Your Task\n"
+            f"1. Checkout the branch `{details['branch']}`\n"
+            f"2. Investigate the failures and conflicts\n"
+            f"3. Fix all issues\n"
+            f"4. Run tests to verify fixes\n"
+            f"5. Push your updates to the same branch\n\n"
+            f"Start by checking out the branch and understanding the changes."
+        )
+
+        # Create new session
+        try:
+            new_session = client.create_session(
+                prompt=new_session_prompt,
+                owner=owner,
+                repo=repo,
+                branch=details["branch"],
+                title=f"🔧 Auto-Fix PR #{pr_number}: {details['title'][:60]}",
+                automation_mode="AUTO_CREATE_PR",
+                require_plan_approval=False,
+            )
+
+            new_session_id = new_session.get("name", "").split("/")[-1] if new_session.get("name") else "unknown"
+            print(f"✅ Created new session: {new_session_id}")
+
+            # Post success comment
+            comment = (
+                f"## 🤖 Auto-Fix: New Session Created\n\n"
+                f"✅ **Jules session created to fix this PR**\n\n"
+                f"- **Session ID**: `{new_session_id}`\n"
+                f"- **Branch**: `{details['branch']}`\n\n"
+                f"### Issues to Fix:\n\n"
+                f"{feedback}\n\n"
+                f"Jules will:\n"
+                f"1. Check out your branch\n"
+                f"2. Investigate the failures\n"
+                f"3. Fix the issues\n"
+                f"4. Push updates to this branch\n\n"
+                f"Track progress at: https://jules.google.com/session/{new_session_id}"
+            )
+            post_pr_comment(pr_number, comment)
+
+            return {
+                "status": "success",
+                "action": "created_new_session",
+                "session_id": new_session_id,
+                "branch": details["branch"],
+            }
+        except Exception as e:
+            error_msg = f"Failed to create new session for PR #{pr_number}: {e!s}"
+            print(f"❌ {error_msg}")
+
+            comment = (
+                f"## 🤖 Auto-Fix: Failed to Create Session\n\n"
+                f"❌ **Error creating Jules session**\n\n"
+                f"- **Error**: {e!s}\n\n"
+                f"The auto-fixer tried to create a new Jules session to fix this PR, "
+                f"but encountered an error. This could be due to:\n"
+                f"- Jules API unavailable\n"
+                f"- Authentication issues\n"
+                f"- Rate limiting\n\n"
+                f"Check the workflow logs for more details."
+            )
+            post_pr_comment(pr_number, comment)
+
+            return {
+                "status": "error",
+                "error_type": "create_session_failed",
+                "message": error_msg,
+            }
 
     # Step 1: Get the session (separate error handling)
     try:
@@ -119,7 +204,7 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
             f"### Message Sent:\n\n"
             f"> {feedback}\n\n"
             f"Jules will process this request and update the PR. "
-            f"Check the [Jules session](https://jules.google.com) for progress."
+            f"Check the [Jules session](https://jules.google.com/session/{session_id}) for progress."
         )
         post_pr_comment(pr_number, comment)
 

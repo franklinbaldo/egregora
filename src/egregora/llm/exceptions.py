@@ -1,30 +1,37 @@
-"""Custom exceptions for LLM providers."""
+"""Custom exceptions for LLM provider interactions."""
 
 
 class LLMProviderError(Exception):
-    """Base exception for LLM provider errors."""
+    """Base exception for all LLM provider related errors."""
 
 
-class RotatingFallbackError(LLMProviderError):
-    """Base exception for errors in the rotating fallback model."""
+class BatchJobError(LLMProviderError):
+    """Base exception for errors related to batch job processing."""
+
+    def __init__(self, message: str, job_name: str | None = None) -> None:
+        self.job_name = job_name
+        super().__init__(f"{message}. Job: {job_name}" if job_name else message)
 
 
-class AllModelsExhaustedError(RotatingFallbackError):
-    """Raised when all models in the fallback rotation are exhausted."""
+class BatchJobFailedError(BatchJobError):
+    """Exception raised when a batch job completes in a failed state."""
 
-    def __init__(self, message: str, causes: list[Exception] | None = None) -> None:
-        """Initialize with a list of underlying causes."""
-        self.causes = causes or []
-        super().__init__(message)
-
-    def __str__(self) -> str:
-        """Append causes to the string representation."""
-        base_msg = super().__str__()
-        if not self.causes:
-            return base_msg
-        causes_str = ", ".join(f"{type(e).__name__}: {e}" for e in self.causes)
-        return f"{base_msg}\nUnderlying causes: [{causes_str}]"
+    def __init__(self, message: str, job_name: str | None = None, error_payload: dict | None = None) -> None:
+        self.error_payload = error_payload
+        super().__init__(message, job_name)
 
 
-class InvalidConfigurationError(RotatingFallbackError):
-    """Raised when the rotating fallback model is misconfigured."""
+class BatchJobTimeoutError(BatchJobError):
+    """Exception raised when polling a batch job for completion times out."""
+
+
+class BatchResultDownloadError(LLMProviderError):
+    """Exception raised when results of a batch job cannot be downloaded."""
+
+    def __init__(self, message: str, url: str) -> None:
+        self.url = url
+        super().__init__(f"{message}. URL: {url}")
+
+
+class InvalidLLMResponseError(LLMProviderError):
+    """Exception raised when the LLM response is empty or invalid."""

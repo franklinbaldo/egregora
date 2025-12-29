@@ -537,7 +537,7 @@ class DuckDBStorageManager:
             state = self.get_sequence_state(name)
             logger.debug("Sequence %s verified (start=%d)", name, state.start_value)
         except SequenceNotFoundError as e:
-            logger.error("Failed to create sequence %s - sequence not found after creation", name)
+            logger.exception("Failed to create sequence %s - sequence not found after creation", name)
             raise SequenceCreationError(name) from e
 
     def get_sequence_state(self, name: str) -> SequenceState:
@@ -545,6 +545,7 @@ class DuckDBStorageManager:
 
         Raises:
             SequenceNotFoundError: If the sequence does not exist.
+
         """
         row = self._conn.execute(
             """

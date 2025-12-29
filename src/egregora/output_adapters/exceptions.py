@@ -146,3 +146,51 @@ class TagsPageGenerationError(OutputAdapterError):
     def __init__(self, reason: str) -> None:
         self.reason = reason
         super().__init__(f"Failed to regenerate tags page: {reason}")
+
+
+class ScaffoldingError(OutputAdapterError):
+    """Base class for errors during site scaffolding."""
+
+
+class TemplateRenderingError(ScaffoldingError):
+    """Raised when a Jinja2 template fails to render."""
+
+    def __init__(self, template_name: str, reason: str) -> None:
+        self.template_name = template_name
+        self.reason = reason
+        super().__init__(f"Failed to render template '{template_name}': {reason}")
+
+
+class FileSystemScaffoldError(ScaffoldingError):
+    """Raised when a file system operation fails during scaffolding."""
+
+    def __init__(self, path: str, operation: str, reason: str) -> None:
+        self.path = path
+        self.operation = operation
+        self.reason = reason
+        super().__init__(f"File system operation '{operation}' failed at '{path}': {reason}")
+
+
+class PathResolutionError(ScaffoldingError):
+    """Raised when site paths cannot be resolved."""
+
+    def __init__(self, site_root: str, reason: str) -> None:
+        self.site_root = site_root
+        self.reason = reason
+        super().__init__(f"Failed to resolve paths for site at '{site_root}': {reason}")
+
+
+class SiteNotSupportedError(ScaffoldingError):
+    """Raised when site discovery fails because the directory is not a supported site type."""
+
+    def __init__(self, site_root: str, reason: str | None = None) -> None:
+        self.site_root = site_root
+        self.reason = reason
+        message = f"Directory '{site_root}' is not a supported site"
+        if reason:
+            message += f": {reason}"
+        super().__init__(message)
+
+
+class ScaffoldConfigLoadError(ConfigLoadError, ScaffoldingError):
+    """Raised when config loading fails during a scaffolding operation."""

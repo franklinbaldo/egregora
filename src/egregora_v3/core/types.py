@@ -5,6 +5,7 @@ import uuid
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
+from xml.etree.ElementTree import Element, register_namespace, SubElement, tostring
 
 from markdown_it import MarkdownIt
 from pydantic import BaseModel, Field, model_validator
@@ -120,15 +121,6 @@ class Entry(BaseModel):
             for link in self.links
         )
 
-    def render_content_as_html(self, md: MarkdownIt | None = None):
-        """Renders markdown content to HTML in-place."""
-        if self.content and (
-            self.content_type is None or "markdown" in self.content_type.lower()
-        ):
-            md_engine = md or MarkdownIt("commonmark", {"html": True})
-            self.content = md_engine.render(self.content).strip()
-            self.content_type = "html"
-
 
 # --- Application Domain ---
 
@@ -219,28 +211,99 @@ class Feed(BaseModel):
     authors: list[Author] = Field(default_factory=list)
     links: list[Link] = Field(default_factory=list)
 
-    def get_published_documents(self) -> list[Document]:
-        """Filters the feed's entries and returns only published Documents."""
-        return [
-            entry
-            for entry in self.entries
-            if isinstance(entry, Document) and entry.status == DocumentStatus.PUBLISHED
-        ]
+    def to_xml(self) -> str:
+        """Serialize the feed to an Atom XML string."""
+        # Create the root element with namespaces
+        root = Element("feed")
+        root.set("xmlns", "http://www.w3.org/2005/Atom")
+        root.set("xmlns:thr", "http://purl.org/syndication/thread/1.0")
 
+        # --- Feed Metadata ---
+        SubElement(root, "id").text = self.id
+        SubElement(root, "title").text = self.title
+        SubElement(root, "updated").text = self.updated.isoformat().replace("+00:00", "Z")
 
-def documents_to_feed(
-    docs: list[Document],
-    feed_id: str,
-    title: str,
-    authors: list[Author] | None = None,
-) -> Feed:
-    """Aggregates documents into a valid Atom Feed."""
-    if not docs:
-        updated = datetime.now(UTC)
-    else:
-        updated = max(doc.updated for doc in docs)
+        for author in self.authors:
+            author_elem = SubElement(root, "author")
+            SubElement(author_elem, "name").text = author.name
+            if author.email:
+                SubElement(author_elem, "email").text = author.email
 
-    # Sort documents by updated timestamp descending (newest first)
-    sorted_docs = sorted(docs, key=lambda d: d.updated, reverse=True)
+        for link in self.links:
+            link_elem = SubElement(root, "link", attrib={"href": link.href})
+            if link.rel:
+                link_elem.set("rel", link.rel)
+            if link.type:
+                link_elem.set("type", link.type)
 
-    return Feed(id=feed_id, title=title, updated=updated, authors=authors or [], entries=sorted_docs)
+        # --- Entries ---
+        for entry in self.entries:
+            entry_elem = SubElement(root, "entry")
+            SubElement(entry_elem, "id").text = entry.id
+            SubElement(entry_elem, "title").text = entry.title
+            SubElement(entry_elem, "updated").text = entry.updated.isoformat().replace("+00:00", "Z")
+
+            if entry.published:
+                SubElement(entry_elem, "published").text = entry.published.isoformat().replace("+00:00", "Z")
+
+            for author in entry.authors:
+                author_elem = SubElement(entry_elem, "author")
+                SubElement(author_elem, "name").text = author.name
+
+            if entry.content:
+                content_type = entry.content_type or "text/plain"
+                content_elem = SubElement(entry_elem, "content")
+                content_elem.text = entry.content
+                if content_type in ["text/html", "text/xhtml"]:
+                    content_elem.set("type", "html")
+                elif content_type == "text/markdown":
+                    content_elem.set("type", "text")
+                else:
+                    content_elem.set("type", content_type)
+
+            if isinstance(entry, Document):
+                # Add doc_type and status as categories for filtering
+                SubElement(
+                    entry_elem,
+                    "category",
+                    attrib={
+                        "scheme": "https://egregora.app/schema#doc_type",
+                        "term": entry.doc_type.value,
+                    },
+                )
+                SubElement(
+                    entry_elem,
+                    "category",
+                    attrib={
+                        "scheme": "https://egregora.app/schema#status",
+                        "term": entry.status.value,
+                    },
+                )
+
+        # Serialize to string
+        return tostring(root, encoding="unicode", xml_declaration=True)
+
+    @classmethod
+    def from_documents(
+        cls,
+        docs: list["Document"],
+        feed_id: str,
+        title: str,
+        authors: list[Author] | None = None,
+    ) -> "Feed":
+        """Aggregates documents into a valid Atom Feed."""
+        if not docs:
+            updated = datetime.now(UTC)
+        else:
+            updated = max(doc.updated for doc in docs)
+
+        # Sort documents by updated timestamp descending (newest first)
+        sorted_docs = sorted(docs, key=lambda d: d.updated, reverse=True)
+
+        return cls(
+            id=feed_id,
+            title=title,
+            updated=updated,
+            authors=authors or [],
+            entries=sorted_docs,
+        )

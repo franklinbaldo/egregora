@@ -146,9 +146,7 @@ class ModelKeyRotator:
                         continue
 
                     # All Gemini models+keys exhausted
-                    logger.warning(
-                        "[ModelKeyRotator] All Gemini models and keys exhausted"
-                    )
+                    logger.warning("[ModelKeyRotator] All Gemini models and keys exhausted")
                     break
 
                 # Non-rate-limit error - propagate immediately

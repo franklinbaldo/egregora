@@ -9,16 +9,23 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import httpx
-from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UsageLimitExceeded
+from google import genai
+from google.genai import types
+from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models import Model, ModelRequestParameters, ModelSettings
 from pydantic_ai.usage import RequestUsage
 from tenacity import RetryError, retry, retry_if_result, stop_after_delay, wait_fixed
 
+from egregora.llm.exceptions import (
+    BatchJobFailedError,
+    BatchJobTimeoutError,
+    BatchResultDownloadError,
+    InvalidLLMResponseError,
+)
+
 if TYPE_CHECKING:
-    import google.generativeai as genai
     from collections.abc import Iterable
-    from google.generativeai import types
 
 logger = logging.getLogger(__name__)
 
@@ -95,8 +102,8 @@ class GoogleBatchModel(Model):
                 status_code=code or 0, model_name=self.model_name, body=message or str(first.error)
             )
         if not first.response:
-            msg = f"No response returned for {self.model_name}"
-            raise ModelAPIError(msg)
+            msg = f"No response returned for model {self.model_name}"
+            raise InvalidLLMResponseError(msg)
 
         text = self._extract_text(first.response)
         usage = RequestUsage()
@@ -123,9 +130,6 @@ class GoogleBatchModel(Model):
             List of BatchResult objects containing responses or errors.
 
         """
-        import google.generativeai as genai  # Lazy import at runtime
-        from google.generativeai import types
-
         if not requests:
             return []
 
@@ -171,8 +175,6 @@ class GoogleBatchModel(Model):
 
     def _extract_inline_results(self, job: Any, requests: list[dict[str, Any]]) -> list[BatchResult]:
         """Extract results from inline batch response."""
-        import google.generativeai as genai  # Lazy import at runtime
-
         results: list[BatchResult] = []
 
         # For inline requests, results come in job.dest.inline_responses
@@ -259,13 +261,17 @@ class GoogleBatchModel(Model):
 
         try:
             job = _get_job_with_retry()
-        except RetryError:
+        except RetryError as e:
             # Tenacity raises RetryError when retries are exhausted (timeout)
             msg = "Batch job polling timed out"
-            raise ModelAPIError(msg) from None
+            raise BatchJobTimeoutError(msg, job_name=job_name) from e
 
         if job.state.name != "SUCCEEDED":
-            raise ModelHTTPError(status_code=0, model_name=self.model_name, body=str(job.error))
+            raise BatchJobFailedError(
+                "Batch job failed",
+                job_name=job_name,
+                error_payload=job.error,
+            )
 
         return job
 
@@ -273,9 +279,13 @@ class GoogleBatchModel(Model):
         self, client: Any, output_uri: str, requests: list[dict[str, Any]]
     ) -> list[BatchResult]:
         # httpx.get is blocking
-        with httpx.Client() as http_client:
-            resp = http_client.get(output_uri)
-            resp.raise_for_status()
+        try:
+            with httpx.Client() as http_client:
+                resp = http_client.get(output_uri)
+                resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            msg = "Failed to download batch results"
+            raise BatchResultDownloadError(msg, url=output_uri) from e
 
         lines = resp.text.splitlines()
         results: list[BatchResult] = []
