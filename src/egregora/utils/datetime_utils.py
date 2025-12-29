@@ -37,6 +37,7 @@ def parse_datetime_flexible(
     Raises:
         InvalidDateTimeInputError: if the input is None or an empty string.
         DateTimeParsingError: if parsing fails.
+
     """
     dt = _to_datetime(value, parser_kwargs=parser_kwargs)
     return normalize_timezone(dt, default_timezone=default_timezone)

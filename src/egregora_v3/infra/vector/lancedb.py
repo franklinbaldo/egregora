@@ -13,9 +13,16 @@ from typing import Any
 
 import lancedb
 import numpy as np
-from lancedb.pydantic import LanceModel, Vector
 
 from egregora_v3.core.ingestion import chunks_from_documents, RAGChunk
+
+try:
+    from lancedb.pydantic import LanceModel, Vector
+except ImportError:
+    # `pydantic<2` is used by `mkdocstrings` and is not compatible with `lancedb`.
+    # This is a workaround to allow the documentation to build.
+    LanceModel = object
+    Vector = object
 from egregora_v3.core.types import (
     Author,
     Category,

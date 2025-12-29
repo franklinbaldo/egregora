@@ -16,9 +16,8 @@ from pydantic_ai.usage import RequestUsage
 from tenacity import RetryError, retry, retry_if_result, stop_after_delay, wait_fixed
 
 if TYPE_CHECKING:
-    import google.generativeai as genai
     from collections.abc import Iterable
-    from google.generativeai import types
+
 
 logger = logging.getLogger(__name__)
 

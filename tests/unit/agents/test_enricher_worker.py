@@ -64,7 +64,9 @@ def test_media_batch_http_error_fallback(mock_context):
         patch.object(worker, "_execute_media_individual", return_value=[]) as mock_fallback,
     ):
         # Configure the mock to raise the specific exception
-        mock_batch_model.return_value.run_batch.side_effect = ModelHTTPError(status_code=500, model_name="test", body="Server error")
+        mock_batch_model.return_value.run_batch.side_effect = ModelHTTPError(
+            status_code=500, model_name="test", body="Server error"
+        )
 
         # Execute the method
         worker._execute_media_batch(requests, task_map)
