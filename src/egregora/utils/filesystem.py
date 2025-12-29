@@ -20,6 +20,7 @@ from egregora.utils.authors import ensure_author_entries
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.exceptions import (
     DateExtractionError,
+    DateTimeError,
     DateTimeParsingError,
     DirectoryCreationError,
     FileWriteError,
@@ -65,7 +66,7 @@ def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
     try:
         dt = parse_datetime_flexible(raw_date, default_timezone=UTC)
         return dt.strftime("%Y-%m-%d %H:%M")
-    except (DateTimeParsingError, AttributeError, ValueError) as e:
+    except (DateTimeError, AttributeError, ValueError) as e:
         # This will be raised if parse_datetime_flexible fails,
         # which covers all failure modes (None input, empty strings, bad data).
         raise FrontmatterDateFormattingError(str(raw_date), e) from e
