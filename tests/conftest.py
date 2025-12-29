@@ -37,6 +37,7 @@ def stub_google_generativeai():
     except Exception:
         pass
     else:
+        yield
         return
 
     module_names = ("google", "google.generativeai", "google.api_core", "google.api_core.exceptions")
