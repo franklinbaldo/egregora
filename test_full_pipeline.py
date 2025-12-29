@@ -13,6 +13,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
 # Add src to path
 sys.path.insert(0, 'src')
 
@@ -38,6 +40,23 @@ def test_full_pipeline_with_openrouter():
         return False
 
     print(f"✓ Test fixture found: {zip_path}")
+
+    print("\nChecking optional dependencies...")
+    pytest.importorskip(
+        "google.generativeai",
+        reason=(
+            "google.generativeai is required for the OpenRouter pipeline test; "
+            "install it to exercise the full pipeline."
+        ),
+    )
+    pytest.importorskip(
+        "cryptography",
+        reason=(
+            "cryptography is required for google.generativeai/OpenRouter integration; "
+            "install it to exercise the full pipeline."
+        ),
+    )
+    print("✓ Optional dependencies available")
 
     # Try to import the pipeline (this will test if dependencies work)
     try:
