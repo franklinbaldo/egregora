@@ -4,7 +4,8 @@ import zipfile
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from types import SimpleNamespace
+import sys
+from types import ModuleType, SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -26,6 +27,64 @@ except ImportError:  # pragma: no cover - depends on test env
         "ibis is required for the test suite; install project dependencies to run tests",
         allow_module_level=True,
     )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def stub_google_generativeai():
+    """Inject a lightweight google.generativeai stub when the real package is unavailable."""
+    try:  # pragma: no cover - depends on test env
+        import google.generativeai  # type: ignore  # noqa: F401
+    except Exception:
+        pass
+    else:
+        return
+
+    module_names = ("google", "google.generativeai", "google.api_core", "google.api_core.exceptions")
+    previous_modules = {name: sys.modules.get(name) for name in module_names}
+
+    google_module = previous_modules["google"] or ModuleType("google")
+    if not hasattr(google_module, "__path__"):
+        google_module.__path__ = []  # type: ignore[attr-defined]
+
+    api_core_module = ModuleType("google.api_core")
+    api_core_module.__path__ = []  # type: ignore[attr-defined]
+
+    exceptions_module = ModuleType("google.api_core.exceptions")
+
+    class GoogleAPICallError(Exception):
+        ...
+
+    class ResourceExhausted(GoogleAPICallError):
+        ...
+
+    exceptions_module.GoogleAPICallError = GoogleAPICallError
+    exceptions_module.ResourceExhausted = ResourceExhausted
+    api_core_module.exceptions = exceptions_module
+
+    genai_module = ModuleType("google.generativeai")
+
+    class Client:
+        def __init__(self, *args, **kwargs):
+            ...
+
+    genai_module.Client = Client
+
+    google_module.generativeai = genai_module
+    google_module.api_core = api_core_module
+
+    sys.modules["google"] = google_module
+    sys.modules["google.generativeai"] = genai_module
+    sys.modules["google.api_core"] = api_core_module
+    sys.modules["google.api_core.exceptions"] = exceptions_module
+
+    try:
+        yield
+    finally:
+        for name, module in previous_modules.items():
+            if module is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = module
 
 
 @pytest.fixture(autouse=True)

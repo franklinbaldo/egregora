@@ -9,8 +9,10 @@ interpretation and generation in a single API call.
 
 from __future__ import annotations
 
+import importlib.util
 import logging
 import os
+import sys
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
@@ -19,6 +21,22 @@ from tenacity import Retrying
 if TYPE_CHECKING:
     import google.generativeai as genai
     from google.api_core import exceptions as google_exceptions
+
+google_api_core_spec = "google.api_core" in sys.modules or importlib.util.find_spec("google.api_core") is not None
+if google_api_core_spec:
+    from google.api_core import exceptions as google_exceptions
+else:  # pragma: no cover - exercised when Google SDKs are absent
+    class GoogleAPICallError(Exception):
+        """Stub for google.api_core.exceptions.GoogleAPICallError"""
+
+    class ResourceExhausted(GoogleAPICallError):
+        """Stub for google.api_core.exceptions.ResourceExhausted"""
+
+    class _GoogleExceptions:
+        GoogleAPICallError = GoogleAPICallError
+        ResourceExhausted = ResourceExhausted
+
+    google_exceptions = _GoogleExceptions()
 
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
 from egregora.agents.banner.image_generation import ImageGenerationRequest
