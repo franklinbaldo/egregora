@@ -8,6 +8,13 @@ from typing import TYPE_CHECKING
 import frontmatter
 import yaml
 
+from egregora.utils.exceptions import (
+    AuthorExtractionError,
+    AuthorsFileLoadError,
+    AuthorsFileParseError,
+    AuthorsFileSaveError,
+)
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -63,8 +70,10 @@ def load_authors_yml(path: Path) -> dict:
     """Loads the .authors.yml file."""
     try:
         return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except (OSError, yaml.YAMLError):
-        return {}
+    except OSError as e:
+        raise AuthorsFileLoadError(str(path), e) from e
+    except yaml.YAMLError as e:
+        raise AuthorsFileParseError(str(path), e) from e
 
 
 def register_new_authors(authors: dict, author_ids: list[str]) -> list[str]:
@@ -89,8 +98,8 @@ def save_authors_yml(path: Path, authors: dict, count: int) -> None:
             encoding="utf-8",
         )
         logger.info("Registered %d new author(s) in %s", count, path)
-    except OSError as exc:
-        logger.warning("Failed to update %s: %s", path, exc)
+    except OSError as e:
+        raise AuthorsFileSaveError(str(path), e) from e
 
 
 def extract_authors_from_post(md_file: Path) -> set[str]:
@@ -107,9 +116,8 @@ def extract_authors_from_post(md_file: Path) -> set[str]:
 
         return {str(a) for a in authors_meta if a}
 
-    except OSError as exc:
-        logger.debug("Skipping %s: %s", md_file, exc)
-        return set()
+    except OSError as e:
+        raise AuthorExtractionError(str(md_file), e) from e
 
 
 def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> int:

@@ -1,4 +1,21 @@
+import importlib.util
+import sys
+import types
+
 import pytest
+
+google_api_core_spec = importlib.util.find_spec("google.api_core")
+if google_api_core_spec is not None:
+    from google.api_core import exceptions as google_exceptions
+else:  # pragma: no cover - exercised when Google SDKs are absent
+    GoogleAPICallError = type("GoogleAPICallError", (Exception,), {})
+    google_exceptions = types.SimpleNamespace(
+        GoogleAPICallError=GoogleAPICallError,
+        ResourceExhausted=type("ResourceExhausted", (GoogleAPICallError,), {}),
+    )
+    google_api_core = types.ModuleType("google.api_core")
+    google_api_core.exceptions = google_exceptions
+    sys.modules.setdefault("google.api_core", google_api_core)
 
 from egregora.agents.banner import agent
 from egregora.agents.banner.agent import BannerInput, _generate_banner_image
@@ -61,7 +78,7 @@ def test_generate_banner_image_preserves_request_prompt(fake_provider):
     assert output.document is not None
     assert output.document.metadata["slug"] == "sluggy"
     assert output.document.metadata["language"] == "en"
-    assert output.document.type is DocumentType.MEDIA
+    assert output.document.doc_type is DocumentType.MEDIA
     assert output.debug_text == "debug info"
 
 
@@ -105,7 +122,9 @@ def test_generate_banner_reraises_unexpected_errors(monkeypatch):
         raise ValueError("Something went wrong")
 
     monkeypatch.setattr(agent, "_generate_banner_image", mock_generate_banner_image)
-    monkeypatch.setattr(agent.genai, "Client", lambda: object())
+    # Mock the genai.Client at the module level where it's imported
+    import google.generativeai as genai
+    monkeypatch.setattr(genai, "Client", lambda: object())
 
     # Mocking EgregoraConfig to return an object with a .models.banner attribute
     class MockModels:

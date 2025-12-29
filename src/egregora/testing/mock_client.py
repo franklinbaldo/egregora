@@ -35,7 +35,7 @@ class MockModelService:
 
 
 class MockGeminiClient:
-    """A type-safe mock of the google.generativeai.Client."""
+    """A type-safe mock of the google.genai.Client."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initializes the mock client."""

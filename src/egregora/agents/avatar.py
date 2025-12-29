@@ -30,6 +30,7 @@ from egregora.orchestration.pipelines.modules.media import detect_media_type, ex
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.env import get_google_api_key
+from egregora.utils.exceptions import CacheKeyNotFoundError
 from egregora.utils.network import SSRFValidationError, validate_public_url
 
 if TYPE_CHECKING:
@@ -333,8 +334,11 @@ def download_avatar_from_url(
     except httpx.HTTPError as e:
         # If the HTTP error was caused by our own validation, re-raise it directly
         # to preserve the specific security message.
+        # Check both __cause__ and __context__ to find AvatarProcessingError in the chain
         if isinstance(e.__cause__, AvatarProcessingError):
             raise e.__cause__ from e
+        if isinstance(e.__context__, AvatarProcessingError):
+            raise e.__context__ from e
         logger.debug("HTTP error details: %s", e)
         msg = "Failed to download avatar. Please check the URL and try again."
         raise AvatarProcessingError(msg) from e

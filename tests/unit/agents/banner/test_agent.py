@@ -6,7 +6,7 @@ import pytest
 from egregora.agents.banner.agent import generate_banner
 
 
-@patch("egregora.agents.banner.agent.genai.Client")
+@patch("google.generativeai.Client")
 @patch("egregora.agents.banner.agent._generate_banner_image", side_effect=ValueError("Unexpected test error"))
 def test_generate_banner_propagates_unexpected_error(mock_generate, mock_client, caplog):
     """

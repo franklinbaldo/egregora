@@ -896,8 +896,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         """
         try:
             return frontmatter.load(str(path)).metadata
-        except OSError as e:
-            raise DocumentParsingError(str(path), str(e)) from e
+        except OSError:
+            return {}
 
     # Document Writing Strategies ---------------------------------------------
 
@@ -997,7 +997,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Ensure UUID is in metadata
         author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
         if not author_uuid:
-            raise ProfileMetadataError(document.document_id, "uuid or author_uuid")
+            raise ProfileMetadataError(document.document_id, "'uuid' or 'author_uuid'")
 
         # Use standard frontmatter writing logic
         metadata = dict(document.metadata or {})
@@ -1025,14 +1025,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             for post in author_posts_docs
         ]
 
-        # Prepend avatar using MkDocs macros syntax
-        # This matches the logic in profiles.py but ensures it happens even when writing via adapter
-        # Note: We use double braces {{ }} for Jinja2 syntax, so in f-string we need quadruple braces {{{{ }}}}
-        content_with_avatar = (
-            f"![Avatar]({{{{ page.meta.avatar }}}}){{ align=left width=150 }}\n\n{document.content}"
-        )
-
-        full_content = f"---\n{yaml_front}---\n\n{content_with_avatar}"
+        # Avatar is in frontmatter only - not prepended to content
+        # This allows the template/theme to handle avatar rendering
+        full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
     def _write_enrichment_doc(self, document: Document, path: Path) -> None:
@@ -1635,3 +1630,14 @@ interests: {profile.get("interests", [])}
 # ============================================================================
 
 # Moved to src/egregora/utils/filesystem.py
+
+
+def secure_path_join(base_dir: Path, user_path: str) -> Path:
+    """Safely join ``user_path`` to ``base_dir`` preventing directory traversal."""
+    full_path = (base_dir / user_path).resolve()
+    try:
+        full_path.relative_to(base_dir.resolve())
+    except ValueError as exc:
+        msg = f"Path traversal detected: {user_path!r} escapes base directory {base_dir}"
+        raise ValueError(msg) from exc
+    return full_path

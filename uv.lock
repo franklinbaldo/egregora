@@ -804,7 +804,7 @@ requires-dist = [
     { name = "faker", marker = "extra == 'test'", specifier = ">=34.1" },
     { name = "freezegun", marker = "extra == 'test'", specifier = ">=1.5" },
     { name = "google-api-core" },
-    { name = "google-generativeai" },
+    { name = "google-generativeai", specifier = "==0.8.6" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "hypothesis", marker = "extra == 'test'", specifier = ">=6.134" },
     { name = "ibis-framework", extras = ["duckdb"], specifier = ">=11.0" },
