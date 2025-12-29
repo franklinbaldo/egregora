@@ -17,7 +17,6 @@ Usage:
 
 import logging
 from functools import lru_cache
-from typing import TYPE_CHECKING
 
 from egregora.rag.backend import VectorStore
 from egregora.rag.embedding_router import TaskType, get_embedding_router
