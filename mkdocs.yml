@@ -160,6 +160,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Quick Start: getting-started/quickstart.md
   - About: about.md
   - V2 (Current):
     - Architecture: v2/architecture.md
@@ -188,7 +189,6 @@ nav:
       - Index: v2/adr/README.md
   - Getting Started:
     - Installation: getting-started/installation.md
-    - Quick Start: getting-started/quickstart.md
     - Configuration: getting-started/configuration.md
     - Deployment: getting-started/deployment.md
   - Reference:

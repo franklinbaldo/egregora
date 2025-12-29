@@ -8,7 +8,15 @@ This guide will walk you through generating your first blog post from a WhatsApp
 - [uv](https://github.com/astral-sh/uv) installed
 - [Google Gemini API key](https://ai.google.dev/gemini-api/docs/api-key)
 
-## Step 1: Initialize Your Blog
+## Step 1: Install Egregora
+
+Install the latest version from GitHub:
+
+```bash
+uv tool install git+https://github.com/franklinbaldo/egregora
+```
+
+## Step 2: Initialize Your Blog
 
 First, install Egregora if you haven't already:
 ```bash
@@ -56,10 +64,7 @@ export GOOGLE_API_KEY="your-api-key-here"
 ## Step 4: Process the Export
 
 ```bash
-egregora write \
-  whatsapp-export.zip \
-  --output-dir=. \
-  --timezone='America/New_York'
+egregora write whatsapp-export.zip --output-dir=. --timezone='America/New_York'
 ```
 
 This will:
