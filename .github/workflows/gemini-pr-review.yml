@@ -91,8 +91,8 @@ jobs:
           # No --depth flag since we already did fetch-depth: 0 in checkout
           git fetch origin "${BASE_REF}"
 
-          # Get unified diff between base and head
-          git diff --unified=3 "origin/${BASE_REF}" "${HEAD_SHA}" > pr.diff
+          # Get unified diff between base and head, excluding non-code assets
+          git diff --unified=3 "origin/${BASE_REF}" "${HEAD_SHA}" -- . ':!uv.lock' ':!.jules/' ':!docs/' ':!README.md' ':!pyproject.toml' ':!tests/v3/infra/sinks/fixtures/' > pr.diff
 
           # Pass full diff to Gemini - let context window limit naturally fail
           # for very large PRs rather than silently truncating
