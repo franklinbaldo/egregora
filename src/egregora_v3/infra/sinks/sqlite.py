@@ -56,6 +56,9 @@ class SQLiteOutputSink:
 
         """
         self.db_path = Path(db_path)
+        columns = ", ".join(TABLE_SCHEMA.keys())
+        placeholders = ", ".join("?" for _ in TABLE_SCHEMA)
+        self._insert_statement = f"INSERT INTO documents ({columns}) VALUES ({placeholders})"
 
     def publish(self, feed: Feed) -> None:
         """Publish the feed to a SQLite database.
@@ -76,9 +79,13 @@ class SQLiteOutputSink:
         cursor = conn.cursor()
         self._create_table(cursor)
 
-        for doc in feed.get_published_documents():
-            record = _document_to_record(doc)
-            self._insert_record(cursor, record)
+        records = [
+            tuple(_document_to_record(doc)[key] for key in TABLE_SCHEMA)
+            for doc in feed.get_published_documents()
+        ]
+
+        if records:
+            cursor.executemany(self._insert_statement, records)
 
         conn.commit()
         conn.close()
@@ -87,11 +94,3 @@ class SQLiteOutputSink:
         """Create the documents table from TABLE_SCHEMA."""
         columns = ", ".join(f"{name} {dtype}" for name, dtype in TABLE_SCHEMA.items())
         cursor.execute(f"CREATE TABLE documents ({columns})")
-
-    def _insert_record(self, cursor: sqlite3.Cursor, record: dict[str, Any]) -> None:
-        """Insert a single document record into the database."""
-        columns = ", ".join(TABLE_SCHEMA.keys())
-        placeholders = ", ".join("?" for _ in TABLE_SCHEMA)
-        values = tuple(record[key] for key in TABLE_SCHEMA)
-
-        cursor.execute(f"INSERT INTO documents ({columns}) VALUES ({placeholders})", values)

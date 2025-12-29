@@ -13,6 +13,27 @@ class InvalidZipFileError(WhatsAppAdapterError):
     """Raised when the input file is not a valid ZIP file."""
 
 
+class MissingZipPathError(WhatsAppAdapterError):
+    """Raised when the zip_path is not provided for media delivery."""
+
+
+class ZipPathNotFoundError(WhatsAppAdapterError):
+    """Raised when the provided zip_path does not exist."""
+
+
+class InvalidMediaReferenceError(WhatsAppAdapterError):
+    """Raised when a media reference is invalid (e.g., path traversal)."""
+
+
+class MediaNotFoundError(WhatsAppAdapterError):
+    """Raised when a media reference is not found in the ZIP."""
+
+    def __init__(self, zip_path: str, media_reference: str) -> None:
+        self.zip_path = zip_path
+        self.media_reference = media_reference
+        super().__init__(f"Media '{media_reference}' not found in '{zip_path}'")
+
+
 class MediaExtractionError(WhatsAppAdapterError):
     """Raised when media cannot be extracted from the ZIP file."""
 
