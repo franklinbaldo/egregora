@@ -18,8 +18,12 @@ uv tool install git+https://github.com/franklinbaldo/egregora
 
 ## Step 2: Initialize Your Blog
 
-Create a new blog site:
+First, install Egregora if you haven't already:
+```bash
+uv tool install git+https://github.com/franklinbaldo/egregora
+```
 
+Now, create a new blog site:
 ```bash
 egregora init my-blog
 cd my-blog
@@ -82,8 +86,11 @@ This will:
 Launch a local preview server:
 
 ```bash
-uv sync --all-extras
-uv run mkdocs serve -f .egregora/mkdocs.yml
+# 1. Install doc dependencies (if you haven't already)
+uv sync --extra docs
+
+# 2. Preview your site
+mkdocs serve -f .egregora/mkdocs.yml
 ```
 
 Open [http://localhost:8000](http://localhost:8000) in your browser. 🎉

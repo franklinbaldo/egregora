@@ -14,7 +14,6 @@ from egregora_v3.core.types import (
     Entry,
     Feed,
     Link,
-    documents_to_feed,
 )
 from egregora_v3.infra.sinks.atom import AtomSink
 
@@ -142,7 +141,7 @@ def test_feed_parses_as_valid_xml(snapshot):
     )
     doc.updated = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)  # For stable timestamp
 
-    feed = documents_to_feed(
+    feed = Feed.from_documents(
         [doc], feed_id="http://example.org/feed", title="Test Feed", authors=[Author(name="Alice")]
     )
 

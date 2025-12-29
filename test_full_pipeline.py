@@ -46,6 +46,21 @@ def test_full_pipeline_with_openrouter() -> bool | None:
         ),
     )
 
+    pytest.importorskip(
+        "google.generativeai",
+        reason=(
+            "google.generativeai is required for the OpenRouter pipeline test; "
+            "install it to exercise the full pipeline."
+        ),
+    )
+    pytest.importorskip(
+        "cryptography",
+        reason=(
+            "cryptography is required for google.generativeai/OpenRouter integration; "
+            "install it to exercise the full pipeline."
+        ),
+    )
+
     # Try to import the pipeline (this will test if dependencies work)
     try:
         # Test basic imports first
