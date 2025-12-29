@@ -122,7 +122,7 @@ Claude: "I'll create a Jules session to review your authentication code.
          Jules works asynchronously and will create a PR with feedback.
 
          Session ID: 123456789
-         URL: https://jules.google.com/session/123456789
+         URL: https://jules.google/sessions/123456789
 
          ⏱️  Jules typically completes tasks in ~10 minutes.
          You can continue other work while Jules reviews. I can check
@@ -293,7 +293,7 @@ curl https://jules.googleapis.com/v1alpha/sessions/abc123/activities \
 To use the Jules API, you need an API key:
 
 1. **Get your API key**:
-   - Visit https://jules.google.com/settings#api
+   - Visit https://jules.google/settings#api
    - Create a new API key (max 3 keys allowed)
    - Copy the API key
 

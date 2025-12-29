@@ -17,6 +17,8 @@ else:  # pragma: no cover - exercised when Google SDKs are absent
     google_api_core.exceptions = google_exceptions
     sys.modules.setdefault("google.api_core", google_api_core)
 
+import google.generativeai as genai
+from google.api_core import exceptions as google_exceptions
 
 from egregora.agents.banner import agent
 from egregora.agents.banner.agent import BannerInput, _generate_banner_image
@@ -52,10 +54,6 @@ def fake_provider(monkeypatch):
     return provider
 
 
-@pytest.mark.skip(
-    reason="Obsolete: Test depends on google.generativeai which is deprecated. "
-    "See: https://github.com/google-gemini/deprecated-generative-ai-python"
-)
 def test_generate_banner_image_preserves_request_prompt(fake_provider):
     request = ImageGenerationRequest(
         prompt="custom prompt",
@@ -119,11 +117,6 @@ def test_generate_banner_image_handles_api_error(monkeypatch):
     assert output.error_code == "GENERATION_EXCEPTION"
 
 
-@pytest.mark.skip(
-    reason="Obsolete: Test uses deprecated google.generativeai.Client which no longer exists. "
-    "Google deprecated google.generativeai package in favor of google.genai. "
-    "Test needs rewriting for new API."
-)
 def test_generate_banner_reraises_unexpected_errors(monkeypatch):
     """Test that the main `generate_banner` function reraises unexpected errors."""
 
@@ -133,7 +126,6 @@ def test_generate_banner_reraises_unexpected_errors(monkeypatch):
 
     monkeypatch.setattr(agent, "_generate_banner_image", mock_generate_banner_image)
     # Mock the genai.Client at the module level where it's imported
-    import google.generativeai as genai
 
     monkeypatch.setattr(genai, "Client", lambda: object())
 

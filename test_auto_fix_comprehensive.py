@@ -10,7 +10,8 @@ from typing import Any
 
 # Import the extraction logic from jules module
 sys.path.insert(0, ".jules")
-from jules.github import _extract_session_id
+from jules.github import \
+    _extract_session_id  # noqa: E402, F401 - Private import for testing
 
 
 def fetch_jules_prs() -> list[dict[str, Any]]:
@@ -21,7 +22,7 @@ def fetch_jules_prs() -> list[dict[str, Any]]:
 
         # Get repo from git remote
         cmd = ["git", "config", "--get", "remote.origin.url"]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)  # noqa: S603
         remote_url = result.stdout.strip()
 
         # Extract owner/repo from URL
@@ -37,7 +38,7 @@ def fetch_jules_prs() -> list[dict[str, Any]]:
         if token:
             curl_cmd.extend(["-H", f"Authorization: Bearer {token}"])
 
-        result = subprocess.run(curl_cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(curl_cmd, capture_output=True, text=True, check=True)  # noqa: S603
         all_prs = json.loads(result.stdout)
 
         # Filter for Jules PRs
@@ -55,7 +56,7 @@ def fetch_jules_prs() -> list[dict[str, Any]]:
             if pr["user"]["login"] == "google-labs-jules[bot]"
         ]
 
-    except Exception:
+    except (subprocess.CalledProcessError, json.JSONDecodeError):
         return []
 
 

@@ -63,7 +63,8 @@ def test_datetime_utilities() -> bool | None:
 
         # Test valid parsing
         result = datetime_utils_mod.parse_datetime_flexible("2023-01-01T12:00:00")
-        assert result.year == 2023
+        if result.year != 2023:
+            return False
 
         # Test None raises exception
         try:
@@ -74,11 +75,12 @@ def test_datetime_utilities() -> bool | None:
 
         # Test ensure_datetime
         result = datetime_utils_mod.ensure_datetime("2023-01-01")
-        assert isinstance(result, datetime)
+        if not isinstance(result, datetime):
+            return False
 
         return True
 
-    except Exception:
+    except (ImportError, AttributeError, exceptions_mod.DateTimeParsingError):
         import traceback
 
         traceback.print_exc()
@@ -98,19 +100,22 @@ def test_exception_classes() -> bool | None:
 
         # Test CacheKeyNotFoundError
         exc = exceptions_mod.CacheKeyNotFoundError("test_key")
-        assert exc.key == "test_key"
+        if exc.key != "test_key":
+            return False
 
         # Test AuthorsFileLoadError
         exc = exceptions_mod.AuthorsFileLoadError("/path/to/file", OSError("test"))
-        assert exc.path == "/path/to/file"
+        if exc.path != "/path/to/file":
+            return False
 
         # Test DateTimeParsingError
         exc = exceptions_mod.DateTimeParsingError("invalid", ValueError("test"))
-        assert exc.value == "invalid"
+        if exc.value != "invalid":
+            return False
 
         return True
 
-    except Exception:
+    except (ImportError, AttributeError):
         import traceback
 
         traceback.print_exc()
@@ -126,7 +131,7 @@ def test_mkdocs_adapter_imports() -> bool | None:
         py_compile.compile("src/egregora/output_adapters/mkdocs/adapter.py", doraise=True)
 
         # Check it has the expected imports
-        with open("src/egregora/output_adapters/mkdocs/adapter.py") as f:
+        with Path("src/egregora/output_adapters/mkdocs/adapter.py").open() as f:
             content = f.read()
 
         required_imports = [
@@ -144,14 +149,14 @@ def test_mkdocs_adapter_imports() -> bool | None:
 
         return True
 
-    except Exception:
+    except (ImportError, py_compile.PyCompileError, FileNotFoundError):
         import traceback
 
         traceback.print_exc()
         return False
 
 
-def main():
+def main() -> bool:
     """Run all integration tests."""
     results = []
 

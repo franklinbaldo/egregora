@@ -32,9 +32,7 @@ def test_feed_to_xml_serialization():
     xml_output = feed.to_xml()
 
     # Basic assertions
-    # Note: XML encoding attribute is case-insensitive (UTF-8 and utf-8 are both valid)
-    assert "<?xml version='1.0' encoding=" in xml_output
-    assert 'utf-8' in xml_output.lower()
+    assert '<?xml version=\'1.0\' encoding=\'UTF-8\'?>' in xml_output
     assert '<feed xmlns="http://www.w3.org/2005/Atom"' in xml_output
     assert '<title>Test Feed</title>' in xml_output
     assert '<id>urn:uuid:12345</id>' in xml_output

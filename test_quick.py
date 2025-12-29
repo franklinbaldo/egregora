@@ -29,7 +29,7 @@ def test_fetch_error() -> bool | None:
             return False
         except SequenceFetchError as e:
             return e.sequence_name == "test_sequence"
-        except Exception:
+        except duckdb.Error:
             return False
 
 
@@ -49,7 +49,7 @@ def test_retry_failed_error() -> bool | None:
             return False
         except SequenceRetryFailedError as e:
             return e.sequence_name == "test_sequence"
-        except Exception:
+        except duckdb.Error:
             import traceback
 
             traceback.print_exc()

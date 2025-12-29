@@ -1,9 +1,20 @@
 from unittest.mock import MagicMock, patch
 
+import pytest
 from google.api_core import exceptions as google_exceptions
 
 from egregora.agents.banner.agent import generate_banner, is_banner_generation_available
 from egregora.agents.banner.image_generation import ImageGenerationResult
+
+
+@pytest.fixture
+def mock_is_available_false(monkeypatch):
+    monkeypatch.setattr("egregora.agents.banner.agent.is_banner_generation_available", lambda: False)
+
+
+@pytest.fixture
+def mock_is_available_true(monkeypatch):
+    monkeypatch.setattr("egregora.agents.banner.agent.is_banner_generation_available", lambda: True)
 
 
 # Test for is_banner_generation_available
@@ -19,95 +30,89 @@ def test_is_banner_generation_available_when_key_is_not_set(mock_get_env):
     assert is_banner_generation_available() is False
 
 
+@pytest.mark.usefixtures("mock_is_available_false")
 def test_generate_banner_when_not_available():
     """Test that generate_banner returns an error when the feature is not available."""
-    with patch("egregora.agents.banner.agent.is_banner_generation_available", return_value=False):
-        # Act
-        result = generate_banner("A Title", "A summary")
+    # Act
+    result = generate_banner("A Title", "A summary")
 
-        # Assert
-        assert result.success is False
-        assert result.document is None
-        assert "Banner generation is not available" in result.error
-        assert result.error_code == "NOT_CONFIGURED"
+    # Assert
+    assert result.success is False
+    assert result.document is None
+    assert "Banner generation is not available" in result.error
+    assert result.error_code == "NOT_CONFIGURED"
 
 
 # Test for generate_banner and its integration with _generate_banner_image
-def test_generate_banner_success_with_debug_text():
+@pytest.mark.usefixtures("mock_is_available_true")
+@patch("egregora.agents.banner.agent.GeminiImageGenerationProvider")
+@patch("egregora.agents.banner.agent.genai.Client")
+def test_generate_banner_success_with_debug_text(mock_client, mock_provider_cls):
     """Test successful banner generation including debug text path."""
-    with (
-        patch("egregora.agents.banner.agent.is_banner_generation_available", return_value=True),
-        patch("egregora.agents.banner.agent.GeminiImageGenerationProvider") as mock_provider_cls,
-        patch("egregora.agents.banner.agent.genai.Client"),
-    ):
-        # Arrange
-        mock_provider_instance = MagicMock()
-        mock_provider_cls.return_value = mock_provider_instance
+    # Arrange
+    mock_provider_instance = MagicMock()
+    mock_provider_cls.return_value = mock_provider_instance
 
-        mock_result = ImageGenerationResult(
-            image_bytes=b"image data",
-            mime_type="image/png",
-            debug_text="Some debug info",
-        )
-        mock_provider_instance.generate.return_value = mock_result
+    mock_result = ImageGenerationResult(
+        image_bytes=b"image data",
+        mime_type="image/png",
+        debug_text="Some debug info",
+    )
+    mock_provider_instance.generate.return_value = mock_result
 
-        # Act
-        result = generate_banner("A Title", "A summary")
+    # Act
+    result = generate_banner("A Title", "A summary")
 
-        # Assert
-        assert result.success is True
-        assert result.document is not None
-        assert result.document.content == b"image data"
-        assert result.debug_text == "Some debug info"
+    # Assert
+    assert result.success is True
+    assert result.document is not None
+    assert result.document.content == b"image data"
+    assert result.debug_text == "Some debug info"
 
 
-def test_generate_banner_failure_no_image_data():
+@pytest.mark.usefixtures("mock_is_available_true")
+@patch("egregora.agents.banner.agent.GeminiImageGenerationProvider")
+@patch("egregora.agents.banner.agent.genai.Client")
+def test_generate_banner_failure_no_image_data(mock_client, mock_provider_cls):
     """Test banner generation failure when provider returns no image."""
-    with (
-        patch("egregora.agents.banner.agent.is_banner_generation_available", return_value=True),
-        patch("egregora.agents.banner.agent.GeminiImageGenerationProvider") as mock_provider_cls,
-        patch("egregora.agents.banner.agent.genai.Client"),
-    ):
-        # Arrange
-        mock_provider_instance = MagicMock()
-        mock_provider_cls.return_value = mock_provider_instance
+    # Arrange
+    mock_provider_instance = MagicMock()
+    mock_provider_cls.return_value = mock_provider_instance
 
-        mock_result = ImageGenerationResult(
-            image_bytes=None,
-            mime_type=None,
-            error="No image generated",
-            error_code="NO_IMAGE",
-            debug_text="Some debug info",
-        )
-        mock_provider_instance.generate.return_value = mock_result
+    mock_result = ImageGenerationResult(
+        image_bytes=None,
+        mime_type=None,
+        error="No image generated",
+        error_code="NO_IMAGE",
+        debug_text="Some debug info",
+    )
+    mock_provider_instance.generate.return_value = mock_result
 
-        # Act
-        result = generate_banner("A Title", "A summary")
+    # Act
+    result = generate_banner("A Title", "A summary")
 
-        # Assert
-        assert result.success is False
-        assert result.document is None
-        assert result.error == "No image generated"
-        assert result.error_code == "NO_IMAGE"
+    # Assert
+    assert result.success is False
+    assert result.document is None
+    assert result.error == "No image generated"
+    assert result.error_code == "NO_IMAGE"
 
 
-def test_generate_banner_handles_google_api_call_error():
+@pytest.mark.usefixtures("mock_is_available_true")
+@patch("egregora.agents.banner.agent.GeminiImageGenerationProvider")
+@patch("egregora.agents.banner.agent.genai.Client")
+def test_generate_banner_handles_google_api_call_error(mock_client, mock_provider_cls):
     """Test that GoogleAPICallError during generation is handled gracefully."""
-    with (
-        patch("egregora.agents.banner.agent.is_banner_generation_available", return_value=True),
-        patch("egregora.agents.banner.agent.GeminiImageGenerationProvider") as mock_provider_cls,
-        patch("egregora.agents.banner.agent.genai.Client"),
-    ):
-        # Arrange
-        mock_provider_instance = MagicMock()
-        mock_provider_cls.return_value = mock_provider_instance
-        mock_provider_instance.generate.side_effect = google_exceptions.GoogleAPICallError("API error")
+    # Arrange
+    mock_provider_instance = MagicMock()
+    mock_provider_cls.return_value = mock_provider_instance
+    mock_provider_instance.generate.side_effect = google_exceptions.GoogleAPICallError("API error")
 
-        # Act
-        result = generate_banner("A Title", "A summary")
+    # Act
+    result = generate_banner("A Title", "A summary")
 
-        # Assert
-        assert result.success is False
-        assert result.document is None
-        assert result.error == "GoogleAPICallError"
-        assert result.error_code == "GENERATION_EXCEPTION"
+    # Assert
+    assert result.success is False
+    assert result.document is None
+    assert result.error == "GoogleAPICallError"
+    assert result.error_code == "GENERATION_EXCEPTION"

@@ -36,7 +36,7 @@ def find_python_files(directory: Path) -> list[Path]:
 def get_imports_from_file(file_path: Path) -> set[str]:
     """Extract all import statements from a Python file (full module names)."""
     try:
-        with open(file_path, encoding="utf-8") as f:
+        with file_path.open(encoding="utf-8") as f:
             content = f.read()
 
         tree = ast.parse(content, filename=str(file_path))
