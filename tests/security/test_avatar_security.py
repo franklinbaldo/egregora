@@ -1,4 +1,5 @@
 from pathlib import Path
+import socket
 
 import pytest
 import respx
@@ -12,13 +13,37 @@ PUBLIC_URL = "http://example.com/avatar.png"
 PRIVATE_URL = "http://127.0.0.1/internal/avatar.png"
 
 
+def _fake_addrinfo(*ip_addresses: str) -> list[tuple]:
+    """Helper to create fake address info for mocking DNS resolution."""
+    return [
+        (
+            socket.AF_INET6 if ":" in ip else socket.AF_INET,
+            socket.SOCK_STREAM,
+            0,
+            "",
+            (ip, 0, 0, 0) if ":" in ip else (ip, 0),
+        )
+        for ip in ip_addresses
+    ]
+
+
 @respx.mock
-def test_ssrf_error_message_is_not_masked(tmp_path: Path):
+def test_ssrf_error_message_is_not_masked(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """
     Verify that a specific SSRF error is raised and not masked by a generic error.
     An attacker could use a redirect from a public URL to a private one. The initial
     check might pass, but the redirect should be caught, and the error should be specific.
     """
+    # Mock DNS resolution: example.com -> public IP, 127.0.0.1 -> itself
+    def mock_getaddrinfo(host, *_args, **_kwargs):
+        if host == "example.com":
+            return _fake_addrinfo("93.184.216.34")  # Public IP
+        elif host == "127.0.0.1":
+            return _fake_addrinfo("127.0.0.1")  # Loopback IP (private)
+        return []
+
+    monkeypatch.setattr(socket, "getaddrinfo", mock_getaddrinfo)
+
     # 1. Mock the initial request to a public URL.
     #    This request will return a redirect (302) to the private URL.
     respx.get(PUBLIC_URL).mock(return_value=Response(302, headers={"Location": PRIVATE_URL}))

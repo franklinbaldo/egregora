@@ -48,7 +48,16 @@ import duckdb
 import ibis
 
 from egregora.database import schemas
-from egregora.database.exceptions import TableInfoError, TableNotFoundError
+from egregora.database.exceptions import (
+    InvalidOperationError,
+    InvalidTableNameError,
+    SequenceCreationError,
+    SequenceFetchError,
+    SequenceNotFoundError,
+    SequenceRetryFailedError,
+    TableInfoError,
+    TableNotFoundError,
+)
 from egregora.database.schemas import quote_identifier
 
 if TYPE_CHECKING:
@@ -335,8 +344,7 @@ class DuckDBStorageManager:
 
         """
         if not by_keys:
-            msg = "replace_rows requires at least one key for deletion safety"
-            raise ValueError(msg)
+            raise InvalidOperationError("replace_rows requires at least one key for deletion safety")
 
         quoted_table = quote_identifier(table)
 
@@ -363,7 +371,7 @@ class DuckDBStorageManager:
             Ibis table expression
 
         Raises:
-            ValueError: If table doesn't exist
+            TableNotFoundError: If table doesn't exist
 
         Example:
             >>> table = storage.read_table("conversations")
@@ -381,7 +389,7 @@ class DuckDBStorageManager:
                     logger.debug("Retry after connection reset failed: %s", retry_exc)
             msg = f"Table '{name}' not found in database"
             logger.exception(msg)
-            raise ValueError(msg) from e
+            raise TableNotFoundError(name) from e
 
     def write_table(
         self,
@@ -446,8 +454,7 @@ class DuckDBStorageManager:
                 self._conn.register(name, dataframe)
                 logger.info("Table '%s' written without checkpoint (%s)", name, mode)
         else:
-            msg = "Append mode requires checkpoint=True"
-            raise ValueError(msg)
+            raise InvalidOperationError("Append mode requires checkpoint=True")
 
     def persist_atomic(self, table: Table, name: str, schema: ibis.Schema) -> None:
         """Persist an Ibis table to a DuckDB table atomically using a transaction.
@@ -462,8 +469,7 @@ class DuckDBStorageManager:
 
         """
         if not re.fullmatch("[A-Za-z_][A-Za-z0-9_]*", name):
-            msg = "target_table must be a valid DuckDB identifier"
-            raise ValueError(msg)
+            raise InvalidTableNameError(name)
 
         target_schema = schema
         schemas.create_table_if_not_exists(self._conn, name, target_schema)
@@ -527,15 +533,19 @@ class DuckDBStorageManager:
         self._conn.execute(f"CREATE SEQUENCE IF NOT EXISTS {quoted_name} START {int(start)}")
         self._conn.commit()
         # Verify sequence was created
-        state = self.get_sequence_state(name)
-        if state is None:
+        try:
+            state = self.get_sequence_state(name)
+            logger.debug("Sequence %s verified (start=%d)", name, state.start_value)
+        except SequenceNotFoundError as e:
             logger.error("Failed to create sequence %s - sequence not found after creation", name)
-            msg = f"Sequence {name} was not created"
-            raise RuntimeError(msg)
-        logger.debug("Sequence %s verified (start=%d)", name, state.start_value)
+            raise SequenceCreationError(name) from e
 
-    def get_sequence_state(self, name: str) -> SequenceState | None:
-        """Return metadata describing the current state of ``name``."""
+    def get_sequence_state(self, name: str) -> SequenceState:
+        """Return metadata describing the current state of ``name``.
+
+        Raises:
+            SequenceNotFoundError: If the sequence does not exist.
+        """
         row = self._conn.execute(
             """
             SELECT start_value, increment_by, last_value
@@ -546,7 +556,7 @@ class DuckDBStorageManager:
             [name],
         ).fetchone()
         if row is None:
-            return None
+            raise SequenceNotFoundError(name)
         start_value, increment_by, last_value = row
         return SequenceState(
             sequence_name=name,
@@ -611,8 +621,7 @@ class DuckDBStorageManager:
         errors. Instead, we let DuckDB handle nextval() in auto-commit mode.
         """
         if count <= 0:
-            msg = "count must be positive"
-            raise ValueError(msg)
+            raise InvalidOperationError("count must be positive")
 
         with self._lock:
             # Fetch sequence values one at a time to avoid DuckDB internal errors
@@ -622,10 +631,9 @@ class DuckDBStorageManager:
                 escaped_name = sequence_name.replace("'", "''")
                 sequence_literal = f"'{escaped_name}'"
                 for _ in range(count):
-                    row = self._conn.execute(f"SELECT nextval({sequence_literal})").fetchone()
+                    row = self.execute(f"SELECT nextval({sequence_literal})").fetchone()
                     if row is None:
-                        msg = f"Failed to fetch next value for sequence '{sequence_name}'"
-                        raise RuntimeError(msg)
+                        raise SequenceFetchError(sequence_name)
                     results.append(int(row[0]))
                 return results
 
@@ -641,8 +649,9 @@ class DuckDBStorageManager:
                 self._reset_connection()
 
                 # After connection reset, ensure sequence exists (may have been lost)
-                state = self.get_sequence_state(sequence_name)
-                if state is None:
+                try:
+                    self.get_sequence_state(sequence_name)
+                except SequenceNotFoundError:
                     logger.warning(
                         "Sequence '%s' not found after connection reset, recreating", sequence_name
                     )
@@ -652,13 +661,14 @@ class DuckDBStorageManager:
                     values = _fetch_values()
                 except duckdb.Error as retry_exc:
                     logger.exception("Retry after connection reset also failed: %s", retry_exc)
-                    raise
+                    raise SequenceRetryFailedError(sequence_name) from retry_exc
 
         # Defensive check: if query returns empty, sequence might not exist
         if not values:
             # Check if sequence exists
-            state = self.get_sequence_state(sequence_name)
-            if state is None:
+            try:
+                self.get_sequence_state(sequence_name)
+            except SequenceNotFoundError:
                 # Sequence doesn't exist - create it
                 logger.warning("Sequence '%s' not found, creating it", sequence_name)
                 self.ensure_sequence(sequence_name)
