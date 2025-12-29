@@ -29,10 +29,9 @@ def content_repository(mock_db_manager):
 
 def test_get_raises_unsupported_document_type_error(content_repository):
     """Verify get() raises UnsupportedDocumentTypeError for an invalid doc type."""
+    unsupported_type = unittest.mock.create_autospec(DocumentType)
+    unsupported_type.value = "UNSUPPORTED"
     with pytest.raises(UnsupportedDocumentTypeError):
-        # Create a mock DocumentType that is not supported
-        unsupported_type = unittest.mock.create_autospec(DocumentType)
-        unsupported_type.value = "UNSUPPORTED"
         content_repository.get(unsupported_type, "some-id")
 
 
@@ -58,10 +57,9 @@ def test_get_raises_database_operation_error_on_ibis_error(content_repository, m
 
 def test_list_raises_unsupported_document_type_error(content_repository):
     """Verify list() raises UnsupportedDocumentTypeError for an invalid doc type."""
+    unsupported_type = unittest.mock.create_autospec(DocumentType)
+    unsupported_type.value = "UNSUPPORTED"
     with pytest.raises(UnsupportedDocumentTypeError):
-        # Create a mock DocumentType that is not supported
-        unsupported_type = unittest.mock.create_autospec(DocumentType)
-        unsupported_type.value = "UNSUPPORTED"
         # list() returns an iterator, so we need to consume it to trigger the exception.
         list(content_repository.list(unsupported_type))
 

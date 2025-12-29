@@ -17,6 +17,7 @@ else:  # pragma: no cover - exercised when Google SDKs are absent
     google_api_core.exceptions = google_exceptions
     sys.modules.setdefault("google.api_core", google_api_core)
 
+
 from egregora.agents.banner import agent
 from egregora.agents.banner.agent import BannerInput, _generate_banner_image
 from egregora.agents.banner.image_generation import ImageGenerationRequest, ImageGenerationResult

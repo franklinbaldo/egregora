@@ -1,5 +1,6 @@
 """Unit tests for the enrichment agent's logic."""
 
+import json
 import tempfile
 import unittest
 import zipfile
@@ -39,7 +40,7 @@ class TestEnrichmentWorkerStageFile(unittest.TestCase):
 
         self.assertTrue(staged_path.exists())
         self.assertIn("123_test_file.txt", str(staged_path))
-        with open(staged_path) as f:
+        with staged_path.open() as f:
             self.assertEqual(f.read(), "some content")
         worker.close()
 
@@ -57,7 +58,7 @@ class TestEnrichmentWorkerStageFile(unittest.TestCase):
     def test_stage_file_corrupt_zip(self):
         """Test MediaStagingError is raised when the ZIP file is corrupt."""
         zip_path = self.mock_ctx.input_path
-        with open(zip_path, "w") as f:
+        with zip_path.open("w") as f:
             f.write("this is not a zip file")
 
         worker = EnrichmentWorker(ctx=self.mock_ctx)
@@ -120,20 +121,20 @@ class TestNormalizeSlug(unittest.TestCase):
         self.assertEqual(_normalize_slug("A Valid Slug", "id"), "a-valid-slug")
 
     def test_normalize_slug_none(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Slug cannot be None or empty"):
             _normalize_slug(None, "id")
 
     def test_normalize_slug_empty(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Slug cannot be None or empty"):
             _normalize_slug("  ", "id")
 
     def test_normalize_slug_invalid_after_slugify(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid slug"):
             _normalize_slug("!@#$", "id")
 
     def test_normalize_slug_post_is_invalid(self):
         """Test that 'post' is considered an invalid slug after normalization."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid slug"):
             _normalize_slug("post", "some-identifier")
 
 
@@ -146,7 +147,7 @@ class TestLoadFileAsBinaryContent(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_load_file_as_binary_content_success(self):
-        with open(self.test_file, "wb") as f:
+        with self.test_file.open("wb") as f:
             f.write(b"test content")
 
         binary_content = load_file_as_binary_content(self.test_file)
@@ -158,14 +159,11 @@ class TestLoadFileAsBinaryContent(unittest.TestCase):
             load_file_as_binary_content(Path(self.temp_dir.name) / "non_existent.txt")
 
     def test_load_file_as_binary_content_file_too_large(self):
-        with open(self.test_file, "wb") as f:
+        with self.test_file.open("wb") as f:
             f.write(b"a" * (21 * 1024 * 1024))  # 21MB
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="exceeds the maximum allowed size"):
             load_file_as_binary_content(self.test_file, max_size_mb=20)
-
-
-import json
 
 
 class TestParseMediaResult(unittest.TestCase):

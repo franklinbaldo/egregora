@@ -1,9 +1,20 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 import pytest
+from jinja2 import TemplateError
+from yaml import YAMLError
 
+from egregora.output_adapters.exceptions import (
+    ConfigLoadError,
+    FileSystemScaffoldError,
+    PathResolutionError,
+    ScaffoldingError,
+    SiteNotSupportedError,
+    TemplateRenderingError,
+)
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 
 if TYPE_CHECKING:
@@ -52,21 +63,6 @@ def test_resolve_paths_returns_site_configuration(tmp_path: Path, scaffolder: Mk
     assert site_config.docs_dir == tmp_path / "docs"
     assert site_config.posts_dir == site_config.docs_dir / "posts"
     assert site_config.config_file == tmp_path / ".egregora" / "mkdocs.yml"
-
-
-from unittest.mock import patch
-
-from jinja2 import TemplateError
-from yaml import YAMLError
-
-from egregora.output_adapters.exceptions import (
-    ConfigLoadError,
-    FileSystemScaffoldError,
-    PathResolutionError,
-    ScaffoldingError,
-    SiteNotSupportedError,
-    TemplateRenderingError,
-)
 
 
 def test_overrides_are_in_egregora_dir(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:
