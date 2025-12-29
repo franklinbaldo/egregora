@@ -122,7 +122,7 @@ def _normalize_slug(candidate: str | None, identifier: str) -> str:
         raise ValueError(msg)
 
     value = slugify(candidate.strip())
-    if not value:
+    if not value or value == "post":
         msg = f"LLM slug '{candidate}' is invalid after normalization for: {identifier[:100]}"
         raise ValueError(msg)
 
