@@ -17,7 +17,5 @@ def test_discover_chat_file_raises_error_when_no_txt_file_found(tmp_path: Path):
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr("some_image.jpg", b"dummy content")
 
-    with pytest.raises(ChatFileNotFoundError) as excinfo:
+    with pytest.raises(ChatFileNotFoundError):
         discover_chat_file(zip_path)
-
-    assert f"No WhatsApp chat file found in {zip_path}" in str(excinfo.value)

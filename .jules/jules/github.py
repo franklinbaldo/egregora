@@ -73,7 +73,7 @@ def get_pr_details_via_gh(pr_number: int, repo_path: str = ".") -> dict[str, Any
     branch = pr_data.get("headRefName", "")
     body = pr_data.get("body", "")
     comments = pr_data.get("comments", [])
-    session_id = _extract_session_id(branch, body, comments)
+    session_id = extract_session_id(branch, body, comments)
 
     # Check CI
     checks_rollup = pr_data.get("statusCheckRollup", [])
@@ -111,7 +111,7 @@ def get_base_sha(base_branch: str, repo_path: str = ".") -> str:
     return "Unknown"
 
 
-def _extract_session_id(branch: str, body: str, comments: list[dict[str, Any]] | None = None) -> str | None:
+def extract_session_id(branch: str, body: str, comments: list[dict[str, Any]] | None = None) -> str | None:
     """Extract Jules session ID from branch name, PR body, or comments.
 
     Args:

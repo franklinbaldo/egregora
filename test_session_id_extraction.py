@@ -9,7 +9,7 @@ from typing import Any
 
 # Import the extraction logic from jules module
 sys.path.insert(0, ".jules")
-from jules.github import _extract_session_id
+from jules.github import extract_session_id
 
 
 def fetch_jules_prs() -> list[dict[str, Any]]:
@@ -22,7 +22,7 @@ def fetch_jules_prs() -> list[dict[str, Any]]:
 
         # Get repo from git remote
         cmd = ["git", "config", "--get", "remote.origin.url"]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)  # noqa: S603
         remote_url = result.stdout.strip()
 
         # Extract owner/repo from URL
@@ -39,7 +39,7 @@ def fetch_jules_prs() -> list[dict[str, Any]]:
         if token:
             curl_cmd.extend(["-H", f"Authorization: Bearer {token}"])
 
-        result = subprocess.run(curl_cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(curl_cmd, capture_output=True, text=True, check=True)  # noqa: S603
         all_prs = json.loads(result.stdout)
 
         # Filter for Jules PRs
@@ -57,7 +57,7 @@ def fetch_jules_prs() -> list[dict[str, Any]]:
             if pr["user"]["login"] == "google-labs-jules[bot]"
         ]
 
-    except Exception:
+    except BaseException:
         import traceback
 
         traceback.print_exc()
@@ -82,7 +82,7 @@ def test_session_id_extraction() -> int | None:
         pr.get("state", "")
 
         # Test extraction
-        session_id = _extract_session_id(branch, body)
+        session_id = extract_session_id(branch, body)
 
         if session_id:
             success_count += 1

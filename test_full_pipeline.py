@@ -107,15 +107,16 @@ def test_full_pipeline_with_openrouter() -> bool | None:
 
                     post_files = list(posts_dir.glob("*.md"))
 
-                    for post_file in post_files[:5]:  # Show first 5
-                        post_file.stat().st_size
+                    max_posts_to_show = 5
+                    for post_file in post_files[:max_posts_to_show]:  # Show first 5
+                        pass
 
-                    if len(post_files) > 5:
+                    if len(post_files) > max_posts_to_show:
                         pass
 
                     return True
 
-                except Exception:
+                except BaseException:
                     import traceback
 
                     traceback.print_exc()
@@ -124,14 +125,14 @@ def test_full_pipeline_with_openrouter() -> bool | None:
         except ImportError:
             return True  # Still count as success since core is working
 
-    except Exception:
+    except BaseException:
         import traceback
 
         traceback.print_exc()
         return False
 
 
-def main():
+def main() -> bool | None:
     """Run the full pipeline test."""
     success = test_full_pipeline_with_openrouter()
 

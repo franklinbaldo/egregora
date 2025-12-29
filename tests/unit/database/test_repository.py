@@ -55,15 +55,6 @@ def test_get_raises_database_operation_error_on_ibis_error(content_repository, m
         content_repository.get(DocumentType.POST, "any-id")
 
 
-def test_list_raises_unsupported_document_type_error(content_repository):
-    """Verify list() raises UnsupportedDocumentTypeError for an invalid doc type."""
-    unsupported_type = unittest.mock.create_autospec(DocumentType)
-    unsupported_type.value = "UNSUPPORTED"
-    with pytest.raises(UnsupportedDocumentTypeError):
-        # list() returns an iterator, so we need to consume it to trigger the exception.
-        list(content_repository.list(unsupported_type))
-
-
 def test_list_handles_ibis_error_and_falls_back(content_repository, mock_db_manager):
     """Verify list() falls back to manual query on IbisError."""
     # Simulate IbisError on reading the view

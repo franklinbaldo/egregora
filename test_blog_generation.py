@@ -34,7 +34,7 @@ def test_whatsapp_parsing() -> bool | None:
                 pass
 
             return True
-    except Exception:
+    except zipfile.BadZipFile:
         return False
 
 
@@ -62,8 +62,9 @@ def test_datetime_utilities() -> bool | None:
         from datetime import datetime
 
         # Test valid parsing
+        test_year = 2023
         result = datetime_utils_mod.parse_datetime_flexible("2023-01-01T12:00:00")
-        assert result.year == 2023
+        assert result.year == test_year  # noqa: S101
 
         # Test None raises exception
         try:
@@ -74,11 +75,11 @@ def test_datetime_utilities() -> bool | None:
 
         # Test ensure_datetime
         result = datetime_utils_mod.ensure_datetime("2023-01-01")
-        assert isinstance(result, datetime)
+        assert isinstance(result, datetime)  # noqa: S101
 
         return True
 
-    except Exception:
+    except BaseException:
         import traceback
 
         traceback.print_exc()
@@ -98,19 +99,19 @@ def test_exception_classes() -> bool | None:
 
         # Test CacheKeyNotFoundError
         exc = exceptions_mod.CacheKeyNotFoundError("test_key")
-        assert exc.key == "test_key"
+        assert exc.key == "test_key"  # noqa: S101
 
         # Test AuthorsFileLoadError
         exc = exceptions_mod.AuthorsFileLoadError("/path/to/file", OSError("test"))
-        assert exc.path == "/path/to/file"
+        assert exc.path == "/path/to/file"  # noqa: S101
 
         # Test DateTimeParsingError
         exc = exceptions_mod.DateTimeParsingError("invalid", ValueError("test"))
-        assert exc.value == "invalid"
+        assert exc.value == "invalid"  # noqa: S101
 
         return True
 
-    except Exception:
+    except BaseException:
         import traceback
 
         traceback.print_exc()
@@ -126,7 +127,9 @@ def test_mkdocs_adapter_imports() -> bool | None:
         py_compile.compile("src/egregora/output_adapters/mkdocs/adapter.py", doraise=True)
 
         # Check it has the expected imports
-        with open("src/egregora/output_adapters/mkdocs/adapter.py") as f:
+        from pathlib import Path
+
+        with Path("src/egregora/output_adapters/mkdocs/adapter.py").open() as f:
             content = f.read()
 
         required_imports = [
@@ -144,14 +147,14 @@ def test_mkdocs_adapter_imports() -> bool | None:
 
         return True
 
-    except Exception:
+    except BaseException:
         import traceback
 
         traceback.print_exc()
         return False
 
 
-def main():
+def main() -> bool:
     """Run all integration tests."""
     results = []
 

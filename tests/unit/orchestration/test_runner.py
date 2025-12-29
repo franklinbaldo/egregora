@@ -104,7 +104,7 @@ def test_process_single_window_orchestration(
         [MagicMock()],  # generate_profile_posts
     ]
 
-    runner._extract_adapter_info = MagicMock(return_value=("summary", "instructions"))
+    runner._extract_adapter_info = MagicMock(return_value=(("summary", "instructions")))
 
     # Act
     window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
@@ -235,7 +235,12 @@ def test_handle_commands_raises_on_announcement_failure(monkeypatch):
 
     # Act & Assert
     with pytest.raises(CommandProcessingError, match="Failed to generate announcement"):
-        runner._handle_commands([mock_command_message], mock_output_sink)
+        runner._handle_commands(
+            [mock_command_message],
+            mock_output_sink,
+            "summary",
+            "instructions",
+        )
 
 
 def test_generate_posts_and_profiles_raises_on_persist_profile_failure(monkeypatch):
@@ -251,7 +256,7 @@ def test_generate_posts_and_profiles_raises_on_persist_profile_failure(monkeypat
 
     # Mock dependencies for the method
     monkeypatch.setattr("egregora.orchestration.runner.PipelineFactory.create_writer_resources", Mock())
-    monkeypatch.setattr(runner, "_extract_adapter_info", Mock(return_value=("", "")))
+    monkeypatch.setattr(runner, "_extract_adapter_info", Mock(return_value=iter([("", "")]))
 
     # Mock the async functions to return awaitables
     monkeypatch.setattr(
