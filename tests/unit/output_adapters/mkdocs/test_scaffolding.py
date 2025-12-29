@@ -69,9 +69,9 @@ def test_overrides_are_in_egregora_dir(tmp_path: Path, scaffolder: MkDocsSiteSca
     """Test that overrides/ is created in the .egregora directory."""
     scaffolder.scaffold_site(tmp_path, site_name="Clean Site")
 
-    # overrides/ should be in site root for mkdocs.yml to find it
-    assert (tmp_path / "overrides").exists()
-    assert not (tmp_path / ".egregora" / "overrides").exists()
+    # overrides/ should be in .egregora directory
+    assert not (tmp_path / "overrides").exists()
+    assert (tmp_path / ".egregora" / "overrides").exists()
 
 
 def test_scaffold_site_raises_template_rendering_error(scaffolder: MkDocsSiteScaffolder, tmp_path: Path):

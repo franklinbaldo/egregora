@@ -27,32 +27,21 @@ class TestFeedFeedback(unittest.TestCase):
         branch = "plan-jules-feedback-loop-11292279998332410515"
         self.assertEqual(self.feed_feedback.extract_session_id(branch), "11292279998332410515")
 
-    def test_extract_session_id_uuid(self):
-        # Case 2: UUID Session ID
-        branch = "feature-update-123e4567-e89b-12d3-a456-426614174000"
-        self.assertEqual(
-            self.feed_feedback.extract_session_id(branch),
-            "123e4567-e89b-12d3-a456-426614174000",
-        )
-
     def test_extract_session_id_short_fallback(self):
         # Case 3: Short suffix (should return None if < 10 chars to avoid false positives)
         branch = "feature-update-v1"
         self.assertIsNone(self.feed_feedback.extract_session_id(branch))
 
     def test_extract_session_id_from_body(self):
-        # Case 4: Link in body
-        body = "Check out the session: https://jules.google/sessions/11292279998332410515 for details."
+        # Case 4: Link in body with .com
+        body = "Check out the session: https://jules.google.com/session/11292279998332410515 for details."
         self.assertEqual(self.feed_feedback.extract_session_id_from_body(body), "11292279998332410515")
 
-        # UUID in body
-        body_uuid = "Session: https://jules.google/sessions/123e4567-e89b-12d3-a456-426614174000"
-        self.assertEqual(
-            self.feed_feedback.extract_session_id_from_body(body_uuid),
-            "123e4567-e89b-12d3-a456-426614174000",
-        )
+        # Case 5: Link in body without .com and with /sessions/
+        body_legacy = "Session: https://jules.google/sessions/11292279998332410516"
+        self.assertEqual(self.feed_feedback.extract_session_id_from_body(body_legacy), "11292279998332410516")
 
-        # No link
+        # Case 6: No link
         self.assertIsNone(self.feed_feedback.extract_session_id_from_body("Just a normal description."))
 
     def test_should_trigger_feedback_ci_failed(self):

@@ -15,13 +15,13 @@ def temp_output_dir(tmp_path: Path) -> Path:
     docs_dir.mkdir()
     output_dir = docs_dir / "output"
     output_dir.mkdir()
-    # Create .authors.yml file in docs parent directory
-    authors_file = tmp_path / ".authors.yml"
+    # Create .authors.yml file in docs directory
+    authors_file = docs_dir / ".authors.yml"
     authors_file.write_text("author1:\n  name: Test Author\n")
     return output_dir
 
 
-@pytest.mark.skip(reason="Test needs updating: write_markdown_post now requires .authors.yml file setup. Path resolution changed.")
+
 def test_write_markdown_post_creates_file_with_correct_content_and_frontmatter(temp_output_dir: Path):
     """Test that write_markdown_post creates a file with the correct content and frontmatter."""
     content = "This is the post content."

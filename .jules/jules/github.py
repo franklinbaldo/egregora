@@ -112,34 +112,24 @@ def get_base_sha(base_branch: str, repo_path: str = ".") -> str:
 
 def _extract_session_id(branch: str, body: str) -> str | None:
     """Extract Jules session ID from branch name or PR body."""
-    session_id = None
-    # Try branch regex: -(\d{15,})$ or UUID
-    # UUID regex from feed_feedback.py
-    uuid_match = re.search(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$", branch)
-    if uuid_match:
-        return uuid_match.group(1)
+    # Try branch regex: numeric ID at the end
+    numeric_match = re.search(r"-(\d{15,})$", branch)
+    if numeric_match:
+        return numeric_match.group(1)
 
-    # Numeric ID regex
-    match = re.search(r"-(\d{15,})$", branch)
-    if match:
-        session_id = match.group(1)
+    # If not in branch, try body regex for different URL formats
+    if body:
+        # jules.google.com/session/SESSION_ID or jules.google/sessions/SESSION_ID
+        body_match = re.search(r"jules\.google(?:\.com)?/(?:session|sessions)/(\d+)", body)
+        if body_match:
+            return body_match.group(1)
 
-    if not session_id:
-        # Try body regex: jules.google.com/task/(\d+)
-        match = re.search(r"jules\.google\.com/task/(\d+)", body)
-        if match:
-            session_id = match.group(1)
-        else:
-            # Try other patterns
-            match = re.search(r"/task/([a-zA-Z0-9-]+)", body)
-            if match:
-                session_id = match.group(1)
-            else:
-                match = re.search(r"/sessions/([a-zA-Z0-9-]+)", body)
-                if match:
-                    session_id = match.group(1)
+        # /task/SESSION_ID
+        task_match = re.search(r"/task/(\d+)", body)
+        if task_match:
+            return task_match.group(1)
 
-    return session_id
+    return None
 
 
 def _analyze_checks(checks_rollup: list[dict[str, Any]]) -> tuple[bool, list[str]]:
