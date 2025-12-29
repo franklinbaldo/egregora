@@ -23,6 +23,42 @@ class MediaExtractionError(WhatsAppAdapterError):
         super().__init__(f"Failed to extract '{media_reference}' from '{zip_path}': {reason}")
 
 
+class MediaDeliveryError(WhatsAppAdapterError):
+    """Base exception for media delivery errors."""
+
+
+class InvalidMediaReferenceError(MediaDeliveryError):
+    """Raised when a media reference contains path traversal attempts or invalid characters."""
+
+    def __init__(self, media_reference: str) -> None:
+        self.media_reference = media_reference
+        super().__init__(f"Invalid or suspicious media reference: '{media_reference}'")
+
+
+class MissingZipPathError(MediaDeliveryError):
+    """Raised when zip_path is not provided to deliver_media."""
+
+    def __init__(self) -> None:
+        super().__init__("The 'zip_path' parameter is required but was not provided.")
+
+
+class ZipPathNotFoundError(MediaDeliveryError):
+    """Raised when the provided zip_path does not exist on the filesystem."""
+
+    def __init__(self, zip_path: str) -> None:
+        self.zip_path = zip_path
+        super().__init__(f"ZIP file not found at path: '{zip_path}'")
+
+
+class MediaNotFoundError(MediaDeliveryError):
+    """Raised when a media file cannot be found in the ZIP archive."""
+
+    def __init__(self, zip_path: str, media_reference: str) -> None:
+        self.zip_path = zip_path
+        self.media_reference = media_reference
+        super().__init__(f"Media file '{media_reference}' not found in ZIP archive '{zip_path}'")
+
+
 class WhatsAppParsingError(WhatsAppError):
     """Base exception for parsing errors."""
 

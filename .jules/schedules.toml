@@ -33,7 +33,7 @@ palette      = "0 11 * * *" # 11:00 - 🎨 Design System
 # --- ☀️ Afternoon (UTC) ---
 scribe       = "0 12 * * *" # 12:00 - ✍️ Technical Writing
 forge        = "0 14 * * *" # 14:00 - ⚒️ Feature Implementation
-sheriff      = "0 16 * * *" # 16:00 - 🤠 Test Stability
+sheriff      = "0 0-23/4 * * *" # Every 4 hours (0, 4, 8, 12, 16, 20) - 🤠 Test Stability (HIGH PRIORITY)
 
 # --- 🌙 Evening (UTC) ---
 weaver       = "0 22 * * *" # 22:00 - 🕸️ Integration Build
