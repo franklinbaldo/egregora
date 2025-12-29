@@ -163,10 +163,14 @@ Your Pull Request "{pr_title}" on branch `{branch}` has received feedback that n
 
 def extract_session_id(branch_name: str) -> str | None:
     """Extract session ID from branch name."""
+    uuid_match = re.search(r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$', branch_name)
+    if uuid_match:
+        return uuid_match.group(1)
+
     parts = branch_name.split('-')
     if len(parts) > 1:
         last_part = parts[-1]
-        if len(last_part) > 10 and last_part.isdigit():
+        if len(last_part) > 10 and last_part.isalnum():
              return last_part
 
     return None
@@ -175,8 +179,9 @@ def extract_session_id_from_body(body: str) -> str | None:
     """Extract session ID from PR body/description."""
     if not body:
         return None
-    # Updated regex to handle both jules.google.com/session/ and jules.google/sessions/
-    match = re.search(r'jules\.google(?:\.com)?/(?:session|sessions)/(\d+)', body)
+    match = re.search(r'/task/([a-zA-Z0-9-]+)', body)
+    if not match:
+        match = re.search(r'/sessions/([a-zA-Z0-9-]+)', body)
     return match.group(1) if match else None
 
 def should_skip_feedback(pr_data, comments_data):

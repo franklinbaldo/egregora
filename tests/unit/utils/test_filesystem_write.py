@@ -10,16 +10,9 @@ from egregora.utils.filesystem import write_markdown_post
 @pytest.fixture
 def temp_output_dir(tmp_path: Path) -> Path:
     """Create a temporary output directory for testing."""
-    # Create docs directory structure that authors.py expects
-    docs_dir = tmp_path / "docs"
-    docs_dir.mkdir()
-    output_dir = docs_dir / "output"
+    output_dir = tmp_path / "output"
     output_dir.mkdir()
-    # Create .authors.yml file in docs directory
-    authors_file = docs_dir / ".authors.yml"
-    authors_file.write_text("author1:\n  name: Test Author\n")
     return output_dir
-
 
 
 def test_write_markdown_post_creates_file_with_correct_content_and_frontmatter(temp_output_dir: Path):

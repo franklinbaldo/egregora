@@ -75,12 +75,12 @@ def test_feed_to_xml_handles_document_and_entry():
     xml_output = feed.to_xml()
 
     # Assert that the Document-specific fields are present for the Document entry
-    # Note: XML attribute order doesn't matter semantically, so we check for individual components
+    doc_type_category = f'<category term="{doc.doc_type.value}" scheme="https://egregora.app/schema#doc_type" label="Document Type" />'
+    status_category = f'<category term="{doc.status.value}" scheme="https://egregora.app/schema#status" label="Document Status" />'
+
     assert f"<id>{doc.id}</id>" in xml_output
-    assert f'scheme="https://egregora.app/schema#doc_type"' in xml_output
-    assert f'term="{doc.doc_type.value}"' in xml_output
-    assert f'scheme="https://egregora.app/schema#status"' in xml_output
-    assert f'term="{doc.status.value}"' in xml_output
+    assert doc_type_category in xml_output
+    assert status_category in xml_output
 
     # Assert that the Document-specific fields are NOT present for the plain Entry
     entry_start_index = xml_output.find(f"<id>{entry.id}</id>")
@@ -91,7 +91,6 @@ def test_feed_to_xml_handles_document_and_entry():
     assert "status" not in entry_xml_block
 
 
-@pytest.mark.skip(reason="Obsolete: _jinja_env no longer exists in egregora_v3.core.types. This test checked implementation details of a refactored Jinja setup.")
 def test_jinja_env_does_not_contain_isinstance():
     """Verify that the 'isinstance' function is not exposed to the Jinja environment."""
     from egregora_v3.core.types import _jinja_env

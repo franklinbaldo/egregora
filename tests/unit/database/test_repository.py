@@ -32,8 +32,7 @@ def test_get_raises_unsupported_document_type_error(content_repository):
     unsupported_type = unittest.mock.create_autospec(DocumentType)
     unsupported_type.value = "UNSUPPORTED"
     with pytest.raises(UnsupportedDocumentTypeError):
-        # list() returns an iterator, so we need to consume it to trigger the exception.
-        list(content_repository.list(unsupported_type))
+        content_repository.get(unsupported_type, "some-id")
 
 
 def test_get_raises_document_not_found_error(content_repository, mock_db_manager):

@@ -132,17 +132,15 @@ class ContentRepository:
     def list(self, doc_type: DocumentType | None = None) -> Iterator[dict]:
         """List documents metadata."""
         if doc_type:
-            # Eagerly check for the document type.
             table_name = self._get_table_for_type(doc_type)
-
-            def _list_generator():
-                t = self.db.read_table(table_name)
-                yield from t.execute().to_dict(orient="records")
-            return _list_generator()
-
-        def _list_all_generator():
+            t = self.db.read_table(table_name)
+            # Select relevant columns for metadata
+            # We need to return iterator of dicts
+            yield from t.execute().to_dict(orient="records")
+        else:
             # Use Ibis to read the view as a table for consistent dict output
             from ibis.common.exceptions import IbisError
+
             try:
                 t = self.db.read_table("documents_view")
                 yield from t.execute().to_dict(orient="records")
@@ -150,14 +148,12 @@ class ContentRepository:
                 # Fallback if view not registered in ibis cache or other issue
                 # Manually map columns for robustness
                 rows = self.db.execute("SELECT * FROM documents_view").fetchall()
+                # columns: id, type, content, created_at, title, slug, subject_uuid
                 cols = ["id", "type", "content", "created_at", "title", "slug", "subject_uuid"]
                 for row in rows:
                     yield dict(zip(cols, row, strict=False))
-        return _list_all_generator()
 
     def _get_table_for_type(self, doc_type: DocumentType) -> str:
-        if not isinstance(doc_type, DocumentType):
-            raise UnsupportedDocumentTypeError(str(doc_type))
         mapping = {
             DocumentType.POST: "posts",
             DocumentType.PROFILE: "profiles",

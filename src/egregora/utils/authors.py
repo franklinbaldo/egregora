@@ -34,9 +34,6 @@ def update_authors_file(authors_path: Path, author_ids: list[str]) -> int:
         The number of new authors that were added to the file.
 
     """
-    if not authors_path.exists():
-        authors_path.touch()
-
     authors = load_authors_yml(authors_path)
     new_ids = register_new_authors(authors, author_ids)
     if new_ids:
@@ -73,8 +70,6 @@ def load_authors_yml(path: Path) -> dict:
     """Loads the .authors.yml file."""
     try:
         return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except FileNotFoundError:
-        return {}  # Return empty dict if file doesn't exist
     except OSError as e:
         raise AuthorsFileLoadError(str(path), e) from e
     except yaml.YAMLError as e:
