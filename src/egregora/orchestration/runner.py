@@ -5,6 +5,7 @@ This module encapsulates the execution of the pipeline logic, separating it from
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 from collections import deque
@@ -20,6 +21,14 @@ from egregora.agents.types import PromptTooLargeError
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.data_primitives.document import UrlContext
 from egregora.orchestration.context import PipelineContext
+from egregora.orchestration.exceptions import (
+    CommandProcessingError,
+    EnrichmentError,
+    OutputSinkError,
+    ProfileGenerationError,
+    WindowSizeError,
+    WindowSplitError,
+)
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.modules.media import process_media_for_window
 from egregora.transformations import split_window_into_n_parts
@@ -144,7 +153,7 @@ class PipelineRunner:
                 f"Window {window.window_index} has {window.size} messages but max is {max_size}. "
                 f"Reduce --step-size to create smaller windows."
             )
-            raise ValueError(msg)
+            raise WindowSizeError(msg)
 
     def process_background_tasks(self) -> None:
         """Process pending background tasks."""
@@ -192,7 +201,7 @@ class PipelineRunner:
             if current_depth >= max_depth:
                 error_msg = f"Max split depth {max_depth} reached for window {window_label}."
                 logger.error("%s❌ %s", indent, error_msg)
-                raise RuntimeError(error_msg)
+                raise WindowSplitError(error_msg)
 
             try:
                 window_results = self._process_single_window(current_window, depth=current_depth)
@@ -219,7 +228,7 @@ class PipelineRunner:
 
         output_sink = self.context.output_format
         if output_sink is None:
-            raise RuntimeError("Output adapter must be initialized before processing windows.")
+            raise OutputSinkError("Output adapter must be initialized before processing windows.")
 
         url_context = self.context.url_context or UrlContext()
         window_table_processed, media_mapping = process_media_for_window(
@@ -235,7 +244,7 @@ class PipelineRunner:
                 try:
                     output_sink.persist(media_doc)
                 except Exception as e:
-                    logger.exception("Failed to write media file: %s", e)
+                    raise EnrichmentError("Failed to write media file") from e
 
         if self.context.enable_enrichment:
             enriched_table = self._perform_enrichment(window_table_processed, media_mapping)
@@ -263,7 +272,7 @@ class PipelineRunner:
                     output_sink.persist(announcement)
                     announcements_generated += 1
                 except Exception as exc:
-                    logger.exception("Failed to generate announcement: %s", exc)
+                    raise CommandProcessingError("Failed to generate announcement") from exc
 
         clean_messages_list = filter_commands(messages_list)
 
@@ -296,9 +305,11 @@ class PipelineRunner:
                     output_sink.persist(profile_doc)
                     profiles.append(profile_doc.document_id)
                 except Exception as exc:
-                    logger.exception("Failed to persist profile: %s", exc)
+                    raise ProfileGenerationError("Failed to persist profile") from exc
         except Exception as exc:
             logger.exception("Failed to generate profile posts: %s", exc)
+            if isinstance(exc, ProfileGenerationError):
+                raise
 
         # Scheduled tasks are returned as "pending:<task_id>"
         scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
@@ -393,6 +404,6 @@ class PipelineRunner:
         split_windows = split_window_into_n_parts(window, num_splits)
 
         if not split_windows:
-            raise RuntimeError("Cannot split window - all splits would be empty") from error
+            raise WindowSplitError("Cannot split window - all splits would be empty") from error
 
         return [(split_window, depth + 1) for split_window in split_windows]

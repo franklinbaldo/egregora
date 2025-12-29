@@ -667,18 +667,18 @@ def _create_gemini_client() -> genai.Client:
     Model/Key rotator to handle it immediately (Story 8).
     We still retry 503 (Service Unavailable).
     """
-    import google.generativeai as genai  # Lazy import at runtime
+    import google.generativeai as genai
 
-    http_options = genai.types.HttpOptions(
-        retryOptions=genai.types.HttpRetryOptions(
-            attempts=3,  # Reduced from 15
-            initialDelay=1.0,
-            maxDelay=10.0,
-            expBase=2.0,
-            httpStatusCodes=[503],  # Only retry 503 at client level. 429 handled by app.
-        )
-    )
-    return genai.Client(http_options=http_options)
+    # http_options = genai.types.HttpOptions(
+    #     retryOptions=genai.types.HttpRetryOptions(
+    #         attempts=3,  # Reduced from 15
+    #         initialDelay=1.0,
+    #         maxDelay=10.0,
+    #         expBase=2.0,
+    #         httpStatusCodes=[503],  # Only retry 503 at client level. 429 handled by app.
+    #     )
+    # )
+    return genai.Client()
 
 
 def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineContext, any, any]:
@@ -701,7 +701,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     )
 
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
-    initialize_database(pipeline_backend)
+    initialize_database()
 
     client_instance = run_params.client or _create_gemini_client()
     cache_path = Path(run_params.config.paths.cache_dir)

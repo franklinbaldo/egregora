@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Test session ID extraction logic with real Jules PRs from GitHub API."""
 
-import json
 import os
 import subprocess
 import sys
 from typing import Any
 
+import requests
+
 # Import the extraction logic from jules module
 sys.path.insert(0, ".jules")
-from jules.github import _extract_session_id
+from jules.github import extract_session_id
 
 
 def fetch_jules_prs() -> list[dict[str, Any]]:
@@ -17,16 +18,16 @@ def fetch_jules_prs() -> list[dict[str, Any]]:
     try:
         # Get token from environment
         token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-        if not token:
-            pass
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
 
         # Get repo from git remote
         cmd = ["git", "config", "--get", "remote.origin.url"]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(  # noqa: S603
+            cmd, capture_output=True, text=True, check=True, timeout=10
+        )
         remote_url = result.stdout.strip()
 
         # Extract owner/repo from URL
-        # Handle formats: git@github.com:owner/repo.git or https://github.com/owner/repo.git
         if "github.com" in remote_url:
             parts = remote_url.split("github.com")[-1].strip("/:").replace(".git", "")
             owner, repo = parts.split("/")
@@ -35,12 +36,9 @@ def fetch_jules_prs() -> list[dict[str, Any]]:
 
         # Fetch PRs via GitHub API
         url = f"https://api.github.com/repos/{owner}/{repo}/pulls?state=all&per_page=20"
-        curl_cmd = ["curl", "-s", url]
-        if token:
-            curl_cmd.extend(["-H", f"Authorization: Bearer {token}"])
-
-        result = subprocess.run(curl_cmd, capture_output=True, text=True, check=True)
-        all_prs = json.loads(result.stdout)
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        all_prs = response.json()
 
         # Filter for Jules PRs
         return [
@@ -54,13 +52,10 @@ def fetch_jules_prs() -> list[dict[str, Any]]:
                 "state": pr["state"],
             }
             for pr in all_prs
-            if pr["user"]["login"] == "google-labs-jules[bot]"
+            if pr.get("user", {}).get("login") == "google-labs-jules[bot]"
         ]
 
-    except Exception:
-        import traceback
-
-        traceback.print_exc()
+    except (requests.RequestException, subprocess.CalledProcessError, KeyError):
         return []
 
 
@@ -82,7 +77,7 @@ def test_session_id_extraction() -> int | None:
         pr.get("state", "")
 
         # Test extraction
-        session_id = _extract_session_id(branch, body)
+        session_id = extract_session_id(branch, body)
 
         if session_id:
             success_count += 1

@@ -110,6 +110,11 @@ def get_base_sha(base_branch: str, repo_path: str = ".") -> str:
     return "Unknown"
 
 
+def extract_session_id(branch: str, body: str) -> str | None:
+    """Extract Jules session ID from branch name or PR body."""
+    return _extract_session_id(branch, body)
+
+
 def _extract_session_id(branch: str, body: str) -> str | None:
     """Extract Jules session ID from branch name or PR body."""
     session_id = None

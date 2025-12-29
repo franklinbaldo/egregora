@@ -56,14 +56,18 @@ def find_authors_yml(output_dir: Path) -> Path:
     # More robustly search up the tree for a 'docs' directory
     for parent in [current_dir, *current_dir.parents]:
         if parent.name == "docs":
-            return parent / ".authors.yml"
+            authors_path = parent / ".authors.yml"
+            authors_path.touch(exist_ok=True)
+            return authors_path
 
     logger.warning(
         "Could not find 'docs' directory in ancestry of %s. "
         "Falling back to legacy path resolution for .authors.yml.",
         output_dir,
     )
-    return output_dir.resolve().parent.parent / ".authors.yml"
+    authors_path = output_dir.resolve().parent.parent / ".authors.yml"
+    authors_path.touch(exist_ok=True)
+    return authors_path
 
 
 def load_authors_yml(path: Path) -> dict:

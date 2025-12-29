@@ -4,6 +4,11 @@ import types
 
 import pytest
 
+from egregora.agents.banner import agent
+from egregora.agents.banner.agent import BannerInput, _generate_banner_image
+from egregora.agents.banner.image_generation import ImageGenerationRequest, ImageGenerationResult
+from egregora.data_primitives.document import DocumentType
+
 google_api_core_spec = importlib.util.find_spec("google.api_core")
 if google_api_core_spec is not None:
     from google.api_core import exceptions as google_exceptions
@@ -16,12 +21,6 @@ else:  # pragma: no cover - exercised when Google SDKs are absent
     google_api_core = types.ModuleType("google.api_core")
     google_api_core.exceptions = google_exceptions
     sys.modules.setdefault("google.api_core", google_api_core)
-
-
-from egregora.agents.banner import agent
-from egregora.agents.banner.agent import BannerInput, _generate_banner_image
-from egregora.agents.banner.image_generation import ImageGenerationRequest, ImageGenerationResult
-from egregora.data_primitives.document import DocumentType
 
 
 class _FakeProvider:

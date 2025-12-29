@@ -136,7 +136,8 @@ class ContentRepository:
             t = self.db.read_table(table_name)
             # Select relevant columns for metadata
             # We need to return iterator of dicts
-            yield from t.execute().to_dict(orient="records")
+            for row in t.execute().to_dict(orient="records"):
+                yield row
         else:
             # Use Ibis to read the view as a table for consistent dict output
             from ibis.common.exceptions import IbisError

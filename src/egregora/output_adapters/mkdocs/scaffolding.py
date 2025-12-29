@@ -245,7 +245,7 @@ class MkDocsSiteScaffolder:
 
         # Create overrides in site root (since mkdocs.yml is now in site root)
         # It must be relative to mkdocs.yml location for custom_dir to work
-        overrides_dest = site_paths.egregora_dir / "overrides"
+        overrides_dest = site_root / "overrides"
         if not overrides_dest.exists():
             overrides_src = Path(env.loader.searchpath[0]) / "overrides"
             if overrides_src.exists():

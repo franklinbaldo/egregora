@@ -33,8 +33,8 @@ except ImportError:  # pragma: no cover - depends on test env
 def stub_google_generativeai():
     """Inject a lightweight google.generativeai stub when the real package is unavailable."""
     try:  # pragma: no cover - depends on test env
-        import google.generativeai  # type: ignore  # noqa: F401
-    except Exception:
+        import google.generativeai  # type: ignore[import-not-found] # noqa: F401
+    except ImportError:
         pass
     else:
         yield
@@ -54,10 +54,10 @@ def stub_google_generativeai():
 
     class GoogleAPICallError(Exception): ...
 
-    class ResourceExhausted(GoogleAPICallError): ...
+    class ResourceExhaustedError(GoogleAPICallError): ...
 
     exceptions_module.GoogleAPICallError = GoogleAPICallError
-    exceptions_module.ResourceExhausted = ResourceExhausted
+    exceptions_module.ResourceExhausted = ResourceExhaustedError
     api_core_module.exceptions = exceptions_module
 
     genai_module = ModuleType("google.generativeai")

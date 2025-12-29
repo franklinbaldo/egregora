@@ -162,7 +162,7 @@ class TestLoadFileAsBinaryContent(unittest.TestCase):
         with self.test_file.open("wb") as f:
             f.write(b"a" * (21 * 1024 * 1024))  # 21MB
 
-        with pytest.raises(ValueError, match="File too large|exceeds.*limit"):
+        with pytest.raises(ValueError, match=r"File too large|exceeds.*limit"):
             load_file_as_binary_content(self.test_file, max_size_mb=20)
 
 

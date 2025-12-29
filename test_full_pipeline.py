@@ -46,28 +46,11 @@ def test_full_pipeline_with_openrouter() -> bool | None:
         ),
     )
 
-    pytest.importorskip(
-        "google.generativeai",
-        reason=(
-            "google.generativeai is required for the OpenRouter pipeline test; "
-            "install it to exercise the full pipeline."
-        ),
-    )
-    pytest.importorskip(
-        "cryptography",
-        reason=(
-            "cryptography is required for google.generativeai/OpenRouter integration; "
-            "install it to exercise the full pipeline."
-        ),
-    )
-
     # Try to import the pipeline (this will test if dependencies work)
     try:
         # Test basic imports first
         from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
         from egregora.output_adapters.mkdocs import MkDocsAdapter
-
-        # Test datetime utilities we merged
 
         # Test if we can create adapters
         WhatsAppAdapter()
@@ -93,45 +76,32 @@ def test_full_pipeline_with_openrouter() -> bool | None:
                 )
 
                 # Run the pipeline
-                try:
-                    process_whatsapp_export(
-                        zip_path,
-                        options=options,
-                    )
+                process_whatsapp_export(
+                    zip_path,
+                    options=options,
+                )
 
-                    # Verify outputs
-                    from egregora.output_adapters.mkdocs.paths import derive_mkdocs_paths
+                # Verify outputs
+                from egregora.output_adapters.mkdocs.paths import derive_mkdocs_paths
 
-                    site_paths = derive_mkdocs_paths(output_dir)
-                    posts_dir = site_paths["posts_dir"]
+                site_paths = derive_mkdocs_paths(output_dir)
+                posts_dir = site_paths["posts_dir"]
 
-                    post_files = list(posts_dir.glob("*.md"))
+                post_files = list(posts_dir.glob("*.md"))
+                assert post_files  # noqa: S101
+                for post_file in post_files[:5]:  # Show first 5
+                    assert post_file.stat().st_size > 0  # noqa: S101
 
-                    for post_file in post_files[:5]:  # Show first 5
-                        post_file.stat().st_size
-
-                    if len(post_files) > 5:
-                        pass
-
-                    return True
-
-                except Exception:
-                    import traceback
-
-                    traceback.print_exc()
-                    return False
+                return True
 
         except ImportError:
             return True  # Still count as success since core is working
 
-    except Exception:
-        import traceback
-
-        traceback.print_exc()
+    except ImportError:
         return False
 
 
-def main():
+def main() -> bool | None:
     """Run the full pipeline test."""
     success = test_full_pipeline_with_openrouter()
 

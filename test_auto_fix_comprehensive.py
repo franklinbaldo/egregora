@@ -1,46 +1,42 @@
 #!/usr/bin/env python3
 """Comprehensive test for Jules auto-fix logic."""
 
-import json
 import os
 import re
 import subprocess
 import sys
-from typing import Any
+from typing import Any, cast
+
+import requests
 
 # Import the extraction logic from jules module
 sys.path.insert(0, ".jules")
-from jules.github import _extract_session_id
+from jules.github import extract_session_id
 
 
 def fetch_jules_prs() -> list[dict[str, Any]]:
-    """Fetch PRs created by Jules bot using GitHub API via curl."""
+    """Fetch PRs created by Jules bot using GitHub API."""
     try:
-        # Get token from environment
         token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
 
-        # Get repo from git remote
         cmd = ["git", "config", "--get", "remote.origin.url"]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(  # noqa: S603
+            cmd, capture_output=True, text=True, check=True, timeout=10
+        )
         remote_url = result.stdout.strip()
 
-        # Extract owner/repo from URL
         if "github.com" in remote_url:
             parts = remote_url.split("github.com")[-1].strip("/:").replace(".git", "")
             owner, repo = parts.split("/")
         else:
             owner, repo = "franklinbaldo", "egregora"
 
-        # Fetch PRs via GitHub API
         url = f"https://api.github.com/repos/{owner}/{repo}/pulls?state=all&per_page=30"
-        curl_cmd = ["curl", "-s", url]
-        if token:
-            curl_cmd.extend(["-H", f"Authorization: Bearer {token}"])
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        all_prs = response.json()
 
-        result = subprocess.run(curl_cmd, capture_output=True, text=True, check=True)
-        all_prs = json.loads(result.stdout)
-
-        # Filter for Jules PRs
         return [
             {
                 "number": pr["number"],
@@ -52,27 +48,24 @@ def fetch_jules_prs() -> list[dict[str, Any]]:
                 "state": pr["state"],
             }
             for pr in all_prs
-            if pr["user"]["login"] == "google-labs-jules[bot]"
+            if pr.get("user", {}).get("login") == "google-labs-jules[bot]"
         ]
-
-    except Exception:
+    except (subprocess.CalledProcessError, requests.RequestException, KeyError):
         return []
 
 
-def analyze_session_id_patterns():
+def analyze_session_id_patterns() -> dict[str, list[Any]] | None:
     """Analyze the different session ID patterns found in Jules PRs."""
     prs = fetch_jules_prs()
-
     if not prs:
         return None
 
-    # Track different patterns
-    patterns = {
-        "numeric_15plus": [],  # -(\d{15,})$
-        "uuid": [],  # -UUID$
-        "from_body_jules_url": [],  # jules.google.com/task/(\d+)
-        "from_body_task": [],  # /task/ID
-        "from_body_sessions": [],  # /sessions/ID
+    patterns: dict[str, list[Any]] = {
+        "numeric_15plus": [],
+        "uuid": [],
+        "from_body_jules_url": [],
+        "from_body_task": [],
+        "from_body_sessions": [],
         "not_found": [],
     }
 
@@ -80,10 +73,8 @@ def analyze_session_id_patterns():
         pr_number = pr.get("number")
         branch = pr.get("headRefName", "")
         body = pr.get("body", "")
+        session_id = extract_session_id(branch, body)
 
-        session_id = _extract_session_id(branch, body)
-
-        # Categorize by pattern
         if not session_id:
             patterns["not_found"].append((pr_number, branch))
         elif re.search(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$", branch):
@@ -97,42 +88,22 @@ def analyze_session_id_patterns():
         elif "/sessions/" in body:
             patterns["from_body_sessions"].append((pr_number, branch, session_id))
 
-    if patterns["uuid"]:
-        for _pr_num, branch, _sid in patterns["uuid"][:3]:
-            pass
-
-    if patterns["numeric_15plus"]:
-        for _pr_num, branch, _sid in patterns["numeric_15plus"][:3]:
-            pass
-
-    if patterns["from_body_jules_url"]:
-        for _pr_num, branch, _sid in patterns["from_body_jules_url"][:3]:
-            pass
-
-    if patterns["not_found"]:
-        for _pr_num, branch in patterns["not_found"]:
-            pass
-
     return patterns
 
 
-def test_auto_fix_behavior():
+def test_auto_fix_behavior() -> tuple[int, int] | None:
     """Test what would happen with auto-fix for recent Jules PRs."""
     prs = fetch_jules_prs()
-
     if not prs:
         return None
 
     would_fix = 0
     would_skip = 0
 
-    for pr in prs[:10]:  # Test first 10
-        pr.get("number")
+    for pr in prs[:10]:
         branch = pr.get("headRefName", "")
         body = pr.get("body", "")
-        pr.get("state", "")
-
-        session_id = _extract_session_id(branch, body)
+        session_id = extract_session_id(branch, body)
 
         if session_id:
             would_fix += 1
@@ -144,18 +115,12 @@ def test_auto_fix_behavior():
 
 def main() -> int:
     """Run all tests."""
-    # Test 1: Pattern analysis
     analyze_session_id_patterns()
-
-    # Test 2: Auto-fix behavior
-    would_fix, would_skip = test_auto_fix_behavior()
-
-    # Final verdict
-
-    would_fix + would_skip
-
-    if would_skip == 0:
-        return 0
+    behavior_result = test_auto_fix_behavior()
+    if behavior_result:
+        would_fix, would_skip = cast("tuple[int, int]", behavior_result)
+        if would_skip == 0 and would_fix > 0:
+            return 0
     return 1
 
 
