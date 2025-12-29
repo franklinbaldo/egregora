@@ -1,9 +1,28 @@
 """Jules Auto-Fixer."""
 
+import subprocess
 from typing import Any
 
 from jules.client import JulesClient
 from jules.github import fetch_failed_logs_summary, get_pr_details_via_gh
+
+
+def post_pr_comment(pr_number: int, comment: str, repo_path: str = ".") -> None:
+    """Post a comment on a PR using gh CLI.
+
+    Requires gh CLI to be installed and GH_TOKEN or GITHUB_TOKEN to be set.
+    """
+    try:
+        cmd = ["gh", "pr", "comment", str(pr_number), "--body", comment]
+        subprocess.run(cmd, check=True, capture_output=True, text=True, cwd=repo_path)
+        print(f"📝 Posted comment on PR #{pr_number}")
+    except FileNotFoundError:
+        print(f"⚠️  gh CLI not found - skipping PR comment")
+    except subprocess.CalledProcessError as e:
+        print(f"⚠️  Failed to post PR comment: {e.stderr if e.stderr else e}")
+    except Exception as e:
+        print(f"⚠️  Failed to post PR comment: {e}")
+        # Don't fail the whole operation if comment posting fails
 
 
 def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
@@ -43,6 +62,13 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
 
     # Only send message to existing session - never create new sessions
     if not session_id:
+        comment = (
+            "## 🤖 Auto-Fix: Skipped\n\n"
+            "⚠️ **No session ID found** - This PR was not created by Jules or the session ID could not be extracted.\n\n"
+            "Auto-fix only works with PRs created by Jules that have an associated session ID."
+        )
+        post_pr_comment(pr_number, comment)
+
         return {
             "status": "skipped",
             "message": f"No session_id found for PR #{pr_number}. Auto-fix only works with existing Jules sessions.",
@@ -55,10 +81,21 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
         session_state = session.get("state", "UNKNOWN")
         print(f"📡 Session {session_id} state: {session_state}")
     except Exception as e:
+        error_msg = f"Failed to retrieve session {session_id}: {e!s}"
+        comment = (
+            f"## 🤖 Auto-Fix: Failed\n\n"
+            f"❌ **Error retrieving Jules session**\n\n"
+            f"- **Session ID**: `{session_id}`\n"
+            f"- **Error**: {e!s}\n\n"
+            f"The session may have been deleted or the API request failed. "
+            f"Check the workflow logs for more details."
+        )
+        post_pr_comment(pr_number, comment)
+
         return {
             "status": "error",
             "error_type": "get_session_failed",
-            "message": f"Failed to retrieve session {session_id}: {e!s}",
+            "message": error_msg,
             "session_id": session_id,
         }
 
@@ -73,6 +110,19 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
 
         print(f"✅ Message sent successfully to session {session_id}")
 
+        # Post success comment to PR
+        comment = (
+            f"## 🤖 Auto-Fix: Message Sent\n\n"
+            f"✅ **Fix request sent to Jules**\n\n"
+            f"- **Session ID**: `{session_id}`\n"
+            f"- **Session State**: `{session_state}`\n\n"
+            f"### Message Sent:\n\n"
+            f"> {feedback}\n\n"
+            f"Jules will process this request and update the PR. "
+            f"Check the [Jules session](https://jules.google.com) for progress."
+        )
+        post_pr_comment(pr_number, comment)
+
         return {
             "status": "success",
             "action": "messaged_existing_session",
@@ -80,10 +130,25 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
             "session_state": session_state,
         }
     except Exception as e:
+        error_msg = f"Failed to send message to session {session_id} (state: {session_state}): {e!s}"
+        comment = (
+            f"## 🤖 Auto-Fix: Failed\n\n"
+            f"❌ **Error sending message to Jules session**\n\n"
+            f"- **Session ID**: `{session_id}`\n"
+            f"- **Session State**: `{session_state}`\n"
+            f"- **Error**: {e!s}\n\n"
+            f"The message failed to send. This could be due to:\n"
+            f"- Network/API timeout\n"
+            f"- Session in invalid state\n"
+            f"- API rate limiting\n\n"
+            f"Check the workflow logs for more details."
+        )
+        post_pr_comment(pr_number, comment)
+
         return {
             "status": "error",
             "error_type": "send_message_failed",
-            "message": f"Failed to send message to session {session_id} (state: {session_state}): {e!s}",
+            "message": error_msg,
             "session_id": session_id,
             "session_state": session_state,
         }

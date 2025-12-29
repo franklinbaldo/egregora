@@ -13,7 +13,7 @@ on:
         type: string
 
 permissions:
-  pull-requests: read
+  pull-requests: write  # Changed from 'read' to allow posting comments
   contents: read
 
 jobs:
@@ -85,6 +85,7 @@ jobs:
         if: steps.pr-info.outputs.is_jules == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # For gh CLI to post comments
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           PYTHONPATH: .jules
         run: |
