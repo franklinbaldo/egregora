@@ -23,9 +23,9 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
-import google.genai as genai
 import ibis
 import ibis.common.exceptions
+from google import genai
 from rich.console import Console
 from rich.panel import Panel
 
@@ -67,6 +67,7 @@ except ImportError:
     dotenv = None
 
 if TYPE_CHECKING:
+    import google.generativeai as genai
     import ibis.expr.types as ir
 
 
@@ -142,7 +143,7 @@ class WhatsAppProcessOptions:
     # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch removed (legacy DuckDB VSS settings)
     max_prompt_tokens: int = 100_000
     use_full_context_window: bool = False
-    client: genai.Client | None = None
+    client: "genai.Client | None" = None
     refresh: str | None = None
 
 
@@ -603,7 +604,7 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> Mk
     return MkDocsPaths(output_dir, config=config)
 
 
-def _create_gemini_client() -> genai.Client:
+def _create_gemini_client() -> "genai.Client":
     """Create a Gemini client with retry configuration.
 
     The client reads the API key from GOOGLE_API_KEY environment variable automatically.
@@ -612,6 +613,8 @@ def _create_gemini_client() -> genai.Client:
     Model/Key rotator to handle it immediately (Story 8).
     We still retry 503 (Service Unavailable).
     """
+    import google.generativeai as genai  # Lazy import at runtime
+
     http_options = genai.types.HttpOptions(
         retryOptions=genai.types.HttpRetryOptions(
             attempts=3,  # Reduced from 15

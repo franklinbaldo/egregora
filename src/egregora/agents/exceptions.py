@@ -1,32 +1,13 @@
-"""Custom exceptions for agent-related errors."""
+"""Custom exceptions for the agents module."""
 
 
-class AgentLogicError(Exception):
-    """Base exception for agent-related logical errors."""
+class AgentError(Exception):
+    """Base exception for all agent-related errors."""
 
 
-class JournalTemplateError(AgentLogicError):
-    """Raised when a journal template cannot be found or rendered."""
-
-    def __init__(self, template_name: str, reason: str) -> None:
-        self.template_name = template_name
-        self.reason = reason
-        super().__init__(f"Failed to process journal template '{template_name}': {reason}")
+class EnrichmentError(AgentError):
+    """Base exception for errors during the enrichment process."""
 
 
-class JournalFileSystemError(AgentLogicError):
-    """Raised when a journal file cannot be written to the filesystem."""
-
-    def __init__(self, path: str, reason: str) -> None:
-        self.path = path
-        self.reason = reason
-        super().__init__(f"Filesystem error for journal at '{path}': {reason}")
-
-
-class WriterAgentExecutionError(AgentLogicError):
-    """Raised when the writer agent fails during execution."""
-
-    def __init__(self, window_label: str, reason: str) -> None:
-        self.window_label = window_label
-        self.reason = reason
-        super().__init__(f"Writer agent failed for window '{window_label}': {reason}")
+class MediaStagingError(EnrichmentError):
+    """Raised when a media file cannot be staged for enrichment."""

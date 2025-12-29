@@ -35,6 +35,7 @@ NAMESPACE_DOCUMENT = UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 @dataclass(frozen=True, slots=True)
 class Author:
     """Represents a content author."""
+
     id: str
     name: str | None = None
 
@@ -42,6 +43,7 @@ class Author:
 @dataclass(frozen=True, slots=True)
 class Category:
     """Represents a content category or tag."""
+
     term: str
 
 

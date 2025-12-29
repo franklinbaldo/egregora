@@ -18,7 +18,7 @@ from uuid import UUID
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import google.genai as genai
+    from google import genai
 
     from egregora.agents.shared.annotations import AnnotationStore
     from egregora.config.settings import EgregoraConfig
@@ -29,7 +29,6 @@ if TYPE_CHECKING:
     from egregora.rag.embedding_router import EmbeddingRouter
     from egregora.utils.cache import EnrichmentCache, PipelineCache
     from egregora.utils.metrics import UsageTracker
-    from egregora_v3.core.catalog import ContentLibrary
 
 
 __all__ = [
@@ -142,7 +141,7 @@ class PipelineState:
     task_store: TaskStore | None = None
 
     # V3 Content Library Facade
-    library: ContentLibrary | None = None
+    library: Any = None  # V3 ContentLibrary (avoid V2→V3 import)
 
     # Output & Adapters (Initialized lazily or updated)
     output_format: OutputSink | None = None  # ISP-compliant: Runtime data operations only
@@ -234,7 +233,7 @@ class PipelineContext:
         return self.state.task_store
 
     @property
-    def library(self) -> ContentLibrary | None:
+    def library(self) -> Any:  # V3 ContentLibrary (avoid V2→V3 import)
         return self.state.library
 
     @property

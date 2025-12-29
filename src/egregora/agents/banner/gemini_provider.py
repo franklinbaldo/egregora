@@ -20,7 +20,7 @@ from egregora.agents.banner.image_generation import (
 )
 
 if TYPE_CHECKING:
-    import google.genai as genai
+    from google import genai
 
 logger = logging.getLogger(__name__)
 
