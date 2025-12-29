@@ -137,6 +137,11 @@ def generate_banner(
         Requires GOOGLE_API_KEY environment variable to be set.
 
     """
+    if not is_banner_generation_available():
+        return BannerOutput(
+            error="Banner generation is not available. Please set GOOGLE_API_KEY.",
+            error_code="NOT_CONFIGURED",
+        )
     # Client reads GOOGLE_API_KEY from environment automatically
     client = genai.Client()
 
