@@ -1,4 +1,21 @@
+import importlib.util
+import sys
+import types
+
 import pytest
+
+google_api_core_spec = importlib.util.find_spec("google.api_core")
+if google_api_core_spec is not None:
+    from google.api_core import exceptions as google_exceptions
+else:  # pragma: no cover - exercised when Google SDKs are absent
+    GoogleAPICallError = type("GoogleAPICallError", (Exception,), {})
+    google_exceptions = types.SimpleNamespace(
+        GoogleAPICallError=GoogleAPICallError,
+        ResourceExhausted=type("ResourceExhausted", (GoogleAPICallError,), {}),
+    )
+    google_api_core = types.ModuleType("google.api_core")
+    google_api_core.exceptions = google_exceptions
+    sys.modules.setdefault("google.api_core", google_api_core)
 
 from egregora.agents.banner import agent
 from egregora.agents.banner.agent import BannerInput, _generate_banner_image
