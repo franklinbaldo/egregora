@@ -52,9 +52,11 @@ def stub_google_generativeai():
 
     exceptions_module = ModuleType("google.api_core.exceptions")
 
-    class GoogleAPICallError(Exception): ...
+    class GoogleAPICallError(Exception):
+        ...
 
-    class ResourceExhausted(GoogleAPICallError): ...
+    class ResourceExhausted(GoogleAPICallError):
+        ...
 
     exceptions_module.GoogleAPICallError = GoogleAPICallError
     exceptions_module.ResourceExhausted = ResourceExhausted
@@ -63,7 +65,8 @@ def stub_google_generativeai():
     genai_module = ModuleType("google.generativeai")
 
     class Client:
-        def __init__(self, *args, **kwargs): ...
+        def __init__(self, *args, **kwargs):
+            ...
 
     genai_module.Client = Client
 
