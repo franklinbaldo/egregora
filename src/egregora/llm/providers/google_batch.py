@@ -9,8 +9,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import httpx
-from google import genai
-from google.genai import types
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models import Model, ModelRequestParameters, ModelSettings
@@ -18,7 +16,9 @@ from pydantic_ai.usage import RequestUsage
 from tenacity import RetryError, retry, retry_if_result, stop_after_delay, wait_fixed
 
 if TYPE_CHECKING:
+    import google.generativeai as genai
     from collections.abc import Iterable
+    from google.generativeai import types
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +123,9 @@ class GoogleBatchModel(Model):
             List of BatchResult objects containing responses or errors.
 
         """
+        import google.generativeai as genai  # Lazy import at runtime
+        from google.generativeai import types
+
         if not requests:
             return []
 
@@ -168,6 +171,8 @@ class GoogleBatchModel(Model):
 
     def _extract_inline_results(self, job: Any, requests: list[dict[str, Any]]) -> list[BatchResult]:
         """Extract results from inline batch response."""
+        import google.generativeai as genai  # Lazy import at runtime
+
         results: list[BatchResult] = []
 
         # For inline requests, results come in job.dest.inline_responses
