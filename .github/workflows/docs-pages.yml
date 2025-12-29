@@ -98,7 +98,7 @@ jobs:
         uses: actions/deploy-pages@v4
 
       - name: Upload bundles artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: bundles
           path: /tmp/bundles/
