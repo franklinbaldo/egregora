@@ -61,6 +61,10 @@ def test_generate_unique_filename_raises_error_after_max_attempts(tmp_path):
     assert excinfo.value.max_attempts == max_attempts
 
 
+from egregora.output_adapters.base import OutputSinkRegistry
+from egregora.output_adapters.exceptions import AdapterNotDetectedError
+
+
 def test_create_output_sink_raises_error_if_registry_is_none():
     """
     Given a call to create_output_sink without a registry
@@ -69,3 +73,19 @@ def test_create_output_sink_raises_error_if_registry_is_none():
     """
     with pytest.raises(RegistryNotProvidedError):
         create_output_sink(site_root=Path("/fake/path"), registry=None)
+
+
+class TestOutputSinkRegistry:
+    def test_detect_format_raises_error_when_no_adapter_found(self):
+        """
+        Given an empty OutputSinkRegistry
+        When detect_format is called
+        Then it should raise an AdapterNotDetectedError.
+        """
+        registry = OutputSinkRegistry()
+        site_root = Path("/non/existent/site")
+
+        with pytest.raises(AdapterNotDetectedError) as excinfo:
+            registry.detect_format(site_root)
+
+        assert excinfo.value.site_root == str(site_root)

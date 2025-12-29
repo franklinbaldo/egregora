@@ -9,13 +9,34 @@ interpretation and generation in a single API call.
 
 from __future__ import annotations
 
+import importlib.util
 import logging
 import os
+import sys
+from typing import TYPE_CHECKING
 
-import google.generativeai as genai
-from google.api_core import exceptions as google_exceptions
 from pydantic import BaseModel, Field
 from tenacity import Retrying
+
+if TYPE_CHECKING:
+    import google.generativeai as genai
+    from google.api_core import exceptions as google_exceptions
+
+google_api_core_spec = "google.api_core" in sys.modules or importlib.util.find_spec("google.api_core") is not None
+if google_api_core_spec:
+    from google.api_core import exceptions as google_exceptions
+else:  # pragma: no cover - exercised when Google SDKs are absent
+    class GoogleAPICallError(Exception):
+        """Stub for google.api_core.exceptions.GoogleAPICallError"""
+
+    class ResourceExhausted(GoogleAPICallError):
+        """Stub for google.api_core.exceptions.ResourceExhausted"""
+
+    class _GoogleExceptions:
+        GoogleAPICallError = GoogleAPICallError
+        ResourceExhausted = ResourceExhausted
+
+    google_exceptions = _GoogleExceptions()
 
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
 from egregora.agents.banner.image_generation import ImageGenerationRequest
@@ -36,12 +57,17 @@ class BannerInput(BaseModel):
     language: str = Field(default="pt-BR", description="Content language")
 
 
+from pydantic import ConfigDict
+
+
 class BannerOutput(BaseModel):
     """Output from banner generation.
 
     Contains a Document with binary image content. Filesystem operations
     (saving, paths, URLs) are handled by upper layers.
     """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     # Document is a dataclass (not a Pydantic model), so no ConfigDict/arbitrary-types hook is required.
     document: Document | None = None
@@ -71,7 +97,7 @@ def _build_image_prompt(input_data: BannerInput) -> str:
 
 
 def _generate_banner_image(
-    client: genai.Client,
+    client: "genai.Client",
     input_data: BannerInput,
     image_model: str,
     generation_request: ImageGenerationRequest,
@@ -137,6 +163,9 @@ def generate_banner(
         Requires GOOGLE_API_KEY environment variable to be set.
 
     """
+    # Lazy import at runtime
+    import google.generativeai as genai
+
     # Client reads GOOGLE_API_KEY from environment automatically
     client = genai.Client()
 

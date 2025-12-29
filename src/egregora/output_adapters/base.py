@@ -15,6 +15,7 @@ import yaml
 
 from egregora.data_primitives import DocumentMetadata, OutputSink, UrlConvention
 from egregora.output_adapters.exceptions import (
+    AdapterNotDetectedError,
     FilenameGenerationError,
     FrontmatterParsingError,
     RegistryNotProvidedError,
@@ -275,6 +276,7 @@ class BaseOutputSink(OutputSink, ABC):
     def finalize_window(
         self,
         window_label: str,
+        posts_created: list[str],
         profiles_updated: list[str],
         metadata: dict[str, Any] | None = None,
     ) -> None:
@@ -313,7 +315,7 @@ class OutputSinkRegistry:
             instance = format_class()  # type: ignore[abstract]
             if instance.supports_site(site_root):
                 return instance
-        return None
+        raise AdapterNotDetectedError(str(site_root))
 
     def list_formats(self) -> list[str]:
         """List all registered output format types."""

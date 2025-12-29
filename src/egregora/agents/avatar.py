@@ -30,6 +30,7 @@ from egregora.orchestration.pipelines.modules.media import detect_media_type, ex
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.env import get_google_api_key
+from egregora.utils.exceptions import CacheKeyNotFoundError
 from egregora.utils.network import SSRFValidationError, validate_public_url
 
 if TYPE_CHECKING:
@@ -333,8 +334,11 @@ def download_avatar_from_url(
     except httpx.HTTPError as e:
         # If the HTTP error was caused by our own validation, re-raise it directly
         # to preserve the specific security message.
+        # Check both __cause__ and __context__ to find AvatarProcessingError in the chain
         if isinstance(e.__cause__, AvatarProcessingError):
             raise e.__cause__ from e
+        if isinstance(e.__context__, AvatarProcessingError):
+            raise e.__context__ from e
         logger.debug("HTTP error details: %s", e)
         msg = "Failed to download avatar. Please check the URL and try again."
         raise AvatarProcessingError(msg) from e
@@ -366,12 +370,15 @@ def _enrich_avatar(
     """Enrich avatar with LLM description using the media enrichment agent."""
     cache_key = make_enrichment_cache_key(kind="media", identifier=str(avatar_path))
     if context.cache:
-        cached = context.cache.load(cache_key)
-        if cached and cached.get("markdown"):
-            logger.info("Using cached enrichment for avatar: %s", avatar_path.name)
-            enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
-            enrichment_path.write_text(cached["markdown"], encoding="utf-8")
-            return
+        try:
+            cached = context.cache.load(cache_key)
+            if cached and cached.get("markdown"):
+                logger.info("Using cached enrichment for avatar: %s", avatar_path.name)
+                enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
+                enrichment_path.write_text(cached["markdown"], encoding="utf-8")
+                return
+        except CacheKeyNotFoundError:
+            pass  # Not an error, just a cache miss
 
     try:
         binary_content = load_file_as_binary_content(avatar_path)
