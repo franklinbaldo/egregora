@@ -54,7 +54,7 @@ jobs:
 
       - name: Setup Python environment (fallback)
         if: steps.setup_uv.outcome != 'success'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -87,7 +87,7 @@ jobs:
 
       - name: Setup Python environment (fallback)
         if: steps.setup_uv.outcome != 'success'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -151,7 +151,7 @@ jobs:
 
       - name: Setup Python environment (fallback)
         if: steps.setup_uv.outcome != 'success'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -219,7 +219,7 @@ jobs:
 
       - name: Setup Python environment (fallback)
         if: steps.setup_uv.outcome != 'success'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -265,7 +265,7 @@ jobs:
 
       - name: Setup Python environment (fallback)
         if: steps.setup_uv.outcome != 'success'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -305,7 +305,7 @@ jobs:
 
       - name: Setup Python environment (fallback)
         if: steps.setup_uv.outcome != 'success'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
