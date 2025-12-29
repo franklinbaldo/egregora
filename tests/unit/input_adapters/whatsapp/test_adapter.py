@@ -10,11 +10,13 @@ import pytest
 
 from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 from egregora.input_adapters.whatsapp.exceptions import (
+    InvalidMediaReferenceError,
     InvalidZipFileError,
     MediaNotFoundError,
     MissingZipPathError,
     WhatsAppAdapterError,
     WhatsAppParsingError,
+    ZipPathNotFoundError,
 )
 
 
@@ -46,6 +48,25 @@ def test_deliver_media_raises_missing_zip_path_error(adapter: WhatsAppAdapter) -
     """Test `deliver_media` raises MissingZipPathError if zip_path is missing."""
     with pytest.raises(MissingZipPathError):
         adapter.deliver_media("some_media.jpg")
+
+
+def test_deliver_media_raises_zip_path_not_found_error(adapter: WhatsAppAdapter, tmp_path: Path) -> None:
+    """Test `deliver_media` raises ZipPathNotFoundError if zip_path does not exist."""
+    non_existent_zip = tmp_path / "non_existent.zip"
+    with pytest.raises(ZipPathNotFoundError):
+        adapter.deliver_media("some_media.jpg", zip_path=non_existent_zip)
+
+
+def test_deliver_media_raises_invalid_media_reference_error(adapter: WhatsAppAdapter) -> None:
+    """Test `deliver_media` raises InvalidMediaReferenceError for suspicious media references."""
+    suspicious_references = [
+        "../some_media.jpg",
+        "/etc/passwd",
+        "some_dir/../../some_media.jpg",
+    ]
+    for ref in suspicious_references:
+        with pytest.raises(InvalidMediaReferenceError):
+            adapter.deliver_media(ref)
 
 
 def test_parse_raises_adapter_error_on_parsing_error(adapter: WhatsAppAdapter, tmp_path: Path) -> None:
