@@ -72,7 +72,8 @@ def get_pr_details_via_gh(pr_number: int, repo_path: str = ".") -> dict[str, Any
     # Extract session ID
     branch = pr_data.get("headRefName", "")
     body = pr_data.get("body", "")
-    session_id = _extract_session_id(branch, body)
+    comments = pr_data.get("comments", [])
+    session_id = _extract_session_id(branch, body, comments)
 
     # Check CI
     checks_rollup = pr_data.get("statusCheckRollup", [])
@@ -110,8 +111,17 @@ def get_base_sha(base_branch: str, repo_path: str = ".") -> str:
     return "Unknown"
 
 
-def _extract_session_id(branch: str, body: str) -> str | None:
-    """Extract Jules session ID from branch name or PR body."""
+def _extract_session_id(branch: str, body: str, comments: list[dict[str, Any]] | None = None) -> str | None:
+    """Extract Jules session ID from branch name, PR body, or comments.
+
+    Args:
+        branch: PR branch name
+        body: PR description body
+        comments: List of PR comments (optional)
+
+    Returns:
+        Session ID if found, None otherwise
+    """
     session_id = None
     # Try branch regex: -(\d{15,})$ or UUID
     # UUID regex from feed_feedback.py
@@ -138,6 +148,18 @@ def _extract_session_id(branch: str, body: str) -> str | None:
                 match = re.search(r"/sessions/([a-zA-Z0-9-]+)", body)
                 if match:
                     session_id = match.group(1)
+
+    # If still no session_id, check PR comments for auto-fix session IDs
+    # This prevents creating duplicate sessions when auto-fix runs multiple times on the same PR
+    if not session_id and comments:
+        for comment in comments:
+            comment_body = comment.get("body", "")
+            # Look for auto-fix comment pattern: "Session ID**: `{session_id}`"
+            match = re.search(r"Session ID\*\*:\s*`([a-zA-Z0-9-]+)`", comment_body)
+            if match:
+                session_id = match.group(1)
+                # Return the first (most recent) auto-fix session found
+                break
 
     return session_id
 
