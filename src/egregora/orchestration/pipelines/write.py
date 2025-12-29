@@ -33,7 +33,7 @@ from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
-from egregora.constants import SourceType, WindowUnit
+from egregora.constants import WindowUnit
 from egregora.data_primitives.document import OutputSink, UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
@@ -143,7 +143,7 @@ class WhatsAppProcessOptions:
     # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch removed (legacy DuckDB VSS settings)
     max_prompt_tokens: int = 100_000
     use_full_context_window: bool = False
-    client: "genai.Client | None" = None
+    client: genai.Client | None = None
     refresh: str | None = None
 
 
@@ -264,9 +264,7 @@ def _resolve_write_options(
     return WriteCommandOptions(input_file=input_file, **defaults)
 
 
-def _resolve_sources_to_run(
-    source: str | None, config: EgregoraConfig
-) -> list[tuple[str, str]]:
+def _resolve_sources_to_run(source: str | None, config: EgregoraConfig) -> list[tuple[str, str]]:
     """Resolve which sources to run based on CLI argument and config.
 
     Args:
@@ -278,6 +276,7 @@ def _resolve_sources_to_run(
 
     Raises:
         SystemExit: If source is unknown
+
     """
     # If source is explicitly provided
     if source is not None:
@@ -293,7 +292,7 @@ def _resolve_sources_to_run(
 
         # Unknown source
         available_keys = ", ".join(config.site.sources.keys())
-        available_types = ", ".join(set(s.adapter for s in config.site.sources.values()))
+        available_types = ", ".join({s.adapter for s in config.site.sources.values()})
         console.print(
             f"[red]Error: Unknown source '{source}'.[/red]\n"
             f"Available source keys: {available_keys}\n"
@@ -309,9 +308,7 @@ def _resolve_sources_to_run(
     # Use default source
     default_key = config.site.default_source
     if default_key not in config.site.sources:
-        console.print(
-            f"[red]Error: default_source '{default_key}' not found in configured sources.[/red]"
-        )
+        console.print(f"[red]Error: default_source '{default_key}' not found in configured sources.[/red]")
         raise SystemExit(1)
 
     return [(default_key, config.site.sources[default_key].adapter)]
@@ -346,6 +343,7 @@ def run_cli_flow(
     Args:
         source: Can be a source type (e.g., "whatsapp"), a source key from config, or None.
                 If None, will use default_source from config, or run all sources if default is None.
+
     """
     cli_values = {
         "source": source,
@@ -660,7 +658,7 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> Mk
     return MkDocsPaths(output_dir, config=config)
 
 
-def _create_gemini_client() -> "genai.Client":
+def _create_gemini_client() -> genai.Client:
     """Create a Gemini client with retry configuration.
 
     The client reads the API key from GOOGLE_API_KEY environment variable automatically.
