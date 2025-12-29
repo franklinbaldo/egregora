@@ -1143,8 +1143,8 @@ class EnrichmentWorker(BaseWorker):
         # Standard batch API (one request per image)
         model = GoogleBatchModel(api_key=api_key, model_name=model_name)
         try:
-            return asyncio.run(model.run_batch(requests))
-        except (UsageLimitExceeded, ModelHTTPError) as batch_exc:
+            return model.run_batch(requests)
+        except (UsageLimitExceeded, ModelHTTPError, google_exceptions.GoogleAPICallError) as batch_exc:
             # Batch failed (likely quota exceeded) - fallback to individual calls
             logger.warning(
                 "Batch API failed (%s), falling back to individual calls for %d requests",

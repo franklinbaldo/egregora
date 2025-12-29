@@ -132,6 +132,6 @@ class DbOutputSink(OutputSink):
         return "Database persistence mode."
 
     def finalize_window(
-        self, window_label: str, profiles_updated: list[str], metadata: dict | None = None
+        self, window_label: str, posts_created: list[str], profiles_updated: list[str], metadata: dict | None = None
     ) -> None:
         pass
