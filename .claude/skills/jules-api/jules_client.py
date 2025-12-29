@@ -140,7 +140,7 @@ class JulesClient:
 
         """
         url = f"{self.base_url}/sessions/{session_id}:sendMessage"
-        data = {"message": message}
+        data = {"prompt": message}
         response = requests.post(url, headers=self._get_headers(), json=data)
         response.raise_for_status()
         return response.json()
