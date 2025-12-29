@@ -72,7 +72,8 @@ def get_pr_details_via_gh(pr_number: int, repo_path: str = ".") -> dict[str, Any
     # Extract session ID
     branch = pr_data.get("headRefName", "")
     body = pr_data.get("body", "")
-    session_id = _extract_session_id(branch, body)
+    comments = pr_data.get("comments", [])
+    session_id = _extract_session_id(branch, body, comments)
 
     # Check CI
     checks_rollup = pr_data.get("statusCheckRollup", [])
