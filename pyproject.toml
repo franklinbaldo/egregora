@@ -66,6 +66,7 @@ test = [
     "ibis-framework[duckdb]>=11.0",
     "pytest>=9.0",
     "respx>=0.22",
+    "google-genai>=0.8.6",
     # Property-based testing for Pydantic models and data validation
     "hypothesis>=6.134",
     # Async testing support for pydantic-ai agents and async pipelines
