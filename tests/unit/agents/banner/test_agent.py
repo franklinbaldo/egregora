@@ -73,7 +73,7 @@ def test_generate_banner_failure_no_image_data(mock_client, mock_provider_cls, m
         mime_type=None,
         error="No image generated",
         error_code="NO_IMAGE",
-        debug_text="Some debug info"
+        debug_text="Some debug info",
     )
     mock_provider_instance.generate.return_value = mock_result
 

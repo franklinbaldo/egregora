@@ -110,7 +110,9 @@ def test_resolve_paths_raises_config_load_error(scaffolder: MkDocsSiteScaffolder
     (site_root / ".egregora" / "mkdocs.yml").parent.mkdir(parents=True)
     (site_root / ".egregora" / "mkdocs.yml").touch()
 
-    with patch("egregora.output_adapters.mkdocs.scaffolding.safe_yaml_load", side_effect=YAMLError("Test YAML error")):
+    with patch(
+        "egregora.output_adapters.mkdocs.scaffolding.safe_yaml_load", side_effect=YAMLError("Test YAML error")
+    ):
         with pytest.raises(ConfigLoadError) as excinfo:
             scaffolder.resolve_paths(site_root)
 
@@ -124,7 +126,9 @@ def test_resolve_paths_raises_path_resolution_error(scaffolder: MkDocsSiteScaffo
     (site_root / ".egregora" / "mkdocs.yml").parent.mkdir(parents=True)
     (site_root / ".egregora" / "mkdocs.yml").touch()
 
-    with patch("egregora.output_adapters.mkdocs.paths.MkDocsPaths.__init__", side_effect=Exception("Test path error")):
+    with patch(
+        "egregora.output_adapters.mkdocs.paths.MkDocsPaths.__init__", side_effect=Exception("Test path error")
+    ):
         with pytest.raises(PathResolutionError) as excinfo:
             scaffolder.resolve_paths(site_root)
 

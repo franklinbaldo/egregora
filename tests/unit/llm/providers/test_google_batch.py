@@ -116,9 +116,10 @@ class TestGoogleBatchModel:
         mock_result = MagicMock()
         mock_result.error = {"code": 429, "message": "Quota exceeded for model"}
         mock_result.response = None
-        with patch.object(model, "run_batch", return_value=[mock_result]), pytest.raises(
-            UsageLimitExceeded
-        ) as exc_info:
+        with (
+            patch.object(model, "run_batch", return_value=[mock_result]),
+            pytest.raises(UsageLimitExceeded) as exc_info,
+        ):
             await model.request([], None, None)
 
         assert "Quota exceeded" in str(exc_info.value)
@@ -133,9 +134,10 @@ class TestGoogleBatchModel:
         mock_result = MagicMock()
         mock_result.error = {"code": 500, "message": "Internal Server Error"}
         mock_result.response = None
-        with patch.object(model, "run_batch", return_value=[mock_result]), pytest.raises(
-            ModelHTTPError
-        ) as exc_info:
+        with (
+            patch.object(model, "run_batch", return_value=[mock_result]),
+            pytest.raises(ModelHTTPError) as exc_info,
+        ):
             await model.request([], None, None)
 
         assert "Internal Server Error" in str(exc_info.value)
@@ -154,9 +156,10 @@ class TestGoogleBatchModel:
 
             mock_client_instance = MagicMock()
             mock_client_instance.batches.create.side_effect = error
-            with patch.object(
-                genai_client, "Client", return_value=mock_client_instance
-            ), pytest.raises(UsageLimitExceeded) as exc_info:
+            with (
+                patch.object(genai_client, "Client", return_value=mock_client_instance),
+                pytest.raises(UsageLimitExceeded) as exc_info,
+            ):
                 model.run_batch([{"tag": "req-0", "contents": [], "config": {}}])
 
             assert "Quota Exceeded" in str(exc_info.value)
@@ -173,9 +176,10 @@ class TestGoogleBatchModel:
 
             mock_client_instance = MagicMock()
             mock_client_instance.batches.create.side_effect = error
-            with patch.object(
-                genai_client, "Client", return_value=mock_client_instance
-            ), pytest.raises(ModelHTTPError) as exc_info:
+            with (
+                patch.object(genai_client, "Client", return_value=mock_client_instance),
+                pytest.raises(ModelHTTPError) as exc_info,
+            ):
                 model.run_batch([{"tag": "req-0", "contents": [], "config": {}}])
 
             assert "Internal Server Error" in str(exc_info.value)

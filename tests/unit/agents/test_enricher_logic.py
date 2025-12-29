@@ -1,4 +1,5 @@
 """Unit tests for the enrichment agent's logic."""
+
 import tempfile
 import unittest
 import zipfile
@@ -106,7 +107,6 @@ class TestEnrichmentWorkerClose(unittest.TestCase):
         staging_dir = worker.staging_dir
         staging_dir.cleanup = MagicMock()
 
-
         # Call the close method
         worker.close()
 
@@ -173,21 +173,18 @@ class TestParseMediaResult(unittest.TestCase):
         self.mock_ctx = MagicMock()
         self.worker = EnrichmentWorker(ctx=self.mock_ctx)
         self.worker.task_store = MagicMock()
-        self.task = {
-            "task_id": "media-task-1",
-            "_parsed_payload": {
-                "filename": "image.jpg"
-            }
-        }
+        self.task = {"task_id": "media-task-1", "_parsed_payload": {"filename": "image.jpg"}}
 
     def test_parse_media_result_success(self):
         """Test successful parsing of a valid media result."""
-        response_text = json.dumps({
-            "slug": "a-great-image",
-            "markdown": "This is a great image.",
-            "description": "A description.",
-            "alt_text": "Alt text."
-        })
+        response_text = json.dumps(
+            {
+                "slug": "a-great-image",
+                "markdown": "This is a great image.",
+                "description": "A description.",
+                "alt_text": "Alt text.",
+            }
+        )
         mock_res = MagicMock()
         mock_res.response = {"text": response_text}
 
@@ -225,11 +222,13 @@ class TestParseMediaResult(unittest.TestCase):
 
     def test_parse_media_result_missing_markdown_with_fallback(self):
         """Test fallback markdown construction when 'markdown' is missing."""
-        response_text = json.dumps({
-            "slug": "fallback-slug",
-            "description": "A fallback description.",
-            "alt_text": "Fallback alt text."
-        })
+        response_text = json.dumps(
+            {
+                "slug": "fallback-slug",
+                "description": "A fallback description.",
+                "alt_text": "Fallback alt text.",
+            }
+        )
         mock_res = MagicMock()
         mock_res.response = {"text": response_text}
 
