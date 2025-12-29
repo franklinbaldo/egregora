@@ -23,9 +23,9 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
+import google.generativeai as genai
 import ibis
 import ibis.common.exceptions
-from google import genai
 from rich.console import Console
 from rich.panel import Panel
 
@@ -67,7 +67,6 @@ except ImportError:
     dotenv = None
 
 if TYPE_CHECKING:
-    import google.generativeai as genai
     import ibis.expr.types as ir
 
 
@@ -105,7 +104,7 @@ class WriteCommandOptions:
     """Options for the write command."""
 
     input_file: Path
-    source: str
+    source: SourceType
     output: Path
     step_size: int
     step_unit: WindowUnit
@@ -143,7 +142,7 @@ class WhatsAppProcessOptions:
     # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch removed (legacy DuckDB VSS settings)
     max_prompt_tokens: int = 100_000
     use_full_context_window: bool = False
-    client: "genai.Client | None" = None
+    client: genai.Client | None = None
     refresh: str | None = None
 
 
@@ -251,7 +250,9 @@ def _resolve_write_options(
             overrides = json.loads(options_json)
             # Update with JSON overrides, converting enums if strings
             for k, v in overrides.items():
-                if k == "step_unit" and isinstance(v, str):
+                if k == "source" and isinstance(v, str):
+                    defaults[k] = SourceType(v)
+                elif k == "step_unit" and isinstance(v, str):
                     defaults[k] = WindowUnit(v)
                 elif k == "output" and isinstance(v, str):
                     defaults[k] = Path(v)
@@ -264,64 +265,11 @@ def _resolve_write_options(
     return WriteCommandOptions(input_file=input_file, **defaults)
 
 
-def _resolve_sources_to_run(
-    source: str | None, config: EgregoraConfig
-) -> list[tuple[str, str]]:
-    """Resolve which sources to run based on CLI argument and config.
-
-    Args:
-        source: Source key, source type, or None
-        config: Egregora configuration
-
-    Returns:
-        List of (source_key, source_type) tuples to process
-
-    Raises:
-        SystemExit: If source is unknown
-    """
-    # If source is explicitly provided
-    if source is not None:
-        # Check if it's a source key
-        if source in config.site.sources:
-            source_config = config.site.sources[source]
-            return [(source, source_config.adapter)]
-
-        # Check if it's a source type (adapter name) - find first matching source
-        for key, src_config in config.site.sources.items():
-            if src_config.adapter == source:
-                return [(key, source)]
-
-        # Unknown source
-        available_keys = ", ".join(config.site.sources.keys())
-        available_types = ", ".join(set(s.adapter for s in config.site.sources.values()))
-        console.print(
-            f"[red]Error: Unknown source '{source}'.[/red]\n"
-            f"Available source keys: {available_keys}\n"
-            f"Available source types: {available_types}"
-        )
-        raise SystemExit(1)
-
-    # source is None - use default or run all
-    if config.site.default_source is None:
-        # Run all configured sources
-        return [(key, src.adapter) for key, src in config.site.sources.items()]
-
-    # Use default source
-    default_key = config.site.default_source
-    if default_key not in config.site.sources:
-        console.print(
-            f"[red]Error: default_source '{default_key}' not found in configured sources.[/red]"
-        )
-        raise SystemExit(1)
-
-    return [(default_key, config.site.sources[default_key].adapter)]
-
-
 def run_cli_flow(
     input_file: Path,
     *,
     output: Path = Path("site"),
-    source: str | None = None,
+    source: SourceType = SourceType.WHATSAPP,
     step_size: int = 100,
     step_unit: WindowUnit = WindowUnit.MESSAGES,
     overlap: float = 0.0,
@@ -341,12 +289,7 @@ def run_cli_flow(
     options: str | None = None,
     smoke_test: bool = False,
 ) -> None:
-    """Execute the write flow from CLI arguments.
-
-    Args:
-        source: Can be a source type (e.g., "whatsapp"), a source key from config, or None.
-                If None, will use default_source from config, or run all sources if default is None.
-    """
+    """Execute the write flow from CLI arguments."""
     cli_values = {
         "source": source,
         "output": output,
@@ -368,32 +311,48 @@ def run_cli_flow(
         "debug": debug,
     }
 
-    if debug:
+    parsed_options = _resolve_write_options(
+        input_file=input_file,
+        options_json=options,
+        cli_defaults=cli_values,
+    )
+
+    if parsed_options.debug:
         logging.getLogger().setLevel(logging.DEBUG)
 
     from_date_obj, to_date_obj = None, None
-    if from_date:
+    if parsed_options.from_date:
         try:
-            from_date_obj = parse_date_arg(from_date, "from_date")
+            from_date_obj = parse_date_arg(parsed_options.from_date, "from_date")
         except ValueError as e:
             console.print(f"[red]{e}[/red]")
             raise SystemExit(1) from e
-    if to_date:
+    if parsed_options.to_date:
         try:
-            to_date_obj = parse_date_arg(to_date, "to_date")
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise SystemExit(1) from e
-
-    if timezone:
-        try:
-            validate_timezone(timezone)
-            console.print(f"[green]Using timezone: {timezone}[/green]")
+            to_date_obj = parse_date_arg(parsed_options.to_date, "to_date")
         except ValueError as e:
             console.print(f"[red]{e}[/red]")
             raise SystemExit(1) from e
 
-    output_dir = output.expanduser().resolve()
+    if parsed_options.timezone:
+        try:
+            validate_timezone(parsed_options.timezone)
+            console.print(f"[green]Using timezone: {parsed_options.timezone}[/green]")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise SystemExit(1) from e
+
+    output_dir = parsed_options.output.expanduser().resolve()
+
+    # Ensure MkDocs project exists (imported logic)
+    # Reimplementing simplified version of _ensure_mkdocs_scaffold to avoid circular imports if it was in CLI
+    # But we can import it if it is in init.
+    # The original cli code had interactive prompts. Since we moved logic here, we should keep it
+    # or rely on init being run.
+    # For now, let's assume non-interactive or minimal check, or duplicate the check.
+    # However, to be cleaner, we can just check if it exists and warn.
+    # The original CLI `_ensure_mkdocs_scaffold` handled prompting.
+    # Let's import `ensure_mkdocs_project` and do a basic check.
 
     config_path = output_dir / ".egregora.toml"
 
@@ -404,53 +363,37 @@ def run_cli_flow(
 
     _validate_api_key(output_dir)
 
-    # Load config to determine sources
-    base_config = load_egregora_config(output_dir)
+    egregora_config = _prepare_write_config(parsed_options, from_date_obj, to_date_obj)
 
-    # Determine which sources to run
-    sources_to_run = _resolve_sources_to_run(source, base_config)
+    runtime = RuntimeContext(
+        output_dir=output_dir,
+        input_file=parsed_options.input_file,
+        model_override=parsed_options.model,
+        debug=parsed_options.debug,
+    )
 
-    # Process each source
-    for source_key, source_type in sources_to_run:
-        # Prepare options with current source
-        parsed_options = _resolve_write_options(
-            input_file=input_file,
-            options_json=options,
-            cli_defaults={**cli_values, "source": source_type},
-        )
-
-        egregora_config = _prepare_write_config(parsed_options, from_date_obj, to_date_obj)
-
-        runtime = RuntimeContext(
-            output_dir=output_dir,
-            input_file=parsed_options.input_file,
-            model_override=parsed_options.model,
-            debug=parsed_options.debug,
-        )
-
-        try:
-            console.print(
-                Panel(
-                    f"[cyan]Source:[/cyan] {source_type} (key: {source_key})\n[cyan]Input:[/cyan] {parsed_options.input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {parsed_options.step_size} {parsed_options.step_unit.value}",
-                    title="⚙️  Egregora Pipeline",
-                    border_style="cyan",
-                )
+    try:
+        console.print(
+            Panel(
+                f"[cyan]Source:[/cyan] {parsed_options.source.value}\n[cyan]Input:[/cyan] {parsed_options.input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {parsed_options.step_size} {parsed_options.step_unit.value}",
+                title="⚙️  Egregora Pipeline",
+                border_style="cyan",
             )
-            run_params = PipelineRunParams(
-                output_dir=runtime.output_dir,
-                config=egregora_config,
-                source_type=source_type,
-                source_key=source_key,
-                input_path=runtime.input_file,
-                refresh="all" if parsed_options.force else parsed_options.refresh,
-                smoke_test=smoke_test,
-            )
-            run(run_params)
-            console.print(f"[green]Processing completed successfully for source '{source_key}'.[/green]")
-        except Exception as e:
-            console.print_exception(show_locals=False)
-            console.print(f"[red]Pipeline failed for source '{source_key}': {e}[/]")
-            raise SystemExit(1) from e
+        )
+        run_params = PipelineRunParams(
+            output_dir=runtime.output_dir,
+            config=egregora_config,
+            source_type=parsed_options.source.value,
+            input_path=runtime.input_file,
+            refresh="all" if parsed_options.force else parsed_options.refresh,
+            smoke_test=smoke_test,
+        )
+        run(run_params)
+        console.print("[green]Processing completed successfully.[/green]")
+    except Exception as e:
+        console.print_exception(show_locals=False)
+        console.print(f"[red]Pipeline failed: {e}[/]")
+        raise SystemExit(1) from e
 
 
 def process_whatsapp_export(
@@ -660,7 +603,7 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> Mk
     return MkDocsPaths(output_dir, config=config)
 
 
-def _create_gemini_client() -> "genai.Client":
+def _create_gemini_client() -> genai.Client:
     """Create a Gemini client with retry configuration.
 
     The client reads the API key from GOOGLE_API_KEY environment variable automatically.
@@ -669,8 +612,6 @@ def _create_gemini_client() -> "genai.Client":
     Model/Key rotator to handle it immediately (Story 8).
     We still retry 503 (Service Unavailable).
     """
-    import google.generativeai as genai  # Lazy import at runtime
-
     http_options = genai.types.HttpOptions(
         retryOptions=genai.types.HttpRetryOptions(
             attempts=3,  # Reduced from 15

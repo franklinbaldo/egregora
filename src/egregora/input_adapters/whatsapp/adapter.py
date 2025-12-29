@@ -124,8 +124,7 @@ class WhatsAppAdapter(InputAdapter):
             raise InvalidZipFileError(str(input_path)) from e
         except WhatsAppParsingError as e:
             logger.exception("Failed to parse WhatsApp export at %s: %s", input_path, e)
-            msg = f"Failed to parse WhatsApp export: {input_path}"
-            raise WhatsAppAdapterError(msg) from e
+            raise  # Re-raise the original, specific parsing error
 
     def deliver_media(self, media_reference: str, **kwargs: Unpack[DeliverMediaKwargs]) -> Document:
         """Deliver media file from WhatsApp ZIP as a Document."""

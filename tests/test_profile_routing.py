@@ -11,7 +11,6 @@ import pytest
 
 from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.output_adapters.exceptions import ProfileMetadataError
 from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 
 
@@ -98,14 +97,14 @@ class TestProfileRouting:
         assert path.name == "john-interests.md"
 
     def test_profile_without_subject_raises_error(self, adapter):
-        """PROFILE without subject metadata must raise a ProfileMetadataError."""
+        """PROFILE without subject metadata must raise a ValueError."""
         doc = Document(
             content="# Profile",
             type=DocumentType.PROFILE,
             metadata={"slug": "orphan-profile", "authors": [{"uuid": EGREGORA_UUID}]},
         )
         url = f"/profiles/{doc.metadata['slug']}"
-        with pytest.raises(ProfileMetadataError, match="missing required metadata field: 'subject'"):
+        with pytest.raises(ValueError, match="PROFILE document missing required 'subject' metadata"):
             adapter._url_to_path(url, doc)
 
     def test_profile_author_is_egregora(self, adapter):

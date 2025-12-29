@@ -76,10 +76,7 @@ class DiskCacheBackend:
         self._cache = diskcache.Cache(str(directory), **kwargs)
 
     def get(self, key: str) -> Any:
-        try:
-            return self._cache[key]
-        except KeyError as e:
-            raise CacheKeyNotFoundError(key) from e
+        return self._cache.get(key)
 
     def set(self, key: str, value: Any, expire: float | None = None) -> None:
         self._cache.set(key, value, expire=expire)
@@ -122,6 +119,8 @@ class EnrichmentCache:
             self.backend.delete(key)
             raise CacheDeserializationError(key, e) from e
 
+        if value is None:
+            raise CacheKeyNotFoundError(key)
         if not isinstance(value, dict):
             logger.warning("Unexpected cache payload type for key %s; clearing entry", key)
             self.backend.delete(key)

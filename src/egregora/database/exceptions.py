@@ -88,33 +88,3 @@ class TableInfoError(DatabaseError):
     def __init__(self, table_name: str) -> None:
         self.table_name = table_name
         super().__init__(f"Failed to retrieve metadata for table '{table_name}'")
-
-
-class RepositoryError(DatabaseError):
-    """Base exception for repository-related errors."""
-
-
-class UnsupportedDocumentTypeError(RepositoryError):
-    """Raised when an operation is attempted on an unsupported document type."""
-
-    def __init__(self, doc_type: str) -> None:
-        self.doc_type = doc_type
-        super().__init__(f"Unsupported document type: '{doc_type}'")
-
-
-class DocumentNotFoundError(RepositoryError):
-    """Raised when a document cannot be found."""
-
-    def __init__(self, doc_type: str, identifier: str) -> None:
-        self.doc_type = doc_type
-        self.identifier = identifier
-        super().__init__(f"{doc_type.capitalize()} with identifier '{identifier}' not found")
-
-
-class DatabaseOperationError(RepositoryError):
-    """Raised when a lower-level database operation fails within the repository."""
-
-    def __init__(self, message: str | None = None) -> None:
-        if message is None:
-            message = "An unexpected database operation failed."
-        super().__init__(message)

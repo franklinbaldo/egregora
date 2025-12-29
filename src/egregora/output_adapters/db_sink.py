@@ -9,14 +9,8 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
-from egregora.data_primitives.document import (
-    Document,
-    DocumentMetadata,
-    DocumentType,
-    OutputSink,
-    UrlContext,
-    UrlConvention,
-)
+from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import DocumentMetadata, OutputSink, UrlContext, UrlConvention
 from egregora.database.repository import ContentRepository
 from egregora.output_adapters.conventions import StandardUrlConvention
 
@@ -132,6 +126,6 @@ class DbOutputSink(OutputSink):
         return "Database persistence mode."
 
     def finalize_window(
-        self, window_label: str, posts_created: list[str], profiles_updated: list[str], metadata: dict | None = None
+        self, window_label: str, profiles_updated: list[str], metadata: dict | None = None
     ) -> None:
         pass

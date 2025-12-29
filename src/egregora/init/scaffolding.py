@@ -8,7 +8,9 @@ MODERN (Phase N): Refactored to use OutputAdapter abstraction.
 
 import logging
 from pathlib import Path
+from typing import cast
 
+from egregora.data_primitives.document import SiteScaffolder
 from egregora.output_adapters import create_default_output_registry, create_output_sink
 from egregora.output_adapters.mkdocs import MkDocsPaths
 
@@ -41,8 +43,7 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
     registry = create_default_output_registry()
     output_format = create_output_sink(site_root, format_type="mkdocs", registry=registry)
 
-    # Check if output format supports scaffolding (duck typing)
-    if not hasattr(output_format, "scaffold_site") and not hasattr(output_format, "scaffold"):
+    if not isinstance(output_format, SiteScaffolder):
         logger.info("Output format %s does not support scaffolding", output_format)
         # Fallback for non-scaffolding adapters
         try:
@@ -52,17 +53,17 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
             logger.debug("Failed to derive MkDocs paths, falling back to default: %s", e)
             return (site_root / "docs", False)
 
+    # Cast to SiteScaffolder for type checking
+    scaffolder = cast("SiteScaffolder", output_format)
+
     try:
         # Prefer specific implementation if available to get accurate 'created' status
         if hasattr(output_format, "scaffold_site"):
             _, created = output_format.scaffold_site(site_root, site_name)
-        elif hasattr(output_format, "scaffold"):
-            output_format.scaffold(site_root, {"site_name": site_name})
+        else:
+            scaffolder.scaffold(site_root, {"site_name": site_name})
             # Generic scaffold doesn't return created status, assume True if no error
             created = True
-        else:
-            # No scaffolding method available
-            created = False
     except Exception:
         logger.exception("Failed to scaffold site")
         raise

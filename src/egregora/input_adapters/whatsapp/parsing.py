@@ -22,12 +22,6 @@ from dateutil import parser as date_parser
 from pydantic import BaseModel
 
 from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
-from egregora.input_adapters.whatsapp.exceptions import (
-    DateParsingError,
-    MalformedLineError,
-    NoMessagesFoundError,
-    TimeParsingError,
-)
 from egregora.input_adapters.whatsapp.utils import build_message_attrs
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
@@ -124,7 +118,7 @@ def _normalize_text(value: str, config: EgregoraConfig | None = None) -> str:
 
 
 @lru_cache(maxsize=1024)
-def _parse_message_date(token: str) -> date:
+def _parse_message_date(token: str) -> date | None:
     """Parse date token into a date object using multiple parsing strategies.
 
     Performance: Uses lru_cache since WhatsApp logs contain many repeated
@@ -132,7 +126,7 @@ def _parse_message_date(token: str) -> date:
     """
     normalized = token.strip()
     if not normalized:
-        raise DateParsingError("Date string is empty.")
+        return None
 
     for strategy in _DATE_PARSING_STRATEGIES:
         try:
@@ -142,12 +136,11 @@ def _parse_message_date(token: str) -> date:
         except (TypeError, ValueError, OverflowError):
             continue
 
-    msg = f"Failed to parse date string: '{token}'"
-    raise DateParsingError(msg)
+    return None
 
 
 @lru_cache(maxsize=4096)
-def _parse_message_time(time_token: str) -> time:
+def _parse_message_time(time_token: str) -> time | None:
     """Parse time token into a time object (naive, for later localization).
 
     Performance:
@@ -157,7 +150,7 @@ def _parse_message_time(time_token: str) -> time:
     """
     token = time_token.strip()
     if not token:
-        raise TimeParsingError("Time string is empty.")
+        return None
 
     # Fast path for standard HH:MM (e.g., "12:30", "09:15")
     # Checks length and digit presence to avoid splitting/parsing invalid strings
@@ -217,8 +210,7 @@ def _parse_message_time(time_token: str) -> time:
     except ValueError:
         pass
 
-    msg = f"Failed to parse time string: '{time_token}'"
-    raise TimeParsingError(msg)
+    return None
 
 
 def _resolve_timezone(timezone: str | ZoneInfo | None) -> ZoneInfo:
@@ -347,26 +339,29 @@ def _parse_whatsapp_lines(
         timezone=tz,
     )
 
+    # Re-open source to read from start
     for line in source.lines():
-        match = line_pattern.match(line)
-        if not match:
-            builder.append_line(line, line)
-            continue
+        match = line_pattern.match(line)  # Use dynamic pattern
 
-        date_str, time_str, author_raw, message_part = match.groups()
+        if match:
+            # ... rest of existing logic ...
+            date_str, time_str, author_raw, message_part = match.groups()
 
-        try:
             msg_date = _parse_message_date(date_str)
+            if msg_date:
+                builder.current_date = msg_date
+
             msg_time = _parse_message_time(time_str)
 
-            builder.current_date = msg_date
-            timestamp = datetime.combine(msg_date, msg_time, tzinfo=tz).astimezone(UTC)
+            if not msg_time:
+                builder.flush()
+                continue
 
+            timestamp = datetime.combine(builder.current_date, msg_time, tzinfo=tz).astimezone(UTC)
             builder.start_new_message(timestamp, author_raw, message_part)
 
-        except (DateParsingError, TimeParsingError) as e:
-            # Re-raise with context about the malformed line
-            raise MalformedLineError(line=line, original_error=e) from e
+        else:
+            builder.append_line(line, line)
 
     builder.flush()
     return builder.get_rows()
@@ -408,8 +403,8 @@ def parse_source(
     rows = _parse_whatsapp_lines(source, export, timezone)
 
     if not rows:
-        msg = f"No messages found in '{export.zip_path}'"
-        raise NoMessagesFoundError(msg)
+        logger.warning("No messages found in %s", export.zip_path)
+        return ibis.memtable([], schema=INGESTION_MESSAGE_SCHEMA)
 
     messages = ibis.memtable(rows)
     if "_import_order" in messages.columns:

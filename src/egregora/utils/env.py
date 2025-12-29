@@ -56,8 +56,8 @@ def validate_gemini_api_key(api_key: str | None = None) -> None:
 
     """
     try:
-        from google import genai
-        from google.genai import types
+        import google.generativeai as genai
+        from google.generativeai import types
     except ImportError as e:
         msg = "google-genai package not installed. Install with: pip install google-genai"
         raise ImportError(msg) from e

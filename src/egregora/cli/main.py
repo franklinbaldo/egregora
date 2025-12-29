@@ -19,7 +19,7 @@ from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.table import Table
 
-# from egregora.cli.db import db_app  # Removed - db.py no longer exists
+from egregora.cli.db import db_app
 from egregora.cli.read import read_app
 from egregora.config import load_egregora_config
 from egregora.config.settings import google_api_key_status
@@ -38,7 +38,7 @@ app = typer.Typer(
 app.add_typer(read_app)
 
 # Database subcommands
-# app.add_typer(db_app)  # Removed - db.py no longer exists
+app.add_typer(db_app)
 
 # Show subcommands
 show_app = typer.Typer(

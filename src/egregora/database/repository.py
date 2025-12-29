@@ -10,11 +10,6 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.database.exceptions import (
-    DatabaseOperationError,
-    DocumentNotFoundError,
-    UnsupportedDocumentTypeError,
-)
 from egregora.database.utils import quote_identifier
 
 if TYPE_CHECKING:
@@ -104,15 +99,56 @@ class ContentRepository:
         """Stream all documents via the unified view."""
         return self.db.execute("SELECT * FROM documents_view").fetchall()
 
-    def get(self, doc_type: DocumentType, identifier: str) -> Document:
+    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
         """Retrieve a single document by type and identifier."""
         table_name = self._get_table_for_type(doc_type)
+        if not table_name:
+            return None
 
+        # Determine lookup column based on type
+        if doc_type == DocumentType.POST:
+            # Posts might be looked up by slug or ID. The identifier here is usually the slug for posts.
+            # But OutputSink.read_document typically uses the 'storage identifier'.
+            # Let's assume ID first, then fallback or specific logic.
+            # For now, let's query by ID matching identifier.
+            pass
+            # Or slug? 'read_document' contract says "primary identifier".
+            # MkDocs adapter uses relative path.
+            # Here we use the ID stored in the DB.
+
+        quoted_table = quote_identifier(table_name)
+        # Using parameterized query for safety
+        row = self.db.execute_query_single(f"SELECT * FROM {quoted_table} WHERE id = ?", [identifier])
+
+        if not row:
+            # Try slug if POST/PROFILE
+            if doc_type == DocumentType.POST:
+                row = self.db.execute_query_single(
+                    f"SELECT * FROM {quoted_table} WHERE slug = ?", [identifier]
+                )
+            elif doc_type == DocumentType.PROFILE:
+                # Profile lookup might be by subject_uuid
+                row = self.db.execute_query_single(
+                    f"SELECT * FROM {quoted_table} WHERE subject_uuid = ?", [identifier]
+                )
+
+        if not row:
+            return None
+
+        # Convert row tuple to dict using column names
+        self.db.get_table_columns(table_name)
+        # Sort cols to match table schema order? get_table_columns returns set.
+        # We need ordered columns. PRAGMA table_info gives order.
+        # This is getting complicated with raw SQL.
+        # Better to use Ibis to fetch single row if possible, or assume column order.
+        # But for robustness, let's just fetch as dict using column names from ibis schema.
+
+        # Simplified: Use Ibis
         from ibis.common.exceptions import IbisError
 
         try:
             t = self.db.read_table(table_name)
-            # Filter based on document type's potential identifiers
+            # Filter
             if doc_type == DocumentType.POST:
                 res = t.filter((t.id == identifier) | (t.slug == identifier)).limit(1).execute()
             elif doc_type == DocumentType.PROFILE:
@@ -121,18 +157,20 @@ class ContentRepository:
                 res = t.filter(t.id == identifier).limit(1).execute()
 
             if res.empty:
-                raise DocumentNotFoundError(doc_type.value, identifier)
+                return None
 
             data = res.to_dict(orient="records")[0]
             return self._row_to_document(data, doc_type)
 
-        except IbisError as e:
-            raise DatabaseOperationError(f"Failed to get document: {e}") from e
+        except IbisError:
+            return None
 
     def list(self, doc_type: DocumentType | None = None) -> Iterator[dict]:
         """List documents metadata."""
         if doc_type:
             table_name = self._get_table_for_type(doc_type)
+            if not table_name:
+                return
             t = self.db.read_table(table_name)
             # Select relevant columns for metadata
             # We need to return iterator of dicts
@@ -153,7 +191,7 @@ class ContentRepository:
                 for row in rows:
                     yield dict(zip(cols, row, strict=False))
 
-    def _get_table_for_type(self, doc_type: DocumentType) -> str:
+    def _get_table_for_type(self, doc_type: DocumentType) -> str | None:
         mapping = {
             DocumentType.POST: "posts",
             DocumentType.PROFILE: "profiles",
@@ -161,10 +199,7 @@ class ContentRepository:
             DocumentType.JOURNAL: "journals",
             DocumentType.ANNOTATION: "annotations",
         }
-        table = mapping.get(doc_type)
-        if not table:
-            raise UnsupportedDocumentTypeError(str(doc_type))
-        return table
+        return mapping.get(doc_type)
 
     def _row_to_document(self, row: dict, doc_type: DocumentType) -> Document:
         """Convert a DB row to a Document object."""

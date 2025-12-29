@@ -20,7 +20,6 @@ from egregora.utils.authors import ensure_author_entries
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.exceptions import (
     DateExtractionError,
-    DateTimeParsingError,
     DirectoryCreationError,
     FileWriteError,
     FrontmatterDateFormattingError,
@@ -51,22 +50,24 @@ def _extract_clean_date(date_obj: str | date | datetime) -> str:
     if not match:
         raise DateExtractionError(date_str)
 
-    try:
-        # Use our robust parser on the *matched part* of the string.
-        parsed_dt = parse_datetime_flexible(match.group(1))
+    # Use our robust parser on the *matched part* of the string.
+    parsed_dt = parse_datetime_flexible(match.group(1))
+    if parsed_dt:
         return parsed_dt.date().isoformat()
-    except DateTimeParsingError:
-        # The pattern was not a valid date (e.g., "2023-99-99"), so fallback.
-        raise DateExtractionError(date_str) from None
+
+    # The pattern was not a valid date (e.g., "2023-99-99"), so fallback.
+    raise DateExtractionError(date_str)
 
 
 def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
     """Normalize a metadata date into the RSS-friendly ``YYYY-MM-DD HH:MM`` string."""
     try:
         dt = parse_datetime_flexible(raw_date, default_timezone=UTC)
+        if dt is None:
+            raise AttributeError("Parsed datetime is None")
         return dt.strftime("%Y-%m-%d %H:%M")
-    except (DateTimeParsingError, AttributeError, ValueError) as e:
-        # This will be raised if parse_datetime_flexible fails,
+    except (AttributeError, ValueError) as e:
+        # This will be raised if parse_datetime_flexible returns None,
         # which covers all failure modes (None input, empty strings, bad data).
         raise FrontmatterDateFormattingError(str(raw_date), e) from e
 

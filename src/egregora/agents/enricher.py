@@ -37,7 +37,6 @@ from pydantic_ai import Agent, RunContext, UrlContextTool
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import BinaryContent
 
-from egregora.agents.exceptions import MediaStagingError
 from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.message_repository import MessageRepository
@@ -45,14 +44,9 @@ from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.llm.providers.google_batch import GoogleBatchModel
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
-from egregora.utils.cache import (
-    CacheKeyNotFoundError,
-    EnrichmentCache,
-    make_enrichment_cache_key,
-)
+from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import ensure_datetime
 from egregora.utils.env import get_google_api_key
-from egregora.utils.exceptions import CacheKeyNotFoundError
 from egregora.utils.paths import slugify
 from egregora.utils.zip import validate_zip_contents
 
@@ -782,8 +776,8 @@ class EnrichmentWorker(BaseWorker):
 
         Sends all URLs together with a combined prompt asking for JSON dict result.
         """
-        from google import genai
-        from google.genai import types
+        import google.generativeai as genai
+        from google.generativeai import types
 
         api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         if not api_key:
@@ -977,11 +971,8 @@ class EnrichmentWorker(BaseWorker):
                 task["_parsed_payload"] = payload
 
                 # Stage the file to disk (ephemeral)
-                try:
-                    staged_path = self._stage_file(task, payload)
-                except MediaStagingError as exc:
-                    logger.warning("Failed to stage media for task %s: %s", task["task_id"], exc)
-                    self.task_store.mark_failed(task["task_id"], str(exc))
+                staged_path = self._stage_file(task, payload)
+                if not staged_path:
                     continue
 
                 # Store staged path in task for later persistence
@@ -1023,57 +1014,72 @@ class EnrichmentWorker(BaseWorker):
 
         return requests, task_map
 
-    def _stage_file(self, task: dict[str, Any], payload: dict[str, Any]) -> Path:
+    def _stage_file(self, task: dict[str, Any], payload: dict[str, Any]) -> Path | None:
         """Extract media file from ZIP to ephemeral staging directory."""
         original_filename = payload.get("original_filename") or payload.get("filename")
         if not original_filename:
-            msg = "No filename in task payload"
-            raise MediaStagingError(msg)
+            logger.warning("No filename in media task %s", task["task_id"])
+            self.task_store.mark_failed(task["task_id"], "No filename in task payload")
+            return None
 
         target_lower = original_filename.lower()
+
+        # Check if already staged (by original filename key)
+        # We use a hash or just the filename if unique enough.
+        # But we need the physical path.
+        # Let's check if we have it.
 
         zf = self.zip_handle
         media_index = self.media_index
         should_close = False
 
-        # Ensure ZIP handle is available, opening it if necessary.
+        # Ensure ZIP handle
         if zf is None:
             input_path = self.ctx.input_path
             if not input_path or not input_path.exists():
-                msg = f"Input path not available for media task {task['task_id']}"
-                raise MediaStagingError(msg)
+                logger.warning("Input path not available for media task %s", task["task_id"])
+                return None
+
+            zf = None
+            should_close = False
             try:
                 zf = zipfile.ZipFile(input_path, "r")
                 should_close = True
-                media_index = {
-                    Path(info.filename).name.lower(): info.filename
-                    for info in zf.infolist()
-                    if not info.is_dir()
-                }
+                media_index = {}
+                for info in zf.infolist():
+                    if not info.is_dir():
+                        media_index[Path(info.filename).name.lower()] = info.filename
             except (OSError, zipfile.BadZipFile) as exc:
-                msg = f"Failed to open source ZIP: {exc}"
-                raise MediaStagingError(msg) from exc
+                logger.warning("Failed to open source ZIP: %s", exc)
+                return None
 
         try:
             full_path = media_index.get(target_lower)
             if not full_path:
-                msg = f"Media file {original_filename} not found in ZIP"
-                raise MediaStagingError(msg)
+                logger.warning("Media file %s not found in ZIP", original_filename)
+                self.task_store.mark_failed(task["task_id"], f"Media file not found: {original_filename}")
+                return None
 
+            # Extract
+            # We construct a safe output filename to avoid collisions
             safe_name = f"{task['task_id']}_{Path(full_path).name}"
             target_path = Path(self.staging_dir.name) / safe_name
 
             if target_path.exists():
                 return target_path
 
+            # ZipFile.extract expects a member name, not just path
+            # We can use zf.open and shutil.copyfileobj to stream it
             with zf.open(full_path) as source, target_path.open("wb") as dest:
                 shutil.copyfileobj(source, dest)
 
             self.staged_files.add(str(target_path))
             return target_path
+
         except Exception as exc:
-            msg = f"Failed to stage media file {original_filename}: {exc}"
-            raise MediaStagingError(msg) from exc
+            logger.exception("Failed to stage media file %s", original_filename)
+            self.task_store.mark_failed(task["task_id"], f"Staging failed: {exc}")
+            return None
         finally:
             if should_close and zf:
                 zf.close()
@@ -1087,7 +1093,7 @@ class EnrichmentWorker(BaseWorker):
         file_size = file_path.stat().st_size
 
         if file_size > threshold_bytes:
-            from google import genai
+            import google.generativeai as genai
 
             logger.info(
                 "File %s is %.2f MB (threshold: %d MB), using File API upload",
@@ -1143,8 +1149,8 @@ class EnrichmentWorker(BaseWorker):
         # Standard batch API (one request per image)
         model = GoogleBatchModel(api_key=api_key, model_name=model_name)
         try:
-            return model.run_batch(requests)
-        except (UsageLimitExceeded, ModelHTTPError, google_exceptions.GoogleAPICallError) as batch_exc:
+            return asyncio.run(model.run_batch(requests))
+        except (UsageLimitExceeded, ModelHTTPError) as batch_exc:
             # Batch failed (likely quota exceeded) - fallback to individual calls
             logger.warning(
                 "Batch API failed (%s), falling back to individual calls for %d requests",
@@ -1165,8 +1171,8 @@ class EnrichmentWorker(BaseWorker):
         Sends all images together with a combined prompt asking for JSON dict with
         results keyed by filename. This reduces 12 API calls to 1.
         """
-        from google import genai
-        from google.genai import types
+        import google.generativeai as genai
+        from google.generativeai import types
 
         client = genai.Client(api_key=api_key)
 
@@ -1295,8 +1301,8 @@ class EnrichmentWorker(BaseWorker):
         api_key: str,
     ) -> list[Any]:
         """Execute media enrichment requests individually (fallback when batch fails)."""
-        from google import genai
-        from google.genai import types
+        import google.generativeai as genai
+        from google.generativeai import types
 
         client = genai.Client(api_key=api_key)
 

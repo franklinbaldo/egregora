@@ -1,13 +1,47 @@
-"""Data primitives for Egregora."""
+"""Fundamental data primitives for Egregora pipeline.
 
+This module consolidates all essential, universal data structures that define
+the core objects flowing through the system:
 
-class DocumentMetadata:
-    """Placeholder for DocumentMetadata."""
+- **Document types**: Document, DocumentType, DocumentCollection
+- **Type aliases**: PostSlug
 
+These primitives form the foundation of the data model, used by both
+input adapters (to produce standardized data) and output adapters (to
+consume and publish it).
+"""
 
-class OutputSink:
-    """Placeholder for OutputSink."""
+from typing import NewType
 
+from egregora.data_primitives.document import (
+    Document,
+    DocumentCollection,
+    DocumentMetadata,
+    DocumentType,
+    MediaAsset,
+    OutputSink,
+    SiteScaffolder,
+    UrlContext,
+    UrlConvention,
+)
 
-class UrlConvention:
-    """Placeholder for UrlConvention."""
+# Type aliases
+GroupSlug = NewType("GroupSlug", str)
+PostSlug = NewType("PostSlug", str)
+
+__all__ = [
+    # Document types
+    "Document",
+    "DocumentCollection",
+    "DocumentMetadata",
+    "DocumentType",
+    # Type aliases
+    "GroupSlug",
+    "MediaAsset",
+    # Protocols (ISP-compliant)
+    "OutputSink",
+    "PostSlug",
+    "SiteScaffolder",
+    "UrlContext",
+    "UrlConvention",
+]

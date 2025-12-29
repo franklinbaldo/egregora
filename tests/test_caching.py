@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from egregora.utils.cache import CacheTier, PipelineCache, make_enrichment_cache_key
-from egregora.utils.exceptions import CacheDeserializationError, CachePayloadTypeError
+from egregora.utils.exceptions import CacheDeserializationError
 
 
 @pytest.fixture
@@ -137,9 +137,9 @@ def test_enrichment_invalid_payload_type(temp_cache_dir, mocker):
     # Spy on the delete method
     delete_spy = mocker.spy(cache.enrichment.backend, "delete")
 
-    # The load method should raise CachePayloadTypeError and delete the invalid entry
-    with pytest.raises(CachePayloadTypeError):
-        cache.enrichment.load(key)
+    # The load method should return None and delete the invalid entry
+    loaded = cache.enrichment.load(key)
+    assert loaded is None
 
     delete_spy.assert_called_once_with(key)
     cache.close()

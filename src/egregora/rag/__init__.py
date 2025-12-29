@@ -24,6 +24,9 @@ from egregora.rag.embedding_router import TaskType, get_embedding_router
 from egregora.rag.lancedb_backend import LanceDBRAGBackend
 from egregora.rag.models import RAGQueryRequest, RAGQueryResponse
 
+if TYPE_CHECKING:
+    from egregora_v3.core.types import Document
+
 
 logger = logging.getLogger(__name__)
 

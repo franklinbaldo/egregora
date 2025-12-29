@@ -10,8 +10,8 @@ import base64
 import logging
 from typing import TYPE_CHECKING, Any
 
-import google.genai as genai
-from google.genai import types
+import google.generativeai as genai
+from google.generativeai import types
 
 from egregora.agents.banner.image_generation import (
     ImageGenerationProvider,
@@ -20,7 +20,7 @@ from egregora.agents.banner.image_generation import (
 )
 
 if TYPE_CHECKING:
-    from google.genai import Client
+    from google.generativeai import Client
 
 logger = logging.getLogger(__name__)
 

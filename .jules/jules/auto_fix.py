@@ -1,28 +1,9 @@
 """Jules Auto-Fixer."""
 
-import subprocess
 from typing import Any
 
 from jules.client import JulesClient
-from jules.github import fetch_failed_logs_summary, get_pr_details_via_gh
-
-
-def post_pr_comment(pr_number: int, comment: str, repo_path: str = ".") -> None:
-    """Post a comment on a PR using gh CLI.
-
-    Requires gh CLI to be installed and GH_TOKEN or GITHUB_TOKEN to be set.
-    """
-    try:
-        cmd = ["gh", "pr", "comment", str(pr_number), "--body", comment]
-        subprocess.run(cmd, check=True, capture_output=True, text=True, cwd=repo_path)
-        print(f"📝 Posted comment on PR #{pr_number}")
-    except FileNotFoundError:
-        print(f"⚠️  gh CLI not found - skipping PR comment")
-    except subprocess.CalledProcessError as e:
-        print(f"⚠️  Failed to post PR comment: {e.stderr if e.stderr else e}")
-    except Exception as e:
-        print(f"⚠️  Failed to post PR comment: {e}")
-        # Don't fail the whole operation if comment posting fails
+from jules.github import fetch_failed_logs_summary, get_base_sha, get_pr_details_via_gh
 
 
 def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
@@ -60,95 +41,53 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
         "- **You are a senior developer:** Trust your experience - ship working code confidently\n"
     )
 
-    # Only send message to existing session - never create new sessions
-    if not session_id:
-        comment = (
-            "## 🤖 Auto-Fix: Skipped\n\n"
-            "⚠️ **No session ID found** - This PR was not created by Jules or the session ID could not be extracted.\n\n"
-            "Auto-fix only works with PRs created by Jules that have an associated session ID."
-        )
-        post_pr_comment(pr_number, comment)
+    # 1. Try to message existing session (even if completed)
+    if session_id:
+        try:
+            session = client.get_session(session_id)
+            # Always send message to existing session, regardless of state
+            client.send_message(
+                session_id,
+                f"Hi Jules! Please fix these issues in PR #{pr_number}:\n\n{feedback}{autonomous_instruction}",
+            )
+            return {"status": "success", "action": "messaged_existing_session", "session_id": session_id}
+        except Exception:
+            pass
 
-        return {
-            "status": "skipped",
-            "message": f"No session_id found for PR #{pr_number}. Auto-fix only works with existing Jules sessions.",
-            "branch": details["branch"],
-        }
+    # 2. Only create a NEW session if no session_id exists
+    base_sha = get_base_sha(details["base_branch"], repo_path=repo_root)
+    files_list = "\n".join([f"- {f}" for f in details["changed_files"]])
 
-    # Step 1: Get the session (separate error handling)
+    new_prompt = (
+        f"FIX REQUEST for Pull Request #{pr_number}: {details['title']}\n\n"
+        f"## Context\n"
+        f"- **PR Number:** {pr_number}\n"
+        f"- **Current Branch:** `{details['branch']}`\n"
+        f"- **Base Branch:** `{details['base_branch']}`\n"
+        f"- **Base Branch Current SHA:** `{base_sha}`\n"
+        f"- **Changed Files in this PR:**\n{files_list}\n\n"
+        f"## Original PR Description\n"
+        f"{details['body']}\n\n"
+        f"## Detected Problems to Fix\n"
+        f"{feedback}"
+        f"{autonomous_instruction}\n"
+        f"Please checkout the branch `{details['branch']}`, investigate the failures, fix them, and push an update."
+    )
+
     try:
-        session = client.get_session(session_id)
-        session_state = session.get("state", "UNKNOWN")
-        print(f"📡 Session {session_id} state: {session_state}")
-    except Exception as e:
-        error_msg = f"Failed to retrieve session {session_id}: {e!s}"
-        comment = (
-            f"## 🤖 Auto-Fix: Failed\n\n"
-            f"❌ **Error retrieving Jules session**\n\n"
-            f"- **Session ID**: `{session_id}`\n"
-            f"- **Error**: {e!s}\n\n"
-            f"The session may have been deleted or the API request failed. "
-            f"Check the workflow logs for more details."
+        new_session = client.create_session(
+            prompt=new_prompt,
+            owner="franklinbaldo",  # TODO: parameterize
+            repo="egregora",  # TODO: parameterize
+            branch=details["branch"],
+            title=f"Fix #{pr_number}: {details['title']}",
+            automation_mode="AUTO_CREATE_PR",
         )
-        post_pr_comment(pr_number, comment)
-
-        return {
-            "status": "error",
-            "error_type": "get_session_failed",
-            "message": error_msg,
-            "session_id": session_id,
-        }
-
-    # Step 2: Send message to session (separate error handling)
-    try:
-        message_text = f"Hi Jules! Please fix these issues in PR #{pr_number}:\n\n{feedback}{autonomous_instruction}"
-        response = client.send_message(session_id, message_text)
-
-        # Validate response (send_message should return a dict)
-        if not isinstance(response, dict):
-            print(f"⚠️  Unexpected response from send_message: {response}")
-
-        print(f"✅ Message sent successfully to session {session_id}")
-
-        # Post success comment to PR
-        comment = (
-            f"## 🤖 Auto-Fix: Message Sent\n\n"
-            f"✅ **Fix request sent to Jules**\n\n"
-            f"- **Session ID**: `{session_id}`\n"
-            f"- **Session State**: `{session_state}`\n\n"
-            f"### Message Sent:\n\n"
-            f"> {feedback}\n\n"
-            f"Jules will process this request and update the PR. "
-            f"Check the [Jules session](https://jules.google.com) for progress."
-        )
-        post_pr_comment(pr_number, comment)
-
         return {
             "status": "success",
-            "action": "messaged_existing_session",
-            "session_id": session_id,
-            "session_state": session_state,
+            "action": "created_new_session",
+            "new_session_id": new_session.get("name"),  # Resource name
+            "branch": details["branch"],
         }
     except Exception as e:
-        error_msg = f"Failed to send message to session {session_id} (state: {session_state}): {e!s}"
-        comment = (
-            f"## 🤖 Auto-Fix: Failed\n\n"
-            f"❌ **Error sending message to Jules session**\n\n"
-            f"- **Session ID**: `{session_id}`\n"
-            f"- **Session State**: `{session_state}`\n"
-            f"- **Error**: {e!s}\n\n"
-            f"The message failed to send. This could be due to:\n"
-            f"- Network/API timeout\n"
-            f"- Session in invalid state\n"
-            f"- API rate limiting\n\n"
-            f"Check the workflow logs for more details."
-        )
-        post_pr_comment(pr_number, comment)
-
-        return {
-            "status": "error",
-            "error_type": "send_message_failed",
-            "message": error_msg,
-            "session_id": session_id,
-            "session_state": session_state,
-        }
+        return {"error": f"Failed to start new session: {e!s}"}
