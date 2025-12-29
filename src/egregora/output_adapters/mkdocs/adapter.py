@@ -37,6 +37,7 @@ from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.exceptions import (
     AdapterNotInitializedError,
+    CollisionResolutionError,
     ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
@@ -996,8 +997,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Ensure UUID is in metadata
         author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
         if not author_uuid:
-            msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
-            raise ValueError(msg)
+            raise ProfileMetadataError(document.document_id, "uuid or author_uuid")
 
         # Use standard frontmatter writing logic
         metadata = dict(document.metadata or {})
@@ -1151,8 +1151,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             counter += 1
             max_attempts = 1000
             if counter > max_attempts:
-                msg = f"Failed to resolve collision for {path} after {max_attempts} attempts"
-                raise RuntimeError(msg)
+                raise CollisionResolutionError(str(path), max_attempts)
 
     # ============================================================================
     # Phase 2: Dynamic Data Population for UX Templates
@@ -1636,14 +1635,3 @@ interests: {profile.get("interests", [])}
 # ============================================================================
 
 # Moved to src/egregora/utils/filesystem.py
-
-
-def secure_path_join(base_dir: Path, user_path: str) -> Path:
-    """Safely join ``user_path`` to ``base_dir`` preventing directory traversal."""
-    full_path = (base_dir / user_path).resolve()
-    try:
-        full_path.relative_to(base_dir.resolve())
-    except ValueError as exc:
-        msg = f"Path traversal detected: {user_path!r} escapes base directory {base_dir}"
-        raise ValueError(msg) from exc
-    return full_path
