@@ -211,6 +211,14 @@ class Feed(BaseModel):
     authors: list[Author] = Field(default_factory=list)
     links: list[Link] = Field(default_factory=list)
 
+    def get_published_documents(self) -> list["Document"]:
+        """Return only published documents from the feed entries."""
+        return [
+            doc
+            for doc in self.entries
+            if isinstance(doc, Document) and doc.status == DocumentStatus.PUBLISHED
+        ]
+
     def to_xml(self) -> str:
         """Serialize the feed to an Atom XML string."""
         # Create the root element with namespaces
