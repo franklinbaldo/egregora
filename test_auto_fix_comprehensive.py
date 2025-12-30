@@ -10,8 +10,7 @@ from typing import Any
 
 # Import the extraction logic from jules module
 sys.path.insert(0, ".jules")
-from jules.github import \
-    _extract_session_id  # noqa: E402, F401 - Private import for testing
+from jules.github import _extract_session_id
 
 
 def fetch_jules_prs() -> list[dict[str, Any]]:
