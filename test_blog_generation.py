@@ -64,6 +64,7 @@ def test_datetime_utilities() -> bool | None:
         from datetime import datetime
 
         # Test valid parsing
+        expected_year = 2023
         result = datetime_utils_mod.parse_datetime_flexible("2023-01-01T12:00:00")
         if result.year != EXPECTED_PARSED_YEAR:
             return False

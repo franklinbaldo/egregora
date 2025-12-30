@@ -66,9 +66,6 @@ def analyze_session_id_patterns() -> SessionIdPatterns | None:
     """Analyze the different session ID patterns found in Jules PRs."""
     prs = fetch_jules_prs()
 
-    if not prs:
-        return None
-
     # Track different patterns
     patterns = {
         "numeric_15plus": [],  # -(\d{15,})$
@@ -78,6 +75,9 @@ def analyze_session_id_patterns() -> SessionIdPatterns | None:
         "from_body_sessions": [],  # /sessions/ID
         "not_found": [],
     }
+
+    if not prs:
+        return patterns
 
     for pr in prs:
         pr_number = pr.get("number")
@@ -124,7 +124,7 @@ def test_auto_fix_behavior() -> tuple[int, int] | None:
     prs = fetch_jules_prs()
 
     if not prs:
-        return None
+        return 0, 0
 
     would_fix = 0
     would_skip = 0

@@ -1,1 +1,1 @@
-"""Operational utilities package for Egregora."""
+"""Ops module."""

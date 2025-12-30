@@ -1,1 +1,1 @@
-"""Infrastructure package exports for Egregora."""
+"""Infra module."""
