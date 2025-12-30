@@ -32,7 +32,7 @@ from pydantic_ai.messages import (
 from ratelimit import limits, sleep_and_retry
 from tenacity import Retrying
 
-from egregora.agents.exceptions import JournalFileSystemError, JournalTemplateError
+from egregora.agents.exceptions import AgentError
 from egregora.agents.formatting import (
     build_conversation_xml,
     load_journal_memory,
@@ -337,8 +337,7 @@ def _save_journal_to_file(params: JournalEntryParams) -> str | None:
     """Save journal entry to markdown file.
 
     Raises:
-        JournalTemplateError: If the journal template cannot be loaded or rendered
-        JournalFileSystemError: If the journal file cannot be written to the filesystem
+        AgentError: If the journal template cannot be loaded, rendered, or written
 
     """
     intercalated_log = params.intercalated_log
@@ -393,11 +392,11 @@ def _save_journal_to_file(params: JournalEntryParams) -> str | None:
     except (TemplateNotFound, TemplateError) as exc:
         msg = f"Journal template error for window {params.window_label}: {exc}"
         logger.exception(msg)
-        raise JournalTemplateError(msg) from exc
+        raise AgentError(msg) from exc
     except (OSError, PermissionError) as exc:
         msg = f"File system error during journal creation for window {params.window_label}: {exc}"
         logger.exception(msg)
-        raise JournalFileSystemError(msg) from exc
+        raise AgentError(msg) from exc
 
 
 def _process_single_tool_result(
@@ -490,7 +489,7 @@ async def write_posts_with_pydantic_agent(
     logger.info("Running writer via Pydantic-AI backend")
 
     model = await create_writer_model(config, context, prompt, test_model)
-    agent = setup_writer_agent(model, prompt)
+    agent = setup_writer_agent(model, prompt, config=config)
 
     if context.resources.quota:
         context.resources.quota.reserve(1)
@@ -719,7 +718,7 @@ def _build_context_and_signature(
     writer_context = _build_writer_context(params)
 
     # Get template content for signature calculation
-    template_content = PromptManager.get_template_content("writer.jinja", custom_prompts_dir=prompts_dir)
+    template_content = PromptManager.get_template_content("writer.jinja", site_dir=prompts_dir)
 
     # Calculate signature using data (XML) + logic (template) + engine
     signature = generate_window_signature(

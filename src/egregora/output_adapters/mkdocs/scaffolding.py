@@ -122,6 +122,10 @@ class MkDocsSiteScaffolder:
                 logger.info("Created mkdocs.yml at %s", mkdocs_path)
 
             self._create_site_structure(site_paths, env, context)
+
+            # Ensure .authors.yml exists after creating structure
+            self._scaffold_authors_file(site_root)
+
         except TemplateError as e:
             # Try to get template name from exception, default to "unknown"
             template_name = getattr(e, "name", "unknown") or "unknown"
@@ -258,6 +262,20 @@ class MkDocsSiteScaffolder:
         config_path = site_paths.config_path
         if not config_path.exists():
             create_default_config(site_paths.site_root)
+
+    def _scaffold_authors_file(self, site_root: Path) -> None:
+        """Create initial .authors.yml file if it doesn't exist."""
+        # Use simple path resolution consistent with other tools
+        docs_dir = site_root / "docs"
+        if not docs_dir.exists():
+            docs_dir.mkdir(parents=True, exist_ok=True)
+
+        authors_file = docs_dir / ".authors.yml"
+
+        if not authors_file.exists():
+            # Create empty but valid YAML
+            authors_file.write_text("# Authors metadata\n", encoding="utf-8")
+            logger.info("Created initial authors file at %s", authors_file)
 
     def _create_egregora_structure(self, site_paths: MkDocsPaths, env: Any | None = None) -> None:
         egregora_dir = site_paths.egregora_dir

@@ -26,7 +26,7 @@ from egregora.data_primitives.document import Document, DocumentType, UrlContext
 from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 from egregora.input_adapters.whatsapp.commands import filter_egregora_messages
-from egregora.input_adapters.whatsapp.exceptions import MediaExtractionError
+from egregora.input_adapters.whatsapp.exceptions import MediaNotFoundError
 from egregora.input_adapters.whatsapp.parsing import parse_source
 from egregora.orchestration.pipelines.modules.media import process_media_for_window
 from egregora.transformations.windowing import Window
@@ -65,7 +65,7 @@ def test_pipeline_rejects_unsafe_zip(tmp_path: Path):
         archive.writestr("../etc/passwd", "malicious content")
 
     with (
-        pytest.raises(ZipValidationError, match="path traversal"),
+        pytest.raises(ZipValidationError, match="unsafe"),
         zipfile.ZipFile(malicious_zip) as archive,
     ):
         validate_zip_contents(archive)
@@ -215,9 +215,9 @@ def test_media_extraction_creates_expected_files(whatsapp_fixture: WhatsAppFixtu
     assert len(doc.content) > 0
 
     # Test extracting a non-existent file
-    with pytest.raises(MediaExtractionError) as excinfo:
+    with pytest.raises(MediaNotFoundError) as excinfo:
         adapter.deliver_media("non_existent.jpg", zip_path=whatsapp_fixture.zip_path)
-    assert "File not found in ZIP archive" in str(excinfo.value)
+    assert "not found in" in str(excinfo.value)
 
 
 def test_media_references_replaced_in_messages(

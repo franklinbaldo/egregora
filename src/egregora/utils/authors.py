@@ -34,7 +34,14 @@ def update_authors_file(authors_path: Path, author_ids: list[str]) -> int:
         The number of new authors that were added to the file.
 
     """
-    authors = load_authors_yml(authors_path)
+    # Auto-create if missing
+    if not authors_path.exists():
+        authors = {}
+        # Ensure directory exists
+        authors_path.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        authors = load_authors_yml(authors_path)
+
     new_ids = register_new_authors(authors, author_ids)
     if new_ids:
         save_authors_yml(authors_path, authors, len(new_ids))

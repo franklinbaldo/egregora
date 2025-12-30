@@ -61,6 +61,7 @@ async def create_writer_model(
 def setup_writer_agent(
     model: Any,
     prompt: str,
+    config: EgregoraConfig | None = None,
 ) -> Agent[WriterDeps, WriterAgentReturn]:
     """Initialize and configure the writer agent."""
     agent = Agent[WriterDeps, WriterAgentReturn](
@@ -69,7 +70,7 @@ def setup_writer_agent(
         retries=3,
         system_prompt=prompt,
     )
-    register_writer_tools(agent)
+    register_writer_tools(agent, config=config)
 
     # Dynamic System Prompts
     @agent.system_prompt

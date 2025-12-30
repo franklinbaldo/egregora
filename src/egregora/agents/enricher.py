@@ -328,7 +328,8 @@ def _enqueue_url_enrichments(
     if not enable_url or max_enrichments <= 0:
         return 0
 
-    repo = MessageRepository(messages_table._find_backend())
+    backend = context.duckdb_connection or messages_table._find_backend(use_default=True)
+    repo = MessageRepository(backend)
     candidates = repo.get_url_enrichment_candidates(messages_table, max_enrichments)
 
     # Pre-check database for already enriched URLs to avoid redundant tasks
@@ -393,7 +394,8 @@ def _enqueue_media_enrichments(
     if not config.enable_media or config.max_enrichments <= 0:
         return 0
 
-    repo = MessageRepository(messages_table._find_backend())
+    backend = context.duckdb_connection or messages_table._find_backend(use_default=True)
+    repo = MessageRepository(backend)
     candidates = repo.get_media_enrichment_candidates(
         messages_table, config.media_mapping, config.max_enrichments
     )
