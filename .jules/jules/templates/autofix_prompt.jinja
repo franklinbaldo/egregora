@@ -1,0 +1,19 @@
+Issues detected in Pull Request #{{ pr_number }}:
+{% if has_conflicts -%}
+- **Merge Conflicts** detected. Please rebase and resolve them.
+{% endif -%}
+{% if failed_check_names -%}
+- **CI Failures**: {{ failed_check_names | join(", ") }}
+{% endif -%}
+
+{% if logs_summary -%}
+## Summary of failing checks
+```
+{{ logs_summary }}
+```
+{% endif -%}
+
+{% if full_ci_logs -%}
+## Full CI Logs
+{{ full_ci_logs }}
+{% endif -%}

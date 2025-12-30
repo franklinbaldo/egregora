@@ -2,10 +2,19 @@
 
 import os
 import subprocess
+from pathlib import Path
 from typing import Any
 
+import jinja2
+
 from jules.client import JulesClient
-from jules.github import fetch_failed_logs_summary, get_base_sha, get_pr_details_via_gh
+from jules.github import (
+    fetch_failed_logs_summary,
+    fetch_full_ci_logs,
+    get_base_sha,
+    get_pr_details_via_gh,
+    get_repo_info,
+)
 
 
 def post_pr_comment(pr_number: int, comment: str, repo_path: str = ".") -> None:
@@ -29,6 +38,8 @@ def post_pr_comment(pr_number: int, comment: str, repo_path: str = ".") -> None:
 def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
     # Use repo root as cwd for git/gh commands
     repo_root = "."
+    repo_info = get_repo_info()
+    repo_full = repo_info["repo_full"]
 
     details = get_pr_details_via_gh(pr_number, repo_path=repo_root)
 
@@ -37,18 +48,19 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
 
     # Fetch failing logs
     logs_summary = ""
+    full_ci_logs = ""
     if details.get("failed_check_names"):
         logs_summary = fetch_failed_logs_summary(pr_number, cwd=repo_root)
+        full_ci_logs = fetch_full_ci_logs(
+            pr_number=pr_number, branch=details.get("branch", ""), repo_full=repo_full, cwd=repo_root
+        )
 
-    # Construct feedback message
-    feedback = f"Issues detected in Pull Request #{pr_number}:\n"
-    if details.get("has_conflicts"):
-        feedback += "- **Merge Conflicts** detected. Please rebase and resolve them.\n"
-    if details.get("failed_check_names"):
-        failed_list = ", ".join(details["failed_check_names"])
-        feedback += f"- **CI Failures**: {failed_list}\n"
-        if logs_summary:
-            feedback += f"\nSummary of failing checks:\n```\n{logs_summary}\n```\n"
+    feedback = _render_feedback_prompt(
+        pr_number=pr_number,
+        details=details,
+        logs_summary=logs_summary,
+        full_ci_logs=full_ci_logs,
+    )
 
     client = JulesClient()
     session_id = details.get("session_id")
@@ -67,8 +79,9 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
         print(f"📋 No session_id found - creating NEW Jules session for PR #{pr_number}")
 
         # Get repo info from environment
-        repo_full = os.environ.get("GITHUB_REPOSITORY", "franklinbaldo/egregora")
-        owner, repo = repo_full.split("/") if "/" in repo_full else ("franklinbaldo", "egregora")
+        owner, repo = (
+            repo_full.split("/") if "/" in repo_full else ("franklinbaldo", "egregora")
+        )
 
         # Get base branch SHA for context
         base_sha = get_base_sha(details["base_branch"], repo_path=repo_root)
@@ -237,3 +250,31 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
             "session_id": session_id,
             "session_state": session_state,
         }
+
+
+def _render_feedback_prompt(
+    pr_number: int, details: dict[str, Any], logs_summary: str, full_ci_logs: str
+) -> str:
+    """Render the feedback prompt using Jinja for clarity and flexibility."""
+    env = jinja2.Environment(
+        autoescape=False,
+        trim_blocks=True,
+        lstrip_blocks=True,
+        undefined=jinja2.StrictUndefined,
+    )
+
+    template_path = Path(__file__).parent / "templates" / "autofix_prompt.jinja"
+    template = env.from_string(template_path.read_text())
+
+    failed_check_names = details.get("failed_check_names") or []
+    has_conflicts = bool(details.get("has_conflicts"))
+
+    context = {
+        "pr_number": pr_number,
+        "has_conflicts": has_conflicts,
+        "failed_check_names": failed_check_names,
+        "logs_summary": logs_summary,
+        "full_ci_logs": full_ci_logs,
+    }
+
+    return template.render(**context)
