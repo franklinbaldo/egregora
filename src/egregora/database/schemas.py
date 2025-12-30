@@ -12,7 +12,7 @@ import duckdb
 import ibis
 import ibis.expr.datatypes as dt
 
-from egregora.database.utils import quote_identifier
+from egregora.database.sql_utils import quote_identifier
 
 logger = logging.getLogger(__name__)
 

@@ -25,7 +25,6 @@ from pydantic_ai import ModelRetry
 from egregora.agents.banner.agent import generate_banner
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
-from egregora.output_adapters.exceptions import DocumentNotFoundError
 from egregora.rag import search
 from egregora.rag.models import RAGQueryRequest
 from egregora.utils.paths import slugify
@@ -184,11 +183,8 @@ def read_profile_impl(ctx: ToolContext, author_uuid: str) -> ReadProfileResult:
         ReadProfileResult with profile content
 
     """
-    try:
-        doc = ctx.output_sink.read_document(DocumentType.PROFILE, author_uuid)
-        content = doc.content
-    except DocumentNotFoundError:
-        content = "No profile exists yet."
+    doc = ctx.output_sink.read_document(DocumentType.PROFILE, author_uuid)
+    content = doc.content if doc else "No profile exists yet."
     return ReadProfileResult(content=content)
 
 

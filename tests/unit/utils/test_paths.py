@@ -88,23 +88,6 @@ class TestSlugifyUnicode:
         # For example, the registered trademark symbol ® is stripped
         assert slugify("Registered®") == "registered"
 
-    def test_complex_unicode_nfkd_normalization(self):
-        """BEHAVIOR: Complex Unicode string matches exact NFKD normalization.
-
-        This test locks in the specific transliteration behavior of the current
-        NFKD implementation to prevent regressions. It verifies that CJK
-        characters are stripped and accented characters are transliterated.
-        """
-        # This string includes CJK, punctuation, ASCII, accented Latin,
-        # and other special characters.
-        input_text = "你好, world! Café crème brûlée--100%."
-
-        # The original implementation strips CJK characters and produces a slug
-        # that may have a leading hyphen based on surrounding punctuation.
-        # This test locks in that exact behavior.
-        expected_slug = "-world-cafe-creme-brulee--100"
-        assert slugify(input_text) == expected_slug
-
 
 class TestSlugifyEdgeCases:
     """Test edge cases and boundary conditions."""

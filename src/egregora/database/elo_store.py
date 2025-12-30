@@ -133,7 +133,7 @@ class EloStore:
         ratings_table = self.storage.read_table("elo_ratings")
         result = ratings_table.filter(ratings_table.post_slug == post_slug).limit(1).execute()
 
-        if result.empty:
+        if len(result) == 0:
             # Return default rating for new posts
             now = datetime.now(UTC)
             return EloRating(
@@ -292,11 +292,7 @@ class EloStore:
 
         """
         ratings_table = self.storage.ibis_conn.table("elo_ratings")
-        return (
-            ratings_table.filter(ratings_table.comparisons > 0)
-            .order_by(ratings_table.rating.desc())
-            .limit(limit)
-        )
+        return ratings_table.filter(ratings_table.comparisons > 0).order_by(ibis.desc("rating")).limit(limit)
 
     def get_comparison_history(
         self,

@@ -1,6 +1,7 @@
 """Path safety utilities for secure file operations."""
 
 from pathlib import Path
+from unicodedata import normalize
 
 from pymdownx.slugs import slugify as _md_slugify
 
@@ -11,9 +12,8 @@ class PathTraversalError(Exception):
 
 # Pre-configure a slugify instance for reuse.
 # This is more efficient than creating a new slugifier on each call.
-# Use 'NFKD' normalization to transliterate Unicode to ASCII equivalents.
-slugify_lower = _md_slugify(case="lower", separator="-", normalize="NFKD")
-slugify_case = _md_slugify(separator="-", normalize="NFKD")
+slugify_lower = _md_slugify(case="lower", separator="-")
+slugify_case = _md_slugify(separator="-")
 
 
 def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
@@ -48,21 +48,19 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
     if text is None:
         return ""
 
+    # Normalize Unicode to ASCII using NFKD (preserves transliteration).
+    normalized = normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+
     # Choose the appropriate pre-configured slugifier.
     slugifier = slugify_lower if lowercase else slugify_case
-    slug = slugifier(text, sep="-")
-
-    # Ensure final output is ASCII by encoding and ignoring non-ASCII characters.
-    # This is required because NFKD normalization alone doesn't guarantee ASCII.
-    slug = slug.encode("ascii", "ignore").decode("ascii")
+    slug = slugifier(normalized, sep="-")
 
     # Fallback for empty slugs, truncate, and clean up trailing hyphens.
     slug = slug or "post"
     if len(slug) > max_len:
-        slug = slug[:max_len]
+        slug = slug[:max_len].rstrip("-")
 
-    # Always strip trailing hyphens that can result from processing.
-    return slug.rstrip("-")
+    return slug
 
 
 def safe_path_join(base_dir: Path, *parts: str) -> Path:

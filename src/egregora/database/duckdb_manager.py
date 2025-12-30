@@ -58,7 +58,7 @@ from egregora.database.exceptions import (
     TableInfoError,
     TableNotFoundError,
 )
-from egregora.database.schemas import quote_identifier
+from egregora.database.sql_utils import quote_identifier
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

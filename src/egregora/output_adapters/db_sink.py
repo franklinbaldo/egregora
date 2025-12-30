@@ -19,7 +19,6 @@ from egregora.data_primitives.document import (
 )
 from egregora.database.repository import ContentRepository
 from egregora.output_adapters.conventions import StandardUrlConvention
-from egregora.output_adapters.exceptions import DocumentNotFoundError
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -45,12 +44,9 @@ class DbOutputSink(OutputSink):
         """Persist document to the database repository."""
         self.repository.save(document)
 
-    def read_document(self, doc_type: DocumentType, identifier: str) -> Document:
+    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
         """Retrieve document from database."""
-        document = self.repository.get(doc_type, identifier)
-        if document is None:
-            raise DocumentNotFoundError(doc_type.value, identifier)
-        return document
+        return self.repository.get(doc_type, identifier)
 
     def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
         """List documents from database as metadata."""
@@ -128,11 +124,9 @@ class DbOutputSink(OutputSink):
 
         for dtype in known_types:
             for meta in self.list(dtype):
-                try:
-                    doc = self.read_document(dtype, meta.identifier)
+                doc = self.read_document(dtype, meta.identifier)
+                if doc:
                     yield doc
-                except DocumentNotFoundError:
-                    continue
 
     def get_format_instructions(self) -> str:
         return "Database persistence mode."
@@ -140,7 +134,7 @@ class DbOutputSink(OutputSink):
     def finalize_window(
         self,
         window_label: str,
-        posts_created: list[str],
+        _posts_created: list[str],
         profiles_updated: list[str],
         metadata: dict | None = None,
     ) -> None:

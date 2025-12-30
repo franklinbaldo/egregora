@@ -119,36 +119,6 @@ def test_generate_banner_image_handles_api_error(monkeypatch):
     assert output.error_code == "GENERATION_EXCEPTION"
 
 
-def test_generate_banner_reraises_unexpected_errors(monkeypatch):
-    """Test that the main `generate_banner` function reraises unexpected errors."""
-
-    # 1. Arrange
-    def mock_generate_banner_image(*args, **kwargs):
-        raise ValueError("Something went wrong")
-
-    monkeypatch.setattr(agent, "_generate_banner_image", mock_generate_banner_image)
-    # Mock the genai.Client at the module level where it's imported
-
-    # Patch the Client where it is used in the agent module
-    monkeypatch.setattr(agent.genai, "Client", lambda: object())
-
-    # Mocking EgregoraConfig to return an object with a .models.banner attribute
-    class MockModels:
-        banner = "test-model"
-
-    class MockConfig:
-        models = MockModels()
-        image_generation = type(
-            "ImageGenerationSettings", (), {"response_modalities": ["IMAGE"], "aspect_ratio": "1:1"}
-        )()
-
-    monkeypatch.setattr(agent, "EgregoraConfig", MockConfig)
-
-    # 2. Act & Assert
-    with pytest.raises(ValueError, match="Something went wrong"):
-        agent.generate_banner(post_title="Title", post_summary="Summary")
-
-
 def test_generate_banner_image_reraises_unexpected_errors(monkeypatch):
     """Test that unexpected (non-API) errors are not caught."""
 

@@ -11,7 +11,7 @@ def test_document_generates_slug_from_title():
         title="  My First Post!  "
     )
     assert doc.slug == "my-first-post"
-    assert doc.id == "urn:uuid:200b9dee-d982-5c75-9fe7-a879ecaa96ff"
+    assert doc.id == "my-first-post"
     assert doc.title == "  My First Post!  "
     assert doc.doc_type == DocumentType.POST
     assert doc.status == DocumentStatus.DRAFT
@@ -27,7 +27,7 @@ def test_document_uses_explicit_slug():
         internal_metadata={"slug": "custom-slug"}
     )
     assert doc.slug == "custom-slug"
-    assert doc.id == "urn:uuid:84bb3e34-b362-5861-907a-71af6fb86d90"
+    assert doc.id == "custom-slug"
 
 
 def test_document_raises_error_on_empty_title_and_slug():
@@ -74,13 +74,22 @@ def test_feed_to_xml_handles_document_and_entry():
 
     xml_output = feed.to_xml()
 
-    # Assert that the Document-specific fields are present for the Document entry
-    doc_type_category = f'<category scheme="https://egregora.app/schema#doc_type" term="{doc.doc_type.value}" label="Document Type" />'
-    status_category = f'<category scheme="https://egregora.app/schema#status" term="{doc.status.value}" label="Document Status" />'
+    # Find the <entry> block for the document to check its contents
+    doc_id_tag = f"<id>{doc.id}</id>"
+    assert doc_id_tag in xml_output, "Document ID not found in feed XML"
 
-    assert f"<id>{doc.id}</id>" in xml_output
-    assert doc_type_category in xml_output
-    assert status_category in xml_output
+    doc_entry_start = xml_output.rfind("<entry>", 0, xml_output.find(doc_id_tag))
+    doc_entry_end = xml_output.find("</entry>", doc_entry_start)
+    doc_xml_block = xml_output[doc_entry_start:doc_entry_end]
+
+    # Assert that the Document-specific categories are present
+    assert f'term="{doc.doc_type.value}"' in doc_xml_block
+    assert 'scheme="https://egregora.app/schema#doc_type"' in doc_xml_block
+    assert 'label="Document Type"' in doc_xml_block
+
+    assert f'term="{doc.status.value}"' in doc_xml_block
+    assert 'scheme="https://egregora.app/schema#status"' in doc_xml_block
+    assert 'label="Document Status"' in doc_xml_block
 
     # Assert that the Document-specific fields are NOT present for the plain Entry
     entry_start_index = xml_output.find(f"<id>{entry.id}</id>")

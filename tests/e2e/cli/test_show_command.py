@@ -4,14 +4,14 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-import ibis
 import pytest
 import tomli_w
 from typer.testing import CliRunner
 
 from egregora.cli.main import app
 from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.database.elo_store import COMPARISON_HISTORY_SCHEMA, ELO_RATINGS_SCHEMA, EloStore
+from egregora.database.elo_store import EloStore
+from egregora.database.utils import get_simple_storage
 
 # Create a CLI runner for testing
 runner = CliRunner()
@@ -84,21 +84,35 @@ def mock_site_root_without_db(tmp_path: Path, config_factory) -> Path:
 def test_top_command(mock_site_root_with_db: Path):
     """Test the 'top' command with mock data."""
     db_path = mock_site_root_with_db / ".egregora/reader.duckdb"
-    storage = DuckDBStorageManager(db_path)
-    now = datetime.now(UTC)
+    storage = get_simple_storage(db_path)
+    elo_store = EloStore(storage)
+    datetime.now(UTC)
 
-    # Insert mock data
-    mock_data = [
-        ("post-b", 1600.0, 10, 8, 1, 1, now, now),
-        ("post-a", 1500.0, 5, 2, 2, 1, now, now),
-        ("post-c", 1700.0, 15, 12, 2, 1, now, now),
-    ]
-    ratings_table = ibis.memtable(mock_data, schema=ELO_RATINGS_SCHEMA)
-    storage.ibis_conn.insert("elo_ratings", ratings_table, overwrite=True)
+    # Insert mock data using the EloStore API
+    elo_store.update_ratings(
+        EloStore.UpdateParams(
+            post_a_slug="post-c",
+            post_b_slug="post-b",
+            rating_a_new=1700.0,
+            rating_b_new=1600.0,
+            winner="a",
+            comparison_id=str(uuid.uuid4()),
+        )
+    )
+    elo_store.update_ratings(
+        EloStore.UpdateParams(
+            post_a_slug="post-b",
+            post_b_slug="post-a",
+            rating_a_new=1600.0,
+            rating_b_new=1500.0,
+            winner="a",
+            comparison_id=str(uuid.uuid4()),
+        )
+    )
 
     result = runner.invoke(app, ["top", str(mock_site_root_with_db)])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 0, result.stdout
     assert "🏆 Top 10 Posts" in result.stdout
     assert "post-c" in result.stdout
     assert "post-b" in result.stdout
@@ -110,20 +124,35 @@ def test_top_command(mock_site_root_with_db: Path):
 def test_show_reader_history_command(mock_site_root_with_db: Path):
     """Test the 'show reader-history' command with mock data."""
     db_path = mock_site_root_with_db / ".egregora/reader.duckdb"
-    storage = DuckDBStorageManager(db_path)
-    now = datetime.now(UTC)
+    storage = get_simple_storage(db_path)
+    elo_store = EloStore(storage)
+    datetime.now(UTC)
 
-    # Insert mock data
-    mock_data = [
-        (str(uuid.uuid4()), "post-a", "post-b", "a", 1500.0, 1600.0, 1510.0, 1590.0, now, "{}"),
-        (str(uuid.uuid4()), "post-c", "post-a", "b", 1700.0, 1510.0, 1690.0, 1520.0, now, "{}"),
-    ]
-    history_table = ibis.memtable(mock_data, schema=COMPARISON_HISTORY_SCHEMA)
-    storage.ibis_conn.insert("comparison_history", history_table, overwrite=True)
+    # Insert mock data using the EloStore API
+    elo_store.update_ratings(
+        EloStore.UpdateParams(
+            post_a_slug="post-a",
+            post_b_slug="post-b",
+            rating_a_new=1510.0,
+            rating_b_new=1590.0,
+            winner="a",
+            comparison_id=str(uuid.uuid4()),
+        )
+    )
+    elo_store.update_ratings(
+        EloStore.UpdateParams(
+            post_a_slug="post-c",
+            post_b_slug="post-a",
+            rating_a_new=1690.0,
+            rating_b_new=1520.0,
+            winner="b",
+            comparison_id=str(uuid.uuid4()),
+        )
+    )
 
     result = runner.invoke(app, ["show", "reader-history", str(mock_site_root_with_db)])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 0, result.stdout
     assert "🔍 Comparison History" in result.stdout
     assert "post-a" in result.stdout
     assert "post-b" in result.stdout

@@ -539,7 +539,7 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
 Use consistent, meaningful tags across posts to build a useful taxonomy.
 """
 
-    def documents(self, doc_type: DocumentType | None = None) -> Iterator[Document]:
+    def documents(self) -> Iterator[Document]:
         """Return all MkDocs documents as Document instances (lazy iterator)."""
         if not hasattr(self, "_site_root") or self._site_root is None:
             return
@@ -549,7 +549,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # but get() expects a simpler identifier for some types (e.g., "slug" for posts).
         # To reliably load all listed documents, we bypass the identifier resolution logic
         # and load directly from the known path found by list().
-        for meta in self.list(doc_type=doc_type):
+        for meta in self.list():
             if meta.doc_type and "path" in meta.metadata:
                 doc_path = Path(str(meta.metadata["path"]))
                 # Bypass identifier resolution by loading directly from path
@@ -651,7 +651,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
     def finalize_window(
         self,
         window_label: str,
-        posts_created: list[str],
+        _posts_created: list[str],
         profiles_updated: list[str],
         metadata: dict[str, Any] | None = None,
     ) -> None:

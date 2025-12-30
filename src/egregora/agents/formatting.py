@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.data_primitives.document import DocumentType
-from egregora.output_adapters.exceptions import DocumentNotFoundError
 
 if TYPE_CHECKING:
     from egregora.agents.shared.annotations import AnnotationStore
@@ -33,11 +32,8 @@ def load_journal_memory(output_sink: OutputSink) -> str:
     # This is equivalent to sorting by creation time for these files
     latest = max(journals, key=lambda d: d.identifier)
 
-    try:
-        doc = output_sink.read_document(DocumentType.JOURNAL, latest.identifier)
-        return doc.content
-    except DocumentNotFoundError:
-        return ""
+    doc = output_sink.read_document(DocumentType.JOURNAL, latest.identifier)
+    return doc.content if doc else ""
 
 
 def _stringify_value(value: object) -> str:

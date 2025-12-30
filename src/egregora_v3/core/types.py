@@ -11,12 +11,6 @@ from markdown_it import MarkdownIt
 from pydantic import BaseModel, Field, model_validator
 from egregora_v3.core.utils import slugify
 
-
-# A fixed namespace for Egregora documents. This ensures that the same name
-# (hash input) within this namespace will always produce the same UUID.
-EGREGORA_NAMESPACE = uuid.UUID("f6a8e3b2-b1e4-4a8f-8f0a-9e1e9e1e9e1e")
-
-
 # --- XML Configuration ---
 
 # Register namespaces globally to ensure pretty prefixes in all XML output
@@ -173,40 +167,40 @@ class Document(Entry):
         """Get the semantic slug for this document."""
         return self.internal_metadata.get("slug")
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
-    def _validate_and_set_fields(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            # Ensure slug exists if title is present
-            if data.get('title') and not data.get('internal_metadata', {}).get('slug'):
-                if 'internal_metadata' not in data:
-                    data['internal_metadata'] = {}
-                data['internal_metadata']['slug'] = slugify(data['title'])
+    def _set_identity_and_timestamps(cls, data: Any) -> Any:
+        """Set identity (id, slug) and timestamps before validation.
 
-            # Set id if not present
-            if not data.get('id'):
-                title = data.get('title')
-                content = data.get('content')
+        This allows for declarative instantiation of Document and its subclasses
+        without needing a factory method.
+        """
+        if not isinstance(data, dict):
+            return data  # Not a dict, let Pydantic handle it
 
-                if not title and not content:
-                    # Pydantic will catch the missing required fields later,
-                    # but we can't generate an ID without at least one.
-                    pass
-                else:
-                    # If one is None, use an empty string to ensure the hash is consistent.
-                    title_str = title or ""
-                    content_str = content or ""
+        # If 'id' is already set, respect it.
+        if "id" in data and data["id"]:
+            return data
 
-                    hash_input = f"{title_str}:{content_str}"
-                    content_hash = hashlib.sha1(hash_input.encode('utf-8')).hexdigest()  # nosec B324
-                    data['id'] = f"urn:uuid:{uuid.uuid5(EGREGORA_NAMESPACE, content_hash)}"
+        internal_metadata = data.get("internal_metadata", {})
+        slug = internal_metadata.get("slug")
 
-            # Set updated timestamp if not present
-            if 'updated' not in data:
-                data['updated'] = datetime.now(UTC)
+        # If still no slug, generate from title if it exists
+        if not slug and data.get("title"):
+            slug = slugify(str(data["title"]).strip())
+
+        if slug:
+            # Set the derived values
+            data["id"] = slug
+            if "internal_metadata" not in data:
+                data["internal_metadata"] = {}
+            data["internal_metadata"]["slug"] = slug
+
+        # Set timestamp if not present
+        if "updated" not in data:
+            data["updated"] = datetime.now(UTC)
 
         return data
-
 
 
 class Feed(BaseModel):
@@ -235,7 +229,7 @@ class Feed(BaseModel):
         # --- Feed Metadata ---
         SubElement(root, "id").text = self.id
         SubElement(root, "title").text = self.title
-        SubElement(root, "updated").text = self.updated.isoformat().replace("+00:00", "Z")
+        SubElement(root, "updated").text = self.updated.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         for author in self.authors:
             author_elem = SubElement(root, "author")
@@ -255,10 +249,17 @@ class Feed(BaseModel):
             entry_elem = SubElement(root, "entry")
             SubElement(entry_elem, "id").text = entry.id
             SubElement(entry_elem, "title").text = entry.title
-            SubElement(entry_elem, "updated").text = entry.updated.isoformat().replace("+00:00", "Z")
+            SubElement(entry_elem, "updated").text = entry.updated.strftime("%Y-%m-%dT%H:%M:%SZ")
 
             if entry.published:
-                SubElement(entry_elem, "published").text = entry.published.isoformat().replace("+00:00", "Z")
+                SubElement(entry_elem, "published").text = entry.published.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+            if entry.in_reply_to:
+                reply_elem = SubElement(entry_elem, "thr:in-reply-to", attrib={"ref": entry.in_reply_to.ref})
+                if entry.in_reply_to.href:
+                    reply_elem.set("href", entry.in_reply_to.href)
+                if entry.in_reply_to.type:
+                    reply_elem.set("type", entry.in_reply_to.type)
 
             for author in entry.authors:
                 author_elem = SubElement(entry_elem, "author")
@@ -274,13 +275,6 @@ class Feed(BaseModel):
                     content_elem.set("type", "text")
                 else:
                     content_elem.set("type", content_type)
-
-            if entry.in_reply_to:
-                reply_elem = SubElement(entry_elem, "thr:in-reply-to", attrib={"ref": entry.in_reply_to.ref})
-                if entry.in_reply_to.href:
-                    reply_elem.set("href", entry.in_reply_to.href)
-                if entry.in_reply_to.type:
-                    reply_elem.set("type", entry.in_reply_to.type)
 
             if isinstance(entry, Document):
                 # Add doc_type and status as categories for filtering
@@ -304,7 +298,7 @@ class Feed(BaseModel):
                 )
 
         # Serialize to string
-        return tostring(root, encoding="unicode", xml_declaration=True)
+        return tostring(root, encoding="UTF-8", xml_declaration=True).decode("utf-8")
 
     @classmethod
     def from_documents(

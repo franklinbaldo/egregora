@@ -66,8 +66,6 @@ def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
     """Normalize a metadata date into the RSS-friendly ``YYYY-MM-DD HH:MM`` string."""
     try:
         dt = parse_datetime_flexible(raw_date, default_timezone=UTC)
-        if dt is None:
-            raise FrontmatterDateFormattingError(str(raw_date), "Parsed datetime is None")
         return dt.strftime("%Y-%m-%d %H:%M")
     except (DateTimeParsingError, AttributeError, ValueError, InvalidDateTimeInputError) as e:
         # This will be raised if parse_datetime_flexible fails,

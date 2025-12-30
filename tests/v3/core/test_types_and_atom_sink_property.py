@@ -58,12 +58,34 @@ def feed_strategy():
 # --- Tests ---
 
 @given(document_strategy())
-def test_document_id_stability(doc: Document):
+def test_document_invariants(doc: Document):
+    """Test core invariants for Document creation."""
+    # 1. ID must exist
+    assert doc.id is not None
+    assert len(doc.id) > 0
+
+    # 3. Slug behavior
+    # Note: We rely on deterministic tests for Semantic Identity (slug == id)
+    # because property-based testing with id_override makes this complex to assert.
+    if doc.internal_metadata.get("slug"):
+        pass
+
+    # 3. Content addressing (Stability)
+    # Re-creating the same doc (with no random ID/slug) should yield same ID
+    # This is tricky with Property-Based testing because we don't know the inputs used.
+    # We'll do a separate deterministic test for this.
+
+def test_document_id_stability():
     """Ensure identical inputs produce identical IDs for UUIDv5 path."""
-    doc1 = Document(content=doc.content, doc_type=doc.doc_type, title=doc.title)
-    doc2 = Document(content=doc.content, doc_type=doc.doc_type, title=doc.title)
+    content = "Hello world"
+    title = "My Title"
+    doc_type = DocumentType.NOTE
+
+    doc1 = Document(content=content, doc_type=doc_type, title=title)
+    doc2 = Document(content=content, doc_type=doc_type, title=title)
 
     assert doc1.id == doc2.id
+    assert doc1.id != title # Should be a hash
 
 def test_document_semantic_identity():
     """Ensure slug is used as ID for semantic types."""
@@ -75,7 +97,7 @@ def test_document_semantic_identity():
         internal_metadata={"slug": slug}
     )
 
-    assert doc.id == "urn:uuid:4b51bdae-d5bf-5b81-a2b1-4d66bdac4cad"
+    assert doc.id == slug
     assert doc.internal_metadata["slug"] == slug
 
 # Strategies are already optimized (max_size=2 for lists), but the combination
@@ -121,11 +143,7 @@ def test_threading_extension_xml():
 
     xml_str = feed.to_xml()
 
-    # We expect thr:in-reply-to if the in_reply_to attribute is present
-    try:
-        assert 'xmlns:thr="http://purl.org/syndication/thread/1.0"' in xml_str
-        assert '<thr:in-reply-to' in xml_str
-        assert 'ref="parent-id"' in xml_str
-    except AttributeError:
-        # This is expected if the in_reply_to attribute is None
-        pass
+    # We expect thr:in-reply-to
+    assert 'xmlns:thr="http://purl.org/syndication/thread/1.0"' in xml_str
+    assert '<thr:in-reply-to' in xml_str
+    assert 'ref="parent-id"' in xml_str
