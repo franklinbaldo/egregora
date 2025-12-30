@@ -490,7 +490,7 @@ async def write_posts_with_pydantic_agent(
     logger.info("Running writer via Pydantic-AI backend")
 
     model = await create_writer_model(config, context, prompt, test_model)
-    agent = setup_writer_agent(model, prompt)
+    agent = setup_writer_agent(model, prompt, config=config)
 
     if context.resources.quota:
         context.resources.quota.reserve(1)
@@ -719,7 +719,7 @@ def _build_context_and_signature(
     writer_context = _build_writer_context(params)
 
     # Get template content for signature calculation
-    template_content = PromptManager.get_template_content("writer.jinja", custom_prompts_dir=prompts_dir)
+    template_content = PromptManager.get_template_content("writer.jinja", site_dir=prompts_dir)
 
     # Calculate signature using data (XML) + logic (template) + engine
     signature = generate_window_signature(

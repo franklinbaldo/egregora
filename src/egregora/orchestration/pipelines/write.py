@@ -667,15 +667,13 @@ def _create_gemini_client() -> genai.Client:
     Model/Key rotator to handle it immediately (Story 8).
     We still retry 503 (Service Unavailable).
     """
-    import google.generativeai as genai  # Lazy import at runtime
-
     http_options = genai.types.HttpOptions(
-        retryOptions=genai.types.HttpRetryOptions(
+        retry_options=genai.types.HttpRetryOptions(
             attempts=3,  # Reduced from 15
-            initialDelay=1.0,
-            maxDelay=10.0,
-            expBase=2.0,
-            httpStatusCodes=[503],  # Only retry 503 at client level. 429 handled by app.
+            initial_delay=1.0,
+            max_delay=10.0,
+            exp_base=2.0,
+            http_status_codes=[503],
         )
     )
     return genai.Client(http_options=http_options)

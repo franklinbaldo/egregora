@@ -70,7 +70,7 @@ def test_datetime_utilities() -> bool | None:
         try:
             datetime_utils_mod.parse_datetime_flexible(None)
             return False
-        except exceptions_mod.DateTimeParsingError:
+        except (exceptions_mod.DateTimeParsingError, exceptions_mod.InvalidDateTimeInputError):
             pass
 
         # Test ensure_datetime
