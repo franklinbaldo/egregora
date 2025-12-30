@@ -76,6 +76,24 @@ def test_create_output_sink_raises_error_if_registry_is_none():
         create_output_sink(site_root=Path("/fake/path"), registry=None)
 
 
+def test_finalize_window_runs_without_error():
+    """
+    Given a DummySink instance
+    When finalize_window is called
+    Then it should run without raising any errors.
+    """
+    sink = DummySink()
+    try:
+        sink.finalize_window(
+            window_label="test_window",
+            _posts_created=["post1", "post2"],
+            profiles_updated=["profile1"],
+            metadata={},
+        )
+    except Exception as e:
+        pytest.fail(f"finalize_window raised an unexpected exception: {e}")
+
+
 class TestOutputSinkRegistry:
     def test_detect_format_raises_error_when_no_adapter_found(self):
         """
