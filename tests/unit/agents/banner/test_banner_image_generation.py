@@ -17,13 +17,15 @@ else:  # pragma: no cover - exercised when Google SDKs are absent
     google_api_core.exceptions = google_exceptions
     sys.modules.setdefault("google.api_core", google_api_core)
 
-import google.generativeai as genai
-from google.api_core import exceptions as google_exceptions
+from google.api_core import exceptions as google_exceptions  # noqa: E402
 
-from egregora.agents.banner import agent
-from egregora.agents.banner.agent import BannerInput, _generate_banner_image
-from egregora.agents.banner.image_generation import ImageGenerationRequest, ImageGenerationResult
-from egregora.data_primitives.document import DocumentType
+from egregora.agents.banner import agent  # noqa: E402
+from egregora.agents.banner.agent import BannerInput, _generate_banner_image  # noqa: E402
+from egregora.agents.banner.image_generation import (  # noqa: E402
+    ImageGenerationRequest,
+    ImageGenerationResult,
+)
+from egregora.data_primitives.document import DocumentType  # noqa: E402
 
 
 class _FakeProvider:
@@ -81,7 +83,7 @@ def test_generate_banner_image_preserves_request_prompt(fake_provider):
     assert output.document is not None
     assert output.document.metadata["slug"] == "sluggy"
     assert output.document.metadata["language"] == "en"
-    assert output.document.doc_type is DocumentType.MEDIA
+    assert output.document.type is DocumentType.MEDIA
     assert output.debug_text == "debug info"
 
 
@@ -127,7 +129,8 @@ def test_generate_banner_reraises_unexpected_errors(monkeypatch):
     monkeypatch.setattr(agent, "_generate_banner_image", mock_generate_banner_image)
     # Mock the genai.Client at the module level where it's imported
 
-    monkeypatch.setattr(genai, "Client", lambda: object())
+    # Patch the Client where it is used in the agent module
+    monkeypatch.setattr(agent.genai, "Client", lambda: object())
 
     # Mocking EgregoraConfig to return an object with a .models.banner attribute
     class MockModels:

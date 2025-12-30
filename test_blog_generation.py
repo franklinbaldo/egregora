@@ -34,7 +34,7 @@ def test_whatsapp_parsing() -> bool | None:
                 pass
 
             return True
-    except Exception:
+    except (zipfile.BadZipFile, OSError):
         return False
 
 
@@ -63,22 +63,19 @@ def test_datetime_utilities() -> bool | None:
 
         # Test valid parsing
         result = datetime_utils_mod.parse_datetime_flexible("2023-01-01T12:00:00")
-        if result.year != 2023:
+        if result.year != 2023:  # noqa: PLR2004
             return False
 
         # Test None raises exception
         try:
             datetime_utils_mod.parse_datetime_flexible(None)
             return False
-        except exceptions_mod.DateTimeParsingError:
+        except (exceptions_mod.DateTimeParsingError, exceptions_mod.InvalidDateTimeInputError):
             pass
 
         # Test ensure_datetime
         result = datetime_utils_mod.ensure_datetime("2023-01-01")
-        if not isinstance(result, datetime):
-            return False
-
-        return True
+        return isinstance(result, datetime)
 
     except (ImportError, AttributeError, exceptions_mod.DateTimeParsingError):
         import traceback
@@ -110,10 +107,7 @@ def test_exception_classes() -> bool | None:
 
         # Test DateTimeParsingError
         exc = exceptions_mod.DateTimeParsingError("invalid", ValueError("test"))
-        if exc.value != "invalid":
-            return False
-
-        return True
+        return exc.value == "invalid"
 
     except (ImportError, AttributeError):
         import traceback

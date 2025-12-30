@@ -140,6 +140,33 @@ class MkDocsAdapter(BaseOutputSink):
 
         self._initialized = True
 
+    def scaffold_site(self, site_root: Path, site_name: str, **kwargs: object) -> tuple[Path, bool]:
+        """Create or update an MkDocs site using the dedicated scaffolder."""
+        result = self._scaffolder.scaffold_site(site_root, site_name, **kwargs)
+        # Ensure .authors.yml exists after scaffolding
+        self._scaffold_authors_file(site_root)
+        return result
+
+    def _scaffold_authors_file(self, site_root: Path) -> None:
+        """Create initial .authors.yml file if it doesn't exist."""
+        # Check both site root and docs dir (MkDocs standard vs potential override)
+        # The blog plugin usually looks in docs_dir if configured, or site_root.
+        # We put it in docs_dir as per MkDocs Material recommendation for blog plugin
+        # but also verify adapter logic looks there.
+        # MkDocsAdapter._append_author_cards looks in site_root/docs/.authors.yml and site_root/.authors.yml.
+
+        # We use the resolved docs_dir if possible, otherwise guess "docs"
+        docs_dir = site_root / "docs"
+        if not docs_dir.exists():
+            docs_dir.mkdir(parents=True, exist_ok=True)
+
+        authors_file = docs_dir / ".authors.yml"
+
+        if not authors_file.exists():
+            # Create empty but valid YAML
+            authors_file.write_text("# Authors metadata\n", encoding="utf-8")
+            logger.info("Created initial authors file at %s", authors_file)
+
     @property
     def format_type(self) -> str:
         """Return 'mkdocs' as the format type identifier."""
@@ -283,10 +310,6 @@ class MkDocsAdapter(BaseOutputSink):
     def supports_site(self, site_root: Path) -> bool:
         """Check if the site root contains a mkdocs.yml file."""
         return self._scaffolder.supports_site(site_root)
-
-    def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
-        """Create or update an MkDocs site using the dedicated scaffolder."""
-        return self._scaffolder.scaffold_site(site_root, site_name, **_kwargs)
 
     # SiteScaffolder protocol -------------------------------------------------
 

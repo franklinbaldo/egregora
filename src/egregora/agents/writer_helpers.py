@@ -36,6 +36,7 @@ from egregora.agents.types import (
     WriterDeps,
 )
 from egregora.data_primitives.document import DocumentType
+from egregora.output_adapters.exceptions import DocumentNotFoundError
 from egregora.rag import RAGQueryRequest, reset_backend, search
 
 if TYPE_CHECKING:
@@ -311,7 +312,7 @@ def load_profiles_context(active_authors: list[str], output_sink: Any) -> str:
         try:
             doc = output_sink.read_document(DocumentType.PROFILE, author_uuid)
             profile_content = doc.content if doc else ""
-        except (OSError, ValueError, AttributeError) as exc:
+        except (OSError, ValueError, AttributeError, DocumentNotFoundError) as exc:
             logger.debug("Could not read profile for %s: %s", author_uuid, exc)
             profile_content = ""
 

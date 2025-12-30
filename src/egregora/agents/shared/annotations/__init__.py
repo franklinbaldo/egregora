@@ -282,6 +282,16 @@ class AnnotationStore:
         # Trust internal callers, type hints enforce contract
         created_at = datetime.now(UTC)
         annotation_id = self.storage.next_sequence_value(self._sequence_name)
+        # Note: commentary is stored in 'content' column per schema
+        # We also provide empty 'id' and 'source_checksum' to satisfy BASE_COLUMNS if needed,
+        # but id is handled by sequence and source_checksum is nullable/defaulted usually.
+        # Actually BASE_COLUMNS has source_checksum as string. We should probably provide it or let default handle it if nullable?
+        # Looking at schema, source_checksum is string.
+        # Let's check schemas.py again. BASE_COLUMNS: "source_checksum": dt.string
+        # It doesn't say nullable.
+        # However, create_table_if_not_exists creates table based on schema.
+        # If Ibis insert doesn't provide it, it might fail if not nullable.
+        # Let's provide a dummy checksum.
         insert_row = ibis.memtable(
             [
                 {
@@ -289,8 +299,9 @@ class AnnotationStore:
                     "parent_id": parent_id,
                     "parent_type": parent_type,
                     "author": ANNOTATION_AUTHOR,
-                    "commentary": commentary,
+                    "content": commentary,
                     "created_at": created_at,
+                    "source_checksum": "manual",  # Dummy value
                 }
             ]
         )
@@ -319,7 +330,7 @@ class AnnotationStore:
     def list_annotations_for_message(self, msg_id: str) -> list[Annotation]:
         """Return annotations for ``msg_id`` ordered by creation time."""
         records = self._fetch_records(
-            f"\n            SELECT id, parent_id, parent_type, author, commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at ASC, id ASC\n            ",  # nosec B608 - ANNOTATIONS_TABLE is module constant
+            f"\n            SELECT id, parent_id, parent_type, author_id as author, content as commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at ASC, id ASC\n            ",  # nosec B608 - ANNOTATIONS_TABLE is module constant
             [msg_id],
         )
         return [self._row_to_annotation(row) for row in records]
@@ -338,7 +349,7 @@ class AnnotationStore:
     def iter_all_annotations(self) -> Iterable[Annotation]:
         """Yield all annotations sorted by insertion order."""
         records = self._fetch_records(
-            f"\n            SELECT id, parent_id, parent_type, author, commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            ORDER BY created_at ASC, id ASC\n            "  # nosec B608 - ANNOTATIONS_TABLE is module constant
+            f"\n            SELECT id, parent_id, parent_type, author_id as author, content as commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            ORDER BY created_at ASC, id ASC\n            "  # nosec B608 - ANNOTATIONS_TABLE is module constant
         )
         for row in records:
             yield self._row_to_annotation(row)

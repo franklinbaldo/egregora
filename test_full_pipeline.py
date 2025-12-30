@@ -110,7 +110,7 @@ def test_full_pipeline_with_openrouter() -> bool | None:
                     for post_file in post_files[:5]:  # Show first 5
                         _ = post_file.stat().st_size
 
-                    if len(post_files) > 5:
+                    if len(post_files) > 5:  # noqa: PLR2004
                         pass
 
                     return True

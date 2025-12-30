@@ -1,5 +1,5 @@
 """Database utilities."""
 
+from egregora.database.init import initialize_database
 
-def initialize_database() -> None:
-    """Placeholder for database initialization."""
+__all__ = ["initialize_database"]
