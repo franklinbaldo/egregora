@@ -1,7 +1,8 @@
 import pytest
 from datetime import datetime, UTC
 from pydantic import ValidationError
-from egregora_v3.core.types import Document, DocumentType, DocumentStatus, Feed, Entry
+from freezegun import freeze_time
+from egregora_v3.core.types import Author, Document, DocumentType, DocumentStatus, Feed, Entry
 
 def test_document_generates_slug_from_title():
     """Verify that a slug is generated from the title if not provided."""
@@ -75,12 +76,12 @@ def test_feed_to_xml_handles_document_and_entry():
     xml_output = feed.to_xml()
 
     # Assert that the Document-specific fields are present for the Document entry
-    doc_type_category = f'<category term="{doc.doc_type.value}" scheme="https://egregora.app/schema#doc_type" label="Document Type" />'
-    status_category = f'<category term="{doc.status.value}" scheme="https://egregora.app/schema#status" label="Document Status" />'
-
+    # The order of attributes is not guaranteed, so we check for parts
     assert f"<id>{doc.id}</id>" in xml_output
-    assert doc_type_category in xml_output
-    assert status_category in xml_output
+    assert 'term="post"' in xml_output
+    assert 'scheme="https://egregora.app/schema#doc_type"' in xml_output
+    assert 'term="draft"' in xml_output
+    assert 'scheme="https://egregora.app/schema#status"' in xml_output
 
     # Assert that the Document-specific fields are NOT present for the plain Entry
     entry_start_index = xml_output.find(f"<id>{entry.id}</id>")
@@ -89,3 +90,37 @@ def test_feed_to_xml_handles_document_and_entry():
 
     assert "doc_type" not in entry_xml_block
     assert "status" not in entry_xml_block
+
+
+@freeze_time("2023-01-01T12:00:00Z")
+def test_feed_to_xml_snapshot(snapshot):
+    """Verify Feed.to_xml serialization against a snapshot."""
+    feed = Feed(
+        id="urn:uuid:60a76c80-d399-11d9-b93C-0003939e0af6",
+        title="Example Feed",
+        updated=datetime.now(UTC),
+        authors=[Author(name="John Doe", email="johndoe@example.com")],
+        links=[{"href": "http://example.org/", "rel": "alternate"}],
+        entries=[
+            Document(
+                title="Atom-Powered Robots Run Amok",
+                id="urn:uuid:1225c695-cfb8-4ebb-aaaa-80da344efa6a",
+                updated=datetime(2023, 1, 1, 11, 59, 59, tzinfo=UTC),
+                published=datetime(2023, 1, 1, 10, 0, 0, tzinfo=UTC),
+                authors=[Author(name="Jane Doe", email="janedoe@example.com")],
+                summary="Some text.",
+                content="This is the content.",
+                content_type="text/markdown",
+                doc_type=DocumentType.POST,
+                status=DocumentStatus.PUBLISHED,
+            ),
+            Entry(
+                title="A regular entry",
+                id="urn:uuid:1225c695-cfb8-4ebb-bbbb-80da344efa6b",
+                updated=datetime(2023, 1, 1, 9, 0, 0, tzinfo=UTC),
+            ),
+        ],
+    )
+
+    xml_output = feed.to_xml()
+    assert xml_output == snapshot
