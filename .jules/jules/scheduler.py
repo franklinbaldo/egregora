@@ -2,7 +2,7 @@
 
 import sys
 import tomllib
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import frontmatter
@@ -175,7 +175,7 @@ def check_schedule(schedule_str: str) -> bool:
         return False
 
     _min_s, hour_s, _dom_s, _month_s, dow_s = parts
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     # Check Hour
     if hour_s != "*" and int(hour_s) != now.hour:
@@ -272,7 +272,8 @@ def run_scheduler(
                 else:
                     pass
 
-        except ValueError:
-            pass
-        except Exception:
-            pass
+        except Exception as e:
+            # Print error to logs so we can debug failed prompts
+            print(f"Error processing prompt {p_file.name}: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
