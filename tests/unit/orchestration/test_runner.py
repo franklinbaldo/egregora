@@ -6,6 +6,11 @@ import pytest
 from egregora.agents.types import PromptTooLargeError
 from egregora.data_primitives.document import OutputSink
 from egregora.orchestration.context import PipelineContext
+from egregora.orchestration.exceptions import (
+    OutputSinkError,
+    WindowSizeError,
+    WindowSplitError,
+)
 from egregora.orchestration.runner import PipelineRunner
 
 
@@ -91,8 +96,8 @@ def test_process_single_window_orchestration(
     mock_filter_commands.return_value = [{"id": 2, "text": "not a command"}]
 
     # Mock the two async calls
-    mock_run_async_safely.side_effect = [
-        {"posts": ["post1"], "profiles": []},  # write_posts_for_window
+    mock_asyncio_run.side_effect = [
+        (["post1"], []),  # write_posts_for_window
         [MagicMock()],  # generate_profile_posts
     ]
 

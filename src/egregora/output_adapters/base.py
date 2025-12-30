@@ -276,7 +276,7 @@ class BaseOutputSink(OutputSink, ABC):
     def finalize_window(
         self,
         window_label: str,
-        posts_created: list[str],
+        _posts_created: list[str],
         profiles_updated: list[str],
         metadata: dict[str, Any] | None = None,
     ) -> None:

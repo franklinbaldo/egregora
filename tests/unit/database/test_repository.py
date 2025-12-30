@@ -56,7 +56,7 @@ def test_list_raises_unsupported_document_type_error(content_repository):
     """Verify list() raises UnsupportedDocumentTypeError for an invalid doc type."""
     with pytest.raises(UnsupportedDocumentTypeError):
         # list() returns an iterator, so we need to consume it to trigger the exception.
-        list(content_repository.list("UNSUPPORTED"))
+        list(content_repository.list(doc_type="UNSUPPORTED"))
 
 
 def test_list_handles_ibis_error_and_falls_back(content_repository, mock_db_manager):
