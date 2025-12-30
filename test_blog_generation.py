@@ -34,7 +34,7 @@ def test_whatsapp_parsing() -> bool | None:
                 pass
 
             return True
-    except Exception:
+    except zipfile.BadZipFile:
         return False
 
 
@@ -62,8 +62,9 @@ def test_datetime_utilities() -> bool | None:
         from datetime import datetime
 
         # Test valid parsing
+        expected_year = 2023
         result = datetime_utils_mod.parse_datetime_flexible("2023-01-01T12:00:00")
-        if result.year != 2023:
+        if result.year != expected_year:
             return False
 
         # Test None raises exception

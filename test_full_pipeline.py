@@ -107,10 +107,11 @@ def test_full_pipeline_with_openrouter() -> bool | None:
 
                     post_files = list(posts_dir.glob("*.md"))
 
-                    for post_file in post_files[:5]:  # Show first 5
+                    max_posts_to_show = 5
+                    for post_file in post_files[:max_posts_to_show]:  # Show first 5
                         _ = post_file.stat().st_size
 
-                    if len(post_files) > 5:
+                    if len(post_files) > max_posts_to_show:
                         pass
 
                     return True

@@ -59,12 +59,9 @@ def fetch_jules_prs() -> list[dict[str, Any]]:
         return []
 
 
-def analyze_session_id_patterns():
+def analyze_session_id_patterns() -> dict[str, list]:
     """Analyze the different session ID patterns found in Jules PRs."""
     prs = fetch_jules_prs()
-
-    if not prs:
-        return None
 
     # Track different patterns
     patterns = {
@@ -75,6 +72,9 @@ def analyze_session_id_patterns():
         "from_body_sessions": [],  # /sessions/ID
         "not_found": [],
     }
+
+    if not prs:
+        return patterns
 
     for pr in prs:
         pr_number = pr.get("number")
@@ -98,30 +98,30 @@ def analyze_session_id_patterns():
             patterns["from_body_sessions"].append((pr_number, branch, session_id))
 
     if patterns["uuid"]:
-        for _pr_num, branch, _sid in patterns["uuid"][:3]:
+        for _pr_num, _branch, _sid in patterns["uuid"][:3]:
             pass
 
     if patterns["numeric_15plus"]:
-        for _pr_num, branch, _sid in patterns["numeric_15plus"][:3]:
+        for _pr_num, _branch, _sid in patterns["numeric_15plus"][:3]:
             pass
 
     if patterns["from_body_jules_url"]:
-        for _pr_num, branch, _sid in patterns["from_body_jules_url"][:3]:
+        for _pr_num, _branch, _sid in patterns["from_body_jules_url"][:3]:
             pass
 
     if patterns["not_found"]:
-        for _pr_num, branch in patterns["not_found"]:
+        for _pr_num, _branch in patterns["not_found"]:
             pass
 
     return patterns
 
 
-def test_auto_fix_behavior():
+def test_auto_fix_behavior() -> tuple[int, int]:
     """Test what would happen with auto-fix for recent Jules PRs."""
     prs = fetch_jules_prs()
 
     if not prs:
-        return None
+        return 0, 0
 
     would_fix = 0
     would_skip = 0
