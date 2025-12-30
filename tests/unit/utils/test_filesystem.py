@@ -11,6 +11,7 @@ from egregora.utils.exceptions import (
     DirectoryCreationError,
     FileWriteError,
     FrontmatterDateFormattingError,
+    InvalidDateTimeInputError,
     MissingMetadataError,
     UniqueFilenameError,
 )
@@ -199,10 +200,8 @@ def test_write_post_file_raises_file_write_error():
 
 def test_format_frontmatter_datetime_raises_on_none():
     """Verify that format_frontmatter_datetime raises an error on None input."""
-    with pytest.raises(FrontmatterDateFormattingError) as excinfo:
+    with pytest.raises(InvalidDateTimeInputError, match="Input value cannot be None"):
         format_frontmatter_datetime(None)
-
-    assert "Failed to parse date string for frontmatter: 'None'" in str(excinfo.value)
 
 
 def test_extract_clean_date_raises_on_none():

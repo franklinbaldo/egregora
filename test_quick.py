@@ -5,6 +5,7 @@ import sys
 from unittest.mock import MagicMock
 
 import duckdb
+import pytest
 
 # Add src to path
 sys.path.insert(0, "/home/user/egregora/src")
@@ -13,7 +14,7 @@ from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.exceptions import SequenceFetchError, SequenceRetryFailedError
 
 
-def test_fetch_error() -> bool | None:
+def test_fetch_error() -> None:
     """Test that next_sequence_values raises SequenceFetchError when fetchone returns None."""
     with DuckDBStorageManager() as storage:
         storage.ensure_sequence("test_sequence")
@@ -24,16 +25,12 @@ def test_fetch_error() -> bool | None:
 
         storage.execute = MagicMock(return_value=mock_cursor)
 
-        try:
+        with pytest.raises(SequenceFetchError) as excinfo:
             storage.next_sequence_values("test_sequence")
-            return False
-        except SequenceFetchError as e:
-            return e.sequence_name == "test_sequence"
-        except duckdb.Error:
-            return False
+        assert excinfo.value.sequence_name == "test_sequence"
 
 
-def test_retry_failed_error() -> bool | None:
+def test_retry_failed_error() -> None:
     """Test next_sequence_values raises SequenceRetryFailedError after a failed retry."""
     with DuckDBStorageManager() as storage:
         storage.ensure_sequence("test_sequence")
@@ -44,24 +41,6 @@ def test_retry_failed_error() -> bool | None:
         # Mock execute to always raise duckdb.Error
         storage.execute = MagicMock(side_effect=duckdb.Error("DB error"))
 
-        try:
+        with pytest.raises(SequenceRetryFailedError) as excinfo:
             storage.next_sequence_values("test_sequence")
-            return False
-        except SequenceRetryFailedError as e:
-            return e.sequence_name == "test_sequence"
-        except duckdb.Error:
-            import traceback
-
-            traceback.print_exc()
-            return False
-
-
-if __name__ == "__main__":
-    results = []
-    results.append(test_fetch_error())
-    results.append(test_retry_failed_error())
-
-    if all(results):
-        sys.exit(0)
-    else:
-        sys.exit(1)
+        assert excinfo.value.sequence_name == "test_sequence"

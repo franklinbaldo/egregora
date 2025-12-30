@@ -13,12 +13,13 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def _write_markdown(path: Path, title: str, slug: str, body: str) -> None:
+def _write_markdown(path: Path, title: str, slug: str, thread_id: str, body: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         f"""---
 title: {title}
 slug: {slug}
+thread_id: {thread_id}
 date: 2025-01-01
 authors:
   - anon-1234
@@ -43,8 +44,8 @@ def test_self_adapter_parses_existing_site(tmp_path: Path):
     posts_dir = getattr(output_format, "posts_dir", tmp_path / "docs" / "posts")
     post_one = posts_dir / "2025-01-01-sample.md"
     post_two = posts_dir / "2025-01-02-second.md"
-    _write_markdown(post_one, "Sample", "sample-post", "Body text 1")
-    _write_markdown(post_two, "Second", "second-post", "Body text 2")
+    _write_markdown(post_one, "Sample", "sample-post", "sample-post", "Body text 1")
+    _write_markdown(post_two, "Second", "second-post", "second-post", "Body text 2")
 
     # Filter for posts to avoid counting scaffolded pages like about.md
     table = adapter.parse(tmp_path, output_adapter=output_format, doc_type=DocumentType.POST)

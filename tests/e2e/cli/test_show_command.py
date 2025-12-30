@@ -4,13 +4,14 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+import ibis
 import pytest
 import tomli_w
 from typer.testing import CliRunner
 
 from egregora.cli.main import app
 from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.database.elo_store import EloStore
+from egregora.database.elo_store import COMPARISON_HISTORY_SCHEMA, ELO_RATINGS_SCHEMA, EloStore
 
 # Create a CLI runner for testing
 runner = CliRunner()
@@ -92,17 +93,12 @@ def test_top_command(mock_site_root_with_db: Path):
         ("post-a", 1500.0, 5, 2, 2, 1, now, now),
         ("post-c", 1700.0, 15, 12, 2, 1, now, now),
     ]
-    storage.execute_query(
-        "CREATE TABLE IF NOT EXISTS elo_ratings (post_slug VARCHAR, rating DOUBLE, comparisons INTEGER, wins INTEGER, losses INTEGER, draws INTEGER, last_compared TIMESTAMP, created_at TIMESTAMP)"
-    )
-    storage.execute_query(
-        "INSERT INTO elo_ratings VALUES (?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?)",
-        [item for sublist in mock_data for item in sublist],
-    )
+    ratings_table = ibis.memtable(mock_data, schema=ELO_RATINGS_SCHEMA)
+    storage.ibis_conn.insert("elo_ratings", ratings_table, overwrite=True)
 
     result = runner.invoke(app, ["top", str(mock_site_root_with_db)])
 
-    assert result.exit_code == 0, result.stdout
+    assert result.exit_code == 0
     assert "🏆 Top 10 Posts" in result.stdout
     assert "post-c" in result.stdout
     assert "post-b" in result.stdout
@@ -122,17 +118,12 @@ def test_show_reader_history_command(mock_site_root_with_db: Path):
         (str(uuid.uuid4()), "post-a", "post-b", "a", 1500.0, 1600.0, 1510.0, 1590.0, now, "{}"),
         (str(uuid.uuid4()), "post-c", "post-a", "b", 1700.0, 1510.0, 1690.0, 1520.0, now, "{}"),
     ]
-    storage.execute_query(
-        "CREATE TABLE IF NOT EXISTS comparison_history (id VARCHAR, post_a_slug VARCHAR, post_b_slug VARCHAR, winner VARCHAR, rating_a_before DOUBLE, rating_b_before DOUBLE, rating_a_after DOUBLE, rating_b_after DOUBLE, timestamp TIMESTAMP, metadata VARCHAR)"
-    )
-    storage.execute_query(
-        "INSERT INTO comparison_history VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [item for sublist in mock_data for item in sublist],
-    )
+    history_table = ibis.memtable(mock_data, schema=COMPARISON_HISTORY_SCHEMA)
+    storage.ibis_conn.insert("comparison_history", history_table, overwrite=True)
 
     result = runner.invoke(app, ["show", "reader-history", str(mock_site_root_with_db)])
 
-    assert result.exit_code == 0, result.stdout
+    assert result.exit_code == 0
     assert "🔍 Comparison History" in result.stdout
     assert "post-a" in result.stdout
     assert "post-b" in result.stdout

@@ -11,6 +11,8 @@ class AtomSink:
 
     def publish(self, feed: Feed):
         """Renders the feed to XML and writes it to the output path."""
-        xml_content = feed.to_xml()
+        # Ensure parent directory exists
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
-        self.output_path.write_text(xml_content)
+
+        xml_content = feed.to_xml()
+        self.output_path.write_text(xml_content, encoding="utf-8")

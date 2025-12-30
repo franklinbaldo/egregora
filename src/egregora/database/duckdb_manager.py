@@ -58,6 +58,7 @@ from egregora.database.exceptions import (
     TableInfoError,
     TableNotFoundError,
 )
+from egregora.database.migrations import migrate_documents_table
 from egregora.database.schemas import quote_identifier
 
 if TYPE_CHECKING:
@@ -129,6 +130,9 @@ class DuckDBStorageManager:
         # Use the underlying DuckDB connection from Ibis to ensure we share the same connection
         # This prevents "read-only transaction" errors caused by multiple connections to the same file
         self._conn = self.ibis_conn.con
+
+        # Run database migrations
+        migrate_documents_table(self.ibis_conn)
 
         # Cache for PRAGMA table metadata
         self._table_info_cache: dict[str, set[str]] = {}

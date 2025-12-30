@@ -5,7 +5,7 @@ from datetime import datetime, UTC
 from freezegun import freeze_time
 import pytest
 
-from egregora_v3.core.types import Feed, Entry, Author, Link, Category, InReplyTo
+from egregora_v3.core.types import Feed, Entry, Author, Link, Category, InReplyTo, DocumentType, DocumentStatus
 from egregora_v3.infra.sinks.atom import AtomSink
 
 
@@ -30,7 +30,9 @@ def sample_feed():
                 authors=[Author(name="Entry Author")],
                 links=[Link(href="http://example.com/entry", rel="alternate")],
                 categories=[Category(term="test", scheme="http://example.com/tags")],
-                in_reply_to=InReplyTo(ref="urn:uuid:parent-entry")
+                in_reply_to=InReplyTo(ref="urn:uuid:parent-entry"),
+                doc_type=DocumentType.POST,
+                status=DocumentStatus.PUBLISHED,
             )
         ]
     )

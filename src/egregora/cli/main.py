@@ -246,7 +246,6 @@ def top(
         console.print("Run 'egregora read' first to generate rankings")
         raise typer.Exit(1)
 
-    # Use DuckDBStorageManager directly to ensure Ibis compatibility with EloStore
     storage = DuckDBStorageManager(db_path)
     elo_store = EloStore(storage)
 
@@ -328,7 +327,6 @@ def show_reader_history(
         console.print("Run 'egregora read' first to generate rankings")
         raise typer.Exit(1)
 
-    # Use DuckDBStorageManager directly to ensure Ibis compatibility with EloStore
     storage = DuckDBStorageManager(db_path)
     elo_store = EloStore(storage)
 

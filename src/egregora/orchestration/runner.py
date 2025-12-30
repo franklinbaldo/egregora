@@ -20,11 +20,7 @@ from egregora.agents.types import PromptTooLargeError
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.data_primitives.document import UrlContext
 from egregora.orchestration.context import PipelineContext
-from egregora.orchestration.exceptions import (
-    OutputSinkError,
-    WindowSizeError,
-    WindowSplitError,
-)
+from egregora.orchestration.exceptions import OutputSinkError, WindowSizeError, WindowSplitError
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.modules.media import process_media_for_window
 from egregora.transformations import split_window_into_n_parts
@@ -285,7 +281,9 @@ class PipelineRunner:
             smoke_test=self.context.state.smoke_test,
         )
 
-        posts, profiles = run_async_safely(write_posts_for_window(params))
+        result = run_async_safely(write_posts_for_window(params))
+        posts = result.get("posts", [])
+        profiles = result.get("profiles", [])
 
         window_date = window.start_time.strftime("%Y-%m-%d")
         try:
@@ -332,7 +330,7 @@ class PipelineRunner:
             window_label,
         )
 
-        return {window_label: {"posts": posts, "profiles": profiles}}
+        return {window_label: result}
 
     def _perform_enrichment(
         self,

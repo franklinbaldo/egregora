@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import unittest.mock
 from unittest.mock import MagicMock
 
 import pytest
@@ -29,10 +28,8 @@ def content_repository(mock_db_manager):
 
 def test_get_raises_unsupported_document_type_error(content_repository):
     """Verify get() raises UnsupportedDocumentTypeError for an invalid doc type."""
-    unsupported_type = unittest.mock.create_autospec(DocumentType)
-    unsupported_type.value = "UNSUPPORTED"
     with pytest.raises(UnsupportedDocumentTypeError):
-        content_repository.get(unsupported_type, "some-id")
+        content_repository.get("UNSUPPORTED_TYPE", "some-id")
 
 
 def test_get_raises_document_not_found_error(content_repository, mock_db_manager):
@@ -59,7 +56,7 @@ def test_list_raises_unsupported_document_type_error(content_repository):
     """Verify list() raises UnsupportedDocumentTypeError for an invalid doc type."""
     with pytest.raises(UnsupportedDocumentTypeError):
         # list() returns an iterator, so we need to consume it to trigger the exception.
-        list(content_repository.list(doc_type="UNSUPPORTED"))
+        list(content_repository.list("UNSUPPORTED_TYPE"))
 
 
 def test_list_handles_ibis_error_and_falls_back(content_repository, mock_db_manager):

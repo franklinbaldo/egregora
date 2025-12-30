@@ -21,32 +21,16 @@ MAX_SAMPLE_POSTS = 5
 sys.path.insert(0, "src")
 
 
-def test_full_pipeline_with_openrouter() -> bool | None:
+@pytest.mark.asyncio
+async def test_full_pipeline_with_openrouter() -> None:
     """Run complete pipeline with OpenRouter LLM."""
     # Check for API key
     api_key = os.environ.get("OPENROUTER_API_KEY")
-    if not api_key:
-        return False
+    assert api_key, "OPENROUTER_API_KEY not set"
 
     # Check fixture exists
     zip_path = Path("tests/fixtures/Conversa do WhatsApp com Teste.zip")
-    if not zip_path.exists():
-        return False
-
-    pytest.importorskip(
-        "google.generativeai",
-        reason=(
-            "google.generativeai is required for the OpenRouter pipeline test; "
-            "install it to exercise the full pipeline."
-        ),
-    )
-    pytest.importorskip(
-        "cryptography",
-        reason=(
-            "cryptography is required for google.generativeai/OpenRouter integration; "
-            "install it to exercise the full pipeline."
-        ),
-    )
+    assert zip_path.exists()
 
     pytest.importorskip(
         "google.generativeai",
@@ -69,82 +53,43 @@ def test_full_pipeline_with_openrouter() -> bool | None:
         from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
         from egregora.output_adapters.mkdocs import MkDocsAdapter
 
-        # Test datetime utilities we merged
-
         # Test if we can create adapters
         WhatsAppAdapter()
         mkdocs = MkDocsAdapter()
 
         # Try to import the full pipeline
-        try:
-            from egregora.orchestration.pipelines.write import WhatsAppProcessOptions, process_whatsapp_export
+        from egregora.orchestration.pipelines.write import WhatsAppProcessOptions, process_whatsapp_export
 
-            # Create temp directory for output
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                output_dir = Path(tmp_dir) / "test_site"
-                output_dir.mkdir()
+        # Create temp directory for output
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_dir = Path(tmp_dir) / "test_site"
+            output_dir.mkdir()
 
-                # Initialize site structure
-                mkdocs.scaffold_site(output_dir, site_name="Test Blog")
+            # Initialize site structure
+            mkdocs.scaffold_site(output_dir, site_name="Test Blog")
 
-                # Configure pipeline
-                options = WhatsAppProcessOptions(
-                    output_dir=output_dir,
-                    timezone="America/Sao_Paulo",
-                    gemini_api_key=None,  # Will use OpenRouter instead if configured
-                )
+            # Configure pipeline
+            options = WhatsAppProcessOptions(
+                output_dir=output_dir,
+                timezone="America/Sao_Paulo",
+                gemini_api_key=None,  # Will use OpenRouter instead if configured
+            )
 
-                # Run the pipeline
-                try:
-                    process_whatsapp_export(
-                        zip_path,
-                        options=options,
-                    )
+            # Run the pipeline
+            await process_whatsapp_export(
+                zip_path,
+                options=options,
+            )
 
-                    # Verify outputs
-                    from egregora.output_adapters.mkdocs.paths import derive_mkdocs_paths
+            # Verify outputs
+            from egregora.output_adapters.mkdocs.paths import derive_mkdocs_paths
 
-                    site_paths = derive_mkdocs_paths(output_dir)
-                    posts_dir = site_paths["posts_dir"]
+            site_paths = derive_mkdocs_paths(output_dir)
+            posts_dir = site_paths["posts_dir"]
 
-                    post_files = list(posts_dir.glob("*.md"))
+            post_files = list(posts_dir.glob("*.md"))
+            assert len(post_files) > 0
 
-                    for post_file in post_files[:MAX_SAMPLE_POSTS]:
-                        _ = post_file.stat().st_size
-
-                    if len(post_files) > MAX_SAMPLE_POSTS:
-                        pass
-
-                    return True
-
-                except (ImportError, FileNotFoundError, ValueError):
-                    import traceback
-
-                    traceback.print_exc()
-                    return False
-
-        except ImportError:
-            return True  # Still count as success since core is working
-
-    except (ImportError, FileNotFoundError, ValueError):
-        import traceback
-
-        traceback.print_exc()
-        return False
-
-
-def main() -> bool:
-    """Run the full pipeline test."""
-    success = test_full_pipeline_with_openrouter()
-
-    if success:
-        pass
-    else:
-        pass
-
-    return success
-
-
-if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    except (ImportError, FileNotFoundError, ValueError) as e:
+        msg = f"Test failed due to exception: {e}"
+        raise AssertionError(msg) from e

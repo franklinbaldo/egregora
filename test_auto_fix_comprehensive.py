@@ -142,25 +142,5 @@ def test_auto_fix_behavior() -> tuple[int, int] | None:
         else:
             would_skip += 1
 
-    return would_fix, would_skip
-
-
-def main() -> int:
-    """Run all tests."""
-    # Test 1: Pattern analysis
-    analyze_session_id_patterns()
-
-    # Test 2: Auto-fix behavior
-    would_fix, would_skip = test_auto_fix_behavior()
-
-    # Final verdict
-
-    would_fix + would_skip
-
-    if would_skip == 0:
-        return 0
-    return 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+    assert would_fix > 0 or would_skip > 0
+    return None

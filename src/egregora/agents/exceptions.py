@@ -33,3 +33,11 @@ class EnrichmentError(AgentError):
 
 class MediaStagingError(EnrichmentError):
     """Raised when a media file cannot be staged for enrichment."""
+
+
+class JournalTemplateError(AgentError):
+    """Raised on errors related to journal template loading or rendering."""
+
+
+class JournalFileSystemError(AgentError):
+    """Raised on file system errors during journal creation."""

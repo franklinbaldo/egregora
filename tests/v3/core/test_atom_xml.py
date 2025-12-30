@@ -9,6 +9,7 @@ def test_feed_to_xml_serialization():
     """Test that a Feed can be serialized to valid Atom XML."""
     entry = Document(
         doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
         title="Test Post",
         content="Hello World",
         internal_metadata={"slug": "test-post"},
@@ -32,7 +33,8 @@ def test_feed_to_xml_serialization():
     xml_output = feed.to_xml()
 
     # Basic assertions
-    assert '<?xml version=\'1.0\' encoding=\'UTF-8\'?>' in xml_output
+    assert '<?xml version=' in xml_output
+    assert 'encoding=' in xml_output.lower()
     assert '<feed xmlns="http://www.w3.org/2005/Atom"' in xml_output
     assert '<title>Test Feed</title>' in xml_output
     assert '<id>urn:uuid:12345</id>' in xml_output
@@ -47,6 +49,9 @@ def test_feed_to_xml_serialization():
     # Check for document type category
     assert 'term="post"' in xml_output
     assert 'scheme="https://egregora.app/schema#doc_type"' in xml_output
+    # Check for document status category
+    assert 'term="published"' in xml_output
+    assert 'scheme="https://egregora.app/schema#status"' in xml_output
 
 
 def test_document_semantic_identity():

@@ -22,7 +22,12 @@ class MockEmbeddingModel:
     def __init__(self, dimensionality: int = 128) -> None:
         self.dimensionality = dimensionality
 
-    def embed(self, text: str) -> list[float]:
+    def embed(self, texts: list[str], **kwargs) -> list[list[float]]:
+        # retrieval_type is unused in the mock but present for signature compatibility
+        return [self._embed_single(text) for text in texts]
+
+    def _embed_single(self, text: str) -> list[float]:
+        """Generate a single deterministic embedding vector for a given text."""
         seed = int(hashlib.md5(text.encode()).hexdigest()[:8], 16)
         rng = random.Random(seed)
         vector = [rng.uniform(-1, 1) for _ in range(self.dimensionality)]

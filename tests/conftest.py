@@ -298,8 +298,9 @@ def writer_test_agent(monkeypatch):
 @pytest.fixture
 def mock_embedding_model():
     """Deterministic embedding stub for tests."""
+    from egregora_v3.infra.vector.lancedb import EMBEDDING_DIM
 
-    return MockEmbeddingModel()
+    return MockEmbeddingModel(dimensionality=EMBEDDING_DIM)
 
 
 # =============================================================================

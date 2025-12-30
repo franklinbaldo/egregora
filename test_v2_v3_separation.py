@@ -8,7 +8,6 @@ This test ensures that:
 """
 
 import ast
-import sys
 from pathlib import Path
 
 # Allowed V3 → V2 imports (temporary legacy dependencies)
@@ -155,10 +154,4 @@ def test_v2_v3_separation() -> int:
     # Count allowed V3 → V2 imports
     sum(len(imports) for imports in ALLOWED_V3_TO_V2_IMPORTS.values())
 
-    if all_passed:
-        return 0
-    return 1
-
-
-if __name__ == "__main__":
-    sys.exit(test_v2_v3_separation())
+    assert all_passed

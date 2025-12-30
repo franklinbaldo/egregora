@@ -32,7 +32,10 @@ from pydantic_ai.messages import (
 from ratelimit import limits, sleep_and_retry
 from tenacity import Retrying
 
-from egregora.agents.exceptions import AgentError
+from egregora.agents.exceptions import (
+    JournalFileSystemError,
+    JournalTemplateError,
+)
 from egregora.agents.formatting import (
     build_conversation_xml,
     load_journal_memory,
@@ -392,11 +395,11 @@ def _save_journal_to_file(params: JournalEntryParams) -> str | None:
     except (TemplateNotFound, TemplateError) as exc:
         msg = f"Journal template error for window {params.window_label}: {exc}"
         logger.exception(msg)
-        raise AgentError(msg) from exc
+        raise JournalTemplateError(msg) from exc
     except (OSError, PermissionError) as exc:
         msg = f"File system error during journal creation for window {params.window_label}: {exc}"
         logger.exception(msg)
-        raise AgentError(msg) from exc
+        raise JournalFileSystemError(msg) from exc
 
 
 def _process_single_tool_result(

@@ -76,6 +76,7 @@ def sample_feed() -> Feed:
     doc2 = Document(
         content="Second post content.",
         doc_type=DocumentType.NOTE,
+        status=DocumentStatus.PUBLISHED,
         title="Quick Note",
     )
     doc2.authors = [
@@ -87,6 +88,7 @@ def sample_feed() -> Feed:
     doc3 = Document(
         content="Reply to first post.",
         doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
         title="Re: First Post",
         in_reply_to=InReplyTo(ref=doc1.id, href="https://example.com/first-post"),
     )
@@ -108,6 +110,7 @@ def test_roundtrip_preserves_timestamps(tmp_path: Path) -> None:
     doc = Document(
         content="Test content",
         doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
         title="Test Post",
     )
     # Set published explicitly
@@ -252,6 +255,7 @@ def test_feed_xml_snapshot_regression(sample_feed: Feed, snapshot: SnapshotAsser
         doc = Document(
             content="Deterministic content",
             doc_type=DocumentType.POST,
+            status=DocumentStatus.PUBLISHED,
             title="Deterministic Post",
         )
         doc.authors = [Author(name="Test Author")]
@@ -282,7 +286,12 @@ def test_feed_xml_snapshot_regression(sample_feed: Feed, snapshot: SnapshotAsser
 def test_documents_to_feed_count_invariant(titles: list[str]) -> None:
     """Property: Number of documents equals number of feed entries."""
     docs = [
-        Document(content=f"Content {i}", doc_type=DocumentType.NOTE, title=title)
+        Document(
+            content=f"Content {i}",
+            doc_type=DocumentType.NOTE,
+            status=DocumentStatus.DRAFT,
+            title=title,
+        )
         for i, title in enumerate(titles)
     ]
 
@@ -298,6 +307,7 @@ def test_feed_to_xml_always_well_formed(num_entries: int) -> None:
         Document(
             content=f"Content {i}",
             doc_type=DocumentType.POST,
+            status=DocumentStatus.DRAFT,
             title=f"Post {i}",
         )
         for i in range(num_entries)
@@ -351,12 +361,14 @@ def test_feed_with_threading_extension() -> None:
     parent = Document(
         content="Parent post",
         doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
         title="Parent",
     )
 
     reply = Document(
         content="Reply post",
         doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
         title="Re: Parent",
         in_reply_to=InReplyTo(ref=parent.id, href="https://example.com/parent"),
     )
@@ -387,6 +399,7 @@ def test_feed_with_categories() -> None:
     doc = Document(
         content="Categorized content",
         doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
         title="Categorized Post",
     )
     doc.categories = [
@@ -437,6 +450,7 @@ def test_feed_updated_timestamp_reflects_newest_entry() -> None:
     old_doc = Document(
         content="Old",
         doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
         title="Old Post",
     )
     old_doc.updated = datetime(2025, 12, 1, tzinfo=UTC)
@@ -444,6 +458,7 @@ def test_feed_updated_timestamp_reflects_newest_entry() -> None:
     new_doc = Document(
         content="New",
         doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
         title="New Post",
     )
     new_doc.updated = datetime(2025, 12, 6, tzinfo=UTC)
@@ -463,6 +478,7 @@ def test_feed_with_content_types() -> None:
     text_doc = Document(
         content="Plain text content",
         doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
         title="Text Post",
     )
     text_doc.content_type = "text/plain"
@@ -470,6 +486,7 @@ def test_feed_with_content_types() -> None:
     html_doc = Document(
         content="<p>HTML content</p>",
         doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
         title="HTML Post",
     )
     html_doc.content_type = "text/html"
@@ -477,6 +494,7 @@ def test_feed_with_content_types() -> None:
     markdown_doc = Document(
         content="# Markdown content",
         doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
         title="Markdown Post",
     )
     markdown_doc.content_type = "text/markdown"

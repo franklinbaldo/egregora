@@ -441,7 +441,7 @@ class OutputSink(Protocol):
     def finalize_window(
         self,
         window_label: str,
-        _posts_created: list[str],
+        posts_created: list[str],
         profiles_updated: list[str],
         metadata: dict[str, Any] | None = None,
     ) -> None:

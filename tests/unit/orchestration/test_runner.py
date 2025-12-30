@@ -97,7 +97,7 @@ def test_process_single_window_orchestration(
 
     # Mock the two async calls
     mock_run_async_safely.side_effect = [
-        (["post1"], []),  # write_posts_for_window
+        {"posts": ["post1"], "profiles": []},  # write_posts_for_window
         [MagicMock()],  # generate_profile_posts
     ]
 

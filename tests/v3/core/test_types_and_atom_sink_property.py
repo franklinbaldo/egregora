@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import xml.etree.ElementTree as ET
 
 import pytest
 from hypothesis import given, settings, HealthCheck, strategies as st
@@ -6,6 +7,7 @@ from hypothesis import given, settings, HealthCheck, strategies as st
 from egregora_v3.core.types import (
     Document,
     DocumentType,
+    DocumentStatus,
     Feed,
     Entry,
     Author,
@@ -24,6 +26,7 @@ def document_strategy():
         Document,
         content=xml_safe_text(min_size=1),
         doc_type=st.sampled_from(DocumentType),
+        status=st.sampled_from(DocumentStatus),
         title=xml_safe_text(min_size=1),
         searchable=st.booleans(),
     )
@@ -39,6 +42,8 @@ def entry_strategy():
         updated=st.datetimes(timezones=st.just(timezone.utc)),
         content=xml_safe_text(),
         authors=st.lists(author_strategy(), max_size=3),
+        doc_type=st.sampled_from(DocumentType),
+        status=st.sampled_from(DocumentStatus),
         in_reply_to=st.one_of(
             st.none(),
             st.builds(InReplyTo, ref=xml_safe_text(min_size=1))
@@ -80,8 +85,8 @@ def test_document_id_stability():
     title = "My Title"
     doc_type = DocumentType.NOTE
 
-    doc1 = Document(content=content, doc_type=doc_type, title=title)
-    doc2 = Document(content=content, doc_type=doc_type, title=title)
+    doc1 = Document(content=content, doc_type=doc_type, status=DocumentStatus.DRAFT, title=title)
+    doc2 = Document(content=content, doc_type=doc_type, status=DocumentStatus.DRAFT, title=title)
 
     assert doc1.id == doc2.id
     assert doc1.id != title # Should be a hash
@@ -92,6 +97,7 @@ def test_document_semantic_identity():
     doc = Document(
         content="content",
         doc_type=DocumentType.POST,
+        status=DocumentStatus.DRAFT,
         title="Title",
         internal_metadata={"slug": slug}
     )
@@ -99,6 +105,31 @@ def test_document_semantic_identity():
     assert doc.id == slug
     assert doc.internal_metadata["slug"] == slug
 
+# Strategies are already optimized (max_size=2 for lists), but the combination
+# of Pydantic validation, XML serialization, and Hypothesis data generation
+# can still trigger the 'too_slow' health check in CI environments.
+# Further optimization would compromise test coverage (e.g. empty lists).
+# Therefore, we suppress the check to ensure stability.
+@settings(suppress_health_check=[HealthCheck.too_slow], deadline=None)
+@given(feed_strategy())
+def test_feed_xml_validity(feed: Feed):
+    """Test that generated XML is valid and parseable."""
+    xml_str = feed.to_xml()
+
+    # 1. Must be parseable
+    root = ET.fromstring(xml_str)
+
+    # 2. Namespace check
+    # ElementTree parser strips namespaces in tag names usually like {uri}tag
+    # Atom NS: http://www.w3.org/2005/Atom
+    assert "feed" in root.tag
+
+    # 3. Check for children
+    assert root.find("{http://www.w3.org/2005/Atom}id") is not None
+    assert root.find("{http://www.w3.org/2005/Atom}title") is not None
+
+    # 4. Check Threading Namespace if present
+    # This is harder to test with ElementTree simplistic API, but if it parsed, it's well-formed.
 
 def test_threading_extension_xml():
     """Specific test for RFC 4685 threading output."""
@@ -106,6 +137,8 @@ def test_threading_extension_xml():
         id="child",
         title="Re: Parent",
         updated=datetime.now(timezone.utc),
+        doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
         in_reply_to=InReplyTo(ref="parent-id", href="http://example.com/parent")
     )
     feed = Feed(

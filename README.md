@@ -58,7 +58,7 @@ egregora write path/to/chat_export.zip --output=.
 uv sync --extra docs
 
 # 2. Preview your site
-uv run mkdocs serve -f .egregora/mkdocs.yml
+mkdocs serve -f .egregora/mkdocs.yml
 ```
 
 *Visit <http://localhost:8000> to read your new blog.*
@@ -148,7 +148,7 @@ You can extend Egregora to read from other sources (e.g., Slack, Telegram) by im
 We welcome contributions! Please check out:
 
 * **[Technical Reference](docs/v3/api-reference/):** Deep dive into CLI commands and architecture.
-* **[Code of the Weaver](docs/CLAUDE.md):** Guidelines for contributors and AI agents.
+* **[Code of the Weaver](CLAUDE.md):** Guidelines for contributors and AI agents.
 
 To run tests:
 

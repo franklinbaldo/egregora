@@ -10,6 +10,7 @@ from egregora_v3.core.types import (
     Author,
     Category,
     Document,
+    DocumentStatus,
     DocumentType,
     Entry,
     Feed,
@@ -58,6 +59,8 @@ def test_feed_with_entries():
         updated=datetime(2024, 12, 4, 12, 0, 0, tzinfo=UTC),
         content="Hello World",
         published=datetime(2024, 12, 4, 10, 0, 0, tzinfo=UTC),
+        doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
     )
 
     feed = Feed(
@@ -83,6 +86,8 @@ def test_entry_with_links():
         title="Photo Post",
         updated=datetime(2024, 12, 4, 12, 0, 0, tzinfo=UTC),
         content="Check out this photo",
+        doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
         links=[
             Link(rel="enclosure", href="http://example.org/photo.jpg", type="image/jpeg", length=245760),
             Link(rel="alternate", href="http://example.org/posts/photo-post", type="text/html"),
@@ -111,6 +116,8 @@ def test_entry_with_categories():
         id="entry-1",
         title="Tagged Post",
         updated=datetime(2024, 12, 4, 12, 0, 0, tzinfo=UTC),
+        doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
         categories=[
             Category(term="python", label="Python"),
             Category(term="tdd", label="Test-Driven Development"),
@@ -136,6 +143,7 @@ def test_feed_parses_as_valid_xml(snapshot):
     doc = Document(
         content="Test content",
         doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
         title="Test Post",
         internal_metadata={"slug": "test-post-123"},  # For stable ID
     )
@@ -173,6 +181,8 @@ def test_content_type_handling():
         updated=datetime(2024, 12, 4, 12, 0, 0, tzinfo=UTC),
         content="<p>HTML content</p>",
         content_type="text/html",
+        doc_type=DocumentType.POST,
+        status=DocumentStatus.PUBLISHED,
     )
 
     feed = Feed(

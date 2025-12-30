@@ -74,7 +74,7 @@ class LanceDBVectorStore:
         self._db = lancedb.connect(str(self._db_dir))
 
         # Create or open table using Pydantic schema
-        if table_name not in self._db.table_names():
+        if table_name not in self._db.list_tables():
             logger.info("Creating new LanceDB table: %s", table_name)
             self._table = self._db.create_table(
                 table_name,
@@ -85,22 +85,13 @@ class LanceDBVectorStore:
             logger.info("Opening existing LanceDB table: %s", table_name)
             self._table = self._db.open_table(table_name)
 
-    def index_documents(self, docs: list[Document]) -> None:
-        """Index documents into the vector store.
-
-        Chunks documents and embeds each chunk.
-        """
-        if not docs:
-            logger.info("No documents to index")
-            return
-
-        # Chunk the documents
-        chunks = chunks_from_documents(docs)
+    def index_chunks(self, chunks: list[RAGChunk]) -> None:
+        """Index chunks into the vector store."""
         if not chunks:
-            logger.info("No chunks generated from documents")
+            logger.info("No chunks to index")
             return
 
-        logger.info("Indexing %d chunks from %d documents", len(chunks), len(docs))
+        logger.info("Indexing %d chunks", len(chunks))
 
         # Extract texts for embedding
         texts = [chunk.text for chunk in chunks]
@@ -131,9 +122,7 @@ class LanceDBVectorStore:
 
         # Upsert documents (update if exists, insert if not)
         try:
-            self._table.merge_insert(
-                "chunk_id"
-            ).when_matched_update_all().when_not_matched_insert_all().execute(rows)
+            self._table.add(rows)
             logger.info("Successfully indexed %d chunks", len(rows))
         except Exception as e:
             msg = f"Failed to upsert chunks to LanceDB: {e}"
@@ -172,7 +161,7 @@ class LanceDBVectorStore:
         """
         # Check if table is empty
         try:
-            if self._table_name not in self._db.table_names():
+            if self._table_name not in self._db.list_tables():
                 return []
             if len(self._table.search().limit(1).to_arrow()) == 0:
                 return []
