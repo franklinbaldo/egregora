@@ -42,6 +42,37 @@ def google_api_key_available() -> bool:
     return bool(os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY"))
 
 
+def get_google_api_keys() -> list[str]:
+    """Get list of Google API keys from environment.
+
+    Supports multiple keys via:
+    - GEMINI_API_KEYS (comma-separated)
+    - GEMINI_API_KEY (single key)
+    - GOOGLE_API_KEY (single key)
+
+    Returns:
+        List of unique API keys, or empty list if none found.
+
+    """
+    keys = []
+
+    # 1. Check GEMINI_API_KEYS (comma-separated list)
+    keys_str = os.environ.get("GEMINI_API_KEYS", "")
+    if keys_str:
+        for k in keys_str.split(","):
+            val = k.strip()
+            if val and val not in keys:
+                keys.append(val)
+
+    # 2. Check individual keys
+    for var in ["GEMINI_API_KEY", "GOOGLE_API_KEY"]:
+        val = os.environ.get(var)
+        if val and val.strip() and val.strip() not in keys:
+            keys.append(val.strip())
+
+    return keys
+
+
 def validate_gemini_api_key(api_key: str | None = None) -> None:
     """Validate Google Gemini API key with a lightweight API call.
 
@@ -93,34 +124,3 @@ __all__ = [
     "google_api_key_available",
     "validate_gemini_api_key",
 ]
-
-
-def get_google_api_keys() -> list[str]:
-    """Get list of Google API keys from environment.
-
-    Supports multiple keys via:
-    - GEMINI_API_KEYS (comma-separated)
-    - GEMINI_API_KEY (single key)
-    - GOOGLE_API_KEY (single key)
-
-    Returns:
-        List of unique API keys, or empty list if none found.
-
-    """
-    keys = []
-
-    # 1. Check GEMINI_API_KEYS (comma-separated list)
-    keys_str = os.environ.get("GEMINI_API_KEYS", "")
-    if keys_str:
-        for k in keys_str.split(","):
-            val = k.strip()
-            if val and val not in keys:
-                keys.append(val)
-
-    # 2. Check individual keys
-    for var in ["GEMINI_API_KEY", "GOOGLE_API_KEY"]:
-        val = os.environ.get(var)
-        if val and val.strip() and val.strip() not in keys:
-            keys.append(val.strip())
-
-    return keys
