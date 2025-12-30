@@ -8,13 +8,6 @@ from typing import TYPE_CHECKING
 import frontmatter
 import yaml
 
-from egregora.utils.exceptions import (
-    AuthorExtractionError,
-    AuthorsFileLoadError,
-    AuthorsFileParseError,
-    AuthorsFileSaveError,
-)
-
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -143,3 +136,55 @@ def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> in
         logger.info("Synced %d new author(s) from posts to %s", new_count, authors_path)
 
     return new_count
+
+
+class AuthorsError(Exception):
+    """Base exception for author management errors."""
+
+
+class AuthorsFileError(AuthorsError):
+    """Base exception for errors related to the .authors.yml file."""
+
+    def __init__(
+        self, path: str, original_exception: Exception | None = None, message: str | None = None
+    ) -> None:
+        self.path = path
+        self.original_exception = original_exception
+        if message is None:
+            message = f"An error occurred involving authors file at: {path}"
+        super().__init__(message)
+
+
+class AuthorsFileLoadError(AuthorsFileError):
+    """Raised when the .authors.yml file cannot be read from the filesystem."""
+
+    def __init__(self, path: str, original_exception: Exception) -> None:
+        message = f"Failed to load authors file from path: {path}. Original error: {original_exception}"
+        super().__init__(path, original_exception, message=message)
+
+
+class AuthorsFileParseError(AuthorsFileError):
+    """Raised when the .authors.yml file is malformed and cannot be parsed."""
+
+    def __init__(self, path: str, original_exception: Exception) -> None:
+        message = f"Failed to parse YAML from authors file: {path}. Original error: {original_exception}"
+        super().__init__(path, original_exception, message=message)
+
+
+class AuthorsFileSaveError(AuthorsFileError):
+    """Raised when the .authors.yml file cannot be written to the filesystem."""
+
+    def __init__(self, path: str, original_exception: Exception) -> None:
+        message = f"Failed to save authors file to path: {path}. Original error: {original_exception}"
+        super().__init__(path, original_exception, message=message)
+
+
+class AuthorExtractionError(AuthorsError):
+    """Raised when author information cannot be extracted from a post."""
+
+    def __init__(self, path: str, original_exception: Exception) -> None:
+        self.path = path
+        self.original_exception = original_exception
+        super().__init__(
+            f"Failed to extract author(s) from post: {self.path}. Original error: {original_exception}"
+        )
