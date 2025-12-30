@@ -83,8 +83,9 @@ class SelfInputAdapter(InputAdapter):
         _docs_dir, site_root = self._resolve_docs_dir(input_path)
         documents = [
             doc
-            for doc in output_adapter.documents(doc_type=doc_type)
+            for doc in output_adapter.documents()
             if doc.metadata.get("slug") not in {"index", "tags"}
+            and (doc_type is None or getattr(doc, "type", None) == doc_type)
         ]
         if not documents:
             msg = f"No posts published by {output_adapter.__class__.__name__}"

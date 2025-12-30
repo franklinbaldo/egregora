@@ -9,6 +9,7 @@ import logging
 import math
 from collections import deque
 from typing import TYPE_CHECKING, Any
+import asyncio
 
 from egregora.agents.banner.worker import BannerWorker
 from egregora.agents.commands import command_to_announcement, filter_commands
@@ -20,6 +21,14 @@ from egregora.agents.types import PromptTooLargeError
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.data_primitives.document import UrlContext
 from egregora.orchestration.context import PipelineContext
+from egregora.orchestration.exceptions import (
+    CommandProcessingError,
+    EnrichmentError,
+    OutputSinkError,
+    ProfileGenerationError,
+    WindowSizeError,
+    WindowSplitError,
+)
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.modules.media import process_media_for_window
 from egregora.transformations import split_window_into_n_parts
@@ -144,7 +153,7 @@ class PipelineRunner:
                 f"Window {window.window_index} has {window.size} messages but max is {max_size}. "
                 f"Reduce --step-size to create smaller windows."
             )
-            raise ValueError(msg)
+            raise WindowSizeError(msg)
 
     def process_background_tasks(self) -> None:
         """Process pending background tasks."""
@@ -192,7 +201,7 @@ class PipelineRunner:
             if current_depth >= max_depth:
                 error_msg = f"Max split depth {max_depth} reached for window {window_label}."
                 logger.error("%s❌ %s", indent, error_msg)
-                raise RuntimeError(error_msg)
+                raise WindowSplitError(error_msg)
 
             try:
                 window_results = self._process_single_window(current_window, depth=current_depth)
@@ -219,31 +228,9 @@ class PipelineRunner:
 
         output_sink = self.context.output_format
         if output_sink is None:
-            raise RuntimeError("Output adapter must be initialized before processing windows.")
+            raise OutputSinkError("Output adapter must be initialized before processing windows.")
 
-        url_context = self.context.url_context or UrlContext()
-        window_table_processed, media_mapping = process_media_for_window(
-            window_table=window.table,
-            adapter=self.context.adapter,
-            url_convention=output_sink.url_convention,
-            url_context=url_context,
-            zip_path=self.context.input_path,
-        )
-
-        if media_mapping and not self.context.enable_enrichment:
-            for media_doc in media_mapping.values():
-                try:
-                    output_sink.persist(media_doc)
-                except Exception as e:
-                    logger.exception("Failed to write media file: %s", e)
-
-        if self.context.enable_enrichment:
-            enriched_table = self._perform_enrichment(window_table_processed, media_mapping)
-        else:
-            enriched_table = window_table_processed
-
-        resources = PipelineFactory.create_writer_resources(self.context)
-        adapter_summary, adapter_instructions = self._extract_adapter_info()
+        enriched_table, media_mapping = self._enrich_window_data(window.table, output_sink)
 
         # Convert table to list for command processing
         try:
@@ -254,51 +241,17 @@ class PipelineRunner:
             except (AttributeError, TypeError):
                 messages_list = enriched_table if isinstance(enriched_table, list) else []
 
-        command_messages = extract_commands_list(messages_list)
-        announcements_generated = 0
-        if command_messages:
-            for cmd_msg in command_messages:
-                try:
-                    announcement = command_to_announcement(cmd_msg)
-                    output_sink.persist(announcement)
-                    announcements_generated += 1
-                except Exception as exc:
-                    logger.exception("Failed to generate announcement: %s", exc)
-
+        command_messages, announcements_generated = self._handle_commands(messages_list, output_sink)
         clean_messages_list = filter_commands(messages_list)
 
-        params = WindowProcessingParams(
-            table=enriched_table,
-            window_start=window.start_time,
-            window_end=window.end_time,
-            resources=resources,
-            config=self.context.config,
-            cache=self.context.cache,
-            adapter_content_summary=adapter_summary,
-            adapter_generation_instructions=adapter_instructions,
-            run_id=str(self.context.run_id) if self.context.run_id else None,
-            smoke_test=self.context.state.smoke_test,
+        result = self._generate_posts_and_profiles(
+            enriched_table=enriched_table,
+            clean_messages_list=clean_messages_list,
+            window=window,
+            output_sink=output_sink,
         )
-
-        result = run_async_safely(write_posts_for_window(params))
         posts = result.get("posts", [])
         profiles = result.get("profiles", [])
-
-        window_date = window.start_time.strftime("%Y-%m-%d")
-        try:
-            profile_docs = run_async_safely(
-                generate_profile_posts(
-                    ctx=self.context, messages=clean_messages_list, window_date=window_date
-                )
-            )
-            for profile_doc in profile_docs:
-                try:
-                    output_sink.persist(profile_doc)
-                    profiles.append(profile_doc.document_id)
-                except Exception as exc:
-                    logger.exception("Failed to persist profile: %s", exc)
-        except Exception as exc:
-            logger.exception("Failed to generate profile posts: %s", exc)
 
         # Scheduled tasks are returned as "pending:<task_id>"
         scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
@@ -362,6 +315,108 @@ class PipelineRunner:
                     break
 
         return window_table
+
+    def _enrich_window_data(self, window_table: Any, output_sink: Any) -> tuple[Any, dict]:
+        """Process media and optionally perform enrichment, raising domain errors on failure."""
+        url_context = getattr(self.context, "url_context", None) or UrlContext()
+        try:
+            processed_table, media_mapping = process_media_for_window(
+                window_table=window_table,
+                adapter=getattr(self.context, "adapter", None),
+                url_convention=getattr(output_sink, "url_convention", None),
+                url_context=url_context,
+                zip_path=getattr(self.context, "input_path", None),
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            raise EnrichmentError(f"Failed to process media for window: {exc}") from exc
+
+        if media_mapping and not getattr(self.context, "enable_enrichment", False):
+            for media_doc in media_mapping.values():
+                try:
+                    output_sink.persist(media_doc)
+                except Exception as exc:
+                    raise EnrichmentError("Failed to write media file") from exc
+
+        if getattr(self.context, "enable_enrichment", False):
+            try:
+                enriched_table = self._perform_enrichment(processed_table, media_mapping)
+            except Exception as exc:  # pragma: no cover - defensive
+                raise EnrichmentError("Failed to enrich window data") from exc
+        else:
+            enriched_table = processed_table
+
+        return enriched_table, media_mapping
+
+    def _handle_commands(
+        self, messages_list: list[dict[str, Any]] | Any, output_sink: Any
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Convert commands to announcements, raising CommandProcessingError on failure."""
+        command_messages = extract_commands_list(messages_list)
+        announcements_generated = 0
+
+        for cmd_msg in command_messages:
+            try:
+                announcement = command_to_announcement(cmd_msg)
+                output_sink.persist(announcement)
+                announcements_generated += 1
+            except Exception as exc:
+                raise CommandProcessingError("Failed to generate announcement") from exc
+
+        return command_messages, announcements_generated
+
+    def _generate_posts_and_profiles(
+        self,
+        *,
+        enriched_table: Any,
+        clean_messages_list: list[Any],
+        window: Any,
+        output_sink: Any,
+    ) -> dict[str, dict[str, list[str]]]:
+        """Generate posts and profiles, raising ProfileGenerationError on persistence failures."""
+        resources = PipelineFactory.create_writer_resources(self.context)
+        adapter_summary, adapter_instructions = self._extract_adapter_info()
+        params = WindowProcessingParams(
+            table=enriched_table,
+            window_start=window.start_time,
+            window_end=window.end_time,
+            resources=resources,
+            config=getattr(self.context, "config", None),
+            cache=getattr(self.context, "cache", None),
+            adapter_content_summary=adapter_summary,
+            adapter_generation_instructions=adapter_instructions,
+            run_id=str(self.context.run_id) if getattr(self.context, "run_id", None) else None,
+            smoke_test=getattr(getattr(self.context, "state", None), "smoke_test", False),
+        )
+
+        try:
+            result = run_async_safely(write_posts_for_window(params))
+        except Exception as exc:  # pragma: no cover - defensive
+            raise ProfileGenerationError(f"Failed to process window {window.start_time}") from exc
+
+        posts = result.get("posts", [])
+        profiles = result.get("profiles", [])
+
+        window_date = window.start_time.strftime("%Y-%m-%d")
+        try:
+            profile_docs = run_async_safely(
+                generate_profile_posts(
+                    ctx=self.context,
+                    messages=clean_messages_list,
+                    window_date=window_date,
+                )
+            )
+            for profile_doc in profile_docs:
+                try:
+                    output_sink.persist(profile_doc)
+                    profiles.append(profile_doc.document_id)
+                except Exception as exc:
+                    raise ProfileGenerationError("Failed to persist profile") from exc
+        except ProfileGenerationError:
+            raise
+        except Exception as exc:  # pragma: no cover - defensive
+            raise ProfileGenerationError("Failed to generate profile posts") from exc
+
+        return {"posts": posts, "profiles": profiles}
 
     def _extract_adapter_info(self) -> tuple[str, str]:
         """Extract content summary and generation instructions from adapter."""

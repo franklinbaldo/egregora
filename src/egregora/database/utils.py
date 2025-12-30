@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import duckdb
+import ibis
 
 
 def resolve_db_uri(uri: str, site_root: Path) -> str:
@@ -69,6 +70,8 @@ class SimpleDuckDBStorage:
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
         self._conn = duckdb.connect(str(db_path))
+        # Lightweight Ibis backend for read operations used by EloStore
+        self.ibis_conn = ibis.duckdb.connect(database=str(db_path), read_only=False)
 
     @contextlib.contextmanager
     def connection(self) -> contextlib.AbstractContextManager[duckdb.DuckDBPyConnection]:
@@ -85,6 +88,34 @@ class SimpleDuckDBStorage:
         quoted_name = quote_identifier(table_name)
         info = self._conn.execute(f"PRAGMA table_info({quoted_name})").fetchall()
         return {row[1] for row in info}
+
+    def list_tables(self) -> set[str]:
+        """Return available table names."""
+        rows = self._conn.execute("SHOW TABLES").fetchall()
+        return {row[0] for row in rows}
+
+    def read_table(self, name: str):
+        """Read a table as an Ibis expression."""
+        return self.ibis_conn.table(name)
+
+    def replace_rows(self, table: str, rows: ibis.Table, *, by_keys: dict[str, object]) -> None:
+        """Delete matching rows and insert replacements (UPSERT simulation)."""
+        if not by_keys:
+            msg = "replace_rows requires at least one key for deletion safety"
+            raise ValueError(msg)
+
+        quoted_table = quote_identifier(table)
+        conditions = []
+        params = []
+        for col, val in by_keys.items():
+            conditions.append(f"{quote_identifier(col)} = ?")
+            params.append(val)
+
+        where_clause = " AND ".join(conditions)
+        sql = f"DELETE FROM {quoted_table} WHERE {where_clause}"
+
+        self._conn.execute(sql, params)
+        self.ibis_conn.insert(table, rows)
 
 
 def get_simple_storage(db_path: Path) -> SimpleDuckDBStorage:
