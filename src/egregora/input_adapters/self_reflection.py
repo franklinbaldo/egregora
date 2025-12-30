@@ -81,11 +81,17 @@ class SelfInputAdapter(InputAdapter):
             raise ValueError(msg)
 
         _docs_dir, site_root = self._resolve_docs_dir(input_path)
-        documents = [
-            doc
-            for doc in output_adapter.documents(doc_type=doc_type)
-            if doc.metadata.get("slug") not in {"index", "tags"}
-        ]
+        documents = []
+        for meta in output_adapter.list(doc_type=doc_type):
+            if not meta.doc_type:
+                continue
+            # The identifier from `list` is a full path, but `get` expects a slug.
+            # We need to extract the slug from the path.
+            slug = Path(meta.identifier).stem.split("-", 3)[-1]
+            doc = output_adapter.get(meta.doc_type, slug)
+            if doc.metadata.get("slug") not in {"index", "tags"}:
+                documents.append(doc)
+
         if not documents:
             msg = f"No posts published by {output_adapter.__class__.__name__}"
             raise RuntimeError(msg)
