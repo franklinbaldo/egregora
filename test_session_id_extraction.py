@@ -95,9 +95,7 @@ def test_session_id_extraction() -> int | None:
             # Show first 200 chars of body for debugging
             pass
 
-    if fail_count > 0:
-        return 1
-    return 0
+    assert fail_count == 0
 
 
 if __name__ == "__main__":

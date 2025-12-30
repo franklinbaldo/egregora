@@ -47,7 +47,6 @@ def pipeline_setup(
     }
 
 
-@pytest.mark.skip(reason="TODO: Fix this test after refactoring the orchestration logic.")
 @pytest.mark.e2e
 def test_full_pipeline_smoke_test(pipeline_setup, tmp_path):
     """Run full pipeline with mocked LLM responses.
@@ -139,7 +138,6 @@ def test_pipeline_respects_mocked_llm_responses(
     assert result1 == result2
 
 
-@pytest.mark.skip(reason="TODO: Fix this test after refactoring the orchestration logic.")
 @pytest.mark.e2e
 def test_pipeline_with_rag_enabled(pipeline_setup, tmp_path):
     """Test pipeline with RAG enabled using mocked VectorStore.

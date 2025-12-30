@@ -142,7 +142,8 @@ def test_auto_fix_behavior() -> tuple[int, int] | None:
         else:
             would_skip += 1
 
-    return would_fix, would_skip
+    assert would_fix >= 0
+    assert would_skip >= 0
 
 
 def main() -> int:
