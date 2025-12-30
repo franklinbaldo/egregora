@@ -254,6 +254,13 @@ class Feed(BaseModel):
             if entry.published:
                 SubElement(entry_elem, "published").text = entry.published.isoformat().replace("+00:00", "Z")
 
+            if entry.in_reply_to:
+                reply_elem = SubElement(entry_elem, "thr:in-reply-to", attrib={"ref": entry.in_reply_to.ref})
+                if entry.in_reply_to.href:
+                    reply_elem.set("href", entry.in_reply_to.href)
+                if entry.in_reply_to.type:
+                    reply_elem.set("type", entry.in_reply_to.type)
+
             for author in entry.authors:
                 author_elem = SubElement(entry_elem, "author")
                 SubElement(author_elem, "name").text = author.name
@@ -289,7 +296,7 @@ class Feed(BaseModel):
                 )
 
         # Serialize to string
-        return tostring(root, encoding="unicode", xml_declaration=True)
+        return tostring(root, encoding="UTF-8", xml_declaration=True).decode("utf-8")
 
     @classmethod
     def from_documents(

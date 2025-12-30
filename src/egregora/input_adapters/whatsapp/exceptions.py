@@ -51,6 +51,10 @@ class WhatsAppParsingError(WhatsAppError):
 class ChatFileNotFoundError(WhatsAppParsingError):
     """Raised when the chat file cannot be found in the ZIP archive."""
 
+    def __init__(self, zip_path: str) -> None:
+        self.zip_path = zip_path
+        super().__init__(f"No WhatsApp chat file found in {zip_path}")
+
 
 class DateParsingError(WhatsAppParsingError):
     """Raised when a date string cannot be parsed."""

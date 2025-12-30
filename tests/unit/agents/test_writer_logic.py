@@ -6,7 +6,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from jinja2.exceptions import TemplateNotFound
 
-from egregora.agents.exceptions import JournalFileSystemError, JournalTemplateError
+from egregora.agents.exceptions import AgentError as JournalFileSystemError
+from egregora.agents.exceptions import AgentError as JournalTemplateError
 from egregora.agents.writer import (
     JournalEntry,
     JournalEntryParams,

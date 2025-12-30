@@ -74,9 +74,12 @@ class FileWriteError(FilesystemOperationError):
 class DateExtractionError(FilesystemError):
     """Raised when a date cannot be extracted from a string."""
 
-    def __init__(self, date_str: str) -> None:
+    def __init__(self, date_str: str, original_exception: Exception | None = None) -> None:
         self.date_str = date_str
+        self.original_exception = original_exception
         message = f"Could not extract a valid date from '{self.date_str}'"
+        if original_exception:
+            message += f". Original error: {original_exception}"
         super().__init__(message)
 
 
