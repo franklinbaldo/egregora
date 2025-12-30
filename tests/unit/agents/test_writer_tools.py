@@ -24,6 +24,7 @@ from egregora.agents.tools.writer_tools import (
     write_profile_impl,
 )
 from egregora.data_primitives.document import DocumentType
+from egregora.output_adapters.exceptions import DocumentNotFoundError
 
 
 class TestWriterToolsExtraction:
@@ -69,7 +70,7 @@ class TestWriterToolsExtraction:
         """Test read_profile_impl returns default message for missing profile."""
         # Arrange
         mock_output_sink = Mock()
-        mock_output_sink.read_document.return_value = None
+        mock_output_sink.read_document.side_effect = DocumentNotFoundError("profile", "missing-uuid")
         ctx = ToolContext(output_sink=mock_output_sink, window_label="test")
 
         # Act
