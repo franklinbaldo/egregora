@@ -16,6 +16,7 @@ import yaml
 from egregora.data_primitives.document import DocumentType
 from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
+from egregora.output_adapters.exceptions import DocumentNotFoundError
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.paths import slugify
 
@@ -85,12 +86,20 @@ class SelfInputAdapter(InputAdapter):
         for meta in output_adapter.list(doc_type=doc_type):
             if not meta.doc_type:
                 continue
-            # The identifier from `list` is a full path, but `get` expects a slug.
-            # We need to extract the slug from the path.
-            slug = Path(meta.identifier).stem.split("-", 3)[-1]
-            doc = output_adapter.get(meta.doc_type, slug)
-            if doc.metadata.get("slug") not in {"index", "tags"}:
-                documents.append(doc)
+            try:
+                # The identifier from `list` is a full path, but `get` expects a slug.
+                # We need to extract the slug from the path.
+                slug = Path(meta.identifier).stem.split("-", 3)[-1]
+                doc = output_adapter.get(meta.doc_type, slug)
+                if doc.metadata.get("slug") not in {"index", "tags"}:
+                    documents.append(doc)
+            except DocumentNotFoundError:
+                logger.warning(
+                    "Skipping self-reflection of missing document: type=%s, id=%s",
+                    meta.doc_type.value,
+                    meta.identifier,
+                )
+                continue
 
         if not documents:
             msg = f"No posts published by {output_adapter.__class__.__name__}"
