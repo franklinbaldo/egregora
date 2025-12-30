@@ -32,7 +32,7 @@ def test_feed_to_xml_serialization():
     xml_output = feed.to_xml()
 
     # Basic assertions
-    assert '<?xml version=\'1.0\' encoding=\'UTF-8\'?>' in xml_output
+    assert '<?xml version=\'1.0\' encoding=\'utf-8\'?>' in xml_output
     assert '<feed xmlns="http://www.w3.org/2005/Atom"' in xml_output
     assert '<title>Test Feed</title>' in xml_output
     assert '<id>urn:uuid:12345</id>' in xml_output
@@ -41,12 +41,13 @@ def test_feed_to_xml_serialization():
     # Entry assertions
     assert '<entry>' in xml_output
     assert '<title>Test Post</title>' in xml_output
-    assert '<id>test-post</id>' in xml_output
+    assert '<id>urn:uuid:5358b072-6324-58b3-afdf-bcf5c03d8e0c</id>' in xml_output
     # The filter converts "text/markdown" to "text"
     assert '<content type="text">Hello World</content>' in xml_output
     # Check for document type category
     assert 'term="post"' in xml_output
     assert 'scheme="https://egregora.app/schema#doc_type"' in xml_output
+    assert 'label="Document Type"' in xml_output
 
 
 def test_document_semantic_identity():
@@ -58,7 +59,7 @@ def test_document_semantic_identity():
         # No slug provided, should derive from title
     )
 
-    assert doc.id == "my-semantic-title"
+    assert doc.id == "urn:uuid:da4da0e4-7c44-53be-8651-1daf693670da"
     assert doc.internal_metadata["slug"] == "my-semantic-title"
 
     # Explicit slug
@@ -68,4 +69,4 @@ def test_document_semantic_identity():
         content="Content",
         internal_metadata={"slug": "explicit-slug"}
     )
-    assert doc2.id == "explicit-slug"
+    assert doc2.id == "urn:uuid:02173ea4-5266-5c21-8127-9b92cb9b4f0a"

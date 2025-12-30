@@ -86,14 +86,6 @@ class SimpleDuckDBStorage:
         info = self._conn.execute(f"PRAGMA table_info({quoted_name})").fetchall()
         return {row[1] for row in info}
 
-    def list_tables(self) -> set[str]:
-        """List all tables in the database."""
-        return {row[0] for row in self._conn.execute("SHOW TABLES").fetchall()}
-
-    def read_table(self, table_name: str) -> duckdb.DuckDBPyRelation:
-        """Read a table from the database."""
-        return self._conn.table(table_name)
-
 
 def get_simple_storage(db_path: Path) -> SimpleDuckDBStorage:
     """Get a simple DuckDB storage instance for CLI queries.

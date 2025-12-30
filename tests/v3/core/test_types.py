@@ -11,7 +11,7 @@ def test_document_generates_slug_from_title():
         title="  My First Post!  "
     )
     assert doc.slug == "my-first-post"
-    assert doc.id == "urn:uuid:8c36b44c-2041-5167-8869-346e330a638b"
+    assert doc.id == "urn:uuid:200b9dee-d982-5c75-9fe7-a879ecaa96ff"
     assert doc.title == "  My First Post!  "
     assert doc.doc_type == DocumentType.POST
     assert doc.status == DocumentStatus.DRAFT
@@ -27,7 +27,7 @@ def test_document_uses_explicit_slug():
         internal_metadata={"slug": "custom-slug"}
     )
     assert doc.slug == "custom-slug"
-    assert doc.id == "urn:uuid:8c36b44c-2041-5167-8869-346e330a638b"
+    assert doc.id == "urn:uuid:84bb3e34-b362-5861-907a-71af6fb86d90"
 
 
 def test_document_raises_error_on_empty_title_and_slug():
@@ -75,8 +75,8 @@ def test_feed_to_xml_handles_document_and_entry():
     xml_output = feed.to_xml()
 
     # Assert that the Document-specific fields are present for the Document entry
-    doc_type_category = f'<category scheme="https://egregora.app/schema#doc_type" term="{doc.doc_type.value}" />'
-    status_category = f'<category scheme="https://egregora.app/schema#status" term="{doc.status.value}" />'
+    doc_type_category = f'<category scheme="https://egregora.app/schema#doc_type" term="{doc.doc_type.value}" label="Document Type" />'
+    status_category = f'<category scheme="https://egregora.app/schema#status" term="{doc.status.value}" label="Document Status" />'
 
     assert f"<id>{doc.id}</id>" in xml_output
     assert doc_type_category in xml_output

@@ -24,5 +24,4 @@ class AtomSink:
         """Renders the feed to XML and writes it to the output path."""
         template = self._jinja_env.get_template("atom.xml.jinja")
         xml_content = template.render(feed=feed).strip()
-        self.output_path.parent.mkdir(parents=True, exist_ok=True)
         self.output_path.write_text(xml_content)
