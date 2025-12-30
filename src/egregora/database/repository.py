@@ -131,7 +131,7 @@ class ContentRepository:
 
     def list(self, doc_type: DocumentType | None = None) -> Iterator[dict]:
         """List documents metadata."""
-        if doc_type:
+        if doc_type is not None:
             table_name = self._get_table_for_type(doc_type)
             t = self.db.read_table(table_name)
             # Select relevant columns for metadata

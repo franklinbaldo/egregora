@@ -5,26 +5,27 @@ import uuid
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
-from xml.etree.ElementTree import Element, register_namespace, SubElement, tostring
 
+from pathlib import Path
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from markupsafe import Markup
 from markdown_it import MarkdownIt
 from pydantic import BaseModel, Field, model_validator
+
+from egregora_v3.core.filters import format_datetime
 from egregora_v3.core.utils import slugify
 
-# --- XML Configuration ---
-
-# Register namespaces globally to ensure pretty prefixes in all XML output
-# This is a module-level side effect, but necessary for clean Atom feeds.
-try:
-    from xml.etree.ElementTree import register_namespace
-    register_namespace("", "http://www.w3.org/2005/Atom")
-    register_namespace("thr", "http://purl.org/syndication/thread/1.0")
-except Exception:  # pragma: no cover
-    # Best effort registration; may fail in some environments or if already registered
-    pass
-
 # --- Markdown Renderer ---
-_md = MarkdownIt("commonmark", {"html": True})
+_md = MarkdownIt("commonmark", {"html": False})
+_templates_dir = Path(__file__).resolve().parents[1] / "infra" / "sinks" / "templates"
+_jinja_env = Environment(
+    loader=FileSystemLoader(str(_templates_dir)),
+    autoescape=True,
+    trim_blocks=True,
+    lstrip_blocks=True,
+)
+_jinja_env.filters["iso_utc"] = format_datetime
 
 
 # --- Atom Core Domain ---
@@ -167,6 +168,11 @@ class Document(Entry):
         """Get the semantic slug for this document."""
         return self.internal_metadata.get("slug")
 
+    @classmethod
+    def create(cls, **data: Any) -> "Document":
+        """Convenience constructor mirroring pydantic's model creation."""
+        return cls(**data)
+
     @model_validator(mode="before")
     @classmethod
     def _set_identity_and_timestamps(cls, data: Any) -> Any:
@@ -220,76 +226,29 @@ class Feed(BaseModel):
         ]
 
     def to_xml(self) -> str:
-        """Serialize the feed to an Atom XML string."""
-        # Create the root element with namespaces
-        root = Element("feed")
-        root.set("xmlns", "http://www.w3.org/2005/Atom")
-        root.set("xmlns:thr", "http://purl.org/syndication/thread/1.0")
-
-        # --- Feed Metadata ---
-        SubElement(root, "id").text = self.id
-        SubElement(root, "title").text = self.title
-        SubElement(root, "updated").text = self.updated.isoformat().replace("+00:00", "Z")
-
-        for author in self.authors:
-            author_elem = SubElement(root, "author")
-            SubElement(author_elem, "name").text = author.name
-            if author.email:
-                SubElement(author_elem, "email").text = author.email
-
-        for link in self.links:
-            link_elem = SubElement(root, "link", attrib={"href": link.href})
-            if link.rel:
-                link_elem.set("rel", link.rel)
-            if link.type:
-                link_elem.set("type", link.type)
-
-        # --- Entries ---
+        """Serialize the feed to an Atom XML string using the shared Jinja template."""
+        renderable_entries: list[Entry] = []
         for entry in self.entries:
-            entry_elem = SubElement(root, "entry")
-            SubElement(entry_elem, "id").text = entry.id
-            SubElement(entry_elem, "title").text = entry.title
-            SubElement(entry_elem, "updated").text = entry.updated.isoformat().replace("+00:00", "Z")
-
-            if entry.published:
-                SubElement(entry_elem, "published").text = entry.published.isoformat().replace("+00:00", "Z")
-
-            for author in entry.authors:
-                author_elem = SubElement(entry_elem, "author")
-                SubElement(author_elem, "name").text = author.name
-
-            if entry.content:
-                content_type = entry.content_type or "text/plain"
-                content_elem = SubElement(entry_elem, "content")
-                content_elem.text = entry.content
-                if content_type in ["text/html", "text/xhtml"]:
-                    content_elem.set("type", "html")
-                elif content_type == "text/markdown":
-                    content_elem.set("type", "text")
+            entry_copy = entry.model_copy(deep=True) if hasattr(entry, "model_copy") else entry
+            # Normalize content rendering and types for template output
+            if getattr(entry_copy, "content", None):
+                if isinstance(entry_copy, Document):
+                    if entry_copy.content_type == "text/markdown":
+                        entry_copy.content_type = "text"
+                    elif entry_copy.content_type in {None, "text/html", "text/xhtml", "html"}:
+                        entry_copy.content = Markup(entry_copy.html_content or entry_copy.content)
+                        entry_copy.content_type = "html"
                 else:
-                    content_elem.set("type", content_type)
+                    if entry_copy.content_type == "text/markdown":
+                        entry_copy.content_type = "text"
+                    elif entry_copy.content_type is None:
+                        entry_copy.content_type = "html"
+            renderable_entries.append(entry_copy)
 
-            if isinstance(entry, Document):
-                # Add doc_type and status as categories for filtering
-                SubElement(
-                    entry_elem,
-                    "category",
-                    attrib={
-                        "scheme": "https://egregora.app/schema#doc_type",
-                        "term": entry.doc_type.value,
-                    },
-                )
-                SubElement(
-                    entry_elem,
-                    "category",
-                    attrib={
-                        "scheme": "https://egregora.app/schema#status",
-                        "term": entry.status.value,
-                    },
-                )
+        feed_payload = self.model_copy(update={"entries": renderable_entries})
 
-        # Serialize to string
-        return tostring(root, encoding="unicode", xml_declaration=True)
+        template = _jinja_env.get_template("atom.xml.jinja")
+        return template.render(feed=feed_payload).strip()
 
     @classmethod
     def from_documents(
