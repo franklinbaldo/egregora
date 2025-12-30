@@ -9,7 +9,7 @@ from typing import Any
 
 # Import the extraction logic from jules module
 sys.path.insert(0, ".jules")
-from jules.github import _extract_session_id
+import jules.github as jules_github
 
 
 def fetch_jules_prs() -> list[dict[str, Any]]:
@@ -82,7 +82,7 @@ def test_session_id_extraction() -> int | None:
         pr.get("state", "")
 
         # Test extraction
-        session_id = _extract_session_id(branch, body)
+        session_id = jules_github._extract_session_id(branch, body)
 
         if session_id:
             success_count += 1

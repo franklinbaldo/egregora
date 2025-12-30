@@ -15,6 +15,8 @@ from pathlib import Path
 
 import pytest
 
+MAX_SAMPLE_POSTS = 5
+
 # Add src to path
 sys.path.insert(0, "src")
 
@@ -107,10 +109,10 @@ def test_full_pipeline_with_openrouter() -> bool | None:
 
                     post_files = list(posts_dir.glob("*.md"))
 
-                    for post_file in post_files[:5]:  # Show first 5
+                    for post_file in post_files[:MAX_SAMPLE_POSTS]:
                         _ = post_file.stat().st_size
 
-                    if len(post_files) > 5:
+                    if len(post_files) > MAX_SAMPLE_POSTS:
                         pass
 
                     return True

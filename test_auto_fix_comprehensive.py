@@ -10,7 +10,10 @@ from typing import Any
 
 # Import the extraction logic from jules module
 sys.path.insert(0, ".jules")
-from jules.github import _extract_session_id
+
+import jules.github as jules_github
+
+SessionIdPatterns = dict[str, list[tuple[int | None, str, str | None] | tuple[int | None, str]]]
 
 
 def fetch_jules_prs() -> list[dict[str, Any]]:
@@ -59,7 +62,7 @@ def fetch_jules_prs() -> list[dict[str, Any]]:
         return []
 
 
-def analyze_session_id_patterns():
+def analyze_session_id_patterns() -> SessionIdPatterns | None:
     """Analyze the different session ID patterns found in Jules PRs."""
     prs = fetch_jules_prs()
 
@@ -81,7 +84,7 @@ def analyze_session_id_patterns():
         branch = pr.get("headRefName", "")
         body = pr.get("body", "")
 
-        session_id = _extract_session_id(branch, body)
+        session_id = jules_github._extract_session_id(branch, body)
 
         # Categorize by pattern
         if not session_id:
@@ -98,25 +101,25 @@ def analyze_session_id_patterns():
             patterns["from_body_sessions"].append((pr_number, branch, session_id))
 
     if patterns["uuid"]:
-        for _pr_num, branch, _sid in patterns["uuid"][:3]:
-            pass
+        for _pr_num, _branch, _sid in patterns["uuid"][:3]:
+            continue
 
     if patterns["numeric_15plus"]:
-        for _pr_num, branch, _sid in patterns["numeric_15plus"][:3]:
-            pass
+        for _pr_num, _branch, _sid in patterns["numeric_15plus"][:3]:
+            continue
 
     if patterns["from_body_jules_url"]:
-        for _pr_num, branch, _sid in patterns["from_body_jules_url"][:3]:
-            pass
+        for _pr_num, _branch, _sid in patterns["from_body_jules_url"][:3]:
+            continue
 
     if patterns["not_found"]:
-        for _pr_num, branch in patterns["not_found"]:
-            pass
+        for _pr_num, _branch in patterns["not_found"]:
+            continue
 
     return patterns
 
 
-def test_auto_fix_behavior():
+def test_auto_fix_behavior() -> tuple[int, int] | None:
     """Test what would happen with auto-fix for recent Jules PRs."""
     prs = fetch_jules_prs()
 
@@ -132,7 +135,7 @@ def test_auto_fix_behavior():
         body = pr.get("body", "")
         pr.get("state", "")
 
-        session_id = _extract_session_id(branch, body)
+        session_id = jules_github._extract_session_id(branch, body)
 
         if session_id:
             would_fix += 1

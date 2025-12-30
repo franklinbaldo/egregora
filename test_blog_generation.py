@@ -15,6 +15,8 @@ from pathlib import Path
 # Add src to path to import modules directly
 sys.path.insert(0, "src")
 
+EXPECTED_PARSED_YEAR = 2023
+
 
 def test_whatsapp_parsing() -> bool | None:
     """Test WhatsApp ZIP parsing without full pipeline."""
@@ -34,7 +36,7 @@ def test_whatsapp_parsing() -> bool | None:
                 pass
 
             return True
-    except Exception:
+    except (zipfile.BadZipFile, OSError):
         return False
 
 
@@ -63,7 +65,7 @@ def test_datetime_utilities() -> bool | None:
 
         # Test valid parsing
         result = datetime_utils_mod.parse_datetime_flexible("2023-01-01T12:00:00")
-        if result.year != 2023:
+        if result.year != EXPECTED_PARSED_YEAR:
             return False
 
         # Test None raises exception
