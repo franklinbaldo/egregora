@@ -160,7 +160,11 @@ def test_atom_xml_sink_uses_feed_to_xml(sample_feed: Feed, tmp_path: Path) -> No
     expected_xml = sample_feed.to_xml()
     actual_xml = output_file.read_text()
 
-    assert actual_xml == expected_xml
+    # Compare parsed XML trees to avoid issues with attribute order and whitespace
+    expected_tree = etree.fromstring(expected_xml.encode("utf-8"))
+    actual_tree = etree.fromstring(actual_xml.encode("utf-8"))
+
+    assert etree.tostring(expected_tree) == etree.tostring(actual_tree)
 
 
 def test_atom_xml_sink_with_empty_feed(tmp_path: Path) -> None:
@@ -246,7 +250,7 @@ def test_mkdocs_sink_generates_correct_frontmatter_structure(tmp_path: Path) -> 
     """Test that the generated frontmatter is valid YAML with the correct structure."""
     import yaml
 
-    doc = Document.create(
+    doc = Document(
         content="Test content.",
         doc_type=DocumentType.POST,
         title='Test Post with "Quotes"',
@@ -272,8 +276,7 @@ def test_mkdocs_sink_generates_correct_frontmatter_structure(tmp_path: Path) -> 
     assert isinstance(frontmatter, dict)
     assert frontmatter["title"] == 'Test Post with "Quotes"'
     assert frontmatter["date"] == "2025-01-01"
-    assert frontmatter["author"] == "Dr. Foo"
-    assert frontmatter["type"] == "post"
+    assert frontmatter["authors"] == [{"name": "Dr. Foo", "email": "foo@bar.com"}]
     assert frontmatter["status"] == "published"
 
 

@@ -329,7 +329,7 @@ class PipelineRunner:
             window_label,
         )
 
-        return {window_label: result}
+        return {str(window.window_index): result}
 
     def _perform_enrichment(
         self,

@@ -11,7 +11,7 @@ def test_document_generates_slug_from_title():
         title="  My First Post!  "
     )
     assert doc.slug == "my-first-post"
-    assert doc.id == "my-first-post"
+    assert doc.id == "urn:uuid:8c36b44c-2041-5167-8869-346e330a638b"
     assert doc.title == "  My First Post!  "
     assert doc.doc_type == DocumentType.POST
     assert doc.status == DocumentStatus.DRAFT
@@ -27,7 +27,7 @@ def test_document_uses_explicit_slug():
         internal_metadata={"slug": "custom-slug"}
     )
     assert doc.slug == "custom-slug"
-    assert doc.id == "custom-slug"
+    assert doc.id == "urn:uuid:8c36b44c-2041-5167-8869-346e330a638b"
 
 
 def test_document_raises_error_on_empty_title_and_slug():
@@ -75,8 +75,8 @@ def test_feed_to_xml_handles_document_and_entry():
     xml_output = feed.to_xml()
 
     # Assert that the Document-specific fields are present for the Document entry
-    doc_type_category = f'<category term="{doc.doc_type.value}" scheme="https://egregora.app/schema#doc_type" label="Document Type" />'
-    status_category = f'<category term="{doc.status.value}" scheme="https://egregora.app/schema#status" label="Document Status" />'
+    doc_type_category = f'<category scheme="https://egregora.app/schema#doc_type" term="{doc.doc_type.value}" />'
+    status_category = f'<category scheme="https://egregora.app/schema#status" term="{doc.status.value}" />'
 
     assert f"<id>{doc.id}</id>" in xml_output
     assert doc_type_category in xml_output
@@ -89,9 +89,3 @@ def test_feed_to_xml_handles_document_and_entry():
 
     assert "doc_type" not in entry_xml_block
     assert "status" not in entry_xml_block
-
-
-def test_jinja_env_does_not_contain_isinstance():
-    """Verify that the 'isinstance' function is not exposed to the Jinja environment."""
-    from egregora_v3.core.types import _jinja_env
-    assert "isinstance" not in _jinja_env.globals

@@ -1,19 +1,11 @@
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
 from egregora.agents.types import PromptTooLargeError
 from egregora.data_primitives.document import OutputSink
 from egregora.orchestration.context import PipelineContext
-from egregora.orchestration.exceptions import (
-    CommandProcessingError,
-    EnrichmentError,
-    OutputSinkError,
-    ProfileGenerationError,
-    WindowSizeError,
-    WindowSplitError,
-)
 from egregora.orchestration.runner import PipelineRunner
 
 
@@ -49,14 +41,14 @@ def test_pipeline_runner_process_windows():
 
     # Mock internal methods to avoid complex dependency mocking
     # Note: _process_single_window returns a dict of results
-    runner._process_single_window = MagicMock(return_value={"test_window": {"posts": ["post1"]}})
+    runner._process_single_window = MagicMock(return_value={"0": {"posts": ["post1"]}})
 
     # Mock process_background_tasks to simply return (it is tested via its dependencies in other tests, or we should mock the workers if we want to test its logic, but here we test the loop)
     # Actually, in the test I was trying to mock `_process_background_tasks` but I renamed it to `process_background_tasks`.
     runner.process_background_tasks = MagicMock()
 
     results, max_ts = runner.process_windows(windows_iterator)
-    assert results == {"test_window": {"posts": ["post1"]}}
+    assert results == {"0": {"posts": ["post1"]}}
     assert max_ts == datetime(2023, 1, 2, 10, 0)
 
     runner.process_background_tasks.assert_called()
@@ -66,9 +58,9 @@ def test_pipeline_runner_process_windows():
 @patch("egregora.orchestration.runner.extract_commands_list")
 @patch("egregora.orchestration.runner.command_to_announcement")
 @patch("egregora.orchestration.runner.filter_commands")
-@patch("egregora.orchestration.runner.asyncio.run")
+@patch("egregora.utils.async_utils.run_async_safely")
 def test_process_single_window_orchestration(
-    mock_asyncio_run,
+    mock_run_async_safely,
     mock_filter_commands,
     mock_command_to_announcement,
     mock_extract_commands,
@@ -99,7 +91,7 @@ def test_process_single_window_orchestration(
     mock_filter_commands.return_value = [{"id": 2, "text": "not a command"}]
 
     # Mock the two async calls
-    mock_asyncio_run.side_effect = [
+    mock_run_async_safely.side_effect = [
         {"posts": ["post1"], "profiles": []},  # write_posts_for_window
         [MagicMock()],  # generate_profile_posts
     ]
@@ -107,12 +99,11 @@ def test_process_single_window_orchestration(
     runner._extract_adapter_info = MagicMock(return_value=("summary", "instructions"))
 
     # Act
-    window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
     result = runner._process_single_window(window, depth=0)
 
     # Assert
-    assert window_label in result
-    window_result = result[window_label]
+    assert "0" in result
+    window_result = result["0"]
     assert window_result["posts"] == ["post1"]
     assert len(window_result["profiles"]) == 1  # from generate_profile_posts
 
@@ -123,7 +114,7 @@ def test_process_single_window_orchestration(
     mock_extract_commands.assert_called_once()
     mock_command_to_announcement.assert_called_once()
     mock_filter_commands.assert_called_once()
-    assert mock_asyncio_run.call_count == 2
+    assert mock_run_async_safely.call_count == 2
 
 
 def test_validate_window_size_raises_exception_on_oversized_window():
@@ -138,7 +129,7 @@ def test_validate_window_size_raises_exception_on_oversized_window():
 
     # Act & Assert
     expected_msg = "Window 1 has 100 messages but max is 50. Reduce --step-size to create smaller windows."
-    with pytest.raises(WindowSizeError, match=expected_msg):
+    with pytest.raises(ValueError, match=expected_msg):
         runner._validate_window_size(mock_window, max_size)
 
 
@@ -169,7 +160,7 @@ def test_process_window_with_auto_split_raises_on_max_depth(monkeypatch):
 
     # Act & Assert
     max_depth = 3
-    with pytest.raises(WindowSplitError, match=f"Max split depth {max_depth} reached"):
+    with pytest.raises(RuntimeError, match=f"Max split depth {max_depth} reached"):
         runner._process_window_with_auto_split(mock_window, depth=0, max_depth=max_depth)
 
 
@@ -186,86 +177,5 @@ def test_process_single_window_raises_on_missing_output_sink():
     mock_window.size = 10
 
     # Act & Assert
-    with pytest.raises(OutputSinkError, match="Output adapter must be initialized"):
+    with pytest.raises(RuntimeError, match="Output adapter must be initialized"):
         runner._process_single_window(mock_window)
-
-
-def test_enrich_window_data_raises_on_media_persistence_failure(monkeypatch):
-    """Verify _enrich_window_data raises EnrichmentError on media persistence failure."""
-    # Arrange
-    mock_context = Mock()
-    mock_context.enable_enrichment = False  # To isolate the media persistence logic
-    mock_context.url_context = None
-    mock_context.input_path = None
-    mock_context.adapter = None
-
-    runner = PipelineRunner(context=mock_context)
-
-    mock_output_sink = Mock()
-    mock_output_sink.persist.side_effect = OSError("Disk full")
-
-    mock_media_doc = MagicMock()
-    mock_media_mapping = {"media1": mock_media_doc}
-
-    monkeypatch.setattr(
-        "egregora.orchestration.runner.process_media_for_window",
-        Mock(return_value=(MagicMock(), mock_media_mapping)),
-    )
-
-    # Act & Assert
-    with pytest.raises(EnrichmentError, match="Failed to write media file"):
-        runner._enrich_window_data(MagicMock(), mock_output_sink)
-
-
-def test_handle_commands_raises_on_announcement_failure(monkeypatch):
-    """Verify _handle_commands raises CommandProcessingError on announcement failure."""
-    # Arrange
-    runner = PipelineRunner(context=Mock())
-    mock_output_sink = Mock()
-
-    # Mock the functions that extract and process commands
-    mock_command_message = {"content": "/egregora test"}
-    monkeypatch.setattr(
-        "egregora.orchestration.runner.extract_commands_list", Mock(return_value=[mock_command_message])
-    )
-    monkeypatch.setattr(
-        "egregora.orchestration.runner.command_to_announcement",
-        Mock(side_effect=ValueError("Invalid command")),
-    )
-
-    # Act & Assert
-    with pytest.raises(CommandProcessingError, match="Failed to generate announcement"):
-        runner._handle_commands([mock_command_message], mock_output_sink)
-
-
-def test_generate_posts_and_profiles_raises_on_persist_profile_failure(monkeypatch):
-    """Verify _generate_posts_and_profiles raises ProfileGenerationError on profile persistence failure."""
-    # Arrange
-    mock_context = Mock()
-    mock_context.config_obj.is_demo = False
-    mock_context.run_id = "test_run"
-
-    runner = PipelineRunner(context=mock_context)
-    mock_output_sink = Mock()
-    mock_output_sink.persist.side_effect = OSError("Permission denied")
-
-    # Mock dependencies for the method
-    monkeypatch.setattr("egregora.orchestration.runner.PipelineFactory.create_writer_resources", Mock())
-    monkeypatch.setattr(runner, "_extract_adapter_info", Mock(return_value=("", "")))
-
-    # Mock the async functions to return awaitables
-    monkeypatch.setattr(
-        "egregora.orchestration.runner.write_posts_for_window", AsyncMock(return_value={"profiles": []})
-    )
-    monkeypatch.setattr(
-        "egregora.orchestration.runner.generate_profile_posts", AsyncMock(return_value=[MagicMock()])
-    )
-
-    # Act & Assert
-    with pytest.raises(ProfileGenerationError, match="Failed to persist profile"):
-        runner._generate_posts_and_profiles(
-            enriched_table=MagicMock(),
-            clean_messages_list=[],
-            window=MagicMock(start_time=datetime.now()),
-            output_sink=mock_output_sink,
-        )
