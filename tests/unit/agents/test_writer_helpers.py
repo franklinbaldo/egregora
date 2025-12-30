@@ -13,17 +13,13 @@ def test_load_profiles_context_handles_document_not_found_error():
     """
     # Arrange
     output_sink = MagicMock()
-    output_sink.read_document.side_effect = DocumentNotFoundError(
-        "profile", "test-author"
-    )
+    output_sink.read_document.side_effect = DocumentNotFoundError("profile", "test-author")
     active_authors = ["test-author"]
 
     # Act
     result = load_profiles_context(active_authors, output_sink)
 
     # Assert
-    output_sink.read_document.assert_called_once_with(
-        DocumentType.PROFILE, "test-author"
-    )
+    output_sink.read_document.assert_called_once_with(DocumentType.PROFILE, "test-author")
     assert "test-author" in result
     assert "(No profile yet - first appearance)" in result

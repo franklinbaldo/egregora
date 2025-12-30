@@ -24,8 +24,8 @@ from egregora.cli.read import read_app
 from egregora.config import load_egregora_config
 from egregora.config.settings import google_api_key_status
 from egregora.constants import SourceType, WindowUnit
-from egregora.database.elo_store import EloStore
 from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.elo_store import EloStore
 from egregora.diagnostics import HealthStatus, run_diagnostics
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration.pipelines.write import run_cli_flow

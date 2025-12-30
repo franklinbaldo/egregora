@@ -20,9 +20,7 @@ def test_materialize_site_handles_document_not_found_error():
     meta.identifier = "test-post"
 
     source_sink.list.return_value = [meta]
-    source_sink.read_document.side_effect = DocumentNotFoundError(
-        "post", "test-post"
-    )
+    source_sink.read_document.side_effect = DocumentNotFoundError("post", "test-post")
 
     # Act
     materialize_site(source_sink, destination_sink)
