@@ -24,6 +24,7 @@ from egregora.utils.exceptions import (
     DirectoryCreationError,
     FileWriteError,
     FrontmatterDateFormattingError,
+    InvalidDateTimeInputError,
     MissingMetadataError,
     UniqueFilenameError,
 )
@@ -47,6 +48,7 @@ def _extract_clean_date(date_obj: str | date | datetime) -> str:
 
     date_str = str(date_obj).strip()
 
+    # Fallback to regex for strings to find dates within larger text bodies.
     match = _DATE_PATTERN.search(date_str)
     if not match:
         raise DateExtractionError(date_str)
@@ -55,9 +57,9 @@ def _extract_clean_date(date_obj: str | date | datetime) -> str:
         # Use our robust parser on the *matched part* of the string.
         parsed_dt = parse_datetime_flexible(match.group(1))
         return parsed_dt.date().isoformat()
-    except DateTimeParsingError:
+    except (DateTimeParsingError, InvalidDateTimeInputError) as e:
         # The pattern was not a valid date (e.g., "2023-99-99"), so fallback.
-        raise DateExtractionError(date_str) from None
+        raise DateExtractionError(date_str, e) from e
 
 
 def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
@@ -65,7 +67,7 @@ def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
     try:
         dt = parse_datetime_flexible(raw_date, default_timezone=UTC)
         return dt.strftime("%Y-%m-%d %H:%M")
-    except (DateTimeParsingError, AttributeError, ValueError) as e:
+    except (DateTimeParsingError, AttributeError, ValueError, InvalidDateTimeInputError) as e:
         # This will be raised if parse_datetime_flexible fails,
         # which covers all failure modes (None input, empty strings, bad data).
         raise FrontmatterDateFormattingError(str(raw_date), e) from e

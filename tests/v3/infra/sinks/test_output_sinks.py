@@ -246,7 +246,7 @@ def test_mkdocs_sink_generates_correct_frontmatter_structure(tmp_path: Path) -> 
     """Test that the generated frontmatter is valid YAML with the correct structure."""
     import yaml
 
-    doc = Document.create(
+    doc = Document(
         content="Test content.",
         doc_type=DocumentType.POST,
         title='Test Post with "Quotes"',
