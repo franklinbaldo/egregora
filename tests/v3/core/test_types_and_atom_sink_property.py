@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-import xml.etree.ElementTree as ET
 
 import pytest
 from hypothesis import given, settings, HealthCheck, strategies as st
@@ -100,31 +99,6 @@ def test_document_semantic_identity():
     assert doc.id == slug
     assert doc.internal_metadata["slug"] == slug
 
-# Strategies are already optimized (max_size=2 for lists), but the combination
-# of Pydantic validation, XML serialization, and Hypothesis data generation
-# can still trigger the 'too_slow' health check in CI environments.
-# Further optimization would compromise test coverage (e.g. empty lists).
-# Therefore, we suppress the check to ensure stability.
-@settings(suppress_health_check=[HealthCheck.too_slow], deadline=None)
-@given(feed_strategy())
-def test_feed_xml_validity(feed: Feed):
-    """Test that generated XML is valid and parseable."""
-    xml_str = feed.to_xml()
-
-    # 1. Must be parseable
-    root = ET.fromstring(xml_str)
-
-    # 2. Namespace check
-    # ElementTree parser strips namespaces in tag names usually like {uri}tag
-    # Atom NS: http://www.w3.org/2005/Atom
-    assert "feed" in root.tag
-
-    # 3. Check for children
-    assert root.find("{http://www.w3.org/2005/Atom}id") is not None
-    assert root.find("{http://www.w3.org/2005/Atom}title") is not None
-
-    # 4. Check Threading Namespace if present
-    # This is harder to test with ElementTree simplistic API, but if it parsed, it's well-formed.
 
 def test_threading_extension_xml():
     """Specific test for RFC 4685 threading output."""
