@@ -121,20 +121,20 @@ class TestNormalizeSlug(unittest.TestCase):
         self.assertEqual(_normalize_slug("A Valid Slug", "id"), "a-valid-slug")
 
     def test_normalize_slug_none(self):
-        with pytest.raises(ValueError, match="Slug cannot be None or empty"):
+        with pytest.raises(ValueError, match="LLM failed to generate slug"):
             _normalize_slug(None, "id")
 
     def test_normalize_slug_empty(self):
-        with pytest.raises(ValueError, match="Slug cannot be None or empty"):
+        with pytest.raises(ValueError, match="LLM failed to generate slug"):
             _normalize_slug("  ", "id")
 
     def test_normalize_slug_invalid_after_slugify(self):
-        with pytest.raises(ValueError, match="Invalid slug"):
+        with pytest.raises(ValueError, match="LLM slug .* is invalid after normalization"):
             _normalize_slug("!@#$", "id")
 
     def test_normalize_slug_post_is_invalid(self):
         """Test that 'post' is considered an invalid slug after normalization."""
-        with pytest.raises(ValueError, match="Invalid slug"):
+        with pytest.raises(ValueError, match="LLM slug .* is invalid after normalization"):
             _normalize_slug("post", "some-identifier")
 
 
@@ -162,7 +162,7 @@ class TestLoadFileAsBinaryContent(unittest.TestCase):
         with self.test_file.open("wb") as f:
             f.write(b"a" * (21 * 1024 * 1024))  # 21MB
 
-        with pytest.raises(ValueError, match=r"File size .* exceeds the limit of 20 MB"):
+        with pytest.raises(ValueError, match=r"File too large: .*MB exceeds 20MB limit"):
             load_file_as_binary_content(self.test_file, max_size_mb=20)
 
 
