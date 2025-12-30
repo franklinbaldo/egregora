@@ -320,7 +320,7 @@ class EloStore:
                 (history_table.post_a_slug == post_slug) | (history_table.post_b_slug == post_slug)
             )
 
-        history_table = history_table.order_by(history_table.timestamp.desc())
+        history_table = history_table.order_by(ibis.desc("timestamp"))
 
         if limit:
             history_table = history_table.limit(limit)

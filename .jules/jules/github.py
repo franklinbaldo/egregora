@@ -168,6 +168,86 @@ def fetch_failed_logs_summary(pr_number: int, cwd: str = ".") -> str:
     return ""
 
 
+def fetch_full_ci_logs(pr_number: int, branch: str, repo_full: str, cwd: str = ".") -> str:
+    """Fetch full CI logs for the latest failing workflow run on the branch.
+
+    The logs are fetched via the GitHub CLI by first locating recent workflow runs for the
+    branch, then retrieving the log output for the newest failing run. If anything goes wrong
+    (missing CLI, permissions, or decode errors), an empty string is returned so callers can
+    gracefully fall back to summaries.
+    """
+
+    if not branch or not repo_full:
+        return ""
+
+    try:
+        runs_result = subprocess.run(
+            [
+                "gh",
+                "api",
+                f"repos/{repo_full}/actions/runs",
+                "-F",
+                f"branch={branch}",
+                "-F",
+                "event=pull_request",
+                "-F",
+                "per_page=5",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return ""
+
+    try:
+        runs_payload = json.loads(runs_result.stdout)
+    except json.JSONDecodeError:
+        return ""
+
+    workflow_runs = runs_payload.get("workflow_runs", [])
+    failing_runs = [run for run in workflow_runs if run.get("conclusion") == "failure"]
+
+    if not failing_runs:
+        return ""
+
+    logs_sections: list[str] = []
+
+    for run in failing_runs[:1]:
+        run_id = run.get("id")
+        if not run_id:
+            continue
+
+        try:
+            log_result = subprocess.run(
+                [
+                    "gh",
+                    "run",
+                    "view",
+                    str(run_id),
+                    "--log",
+                    "--repo",
+                    repo_full,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            continue
+
+        log_text = log_result.stdout.strip()
+        if not log_text:
+            continue
+
+        workflow_name = run.get("name") or "Workflow"
+        logs_sections.append(f"### {workflow_name} (Run ID: {run_id})\n\n{log_text}")
+
+    return "\n\n".join(logs_sections)
+
+
 def get_repo_info() -> dict[str, str]:
     """Get owner and repo from environment."""
     return {
