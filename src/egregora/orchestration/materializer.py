@@ -7,7 +7,8 @@ bridging the "Database Source of Truth" with the "Static Site Artifact".
 import logging
 from typing import TYPE_CHECKING
 
-from egregora.data_primitives.document import DocumentType
+from egregora.data_primitives.document import DocumentType, OutputSink
+from egregora.output_adapters.exceptions import DocumentNotFoundError
 
 if TYPE_CHECKING:
     from egregora.output_adapters.db_sink import DbOutputSink
@@ -33,9 +34,16 @@ def materialize_site(source: "DbOutputSink", destination: "MkDocsAdapter") -> No
         # DbOutputSink.list() yields metadata. We can use that to fetch docs.
 
         for meta in source.list(doc_type):
-            doc = source.read_document(doc_type, meta.identifier)
-            if doc:
+            try:
+                doc = source.read_document(doc_type, meta.identifier)
                 destination.persist(doc)
                 count += 1
+            except DocumentNotFoundError:
+                logger.warning(
+                    "Skipping materialization of missing document: type=%s, id=%s",
+                    doc_type.value,
+                    meta.identifier,
+                )
+                continue
 
     logger.info("✅ [green]Materialized %d documents to filesystem.[/]", count)

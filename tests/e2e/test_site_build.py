@@ -84,7 +84,7 @@ def test_mkdocs_build_with_material(tmp_path: Path):
     posts_dir.mkdir(parents=True, exist_ok=True)
 
     # Create overrides directory
-    overrides_dir = site_root / ".egregora" / "overrides"
+    overrides_dir = site_root / "overrides"
     overrides_dir.mkdir(parents=True, exist_ok=True)
 
     # Create a simple post

@@ -12,6 +12,9 @@
 # So the first field (minute) must be "0" or "*" to ever match.
 
 [schedules]
+# --- ⏱️ Hourly ---
+taskmaster   = "0 * * * *"   # Hourly - 📋 Task Identification
+
 # --- ⏱️ Daily (Previously Hourly) ---
 essentialist = "0 13 * * *"  # 13:00 - 💎 Pragmatism & Cuts
 sapper       = "0 15 * * *"  # 15:00 - 💣 Exception Structuring
