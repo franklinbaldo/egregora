@@ -14,6 +14,7 @@
 [schedules]
 # --- ⏱️ Hourly ---
 taskmaster   = "0 * * * *"   # Hourly - 📋 Task Identification
+organizer    = "0 * * * *"   # Hourly - 🗂️ Project Organization
 
 # --- ⏱️ Daily (Previously Hourly) ---
 essentialist = "0 13 * * *"  # 13:00 - 💎 Pragmatism & Cuts
