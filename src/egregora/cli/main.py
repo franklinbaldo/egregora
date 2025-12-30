@@ -24,8 +24,8 @@ from egregora.cli.read import read_app
 from egregora.config import load_egregora_config
 from egregora.config.settings import google_api_key_status
 from egregora.constants import SourceType, WindowUnit
+from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
-from egregora.database.utils import get_simple_storage
 from egregora.diagnostics import HealthStatus, run_diagnostics
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration.pipelines.write import run_cli_flow
@@ -246,7 +246,8 @@ def top(
         console.print("Run 'egregora read' first to generate rankings")
         raise typer.Exit(1)
 
-    storage = get_simple_storage(db_path)
+    # Use DuckDBStorageManager directly to ensure Ibis compatibility with EloStore
+    storage = DuckDBStorageManager(db_path)
     elo_store = EloStore(storage)
 
     top_posts = elo_store.get_top_posts(limit=limit).execute()
@@ -327,7 +328,8 @@ def show_reader_history(
         console.print("Run 'egregora read' first to generate rankings")
         raise typer.Exit(1)
 
-    storage = get_simple_storage(db_path)
+    # Use DuckDBStorageManager directly to ensure Ibis compatibility with EloStore
+    storage = DuckDBStorageManager(db_path)
     elo_store = EloStore(storage)
 
     history = elo_store.get_comparison_history(
