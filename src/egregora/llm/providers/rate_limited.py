@@ -45,6 +45,7 @@ class RateLimitedModel(Model):
         # If running via agent.run_sync(), we are in a dedicated thread/loop.
         # Blocking here is fine.
 
+        # TODO: [Taskmaster] Refactor to be non-blocking in async context
         limiter.acquire()
         try:
             return await self.wrapped_model.request(messages, model_settings, model_request_parameters)

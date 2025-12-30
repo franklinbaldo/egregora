@@ -97,6 +97,7 @@ class ModelKeyRotator:
         self._exhausted_models.clear()
         self.key_rotator.reset()
 
+    # TODO: [Taskmaster] Refactor for clarity and reduced complexity
     def call_with_rotation(
         self,
         call_fn: Callable[[str, str], Any],
