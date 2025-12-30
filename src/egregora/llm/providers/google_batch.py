@@ -112,6 +112,7 @@ class GoogleBatchModel(Model):
         )
 
     # ------------------------------------------------------------------ #
+    # TODO: [Taskmaster] Remove duplicate comment block
     # HTTP batch helpers
     # ------------------------------------------------------------------ #
     # ------------------------------------------------------------------ #
@@ -215,6 +216,7 @@ class GoogleBatchModel(Model):
 
         return results
 
+    # TODO: [Taskmaster] Refactor for clarity and conciseness
     def _response_to_dict(self, response: Any) -> dict[str, Any]:
         """Convert SDK response object to dict format."""
         if isinstance(response, dict):
