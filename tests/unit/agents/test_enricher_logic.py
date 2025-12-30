@@ -129,12 +129,12 @@ class TestNormalizeSlug(unittest.TestCase):
             _normalize_slug("  ", "id")
 
     def test_normalize_slug_invalid_after_slugify(self):
-        with pytest.raises(ValueError, match="LLM slug .* is invalid after normalization"):
+        with pytest.raises(ValueError, match=r"LLM slug .* is invalid after normalization"):
             _normalize_slug("!@#$", "id")
 
     def test_normalize_slug_post_is_invalid(self):
         """Test that 'post' is considered an invalid slug after normalization."""
-        with pytest.raises(ValueError, match="LLM slug .* is invalid after normalization"):
+        with pytest.raises(ValueError, match=r"LLM slug .* is invalid after normalization"):
             _normalize_slug("post", "some-identifier")
 
 

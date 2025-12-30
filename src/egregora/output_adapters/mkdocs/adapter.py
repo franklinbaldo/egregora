@@ -311,10 +311,6 @@ class MkDocsAdapter(BaseOutputSink):
         """Check if the site root contains a mkdocs.yml file."""
         return self._scaffolder.supports_site(site_root)
 
-    def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
-        """Create or update an MkDocs site using the dedicated scaffolder."""
-        return self._scaffolder.scaffold_site(site_root, site_name, **_kwargs)
-
     # SiteScaffolder protocol -------------------------------------------------
 
     def scaffold(self, path: Path, config: dict) -> None:

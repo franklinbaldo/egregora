@@ -75,10 +75,7 @@ def test_datetime_utilities() -> bool | None:
 
         # Test ensure_datetime
         result = datetime_utils_mod.ensure_datetime("2023-01-01")
-        if not isinstance(result, datetime):
-            return False
-
-        return True
+        return isinstance(result, datetime)
 
     except (ImportError, AttributeError, exceptions_mod.DateTimeParsingError):
         import traceback
@@ -110,10 +107,7 @@ def test_exception_classes() -> bool | None:
 
         # Test DateTimeParsingError
         exc = exceptions_mod.DateTimeParsingError("invalid", ValueError("test"))
-        if exc.value != "invalid":
-            return False
-
-        return True
+        return exc.value == "invalid"
 
     except (ImportError, AttributeError):
         import traceback

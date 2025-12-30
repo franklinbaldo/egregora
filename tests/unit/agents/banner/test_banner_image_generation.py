@@ -17,13 +17,15 @@ else:  # pragma: no cover - exercised when Google SDKs are absent
     google_api_core.exceptions = google_exceptions
     sys.modules.setdefault("google.api_core", google_api_core)
 
-import google.generativeai as genai
-from google.api_core import exceptions as google_exceptions
+from google.api_core import exceptions as google_exceptions  # noqa: E402
 
-from egregora.agents.banner import agent
-from egregora.agents.banner.agent import BannerInput, _generate_banner_image
-from egregora.agents.banner.image_generation import ImageGenerationRequest, ImageGenerationResult
-from egregora.data_primitives.document import DocumentType
+from egregora.agents.banner import agent  # noqa: E402
+from egregora.agents.banner.agent import BannerInput, _generate_banner_image  # noqa: E402
+from egregora.agents.banner.image_generation import (  # noqa: E402
+    ImageGenerationRequest,
+    ImageGenerationResult,
+)
+from egregora.data_primitives.document import DocumentType  # noqa: E402
 
 
 class _FakeProvider:

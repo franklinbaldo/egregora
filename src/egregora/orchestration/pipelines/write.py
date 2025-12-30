@@ -67,7 +67,6 @@ except ImportError:
     dotenv = None
 
 if TYPE_CHECKING:
-    import google.generativeai as genai
     import ibis.expr.types as ir
 
 
