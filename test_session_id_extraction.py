@@ -1,103 +1,90 @@
 #!/usr/bin/env python3
-"""Test session ID extraction logic with real Jules PRs from GitHub API."""
+"""Test script for session ID extraction logic in the Jules bot."""
 
-import json
 import os
-import subprocess
+import re
 import sys
-from typing import Any
+from re import Pattern
 
-# Import the extraction logic from jules module
+# Ensure the .jules directory is in the path
 sys.path.insert(0, ".jules")
+
 import jules.github as jules_github
 
 
-def fetch_jules_prs() -> list[dict[str, Any]]:
-    """Fetch PRs created by Jules bot using GitHub API via curl."""
-    try:
-        # Get token from environment
-        token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-        if not token:
-            pass
+def test_session_id_extraction_from_branch() -> None:
+    """Test various branch name patterns for session ID extraction."""
+    # Pattern for numeric session IDs (e.g., from Colab)
+    numeric_pattern: Pattern[str] = re.compile(r".*-(\d{15,})$")
+    # Pattern for UUID-based session IDs
+    uuid_pattern: Pattern[str] = re.compile(
+        r".*-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+    )
 
-        # Get repo from git remote
-        cmd = ["git", "config", "--get", "remote.origin.url"]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)  # noqa: S603
-        remote_url = result.stdout.strip()
+    test_cases = [
+        # Numeric ID - Valid
+        ("jules-8447861939500903300", "8447861939500903300", numeric_pattern),
+        # Numeric ID - Too short
+        ("jules-844786193950", None, numeric_pattern),
+        # UUID - Valid
+        ("jules-123e4567-e89b-12d3-a456-426614174000", "123e4567-e89b-12d3-a456-426614174000", uuid_pattern),
+        # UUID - Invalid format
+        ("jules-123e4567-e89b-12d3-a456-42661417400", None, uuid_pattern),
+        # No ID present
+        ("jules-feature-branch", None, None),
+    ]
 
-        # Extract owner/repo from URL
-        # Handle formats: git@github.com:owner/repo.git or https://github.com/owner/repo.git
-        if "github.com" in remote_url:
-            parts = remote_url.split("github.com")[-1].strip("/:").replace(".git", "")
-            owner, repo = parts.split("/")
-        else:
-            owner, repo = "franklinbaldo", "egregora"
-
-        # Fetch PRs via GitHub API
-        url = f"https://api.github.com/repos/{owner}/{repo}/pulls?state=all&per_page=20"
-        curl_cmd = ["curl", "-s", url]
-        if token:
-            curl_cmd.extend(["-H", f"Authorization: Bearer {token}"])
-
-        result = subprocess.run(curl_cmd, capture_output=True, text=True, check=True)  # noqa: S603
-        all_prs = json.loads(result.stdout)
-
-        # Filter for Jules PRs
-        return [
-            {
-                "number": pr["number"],
-                "title": pr["title"],
-                "headRefName": pr["head"]["ref"],
-                "body": pr["body"] or "",
-                "url": pr["html_url"],
-                "author": pr["user"]["login"],
-                "state": pr["state"],
-            }
-            for pr in all_prs
-            if pr["user"]["login"] == "google-labs-jules[bot]"
-        ]
-
-    except (subprocess.CalledProcessError, json.JSONDecodeError):
-        import traceback
-
-        traceback.print_exc()
-        return []
-
-
-def test_session_id_extraction() -> int | None:
-    """Test session ID extraction with real Jules PRs."""
-    prs = fetch_jules_prs()
-
-    if not prs:
-        return None
-
-    success_count = 0
-    fail_count = 0
-
-    for pr in prs:
-        pr.get("number")
-        branch = pr.get("headRefName", "")
-        body = pr.get("body", "")
-        pr.get("title", "")
-        pr.get("state", "")
-
-        # Test extraction
+    for branch, expected_id, pattern in test_cases:
+        body = ""  # Body is empty for these tests
         session_id = jules_github._extract_session_id(branch, body)
 
-        if session_id:
-            success_count += 1
+        if expected_id and pattern:
+            assert session_id == expected_id, f"Failed on branch: {branch}"  # noqa: S101
+            assert pattern.search(branch), f"Pattern {pattern} failed on branch: {branch}"  # noqa: S101
         else:
-            fail_count += 1
+            assert session_id is None, f"Expected no ID but got {session_id} from branch: {branch}"  # noqa: S101
 
-        if session_id:
-            pass
-        else:
-            # Show first 200 chars of body for debugging
-            pass
 
-    assert fail_count == 0
+def test_session_id_extraction_from_body() -> None:
+    """Test various PR body patterns for session ID extraction."""
+    branch = "jules-some-branch"  # Branch has no ID for these tests
+
+    test_cases = [
+        # Jules URL - Valid
+        ("Session URL: https://jules.google.com/task/8447861939500903300", "8447861939500903300"),
+        # Task URL - Valid
+        ("See details at /task/8447861939500903301", "8447861939500903301"),
+        # Sessions URL - Valid
+        ("Progress tracked in /sessions/8447861939500903302", "8447861939500903302"),
+        # No URL in body
+        ("This is a standard PR body with no session link.", None),
+        # Malformed URL
+        ("Linked to /task/ but no ID.", None),
+    ]
+
+    for body, expected_id in test_cases:
+        session_id = jules_github._extract_session_id(branch, body)
+        assert session_id == expected_id, f"Failed on body: {body}"  # noqa: S101
+
+
+def main() -> int:
+    """Run all test cases and print results."""
+    # Set environment variable to indicate testing
+    os.environ["JULES_TESTING"] = "true"
+
+    # Run tests
+    try:
+        test_session_id_extraction_from_branch()
+
+        test_session_id_extraction_from_body()
+
+        return 0
+    except AssertionError:
+        return 1
+    finally:
+        # Clean up environment variable
+        del os.environ["JULES_TESTING"]
 
 
 if __name__ == "__main__":
-    exit_code = test_session_id_extraction()
-    sys.exit(exit_code or 0)
+    sys.exit(main())
