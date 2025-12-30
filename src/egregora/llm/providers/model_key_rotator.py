@@ -102,6 +102,7 @@ class ModelKeyRotator:
         call_fn: Callable[[str, str], Any],
         is_rate_limit_error: Callable[[Exception], bool] | None = None,
     ) -> Any:
+        # TODO: [Taskmaster] Refactor for clarity and simplified logic
         """Call function trying all keys for each model before rotating models.
 
         Args:
