@@ -226,7 +226,7 @@ class Feed(BaseModel):
         template_dir = Path(__file__).parent / "templates"
         env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(template_dir),
-            autoescape=jinja2.select_autoescape(['xml'])
+            autoescape=True
         )
         template = env.get_template("atom.xml.jinja")
         return template.render(feed=self)
