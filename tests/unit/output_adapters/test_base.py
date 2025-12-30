@@ -83,15 +83,14 @@ def test_finalize_window_runs_without_error():
     Then it should run without raising any errors.
     """
     sink = DummySink()
-    try:
-        sink.finalize_window(
-            window_label="test_window",
-            _posts_created=["post1", "post2"],
-            profiles_updated=["profile1"],
-            metadata={},
-        )
-    except Exception as e:
-        pytest.fail(f"finalize_window raised an unexpected exception: {e}")
+    # Pytest will fail the test if an exception is raised, so the try/except
+    # block is not necessary.
+    sink.finalize_window(
+        window_label="test_window",
+        _posts_created=["post1", "post2"],
+        profiles_updated=["profile1"],
+        metadata={},
+    )
 
 
 class TestOutputSinkRegistry:
