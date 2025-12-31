@@ -128,6 +128,23 @@ def test_key_rotator_handles_rate_limit_logging_without_attribute_error(caplog):
     assert any("[KeyRotator] Rate limit on key index" in record.message for record in caplog.records)
 
 
+def test_gemini_key_rotator_fails_when_all_exhausted():
+    """Test that GeminiKeyRotator raises exception when all keys are exhausted."""
+    api_keys = ["key-a", "key-b"]
+    rotator = GeminiKeyRotator(api_keys=api_keys)
+
+    def always_fails(api_key: str) -> str:
+        msg = "429 Too Many Requests"
+        raise RuntimeError(msg)
+
+    try:
+        rotator.call_with_rotation(always_fails)
+        msg = "Should have raised exception"
+        raise AssertionError(msg)
+    except AllModelsExhaustedError as exc:
+        assert "All API keys exhausted" in str(exc)
+
+
 if __name__ == "__main__":
     # Run tests
 
