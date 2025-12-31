@@ -22,6 +22,10 @@ class FilesystemError(Exception):
     """Base exception for filesystem-related errors."""
 
 
+class PathTraversalError(FilesystemError):
+    """Raised when a path would escape its intended directory."""
+
+
 class FilesystemOperationError(FilesystemError):
     """Base exception for file I/O errors."""
 

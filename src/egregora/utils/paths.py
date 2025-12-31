@@ -5,9 +5,9 @@ from unicodedata import normalize
 
 from pymdownx.slugs import slugify as _md_slugify
 
+from egregora.utils.filesystem import PathTraversalError
 
-class PathTraversalError(Exception):
-    """Raised when a path would escape its intended directory."""
+
 
 
 # Pre-configure a slugify instance for reuse.

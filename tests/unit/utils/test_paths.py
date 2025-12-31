@@ -8,7 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from egregora.utils.paths import PathTraversalError, safe_path_join, slugify
+from egregora.utils.filesystem import PathTraversalError
+from egregora.utils.paths import safe_path_join, slugify
 
 
 class TestSlugifyBasicBehavior:
