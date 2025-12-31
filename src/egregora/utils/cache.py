@@ -21,6 +21,9 @@ from egregora.utils.exceptions import (
     CachePayloadTypeError,
 )
 
+from egregora.agents.cache import EnrichmentCache
+from egregora.utils.cache_backend import DiskCacheBackend
+
 if TYPE_CHECKING:
     from pathlib import Path
 
