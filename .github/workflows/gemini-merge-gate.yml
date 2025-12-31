@@ -89,7 +89,7 @@ jobs:
             const truncated = process.env.PATCH_TRUNCATED === 'true';
             const size = process.env.PATCH_BYTES || 'unknown';
 
-            const promptLines = [
+            const prompt = [
               `You are the Gemini Merge Gate for ${context.repo.owner}/${context.repo.repo}.`,
               `Pull Request: #${pr.number} - ${pr.title}`,
               `Author: ${pr.user.login}`,
@@ -105,8 +105,7 @@ jobs:
               '<<<PATCH START>>>',
               process.env.PATCH,
               '<<<PATCH END>>>'
-            ];
-            const prompt = promptLines.join('\n');
+            ].join('\n');
 
             core.setOutput('prompt', prompt);
 
