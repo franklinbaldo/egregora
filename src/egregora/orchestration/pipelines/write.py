@@ -1,3 +1,4 @@
+# TODO: [Taskmaster] Remove commented-out legacy code
 """Write pipeline orchestration - executes the complete write workflow.
 
 This module orchestrates the high-level flow for the 'write' command, coordinating:
@@ -152,6 +153,7 @@ def _load_dotenv_if_available(output_dir: Path) -> None:
         dotenv.load_dotenv()  # Check CWD as well
 
 
+# TODO: [Taskmaster] Refactor API key validation for clarity and separation of concerns
 def _validate_api_key(output_dir: Path) -> None:
     """Validate that API key is set and valid."""
     skip_validation = os.getenv("EGREGORA_SKIP_API_KEY_VALIDATION", "").strip().lower() in {
@@ -314,7 +316,7 @@ def _resolve_sources_to_run(source: str | None, config: EgregoraConfig) -> list[
     return [(default_key, config.site.sources[default_key].adapter)]
 
 
-# TODO: [Taskmaster] Simplify CLI and main run entry points
+# TODO: [Taskmaster] Refactor validation logic into separate functions
 def run_cli_flow(
     input_file: Path,
     *,
@@ -578,7 +580,7 @@ def _extract_adapter_info(ctx: PipelineContext) -> tuple[str, str]:
 # _perform_enrichment REMOVED - functionality moved to PipelineRunner
 
 
-# TODO: [Taskmaster] Isolate resource management
+# TODO: [Taskmaster] Simplify database backend creation
 def _create_database_backends(
     site_root: Path,
     config: EgregoraConfig,
@@ -661,6 +663,7 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> Mk
 
 
 def _create_gemini_client() -> genai.Client:
+    # TODO: [Taskmaster] Refactor hardcoded retry logic to be configurable
     """Create a Gemini client with retry configuration.
 
     The client reads the API key from GOOGLE_API_KEY environment variable automatically.
