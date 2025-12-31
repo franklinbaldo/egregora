@@ -153,6 +153,7 @@ class PipelineRunner:
 
     def process_background_tasks(self) -> None:
         """Process pending background tasks."""
+        # TODO: [Taskmaster] Inefficient worker instantiation
         if not hasattr(self.context, "task_store") or not self.context.task_store:
             return
 
@@ -216,6 +217,7 @@ class PipelineRunner:
         return results
 
     def _process_single_window(self, window: Any, *, depth: int = 0) -> dict[str, dict[str, list[str]]]:
+        # TODO: [Taskmaster] Overly complex method
         """Process a single window with media extraction, enrichment, and post writing."""
         indent = "  " * depth
         window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
@@ -250,6 +252,7 @@ class PipelineRunner:
         resources = PipelineFactory.create_writer_resources(self.context)
         adapter_summary, adapter_instructions = self._extract_adapter_info()
 
+        # TODO: [Taskmaster] Complex data handling logic
         # Convert table to list for command processing
         try:
             messages_list = enriched_table.execute().to_pylist()
