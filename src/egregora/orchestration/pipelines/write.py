@@ -1,3 +1,4 @@
+# TODO: [Taskmaster] Remove commented-out legacy code
 """Write pipeline orchestration - executes the complete write workflow.
 
 This module orchestrates the high-level flow for the 'write' command, coordinating:
@@ -313,6 +314,7 @@ def _resolve_sources_to_run(source: str | None, config: EgregoraConfig) -> list[
     return [(default_key, config.site.sources[default_key].adapter)]
 
 
+# TODO: [Taskmaster] Refactor validation logic into separate functions
 def run_cli_flow(
     input_file: Path,
     *,
@@ -658,6 +660,7 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> Mk
 
 
 def _create_gemini_client() -> genai.Client:
+    # TODO: [Taskmaster] Refactor hardcoded retry logic to be configurable
     """Create a Gemini client with retry configuration.
 
     The client reads the API key from GOOGLE_API_KEY environment variable automatically.
