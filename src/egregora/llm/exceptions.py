@@ -1,37 +1,40 @@
-"""Custom exceptions for LLM provider interactions."""
+"""Custom exceptions for LLM-related errors."""
+
+from typing import Any
 
 
-class LLMProviderError(Exception):
-    """Base exception for all LLM provider related errors."""
+class AllModelsExhaustedError(Exception):
+    """Raised when all models and keys are exhausted."""
+
+    def __init__(self, message: str, causes: list[Exception] | None = None) -> None:
+        super().__init__(message)
+        self.causes = causes or []
 
 
-class BatchJobError(LLMProviderError):
-    """Base exception for errors related to batch job processing."""
+class BatchJobFailedError(Exception):
+    """Raised when a batch job fails."""
 
-    def __init__(self, message: str, job_name: str | None = None) -> None:
+    def __init__(self, message: str, job_name: str, error_payload: Any) -> None:
+        super().__init__(f"{message}: {job_name} -> {error_payload}")
         self.job_name = job_name
-        super().__init__(f"{message}. Job: {job_name}" if job_name else message)
-
-
-class BatchJobFailedError(BatchJobError):
-    """Exception raised when a batch job completes in a failed state."""
-
-    def __init__(self, message: str, job_name: str | None = None, error_payload: dict | None = None) -> None:
         self.error_payload = error_payload
-        super().__init__(message, job_name)
 
 
-class BatchJobTimeoutError(BatchJobError):
-    """Exception raised when polling a batch job for completion times out."""
+class BatchJobTimeoutError(Exception):
+    """Raised when a batch job times out."""
+
+    def __init__(self, message: str, job_name: str) -> None:
+        super().__init__(f"{message}: {job_name}")
+        self.job_name = job_name
 
 
-class BatchResultDownloadError(LLMProviderError):
-    """Exception raised when results of a batch job cannot be downloaded."""
+class BatchResultDownloadError(Exception):
+    """Raised when a batch result cannot be downloaded."""
 
     def __init__(self, message: str, url: str) -> None:
+        super().__init__(f"{message}: {url}")
         self.url = url
-        super().__init__(f"{message}. URL: {url}")
 
 
-class InvalidLLMResponseError(LLMProviderError):
-    """Exception raised when the LLM response is empty or invalid."""
+class InvalidLLMResponseError(Exception):
+    """Raised when an LLM response is invalid."""

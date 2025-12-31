@@ -67,42 +67,34 @@ def simple_chunk_text(
     if len(text) <= max_chars:
         return [text]
 
-    overlap = min(overlap, max_chars // 2)
-    words = text.split()
-    chunks: list[str] = []
-    current: list[str] = []
-    current_len = 0
+    if overlap >= max_chars:
+        overlap = max_chars // 2
 
-    # Overlap buffer
-    overlap_words: list[str] = []
-    overlap_len = 0
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + max_chars
+        if end > len(text):
+            end = len(text)
 
-    for w in words:
-        word_len = len(w) + 1  # +1 for space
+        chunk = text[start:end]
 
-        if current_len + word_len > max_chars and current:
-            chunk_text = " ".join(current)
-            chunks.append(chunk_text)
+        if end < len(text):
+            # Find the last space to avoid cutting words
+            last_space = chunk.rfind(" ")
+            if last_space != -1:
+                end = start + last_space
+                chunk = text[start:end]
 
-            # Build overlap from end of current chunk
-            overlap_words = []
-            overlap_len = 0
-            for overlap_word in reversed(current):
-                overlap_word_len = len(overlap_word) + 1
-                if overlap_len + overlap_word_len <= overlap:
-                    overlap_words.append(overlap_word)
-                    overlap_len += overlap_word_len
-                else:
-                    break
-            overlap_words.reverse()
+        chunks.append(chunk)
 
-            current = overlap_words.copy()
-            current_len = overlap_len
+        start = end - overlap
+        if start >= len(text):
+            break
 
-        current.append(w)
-        current_len += word_len
-
-    if current:
-        chunks.append(" ".join(current))
+        # Find the first space to avoid starting mid-word
+        first_space = text.find(" ", start)
+        if first_space != -1:
+            start = first_space + 1
 
     return chunks

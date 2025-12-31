@@ -1,7 +1,6 @@
 """Tests for the MkDocsOutputSink."""
 from unittest.mock import MagicMock
 import pytest
-from textwrap import dedent
 
 from pathlib import Path
 from egregora_v3.core.types import Feed, Document, DocumentStatus, DocumentType, Author
