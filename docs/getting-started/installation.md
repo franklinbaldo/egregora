@@ -97,10 +97,19 @@ To build the documentation locally:
 
 ```bash
 # 1. Install doc dependencies (only once)
-uv sync --all-extras
+uv sync --extra docs
 
 # 2. Preview your site
-uv run mkdocs serve -f .egregora/mkdocs.yml
+mkdocs serve -f .egregora/mkdocs.yml
+```
+
+### Linting
+
+For development and code quality:
+
+```bash
+uv sync --extra lint
+uv run ruff check src/
 ```
 
 ## Next Steps

@@ -456,7 +456,7 @@ class DuckDBStorageManager:
         else:
             raise InvalidOperationError("Append mode requires checkpoint=True")
 
-    def persist_atomic(self, table: Table, name: str, schema: ibis.Schema | None = None) -> None:
+    def persist_atomic(self, table: Table, name: str, schema: ibis.Schema) -> None:
         """Persist an Ibis table to a DuckDB table atomically using a transaction.
 
         This preserves existing table properties (like indexes) by performing a
@@ -470,9 +470,6 @@ class DuckDBStorageManager:
         """
         if not re.fullmatch("[A-Za-z_][A-Za-z0-9_]*", name):
             raise InvalidTableNameError(name)
-
-        if schema is None:
-            raise InvalidOperationError("Schema must be provided for persist_atomic")
 
         target_schema = schema
         schemas.create_table_if_not_exists(self._conn, name, target_schema)

@@ -1,4 +1,3 @@
-# TODO: [Taskmaster] Remove commented-out legacy code
 """Write pipeline orchestration - executes the complete write workflow.
 
 This module orchestrates the high-level flow for the 'write' command, coordinating:
@@ -15,7 +14,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date as date_type
@@ -53,7 +51,6 @@ from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import MkDocsPaths
 from egregora.rag import index_documents, reset_backend
 from egregora.transformations import (
-    Window,
     WindowConfig,
     create_windows,
     load_checkpoint,
@@ -155,7 +152,6 @@ def _load_dotenv_if_available(output_dir: Path) -> None:
         dotenv.load_dotenv()  # Check CWD as well
 
 
-# TODO: [Taskmaster] Refactor API key validation for clarity and separation of concerns
 def _validate_api_key(output_dir: Path) -> None:
     """Validate that API key is set and valid."""
     skip_validation = os.getenv("EGREGORA_SKIP_API_KEY_VALIDATION", "").strip().lower() in {
@@ -317,7 +313,6 @@ def _resolve_sources_to_run(source: str | None, config: EgregoraConfig) -> list[
     return [(default_key, config.site.sources[default_key].adapter)]
 
 
-# TODO: [Taskmaster] Refactor validation logic into separate functions
 def run_cli_flow(
     input_file: Path,
     *,
@@ -521,7 +516,7 @@ class PreparedPipelineData:
     """Artifacts produced during dataset preparation."""
 
     messages_table: ir.Table
-    windows_iterator: Iterator[Window]
+    windows_iterator: any
     checkpoint_path: Path
     context: PipelineContext
     enable_enrichment: bool
@@ -581,11 +576,10 @@ def _extract_adapter_info(ctx: PipelineContext) -> tuple[str, str]:
 # _perform_enrichment REMOVED - functionality moved to PipelineRunner
 
 
-# TODO: [Taskmaster] Simplify database backend creation
 def _create_database_backends(
     site_root: Path,
     config: EgregoraConfig,
-) -> tuple[str, Any, Any]:
+) -> tuple[str, any, any]:
     """Create database backends for pipeline and runs tracking.
 
     Uses Ibis for database abstraction, allowing future migration to
@@ -605,7 +599,7 @@ def _create_database_backends(
 
     """
 
-    def _validate_and_connect(value: str, setting_name: str) -> tuple[str, Any]:
+    def _validate_and_connect(value: str, setting_name: str) -> tuple[str, any]:
         if not value:
             msg = f"Database setting '{setting_name}' must be a non-empty connection URI."
             raise ValueError(msg)
@@ -664,7 +658,6 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> Mk
 
 
 def _create_gemini_client() -> genai.Client:
-    # TODO: [Taskmaster] Refactor hardcoded retry logic to be configurable
     """Create a Gemini client with retry configuration.
 
     The client reads the API key from GOOGLE_API_KEY environment variable automatically.
@@ -685,7 +678,7 @@ def _create_gemini_client() -> genai.Client:
     return genai.Client(http_options=http_options)
 
 
-def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineContext, Any, Any]:
+def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineContext, any, any]:
     """Create pipeline context with all resources and configuration.
 
     Args:
@@ -768,7 +761,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
 
 
 @contextmanager
-def _pipeline_environment(run_params: PipelineRunParams) -> Iterator[tuple[PipelineContext, Any]]:
+def _pipeline_environment(run_params: PipelineRunParams) -> any:
     """Context manager that provisions and tears down pipeline resources.
 
     Args:
@@ -808,7 +801,7 @@ def _pipeline_environment(run_params: PipelineRunParams) -> Iterator[tuple[Pipel
 
 
 def _parse_and_validate_source(
-    adapter: Any,
+    adapter: any,
     input_path: Path,
     timezone: str,
     *,
@@ -920,7 +913,7 @@ def _process_commands_and_avatars(
 
 
 def _prepare_pipeline_data(
-    adapter: Any,
+    adapter: any,
     run_params: PipelineRunParams,
     ctx: PipelineContext,
 ) -> PreparedPipelineData:
@@ -1187,7 +1180,7 @@ def _apply_filters(
     )
 
 
-def _init_global_rate_limiter(quota_config: Any) -> None:
+def _init_global_rate_limiter(quota_config: any) -> None:
     """Initialize the global rate limiter."""
     init_rate_limiter(
         requests_per_second=quota_config.per_second_limit,

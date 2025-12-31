@@ -1,4 +1,4 @@
-"""Token counting and estimation utilities."""
+"""Text processing utilities."""
 
 from __future__ import annotations
 

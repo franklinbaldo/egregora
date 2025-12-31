@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 from xml.etree.ElementTree import Element, register_namespace, SubElement, tostring
+import jinja2
+from pathlib import Path
 
 from markdown_it import MarkdownIt
 from pydantic import BaseModel, Field, model_validator
@@ -218,6 +220,16 @@ class Feed(BaseModel):
             for doc in self.entries
             if isinstance(doc, Document) and doc.status == DocumentStatus.PUBLISHED
         ]
+
+    def to_xml(self) -> str:
+        """Serialize the feed to an Atom XML string."""
+        template_dir = Path(__file__).parent / "templates"
+        env = jinja2.Environment(
+            loader=jinja2.FileSystemLoader(template_dir),
+            autoescape=True
+        )
+        template = env.get_template("atom.xml.jinja")
+        return template.render(feed=self)
 
     @classmethod
     def from_documents(
