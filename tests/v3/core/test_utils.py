@@ -11,6 +11,7 @@ from egregora_v3.core.utils import simple_chunk_text, slugify
         ("  leading & trailing spaces  ", 60, "leading-trailing-spaces"),
         ("!@#$%^&*()_=+[]{};:'\",.<>/?`~", 60, "untitled"),
         ("---multiple---hyphens---", 60, "multiple-hyphens"),
+        # Ensure slug is correctly truncated to max_len
         ("A" * 100, 20, "aaaaaaaaaaaaaaaaaaaa"),
         ("long text that gets cut off", 10, "long-text"),
         ("empty input", 60, "empty-input"),
