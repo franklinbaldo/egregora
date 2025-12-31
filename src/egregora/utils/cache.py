@@ -19,7 +19,6 @@ import diskcache
 from egregora.utils.cache_backend import CacheBackend, DiskCacheBackend
 from egregora.utils.exceptions import (
     CacheDeserializationError,
-    CacheKeyNotFoundError,
     CachePayloadTypeError,
 )
 
