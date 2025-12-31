@@ -55,12 +55,12 @@ from egregora.output_adapters.exceptions import (
 )
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
+from egregora.utils.authors import ensure_author_entries
 from egregora.utils.datetime_utils import (
     DateTimeParsingError,
     InvalidDateTimeInputError,
     parse_datetime_flexible,
 )
-from egregora.utils.filesystem import ensure_author_entries
 from egregora.utils.paths import safe_path_join, slugify
 
 if TYPE_CHECKING:

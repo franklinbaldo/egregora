@@ -7,9 +7,6 @@ from pymdownx.slugs import slugify as _md_slugify
 
 from egregora.utils.filesystem import PathTraversalError
 
-
-
-
 # Pre-configure a slugify instance for reuse.
 # This is more efficient than creating a new slugifier on each call.
 slugify_lower = _md_slugify(case="lower", separator="-")
