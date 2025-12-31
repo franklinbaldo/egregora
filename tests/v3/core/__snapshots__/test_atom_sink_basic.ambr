@@ -29,15 +29,20 @@
 
 
 
-      <content type="text/plain">Test content</content>
 
 
 
-      <category scheme="https://egregora.app/schema#doc_type" term="post" />
-      <category scheme="https://egregora.app/schema#status" term="draft" />
+
+      <content type="html">Test content</content>
+
+
+
+      <category scheme="https://egregora.app/schema#doc_type" term="post"/>
+      <category scheme="https://egregora.app/schema#status" term="draft"/>
 
     </entry>
 
   </feed>
+
   '''
 # ---

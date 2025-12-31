@@ -104,12 +104,11 @@ def test_entry_with_links():
 
     xml = render_feed_to_xml(feed)
 
-    # TODO: Re-enable these assertions when entry.links are rendered in the template
     # Check for enclosure link (attribute order may vary)
-    # assert 'rel="enclosure"' in xml
-    # assert 'href="http://example.org/photo.jpg"' in xml
-    # assert 'type="image/jpeg"' in xml
-    # assert 'length="245760"' in xml
+    assert 'rel="enclosure"' in xml
+    assert 'href="http://example.org/photo.jpg"' in xml
+    assert 'type="image/jpeg"' in xml
+    assert 'length="245760"' in xml
 
 
 def test_entry_with_categories():
@@ -133,10 +132,9 @@ def test_entry_with_categories():
 
     xml = render_feed_to_xml(feed)
 
-    # TODO: Re-enable these assertions when entry.categories are rendered in the template
-    # assert '<category term="python"' in xml
-    # assert 'label="Python"' in xml
-    # assert '<category term="tdd"' in xml
+    assert '<category term="python"' in xml
+    assert 'label="Python"' in xml
+    assert '<category term="tdd"' in xml
 
 
 def test_feed_parses_as_valid_xml(snapshot):

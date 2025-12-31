@@ -35,20 +35,16 @@ class RateLimitedModel(Model):
 
         # Acquire slot (blocks if needed)
         # Note: limiter.acquire() is blocking (sync).
-        # TODO: [Taskmaster] Clarify async execution comments
-        # The comments below are confusing and outdated. They discuss a move
-        # to synchronous execution that may or may not be complete.
-        # The documentation should be updated to reflect the current state
-        # of the execution model and remove any ambiguity.
+        # Since we are in async method, this blocks the event loop if not careful.
+        # But we are moving to synchronous execution mostly.
+        # However, pydantic-ai Agent calls this async method.
+        # If we block here, we block the loop.
+        # But since we are de-asyncing, maybe we should use run_in_executor?
+        # Or just accept blocking if we are running in a thread (run_sync does that).
 
         # If running via agent.run_sync(), we are in a dedicated thread/loop.
         # Blocking here is fine.
 
-        # TODO: [Taskmaster] Refactor to safely handle blocking call in async method
-        # TODO: [Taskmaster] Refactor to use a try...finally block for consistency
-        # The current implementation is inconsistent with `request_stream`.
-        # It should acquire the limiter and then use a `try...finally`
-        # block to ensure the limiter is always released.
         limiter.acquire()
         try:
             return await self.wrapped_model.request(messages, model_settings, model_request_parameters)

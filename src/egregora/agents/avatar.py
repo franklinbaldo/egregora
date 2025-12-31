@@ -19,7 +19,6 @@ from PIL import Image
 from pydantic_ai import Agent
 from ratelimit import limits, sleep_and_retry
 
-from egregora.agents.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.agents.enricher import (
     EnrichmentOutput,
     ensure_datetime,
