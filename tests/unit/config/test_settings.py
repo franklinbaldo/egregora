@@ -28,9 +28,7 @@ def test_get_google_api_key_returns_google_key():
 
 def test_get_google_api_key_prefers_gemini_key():
     """Test that GEMINI_API_KEY is preferred when both are set."""
-    with patch.dict(
-        os.environ, {"GEMINI_API_KEY": "gemini_key", "GOOGLE_API_KEY": "google_key"}, clear=True
-    ):
+    with patch.dict(os.environ, {"GEMINI_API_KEY": "gemini_key", "GOOGLE_API_KEY": "google_key"}, clear=True):
         assert get_google_api_key() == "gemini_key"
 
 

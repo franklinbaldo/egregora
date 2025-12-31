@@ -8,9 +8,9 @@ from egregora.config.settings import EgregoraConfig
 
 
 @pytest.fixture
-def mock_config() -> EgregoraConfig:
+def mock_config(config_factory) -> EgregoraConfig:
     """Fixture for a mock EgregoraConfig."""
-    config = EgregoraConfig()
+    config = config_factory()
     config.models.writer = "google-gla:gemini-test"
     return config
 
@@ -27,7 +27,7 @@ async def test_create_writer_model_raises_error_on_missing_google_api_key(
 ):
     """Test that create_writer_model raises ValueError when Google API key is missing."""
     with patch.dict(os.environ, {}, clear=True):
-        with pytest.raises(ValueError, match="A Google model is configured, but no API key was found."):
+        with pytest.raises(ValueError, match=r"A Google model is configured, but no API key was found\."):
             await create_writer_model(mock_config, mock_context, "test prompt")
 
 
