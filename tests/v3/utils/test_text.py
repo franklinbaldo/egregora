@@ -1,6 +1,6 @@
 
 import pytest
-from egregora_v3.core.utils import simple_chunk_text
+from egregora_v3.utils.text import simple_chunk_text, slugify
 
 
 def test_simple_chunk_text_empty():
@@ -29,7 +29,18 @@ def test_simple_chunk_text_exact_multiple():
 def test_simple_chunk_text_with_overlap():
     text = "one two three four five six seven eight nine ten"
     chunks = simple_chunk_text(text, max_chars=20, overlap=10)
-    assert len(chunks) == 3
-    assert chunks[0] == "one two three four"
-    assert chunks[1] == "three four five six"
-    assert chunks[2] == "six seven eight nine ten"
+    expected_chunks = [
+        "one two three four",
+        "four five six seven",
+        "six seven eight",
+        "eight nine ten",
+    ]
+    assert chunks == expected_chunks
+
+
+def test_slugify():
+    assert slugify("Hello World") == "hello-world"
+    assert slugify("Café") == "cafe"
+    assert slugify("A" * 100, max_len=20) == "aaaaaaaaaaaaaaaaaaaa"
+    assert slugify("!@#$%^&*()") == "untitled"
+    assert slugify(" leading-and-trailing- ") == "leading-and-trailing"

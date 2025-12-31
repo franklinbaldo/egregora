@@ -94,6 +94,29 @@ def test_feed_to_xml_handles_document_and_entry():
 
 
 @freeze_time("2023-01-01T12:00:00Z")
+def test_document_sets_updated_timestamp_if_not_provided():
+    """Verify that 'updated' timestamp is set automatically."""
+    doc = Document(
+        title="A post with no timestamp",
+        doc_type=DocumentType.POST,
+        content="Hello",
+    )
+    assert doc.updated == datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
+
+
+def test_document_respects_explicit_timestamp():
+    """Verify that an explicit 'updated' timestamp is respected."""
+    explicit_time = datetime(2025, 5, 5, 5, 5, 5, tzinfo=UTC)
+    doc = Document(
+        title="A post with a timestamp",
+        doc_type=DocumentType.POST,
+        content="Hello",
+        updated=explicit_time,
+    )
+    assert doc.updated == explicit_time
+
+
+@freeze_time("2023-01-01T12:00:00Z")
 def test_feed_to_xml_snapshot(snapshot):
     """Verify Feed.to_xml serialization against a snapshot."""
     feed = Feed(

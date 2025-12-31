@@ -202,6 +202,7 @@ def _validate_api_key(output_dir: Path) -> None:
     raise SystemExit(1)
 
 
+# TODO: [Taskmaster] Refactor configuration management
 def _prepare_write_config(
     options: WriteCommandOptions, from_date_obj: date_type | None, to_date_obj: date_type | None
 ) -> Any:
@@ -919,6 +920,7 @@ def _process_commands_and_avatars(
     return messages_table
 
 
+# TODO: [Taskmaster] Decompose pipeline preparation logic
 def _prepare_pipeline_data(
     adapter: Any,
     run_params: PipelineRunParams,
@@ -1209,6 +1211,7 @@ def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
 
 
 def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
+    # TODO: [Taskmaster] Simplify CLI and main run entry points
     """Run the complete write pipeline workflow.
 
     Args:

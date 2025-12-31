@@ -156,8 +156,10 @@ def test_atom_xml_sink_uses_feed_to_xml(sample_feed: Feed, tmp_path: Path) -> No
 
     sink.publish(sample_feed)
 
+    from egregora_v3.core.atom import feed_to_xml_string
+
     # Output should match Feed.to_xml()
-    expected_xml = sample_feed.to_xml()
+    expected_xml = feed_to_xml_string(sample_feed)
     actual_xml = output_file.read_text()
 
     assert actual_xml == expected_xml

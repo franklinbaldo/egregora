@@ -47,6 +47,9 @@ class PipelineCache:
                            'all' refreshes everything.
 
         """
+        from egregora.agents.cache import EnrichmentCache
+        from egregora.utils.cache_backend import DiskCacheBackend
+
         self.base_dir = base_dir.expanduser().resolve()
         self.refresh_tiers = refresh_tiers or set()
 

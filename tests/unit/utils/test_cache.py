@@ -4,11 +4,11 @@ import pytest
 
 from egregora.utils.cache import (
     CacheDeserializationError,
-    CacheKeyNotFoundError,
     CachePayloadTypeError,
-    DiskCacheBackend,
-    EnrichmentCache,
 )
+from egregora.utils.exceptions import CacheKeyNotFoundError
+from egregora.utils.cache_backend import DiskCacheBackend
+from egregora.agents.cache import EnrichmentCache
 
 
 def test_disk_cache_backend_get_raises_key_not_found_error(tmp_path):

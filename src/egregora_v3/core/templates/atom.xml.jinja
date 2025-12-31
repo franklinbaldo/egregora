@@ -36,7 +36,7 @@
     {% endfor %}
 
     {% if entry.content %}
-    <content type="{% if entry.content_type in ['text/html', 'text/xhtml'] %}html{% elif entry.content_type == 'text/markdown' %}text{% else %}{{ entry.content_type or 'text/plain' }}{% endif %}">{{ entry.content }}</content>
+    <content type="{% if entry.content_type in ['text/html', 'text/xhtml'] %}html{% elif entry.content_type == 'text/markdown' %}text{% else %}{{ entry.content_type or 'html' }}{% endif %}">{{ entry.content }}</content>
     {% endif %}
 
     {% if entry.is_document %}
