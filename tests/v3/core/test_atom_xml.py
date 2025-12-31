@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 
+from egregora_v3.core.atom import render_atom_feed
 from egregora_v3.core.types import Author, Document, DocumentStatus, DocumentType, Entry, Feed, Link
 
 
@@ -29,7 +30,7 @@ def test_feed_to_xml_serialization():
         links=[Link(href="http://example.com/feed", rel="self")],
     )
 
-    xml_output = feed.to_xml()
+    xml_output = render_atom_feed(feed)
 
     # Basic assertions
     assert '<?xml version=\'1.0\' encoding=\'UTF-8\'?>' in xml_output
