@@ -35,3 +35,11 @@ class BatchResultDownloadError(LLMProviderError):
 
 class InvalidLLMResponseError(LLMProviderError):
     """Exception raised when the LLM response is empty or invalid."""
+
+
+class AllModelsExhaustedError(LLMProviderError):
+    """Exception raised when all models and their API keys are exhausted."""
+
+    def __init__(self, message: str, causes: list[Exception] | None = None) -> None:
+        self.causes = causes or []
+        super().__init__(message)

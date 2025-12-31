@@ -25,8 +25,10 @@ description = """
 **Verification:** After these changes, the `mkdocs build` command should succeed, and the test suite should pass.
 
 **Curator's Note (2025-12-25):** Moving this back to 'pending'. The underlying issue is in the `mkdocs.yml.jinja` template. The `custom_dir` is hardcoded to `overrides`, which is incorrect. The previous fix was a workaround. The template itself must be corrected.
+
+**Curator's Note (2025-12-31):** Verification failed. The generated `demo/.egregora/mkdocs.yml` still contains `custom_dir: ../overrides`, which is incorrect. The fix needs to be applied to the template so that the generated path is correct.
 """
-status = "review"
+status = "pending"
 category = "infrastructure"
 assignee = "forge"
 
@@ -40,8 +42,10 @@ The generated site has a broken navigation link for "Media". This creates a poor
 1. **Fix `mkdocs.yml` nav entry**: The path for "Media" in the `nav` section of the `mkdocs.yml` template must be corrected to point to a valid directory (e.g., `media/index.md` or similar, not inside `posts/`).
 2. **Ensure file generation**: Confirm that the corresponding media index file is being correctly generated in the `docs` directory during the site build.
 **Verification**: The "Media" link in the main navigation must resolve to a valid, styled page without any 404 errors.
+
+**Curator's Note (2025-12-31):** Verification failed. The generated `demo/.egregora/mkdocs.yml` still contains the incorrect navigation link for "Media": `posts/media/index.md`. This needs to be corrected in the source template.
 """
-status = "review"
+status = "pending"
 category = "navigation"
 assignee = "forge"
 
@@ -57,8 +61,10 @@ description = """
 3.  It should run a Lighthouse audit against the served site's index page.
 4.  The script should output the key scores (Performance, Accessibility, Best Practices, SEO) to the console.
 5.  Bonus: Have the script automatically update the `[lighthouse.current]` section in `TODO.ux.toml`.
+
+**Curator's Note (2025-12-31):** Verification failed. The script does not exist at the specified path (`.jules/scripts/run_lighthouse.py`). This task is a high-priority blocker for my UX work.
 """
-status = "review"
+status = "pending"
 category = "infrastructure"
 assignee = "forge"
 

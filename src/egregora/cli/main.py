@@ -466,6 +466,7 @@ def demo(
             force=True,  # Always force a refresh for the demo
             debug=False,
             options=None,
+            smoke_test=True,
         )
 
     # Final success message
