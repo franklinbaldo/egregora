@@ -159,10 +159,7 @@ class ModelKeyRotator:
 
         # All models+keys exhausted
         if last_exception:
-            raise AllModelsExhaustedError(
-                "All models and keys exhausted",
-                causes=[last_exception],
-            ) from last_exception
+            raise AllModelsExhaustedError("All models and keys exhausted", causes=[last_exception]) from last_exception
         msg = "All models and keys exhausted"
         raise AllModelsExhaustedError(msg)
 
