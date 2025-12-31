@@ -1,4 +1,4 @@
-"""V3 utility functions - independent of V2."""
+"""General text utility functions."""
 
 import re
 from unicodedata import normalize
