@@ -171,34 +171,35 @@ class Document(Entry):
 
     @model_validator(mode="before")
     @classmethod
-    def _set_identity_and_timestamps(cls, data: Any) -> Any:
-        """Set identity (id, slug) and timestamps before validation.
-
-        This allows for declarative instantiation of Document and its subclasses
-        without needing a factory method.
-        """
+    def _set_identity(cls, data: Any) -> Any:
+        """Set identity (id, slug) before validation."""
         if not isinstance(data, dict):
-            return data  # Not a dict, let Pydantic handle it
+            return data
 
-        # If 'id' is already set, respect it.
         if "id" in data and data["id"]:
             return data
 
         internal_metadata = data.get("internal_metadata", {})
         slug = internal_metadata.get("slug")
 
-        # If still no slug, generate from title if it exists
         if not slug and data.get("title"):
             slug = slugify(str(data["title"]).strip())
 
         if slug:
-            # Set the derived values
             data["id"] = slug
             if "internal_metadata" not in data:
                 data["internal_metadata"] = {}
             data["internal_metadata"]["slug"] = slug
 
-        # Set timestamp if not present
+        return data
+
+    @model_validator(mode="before")
+    @classmethod
+    def _set_timestamps(cls, data: Any) -> Any:
+        """Set timestamps before validation."""
+        if not isinstance(data, dict):
+            return data
+
         if "updated" not in data:
             data["updated"] = datetime.now(UTC)
 
