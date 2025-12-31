@@ -198,6 +198,7 @@ def _validate_api_key(output_dir: Path) -> None:
     raise SystemExit(1)
 
 
+# TODO: [Taskmaster] Refactor configuration management
 def _prepare_write_config(
     options: WriteCommandOptions, from_date_obj: date_type | None, to_date_obj: date_type | None
 ) -> Any:
@@ -313,6 +314,7 @@ def _resolve_sources_to_run(source: str | None, config: EgregoraConfig) -> list[
     return [(default_key, config.site.sources[default_key].adapter)]
 
 
+# TODO: [Taskmaster] Simplify CLI and main run entry points
 def run_cli_flow(
     input_file: Path,
     *,
@@ -576,6 +578,7 @@ def _extract_adapter_info(ctx: PipelineContext) -> tuple[str, str]:
 # _perform_enrichment REMOVED - functionality moved to PipelineRunner
 
 
+# TODO: [Taskmaster] Isolate resource management
 def _create_database_backends(
     site_root: Path,
     config: EgregoraConfig,
@@ -912,6 +915,7 @@ def _process_commands_and_avatars(
     return messages_table
 
 
+# TODO: [Taskmaster] Decompose pipeline preparation logic
 def _prepare_pipeline_data(
     adapter: any,
     run_params: PipelineRunParams,
@@ -1202,6 +1206,7 @@ def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
 
 
 def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
+    # TODO: [Taskmaster] Simplify CLI and main run entry points
     """Run the complete write pipeline workflow.
 
     Args:
