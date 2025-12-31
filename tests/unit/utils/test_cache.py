@@ -3,11 +3,8 @@ from __future__ import annotations
 import pytest
 
 from egregora.utils.cache import (
-    CacheDeserializationError,
     CacheKeyNotFoundError,
-    CachePayloadTypeError,
     DiskCacheBackend,
-    EnrichmentCache,
 )
 
 

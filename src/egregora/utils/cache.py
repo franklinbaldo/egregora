@@ -12,9 +12,82 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 import diskcache
+from pydantic import BaseModel, ValidationError
+
+from egregora.utils.cache_backend import CacheBackend, DiskCacheBackend
+from egregora.utils.exceptions import (
+    CacheDeserializationError,
+    CacheKeyNotFoundError,
+    CachePayloadTypeError,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+class EnrichmentCache:
+    """Cache for storing and retrieving enrichment data using a pluggable backend."""
+
+    def __init__(self, backend: CacheBackend) -> None:
+        """Initialize the cache with a storage backend."""
+        self.backend = backend
+
+    def get(self, key: str, model: type[BaseModel]) -> BaseModel | None:
+        """Retrieve and validate an item from the cache.
+
+        Args:
+            key: The cache key.
+            model: The Pydantic model to validate the data against.
+
+        Returns:
+            The validated Pydantic model instance, or None if the key is not found.
+
+        Raises:
+            CacheDeserializationError: If the data is corrupted or fails validation.
+            CachePayloadTypeError: If the retrieved payload is not a dictionary.
+
+        """
+        try:
+            data = self.backend.get(key)
+            if data is None:
+                return None
+
+            if not isinstance(data, dict):
+                raise CachePayloadTypeError(key=key, payload_type=type(data))
+
+            return model.model_validate(data)
+
+        except (ValidationError, TypeError) as e:
+            raise CacheDeserializationError(key=key, original_exception=e) from e
+        except CacheKeyNotFoundError:
+            return None
+
+    def set(self, key: str, value: BaseModel) -> None:
+        """Set an item in the cache.
+
+        Args:
+            key: The cache key.
+            value: The Pydantic model instance to store.
+
+        """
+        self.backend.set(key, value.model_dump(mode="json"))
+
+    def close(self) -> None:
+        """Close the cache and its backend."""
+        self.backend.close()
+
+
+def make_enrichment_cache_key(content: str, salt: str, model_name: str | None = None) -> str:
+    """Create a consistent cache key for enrichment data."""
+    import hashlib
+
+    hasher = hashlib.sha256()
+    hasher.update(content.encode("utf-8"))
+    hasher.update(salt.encode("utf-8"))
+    if model_name:
+        hasher.update(model_name.encode("utf-8"))
+    return hasher.hexdigest()
+
 
 logger = logging.getLogger(__name__)
 
@@ -81,38 +154,3 @@ class PipelineCache:
         self.enrichment.close()
         self.rag.close()
         self.writer.close()
-
-
-class CacheError(Exception):
-    """Base exception for cache-related errors."""
-
-
-class CacheDeserializationError(CacheError):
-    """Raised when a cache entry cannot be deserialized."""
-
-    def __init__(self, key: str, original_exception: Exception) -> None:
-        self.key = key
-        self.original_exception = original_exception
-        message = f"Failed to deserialize cache entry for key '{key}'. Original error: {original_exception}"
-        super().__init__(message)
-
-
-class CachePayloadTypeError(CacheError):
-    """Raised when a cache entry has an unexpected type."""
-
-    def __init__(self, key: str, payload_type: type) -> None:
-        self.key = key
-        self.payload_type = payload_type
-        message = (
-            f"Unexpected cache payload type for key '{key}': got {payload_type.__name__}, expected dict."
-        )
-        super().__init__(message)
-
-
-class CacheKeyNotFoundError(CacheError):
-    """Raised when a key is not found in the cache."""
-
-    def __init__(self, key: str) -> None:
-        self.key = key
-        message = f"Key not found in cache: '{key}'"
-        super().__init__(message)

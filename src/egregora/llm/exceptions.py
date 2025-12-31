@@ -1,37 +1,17 @@
-"""Custom exceptions for LLM provider interactions."""
+"""Exceptions for LLM-related operations."""
 
 
-class LLMProviderError(Exception):
-    """Base exception for all LLM provider related errors."""
+class AllModelsExhaustedError(Exception):
+    """Raised when all LLM models have been tried and failed."""
 
 
-class BatchJobError(LLMProviderError):
-    """Base exception for errors related to batch job processing."""
-
-    def __init__(self, message: str, job_name: str | None = None) -> None:
-        self.job_name = job_name
-        super().__init__(f"{message}. Job: {job_name}" if job_name else message)
+class BatchJobFailedError(Exception):
+    """Raised when a batch job fails."""
 
 
-class BatchJobFailedError(BatchJobError):
-    """Exception raised when a batch job completes in a failed state."""
-
-    def __init__(self, message: str, job_name: str | None = None, error_payload: dict | None = None) -> None:
-        self.error_payload = error_payload
-        super().__init__(message, job_name)
+class BatchJobTimeoutError(Exception):
+    """Raised when a batch job times out."""
 
 
-class BatchJobTimeoutError(BatchJobError):
-    """Exception raised when polling a batch job for completion times out."""
-
-
-class BatchResultDownloadError(LLMProviderError):
-    """Exception raised when results of a batch job cannot be downloaded."""
-
-    def __init__(self, message: str, url: str) -> None:
-        self.url = url
-        super().__init__(f"{message}. URL: {url}")
-
-
-class InvalidLLMResponseError(LLMProviderError):
-    """Exception raised when the LLM response is empty or invalid."""
+class BatchResultDownloadError(Exception):
+    """Raised when a batch job result cannot be downloaded."""
