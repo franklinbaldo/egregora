@@ -1,0 +1,159 @@
+name: Shared Gemini Runner
+description: Run Gemini with a fallback model list and standardized outputs.
+
+inputs:
+  prompt:
+    description: Prompt to send to Gemini.
+    required: true
+  fallback_models:
+    description: JSON array of Gemini model IDs in preferred order.
+    required: true
+  gemini_api_key:
+    description: API key used to call Gemini.
+    required: true
+
+outputs:
+  summary:
+    description: Gemini response summary from the first successful model.
+    value: ${{ steps.select.outputs.summary }}
+  outcome:
+    description: Outcome of the Gemini run (success or failure).
+    value: ${{ steps.select.outputs.outcome }}
+  model:
+    description: Model that produced the selected summary.
+    value: ${{ steps.select.outputs.model }}
+  diagnostics:
+    description: Human-readable attempt log for troubleshooting.
+    value: ${{ steps.select.outputs.diagnostics }}
+  attempts:
+    description: JSON array of attempted models in order.
+    value: ${{ steps.select.outputs.attempts }}
+
+runs:
+  using: composite
+  steps:
+    - name: Parse fallback models
+      id: models
+      shell: bash
+      env:
+        FALLBACK_MODELS: ${{ inputs.fallback_models }}
+      run: |
+        set -euo pipefail
+
+        python - <<'PY' > /tmp/models
+import json
+import os
+import sys
+
+raw = os.environ.get("FALLBACK_MODELS", "")
+try:
+    models = json.loads(raw)
+except json.JSONDecodeError as exc:  # pragma: no cover - executed in workflow only
+    sys.exit(f"fallback_models must be valid JSON: {exc}")
+
+if not isinstance(models, list) or not models:
+    sys.exit("fallback_models must be a non-empty JSON array")
+
+for index in range(3):
+    value = models[index] if index < len(models) else ""
+    print(f"model_{index}={value}")
+
+print(f"attempts_json={json.dumps(models)}")
+PY
+
+        cat /tmp/models >> "$GITHUB_OUTPUT"
+
+    - name: Run Gemini (primary)
+      id: gemini_primary
+      uses: google-github-actions/run-gemini-cli@v0
+      continue-on-error: true
+      with:
+        gemini_api_key: ${{ inputs.gemini_api_key }}
+        gemini_model: ${{ steps.models.outputs.model_0 }}
+        prompt: ${{ inputs.prompt }}
+
+    - name: Run Gemini (fallback 1)
+      id: gemini_fallback_1
+      if: steps.gemini_primary.outcome == 'failure' && steps.models.outputs.model_1 != ''
+      uses: google-github-actions/run-gemini-cli@v0
+      continue-on-error: true
+      with:
+        gemini_api_key: ${{ inputs.gemini_api_key }}
+        gemini_model: ${{ steps.models.outputs.model_1 }}
+        prompt: ${{ inputs.prompt }}
+
+    - name: Run Gemini (fallback 2)
+      id: gemini_fallback_2
+      if: |
+        steps.gemini_primary.outcome == 'failure' &&
+        steps.gemini_fallback_1.outcome == 'failure' &&
+        steps.models.outputs.model_2 != ''
+      uses: google-github-actions/run-gemini-cli@v0
+      continue-on-error: true
+      with:
+        gemini_api_key: ${{ inputs.gemini_api_key }}
+        gemini_model: ${{ steps.models.outputs.model_2 }}
+        prompt: ${{ inputs.prompt }}
+
+    - name: Select Gemini result
+      id: select
+      shell: bash
+      env:
+        PRIMARY_OUTCOME: ${{ steps.gemini_primary.outcome }}
+        PRIMARY_SUMMARY: ${{ steps.gemini_primary.outputs.summary }}
+        PRIMARY_MODEL: ${{ steps.models.outputs.model_0 }}
+        FALLBACK_ONE_OUTCOME: ${{ steps.gemini_fallback_1.outcome }}
+        FALLBACK_ONE_SUMMARY: ${{ steps.gemini_fallback_1.outputs.summary }}
+        FALLBACK_ONE_MODEL: ${{ steps.models.outputs.model_1 }}
+        FALLBACK_TWO_OUTCOME: ${{ steps.gemini_fallback_2.outcome }}
+        FALLBACK_TWO_SUMMARY: ${{ steps.gemini_fallback_2.outputs.summary }}
+        FALLBACK_TWO_MODEL: ${{ steps.models.outputs.model_2 }}
+        ATTEMPTS_JSON: ${{ steps.models.outputs.attempts_json }}
+      run: |
+        set -euo pipefail
+
+        final_outcome="$PRIMARY_OUTCOME"
+        final_summary="$PRIMARY_SUMMARY"
+        final_model="$PRIMARY_MODEL"
+
+        if [ "$final_outcome" != "success" ] && [ -n "$FALLBACK_ONE_MODEL" ]; then
+          final_outcome="$FALLBACK_ONE_OUTCOME"
+          final_summary="$FALLBACK_ONE_SUMMARY"
+          final_model="$FALLBACK_ONE_MODEL"
+        fi
+
+        if [ "$final_outcome" != "success" ] && [ -n "$FALLBACK_TWO_MODEL" ]; then
+          final_outcome="$FALLBACK_TWO_OUTCOME"
+          final_summary="$FALLBACK_TWO_SUMMARY"
+          final_model="$FALLBACK_TWO_MODEL"
+        fi
+
+        if [ -z "$final_outcome" ]; then
+          final_outcome="failure"
+        fi
+
+        if [ -z "$final_summary" ]; then
+          final_summary="Gemini did not return a response."
+        fi
+
+        diagnostics=(
+          "Primary (${PRIMARY_MODEL:-unset}): ${PRIMARY_OUTCOME:-unknown}"
+        )
+
+        if [ -n "$FALLBACK_ONE_MODEL" ]; then
+          diagnostics+=("Fallback 1 (${FALLBACK_ONE_MODEL}): ${FALLBACK_ONE_OUTCOME:-not_run}")
+        fi
+
+        if [ -n "$FALLBACK_TWO_MODEL" ]; then
+          diagnostics+=("Fallback 2 (${FALLBACK_TWO_MODEL}): ${FALLBACK_TWO_OUTCOME:-not_run}")
+        fi
+
+        {
+          echo "summary<<'EOF'"
+          echo "$final_summary"
+          echo "EOF"
+          echo "outcome=$final_outcome"
+          echo "model=$final_model"
+          echo "diagnostics=${diagnostics[*]}"
+          echo "attempts=$ATTEMPTS_JSON"
+        } >> "$GITHUB_OUTPUT"
