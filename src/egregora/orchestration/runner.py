@@ -138,6 +138,7 @@ class PipelineRunner:
         use_full_window = getattr(config.pipeline, "use_full_context_window", False)
 
         if use_full_window:
+            # TODO: [Taskmaster] Replace magic number for token limit with a named constant
             return 1_048_576
 
         return config.pipeline.max_prompt_tokens
@@ -151,6 +152,7 @@ class PipelineRunner:
             )
             raise WindowSizeError(msg)
 
+    # TODO: [Taskmaster] Refactor background task processing to be more generic
     def process_background_tasks(self) -> None:
         """Process pending background tasks."""
         if not hasattr(self.context, "task_store") or not self.context.task_store:
@@ -250,6 +252,7 @@ class PipelineRunner:
         resources = PipelineFactory.create_writer_resources(self.context)
         adapter_summary, adapter_instructions = self._extract_adapter_info()
 
+        # TODO: [Taskmaster] Refactor data conversion block to a separate utility function
         # Convert table to list for command processing
         try:
             messages_list = enriched_table.execute().to_pylist()
