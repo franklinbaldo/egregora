@@ -84,30 +84,29 @@ jobs:
           PATCH_BYTES: ${{ steps.patch.outputs.byte_length }}
         with:
           result-encoding: string
-          script: |
+          script: >-
             const pr = context.payload.pull_request;
             const truncated = process.env.PATCH_TRUNCATED === 'true';
             const size = process.env.PATCH_BYTES || 'unknown';
 
-            const prompt = [
-              `You are the Gemini Merge Gate for ${context.repo.owner}/${context.repo.repo}.`,
-              `Pull Request: #${pr.number} - ${pr.title}`,
-              `Author: ${pr.user.login}`,
-              `Patch size (bytes): ${size}`,
-              `Patch truncated: ${truncated}`,
-              '',
-              'Decide if this pull request should be allowed to merge based on the provided patch alone. Be conservative when context is limited or truncated.',
-              '',
-              'Return ONLY valid JSON (no markdown, no code fences) in this shape:',
-              '{"merge": true|false, "reason": "<concise justification>", "risk": "low|medium|high"}',
-              '',
-              'Patch follows between the delimiters:',
-              '<<<PATCH START>>>',
-              process.env.PATCH,
-              '<<<PATCH END>>>',
-            ].join('\n');
+            const prompt = `
+            You are the Gemini Merge Gate for ${context.repo.owner}/${context.repo.repo}.
+            Pull Request: #${pr.number} - ${pr.title}
+            Author: ${pr.user.login}
+            Patch size (bytes): ${size}
+            Patch truncated: ${truncated}
 
-            core.setOutput('prompt', `\n${prompt}\n`);
+            Decide if this pull request should be allowed to merge based on the provided patch alone. Be conservative when context is limited or truncated.
+
+            Return ONLY valid JSON (no markdown, no code fences) in this shape:
+            {"merge": true|false, "reason": "<concise justification>", "risk": "low|medium|high"}
+
+            Patch follows between the delimiters:
+            <<<PATCH START>>>
+            ${process.env.PATCH}
+            <<<PATCH END>>>
+            `;
+            core.setOutput('prompt', prompt);
 
       - name: Evaluate patch with Gemini
         id: gemini
