@@ -55,7 +55,7 @@ egregora write path/to/chat_export.zip --output=.
 
 ```bash
 # 1. Install doc dependencies (only once)
-uv sync --extra docs
+uv sync --all-extras
 
 # 2. Preview your site
 uv run mkdocs serve -f .egregora/mkdocs.yml
@@ -147,8 +147,8 @@ You can extend Egregora to read from other sources (e.g., Slack, Telegram) by im
 
 We welcome contributions! Please check out:
 
-* **[Technical Reference](docs/v3/api-reference/):** Deep dive into CLI commands and architecture.
-* **[Code of the Weaver](docs/CLAUDE.md):** Guidelines for contributors and AI agents.
+* **[Technical Reference](v3/api-reference/):** Deep dive into CLI commands and architecture.
+* **[Code of the Weaver](CLAUDE.md):** Guidelines for contributors and AI agents.
 
 To run tests:
 

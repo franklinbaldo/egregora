@@ -44,6 +44,7 @@ class RateLimitedModel(Model):
         # If running via agent.run_sync(), we are in a dedicated thread/loop.
         # Blocking here is fine.
 
+        # TODO: [Taskmaster] Refactor to safely handle blocking call in async method
         # TODO: [Taskmaster] Refactor to use a try...finally block for consistency
         # The current implementation is inconsistent with `request_stream`.
         # It should acquire the limiter and then use a `try...finally`

@@ -36,6 +36,7 @@ dependencies = [
     "tomli-w>=1.2.0",
     "google-api-core",
     "google-generativeai==0.8.6",
+    "google-genai>=0.8.6",
 ]
 
 [project.scripts]
@@ -304,8 +305,6 @@ addopts = [
     "--strict-markers",  # Fail on unknown markers
     "-p",
     "no:logfire",  # Disable logfire plugin
-    "-n",
-    "auto",  # Parallel test execution using all available CPU cores
 ]
 [dependency-groups]
 dev = [

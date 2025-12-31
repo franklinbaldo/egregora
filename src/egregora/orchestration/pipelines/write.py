@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date as date_type
@@ -52,6 +53,7 @@ from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import MkDocsPaths
 from egregora.rag import index_documents, reset_backend
 from egregora.transformations import (
+    Window,
     WindowConfig,
     create_windows,
     load_checkpoint,
@@ -520,7 +522,7 @@ class PreparedPipelineData:
     """Artifacts produced during dataset preparation."""
 
     messages_table: ir.Table
-    windows_iterator: any
+    windows_iterator: Iterator[Window]
     checkpoint_path: Path
     context: PipelineContext
     enable_enrichment: bool
@@ -584,7 +586,7 @@ def _extract_adapter_info(ctx: PipelineContext) -> tuple[str, str]:
 def _create_database_backends(
     site_root: Path,
     config: EgregoraConfig,
-) -> tuple[str, any, any]:
+) -> tuple[str, Any, Any]:
     """Create database backends for pipeline and runs tracking.
 
     Uses Ibis for database abstraction, allowing future migration to
@@ -604,7 +606,7 @@ def _create_database_backends(
 
     """
 
-    def _validate_and_connect(value: str, setting_name: str) -> tuple[str, any]:
+    def _validate_and_connect(value: str, setting_name: str) -> tuple[str, Any]:
         if not value:
             msg = f"Database setting '{setting_name}' must be a non-empty connection URI."
             raise ValueError(msg)
@@ -684,7 +686,7 @@ def _create_gemini_client() -> genai.Client:
     return genai.Client(http_options=http_options)
 
 
-def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineContext, any, any]:
+def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineContext, Any, Any]:
     """Create pipeline context with all resources and configuration.
 
     Args:
@@ -767,7 +769,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
 
 
 @contextmanager
-def _pipeline_environment(run_params: PipelineRunParams) -> any:
+def _pipeline_environment(run_params: PipelineRunParams) -> Iterator[tuple[PipelineContext, Any]]:
     """Context manager that provisions and tears down pipeline resources.
 
     Args:
@@ -807,7 +809,7 @@ def _pipeline_environment(run_params: PipelineRunParams) -> any:
 
 
 def _parse_and_validate_source(
-    adapter: any,
+    adapter: Any,
     input_path: Path,
     timezone: str,
     *,
@@ -920,7 +922,7 @@ def _process_commands_and_avatars(
 
 # TODO: [Taskmaster] Decompose pipeline preparation logic
 def _prepare_pipeline_data(
-    adapter: any,
+    adapter: Any,
     run_params: PipelineRunParams,
     ctx: PipelineContext,
 ) -> PreparedPipelineData:
@@ -1187,7 +1189,7 @@ def _apply_filters(
     )
 
 
-def _init_global_rate_limiter(quota_config: any) -> None:
+def _init_global_rate_limiter(quota_config: Any) -> None:
     """Initialize the global rate limiter."""
     init_rate_limiter(
         requests_per_second=quota_config.per_second_limit,
