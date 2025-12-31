@@ -2,18 +2,23 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, date, datetime, tzinfo
 from typing import TYPE_CHECKING, Any
 
 from dateutil import parser as dateutil_parser
 
 from egregora.utils.exceptions import (
+    DateExtractionError,
     DateTimeParsingError,
+    FrontmatterDateFormattingError,
     InvalidDateTimeInputError,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
+_DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 
 def parse_datetime_flexible(
@@ -110,4 +115,44 @@ def ensure_datetime(value: datetime | str | Any) -> datetime:
         raise TypeError(msg) from e
 
 
-__all__ = ["ensure_datetime", "normalize_timezone", "parse_datetime_flexible"]
+def extract_clean_date(date_obj: str | date | datetime) -> str:
+    """Extract a clean ``YYYY-MM-DD`` date from user-provided input."""
+    if isinstance(date_obj, datetime):
+        return date_obj.date().isoformat()
+    if isinstance(date_obj, date):
+        return date_obj.isoformat()
+
+    date_str = str(date_obj).strip()
+
+    # Fallback to regex for strings to find dates within larger text bodies.
+    match = _DATE_PATTERN.search(date_str)
+    if not match:
+        raise DateExtractionError(date_str)
+
+    try:
+        # Use our robust parser on the *matched part* of the string.
+        parsed_dt = parse_datetime_flexible(match.group(1))
+        return parsed_dt.date().isoformat()
+    except (DateTimeParsingError, InvalidDateTimeInputError) as e:
+        # The pattern was not a valid date (e.g., "2023-99-99"), so fallback.
+        raise DateExtractionError(date_str, e) from e
+
+
+def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
+    """Normalize a metadata date into the RSS-friendly ``YYYY-MM-DD HH:MM`` string."""
+    try:
+        dt = parse_datetime_flexible(raw_date, default_timezone=UTC)
+        return dt.strftime("%Y-%m-%d %H:%M")
+    except (DateTimeParsingError, AttributeError, ValueError, InvalidDateTimeInputError) as e:
+        # This will be raised if parse_datetime_flexible fails,
+        # which covers all failure modes (None input, empty strings, bad data).
+        raise FrontmatterDateFormattingError(str(raw_date), e) from e
+
+
+__all__ = [
+    "ensure_datetime",
+    "extract_clean_date",
+    "format_frontmatter_datetime",
+    "normalize_timezone",
+    "parse_datetime_flexible",
+]
