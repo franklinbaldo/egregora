@@ -24,6 +24,7 @@ class RateLimitedModel(Model):
     def __init__(self, wrapped_model: Model) -> None:
         self.wrapped_model = wrapped_model
 
+    # TODO: [Taskmaster] Refactor duplicated rate-limiting logic into a context manager.
     async def request(
         self,
         messages: list[ModelMessage],
@@ -45,6 +46,7 @@ class RateLimitedModel(Model):
         # If running via agent.run_sync(), we are in a dedicated thread/loop.
         # Blocking here is fine.
 
+        # TODO: [Taskmaster] Replace blocking acquire/release with a non-blocking alternative.
         limiter.acquire()
         try:
             return await self.wrapped_model.request(messages, model_settings, model_request_parameters)
