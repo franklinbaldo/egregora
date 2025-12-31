@@ -11,7 +11,6 @@ description: Collective consciousness through conversation
 
 ## Latest Posts
 
-{% raw %}
 {% for post in posts | default([]) %}
 <div class="post-card" markdown>
 ### [{{ post.title }}]({{ post.url }})
@@ -20,7 +19,6 @@ description: Collective consciousness through conversation
 {% else %}
 *No posts yet. Run `egregora write` to generate content.*
 {% endfor %}
-{% endraw %}
 
 [View all posts →]({{ blog_dir }}/index.md){ .md-button .md-button--primary }
 

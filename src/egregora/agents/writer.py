@@ -10,6 +10,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -89,10 +90,17 @@ JOURNAL_TYPE_TOOL_RETURN = "tool_return"
 RESULT_KEY_POSTS = "posts"
 RESULT_KEY_PROFILES = "profiles"
 
+MOCK_WRITER_ENV = "EGREGORA_USE_MOCK_WRITER"
+
 # Type aliases for improved type safety
 MessageHistory = Sequence[ModelRequest | ModelResponse]
 LLMClient = Any
 AgentModel = Any
+
+
+def _mock_writer_enabled() -> bool:
+    """Return True when mock writer mode is enabled via environment variable."""
+    return os.getenv(MOCK_WRITER_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 # ============================================================================
@@ -883,8 +891,6 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
             # No posts in cache, just return the empty result
             return cached_result
 
-    logger.info("Using Pydantic AI backend for writer")
-
     # 4. Create Deps with the generated context
     deps = _prepare_writer_dependencies(
         WriterDepsParams(
@@ -900,6 +906,45 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
             adapter_generation_instructions=params.adapter_generation_instructions,
         )
     )
+
+    if _mock_writer_enabled():
+        window_label = f"{params.window_start:%Y-%m-%d %H:%M} to {params.window_end:%H:%M}"
+        message_count = int(params.table.count().execute())
+        mock_slug = f"mock-window-{params.window_start:%Y%m%d%H%M}"
+        mock_document = Document(
+            content=(
+                f"# Mock Post for {window_label}\n\n"
+                "This placeholder post was generated with mock writer mode enabled. "
+                f"It covers {message_count} messages from the current window without contacting external LLMs."
+            ),
+            type=DocumentType.POST,
+            metadata={
+                "title": f"Mock Post for {params.window_start:%Y-%m-%d}",
+                "date": params.window_start.date().isoformat(),
+                "slug": mock_slug,
+                "summary": "Placeholder content generated while EGREGORA_USE_MOCK_WRITER is enabled.",
+                "tags": ["mock", "offline"],
+                "authors": writer_context.active_authors or [],
+            },
+        )
+        deps.output_sink.persist(mock_document)
+        logger.info(
+            "Mock writer enabled via %s: generated placeholder post %s",
+            MOCK_WRITER_ENV,
+            mock_document.metadata.get("title", mock_slug),
+        )
+        return _finalize_writer_results(
+            WriterFinalizationParams(
+                saved_posts=[mock_document.document_id],
+                saved_profiles=[],
+                resources=resources,
+                deps=deps,
+                cache=params.cache,
+                signature=signature,
+            )
+        )
+
+    logger.info("Using Pydantic AI backend for writer")
 
     # 5. Render prompt and execute agent
     # NOTE: _render_writer_prompt uses writer_context, which we stripped RAG/Profiles from.
