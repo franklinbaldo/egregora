@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from egregora.database.migrations import migrate_documents_table
 from egregora.database.schemas import (
     ANNOTATIONS_SCHEMA,
     DOCUMENTS_VIEW_SQL,
@@ -64,6 +65,9 @@ def initialize_database(backend: BaseBackend) -> None:
     create_table_if_not_exists(conn, "media", MEDIA_SCHEMA)
     create_table_if_not_exists(conn, "journals", JOURNALS_SCHEMA)
     create_table_if_not_exists(conn, "annotations", ANNOTATIONS_SCHEMA)
+
+    # Run V3 schema migration
+    migrate_documents_table(conn)
 
     # 2. Unified View
     _execute_sql(conn, DOCUMENTS_VIEW_SQL)

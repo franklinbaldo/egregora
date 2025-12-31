@@ -2,7 +2,7 @@
 import pytest
 import ibis
 import duckdb
-from ibis import _, selectors
+from ibis import _
 from ibis.expr import datatypes as dt
 
 # This import will fail initially, which is expected for TDD
@@ -97,4 +97,17 @@ def test_migrate_documents_table_from_legacy(legacy_db):
         legacy_db.execute("INSERT INTO documents (id, doc_type, status) VALUES ('new-doc', NULL, 'published')")
 
     with pytest.raises(duckdb.ConstraintException):
-        legacy_db.execute("INSERT INTO documents (id, doc_type, status) VALUES ('new-doc', 'post', NULL)")
+        legacy_db.execute("INSERT INTO documents (id, doc_type, status) VALUES ('new-doc-2', 'post', NULL)")
+
+def test_migration_is_idempotent(legacy_db):
+    """
+    Verify that running the migration script multiple times does not cause errors.
+    """
+    # Run the migration the first time
+    migrate_documents_table(legacy_db)
+
+    # Run the migration a second time
+    try:
+        migrate_documents_table(legacy_db)
+    except Exception as e:
+        pytest.fail(f"Running the migration a second time should not have raised an exception, but it did: {e}")
