@@ -34,34 +34,31 @@ runs:
   steps:
     - name: Parse fallback models
       id: models
-      shell: bash
+      uses: actions/github-script@v8
       env:
         FALLBACK_MODELS: ${{ inputs.fallback_models }}
-      run: |
-        set -euo pipefail
+      with:
+        script: |
+          const raw = process.env.FALLBACK_MODELS || '';
+          let models;
+          try {
+            models = JSON.parse(raw);
+          } catch (error) {
+            core.setFailed(`fallback_models must be valid JSON: ${error.message}`);
+            return;
+          }
 
-        python - <<'PY' > /tmp/models
-          import json
-          import os
-          import sys
+          if (!Array.isArray(models) || models.length === 0) {
+            core.setFailed('fallback_models must be a non-empty JSON array');
+            return;
+          }
 
-          raw = os.environ.get("FALLBACK_MODELS", "")
-          try:
-              models = json.loads(raw)
-          except json.JSONDecodeError as exc:  # pragma: no cover - executed in workflow only
-              sys.exit(f"fallback_models must be valid JSON: {exc}")
+          for (let index = 0; index < 3; index++) {
+            const value = index < models.length ? models[index] : "";
+            core.setOutput(`model_${index}`, value);
+          }
 
-          if not isinstance(models, list) or not models:
-              sys.exit("fallback_models must be a non-empty JSON array")
-
-          for index in range(3):
-              value = models[index] if index < len(models) else ""
-              print(f"model_{index}={value}")
-
-          print(f"attempts_json={json.dumps(models)}")
-        PY
-
-        cat /tmp/models >> "$GITHUB_OUTPUT"
+          core.setOutput('attempts_json', JSON.stringify(models));
 
     - name: Run Gemini (primary)
       id: gemini_primary

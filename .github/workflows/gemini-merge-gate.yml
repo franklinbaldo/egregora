@@ -111,11 +111,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
       - name: Evaluate patch with Gemini
         id: gemini
         uses: ./.github/actions/shared-gemini-runner
