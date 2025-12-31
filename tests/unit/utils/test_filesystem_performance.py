@@ -5,7 +5,7 @@ import pytest
 from freezegun import freeze_time
 
 from egregora.utils.exceptions import DateExtractionError
-from egregora.utils.filesystem import _extract_clean_date
+from egregora.utils.datetime_utils import extract_clean_date
 
 # Valid date inputs that should be successfully extracted
 VALID_DATE_TEST_CASES = [
@@ -35,7 +35,7 @@ def test_extract_clean_date_benchmark(benchmark, input_val, expected):
     # though none of the current test cases rely on it directly. It's good practice.
     with freeze_time("2025-01-15"):
         # The benchmark fixture runs the function multiple times to get a reliable timing.
-        result = benchmark(_extract_clean_date, input_val)
+        result = benchmark(extract_clean_date, input_val)
 
         # We assert correctness on the *last* run's result provided by the fixture.
         assert result == expected
@@ -46,4 +46,4 @@ def test_extract_clean_date_invalid_inputs(input_val):
     """Test that invalid date inputs raise DateExtractionError."""
     with freeze_time("2025-01-15"):
         with pytest.raises(DateExtractionError):
-            _extract_clean_date(input_val)
+            extract_clean_date(input_val)
