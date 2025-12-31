@@ -1,0 +1,42 @@
+﻿2025-12-31T23:29:29.7457245Z ##[group]Run uv run pre-commit run --all-files --show-diff-on-failure
+2025-12-31T23:29:29.7457760Z [36;1muv run pre-commit run --all-files --show-diff-on-failure[0m
+2025-12-31T23:29:29.7490824Z shell: /usr/bin/bash -e {0}
+2025-12-31T23:29:29.7491058Z env:
+2025-12-31T23:29:29.7491243Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:29.7491457Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:29.7491833Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:29.7492091Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:29.7492361Z ##[endgroup]
+2025-12-31T23:29:30.1315302Z [INFO] Initializing environment for https://github.com/astral-sh/ruff-pre-commit.
+2025-12-31T23:29:30.5034993Z [INFO] Initializing environment for https://github.com/pre-commit/pre-commit-hooks.
+2025-12-31T23:29:30.8344611Z [WARNING] repo `https://github.com/pre-commit/pre-commit-hooks` uses deprecated stage names (commit, push) which will be removed in a future version.  Hint: often `pre-commit autoupdate --repo https://github.com/pre-commit/pre-commit-hooks` will fix this.  if it does not -- consider reporting an issue to that repo.
+2025-12-31T23:29:30.8389112Z [INFO] Initializing environment for local.
+2025-12-31T23:29:30.8448013Z [INFO] Installing environment for https://github.com/astral-sh/ruff-pre-commit.
+2025-12-31T23:29:30.8448777Z [INFO] Once installed this environment will be reused.
+2025-12-31T23:29:30.8449292Z [INFO] This may take a few minutes...
+2025-12-31T23:29:34.4799377Z [INFO] Installing environment for https://github.com/pre-commit/pre-commit-hooks.
+2025-12-31T23:29:34.4800171Z [INFO] Once installed this environment will be reused.
+2025-12-31T23:29:34.4800508Z [INFO] This may take a few minutes...
+2025-12-31T23:29:47.0466643Z [INFO] Installing environment for local.
+2025-12-31T23:29:47.0467257Z [INFO] Once installed this environment will be reused.
+2025-12-31T23:29:47.0467765Z [INFO] This may take a few minutes...
+2025-12-31T23:29:49.2501828Z ruff (legacy alias)......................................................Passed
+2025-12-31T23:29:49.3287475Z ruff format..............................................................Passed
+2025-12-31T23:29:49.4051472Z check for added large files..............................................Passed
+2025-12-31T23:29:49.5787945Z check python ast.........................................................Passed
+2025-12-31T23:29:49.6548078Z check for case conflicts.................................................Passed
+2025-12-31T23:29:49.7142734Z check json...............................................................Passed
+2025-12-31T23:29:49.7702256Z check toml...............................................................Passed
+2025-12-31T23:29:49.9180514Z check yaml...............................................................Passed
+2025-12-31T23:29:50.1739161Z debug statements (python)................................................Passed
+2025-12-31T23:29:50.2692872Z fix end of files.........................................................Passed
+2025-12-31T23:29:50.3745880Z mixed line ending........................................................Passed
+2025-12-31T23:29:50.4611294Z trim trailing whitespace.................................................Passed
+2025-12-31T23:29:51.5344672Z Check for dead code with vulture.........................................Passed
+2025-12-31T23:29:52.1687969Z Check cyclomatic complexity with radon...................................Passed
+2025-12-31T23:29:53.0700663Z Check maintainability index with radon...................................Passed
+2025-12-31T23:29:53.8612220Z Enforce complexity thresholds with xenon.................................Passed
+2025-12-31T23:29:55.9436802Z Check security issues with bandit........................................Passed
+2025-12-31T23:29:56.2998474Z Check private imports....................................................Passed
+2025-12-31T23:29:56.3715022Z Check test configuration.................................................Passed
+2025-12-31T23:29:56.6955305Z Check for private function anti-patterns.................................Passed

@@ -1,0 +1,41 @@
+﻿2025-12-31T23:29:17.1724779Z ##[group]Run actions/github-script@v8
+2025-12-31T23:29:17.1725280Z with:
+2025-12-31T23:29:17.1725625Z   result-encoding: string
+2025-12-31T23:29:17.1730075Z   script: const prNumber = Number(process.env.PR_NUMBER) || context.payload.pull_request?.number;
+if (!prNumber) {
+  core.setFailed('Missing pull request number.');
+  return;
+}
+
+const { data: patchData } = await github.request('GET /repos/{owner}/{repo}/pulls/{pull_number}', {
+  owner: context.repo.owner,
+  repo: context.repo.repo,
+  pull_number: prNumber,
+  headers: { accept: 'application/vnd.github.v3.patch' }
+});
+
+const rawPatch = typeof patchData === 'string' ? patchData : String(patchData ?? '');
+const maxBytes = parseInt(process.env.MAX_PATCH_BYTES, 10);
+const byteLength = Buffer.byteLength(rawPatch, 'utf8');
+
+let trimmedPatch = rawPatch.slice(0, maxBytes);
+const truncated = byteLength > maxBytes;
+
+if (truncated) {
+  trimmedPatch += `\n\n[[PATCH TRUNCATED TO ${maxBytes} BYTES FROM ${byteLength} BYTES]]`;
+}
+
+core.setOutput('patch', trimmedPatch);
+core.setOutput('truncated', truncated ? 'true' : 'false');
+core.setOutput('byte_length', String(byteLength));
+
+2025-12-31T23:29:17.1735304Z   github-token: ***
+2025-12-31T23:29:17.1735658Z   debug: false
+2025-12-31T23:29:17.1736008Z   user-agent: actions/github-script
+2025-12-31T23:29:17.1736593Z   retries: 0
+2025-12-31T23:29:17.1736965Z   retry-exempt-status-codes: 400,401,403,404,422
+2025-12-31T23:29:17.1737430Z env:
+2025-12-31T23:29:17.1737911Z   GEMINI_MODELS: ["gemini-2.5-pro","gemini-2.5-flash","gemini-2.5-flash-lite"]
+2025-12-31T23:29:17.1738507Z   PR_NUMBER: 2028
+2025-12-31T23:29:17.1738853Z   MAX_PATCH_BYTES: 120000
+2025-12-31T23:29:17.1739208Z ##[endgroup]

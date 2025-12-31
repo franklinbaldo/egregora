@@ -1,0 +1,33 @@
+﻿2025-12-31T23:29:32.2165349Z ##[group]Run uv run pytest tests/unit/ -n auto -v --cov=src/egregora --cov-branch --cov-report=xml:coverage.xml --cov-report=term
+2025-12-31T23:29:32.2166211Z [36;1muv run pytest tests/unit/ -n auto -v --cov=src/egregora --cov-branch --cov-report=xml:coverage.xml --cov-report=term[0m
+2025-12-31T23:29:32.2199764Z shell: /usr/bin/bash -e {0}
+2025-12-31T23:29:32.2200001Z env:
+2025-12-31T23:29:32.2200177Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:32.2200388Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:32.2200606Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:32.2200864Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:32.2201154Z   GEMINI_API_KEY: test-key
+2025-12-31T23:29:32.2201367Z ##[endgroup]
+2025-12-31T23:29:41.3563843Z ImportError while loading conftest '/home/runner/work/egregora/egregora/tests/conftest.py'.
+2025-12-31T23:29:45.6250451Z tests/conftest.py:13: in <module>
+2025-12-31T23:29:45.6251093Z     from egregora.config.settings import (
+2025-12-31T23:29:45.6251597Z src/egregora/__init__.py:3: in <module>
+2025-12-31T23:29:45.6252385Z     from egregora.orchestration.pipelines.write import process_whatsapp_export
+2025-12-31T23:29:45.6253187Z src/egregora/orchestration/__init__.py:25: in <module>
+2025-12-31T23:29:45.6253922Z     from egregora.orchestration.pipelines import write as write_pipeline
+2025-12-31T23:29:45.6254725Z src/egregora/orchestration/pipelines/write.py:34: in <module>
+2025-12-31T23:29:45.6255310Z     from egregora.agents.avatar import AvatarContext, process_avatar_commands
+2025-12-31T23:29:45.6255785Z src/egregora/agents/__init__.py:9: in <module>
+2025-12-31T23:29:45.6256127Z     from egregora.agents import banner, writer
+2025-12-31T23:29:45.6256466Z src/egregora/agents/writer.py:36: in <module>
+2025-12-31T23:29:45.6256802Z     from egregora.agents.formatting import (
+2025-12-31T23:29:45.6257172Z src/egregora/agents/formatting.py:16: in <module>
+2025-12-31T23:29:45.6257647Z     from egregora.output_adapters.exceptions import DocumentNotFoundError
+2025-12-31T23:29:45.6258512Z src/egregora/output_adapters/__init__.py:9: in <module>
+2025-12-31T23:29:45.6258952Z     from egregora.output_adapters.mkdocs import MkDocsAdapter
+2025-12-31T23:29:45.6259409Z src/egregora/output_adapters/mkdocs/__init__.py:11: in <module>
+2025-12-31T23:29:45.6259862Z     from egregora.output_adapters.mkdocs.adapter import (
+2025-12-31T23:29:45.6260308Z src/egregora/output_adapters/mkdocs/adapter.py:63: in <module>
+2025-12-31T23:29:45.6260772Z     from egregora.utils.filesystem import ensure_author_entries
+2025-12-31T23:29:45.6261635Z E   ImportError: cannot import name 'ensure_author_entries' from 'egregora.utils.filesystem' (/home/runner/work/egregora/egregora/src/egregora/utils/filesystem.py)
+2025-12-31T23:29:46.3496511Z ##[error]Process completed with exit code 4.

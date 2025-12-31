@@ -1,0 +1,30 @@
+﻿2025-12-31T23:29:15.9120188Z Current runner version: '2.330.0'
+2025-12-31T23:29:15.9144322Z ##[group]Runner Image Provisioner
+2025-12-31T23:29:15.9145074Z Hosted Compute Agent
+2025-12-31T23:29:15.9145633Z Version: 20251211.462
+2025-12-31T23:29:15.9146225Z Commit: 6cbad8c2bb55d58165063d031ccabf57e2d2db61
+2025-12-31T23:29:15.9146827Z Build Date: 2025-12-11T16:28:49Z
+2025-12-31T23:29:15.9147419Z Worker ID: {64c32420-8635-4189-ac6c-bbc2b71d6c04}
+2025-12-31T23:29:15.9147999Z ##[endgroup]
+2025-12-31T23:29:15.9148464Z ##[group]Operating System
+2025-12-31T23:29:15.9148961Z Ubuntu
+2025-12-31T23:29:15.9149348Z 24.04.3
+2025-12-31T23:29:15.9149778Z LTS
+2025-12-31T23:29:15.9150140Z ##[endgroup]
+2025-12-31T23:29:15.9150624Z ##[group]Runner Image
+2025-12-31T23:29:15.9151119Z Image: ubuntu-24.04
+2025-12-31T23:29:15.9151526Z Version: 20251215.174.1
+2025-12-31T23:29:15.9152673Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20251215.174/images/ubuntu/Ubuntu2404-Readme.md
+2025-12-31T23:29:15.9153894Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20251215.174
+2025-12-31T23:29:15.9154914Z ##[endgroup]
+2025-12-31T23:29:15.9155884Z ##[group]GITHUB_TOKEN Permissions
+2025-12-31T23:29:15.9157785Z Contents: read
+2025-12-31T23:29:15.9158241Z Metadata: read
+2025-12-31T23:29:15.9158725Z PullRequests: write
+2025-12-31T23:29:15.9159261Z ##[endgroup]
+2025-12-31T23:29:15.9161587Z Secret source: Actions
+2025-12-31T23:29:15.9162404Z Prepare workflow directory
+2025-12-31T23:29:15.9657175Z Prepare all required actions
+2025-12-31T23:29:15.9696407Z Getting action download info
+2025-12-31T23:29:16.2944799Z Download action repository 'actions/github-script@v8' (SHA:ed597411d8f924073f98dfc5c65a23a2325f34cd)
+2025-12-31T23:29:17.0125349Z Complete job name: Gemini Merge Gate

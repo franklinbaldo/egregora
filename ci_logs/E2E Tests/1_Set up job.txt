@@ -1,0 +1,34 @@
+﻿2025-12-31T23:29:16.3720496Z Current runner version: '2.330.0'
+2025-12-31T23:29:16.3745465Z ##[group]Runner Image Provisioner
+2025-12-31T23:29:16.3746268Z Hosted Compute Agent
+2025-12-31T23:29:16.3747199Z Version: 20251211.462
+2025-12-31T23:29:16.3747833Z Commit: 6cbad8c2bb55d58165063d031ccabf57e2d2db61
+2025-12-31T23:29:16.3748566Z Build Date: 2025-12-11T16:28:49Z
+2025-12-31T23:29:16.3749385Z Worker ID: {183f27a7-2f0f-4f22-ad9e-8fc18d7da8cd}
+2025-12-31T23:29:16.3750118Z ##[endgroup]
+2025-12-31T23:29:16.3750660Z ##[group]Operating System
+2025-12-31T23:29:16.3751342Z Ubuntu
+2025-12-31T23:29:16.3751801Z 24.04.3
+2025-12-31T23:29:16.3752292Z LTS
+2025-12-31T23:29:16.3752888Z ##[endgroup]
+2025-12-31T23:29:16.3753480Z ##[group]Runner Image
+2025-12-31T23:29:16.3754110Z Image: ubuntu-24.04
+2025-12-31T23:29:16.3754626Z Version: 20251215.174.1
+2025-12-31T23:29:16.3755662Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20251215.174/images/ubuntu/Ubuntu2404-Readme.md
+2025-12-31T23:29:16.3757277Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20251215.174
+2025-12-31T23:29:16.3758632Z ##[endgroup]
+2025-12-31T23:29:16.3759812Z ##[group]GITHUB_TOKEN Permissions
+2025-12-31T23:29:16.3761929Z Contents: read
+2025-12-31T23:29:16.3762655Z Metadata: read
+2025-12-31T23:29:16.3763187Z ##[endgroup]
+2025-12-31T23:29:16.3765541Z Secret source: Actions
+2025-12-31T23:29:16.3766830Z Prepare workflow directory
+2025-12-31T23:29:16.4162343Z Prepare all required actions
+2025-12-31T23:29:16.4201068Z Getting action download info
+2025-12-31T23:29:16.7856264Z Download action repository 'actions/checkout@v6' (SHA:8e8c483db84b4bee98b60c0593521ed34d9990e8)
+2025-12-31T23:29:16.9095420Z Download action repository 'actions/setup-python@v6' (SHA:83679a892e2d95755f2dac6acb0bfd1e9ac5d548)
+2025-12-31T23:29:17.0224638Z Download action repository 'codecov/codecov-action@v5' (SHA:671740ac38dd9b0130fbe1cec585b89eea48d3de)
+2025-12-31T23:29:17.3915274Z Download action repository 'actions/upload-artifact@v6' (SHA:b7c566a772e6b6bfb58ed0dc250532a479d7789f)
+2025-12-31T23:29:18.1283499Z Getting action download info
+2025-12-31T23:29:18.2536761Z Download action repository 'actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea' (SHA:60a0d83039c74a4aee543508d2ffcb1c3799cdea)
+2025-12-31T23:29:18.7717398Z Complete job name: E2E Tests

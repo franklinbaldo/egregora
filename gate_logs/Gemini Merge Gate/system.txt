@@ -1,0 +1,5 @@
+2025-12-31T23:29:13.0880000Z Job is waiting for a hosted runner to come online.
+2025-12-31T23:29:13.0880000Z Job is about to start running on the hosted runner: GitHub Actions 1000042468
+2025-12-31T23:29:13.0850000Z Requested labels: ubuntu-latest
+2025-12-31T23:29:13.0850000Z Job defined at: franklinbaldo/egregora/.github/workflows/gemini-merge-gate.yml@refs/heads/main
+2025-12-31T23:29:13.0850000Z Waiting for a runner to pick up this job...

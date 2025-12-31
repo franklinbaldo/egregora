@@ -1,0 +1,1 @@
+﻿2025-12-31T23:29:17.8336024Z ##[error]Can't find 'action.yml', 'action.yaml' or 'Dockerfile' under '/home/runner/work/egregora/egregora/.github/actions/shared-gemini-runner'. Did you forget to run actions/checkout before running your local action?

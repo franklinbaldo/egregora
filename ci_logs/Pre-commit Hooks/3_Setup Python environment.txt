@@ -1,0 +1,399 @@
+﻿2025-12-31T23:29:18.0861855Z Prepare all required actions
+2025-12-31T23:29:18.0862669Z Getting action download info
+2025-12-31T23:29:18.2310945Z Download action repository 'astral-sh/setup-uv@v5' (SHA:d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86)
+2025-12-31T23:29:18.8032971Z ##[group]Run ./.github/actions/setup-python-uv
+2025-12-31T23:29:18.8033768Z with:
+2025-12-31T23:29:18.8034188Z   python-version: 3.12
+2025-12-31T23:29:18.8034898Z   extras: --all-extras
+2025-12-31T23:29:18.8035424Z env:
+2025-12-31T23:29:18.8035831Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:18.8036386Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:18.8037002Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:18.8037583Z ##[endgroup]
+2025-12-31T23:29:18.8191993Z ##[group]Run astral-sh/setup-uv@v5
+2025-12-31T23:29:18.8192704Z with:
+2025-12-31T23:29:18.8193113Z   enable-cache: true
+2025-12-31T23:29:18.8193667Z   cache-dependency-glob: uv.lock
+2025-12-31T23:29:18.8194613Z   github-token: ***
+2025-12-31T23:29:18.8195279Z   prune-cache: true
+2025-12-31T23:29:18.8195810Z   ignore-nothing-to-cache: false
+2025-12-31T23:29:18.8196525Z   ignore-empty-workdir: false
+2025-12-31T23:29:18.8197099Z env:
+2025-12-31T23:29:18.8197488Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:18.8198019Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:18.8198627Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:18.8199190Z ##[endgroup]
+2025-12-31T23:29:19.3165236Z Downloading uv from "https://github.com/astral-sh/uv/releases/download/0.9.21/uv-x86_64-unknown-linux-gnu.tar.gz" ...
+2025-12-31T23:29:19.7713830Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/a801bb4d-c82a-43b5-9592-fa7fd721a29d -f /home/runner/work/_temp/5d84a8d5-43a5-42b2-b6d8-34dac7bbf1ab
+2025-12-31T23:29:20.2399258Z Added /home/runner/.local/bin to the path
+2025-12-31T23:29:20.2403066Z Added /opt/hostedtoolcache/uv/0.9.21/x86_64 to the path
+2025-12-31T23:29:20.2427946Z Set UV_CACHE_DIR to /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:20.2428727Z Successfully installed uv version 0.9.21
+2025-12-31T23:29:20.2431801Z Searching files using cache dependency glob: uv.lock
+2025-12-31T23:29:20.2450800Z /home/runner/work/egregora/egregora/uv.lock
+2025-12-31T23:29:20.2477281Z Found 1 files to hash.
+2025-12-31T23:29:20.3380693Z Trying to restore uv cache from GitHub Actions cache with key: setup-uv-1-x86_64-unknown-linux-gnu-3.12.3-10be5017aed523e4aa7cb2dcf54c5c16ccd6ad48d60311f571f393dcfca619f4
+2025-12-31T23:29:20.4601249Z Cache hit for: setup-uv-1-x86_64-unknown-linux-gnu-3.12.3-10be5017aed523e4aa7cb2dcf54c5c16ccd6ad48d60311f571f393dcfca619f4
+2025-12-31T23:29:21.0167586Z Received 5244690 of 5244690 (100.0%), 12.3 MBs/sec
+2025-12-31T23:29:21.0169903Z Cache Size: ~5 MB (5244690 B)
+2025-12-31T23:29:21.0197788Z [command]/usr/bin/tar -xf /home/runner/work/_temp/bd769896-aac2-405e-8336-45f02f13fca0/cache.tzst -P -C /home/runner/work/egregora/egregora --use-compress-program unzstd
+2025-12-31T23:29:21.0637946Z Cache restored successfully
+2025-12-31T23:29:21.0655947Z uv cache restored from GitHub Actions cache with key: setup-uv-1-x86_64-unknown-linux-gnu-3.12.3-10be5017aed523e4aa7cb2dcf54c5c16ccd6ad48d60311f571f393dcfca619f4
+2025-12-31T23:29:21.0823078Z ##[group]Run uv python install 3.12
+2025-12-31T23:29:21.0823481Z [36;1muv python install 3.12[0m
+2025-12-31T23:29:21.0863280Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2025-12-31T23:29:21.0863646Z env:
+2025-12-31T23:29:21.0863835Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:21.0864053Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:21.0864292Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:21.0864570Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:21.0865123Z ##[endgroup]
+2025-12-31T23:29:21.2477988Z Downloading cpython-3.12.12-linux-x86_64-gnu (download) (31.7MiB)
+2025-12-31T23:29:22.2044519Z  Downloaded cpython-3.12.12-linux-x86_64-gnu (download)
+2025-12-31T23:29:22.2095183Z Installed Python 3.12.12 in 1.10s
+2025-12-31T23:29:22.2095716Z  + cpython-3.12.12-linux-x86_64-gnu (python3.12)
+2025-12-31T23:29:22.2149435Z ##[group]Run uv sync --all-extras
+2025-12-31T23:29:22.2149998Z [36;1muv sync --all-extras[0m
+2025-12-31T23:29:22.2183067Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2025-12-31T23:29:22.2183410Z env:
+2025-12-31T23:29:22.2183588Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:22.2183815Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:22.2184033Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:22.2184296Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:22.2184581Z ##[endgroup]
+2025-12-31T23:29:22.3877016Z Using CPython 3.12.12
+2025-12-31T23:29:22.3877383Z Creating virtual environment at: .venv
+2025-12-31T23:29:22.3973483Z Resolved 267 packages in 0.98ms
+2025-12-31T23:29:22.4121071Z    Building egregora @ file:///home/runner/work/egregora/egregora
+2025-12-31T23:29:22.4584400Z Downloading tiktoken (1.1MiB)
+2025-12-31T23:29:22.4594665Z Downloading pillow (6.3MiB)
+2025-12-31T23:29:22.4704391Z Downloading hf-xet (3.2MiB)
+2025-12-31T23:29:22.4706032Z Downloading grpcio (6.3MiB)
+2025-12-31T23:29:22.4708298Z Downloading openai (1.0MiB)
+2025-12-31T23:29:22.4710350Z Downloading cryptography (4.3MiB)
+2025-12-31T23:29:22.4713317Z Downloading pygments (1.2MiB)
+2025-12-31T23:29:22.4721309Z Downloading google-api-python-client (14.0MiB)
+2025-12-31T23:29:22.4725718Z Downloading lupa (2.0MiB)
+2025-12-31T23:29:22.4728819Z Downloading pydantic-core (2.0MiB)
+2025-12-31T23:29:22.4730974Z Downloading virtualenv (5.7MiB)
+2025-12-31T23:29:22.4738616Z Downloading tokenizers (3.1MiB)
+2025-12-31T23:29:22.4741491Z Downloading google-ai-generativelanguage (1.3MiB)
+2025-12-31T23:29:22.4744201Z Downloading babel (9.7MiB)
+2025-12-31T23:29:22.4747696Z Downloading deptry (1.8MiB)
+2025-12-31T23:29:22.4756645Z Downloading scikit-learn (8.5MiB)
+2025-12-31T23:29:22.4759665Z Downloading aiohttp (1.7MiB)
+2025-12-31T23:29:22.4762746Z Downloading pandas (11.8MiB)
+2025-12-31T23:29:22.4766347Z Downloading mkdocs (3.7MiB)
+2025-12-31T23:29:22.4770211Z Downloading mkdocs-material (8.9MiB)
+2025-12-31T23:29:22.4773165Z Downloading faker (1.9MiB)
+2025-12-31T23:29:22.4779758Z Downloading scipy (34.0MiB)
+2025-12-31T23:29:22.4787028Z Downloading lancedb (43.8MiB)
+2025-12-31T23:29:22.4790684Z Downloading selectolax (2.2MiB)
+2025-12-31T23:29:22.4798229Z Downloading numpy (15.6MiB)
+2025-12-31T23:29:22.4804152Z Downloading ruff (13.6MiB)
+2025-12-31T23:29:22.4815527Z Downloading duckdb (19.5MiB)
+2025-12-31T23:29:22.4818162Z Downloading pyarrow (45.5MiB)
+2025-12-31T23:29:22.4820855Z Downloading lxml (5.0MiB)
+2025-12-31T23:29:22.4823693Z Downloading botocore (13.9MiB)
+2025-12-31T23:29:22.4826591Z Downloading temporalio (11.6MiB)
+2025-12-31T23:29:22.4829403Z Downloading beartype (1.3MiB)
+2025-12-31T23:29:22.4832250Z Downloading fastavro (3.3MiB)
+2025-12-31T23:29:22.4835212Z Downloading ibis-framework (1.8MiB)
+2025-12-31T23:29:23.7630299Z  Downloaded tiktoken
+2025-12-31T23:29:23.8855874Z  Downloaded pygments
+2025-12-31T23:29:23.9489736Z  Downloaded google-ai-generativelanguage
+2025-12-31T23:29:24.0470784Z  Downloaded beartype
+2025-12-31T23:29:24.6082112Z  Downloaded deptry
+2025-12-31T23:29:24.6169978Z  Downloaded aiohttp
+2025-12-31T23:29:24.7620407Z  Downloaded pydantic-core
+2025-12-31T23:29:24.8355851Z  Downloaded lupa
+2025-12-31T23:29:24.9735422Z  Downloaded selectolax
+2025-12-31T23:29:25.3876799Z  Downloaded tokenizers
+2025-12-31T23:29:25.4282988Z  Downloaded hf-xet
+2025-12-31T23:29:25.4732811Z  Downloaded openai
+2025-12-31T23:29:25.4994874Z  Downloaded fastavro
+2025-12-31T23:29:25.5262578Z  Downloaded faker
+2025-12-31T23:29:25.6203966Z  Downloaded mkdocs
+2025-12-31T23:29:25.7855976Z  Downloaded cryptography
+2025-12-31T23:29:25.8875357Z       Built egregora @ file:///home/runner/work/egregora/egregora
+2025-12-31T23:29:25.9116227Z  Downloaded lxml
+2025-12-31T23:29:26.0096181Z  Downloaded virtualenv
+2025-12-31T23:29:26.1089340Z  Downloaded pillow
+2025-12-31T23:29:26.1226597Z  Downloaded grpcio
+2025-12-31T23:29:26.5233486Z  Downloaded scikit-learn
+2025-12-31T23:29:26.5402952Z  Downloaded babel
+2025-12-31T23:29:26.7373527Z  Downloaded ibis-framework
+2025-12-31T23:29:26.9318129Z  Downloaded temporalio
+2025-12-31T23:29:26.9747218Z  Downloaded ruff
+2025-12-31T23:29:27.0403618Z  Downloaded google-api-python-client
+2025-12-31T23:29:27.1553314Z  Downloaded numpy
+2025-12-31T23:29:27.1697410Z  Downloaded botocore
+2025-12-31T23:29:27.3348343Z  Downloaded duckdb
+2025-12-31T23:29:27.3461210Z  Downloaded pandas
+2025-12-31T23:29:27.8371135Z  Downloaded lancedb
+2025-12-31T23:29:27.8496720Z  Downloaded scipy
+2025-12-31T23:29:27.9386002Z  Downloaded pyarrow
+2025-12-31T23:29:29.0824435Z  Downloaded mkdocs-material
+2025-12-31T23:29:29.0827577Z Prepared 261 packages in 6.68s
+2025-12-31T23:29:29.7201312Z Installed 261 packages in 637ms
+2025-12-31T23:29:29.7203943Z  + ag-ui-protocol==0.1.10
+2025-12-31T23:29:29.7204346Z  + aiohappyeyeballs==2.6.1
+2025-12-31T23:29:29.7204706Z  + aiohttp==3.13.2
+2025-12-31T23:29:29.7205238Z  + aiosignal==1.4.0
+2025-12-31T23:29:29.7205566Z  + annotated-types==0.7.0
+2025-12-31T23:29:29.7205925Z  + anthropic==0.75.0
+2025-12-31T23:29:29.7206237Z  + anyio==4.12.0
+2025-12-31T23:29:29.7206576Z  + argcomplete==3.6.3
+2025-12-31T23:29:29.7206896Z  + atpublic==7.0.0
+2025-12-31T23:29:29.7207194Z  + attrs==25.4.0
+2025-12-31T23:29:29.7207484Z  + authlib==1.6.6
+2025-12-31T23:29:29.7207913Z  + babel==2.17.0
+2025-12-31T23:29:29.7208408Z  + backrefs==6.1
+2025-12-31T23:29:29.7208746Z  + bandit==1.9.2
+2025-12-31T23:29:29.7209281Z  + beartype==0.22.9
+2025-12-31T23:29:29.7209654Z  + boto3==1.42.17
+2025-12-31T23:29:29.7209948Z  + botocore==1.42.17
+2025-12-31T23:29:29.7210281Z  + cachecontrol==0.14.4
+2025-12-31T23:29:29.7210611Z  + cachetools==6.2.4
+2025-12-31T23:29:29.7210913Z  + cairocffi==1.7.1
+2025-12-31T23:29:29.7211205Z  + cairosvg==2.8.2
+2025-12-31T23:29:29.7211504Z  + certifi==2025.11.12
+2025-12-31T23:29:29.7211812Z  + cffi==2.0.0
+2025-12-31T23:29:29.7212086Z  + cfgv==3.5.0
+2025-12-31T23:29:29.7212394Z  + charset-normalizer==3.4.4
+2025-12-31T23:29:29.7212751Z  + click==8.3.1
+2025-12-31T23:29:29.7213044Z  + cloudpickle==3.1.2
+2025-12-31T23:29:29.7213361Z  + codespell==2.4.1
+2025-12-31T23:29:29.7213664Z  + cohere==5.20.1
+2025-12-31T23:29:29.7213950Z  + colorama==0.4.6
+2025-12-31T23:29:29.7214244Z  + coverage==7.13.1
+2025-12-31T23:29:29.7214552Z  + cryptography==46.0.3
+2025-12-31T23:29:29.7215035Z  + csscompressor==0.9.5
+2025-12-31T23:29:29.7215626Z  + cssselect2==0.8.0
+2025-12-31T23:29:29.7215940Z  + cyclopts==4.4.3
+2025-12-31T23:29:29.7216239Z  + defusedxml==0.7.1
+2025-12-31T23:29:29.7216539Z  + deprecation==2.1.0
+2025-12-31T23:29:29.7216853Z  + deptry==0.24.0
+2025-12-31T23:29:29.7217146Z  + diskcache==5.6.3
+2025-12-31T23:29:29.7217432Z  + distlib==0.4.0
+2025-12-31T23:29:29.7217721Z  + distro==1.9.0
+2025-12-31T23:29:29.7218012Z  + dnspython==2.8.0
+2025-12-31T23:29:29.7218330Z  + docstring-parser==0.17.0
+2025-12-31T23:29:29.7218668Z  + docutils==0.22.4
+2025-12-31T23:29:29.7218960Z  + duckdb==1.4.3
+2025-12-31T23:29:29.7219398Z  + egregora==2.0.0 (from file:///home/runner/work/egregora/egregora)
+2025-12-31T23:29:29.7219938Z  + email-validator==2.3.0
+2025-12-31T23:29:29.7220302Z  + eval-type-backport==0.3.1
+2025-12-31T23:29:29.7220684Z  + exceptiongroup==1.3.1
+2025-12-31T23:29:29.7221012Z  + execnet==2.1.2
+2025-12-31T23:29:29.7221307Z  + executing==2.2.1
+2025-12-31T23:29:29.7221595Z  + faker==39.0.0
+2025-12-31T23:29:29.7221895Z  + fakeredis==2.33.0
+2025-12-31T23:29:29.7222200Z  + fastavro==1.12.1
+2025-12-31T23:29:29.7222488Z  + fastmcp==2.14.1
+2025-12-31T23:29:29.7222788Z  + filelock==3.20.1
+2025-12-31T23:29:29.7223073Z  + freezegun==1.5.5
+2025-12-31T23:29:29.7223374Z  + frozenlist==1.8.0
+2025-12-31T23:29:29.7223685Z  + fsspec==2025.12.0
+2025-12-31T23:29:29.7223986Z  + genai-prices==0.0.49
+2025-12-31T23:29:29.7224314Z  + ghp-import==2.1.0
+2025-12-31T23:29:29.7224632Z  + gitdb==4.0.12
+2025-12-31T23:29:29.7225114Z  + gitpython==3.1.45
+2025-12-31T23:29:29.7225470Z  + google-ai-generativelanguage==0.6.15
+2025-12-31T23:29:29.7225946Z  + google-api-core==2.28.1
+2025-12-31T23:29:29.7226404Z  + google-api-python-client==2.187.0
+2025-12-31T23:29:29.7226807Z  + google-auth==2.45.0
+2025-12-31T23:29:29.7227150Z  + google-auth-httplib2==0.3.0
+2025-12-31T23:29:29.7227726Z  + google-genai==1.56.0
+2025-12-31T23:29:29.7228073Z  + google-generativeai==0.8.6
+2025-12-31T23:29:29.7228471Z  + googleapis-common-protos==1.72.0
+2025-12-31T23:29:29.7228863Z  + griffe==1.15.0
+2025-12-31T23:29:29.7229163Z  + groq==1.0.0
+2025-12-31T23:29:29.7229437Z  + grpcio==1.76.0
+2025-12-31T23:29:29.7229746Z  + grpcio-status==1.71.2
+2025-12-31T23:29:29.7230068Z  + h11==0.16.0
+2025-12-31T23:29:29.7230342Z  + hf-xet==1.2.0
+2025-12-31T23:29:29.7230628Z  + hjson==3.1.0
+2025-12-31T23:29:29.7230914Z  + htmlmin2==0.1.13
+2025-12-31T23:29:29.7231220Z  + httpcore==1.0.9
+2025-12-31T23:29:29.7231513Z  + httplib2==0.31.0
+2025-12-31T23:29:29.7231805Z  + httpx==0.28.1
+2025-12-31T23:29:29.7232097Z  + httpx-sse==0.4.3
+2025-12-31T23:29:29.7232408Z  + huggingface-hub==0.36.0
+2025-12-31T23:29:29.7232754Z  + hypothesis==6.148.8
+2025-12-31T23:29:29.7233084Z  + ibis-framework==11.0.0
+2025-12-31T23:29:29.7233420Z  + identify==2.6.15
+2025-12-31T23:29:29.7233705Z  + idna==3.11
+2025-12-31T23:29:29.7234017Z  + importlib-metadata==8.7.1
+2025-12-31T23:29:29.7234369Z  + iniconfig==2.3.0
+2025-12-31T23:29:29.7234655Z  + invoke==2.2.1
+2025-12-31T23:29:29.7235116Z  + jaraco-classes==3.4.0
+2025-12-31T23:29:29.7235459Z  + jaraco-context==6.0.2
+2025-12-31T23:29:29.7235799Z  + jaraco-functools==4.4.0
+2025-12-31T23:29:29.7237389Z  + jeepney==0.9.0
+2025-12-31T23:29:29.7239343Z  + jinja2==3.1.6
+2025-12-31T23:29:29.7239909Z  + jiter==0.12.0
+2025-12-31T23:29:29.7240247Z  + jmespath==1.0.1
+2025-12-31T23:29:29.7240579Z  + joblib==1.5.3
+2025-12-31T23:29:29.7240875Z  + jsmin==3.0.1
+2025-12-31T23:29:29.7241190Z  + jsonschema==4.25.1
+2025-12-31T23:29:29.7241537Z  + jsonschema-path==0.3.4
+2025-12-31T23:29:29.7241917Z  + jsonschema-specifications==2025.9.1
+2025-12-31T23:29:29.7242370Z  + keyring==25.7.0
+2025-12-31T23:29:29.7242689Z  + lance-namespace==0.4.0
+2025-12-31T23:29:29.7243060Z  + lance-namespace-urllib3-client==0.4.0
+2025-12-31T23:29:29.7243475Z  + lancedb==0.26.0
+2025-12-31T23:29:29.7243767Z  + logfire==4.16.0
+2025-12-31T23:29:29.7244068Z  + logfire-api==4.16.0
+2025-12-31T23:29:29.7244386Z  + lupa==2.6
+2025-12-31T23:29:29.7244659Z  + lxml==6.0.2
+2025-12-31T23:29:29.7245159Z  + mando==0.7.1
+2025-12-31T23:29:29.7245453Z  + markdown==3.10
+2025-12-31T23:29:29.7245960Z  + markdown-it-py==4.0.0
+2025-12-31T23:29:29.7246299Z  + markupsafe==3.0.3
+2025-12-31T23:29:29.7246607Z  + mcp==1.25.0
+2025-12-31T23:29:29.7246902Z  + mdurl==0.1.2
+2025-12-31T23:29:29.7247185Z  + mergedeep==1.3.4
+2025-12-31T23:29:29.7247491Z  + mistralai==1.9.11
+2025-12-31T23:29:29.7247792Z  + mkdocs==1.6.1
+2025-12-31T23:29:29.7248102Z  + mkdocs-autorefs==1.4.3
+2025-12-31T23:29:29.7248467Z  + mkdocs-blogging-plugin==2.2.11
+2025-12-31T23:29:29.7248864Z  + mkdocs-get-deps==0.2.0
+2025-12-31T23:29:29.7249301Z  + mkdocs-git-revision-date-localized-plugin==1.5.0
+2025-12-31T23:29:29.7251256Z  + mkdocs-glightbox==0.5.2
+2025-12-31T23:29:29.7252031Z  + mkdocs-macros-plugin==1.5.0
+2025-12-31T23:29:29.7253005Z  + mkdocs-material==9.7.1
+2025-12-31T23:29:29.7253446Z  + mkdocs-material-extensions==1.3.1
+2025-12-31T23:29:29.7253904Z  + mkdocs-minify-plugin==0.8.0
+2025-12-31T23:29:29.7254316Z  + mkdocs-rss-plugin==1.17.7
+2025-12-31T23:29:29.7254920Z  + mkdocs-static-i18n==1.3.0
+2025-12-31T23:29:29.7255325Z  + mkdocstrings==1.0.0
+2025-12-31T23:29:29.7255658Z  + mkdocstrings-python==2.0.1
+2025-12-31T23:29:29.7256023Z  + more-itertools==10.8.0
+2025-12-31T23:29:29.7256349Z  + msgpack==1.1.2
+2025-12-31T23:29:29.7256636Z  + multidict==6.7.0
+2025-12-31T23:29:29.7256930Z  + nexus-rpc==1.2.0
+2025-12-31T23:29:29.7257213Z  + nodeenv==1.10.0
+2025-12-31T23:29:29.7257496Z  + numpy==2.4.0
+2025-12-31T23:29:29.7257773Z  + openai==2.14.0
+2025-12-31T23:29:29.7258097Z  + openapi-pydantic==0.5.1
+2025-12-31T23:29:29.7258448Z  + opentelemetry-api==1.39.1
+2025-12-31T23:29:29.7258899Z  + opentelemetry-exporter-otlp-proto-common==1.39.1
+2025-12-31T23:29:29.7259449Z  + opentelemetry-exporter-otlp-proto-http==1.39.1
+2025-12-31T23:29:29.7259963Z  + opentelemetry-exporter-prometheus==0.60b1
+2025-12-31T23:29:29.7260663Z  + opentelemetry-instrumentation==0.60b1
+2025-12-31T23:29:29.7261139Z  + opentelemetry-instrumentation-httpx==0.60b1
+2025-12-31T23:29:29.7261593Z  + opentelemetry-proto==1.39.1
+2025-12-31T23:29:29.7261971Z  + opentelemetry-sdk==1.39.1
+2025-12-31T23:29:29.7262387Z  + opentelemetry-semantic-conventions==0.60b1
+2025-12-31T23:29:29.7262850Z  + opentelemetry-util-http==0.60b1
+2025-12-31T23:29:29.7263113Z  + packaging==25.0
+2025-12-31T23:29:29.7263299Z  + paginate==0.5.7
+2025-12-31T23:29:29.7263477Z  + pandas==2.3.3
+2025-12-31T23:29:29.7263645Z  + parsy==2.2
+2025-12-31T23:29:29.7263810Z  + pathable==0.4.4
+2025-12-31T23:29:29.7263985Z  + pathspec==0.12.1
+2025-12-31T23:29:29.7264163Z  + pathvalidate==3.3.1
+2025-12-31T23:29:29.7264365Z  + pillow==11.3.0
+2025-12-31T23:29:29.7264557Z  + platformdirs==4.5.1
+2025-12-31T23:29:29.7264918Z  + pluggy==1.6.0
+2025-12-31T23:29:29.7265176Z  + pre-commit==4.5.1
+2025-12-31T23:29:29.7265375Z  + prometheus-client==0.23.1
+2025-12-31T23:29:29.7265596Z  + prompt-toolkit==3.0.52
+2025-12-31T23:29:29.7265801Z  + propcache==0.4.1
+2025-12-31T23:29:29.7265984Z  + proto-plus==1.27.0
+2025-12-31T23:29:29.7266170Z  + protobuf==5.29.5
+2025-12-31T23:29:29.7266341Z  + py-cpuinfo==9.0.0
+2025-12-31T23:29:29.7266547Z  + py-key-value-aio==0.3.0
+2025-12-31T23:29:29.7266765Z  + py-key-value-shared==0.3.0
+2025-12-31T23:29:29.7266966Z  + pyarrow==22.0.0
+2025-12-31T23:29:29.7267145Z  + pyarrow-hotfix==0.7
+2025-12-31T23:29:29.7267332Z  + pyasn1==0.6.1
+2025-12-31T23:29:29.7267505Z  + pyasn1-modules==0.4.2
+2025-12-31T23:29:29.7267698Z  + pycparser==2.23
+2025-12-31T23:29:29.7267872Z  + pydantic==2.12.5
+2025-12-31T23:29:29.7269331Z  + pydantic-ai==1.39.0
+2025-12-31T23:29:29.7269699Z  + pydantic-ai-slim==1.39.0
+2025-12-31T23:29:29.7270064Z  + pydantic-core==2.41.5
+2025-12-31T23:29:29.7270410Z  + pydantic-evals==1.39.0
+2025-12-31T23:29:29.7270751Z  + pydantic-graph==1.39.0
+2025-12-31T23:29:29.7271099Z  + pydantic-settings==2.12.0
+2025-12-31T23:29:29.7271686Z  + pydocket==0.16.3
+2025-12-31T23:29:29.7272004Z  + pygments==2.19.2
+2025-12-31T23:29:29.7272298Z  + pyjwt==2.10.1
+2025-12-31T23:29:29.7272617Z  + pymdown-extensions==10.19.1
+2025-12-31T23:29:29.7272969Z  + pyparsing==3.3.1
+2025-12-31T23:29:29.7273270Z  + pyperclip==1.11.0
+2025-12-31T23:29:29.7273782Z  + pytest==9.0.2
+2025-12-31T23:29:29.7274076Z  + pytest-asyncio==1.3.0
+2025-12-31T23:29:29.7274420Z  + pytest-benchmark==5.2.3
+2025-12-31T23:29:29.7274932Z  + pytest-cov==7.0.0
+2025-12-31T23:29:29.7275264Z  + pytest-mock==3.15.1
+2025-12-31T23:29:29.7275584Z  + pytest-socket==0.7.0
+2025-12-31T23:29:29.7275902Z  + pytest-xdist==3.8.0
+2025-12-31T23:29:29.7276228Z  + python-dateutil==2.9.0.post0
+2025-12-31T23:29:29.7276590Z  + python-dotenv==1.2.1
+2025-12-31T23:29:29.7276919Z  + python-frontmatter==1.1.0
+2025-12-31T23:29:29.7277296Z  + python-json-logger==4.0.0
+2025-12-31T23:29:29.7277654Z  + python-multipart==0.0.21
+2025-12-31T23:29:29.7277986Z  + pytz==2025.2
+2025-12-31T23:29:29.7278259Z  + pyyaml==6.0.3
+2025-12-31T23:29:29.7278556Z  + pyyaml-env-tag==1.1
+2025-12-31T23:29:29.7278866Z  + radon==6.0.1
+2025-12-31T23:29:29.7279140Z  + ratelimit==2.2.1
+2025-12-31T23:29:29.7279717Z  + redis==7.1.0
+2025-12-31T23:29:29.7299284Z  + referencing==0.36.2
+2025-12-31T23:29:29.7299672Z  + regex==2025.11.3
+2025-12-31T23:29:29.7300001Z  + requests==2.32.5
+2025-12-31T23:29:29.7300322Z  + requirements-parser==0.13.0
+2025-12-31T23:29:29.7300660Z  + respx==0.22.0
+2025-12-31T23:29:29.7300964Z  + rich==14.2.0
+2025-12-31T23:29:29.7301238Z  + rich-rst==1.3.2
+2025-12-31T23:29:29.7301497Z  + rpds-py==0.30.0
+2025-12-31T23:29:29.7301761Z  + rsa==4.9.1
+2025-12-31T23:29:29.7302012Z  + ruff==0.14.10
+2025-12-31T23:29:29.7302339Z  + s3transfer==0.16.0
+2025-12-31T23:29:29.7302682Z  + scikit-learn==1.8.0
+2025-12-31T23:29:29.7303014Z  + scipy==1.16.3
+2025-12-31T23:29:29.7303350Z  + secretstorage==3.5.0
+2025-12-31T23:29:29.7303692Z  + selectolax==0.4.6
+2025-12-31T23:29:29.7304042Z  + shellingham==1.5.4
+2025-12-31T23:29:29.7304360Z  + six==1.17.0
+2025-12-31T23:29:29.7304643Z  + smmap==5.0.2
+2025-12-31T23:29:29.7305533Z  + sniffio==1.3.1
+2025-12-31T23:29:29.7305863Z  + sortedcontainers==2.4.0
+2025-12-31T23:29:29.7306225Z  + sqlglot==28.5.0
+2025-12-31T23:29:29.7306539Z  + sse-starlette==3.1.1
+2025-12-31T23:29:29.7306878Z  + starlette==0.50.0
+2025-12-31T23:29:29.7307182Z  + stevedore==5.6.0
+2025-12-31T23:29:29.7307473Z  + super-collections==0.6.2
+2025-12-31T23:29:29.7307755Z  + syrupy==5.0.0
+2025-12-31T23:29:29.7307957Z  + temporalio==1.20.0
+2025-12-31T23:29:29.7308150Z  + tenacity==9.1.2
+2025-12-31T23:29:29.7308330Z  + termcolor==3.2.0
+2025-12-31T23:29:29.7308521Z  + threadpoolctl==3.6.0
+2025-12-31T23:29:29.7308711Z  + tiktoken==0.12.0
+2025-12-31T23:29:29.7308887Z  + tinycss2==1.5.1
+2025-12-31T23:29:29.7309069Z  + tokenizers==0.22.1
+2025-12-31T23:29:29.7309254Z  + tomli-w==1.2.0
+2025-12-31T23:29:29.7309425Z  + toolz==1.1.0
+2025-12-31T23:29:29.7309594Z  + tqdm==4.67.1
+2025-12-31T23:29:29.7309758Z  + typer==0.21.0
+2025-12-31T23:29:29.7309943Z  + types-protobuf==6.32.1.20251210
+2025-12-31T23:29:29.7310191Z  + types-requests==2.32.4.20250913
+2025-12-31T23:29:29.7310428Z  + typing-extensions==4.15.0
+2025-12-31T23:29:29.7310651Z  + typing-inspection==0.4.2
+2025-12-31T23:29:29.7310860Z  + tzdata==2024.2
+2025-12-31T23:29:29.7311050Z  + uritemplate==4.2.0
+2025-12-31T23:29:29.7311237Z  + urllib3==2.6.2
+2025-12-31T23:29:29.7311419Z  + uvicorn==0.40.0
+2025-12-31T23:29:29.7311602Z  + virtualenv==20.35.4
+2025-12-31T23:29:29.7311783Z  + vulture==2.14
+2025-12-31T23:29:29.7311959Z  + watchdog==6.0.0
+2025-12-31T23:29:29.7312136Z  + wcwidth==0.2.14
+2025-12-31T23:29:29.7312310Z  + webencodings==0.5.1
+2025-12-31T23:29:29.7312492Z  + websockets==15.0.1
+2025-12-31T23:29:29.7312671Z  + wrapt==1.17.3
+2025-12-31T23:29:29.7312842Z  + xenon==0.9.3
+2025-12-31T23:29:29.7313008Z  + yarl==1.22.0
+2025-12-31T23:29:29.7313173Z  + zipp==3.23.0

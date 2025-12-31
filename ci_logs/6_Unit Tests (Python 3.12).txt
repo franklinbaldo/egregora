@@ -1,0 +1,954 @@
+﻿2025-12-31T23:29:16.6968630Z Current runner version: '2.330.0'
+2025-12-31T23:29:16.6994171Z ##[group]Runner Image Provisioner
+2025-12-31T23:29:16.6995192Z Hosted Compute Agent
+2025-12-31T23:29:16.6995715Z Version: 20251211.462
+2025-12-31T23:29:16.6996452Z Commit: 6cbad8c2bb55d58165063d031ccabf57e2d2db61
+2025-12-31T23:29:16.6997185Z Build Date: 2025-12-11T16:28:49Z
+2025-12-31T23:29:16.6997805Z Worker ID: {ebf0a7b6-a554-49af-aad7-6836b2500b41}
+2025-12-31T23:29:16.6998835Z ##[endgroup]
+2025-12-31T23:29:16.6999384Z ##[group]Operating System
+2025-12-31T23:29:16.6999902Z Ubuntu
+2025-12-31T23:29:16.7000489Z 24.04.3
+2025-12-31T23:29:16.7000924Z LTS
+2025-12-31T23:29:16.7001372Z ##[endgroup]
+2025-12-31T23:29:16.7001970Z ##[group]Runner Image
+2025-12-31T23:29:16.7002494Z Image: ubuntu-24.04
+2025-12-31T23:29:16.7003003Z Version: 20251215.174.1
+2025-12-31T23:29:16.7004121Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20251215.174/images/ubuntu/Ubuntu2404-Readme.md
+2025-12-31T23:29:16.7005671Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20251215.174
+2025-12-31T23:29:16.7006760Z ##[endgroup]
+2025-12-31T23:29:16.7007763Z ##[group]GITHUB_TOKEN Permissions
+2025-12-31T23:29:16.7010281Z Contents: read
+2025-12-31T23:29:16.7010861Z Metadata: read
+2025-12-31T23:29:16.7011335Z ##[endgroup]
+2025-12-31T23:29:16.7013507Z Secret source: Actions
+2025-12-31T23:29:16.7014234Z Prepare workflow directory
+2025-12-31T23:29:16.7402413Z Prepare all required actions
+2025-12-31T23:29:16.7441242Z Getting action download info
+2025-12-31T23:29:17.2374822Z Download action repository 'actions/checkout@v6' (SHA:8e8c483db84b4bee98b60c0593521ed34d9990e8)
+2025-12-31T23:29:17.3890257Z Download action repository 'actions/setup-python@v6' (SHA:83679a892e2d95755f2dac6acb0bfd1e9ac5d548)
+2025-12-31T23:29:17.5204482Z Download action repository 'codecov/codecov-action@v5' (SHA:671740ac38dd9b0130fbe1cec585b89eea48d3de)
+2025-12-31T23:29:18.0157687Z Download action repository 'actions/upload-artifact@v6' (SHA:b7c566a772e6b6bfb58ed0dc250532a479d7789f)
+2025-12-31T23:29:18.7682491Z Getting action download info
+2025-12-31T23:29:18.9257618Z Download action repository 'actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea' (SHA:60a0d83039c74a4aee543508d2ffcb1c3799cdea)
+2025-12-31T23:29:19.5634416Z Complete job name: Unit Tests (Python 3.12)
+2025-12-31T23:29:19.6285430Z ##[group]Run actions/checkout@v6
+2025-12-31T23:29:19.6286004Z with:
+2025-12-31T23:29:19.6286221Z   repository: franklinbaldo/egregora
+2025-12-31T23:29:19.6286635Z   token: ***
+2025-12-31T23:29:19.6286830Z   ssh-strict: true
+2025-12-31T23:29:19.6287026Z   ssh-user: git
+2025-12-31T23:29:19.6287229Z   persist-credentials: true
+2025-12-31T23:29:19.6287467Z   clean: true
+2025-12-31T23:29:19.6287687Z   sparse-checkout-cone-mode: true
+2025-12-31T23:29:19.6287925Z   fetch-depth: 1
+2025-12-31T23:29:19.6288492Z   fetch-tags: false
+2025-12-31T23:29:19.6288699Z   show-progress: true
+2025-12-31T23:29:19.6288905Z   lfs: false
+2025-12-31T23:29:19.6289083Z   submodules: false
+2025-12-31T23:29:19.6289292Z   set-safe-directory: true
+2025-12-31T23:29:19.6289791Z env:
+2025-12-31T23:29:19.6289967Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:19.6290186Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:19.6290416Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:19.6290624Z ##[endgroup]
+2025-12-31T23:29:19.7235527Z Syncing repository: franklinbaldo/egregora
+2025-12-31T23:29:19.7236884Z ##[group]Getting Git version info
+2025-12-31T23:29:19.7237427Z Working directory is '/home/runner/work/egregora/egregora'
+2025-12-31T23:29:19.7238268Z [command]/usr/bin/git version
+2025-12-31T23:29:19.7311058Z git version 2.52.0
+2025-12-31T23:29:19.7331757Z ##[endgroup]
+2025-12-31T23:29:19.7348220Z Temporarily overriding HOME='/home/runner/work/_temp/59ed996a-c3c0-40f5-9e4a-9b2fdcb67e30' before making global git config changes
+2025-12-31T23:29:19.7349642Z Adding repository directory to the temporary git global config as a safe directory
+2025-12-31T23:29:19.7354202Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/egregora/egregora
+2025-12-31T23:29:19.7397420Z Deleting the contents of '/home/runner/work/egregora/egregora'
+2025-12-31T23:29:19.7401448Z ##[group]Initializing the repository
+2025-12-31T23:29:19.7406446Z [command]/usr/bin/git init /home/runner/work/egregora/egregora
+2025-12-31T23:29:19.7523079Z hint: Using 'master' as the name for the initial branch. This default branch name
+2025-12-31T23:29:19.7523981Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2025-12-31T23:29:19.7524510Z hint: to use in all of your new repositories, which will suppress this warning,
+2025-12-31T23:29:19.7524894Z hint: call:
+2025-12-31T23:29:19.7525077Z hint:
+2025-12-31T23:29:19.7525352Z hint: 	git config --global init.defaultBranch <name>
+2025-12-31T23:29:19.7525647Z hint:
+2025-12-31T23:29:19.7525949Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2025-12-31T23:29:19.7526787Z hint: 'development'. The just-created branch can be renamed via this command:
+2025-12-31T23:29:19.7527544Z hint:
+2025-12-31T23:29:19.7527854Z hint: 	git branch -m <name>
+2025-12-31T23:29:19.7528393Z hint:
+2025-12-31T23:29:19.7528886Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2025-12-31T23:29:19.7529910Z Initialized empty Git repository in /home/runner/work/egregora/egregora/.git/
+2025-12-31T23:29:19.7539270Z [command]/usr/bin/git remote add origin https://github.com/franklinbaldo/egregora
+2025-12-31T23:29:19.7576537Z ##[endgroup]
+2025-12-31T23:29:19.7576970Z ##[group]Disabling automatic garbage collection
+2025-12-31T23:29:19.7582502Z [command]/usr/bin/git config --local gc.auto 0
+2025-12-31T23:29:19.7614959Z ##[endgroup]
+2025-12-31T23:29:19.7615599Z ##[group]Setting up auth
+2025-12-31T23:29:19.7617169Z Removing SSH command configuration
+2025-12-31T23:29:19.7625664Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-12-31T23:29:19.7663771Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-12-31T23:29:19.8046766Z Removing HTTP extra header
+2025-12-31T23:29:19.8052453Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-12-31T23:29:19.8087666Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-12-31T23:29:19.8316813Z Removing includeIf entries pointing to credentials config files
+2025-12-31T23:29:19.8323353Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2025-12-31T23:29:19.8354803Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2025-12-31T23:29:19.8579211Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-75303adc-c4de-42b2-ac33-6f24541270ef.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2025-12-31T23:29:19.8614973Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/egregora/egregora/.git.path /home/runner/work/_temp/git-credentials-75303adc-c4de-42b2-ac33-6f24541270ef.config
+2025-12-31T23:29:19.8644702Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/egregora/egregora/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-75303adc-c4de-42b2-ac33-6f24541270ef.config
+2025-12-31T23:29:19.8674757Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-75303adc-c4de-42b2-ac33-6f24541270ef.config
+2025-12-31T23:29:19.8705405Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-75303adc-c4de-42b2-ac33-6f24541270ef.config
+2025-12-31T23:29:19.8731523Z ##[endgroup]
+2025-12-31T23:29:19.8731908Z ##[group]Fetching the repository
+2025-12-31T23:29:19.8739977Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +b30aa2c7ac96af9e22605ea9491bd914f73b346c:refs/remotes/pull/2028/merge
+2025-12-31T23:29:20.4931779Z From https://github.com/franklinbaldo/egregora
+2025-12-31T23:29:20.4934238Z  * [new ref]         b30aa2c7ac96af9e22605ea9491bd914f73b346c -> pull/2028/merge
+2025-12-31T23:29:20.4967826Z ##[endgroup]
+2025-12-31T23:29:20.4968900Z ##[group]Determining the checkout info
+2025-12-31T23:29:20.4970991Z ##[endgroup]
+2025-12-31T23:29:20.4976517Z [command]/usr/bin/git sparse-checkout disable
+2025-12-31T23:29:20.5020238Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2025-12-31T23:29:20.5050203Z ##[group]Checking out the ref
+2025-12-31T23:29:20.5054532Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/2028/merge
+2025-12-31T23:29:20.5688658Z Note: switching to 'refs/remotes/pull/2028/merge'.
+2025-12-31T23:29:20.5690795Z
+2025-12-31T23:29:20.5691247Z You are in 'detached HEAD' state. You can look around, make experimental
+2025-12-31T23:29:20.5692110Z changes and commit them, and you can discard any commits you make in this
+2025-12-31T23:29:20.5692993Z state without impacting any branches by switching back to a branch.
+2025-12-31T23:29:20.5693494Z
+2025-12-31T23:29:20.5693926Z If you want to create a new branch to retain commits you create, you may
+2025-12-31T23:29:20.5694767Z do so (now or later) by using -c with the switch command. Example:
+2025-12-31T23:29:20.5695232Z
+2025-12-31T23:29:20.5695417Z   git switch -c <new-branch-name>
+2025-12-31T23:29:20.5695738Z
+2025-12-31T23:29:20.5695923Z Or undo this operation with:
+2025-12-31T23:29:20.5696212Z
+2025-12-31T23:29:20.5696351Z   git switch -
+2025-12-31T23:29:20.5696590Z
+2025-12-31T23:29:20.5696966Z Turn off this advice by setting config variable advice.detachedHead to false
+2025-12-31T23:29:20.5697485Z
+2025-12-31T23:29:20.5698332Z HEAD is now at b30aa2c Merge 5107e2e853d348432dc245dd795d839c51f95a60 into 56fdad5c4071a0aac6dc5a292c7341f78e8c68f9
+2025-12-31T23:29:20.5700127Z ##[endgroup]
+2025-12-31T23:29:20.5740421Z [command]/usr/bin/git log -1 --format=%H
+2025-12-31T23:29:20.5764650Z b30aa2c7ac96af9e22605ea9491bd914f73b346c
+2025-12-31T23:29:20.5933544Z Prepare all required actions
+2025-12-31T23:29:20.5933998Z Getting action download info
+2025-12-31T23:29:20.7562122Z Download action repository 'astral-sh/setup-uv@v5' (SHA:d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86)
+2025-12-31T23:29:21.3752094Z ##[group]Run ./.github/actions/setup-python-uv
+2025-12-31T23:29:21.3752399Z with:
+2025-12-31T23:29:21.3752573Z   python-version: 3.12
+2025-12-31T23:29:21.3752784Z   extras: --all-extras
+2025-12-31T23:29:21.3752960Z env:
+2025-12-31T23:29:21.3753128Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:21.3753335Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:21.3753554Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:21.3753772Z ##[endgroup]
+2025-12-31T23:29:21.3870377Z ##[group]Run astral-sh/setup-uv@v5
+2025-12-31T23:29:21.3870670Z with:
+2025-12-31T23:29:21.3870864Z   enable-cache: true
+2025-12-31T23:29:21.3871081Z   cache-dependency-glob: uv.lock
+2025-12-31T23:29:21.3871470Z   github-token: ***
+2025-12-31T23:29:21.3871664Z   prune-cache: true
+2025-12-31T23:29:21.3871907Z   ignore-nothing-to-cache: false
+2025-12-31T23:29:21.3872146Z   ignore-empty-workdir: false
+2025-12-31T23:29:21.3872360Z env:
+2025-12-31T23:29:21.3872524Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:21.3872719Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:21.3872947Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:21.3873150Z ##[endgroup]
+2025-12-31T23:29:21.9608373Z Downloading uv from "https://github.com/astral-sh/uv/releases/download/0.9.21/uv-x86_64-unknown-linux-gnu.tar.gz" ...
+2025-12-31T23:29:22.3885204Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/7637e237-f998-4ce8-a605-ca521af818e0 -f /home/runner/work/_temp/97dd3b3f-c2ed-4a52-82e2-30e0947cb0de
+2025-12-31T23:29:22.8371099Z Added /home/runner/.local/bin to the path
+2025-12-31T23:29:22.8374586Z Added /opt/hostedtoolcache/uv/0.9.21/x86_64 to the path
+2025-12-31T23:29:22.8399898Z Set UV_CACHE_DIR to /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:22.8400570Z Successfully installed uv version 0.9.21
+2025-12-31T23:29:22.8401144Z Searching files using cache dependency glob: uv.lock
+2025-12-31T23:29:22.8428449Z /home/runner/work/egregora/egregora/uv.lock
+2025-12-31T23:29:22.8455431Z Found 1 files to hash.
+2025-12-31T23:29:22.9412588Z Trying to restore uv cache from GitHub Actions cache with key: setup-uv-1-x86_64-unknown-linux-gnu-3.12.3-10be5017aed523e4aa7cb2dcf54c5c16ccd6ad48d60311f571f393dcfca619f4
+2025-12-31T23:29:23.1782917Z Cache hit for: setup-uv-1-x86_64-unknown-linux-gnu-3.12.3-10be5017aed523e4aa7cb2dcf54c5c16ccd6ad48d60311f571f393dcfca619f4
+2025-12-31T23:29:24.4635896Z Received 5244690 of 5244690 (100.0%), 5.0 MBs/sec
+2025-12-31T23:29:24.4636549Z Cache Size: ~5 MB (5244690 B)
+2025-12-31T23:29:24.4667364Z [command]/usr/bin/tar -xf /home/runner/work/_temp/2d3ad478-0aaf-447b-80e8-417b83113621/cache.tzst -P -C /home/runner/work/egregora/egregora --use-compress-program unzstd
+2025-12-31T23:29:24.5174838Z Cache restored successfully
+2025-12-31T23:29:24.5195338Z uv cache restored from GitHub Actions cache with key: setup-uv-1-x86_64-unknown-linux-gnu-3.12.3-10be5017aed523e4aa7cb2dcf54c5c16ccd6ad48d60311f571f393dcfca619f4
+2025-12-31T23:29:24.5351989Z ##[group]Run uv python install 3.12
+2025-12-31T23:29:24.5352344Z [36;1muv python install 3.12[0m
+2025-12-31T23:29:24.5389918Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2025-12-31T23:29:24.5390270Z env:
+2025-12-31T23:29:24.5390455Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:24.5390677Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:24.5390901Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:24.5391171Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:24.5391454Z ##[endgroup]
+2025-12-31T23:29:24.7903060Z Downloading cpython-3.12.12-linux-x86_64-gnu (download) (31.7MiB)
+2025-12-31T23:29:25.5531184Z  Downloaded cpython-3.12.12-linux-x86_64-gnu (download)
+2025-12-31T23:29:25.5583411Z Installed Python 3.12.12 in 1.00s
+2025-12-31T23:29:25.5583965Z  + cpython-3.12.12-linux-x86_64-gnu (python3.12)
+2025-12-31T23:29:25.5637325Z ##[group]Run uv sync --all-extras
+2025-12-31T23:29:25.5637704Z [36;1muv sync --all-extras[0m
+2025-12-31T23:29:25.5669952Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2025-12-31T23:29:25.5670286Z env:
+2025-12-31T23:29:25.5670463Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:25.5670682Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:25.5670913Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:25.5671181Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:25.5671465Z ##[endgroup]
+2025-12-31T23:29:25.7415994Z Using CPython 3.12.12
+2025-12-31T23:29:25.7416495Z Creating virtual environment at: .venv
+2025-12-31T23:29:25.7514242Z Resolved 267 packages in 0.95ms
+2025-12-31T23:29:25.7688712Z    Building egregora @ file:///home/runner/work/egregora/egregora
+2025-12-31T23:29:25.7884820Z Downloading scikit-learn (8.5MiB)
+2025-12-31T23:29:25.7886430Z Downloading grpcio (6.3MiB)
+2025-12-31T23:29:25.7887843Z Downloading virtualenv (5.7MiB)
+2025-12-31T23:29:25.7889668Z Downloading hf-xet (3.2MiB)
+2025-12-31T23:29:25.7891325Z Downloading pydantic-core (2.0MiB)
+2025-12-31T23:29:25.7892972Z Downloading faker (1.9MiB)
+2025-12-31T23:29:25.7895025Z Downloading aiohttp (1.7MiB)
+2025-12-31T23:29:25.7896560Z Downloading babel (9.7MiB)
+2025-12-31T23:29:25.7898723Z Downloading pygments (1.2MiB)
+2025-12-31T23:29:25.7905225Z Downloading deptry (1.8MiB)
+2025-12-31T23:29:25.7911824Z Downloading cryptography (4.3MiB)
+2025-12-31T23:29:25.8034731Z Downloading ruff (13.6MiB)
+2025-12-31T23:29:25.8044719Z Downloading google-api-python-client (14.0MiB)
+2025-12-31T23:29:25.8047795Z Downloading openai (1.0MiB)
+2025-12-31T23:29:25.8054941Z Downloading scipy (34.0MiB)
+2025-12-31T23:29:25.8058671Z Downloading mkdocs-material (8.9MiB)
+2025-12-31T23:29:25.8062604Z Downloading lancedb (43.8MiB)
+2025-12-31T23:29:25.8066586Z Downloading duckdb (19.5MiB)
+2025-12-31T23:29:25.8072118Z Downloading lupa (2.0MiB)
+2025-12-31T23:29:25.8073727Z Downloading mkdocs (3.7MiB)
+2025-12-31T23:29:25.8077624Z Downloading fastavro (3.3MiB)
+2025-12-31T23:29:25.8082229Z Downloading pillow (6.3MiB)
+2025-12-31T23:29:25.8085857Z Downloading ibis-framework (1.8MiB)
+2025-12-31T23:29:25.8090673Z Downloading botocore (13.9MiB)
+2025-12-31T23:29:25.8095765Z Downloading beartype (1.3MiB)
+2025-12-31T23:29:25.8100734Z Downloading tokenizers (3.1MiB)
+2025-12-31T23:29:25.8105303Z Downloading pyarrow (45.5MiB)
+2025-12-31T23:29:25.8109857Z Downloading google-ai-generativelanguage (1.3MiB)
+2025-12-31T23:29:25.8114634Z Downloading pandas (11.8MiB)
+2025-12-31T23:29:25.8120542Z Downloading temporalio (11.6MiB)
+2025-12-31T23:29:25.8125419Z Downloading selectolax (2.2MiB)
+2025-12-31T23:29:25.8146055Z Downloading lxml (5.0MiB)
+2025-12-31T23:29:25.8151143Z Downloading numpy (15.6MiB)
+2025-12-31T23:29:25.8155208Z Downloading tiktoken (1.1MiB)
+2025-12-31T23:29:26.5069037Z  Downloaded tiktoken
+2025-12-31T23:29:26.5823699Z  Downloaded pygments
+2025-12-31T23:29:26.6350708Z  Downloaded google-ai-generativelanguage
+2025-12-31T23:29:26.7156545Z  Downloaded beartype
+2025-12-31T23:29:26.8453885Z  Downloaded aiohttp
+2025-12-31T23:29:26.8642883Z  Downloaded deptry
+2025-12-31T23:29:27.0374604Z  Downloaded pydantic-core
+2025-12-31T23:29:27.0611478Z  Downloaded lupa
+2025-12-31T23:29:27.2059256Z  Downloaded selectolax
+2025-12-31T23:29:27.5288877Z  Downloaded tokenizers
+2025-12-31T23:29:27.5877553Z  Downloaded hf-xet
+2025-12-31T23:29:27.6306767Z  Downloaded fastavro
+2025-12-31T23:29:27.7465800Z  Downloaded mkdocs
+2025-12-31T23:29:27.7662877Z  Downloaded openai
+2025-12-31T23:29:27.7983562Z  Downloaded faker
+2025-12-31T23:29:27.9361813Z  Downloaded cryptography
+2025-12-31T23:29:28.0368829Z       Built egregora @ file:///home/runner/work/egregora/egregora
+2025-12-31T23:29:28.1017363Z  Downloaded virtualenv
+2025-12-31T23:29:28.1958658Z  Downloaded pillow
+2025-12-31T23:29:28.1976962Z  Downloaded grpcio
+2025-12-31T23:29:28.3081130Z  Downloaded lxml
+2025-12-31T23:29:28.5291314Z  Downloaded scikit-learn
+2025-12-31T23:29:28.6883489Z  Downloaded babel
+2025-12-31T23:29:29.0411056Z  Downloaded ibis-framework
+2025-12-31T23:29:29.0806869Z  Downloaded temporalio
+2025-12-31T23:29:29.0814314Z  Downloaded ruff
+2025-12-31T23:29:29.1473076Z  Downloaded google-api-python-client
+2025-12-31T23:29:29.2472440Z  Downloaded numpy
+2025-12-31T23:29:29.2963161Z  Downloaded botocore
+2025-12-31T23:29:29.4179060Z  Downloaded duckdb
+2025-12-31T23:29:30.0067511Z  Downloaded lancedb
+2025-12-31T23:29:30.0090773Z  Downloaded pandas
+2025-12-31T23:29:30.0593069Z  Downloaded scipy
+2025-12-31T23:29:30.1579235Z  Downloaded pyarrow
+2025-12-31T23:29:31.3977868Z  Downloaded mkdocs-material
+2025-12-31T23:29:31.3980802Z Prepared 261 packages in 5.64s
+2025-12-31T23:29:32.1884813Z Installed 261 packages in 790ms
+2025-12-31T23:29:32.1887397Z  + ag-ui-protocol==0.1.10
+2025-12-31T23:29:32.1888145Z  + aiohappyeyeballs==2.6.1
+2025-12-31T23:29:32.1888578Z  + aiohttp==3.13.2
+2025-12-31T23:29:32.1890071Z  + aiosignal==1.4.0
+2025-12-31T23:29:32.1890441Z  + annotated-types==0.7.0
+2025-12-31T23:29:32.1890795Z  + anthropic==0.75.0
+2025-12-31T23:29:32.1891128Z  + anyio==4.12.0
+2025-12-31T23:29:32.1891438Z  + argcomplete==3.6.3
+2025-12-31T23:29:32.1891774Z  + atpublic==7.0.0
+2025-12-31T23:29:32.1892078Z  + attrs==25.4.0
+2025-12-31T23:29:32.1893435Z  + authlib==1.6.6
+2025-12-31T23:29:32.1897089Z  + babel==2.17.0
+2025-12-31T23:29:32.1897389Z  + backrefs==6.1
+2025-12-31T23:29:32.1897675Z  + bandit==1.9.2
+2025-12-31T23:29:32.1897954Z  + beartype==0.22.9
+2025-12-31T23:29:32.1898412Z  + boto3==1.42.17
+2025-12-31T23:29:32.1898708Z  + botocore==1.42.17
+2025-12-31T23:29:32.1899024Z  + cachecontrol==0.14.4
+2025-12-31T23:29:32.1899346Z  + cachetools==6.2.4
+2025-12-31T23:29:32.1899649Z  + cairocffi==1.7.1
+2025-12-31T23:29:32.1899948Z  + cairosvg==2.8.2
+2025-12-31T23:29:32.1900246Z  + certifi==2025.11.12
+2025-12-31T23:29:32.1900544Z  + cffi==2.0.0
+2025-12-31T23:29:32.1901098Z  + cfgv==3.5.0
+2025-12-31T23:29:32.1901401Z  + charset-normalizer==3.4.4
+2025-12-31T23:29:32.1901750Z  + click==8.3.1
+2025-12-31T23:29:32.1902036Z  + cloudpickle==3.1.2
+2025-12-31T23:29:32.1902358Z  + codespell==2.4.1
+2025-12-31T23:29:32.1902650Z  + cohere==5.20.1
+2025-12-31T23:29:32.1902936Z  + colorama==0.4.6
+2025-12-31T23:29:32.1903220Z  + coverage==7.13.1
+2025-12-31T23:29:32.1903663Z  + cryptography==46.0.3
+2025-12-31T23:29:32.1904056Z  + csscompressor==0.9.5
+2025-12-31T23:29:32.1904425Z  + cssselect2==0.8.0
+2025-12-31T23:29:32.1907243Z  + cyclopts==4.4.3
+2025-12-31T23:29:32.1907560Z  + defusedxml==0.7.1
+2025-12-31T23:29:32.1907874Z  + deprecation==2.1.0
+2025-12-31T23:29:32.1908346Z  + deptry==0.24.0
+2025-12-31T23:29:32.1908640Z  + diskcache==5.6.3
+2025-12-31T23:29:32.1908931Z  + distlib==0.4.0
+2025-12-31T23:29:32.1909216Z  + distro==1.9.0
+2025-12-31T23:29:32.1909506Z  + dnspython==2.8.0
+2025-12-31T23:29:32.1909825Z  + docstring-parser==0.17.0
+2025-12-31T23:29:32.1910173Z  + docutils==0.22.4
+2025-12-31T23:29:32.1910472Z  + duckdb==1.4.3
+2025-12-31T23:29:32.1910912Z  + egregora==2.0.0 (from file:///home/runner/work/egregora/egregora)
+2025-12-31T23:29:32.1924863Z  + email-validator==2.3.0
+2025-12-31T23:29:32.1925228Z  + eval-type-backport==0.3.1
+2025-12-31T23:29:32.1925600Z  + exceptiongroup==1.3.1
+2025-12-31T23:29:32.1925930Z  + execnet==2.1.2
+2025-12-31T23:29:32.1926225Z  + executing==2.2.1
+2025-12-31T23:29:32.1926515Z  + faker==39.0.0
+2025-12-31T23:29:32.1926811Z  + fakeredis==2.33.0
+2025-12-31T23:29:32.1927115Z  + fastavro==1.12.1
+2025-12-31T23:29:32.1927407Z  + fastmcp==2.14.1
+2025-12-31T23:29:32.1927692Z  + filelock==3.20.1
+2025-12-31T23:29:32.1928106Z  + freezegun==1.5.5
+2025-12-31T23:29:32.1928408Z  + frozenlist==1.8.0
+2025-12-31T23:29:32.1928702Z  + fsspec==2025.12.0
+2025-12-31T23:29:32.1929009Z  + genai-prices==0.0.49
+2025-12-31T23:29:32.1929330Z  + ghp-import==2.1.0
+2025-12-31T23:29:32.1929639Z  + gitdb==4.0.12
+2025-12-31T23:29:32.1929929Z  + gitpython==3.1.45
+2025-12-31T23:29:32.1930284Z  + google-ai-generativelanguage==0.6.15
+2025-12-31T23:29:32.1930777Z  + google-api-core==2.28.1
+2025-12-31T23:29:32.1931197Z  + google-api-python-client==2.187.0
+2025-12-31T23:29:32.1931606Z  + google-auth==2.45.0
+2025-12-31T23:29:32.1932176Z  + google-auth-httplib2==0.3.0
+2025-12-31T23:29:32.1932548Z  + google-genai==1.56.0
+2025-12-31T23:29:32.1932890Z  + google-generativeai==0.8.6
+2025-12-31T23:29:32.1933285Z  + googleapis-common-protos==1.72.0
+2025-12-31T23:29:32.1933669Z  + griffe==1.15.0
+2025-12-31T23:29:32.1933949Z  + groq==1.0.0
+2025-12-31T23:29:32.1934228Z  + grpcio==1.76.0
+2025-12-31T23:29:32.1934530Z  + grpcio-status==1.71.2
+2025-12-31T23:29:32.1934846Z  + h11==0.16.0
+2025-12-31T23:29:32.1935113Z  + hf-xet==1.2.0
+2025-12-31T23:29:32.1935396Z  + hjson==3.1.0
+2025-12-31T23:29:32.1935677Z  + htmlmin2==0.1.13
+2025-12-31T23:29:32.1936055Z  + httpcore==1.0.9
+2025-12-31T23:29:32.1936345Z  + httplib2==0.31.0
+2025-12-31T23:29:32.1936632Z  + httpx==0.28.1
+2025-12-31T23:29:32.1936920Z  + httpx-sse==0.4.3
+2025-12-31T23:29:32.1937238Z  + huggingface-hub==0.36.0
+2025-12-31T23:29:32.1937577Z  + hypothesis==6.148.8
+2025-12-31T23:29:32.1937899Z  + ibis-framework==11.0.0
+2025-12-31T23:29:32.1938381Z  + identify==2.6.15
+2025-12-31T23:29:32.1938676Z  + idna==3.11
+2025-12-31T23:29:32.1938972Z  + importlib-metadata==8.7.1
+2025-12-31T23:29:32.1939324Z  + iniconfig==2.3.0
+2025-12-31T23:29:32.1939619Z  + invoke==2.2.1
+2025-12-31T23:29:32.1939919Z  + jaraco-classes==3.4.0
+2025-12-31T23:29:32.1940248Z  + jaraco-context==6.0.2
+2025-12-31T23:29:32.1940585Z  + jaraco-functools==4.4.0
+2025-12-31T23:29:32.1940918Z  + jeepney==0.9.0
+2025-12-31T23:29:32.1941214Z  + jinja2==3.1.6
+2025-12-31T23:29:32.1941488Z  + jiter==0.12.0
+2025-12-31T23:29:32.1941774Z  + jmespath==1.0.1
+2025-12-31T23:29:32.1942065Z  + joblib==1.5.3
+2025-12-31T23:29:32.1942340Z  + jsmin==3.0.1
+2025-12-31T23:29:32.1942633Z  + jsonschema==4.25.1
+2025-12-31T23:29:32.1942957Z  + jsonschema-path==0.3.4
+2025-12-31T23:29:32.1943330Z  + jsonschema-specifications==2025.9.1
+2025-12-31T23:29:32.1943886Z  + keyring==25.7.0
+2025-12-31T23:29:32.1944194Z  + lance-namespace==0.4.0
+2025-12-31T23:29:32.1944571Z  + lance-namespace-urllib3-client==0.4.0
+2025-12-31T23:29:32.1944985Z  + lancedb==0.26.0
+2025-12-31T23:29:32.1945270Z  + logfire==4.16.0
+2025-12-31T23:29:32.1945567Z  + logfire-api==4.16.0
+2025-12-31T23:29:32.1945874Z  + lupa==2.6
+2025-12-31T23:29:32.1946141Z  + lxml==6.0.2
+2025-12-31T23:29:32.1946409Z  + mando==0.7.1
+2025-12-31T23:29:32.1946692Z  + markdown==3.10
+2025-12-31T23:29:32.1946996Z  + markdown-it-py==4.0.0
+2025-12-31T23:29:32.1947330Z  + markupsafe==3.0.3
+2025-12-31T23:29:32.1947623Z  + mcp==1.25.0
+2025-12-31T23:29:32.1947897Z  + mdurl==0.1.2
+2025-12-31T23:29:32.1948338Z  + mergedeep==1.3.4
+2025-12-31T23:29:32.1948638Z  + mistralai==1.9.11
+2025-12-31T23:29:32.1948927Z  + mkdocs==1.6.1
+2025-12-31T23:29:32.1949227Z  + mkdocs-autorefs==1.4.3
+2025-12-31T23:29:32.1949589Z  + mkdocs-blogging-plugin==2.2.11
+2025-12-31T23:29:32.1949980Z  + mkdocs-get-deps==0.2.0
+2025-12-31T23:29:32.1950411Z  + mkdocs-git-revision-date-localized-plugin==1.5.0
+2025-12-31T23:29:32.1950904Z  + mkdocs-glightbox==0.5.2
+2025-12-31T23:29:32.1951270Z  + mkdocs-macros-plugin==1.5.0
+2025-12-31T23:29:32.1951649Z  + mkdocs-material==9.7.1
+2025-12-31T23:29:32.1952056Z  + mkdocs-material-extensions==1.3.1
+2025-12-31T23:29:32.1952472Z  + mkdocs-minify-plugin==0.8.0
+2025-12-31T23:29:32.1952846Z  + mkdocs-rss-plugin==1.17.7
+2025-12-31T23:29:32.1953208Z  + mkdocs-static-i18n==1.3.0
+2025-12-31T23:29:32.1953581Z  + mkdocstrings==1.0.0
+2025-12-31T23:29:32.1953926Z  + mkdocstrings-python==2.0.1
+2025-12-31T23:29:32.1954295Z  + more-itertools==10.8.0
+2025-12-31T23:29:32.1954622Z  + msgpack==1.1.2
+2025-12-31T23:29:32.1954938Z  + multidict==6.7.0
+2025-12-31T23:29:32.1955228Z  + nexus-rpc==1.2.0
+2025-12-31T23:29:32.1955523Z  + nodeenv==1.10.0
+2025-12-31T23:29:32.1955813Z  + numpy==2.4.0
+2025-12-31T23:29:32.1956098Z  + openai==2.14.0
+2025-12-31T23:29:32.1956399Z  + openapi-pydantic==0.5.1
+2025-12-31T23:29:32.1956765Z  + opentelemetry-api==1.39.1
+2025-12-31T23:29:32.1957217Z  + opentelemetry-exporter-otlp-proto-common==1.39.1
+2025-12-31T23:29:32.1957778Z  + opentelemetry-exporter-otlp-proto-http==1.39.1
+2025-12-31T23:29:32.1958590Z  + opentelemetry-exporter-prometheus==0.60b1
+2025-12-31T23:29:32.1959090Z  + opentelemetry-instrumentation==0.60b1
+2025-12-31T23:29:32.1959579Z  + opentelemetry-instrumentation-httpx==0.60b1
+2025-12-31T23:29:32.1960047Z  + opentelemetry-proto==1.39.1
+2025-12-31T23:29:32.1960423Z  + opentelemetry-sdk==1.39.1
+2025-12-31T23:29:32.1960840Z  + opentelemetry-semantic-conventions==0.60b1
+2025-12-31T23:29:32.1961306Z  + opentelemetry-util-http==0.60b1
+2025-12-31T23:29:32.1961694Z  + packaging==25.0
+2025-12-31T23:29:32.1961988Z  + paginate==0.5.7
+2025-12-31T23:29:32.1962282Z  + pandas==2.3.3
+2025-12-31T23:29:32.1962573Z  + parsy==2.2
+2025-12-31T23:29:32.1962853Z  + pathable==0.4.4
+2025-12-31T23:29:32.1963141Z  + pathspec==0.12.1
+2025-12-31T23:29:32.1963449Z  + pathvalidate==3.3.1
+2025-12-31T23:29:32.1963770Z  + pillow==11.3.0
+2025-12-31T23:29:32.1964070Z  + platformdirs==4.5.1
+2025-12-31T23:29:32.1964372Z  + pluggy==1.6.0
+2025-12-31T23:29:32.1964666Z  + pre-commit==4.5.1
+2025-12-31T23:29:32.1964992Z  + prometheus-client==0.23.1
+2025-12-31T23:29:32.1965361Z  + prompt-toolkit==3.0.52
+2025-12-31T23:29:32.1965692Z  + propcache==0.4.1
+2025-12-31T23:29:32.1965992Z  + proto-plus==1.27.0
+2025-12-31T23:29:32.1966301Z  + protobuf==5.29.5
+2025-12-31T23:29:32.1966600Z  + py-cpuinfo==9.0.0
+2025-12-31T23:29:32.1966916Z  + py-key-value-aio==0.3.0
+2025-12-31T23:29:32.1967272Z  + py-key-value-shared==0.3.0
+2025-12-31T23:29:32.1967623Z  + pyarrow==22.0.0
+2025-12-31T23:29:32.1967916Z  + pyarrow-hotfix==0.7
+2025-12-31T23:29:32.1968371Z  + pyasn1==0.6.1
+2025-12-31T23:29:32.1968673Z  + pyasn1-modules==0.4.2
+2025-12-31T23:29:32.1969006Z  + pycparser==2.23
+2025-12-31T23:29:32.1969298Z  + pydantic==2.12.5
+2025-12-31T23:29:32.1969598Z  + pydantic-ai==1.39.0
+2025-12-31T23:29:32.1969923Z  + pydantic-ai-slim==1.39.0
+2025-12-31T23:29:32.1970436Z  + pydantic-core==2.41.5
+2025-12-31T23:29:32.1970773Z  + pydantic-evals==1.39.0
+2025-12-31T23:29:32.1971119Z  + pydantic-graph==1.39.0
+2025-12-31T23:29:32.1971466Z  + pydantic-settings==2.12.0
+2025-12-31T23:29:32.1971823Z  + pydocket==0.16.3
+2025-12-31T23:29:32.1972114Z  + pygments==2.19.2
+2025-12-31T23:29:32.1972403Z  + pyjwt==2.10.1
+2025-12-31T23:29:32.1972715Z  + pymdown-extensions==10.19.1
+2025-12-31T23:29:32.1988365Z  + pyparsing==3.3.1
+2025-12-31T23:29:32.1988749Z  + pyperclip==1.11.0
+2025-12-31T23:29:32.1989166Z  + pytest==9.0.2
+2025-12-31T23:29:32.1989477Z  + pytest-asyncio==1.3.0
+2025-12-31T23:29:32.1989837Z  + pytest-benchmark==5.2.3
+2025-12-31T23:29:32.1990186Z  + pytest-cov==7.0.0
+2025-12-31T23:29:32.1990534Z  + pytest-mock==3.15.1
+2025-12-31T23:29:32.1990868Z  + pytest-socket==0.7.0
+2025-12-31T23:29:32.1991205Z  + pytest-xdist==3.8.0
+2025-12-31T23:29:32.1991539Z  + python-dateutil==2.9.0.post0
+2025-12-31T23:29:32.1991916Z  + python-dotenv==1.2.1
+2025-12-31T23:29:32.1992261Z  + python-frontmatter==1.1.0
+2025-12-31T23:29:32.1992648Z  + python-json-logger==4.0.0
+2025-12-31T23:29:32.1993014Z  + python-multipart==0.0.21
+2025-12-31T23:29:32.1993356Z  + pytz==2025.2
+2025-12-31T23:29:32.1993646Z  + pyyaml==6.0.3
+2025-12-31T23:29:32.1993962Z  + pyyaml-env-tag==1.1
+2025-12-31T23:29:32.1994277Z  + radon==6.0.1
+2025-12-31T23:29:32.1994569Z  + ratelimit==2.2.1
+2025-12-31T23:29:32.1994868Z  + redis==7.1.0
+2025-12-31T23:29:32.1995157Z  + referencing==0.36.2
+2025-12-31T23:29:32.1995464Z  + regex==2025.11.3
+2025-12-31T23:29:32.1995757Z  + requests==2.32.5
+2025-12-31T23:29:32.1996075Z  + requirements-parser==0.13.0
+2025-12-31T23:29:32.1996440Z  + respx==0.22.0
+2025-12-31T23:29:32.1996720Z  + rich==14.2.0
+2025-12-31T23:29:32.1997003Z  + rich-rst==1.3.2
+2025-12-31T23:29:32.1997303Z  + rpds-py==0.30.0
+2025-12-31T23:29:32.1997592Z  + rsa==4.9.1
+2025-12-31T23:29:32.1997858Z  + ruff==0.14.10
+2025-12-31T23:29:32.1998310Z  + s3transfer==0.16.0
+2025-12-31T23:29:32.1998641Z  + scikit-learn==1.8.0
+2025-12-31T23:29:32.1998965Z  + scipy==1.16.3
+2025-12-31T23:29:32.1999264Z  + secretstorage==3.5.0
+2025-12-31T23:29:32.1999593Z  + selectolax==0.4.6
+2025-12-31T23:29:32.1999906Z  + shellingham==1.5.4
+2025-12-31T23:29:32.2000213Z  + six==1.17.0
+2025-12-31T23:29:32.2000686Z  + smmap==5.0.2
+2025-12-31T23:29:32.2000989Z  + sniffio==1.3.1
+2025-12-31T23:29:32.2001311Z  + sortedcontainers==2.4.0
+2025-12-31T23:29:32.2001650Z  + sqlglot==28.5.0
+2025-12-31T23:29:32.2001957Z  + sse-starlette==3.1.1
+2025-12-31T23:29:32.2002279Z  + starlette==0.50.0
+2025-12-31T23:29:32.2002587Z  + stevedore==5.6.0
+2025-12-31T23:29:32.2002893Z  + super-collections==0.6.2
+2025-12-31T23:29:32.2003237Z  + syrupy==5.0.0
+2025-12-31T23:29:32.2003538Z  + temporalio==1.20.0
+2025-12-31T23:29:32.2003853Z  + tenacity==9.1.2
+2025-12-31T23:29:32.2004144Z  + termcolor==3.2.0
+2025-12-31T23:29:32.2004456Z  + threadpoolctl==3.6.0
+2025-12-31T23:29:32.2004779Z  + tiktoken==0.12.0
+2025-12-31T23:29:32.2005074Z  + tinycss2==1.5.1
+2025-12-31T23:29:32.2005363Z  + tokenizers==0.22.1
+2025-12-31T23:29:32.2005680Z  + tomli-w==1.2.0
+2025-12-31T23:29:32.2005976Z  + toolz==1.1.0
+2025-12-31T23:29:32.2006260Z  + tqdm==4.67.1
+2025-12-31T23:29:32.2006533Z  + typer==0.21.0
+2025-12-31T23:29:32.2006868Z  + types-protobuf==6.32.1.20251210
+2025-12-31T23:29:32.2007272Z  + types-requests==2.32.4.20250913
+2025-12-31T23:29:32.2007658Z  + typing-extensions==4.15.0
+2025-12-31T23:29:32.2008183Z  + typing-inspection==0.4.2
+2025-12-31T23:29:32.2008527Z  + tzdata==2024.2
+2025-12-31T23:29:32.2008825Z  + uritemplate==4.2.0
+2025-12-31T23:29:32.2009133Z  + urllib3==2.6.2
+2025-12-31T23:29:32.2009413Z  + uvicorn==0.40.0
+2025-12-31T23:29:32.2009711Z  + virtualenv==20.35.4
+2025-12-31T23:29:32.2010019Z  + vulture==2.14
+2025-12-31T23:29:32.2010304Z  + watchdog==6.0.0
+2025-12-31T23:29:32.2010583Z  + wcwidth==0.2.14
+2025-12-31T23:29:32.2010876Z  + webencodings==0.5.1
+2025-12-31T23:29:32.2011192Z  + websockets==15.0.1
+2025-12-31T23:29:32.2011492Z  + wrapt==1.17.3
+2025-12-31T23:29:32.2011766Z  + xenon==0.9.3
+2025-12-31T23:29:32.2012196Z  + yarl==1.22.0
+2025-12-31T23:29:32.2012469Z  + zipp==3.23.0
+2025-12-31T23:29:32.2165361Z ##[group]Run uv run pytest tests/unit/ -n auto -v --cov=src/egregora --cov-branch --cov-report=xml:coverage.xml --cov-report=term
+2025-12-31T23:29:32.2166215Z [36;1muv run pytest tests/unit/ -n auto -v --cov=src/egregora --cov-branch --cov-report=xml:coverage.xml --cov-report=term[0m
+2025-12-31T23:29:32.2199772Z shell: /usr/bin/bash -e {0}
+2025-12-31T23:29:32.2200003Z env:
+2025-12-31T23:29:32.2200180Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:32.2200390Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:32.2200608Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:32.2200867Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:32.2201156Z   GEMINI_API_KEY: test-key
+2025-12-31T23:29:32.2201369Z ##[endgroup]
+2025-12-31T23:29:41.3563896Z ImportError while loading conftest '/home/runner/work/egregora/egregora/tests/conftest.py'.
+2025-12-31T23:29:45.6250500Z tests/conftest.py:13: in <module>
+2025-12-31T23:29:45.6251097Z     from egregora.config.settings import (
+2025-12-31T23:29:45.6251674Z src/egregora/__init__.py:3: in <module>
+2025-12-31T23:29:45.6252390Z     from egregora.orchestration.pipelines.write import process_whatsapp_export
+2025-12-31T23:29:45.6253191Z src/egregora/orchestration/__init__.py:25: in <module>
+2025-12-31T23:29:45.6253926Z     from egregora.orchestration.pipelines import write as write_pipeline
+2025-12-31T23:29:45.6254729Z src/egregora/orchestration/pipelines/write.py:34: in <module>
+2025-12-31T23:29:45.6255312Z     from egregora.agents.avatar import AvatarContext, process_avatar_commands
+2025-12-31T23:29:45.6255787Z src/egregora/agents/__init__.py:9: in <module>
+2025-12-31T23:29:45.6256129Z     from egregora.agents import banner, writer
+2025-12-31T23:29:45.6256468Z src/egregora/agents/writer.py:36: in <module>
+2025-12-31T23:29:45.6256813Z     from egregora.agents.formatting import (
+2025-12-31T23:29:45.6257175Z src/egregora/agents/formatting.py:16: in <module>
+2025-12-31T23:29:45.6257652Z     from egregora.output_adapters.exceptions import DocumentNotFoundError
+2025-12-31T23:29:45.6258516Z src/egregora/output_adapters/__init__.py:9: in <module>
+2025-12-31T23:29:45.6258955Z     from egregora.output_adapters.mkdocs import MkDocsAdapter
+2025-12-31T23:29:45.6259411Z src/egregora/output_adapters/mkdocs/__init__.py:11: in <module>
+2025-12-31T23:29:45.6259864Z     from egregora.output_adapters.mkdocs.adapter import (
+2025-12-31T23:29:45.6260309Z src/egregora/output_adapters/mkdocs/adapter.py:63: in <module>
+2025-12-31T23:29:45.6260774Z     from egregora.utils.filesystem import ensure_author_entries
+2025-12-31T23:29:45.6261638Z E   ImportError: cannot import name 'ensure_author_entries' from 'egregora.utils.filesystem' (/home/runner/work/egregora/egregora/src/egregora/utils/filesystem.py)
+2025-12-31T23:29:46.3496534Z ##[error]Process completed with exit code 4.
+2025-12-31T23:29:46.3686063Z ##[group]Run codecov/codecov-action@v5
+2025-12-31T23:29:46.3686341Z with:
+2025-12-31T23:29:46.3686847Z   token: ***
+2025-12-31T23:29:46.3687060Z   files: ./coverage.xml
+2025-12-31T23:29:46.3687260Z   flags: unit
+2025-12-31T23:29:46.3687428Z   name: unit-tests
+2025-12-31T23:29:46.3687623Z   fail_ci_if_error: false
+2025-12-31T23:29:46.3687839Z   disable_file_fixes: false
+2025-12-31T23:29:46.3688205Z   disable_search: false
+2025-12-31T23:29:46.3688410Z   disable_safe_directory: false
+2025-12-31T23:29:46.3688634Z   disable_telem: false
+2025-12-31T23:29:46.3688825Z   dry_run: false
+2025-12-31T23:29:46.3689008Z   git_service: github
+2025-12-31T23:29:46.3689200Z   gcov_executable: gcov
+2025-12-31T23:29:46.3689407Z   handle_no_reports_found: false
+2025-12-31T23:29:46.3689639Z   recurse_submodules: false
+2025-12-31T23:29:46.3689859Z   run_command: upload-coverage
+2025-12-31T23:29:46.3690072Z   skip_validation: false
+2025-12-31T23:29:46.3690285Z   use_legacy_upload_endpoint: false
+2025-12-31T23:29:46.3690565Z   use_oidc: false
+2025-12-31T23:29:46.3690746Z   use_pypi: false
+2025-12-31T23:29:46.3690924Z   verbose: false
+2025-12-31T23:29:46.3691282Z   version: latest
+2025-12-31T23:29:46.3691454Z env:
+2025-12-31T23:29:46.3691614Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:46.3691818Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:46.3692037Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:46.3692303Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:46.3692581Z ##[endgroup]
+2025-12-31T23:29:46.3711418Z ##[group]Run missing_deps=""
+2025-12-31T23:29:46.3711679Z [36;1mmissing_deps=""[0m
+2025-12-31T23:29:46.3711879Z [36;1m[0m
+2025-12-31T23:29:46.3712079Z [36;1m# Check for always-required commands[0m
+2025-12-31T23:29:46.3712355Z [36;1mfor cmd in bash git curl; do[0m
+2025-12-31T23:29:46.3712626Z [36;1m  if ! command -v "$cmd" >/dev/null 2>&1; then[0m
+2025-12-31T23:29:46.3712935Z [36;1m    missing_deps="$missing_deps $cmd"[0m
+2025-12-31T23:29:46.3713188Z [36;1m  fi[0m
+2025-12-31T23:29:46.3713365Z [36;1mdone[0m
+2025-12-31T23:29:46.3713524Z [36;1m[0m
+2025-12-31T23:29:46.3713784Z [36;1m# Check for gpg only if validation is not being skipped[0m
+2025-12-31T23:29:46.3714096Z [36;1mif [ "false" != "true" ]; then[0m
+2025-12-31T23:29:46.3714370Z [36;1m  if ! command -v gpg >/dev/null 2>&1; then[0m
+2025-12-31T23:29:46.3714658Z [36;1m    missing_deps="$missing_deps gpg"[0m
+2025-12-31T23:29:46.3714903Z [36;1m  fi[0m
+2025-12-31T23:29:46.3715061Z [36;1mfi[0m
+2025-12-31T23:29:46.3715225Z [36;1m[0m
+2025-12-31T23:29:46.3715427Z [36;1m# Report missing required dependencies[0m
+2025-12-31T23:29:46.3715705Z [36;1mif [ -n "$missing_deps" ]; then[0m
+2025-12-31T23:29:46.3716066Z [36;1m  echo "Error: The following required dependencies are missing:$missing_deps"[0m
+2025-12-31T23:29:46.3716528Z [36;1m  echo "Please install these dependencies before using this action."[0m
+2025-12-31T23:29:46.3716863Z [36;1m  exit 1[0m
+2025-12-31T23:29:46.3717035Z [36;1mfi[0m
+2025-12-31T23:29:46.3717199Z [36;1m[0m
+2025-12-31T23:29:46.3717431Z [36;1mecho "All required system dependencies are available."[0m
+2025-12-31T23:29:46.3906053Z shell: /usr/bin/sh -e {0}
+2025-12-31T23:29:46.3906288Z env:
+2025-12-31T23:29:46.3906477Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:46.3906697Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:46.3906930Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:46.3907194Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:46.3907488Z ##[endgroup]
+2025-12-31T23:29:46.3974847Z All required system dependencies are available.
+2025-12-31T23:29:46.3993617Z ##[group]Run CC_ACTION_VERSION=$(cat ${GITHUB_ACTION_PATH}/src/version)
+2025-12-31T23:29:46.3994046Z [36;1mCC_ACTION_VERSION=$(cat ${GITHUB_ACTION_PATH}/src/version)[0m
+2025-12-31T23:29:46.3994451Z [36;1mecho -e "\033[0;32m==>\033[0m Running Action version $CC_ACTION_VERSION"[0m
+2025-12-31T23:29:46.4024593Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2025-12-31T23:29:46.4024906Z env:
+2025-12-31T23:29:46.4025263Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:46.4025495Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:46.4025715Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:46.4025994Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:46.4026276Z ##[endgroup]
+2025-12-31T23:29:46.4088588Z [0;32m==>[0m Running Action version 5.5.2
+2025-12-31T23:29:46.4109109Z ##[group]Run git config --global --add safe.directory "/home/runner/work/egregora/egregora"
+2025-12-31T23:29:46.4109648Z [36;1mgit config --global --add safe.directory "/home/runner/work/egregora/egregora"[0m
+2025-12-31T23:29:46.4110101Z [36;1mgit config --global --add safe.directory "$GITHUB_WORKSPACE"[0m
+2025-12-31T23:29:46.4139962Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2025-12-31T23:29:46.4140279Z env:
+2025-12-31T23:29:46.4140454Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:46.4140670Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:46.4140895Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:46.4141158Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:46.4141442Z ##[endgroup]
+2025-12-31T23:29:46.4256518Z ##[group]Run CC_FORK="false"
+2025-12-31T23:29:46.4256930Z [36;1mCC_FORK="false"[0m
+2025-12-31T23:29:46.4257424Z [36;1mif [ -n "$GITHUB_EVENT_PULL_REQUEST_HEAD_REPO_FULL_NAME" ] && [ "$GITHUB_EVENT_PULL_REQUEST_HEAD_REPO_FULL_NAME" != "$GITHUB_REPOSITORY" ];[0m
+2025-12-31T23:29:46.4257946Z [36;1mthen[0m
+2025-12-31T23:29:46.4258490Z [36;1m  echo -e "\033[0;32m==>\033[0m Fork detected"[0m
+2025-12-31T23:29:46.4258768Z [36;1m  CC_FORK="true"[0m
+2025-12-31T23:29:46.4258967Z [36;1mfi[0m
+2025-12-31T23:29:46.4259167Z [36;1mecho "CC_FORK=$CC_FORK" >> "$GITHUB_ENV"[0m
+2025-12-31T23:29:46.4289657Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2025-12-31T23:29:46.4289963Z env:
+2025-12-31T23:29:46.4290137Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:46.4290344Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:46.4290559Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:46.4290832Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:46.4291331Z   GITHUB_EVENT_PULL_REQUEST_HEAD_LABEL: franklinbaldo:fix-gemini-merge-gate-checkout-6442076149617588430
+2025-12-31T23:29:46.4291886Z   GITHUB_EVENT_PULL_REQUEST_HEAD_REPO_FULL_NAME: franklinbaldo/egregora
+2025-12-31T23:29:46.4292237Z   GITHUB_REPOSITORY: franklinbaldo/egregora
+2025-12-31T23:29:46.4292474Z ##[endgroup]
+2025-12-31T23:29:46.4394561Z ##[group]Run actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+2025-12-31T23:29:46.4394911Z with:
+2025-12-31T23:29:46.4395417Z   script: if (process.env.CC_USE_OIDC === 'true' && process.env.CC_FORK != 'true') {
+  const id_token = await core.getIDToken(process.env.CC_OIDC_AUDIENCE)
+  return id_token
+}
+
+2025-12-31T23:29:46.4396128Z   github-token: ***
+2025-12-31T23:29:46.4396326Z   debug: false
+2025-12-31T23:29:46.4396523Z   user-agent: actions/github-script
+2025-12-31T23:29:46.4396770Z   result-encoding: json
+2025-12-31T23:29:46.4396965Z   retries: 0
+2025-12-31T23:29:46.4397186Z   retry-exempt-status-codes: 400,401,403,404,422
+2025-12-31T23:29:46.4397446Z env:
+2025-12-31T23:29:46.4397613Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:46.4397823Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:46.4398190Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:46.4398453Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:46.4398724Z   CC_FORK: false
+2025-12-31T23:29:46.4398925Z   CC_OIDC_AUDIENCE: https://codecov.io
+2025-12-31T23:29:46.4399164Z   CC_USE_OIDC: false
+2025-12-31T23:29:46.4399347Z ##[endgroup]
+2025-12-31T23:29:46.5330471Z ##[group]Run if [ "false" == 'true' ] && [ "$CC_FORK" != 'true' ];
+2025-12-31T23:29:46.5330882Z [36;1mif [ "false" == 'true' ] && [ "$CC_FORK" != 'true' ];[0m
+2025-12-31T23:29:46.5331163Z [36;1mthen[0m
+2025-12-31T23:29:46.5331390Z [36;1m  echo "CC_TOKEN=$CC_OIDC_TOKEN" >> "$GITHUB_ENV"[0m
+2025-12-31T23:29:46.5331668Z [36;1melif [ -n "" ];[0m
+2025-12-31T23:29:46.5331868Z [36;1mthen[0m
+2025-12-31T23:29:46.5332255Z [36;1m  echo -e "\033[0;32m==>\033[0m Token set from env"[0m
+2025-12-31T23:29:46.5332572Z [36;1m    echo "CC_TOKEN=" >> "$GITHUB_ENV"[0m
+2025-12-31T23:29:46.5332824Z [36;1melse[0m
+2025-12-31T23:29:46.5333129Z [36;1m  if [ -n "***" ];[0m
+2025-12-31T23:29:46.5333341Z [36;1m  then[0m
+2025-12-31T23:29:46.5333575Z [36;1m    echo -e "\033[0;32m==>\033[0m Token set from input"[0m
+2025-12-31T23:29:46.5333984Z [36;1m    CC_TOKEN=$(echo "***" | tr -d '\n')[0m
+2025-12-31T23:29:46.5334284Z [36;1m    echo "CC_TOKEN=$CC_TOKEN" >> "$GITHUB_ENV"[0m
+2025-12-31T23:29:46.5334542Z [36;1m  fi[0m
+2025-12-31T23:29:46.5334711Z [36;1mfi[0m
+2025-12-31T23:29:46.5367043Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2025-12-31T23:29:46.5367354Z env:
+2025-12-31T23:29:46.5367531Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:46.5367748Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:46.5368087Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:46.5368350Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:46.5368640Z   CC_FORK: false
+2025-12-31T23:29:46.5368825Z   CC_OIDC_TOKEN:
+2025-12-31T23:29:46.5369040Z   CC_OIDC_AUDIENCE: https://codecov.io
+2025-12-31T23:29:46.5369450Z ##[endgroup]
+2025-12-31T23:29:46.5420625Z [0;32m==>[0m Token set from input
+2025-12-31T23:29:46.5459161Z ##[group]Run if [ -z "$CC_BRANCH" ] && [ -z "$CC_TOKEN" ] && [ "$CC_FORK" == 'true' ]
+2025-12-31T23:29:46.5459601Z [36;1mif [ -z "$CC_BRANCH" ] && [ -z "$CC_TOKEN" ] && [ "$CC_FORK" == 'true' ][0m
+2025-12-31T23:29:46.5459923Z [36;1mthen[0m
+2025-12-31T23:29:46.5460288Z [36;1m  echo -e "\033[0;32m==>\033[0m Fork detected, setting branch to $GITHUB_EVENT_PULL_REQUEST_HEAD_LABEL"[0m
+2025-12-31T23:29:46.5460754Z [36;1m  TOKENLESS="$GITHUB_EVENT_PULL_REQUEST_HEAD_LABEL"[0m
+2025-12-31T23:29:46.5461087Z [36;1m  CC_BRANCH="$GITHUB_EVENT_PULL_REQUEST_HEAD_LABEL"[0m
+2025-12-31T23:29:46.5461404Z [36;1m  echo "TOKENLESS=$TOKENLESS" >> "$GITHUB_ENV"[0m
+2025-12-31T23:29:46.5461669Z [36;1mfi[0m
+2025-12-31T23:29:46.5461838Z [36;1m[0m
+2025-12-31T23:29:46.5462054Z [36;1mecho "CC_BRANCH=$CC_BRANCH" >> "$GITHUB_ENV"[0m
+2025-12-31T23:29:46.5491681Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2025-12-31T23:29:46.5491998Z env:
+2025-12-31T23:29:46.5492175Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:46.5492394Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:46.5492621Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:46.5492884Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:46.5493170Z   CC_FORK: false
+2025-12-31T23:29:46.5493432Z   CC_TOKEN: ***
+2025-12-31T23:29:46.5493608Z   CC_BRANCH:
+2025-12-31T23:29:46.5493990Z   GITHUB_EVENT_PULL_REQUEST_HEAD_LABEL: franklinbaldo:fix-gemini-merge-gate-checkout-6442076149617588430
+2025-12-31T23:29:46.5494523Z   GITHUB_EVENT_PULL_REQUEST_HEAD_REPO_FULL_NAME: franklinbaldo/egregora
+2025-12-31T23:29:46.5494867Z   GITHUB_REPOSITORY: franklinbaldo/egregora
+2025-12-31T23:29:46.5495110Z ##[endgroup]
+2025-12-31T23:29:46.5566091Z ##[group]Run if [ -z "$CC_SHA" ];
+2025-12-31T23:29:46.5566367Z [36;1mif [ -z "$CC_SHA" ];[0m
+2025-12-31T23:29:46.5566586Z [36;1mthen[0m
+2025-12-31T23:29:46.5566820Z [36;1m  CC_SHA="$GITHUB_EVENT_PULL_REQUEST_HEAD_SHA"[0m
+2025-12-31T23:29:46.5567097Z [36;1mfi[0m
+2025-12-31T23:29:46.5567318Z [36;1mif [ -z "$CC_PR" ] && [ "$CC_FORK" == 'true' ];[0m
+2025-12-31T23:29:46.5567581Z [36;1mthen[0m
+2025-12-31T23:29:46.5567772Z [36;1m  CC_PR="$GITHUB_EVENT_NUMBER"[0m
+2025-12-31T23:29:46.5568226Z [36;1mfi[0m
+2025-12-31T23:29:46.5568408Z [36;1m[0m
+2025-12-31T23:29:46.5568601Z [36;1mecho "CC_SHA=$CC_SHA" >> "$GITHUB_ENV"[0m
+2025-12-31T23:29:46.5568891Z [36;1mecho "CC_PR=$CC_PR" >> "$GITHUB_ENV"[0m
+2025-12-31T23:29:46.5597940Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2025-12-31T23:29:46.5598482Z env:
+2025-12-31T23:29:46.5598659Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:46.5598864Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:46.5599086Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:46.5599506Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:46.5599794Z   CC_FORK: false
+2025-12-31T23:29:46.5600053Z   CC_TOKEN: ***
+2025-12-31T23:29:46.5600222Z   CC_BRANCH:
+2025-12-31T23:29:46.5600393Z   CC_PR:
+2025-12-31T23:29:46.5600551Z   CC_SHA:
+2025-12-31T23:29:46.5600725Z   GITHUB_EVENT_NAME: pull_request
+2025-12-31T23:29:46.5600957Z   GITHUB_EVENT_NUMBER: 2028
+2025-12-31T23:29:46.5601280Z   GITHUB_EVENT_PULL_REQUEST_HEAD_SHA: 5107e2e853d348432dc245dd795d839c51f95a60
+2025-12-31T23:29:46.5601619Z ##[endgroup]
+2025-12-31T23:29:46.5676297Z ##[group]Run ${GITHUB_ACTION_PATH}/dist/codecov.sh
+2025-12-31T23:29:46.5676638Z [36;1m${GITHUB_ACTION_PATH}/dist/codecov.sh[0m
+2025-12-31T23:29:46.5705925Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2025-12-31T23:29:46.5706240Z env:
+2025-12-31T23:29:46.5706412Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:46.5706626Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:46.5706848Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:46.5707110Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:46.5707398Z   CC_FORK: false
+2025-12-31T23:29:46.5707646Z   CC_TOKEN: ***
+2025-12-31T23:29:46.5707820Z   CC_BRANCH:
+2025-12-31T23:29:46.5708411Z   CC_SHA: 5107e2e853d348432dc245dd795d839c51f95a60
+2025-12-31T23:29:46.5708671Z   CC_PR:
+2025-12-31T23:29:46.5708828Z   CC_BASE_SHA:
+2025-12-31T23:29:46.5709002Z   CC_BINARY:
+2025-12-31T23:29:46.5709166Z   CC_BUILD:
+2025-12-31T23:29:46.5709327Z   CC_BUILD_URL:
+2025-12-31T23:29:46.5709492Z   CC_CODE:
+2025-12-31T23:29:46.5709666Z   CC_DIR:
+2025-12-31T23:29:46.5709840Z   CC_DISABLE_FILE_FIXES: false
+2025-12-31T23:29:46.5710056Z   CC_DISABLE_SEARCH: false
+2025-12-31T23:29:46.5710266Z   CC_DISABLE_TELEM: false
+2025-12-31T23:29:46.5710464Z   CC_DRY_RUN: false
+2025-12-31T23:29:46.5710647Z   CC_ENTERPRISE_URL:
+2025-12-31T23:29:46.5710825Z   CC_ENV:
+2025-12-31T23:29:46.5710984Z   CC_EXCLUDES:
+2025-12-31T23:29:46.5711169Z   CC_FAIL_ON_ERROR: false
+2025-12-31T23:29:46.5711370Z   CC_FILES: ./coverage.xml
+2025-12-31T23:29:46.5711558Z   CC_FLAGS: unit
+2025-12-31T23:29:46.5711734Z   CC_FORCE:
+2025-12-31T23:29:46.5711898Z   CC_GCOV_ARGS:
+2025-12-31T23:29:46.5712078Z   CC_GCOV_EXECUTABLE: gcov
+2025-12-31T23:29:46.5712275Z   CC_GCOV_IGNORE:
+2025-12-31T23:29:46.5712453Z   CC_GCOV_INCLUDE:
+2025-12-31T23:29:46.5712634Z   CC_GIT_SERVICE: github
+2025-12-31T23:29:46.5712842Z   CC_HANDLE_NO_REPORTS_FOUND: false
+2025-12-31T23:29:46.5713068Z   CC_JOB_CODE:
+2025-12-31T23:29:46.5713244Z   CC_LEGACY: false
+2025-12-31T23:29:46.5713428Z   CC_NAME: unit-tests
+2025-12-31T23:29:46.5713615Z   CC_NETWORK_FILTER:
+2025-12-31T23:29:46.5713797Z   CC_NETWORK_PREFIX:
+2025-12-31T23:29:46.5713984Z   CC_NETWORK_ROOT_FOLDER:
+2025-12-31T23:29:46.5714174Z   CC_OS:
+2025-12-31T23:29:46.5714333Z   CC_PARENT_SHA:
+2025-12-31T23:29:46.5714502Z   CC_PLUGINS:
+2025-12-31T23:29:46.5714684Z   CC_RECURSE_SUBMODULES: false
+2025-12-31T23:29:46.5714898Z   CC_REPORT_TYPE:
+2025-12-31T23:29:46.5715088Z   CC_RUN_CMD: upload-coverage
+2025-12-31T23:29:46.5715295Z   CC_SERVICE: github
+2025-12-31T23:29:46.5715499Z   CC_SKIP_VALIDATION: false
+2025-12-31T23:29:46.5715702Z   CC_SLUG:
+2025-12-31T23:29:46.5715866Z   CC_SWIFT_PROJECT:
+2025-12-31T23:29:46.5716049Z   CC_USE_PYPI: false
+2025-12-31T23:29:46.5716231Z   CC_VERBOSE: false
+2025-12-31T23:29:46.5716415Z   CC_VERSION: latest
+2025-12-31T23:29:46.5716593Z   CC_YML_PATH:
+2025-12-31T23:29:46.5716763Z ##[endgroup]
+2025-12-31T23:29:46.5788304Z      _____          _
+2025-12-31T23:29:46.5788656Z     / ____|        | |
+2025-12-31T23:29:46.5788985Z    | |     ___   __| | ___  ___ _____   __
+2025-12-31T23:29:46.5789337Z    | |    / _ \ / _` |/ _ \/ __/ _ \ \ / /
+2025-12-31T23:29:46.5789584Z    | |___| (_) | (_| |  __/ (_| (_) \ V /
+2025-12-31T23:29:46.5789822Z     \_____\___/ \__,_|\___|\___\___/ \_/
+2025-12-31T23:29:46.5790264Z                            [0;31m Wrapper-0.2.7[0m
+2025-12-31T23:29:46.5790531Z
+2025-12-31T23:29:46.5844884Z [0;32m==>[0m Detected [0;36mlinux[0m
+2025-12-31T23:29:46.5845960Z [0;32m ->[0m Downloading [0;36mhttps://cli.codecov.io/latest/linux/codecov[0m
+2025-12-31T23:29:46.5896157Z   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+2025-12-31T23:29:46.5896868Z                                  Dload  Upload   Total   Spent    Left  Speed
+2025-12-31T23:29:46.5897219Z
+2025-12-31T23:29:46.7117124Z   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+2025-12-31T23:29:46.7117720Z 100 10.6M  100 10.6M    0     0  87.1M      0 --:--:-- --:--:-- --:--:-- 87.2M
+2025-12-31T23:29:46.7140345Z [0;32m==>[0m Finishing downloading [0;36mlinux:latest[0m
+2025-12-31T23:29:46.7581798Z       Version: [0;36mv11.2.6[0m
+2025-12-31T23:29:46.7582507Z
+2025-12-31T23:29:46.8012336Z gpg: directory '/home/runner/.gnupg' created
+2025-12-31T23:29:46.8042924Z gpg: keybox '/home/runner/.gnupg/pubring.kbx' created
+2025-12-31T23:29:47.1549022Z gpg: /home/runner/.gnupg/trustdb.gpg: trustdb created
+2025-12-31T23:29:47.1549921Z gpg: key 806BB28AED779869: public key "Codecov Uploader (Codecov Uploader Verification Key) <security@codecov.io>" imported
+2025-12-31T23:29:47.1894050Z gpg: Total number processed: 1
+2025-12-31T23:29:47.1894737Z gpg:               imported: 1
+2025-12-31T23:29:47.1900016Z [0;32m==>[0m Verifying GPG signature integrity
+2025-12-31T23:29:47.1900671Z [0;32m ->[0m Downloading [0;36mhttps://cli.codecov.io/latest/linux/codecov.SHA256SUM[0m
+2025-12-31T23:29:47.1901306Z [0;32m ->[0m Downloading [0;36mhttps://cli.codecov.io/latest/linux/codecov.SHA256SUM.sig[0m
+2025-12-31T23:29:47.1901706Z
+2025-12-31T23:29:47.2758935Z gpg: Signature made Fri Dec  5 15:31:48 2025 UTC
+2025-12-31T23:29:47.2759625Z gpg:                using RSA key 27034E7FDB850E0BBC2C62FF806BB28AED779869
+2025-12-31T23:29:47.2761548Z gpg: Good signature from "Codecov Uploader (Codecov Uploader Verification Key) <security@codecov.io>" [unknown]
+2025-12-31T23:29:47.2762541Z gpg: WARNING: This key is not certified with a trusted signature!
+2025-12-31T23:29:47.2763272Z gpg:          There is no indication that the signature belongs to the owner.
+2025-12-31T23:29:47.2764024Z Primary key fingerprint: 2703 4E7F DB85 0E0B BC2C  62FF 806B B28A ED77 9869
+2025-12-31T23:29:47.3827360Z codecov: OK
+2025-12-31T23:29:47.3838854Z [0;32m==>[0m CLI integrity verified
+2025-12-31T23:29:47.3839195Z
+2025-12-31T23:29:47.4506536Z [0;32m ->[0m Token length: 36
+2025-12-31T23:29:47.4508791Z [0;32m==>[0m Running upload-coverage
+2025-12-31T23:29:47.4517162Z       [0;36m./codecov  upload-coverage -t <redacted> --git-service github --sha 5107e2e853d348432dc245dd795d839c51f95a60 --file ./coverage.xml --flag unit --gcov-executable gcov --name unit-tests[0m
+2025-12-31T23:29:47.8069563Z info - 2025-12-31 23:29:47,806 -- ci service found: github-actions
+2025-12-31T23:29:47.8164290Z warning - 2025-12-31 23:29:47,816 -- No config file could be found. Ignoring config.
+2025-12-31T23:29:47.8487078Z warning - 2025-12-31 23:29:47,848 -- xcrun is not installed or can't be found.
+2025-12-31T23:29:48.4907955Z warning - 2025-12-31 23:29:48,490 -- No gcov data found.
+2025-12-31T23:29:48.4912699Z warning - 2025-12-31 23:29:48,491 -- coverage.py is not installed or can't be found.
+2025-12-31T23:29:49.1238372Z warning - 2025-12-31 23:29:49,123 -- Some files were not found --- {"not_found_files": ["coverage.xml"]}
+2025-12-31T23:29:49.1431295Z info - 2025-12-31 23:29:49,142 -- Found 0 coverage files to report
+2025-12-31T23:29:49.1459758Z Error: No coverage reports found. Please make sure you're generating reports successfully.
+2025-12-31T23:29:49.2467692Z Sentry is attempting to send 2 pending events
+2025-12-31T23:29:49.2468536Z Waiting up to 2 seconds
+2025-12-31T23:29:49.2468844Z Press Ctrl-C to quit
+2025-12-31T23:29:49.3591628Z [0;31m==> Failed to run upload-coverage[0m
+2025-12-31T23:29:49.3667716Z ##[group]Run actions/upload-artifact@v6
+2025-12-31T23:29:49.3668232Z with:
+2025-12-31T23:29:49.3668432Z   name: coverage-unit
+2025-12-31T23:29:49.3668642Z   path: coverage.xml
+2025-12-31T23:29:49.3668840Z   retention-days: 30
+2025-12-31T23:29:49.3669032Z   if-no-files-found: warn
+2025-12-31T23:29:49.3669243Z   compression-level: 6
+2025-12-31T23:29:49.3669437Z   overwrite: false
+2025-12-31T23:29:49.3669647Z   include-hidden-files: false
+2025-12-31T23:29:49.3669853Z env:
+2025-12-31T23:29:49.3670018Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:49.3670219Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:49.3670437Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:49.3670685Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:49.3670965Z   CC_FORK: false
+2025-12-31T23:29:49.3671249Z   CC_TOKEN: ***
+2025-12-31T23:29:49.3671432Z   CC_BRANCH:
+2025-12-31T23:29:49.3671630Z   CC_SHA: 5107e2e853d348432dc245dd795d839c51f95a60
+2025-12-31T23:29:49.3671886Z   CC_PR:
+2025-12-31T23:29:49.3672082Z ##[endgroup]
+2025-12-31T23:29:49.5187367Z ##[warning]No files were found with the provided path: coverage.xml. No artifacts will be uploaded.
+2025-12-31T23:29:49.5289407Z ##[group]Run actions/upload-artifact@v6
+2025-12-31T23:29:49.5289698Z with:
+2025-12-31T23:29:49.5289887Z   name: unit-test-results
+2025-12-31T23:29:49.5290125Z   path: .pytest_cache/
+*.log
+
+2025-12-31T23:29:49.5290363Z   retention-days: 7
+2025-12-31T23:29:49.5290739Z   if-no-files-found: warn
+2025-12-31T23:29:49.5290961Z   compression-level: 6
+2025-12-31T23:29:49.5291166Z   overwrite: false
+2025-12-31T23:29:49.5291363Z   include-hidden-files: false
+2025-12-31T23:29:49.5291568Z env:
+2025-12-31T23:29:49.5291737Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:49.5291939Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:49.5292161Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:49.5292419Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2025-12-31T23:29:49.5292697Z   CC_FORK: false
+2025-12-31T23:29:49.5292978Z   CC_TOKEN: ***
+2025-12-31T23:29:49.5293157Z   CC_BRANCH:
+2025-12-31T23:29:49.5293358Z   CC_SHA: 5107e2e853d348432dc245dd795d839c51f95a60
+2025-12-31T23:29:49.5293613Z   CC_PR:
+2025-12-31T23:29:49.5293814Z ##[endgroup]
+2025-12-31T23:29:49.6943686Z ##[warning]No files were found with the provided path: .pytest_cache/
+*.log. No artifacts will be uploaded.
+2025-12-31T23:29:49.7057592Z Post job cleanup.
+2025-12-31T23:29:49.7108775Z Post job cleanup.
+2025-12-31T23:29:49.7899610Z [command]/usr/bin/git version
+2025-12-31T23:29:49.7936032Z git version 2.52.0
+2025-12-31T23:29:49.7967433Z Copying '/home/runner/.gitconfig' to '/home/runner/work/_temp/2a05c45d-2e5b-42fe-b0d6-d4b145b91e62/.gitconfig'
+2025-12-31T23:29:49.7976866Z Temporarily overriding HOME='/home/runner/work/_temp/2a05c45d-2e5b-42fe-b0d6-d4b145b91e62' before making global git config changes
+2025-12-31T23:29:49.7977903Z Adding repository directory to the temporary git global config as a safe directory
+2025-12-31T23:29:49.7982795Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/egregora/egregora
+2025-12-31T23:29:49.8014206Z Removing SSH command configuration
+2025-12-31T23:29:49.8020331Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-12-31T23:29:49.8054570Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-12-31T23:29:49.8344973Z Removing HTTP extra header
+2025-12-31T23:29:49.8351283Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-12-31T23:29:49.8392187Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-12-31T23:29:49.8640058Z Removing includeIf entries pointing to credentials config files
+2025-12-31T23:29:49.8646890Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2025-12-31T23:29:49.8670394Z includeif.gitdir:/home/runner/work/egregora/egregora/.git.path
+2025-12-31T23:29:49.8671109Z includeif.gitdir:/home/runner/work/egregora/egregora/.git/worktrees/*.path
+2025-12-31T23:29:49.8671590Z includeif.gitdir:/github/workspace/.git.path
+2025-12-31T23:29:49.8672048Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2025-12-31T23:29:49.8680564Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/egregora/egregora/.git.path
+2025-12-31T23:29:49.8702299Z /home/runner/work/_temp/git-credentials-75303adc-c4de-42b2-ac33-6f24541270ef.config
+2025-12-31T23:29:49.8713620Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/egregora/egregora/.git.path /home/runner/work/_temp/git-credentials-75303adc-c4de-42b2-ac33-6f24541270ef.config
+2025-12-31T23:29:49.8746693Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/egregora/egregora/.git/worktrees/*.path
+2025-12-31T23:29:49.8769492Z /home/runner/work/_temp/git-credentials-75303adc-c4de-42b2-ac33-6f24541270ef.config
+2025-12-31T23:29:49.8778895Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/egregora/egregora/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-75303adc-c4de-42b2-ac33-6f24541270ef.config
+2025-12-31T23:29:49.8809654Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2025-12-31T23:29:49.8829691Z /github/runner_temp/git-credentials-75303adc-c4de-42b2-ac33-6f24541270ef.config
+2025-12-31T23:29:49.8837149Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-75303adc-c4de-42b2-ac33-6f24541270ef.config
+2025-12-31T23:29:49.8867769Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2025-12-31T23:29:49.8888190Z /github/runner_temp/git-credentials-75303adc-c4de-42b2-ac33-6f24541270ef.config
+2025-12-31T23:29:49.8897057Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-75303adc-c4de-42b2-ac33-6f24541270ef.config
+2025-12-31T23:29:49.8929091Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2025-12-31T23:29:49.9147322Z Removing credentials config '/home/runner/work/_temp/git-credentials-75303adc-c4de-42b2-ac33-6f24541270ef.config'
+2025-12-31T23:29:49.9271996Z Cleaning up orphan processes
