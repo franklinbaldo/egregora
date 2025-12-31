@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class RAGChunk:
+class _RAGChunk:
     """Internal representation of a RAG chunk."""
     chunk_id: str
     document_id: str
@@ -35,9 +35,9 @@ def chunks_from_documents(
     docs: Sequence[Document],
     max_chars: int = DEFAULT_MAX_CHARS,
     chunk_overlap: int = DEFAULT_CHUNK_OVERLAP,
-) -> list[RAGChunk]:
+) -> list[_RAGChunk]:
     """Convert multiple Documents into chunks."""
-    chunks: list[RAGChunk] = []
+    chunks: list[_RAGChunk] = []
 
     for doc in docs:
         if not doc.content:
@@ -68,7 +68,7 @@ def chunks_from_documents(
             }
 
             chunks.append(
-                RAGChunk(
+                _RAGChunk(
                     chunk_id=chunk_id,
                     document_id=doc.id,
                     text=piece,
