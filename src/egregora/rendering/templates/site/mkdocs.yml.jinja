@@ -110,16 +110,6 @@ plugins:
         - tags
       comments_path: "#__comments"
       use_material_blog: false
-  - git-revision-date-localized:
-      enable_creation_date: true
-      type: timeago
-  - minify:
-      minify_html: true
-      minify_js: true
-      minify_css: true
-      htmlmin_opts:
-        remove_comments: true
-      cache_safe: true
 
 # Markdown extensions available for posts
 # (This section is automatically sent to the writer agent)
@@ -215,7 +205,3 @@ extra:
 # Custom CSS for improved UX
 extra_css:
   - stylesheets/extra.css
-
-extra_javascript:
-  - javascripts/mathjax.js
-  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js

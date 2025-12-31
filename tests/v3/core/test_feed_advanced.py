@@ -161,21 +161,20 @@ def test_roundtrip_preserves_links(sample_feed: Feed, tmp_path: Path) -> None:
     adapter = RSSAdapter()
     parsed_entries = list(adapter.parse(feed_file))
 
-    # TODO: Re-enable these assertions when entry.links are rendered in the template
     # Find entry with enclosure link
-    # entry_with_enclosure = next(
-    #     (e for e in parsed_entries if any(link.rel == "enclosure" for link in e.links)),
-    #     None,
-    # )
-    # assert entry_with_enclosure is not None
-    #
-    # enclosure = next(
-    #     (link for link in entry_with_enclosure.links if link.rel == "enclosure"),
-    #     None,
-    # )
-    # assert enclosure is not None
-    # assert enclosure.type == "image/jpeg"
-    # assert enclosure.length == 12345
+    entry_with_enclosure = next(
+        (e for e in parsed_entries if any(link.rel == "enclosure" for link in e.links)),
+        None,
+    )
+    assert entry_with_enclosure is not None
+
+    enclosure = next(
+        (link for link in entry_with_enclosure.links if link.rel == "enclosure"),
+        None,
+    )
+    assert enclosure is not None
+    assert enclosure.type == "image/jpeg"
+    assert enclosure.length == 12345
 
 
 # ========== RFC 4287 Schema Validation ==========
@@ -405,11 +404,10 @@ def test_feed_with_categories() -> None:
     # Should have user categories + Document type/status categories
     assert len(categories) >= 2
 
-    # TODO: Re-enable these assertions when entry.categories are rendered in the template
     # Check user categories exist
-    # category_terms = {cat.get("term") for cat in categories}
-    # assert "technology" in category_terms
-    # assert "python" in category_terms
+    category_terms = {cat.get("term") for cat in categories}
+    assert "technology" in category_terms
+    assert "python" in category_terms
 
 
 def test_empty_feed_is_valid() -> None:
