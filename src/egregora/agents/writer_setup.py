@@ -18,7 +18,8 @@ from egregora.agents.writer_helpers import (
     register_writer_tools,
     validate_prompt_fits,
 )
-from egregora.config.settings import google_api_key_status
+from egregora.config.exceptions import ApiKeyNotFoundError
+from egregora.config.settings import get_google_api_key
 
 if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig
@@ -34,18 +35,20 @@ async def create_writer_model(
     if test_model is not None:
         return test_model
 
-    # Fail fast if a Google model is requested without an API key
-    if config.models.writer.startswith("google-gla:") and not google_api_key_status():
-        msg = (
-            "A Google model is configured, but no API key was found.\n"
-            "Please set the GEMINI_API_key or GOOGLE_API_KEY environment variable.\n"
-            "You can get a free key from Google AI Studio: https://aistudio.google.com/app/apikey"
-        )
-        raise ValueError(msg)
+    model_name = config.models.writer
+    if model_name.startswith("google-gla:"):
+        try:
+            get_google_api_key()  # Fail fast if key is missing
+        except ApiKeyNotFoundError as e:
+            msg = (
+                "A Google model is configured, but no API key was found.\n"
+                "Please set the GEMINI_API_key or GOOGLE_API_KEY environment variable.\n"
+                "You can get a free key from Google AI Studio: https://aistudio.google.com/app/apikey"
+            )
+            raise ValueError(msg) from e
 
     # Directly instantiate the GoogleModel from pydantic-ai
     # This replaces the need for the `create_fallback_model` utility.
-    model_name = config.models.writer
     if model_name.startswith("google-gla:"):
         model_name = model_name.replace("google-gla:", "")
 

@@ -28,11 +28,7 @@
 
 
 
-
-
-
-
-      <content type="html">Deterministic content</content>
+      <content type="text/plain">Deterministic content</content>
 
 
 

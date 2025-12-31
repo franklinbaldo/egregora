@@ -1,0 +1,179 @@
+name: "Gemini runner with fallbacks"
+description: "Run the Gemini CLI with a configurable fallback order and consolidated outputs"
+inputs:
+  prompt:
+    description: "Prompt to send to the Gemini CLI"
+    required: true
+  models:
+    description: "JSON array or comma-separated list of Gemini models in fallback order"
+    required: false
+    default: '["gemini-2.5-pro","gemini-2.5-flash","gemini-2.5-flash-lite"]'
+  gemini_api_key:
+    description: "Gemini API key"
+    required: true
+outputs:
+  outcome:
+    description: "Overall outcome of the Gemini run (success|failure)"
+    value: ${{ steps.consolidate.outputs.outcome }}
+  model:
+    description: "Model that produced the summary, if any"
+    value: ${{ steps.consolidate.outputs.model }}
+  summary:
+    description: "Summary returned by the Gemini CLI, if successful"
+    value: ${{ steps.consolidate.outputs.summary }}
+  diagnostics:
+    description: "Standardized diagnostic comment body describing failures"
+    value: ${{ steps.consolidate.outputs.diagnostics }}
+runs:
+  using: "composite"
+  steps:
+    - name: Parse model list
+      uses: actions/github-script@v8
+      id: models
+      env:
+        MODELS_INPUT: ${{ inputs.models }}
+      with:
+        script: |
+          const raw = process.env.MODELS_INPUT || '';
+          let models;
+
+          try {
+            const parsed = JSON.parse(raw);
+            models = Array.isArray(parsed) ? parsed : [];
+          } catch (error) {
+            models = raw
+              .split(',')
+              .map((value) => value.trim())
+              .filter(Boolean);
+          }
+
+          const sanitized = models.filter(Boolean).slice(0, 5);
+          if (sanitized.length === 0) {
+            sanitized.push('gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite');
+          }
+
+          core.setOutput('models', JSON.stringify(sanitized));
+          sanitized.forEach((model, index) => {
+            core.setOutput(`model_${index + 1}`, model);
+          });
+
+    - name: Run Gemini (1)
+      if: ${{ steps.models.outputs.model_1 != '' }}
+      id: gemini_1
+      continue-on-error: true
+      uses: google-github-actions/run-gemini-cli@v0
+      with:
+        gemini_api_key: ${{ inputs.gemini_api_key }}
+        gemini_model: ${{ steps.models.outputs.model_1 }}
+        prompt: ${{ inputs.prompt }}
+
+    - name: Run Gemini (2)
+      if: ${{ steps.gemini_1.outcome == 'failure' && steps.models.outputs.model_2 != '' }}
+      id: gemini_2
+      continue-on-error: true
+      uses: google-github-actions/run-gemini-cli@v0
+      with:
+        gemini_api_key: ${{ inputs.gemini_api_key }}
+        gemini_model: ${{ steps.models.outputs.model_2 }}
+        prompt: ${{ inputs.prompt }}
+
+    - name: Run Gemini (3)
+      if: ${{ steps.gemini_2.outcome == 'failure' && steps.models.outputs.model_3 != '' }}
+      id: gemini_3
+      continue-on-error: true
+      uses: google-github-actions/run-gemini-cli@v0
+      with:
+        gemini_api_key: ${{ inputs.gemini_api_key }}
+        gemini_model: ${{ steps.models.outputs.model_3 }}
+        prompt: ${{ inputs.prompt }}
+
+    - name: Run Gemini (4)
+      if: ${{ steps.gemini_3.outcome == 'failure' && steps.models.outputs.model_4 != '' }}
+      id: gemini_4
+      continue-on-error: true
+      uses: google-github-actions/run-gemini-cli@v0
+      with:
+        gemini_api_key: ${{ inputs.gemini_api_key }}
+        gemini_model: ${{ steps.models.outputs.model_4 }}
+        prompt: ${{ inputs.prompt }}
+
+    - name: Run Gemini (5)
+      if: ${{ steps.gemini_4.outcome == 'failure' && steps.models.outputs.model_5 != '' }}
+      id: gemini_5
+      continue-on-error: true
+      uses: google-github-actions/run-gemini-cli@v0
+      with:
+        gemini_api_key: ${{ inputs.gemini_api_key }}
+        gemini_model: ${{ steps.models.outputs.model_5 }}
+        prompt: ${{ inputs.prompt }}
+
+    - name: Consolidate results
+      id: consolidate
+      if: always()
+      uses: actions/github-script@v8
+      env:
+        MODELS: ${{ steps.models.outputs.models }}
+        OUTCOME_1: ${{ steps.gemini_1.outcome }}
+        SUMMARY_1: ${{ steps.gemini_1.outputs.summary }}
+        OUTCOME_2: ${{ steps.gemini_2.outcome }}
+        SUMMARY_2: ${{ steps.gemini_2.outputs.summary }}
+        OUTCOME_3: ${{ steps.gemini_3.outcome }}
+        SUMMARY_3: ${{ steps.gemini_3.outputs.summary }}
+        OUTCOME_4: ${{ steps.gemini_4.outcome }}
+        SUMMARY_4: ${{ steps.gemini_4.outputs.summary }}
+        OUTCOME_5: ${{ steps.gemini_5.outcome }}
+        SUMMARY_5: ${{ steps.gemini_5.outputs.summary }}
+      with:
+        script: |
+          const fs = require('fs');
+
+          const models = JSON.parse(process.env.MODELS || '[]');
+          const outcomes = models.map((_, index) => process.env[`OUTCOME_${index + 1}`] || 'skipped');
+          const summaries = models.map((_, index) => process.env[`SUMMARY_${index + 1}`] || '');
+
+          let finalOutcome = 'failure';
+          let finalSummary = '';
+          let finalModel = '';
+
+          for (let i = 0; i < models.length; i++) {
+            if (outcomes[i] === 'success') {
+              finalOutcome = 'success';
+              finalSummary = summaries[i];
+              finalModel = models[i];
+              break;
+            }
+          }
+
+          const lines = [
+            '## Gemini Run Diagnostics',
+            '',
+            '| Model | Outcome |',
+            '| --- | --- |',
+            ...models.map((model, index) => `| ${model} | ${outcomes[index]} |`),
+            '',
+            `**Final outcome:** ${finalOutcome}`,
+            `**Selected model:** ${finalModel || 'n/a'}`
+          ];
+
+          if (process.env.GITHUB_STEP_SUMMARY) {
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
+          }
+
+          const troubleshooting = [
+            '## ⚠️ Gemini Invocation Failed',
+            '',
+            'The Gemini CLI could not produce a result after trying all configured models.',
+            '',
+            'Troubleshooting steps:',
+            '- Verify the `GEMINI_API_KEY` secret is configured and valid.',
+            '- Confirm model quota/availability in Google AI Studio.',
+            '- Review the workflow logs for detailed error messages.',
+            `- Re-run the workflow from ${process.env.GITHUB_SERVER_URL || 'https://github.com'}/${process.env.GITHUB_REPOSITORY || ''}/actions/runs/${process.env.GITHUB_RUN_ID || ''}`
+          ].join('\n');
+
+          const diagnostics = finalOutcome === 'success' ? '' : troubleshooting;
+
+          core.setOutput('outcome', finalOutcome);
+          core.setOutput('summary', finalSummary);
+          core.setOutput('model', finalModel);
+          core.setOutput('diagnostics', diagnostics);

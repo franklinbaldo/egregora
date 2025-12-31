@@ -185,8 +185,8 @@ nav:
     - Architecture Docs:
       - Protocols: v2/architecture/protocols.md
       - URL Conventions: v2/architecture/url-conventions.md
-    - ADR:
-      - Index: v2/adr/README.md
+  - ADR:
+    - Index: adr/README.md
   - Getting Started:
     - Installation: getting-started/installation.md
     - Configuration: getting-started/configuration.md
