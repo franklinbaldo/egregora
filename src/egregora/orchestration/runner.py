@@ -137,6 +137,7 @@ class PipelineRunner:
         config = self.context.config
         use_full_window = getattr(config.pipeline, "use_full_context_window", False)
 
+        # TODO: [Taskmaster] Replace magic number with a named constant
         if use_full_window:
             return 1_048_576
 
@@ -216,6 +217,7 @@ class PipelineRunner:
         return results
 
     def _process_single_window(self, window: Any, *, depth: int = 0) -> dict[str, dict[str, list[str]]]:
+        # TODO: [Taskmaster] Refactor this method into smaller, single-responsibility functions
         """Process a single window with media extraction, enrichment, and post writing."""
         indent = "  " * depth
         window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
