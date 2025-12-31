@@ -49,7 +49,7 @@ async def create_writer_model(
     if model_name.startswith("google-gla:"):
         model_name = model_name.replace("google-gla:", "")
 
-    from pydantic_ai.llm.google import GoogleModel
+    from pydantic_ai.experimental.google import GoogleModel
 
     model = GoogleModel(api_key=None, model_name=model_name, streaming=True)
 

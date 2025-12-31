@@ -5,11 +5,42 @@
   <feed xmlns="http://www.w3.org/2005/Atom" xmlns:thr="http://purl.org/syndication/thread/1.0">
     <id>test-feed-id</id>
     <title>Test Feed</title>
-    <updated>2025-12-06T10:00:00Z</updated><entry>
+    <updated>2025-12-06T10:00:00Z</updated>
+
+
+
+
+
+
+    <entry>
       <id>deterministic-post</id>
       <title>Deterministic Post</title>
-      <updated>2025-12-06T10:00:00Z</updated><content type="html">Deterministic content</content><author>
-        <name>Test Author</name></author><category term="post" scheme="https://egregora.app/schema#doc_type" label="Document Type" />
-      <category term="draft" scheme="https://egregora.app/schema#status" label="Document Status" /></entry></feed>
+      <updated>2025-12-06T10:00:00Z</updated>
+
+
+
+
+
+
+      <author>
+        <name>Test Author</name>
+      </author>
+
+
+
+
+
+
+
+      <content type="text/plain">Deterministic content</content>
+
+
+
+      <category scheme="https://egregora.app/schema#doc_type" term="post" />
+      <category scheme="https://egregora.app/schema#status" term="draft" />
+
+    </entry>
+
+  </feed>
   '''
 # ---
