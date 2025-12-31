@@ -37,11 +37,7 @@ from pydantic_ai import Agent, RunContext, UrlContextTool
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import BinaryContent
 
-from egregora.agents.cache import (
-    CacheKeyNotFoundError,
-    EnrichmentCache,
-    make_enrichment_cache_key,
-)
+from egregora.agents.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.agents.exceptions import MediaStagingError
 from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
@@ -52,6 +48,7 @@ from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.datetime_utils import ensure_datetime
 from egregora.utils.env import get_google_api_key
+from egregora.utils.exceptions import CacheKeyNotFoundError
 from egregora.utils.paths import slugify
 from egregora.utils.zip import validate_zip_contents
 

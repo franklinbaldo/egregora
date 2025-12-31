@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 from typing import Annotated, Any
 
-from egregora.utils.cache import CacheBackend
+from egregora.utils.cache_backend import CacheBackend
 from egregora.utils.exceptions import (
     CacheDeserializationError,
     CachePayloadTypeError,
