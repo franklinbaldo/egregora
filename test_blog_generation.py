@@ -72,7 +72,10 @@ def test_datetime_utilities() -> bool | None:
         try:
             datetime_utils_mod.parse_datetime_flexible(None)
             return False
-        except (exceptions_mod.DateTimeParsingError, exceptions_mod.InvalidDateTimeInputError):
+        except (
+            datetime_utils_mod.DateTimeParsingError,
+            datetime_utils_mod.InvalidDateTimeInputError,
+        ):
             pass
 
         # Test ensure_datetime
@@ -97,18 +100,37 @@ def test_exception_classes() -> bool | None:
         exceptions_mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(exceptions_mod)
 
+        # Load cache_utils module
+        spec = importlib.util.spec_from_file_location("egregora.utils.cache", "src/egregora/utils/cache.py")
+        cache_utils_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cache_utils_mod)
+
+        # Load authors_utils module
+        spec = importlib.util.spec_from_file_location(
+            "egregora.utils.authors", "src/egregora/utils/authors.py"
+        )
+        authors_utils_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(authors_utils_mod)
+
+        # Load datetime_utils module
+        spec = importlib.util.spec_from_file_location(
+            "egregora.utils.datetime_utils", "src/egregora/utils/datetime_utils.py"
+        )
+        datetime_utils_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(datetime_utils_mod)
+
         # Test CacheKeyNotFoundError
-        exc = exceptions_mod.CacheKeyNotFoundError("test_key")
+        exc = cache_utils_mod.CacheKeyNotFoundError("test_key")
         if exc.key != "test_key":
             return False
 
         # Test AuthorsFileLoadError
-        exc = exceptions_mod.AuthorsFileLoadError("/path/to/file", OSError("test"))
+        exc = authors_utils_mod.AuthorsFileLoadError("/path/to/file", OSError("test"))
         if exc.path != "/path/to/file":
             return False
 
         # Test DateTimeParsingError
-        exc = exceptions_mod.DateTimeParsingError("invalid", ValueError("test"))
+        exc = datetime_utils_mod.DateTimeParsingError("invalid", ValueError("test"))
         return exc.value == "invalid"
 
     except (ImportError, AttributeError):
