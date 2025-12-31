@@ -66,6 +66,10 @@ def initialize_database(backend: BaseBackend) -> None:
     create_table_if_not_exists(conn, "journals", JOURNALS_SCHEMA)
     create_table_if_not_exists(conn, "annotations", ANNOTATIONS_SCHEMA)
 
+    # Create a placeholder documents table if it doesn't exist,
+    # so the migration has a table to work with.
+    conn.execute("CREATE TABLE IF NOT EXISTS documents (id VARCHAR)")
+
     # Run V3 schema migration
     migrate_documents_table(conn)
 
