@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import pytest
 from hypothesis import given, settings, HealthCheck, strategies as st
 
+from egregora_v3.core.atom import render_atom_feed
 from egregora_v3.core.types import (
     Document,
     DocumentType,
@@ -115,7 +116,7 @@ def test_threading_extension_xml():
         entries=[entry]
     )
 
-    xml_str = feed.to_xml()
+    xml_str = render_atom_feed(feed)
 
     # We expect thr:in-reply-to
     assert 'xmlns:thr="http://purl.org/syndication/thread/1.0"' in xml_str
