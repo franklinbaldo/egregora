@@ -41,25 +41,25 @@ runs:
         set -euo pipefail
 
         python - <<'PY' > /tmp/models
-import json
-import os
-import sys
+          import json
+          import os
+          import sys
 
-raw = os.environ.get("FALLBACK_MODELS", "")
-try:
-    models = json.loads(raw)
-except json.JSONDecodeError as exc:  # pragma: no cover - executed in workflow only
-    sys.exit(f"fallback_models must be valid JSON: {exc}")
+          raw = os.environ.get("FALLBACK_MODELS", "")
+          try:
+              models = json.loads(raw)
+          except json.JSONDecodeError as exc:  # pragma: no cover - executed in workflow only
+              sys.exit(f"fallback_models must be valid JSON: {exc}")
 
-if not isinstance(models, list) or not models:
-    sys.exit("fallback_models must be a non-empty JSON array")
+          if not isinstance(models, list) or not models:
+              sys.exit("fallback_models must be a non-empty JSON array")
 
-for index in range(3):
-    value = models[index] if index < len(models) else ""
-    print(f"model_{index}={value}")
+          for index in range(3):
+              value = models[index] if index < len(models) else ""
+              print(f"model_{index}={value}")
 
-print(f"attempts_json={json.dumps(models)}")
-PY
+          print(f"attempts_json={json.dumps(models)}")
+        PY
 
         cat /tmp/models >> "$GITHUB_OUTPUT"
 
