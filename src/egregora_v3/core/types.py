@@ -11,7 +11,7 @@ from pathlib import Path
 
 from markdown_it import MarkdownIt
 from pydantic import BaseModel, Field, model_validator
-from egregora_v3.core.utils import slugify
+from egregora.common.text_utils import slugify
 
 # --- XML Configuration ---
 

@@ -13,6 +13,7 @@ import ibis
 import ibis.expr.datatypes as dt
 import yaml
 
+from egregora.common.text_utils import slugify
 from egregora.data_primitives import DocumentMetadata, OutputSink, UrlConvention
 from egregora.output_adapters.exceptions import (
     AdapterNotDetectedError,
@@ -20,7 +21,7 @@ from egregora.output_adapters.exceptions import (
     FrontmatterParsingError,
     RegistryNotProvidedError,
 )
-from egregora.utils import safe_path_join, slugify
+from egregora.utils import safe_path_join
 
 if TYPE_CHECKING:
     from collections.abc import Iterator

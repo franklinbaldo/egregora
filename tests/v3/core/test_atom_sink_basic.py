@@ -134,7 +134,7 @@ def test_entry_with_categories():
 def test_feed_parses_as_valid_xml(snapshot):
     """Test that generated XML is valid and matches snapshot."""
     doc = Document(
-        content="Test content",
+        content="<p>Test content</p>",
         doc_type=DocumentType.POST,
         title="Test Post",
         internal_metadata={"slug": "test-post-123"},  # For stable ID

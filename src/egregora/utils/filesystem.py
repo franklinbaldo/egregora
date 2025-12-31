@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
+from egregora.common.text_utils import slugify
 from egregora.utils.authors import ensure_author_entries
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.exceptions import (
@@ -28,7 +29,7 @@ from egregora.utils.exceptions import (
     MissingMetadataError,
     UniqueFilenameError,
 )
-from egregora.utils.paths import safe_path_join, slugify
+from egregora.utils.paths import safe_path_join
 
 if TYPE_CHECKING:
     from pathlib import Path

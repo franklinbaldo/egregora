@@ -19,7 +19,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from uuid import UUID, uuid5
 
-from egregora.utils.paths import slugify as _slugify
+from egregora.common.text_utils import slugify as _slugify
 
 if TYPE_CHECKING:
     from collections.abc import Iterator

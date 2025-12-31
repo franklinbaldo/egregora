@@ -35,8 +35,18 @@
     </author>
     {% endfor %}
 
-    {% if entry.content %}
-    <content type="{% if entry.content_type in ['text/html', 'text/xhtml'] %}html{% elif entry.content_type == 'text/markdown' %}text{% else %}{{ entry.content_type or 'text/plain' }}{% endif %}">{{ entry.content }}</content>
+    {% for link in entry.links %}
+    <link href="{{ link.href }}" {% if link.rel %}rel="{{ link.rel }}"{% endif %} {% if link.type %}type="{{ link.type }}"{% endif %} {% if link.length %}length="{{ link.length }}"{% endif %}/>
+    {% endfor %}
+
+    {% for category in entry.categories %}
+    <category term="{{ category.term }}" {% if category.scheme %}scheme="{{ category.scheme }}"{% endif %} {% if category.label %}label="{{ category.label }}"{% endif %} />
+    {% endfor %}
+
+    {% if entry.html_content %}
+    <content type="html">{{ entry.html_content | safe }}</content>
+    {% elif entry.content %}
+    <content type="text">{{ entry.content }}</content>
     {% endif %}
 
     {% if entry.is_document %}

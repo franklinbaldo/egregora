@@ -38,6 +38,7 @@ from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import BinaryContent
 
 from egregora.agents.exceptions import MediaStagingError
+from egregora.common.text_utils import slugify
 from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.message_repository import MessageRepository
@@ -52,7 +53,6 @@ from egregora.utils.cache import (
 )
 from egregora.utils.datetime_utils import ensure_datetime
 from egregora.utils.env import get_google_api_key
-from egregora.utils.paths import slugify
 from egregora.utils.zip import validate_zip_contents
 
 if TYPE_CHECKING:

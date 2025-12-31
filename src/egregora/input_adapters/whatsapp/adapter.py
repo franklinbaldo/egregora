@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict, Unpack
 
+from egregora.common.text_utils import slugify
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.input_adapters.whatsapp.commands import EGREGORA_COMMAND_PATTERN
@@ -24,7 +25,6 @@ from egregora.input_adapters.whatsapp.exceptions import (
 from egregora.input_adapters.whatsapp.parsing import WhatsAppExport, parse_source
 from egregora.input_adapters.whatsapp.utils import discover_chat_file
 from egregora.orchestration.pipelines.modules.media import detect_media_type
-from egregora.utils.paths import slugify
 from egregora.utils.zip import validate_zip_contents
 
 if TYPE_CHECKING:

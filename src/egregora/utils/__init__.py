@@ -3,10 +3,11 @@
 MODERN (Phase 3): Added consolidated date/time and filesystem utilities.
 """
 
+from egregora.common.text_utils import slugify
 from egregora.utils.cache import ENRICHMENT_CACHE_VERSION, EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.network import SSRFValidationError, validate_public_url
-from egregora.utils.paths import PathTraversalError, safe_path_join, slugify
+from egregora.utils.paths import PathTraversalError, safe_path_join
 from egregora.utils.zip import (
     ZipValidationError,
     ZipValidationSettings,
