@@ -1,0 +1,68 @@
+name: Jules auto-merge
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - ready_for_review
+      - synchronize
+
+jobs:
+  enable-automerge:
+    if: |
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (
+        github.event.pull_request.user.login == 'jules' ||
+        github.event.pull_request.user.login == 'jules[bot]' ||
+        github.event.pull_request.user.login == 'google-labs-jules[bot]'
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Ensure repository allows auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          allow=$(gh api graphql \
+            -f owner="$OWNER" \
+            -f name="$REPO" \
+            -f query='query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { allowAutoMerge } }' \
+            --jq '.data.repository.allowAutoMerge')
+
+          if [ "$allow" != "true" ]; then
+            echo "Auto-merge is not enabled in the repository settings."
+            exit 1
+          fi
+
+      - name: Ensure base branch requires status checks
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          rules=$(gh api graphql \
+            -f owner="$OWNER" \
+            -f name="$REPO" \
+            -f query='query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { branchProtectionRules(first: 100) { nodes { pattern requiredStatusCheckContexts } } } }')
+
+          contexts=$(echo "$rules" | jq --arg branch "$BASE_REF" -e '[(.data.repository.branchProtectionRules.nodes[] | select(.pattern == $branch) | .requiredStatusCheckContexts[]) ] | length')
+
+          if [ "$contexts" -lt 1 ]; then
+            echo "Base branch '$BASE_REF' must have at least one required status check to enable auto-merge."
+            exit 1
+          fi
+
+      - name: Enable squash auto-merge
+        uses: peter-evans/enable-pull-request-automerge@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          pull-request-number: ${{ github.event.pull_request.number }}
+          merge-method: squash
