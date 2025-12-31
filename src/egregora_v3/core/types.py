@@ -2,6 +2,7 @@
 
 import hashlib
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
@@ -255,3 +256,16 @@ class Feed(BaseModel):
             authors=authors or [],
             entries=sorted_docs,
         )
+
+
+# --- RAG Domain ---
+
+
+@dataclass
+class RAGChunk:
+    """Internal representation of a RAG chunk."""
+
+    chunk_id: str
+    document_id: str
+    text: str
+    metadata: dict[str, Any]
