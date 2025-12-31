@@ -13,6 +13,9 @@ from typing import TYPE_CHECKING
 
 import diskcache
 
+from egregora.agents.cache import EnrichmentCache
+from egregora.utils.cache_backend import DiskCacheBackend
+
 if TYPE_CHECKING:
     from pathlib import Path
 
