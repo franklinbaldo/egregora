@@ -11,6 +11,10 @@ Evaluate the current PR title and description for quality. If they're not clear,
 - **Stack:** Python 3.12+ | uv | Ibis | DuckDB | Pydantic-AI | Google Gemini
 - **Philosophy:** Clean, direct, professional commits and PRs
 
+## Runner Context (Gemini)
+- Shared Gemini runner: `google-github-actions/run-gemini-cli@v0` (same runner used by the merge gate and PR review).
+- Model order for rewrites: `gemini-2.5-flash` → `gemini-2.5-flash-lite` (override via workflow variables/inputs if configured).
+
 ## Pull Request Information
 
 - **PR #{{PR_NUMBER}}**

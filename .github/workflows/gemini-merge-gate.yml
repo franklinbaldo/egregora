@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      GEMINI_MODELS: ${{ vars.GEMINI_MERGE_GATE_MODELS || '["gemini-2.5-pro","gemini-2.5-flash","gemini-2.5-flash-lite"]' }}
+      GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3-pro-preview' }}
 
     steps:
       - name: Capture PR metadata

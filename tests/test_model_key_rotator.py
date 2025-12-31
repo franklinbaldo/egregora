@@ -3,7 +3,8 @@
 import logging
 
 from egregora.llm.exceptions import AllModelsExhaustedError
-from egregora.llm.providers.model_cycler import GeminiKeyRotator, ModelKeyRotator
+from egregora.llm.providers.model_cycler import GeminiKeyRotator
+from egregora.llm.providers.model_key_rotator import ModelKeyRotator
 
 
 def test_model_key_rotator_exhausts_keys_per_model():
