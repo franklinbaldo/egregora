@@ -4,6 +4,7 @@ import pytest
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.output_adapters.mkdocs import MkDocsAdapter
+from egregora.output_adapters.mkdocs.page_generator import MkDocsPageGenerator
 
 
 @pytest.fixture
@@ -69,7 +70,8 @@ def test_get_profiles_data_generates_stats(adapter):
     adapter.persist(post)
 
     # Get stats using the PUBLIC API
-    profiles = adapter.get_profiles_data()
+    generator = MkDocsPageGenerator(adapter)
+    profiles = generator.get_profiles_data()
 
     assert len(profiles) == 1
     p = profiles[0]
@@ -89,3 +91,22 @@ def test_mkdocs_adapter_scaffolding_passthrough(adapter, tmp_path):
     # scaffold a site
     (tmp_path / "mkdocs.yml").touch()
     assert adapter.validate_structure(tmp_path)
+
+
+def test_regenerate_all_creates_index_pages(adapter):
+    """Test that regenerate_all creates all index pages."""
+    # Create a post with a tag to ensure tags.md is created
+    post = Document(
+        content="word " * 10,
+        type=DocumentType.POST,
+        metadata={"title": "Post", "date": "2024-01-01", "slug": "p1", "authors": ["uuid"], "tags": ["topic1"]},
+    )
+    adapter.persist(post)
+
+    generator = MkDocsPageGenerator(adapter)
+    generator.regenerate_all()
+
+    assert (adapter.docs_dir / "index.md").exists()
+    assert (adapter.profiles_dir / "index.md").exists()
+    assert (adapter.media_dir / "index.md").exists()
+    assert (adapter.posts_dir / "tags.md").exists()

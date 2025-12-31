@@ -1,3 +1,5 @@
+"""Handles generation of dynamic MkDocs pages like indexes and tag pages."""
+
 from __future__ import annotations
 
 import logging
@@ -8,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 import frontmatter
 import yaml
-from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
+from jinja2 import Environment, FileSystemLoader, TemplateError
 
 from egregora.data_primitives.document import DocumentType
 from egregora.knowledge.profiles import generate_fallback_avatar_url
@@ -16,7 +18,8 @@ from egregora.output_adapters.exceptions import DocumentParsingError
 from egregora.utils.paths import slugify
 
 if TYPE_CHECKING:
-    from .adapter import MkDocsAdapter
+    from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
+
 
 logger = logging.getLogger(__name__)
 
@@ -24,22 +27,20 @@ logger = logging.getLogger(__name__)
 class MkDocsPageGenerator:
     """Handles generation of dynamic MkDocs pages like indexes and tag pages."""
 
-    def __init__(self, adapter: MkDocsAdapter):
+    def __init__(self, adapter: MkDocsAdapter) -> None:
         """Initializes the page generator."""
         self._adapter = adapter
         self._template_env = self._get_template_env()
 
-    def _get_template_env(self):
+    def _get_template_env(self) -> Environment:
         """Initializes the Jinja2 environment."""
         if hasattr(self._adapter, "_template_env") and self._adapter._template_env:
             return self._adapter._template_env
 
         templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
-        return Environment(
-            loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape()
-        )
+        return Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=True)
 
-    def regenerate_all(self):
+    def regenerate_all(self) -> None:
         """Regenerates all dynamic pages."""
         logger.info("Regenerating all dynamic MkDocs pages.")
         self.regenerate_main_index()
@@ -54,7 +55,9 @@ class MkDocsPageGenerator:
         if not hasattr(adapter, "posts_dir") or not adapter.posts_dir:
             return stats
         if adapter.posts_dir.exists():
-            stats["post_count"] = len([p for p in adapter.posts_dir.glob("*.md") if p.name not in {"index.md", "tags.md"}])
+            stats["post_count"] = len(
+                [p for p in adapter.posts_dir.glob("*.md") if p.name not in {"index.md", "tags.md"}]
+            )
         if adapter.profiles_dir.exists():
             author_dirs = [p for p in adapter.profiles_dir.iterdir() if p.is_dir()]
             stats["profile_count"] = len(author_dirs)
@@ -87,7 +90,9 @@ class MkDocsPageGenerator:
                 post = frontmatter.load(str(profile_path))
                 metadata = post.metadata
                 author_uuid = author_dir.name
-                author_posts = [p for p in all_posts if p.metadata and author_uuid in p.metadata.get("authors", [])]
+                author_posts = [
+                    p for p in all_posts if p.metadata and author_uuid in p.metadata.get("authors", [])
+                ]
                 post_count = len(author_posts)
                 word_count = sum(len(p.content.split()) for p in author_posts)
                 topics = {}
@@ -99,7 +104,17 @@ class MkDocsPageGenerator:
                 if not avatar:
                     avatar = generate_fallback_avatar_url(author_uuid)
                 profiles.append(
-                    {"uuid": author_uuid, "name": metadata.get("name", author_uuid[:8]), "avatar": avatar, "bio": metadata.get("bio", "Profile pending - first contributions detected"), "post_count": post_count, "word_count": word_count, "topics": [topic for topic, count in top_topics], "topic_counts": top_topics, "member_since": metadata.get("member_since", "2024")}
+                    {
+                        "uuid": author_uuid,
+                        "name": metadata.get("name", author_uuid[:8]),
+                        "avatar": avatar,
+                        "bio": metadata.get("bio", "Profile pending - first contributions detected"),
+                        "post_count": post_count,
+                        "word_count": word_count,
+                        "topics": [topic for topic, count in top_topics],
+                        "topic_counts": top_topics,
+                        "member_since": metadata.get("member_since", "2024"),
+                    }
                 )
             except (OSError, yaml.YAMLError) as e:
                 raise DocumentParsingError(str(profile_path), str(e)) from e
@@ -112,7 +127,11 @@ class MkDocsPageGenerator:
         urls_dir = getattr(adapter, "urls_dir", adapter.media_dir / "urls")
         if not urls_dir.exists():
             return media_items
-        url_files = sorted([p for p in urls_dir.glob("*.md") if p.name != "index.md"], key=lambda p: p.stat().st_mtime, reverse=True)[:limit]
+        url_files = sorted(
+            [p for p in urls_dir.glob("*.md") if p.name != "index.md"],
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )[:limit]
         for media_path in url_files:
             try:
                 post = frontmatter.load(str(media_path))
@@ -121,7 +140,14 @@ class MkDocsPageGenerator:
                 if "## Summary" in body:
                     summary_part = body.split("## Summary", 1)[1].split("##", 1)[0]
                     summary = summary_part.strip()[:200]
-                media_items.append({"title": metadata.get("title", media_path.stem), "url": metadata.get("url", ""), "slug": metadata.get("slug", media_path.stem), "summary": summary or metadata.get("description", "")})
+                media_items.append(
+                    {
+                        "title": metadata.get("title", media_path.stem),
+                        "url": metadata.get("url", ""),
+                        "slug": metadata.get("slug", media_path.stem),
+                        "summary": summary or metadata.get("description", ""),
+                    }
+                )
             except (OSError, yaml.YAMLError) as e:
                 raise DocumentParsingError(str(media_path), str(e)) from e
         return media_items
@@ -153,7 +179,14 @@ class MkDocsPageGenerator:
                 frequency_level = int(((count - min_count) / count_range) * 9) + 1
             else:
                 frequency_level = 5
-            tags_data.append({"name": tag_name, "slug": slugify(tag_name), "count": count, "frequency_level": min(10, max(1, frequency_level))})
+            tags_data.append(
+                {
+                    "name": tag_name,
+                    "slug": slugify(tag_name),
+                    "count": count,
+                    "frequency_level": min(10, max(1, frequency_level)),
+                }
+            )
         tags_data.sort(key=lambda x: x["count"], reverse=True)
         try:
             template = self._template_env.get_template("docs/posts/tags.md.jinja")
@@ -175,7 +208,12 @@ class MkDocsPageGenerator:
             recent_media = self.get_recent_media(limit=5)
             profiles = self.get_profiles_data()
             template = self._template_env.get_template("docs/index.md.jinja")
-            content = template.render(stats=stats, recent_media=recent_media, profiles=profiles, generated_date=datetime.now(UTC).strftime("%Y-%m-%d"))
+            content = template.render(
+                stats=stats,
+                recent_media=recent_media,
+                profiles=profiles,
+                generated_date=datetime.now(UTC).strftime("%Y-%m-%d"),
+            )
             index_path = adapter.docs_dir / "index.md"
             index_path.write_text(content, encoding="utf-8")
             logger.info("Regenerated main index page at %s", index_path)
@@ -191,7 +229,9 @@ class MkDocsPageGenerator:
         try:
             profiles = self.get_profiles_data()
             template = self._template_env.get_template("docs/profiles/index.md.jinja")
-            content = template.render(profiles=profiles, generated_date=datetime.now(UTC).strftime("%Y-%m-%d"))
+            content = template.render(
+                profiles=profiles, generated_date=datetime.now(UTC).strftime("%Y-%m-%d")
+            )
             index_path = adapter.profiles_dir / "index.md"
             index_path.write_text(content, encoding="utf-8")
             logger.info("Regenerated profiles index page with %d profiles at %s", len(profiles), index_path)
@@ -207,7 +247,9 @@ class MkDocsPageGenerator:
         try:
             recent_media = self.get_recent_media(limit=50)
             template = self._template_env.get_template("docs/media/index.md.jinja")
-            content = template.render(media_items=recent_media, generated_date=datetime.now(UTC).strftime("%Y-%m-%d"))
+            content = template.render(
+                media_items=recent_media, generated_date=datetime.now(UTC).strftime("%Y-%m-%d")
+            )
             index_path = adapter.media_dir / "index.md"
             index_path.write_text(content, encoding="utf-8")
             logger.info("Regenerated media index page with %d items at %s", len(recent_media), index_path)

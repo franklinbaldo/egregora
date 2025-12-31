@@ -15,15 +15,13 @@ from __future__ import annotations
 
 import logging
 import shutil
-from collections import Counter
 from contextlib import suppress
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import frontmatter
 import yaml
-from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.data_primitives.document import (
     Document,
@@ -41,9 +39,7 @@ from egregora.output_adapters.exceptions import (
     ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
-    IncompleteProfileError,
     ProfileMetadataError,
-    ProfileNotFoundError,
     UnsupportedDocumentTypeError,
 )
 from egregora.output_adapters.mkdocs.page_generator import MkDocsPageGenerator
