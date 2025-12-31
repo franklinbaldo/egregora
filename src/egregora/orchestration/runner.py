@@ -138,6 +138,10 @@ class PipelineRunner:
         use_full_window = getattr(config.pipeline, "use_full_context_window", False)
 
         if use_full_window:
+            # TODO: [Taskmaster] Replace magic number with a named constant
+            # Hardcoding this value makes it difficult to maintain. It should
+            # be defined as a constant in a relevant module (e.g., `egregora.llm.constants`)
+            # and imported here.
             return 1_048_576
 
         return config.pipeline.max_prompt_tokens
@@ -158,6 +162,10 @@ class PipelineRunner:
 
         logger.info("⚙️  [bold cyan]Processing background tasks...[/]")
 
+        # TODO: [Taskmaster] Refactor to use a dynamic worker discovery mechanism.
+        # This current implementation is rigid. A better approach would be to
+        # dynamically discover and instantiate worker classes from a registry
+        # or a specific module, rather than hardcoding each one.
         banner_worker = BannerWorker(self.context)
         banners_processed = banner_worker.run()
         if banners_processed > 0:
@@ -250,6 +258,10 @@ class PipelineRunner:
         resources = PipelineFactory.create_writer_resources(self.context)
         adapter_summary, adapter_instructions = self._extract_adapter_info()
 
+        # TODO: [Taskmaster] Refactor this brittle conversion logic.
+        # This nested try-except block is a code smell, suggesting an unpredictable
+        # data structure. The underlying issue should be fixed to ensure a consistent
+        # table object is always returned.
         # Convert table to list for command processing
         try:
             messages_list = enriched_table.execute().to_pylist()
