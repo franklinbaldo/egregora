@@ -156,6 +156,7 @@ class PipelineRunner:
         if not hasattr(self.context, "task_store") or not self.context.task_store:
             return
 
+        # TODO: [Taskmaster] Refactor worker logic to be more generic
         logger.info("⚙️  [bold cyan]Processing background tasks...[/]")
 
         banner_worker = BannerWorker(self.context)
@@ -250,6 +251,7 @@ class PipelineRunner:
         resources = PipelineFactory.create_writer_resources(self.context)
         adapter_summary, adapter_instructions = self._extract_adapter_info()
 
+        # TODO: [Taskmaster] Refactor data type conversion for consistency
         # Convert table to list for command processing
         try:
             messages_list = enriched_table.execute().to_pylist()
