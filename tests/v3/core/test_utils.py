@@ -3,21 +3,24 @@ import pytest
 from egregora_v3.core.utils import simple_chunk_text, slugify
 
 
+SLUGIFY_TEST_CASES = [
+    ("Hello World", 60, "hello-world"),
+    ("Café", 60, "cafe"),
+    ("  leading & trailing spaces  ", 60, "leading-trailing-spaces"),
+    ("!@#$%^&*()_=+[]{};:'\",.<>/?`~", 60, "untitled"),
+    ("---multiple---hyphens---", 60, "multiple-hyphens"),
+    # Ensure slug is correctly truncated to max_len
+    ("A" * 100, 20, "aaaaaaaaaaaaaaaaaaaa"),
+    ("long text that gets cut off", 10, "long-text"),
+    ("empty input", 60, "empty-input"),
+    ("", 60, "untitled"),
+    ("trailing-", 60, "trailing"),
+]
+
+
 @pytest.mark.parametrize(
     "text, max_len, expected",
-    [
-        ("Hello World", 60, "hello-world"),
-        ("Café", 60, "cafe"),
-        ("  leading & trailing spaces  ", 60, "leading-trailing-spaces"),
-        ("!@#$%^&*()_=+[]{};:'\",.<>/?`~", 60, "untitled"),
-        ("---multiple---hyphens---", 60, "multiple-hyphens"),
-        # Ensure slug is correctly truncated to max_len
-        ("A" * 100, 20, "aaaaaaaaaaaaaaaaaaaa"),
-        ("long text that gets cut off", 10, "long-text"),
-        ("empty input", 60, "empty-input"),
-        ("", 60, "untitled"),
-        ("trailing-", 60, "trailing"),
-    ],
+    SLUGIFY_TEST_CASES,
 )
 def test_slugify(text, max_len, expected):
     """Test the V3 slugify function with various inputs."""
