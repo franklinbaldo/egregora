@@ -2,8 +2,14 @@
 
 import logging
 
+import pytest
+
 from egregora.llm.exceptions import AllModelsExhaustedError
-from egregora.llm.providers.model_cycler import GeminiKeyRotator, ModelKeyRotator
+from egregora.llm.providers.model_cycler import (
+    GeminiKeyRotator,
+    GeminiModelCycler,
+    ModelKeyRotator,
+)
 
 
 def test_model_key_rotator_exhausts_keys_per_model():
@@ -143,6 +149,37 @@ def test_gemini_key_rotator_fails_when_all_exhausted():
         raise AssertionError(msg)
     except AllModelsExhaustedError as exc:
         assert "All API keys exhausted" in str(exc)
+
+
+def test_gemini_model_cycler_succeeds_on_first_try():
+    """Test that GeminiModelCycler succeeds immediately if the first call works."""
+    models = ["model-1", "model-2"]
+    cycler = GeminiModelCycler(models=models)
+
+    call_log = []
+
+    def succeeds_immediately(model: str) -> str:
+        call_log.append(model)
+        return "Success"
+
+    result = cycler.call_with_rotation(succeeds_immediately)
+
+    assert len(call_log) == 1
+    assert call_log[0] == "model-1"
+    assert result == "Success"
+
+
+def test_gemini_model_cycler_fails_when_all_exhausted():
+    """Test that GeminiModelCycler raises an exception when all models are exhausted."""
+    models = ["model-1", "model-2"]
+    cycler = GeminiModelCycler(models=models)
+
+    def always_fails(model: str) -> str:
+        msg = "429 Too Many Requests"
+        raise RuntimeError(msg)
+
+    with pytest.raises(RuntimeError):
+        cycler.call_with_rotation(always_fails)
 
 
 if __name__ == "__main__":
