@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from egregora.llm.token_utils import estimate_tokens
@@ -21,6 +20,7 @@ def test_estimate_tokens():
     # Test with a long string
     text4 = "a" * 1000
     assert estimate_tokens(text4) == 250
+
 
 def test_estimate_tokens_typical_string():
     """Verify a typical string is estimated correctly."""
