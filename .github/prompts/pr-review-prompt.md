@@ -8,6 +8,10 @@ Egregora is a privacy-first AI pipeline that extracts structured knowledge from 
 - **Philosophy:** Alpha mindset—clean breaks over backward compatibility
 - **Architecture:** Three-layer functional (orchestration → transformations/adapters → data_primitives)
 
+## Runner Context (Gemini)
+- Shared Gemini runner: `google-github-actions/run-gemini-cli@v0` (also powers the merge gate and PR rewriter).
+- Model order for reviews: `gemini-2.5-pro` → `gemini-2.5-flash` → `gemini-2.5-flash-lite` (can be overridden if the workflow is wired to repo variables/inputs).
+
 ---
 
 ## Review Philosophy: Two-Phase Approach
