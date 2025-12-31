@@ -1,4 +1,6 @@
-"""V3 utility functions - independent of V2."""
+"""Text utility functions for V3."""
+
+from __future__ import annotations
 
 import re
 from unicodedata import normalize

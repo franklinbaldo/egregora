@@ -49,9 +49,9 @@ async def create_writer_model(
     if model_name.startswith("google-gla:"):
         model_name = model_name.replace("google-gla:", "")
 
-    from pydantic_ai.llm.google import GoogleModel
+    from pydantic_ai.models.google import GoogleModel
 
-    model = GoogleModel(api_key=None, model_name=model_name, streaming=True)
+    model = GoogleModel(model_name=model_name, streaming=True)
 
     # Validate prompt fits (only check for real models)
     await validate_prompt_fits(prompt, config.models.writer, config, context.window_label)

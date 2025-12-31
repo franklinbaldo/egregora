@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.utils.env import get_google_api_keys
 
 if TYPE_CHECKING:
@@ -167,7 +168,7 @@ class GeminiKeyRotator:
         logger.error("[KeyRotator] All %d API keys exhausted/rate-limited", len(self.api_keys))
         # Re-raise the last exception if we have one, or a generic error
         msg = "All API keys exhausted"
-        raise RuntimeError(msg)
+        raise AllModelsExhaustedError(msg)
 
 
 class GeminiModelCycler:
@@ -316,3 +317,46 @@ def create_key_rotator(
 
     """
     return GeminiKeyRotator(api_keys=api_keys)
+
+
+class ModelKeyRotator:
+    """Rotates through a list of models and a list of API keys.
+
+    This rotator is useful when you have multiple models and multiple API keys,
+    and you want to try all combinations before failing. It prioritizes trying
+    all keys for a given model before moving to the next model.
+    """
+
+    def __init__(self, models: list[str], api_keys: list[str]) -> None:
+        """Initialize the rotator.
+
+        Args:
+            models: A list of model names to cycle through.
+            api_keys: A list of API keys to cycle through.
+
+        """
+        self.models = models
+        self.api_keys = api_keys
+
+    def call_with_rotation(self, call_fn: Callable[[str, str], Any]) -> Any:
+        """Call a function with model and key rotation.
+
+        Args:
+            call_fn: A function that takes a model name and an API key.
+
+        Returns:
+            The result of the call_fn on the first successful call.
+
+        Raises:
+            AllModelsExhaustedError: If all model and key combinations fail.
+
+        """
+        causes = []
+        for model in self.models:
+            for api_key in self.api_keys:
+                try:
+                    return call_fn(model, api_key)
+                except Exception as e:  # noqa: BLE001
+                    causes.append(e)
+                    continue
+        raise AllModelsExhaustedError("All models and keys exhausted", causes=causes)

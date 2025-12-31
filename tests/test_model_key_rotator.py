@@ -75,7 +75,7 @@ def test_model_key_rotator_fails_when_all_exhausted():
         assert "All models and keys exhausted" in str(exc)
         # Should preserve the underlying cause
         assert exc.causes
-        assert len(exc.causes) == 1
+        assert len(exc.causes) == 4
         assert isinstance(exc.causes[0], RuntimeError)
         assert "429" in str(exc.causes[0])
 
