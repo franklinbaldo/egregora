@@ -138,6 +138,7 @@ class PipelineRunner:
         use_full_window = getattr(config.pipeline, "use_full_context_window", False)
 
         if use_full_window:
+            # TODO: [Taskmaster] Refactor hardcoded magic number for token limit
             return 1_048_576
 
         return config.pipeline.max_prompt_tokens
@@ -152,6 +153,7 @@ class PipelineRunner:
             raise WindowSizeError(msg)
 
     def process_background_tasks(self) -> None:
+        # TODO: [Taskmaster] Refactor duplicated worker logic
         """Process pending background tasks."""
         if not hasattr(self.context, "task_store") or not self.context.task_store:
             return
@@ -216,6 +218,7 @@ class PipelineRunner:
         return results
 
     def _process_single_window(self, window: Any, *, depth: int = 0) -> dict[str, dict[str, list[str]]]:
+        # TODO: [Taskmaster] Refactor complex method with multiple responsibilities
         """Process a single window with media extraction, enrichment, and post writing."""
         indent = "  " * depth
         window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
@@ -235,6 +238,7 @@ class PipelineRunner:
             zip_path=self.context.input_path,
         )
 
+        # TODO: [Taskmaster] Refactor duplicated persistence logic
         if media_mapping and not self.context.enable_enrichment:
             for media_doc in media_mapping.values():
                 try:
