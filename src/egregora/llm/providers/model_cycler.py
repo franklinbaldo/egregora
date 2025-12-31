@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.utils.env import get_google_api_keys
 
 if TYPE_CHECKING:
@@ -25,6 +26,74 @@ DEFAULT_GEMINI_MODELS = [
     "gemini-flash-latest",
 ]
 
+
+class ModelKeyRotator:
+    """Cycle through models and API keys on 429 errors."""
+
+    def __init__(
+        self,
+        models: list[str] | None = None,
+        api_keys: list[str] | None = None,
+    ) -> None:
+        """Initialize the rotator.
+
+        Args:
+            models: List of model names.
+            api_keys: List of API keys.
+
+        """
+        self.models = models or []
+        self.api_keys = api_keys or []
+        if not self.models or not self.api_keys:
+            msg = "Models and API keys must be provided."
+            raise ValueError(msg)
+        self.model_idx = 0
+        self.key_idx = 0
+        self._exhausted: set[tuple[str, str]] = set()
+        logger.info(
+            "[ModelKeyRotator] Initialized with %d models and %d API keys",
+            len(self.models),
+            len(self.api_keys),
+        )
+
+    def call_with_rotation(
+        self,
+        call_fn: Callable[[str, str], Any],
+        is_rate_limit_error: Callable[[Exception], bool] | None = None,
+    ) -> Any:
+        """Call a function with automatic model and key rotation."""
+        if is_rate_limit_error is None:
+            is_rate_limit_error = default_rate_limit_check
+
+        initial_model_idx = self.model_idx
+        initial_key_idx = self.key_idx
+        last_exception = None
+
+        for _ in range(len(self.models) * len(self.api_keys)):
+            model = self.models[self.model_idx]
+            api_key = self.api_keys[self.key_idx]
+
+            if (model, api_key) not in self._exhausted:
+                try:
+                    return call_fn(model, api_key)
+                except Exception as exc:
+                    last_exception = exc
+                    if is_rate_limit_error(exc):
+                        self._exhausted.add((model, api_key))
+                    else:
+                        raise
+
+            # Rotate keys first, then models
+            self.key_idx = (self.key_idx + 1) % len(self.api_keys)
+            if self.key_idx == initial_key_idx:
+                self.model_idx = (self.model_idx + 1) % len(self.models)
+                if self.model_idx == initial_model_idx:
+                    break  # Full circle
+
+        raise AllModelsExhaustedError(
+            "All models and keys exhausted.",
+            causes=[last_exception] if last_exception else [],
+        )
 
 class GeminiKeyRotator:
     """Cycle through Gemini API keys on 429 errors.
@@ -123,6 +192,7 @@ class GeminiKeyRotator:
 
         # Determine max attempts (try all keys once)
         max_attempts = len(self.api_keys)
+        last_exception = None
 
         for _ in range(max_attempts):
             api_key = self.current_key
@@ -146,6 +216,7 @@ class GeminiKeyRotator:
 
                 return result
             except Exception as exc:
+                last_exception = exc
                 # Always rotate on error too
                 self.next_key()
 
@@ -166,8 +237,10 @@ class GeminiKeyRotator:
         # If we exit loop, we exhausted all keys with rate limits
         logger.error("[KeyRotator] All %d API keys exhausted/rate-limited", len(self.api_keys))
         # Re-raise the last exception if we have one, or a generic error
-        msg = "All API keys exhausted"
-        raise RuntimeError(msg)
+        raise AllModelsExhaustedError(
+            "All API keys exhausted",
+            causes=[last_exception] if last_exception else [],
+        )
 
 
 class GeminiModelCycler:
@@ -258,6 +331,7 @@ class GeminiModelCycler:
             is_rate_limit_error = default_rate_limit_check
 
         self.reset()
+        last_exception = None
 
         while True:
             model = self.current_model
@@ -268,13 +342,17 @@ class GeminiModelCycler:
                 self.reset()
                 return result
             except Exception as exc:
+                last_exception = exc
                 if is_rate_limit_error(exc):
                     logger.warning("[ModelCycler] Rate limit on %s: %s", model, str(exc)[:100])
 
                     next_model = self.next_model()
                     if next_model is None:
                         logger.exception("[ModelCycler] All models rate-limited")
-                        raise
+                        raise AllModelsExhaustedError(
+                            "All models exhausted",
+                            causes=[last_exception] if last_exception else [],
+                        )
                     continue
                 # Non-rate-limit error - propagate
                 raise

@@ -12,6 +12,7 @@ from egregora.utils.cache_backend import CacheBackend
 from egregora.utils.exceptions import (
     CacheDeserializationError,
     CachePayloadTypeError,
+    CacheKeyNotFoundError,
 )
 
 logger = logging.getLogger(__name__)

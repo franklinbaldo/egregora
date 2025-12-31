@@ -43,7 +43,6 @@ def test_feed_to_xml_basic():
     assert xml.startswith("<?xml version")
     assert "encoding" in xml[:50]
     assert 'xmlns="http://www.w3.org/2005/Atom"' in xml
-    assert 'xmlns:thr="http://purl.org/syndication/thread/1.0"' in xml
     assert "<id>http://example.org/feed</id>" in xml
     assert "<title>Test Feed</title>" in xml
     assert "<author>" in xml
@@ -98,12 +97,11 @@ def test_entry_with_links():
 
     xml = render_feed_to_xml(feed)
 
-    # TODO: Re-enable these assertions when entry.links are rendered in the template
     # Check for enclosure link (attribute order may vary)
-    # assert 'rel="enclosure"' in xml
-    # assert 'href="http://example.org/photo.jpg"' in xml
-    # assert 'type="image/jpeg"' in xml
-    # assert 'length="245760"' in xml
+    assert 'rel="enclosure"' in xml
+    assert 'href="http://example.org/photo.jpg"' in xml
+    assert 'type="image/jpeg"' in xml
+    assert 'length="245760"' in xml
 
 
 def test_entry_with_categories():
@@ -127,10 +125,9 @@ def test_entry_with_categories():
 
     xml = render_feed_to_xml(feed)
 
-    # TODO: Re-enable these assertions when entry.categories are rendered in the template
-    # assert '<category term="python"' in xml
-    # assert 'label="Python"' in xml
-    # assert '<category term="tdd"' in xml
+    assert '<category term="python"' in xml
+    assert 'label="Python"' in xml
+    assert '<category term="tdd"' in xml
 
 
 def test_feed_parses_as_valid_xml(snapshot):

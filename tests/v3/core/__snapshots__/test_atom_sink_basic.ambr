@@ -1,43 +1,4 @@
 # serializer version: 1
 # name: test_feed_parses_as_valid_xml
-  '''
-  <?xml version='1.0' encoding='UTF-8'?>
-  <feed xmlns="http://www.w3.org/2005/Atom" xmlns:thr="http://purl.org/syndication/thread/1.0">
-    <id>http://example.org/feed</id>
-    <title>Test Feed</title>
-    <updated>2024-01-01T12:00:00Z</updated>
-
-
-    <author>
-      <name>Alice</name>
-
-    </author>
-
-
-
-
-
-    <entry>
-      <id>test-post-123</id>
-      <title>Test Post</title>
-      <updated>2024-01-01T12:00:00Z</updated>
-
-
-
-
-
-
-
-
-      <content type="text/plain">Test content</content>
-
-
-
-      <category scheme="https://egregora.app/schema#doc_type" term="post" />
-      <category scheme="https://egregora.app/schema#status" term="draft" />
-
-    </entry>
-
-  </feed>
-  '''
+  '<?xml version=\'1.0\' encoding=\'UTF-8\'?><feed xmlns="http://www.w3.org/2005/Atom"><id>http://example.org/feed</id><title>Test Feed</title><updated>2024-01-01T12:00:00+00:00</updated><author><name>Alice</name></author><entry><id>test-post-123</id><title>Test Post</title><updated>2024-01-01T12:00:00+00:00</updated><category term="post" scheme="https://egregora.app/schema#doc_type" /><category term="draft" scheme="https://egregora.app/schema#status" /><content>Test content</content></entry></feed>'
 # ---

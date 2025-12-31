@@ -211,6 +211,12 @@ class Feed(BaseModel):
     authors: list[Author] = Field(default_factory=list)
     links: list[Link] = Field(default_factory=list)
 
+    def to_xml(self) -> str:
+        """Serialize the feed to an Atom XML string."""
+        from egregora_v3.core.atom import feed_to_xml_string
+
+        return feed_to_xml_string(self)
+
     def get_published_documents(self) -> list["Document"]:
         """Return only published documents from the feed entries."""
         return [
