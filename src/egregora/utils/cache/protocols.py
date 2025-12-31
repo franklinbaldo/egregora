@@ -1,0 +1,23 @@
+"""Cache backend protocols."""
+
+from __future__ import annotations
+
+from typing import Any, Protocol
+
+
+class CacheBackend(Protocol):
+    """Abstract protocol for cache backends."""
+
+    def get(self, key: str) -> Any: ...
+
+    def set(self, key: str, value: Any, expire: float | None = None) -> None: ...
+
+    def delete(self, key: str) -> None: ...
+
+    def close(self) -> None: ...
+
+    def __getitem__(self, key: str) -> Any: ...
+
+    def __setitem__(self, key: str, value: Any) -> None: ...
+
+    def __delitem__(self, key: str) -> None: ...

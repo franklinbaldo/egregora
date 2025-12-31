@@ -7,21 +7,18 @@ invalidation controls.
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 from dataclasses import dataclass
 from enum import Enum
 from hashlib import sha256
-from typing import TYPE_CHECKING, Annotated, Any, Protocol
+from typing import TYPE_CHECKING, Annotated, Any
 
 import diskcache
 
-from egregora.utils.exceptions import (
-    CacheDeserializationError,
-    CacheKeyNotFoundError,
-    CachePayloadTypeError,
-)
+from egregora.utils.cache.backend import DiskCacheBackend
+from egregora.utils.cache.protocols import CacheBackend
+from egregora.utils.exceptions import CacheDeserializationError, CachePayloadTypeError
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -49,56 +46,6 @@ def make_enrichment_cache_key(
     """
     raw = f"{version}:{kind}:{identifier}".encode()
     return sha256(raw).hexdigest()
-
-
-class CacheBackend(Protocol):
-    """Abstract protocol for cache backends."""
-
-    def get(self, key: str) -> Any: ...
-
-    def set(self, key: str, value: Any, expire: float | None = None) -> None: ...
-
-    def delete(self, key: str) -> None: ...
-
-    def close(self) -> None: ...
-
-    def __getitem__(self, key: str) -> Any: ...
-
-    def __setitem__(self, key: str, value: Any) -> None: ...
-
-    def __delitem__(self, key: str) -> None: ...
-
-
-class DiskCacheBackend:
-    """Adapter for diskcache.Cache to match CacheBackend protocol."""
-
-    def __init__(self, directory: Path, **kwargs: Any) -> None:
-        self._cache = diskcache.Cache(str(directory), **kwargs)
-
-    def get(self, key: str) -> Any:
-        try:
-            return self._cache[key]
-        except KeyError as e:
-            raise CacheKeyNotFoundError(key) from e
-
-    def set(self, key: str, value: Any, expire: float | None = None) -> None:
-        self._cache.set(key, value, expire=expire)
-
-    def delete(self, key: str) -> None:
-        with contextlib.suppress(KeyError):
-            del self._cache[key]
-
-    def close(self) -> None:
-        self._cache.close()
-
-    def __getitem__(self, key: str) -> Any:
-        return self._cache[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self._cache[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self._cache[key]
 
 
 @dataclass(slots=True)
@@ -208,3 +155,13 @@ class PipelineCache:
         self.enrichment.close()
         self.rag.close()
         self.writer.close()
+
+
+__all__ = [
+    "CacheBackend",
+    "CacheTier",
+    "DiskCacheBackend",
+    "EnrichmentCache",
+    "PipelineCache",
+    "make_enrichment_cache_key",
+]
