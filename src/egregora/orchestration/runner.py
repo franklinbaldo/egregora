@@ -128,6 +128,7 @@ class PipelineRunner:
     def _calculate_max_window_size(self) -> int:
         """Calculate maximum window size based on LLM context window."""
         max_tokens = self._resolve_context_token_limit()
+        # TODO: [Taskmaster] Externalize hardcoded configuration values.
         avg_tokens_per_message = 5
         buffer_ratio = 0.8
         return int((max_tokens * buffer_ratio) / avg_tokens_per_message)
@@ -216,6 +217,7 @@ class PipelineRunner:
         return results
 
     def _process_single_window(self, window: Any, *, depth: int = 0) -> dict[str, dict[str, list[str]]]:
+        # TODO: [Taskmaster] Refactor this method to reduce its complexity.
         """Process a single window with media extraction, enrichment, and post writing."""
         indent = "  " * depth
         window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
@@ -250,6 +252,7 @@ class PipelineRunner:
         resources = PipelineFactory.create_writer_resources(self.context)
         adapter_summary, adapter_instructions = self._extract_adapter_info()
 
+        # TODO: [Taskmaster] Improve brittle data conversion logic.
         # Convert table to list for command processing
         try:
             messages_list = enriched_table.execute().to_pylist()
