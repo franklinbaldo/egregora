@@ -6,15 +6,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from egregora.utils.exceptions import (
+from egregora.utils.filesystem import (
     DateExtractionError,
     DirectoryCreationError,
     FileWriteError,
     FrontmatterDateFormattingError,
     MissingMetadataError,
     UniqueFilenameError,
-)
-from egregora.utils.filesystem import (
     _extract_clean_date,
     _resolve_filepath,
     _validate_post_metadata,

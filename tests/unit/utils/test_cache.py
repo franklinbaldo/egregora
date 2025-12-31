@@ -2,8 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from egregora.utils.cache import DiskCacheBackend
-from egregora.utils.exceptions import CacheKeyNotFoundError
+from egregora.utils.cache import (
+    CacheDeserializationError,
+    CacheKeyNotFoundError,
+    CachePayloadTypeError,
+    DiskCacheBackend,
+    EnrichmentCache,
+)
 
 
 def test_disk_cache_backend_get_raises_key_not_found_error(tmp_path):

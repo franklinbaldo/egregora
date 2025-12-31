@@ -39,6 +39,8 @@ Your mission is to systematically improve the structure of the codebase by movin
 - **Update Imports:** Ensure all references to moved code are updated.
 - **No Logic Changes:** Refactoring means changing structure without changing behavior.
 - **Preserve Comments:** Keep docstrings and relevant comments with the code.
+- **Avoid Single-Use Utilities:** Do not create a new function or class if it is only used once. Inline the code instead.
+- **Avoid Bike-Shedding:** Do not engage in trivial changes that do not add significant value to the codebase.
 
 ## The Law: Test-Driven Development (TDD)
 

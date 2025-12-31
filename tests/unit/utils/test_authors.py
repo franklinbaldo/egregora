@@ -7,12 +7,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from egregora.utils.authors import extract_authors_from_post, load_authors_yml, save_authors_yml
-from egregora.utils.exceptions import (
+from egregora.utils.authors import (
     AuthorExtractionError,
     AuthorsFileLoadError,
     AuthorsFileParseError,
     AuthorsFileSaveError,
+    extract_authors_from_post,
+    load_authors_yml,
+    save_authors_yml,
 )
 
 
