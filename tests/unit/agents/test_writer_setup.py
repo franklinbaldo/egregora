@@ -50,3 +50,13 @@ async def test_create_writer_model_success_with_google_api_key(
         mock_google_model.assert_called_once_with(api_key=None, model_name="gemini-test", streaming=True)
         mock_validate_prompt.assert_awaited_once()
         assert model == model_instance
+
+
+@pytest.mark.asyncio
+async def test_create_writer_model_returns_test_model_if_provided(
+    mock_config: EgregoraConfig, mock_context: MagicMock
+):
+    """Test that create_writer_model returns the test_model directly if it is provided."""
+    test_model = MagicMock()
+    model = await create_writer_model(mock_config, mock_context, "test prompt", test_model=test_model)
+    assert model == test_model
