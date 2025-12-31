@@ -152,6 +152,7 @@ def _load_dotenv_if_available(output_dir: Path) -> None:
         dotenv.load_dotenv()  # Check CWD as well
 
 
+# TODO: [Taskmaster] Refactor API key validation for clarity and separation of concerns
 def _validate_api_key(output_dir: Path) -> None:
     """Validate that API key is set and valid."""
     skip_validation = os.getenv("EGREGORA_SKIP_API_KEY_VALIDATION", "").strip().lower() in {
@@ -576,6 +577,7 @@ def _extract_adapter_info(ctx: PipelineContext) -> tuple[str, str]:
 # _perform_enrichment REMOVED - functionality moved to PipelineRunner
 
 
+# TODO: [Taskmaster] Simplify database backend creation
 def _create_database_backends(
     site_root: Path,
     config: EgregoraConfig,
