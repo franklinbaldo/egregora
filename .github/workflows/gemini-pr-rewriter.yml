@@ -130,79 +130,20 @@ jobs:
 
             core.exportVariable('GEMINI_PROMPT', prompt);
 
-      # ----------------------------------------------------------------------
-      # Gemini Rewrite Pipeline with Fallback Strategy
-      # 1. Gemini 2.5 Flash (Fast, good quality, lower cost)
-      # 2. Gemini 2.5 Flash Lite (Cheapest fallback)
-      # ----------------------------------------------------------------------
-
-      - name: Run Gemini PR Rewriter (Flash)
-        id: gemini_flash
-        continue-on-error: true
-        uses: google-github-actions/run-gemini-cli@v0
+      - name: Run Gemini PR Rewriter
+        id: gemini_run
+        uses: ./.github/actions/gemini-run
         with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: "gemini-2.5-flash"
           prompt: ${{ env.GEMINI_PROMPT }}
-
-      - name: Run Gemini PR Rewriter (Flash Lite)
-        id: gemini_lite
-        if: steps.gemini_flash.outcome == 'failure'
-        continue-on-error: true
-        uses: google-github-actions/run-gemini-cli@v0
-        with:
+          models: '["gemini-2.5-flash","gemini-2.5-flash-lite"]'
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: "gemini-2.5-flash-lite"
-          prompt: ${{ env.GEMINI_PROMPT }}
-
-      - name: Consolidate Gemini Results
-        id: gemini_final
-        if: always()
-        uses: actions/github-script@v8
-        env:
-          OUTCOME_FLASH: ${{ steps.gemini_flash.outcome }}
-          SUMMARY_FLASH: ${{ steps.gemini_flash.outputs.summary }}
-          OUTCOME_LITE: ${{ steps.gemini_lite.outcome }}
-          SUMMARY_LITE: ${{ steps.gemini_lite.outputs.summary }}
-        with:
-          script: |
-            const outcomes = {
-              flash: process.env.OUTCOME_FLASH,
-              lite: process.env.OUTCOME_LITE
-            };
-
-            const summaries = {
-              flash: process.env.SUMMARY_FLASH,
-              lite: process.env.SUMMARY_LITE
-            };
-
-            let finalOutcome = 'failure';
-            let finalSummary = '';
-            let finalModel = 'unknown';
-
-            if (outcomes.flash === 'success') {
-              finalOutcome = 'success';
-              finalSummary = summaries.flash;
-              finalModel = 'gemini-2.5-flash';
-            } else if (outcomes.lite === 'success') {
-              finalOutcome = 'success';
-              finalSummary = summaries.lite;
-              finalModel = 'gemini-2.5-flash-lite';
-            }
-
-            core.setOutput('outcome', finalOutcome);
-            core.setOutput('model', finalModel);
-            core.setOutput('summary', finalSummary);
-
-            console.log(`Final Model: ${finalModel}`);
-            console.log(`Final Outcome: ${finalOutcome}`);
 
       - name: Parse Gemini Response and Update PR
-        if: steps.gemini_final.outputs.outcome == 'success'
+        if: steps.gemini_run.outputs.outcome == 'success'
         uses: actions/github-script@v8
         env:
-          GEMINI_RESPONSE: ${{ steps.gemini_final.outputs.summary }}
-          GEMINI_MODEL: ${{ steps.gemini_final.outputs.model }}
+          GEMINI_RESPONSE: ${{ steps.gemini_run.outputs.summary }}
+          GEMINI_MODEL: ${{ steps.gemini_run.outputs.model }}
           PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
           CURRENT_TITLE: ${{ steps.pr.outputs.pr_title }}
           CURRENT_BODY: ${{ steps.pr.outputs.pr_body }}
@@ -342,14 +283,25 @@ jobs:
             }
 
       - name: Handle Gemini Failure
-        if: steps.gemini_final.outputs.outcome != 'success'
+        if: steps.gemini_run.outputs.outcome != 'success'
         uses: actions/github-script@v8
         env:
+          GEMINI_DIAGNOSTICS: ${{ steps.gemini_run.outputs.diagnostics }}
           PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const prNumber = parseInt(process.env.PR_NUMBER);
+            const diagnostics = process.env.GEMINI_DIAGNOSTICS;
+            if (diagnostics) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: diagnostics
+              });
+              return;
+            }
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
