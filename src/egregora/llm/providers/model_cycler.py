@@ -205,6 +205,7 @@ class GeminiModelCycler:
         return self.models[self.current_idx]
 
     def next_model(self) -> str | None:
+        # TODO: [Taskmaster] Refactor duplicated rotation logic
         """Advance to the next model in rotation.
 
         Returns:
@@ -238,6 +239,7 @@ class GeminiModelCycler:
         call_fn: Callable[[str], Any],
         is_rate_limit_error: Callable[[Exception], bool] | None = None,
     ) -> Any:
+        # TODO: [Taskmaster] Unify state management with GeminiKeyRotator
         """Call a function with automatic model rotation on rate limit errors.
 
         Args:
