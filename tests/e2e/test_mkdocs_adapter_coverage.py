@@ -99,7 +99,13 @@ def test_regenerate_all_creates_index_pages(adapter):
     post = Document(
         content="word " * 10,
         type=DocumentType.POST,
-        metadata={"title": "Post", "date": "2024-01-01", "slug": "p1", "authors": ["uuid"], "tags": ["topic1"]},
+        metadata={
+            "title": "Post",
+            "date": "2024-01-01",
+            "slug": "p1",
+            "authors": ["uuid"],
+            "tags": ["topic1"],
+        },
     )
     adapter.persist(post)
 
