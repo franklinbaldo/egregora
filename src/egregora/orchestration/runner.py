@@ -134,6 +134,7 @@ class PipelineRunner:
 
     def _resolve_context_token_limit(self) -> int:
         """Resolve the effective context window token limit."""
+        # TODO: [Taskmaster] Refactor hardcoded 1M token limit into a named constant
         config = self.context.config
         use_full_window = getattr(config.pipeline, "use_full_context_window", False)
 
@@ -176,6 +177,7 @@ class PipelineRunner:
     def _process_window_with_auto_split(
         self, window: Any, *, depth: int = 0, max_depth: int = 5
     ) -> dict[str, dict[str, list[str]]]:
+        # TODO: [Taskmaster] Refactor window splitting logic into a separate, focused function
         """Process a window with automatic splitting if prompt exceeds model limit."""
         min_window_size = 5
         results: dict[str, dict[str, list[str]]] = {}
@@ -216,6 +218,7 @@ class PipelineRunner:
         return results
 
     def _process_single_window(self, window: Any, *, depth: int = 0) -> dict[str, dict[str, list[str]]]:
+        # TODO: [Taskmaster] Refactor complex function into smaller, single-responsibility functions
         """Process a single window with media extraction, enrichment, and post writing."""
         indent = "  " * depth
         window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
