@@ -22,6 +22,7 @@ For the auto-merge workflow to function properly, configure these **required sta
 - `Ruff (format)`
 - `Unit Tests (Python 3.12)`
 - `E2E Tests`
+- `Gemini Merge Gate`
 
 ### Conditional Checks (Required when they run)
 These jobs only run under specific conditions, so mark them as "optional" or use GitHub's "Expected" checks feature:
@@ -64,6 +65,7 @@ Settings → Branches → Add branch protection rule
     - `Ruff (format)`
     - `Unit Tests (Python 3.12)`
     - `E2E Tests`
+    - `Gemini Merge Gate`
 
 - ✅ **Require conversation resolution before merging** (recommended)
 
