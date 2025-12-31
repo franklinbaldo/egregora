@@ -22,7 +22,8 @@ from rich.table import Table
 # from egregora.cli.db import db_app  # Removed - db.py no longer exists
 from egregora.cli.read import read_app
 from egregora.config import load_egregora_config
-from egregora.config.settings import google_api_key_status
+from egregora.config.exceptions import ApiKeyNotFoundError
+from egregora.config.settings import get_google_api_key
 from egregora.constants import SourceType, WindowUnit
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
@@ -436,9 +437,8 @@ def demo(
     ] = Path("demo"),
 ) -> None:
     """Generate a demo site from a sample WhatsApp export."""
-    if not google_api_key_status():
-        _run_offline_demo(output_dir)
-    else:
+    try:
+        get_google_api_key()
         console.print(
             "[bold cyan]🚀 API key found. Generating full demo site with LLM content...[/bold cyan]"
         )
@@ -470,6 +470,8 @@ def demo(
             debug=False,
             options=None,
         )
+    except ApiKeyNotFoundError:
+        _run_offline_demo(output_dir)
 
     # Final success message
     console.print(
