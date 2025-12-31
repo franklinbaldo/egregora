@@ -9,9 +9,9 @@ import pytest
 from freezegun import freeze_time
 
 from egregora.utils.datetime_utils import (
-    _extract_clean_date,
     _to_datetime,
     ensure_datetime,
+    extract_clean_date,
     format_frontmatter_datetime,
     normalize_timezone,
     parse_datetime_flexible,
@@ -289,42 +289,42 @@ def test_ensure_datetime_invalid_raises_type_error():
 # endregion
 
 
-# region: Tests for _extract_clean_date
+# region: Tests for extract_clean_date
 def test_extract_clean_date_with_datetime():
-    assert _extract_clean_date(datetime(2023, 1, 1, 12, 30)) == "2023-01-01"
+    assert extract_clean_date(datetime(2023, 1, 1, 12, 30)) == "2023-01-01"
 
 
 def test_extract_clean_date_with_date():
-    assert _extract_clean_date(date(2023, 1, 1)) == "2023-01-01"
+    assert extract_clean_date(date(2023, 1, 1)) == "2023-01-01"
 
 
 def test_extract_clean_date_with_string():
-    assert _extract_clean_date("2023-01-01") == "2023-01-01"
+    assert extract_clean_date("2023-01-01") == "2023-01-01"
 
 
 def test_extract_clean_date_with_string_and_time():
-    assert _extract_clean_date("2023-01-01 12:30") == "2023-01-01"
+    assert extract_clean_date("2023-01-01 12:30") == "2023-01-01"
 
 
 def test_extract_clean_date_raises_on_no_date_in_string():
     with pytest.raises(DateExtractionError):
-        _extract_clean_date("hello world")
+        extract_clean_date("hello world")
 
 
 def test_extract_clean_date_raises_error_on_invalid_date():
-    """Verify that _extract_clean_date raises DateExtractionError for invalid dates."""
+    """Verify that extract_clean_date raises DateExtractionError for invalid dates."""
     invalid_date_str = "2023-99-99"
     with pytest.raises(DateExtractionError) as excinfo:
-        _extract_clean_date(invalid_date_str)
+        extract_clean_date(invalid_date_str)
 
     assert "Could not extract a valid date" in str(excinfo.value)
     assert invalid_date_str in str(excinfo.value)
 
 
 def test_extract_clean_date_raises_on_none():
-    """Verify that _extract_clean_date raises an error on None input."""
+    """Verify that extract_clean_date raises an error on None input."""
     with pytest.raises(DateExtractionError) as excinfo:
-        _extract_clean_date(None)
+        extract_clean_date(None)
     assert "Could not extract a valid date" in str(excinfo.value)
     assert "None" in str(excinfo.value)
 
