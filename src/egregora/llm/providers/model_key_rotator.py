@@ -118,6 +118,10 @@ class ModelKeyRotator:
         if is_rate_limit_error is None:
             is_rate_limit_error = default_rate_limit_check
 
+        # TODO: [Taskmaster] Refactor complex `call_with_rotation` method
+        # This method is too long and has a high cyclomatic complexity.
+        # It should be broken down into smaller, more manageable functions
+        # to improve readability and maintainability.
         self.reset()
         last_exception: Exception | None = None
 
@@ -162,6 +166,10 @@ class ModelKeyRotator:
         raise AllModelsExhaustedError(msg)
 
 
+# TODO: [Taskmaster] Remove redundant `create_model_key_rotator` function
+# This factory function is a thin wrapper around the ModelKeyRotator constructor
+# and does not provide any additional value. It should be removed to simplify
+# the API. Direct instantiation of the class should be used instead.
 def create_model_key_rotator(
     models: list[str] | None = None,
     api_keys: list[str] | None = None,
