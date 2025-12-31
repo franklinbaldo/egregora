@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-2.5-pro' }}
+      GEMINI_MODELS: ${{ vars.GEMINI_MERGE_GATE_MODELS || '["gemini-2.5-pro","gemini-2.5-flash","gemini-2.5-flash-lite"]' }}
 
     steps:
       - name: Capture PR metadata
@@ -84,57 +84,60 @@ jobs:
           PATCH_BYTES: ${{ steps.patch.outputs.byte_length }}
         with:
           result-encoding: string
-          script: |
+          script: >-
             const pr = context.payload.pull_request;
             const truncated = process.env.PATCH_TRUNCATED === 'true';
             const size = process.env.PATCH_BYTES || 'unknown';
 
-            const prompt = [
-              `You are the Gemini Merge Gate for ${context.repo.owner}/${context.repo.repo}.`,
-              `Pull Request: #${pr.number} - ${pr.title}`,
-              `Author: ${pr.user.login}`,
-              `Patch size (bytes): ${size}`,
-              `Patch truncated: ${truncated}`,
-              '',
-              'Decide if this pull request should be allowed to merge based on the provided patch alone. Be conservative when context is limited or truncated.',
-              '',
-              'Return ONLY valid JSON (no markdown, no code fences) in this shape:',
-              '{"merge": true|false, "reason": "<concise justification>", "risk": "low|medium|high"}',
-              '',
-              'Patch follows between the delimiters:',
-              '<<<PATCH START>>>',
-              process.env.PATCH,
-              '<<<PATCH END>>>'
-            ].join('\n');
+            const prompt = `
+            You are the Gemini Merge Gate for ${context.repo.owner}/${context.repo.repo}.
+            Pull Request: #${pr.number} - ${pr.title}
+            Author: ${pr.user.login}
+            Patch size (bytes): ${size}
+            Patch truncated: ${truncated}
 
+            Decide if this pull request should be allowed to merge based on the provided patch alone. Be conservative when context is limited or truncated.
+
+            Return ONLY valid JSON (no markdown, no code fences) in this shape:
+            {"merge": true|false, "reason": "<concise justification>", "risk": "low|medium|high"}
+
+            Patch follows between the delimiters:
+            <<<PATCH START>>>
+            ${process.env.PATCH}
+            <<<PATCH END>>>
+            `;
             core.setOutput('prompt', prompt);
 
       - name: Evaluate patch with Gemini
         id: gemini
-        uses: google-github-actions/run-gemini-cli@v0
+        uses: ./.github/actions/shared-gemini-runner
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: ${{ env.GEMINI_MODEL }}
           prompt: ${{ steps.prompt.outputs.prompt }}
+          fallback_models: ${{ env.GEMINI_MODELS }}
 
       - name: Parse Gemini decision
         id: decision
         if: always()
         uses: actions/github-script@v8
         env:
-          GEMINI_OUTCOME: ${{ steps.gemini.outcome }}
+          GEMINI_OUTCOME: ${{ steps.gemini.outputs.outcome }}
           GEMINI_RESULT: ${{ steps.gemini.outputs.summary }}
           PATCH_TRUNCATED: ${{ steps.patch.outputs.truncated }}
           PATCH_BYTES: ${{ steps.patch.outputs.byte_length }}
-          GEMINI_MODEL_USED: ${{ env.GEMINI_MODEL }}
+          GEMINI_MODEL_USED: ${{ steps.gemini.outputs.model }}
+          GEMINI_DIAGNOSTICS: ${{ steps.gemini.outputs.diagnostics }}
         with:
           script: |
             const outcome = process.env.GEMINI_OUTCOME;
             const raw = process.env.GEMINI_RESULT || '';
+            const diagnostics = process.env.GEMINI_DIAGNOSTICS || 'No diagnostics available';
 
             let decision = {
               merge: false,
-              reason: outcome === 'success' ? 'Gemini response missing' : 'Gemini invocation failed',
+              reason: outcome === 'success'
+                ? `Gemini response missing. Diagnostics: ${diagnostics}`
+                : `Gemini invocation failed. Diagnostics: ${diagnostics}`,
               risk: 'high'
             };
 
@@ -144,13 +147,13 @@ jobs:
                 try {
                   const parsed = JSON.parse(jsonMatch[0]);
                   decision.merge = parsed.merge === true;
-                  decision.reason = parsed.reason || 'No reason provided';
+                  decision.reason = parsed.reason || `No reason provided. Diagnostics: ${diagnostics}`;
                   decision.risk = parsed.risk || 'unknown';
                 } catch (error) {
-                  decision.reason = `Unable to parse Gemini output: ${error.message}`;
+                  decision.reason = `Unable to parse Gemini output: ${error.message}. Diagnostics: ${diagnostics}`;
                 }
               } else {
-                decision.reason = 'Gemini output did not contain JSON.';
+                decision.reason = `Gemini output did not contain JSON. Diagnostics: ${diagnostics}`;
               }
             }
 
@@ -160,6 +163,7 @@ jobs:
             core.setOutput('truncated', process.env.PATCH_TRUNCATED === 'true' ? 'true' : 'false');
             core.setOutput('patch_bytes', process.env.PATCH_BYTES || 'unknown');
             core.setOutput('model', process.env.GEMINI_MODEL_USED || 'unspecified');
+            core.setOutput('diagnostics', process.env.GEMINI_DIAGNOSTICS || 'No diagnostics available');
 
       - name: Comment on PR
         if: always()
@@ -171,6 +175,7 @@ jobs:
           MODEL: ${{ steps.decision.outputs.model }}
           TRUNCATED: ${{ steps.decision.outputs.truncated }}
           PATCH_BYTES: ${{ steps.decision.outputs.patch_bytes }}
+          DIAGNOSTICS: ${{ steps.decision.outputs.diagnostics }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -182,7 +187,8 @@ jobs:
               `Decision: ${allowMerge ? '✅ Merge allowed' : '❌ Merge blocked'}`,
               `Reason: ${process.env.REASON}`,
               `Risk: ${process.env.RISK}`,
-              `Patch truncated: ${process.env.TRUNCATED === 'true' ? 'yes' : 'no'} (size: ${process.env.PATCH_BYTES} bytes)`
+              `Patch truncated: ${process.env.TRUNCATED === 'true' ? 'yes' : 'no'} (size: ${process.env.PATCH_BYTES} bytes)`,
+              `Diagnostics: ${process.env.DIAGNOSTICS}`
             ];
 
             await github.rest.issues.createComment({
@@ -209,6 +215,7 @@ jobs:
             echo "- Risk: ${{ steps.decision.outputs.risk }}"
             echo "- Model: ${{ steps.decision.outputs.model }}"
             echo "- Patch truncated: ${{ steps.decision.outputs.truncated }} (size: ${{ steps.decision.outputs.patch_bytes }} bytes)"
+            echo "- Diagnostics: ${{ steps.decision.outputs.diagnostics }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Enforce Gemini decision

@@ -240,6 +240,22 @@ TASKS_SCHEMA = ibis.schema(
 )
 
 # ============================================================================
+# V3 Unified Schema
+# ============================================================================
+
+UNIFIED_SCHEMA = ibis.schema(
+    {
+        **dict(POSTS_SCHEMA.items()),
+        **dict(PROFILES_SCHEMA.items()),
+        **dict(MEDIA_SCHEMA.items()),
+        **dict(JOURNALS_SCHEMA.items()),
+        "doc_type": dt.String(nullable=False),
+        "status": dt.String(nullable=False),
+        "extensions": dt.json,
+    }
+)
+
+# ============================================================================
 # Views
 # ============================================================================
 
