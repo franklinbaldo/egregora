@@ -21,10 +21,10 @@ if TYPE_CHECKING:
     from ibis.expr.types import Table
 
     from egregora.agents.shared.annotations import AnnotationStore
+    from egregora.cache import PipelineCache
     from egregora.config.settings import EgregoraConfig, RAGSettings
     from egregora.data_primitives.document import OutputSink
     from egregora.database.task_store import TaskStore
-    from egregora.orchestration.cache import PipelineCache
     from egregora.output_adapters import OutputSinkRegistry
     from egregora.utils.metrics import UsageTracker
 

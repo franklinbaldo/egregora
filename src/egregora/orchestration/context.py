@@ -21,13 +21,14 @@ if TYPE_CHECKING:
     from google import genai
 
     from egregora.agents.shared.annotations import AnnotationStore
+    from egregora.cache import PipelineCache
+    from egregora.cache.pipeline import EnrichmentCache
     from egregora.config.settings import EgregoraConfig
     from egregora.data_primitives.document import OutputSink, UrlContext
     from egregora.database.protocols import StorageProtocol
     from egregora.database.task_store import TaskStore
     from egregora.output_adapters import OutputSinkRegistry
     from egregora.rag.embedding_router import EmbeddingRouter
-    from egregora.utils.cache import EnrichmentCache, PipelineCache
     from egregora.utils.metrics import UsageTracker
 
 

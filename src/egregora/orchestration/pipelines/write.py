@@ -31,6 +31,7 @@ from rich.panel import Panel
 
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.shared.annotations import AnnotationStore
+from egregora.cache import PipelineCache
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
 from egregora.constants import WindowUnit
@@ -56,7 +57,6 @@ from egregora.transformations import (
     load_checkpoint,
     save_checkpoint,
 )
-from egregora.utils.cache import PipelineCache
 from egregora.utils.env import get_google_api_keys, validate_gemini_api_key
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.rate_limit import init_rate_limiter
