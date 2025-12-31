@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.utils.env import get_google_api_keys
 
 if TYPE_CHECKING:
@@ -120,6 +121,7 @@ class GeminiKeyRotator:
         # Track keys tried for this specific call to prevent infinite loops on 429s,
         # but don't reset the global rotator state (to maintain round-robin across different calls).
         keys_tried_for_request: set[str] = set()
+        exceptions: list[Exception] = []
 
         # Determine max attempts (try all keys once)
         max_attempts = len(self.api_keys)
@@ -146,6 +148,7 @@ class GeminiKeyRotator:
 
                 return result
             except Exception as exc:
+                exceptions.append(exc)
                 # Always rotate on error too
                 self.next_key()
 
@@ -167,7 +170,7 @@ class GeminiKeyRotator:
         logger.error("[KeyRotator] All %d API keys exhausted/rate-limited", len(self.api_keys))
         # Re-raise the last exception if we have one, or a generic error
         msg = "All API keys exhausted"
-        raise RuntimeError(msg)
+        raise AllModelsExhaustedError(msg, causes=exceptions)
 
 
 class GeminiModelCycler:
