@@ -18,13 +18,19 @@ from egregora_v3.core.types import (
 from egregora_v3.infra.sinks.atom import AtomSink
 
 
+from lxml import etree
+
+
 def render_feed_to_xml(feed: Feed) -> str:
     """Helper to render a feed to XML using an in-memory sink."""
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = Path(tmpdir) / "feed.xml"
         sink = AtomSink(output_path)
         sink.publish(feed)
-        return output_path.read_text()
+        xml_bytes = output_path.read_bytes()
+        # Use lxml to pretty-print the XML for consistent formatting
+        root = etree.fromstring(xml_bytes)
+        return etree.tostring(root, pretty_print=True, xml_declaration=True, encoding="UTF-8").decode("utf-8")
 
 
 def test_feed_to_xml_basic():

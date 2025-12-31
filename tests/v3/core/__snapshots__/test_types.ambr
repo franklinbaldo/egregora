@@ -37,6 +37,10 @@
 
 
 
+
+
+
+
       <content type="text">This is the content.</content>
 
 
@@ -50,6 +54,10 @@
       <id>urn:uuid:1225c695-cfb8-4ebb-bbbb-80da344efa6b</id>
       <title>A regular entry</title>
       <updated>2023-01-01T09:00:00Z</updated>
+
+
+
+
 
 
 
