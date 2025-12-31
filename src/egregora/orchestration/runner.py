@@ -48,6 +48,7 @@ class PipelineRunner:
     def __init__(self, context: PipelineContext) -> None:
         self.context = context
 
+    # TODO: [Taskmaster] Refactor `process_windows` to improve clarity and separation of concerns.
     def process_windows(
         self,
         windows_iterator: Any,
@@ -151,6 +152,7 @@ class PipelineRunner:
             )
             raise WindowSizeError(msg)
 
+    # TODO: [Taskmaster] Refactor `process_background_tasks` to avoid re-instantiating workers on every call.
     def process_background_tasks(self) -> None:
         """Process pending background tasks."""
         if not hasattr(self.context, "task_store") or not self.context.task_store:
@@ -215,6 +217,7 @@ class PipelineRunner:
 
         return results
 
+    # TODO: [Taskmaster] Refactor `_process_single_window` to simplify and separate concerns.
     def _process_single_window(self, window: Any, *, depth: int = 0) -> dict[str, dict[str, list[str]]]:
         """Process a single window with media extraction, enrichment, and post writing."""
         indent = "  " * depth
@@ -250,6 +253,7 @@ class PipelineRunner:
         resources = PipelineFactory.create_writer_resources(self.context)
         adapter_summary, adapter_instructions = self._extract_adapter_info()
 
+        # TODO: [Taskmaster] Refactor brittle data conversion logic to be more robust.
         # Convert table to list for command processing
         try:
             messages_list = enriched_table.execute().to_pylist()
