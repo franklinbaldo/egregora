@@ -305,6 +305,8 @@ addopts = [
     "--strict-markers",  # Fail on unknown markers
     "-p",
     "no:logfire",  # Disable logfire plugin
+    "-n",
+    "auto",  # Parallel test execution using all available CPU cores
 ]
 [dependency-groups]
 dev = [

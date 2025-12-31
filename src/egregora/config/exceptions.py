@@ -43,12 +43,12 @@ class InvalidDateFormatError(ConfigError):
         super().__init__(f"Invalid date format: '{date_string}'. Expected YYYY-MM-DD.")
 
 
-class ApiKeyNotFoundError(ConfigError):
-    """Raised when a required API key is not found in environment variables."""
+class MissingApiKeyError(ConfigError):
+    """Raised when a required API key is not found."""
 
-    def __init__(self, env_var: str) -> None:
-        self.env_var = env_var
-        super().__init__(f"API key environment variable not set: {env_var}")
+    def __init__(self, key_name: str) -> None:
+        self.key_name = key_name
+        super().__init__(f"Missing required API key: {key_name}")
 
 
 class InvalidTimezoneError(ConfigError):

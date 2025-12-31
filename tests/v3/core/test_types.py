@@ -2,7 +2,6 @@ import pytest
 from datetime import datetime, UTC
 from pydantic import ValidationError
 from freezegun import freeze_time
-from egregora_v3.core.atom import feed_to_xml_string
 from egregora_v3.core.types import Author, Document, DocumentType, DocumentStatus, Feed, Entry
 
 def test_document_generates_slug_from_title():
@@ -74,7 +73,7 @@ def test_feed_to_xml_handles_document_and_entry():
         entries=[doc, entry]
     )
 
-    xml_output = feed_to_xml_string(feed)
+    xml_output = feed.to_xml()
 
     # Assert that the Document-specific fields are present for the Document entry
     # The order of attributes is not guaranteed, so we check for parts
@@ -123,5 +122,5 @@ def test_feed_to_xml_snapshot(snapshot):
         ],
     )
 
-    xml_output = feed_to_xml_string(feed)
+    xml_output = feed.to_xml()
     assert xml_output == snapshot

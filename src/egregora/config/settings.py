@@ -40,7 +40,6 @@ from pydantic import BaseModel, Field, ValidationError, field_validator, model_v
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from egregora.config.exceptions import (
-    ApiKeyNotFoundError,
     ConfigError,
     ConfigNotFoundError,
     ConfigValidationError,
@@ -1265,18 +1264,26 @@ __all__ = [
 ]
 
 
-def get_google_api_key() -> str:
+def get_google_api_key() -> str | None:
     """Get Google API key from environment, checking both GEMINI and GOOGLE variables."""
-    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if not api_key:
-        raise ApiKeyNotFoundError("GEMINI_API_KEY or GOOGLE_API_KEY")
-    return api_key
+    return os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+
+
+def google_api_key_status() -> bool:
+    """Check if a Google API key is configured."""
+    return bool(get_google_api_key())
 
 
 def get_openrouter_api_key() -> str:
     """Get OpenRouter API key from environment."""
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
-        raise ApiKeyNotFoundError("OPENROUTER_API_KEY")
+        msg = "OPENROUTER_API_KEY environment variable is required for OpenRouter models"
+        raise ValueError(msg)
     # Handle bash export syntax (e.g., "= value" instead of "value")
     return api_key.strip().lstrip("=").strip()
+
+
+def openrouter_api_key_status() -> bool:
+    """Check if OPENROUTER_API_KEY is configured."""
+    return bool(os.environ.get("OPENROUTER_API_KEY"))

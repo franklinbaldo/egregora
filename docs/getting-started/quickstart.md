@@ -35,12 +35,12 @@ This creates a minimal MkDocs site structure:
 
 ```
 my-blog/
-├── .egregora/
-│   ├── mkdocs.yml      # Site configuration
-│   └── ...             # Egregora state (databases, cache)
-└── docs/
-    ├── index.md        # Homepage
-    └── posts/          # Generated blog posts go here
+├── docs/
+│   ├── index.md        # Homepage
+│   └── posts/          # Generated blog posts go here
+└── .egregora/
+    ├── mkdocs.yml      # Site configuration
+    └── ...             # Egregora state (databases, cache)
 ```
 
 ## Step 2: Export Your WhatsApp Chat
@@ -87,10 +87,10 @@ Launch a local preview server:
 
 ```bash
 # 1. Install doc dependencies (if you haven't already)
-uv sync --all-extras
+uv sync --extra docs
 
 # 2. Preview your site
-uv run mkdocs serve -f .egregora/mkdocs.yml
+mkdocs serve -f .egregora/mkdocs.yml
 ```
 
 Open [http://localhost:8000](http://localhost:8000) in your browser. 🎉
@@ -223,5 +223,5 @@ chmod -R u+w .egregora/lancedb/
 
 ## Learn More
 
-- [Architecture Overview](../../v3/architecture/index.md) - Understand the pipeline
-- [API Reference](../../v3/api-reference/index.md) - Complete code documentation
+- [Architecture Overview](../v3/architecture/index.md) - Understand the pipeline
+- [API Reference](../v3/api-reference/index.md) - Complete code documentation
