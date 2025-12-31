@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 15
     outputs:
       review_recommendation: ${{ steps.parse_recommendation.outputs.recommendation }}
-      review_outcome: ${{ steps.gemini_run.outputs.outcome }}
+      review_outcome: ${{ steps.gemini_final.outputs.outcome }}
 
     # Run if:
     # 1. It's a non-draft PR (automatic trigger)
@@ -301,9 +301,9 @@ jobs:
       - name: Check Gemini step result
         if: always()
         run: |
-          echo "Gemini pipeline outcome: ${{ steps.gemini_run.outputs.outcome }}"
+          echo "Gemini pipeline outcome: ${{ steps.gemini_final.outputs.outcome }}"
 
-          if [ "${{ steps.gemini_run.outputs.outcome }}" != "success" ]; then
+          if [ "${{ steps.gemini_final.outputs.outcome }}" != "success" ]; then
             echo "::warning::All Gemini CLI attempts failed or were skipped"
             echo "::group::Debugging Information"
             echo "Job status: ${{ job.status }}"
@@ -328,8 +328,8 @@ jobs:
         if: always()
         uses: actions/github-script@v8
         env:
-          GEMINI_REVIEW: ${{ steps.gemini_run.outputs.summary }}
-          GEMINI_OUTCOME: ${{ steps.gemini_run.outputs.outcome }}
+          GEMINI_REVIEW: ${{ steps.gemini_final.outputs.summary }}
+          GEMINI_OUTCOME: ${{ steps.gemini_final.outputs.outcome }}
         with:
           script: |
             const geminiOutcome = process.env.GEMINI_OUTCOME;
@@ -360,10 +360,9 @@ jobs:
         if: always()
         uses: actions/github-script@v8
         env:
-          GEMINI_REVIEW: ${{ steps.gemini_run.outputs.summary }}
-          GEMINI_OUTCOME: ${{ steps.gemini_run.outputs.outcome }}
-          GEMINI_MODEL: ${{ steps.gemini_run.outputs.model }}
-          GEMINI_DIAGNOSTICS: ${{ steps.gemini_run.outputs.diagnostics }}
+          GEMINI_REVIEW: ${{ steps.gemini_final.outputs.summary }}
+          GEMINI_OUTCOME: ${{ steps.gemini_final.outputs.outcome }}
+          GEMINI_MODEL: ${{ steps.gemini_final.outputs.model }}
           PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
           TRIGGER_MODE: ${{ steps.collect.outputs.trigger_mode }}
         with:
@@ -395,14 +394,6 @@ jobs:
 
             ---
             *${triggerText} • Step outcome: ${geminiOutcome}*`;
-              } else {
-                body = `## ⚠️ Gemini Code Review Failed
-
-            The Gemini CLI review failed to complete.
-
-            ---
-            *${triggerText} • Step outcome: ${geminiOutcome}*`;
-              }
             } else {
               // Gemini step succeeded
               body = `## ${triggerEmoji} Gemini Code Review

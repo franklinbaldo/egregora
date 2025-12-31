@@ -19,7 +19,6 @@ from PIL import Image
 from pydantic_ai import Agent
 from ratelimit import limits, sleep_and_retry
 
-from egregora.agents.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.agents.enricher import (
     EnrichmentOutput,
     ensure_datetime,
@@ -29,11 +28,7 @@ from egregora.input_adapters.whatsapp.commands import extract_commands
 from egregora.knowledge.profiles import remove_profile_avatar, update_profile_avatar
 from egregora.orchestration.pipelines.modules.media import detect_media_type, extract_urls
 from egregora.resources.prompts import render_prompt
-from egregora.utils.cache import (
-    CacheKeyNotFoundError,
-    EnrichmentCache,
-    make_enrichment_cache_key,
-)
+from egregora.utils.cache import CacheKeyNotFoundError, EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.env import get_google_api_key
 from egregora.utils.network import SSRFValidationError, validate_public_url
 
