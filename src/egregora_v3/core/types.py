@@ -7,25 +7,8 @@ from enum import Enum
 from typing import Any
 from xml.etree.ElementTree import Element, register_namespace, SubElement, tostring
 
-from markdown_it import MarkdownIt
 from pydantic import BaseModel, Field, model_validator
 from egregora_v3.core.utils import slugify
-
-# --- XML Configuration ---
-
-# Register namespaces globally to ensure pretty prefixes in all XML output
-# This is a module-level side effect, but necessary for clean Atom feeds.
-try:
-    from xml.etree.ElementTree import register_namespace
-    register_namespace("", "http://www.w3.org/2005/Atom")
-    register_namespace("thr", "http://purl.org/syndication/thread/1.0")
-except Exception:  # pragma: no cover
-    # Best effort registration; may fail in some environments or if already registered
-    pass
-
-# --- Markdown Renderer ---
-_md = MarkdownIt("commonmark", {"html": True})
-
 
 # --- Atom Core Domain ---
 
@@ -91,13 +74,6 @@ class Entry(BaseModel):
 
     # Internal system metadata (not serialized to public Atom)
     internal_metadata: dict[str, Any] = Field(default_factory=dict)
-
-    @property
-    def html_content(self) -> str | None:
-        """Render markdown content to HTML."""
-        if self.content:
-            return _md.render(self.content).strip()
-        return None
 
     @property
     def is_document(self) -> bool:

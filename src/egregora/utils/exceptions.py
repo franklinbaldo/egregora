@@ -6,8 +6,8 @@ class CacheKeyNotFoundError(Exception):
 
 
 class CacheDeserializationError(Exception):
-    """Raised when a value cannot be deserialized from the cache."""
+    """Raised when a cached value cannot be deserialized."""
 
 
 class CachePayloadTypeError(Exception):
-    """Raised when the payload to be cached is of an unsupported type."""
+    """Raised when the payload to be cached is of an unexpected type."""
