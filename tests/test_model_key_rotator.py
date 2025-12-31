@@ -9,6 +9,8 @@ from egregora.llm.providers.model_cycler import (
     GeminiKeyRotator,
     GeminiModelCycler,
     ModelKeyRotator,
+    create_key_rotator,
+    create_model_cycler,
 )
 
 
@@ -180,6 +182,43 @@ def test_gemini_model_cycler_fails_when_all_exhausted():
 
     with pytest.raises(RuntimeError):
         cycler.call_with_rotation(always_fails)
+
+
+def test_gemini_key_rotator_init_with_no_keys(mocker):
+    """Test that GeminiKeyRotator raises an error if no API keys are found."""
+    mocker.patch("egregora.llm.providers.model_cycler.get_google_api_keys", return_value=[])
+    with pytest.raises(ValueError, match="No API keys found"):
+        GeminiKeyRotator()
+
+
+def test_gemini_key_rotator_reset():
+    """Test that the reset method of GeminiKeyRotator works correctly."""
+    api_keys = ["key-a", "key-b"]
+    rotator = GeminiKeyRotator(api_keys=api_keys)
+    rotator.next_key()
+    rotator.reset()
+    assert rotator.current_key == "key-a"
+
+
+def test_create_key_rotator():
+    """Test that the create_key_rotator factory function works correctly."""
+    rotator = create_key_rotator(api_keys=["key-a", "key-b"])
+    assert isinstance(rotator, GeminiKeyRotator)
+
+
+def test_gemini_model_cycler_reset():
+    """Test that the reset method of GeminiModelCycler works correctly."""
+    models = ["model-a", "model-b"]
+    cycler = GeminiModelCycler(models=models)
+    cycler.next_model()
+    cycler.reset()
+    assert cycler.current_model == "model-a"
+
+
+def test_create_model_cycler():
+    """Test that the create_model_cycler factory function works correctly."""
+    cycler = create_model_cycler(config_models=["model-a", "model-b"])
+    assert isinstance(cycler, GeminiModelCycler)
 
 
 if __name__ == "__main__":
