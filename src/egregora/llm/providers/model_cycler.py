@@ -316,3 +316,6 @@ def create_key_rotator(
 
     """
     return GeminiKeyRotator(api_keys=api_keys)
+
+
+ModelKeyRotator = GeminiKeyRotator

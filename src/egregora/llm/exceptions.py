@@ -15,3 +15,7 @@ class BatchJobTimeoutError(Exception):
 
 class BatchResultDownloadError(Exception):
     """Raised when a batch job result cannot be downloaded."""
+
+
+class InvalidLLMResponseError(Exception):
+    """Raised when the LLM response is invalid or cannot be parsed."""

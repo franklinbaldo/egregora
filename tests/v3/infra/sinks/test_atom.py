@@ -36,8 +36,8 @@ def test_atom_sink_defaults_content_type_and_preserves_raw_content():
         assert output_path.exists()
         xml_content = output_path.read_text()
 
-        # 1. Check that content_type defaults to "html" because of the custom filter
-        assert '<content type="html">' in xml_content
+        # 1. Check that content_type defaults to "text/plain" because of the custom filter
+        assert '<content type="text/plain">' in xml_content
 
         # 2. Check that the raw markdown is present and NOT rendered to HTML
         # The content is XML-escaped by Jinja, but not transformed.
