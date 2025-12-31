@@ -14,7 +14,9 @@ MODERN (2025-11-18): Imports site path resolution from
 from __future__ import annotations
 
 import logging
+import os
 import shutil
+import textwrap
 from collections import Counter
 from contextlib import suppress
 from datetime import UTC, datetime
@@ -1220,6 +1222,73 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         return stats
 
+    @staticmethod
+    def _extract_summary(content: str, max_length: int = 180) -> str:
+        """Create a lightweight summary from markdown content."""
+        if isinstance(content, bytes):
+            try:
+                content = content.decode("utf-8")
+            except UnicodeDecodeError:
+                return ""
+        if not content:
+            return ""
+
+        for line in content.splitlines():
+            clean = line.strip()
+            if not clean or clean.startswith("#"):
+                continue
+            return textwrap.shorten(clean, width=max_length, placeholder="…")
+        return ""
+
+    def get_recent_posts(self, limit: int = 5) -> list[dict[str, Any]]:
+        """Return recent posts for homepage cards."""
+        posts: list[dict[str, Any]] = []
+
+        if not hasattr(self, "_ctx") or self._ctx is None:
+            return posts
+
+        for document in self.documents(doc_type=DocumentType.POST):
+            metadata = document.metadata or {}
+            date_value = metadata.get("date")
+            parsed_date = None
+            display_date = ""
+            if isinstance(date_value, datetime):
+                parsed_date = date_value
+                display_date = parsed_date.date().isoformat()
+            elif date_value:
+                with suppress(Exception):
+                    parsed_date = parse_datetime_flexible(date_value)
+                if parsed_date:
+                    display_date = parsed_date.date().isoformat()
+                elif isinstance(date_value, str):
+                    display_date = date_value
+
+            mtime_ns = metadata.get("mtime_ns", 0)
+            sort_key = parsed_date or datetime.fromtimestamp(mtime_ns / 1_000_000_000, UTC)
+            url = self.url_convention.canonical_url(document, self._ctx)
+            source_path = metadata.get("source_path")
+            if source_path:
+                try:
+                    path_obj = Path(source_path)
+                    url = path_obj.relative_to(self.docs_dir).as_posix()
+                except (ValueError, OSError):
+                    pass
+
+            posts.append(
+                {
+                    "title": metadata.get("title") or metadata.get("slug") or document.document_id,
+                    "url": url,
+                    "date": display_date,
+                    "summary": metadata.get("summary") or self._extract_summary(document.content),
+                    "sort_key": sort_key,
+                }
+            )
+
+        posts.sort(key=lambda item: item["sort_key"], reverse=True)
+        for post in posts:
+            post.pop("sort_key", None)
+        return posts[:limit]
+
     def get_profiles_data(self) -> list[dict[str, Any]]:
         """Extract profile metadata for profiles index, including calculated stats."""
         profiles = []
@@ -1469,12 +1538,26 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             stats = self.get_site_stats()
             recent_media = self.get_recent_media(limit=5)
             profiles = self.get_profiles_data()
+            posts = self.get_recent_posts(limit=6)
+
+            site_paths = MkDocsPaths(self.site_root)
+            try:
+                mkdocs_config = safe_yaml_load(site_paths.mkdocs_path.read_text(encoding="utf-8"))
+                site_name = mkdocs_config.get("site_name", self.site_root.name)
+            except OSError:
+                site_name = self.site_root.name
+
+            media_dir = Path(os.path.relpath(site_paths.media_dir, site_paths.docs_dir)).as_posix()
 
             template = self._template_env.get_template("docs/index.md.jinja")
             content = template.render(
                 stats=stats,
                 recent_media=recent_media,
                 profiles=profiles,
+                posts=posts,
+                site_name=site_name,
+                blog_dir=site_paths.blog_dir,
+                media_dir=media_dir,
                 generated_date=datetime.now(UTC).strftime("%Y-%m-%d"),
             )
 

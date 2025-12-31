@@ -89,3 +89,33 @@ def test_mkdocs_adapter_scaffolding_passthrough(adapter, tmp_path):
     # scaffold a site
     (tmp_path / "mkdocs.yml").touch()
     assert adapter.validate_structure(tmp_path)
+
+
+def test_regenerate_main_index_renders_posts(tmp_path):
+    """Ensure homepage lists recent posts after regeneration."""
+
+    site_root = tmp_path / "site"
+    adapter = MkDocsAdapter()
+    adapter.scaffold_site(site_root, site_name="Homepage Test")
+    adapter.initialize(site_root)
+
+    post = Document(
+        content="First post body with insights.",
+        type=DocumentType.POST,
+        metadata={
+            "title": "First Post",
+            "date": "2024-01-02",
+            "slug": "first-post",
+            "summary": "Summary text for homepage card.",
+        },
+    )
+    adapter.persist(post)
+
+    adapter.regenerate_main_index()
+
+    index_path = site_root / "docs" / "index.md"
+    index_content = index_path.read_text(encoding="utf-8")
+
+    assert "First Post" in index_content
+    assert "posts/2024-01-02-first-post.md" in index_content
+    assert "Summary text for homepage card." in index_content
