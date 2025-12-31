@@ -106,3 +106,18 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
         raise PathTraversalError(msg) from err
 
     return candidate_resolved
+
+
+def secure_path_join(base_dir: Path, user_path: str) -> Path:
+    """DEPRECATED: Use safe_path_join instead.
+
+    Safely join ``user_path`` to ``base_dir`` preventing directory traversal.
+    """
+    import warnings
+
+    warnings.warn(
+        "secure_path_join is deprecated and will be removed in a future version. Use safe_path_join instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return safe_path_join(base_dir, user_path)
