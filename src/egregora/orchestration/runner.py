@@ -45,6 +45,9 @@ MIN_WINDOWS_WARNING_THRESHOLD = 5
 class PipelineRunner:
     """Orchestrates the execution of the pipeline window processing loop."""
 
+    # Corresponds to a 1M token context window, expressed in characters
+    FULL_CONTEXT_WINDOW_SIZE = 1_048_576
+
     def __init__(self, context: PipelineContext) -> None:
         self.context = context
 
@@ -137,8 +140,9 @@ class PipelineRunner:
         config = self.context.config
         use_full_window = getattr(config.pipeline, "use_full_context_window", False)
 
+        # TODO: [Taskmaster] Refactor magic number for token limit
         if use_full_window:
-            return 1_048_576
+            return self.FULL_CONTEXT_WINDOW_SIZE
 
         return config.pipeline.max_prompt_tokens
 
@@ -216,6 +220,7 @@ class PipelineRunner:
         return results
 
     def _process_single_window(self, window: Any, *, depth: int = 0) -> dict[str, dict[str, list[str]]]:
+        # TODO: [Taskmaster] Decompose _process_single_window method
         """Process a single window with media extraction, enrichment, and post writing."""
         indent = "  " * depth
         window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
@@ -381,6 +386,44 @@ class PipelineRunner:
             instructions = instructions()
 
         return str(summary or "").strip(), str(instructions or "").strip()
+
+    # TODO: [Taskmaster] Extract command processing logic from _process_single_window
+    def _process_commands(self, messages_list: list[dict], output_sink: Any) -> int:
+        """Processes commands from a list of messages."""
+        announcements_generated = 0
+        command_messages = extract_commands_list(messages_list)
+        if command_messages:
+            for cmd_msg in command_messages:
+                try:
+                    announcement = command_to_announcement(cmd_msg)
+                    output_sink.persist(announcement)
+                    announcements_generated += 1
+                except Exception as exc:
+                    logger.exception("Failed to generate announcement: %s", exc)
+        return announcements_generated
+
+    # TODO: [Taskmaster] Extract status message generation from _process_single_window
+    def _construct_status_message(self, posts: list, profiles: list, announcements_generated: int) -> str:
+        """Constructs a status message for logging."""
+        scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
+        generated_posts = len(posts) - scheduled_posts
+
+        scheduled_profiles = sum(1 for p in profiles if isinstance(p, str) and p.startswith("pending:"))
+        generated_profiles = len(profiles) - scheduled_profiles
+
+        status_parts = []
+        if generated_posts > 0:
+            status_parts.append(f"{generated_posts} posts")
+        if scheduled_posts > 0:
+            status_parts.append(f"{scheduled_posts} scheduled posts")
+        if generated_profiles > 0:
+            status_parts.append(f"{generated_profiles} profiles")
+        if scheduled_profiles > 0:
+            status_parts.append(f"{scheduled_profiles} scheduled profiles")
+        if announcements_generated > 0:
+            status_parts.append(f"{announcements_generated} announcements")
+
+        return ", ".join(status_parts) if status_parts else "0 items"
 
     def _split_window_for_retry(
         self,
