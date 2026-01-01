@@ -123,3 +123,54 @@ def test_migrate_from_legacy_to_v3_schema():
     assert result["title"] == "Legacy Title"
     assert result["content"] == "Legacy content."
     assert json.loads(result["authors"]) == [] # default to empty list
+
+def test_migration_when_no_table_exists():
+    """
+    Tests that the migration script runs without error if the 'documents' table does not exist.
+    """
+    conn = duckdb.connect(":memory:")
+    # No table is created.
+
+    try:
+        migrate_to_v3_documents_table(conn)
+    except Exception as e:
+        pytest.fail(f"Migration script failed when no documents table exists: {e}")
+
+    # Verify that no 'documents' table was created if it didn't exist
+    tables = conn.execute("SHOW TABLES").fetchall()
+    table_names = {table[0] for table in tables}
+    assert "documents" not in table_names
+
+def test_migration_is_idempotent():
+    """
+    Tests that running the migration script multiple times does not alter the data
+    and does not raise an error.
+    """
+    conn = duckdb.connect(":memory:")
+
+    # Create a legacy table and migrate it once.
+    legacy_schema_sql = "CREATE TABLE documents (id VARCHAR, title VARCHAR);"
+    conn.execute(legacy_schema_sql)
+    conn.execute("INSERT INTO documents (id, title) VALUES ('legacy-1', 'Original Title')")
+
+    # First migration
+    migrate_to_v3_documents_table(conn)
+
+    # Get the state after the first migration
+    res_after_first = conn.execute("SELECT * FROM documents").fetchone()
+    desc_after_first = [desc[0] for desc in conn.description]
+    dict_after_first = dict(zip(desc_after_first, res_after_first))
+
+    # Second migration
+    try:
+        migrate_to_v3_documents_table(conn)
+    except Exception as e:
+        pytest.fail(f"Second migration run failed with: {e}")
+
+    # Get the state after the second migration
+    res_after_second = conn.execute("SELECT * FROM documents").fetchone()
+    desc_after_second = [desc[0] for desc in conn.description]
+    dict_after_second = dict(zip(desc_after_second, res_after_second))
+
+    # Assert that the data has not changed
+    assert dict_after_first == dict_after_second

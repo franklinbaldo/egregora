@@ -1,9 +1,9 @@
-
 """V3 Schema Migration Script."""
+
 import logging
+from datetime import UTC, datetime
+
 import duckdb
-import json
-from datetime import date, datetime, UTC
 
 from egregora.database.schemas import V3_DOCUMENTS_SCHEMA, ibis_to_duckdb_type
 
@@ -11,8 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def migrate_to_v3_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
-    """
-    Applies the V3_DOCUMENTS_SCHEMA to a legacy 'documents' table.
+    """Applies the V3_DOCUMENTS_SCHEMA to a legacy 'documents' table.
 
     This migration is idempotent. It uses a safe "create-copy-swap" pattern
     to handle schema changes, including adding NOT NULL constraints and
@@ -63,13 +62,18 @@ def migrate_to_v3_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
             select_expressions.append(f'{default} AS "{name}"')
 
     # Custom transformation for internal_metadata
-    # We build a JSON object from legacy columns
-    meta_expression = """
-    json_object(
-        'legacy_slug', slug,
-        'legacy_date', date::VARCHAR
-    ) AS internal_metadata
-    """
+    # We build a JSON object from legacy columns, only if they exist
+    meta_clauses = []
+    if "slug" in existing_columns:
+        meta_clauses.append("'legacy_slug', slug")
+    if "date" in existing_columns:
+        meta_clauses.append("'legacy_date', date::VARCHAR")
+
+    if meta_clauses:
+        meta_expression = f"json_object({', '.join(meta_clauses)}) AS internal_metadata"
+    else:
+        meta_expression = "'{}' AS internal_metadata"
+
     # Replace the placeholder 'NULL AS "internal_metadata"'
     select_expressions = [
         meta_expression if 'AS "internal_metadata"' in col else col for col in select_expressions
@@ -79,11 +83,10 @@ def migrate_to_v3_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
         "'post' AS doc_type" if 'AS "doc_type"' in col else col for col in select_expressions
     ]
 
-
     # 3. Copy data from old table to new table
     insert_sql = f"""
     INSERT INTO {temp_table_name}
-    SELECT {', '.join(select_expressions)}
+    SELECT {", ".join(select_expressions)}
     FROM documents;
     """
     conn.execute(insert_sql)

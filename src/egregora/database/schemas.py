@@ -253,7 +253,6 @@ V3_DOCUMENTS_SCHEMA = ibis.schema(
         "summary": dt.String(nullable=True),
         "content": dt.String(nullable=True),
         "content_type": dt.String(nullable=True),
-
         # Complex types stored as JSON
         "links": dt.JSON(nullable=False),
         "authors": dt.JSON(nullable=False),
@@ -263,7 +262,6 @@ V3_DOCUMENTS_SCHEMA = ibis.schema(
         "in_reply_to": dt.JSON(nullable=True),
         "extensions": dt.JSON(nullable=False),
         "internal_metadata": dt.JSON(nullable=False),
-
         # Document-specific fields (nullable for base Entry objects)
         "doc_type": dt.String(nullable=True),
         "status": dt.String(nullable=True),
