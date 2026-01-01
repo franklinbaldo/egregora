@@ -118,3 +118,19 @@ def test_persist_adds_related_posts_to_frontmatter(adapter: MkDocsAdapter):
 
     related_titles = {post["title"] for post in related_posts}
     assert related_titles == {"Post 1", "Post 2", "Post 3"}
+
+
+def test_persist_handles_filename_collisions(adapter: MkDocsAdapter):
+    """Verify that `persist` handles filename collisions by appending a numeric suffix."""
+    post1_meta = {"title": "Collision Post", "slug": "collision-post", "date": "2025-01-16"}
+    post2_meta = {"title": "Collision Post", "slug": "collision-post", "date": "2025-01-16"}
+
+    with patch("egregora.output_adapters.mkdocs.markdown.ensure_author_entries"):
+        adapter.persist(Document(content="Content 1", type=DocumentType.POST, metadata=post1_meta))
+        adapter.persist(Document(content="Content 2", type=DocumentType.POST, metadata=post2_meta))
+
+    first_path = adapter.posts_dir / "2025-01-16-collision-post.md"
+    second_path = adapter.posts_dir / "2025-01-16-collision-post-2.md"
+
+    assert first_path.exists()
+    assert second_path.exists()
