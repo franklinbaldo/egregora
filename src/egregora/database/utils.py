@@ -2,9 +2,14 @@
 
 import contextlib
 from pathlib import Path
+from typing import Any, Iterator
 from urllib.parse import urlparse
 
 import duckdb
+from ibis.common.exceptions import IbisError
+from ibis.expr.types import Table
+
+from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 
 
 def resolve_db_uri(uri: str, site_root: Path) -> str:
@@ -109,3 +114,41 @@ def get_simple_storage(db_path: Path) -> SimpleDuckDBStorage:
 
     """
     return SimpleDuckDBStorage(db_path)
+
+
+def frame_to_records(frame: Any) -> list[dict[str, Any]]:
+    """Convert backend frames into dict records consistently."""
+    if hasattr(frame, "to_dict"):
+        return [dict(row) for row in frame.to_dict("records")]
+    if hasattr(frame, "to_pylist"):
+        try:
+            return [dict(row) for row in frame.to_pylist()]
+        except (
+            ValueError,
+            TypeError,
+            AttributeError,
+        ) as exc:  # pragma: no cover - defensive
+            msg = f"Failed to convert frame to records. Original error: {exc}"
+            raise RuntimeError(msg) from exc
+    return [dict(row) for row in frame]
+
+
+def iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
+    """Stream table rows as batches of dictionaries without loading entire table into memory."""
+    try:
+        backend = table._find_backend()
+    except (AttributeError, IbisError):  # pragma: no cover - fallback path
+        backend = None
+
+    if backend is not None and hasattr(backend, "con"):
+        ordered_table = ensure_deterministic_order(table)
+        yield from stream_ibis(ordered_table, backend, batch_size=batch_size)
+        return
+
+    if "ts" in table.columns:
+        table = table.order_by("ts")
+
+    results_df = table.execute()
+    records = frame_to_records(results_df)
+    for start in range(0, len(records), batch_size):
+        yield records[start : start + batch_size]
