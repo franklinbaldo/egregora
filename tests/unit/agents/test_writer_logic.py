@@ -4,19 +4,12 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-from jinja2.exceptions import TemplateNotFound
+import pytest  # type: ignore[import-not-found]
+from jinja2.exceptions import TemplateNotFound  # type: ignore[import-not-found]
 
-from egregora.agents.exceptions import AgentError as JournalFileSystemError
+import egregora.agents.writer as writer_module  # type: ignore[import-not-found]
+from egregora.agents.exceptions import AgentError as JournalFileSystemError  # type: ignore[import-not-found]
 from egregora.agents.exceptions import AgentError as JournalTemplateError
-from egregora.agents.writer import (
-    JournalEntry,
-    JournalEntryParams,
-    WindowProcessingParams,
-    _process_single_tool_result,
-    _save_journal_to_file,
-    write_posts_for_window,
-)
 
 
 class TestWriterDecoupling:
@@ -30,7 +23,7 @@ class TestWriterDecoupling:
         # because we shouldn't rely on string matching file paths.
 
         content = {"status": "success", "path": "/posts/legacy-path.md"}
-        _process_single_tool_result(content, None, saved_posts, saved_profiles)
+        writer_module._process_single_tool_result(content, None, saved_posts, saved_profiles)
 
         assert len(saved_posts) == 0, "Should not infer type from path string"
 
@@ -40,7 +33,7 @@ class TestWriterDecoupling:
         saved_profiles: list[str] = []
 
         content = {"status": "success", "path": "some-id"}
-        _process_single_tool_result(content, "write_post_tool", saved_posts, saved_profiles)
+        writer_module._process_single_tool_result(content, "write_post_tool", saved_posts, saved_profiles)
 
         assert "some-id" in saved_posts
 
@@ -58,9 +51,9 @@ class TestWriterDecoupling:
         mock_output = MagicMock()
 
         # We need at least one entry for save to happen
-        entry = JournalEntry(entry_type="journal", content="test", timestamp=datetime.now())
+        entry = writer_module.JournalEntry(entry_type="journal", content="test", timestamp=datetime.now())
 
-        params = JournalEntryParams(
+        params = writer_module.JournalEntryParams(
             intercalated_log=[entry],
             window_label="test-window",
             output_format=mock_output,
@@ -71,7 +64,7 @@ class TestWriterDecoupling:
         )
 
         # Act
-        _save_journal_to_file(params)
+        writer_module._save_journal_to_file(params)
 
         # Assert
         # Check what was persisted
@@ -90,8 +83,8 @@ class TestWriterDecoupling:
         mock_env.get_template.side_effect = TemplateNotFound("journal.md.jinja")
         mock_env_cls.return_value = mock_env
 
-        params = JournalEntryParams(
-            intercalated_log=[JournalEntry("journal", "test", datetime.now())],
+        params = writer_module.JournalEntryParams(
+            intercalated_log=[writer_module.JournalEntry("journal", "test", datetime.now())],
             window_label="test-window",
             output_format=MagicMock(),
             posts_published=0,
@@ -102,7 +95,7 @@ class TestWriterDecoupling:
 
         # Act & Assert
         with pytest.raises(JournalTemplateError) as exc_info:
-            _save_journal_to_file(params)
+            writer_module._save_journal_to_file(params)
 
         assert "journal.md.jinja" in str(exc_info.value)
 
@@ -119,8 +112,8 @@ class TestWriterDecoupling:
         mock_output = MagicMock()
         mock_output.persist.side_effect = OSError("Disk full")
 
-        params = JournalEntryParams(
-            intercalated_log=[JournalEntry("journal", "test", datetime.now())],
+        params = writer_module.JournalEntryParams(
+            intercalated_log=[writer_module.JournalEntry("journal", "test", datetime.now())],
             window_label="test-window",
             output_format=mock_output,
             posts_published=0,
@@ -131,7 +124,7 @@ class TestWriterDecoupling:
 
         # Act & Assert
         with pytest.raises(JournalFileSystemError) as exc_info:
-            _save_journal_to_file(params)
+            writer_module._save_journal_to_file(params)
 
         assert "Disk full" in str(exc_info.value)
 
@@ -142,8 +135,6 @@ async def test_execute_writer_raises_specific_exception(
     mock_pydantic_writer: MagicMock, test_config: MagicMock
 ) -> None:
     """Test that _execute_writer_with_error_handling raises RuntimeError on agent failure."""
-    from egregora.agents.writer import _execute_writer_with_error_handling
-
     # Arrange
     mock_pydantic_writer.side_effect = Exception("LLM provider outage")
     mock_deps = MagicMock()
@@ -151,7 +142,7 @@ async def test_execute_writer_raises_specific_exception(
 
     # Act & Assert
     with pytest.raises(RuntimeError) as exc_info:
-        await _execute_writer_with_error_handling(
+        await writer_module._execute_writer_with_error_handling(
             prompt="test prompt",
             config=test_config,
             deps=mock_deps,
@@ -185,7 +176,7 @@ async def test_write_posts_for_window_smoke_test(
     mock_execute.return_value = ([], [])
     mock_finalize.return_value = {"posts": [], "profiles": []}
 
-    params = WindowProcessingParams(
+    params = writer_module.WindowProcessingParams(
         table=mock_table,
         window_start=datetime.now(),
         window_end=datetime.now(),
@@ -194,7 +185,7 @@ async def test_write_posts_for_window_smoke_test(
         cache=MagicMock(),
     )
 
-    result = await write_posts_for_window(params)
+    result = await writer_module.write_posts_for_window(params)
     assert result == {"posts": [], "profiles": []}
     mock_execute.assert_called_once()
     mock_finalize.assert_called_once()
@@ -208,8 +199,6 @@ async def test_execute_writer_raises_specific_error(
     mock_writer_agent: MagicMock, test_config: MagicMock
 ) -> None:
     """Test that _execute_writer_with_error_handling raises RuntimeError on agent failure."""
-    from egregora.agents.writer import _execute_writer_with_error_handling
-
     # Arrange
     original_error = ValueError("Underlying agent error")
     mock_writer_agent.side_effect = original_error
@@ -219,7 +208,7 @@ async def test_execute_writer_raises_specific_error(
 
     # Act & Assert
     with pytest.raises(RuntimeError) as exc_info:
-        await _execute_writer_with_error_handling(
+        await writer_module._execute_writer_with_error_handling(
             prompt="test prompt",
             config=test_config,
             deps=mock_deps,
@@ -260,7 +249,7 @@ async def test_write_posts_for_window_cache_hit_valid(
     # Mock posts_dir existence
     mock_resources.output.posts_dir.glob.return_value = [Path("found.md")]
 
-    params = WindowProcessingParams(
+    params = writer_module.WindowProcessingParams(
         table=mock_table,
         window_start=datetime.now(),
         window_end=datetime.now(),
@@ -269,7 +258,7 @@ async def test_write_posts_for_window_cache_hit_valid(
         cache=MagicMock(),
     )
 
-    result = await write_posts_for_window(params)
+    result = await writer_module.write_posts_for_window(params)
 
     assert result == cached_result
     mock_execute.assert_not_called()
@@ -277,11 +266,9 @@ async def test_write_posts_for_window_cache_hit_valid(
 
 def test_regenerate_site_indices_skips_if_no_site_root() -> None:
     """Test that site generation is skipped if site_root is None."""
-    from egregora.agents.writer import _regenerate_site_indices
-
     adapter = MagicMock()
     adapter.site_root = None
 
     with patch("egregora.agents.writer.SiteGenerator") as mock_gen:
-        _regenerate_site_indices(adapter)
+        writer_module._regenerate_site_indices(adapter)
         mock_gen.assert_not_called()

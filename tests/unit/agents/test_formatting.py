@@ -1,8 +1,11 @@
 from unittest.mock import MagicMock
 
-from egregora.agents.formatting import build_conversation_xml, load_journal_memory
-from egregora.data_primitives.document import DocumentType
-from egregora.output_adapters.exceptions import DocumentNotFoundError
+from egregora.agents.formatting import (  # type: ignore[import-not-found]
+    build_conversation_xml,
+    load_journal_memory,
+)
+from egregora.data_primitives.document import DocumentType  # type: ignore[import-not-found]
+from egregora.output_adapters.exceptions import DocumentNotFoundError  # type: ignore[import-not-found]
 
 
 def test_load_journal_memory_handles_document_not_found_error() -> None:
