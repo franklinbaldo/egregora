@@ -920,7 +920,7 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
     )
 
 
-def _regenerate_site_indices(adapter: MkDocsAdapter):
+def _regenerate_site_indices(adapter: MkDocsAdapter) -> None:
     """Helper to regenerate all site indices using SiteGenerator."""
     if not isinstance(adapter, MkDocsAdapter):
         logger.debug("Output format is not MkDocs, skipping site generation.")

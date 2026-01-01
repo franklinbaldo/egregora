@@ -1,20 +1,23 @@
-"""
+"""SiteGenerator for MkDocs output adapter.
+
 This module contains the SiteGenerator class, which is responsible for
 generating the static site pages for the MkDocs output adapter. It handles
 all presentation-layer logic, such as rendering index pages, calculating
 site statistics, and generating author profiles.
 """
+
 from __future__ import annotations
 
 import logging
 from collections import Counter
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import TYPE_CHECKING, Any
 
 import frontmatter
 import yaml
-from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import generate_fallback_avatar_url
@@ -41,7 +44,7 @@ class SiteGenerator:
         journal_dir: Path,
         url_convention: UrlConvention,
         url_context: UrlContext,
-    ):
+    ) -> None:
         self.site_root = site_root
         self.docs_dir = docs_dir
         self.posts_dir = posts_dir
@@ -74,7 +77,7 @@ class SiteGenerator:
     def get_site_stats(self) -> dict[str, int]:
         """Calculate site statistics for homepage."""
         post_count = len(list(self._scan_directory(self.posts_dir, DocumentType.POST)))
-        profile_count = len(list(self.profiles_dir.glob("*/*.md"))) # Count files in author subdirs
+        profile_count = len(list(self.profiles_dir.glob("*/*.md")))  # Count files in author subdirs
         media_count = len(list(self._scan_directory(self.urls_dir, DocumentType.ENRICHMENT_URL)))
         journal_count = len(list(self._scan_directory(self.journal_dir, DocumentType.JOURNAL)))
 
@@ -96,7 +99,8 @@ class SiteGenerator:
         for author_dir in sorted([p for p in self.profiles_dir.iterdir() if p.is_dir()]):
             try:
                 candidates = [p for p in author_dir.glob("*.md") if p.name != "index.md"]
-                if not candidates: continue
+                if not candidates:
+                    continue
 
                 profile_path = max(candidates, key=lambda p: p.stat().st_mtime_ns)
                 post = frontmatter.load(str(profile_path))
@@ -106,17 +110,19 @@ class SiteGenerator:
                 author_posts = [p for p in all_posts if author_uuid in p.metadata.get("authors", [])]
                 topics = Counter(tag for p in author_posts for tag in p.metadata.get("tags", []))
 
-                profiles.append({
-                    "uuid": author_uuid,
-                    "name": metadata.get("name", author_uuid[:8]),
-                    "avatar": metadata.get("avatar", generate_fallback_avatar_url(author_uuid)),
-                    "bio": metadata.get("bio", "Profile pending."),
-                    "post_count": len(author_posts),
-                    "word_count": sum(len(p.content.split()) for p in author_posts),
-                    "topics": [topic for topic, count in topics.most_common()],
-                    "topic_counts": topics.most_common(),
-                    "member_since": metadata.get("member_since", "2024"),
-                })
+                profiles.append(
+                    {
+                        "uuid": author_uuid,
+                        "name": metadata.get("name", author_uuid[:8]),
+                        "avatar": metadata.get("avatar", generate_fallback_avatar_url(author_uuid)),
+                        "bio": metadata.get("bio", "Profile pending."),
+                        "post_count": len(author_posts),
+                        "word_count": sum(len(p.content.split()) for p in author_posts),
+                        "topics": [topic for topic, count in topics.most_common()],
+                        "topic_counts": topics.most_common(),
+                        "member_since": metadata.get("member_since", "2024"),
+                    }
+                )
             except (OSError, yaml.YAMLError) as e:
                 raise DocumentParsingError(str(author_dir), str(e)) from e
         return profiles
@@ -124,11 +130,13 @@ class SiteGenerator:
     def get_recent_media(self, limit: int = 5) -> list[dict[str, Any]]:
         """Get recent media items for media index."""
         media_items = []
-        if not self.urls_dir.exists(): return media_items
+        if not self.urls_dir.exists():
+            return media_items
 
         url_files = sorted(
             [p for p in self.urls_dir.glob("*.md") if p.name != "index.md"],
-            key=lambda p: p.stat().st_mtime, reverse=True
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
         )[:limit]
 
         for path in url_files:
@@ -137,20 +145,24 @@ class SiteGenerator:
                 summary = ""
                 if "## Summary" in post.content:
                     summary = post.content.split("## Summary", 1)[1].split("##", 1)[0].strip()[:200]
-                media_items.append({
-                    "title": post.metadata.get("title", path.stem),
-                    "url": post.metadata.get("url", ""),
-                    "slug": post.metadata.get("slug", path.stem),
-                    "summary": summary or post.metadata.get("description", ""),
-                })
-            except (OSError, yaml.YAMLError): continue
+                media_items.append(
+                    {
+                        "title": post.metadata.get("title", path.stem),
+                        "url": post.metadata.get("url", ""),
+                        "slug": post.metadata.get("slug", path.stem),
+                        "summary": summary or post.metadata.get("description", ""),
+                    }
+                )
+            except (OSError, yaml.YAMLError):
+                continue
         return media_items
 
     def regenerate_tags_page(self) -> None:
         """Regenerate the tags.md page."""
         all_posts = self._scan_directory(self.posts_dir, DocumentType.POST)
         tag_counts = Counter(tag for post in all_posts for tag in post.metadata.get("tags", []))
-        if not tag_counts: return
+        if not tag_counts:
+            return
 
         max_count = max(tag_counts.values())
         tags_data = []

@@ -15,15 +15,13 @@ from __future__ import annotations
 
 import logging
 import shutil
-from collections import Counter
 from contextlib import suppress
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import frontmatter
 import yaml
-from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.data_primitives.document import (
     Document,
@@ -41,9 +39,7 @@ from egregora.output_adapters.exceptions import (
     ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
-    IncompleteProfileError,
     ProfileMetadataError,
-    ProfileNotFoundError,
     UnsupportedDocumentTypeError,
 )
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
@@ -656,10 +652,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Post-processing hook called after writer agent completes a window."""
-        logger.info("Finalizing window: %s. Site generation is now handled by the orchestration layer.", window_label)
+        logger.info(
+            "Finalizing window: %s. Site generation is now handled by the orchestration layer.", window_label
+        )
         # Site generation logic has been moved to the SiteGenerator class.
         # The orchestrator is responsible for calling it.
-        pass
 
     def _detect_document_type(self, path: Path) -> DocumentType:
         """Detect document type from path and (when needed) frontmatter."""
@@ -1169,4 +1166,3 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             max_attempts = 1000
             if counter > max_attempts:
                 raise CollisionResolutionError(str(path), max_attempts)
-

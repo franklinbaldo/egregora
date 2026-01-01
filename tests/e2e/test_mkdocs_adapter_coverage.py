@@ -69,7 +69,18 @@ def test_get_profiles_data_generates_stats(adapter):
     adapter.persist(post)
 
     # Get stats using the PUBLIC API
-    profiles = adapter.get_profiles_data()
+    from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
+    site_generator = SiteGenerator(
+        site_root=adapter.site_root,
+        docs_dir=adapter.docs_dir,
+        posts_dir=adapter.posts_dir,
+        profiles_dir=adapter.profiles_dir,
+        media_dir=adapter.media_dir,
+        journal_dir=adapter.journal_dir,
+        url_convention=adapter.url_convention,
+        url_context=adapter.url_context,
+    )
+    profiles = site_generator.get_profiles_data()
 
     assert len(profiles) == 1
     p = profiles[0]
