@@ -42,11 +42,11 @@ class TestFeedFeedback(unittest.TestCase):
 
     def test_extract_session_id_from_body(self):
         # Case 4: Link in body
-        body = "Check out the session: https://jules.google.com/sessions/11292279998332410515 for details."
+        body = "Check out the session: https://jules.google/sessions/11292279998332410515 for details."
         self.assertEqual(self.feed_feedback.extract_session_id_from_body(body), "11292279998332410515")
 
         # UUID in body
-        body_uuid = "Session: https://jules.google.com/sessions/123e4567-e89b-12d3-a456-426614174000"
+        body_uuid = "Session: https://jules.google/sessions/123e4567-e89b-12d3-a456-426614174000"
         self.assertEqual(
             self.feed_feedback.extract_session_id_from_body(body_uuid),
             "123e4567-e89b-12d3-a456-426614174000",

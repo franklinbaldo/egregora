@@ -45,7 +45,6 @@ from egregora.init.scaffolding import ensure_mkdocs_project
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
-from egregora.llm.usage import UsageTracker
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
@@ -62,6 +61,7 @@ from egregora.transformations import (
 )
 from egregora.utils.cache import PipelineCache
 from egregora.utils.env import get_google_api_keys, validate_gemini_api_key
+from egregora.utils.metrics import UsageTracker
 from egregora.utils.rate_limit import init_rate_limiter
 
 try:
@@ -78,6 +78,28 @@ console = Console()
 __all__ = ["WhatsAppProcessOptions", "WriteCommandOptions", "process_whatsapp_export", "run", "run_cli_flow"]
 
 MIN_WINDOWS_WARNING_THRESHOLD = 5
+
+
+def run_async_safely(coro: Any) -> Any:
+    """Run an async coroutine safely, handling nested event loops.
+
+    If an event loop is already running (e.g., in Jupyter or nested calls),
+    this will use run_until_complete instead of asyncio.run().
+    """
+    import asyncio
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop - use asyncio.run()
+        return asyncio.run(coro)
+    else:
+        # Loop is already running - use run_until_complete in a new thread
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(asyncio.run, coro)
+            return future.result()
 
 
 @dataclass

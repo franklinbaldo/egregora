@@ -65,8 +65,8 @@ if TYPE_CHECKING:
 
     from egregora.config.settings import EgregoraConfig
     from egregora.data_primitives.protocols import OutputSink
-    from egregora.llm.usage import UsageTracker
     from egregora.orchestration.context import PipelineContext
+    from egregora.utils.metrics import UsageTracker
 
 logger = logging.getLogger(__name__)
 

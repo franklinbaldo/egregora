@@ -25,10 +25,10 @@ if TYPE_CHECKING:
     from egregora.data_primitives.document import OutputSink, UrlContext
     from egregora.database.protocols import StorageProtocol
     from egregora.database.task_store import TaskStore
-    from egregora.llm.usage import UsageTracker
     from egregora.output_adapters import OutputSinkRegistry
     from egregora.rag.embedding_router import EmbeddingRouter
     from egregora.utils.cache import EnrichmentCache, PipelineCache
+    from egregora.utils.metrics import UsageTracker
 
 
 __all__ = [
