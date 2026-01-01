@@ -151,3 +151,29 @@ def test_regenerate_indices_fixes_bug(site_generator: SiteGenerator):
     assert (site_generator.profiles_dir / "index.md").exists()
     assert (site_generator.media_dir / "index.md").exists()
     assert (site_generator.posts_dir / "tags.md").exists()
+
+
+def test_get_profiles_data_no_profiles_dir(site_generator: SiteGenerator):
+    """Test that get_profiles_data returns an empty list if the profiles dir is missing."""
+    import shutil
+    shutil.rmtree(site_generator.profiles_dir)
+    profiles = site_generator.get_profiles_data()
+    assert profiles == []
+
+
+def test_get_recent_media_no_media_dir(site_generator: SiteGenerator):
+    """Test that get_recent_media returns an empty list if the media dir is missing."""
+    import shutil
+    shutil.rmtree(site_generator.media_dir)
+    media = site_generator.get_recent_media()
+    assert media == []
+
+
+def test_regenerate_tags_page_no_tags(site_generator: SiteGenerator):
+    """Test that regenerate_tags_page works correctly when no posts have tags."""
+    create_mock_post_for_generator(
+        site_generator, "post-1", "Post 1", "2025-01-01", ["uuid-1"], [], "Summary 1"
+    )
+    site_generator.regenerate_tags_page()
+    tags_path = site_generator.posts_dir / "tags.md"
+    assert not tags_path.exists()
