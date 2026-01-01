@@ -11,6 +11,10 @@ inputs:
   gemini_api_key:
     description: API key used to call Gemini.
     required: true
+  gemini_debug:
+    description: Enable debug logging for the Gemini CLI.
+    required: false
+    default: 'false'
 
 outputs:
   summary:
@@ -75,6 +79,7 @@ runs:
         gemini_api_key: ${{ inputs.gemini_api_key }}
         gemini_model: ${{ steps.models.outputs.model_0 }}
         prompt: ${{ inputs.prompt }}
+        gemini_debug: ${{ inputs.gemini_debug }}
 
     - name: Run Gemini (fallback 1)
       id: gemini_fallback_1
@@ -85,6 +90,7 @@ runs:
         gemini_api_key: ${{ inputs.gemini_api_key }}
         gemini_model: ${{ steps.models.outputs.model_1 }}
         prompt: ${{ inputs.prompt }}
+        gemini_debug: ${{ inputs.gemini_debug }}
 
     - name: Run Gemini (fallback 2)
       id: gemini_fallback_2
@@ -98,6 +104,7 @@ runs:
         gemini_api_key: ${{ inputs.gemini_api_key }}
         gemini_model: ${{ steps.models.outputs.model_2 }}
         prompt: ${{ inputs.prompt }}
+        gemini_debug: ${{ inputs.gemini_debug }}
 
     - name: Select Gemini result
       id: select
