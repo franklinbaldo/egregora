@@ -1,10 +1,12 @@
 """Tests for structured exception handling in the MkDocsAdapter."""
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
+import yaml
 
-from egregora.data_primitives.document import DocumentType
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.output_adapters.exceptions import (
     AdapterNotInitializedError,
     ConfigLoadError,
@@ -71,3 +73,64 @@ def test_resolve_document_path_raises_adapter_not_initialized_error():
     adapter = MkDocsAdapter()  # Not initialized
     with pytest.raises(AdapterNotInitializedError):
         adapter.resolve_document_path("some/path.md")
+
+
+def test_persist_adds_related_posts_to_frontmatter(adapter: MkDocsAdapter):
+    """Verify that `persist` adds `related_posts` to frontmatter based on shared tags."""
+    # Create some existing posts
+    post1_meta = {"title": "Post 1", "slug": "post-1", "date": "2025-01-01", "tags": ["python", "testing"]}
+    post2_meta = {
+        "title": "Post 2",
+        "slug": "post-2",
+        "date": "2025-01-02",
+        "tags": ["python", "refactoring"],
+    }
+    post3_meta = {"title": "Post 3", "slug": "post-3", "date": "2025-01-03", "tags": ["testing", "devops"]}
+
+    with patch("egregora.output_adapters.mkdocs.markdown.ensure_author_entries"):
+        adapter.persist(Document(content="Content 1", type=DocumentType.POST, metadata=post1_meta))
+        adapter.persist(Document(content="Content 2", type=DocumentType.POST, metadata=post2_meta))
+        adapter.persist(Document(content="Content 3", type=DocumentType.POST, metadata=post3_meta))
+
+    # Create a new post that shares tags with the existing posts
+    new_post_meta = {
+        "title": "New Post",
+        "slug": "new-post",
+        "date": "2025-01-04",
+        "tags": ["python", "devops"],
+    }
+    new_post_content = "This is a new post."
+
+    with patch("egregora.output_adapters.mkdocs.markdown.ensure_author_entries"):
+        adapter.persist(Document(content=new_post_content, type=DocumentType.POST, metadata=new_post_meta))
+
+    # Verify that the new post's frontmatter contains the related posts
+    new_post_path = adapter.posts_dir / "2025-01-04-new-post.md"
+    assert new_post_path.exists()
+
+    with new_post_path.open(encoding="utf-8") as f:
+        _, frontmatter_str, _ = f.read().split("---", 2)
+    frontmatter = yaml.safe_load(frontmatter_str)
+
+    assert "related_posts" in frontmatter
+    related_posts = frontmatter["related_posts"]
+    assert len(related_posts) == 3
+
+    related_titles = {post["title"] for post in related_posts}
+    assert related_titles == {"Post 1", "Post 2", "Post 3"}
+
+
+def test_persist_handles_filename_collisions(adapter: MkDocsAdapter):
+    """Verify that `persist` handles filename collisions by appending a numeric suffix."""
+    post1_meta = {"title": "Collision Post", "slug": "collision-post", "date": "2025-01-16"}
+    post2_meta = {"title": "Collision Post", "slug": "collision-post", "date": "2025-01-16"}
+
+    with patch("egregora.output_adapters.mkdocs.markdown.ensure_author_entries"):
+        adapter.persist(Document(content="Content 1", type=DocumentType.POST, metadata=post1_meta))
+        adapter.persist(Document(content="Content 2", type=DocumentType.POST, metadata=post2_meta))
+
+    first_path = adapter.posts_dir / "2025-01-16-collision-post.md"
+    second_path = adapter.posts_dir / "2025-01-16-collision-post-2.md"
+
+    assert first_path.exists()
+    assert second_path.exists()

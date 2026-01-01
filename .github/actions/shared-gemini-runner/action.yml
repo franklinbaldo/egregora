@@ -15,111 +15,125 @@ inputs:
 outputs:
   summary:
     description: Gemini response summary from the first successful model.
-    value: ${{ steps.gemini_curl.outputs.summary }}
+    value: ${{ steps.run_gemini.outputs.summary }}
   outcome:
     description: Outcome of the Gemini run (success or failure).
-    value: ${{ steps.gemini_curl.outputs.outcome }}
+    value: ${{ steps.run_gemini.outputs.outcome }}
   model:
     description: Model that produced the selected summary.
-    value: ${{ steps.gemini_curl.outputs.model }}
+    value: ${{ steps.run_gemini.outputs.model }}
   diagnostics:
     description: Human-readable attempt log for troubleshooting.
-    value: ${{ steps.gemini_curl.outputs.diagnostics }}
+    value: ${{ steps.run_gemini.outputs.diagnostics }}
   attempts:
     description: JSON array of attempted models in order.
-    value: ${{ steps.gemini_curl.outputs.attempts }}
+    value: ${{ steps.run_gemini.outputs.attempts }}
 
 runs:
   using: composite
   steps:
-    - name: Run Gemini with curl
-      id: gemini_curl
+    - name: Parse fallback models
+      id: models
+      uses: actions/github-script@v8
+      continue-on-error: true
+      env:
+        FALLBACK_MODELS: ${{ inputs.fallback_models }}
+      with:
+        script: |
+          const raw = process.env.FALLBACK_MODELS || '';
+          let models;
+          try {
+            const parsed = JSON.parse(raw);
+            models = Array.isArray(parsed) ? parsed : [];
+          } catch (error) {
+            models = raw.split(',').map(s => s.trim()).filter(Boolean);
+          }
+          if (models.length === 0) {
+            models = ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+            core.warning('No valid models provided, using defaults.');
+          }
+          for (let index = 0; index < 3; index++) {
+            const value = index < models.length ? models[index] : "";
+            core.setOutput(`model_${index}`, value);
+          }
+          core.setOutput('attempts_json', JSON.stringify(models));
+
+    - name: Run Gemini with Fallback
+      id: run_gemini
       shell: bash
       env:
-        PROMPT: ${{ inputs.prompt }}
-        FALLBACK_MODELS: ${{ inputs.fallback_models }}
         GEMINI_API_KEY: ${{ inputs.gemini_api_key }}
+        PROMPT: ${{ inputs.prompt }}
+        MODEL_0: ${{ steps.models.outputs.model_0 }}
+        MODEL_1: ${{ steps.models.outputs.model_1 }}
+        MODEL_2: ${{ steps.models.outputs.model_2 }}
+        ATTEMPTS_JSON: ${{ steps.models.outputs.attempts_json }}
       run: |
-        set -e
-        # Do not use pipefail, as jq might fail on non-json responses, which is expected.
-
-        # 1. Parse models
-        raw_models="$FALLBACK_MODELS"
-        if ! echo "$raw_models" | jq -e '. | length > 0' > /dev/null 2>&1; then
-          echo "::warning::Invalid or empty JSON for fallback_models. Using defaults."
-          raw_models='["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"]'
-        fi
-        mapfile -t models < <(echo "$raw_models" | jq -r '.[]')
-        echo "::debug::Attempting models: ${models[*]}"
-
-        # 2. Prepare prompt payload
-        # Using jq to safely escape the prompt and construct the JSON payload.
-        # This is safer than trying to embed the prompt string directly.
-        json_payload=$(jq -n \
-          --arg prompt "$PROMPT" \
-          '{ "contents": [ { "parts": [ { "text": $prompt } ] } ] }')
-
-        # 3. Loop and call API
+        set +e # Allow curl to fail without exiting the script
+        models=("$MODEL_0" "$MODEL_1" "$MODEL_2")
         diagnostics=()
-        final_summary=""
         final_outcome="failure"
+        final_summary="All Gemini models failed to produce a result."
         final_model=""
 
+        # Use a temporary file for the prompt to handle special characters
+        prompt_file=$(mktemp)
+        echo "$PROMPT" > "$prompt_file"
+
         for model in "${models[@]}"; do
+          if [ -z "$model" ]; then
+            continue
+          fi
+
           echo "Attempting model: $model"
-          api_url="https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$GEMINI_API_KEY"
 
-          # Use a temporary file to store the response body.
+          # Use jq to safely construct the JSON payload from the prompt file
+          payload=$(jq -n --arg prompt_text "$(cat "$prompt_file")" \
+            '{contents: [{parts: [{text: $prompt_text}]}]}')
+
           response_file=$(mktemp)
-
-          # Execute curl, capturing HTTP status code and response body.
-          # We use -w to write the status code to stdout after the response body.
-          http_status=$(curl -s -w "%{http_code}" \
-            -X POST \
+          http_status=$(curl -s -w "%{http_code}" -o "$response_file" \
+            -X POST "https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}" \
             -H "Content-Type: application/json" \
-            -d "$json_payload" \
-            "$api_url" \
-            -o "$response_file")
-
-          response_body=$(<"$response_file")
-          rm -f "$response_file"
-
-          diagnostics+=("Model '$model': HTTP $http_status")
+            -d "$payload")
 
           if [ "$http_status" -eq 200 ]; then
-            # Attempt to parse the summary.
-            # The '|| true' is critical to prevent the script from exiting if jq fails
-            # on a non-JSON response (e.g., an HTML error page from a proxy).
-            summary=$(echo "$response_body" | jq -r '.candidates[0].content.parts[0].text' 2>/dev/null || true)
+            echo "Success with model: $model (HTTP $http_status)"
+            summary=$(jq -r '.candidates[0].content.parts[0].text // ""' "$response_file")
 
             if [ -n "$summary" ]; then
-              echo "Success with model: $model"
-              final_summary="$summary"
               final_outcome="success"
+              final_summary="$summary"
               final_model="$model"
+              diagnostics+=("Model ($model): Success (HTTP 200)")
               break # Exit loop on first success
             else
-              diagnostics+=("Model '$model' response parsing failed. Body: $response_body")
+              echo "Model $model returned success but with empty content."
+              error_message="Empty content in response."
+              diagnostics+=("Model ($model): Failed (HTTP 200) - ${error_message}")
+              final_summary="Model ${model} failed: ${error_message}"
             fi
           else
-             diagnostics+=("Model '$model' request failed. Body: $response_body")
+            echo "Failure with model: $model (HTTP $http_status)"
+            error_message=$(jq -r '.error.message // "Unknown error."' "$response_file")
+            diagnostics+=("Model ($model): Failed (HTTP $http_status) - ${error_message}")
+            final_summary="Model ${model} failed: ${error_message}"
           fi
         done
 
-        if [ "$final_outcome" != "success" ]; then
-          final_summary="All Gemini API calls failed."
-        fi
+        diagnostics_string=$(printf "%s; " "${diagnostics[@]}")
 
-        # 4. Set outputs
-        joined_diagnostics=$(printf "; %s" "${diagnostics[@]}")
-        joined_diagnostics=${joined_diagnostics:2}
-
+        # Use heredoc for multiline-safe output
         {
-          echo "summary<<'EOF'"
+          echo "summary<<EOF"
           echo "$final_summary"
           echo "EOF"
           echo "outcome=$final_outcome"
           echo "model=$final_model"
-          echo "diagnostics=$joined_diagnostics"
-          echo "attempts=$raw_models"
+          echo "diagnostics=$diagnostics_string"
+          echo "attempts=$ATTEMPTS_JSON"
         } >> "$GITHUB_OUTPUT"
+
+        # Clean up temp files
+        rm -f "$prompt_file"
+        rm -f "$response_file"

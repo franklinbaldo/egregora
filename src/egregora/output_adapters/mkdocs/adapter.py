@@ -15,15 +15,13 @@ from __future__ import annotations
 
 import logging
 import shutil
-from collections import Counter
 from contextlib import suppress
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import frontmatter
 import yaml
-from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.data_primitives.document import (
     Document,
@@ -41,15 +39,12 @@ from egregora.output_adapters.exceptions import (
     ConfigLoadError,
     DocumentNotFoundError,
     DocumentParsingError,
-    IncompleteProfileError,
     ProfileMetadataError,
-    ProfileNotFoundError,
     UnsupportedDocumentTypeError,
 )
+from egregora.output_adapters.mkdocs.markdown import write_markdown_post
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
-from egregora.utils.authors import ensure_author_entries
-from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.paths import slugify
 
 if TYPE_CHECKING:
@@ -120,7 +115,6 @@ class MkDocsAdapter(BaseOutputSink):
 
         # Internal dispatch for writers and path resolvers
         self._writers = {
-            DocumentType.POST: self._write_post_doc,
             DocumentType.PROFILE: self._write_profile_doc,
             DocumentType.MEDIA: self._write_media_doc,
             DocumentType.JOURNAL: self._write_journal_doc,
@@ -218,9 +212,37 @@ class MkDocsAdapter(BaseOutputSink):
 
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Dispatch to specific writer if available, else generic
-        writer = self._writers.get(document.type, self._write_generic_doc)
-        writer(document, path)
+        if document.type == DocumentType.POST:
+            metadata = document.metadata
+            # Add related posts based on shared tags
+            current_tags = set(metadata.get("tags", []))
+            current_slug = metadata.get("slug")
+            if current_tags and current_slug:
+                all_posts = list(self.documents())
+                related_posts_list = []
+                for post in all_posts:
+                    if post.type != DocumentType.POST:
+                        continue
+                    post_slug = post.metadata.get("slug")
+                    if post_slug == current_slug:
+                        continue
+                    post_tags = set(post.metadata.get("tags", []))
+                    shared_tags = current_tags & post_tags
+                    if shared_tags:
+                        related_posts_list.append(
+                            {
+                                "title": post.metadata.get("title"),
+                                "url": self.url_convention.canonical_url(post, self._ctx),
+                                "reading_time": post.metadata.get("reading_time", 5),
+                            }
+                        )
+                if related_posts_list:
+                    metadata["related_posts"] = related_posts_list
+            write_markdown_post(document.content, metadata, self.posts_dir)
+        else:
+            # Dispatch to specific writer if available, else generic
+            writer = self._writers.get(document.type, self._write_generic_doc)
+            writer(document, path)
 
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
@@ -656,11 +678,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Post-processing hook called after writer agent completes a window."""
-        logger.info("Finalizing window: %s", window_label)
-        self.regenerate_main_index()
-        self.regenerate_profiles_index()
-        self.regenerate_media_index()
-        self.regenerate_tags_page()
+        logger.info(
+            "Finalizing window: %s. Site generation is now handled by the orchestration layer.", window_label
+        )
+        # Site generation logic has been moved to the SiteGenerator class.
+        # The orchestrator is responsible for calling it.
 
     def _detect_document_type(self, path: Path) -> DocumentType:
         """Detect document type from path and (when needed) frontmatter."""
@@ -944,52 +966,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         metadata["categories"] = categories
         return metadata
 
-    def _write_post_doc(self, document: Document, path: Path) -> None:
-        metadata = dict(document.metadata or {})
-
-        # Posts don't need a forced category - Material blog shows uncategorized posts in main feed
-        # But ensure categories is a list if present
-        if "categories" in metadata and not isinstance(metadata["categories"], list):
-            metadata["categories"] = []
-
-        if "date" in metadata:
-            # Parse to datetime object for proper YAML serialization (unquoted)
-            # Material blog plugin requires native datetime type, not string
-            dt = parse_datetime_flexible(metadata["date"])
-            if dt:
-                metadata["date"] = dt
-        if "authors" in metadata:
-            ensure_author_entries(path.parent, metadata.get("authors"))
-
-        # Add related posts based on shared tags
-        current_tags = set(metadata.get("tags", []))
-        current_slug = metadata.get("slug")
-        if current_tags and current_slug:
-            all_posts = list(self.documents())
-            related_posts_list = []
-            for post in all_posts:
-                if post.type != DocumentType.POST:
-                    continue
-                post_slug = post.metadata.get("slug")
-                if post_slug == current_slug:
-                    continue
-                post_tags = set(post.metadata.get("tags", []))
-                shared_tags = current_tags & post_tags
-                if shared_tags:
-                    related_posts_list.append(
-                        {
-                            "title": post.metadata.get("title"),
-                            "url": self.url_convention.canonical_url(post, self._ctx),
-                            "reading_time": post.metadata.get("reading_time", 5),
-                        }
-                    )
-            if related_posts_list:
-                metadata["related_posts"] = related_posts_list
-
-        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
-        full_content = f"---\n{yaml_front}---\n\n{document.content}"
-        path.write_text(full_content, encoding="utf-8")
-
     def _write_journal_doc(self, document: Document, path: Path) -> None:
         metadata = self._ensure_hidden(dict(document.metadata or {}))
 
@@ -1170,497 +1146,3 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             max_attempts = 1000
             if counter > max_attempts:
                 raise CollisionResolutionError(str(path), max_attempts)
-
-    # ============================================================================
-    # Phase 2: Dynamic Data Population for UX Templates
-    # ============================================================================
-
-    def get_site_stats(self) -> dict[str, int]:
-        """Calculate site statistics for homepage.
-
-        Returns:
-            Dictionary with post_count, profile_count, media_count, journal_count
-
-        """
-        stats = {
-            "post_count": 0,
-            "profile_count": 0,
-            "media_count": 0,
-            "journal_count": 0,
-        }
-
-        if not hasattr(self, "posts_dir") or not self.posts_dir:
-            return stats
-
-        # Count posts (exclude index.md and tags.md)
-        if self.posts_dir.exists():
-            stats["post_count"] = len(
-                [p for p in self.posts_dir.glob("*.md") if p.name not in {"index.md", "tags.md"}]
-            )
-
-        # Count profiles (unique authors with at least one profile doc)
-        if self.profiles_dir.exists():
-            author_dirs = [p for p in self.profiles_dir.iterdir() if p.is_dir()]
-            stats["profile_count"] = len(author_dirs)
-
-        # Count media (URLs + images + videos + audio - exclude indexes)
-        if self.media_dir.exists():
-            all_media = list(self.media_dir.rglob("*.md"))
-            stats["media_count"] = len([p for p in all_media if p.name != "index.md"])
-
-        # Count journal entries by category
-        if self.posts_dir.exists():
-            journal_count = 0
-            for path in self.posts_dir.glob("*.md"):
-                if path.name in {"index.md", "tags.md"}:
-                    continue
-                if self._detect_document_type(path) == DocumentType.JOURNAL:
-                    journal_count += 1
-            stats["journal_count"] = journal_count
-
-        return stats
-
-    def get_profiles_data(self) -> list[dict[str, Any]]:
-        """Extract profile metadata for profiles index, including calculated stats."""
-        profiles = []
-        all_posts = list(self.documents())  # Inefficient, but necessary for stats
-
-        if not hasattr(self, "profiles_dir") or not self.profiles_dir.exists():
-            return profiles
-        for author_dir in sorted([p for p in self.profiles_dir.iterdir() if p.is_dir()]):
-            try:
-                candidates = [p for p in author_dir.glob("*.md") if p.name != "index.md"]
-                if not candidates:
-                    continue
-                profile_path = max(candidates, key=lambda p: p.stat().st_mtime_ns)
-                post = frontmatter.load(str(profile_path))
-                metadata = post.metadata
-                author_uuid = author_dir.name
-
-                author_posts = [
-                    post
-                    for post in all_posts
-                    if post.metadata and author_uuid in post.metadata.get("authors", [])
-                ]
-
-                post_count = len(author_posts)
-                word_count = sum(len(post.content.split()) for post in author_posts)
-
-                topics = {}
-                for post in author_posts:
-                    for tag in post.metadata.get("tags", []):
-                        topics[tag] = topics.get(tag, 0) + 1
-
-                top_topics = sorted(topics.items(), key=lambda item: item[1], reverse=True)
-
-                avatar = metadata.get("avatar", "")
-                # Generate fallback avatar if missing
-                if not avatar:
-                    avatar = generate_fallback_avatar_url(author_uuid)
-
-                profiles.append(
-                    {
-                        "uuid": author_uuid,
-                        "name": metadata.get("name", author_uuid[:8]),
-                        "avatar": avatar,
-                        "bio": metadata.get("bio", "Profile pending - first contributions detected"),
-                        "post_count": post_count,
-                        "word_count": word_count,
-                        "topics": [topic for topic, count in top_topics],
-                        "topic_counts": top_topics,
-                        "member_since": metadata.get("member_since", "2024"),  # Placeholder
-                    }
-                )
-            except (OSError, yaml.YAMLError) as e:
-                # Fail fast on parsing errors instead of swallowing them
-                raise DocumentParsingError(str(profile_path), str(e)) from e
-
-        return profiles
-
-    def get_recent_media(self, limit: int = 5) -> list[dict[str, Any]]:
-        """Get recent media items for media index.
-
-        URL enrichments live in posts/media/urls (ADR-0004).
-
-        Args:
-            limit: Maximum number of items to return
-
-        Returns:
-            List of media dictionaries with title, url, slug, summary
-
-        """
-        media_items = []
-
-        urls_dir = getattr(self, "urls_dir", self.media_dir / "urls")
-        if not urls_dir.exists():
-            return media_items
-
-        url_files = sorted(
-            [p for p in urls_dir.glob("*.md") if p.name != "index.md"],
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )[:limit]
-
-        for media_path in url_files:
-            try:
-                post = frontmatter.load(str(media_path))
-                metadata, body = post.metadata, post.content
-
-                # Extract summary from content
-                summary = ""
-                if "## Summary" in body:
-                    summary_part = body.split("## Summary", 1)[1].split("##", 1)[0]
-                    summary = summary_part.strip()[:200]
-
-                media_items.append(
-                    {
-                        "title": metadata.get("title", media_path.stem),
-                        "url": metadata.get("url", ""),
-                        "slug": metadata.get("slug", media_path.stem),
-                        "summary": summary or metadata.get("description", ""),
-                    }
-                )
-            except (OSError, yaml.YAMLError) as e:
-                raise DocumentParsingError(str(media_path), str(e)) from e
-
-        return media_items
-
-    def _append_author_cards(self, content: str, author_ids: list[str]) -> str:
-        """Append author cards to post content using Jinja template.
-
-        Args:
-            content: Post markdown content
-            author_ids: List of author UUIDs
-
-        Returns:
-            Content with author cards appended
-
-        """
-        if not author_ids:
-            return content
-
-        # Load .authors.yml
-        authors_file = None
-        if hasattr(self, "site_root") and self.site_root:
-            for potential_path in [
-                self.site_root / "docs" / ".authors.yml",
-                self.site_root / ".authors.yml",
-            ]:
-                if potential_path.exists():
-                    authors_file = potential_path
-                    break
-
-        if not authors_file:
-            return content
-
-        try:
-            with authors_file.open("r", encoding="utf-8") as f:
-                authors_db = yaml.safe_load(f) or {}
-        except (OSError, yaml.YAMLError) as e:
-            logger.warning("Failed to load .authors.yml: %s", e)
-            return content
-
-        # Build author data for template
-        authors_data = []
-        for author_id in author_ids:
-            author = authors_db.get(author_id, {})
-            name = author.get("name", author_id[:8])
-            avatar = author.get("avatar", "")
-
-            # Generate fallback avatar if not set
-            if not avatar:
-                avatar = generate_fallback_avatar_url(author_id)
-
-            authors_data.append(
-                {
-                    "uuid": author_id,
-                    "name": name,
-                    "avatar": avatar,
-                }
-            )
-
-        # Render using Jinja template
-        try:
-            templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
-            env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
-            template = env.get_template("partials/author_cards.jinja")
-            author_cards_html = template.render(authors=authors_data)
-            return content.rstrip() + "\n" + author_cards_html
-        except (OSError, TemplateError) as e:
-            logger.warning("Failed to render author cards template: %s", e)
-            return content
-
-    def regenerate_tags_page(self) -> None:
-        """Regenerate the tags.md page with current tag frequencies for word cloud visualization.
-
-        Collects all tags from posts, calculates frequencies, and renders an updated
-        tags page with interactive word cloud and alphabetical list.
-        """
-        if not hasattr(self, "posts_dir") or not self.posts_dir.exists():
-            logger.debug("Posts directory not found, skipping tags page regeneration")
-            return
-
-        # Collect all tags from posts
-        tag_counts: Counter = Counter()
-        all_posts = list(self.documents())
-
-        for post in all_posts:
-            if post.type != DocumentType.POST:
-                continue
-            tags = post.metadata.get("tags", [])
-            for tag in tags:
-                if isinstance(tag, str) and tag.strip():
-                    tag_counts[tag.strip()] += 1
-
-        if not tag_counts:
-            logger.info("No tags found in posts, skipping tags page regeneration")
-            return
-
-        # Calculate frequency levels (1-10 scale) for word cloud sizing
-        max_count = max(tag_counts.values())
-        min_count = min(tag_counts.values())
-        count_range = max_count - min_count if max_count > min_count else 1
-
-        tags_data = []
-        for tag_name, count in tag_counts.items():
-            # Normalize to 1-10 scale for CSS data-frequency attribute
-            if count_range > 0:
-                frequency_level = int(((count - min_count) / count_range) * 9) + 1
-            else:
-                frequency_level = 5  # Middle value if all tags have same count
-
-            tags_data.append(
-                {
-                    "name": tag_name,
-                    "slug": slugify(tag_name),
-                    "count": count,
-                    "frequency_level": min(10, max(1, frequency_level)),
-                }
-            )
-
-        # Sort by count (descending) for word cloud
-        tags_data.sort(key=lambda x: x["count"], reverse=True)
-
-        # Render the tags page template
-        try:
-            templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
-            env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
-
-            template = env.get_template("docs/posts/tags.md.jinja")
-            content = template.render(
-                tags=tags_data,
-                generated_date=datetime.now(UTC).strftime("%Y-%m-%d"),
-            )
-
-            tags_path = self.posts_dir / "tags.md"
-            tags_path.write_text(content, encoding="utf-8")
-            logger.info("Regenerated tags page with %d unique tags", len(tags_data))
-
-        except (OSError, TemplateError):
-            logger.exception("Failed to regenerate tags page")
-
-    def regenerate_main_index(self) -> None:
-        """Regenerates the main index.md from a template."""
-        if not self._initialized:
-            logger.warning("Adapter not initialized, skipping main index regeneration.")
-            return
-
-        try:
-            stats = self.get_site_stats()
-            recent_media = self.get_recent_media(limit=5)
-            profiles = self.get_profiles_data()
-
-            template = self._template_env.get_template("docs/index.md.jinja")
-            content = template.render(
-                stats=stats,
-                recent_media=recent_media,
-                profiles=profiles,
-                generated_date=datetime.now(UTC).strftime("%Y-%m-%d"),
-            )
-
-            index_path = self.docs_dir / "index.md"
-            index_path.write_text(content, encoding="utf-8")
-            logger.info("Regenerated main index page at %s", index_path)
-
-        except (OSError, TemplateError):
-            logger.exception("Failed to regenerate main index page")
-
-    def regenerate_profiles_index(self) -> None:
-        """Regenerates the profiles index.md from a template."""
-        if not self._initialized:
-            logger.warning("Adapter not initialized, skipping profiles index regeneration.")
-            return
-
-        try:
-            profiles = self.get_profiles_data()
-
-            template = self._template_env.get_template("docs/profiles/index.md.jinja")
-            content = template.render(
-                profiles=profiles,
-                generated_date=datetime.now(UTC).strftime("%Y-%m-%d"),
-            )
-
-            index_path = self.profiles_dir / "index.md"
-            index_path.write_text(content, encoding="utf-8")
-            logger.info("Regenerated profiles index page with %d profiles at %s", len(profiles), index_path)
-
-        except (OSError, TemplateError):
-            logger.exception("Failed to regenerate profiles index page")
-
-    def regenerate_media_index(self) -> None:
-        """Regenerates the media index.md from a template."""
-        if not self._initialized:
-            logger.warning("Adapter not initialized, skipping media index regeneration.")
-            return
-
-        try:
-            # Use a higher limit for the index page to show more items
-            recent_media = self.get_recent_media(limit=50)
-
-            template = self._template_env.get_template("docs/media/index.md.jinja")
-            content = template.render(
-                media_items=recent_media,
-                generated_date=datetime.now(UTC).strftime("%Y-%m-%d"),
-            )
-
-            index_path = self.media_dir / "index.md"
-            index_path.write_text(content, encoding="utf-8")
-            logger.info("Regenerated media index page with %d items at %s", len(recent_media), index_path)
-
-        except (OSError, TemplateError):
-            logger.exception("Failed to regenerate media index page")
-
-    def get_author_profile(self, author_uuid: str) -> dict:
-        """Public alias for _build_author_profile."""
-        return self._build_author_profile(author_uuid)
-
-    def _build_author_profile(self, author_uuid: str) -> dict:
-        """Build author profile by scanning all their posts chronologically.
-
-        Sequential metadata updates: later posts override earlier values.
-
-        Args:
-            author_uuid: UUID of the author
-
-        Returns:
-            Profile dictionary with derived state
-
-        """
-        # Use full UUID for consistency
-        author_dir = self.posts_dir / "authors" / author_uuid
-        if not author_dir.exists():
-            raise ProfileNotFoundError(author_uuid)
-
-        posts = sorted(author_dir.glob("*.md"), key=lambda p: p.stem)
-
-        profile = {
-            "uuid": author_uuid,
-            "name": None,
-            "bio": None,
-            "avatar": None,
-            "interests": set(),
-            "posts": [],
-        }
-
-        for post_path in posts:
-            if post_path.name == "index.md":
-                continue
-
-            frontmatter = self._parse_frontmatter(post_path)
-            authors = frontmatter.get("authors", [])
-
-            # Find this author's metadata in the post
-            for author in authors:
-                if isinstance(author, dict):
-                    author_uuid_in_post = author.get("uuid", "")
-                    # Use exact match now that we use full UUIDs everywhere.
-                    # Legacy deployments with truncated UUIDs in frontmatter will need
-                    # to update their markdown files during migration.
-                    if author_uuid_in_post == author_uuid:
-                        # Sequential merge: later values win
-                        if "name" in author:
-                            profile["name"] = author["name"]
-                        if "bio" in author:
-                            profile["bio"] = author["bio"]
-                        if "avatar" in author:
-                            profile["avatar"] = author["avatar"]
-                        if "interests" in author:
-                            profile["interests"].update(author["interests"])
-
-            # Track this post
-            profile["posts"].append(
-                {
-                    "title": frontmatter.get("title", post_path.stem),
-                    "date": frontmatter.get("date", ""),
-                    "slug": post_path.stem,
-                    "path": post_path,
-                }
-            )
-
-        if not profile["name"]:
-            # No valid profile without a name
-            raise IncompleteProfileError(author_uuid, "No name found in any of the author's posts")
-
-        profile["interests"] = sorted(profile["interests"])
-        return profile
-
-    def _render_author_index(self, profile: dict) -> str:
-        """Render author index.md content from profile data.
-
-        Args:
-            profile: Profile dictionary with derived state
-
-        Returns:
-            Markdown content for index.md
-
-        """
-        # Generate avatar HTML if available
-        avatar_html = ""
-        if profile.get("avatar"):
-            avatar_html = f"![Avatar]({profile['avatar']}){{ align=left width=150 }}\n\n"
-
-        # Build post list (newest first)
-        posts_md = "\n".join(
-            [f"- [{p['title']}]({p['slug']}.md) - {p['date']}" for p in reversed(profile["posts"])]
-        )
-
-        # Build frontmatter
-        return f"""---
-title: {profile["name"]}
-type: profile
-uuid: {profile["uuid"]}
-avatar: {profile.get("avatar", "")}
-bio: {profile.get("bio", "")}
-interests: {profile.get("interests", [])}
----
-
-{avatar_html}# {profile["name"]}
-
-{profile.get("bio", "")}
-
-## Posts ({len(profile["posts"])})
-
-{posts_md}
-
-## Interests
-
-{", ".join(profile.get("interests", []))}
-"""
-
-
-# ============================================================================
-# MkDocs filesystem storage helpers
-# ============================================================================
-
-# Moved to src/egregora/utils/filesystem.py
-
-
-def secure_path_join(base_dir: Path, user_path: str) -> Path:
-    """Safely join ``user_path`` to ``base_dir`` preventing directory traversal."""
-    full_path = (base_dir / user_path).resolve()
-    try:
-        full_path.relative_to(base_dir.resolve())
-    except ValueError as exc:
-        msg = f"Path traversal detected: {user_path!r} escapes base directory {base_dir}"
-        raise ValueError(msg) from exc
-    return full_path
