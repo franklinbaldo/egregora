@@ -95,7 +95,9 @@ def test_write_markdown_post_with_full_metadata(tmp_path: Path):
     }
     output_dir = tmp_path
 
-    with patch("egregora.output_adapters.mkdocs.markdown_writer.ensure_author_entries") as mock_ensure_authors:
+    with patch(
+        "egregora.output_adapters.mkdocs.markdown_writer.ensure_author_entries"
+    ) as mock_ensure_authors:
         filepath_str = write_markdown_post(content, metadata, output_dir)
         filepath = Path(filepath_str)
 
@@ -152,6 +154,7 @@ def test_write_post_file_raises_file_write_error():
 
 
 # endregion
+
 
 @pytest.fixture
 def temp_output_dir(tmp_path: Path) -> Path:
