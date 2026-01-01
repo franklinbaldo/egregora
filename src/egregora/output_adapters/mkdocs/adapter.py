@@ -14,11 +14,10 @@ MODERN (2025-11-18): Imports site path resolution from
 from __future__ import annotations
 
 import logging
-import re
 import shutil
 from collections import Counter
 from contextlib import suppress
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -40,28 +39,18 @@ from egregora.output_adapters.exceptions import (
     AdapterNotInitializedError,
     CollisionResolutionError,
     ConfigLoadError,
-    DateExtractionError,
-    DirectoryCreationError,
     DocumentNotFoundError,
     DocumentParsingError,
-    FileWriteError,
-    FrontmatterDateFormattingError,
     IncompleteProfileError,
-    MissingMetadataError,
     ProfileMetadataError,
     ProfileNotFoundError,
-    UniqueFilenameError,
     UnsupportedDocumentTypeError,
 )
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
-from egregora.utils.datetime_utils import (
-    DateTimeParsingError,
-    InvalidDateTimeInputError,
-    parse_datetime_flexible,
-)
-from egregora.utils.filesystem import ensure_author_entries
-from egregora.utils.paths import safe_path_join, slugify
+from egregora.utils.authors import ensure_author_entries
+from egregora.utils.datetime_utils import parse_datetime_flexible
+from egregora.utils.paths import slugify
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -1663,112 +1652,15 @@ interests: {profile.get("interests", [])}
 # MkDocs filesystem storage helpers
 # ============================================================================
 
-
 # Moved to src/egregora/utils/filesystem.py
-def _extract_clean_date(date_obj: str | date | datetime) -> str:
-    """Extract a clean ``YYYY-MM-DD`` date from user-provided input."""
-    if isinstance(date_obj, datetime):
-        return date_obj.date().isoformat()
-    if isinstance(date_obj, date):
-        return date_obj.isoformat()
 
-    date_str = str(date_obj).strip()
 
-    # Fallback to regex for strings to find dates within larger text bodies.
-    match = re.search(r"(\d{4}-\d{2}-\d{2})", date_str)
-    if not match:
-        raise DateExtractionError(date_str)
-
+def secure_path_join(base_dir: Path, user_path: str) -> Path:
+    """Safely join ``user_path`` to ``base_dir`` preventing directory traversal."""
+    full_path = (base_dir / user_path).resolve()
     try:
-        # Use our robust parser on the *matched part* of the string.
-        parsed_dt = parse_datetime_flexible(match.group(1))
-        return parsed_dt.date().isoformat()
-    except (DateTimeParsingError, InvalidDateTimeInputError) as e:
-        # The pattern was not a valid date (e.g., "2023-99-99"), so fallback.
-        raise DateExtractionError(date_str, e) from e
-
-
-def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
-    """Normalize a metadata date into the RSS-friendly ``YYYY-MM-DD HH:MM`` string."""
-    try:
-        dt = parse_datetime_flexible(raw_date, default_timezone=UTC)
-        return dt.strftime("%Y-%m-%d %H:%M")
-    except (DateTimeParsingError, AttributeError, ValueError, InvalidDateTimeInputError) as e:
-        # This will be raised if parse_datetime_flexible fails,
-        # which covers all failure modes (None input, empty strings, bad data).
-        raise FrontmatterDateFormattingError(str(raw_date), e) from e
-
-
-def _prepare_frontmatter(metadata: dict[str, Any], slug: str) -> dict[str, Any]:
-    """Prepare the YAML frontmatter dictionary from post metadata."""
-    front_matter = {
-        "title": metadata["title"],
-        "slug": slug,
-        "date": format_frontmatter_datetime(metadata["date"]),
-    }
-    for key in ["tags", "summary", "authors", "category"]:
-        if key in metadata:
-            front_matter[key] = metadata[key]
-    return front_matter
-
-
-def _resolve_filepath(
-    output_dir: Path, date_prefix: str, base_slug: str, max_attempts: int = 100
-) -> tuple[Path, str]:
-    """Resolve a unique filepath and slug, handling collisions."""
-    original_filename = f"{date_prefix}-{base_slug}.md"
-    original_filepath = safe_path_join(output_dir, original_filename)
-
-    if not original_filepath.exists():
-        return original_filepath, base_slug
-
-    for i in range(2, max_attempts + 2):
-        slug_candidate = f"{base_slug}-{i}"
-        filename = f"{date_prefix}-{slug_candidate}.md"
-        filepath = safe_path_join(output_dir, filename)
-        if not filepath.exists():
-            return filepath, slug_candidate
-
-    raise UniqueFilenameError(base_slug, max_attempts)
-
-
-def _validate_post_metadata(metadata: dict[str, Any]) -> None:
-    """Ensure required metadata keys are present."""
-    required = {"title", "slug", "date"}
-    missing_keys = list(required - set(metadata.keys()))
-    if missing_keys:
-        raise MissingMetadataError(missing_keys)
-
-
-def _write_post_file(filepath: Path, content: str, front_matter: dict[str, Any]) -> None:
-    """Construct the full post content and write it to a file."""
-    yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
-    full_post = f"---\n{yaml_front}---\n\n{content}"
-    try:
-        filepath.write_text(full_post, encoding="utf-8")
-    except OSError as e:
-        raise FileWriteError(str(filepath), e) from e
-
-
-def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:
-    """Save a markdown post with YAML front matter and unique slugging."""
-    _validate_post_metadata(metadata)
-
-    try:
-        output_dir.mkdir(parents=True, exist_ok=True)
-    except OSError as e:
-        raise DirectoryCreationError(str(output_dir), e) from e
-
-    date_prefix = _extract_clean_date(metadata["date"])
-    base_slug = slugify(metadata["slug"])
-
-    filepath, final_slug = _resolve_filepath(output_dir, date_prefix, base_slug)
-
-    front_matter = _prepare_frontmatter(metadata, final_slug)
-
-    if "authors" in front_matter:
-        ensure_author_entries(output_dir, front_matter.get("authors"))
-
-    _write_post_file(filepath, content, front_matter)
-
-    return str(filepath)
+        full_path.relative_to(base_dir.resolve())
+    except ValueError as exc:
+        msg = f"Path traversal detected: {user_path!r} escapes base directory {base_dir}"
+        raise ValueError(msg) from exc
+    return full_path
