@@ -28,7 +28,7 @@ from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import ibis
-import ibis.common.exceptions
+import ibis.common.exceptions  # type: ignore[import-not-found]
 from google import genai
 from rich.console import Console
 from rich.panel import Panel
@@ -41,7 +41,6 @@ from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker,
 from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.types import PromptTooLargeError, WriterResources
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
@@ -56,11 +55,9 @@ from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
-from egregora.orchestration.exceptions import WindowSizeError
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.modules.media import process_media_for_window
 from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
-from egregora.orchestration.runner import PipelineRunner
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import MkDocsPaths
 from egregora.rag import index_documents, reset_backend
@@ -78,7 +75,7 @@ from egregora.utils.metrics import UsageTracker
 from egregora.utils.rate_limit import init_rate_limiter
 
 try:
-    import dotenv
+    import dotenv  # type: ignore[import-not-found]
 except ImportError:
     dotenv = None
 
@@ -619,10 +616,10 @@ def _calculate_max_window_size(config: EgregoraConfig) -> int:
     """Calculate maximum window size based on LLM context window."""
     use_full_window = getattr(config.pipeline, "use_full_context_window", False)
     # Corresponds to a 1M token context window, expressed in characters
-    FULL_CONTEXT_WINDOW_SIZE = 1_048_576
+    full_context_window_size = 1_048_576
 
     if use_full_window:
-        max_tokens = FULL_CONTEXT_WINDOW_SIZE
+        max_tokens = full_context_window_size
     else:
         max_tokens = config.pipeline.max_prompt_tokens
 
@@ -689,7 +686,7 @@ def get_pending_conversations(dataset: PreparedPipelineData) -> Iterator[Convers
             adapter=ctx.adapter,
             url_convention=output_sink.url_convention,
             url_context=url_context,
-            zip_path=ctx.input_path,
+            zip_path=ctx.input_path,  # type: ignore[arg-type]
         )
 
         # Persist media if enrichment disabled (otherwise enrichment handles it/updates it)
@@ -746,7 +743,8 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         for cmd_msg in command_messages:
             try:
                 announcement = command_to_announcement(cmd_msg)
-                output_sink.persist(announcement)
+                if output_sink:
+                    output_sink.persist(announcement)
                 announcements_generated += 1
             except Exception as exc:
                 logger.exception("Failed to generate announcement: %s", exc)
@@ -785,7 +783,8 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     for post in posts:
         if hasattr(post, "document_id"):  # Is a Document
              try:
-                output_sink.persist(post)
+                if output_sink:
+                    output_sink.persist(post)
              except Exception as exc:
                 logger.exception("Failed to persist post: %s", exc)
 
@@ -799,7 +798,8 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         )
         for profile_doc in profile_docs:
             try:
-                output_sink.persist(profile_doc)
+                if output_sink:
+                    output_sink.persist(profile_doc)
                 profiles.append(profile_doc.document_id)
             except Exception as exc:
                 logger.exception("Failed to persist profile: %s", exc)
@@ -1525,7 +1525,9 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             process_background_tasks(dataset.context)
 
             # Regenerate tags page with word cloud visualization
-            if hasattr(dataset.context.output_format, "regenerate_tags_page"):
+            if dataset.context.output_format and hasattr(
+                dataset.context.output_format, "regenerate_tags_page"
+            ):
                 try:
                     logger.info("[bold cyan]🏷️  Regenerating tags page with word cloud...[/]")
                     dataset.context.output_format.regenerate_tags_page()
