@@ -175,6 +175,37 @@ def test_migration_is_idempotent():
     # Assert that the data has not changed
     assert dict_after_first == dict_after_second
 
+def test_migration_on_minimal_table_covers_all_defaults():
+    """
+    This test is specifically designed to maximize code coverage for the
+    migration script by creating the most minimal possible legacy table
+    and asserting every default value.
+    """
+    conn = duckdb.connect(":memory:")
+
+    # Create a minimal legacy table with only the id column
+    conn.execute("CREATE TABLE documents (id VARCHAR);")
+    conn.execute("INSERT INTO documents (id) VALUES ('minimal-1')")
+
+    # Run the migration
+    migrate_to_v3_documents_table(conn)
+
+    # Verify the migrated data
+    res = conn.execute("SELECT * FROM documents")
+    result = dict(zip([desc[0] for desc in res.description], res.fetchone()))
+
+    # Assert EVERY non-nullable field has the correct default value
+    assert result["id"] == "minimal-1"
+    assert result["title"] == ""
+    assert result["updated"] is not None
+    assert isinstance(result["updated"], datetime)
+    assert json.loads(result["links"]) == []
+    assert json.loads(result["authors"]) == []
+    assert json.loads(result["contributors"]) == []
+    assert json.loads(result["categories"]) == []
+    assert json.loads(result["extensions"]) == {}
+    assert json.loads(result["internal_metadata"]) == {}
+
 def test_migration_with_various_missing_columns():
     """
     Tests that the migration script correctly populates default values
