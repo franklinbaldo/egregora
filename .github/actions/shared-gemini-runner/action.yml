@@ -116,6 +116,15 @@ runs:
       run: |
         set -euo pipefail
 
+        echo "--- DEBUGGING GEMINI OUTPUTS ---"
+        echo "Primary Outcome: $PRIMARY_OUTCOME"
+        echo "Primary Summary: $PRIMARY_SUMMARY"
+        echo "Fallback 1 Outcome: $FALLBACK_ONE_OUTCOME"
+        echo "Fallback 1 Summary: $FALLBACK_ONE_SUMMARY"
+        echo "Fallback 2 Outcome: $FALLBACK_TWO_OUTCOME"
+        echo "Fallback 2 Summary: $FALLBACK_TWO_SUMMARY"
+        echo "--------------------------------"
+
         final_outcome="$PRIMARY_OUTCOME"
         final_summary="$PRIMARY_SUMMARY"
         final_model="$PRIMARY_MODEL"
