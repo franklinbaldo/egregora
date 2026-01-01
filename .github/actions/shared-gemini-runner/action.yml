@@ -152,12 +152,18 @@ runs:
           diagnostics+=("Fallback 2 (${FALLBACK_TWO_MODEL}): ${FALLBACK_TWO_OUTCOME:-not_run}")
         fi
 
+        # Safely join the diagnostics array into a single string.
+        # https://stackoverflow.com/a/17841619
+        joined_diagnostics=$(printf "; %s" "${diagnostics[@]}")
+        joined_diagnostics=${joined_diagnostics:2} # remove leading '; '
+
+
         {
           echo "summary<<'EOF'"
           echo "$final_summary"
           echo "EOF"
           echo "outcome=$final_outcome"
           echo "model=$final_model"
-          echo "diagnostics=${diagnostics[*]}"
+          echo "diagnostics=$joined_diagnostics"
           echo "attempts=$ATTEMPTS_JSON"
         } >> "$GITHUB_OUTPUT"
