@@ -1,6 +1,14 @@
 # Automated PR Code Review with Gemini
 
-This repository uses an automated code review system powered by Google's Gemini AI to provide comprehensive, candid feedback on every pull request.
+This repository uses an automated code review system powered by Google's Gemini AI to provide comprehensive, candid feedback on every pull request. The PR review workflow now performs three tasks in a **single Gemini invocation**: (1) code review comment, (2) merge gating decision, and (3) optional PR title/description rewrite. Everything runs through the same `google-github-actions/run-gemini-cli@v0` runner for consistent authentication, diagnostics, and model selection.
+
+## Runner & Model Routing
+
+- **Shared runner:** All Gemini tasks (review, merge decision, PR rewrite) invoke the same runner so failures, diagnostics, and logging behave consistently.
+- **Default model chains:**
+  - **PR review pipeline (review + merge decision + rewrite):** `gemini-3-pro-preview` → `gemini-3-flash-preview` → `gemini-2.5-pro` → `gemini-2.5-flash` → `gemini-2.5-flash-lite` (fallback order).
+  - **Overriding models:** Adjust the `gemini_model` inputs in the workflow or wire them to repository variables/workflow inputs for per-repo or per-run overrides. The merge decision uses the same call/output as the review.
+- **Retired workflows:** Separate merge-gate and PR-rewriter workflows have been removed; their functionality now rides on the PR review workflow output.
 
 ## Trigger Modes
 
@@ -55,24 +63,21 @@ Comment on any PR with `@gemini {your specific request}` to trigger a custom rev
    - Posts the review as a comment on the PR
    - Automatically splits long reviews into multiple comments if needed
    - Indicates which Gemini model was used
+   - Supplies a JSON payload with:
+     - `review_comment` (markdown for the PR comment)
+     - `merge` + `merge_reason` + `merge_risk` (used to gate merges)
+     - `pr_title` and `pr_body` (optional rewrites applied automatically)
 
 ## Configuration
 
-### Required Secrets
+### Required Secrets & Variables
 
-Add the following secret to your repository (Settings → Secrets and variables → Actions):
+Add these under **Settings → Secrets and variables → Actions**:
 
-- **`GEMINI_API_KEY`**: Your Google Gemini API key
-  - Get one at: https://makersuite.google.com/app/apikey
+- **Secret:** `GEMINI_API_KEY` — required for the Gemini review workflow.
+- **Variable:** `GEMINI_MODEL` — optional; overrides the first model in the chain (defaults to `gemini-3-pro-preview` when unset).
 
-### Optional Variables
-
-You can customize the Gemini model by setting a repository variable:
-
-- **`GEMINI_MODEL`**: The Gemini model to use (default: `gemini-3-pro-preview`)
-  - Available models: `gemini-3-pro-preview`, `gemini-1.5-pro-002`, `gemini-1.5-flash-latest`, etc.
-  - Legacy values such as `gemini-1.5-flash` and `gemini-flash-latest` are automatically mapped to the supported default, and the script automatically adds the `models/` prefix if omitted.
-  - Set at: Settings → Secrets and variables → Actions → Variables
+To change model order, update the `gemini_model` values in `.github/workflows/gemini-pr-review.yml` or bind them to workflow inputs/repository variables so operators can override without code changes.
 
 ## Customizing Repomix Output
 
@@ -287,32 +292,41 @@ These are retained for 7 days and can be downloaded from the workflow run page.
 
 ## Model Selection
 
-- **gemini-3-pro-preview** (default): Newest Pro reasoning model with the best code understanding
-- **gemini-1.5-pro-002**: Thorough analysis for complex changes
-- **gemini-1.5-flash-latest**: Fast, cost-effective option when Pro is unnecessary
+- **gemini-3-pro-preview**: Highest-quality default (first in the fallback chain).
+- **gemini-3-flash-preview**: Fastest 3.x fallback.
+- **gemini-2.5-pro**: First 2.5-tier fallback when 3.x is unavailable.
+- **gemini-2.5-flash**: Fast 2.5-tier fallback.
+- **gemini-2.5-flash-lite**: Lowest-cost fallback.
 
-You can change the model by setting the `GEMINI_MODEL` repository variable.
+You can change the model order by editing the `gemini_model` values (or variable bindings) in `.github/workflows/gemini-pr-review.yml`. Consider wiring workflow inputs or repo variables if operators need per-run overrides without code changes.
 
 ## Troubleshooting
 
+### Shared Diagnostics
+
+- **Missing secrets:** The runner exits early with `GEMINI_API_KEY` missing—set the secret and re-run.
+- **Quota/availability:** Fallback chains (where configured) try the next model; if all fail, expect a diagnostic PR comment with the model sequence attempted.
+- **Timeouts/context:** Very large diffs or patches may hit context limits; check for truncation notices in artifacts/comments.
+- **Model overrides:** Ensure the intended repository variable/input is set before rerunning when overriding the model list.
+
 ### Review not appearing
 
-1. Check that the PR is not in draft mode
-2. Verify `GEMINI_API_KEY` secret is set correctly - the workflow will fail immediately with a clear error message if not configured
-3. Check the workflow run logs in the Actions tab for detailed error messages
-4. Ensure the API key has sufficient quota
+1. Check that the PR is not in draft mode.
+2. Verify `GEMINI_API_KEY` is configured.
+3. Review the workflow run logs in the Actions tab for error messages and which models were attempted.
+4. Confirm the chosen model (default or overridden) is available and within quota.
 
 ### Review is incomplete
 
-- If the review is very long, it will be split into multiple comments
-- Check for additional comments from the GitHub Actions bot
-- Review the workflow artifacts to see the full context sent to Gemini
+- Long outputs post as multiple comments; scan the PR thread.
+- Check the uploaded artifacts (diff, patch) to confirm what was sent to Gemini.
+- If a model override was applied, ensure it supports the context size of the PR.
 
 ### API Rate Limits
 
-- Gemini has rate limits based on your API tier
-- Consider using `google-gla:gemini-flash-latest` for higher throughput
-- Or upgrade your Gemini API quota at https://console.cloud.google.com/
+- Gemini rate limits depend on your API tier.
+- Prefer `gemini-2.5-flash`/`gemini-2.5-flash-lite` for higher throughput when Pro quota is constrained.
+- Upgrade quota in Google AI Studio if throttling persists.
 
 ## Workflow Files
 
