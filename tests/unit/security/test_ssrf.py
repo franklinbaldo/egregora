@@ -7,7 +7,7 @@ import pytest
 import respx
 from httpx import Response
 
-from egregora.utils.network import SSRFValidationError, validate_public_url
+from egregora.security.ssrf import SSRFValidationError, validate_public_url
 
 
 def _fake_addrinfo(*ip_addresses: str) -> list[tuple]:

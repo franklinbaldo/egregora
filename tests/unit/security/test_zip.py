@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from egregora.utils.zip import (
+from egregora.security.zip import (
     ZipCompressionBombError,
     ZipMemberCountError,
     ZipMemberSizeError,
