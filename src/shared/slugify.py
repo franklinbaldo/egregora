@@ -4,7 +4,6 @@ from unicodedata import normalize
 
 from pymdownx.slugs import slugify as _md_slugify
 
-
 # Pre-configure a slugify instance for reuse.
 # This is more efficient than creating a new slugifier on each call.
 slugify_lower = _md_slugify(case="lower", separator="-")
@@ -38,6 +37,7 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
         'etcpasswd'
         >>> slugify("A" * 100, max_len=20)
         'aaaaaaaaaaaaaaaaaaaa'
+
     """
     if text is None:
         return ""

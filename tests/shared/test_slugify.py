@@ -1,7 +1,5 @@
 """Behavioral tests for the canonical slugify function."""
 
-import pytest
-
 from shared.slugify import slugify
 
 
