@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.utils.env import get_google_api_keys
 
 if TYPE_CHECKING:
@@ -316,3 +317,22 @@ def create_key_rotator(
 
     """
     return GeminiKeyRotator(api_keys=api_keys)
+
+
+class ModelKeyRotator:
+    """Cycle through models and API keys on exceptions."""
+
+    def __init__(self, models: list[str], api_keys: list[str]) -> None:
+        self.models = models
+        self.api_keys = api_keys
+
+    def call_with_rotation(self, call_fn: Callable[[str, str], Any]) -> Any:
+        """Call a function with automatic model and key rotation."""
+        causes = []
+        for model in self.models:
+            for api_key in self.api_keys:
+                try:
+                    return call_fn(model, api_key)
+                except Exception as e:  # noqa: BLE001
+                    causes.append(e)
+        raise AllModelsExhaustedError(causes=[causes[-1]])
