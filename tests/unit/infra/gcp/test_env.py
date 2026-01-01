@@ -136,3 +136,21 @@ def test_validate_gemini_api_key_permission_error(mock_genai_client, monkeypatch
     mock_instance.models.count_tokens.side_effect = Exception("Permission denied")
     with pytest.raises(ValueError, match="Permission denied for Gemini API"):
         validate_gemini_api_key()
+
+
+@patch("google.genai.Client")
+def test_validate_gemini_api_key_unknown_error(mock_genai_client, monkeypatch):
+    """Test handling of an unknown exception."""
+    monkeypatch.setenv("GOOGLE_API_KEY", "a_key")
+    mock_instance = mock_genai_client.return_value
+    mock_instance.models.count_tokens.side_effect = Exception("Some other error")
+    with pytest.raises(ValueError, match="Failed to validate Gemini API key"):
+        validate_gemini_api_key()
+
+
+@patch("google.genai.Client")
+def test_validate_gemini_api_key_with_direct_key(mock_genai_client):
+    """Test successful validation with a directly passed API key."""
+    mock_instance = mock_genai_client.return_value
+    mock_instance.models.count_tokens.return_value = None  # Simulate success
+    validate_gemini_api_key(api_key="direct_key")  # Should not raise
