@@ -20,6 +20,7 @@ from egregora.data_primitives.document import UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.repository import ContentRepository
+from egregora.llm.usage import UsageTracker
 from egregora.orchestration.context import (
     PipelineConfig,
     PipelineContext,
@@ -33,7 +34,6 @@ from egregora.output_adapters import (
 )
 from egregora.output_adapters.mkdocs import MkDocsPaths
 from egregora.utils.cache import PipelineCache
-from egregora.utils.metrics import UsageTracker
 
 if TYPE_CHECKING:
     import google.generativeai as genai
