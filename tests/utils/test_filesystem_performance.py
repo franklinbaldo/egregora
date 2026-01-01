@@ -6,7 +6,7 @@ from datetime import date, datetime
 
 import pytest
 
-from egregora.utils.filesystem import _extract_clean_date
+from egregora.utils.datetime_utils import extract_clean_date
 
 VALID_DATE_INPUTS = [
     ("2023-01-15", "2023-01-15"),
@@ -20,6 +20,6 @@ VALID_DATE_INPUTS = [
 @pytest.mark.benchmark(group="extract-clean-date")
 @pytest.mark.parametrize(("input_date", "expected"), VALID_DATE_INPUTS)
 def test_extract_clean_date_benchmark(benchmark, input_date, expected):
-    """Benchmark the _extract_clean_date function."""
-    result = benchmark(_extract_clean_date, input_date)
+    """Benchmark the extract_clean_date function."""
+    result = benchmark(extract_clean_date, input_date)
     assert result == expected

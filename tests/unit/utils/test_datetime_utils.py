@@ -9,10 +9,14 @@ import pytest
 from freezegun import freeze_time
 
 from egregora.utils.datetime_utils import (
+    DateExtractionError,
     DateTimeParsingError,
+    FrontmatterDateFormattingError,
     InvalidDateTimeInputError,
     _to_datetime,
     ensure_datetime,
+    extract_clean_date,
+    format_frontmatter_datetime,
     normalize_timezone,
     parse_datetime_flexible,
 )
@@ -278,6 +282,66 @@ def test_ensure_datetime_invalid_raises_type_error():
         ensure_datetime(None)
     with pytest.raises(TypeError, match="Unsupported datetime type"):
         ensure_datetime("not-a-datetime")
+
+
+# endregion
+
+
+# region: Tests for extract_clean_date
+def test_extract_clean_date_with_datetime():
+    assert extract_clean_date(datetime(2023, 1, 1, 12, 30)) == "2023-01-01"
+
+
+def test_extract_clean_date_with_date():
+    assert extract_clean_date(date(2023, 1, 1)) == "2023-01-01"
+
+
+def test_extract_clean_date_with_string():
+    assert extract_clean_date("2023-01-01") == "2023-01-01"
+
+
+def test_extract_clean_date_with_string_and_time():
+    assert extract_clean_date("2023-01-01 12:30") == "2023-01-01"
+
+
+def test_extract_clean_date_raises_on_no_date_in_string():
+    with pytest.raises(DateExtractionError):
+        extract_clean_date("hello world")
+
+
+def test_extract_clean_date_raises_error_on_invalid_date():
+    """Verify that extract_clean_date raises DateExtractionError for invalid dates."""
+    invalid_date_str = "2023-99-99"
+    with pytest.raises(DateExtractionError) as excinfo:
+        extract_clean_date(invalid_date_str)
+
+    assert "Could not extract a valid date" in str(excinfo.value)
+    assert invalid_date_str in str(excinfo.value)
+
+
+def test_extract_clean_date_raises_on_none():
+    """Verify that extract_clean_date raises an error on None input."""
+    with pytest.raises(DateExtractionError) as excinfo:
+        extract_clean_date(None)
+    assert "Could not extract a valid date" in str(excinfo.value)
+    assert "None" in str(excinfo.value)
+
+
+# endregion
+
+
+# region: Tests for format_frontmatter_datetime
+def test_format_frontmatter_datetime_raises_on_invalid_date():
+    with pytest.raises(FrontmatterDateFormattingError):
+        format_frontmatter_datetime("invalid-date")
+
+
+def test_format_frontmatter_datetime_raises_on_none():
+    """Verify that format_frontmatter_datetime raises an error on None input."""
+    with pytest.raises(FrontmatterDateFormattingError) as excinfo:
+        format_frontmatter_datetime(None)
+
+    assert "Failed to parse date string for frontmatter: 'None'" in str(excinfo.value)
 
 
 # endregion
