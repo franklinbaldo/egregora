@@ -16,8 +16,8 @@ from egregora.agents.commands import extract_commands as extract_commands_list
 from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker, schedule_enrichment
 from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
-from egregora.agents.types import PromptTooLargeError
-from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
+from egregora.agents.types import Message, PromptTooLargeError, WindowProcessingParams
+from egregora.agents.writer import write_posts_for_window
 from egregora.data_primitives.document import UrlContext
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.exceptions import (
@@ -269,6 +269,35 @@ class PipelineRunner:
             except (AttributeError, TypeError):
                 messages_list = enriched_table if isinstance(enriched_table, list) else []
 
+        # CONVERT TO DTOs for Writer
+        # Ensure messages_list are dicts, convert to Message objects
+        messages_dtos = []
+        for msg_dict in messages_list:
+            try:
+                # We need to map keys if they don't match exactly or if extra keys exist.
+                # Message DTO expects: event_id, ts, author_uuid...
+                # The schema keys should match mostly.
+                # Use model_validate to be robust or simple constructor
+                # Since we don't know if extra fields are present and we want to ignore them
+                # unless we use strict mode.
+                # Let's use **msg_dict but filter only known fields or rely on ignore_extra if config set.
+                # We didn't set ignore_extra in Message config, let's assume keys match or update Message DTO.
+                # Actually, simply passing **msg_dict to constructor works if no unknown fields
+                # OR if we used class Config: extra = 'ignore'.
+                # Let's check keys manually to be safe or add extra='ignore' to DTO.
+                # I'll add extra='ignore' to DTO in a subsequent edit if needed,
+                # but for now let's assume the schema matches as we defined DTO based on it.
+                # BUT, wait, enriched_table might have extra columns.
+                # Let's filter keys.
+                valid_keys = Message.model_fields.keys()
+                filtered_dict = {k: v for k, v in msg_dict.items() if k in valid_keys}
+
+                # Check required fields. event_id, ts, author_uuid are required.
+                if "event_id" in filtered_dict and "ts" in filtered_dict and "author_uuid" in filtered_dict:
+                    messages_dtos.append(Message(**filtered_dict))
+            except Exception as e:
+                logger.warning("Failed to convert message to DTO: %s", e)
+
         command_messages = extract_commands_list(messages_list)
         announcements_generated = 0
         if command_messages:
@@ -293,6 +322,7 @@ class PipelineRunner:
             adapter_generation_instructions=adapter_instructions,
             run_id=str(self.context.run_id) if self.context.run_id else None,
             smoke_test=self.context.state.smoke_test,
+            messages=messages_dtos,  # Inject DTOs
         )
 
         posts, profiles = run_async_safely(write_posts_for_window(params))
