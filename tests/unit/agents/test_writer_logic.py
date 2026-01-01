@@ -270,8 +270,19 @@ async def test_write_posts_for_window_cache_hit_valid(
 
 def test_regenerate_site_indices_skips_if_no_site_root() -> None:
     """Test that site generation is skipped if site_root is None."""
-    adapter = MagicMock()
+    from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
+
+    adapter = MagicMock(spec=MkDocsAdapter)
     adapter.site_root = None
+
+    with patch("egregora.agents.writer.SiteGenerator") as mock_gen:
+        writer_module._regenerate_site_indices(adapter)
+        mock_gen.assert_not_called()
+
+
+def test_regenerate_site_indices_skips_if_not_mkdocs() -> None:
+    """Test that site generation is skipped if adapter is not MkDocsAdapter."""
+    adapter = MagicMock()
 
     with patch("egregora.agents.writer.SiteGenerator") as mock_gen:
         writer_module._regenerate_site_indices(adapter)
