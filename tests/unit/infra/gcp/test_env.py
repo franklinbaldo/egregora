@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -46,7 +46,7 @@ def test_get_google_api_key_from_gemini_api_key(monkeypatch):
 
 def test_get_google_api_key_no_key():
     """Test that ValueError is raised when no key is set."""
-    with pytest.raises(ValueError, match="GOOGLE_API_KEY .* required"):
+    with pytest.raises(ValueError, match=r"GOOGLE_API_KEY .* required"):
         get_google_api_key()
 
 

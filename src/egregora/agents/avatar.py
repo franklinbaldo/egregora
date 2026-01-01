@@ -24,12 +24,12 @@ from egregora.agents.enricher import (
     ensure_datetime,
     load_file_as_binary_content,
 )
+from egregora.infra.gcp.env import get_google_api_key
 from egregora.input_adapters.whatsapp.commands import extract_commands
 from egregora.knowledge.profiles import remove_profile_avatar, update_profile_avatar
 from egregora.orchestration.pipelines.modules.media import detect_media_type, extract_urls
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
-from egregora.infra.gcp.env import get_google_api_key
 from egregora.utils.exceptions import CacheKeyNotFoundError
 from egregora.utils.network import SSRFValidationError, validate_public_url
 

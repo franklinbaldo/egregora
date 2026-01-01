@@ -41,6 +41,7 @@ from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.task_store import TaskStore
 from egregora.database.utils import resolve_db_uri
+from egregora.infra.gcp.env import get_google_api_keys, validate_gemini_api_key
 from egregora.init.scaffolding import ensure_mkdocs_project
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
@@ -60,7 +61,6 @@ from egregora.transformations import (
     save_checkpoint,
 )
 from egregora.utils.cache import PipelineCache
-from egregora.infra.gcp.env import get_google_api_keys, validate_gemini_api_key
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.rate_limit import init_rate_limiter
 
