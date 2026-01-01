@@ -52,6 +52,8 @@ from egregora.agents.writer_setup import (
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors
 from egregora.output_adapters import OutputSinkRegistry, create_default_output_registry
+from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
+from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
 from egregora.rag import index_documents, reset_backend
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
@@ -780,13 +782,7 @@ def _finalize_writer_results(params: WriterFinalizationParams) -> dict[str, list
         Result payload dict with 'posts' and 'profiles' keys
 
     """
-    # Finalize output adapter
-    params.resources.output.finalize_window(
-        window_label=params.deps.window_label,
-        posts_created=params.saved_posts,
-        profiles_updated=params.saved_profiles,
-        metadata=None,
-    )
+    _regenerate_site_indices(params.resources.output)
 
     # Index newly created content in RAG
     _index_new_content_in_rag(params.resources, params.saved_posts, params.saved_profiles)
@@ -871,16 +867,9 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
                 # Invalidate this cache entry
                 params.cache.writer.delete(signature)
             else:
-                # Posts exist, call finalize_window to mark completion and return
-                resources.output.finalize_window(
-                    window_label=f"{params.window_start:%Y-%m-%d %H:%M} to {params.window_end:%H:%M}",
-                    posts_created=cached_posts,
-                    profiles_updated=cached_result.get(RESULT_KEY_PROFILES, []),
-                    metadata=None,
-                )
+                _regenerate_site_indices(resources.output)
                 return cached_result
         else:
-            # No posts in cache, just return the empty result
             return cached_result
 
     logger.info("Using Pydantic AI backend for writer")
@@ -929,6 +918,29 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
             signature=signature,
         )
     )
+
+
+def _regenerate_site_indices(adapter: MkDocsAdapter):
+    """Helper to regenerate all site indices using SiteGenerator."""
+    if not isinstance(adapter, MkDocsAdapter):
+        logger.debug("Output format is not MkDocs, skipping site generation.")
+        return
+
+    site_generator = SiteGenerator(
+        site_root=adapter.site_root,
+        docs_dir=adapter.docs_dir,
+        posts_dir=adapter.posts_dir,
+        profiles_dir=adapter.profiles_dir,
+        media_dir=adapter.media_dir,
+        journal_dir=adapter.journal_dir,
+        url_convention=adapter.url_convention,
+        url_context=adapter.url_context,
+    )
+    site_generator.regenerate_main_index()
+    site_generator.regenerate_profiles_index()
+    site_generator.regenerate_media_index()
+    site_generator.regenerate_tags_page()
+    logger.info("Successfully regenerated site indices.")
 
 
 async def _execute_economic_writer(
