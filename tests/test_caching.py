@@ -25,7 +25,7 @@ def temp_cache_dir():
 def test_enrichment_persistence(temp_cache_dir):
     """Verify that enrichment cache persists to disk."""
     cache = PipelineCache(temp_cache_dir)
-    key = make_enrichment_cache_key(kind="url", identifier="http://example.com")
+    key = make_enrichment_cache_key(content="http://example.com", salt="url")
     payload = {"markdown": "Cached content", "slug": "cached-slug", "type": "url"}
 
     # Store in cache

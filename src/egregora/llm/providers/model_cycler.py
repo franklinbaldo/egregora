@@ -36,7 +36,7 @@ class GeminiKeyRotator:
         )
     """
 
-    def __init__(self, api_keys: list[str] | None = None) -> None:
+    def __init__(self, api_keys: list[str] | None = None, models: list[str] | None = None) -> None:
         """Initialize the key rotator.
 
         Args:

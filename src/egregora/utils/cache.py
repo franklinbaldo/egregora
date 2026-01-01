@@ -7,9 +7,10 @@ invalidation controls.
 
 from __future__ import annotations
 
+import json
 import logging
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import diskcache
 from pydantic import BaseModel, ValidationError
@@ -31,6 +32,25 @@ class EnrichmentCache:
     def __init__(self, backend: CacheBackend) -> None:
         """Initialize the cache with a storage backend."""
         self.backend = backend
+
+    def load(self, key: str) -> dict[str, Any] | None:
+        """Legacy method to load raw dict from cache.
+
+        Prefer `get()` with a Pydantic model for validation.
+        """
+        try:
+            data = self.backend.get(key)
+            if data is None:
+                return None
+            if not isinstance(data, dict):
+                self.backend.delete(key)
+                raise CachePayloadTypeError(key=key, payload_type=type(data))
+            return data
+        except (json.JSONDecodeError, TypeError) as e:
+            self.backend.delete(key)
+            raise CacheDeserializationError(key=key, original_exception=e) from e
+        except CacheKeyNotFoundError:
+            return None
 
     def get(self, key: str, model: type[BaseModel]) -> BaseModel | None:
         """Retrieve and validate an item from the cache.
@@ -62,6 +82,13 @@ class EnrichmentCache:
         except CacheKeyNotFoundError:
             return None
 
+    def store(self, key: str, payload: dict[str, Any]) -> None:
+        """Legacy method to store raw dict in cache.
+
+        Prefer `set()` with a Pydantic model for validation.
+        """
+        self.backend.set(key, payload)
+
     def set(self, key: str, value: BaseModel) -> None:
         """Set an item in the cache.
 
@@ -77,7 +104,7 @@ class EnrichmentCache:
         self.backend.close()
 
 
-def make_enrichment_cache_key(content: str, salt: str, model_name: str | None = None) -> str:
+def make_enrichment_cache_key(content: str, salt: str, model_name: str | None = None, **kwargs: Any) -> str:
     """Create a consistent cache key for enrichment data."""
     import hashlib
 
