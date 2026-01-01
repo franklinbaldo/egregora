@@ -189,11 +189,11 @@ class DateExtractionError(DateTimeError):
 
 
 __all__ = [
-    "ensure_datetime",
-    "normalize_timezone",
-    "parse_datetime_flexible",
-    "extract_clean_date",
-    "format_frontmatter_datetime",
     "DateExtractionError",
     "FrontmatterDateFormattingError",
+    "ensure_datetime",
+    "extract_clean_date",
+    "format_frontmatter_datetime",
+    "normalize_timezone",
+    "parse_datetime_flexible",
 ]

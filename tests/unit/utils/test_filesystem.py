@@ -5,9 +5,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from egregora.utils.datetime_utils import (
-    FrontmatterDateFormattingError,
-)
 from egregora.utils.filesystem import (
     DirectoryCreationError,
     FileWriteError,
