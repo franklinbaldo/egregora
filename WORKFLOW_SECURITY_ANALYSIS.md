@@ -256,57 +256,11 @@ concurrency:
 
 ---
 
-### 4. Gemini PR Rewriter (`gemini-pr-rewriter.yml`)
+### 4. Gemini PR Rewriter (`gemini-pr-rewriter.yml`) — **Retired**
 
-#### 🟡 Issue #10: Automatic PR Modification Without Consent
-**Severity:** Medium
-**Location:** Lines 274-281
-**Impact:** Overwrites user's PR title/description without explicit opt-in
+This workflow has been removed and its functionality consolidated into the unified Gemini PR Review job (single runner invocation handles review + merge decision + optional PR rewrite). The security concerns here are now covered by the review workflow safeguards (JSON output parsing, gated merge decision, and optional rewrite fields).
 
-**Fix:**
-Add opt-in mechanism via PR labels:
-```yaml
-jobs:
-  rewrite-pr:
-    if: |
-      !github.event.pull_request.draft &&
-      !contains(github.event.pull_request.user.login, 'bot') &&
-      contains(github.event.pull_request.labels.*.name, 'auto-rewrite')
-```
-
-Or better, only suggest changes via comment instead of auto-updating:
-```javascript
-// Always post suggestions as comments instead of direct updates
-await github.rest.issues.createComment({
-  owner: context.repo.owner,
-  repo: context.repo.repo,
-  issue_number: prNumber,
-  body: `## 💡 PR Title & Description Suggestions
-
-### Suggested Title
-\`\`\`
-${response.title}
-\`\`\`
-
-### Suggested Description
-${response.description}
-
-### Reasoning
-${response.reasoning}
-
----
-*To apply these changes, edit your PR manually or react with 👍 to this comment.*`
-});
-```
-
----
-
-#### 🟢 Issue #11: Diff Truncation
-**Severity:** Low
-**Location:** Line 66
-**Impact:** Incomplete context leads to poor rewrites
-
-**Fix:** Same smart truncation approach as Issue #7
+**Action:** No live workflow remains. Keep future analyses focused on `.github/workflows/gemini-pr-review.yml` and `.github/scripts/gemini-pr-review.js`, which now own rewrite behavior via the combined payload.
 
 ---
 
