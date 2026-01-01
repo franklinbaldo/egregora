@@ -9,7 +9,6 @@ from egregora.database.schemas import V3_DOCUMENTS_SCHEMA, ibis_to_duckdb_type
 
 logger = logging.getLogger(__name__)
 
-print("MIGRATIONS MODULE LOADED")
 
 def migrate_to_v3_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
     """Applies the V3_DOCUMENTS_SCHEMA to a legacy 'documents' table.

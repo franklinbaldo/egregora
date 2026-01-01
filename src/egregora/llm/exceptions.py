@@ -5,6 +5,14 @@ class LLMProviderError(Exception):
     """Base exception for all LLM provider related errors."""
 
 
+class AllModelsExhaustedError(LLMProviderError):
+    """Raised when all models in a rotation have been tried and failed."""
+
+    def __init__(self, message, causes=None):
+        super().__init__(message)
+        self.causes = causes or []
+
+
 class BatchJobError(LLMProviderError):
     """Base exception for errors related to batch job processing."""
 
