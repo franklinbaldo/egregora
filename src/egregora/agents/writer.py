@@ -39,12 +39,10 @@ from egregora.agents.types import (
     WriterResources,
 )
 from egregora.agents.writer_context import (
-    RagContext,
     WriterContext,
     WriterContextParams,
     WriterDepsParams,
     build_context_and_signature,
-    build_writer_context,
     check_writer_cache,
     index_new_content_in_rag,
     prepare_writer_dependencies,
@@ -60,17 +58,15 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.output_adapters import OutputSinkRegistry, create_default_output_registry
 from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
-from egregora.resources.prompts import PromptManager, render_prompt
-from egregora.utils.cache import CacheTier, PipelineCache
+from egregora.resources.prompts import render_prompt
+from egregora.utils.cache import PipelineCache
 from egregora.utils.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
     from egregora.config.settings import EgregoraConfig
-    from egregora.data_primitives.protocols import OutputSink
-    from egregora.orchestration.context import PipelineContext
-    from egregora.utils.metrics import UsageTracker
+    from egregora.data_primitives.document import OutputSink
 
 logger = logging.getLogger(__name__)
 
@@ -535,10 +531,13 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
         cached_posts = cached_result.get(RESULT_KEY_POSTS, [])
         if cached_posts:
             # Check if at least one post file exists
-            posts_exist = any(
-                list(resources.output.posts_dir.glob(f"*{slug}*.md"))
-                for slug in cached_posts[:1]  # Check first post only for speed
-            )
+            posts_exist = True
+            if hasattr(resources.output, "posts_dir"):
+                posts_exist = any(
+                    list(resources.output.posts_dir.glob(f"*{slug}*.md"))
+                    for slug in cached_posts[:1]  # Check first post only for speed
+                )
+
             if not posts_exist:
                 logger.warning(
                     "⚠️ Cached posts not found on disk, regenerating for window %s",
@@ -600,10 +599,14 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
     )
 
 
-def _regenerate_site_indices(adapter: MkDocsAdapter) -> None:
+def _regenerate_site_indices(adapter: OutputSink) -> None:
     """Helper to regenerate all site indices using SiteGenerator."""
     if not isinstance(adapter, MkDocsAdapter):
         logger.debug("Output format is not MkDocs, skipping site generation.")
+        return
+
+    if not adapter.site_root:
+        logger.warning("Site root is not set, skipping site generation.")
         return
 
     site_generator = SiteGenerator(

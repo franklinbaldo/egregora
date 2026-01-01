@@ -1,5 +1,4 @@
 from unittest.mock import MagicMock
-import pytest
 
 from egregora.agents.formatting import build_conversation_xml, load_journal_memory
 from egregora.data_primitives.document import DocumentType
@@ -125,11 +124,16 @@ def test_build_conversation_xml_handles_ibis_table_like_object():
 
         def column(self, idx):
             mock_col = MagicMock()
-            if idx == 0: val = ["msg100"]
-            elif idx == 1: val = ["Dave"]
-            elif idx == 2: val = ["Testing table"]
-            elif idx == 3: val = ["2023-01-02"]
-            else: val = []
+            if idx == 0:
+                val = ["msg100"]
+            elif idx == 1:
+                val = ["Dave"]
+            elif idx == 2:
+                val = ["Testing table"]
+            elif idx == 3:
+                val = ["2023-01-02"]
+            else:
+                val = []
 
             mock_col.to_pylist.return_value = val
             return mock_col
