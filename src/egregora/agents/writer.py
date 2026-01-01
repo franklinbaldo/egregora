@@ -333,6 +333,7 @@ class JournalEntryParams:
     total_tokens: int = 0
 
 
+# TODO: [Taskmaster] Refactor complex journal saving function
 def _save_journal_to_file(params: JournalEntryParams) -> str | None:
     """Save journal entry to markdown file.
 
@@ -814,6 +815,7 @@ class WindowProcessingParams:
     smoke_test: bool = False
 
 
+# TODO: [Taskmaster] Refactor complex orchestration function
 async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
     """Let LLM analyze window's messages, write 0-N posts, and update author profiles.
 
@@ -855,6 +857,7 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
         resources.usage,
     )
     if cached_result:
+        # TODO: [Taskmaster] Improve brittle cache validation logic
         # Validate cached posts still exist on disk (they may be missing if output dir is fresh)
         cached_posts = cached_result.get(RESULT_KEY_POSTS, [])
         if cached_posts:
@@ -963,6 +966,7 @@ async def _execute_economic_writer(
 
     # In full agent mode, system prompts are dynamic.
     # Here we should probably construct a simple system instruction or use the configured override.
+    # TODO: [Taskmaster] Externalize hardcoded system instruction
     system_instruction = config.writer.economic_system_instruction
     if not system_instruction:
         system_instruction = (
