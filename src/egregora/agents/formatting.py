@@ -17,8 +17,7 @@ from egregora.output_adapters.exceptions import DocumentNotFoundError
 
 if TYPE_CHECKING:
     from egregora.agents.shared.annotations import AnnotationStore
-    from egregora.data_primitives.document import Document
-    from egregora.output_adapters.base import OutputSink
+    from egregora.data_primitives.document import Document, OutputSink
 
 logger = logging.getLogger(__name__)
 
