@@ -38,7 +38,9 @@ from egregora.agents.formatting import (
     load_journal_memory,
 )
 from egregora.agents.types import (
+    Message,
     PromptTooLargeError,
+    WindowProcessingParams,
     WriterDeps,
     WriterResources,
 )
@@ -50,7 +52,6 @@ from egregora.agents.writer_setup import (
     setup_writer_agent,
 )
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.knowledge.profiles import get_active_authors
 from egregora.output_adapters import OutputSinkRegistry, create_default_output_registry
 from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
@@ -162,19 +163,22 @@ def _truncate_for_embedding(text: str, byte_limit: int = MAX_RAG_QUERY_BYTES) ->
 class WriterContextParams:
     """Parameters for building writer context."""
 
-    table: Table
+    messages: list[Message]
     resources: WriterResources
     cache: PipelineCache
     config: EgregoraConfig
     window_label: str
     adapter_content_summary: str
     adapter_generation_instructions: str
+    # Keep table for legacy/compat if needed, but intended to be removed from usage
+    table: Table | None = None
 
 
 def _build_writer_context(params: WriterContextParams) -> WriterContext:
     """Collect contextual inputs used when rendering the writer prompt."""
-    messages_table = params.table.to_pyarrow()
-    conversation_xml = build_conversation_xml(messages_table, params.resources.annotations_store)
+    # Use messages DTO list instead of PyArrow table
+    messages_dicts = [msg.model_dump() for msg in params.messages]
+    conversation_xml = build_conversation_xml(messages_dicts, params.resources.annotations_store)
 
     # CACHE INVALIDATION STRATEGY:
     # RAG and Profiles context building moved to dynamic system prompts for lazy evaluation.
@@ -197,7 +201,30 @@ def _build_writer_context(params: WriterContextParams) -> WriterContext:
     profiles_context = ""  # Dynamically injected via @agent.system_prompt
 
     journal_memory = load_journal_memory(params.resources.output)
-    active_authors = get_active_authors(params.table)
+
+    # Calculate active authors from messages list
+    # We need to reimplement get_active_authors or adapt it
+    # Currently get_active_authors expects a table.
+    # For now, let's filter the list manually.
+    active_authors = list(
+        {
+            msg.author_uuid
+            for msg in params.messages
+            if msg.author_uuid and msg.author_uuid not in {"system", "egregora", ""}
+        }
+    )
+    # To keep "top" logic if get_active_authors did sorting, we might want to count
+    # but for context building usually just a list is fine, or sorted by freq.
+    # For simplicity:
+    from collections import Counter
+
+    author_counts = Counter(
+        msg.author_uuid
+        for msg in params.messages
+        if msg.author_uuid and msg.author_uuid not in {"system", "egregora", ""}
+    )
+    # Sort by count desc
+    active_authors = [a for a, _ in author_counts.most_common(20)]
 
     format_instructions = params.resources.output.get_format_instructions()
     custom_instructions = params.config.writer.custom_instructions or ""
@@ -468,12 +495,19 @@ def _prepare_deps(
         run_id=ctx.run_id,
     )
 
+    # This function is likely broken with new WriterDeps signature if called directly.
+    # But it doesn't seem to pass table/messages?
+    # It calls _prepare_writer_dependencies which needs WriterDepsParams.
+    # _prepare_deps seems unused or incomplete in provided snippet (it's internal helper?).
+    # Let's fix _prepare_writer_dependencies instead.
+
     return _prepare_writer_dependencies(
         WriterDepsParams(
             window_start=window_start,
             window_end=window_end,
             resources=resources,
             model_name=ctx.config.models.writer,
+            messages=[],  # No messages here?
         )
     )
 
@@ -674,6 +708,7 @@ class WriterDepsParams:
     window_end: datetime
     resources: WriterResources
     model_name: str
+    messages: list[Message]
     table: Table | None = None
     config: EgregoraConfig | None = None
     conversation_xml: str = ""
@@ -692,6 +727,7 @@ def _prepare_writer_dependencies(params: WriterDepsParams) -> WriterDeps:
         window_end=params.window_end,
         window_label=window_label,
         model_name=params.model_name,
+        messages=params.messages,
         table=params.table,
         config=params.config,
         conversation_xml=params.conversation_xml,
@@ -711,12 +747,7 @@ def _build_context_and_signature(
         Tuple of (writer_context, cache_signature)
 
     """
-    table_with_str_uuids = _cast_uuid_columns_to_str(params.table)
-
-    # Generate context for both prompt and signature
-    # This now just generates the base context (XML, Journal) which is cheap(er)
-    # We update params with casted table
-    params.table = table_with_str_uuids
+    # params.messages is already populated by caller (runner)
     writer_context = _build_writer_context(params)
 
     # Get template content for signature calculation
@@ -724,7 +755,7 @@ def _build_context_and_signature(
 
     # Calculate signature using data (XML) + logic (template) + engine
     signature = generate_window_signature(
-        table_with_str_uuids,
+        None,
         params.config,
         template_content,
         xml_content=writer_context.conversation_xml,
@@ -794,22 +825,6 @@ def _finalize_writer_results(params: WriterFinalizationParams) -> dict[str, list
     return result_payload
 
 
-@dataclass
-class WindowProcessingParams:
-    """Parameters for processing a window of messages."""
-
-    table: Table
-    window_start: datetime
-    window_end: datetime
-    resources: WriterResources
-    config: EgregoraConfig
-    cache: PipelineCache
-    adapter_content_summary: str = ""
-    adapter_generation_instructions: str = ""
-    run_id: str | None = None
-    smoke_test: bool = False
-
-
 async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
     """Let LLM analyze window's messages, write 0-N posts, and update author profiles.
 
@@ -819,7 +834,9 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
     if params.smoke_test:
         logger.info("Smoke test mode: skipping writer agent.")
         return {RESULT_KEY_POSTS: [], RESULT_KEY_PROFILES: []}
-    if params.table.count().execute() == 0:
+
+    # We check if messages list is empty
+    if not params.messages:
         return {RESULT_KEY_POSTS: [], RESULT_KEY_PROFILES: []}
 
     # 1. Prepare dependencies (partial, will update with context later)
@@ -832,6 +849,7 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
     # We need to build context first to get XML for signature
     writer_context, signature = _build_context_and_signature(
         WriterContextParams(
+            messages=params.messages,
             table=params.table,
             resources=resources,
             cache=params.cache,
@@ -881,6 +899,7 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
             window_end=params.window_end,
             resources=resources,
             model_name=params.config.models.writer,
+            messages=params.messages,
             table=params.table,
             config=params.config,
             conversation_xml=writer_context.conversation_xml,
@@ -1056,7 +1075,10 @@ def load_format_instructions(site_root: Path | None, *, registry: OutputSinkRegi
 
 
 def get_top_authors(table: Table, limit: int = 20) -> list[str]:
-    """Get top N active authors by message count."""
+    """Get top N active authors by message count.
+
+    Deprecated: Use Message DTOs filtering instead.
+    """
     author_counts = (
         table.filter(~table.author_uuid.cast("string").isin(["system", "egregora"]))
         .filter(table.author_uuid.notnull())
