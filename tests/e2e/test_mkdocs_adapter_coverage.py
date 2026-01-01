@@ -70,6 +70,7 @@ def test_get_profiles_data_generates_stats(adapter):
 
     # Get stats using the PUBLIC API
     from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
+
     site_generator = SiteGenerator(
         site_root=adapter.site_root,
         docs_dir=adapter.docs_dir,
