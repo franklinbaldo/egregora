@@ -34,7 +34,6 @@ from tenacity import Retrying
 
 from egregora.agents.exceptions import AgentError
 from egregora.agents.types import (
-    Message,
     PromptTooLargeError,
     WindowProcessingParams,
     WriterDeps,
@@ -309,6 +308,7 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
 
     return saved_posts, saved_profiles
 
+
 @sleep_and_retry
 @limits(calls=100, period=60)
 async def write_posts_with_pydantic_agent(
@@ -408,6 +408,7 @@ def _render_writer_prompt(
         prompts_dir=prompts_dir,
         **context.template_context,
     )
+
 
 async def _execute_writer_with_error_handling(
     prompt: str,

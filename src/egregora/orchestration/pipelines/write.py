@@ -41,7 +41,6 @@ from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker,
 from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.types import PromptTooLargeError, WriterResources
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
@@ -56,11 +55,9 @@ from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
-from egregora.orchestration.exceptions import WindowSizeError
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.modules.media import process_media_for_window
 from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
-from egregora.orchestration.runner import PipelineRunner
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import MkDocsPaths
 from egregora.rag import index_documents, reset_backend
@@ -619,10 +616,10 @@ def _calculate_max_window_size(config: EgregoraConfig) -> int:
     """Calculate maximum window size based on LLM context window."""
     use_full_window = getattr(config.pipeline, "use_full_context_window", False)
     # Corresponds to a 1M token context window, expressed in characters
-    FULL_CONTEXT_WINDOW_SIZE = 1_048_576
+    full_context_window_size = 1_048_576
 
     if use_full_window:
-        max_tokens = FULL_CONTEXT_WINDOW_SIZE
+        max_tokens = full_context_window_size
     else:
         max_tokens = config.pipeline.max_prompt_tokens
 
@@ -667,7 +664,12 @@ def get_pending_conversations(dataset: PreparedPipelineData) -> Iterator[Convers
         # Heuristic splitting check
         if window.size > max_window_size and depth < max_depth:
             # Too big, split immediately based on heuristic
-            logger.info("Window %d too large (%d > %d), splitting...", window.window_index, window.size, max_window_size)
+            logger.info(
+                "Window %d too large (%d > %d), splitting...",
+                window.window_index,
+                window.size,
+                max_window_size,
+            )
             num_splits = max(2, math.ceil(window.size / max_window_size))
             split_windows = split_window_into_n_parts(window, num_splits)
             # Add back to front of queue
@@ -675,13 +677,13 @@ def get_pending_conversations(dataset: PreparedPipelineData) -> Iterator[Convers
             continue
 
         if window.size < min_window_size and depth > 0:
-             logger.warning("Window too small after split (%d messages), attempting anyway", window.size)
+            logger.warning("Window too small after split (%d messages), attempting anyway", window.size)
 
         # ETL Step 1: Media Processing
         output_sink = ctx.output_format
         if output_sink is None:
-             # Should not happen if dataset is prepared correctly
-             raise ValueError("Output sink not initialized")
+            # Should not happen if dataset is prepared correctly
+            raise ValueError("Output sink not initialized")
 
         url_context = ctx.url_context or UrlContext()
         window_table_processed, media_mapping = process_media_for_window(
@@ -694,7 +696,7 @@ def get_pending_conversations(dataset: PreparedPipelineData) -> Iterator[Convers
 
         # Persist media if enrichment disabled (otherwise enrichment handles it/updates it)
         if media_mapping and not dataset.enable_enrichment:
-             for media_doc in media_mapping.values():
+            for media_doc in media_mapping.values():
                 try:
                     output_sink.persist(media_doc)
                 except Exception as e:
@@ -737,7 +739,9 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         try:
             messages_list = conversation.messages_table.to_pylist()
         except (AttributeError, TypeError):
-            messages_list = conversation.messages_table if isinstance(conversation.messages_table, list) else []
+            messages_list = (
+                conversation.messages_table if isinstance(conversation.messages_table, list) else []
+            )
 
     # Handle commands (Announcements)
     command_messages = extract_commands_list(messages_list)
@@ -784,18 +788,16 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     # If `posts` contains Document objects, we should persist them.
     for post in posts:
         if hasattr(post, "document_id"):  # Is a Document
-             try:
+            try:
                 output_sink.persist(post)
-             except Exception as exc:
+            except Exception as exc:
                 logger.exception("Failed to persist post: %s", exc)
 
     # EXECUTE PROFILE GENERATOR
     window_date = conversation.window.start_time.strftime("%Y-%m-%d")
     try:
         profile_docs = run_async_safely(
-            generate_profile_posts(
-                ctx=ctx, messages=clean_messages_list, window_date=window_date
-            )
+            generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date)
         )
         for profile_doc in profile_docs:
             try:
@@ -816,7 +818,10 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     window_label = f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
     logger.info(
         "  [green]✔ Generated[/] %d posts, %d profiles, %d announcements for %s",
-        len(posts), len(profiles), announcements_generated, window_label
+        len(posts),
+        len(profiles),
+        announcements_generated,
+        window_label,
     )
 
     return {window_label: {"posts": posts, "profiles": profiles}}
