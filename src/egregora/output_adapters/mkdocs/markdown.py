@@ -37,14 +37,10 @@ def _prepare_frontmatter(metadata: dict[str, Any], slug: str) -> dict[str, Any]:
         A dictionary containing the formatted frontmatter.
 
     """
-    front_matter = {
-        "title": metadata["title"],
-        "slug": slug,
-        "date": format_frontmatter_datetime(metadata["date"]),
-    }
-    for key in ["tags", "summary", "authors", "category"]:
-        if key in metadata:
-            front_matter[key] = metadata[key]
+    front_matter = metadata.copy()
+    front_matter["title"] = metadata["title"]
+    front_matter["slug"] = slug
+    front_matter["date"] = format_frontmatter_datetime(metadata["date"])
     return front_matter
 
 

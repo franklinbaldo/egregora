@@ -31,7 +31,7 @@ def test_write_markdown_post_creates_file_with_frontmatter(tmp_path: Path):
     assert Path(result_path).exists()
     mock_ensure_author.assert_called_once()
 
-    with open(result_path, encoding="utf-8") as f:
+    with Path(result_path).open(encoding="utf-8") as f:
         file_content = f.read()
 
     # Verify frontmatter and content are correctly written
