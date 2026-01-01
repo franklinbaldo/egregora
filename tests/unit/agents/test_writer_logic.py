@@ -20,10 +20,10 @@ from egregora.agents.writer import (
 
 
 class TestWriterDecoupling:
-    def test_process_tool_result_ignores_path_structure(self):
+    def test_process_tool_result_ignores_path_structure(self) -> None:
         """Test that tool result processing relies on tool_name, not path string structure."""
-        saved_posts = []
-        saved_profiles = []
+        saved_posts: list[str] = []
+        saved_profiles: list[str] = []
 
         # Scenario: Tool name is missing, but path looks like a post.
         # In decoupled world, this should NOT be blindly added as a post
@@ -34,10 +34,10 @@ class TestWriterDecoupling:
 
         assert len(saved_posts) == 0, "Should not infer type from path string"
 
-    def test_process_tool_result_uses_tool_name(self):
+    def test_process_tool_result_uses_tool_name(self) -> None:
         """Test that tool result processing uses tool_name correctly."""
-        saved_posts = []
-        saved_profiles = []
+        saved_posts: list[str] = []
+        saved_profiles: list[str] = []
 
         content = {"status": "success", "path": "some-id"}
         _process_single_tool_result(content, "write_post_tool", saved_posts, saved_profiles)
@@ -45,7 +45,7 @@ class TestWriterDecoupling:
         assert "some-id" in saved_posts
 
     @patch("egregora.agents.writer.Environment")
-    def test_journal_saves_agnostic_content(self, mock_env_cls):
+    def test_journal_saves_agnostic_content(self, mock_env_cls: MagicMock) -> None:
         """Test that journal saving does not apply MkDocs-specific path replacements."""
         # Arrange
         mock_env = MagicMock()
@@ -83,7 +83,7 @@ class TestWriterDecoupling:
         assert "/media/image.jpg" not in doc.content.replace("../media/", "")
 
     @patch("egregora.agents.writer.Environment")
-    def test_save_journal_raises_template_error(self, mock_env_cls):
+    def test_save_journal_raises_template_error(self, mock_env_cls: MagicMock) -> None:
         """Test that _save_journal_to_file raises JournalTemplateError on template issues."""
         # Arrange
         mock_env = MagicMock()
@@ -107,7 +107,7 @@ class TestWriterDecoupling:
         assert "journal.md.jinja" in str(exc_info.value)
 
     @patch("egregora.agents.writer.Environment")
-    def test_save_journal_raises_filesystem_error(self, mock_env_cls):
+    def test_save_journal_raises_filesystem_error(self, mock_env_cls: MagicMock) -> None:
         """Test that _save_journal_to_file raises JournalFileSystemError on file system issues."""
         # Arrange
         mock_env = MagicMock()
@@ -138,7 +138,9 @@ class TestWriterDecoupling:
 
 @pytest.mark.asyncio
 @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
-async def test_execute_writer_raises_specific_exception(mock_pydantic_writer, test_config):
+async def test_execute_writer_raises_specific_exception(
+    mock_pydantic_writer: MagicMock, test_config: MagicMock
+) -> None:
     """Test that _execute_writer_with_error_handling raises RuntimeError on agent failure."""
     from egregora.agents.writer import _execute_writer_with_error_handling
 
@@ -167,14 +169,14 @@ async def test_execute_writer_raises_specific_exception(mock_pydantic_writer, te
 @patch("egregora.agents.writer._execute_writer_with_error_handling")
 @patch("egregora.agents.writer._finalize_writer_results")
 async def test_write_posts_for_window_smoke_test(
-    mock_finalize,
-    mock_execute,
-    mock_render,
-    mock_prepare_deps,
-    mock_check_cache,
-    mock_build_context,
-    test_config,
-):
+    mock_finalize: MagicMock,
+    mock_execute: MagicMock,
+    mock_render: MagicMock,
+    mock_prepare_deps: MagicMock,
+    mock_check_cache: MagicMock,
+    mock_build_context: MagicMock,
+    test_config: MagicMock,
+) -> None:
     """Smoke test to ensure write_posts_for_window can be called without error."""
     mock_table = MagicMock()
     mock_table.count.return_value.execute.return_value = 1
@@ -202,7 +204,9 @@ async def test_write_posts_for_window_smoke_test(
 
 @pytest.mark.asyncio
 @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
-async def test_execute_writer_raises_specific_error(mock_writer_agent, test_config):
+async def test_execute_writer_raises_specific_error(
+    mock_writer_agent: MagicMock, test_config: MagicMock
+) -> None:
     """Test that _execute_writer_with_error_handling raises RuntimeError on agent failure."""
     from egregora.agents.writer import _execute_writer_with_error_handling
 
@@ -234,14 +238,14 @@ async def test_execute_writer_raises_specific_error(mock_writer_agent, test_conf
 @patch("egregora.agents.writer._execute_writer_with_error_handling")
 @patch("egregora.agents.writer._finalize_writer_results")
 async def test_write_posts_for_window_cache_hit_valid(
-    mock_finalize,
-    mock_execute,
-    mock_render,
-    mock_prepare_deps,
-    mock_check_cache,
-    mock_build_context,
-    test_config,
-):
+    mock_finalize: MagicMock,
+    mock_execute: MagicMock,
+    mock_render: MagicMock,
+    mock_prepare_deps: MagicMock,
+    mock_check_cache: MagicMock,
+    mock_build_context: MagicMock,
+    test_config: MagicMock,
+) -> None:
     """Test cache hit logic when files exist on disk."""
     mock_table = MagicMock()
     mock_table.count.return_value.execute.return_value = 1
@@ -271,7 +275,7 @@ async def test_write_posts_for_window_cache_hit_valid(
     mock_execute.assert_not_called()
 
 
-def test_regenerate_site_indices_skips_if_no_site_root():
+def test_regenerate_site_indices_skips_if_no_site_root() -> None:
     """Test that site generation is skipped if site_root is None."""
     from egregora.agents.writer import _regenerate_site_indices
 

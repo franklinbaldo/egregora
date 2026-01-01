@@ -5,7 +5,7 @@ from egregora.data_primitives.document import DocumentType
 from egregora.output_adapters.exceptions import DocumentNotFoundError
 
 
-def test_load_journal_memory_handles_document_not_found_error():
+def test_load_journal_memory_handles_document_not_found_error() -> None:
     """
     Given an output sink that raises DocumentNotFoundError
     When load_journal_memory is called
@@ -27,7 +27,7 @@ def test_load_journal_memory_handles_document_not_found_error():
     assert result == ""
 
 
-def test_build_conversation_xml_empty_input():
+def test_build_conversation_xml_empty_input() -> None:
     """
     Given empty input data
     When build_conversation_xml is called
@@ -37,7 +37,7 @@ def test_build_conversation_xml_empty_input():
     assert result == "<chat></chat>"
 
 
-def test_build_conversation_xml_basic_message():
+def test_build_conversation_xml_basic_message() -> None:
     """
     Given a single message
     When build_conversation_xml is called
@@ -59,7 +59,7 @@ def test_build_conversation_xml_basic_message():
     assert result.endswith("</chat>")
 
 
-def test_build_conversation_xml_with_annotations():
+def test_build_conversation_xml_with_annotations() -> None:
     """
     Given a message with annotations
     When build_conversation_xml is called
@@ -88,7 +88,7 @@ def test_build_conversation_xml_with_annotations():
     assert '<note id="anno1">This is a note</note>' in result
 
 
-def test_build_conversation_xml_escaping():
+def test_build_conversation_xml_escaping() -> None:
     """
     Given content with special XML characters
     When build_conversation_xml is called
@@ -110,7 +110,7 @@ def test_build_conversation_xml_escaping():
     assert "<script>" not in result
 
 
-def test_build_conversation_xml_handles_ibis_table_like_object():
+def test_build_conversation_xml_handles_ibis_table_like_object() -> None:
     """
     Given an object that looks like an Ibis/Arrow table
     When build_conversation_xml is called
@@ -118,11 +118,11 @@ def test_build_conversation_xml_handles_ibis_table_like_object():
     """
     # Mocking a simple table structure
     class MockTable:
-        def __init__(self):
+        def __init__(self) -> None:
             self.column_names = ["msg_id", "author", "text", "ts"]
             self.num_rows = 1
 
-        def column(self, idx):
+        def column(self, idx: int) -> MagicMock:
             mock_col = MagicMock()
             if idx == 0:
                 val = ["msg100"]
