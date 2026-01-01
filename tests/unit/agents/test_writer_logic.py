@@ -10,6 +10,8 @@ from jinja2.exceptions import TemplateNotFound  # type: ignore[import-not-found,
 import egregora.agents.writer as writer_module  # type: ignore[import-not-found, unused-ignore]
 from egregora.agents.exceptions import (  # type: ignore[import-not-found, unused-ignore]
     AgentError as JournalFileSystemError,
+)
+from egregora.agents.exceptions import (
     AgentError as JournalTemplateError,
 )
 
