@@ -13,6 +13,7 @@ from egregora.output_adapters.mkdocs.markdown_utils import (
     format_frontmatter_datetime,
 )
 
+
 # region: Tests for extract_clean_date
 def test_extract_clean_date_with_datetime():
     assert extract_clean_date(datetime(2023, 1, 1, 12, 30)) == "2023-01-01"
@@ -68,6 +69,7 @@ def test_extract_clean_date_benchmark(benchmark, input_date, expected):
     """Benchmark the extract_clean_date function."""
     result = benchmark(extract_clean_date, input_date)
     assert result == expected
+
 
 # endregion
 

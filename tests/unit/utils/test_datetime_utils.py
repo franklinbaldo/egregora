@@ -281,5 +281,3 @@ def test_ensure_datetime_invalid_raises_type_error():
 
 
 # endregion
-
-
