@@ -80,6 +80,15 @@ def test_model_key_rotator_fails_when_all_exhausted():
         assert "429" in str(exc.causes[0])
 
 
+def test_all_models_exhausted_error_no_causes():
+    """Test that AllModelsExhaustedError can be raised with no causes."""
+    try:
+        raise AllModelsExhaustedError
+    except AllModelsExhaustedError as exc:
+        assert "All models and keys exhausted" in str(exc)
+        assert not exc.causes
+
+
 def test_model_key_rotator_succeeds_on_first_try():
     """Test that rotator succeeds immediately if first call works."""
     models = ["model-1", "model-2"]
