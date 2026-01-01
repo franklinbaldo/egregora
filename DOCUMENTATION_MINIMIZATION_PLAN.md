@@ -334,3 +334,76 @@ Before starting implementation, please confirm:
 **Plan created**: 2026-01-01
 **Author**: Claude Code
 **Branch**: claude/minimize-docs-mkdocstring-9AaX1
+
+---
+
+## Phase 3 Results: Cleanup & Consolidation
+
+**Date**: 2026-01-01  
+**Status**: ✅ Completed
+
+### Files Removed
+
+**Redundant API Reference Files** (replaced by minimal mkdocstrings docs):
+1. `docs/v2/api-reference/augmentation/enrichment.md` - Covered by agents.md
+2. `docs/v2/api-reference/configuration.md` - Replaced by config.md  
+3. `docs/v2/api-reference/output_adapters/mkdocs/scaffolding.md` - Covered by output-adapters.md
+
+**Orphaned/Obsolete Files**:
+4. `docs/ux-vision.md` - Duplicate of v2/guides/ux-vision.md (in navigation)
+5. `docs/v2/guides/privacy_readme.md` - Explains removed module, obsolete
+6. `docs/v2/guides/ux-report.md` - Not in navigation, obsolete
+7. `docs/v2/architecture/directory_structure.md` - Not in navigation, basic directory listing
+
+**Empty Directories Removed**:
+- `docs/v2/api-reference/augmentation/`
+- `docs/v2/api-reference/output_adapters/mkdocs/`
+- `docs/v2/api-reference/output_adapters/`
+
+### Files Kept
+
+**Planning/Development Docs** (not in nav, but useful):
+- `docs/CLAUDE.md` - Developer notes
+- `docs/jules_feedback_loop_plan.md` - Planning document
+- All `docs/v3/` files - Future version planning (19 files)
+- All `docs/adr/` files - Architectural Decision Records
+- All `docs/demo/` files - Demo site content
+
+### Final Documentation Structure
+
+**Total markdown files**: 64 → 57 files (-7 files)
+
+**API Reference files** (all minimal, auto-generated):
+- 9 core API reference pages (cli, config, core, input-adapters, transformations, agents, pipeline, database, output-adapters, exceptions)
+- Each file: 3-4 lines (title + single mkdocstrings directive)
+- Legacy files (ingestion, privacy, knowledge): Still using mkdocstrings but not yet minimized
+
+**Manual documentation** (kept as-is):
+- Getting Started (4 files)
+- Guides (4 files in nav)
+- Architecture (3 files in nav)
+- ADRs (8 files)
+- About/Index pages
+
+### Impact Summary
+
+**Lines of Documentation Removed**: ~3,500+ lines
+- Phase 1+2: 3,161 lines of manual API content
+- Phase 3: ~340 lines from redundant files
+
+**Maintenance Reduction**:
+- 7 fewer files to maintain
+- 3 empty directories removed
+- All API reference now auto-generates from code docstrings
+- Zero boilerplate - single directive per package
+
+**Success Metrics**:
+- ✅ 90%+ reduction in manual API documentation
+- ✅ All new API pages use single package-level directive
+- ✅ Orphaned/redundant files removed
+- ✅ Documentation structure cleaned and organized
+
+---
+
+**Phase 3 completed**: 2026-01-01  
+**Final commit**: Coming next
