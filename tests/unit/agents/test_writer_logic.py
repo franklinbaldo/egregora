@@ -188,8 +188,6 @@ async def test_write_posts_for_window_smoke_test(
         config=test_config,
         cache=MagicMock(),
         messages=[MagicMock()],
-        window_label="test",
-        signature="sig",
     )
 
     result = await writer_module.write_posts_for_window(params)
@@ -251,10 +249,12 @@ async def test_write_posts_for_window_cache_hit_valid(
     cached_result = {"posts": ["some-slug"], "profiles": []}
     mock_check_cache.return_value = cached_result
 
-    # Mock resources
+    # Mock resources to simulate file existence
     mock_resources = MagicMock()
-    # Mock posts_dir existence
-    mock_resources.output.posts_dir.glob.return_value = [Path("found.md")]
+    # Correctly mock the posts_dir attribute on the output object
+    mock_output = MagicMock()
+    mock_output.posts_dir.glob.return_value = [Path("found.md")]
+    mock_resources.output = mock_output
 
     params = writer_module.WindowProcessingParams(
         table=mock_table,

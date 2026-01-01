@@ -97,19 +97,17 @@ def run_async_safely(coro: Any) -> Any:
     this will use run_until_complete instead of asyncio.run().
     """
     import asyncio
+    import concurrent.futures
 
     try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        # No running loop - use asyncio.run()
+        loop = asyncio.get_running_loop()
+        if loop.is_running():
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, coro)
+                return future.result()
         return asyncio.run(coro)
-    else:
-        # Loop is already running - use run_until_complete in a new thread
-        import concurrent.futures
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(asyncio.run, coro)
-            return future.result()
+    except RuntimeError:
+        return asyncio.run(coro)
 
 
 @dataclass
@@ -762,6 +760,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
 
     params = WindowProcessingParams(
         table=conversation.messages_table,
+        messages=clean_messages_list,
         window_start=conversation.window.start_time,
         window_end=conversation.window.end_time,
         resources=resources,
