@@ -108,6 +108,9 @@ jobs:
             `;
             core.setOutput('prompt', prompt);
 
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Evaluate patch with Gemini
         id: gemini
         uses: ./.github/actions/shared-gemini-runner
