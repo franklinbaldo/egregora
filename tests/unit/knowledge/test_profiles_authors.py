@@ -19,7 +19,10 @@ from egregora.knowledge.exceptions import (
 )
 from egregora.knowledge.profiles import (
     ensure_author_entries,
+    extract_authors_from_post,
     find_authors_yml,
+    load_authors_yml,
+    save_authors_yml,
     sync_authors_from_posts,
 )
 
@@ -327,6 +330,53 @@ def test_sync_authors_from_posts_no_authors_yml(project_structure: tuple[Path, P
     with authors_yml.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
         assert "author1" in data
+
+
+def test_find_authors_yml_fallback_logging(tmp_path: Path, caplog: LogCaptureFixture) -> None:
+    """Verify the fallback behavior in find_authors_yml logs a warning."""
+    # Arrange
+    output_dir = tmp_path / "output" / "posts"
+    output_dir.mkdir(parents=True)
+
+    # Act
+    find_authors_yml(output_dir)
+
+    # Assert
+    assert "Could not find 'docs' directory" in caplog.text
+    assert "Falling back to legacy path resolution" in caplog.text
+
+
+def test_load_authors_yml_os_error(tmp_path: Path) -> None:
+    """Verify that load_authors_yml raises AuthorsFileLoadError on OSError."""
+    # Arrange
+    non_existent_path = tmp_path / "non_existent" / ".authors.yml"
+
+    # Act & Assert
+    with pytest.raises(AuthorsFileLoadError):
+        load_authors_yml(non_existent_path)
+
+
+def test_save_authors_yml_os_error(tmp_path: Path) -> None:
+    """Verify that save_authors_yml raises AuthorsFileSaveError on OSError."""
+    # Arrange
+    read_only_dir = tmp_path / "read_only"
+    read_only_dir.mkdir()
+    read_only_dir.chmod(0o444)
+    authors_path = read_only_dir / ".authors.yml"
+
+    # Act & Assert
+    with pytest.raises(AuthorsFileSaveError):
+        save_authors_yml(authors_path, {"author": "data"}, 1)
+
+
+def test_extract_authors_from_post_os_error(tmp_path: Path) -> None:
+    """Verify that extract_authors_from_post raises AuthorExtractionError on OSError."""
+    # Arrange
+    non_existent_post = tmp_path / "non_existent_post.md"
+
+    # Act & Assert
+    with pytest.raises(AuthorExtractionError):
+        extract_authors_from_post(non_existent_post)
 
 
 def test_authors_file_error_with_message():
