@@ -10,6 +10,13 @@ import frontmatter
 import pytest
 import yaml
 
+from egregora.knowledge.exceptions import (
+    AuthorExtractionError,
+    AuthorsFileError,
+    AuthorsFileLoadError,
+    AuthorsFileParseError,
+    AuthorsFileSaveError,
+)
 from egregora.knowledge.profiles import (
     ensure_author_entries,
     find_authors_yml,
@@ -320,6 +327,51 @@ def test_sync_authors_from_posts_no_authors_yml(project_structure: tuple[Path, P
     with authors_yml.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
         assert "author1" in data
+
+
+def test_authors_file_error_with_message():
+    """Test AuthorsFileError with a custom message."""
+    error = AuthorsFileError(path="/test/path", message="Custom error message")
+    assert error.path == "/test/path"
+    assert str(error) == "Custom error message"
+
+
+def test_authors_file_error_default_message():
+    """Test AuthorsFileError with the default message."""
+    error = AuthorsFileError(path="/test/path")
+    assert str(error) == "An error occurred involving authors file at: /test/path"
+
+
+def test_authors_file_load_error():
+    """Test AuthorsFileLoadError message formatting."""
+    original_exception = OSError("File not found")
+    error = AuthorsFileLoadError(path="/test/path", original_exception=original_exception)
+    expected_message = "Failed to load authors file from path: /test/path. Original error: File not found"
+    assert str(error) == expected_message
+
+
+def test_authors_file_parse_error():
+    """Test AuthorsFileParseError message formatting."""
+    original_exception = yaml.YAMLError("Invalid YAML")
+    error = AuthorsFileParseError(path="/test/path", original_exception=original_exception)
+    expected_message = "Failed to parse YAML from authors file: /test/path. Original error: Invalid YAML"
+    assert str(error) == expected_message
+
+
+def test_authors_file_save_error():
+    """Test AuthorsFileSaveError message formatting."""
+    original_exception = OSError("Permission denied")
+    error = AuthorsFileSaveError(path="/test/path", original_exception=original_exception)
+    expected_message = "Failed to save authors file to path: /test/path. Original error: Permission denied"
+    assert str(error) == expected_message
+
+
+def test_author_extraction_error():
+    """Test AuthorExtractionError message formatting."""
+    original_exception = OSError("File is corrupted")
+    error = AuthorExtractionError(path="/test/post.md", original_exception=original_exception)
+    expected_message = "Failed to extract author(s) from post: /test/post.md. Original error: File is corrupted"
+    assert str(error) == expected_message
 
 
 def test_ensure_author_entries_adds_new_authors(project_structure: tuple[Path, Path]) -> None:
