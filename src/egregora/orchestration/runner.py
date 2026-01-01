@@ -295,7 +295,7 @@ class PipelineRunner:
                 # Check required fields. event_id, ts, author_uuid are required.
                 if "event_id" in filtered_dict and "ts" in filtered_dict and "author_uuid" in filtered_dict:
                     messages_dtos.append(Message(**filtered_dict))
-            except Exception as e:
+            except (ValueError, TypeError) as e:
                 logger.warning("Failed to convert message to DTO: %s", e)
 
         command_messages = extract_commands_list(messages_list)

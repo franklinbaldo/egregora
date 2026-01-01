@@ -75,12 +75,12 @@ class WindowProcessingParams:
 
     window_start: datetime
     window_end: datetime
-    window_label: str
     config: EgregoraConfig
     resources: WriterResources
     cache: PipelineCache
-    signature: str
     messages: list[Message]
+    signature: str | None = None
+    window_label: str | None = None
     table: Table | None = None
     smoke_test: bool = False
     run_id: str | None = None
