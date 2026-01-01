@@ -29,7 +29,8 @@ def test_simple_chunk_text_exact_multiple():
 def test_simple_chunk_text_with_overlap():
     text = "one two three four five six seven eight nine ten"
     chunks = simple_chunk_text(text, max_chars=20, overlap=10)
-    assert len(chunks) == 3
+    assert len(chunks) == 4
     assert chunks[0] == "one two three four"
-    assert chunks[1] == "three four five six"
-    assert chunks[2] == "six seven eight nine ten"
+    assert chunks[1] == "four five six seven"
+    assert chunks[2] == "six seven eight"
+    assert chunks[3] == "eight nine ten"

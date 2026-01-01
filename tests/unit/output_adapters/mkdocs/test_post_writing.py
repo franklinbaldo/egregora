@@ -6,13 +6,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from egregora.output_adapters.exceptions import (
+from egregora.utils.filesystem import (
     DateExtractionError,
     FrontmatterDateFormattingError,
     MissingMetadataError,
     UniqueFilenameError,
-)
-from egregora.output_adapters.mkdocs.adapter import (
     _extract_clean_date,
     _resolve_filepath,
     _validate_post_metadata,
