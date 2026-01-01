@@ -172,9 +172,14 @@ nav:
     - API Reference:
       - Overview: v2/api-reference/index.md
       - CLI: v2/api-reference/cli.md
+      - Configuration: v2/api-reference/config.md
       - Core: v2/api-reference/data-primitives.md
       - Input Adapters: v2/api-reference/input-adapters.md
+      - Transformations: v2/api-reference/transformations.md
       - Agents: v2/api-reference/agents.md
+      - Pipeline: v2/api-reference/pipeline.md
+      - Database: v2/api-reference/database.md
+      - Output Adapters: v2/api-reference/output-adapters.md
       - Ingestion: v2/api-reference/ingestion/parser.md
       - Privacy:
         - Anonymizer: v2/api-reference/privacy/anonymizer.md
@@ -183,7 +188,6 @@ nav:
         - RAG: v2/api-reference/knowledge/rag.md
         - Annotations: v2/api-reference/knowledge/annotations.md
         - Ranking: v2/api-reference/knowledge/ranking.md
-      - Publication: v2/api-reference/output_adapters/mkdocs/scaffolding.md
       - Exceptions: v2/api-reference/exceptions.md
     - Architecture Docs:
       - Protocols: v2/architecture/protocols.md
