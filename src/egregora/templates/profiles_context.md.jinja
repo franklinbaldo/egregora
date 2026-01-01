@@ -1,0 +1,15 @@
+{% if profiles %}
+
+## Active Participants (Profiles):
+Understanding the participants helps you write posts that match their style, voice, and interests.
+
+{% for profile in profiles %}
+### Author: {{ profile.id }}
+{% if profile.content %}
+{{ profile.content }}
+{% else %}
+(No profile yet - first appearance)
+{% endif %}
+
+{% endfor %}
+{% endif %}

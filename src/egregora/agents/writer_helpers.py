@@ -6,9 +6,11 @@ import json
 import logging
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from dateutil.parser import parse as parse_date
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic_ai import Agent, RunContext
 
 from egregora.agents.banner.agent import is_banner_generation_available
@@ -264,15 +266,21 @@ def _run_rag_query(query_text: str, top_k: int) -> Any | None:
 
 
 def _format_rag_hits(hits: list[Any]) -> str:
-    parts = [
-        "\n\n## Similar Posts (for context and inspiration):\n",
-        "These are similar posts from previous conversations that might provide useful context:\n\n",
-    ]
-    for idx, hit in enumerate(hits, 1):
-        similarity_pct = int(hit.score * 100)
-        parts.append(f"### Similar Post {idx} (similarity: {similarity_pct}%)\n")
-        parts.append(f"{hit.text[:500]}...\n\n")
-    return "".join(parts)
+    templates_dir = Path(__file__).resolve().parents[1] / "templates"
+    env = Environment(
+        loader=FileSystemLoader(str(templates_dir)),
+        autoescape=select_autoescape(["html", "xml", "jinja", "md"]),
+    )
+    template = env.get_template("rag_context.md.jinja")
+
+    hits_data = []
+    for hit in hits:
+        hits_data.append({
+            "similarity_pct": int(hit.score * 100),
+            "text": hit.text[:500]
+        })
+
+    return template.render(hits=hits_data)
 
 
 def _store_rag_context(cache: Any | None, query_text: str, context: str) -> None:
@@ -303,11 +311,7 @@ def load_profiles_context(active_authors: list[str], output_sink: Any) -> str:
         return ""
     logger.info("Loading profiles for %s active authors", len(active_authors))
 
-    parts = [
-        "\n\n## Active Participants (Profiles):\n",
-        "Understanding the participants helps you write posts that match their style, voice, and interests.\n\n",
-    ]
-
+    profiles_data = []
     for author_uuid in active_authors:
         try:
             doc = output_sink.read_document(DocumentType.PROFILE, author_uuid)
@@ -316,13 +320,20 @@ def load_profiles_context(active_authors: list[str], output_sink: Any) -> str:
             logger.debug("Could not read profile for %s: %s", author_uuid, exc)
             profile_content = ""
 
-        parts.append(f"### Author: {author_uuid}\n")
-        if profile_content:
-            parts.append(f"{profile_content}\n\n")
-        else:
-            parts.append("(No profile yet - first appearance)\n\n")
+        profiles_data.append({
+            "id": author_uuid,
+            "content": profile_content
+        })
 
-    profiles_context = "".join(parts)
+    templates_dir = Path(__file__).resolve().parents[1] / "templates"
+    env = Environment(
+        loader=FileSystemLoader(str(templates_dir)),
+        autoescape=select_autoescape(["html", "xml", "jinja", "md"]),
+    )
+    template = env.get_template("profiles_context.md.jinja")
+
+    profiles_context = template.render(profiles=profiles_data)
+
     logger.info("Profiles context: %s characters", len(profiles_context))
     return profiles_context
 

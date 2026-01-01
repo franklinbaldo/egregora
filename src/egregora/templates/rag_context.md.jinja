@@ -1,0 +1,11 @@
+{% if hits %}
+
+## Similar Posts (for context and inspiration):
+These are similar posts from previous conversations that might provide useful context:
+
+{% for hit in hits %}
+### Similar Post {{ loop.index }} (similarity: {{ hit.similarity_pct }}%)
+{{ hit.text }}...
+
+{% endfor %}
+{% endif %}
