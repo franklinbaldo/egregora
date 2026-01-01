@@ -1,7 +1,5 @@
 # Exceptions Reference
 
-Custom exceptions for error handling across Egregora modules.
-
 ::: egregora.config.exceptions
 
 ::: egregora.input_adapters.whatsapp.exceptions
