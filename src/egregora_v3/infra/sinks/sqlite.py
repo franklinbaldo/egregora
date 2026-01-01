@@ -26,26 +26,13 @@ TABLE_SCHEMA = OrderedDict([
 
 def _document_to_record(doc: Document) -> dict[str, Any]:
     """Serialize a Document to a dictionary for database insertion."""
-    # Using model_dump is more declarative and handles nested models automatically.
+    # `model_dump` with `mode='json'` serializes nested Pydantic models.
+    # We then re-serialize the list fields into JSON strings for the DB.
     record = doc.model_dump(mode="json")
-
-    # The schema expects top-level keys. We need to flatten the nested JSON fields.
-    # The `model_dump` with `mode='json'` already serialized the inner fields.
-    # We just need to handle the top-level fields correctly.
-    flat_record = {
-        "id": record["id"],
-        "title": record["title"],
-        "content": record["content"],
-        "summary": record["summary"],
-        "doc_type": record["doc_type"],
-        "status": record["status"],
-        "published": record["published"],
-        "updated": record["updated"],
-        "authors": json.dumps(record["authors"]),
-        "categories": json.dumps(record["categories"]),
-        "links": json.dumps(record["links"]),
-    }
-    return flat_record
+    for key in ["authors", "categories", "links"]:
+        if key in record and record[key] is not None:
+            record[key] = json.dumps(record[key])
+    return record
 
 
 class SQLiteOutputSink:
