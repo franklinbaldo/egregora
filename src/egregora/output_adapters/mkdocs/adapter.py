@@ -42,10 +42,9 @@ from egregora.output_adapters.exceptions import (
     ProfileMetadataError,
     UnsupportedDocumentTypeError,
 )
+from egregora.output_adapters.mkdocs.markdown import write_markdown_post
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
-from egregora.utils.authors import ensure_author_entries
-from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.paths import slugify
 
 if TYPE_CHECKING:
@@ -116,7 +115,6 @@ class MkDocsAdapter(BaseOutputSink):
 
         # Internal dispatch for writers and path resolvers
         self._writers = {
-            DocumentType.POST: self._write_post_doc,
             DocumentType.PROFILE: self._write_profile_doc,
             DocumentType.MEDIA: self._write_media_doc,
             DocumentType.JOURNAL: self._write_journal_doc,
@@ -214,9 +212,37 @@ class MkDocsAdapter(BaseOutputSink):
 
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Dispatch to specific writer if available, else generic
-        writer = self._writers.get(document.type, self._write_generic_doc)
-        writer(document, path)
+        if document.type == DocumentType.POST:
+            metadata = document.metadata
+            # Add related posts based on shared tags
+            current_tags = set(metadata.get("tags", []))
+            current_slug = metadata.get("slug")
+            if current_tags and current_slug:
+                all_posts = list(self.documents())
+                related_posts_list = []
+                for post in all_posts:
+                    if post.type != DocumentType.POST:
+                        continue
+                    post_slug = post.metadata.get("slug")
+                    if post_slug == current_slug:
+                        continue
+                    post_tags = set(post.metadata.get("tags", []))
+                    shared_tags = current_tags & post_tags
+                    if shared_tags:
+                        related_posts_list.append(
+                            {
+                                "title": post.metadata.get("title"),
+                                "url": self.url_convention.canonical_url(post, self._ctx),
+                                "reading_time": post.metadata.get("reading_time", 5),
+                            }
+                        )
+                if related_posts_list:
+                    metadata["related_posts"] = related_posts_list
+            write_markdown_post(document.content, metadata, self.posts_dir)
+        else:
+            # Dispatch to specific writer if available, else generic
+            writer = self._writers.get(document.type, self._write_generic_doc)
+            writer(document, path)
 
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
@@ -939,52 +965,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         metadata["categories"] = categories
         return metadata
-
-    def _write_post_doc(self, document: Document, path: Path) -> None:
-        metadata = dict(document.metadata or {})
-
-        # Posts don't need a forced category - Material blog shows uncategorized posts in main feed
-        # But ensure categories is a list if present
-        if "categories" in metadata and not isinstance(metadata["categories"], list):
-            metadata["categories"] = []
-
-        if "date" in metadata:
-            # Parse to datetime object for proper YAML serialization (unquoted)
-            # Material blog plugin requires native datetime type, not string
-            dt = parse_datetime_flexible(metadata["date"])
-            if dt:
-                metadata["date"] = dt
-        if "authors" in metadata:
-            ensure_author_entries(path.parent, metadata.get("authors"))
-
-        # Add related posts based on shared tags
-        current_tags = set(metadata.get("tags", []))
-        current_slug = metadata.get("slug")
-        if current_tags and current_slug:
-            all_posts = list(self.documents())
-            related_posts_list = []
-            for post in all_posts:
-                if post.type != DocumentType.POST:
-                    continue
-                post_slug = post.metadata.get("slug")
-                if post_slug == current_slug:
-                    continue
-                post_tags = set(post.metadata.get("tags", []))
-                shared_tags = current_tags & post_tags
-                if shared_tags:
-                    related_posts_list.append(
-                        {
-                            "title": post.metadata.get("title"),
-                            "url": self.url_convention.canonical_url(post, self._ctx),
-                            "reading_time": post.metadata.get("reading_time", 5),
-                        }
-                    )
-            if related_posts_list:
-                metadata["related_posts"] = related_posts_list
-
-        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
-        full_content = f"---\n{yaml_front}---\n\n{document.content}"
-        path.write_text(full_content, encoding="utf-8")
 
     def _write_journal_doc(self, document: Document, path: Path) -> None:
         metadata = self._ensure_hidden(dict(document.metadata or {}))

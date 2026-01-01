@@ -30,7 +30,11 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
         run: |
-          allow=$(gh api repos/"$OWNER"/"$REPO" --jq '.allow_auto_merge')
+          allow=$(gh api graphql \
+            -f owner="$OWNER" \
+            -f name="$REPO" \
+            -f query='query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { allowAutoMerge } }' \
+            --jq '.data.repository.allowAutoMerge')
 
           if [ "$allow" != "true" ]; then
             echo "Auto-merge is not enabled in the repository settings."

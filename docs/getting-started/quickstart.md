@@ -223,4 +223,5 @@ chmod -R u+w .egregora/lancedb/
 
 ## Learn More
 
-- [V2 Architecture Overview](../v2/architecture.md) - Understand the pipeline
+- [Architecture Overview](../../v3/architecture/index.md) - Understand the pipeline
+- [API Reference](../../v3/api-reference/index.md) - Complete code documentation
