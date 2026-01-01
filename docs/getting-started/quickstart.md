@@ -18,11 +18,6 @@ uv tool install git+https://github.com/franklinbaldo/egregora
 
 ## Step 2: Initialize Your Blog
 
-First, install Egregora if you haven't already:
-```bash
-uv tool install git+https://github.com/franklinbaldo/egregora
-```
-
 Now, create a new blog site:
 ```bash
 egregora init my-blog
@@ -36,8 +31,7 @@ This creates a minimal MkDocs site structure:
 ```
 my-blog/
 ├── .egregora/
-│   ├── mkdocs.yml      # Site configuration
-│   └── ...             # Egregora state (databases, cache)
+│   └── mkdocs.yml      # Site configuration
 └── docs/
     ├── index.md        # Homepage
     └── posts/          # Generated blog posts go here
@@ -223,5 +217,4 @@ chmod -R u+w .egregora/lancedb/
 
 ## Learn More
 
-- [Architecture Overview](../../v3/architecture/index.md) - Understand the pipeline
-- [API Reference](../../v3/api-reference/index.md) - Complete code documentation
+- [V3 Architecture Overview](../v3/architecture/overview.md) - Understand the pipeline

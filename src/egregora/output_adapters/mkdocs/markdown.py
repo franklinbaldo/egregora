@@ -7,13 +7,13 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
+from egregora.knowledge.profiles import ensure_author_entries
 from egregora.output_adapters.exceptions import (
     DirectoryCreationError,
     FileWriteError,
     MissingMetadataError,
     UniqueFilenameError,
 )
-from egregora.utils.authors import ensure_author_entries
 from egregora.utils.datetime_utils import (
     extract_clean_date,
     format_frontmatter_datetime,
