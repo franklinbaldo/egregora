@@ -1,7 +1,6 @@
 # tests/unit/utils/test_authors_performance.py
-import yaml
-
 import pytest
+import yaml
 
 from egregora.utils.authors import sync_authors_from_posts
 
@@ -55,7 +54,7 @@ def test_sync_authors_from_posts_benchmark(benchmark, author_posts):
     # Further correctness check: verify the content of the generated .authors.yml
     assert authors_file.exists()
 
-    with open(authors_file, "r", encoding="utf-8") as f:
+    with authors_file.open(encoding="utf-8") as f:
         authors_data = yaml.safe_load(f)
 
     assert len(authors_data) == 50
