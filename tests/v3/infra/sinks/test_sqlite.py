@@ -108,8 +108,8 @@ def test_publish_creates_database_and_writes_document(
     assert title == "Published Document"
     assert doc_type == "post"
     assert status == "published"
-    assert published == "2023-01-01T12:00:00+00:00"
-    assert updated == "2023-01-02T12:00:00+00:00"
+    assert published == "2023-01-01T12:00:00Z"
+    assert updated == "2023-01-02T12:00:00Z"
     assert '"name": "Author 1"' in authors
     assert '"term": "testing"' in categories
     assert '"href": "http://example.com/link"' in links
@@ -157,8 +157,8 @@ def test_document_to_record_serializes_correctly(sample_feed: Feed):
     assert record["title"] == "Published Document"
     assert record["doc_type"] == "post"
     assert record["status"] == "published"
-    assert record["published"] == "2023-01-01T12:00:00+00:00"
-    assert record["updated"] == "2023-01-02T12:00:00+00:00"
+    assert record["published"] == "2023-01-01T12:00:00Z"
+    assert record["updated"] == "2023-01-02T12:00:00Z"
     assert json.loads(record["authors"]) == [
         {"name": "Author 1", "email": "author1@example.com", "uri": None}
     ]
