@@ -370,7 +370,9 @@ def test_author_extraction_error():
     """Test AuthorExtractionError message formatting."""
     original_exception = OSError("File is corrupted")
     error = AuthorExtractionError(path="/test/post.md", original_exception=original_exception)
-    expected_message = "Failed to extract author(s) from post: /test/post.md. Original error: File is corrupted"
+    expected_message = (
+        "Failed to extract author(s) from post: /test/post.md. Original error: File is corrupted"
+    )
     assert str(error) == expected_message
 
 
