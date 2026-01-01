@@ -6,6 +6,7 @@ import yaml
 
 from egregora.data_primitives.document import Document, DocumentType, UrlContext
 from egregora.output_adapters.conventions import StandardUrlConvention
+from egregora.output_adapters.exceptions import DocumentParsingError
 from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
 
@@ -179,3 +180,33 @@ def test_regenerate_tags_page_no_tags(site_generator: SiteGenerator):
     site_generator.regenerate_tags_page()
     tags_path = site_generator.posts_dir / "tags.md"
     assert not tags_path.exists()
+
+
+def test_scan_directory_raises_on_malformed_frontmatter(site_generator: SiteGenerator):
+    """Test that _scan_directory raises DocumentParsingError for malformed files."""
+    malformed_content = """---
+title: Malformed
+date: 2025-01-01
+authors: [
+---
+Content
+"""
+    (site_generator.posts_dir / "malformed.md").write_text(malformed_content, encoding="utf-8")
+
+    with pytest.raises(DocumentParsingError):
+        list(site_generator._scan_directory(site_generator.posts_dir, DocumentType.POST))
+
+
+def test_get_recent_media_raises_on_malformed_frontmatter(site_generator: SiteGenerator):
+    """Test that get_recent_media raises DocumentParsingError for malformed files."""
+    malformed_content = """---
+title: Malformed
+url: http://example.com
+slug: [
+---
+Content
+"""
+    (site_generator.urls_dir / "malformed.md").write_text(malformed_content, encoding="utf-8")
+
+    with pytest.raises(DocumentParsingError):
+        site_generator.get_recent_media()

@@ -71,8 +71,7 @@ class SiteGenerator:
                     doc = Document(content=post.content, type=doc_type, metadata=post.metadata)
                     yield doc
                 except (OSError, yaml.YAMLError) as e:
-                    logger.warning("Could not parse document at %s: %s", path, e)
-                    continue
+                    raise DocumentParsingError(str(path), str(e)) from e
 
     def get_site_stats(self) -> dict[str, int]:
         """Calculate site statistics for homepage."""
@@ -153,8 +152,8 @@ class SiteGenerator:
                         "summary": summary or post.metadata.get("description", ""),
                     }
                 )
-            except (OSError, yaml.YAMLError):
-                continue
+            except (OSError, yaml.YAMLError) as e:
+                raise DocumentParsingError(str(path), str(e)) from e
         return media_items
 
     def regenerate_tags_page(self) -> None:
