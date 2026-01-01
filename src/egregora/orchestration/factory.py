@@ -31,9 +31,9 @@ from egregora.output_adapters import (
     create_default_output_registry,
     create_output_sink,
 )
+from egregora.llm.usage import UsageTracker
 from egregora.output_adapters.mkdocs import MkDocsPaths
 from egregora.utils.cache import PipelineCache
-from egregora.utils.metrics import UsageTracker
 
 if TYPE_CHECKING:
     import google.generativeai as genai

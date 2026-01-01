@@ -59,9 +59,9 @@ from egregora.transformations import (
     load_checkpoint,
     save_checkpoint,
 )
+from egregora.llm.usage import UsageTracker
 from egregora.utils.cache import PipelineCache
 from egregora.utils.env import get_google_api_keys, validate_gemini_api_key
-from egregora.utils.metrics import UsageTracker
 from egregora.utils.rate_limit import init_rate_limiter
 
 try:

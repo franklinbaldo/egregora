@@ -60,8 +60,8 @@ if TYPE_CHECKING:
     from ibis.expr.types import Table
 
     from egregora.input_adapters.base import MediaMapping
+    from egregora.llm.usage import UsageTracker
     from egregora.orchestration.context import PipelineContext
-    from egregora.utils.metrics import UsageTracker
 
 logger = logging.getLogger(__name__)
 
