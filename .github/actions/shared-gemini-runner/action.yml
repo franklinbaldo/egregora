@@ -88,7 +88,9 @@ runs:
 
           if [ "$http_status" -eq 200 ]; then
             # Attempt to parse the summary.
-            summary=$(echo "$response_body" | jq -r '.candidates[0].content.parts[0].text' 2>/dev/null)
+            # The '|| true' is critical to prevent the script from exiting if jq fails
+            # on a non-JSON response (e.g., an HTML error page from a proxy).
+            summary=$(echo "$response_body" | jq -r '.candidates[0].content.parts[0].text' 2>/dev/null || true)
 
             if [ -n "$summary" ]; then
               echo "Success with model: $model"
