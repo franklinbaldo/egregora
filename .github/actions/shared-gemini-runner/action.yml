@@ -34,34 +34,38 @@ runs:
   steps:
     - name: Parse fallback models
       id: models
-      shell: bash
+      uses: actions/github-script@v8
+      continue-on-error: true
       env:
         FALLBACK_MODELS: ${{ inputs.fallback_models }}
-      run: |
-        set -euo pipefail
+      with:
+        script: |
+          const raw = process.env.FALLBACK_MODELS || '';
+          console.log(`Raw models input: ${raw}`);
 
-        python - <<'PY' > /tmp/models
-          import json
-          import os
-          import sys
+          let models;
+          try {
+            const parsed = JSON.parse(raw);
+            models = Array.isArray(parsed) ? parsed : [];
+          } catch (error) {
+            console.log('JSON parse failed, trying comma-split');
+            models = raw.split(',').map(s => s.trim()).filter(Boolean);
+          }
 
-          raw = os.environ.get("FALLBACK_MODELS", "")
-          try:
-              models = json.loads(raw)
-          except json.JSONDecodeError as exc:  # pragma: no cover - executed in workflow only
-              sys.exit(f"fallback_models must be valid JSON: {exc}")
+          if (models.length === 0) {
+            // Default fallbacks if input is empty/invalid
+            models = ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+            core.warning('No valid models provided, using defaults.');
+          }
 
-          if not isinstance(models, list) or not models:
-              sys.exit("fallback_models must be a non-empty JSON array")
+          console.log(`Resolved models: ${JSON.stringify(models)}`);
 
-          for index in range(3):
-              value = models[index] if index < len(models) else ""
-              print(f"model_{index}={value}")
+          for (let index = 0; index < 3; index++) {
+            const value = index < models.length ? models[index] : "";
+            core.setOutput(`model_${index}`, value);
+          }
 
-          print(f"attempts_json={json.dumps(models)}")
-        PY
-
-        cat /tmp/models >> "$GITHUB_OUTPUT"
+          core.setOutput('attempts_json', JSON.stringify(models));
 
     - name: Run Gemini (primary)
       id: gemini_primary
