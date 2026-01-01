@@ -1,6 +1,7 @@
 """Tests for writer agent decoupling logic."""
 
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -223,3 +224,60 @@ async def test_execute_writer_raises_specific_error(mock_writer_agent, test_conf
     # Verify the exception has the correct context
     assert "test-window-123" in str(exc_info.value)
     assert exc_info.value.__cause__ is original_error
+
+
+@pytest.mark.asyncio
+@patch("egregora.agents.writer.build_context_and_signature")
+@patch("egregora.agents.writer.check_writer_cache")
+@patch("egregora.agents.writer.prepare_writer_dependencies")
+@patch("egregora.agents.writer._render_writer_prompt")
+@patch("egregora.agents.writer._execute_writer_with_error_handling")
+@patch("egregora.agents.writer._finalize_writer_results")
+async def test_write_posts_for_window_cache_hit_valid(
+    mock_finalize,
+    mock_execute,
+    mock_render,
+    mock_prepare_deps,
+    mock_check_cache,
+    mock_build_context,
+    test_config,
+):
+    """Test cache hit logic when files exist on disk."""
+    mock_table = MagicMock()
+    mock_table.count.return_value.execute.return_value = 1
+    mock_build_context.return_value = (MagicMock(), "signature")
+
+    # Cache HIT
+    cached_result = {"posts": ["some-slug"], "profiles": []}
+    mock_check_cache.return_value = cached_result
+
+    # Mock resources
+    mock_resources = MagicMock()
+    # Mock posts_dir existence
+    mock_resources.output.posts_dir.glob.return_value = [Path("found.md")]
+
+    params = WindowProcessingParams(
+        table=mock_table,
+        window_start=datetime.now(),
+        window_end=datetime.now(),
+        resources=mock_resources,
+        config=test_config,
+        cache=MagicMock(),
+    )
+
+    result = await write_posts_for_window(params)
+
+    assert result == cached_result
+    mock_execute.assert_not_called()
+
+
+def test_regenerate_site_indices_skips_if_no_site_root():
+    """Test that site generation is skipped if site_root is None."""
+    from egregora.agents.writer import _regenerate_site_indices
+
+    adapter = MagicMock()
+    adapter.site_root = None
+
+    with patch("egregora.agents.writer.SiteGenerator") as mock_gen:
+        _regenerate_site_indices(adapter)
+        mock_gen.assert_not_called()
