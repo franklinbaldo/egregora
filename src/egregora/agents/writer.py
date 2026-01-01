@@ -755,9 +755,7 @@ def _build_context_and_signature(
 
     # Calculate signature using data (XML) + logic (template) + engine
     signature = generate_window_signature(
-        params.table,  # We might still need table for signature?
-        # But generate_window_signature uses table to generate XML.
-        # We have XML in writer_context.conversation_xml
+        None,
         params.config,
         template_content,
         xml_content=writer_context.conversation_xml,
