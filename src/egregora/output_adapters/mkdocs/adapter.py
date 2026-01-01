@@ -45,8 +45,6 @@ from egregora.output_adapters.exceptions import (
 from egregora.output_adapters.mkdocs.markdown import write_markdown_post
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
-from egregora.utils.authors import ensure_author_entries
-from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.paths import slugify
 
 if TYPE_CHECKING:
@@ -967,7 +965,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         metadata["categories"] = categories
         return metadata
-
 
     def _write_journal_doc(self, document: Document, path: Path) -> None:
         metadata = self._ensure_hidden(dict(document.metadata or {}))
