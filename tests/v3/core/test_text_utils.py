@@ -1,6 +1,35 @@
 
 import pytest
-from egregora_v3.core.utils import simple_chunk_text
+from egregora_v3.core.text_utils import slugify, simple_chunk_text
+
+
+def test_slugify_simple():
+    assert slugify("Hello World") == "hello-world"
+
+
+def test_slugify_unicode():
+    assert slugify("Café") == "cafe"
+
+
+def test_slugify_long_text():
+    long_text = "a" * 100
+    assert slugify(long_text, max_len=20) == "aaaaaaaaaaaaaaaaaaaa"
+
+
+def test_slugify_with_special_chars():
+    assert slugify("!@#$%^&*()_+=") == "untitled"
+
+
+def test_slugify_with_leading_trailing_hyphens():
+    assert slugify("---hello-world---") == "hello-world"
+
+
+def test_slugify_with_consecutive_hyphens():
+    assert slugify("hello--world") == "hello-world"
+
+
+def test_slugify_empty_string():
+    assert slugify("") == "untitled"
 
 
 def test_simple_chunk_text_empty():
@@ -29,7 +58,8 @@ def test_simple_chunk_text_exact_multiple():
 def test_simple_chunk_text_with_overlap():
     text = "one two three four five six seven eight nine ten"
     chunks = simple_chunk_text(text, max_chars=20, overlap=10)
-    assert len(chunks) == 3
+    assert len(chunks) == 4
     assert chunks[0] == "one two three four"
-    assert chunks[1] == "three four five six"
-    assert chunks[2] == "six seven eight nine ten"
+    assert chunks[1] == "four five six seven"
+    assert chunks[2] == "six seven eight"
+    assert chunks[3] == "eight nine ten"

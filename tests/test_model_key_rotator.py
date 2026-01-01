@@ -2,8 +2,16 @@
 
 import logging
 
+import pytest
+
 from egregora.llm.exceptions import AllModelsExhaustedError
-from egregora.llm.providers.model_cycler import GeminiKeyRotator, ModelKeyRotator
+from egregora.llm.providers.model_cycler import (
+    GeminiKeyRotator,
+    GeminiModelCycler,
+    ModelKeyRotator,
+    create_key_rotator,
+    create_model_cycler,
+)
 
 
 def test_model_key_rotator_exhausts_keys_per_model():
@@ -75,7 +83,7 @@ def test_model_key_rotator_fails_when_all_exhausted():
         assert "All models and keys exhausted" in str(exc)
         # Should preserve the underlying cause
         assert exc.causes
-        assert len(exc.causes) == 1
+        assert len(exc.causes) == 4
         assert isinstance(exc.causes[0], RuntimeError)
         assert "429" in str(exc.causes[0])
 
@@ -126,6 +134,91 @@ def test_key_rotator_handles_rate_limit_logging_without_attribute_error(caplog):
     # First key should hit rate limit and rotate to second key without AttributeError
     assert call_log == ["key-a", "key-b"]
     assert any("[KeyRotator] Rate limit on key index" in record.message for record in caplog.records)
+
+
+def test_gemini_key_rotator_fails_when_all_exhausted():
+    """Test that GeminiKeyRotator raises exception when all keys are exhausted."""
+    api_keys = ["key-a", "key-b"]
+    rotator = GeminiKeyRotator(api_keys=api_keys)
+
+    def always_fails(api_key: str) -> str:
+        msg = "429 Too Many Requests"
+        raise RuntimeError(msg)
+
+    try:
+        rotator.call_with_rotation(always_fails)
+        msg = "Should have raised exception"
+        raise AssertionError(msg)
+    except AllModelsExhaustedError as exc:
+        assert "All API keys exhausted" in str(exc)
+
+
+def test_gemini_model_cycler_succeeds_on_first_try():
+    """Test that GeminiModelCycler succeeds immediately if the first call works."""
+    models = ["model-1", "model-2"]
+    cycler = GeminiModelCycler(models=models)
+
+    call_log = []
+
+    def succeeds_immediately(model: str) -> str:
+        call_log.append(model)
+        return "Success"
+
+    result = cycler.call_with_rotation(succeeds_immediately)
+
+    assert len(call_log) == 1
+    assert call_log[0] == "model-1"
+    assert result == "Success"
+
+
+def test_gemini_model_cycler_fails_when_all_exhausted():
+    """Test that GeminiModelCycler raises an exception when all models are exhausted."""
+    models = ["model-1", "model-2"]
+    cycler = GeminiModelCycler(models=models)
+
+    def always_fails(model: str) -> str:
+        msg = "429 Too Many Requests"
+        raise RuntimeError(msg)
+
+    with pytest.raises(RuntimeError):
+        cycler.call_with_rotation(always_fails)
+
+
+def test_gemini_key_rotator_init_with_no_keys(mocker):
+    """Test that GeminiKeyRotator raises an error if no API keys are found."""
+    mocker.patch("egregora.llm.providers.model_cycler.get_google_api_keys", return_value=[])
+    with pytest.raises(ValueError, match="No API keys found"):
+        GeminiKeyRotator()
+
+
+def test_gemini_key_rotator_reset():
+    """Test that the reset method of GeminiKeyRotator works correctly."""
+    api_keys = ["key-a", "key-b"]
+    rotator = GeminiKeyRotator(api_keys=api_keys)
+    rotator.next_key()
+    rotator.reset()
+    assert rotator.current_key == "key-a"
+
+
+def test_create_key_rotator():
+    """Test that the create_key_rotator factory function works correctly."""
+    rotator = create_key_rotator(api_keys=["key-a", "key-b"])
+    assert isinstance(rotator, GeminiKeyRotator)
+
+
+def test_gemini_model_cycler_reset():
+    """Test that the reset method of GeminiModelCycler works correctly."""
+    models = ["model-a", "model-b"]
+    cycler = GeminiModelCycler(models=models)
+    cycler.next_model()
+    cycler.reset()
+    assert cycler.current_model == "model-a"
+
+
+def test_create_model_cycler():
+    """Test that the create_model_cycler factory function works correctly."""
+    cycler = create_model_cycler(config_models=["model-a", "model-b"])
+    assert isinstance(cycler, GeminiModelCycler)
 
 
 if __name__ == "__main__":

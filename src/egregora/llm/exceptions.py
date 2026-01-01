@@ -35,3 +35,22 @@ class BatchResultDownloadError(LLMProviderError):
 
 class InvalidLLMResponseError(LLMProviderError):
     """Exception raised when the LLM response is empty or invalid."""
+
+
+class ModelCyclerError(LLMProviderError):
+    """Base exception for model and key cycling errors."""
+
+
+class AllModelsExhaustedError(ModelCyclerError):
+    """Exception raised when all models and/or keys in a rotator are exhausted."""
+
+    def __init__(self, message: str, causes: list[Exception] | None = None) -> None:
+        """Initialize the exception.
+
+        Args:
+            message: The top-level error message.
+            causes: A list of underlying exceptions that led to this error.
+
+        """
+        self.causes = causes or []
+        super().__init__(message)
