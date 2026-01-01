@@ -1,65 +1,95 @@
+
 """V3 Schema Migration Script."""
-
 import logging
-
 import duckdb
+import json
+from datetime import date, datetime, UTC
 
-# Import the target schema and the type conversion utility
-from egregora.database.schemas import UNIFIED_SCHEMA, ibis_to_duckdb_type
+from egregora.database.schemas import V3_DOCUMENTS_SCHEMA, ibis_to_duckdb_type
 
 logger = logging.getLogger(__name__)
 
 
-def migrate_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
-    """Applies the V3 UNIFIED_SCHEMA to an existing 'documents' table.
-
-    This migration is idempotent and robustly handles NOT NULL constraints
-    by creating a new table, copying data, and replacing the old table.
+def migrate_to_v3_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
     """
-    # Get the existing columns from the 'documents' table
-    result = conn.execute("PRAGMA table_info('documents')").fetchall()
-    existing_columns = {row[1] for row in result}
+    Applies the V3_DOCUMENTS_SCHEMA to a legacy 'documents' table.
 
-    # Check if migration is needed
-    if "doc_type" in existing_columns and "status" in existing_columns:
-        logger.info("Schema is already up to date. No migration needed.")
+    This migration is idempotent. It uses a safe "create-copy-swap" pattern
+    to handle schema changes, including adding NOT NULL constraints and
+    transforming data from old columns into new JSON structures.
+    """
+    try:
+        result = conn.execute("PRAGMA table_info('documents')").fetchall()
+        existing_columns = {row[1] for row in result}
+    except duckdb.CatalogException:
+        # If the table doesn't exist at all, there's nothing to migrate.
+        logger.info("Table 'documents' does not exist. No migration needed.")
         return
 
-    temp_table_name = "documents_temp"
+    # Idempotency check: If a key V3 column already exists, assume migration is done.
+    if "internal_metadata" in existing_columns:
+        logger.info("V3 schema already applied. No migration needed.")
+        return
 
-    # Define the new schema with NOT NULL constraints where appropriate
+    logger.info("Legacy schema detected. Starting migration to V3 'documents' table.")
+
+    temp_table_name = "documents_v3_temp"
+    conn.execute(f"DROP TABLE IF EXISTS {temp_table_name}")
+
+    # 1. Create the new table with the correct V3 schema
     columns_sql = ", ".join(
-        f'"{name}" {ibis_to_duckdb_type(dtype)}{" NOT NULL" if not dtype.nullable else ""}'
-        for name, dtype in UNIFIED_SCHEMA.items()
+        f'"{name}" {ibis_to_duckdb_type(dtype)}{"" if dtype.nullable else " NOT NULL"}'
+        for name, dtype in V3_DOCUMENTS_SCHEMA.items()
     )
-
     create_temp_table_sql = f"CREATE TABLE {temp_table_name} ({columns_sql});"
-    logger.info(f"Creating temporary table: {create_temp_table_sql}")
     conn.execute(create_temp_table_sql)
 
-    # Prepare the list of columns for the INSERT statement
-    column_names = [f'"{name}"' for name in UNIFIED_SCHEMA]
-
-    # Prepare the SELECT statement to copy and transform data
+    # 2. Prepare SELECT expressions to copy and transform data
     select_expressions = []
-    for name in UNIFIED_SCHEMA:
+    for name, dtype in V3_DOCUMENTS_SCHEMA.items():
         if name in existing_columns:
+            # Direct copy for existing columns
             select_expressions.append(f'"{name}"')
-        elif name == "doc_type":
-            select_expressions.append("'note' AS doc_type")
-        elif name == "status":
-            select_expressions.append("'draft' AS status")
         else:
-            select_expressions.append(f'NULL AS "{name}"')
+            # Handle new or transformed columns with defaults
+            default = "NULL"
+            if not dtype.nullable:
+                if dtype.is_json():
+                    default = "'[]'"  # Default for authors, links, etc.
+                elif dtype.is_string():
+                    default = "''"
+                elif dtype.is_timestamp():
+                    default = f"'{datetime.now(UTC).isoformat()}'"
+            select_expressions.append(f'{default} AS "{name}"')
 
-    select_sql = f"SELECT {', '.join(select_expressions)} FROM documents"
+    # Custom transformation for internal_metadata
+    # We build a JSON object from legacy columns
+    meta_expression = """
+    json_object(
+        'legacy_slug', slug,
+        'legacy_date', date::VARCHAR
+    ) AS internal_metadata
+    """
+    # Replace the placeholder 'NULL AS "internal_metadata"'
+    select_expressions = [
+        meta_expression if 'AS "internal_metadata"' in col else col for col in select_expressions
+    ]
+    # Set doc_type default
+    select_expressions = [
+        "'post' AS doc_type" if 'AS "doc_type"' in col else col for col in select_expressions
+    ]
 
-    # Copy data from the old table to the new one
-    insert_sql = f"INSERT INTO {temp_table_name} ({', '.join(column_names)}) {select_sql};"
-    logger.info(f"Copying data to temporary table: {insert_sql}")
+
+    # 3. Copy data from old table to new table
+    insert_sql = f"""
+    INSERT INTO {temp_table_name}
+    SELECT {', '.join(select_expressions)}
+    FROM documents;
+    """
     conn.execute(insert_sql)
 
-    # Drop the old table and rename the new one
-    logger.info("Replacing old table with new one.")
+    # 4. Atomically replace the old table with the new one
     conn.execute("DROP TABLE documents;")
     conn.execute(f"ALTER TABLE {temp_table_name} RENAME TO documents;")
+
+    logger.info("Successfully migrated 'documents' table to V3 schema.")

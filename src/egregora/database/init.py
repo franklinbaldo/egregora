@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from egregora.database.migrations import migrate_documents_table
+from egregora.database.migrations import migrate_to_v3_documents_table
 from egregora.database.schemas import (
     ANNOTATIONS_SCHEMA,
     DOCUMENTS_VIEW_SQL,
@@ -66,12 +66,9 @@ def initialize_database(backend: BaseBackend) -> None:
     create_table_if_not_exists(conn, "journals", JOURNALS_SCHEMA)
     create_table_if_not_exists(conn, "annotations", ANNOTATIONS_SCHEMA)
 
-    # Create a placeholder documents table if it doesn't exist,
-    # so the migration has a table to work with.
-    conn.execute("CREATE TABLE IF NOT EXISTS documents (id VARCHAR)")
-
-    # Run V3 schema migration
-    migrate_documents_table(conn)
+    # Run V3 schema migration. This is idempotent and handles the case
+    # where the 'documents' table does not exist.
+    migrate_to_v3_documents_table(conn)
 
     # 2. Unified View
     _execute_sql(conn, DOCUMENTS_VIEW_SQL)

@@ -243,17 +243,35 @@ TASKS_SCHEMA = ibis.schema(
 # V3 Unified Schema
 # ============================================================================
 
-UNIFIED_SCHEMA = ibis.schema(
+V3_DOCUMENTS_SCHEMA = ibis.schema(
     {
-        **dict(POSTS_SCHEMA.items()),
-        **dict(PROFILES_SCHEMA.items()),
-        **dict(MEDIA_SCHEMA.items()),
-        **dict(JOURNALS_SCHEMA.items()),
-        "doc_type": dt.String(nullable=False),
-        "status": dt.String(nullable=False),
-        "extensions": dt.json,
+        # Core Entry fields from egregora_v3/core/types.py
+        "id": dt.String(nullable=False),
+        "title": dt.String(nullable=False),
+        "updated": dt.Timestamp(timezone="UTC", nullable=False),
+        "published": dt.Timestamp(timezone="UTC", nullable=True),
+        "summary": dt.String(nullable=True),
+        "content": dt.String(nullable=True),
+        "content_type": dt.String(nullable=True),
+
+        # Complex types stored as JSON
+        "links": dt.JSON(nullable=False),
+        "authors": dt.JSON(nullable=False),
+        "contributors": dt.JSON(nullable=False),
+        "categories": dt.JSON(nullable=False),
+        "source": dt.JSON(nullable=True),
+        "in_reply_to": dt.JSON(nullable=True),
+        "extensions": dt.JSON(nullable=False),
+        "internal_metadata": dt.JSON(nullable=False),
+
+        # Document-specific fields (nullable for base Entry objects)
+        "doc_type": dt.String(nullable=True),
+        "status": dt.String(nullable=True),
+        "searchable": dt.Boolean(nullable=True),
+        "url_path": dt.String(nullable=True),
     }
 )
+
 
 # ============================================================================
 # Views
