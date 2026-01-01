@@ -119,6 +119,7 @@ def test_build_conversation_xml_handles_ibis_table_like_object() -> None:
     When build_conversation_xml is called
     Then it should process it correctly.
     """
+
     # Mocking a simple table structure
     class MockTable:
         def __init__(self) -> None:
