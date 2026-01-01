@@ -174,3 +174,42 @@ def test_migration_is_idempotent():
 
     # Assert that the data has not changed
     assert dict_after_first == dict_after_second
+
+def test_migration_with_various_missing_columns():
+    """
+    Tests that the migration script correctly populates default values
+    for a legacy table with many missing columns.
+    """
+    conn = duckdb.connect(":memory:")
+
+    # Create a minimal legacy table with only id and content
+    conn.execute("CREATE TABLE documents (id VARCHAR, content VARCHAR);")
+    conn.execute("INSERT INTO documents (id, content) VALUES ('min-doc-1', 'Minimal content.')")
+
+    # Run the migration
+    migrate_to_v3_documents_table(conn)
+
+    # Verify the migrated data
+    res = conn.execute("SELECT * FROM documents")
+    result = dict(zip([desc[0] for desc in res.description], res.fetchone()))
+
+    # Assert that all non-nullable fields have correct default values
+    assert result["title"] == ""
+    assert result["updated"] is not None
+    assert isinstance(result["updated"], datetime)
+
+    # Assert that JSON fields are initialized as empty arrays
+    assert json.loads(result["links"]) == []
+    assert json.loads(result["authors"]) == []
+    assert json.loads(result["contributors"]) == []
+    assert json.loads(result["categories"]) == []
+    assert json.loads(result["extensions"]) == {} # Should be an empty object
+
+    # Assert that internal_metadata is an empty object because no legacy columns were present
+    assert json.loads(result["internal_metadata"]) == {}
+
+    # Assert nullable fields are None
+    assert result["published"] is None
+    assert result["summary"] is None
+    assert result["source"] is None
+    assert result["in_reply_to"] is None

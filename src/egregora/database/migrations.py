@@ -54,7 +54,8 @@ def migrate_to_v3_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
             default = "NULL"
             if not dtype.nullable:
                 if dtype.is_json():
-                    default = "'[]'"  # Default for authors, links, etc.
+                    # authors, links etc. are lists, extensions is a dict
+                    default = "'{}'" if name == "extensions" else "'[]'"
                 elif dtype.is_string():
                     default = "''"
                 elif dtype.is_timestamp():
