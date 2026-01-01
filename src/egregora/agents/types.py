@@ -24,8 +24,8 @@ if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig, RAGSettings
     from egregora.data_primitives.document import OutputSink
     from egregora.database.task_store import TaskStore
-    from egregora.orchestration.cache import PipelineCache
     from egregora.llm.usage import UsageTracker
+    from egregora.orchestration.cache import PipelineCache
     from egregora.output_adapters import OutputSinkRegistry
 
 logger = logging.getLogger(__name__)

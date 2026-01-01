@@ -45,6 +45,7 @@ from egregora.init.scaffolding import ensure_mkdocs_project
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
+from egregora.llm.usage import UsageTracker
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
@@ -59,7 +60,6 @@ from egregora.transformations import (
     load_checkpoint,
     save_checkpoint,
 )
-from egregora.llm.usage import UsageTracker
 from egregora.utils.cache import PipelineCache
 from egregora.utils.env import get_google_api_keys, validate_gemini_api_key
 from egregora.utils.rate_limit import init_rate_limiter
