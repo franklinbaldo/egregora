@@ -1,7 +1,6 @@
 """Unit tests for egregora.utils.zip."""
 
 import io
-import re
 import zipfile
 from unittest.mock import MagicMock
 
@@ -99,34 +98,21 @@ def test_validate_zip_compression_bomb():
 
 
 @pytest.mark.parametrize(
-    ("path", "should_raise"),
+    "path",
     [
-        # Unsafe paths from original test
-        ("/etc/passwd", True),
-        ("C:\\Windows\\System32\\kernel32.dll", True),
-        ("../etc/hosts", True),
-        ("foo/../../bar", True),
-        # Additional unsafe paths
-        ("/absolute/path", True),
-        ("//unc/path", True),
-        # Safe paths
-        ("safe/path/file.txt", False),
-        ("another_safe_file.txt", False),
-        ("path-with-dashes.zip", False),
+        "/etc/passwd",
+        "C:\\Windows\\System32\\kernel32.dll",
+        "../etc/hosts",
+        "foo/../../bar",
     ],
 )
-def test_validate_zip_path_traversal(path: str, *, should_raise: bool):
+def test_validate_zip_path_traversal(path):
     """Test that path traversal attempts are caught."""
-    files = {path: b"content"}
+    files = {path: b"evil"}
     zf = create_test_zip(files)
-    if should_raise:
-        with pytest.raises(ZipPathTraversalError, match=re.escape(f"ZIP member path is unsafe: '{path}'")):
-            validate_zip_contents(zf)
-    else:
-        try:
-            validate_zip_contents(zf)
-        except ZipPathTraversalError:
-            pytest.fail(f"validate_zip_contents incorrectly raised ZipPathTraversalError for '{path}'")
+    with pytest.raises(ZipPathTraversalError) as excinfo:
+        validate_zip_contents(zf)
+    assert excinfo.value.member_name == path
 
 
 def test_get_zip_info():

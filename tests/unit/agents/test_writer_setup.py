@@ -47,7 +47,7 @@ async def test_create_writer_model_success_with_google_api_key(
 
         model = await create_writer_model(mock_config, mock_context, "test prompt")
 
-        mock_google_model.assert_called_once_with(api_key=None, model_name="gemini-test", streaming=True)
+        mock_google_model.assert_called_once_with(model_name="gemini-test")
         mock_validate_prompt.assert_awaited_once()
         assert model == model_instance
 

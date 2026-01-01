@@ -1,11 +1,4 @@
-"""Filesystem utilities for writing structured content.
-
-This module consolidates file writing logic previously scattered across adapters.
-It provides standard helpers for:
-- Writing markdown posts with frontmatter
-- Handling safe filenames and collision resolution
-- Managing directory structures
-"""
+"""Markdown file writing utilities for the MkDocs adapter."""
 
 from __future__ import annotations
 
@@ -14,7 +7,13 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
-from egregora.utils.authors import ensure_author_entries
+from egregora.knowledge.profiles import ensure_author_entries
+from egregora.output_adapters.exceptions import (
+    DirectoryCreationError,
+    FileWriteError,
+    MissingMetadataError,
+    UniqueFilenameError,
+)
 from egregora.utils.datetime_utils import (
     extract_clean_date,
     format_frontmatter_datetime,
@@ -38,14 +37,10 @@ def _prepare_frontmatter(metadata: dict[str, Any], slug: str) -> dict[str, Any]:
         A dictionary containing the formatted frontmatter.
 
     """
-    front_matter = {
-        "title": metadata["title"],
-        "slug": slug,
-        "date": format_frontmatter_datetime(metadata["date"]),
-    }
-    for key in ["tags", "summary", "authors", "category"]:
-        if key in metadata:
-            front_matter[key] = metadata[key]
+    front_matter = metadata.copy()
+    front_matter["title"] = metadata["title"]
+    front_matter["slug"] = slug
+    front_matter["date"] = format_frontmatter_datetime(metadata["date"])
     return front_matter
 
 
@@ -125,53 +120,3 @@ def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path
     _write_post_file(filepath, content, front_matter)
 
     return str(filepath)
-
-
-class FilesystemError(Exception):
-    """Base exception for filesystem-related errors."""
-
-
-class MissingMetadataError(FilesystemError):
-    """Raised when required metadata for a post is missing."""
-
-    def __init__(self, missing_keys: list[str]) -> None:
-        self.missing_keys = missing_keys
-        message = f"Missing required metadata keys: {', '.join(missing_keys)}"
-        super().__init__(message)
-
-
-class UniqueFilenameError(FilesystemError):
-    """Raised when a unique filename cannot be generated after a set number of attempts."""
-
-    def __init__(self, base_slug: str, attempts: int) -> None:
-        self.base_slug = base_slug
-        self.attempts = attempts
-        message = f"Could not generate a unique filename for slug '{base_slug}' after {attempts} attempts."
-        super().__init__(message)
-
-
-class FilesystemOperationError(FilesystemError):
-    """Base exception for file I/O errors."""
-
-    def __init__(self, path: str, original_exception: Exception, message: str | None = None) -> None:
-        self.path = path
-        self.original_exception = original_exception
-        if message is None:
-            message = f"An error occurred at path: {self.path}. Original error: {original_exception}"
-        super().__init__(message)
-
-
-class DirectoryCreationError(FilesystemOperationError):
-    """Raised when creating a directory fails."""
-
-    def __init__(self, path: str, original_exception: Exception) -> None:
-        message = f"Failed to create directory at: {path}. Original error: {original_exception}"
-        super().__init__(path, original_exception, message=message)
-
-
-class FileWriteError(FilesystemOperationError):
-    """Raised when writing a file fails."""
-
-    def __init__(self, path: str, original_exception: Exception) -> None:
-        message = f"Failed to write file to: {path}. Original error: {original_exception}"
-        super().__init__(path, original_exception, message=message)

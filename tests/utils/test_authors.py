@@ -6,7 +6,6 @@ from pathlib import Path
 
 import frontmatter
 import yaml
-
 from egregora.utils.authors import (
     find_authors_yml,
     sync_authors_from_posts,

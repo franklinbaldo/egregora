@@ -194,3 +194,57 @@ class SiteNotSupportedError(ScaffoldingError):
 
 class ScaffoldConfigLoadError(ConfigLoadError, ScaffoldingError):
     """Raised when config loading fails during a scaffolding operation."""
+
+
+# Filesystem operation errors (moved from utils.filesystem)
+# ##############################################################################
+
+
+class FilesystemError(OutputAdapterError):
+    """Base exception for filesystem-related errors."""
+
+
+class MissingMetadataError(FilesystemError):
+    """Raised when required metadata for a post is missing."""
+
+    def __init__(self, missing_keys: list[str]) -> None:
+        self.missing_keys = missing_keys
+        message = f"Missing required metadata keys: {', '.join(missing_keys)}"
+        super().__init__(message)
+
+
+class UniqueFilenameError(FilesystemError):
+    """Raised when a unique filename cannot be generated after a set number of attempts."""
+
+    def __init__(self, base_slug: str, attempts: int) -> None:
+        self.base_slug = base_slug
+        self.attempts = attempts
+        message = f"Could not generate a unique filename for slug '{base_slug}' after {attempts} attempts."
+        super().__init__(message)
+
+
+class FilesystemOperationError(FilesystemError):
+    """Base exception for file I/O errors."""
+
+    def __init__(self, path: str, original_exception: Exception, message: str | None = None) -> None:
+        self.path = path
+        self.original_exception = original_exception
+        if message is None:
+            message = f"An error occurred at path: {self.path}. Original error: {original_exception}"
+        super().__init__(message)
+
+
+class DirectoryCreationError(FilesystemOperationError):
+    """Raised when creating a directory fails."""
+
+    def __init__(self, path: str, original_exception: Exception) -> None:
+        message = f"Failed to create directory at: {path}. Original error: {original_exception}"
+        super().__init__(path, original_exception, message=message)
+
+
+class FileWriteError(FilesystemOperationError):
+    """Raised when writing a file fails."""
+
+    def __init__(self, path: str, original_exception: Exception) -> None:
+        message = f"Failed to write file to: {path}. Original error: {original_exception}"
+        super().__init__(path, original_exception, message=message)
