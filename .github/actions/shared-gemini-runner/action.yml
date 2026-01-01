@@ -123,6 +123,9 @@ runs:
       run: |
         set -euo pipefail
 
+        # Use a random delimiter for the heredoc to prevent injection
+        DELIMITER=$(openssl rand -hex 12)
+
         final_outcome="$PRIMARY_OUTCOME"
         final_summary="$PRIMARY_SUMMARY"
         final_model="$PRIMARY_MODEL"
@@ -160,9 +163,9 @@ runs:
         fi
 
         {
-          echo "summary<<'EOF'"
+          echo "summary<<$DELIMITER"
           echo "$final_summary"
-          echo "EOF"
+          echo "$DELIMITER"
           echo "outcome=$final_outcome"
           echo "model=$final_model"
           echo "diagnostics=${diagnostics[*]}"
