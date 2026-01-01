@@ -79,7 +79,12 @@ def test_persist_adds_related_posts_to_frontmatter(adapter: MkDocsAdapter):
     """Verify that `persist` adds `related_posts` to frontmatter based on shared tags."""
     # Create some existing posts
     post1_meta = {"title": "Post 1", "slug": "post-1", "date": "2025-01-01", "tags": ["python", "testing"]}
-    post2_meta = {"title": "Post 2", "slug": "post-2", "date": "2025-01-02", "tags": ["python", "refactoring"]}
+    post2_meta = {
+        "title": "Post 2",
+        "slug": "post-2",
+        "date": "2025-01-02",
+        "tags": ["python", "refactoring"],
+    }
     post3_meta = {"title": "Post 3", "slug": "post-3", "date": "2025-01-03", "tags": ["testing", "devops"]}
 
     with patch("egregora.output_adapters.mkdocs.markdown.ensure_author_entries"):
@@ -88,7 +93,12 @@ def test_persist_adds_related_posts_to_frontmatter(adapter: MkDocsAdapter):
         adapter.persist(Document(content="Content 3", type=DocumentType.POST, metadata=post3_meta))
 
     # Create a new post that shares tags with the existing posts
-    new_post_meta = {"title": "New Post", "slug": "new-post", "date": "2025-01-04", "tags": ["python", "devops"]}
+    new_post_meta = {
+        "title": "New Post",
+        "slug": "new-post",
+        "date": "2025-01-04",
+        "tags": ["python", "devops"],
+    }
     new_post_content = "This is a new post."
 
     with patch("egregora.output_adapters.mkdocs.markdown.ensure_author_entries"):
