@@ -1,6 +1,6 @@
 
 import pytest
-from egregora_v3.core.utils import simple_chunk_text
+from egregora_v3.core.utils import simple_chunk_text, slugify
 
 
 def test_simple_chunk_text_empty():
