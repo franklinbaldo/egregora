@@ -32,3 +32,8 @@ def _whitelist() -> None:
     # src/egregora/data_primitives/protocols.py:226
     # src/egregora/output_adapters/base.py:275
     _.posts_created  # noqa: B018
+
+    # Tests: Fixtures and mocks in cache tests
+    # tests/unit/utils/test_enrichment_cache.py
+    _.mock_backend  # noqa: B018
+    _.cache  # noqa: B018
