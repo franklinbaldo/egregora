@@ -3,11 +3,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from egregora.output_adapters.exceptions import (
+from egregora.utils.filesystem import (
     MissingMetadataError,
     UniqueFilenameError,
+    write_markdown_post,
 )
-from egregora.output_adapters.mkdocs.adapter import write_markdown_post
 
 
 @pytest.fixture

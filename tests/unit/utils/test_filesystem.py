@@ -1,4 +1,4 @@
-"""Unit tests for MkDocs adapter helper functions."""
+"""Unit tests for filesystem utilities."""
 
 from datetime import date, datetime
 from pathlib import Path
@@ -6,15 +6,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from egregora.output_adapters.exceptions import (
+from egregora.utils.filesystem import (
     DateExtractionError,
     DirectoryCreationError,
     FileWriteError,
     FrontmatterDateFormattingError,
     MissingMetadataError,
     UniqueFilenameError,
-)
-from egregora.output_adapters.mkdocs.adapter import (
     _extract_clean_date,
     _resolve_filepath,
     _validate_post_metadata,
@@ -141,7 +139,7 @@ def test_write_markdown_post_with_full_metadata(tmp_path: Path):
     }
     output_dir = tmp_path
 
-    with patch("egregora.output_adapters.mkdocs.adapter.ensure_author_entries") as mock_ensure_authors:
+    with patch("egregora.utils.filesystem.ensure_author_entries") as mock_ensure_authors:
         filepath_str = write_markdown_post(content, metadata, output_dir)
         filepath = Path(filepath_str)
 
