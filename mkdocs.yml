@@ -171,17 +171,20 @@ nav:
       - UX Vision: v2/guides/ux-vision.md
     - API Reference:
       - Overview: v2/api-reference/index.md
+      - CLI: v2/api-reference/cli.md
+      - Core: v2/api-reference/data-primitives.md
+      - Input Adapters: v2/api-reference/input-adapters.md
+      - Agents: v2/api-reference/agents.md
       - Ingestion: v2/api-reference/ingestion/parser.md
       - Privacy:
         - Anonymizer: v2/api-reference/privacy/anonymizer.md
         - Detector: v2/api-reference/privacy/detector.md
-      - Augmentation: v2/api-reference/augmentation/enrichment.md
       - Knowledge:
         - RAG: v2/api-reference/knowledge/rag.md
         - Annotations: v2/api-reference/knowledge/annotations.md
         - Ranking: v2/api-reference/knowledge/ranking.md
       - Publication: v2/api-reference/output_adapters/mkdocs/scaffolding.md
-      - Core: v2/api-reference/data-primitives.md
+      - Exceptions: v2/api-reference/exceptions.md
     - Architecture Docs:
       - Protocols: v2/architecture/protocols.md
       - URL Conventions: v2/architecture/url-conventions.md
