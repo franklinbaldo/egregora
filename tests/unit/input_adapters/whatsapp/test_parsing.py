@@ -6,7 +6,6 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-from egregora.security.zip import ZipValidationError
 
 from egregora.input_adapters.whatsapp.exceptions import (
     DateParsingError,
@@ -22,6 +21,7 @@ from egregora.input_adapters.whatsapp.parsing import (
     _parse_whatsapp_lines,
     parse_source,
 )
+from egregora.security.zip import ZipValidationError
 
 
 @pytest.fixture
