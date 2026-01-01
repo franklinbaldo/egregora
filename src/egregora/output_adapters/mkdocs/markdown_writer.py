@@ -14,13 +14,12 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
+from egregora.utils import safe_path_join, slugify
 from egregora.utils.authors import ensure_author_entries
 from egregora.utils.datetime_utils import (
     extract_clean_date,
     format_frontmatter_datetime,
 )
-from egregora.utils.paths import safe_path_join
-from egregora_v3.core.utils import slugify
 
 if TYPE_CHECKING:
     from pathlib import Path

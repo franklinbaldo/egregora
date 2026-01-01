@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Annotated
 from ibis import udf
 
 from egregora.data_primitives.document import Document, DocumentType, MediaAsset
-from egregora_v3.core.utils import slugify
+from egregora.utils.text import slugify
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table

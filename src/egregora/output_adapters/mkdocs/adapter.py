@@ -46,7 +46,7 @@ from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 from egregora.utils.authors import ensure_author_entries
 from egregora.utils.datetime_utils import parse_datetime_flexible
-from egregora_v3.core.utils import slugify
+from egregora.utils.text import slugify
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
