@@ -69,7 +69,7 @@ runs:
 
     - name: Run Gemini (primary)
       id: gemini_primary
-      uses: google-github-actions/run-gemini-cli@v0
+      uses: google-github-actions/run-gemini-cli@v1
       continue-on-error: true
       with:
         gemini_api_key: ${{ inputs.gemini_api_key }}
@@ -79,7 +79,7 @@ runs:
     - name: Run Gemini (fallback 1)
       id: gemini_fallback_1
       if: steps.gemini_primary.outcome == 'failure' && steps.models.outputs.model_1 != ''
-      uses: google-github-actions/run-gemini-cli@v0
+      uses: google-github-actions/run-gemini-cli@v1
       continue-on-error: true
       with:
         gemini_api_key: ${{ inputs.gemini_api_key }}
@@ -92,7 +92,7 @@ runs:
         steps.gemini_primary.outcome == 'failure' &&
         steps.gemini_fallback_1.outcome == 'failure' &&
         steps.models.outputs.model_2 != ''
-      uses: google-github-actions/run-gemini-cli@v0
+      uses: google-github-actions/run-gemini-cli@v1
       continue-on-error: true
       with:
         gemini_api_key: ${{ inputs.gemini_api_key }}
