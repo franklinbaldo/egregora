@@ -1,46 +1,17 @@
 """V3 utility functions - independent of V2."""
 
-import re
-from unicodedata import normalize
+from shared.slugify import slugify as canonical_slugify
 
-from pymdownx.slugs import slugify as _md_slugify
+# V3 uses a different fallback ('untitled') than V2 ('post').
+# The wrapper ensures V3's behavior is preserved.
+def slugify(text: str, max_len: int = 60) -> str:
+    """Convert text to a safe URL-friendly slug.
 
-
-# Pre-configure slugify instances for reuse, matching V2 behavior.
-slugify_lower = _md_slugify(case="lower", separator="-")
-slugify_case = _md_slugify(separator="-")
-
-
-def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
-    """Convert text to a safe URL-friendly slug using MkDocs/Python Markdown semantics.
-
-    V3 implementation that is compatible with V2.
-    Uses pymdownx.slugs directly for consistent behavior.
-
-    Args:
-        text: Input text to slugify
-        max_len: Maximum length of output slug (default 60)
-        lowercase: Whether to lowercase the slug (default True)
-
-    Returns:
-        Safe slug string suitable for filenames and URLs
+    V3 implementation - does not depend on V2 or external slugifiers.
+    Wraps the canonical slugify function to provide V3-specific default behavior.
     """
-    if text is None:
-        return ""
-
-    # Normalize Unicode to ASCII using NFKD (preserves transliteration).
-    normalized = normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
-
-    # Choose the appropriate pre-configured slugifier.
-    slugifier = slugify_lower if lowercase else slugify_case
-    slug = slugifier(normalized, sep="-")
-
-    # V2 used 'post' as a fallback, V3 used 'untitled'. Let's stick with V2's for now.
-    slug = slug or "post"
-    if len(slug) > max_len:
-        slug = slug[:max_len].rstrip("-")
-
-    return slug
+    slug = canonical_slugify(text, max_len=max_len, lowercase=True)
+    return slug if slug != "post" else "untitled"
 
 
 DEFAULT_MAX_CHARS = 800

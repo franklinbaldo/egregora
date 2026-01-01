@@ -1,17 +1,11 @@
 """Path safety utilities for secure file operations."""
 
 from pathlib import Path
-
-from egregora_v3.core.utils import slugify as slugify_v3
+from shared.slugify import slugify
 
 
 class PathTraversalError(Exception):
     """Raised when a path would escape its intended directory."""
-
-
-def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
-    """Convert text to a safe URL-friendly slug using the V3 implementation."""
-    return slugify_v3(text, max_len=max_len, lowercase=lowercase)
 
 
 def safe_path_join(base_dir: Path, *parts: str) -> Path:
@@ -30,16 +24,6 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
 
     Raises:
         PathTraversalError: If resulting path would escape base_dir
-
-    Examples:
-        >>> base = Path("/output")
-        >>> safe_path_join(base, "posts", "2025-01-01-hello.md")
-        PosixPath('/output/posts/2025-01-01-hello.md')
-        >>> safe_path_join(base, "../../etc/passwd")  # doctest: +SKIP
-        Traceback (most recent call last):
-        ...
-        PathTraversalError: Path escaped output directory
-
     """
     if any(Path(part).is_absolute() for part in parts):
         absolute_part = next(part for part in parts if Path(part).is_absolute())
