@@ -5,12 +5,12 @@ from pathlib import Path
 
 import pytest
 
+from egregora.agents.cache import make_enrichment_cache_key
 from egregora.utils.cache import (
     CacheDeserializationError,
     CachePayloadTypeError,
     CacheTier,
     PipelineCache,
-    make_enrichment_cache_key,
 )
 
 

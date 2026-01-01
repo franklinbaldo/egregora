@@ -2,9 +2,44 @@
 <feed xmlns="http://www.w3.org/2005/Atom" xmlns:thr="http://purl.org/syndication/thread/1.0">
   <id>urn:uuid:60a76c80-d399-11d9-b93C-0003939e0af6</id>
   <title>Test Feed</title>
-  <updated>2025-12-25T12:00:00Z</updated><author>
-    <name>Test Author</name><email>test@example.com</email></author><link href="http://example.com/" rel="alternate" /><entry>
+  <updated>2025-12-25T12:00:00Z</updated>
+
+
+  <author>
+    <name>Test Author</name>
+    <email>test@example.com</email>
+  </author>
+
+
+
+  <link href="http://example.com/" rel="alternate"  />
+
+
+
+  <entry>
     <id>urn:uuid:1225c695-cfb8-4ebb-aaaa-80da344efa6a</id>
     <title>Test Entry</title>
-    <updated>2025-12-25T12:00:00Z</updated><published>2025-12-25T10:00:00Z</published><summary>This is a test summary.</summary><content type="html">&lt;p&gt;This is the test content.&lt;/p&gt;</content><author>
-      <name>Entry Author</name></author><link href="http://example.com/entry" rel="alternate" /><category term="test" scheme="http://example.com/tags" /><thr:in-reply-to ref="urn:uuid:parent-entry" /></entry></feed>
+    <updated>2025-12-25T12:00:00Z</updated>
+
+
+    <published>2025-12-25T10:00:00Z</published>
+
+
+
+    <thr:in-reply-to ref="urn:uuid:parent-entry"   />
+
+
+
+    <author>
+      <name>Entry Author</name>
+    </author>
+
+
+
+    <content type="html">&lt;p&gt;This is the test content.&lt;/p&gt;</content>
+
+
+
+  </entry>
+
+</feed>

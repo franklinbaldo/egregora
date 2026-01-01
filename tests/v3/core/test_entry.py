@@ -1,5 +1,6 @@
 from datetime import datetime, UTC
 
+from egregora_v3.core.rendering import render_html_content
 from egregora_v3.core.types import Entry
 
 
@@ -11,4 +12,4 @@ def test_entry_html_content():
         updated=datetime.now(UTC),
         content="*Hello*, **world**!",
     )
-    assert entry.html_content == "<p><em>Hello</em>, <strong>world</strong>!</p>"
+    assert render_html_content(entry) == "<p><em>Hello</em>, <strong>world</strong>!</p>"

@@ -148,16 +148,17 @@ def test_atom_xml_sink_creates_parent_directories(sample_feed: Feed, tmp_path: P
     assert output_file.parent.exists()
 
 
+from egregora_v3.core.atom import feed_to_xml_string
 @freeze_time("2025-12-06 15:30:00")
-def test_atom_xml_sink_uses_feed_to_xml(sample_feed: Feed, tmp_path: Path) -> None:
-    """Test that sink uses Feed.to_xml() internally."""
+def test_atom_xml_sink_uses_feed_to_xml_string(sample_feed: Feed, tmp_path: Path) -> None:
+    """Test that sink uses feed_to_xml_string() internally."""
     output_file = tmp_path / "feed.atom"
     sink = AtomSink(output_path=output_file)
 
     sink.publish(sample_feed)
 
-    # Output should match Feed.to_xml()
-    expected_xml = sample_feed.to_xml()
+    # Output should match feed_to_xml_string()
+    expected_xml = feed_to_xml_string(sample_feed)
     actual_xml = output_file.read_text()
 
     assert actual_xml == expected_xml
