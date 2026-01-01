@@ -4,12 +4,12 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest  # type: ignore[import-not-found]
-from jinja2.exceptions import TemplateNotFound  # type: ignore[import-not-found]
+import pytest  # type: ignore
+from jinja2.exceptions import TemplateNotFound  # type: ignore
 
-import egregora.agents.writer as writer_module  # type: ignore[import-not-found]
-from egregora.agents.exceptions import AgentError as JournalFileSystemError  # type: ignore[import-not-found]
-from egregora.agents.exceptions import AgentError as JournalTemplateError
+from egregora.agents.exceptions import AgentError as JournalFileSystemError  # type: ignore[import-not-found, unused-ignore]
+from egregora.agents.exceptions import AgentError as JournalTemplateError  # type: ignore[import-not-found, unused-ignore]
+import egregora.agents.writer as writer_module  # type: ignore[import-not-found, unused-ignore]
 
 
 class TestWriterDecoupling:
