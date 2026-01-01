@@ -42,7 +42,6 @@ from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.message_repository import MessageRepository
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
-from egregora.database.utils import iter_table_batches
 from egregora.llm.providers.google_batch import GoogleBatchModel
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
@@ -232,6 +231,42 @@ def _create_enrichment_row(
     }
 
 
+def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
+    """Convert backend frames into dict records consistently."""
+    if hasattr(frame, "to_dict"):
+        return [dict(row) for row in frame.to_dict("records")]
+    if hasattr(frame, "to_pylist"):
+        try:
+            return [dict(row) for row in frame.to_pylist()]
+        except (
+            ValueError,
+            TypeError,
+            AttributeError,
+        ) as exc:  # pragma: no cover - defensive
+            msg = f"Failed to convert frame to records. Original error: {exc}"
+            raise RuntimeError(msg) from exc
+    return [dict(row) for row in frame]
+
+
+def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
+    """Stream table rows as batches of dictionaries without loading entire table into memory."""
+    try:
+        backend = table._find_backend()
+    except (AttributeError, IbisError):  # pragma: no cover - fallback path
+        backend = None
+
+    if backend is not None and hasattr(backend, "con"):
+        ordered_table = ensure_deterministic_order(table)
+        yield from stream_ibis(ordered_table, backend, batch_size=batch_size)
+        return
+
+    if "ts" in table.columns:
+        table = table.order_by("ts")
+
+    results_df = table.execute()
+    records = _frame_to_records(results_df)
+    for start in range(0, len(records), batch_size):
+        yield records[start : start + batch_size]
 
 
 # ---------------------------------------------------------------------------
