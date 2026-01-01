@@ -116,3 +116,23 @@ def test_validate_gemini_api_key_importerror(monkeypatch):
     with pytest.raises(ImportError, match="google-genai package not installed"):
         # This will fail because the import inside the function will fail
         validate_gemini_api_key()
+
+
+@patch("google.genai.Client")
+def test_validate_gemini_api_key_quota_error(mock_genai_client, monkeypatch):
+    """Test handling of a quota exceeded exception."""
+    monkeypatch.setenv("GOOGLE_API_KEY", "a_key")
+    mock_instance = mock_genai_client.return_value
+    mock_instance.models.count_tokens.side_effect = Exception("Quota exceeded")
+    with pytest.raises(ValueError, match="Gemini API quota exceeded"):
+        validate_gemini_api_key()
+
+
+@patch("google.genai.Client")
+def test_validate_gemini_api_key_permission_error(mock_genai_client, monkeypatch):
+    """Test handling of a permission denied exception."""
+    monkeypatch.setenv("GOOGLE_API_KEY", "a_key")
+    mock_instance = mock_genai_client.return_value
+    mock_instance.models.count_tokens.side_effect = Exception("Permission denied")
+    with pytest.raises(ValueError, match="Permission denied for Gemini API"):
+        validate_gemini_api_key()
