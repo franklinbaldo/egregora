@@ -42,15 +42,16 @@ runs:
           const raw = process.env.FALLBACK_MODELS || '';
           let models;
           try {
-            models = JSON.parse(raw);
+            const parsed = JSON.parse(raw);
+            models = Array.isArray(parsed) ? parsed : [];
           } catch (error) {
-            core.setFailed(`fallback_models must be valid JSON: ${error.message}`);
-            return;
+            models = raw.split(',').map(s => s.trim()).filter(Boolean);
           }
 
-          if (!Array.isArray(models) || models.length === 0) {
-            core.setFailed('fallback_models must be a non-empty JSON array');
-            return;
+          if (models.length === 0) {
+            // Default fallbacks if input is empty/invalid
+            models = ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+            core.warning('No valid models provided, using defaults.');
           }
 
           for (let index = 0; index < 3; index++) {
