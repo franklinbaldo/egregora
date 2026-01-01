@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from egregora.utils.env import get_google_api_keys
+from egregora.infra.gcp.env import get_google_api_keys
 
 if TYPE_CHECKING:
     from collections.abc import Callable

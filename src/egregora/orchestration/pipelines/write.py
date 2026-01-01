@@ -60,7 +60,7 @@ from egregora.transformations import (
     save_checkpoint,
 )
 from egregora.utils.cache import PipelineCache
-from egregora.utils.env import get_google_api_keys, validate_gemini_api_key
+from egregora.infra.gcp.env import get_google_api_keys, validate_gemini_api_key
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.rate_limit import init_rate_limiter
 
