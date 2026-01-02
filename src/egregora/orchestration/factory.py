@@ -16,6 +16,7 @@ from google import genai
 
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.types import WriterResources
+from egregora.cache import PipelineCache
 from egregora.data_primitives.document import UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
@@ -33,7 +34,6 @@ from egregora.output_adapters import (
     create_output_sink,
 )
 from egregora.output_adapters.mkdocs import MkDocsPaths
-from egregora.utils.cache import PipelineCache
 
 if TYPE_CHECKING:
     import google.generativeai as genai

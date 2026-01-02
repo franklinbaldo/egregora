@@ -41,6 +41,7 @@ from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
+from egregora.cache import PipelineCache
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
 from egregora.constants import WindowUnit
@@ -52,6 +53,7 @@ from egregora.database.utils import resolve_db_uri
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
+from egregora.llm.client import get_google_api_keys, validate_gemini_api_key
 from egregora.llm.rate_limit import init_rate_limiter
 from egregora.llm.usage import UsageTracker
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
@@ -71,8 +73,6 @@ from egregora.transformations import (
     split_window_into_n_parts,
 )
 from egregora.utils.async_utils import run_async_safely
-from egregora.utils.cache import PipelineCache
-from egregora.utils.env import get_google_api_keys, validate_gemini_api_key
 
 try:
     import dotenv

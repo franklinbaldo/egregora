@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 import diskcache
 
-from egregora.utils.exceptions import CacheKeyNotFoundError
+from egregora.cache.exceptions import CacheKeyNotFoundError
 
 if TYPE_CHECKING:
     from pathlib import Path

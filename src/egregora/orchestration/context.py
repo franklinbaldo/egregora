@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
     from egregora.agents.shared.annotations import AnnotationStore
     from egregora.agents.shared.cache import EnrichmentCache
+    from egregora.cache import PipelineCache
     from egregora.config.settings import EgregoraConfig
     from egregora.data_primitives.document import OutputSink, UrlContext
     from egregora.database.protocols import StorageProtocol
@@ -29,7 +30,6 @@ if TYPE_CHECKING:
     from egregora.llm.usage import UsageTracker
     from egregora.output_adapters import OutputSinkRegistry
     from egregora.rag.embedding_router import EmbeddingRouter
-    from egregora.utils.cache import PipelineCache
 
 
 __all__ = [

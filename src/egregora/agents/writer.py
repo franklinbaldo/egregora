@@ -55,13 +55,13 @@ from egregora.agents.writer_setup import (
     create_writer_model,
     setup_writer_agent,
 )
+from egregora.cache import PipelineCache
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.llm.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.output_adapters import OutputSinkRegistry, create_default_output_registry
 from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
 from egregora.resources.prompts import render_prompt
-from egregora.utils.cache import PipelineCache
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table

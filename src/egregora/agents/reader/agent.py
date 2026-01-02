@@ -19,9 +19,9 @@ from tenacity import Retrying
 
 from egregora.agents.reader.models import PostComparison, ReaderFeedback
 from egregora.config.settings import EgregoraConfig
+from egregora.llm.client import get_google_api_key
 from egregora.llm.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.resources.prompts import render_prompt
-from egregora.utils.env import get_google_api_key
 
 if TYPE_CHECKING:
     from egregora.agents.reader.models import EvaluationRequest
