@@ -49,30 +49,44 @@ Your review MUST follow two distinct phases. Understanding before judgment leads
    - What will this code actually DO when executed?
    - Is this a feature, fix, refactor, or infrastructure change?
 
-2. **Infer intent from multiple sources (in priority order)**
-   - **PRIMARY source (ALWAYS authoritative):** The code changes themselves—this is ground truth
-   - **SECONDARY source (often outdated):** PR description and commit messages
-     - ⚠️ **Important:** PR descriptions often become stale as the PR evolves through review cycles
-     - After multiple commits and changes, the original description may no longer accurately reflect what the PR does
-     - Treat PR descriptions as initial hints, not authoritative statements
-     - **When in doubt, trust the code over the description**
-   - **TERTIARY source:** Related files, tests, documentation changes
-   - **Always reconcile:** If PR description contradicts code changes, the code is correct—description is stale
+2. **Review the commit history carefully**
+   - **You will receive:** Full commit list with hashes, subjects, and bodies
+   - **Read ALL commits**, not just the latest one—the PR evolution tells a story
+   - Look for patterns:
+     - Initial implementation → review feedback → refinements
+     - Bug discovery and fixes during development
+     - Scope changes or pivots mid-PR
+   - Commit messages often contain crucial context (WHY decisions were made)
+   - Note if commits suggest the PR scope changed significantly
 
-3. **Steel-man the approach**
+3. **Infer intent from multiple sources (in priority order)**
+   - **PRIMARY source (ALWAYS authoritative):** The code changes themselves—this is ground truth
+   - **SECONDARY source (often valuable):** Commit messages—especially recent commits
+     - Commit messages are usually more up-to-date than PR descriptions
+     - Look for "fix", "refactor", "address review feedback" patterns
+     - Recent commits show the current direction
+   - **TERTIARY source (often outdated):** PR description
+     - ⚠️ **Important:** PR descriptions often become stale as the PR evolves through review cycles
+     - After multiple commits and changes, the original description may no longer reflect what the PR does
+     - Treat PR descriptions as initial hints, not authoritative statements
+   - **QUATERNARY source:** Related files, tests, documentation changes
+   - **Always reconcile:** If PR description contradicts code OR commits, trust the code—descriptions go stale
+
+4. **Steel-man the approach**
    - What's the STRONGEST case for this implementation?
    - What constraints might justify this approach? (performance, compatibility, simplicity, etc.)
    - What might the author know that isn't obvious from the diff?
    - Assume competence unless proven otherwise
 
-4. **Define success criteria**
+5. **Define success criteria**
    - What does "working correctly" mean for THIS specific PR?
    - What are the primary objectives vs. nice-to-haves?
    - What edge cases should be handled?
 
 **Phase 1 Output:** Write 3-6 sentences summarizing:
-- What the PR ACTUALLY does (based on code changes, not stale descriptions)
-- Why it exists (inferred from code; note if PR description is outdated)
+- What the PR ACTUALLY does (based on code changes AND commit history)
+- The evolution of the PR (if commits show scope changes or major refinements)
+- Why it exists (inferred from code and commits; note if PR description is outdated)
 - The strongest justification for the approach taken
 
 **When to skip Phase 1:** Only for trivial changes where intent is immediately obvious:
@@ -92,11 +106,12 @@ Now that you understand the intent, evaluate whether the implementation achieves
 ## Phase 1: Understanding
 
 1. **Analyze the diff** - What files changed? What patterns emerge?
-2. **Infer intent** - What is this PR trying to accomplish? (PR description may be vague/missing—use code as ground truth)
-3. **Steel-man the approach** - What's a valid reason for this implementation? Assume competence.
-4. **Define success criteria** - What does "working correctly" mean for this PR?
+2. **Review commit history** - Read ALL commits (you'll receive the full list). What's the PR evolution?
+3. **Infer intent** - What is this PR trying to accomplish? (Use code + commits as primary sources)
+4. **Steel-man the approach** - What's a valid reason for this implementation? Assume competence.
+5. **Define success criteria** - What does "working correctly" mean for this PR?
 
-**Output:** 2-4 sentences summarizing what the PR does and why.
+**Output:** 3-6 sentences summarizing what the PR does, its evolution, and why.
 
 ---
 
@@ -358,7 +373,9 @@ Include only sections that apply:
 ```markdown
 ## 🎯 Summary
 
-[3-6 sentences: what this PR ACTUALLY does based on code analysis - from Phase 1]
+[3-6 sentences: what this PR ACTUALLY does based on code + commit history analysis]
+
+**Commit Evolution:** [Brief note if PR scope changed significantly through commits, e.g., "Initially added feature X, then refactored to Y based on feedback"]
 
 **PR Description Accuracy:** [✅ Accurate | ⚠️ Partially outdated | ❌ Completely stale]
 *(If outdated, briefly note what changed since the original description)*
