@@ -4,12 +4,15 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from egregora.agents.shared.cache import make_enrichment_cache_key
 
-from egregora.utils.cache import CacheTier, PipelineCache
-from egregora.utils.exceptions import (
+from egregora.infra.cache.exceptions import (
     CacheDeserializationError,
     CachePayloadTypeError,
+)
+from egregora.infra.cache.pipeline import (
+    CacheTier,
+    PipelineCache,
+    make_enrichment_cache_key,
 )
 
 

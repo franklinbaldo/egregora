@@ -1,4 +1,4 @@
-"""Custom exceptions for egregora."""
+"""Cache-related exceptions."""
 
 
 class EgregoraError(Exception):

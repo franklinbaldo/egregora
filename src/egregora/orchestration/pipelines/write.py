@@ -49,6 +49,10 @@ from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.task_store import TaskStore
 from egregora.database.utils import resolve_db_uri
+from egregora.infra.async_utils.utils import run_async_safely
+from egregora.infra.cache.pipeline import PipelineCache
+from egregora.infra.llm.google import get_google_api_keys, validate_gemini_api_key
+from egregora.infra.ratelimit.limiter import init_rate_limiter
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
@@ -69,10 +73,6 @@ from egregora.transformations import (
     save_checkpoint,
     split_window_into_n_parts,
 )
-from egregora.utils.async_utils import run_async_safely
-from egregora.utils.cache import PipelineCache
-from egregora.utils.env import get_google_api_keys, validate_gemini_api_key
-from egregora.utils.rate_limit import init_rate_limiter
 
 try:
     import dotenv
