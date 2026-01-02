@@ -52,6 +52,7 @@ from egregora.database.utils import resolve_db_uri
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
+from egregora.llm.auth import get_google_api_keys, validate_gemini_api_key
 from egregora.llm.rate_limit import init_rate_limiter
 from egregora.llm.usage import UsageTracker
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
@@ -62,7 +63,6 @@ from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
 from egregora.rag import index_documents, reset_backend
-from egregora.llm.auth import get_google_api_keys, validate_gemini_api_key
 from egregora.transformations import (
     Window,
     WindowConfig,

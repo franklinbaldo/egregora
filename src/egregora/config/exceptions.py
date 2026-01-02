@@ -43,8 +43,6 @@ class InvalidDateFormatError(ConfigError):
         super().__init__(f"Invalid date format: '{date_string}'. Expected YYYY-MM-DD.")
 
 
-
-
 class InvalidTimezoneError(ConfigError):
     """Raised when a timezone string is invalid."""
 

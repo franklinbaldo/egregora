@@ -55,50 +55,67 @@ def test_get_openrouter_api_key_strips_value():
 def test_google_api_key_available_returns_true_for_google_key():
     with patch.dict(os.environ, {"GOOGLE_API_KEY": "some_key"}, clear=True):
         from egregora.llm.auth import google_api_key_available
+
         assert google_api_key_available() is True
+
 
 def test_google_api_key_available_returns_true_for_gemini_key():
     with patch.dict(os.environ, {"GEMINI_API_KEY": "some_key"}, clear=True):
         from egregora.llm.auth import google_api_key_available
+
         assert google_api_key_available() is True
+
 
 def test_google_api_key_available_returns_false_when_missing():
     with patch.dict(os.environ, {}, clear=True):
         from egregora.llm.auth import google_api_key_available
+
         assert google_api_key_available() is False
+
 
 # Tests for get_google_api_keys
 def test_get_google_api_keys_from_comma_separated_list():
     with patch.dict(os.environ, {"GEMINI_API_KEYS": "key1, key2, key3"}, clear=True):
         from egregora.llm.auth import get_google_api_keys
+
         assert get_google_api_keys() == ["key1", "key2", "key3"]
+
 
 def test_get_google_api_keys_from_single_vars():
     with patch.dict(os.environ, {"GEMINI_API_KEY": "key1", "GOOGLE_API_KEY": "key2"}, clear=True):
         from egregora.llm.auth import get_google_api_keys
+
         assert get_google_api_keys() == ["key1", "key2"]
+
 
 def test_get_google_api_keys_deduplicates_keys():
     with patch.dict(os.environ, {"GEMINI_API_KEYS": "key1, key2", "GEMINI_API_KEY": "key1"}, clear=True):
         from egregora.llm.auth import get_google_api_keys
+
         assert get_google_api_keys() == ["key1", "key2"]
+
 
 def test_get_google_api_keys_returns_empty_list_when_no_keys():
     with patch.dict(os.environ, {}, clear=True):
         from egregora.llm.auth import get_google_api_keys
+
         assert get_google_api_keys() == []
 
+
 # Tests for validate_gemini_api_key
-@patch('google.genai.Client')
+@patch("google.genai.Client")
 def test_validate_gemini_api_key_success(mock_client):
     from egregora.llm.auth import validate_gemini_api_key
+
     with patch.dict(os.environ, {"GOOGLE_API_KEY": "valid_key"}, clear=True):
         validate_gemini_api_key()
         mock_client.assert_called_with(api_key="valid_key")
 
-@patch('google.genai.Client', side_effect=Exception("Invalid API key"))
+
+@patch("google.genai.Client", side_effect=Exception("Invalid API key"))
 def test_validate_gemini_api_key_failure(mock_client):
     from egregora.llm.auth import validate_gemini_api_key
+
     with patch.dict(os.environ, {"GOOGLE_API_KEY": "invalid_key"}, clear=True):
         with pytest.raises(ValueError, match="Invalid Gemini API key"):
             validate_gemini_api_key()

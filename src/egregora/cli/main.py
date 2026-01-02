@@ -25,9 +25,9 @@ from egregora.config import load_egregora_config
 from egregora.constants import SourceType, WindowUnit
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
+from egregora.diagnostics import HealthStatus, run_diagnostics
 from egregora.llm.auth import get_google_api_key
 from egregora.llm.exceptions import ApiKeyNotFoundError
-from egregora.diagnostics import HealthStatus, run_diagnostics
 from egregora.orchestration.pipelines.write import run_cli_flow
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder

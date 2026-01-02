@@ -3,11 +3,13 @@
 This module consolidates all functions related to retrieving and validating
 API keys for various LLM providers (e.g., Google Gemini, OpenRouter).
 """
+
 from __future__ import annotations
 
 import logging
 import os
-from .exceptions import ApiKeyNotFoundError
+
+from egregora.llm.exceptions import ApiKeyNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +87,7 @@ def validate_gemini_api_key(api_key: str | None = None) -> None:
             msg = f"Failed to validate Gemini API key. Please check your network connection and API key.\nError: {error_msg}"
         raise ValueError(msg) from e
 
+
 def get_google_api_keys() -> list[str]:
     """Get list of Google API keys from environment.
 
@@ -115,13 +118,16 @@ def get_google_api_keys() -> list[str]:
 
     return keys
 
+
 __all__ = [
     "get_google_api_key",
     "get_google_api_keys",
+    "get_openrouter_api_key",
     "google_api_key_available",
     "validate_gemini_api_key",
-    "get_openrouter_api_key",
 ]
+
+
 def get_openrouter_api_key() -> str:
     """Get OpenRouter API key from environment."""
     api_key = os.environ.get("OPENROUTER_API_KEY")
