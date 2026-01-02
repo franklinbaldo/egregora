@@ -19,7 +19,10 @@ from egregora.data_primitives.document import (
 )
 from egregora.database.repository import ContentRepository
 from egregora.output_adapters.conventions import StandardUrlConvention
-from egregora.output_adapters.exceptions import DocumentNotFoundError
+from egregora.output_adapters.exceptions import (
+    DocumentIterationError,
+    DocumentNotFoundError,
+)
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -131,8 +134,8 @@ class DbOutputSink(OutputSink):
                 try:
                     doc = self.read_document(dtype, meta.identifier)
                     yield doc
-                except DocumentNotFoundError:
-                    continue
+                except DocumentNotFoundError as e:
+                    raise DocumentIterationError(doc_type=e.doc_type, identifier=e.identifier) from e
 
     def get_format_instructions(self) -> str:
         return "Database persistence mode."
