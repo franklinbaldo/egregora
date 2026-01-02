@@ -495,7 +495,6 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
     # We need to build context first to get XML for signature
     writer_context, signature = build_context_and_signature(
         WriterContextParams(
-            messages=params.messages,
             table=params.table,
             resources=resources,
             cache=params.cache,
@@ -548,7 +547,6 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
             window_end=params.window_end,
             resources=resources,
             model_name=params.config.models.writer,
-            messages=params.messages,
             table=params.table,
             config=params.config,
             conversation_xml=writer_context.conversation_xml,

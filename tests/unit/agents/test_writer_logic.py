@@ -256,6 +256,18 @@ async def test_write_posts_for_window_cache_hit_valid(
     mock_output.posts_dir.glob.return_value = [Path("found.md")]
     mock_resources.output = mock_output
 
+    # Create a mock message to ensure cache check is reached
+    from egregora.agents.types import Message
+
+    mock_message = Message(
+        event_id="test-id",
+        ts=datetime.now(),
+        author_uuid="test-author",
+        text="test content",
+        thread_id="test-thread",
+        created_by_run="test-run",
+    )
+
     params = writer_module.WindowProcessingParams(
         table=mock_table,
         window_start=datetime.now(),
@@ -263,6 +275,7 @@ async def test_write_posts_for_window_cache_hit_valid(
         resources=mock_resources,
         config=test_config,
         cache=MagicMock(),
+        messages=[mock_message],
     )
 
     result = await writer_module.write_posts_for_window(params)
