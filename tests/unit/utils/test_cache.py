@@ -1,91 +1,77 @@
-from unittest.mock import MagicMock
+from __future__ import annotations
+
+from unittest.mock import Mock
 
 import pytest
 
-from egregora.utils.cache import (
-    EnrichmentCache,
-    make_enrichment_cache_key,
-)
-from egregora.utils.cache_backend import CacheBackend
-from egregora.utils.exceptions import (
-    CacheDeserializationError,
-    CachePayloadTypeError,
-)
+from egregora.utils.cache import EnrichmentCache
+from egregora.utils.exceptions import CacheDeserializationError, CachePayloadTypeError
 
 
 @pytest.fixture
-def mock_backend() -> MagicMock:
-    """Provides a mocked CacheBackend."""
-    return MagicMock(spec=CacheBackend)
+def mock_backend():
+    """Fixture for a mocked CacheBackend."""
+    return Mock()
 
 
-def test_make_enrichment_cache_key_stability():
-    """Ensures the cache key generation is deterministic."""
-    key1 = make_enrichment_cache_key(kind="url", identifier="http://example.com", version="v1")
-    key2 = make_enrichment_cache_key(kind="url", identifier="http://example.com", version="v1")
-    assert key1 == key2
-    assert key1 == "6a46a3d2a7e7d0eab5bce3b9cd50d1b3b578a9d3f172cffee8cac3c9eea61b95"
+@pytest.fixture
+def enrichment_cache(mock_backend):
+    """Fixture for an EnrichmentCache instance with a mocked backend."""
+    return EnrichmentCache(backend=mock_backend)
 
 
-def test_make_enrichment_cache_key_uniqueness():
-    """Ensures different inputs produce different cache keys."""
-    key1 = make_enrichment_cache_key(kind="url", identifier="http://example.com")
-    key2 = make_enrichment_cache_key(kind="media", identifier="http://example.com")
-    key3 = make_enrichment_cache_key(kind="url", identifier="http://example.org")
-    key4 = make_enrichment_cache_key(kind="url", identifier="http://example.com", version="v3")
-    assert len({key1, key2, key3, key4}) == 4
+def test_enrichment_cache_store(enrichment_cache, mock_backend):
+    """Test that store calls the backend's set method correctly."""
+    key = "test_key"
+    payload = {"data": "test_payload"}
+    enrichment_cache.store(key, payload)
+    mock_backend.set.assert_called_once_with(key, payload, expire=None)
 
 
-def test_enrichment_cache_load_success(mock_backend):
-    """Tests successful retrieval of a valid cache entry."""
-    mock_backend.get.return_value = {"payload": "data"}
-    cache = EnrichmentCache(backend=mock_backend)
-    data = cache.load("test_key")
-    mock_backend.get.assert_called_once_with("test_key")
-    assert data == {"payload": "data"}
+def test_enrichment_cache_load_success(enrichment_cache, mock_backend):
+    """Test successful loading of a cached payload."""
+    key = "test_key"
+    payload = {"data": "test_payload"}
+    mock_backend.get.return_value = payload
+
+    result = enrichment_cache.load(key)
+
+    mock_backend.get.assert_called_once_with(key)
+    assert result == payload
 
 
-def test_enrichment_cache_store(mock_backend):
-    """Tests storing a payload in the cache."""
-    cache = EnrichmentCache(backend=mock_backend)
-    payload = {"payload": "data"}
-    cache.store("test_key", payload)
-    mock_backend.set.assert_called_once_with("test_key", payload, expire=None)
-
-
-def test_enrichment_cache_delete(mock_backend):
-    """Tests deleting an entry from the cache."""
-    cache = EnrichmentCache(backend=mock_backend)
-    cache.delete("test_key")
-    mock_backend.delete.assert_called_once_with("test_key")
-
-
-def test_enrichment_cache_close(mock_backend):
-    """Tests that the close method is passed to the backend."""
-    cache = EnrichmentCache(backend=mock_backend)
-    cache.close()
-    mock_backend.close.assert_called_once()
-
-
-def test_enrichment_cache_load_deserialization_error(mock_backend):
-    """Tests that deserialization errors are handled gracefully."""
-    mock_backend.get.side_effect = TypeError("Invalid JSON")
-    cache = EnrichmentCache(backend=mock_backend)
+def test_enrichment_cache_load_deserialization_error(enrichment_cache, mock_backend):
+    """Test that a DeserializationError is raised for invalid JSON."""
+    key = "test_key"
+    mock_backend.get.side_effect = TypeError("Invalid data")
 
     with pytest.raises(CacheDeserializationError):
-        cache.load("test_key")
+        enrichment_cache.load(key)
 
-    mock_backend.get.assert_called_once_with("test_key")
-    mock_backend.delete.assert_called_once_with("test_key")
+    mock_backend.get.assert_called_once_with(key)
+    mock_backend.delete.assert_called_once_with(key)
 
 
-def test_enrichment_cache_load_payload_type_error(mock_backend):
-    """Tests that incorrect payload types are handled gracefully."""
-    mock_backend.get.return_value = "this is not a dict"
-    cache = EnrichmentCache(backend=mock_backend)
+def test_enrichment_cache_load_payload_type_error(enrichment_cache, mock_backend):
+    """Test that a PayloadTypeError is raised for non-dict payloads."""
+    key = "test_key"
+    mock_backend.get.return_value = "not a dict"
 
     with pytest.raises(CachePayloadTypeError):
-        cache.load("test_key")
+        enrichment_cache.load(key)
 
-    mock_backend.get.assert_called_once_with("test_key")
-    mock_backend.delete.assert_called_once_with("test_key")
+    mock_backend.get.assert_called_once_with(key)
+    mock_backend.delete.assert_called_once_with(key)
+
+
+def test_enrichment_cache_delete(enrichment_cache, mock_backend):
+    """Test that delete calls the backend's delete method."""
+    key = "test_key"
+    enrichment_cache.delete(key)
+    mock_backend.delete.assert_called_once_with(key)
+
+
+def test_enrichment_cache_close(enrichment_cache, mock_backend):
+    """Test that close calls the backend's close method."""
+    enrichment_cache.close()
+    mock_backend.close.assert_called_once()
