@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, date, datetime
 
-from egregora.utils.datetime_utils import (
-    DATE_PATTERN,
+from egregora.database.datetime import (
     DateTimeError,
     DateTimeParsingError,
     InvalidDateTimeInputError,
     parse_datetime_flexible,
 )
+
+DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 
 def extract_clean_date(date_obj: str | date | datetime) -> str:
