@@ -24,20 +24,6 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
     Returns:
         Safe slug string suitable for filenames
 
-    Examples:
-        >>> slugify("Hello World!")
-        'hello-world'
-        >>> slugify("Hello World!", lowercase=False)
-        'Hello-World'
-        >>> slugify("Café à Paris")
-        'cafe-a-paris'
-        >>> slugify("Привет мир")
-        'privet-mir'
-        >>> slugify("../../etc/passwd")
-        'etcpasswd'
-        >>> slugify("A" * 100, max_len=20)
-        'aaaaaaaaaaaaaaaaaaaa'
-
     """
     if text is None:
         return ""
