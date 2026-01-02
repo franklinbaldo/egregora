@@ -19,7 +19,7 @@ sys.path.append("src")
 from pydantic import BaseModel
 from pydantic_ai import Agent
 
-from egregora.utils.model_fallback import create_fallback_model
+from egregora.llm.model_fallback import create_fallback_model
 from egregora_v3.core.types import Document, DocumentStatus, DocumentType
 from egregora_v3.knowledge.concepts import ConceptExtraction, ConceptType, WikiPage
 

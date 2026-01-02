@@ -18,14 +18,9 @@ from typing import TYPE_CHECKING, Any
 
 from egregora.database.migrations import migrate_documents_table
 from egregora.database.schemas import (
-    ANNOTATIONS_SCHEMA,
-    DOCUMENTS_VIEW_SQL,
     INGESTION_MESSAGE_SCHEMA,
-    JOURNALS_SCHEMA,
-    MEDIA_SCHEMA,
-    POSTS_SCHEMA,
-    PROFILES_SCHEMA,
     TASKS_SCHEMA,
+    UNIFIED_SCHEMA,
     create_table_if_not_exists,
 )
 
@@ -36,13 +31,12 @@ logger = logging.getLogger(__name__)
 
 
 def initialize_database(backend: BaseBackend) -> None:
-    """Initialize all database tables using Ibis schema definitions.
+    """Initialize all database tables using Ibis schema definitions for V3.
 
     Creates:
-    - posts, profiles, media, journals (Type-specific content tables)
-    - documents_view (Unified view)
+    - documents (Unified V3 table)
     - tasks (Background jobs)
-    - messages (Ingestion buffer - optional/legacy)
+    - messages (Ingestion buffer)
 
     Args:
         backend: Ibis backend (DuckDB, Postgres, etc.)
@@ -51,30 +45,20 @@ def initialize_database(backend: BaseBackend) -> None:
         Exception: If table creation fails
 
     """
-    logger.info("Initializing database tables...")
+    logger.info("Initializing V3 database tables...")
 
-    # Get the connection for raw SQL execution
     if hasattr(backend, "con"):
         conn = backend.con
     else:
         conn = backend
 
-    # 1. Type-Specific Tables (Append-Only)
-    create_table_if_not_exists(conn, "posts", POSTS_SCHEMA)
-    create_table_if_not_exists(conn, "profiles", PROFILES_SCHEMA)
-    create_table_if_not_exists(conn, "media", MEDIA_SCHEMA)
-    create_table_if_not_exists(conn, "journals", JOURNALS_SCHEMA)
-    create_table_if_not_exists(conn, "annotations", ANNOTATIONS_SCHEMA)
+    # 1. V3 Unified Documents Table
+    # This creates the table with the full schema if it's missing.
+    create_table_if_not_exists(conn, "documents", UNIFIED_SCHEMA)
 
-    # Create a placeholder documents table if it doesn't exist,
-    # so the migration has a table to work with.
-    conn.execute("CREATE TABLE IF NOT EXISTS documents (id VARCHAR)")
-
-    # Run V3 schema migration
+    # 2. Run V3 schema migration to handle tables created with older schemas.
+    # The migration script is idempotent and will do nothing if the schema is current.
     migrate_documents_table(conn)
-
-    # 2. Unified View
-    _execute_sql(conn, DOCUMENTS_VIEW_SQL)
 
     # 3. Tasks Table
     create_table_if_not_exists(conn, "tasks", TASKS_SCHEMA)

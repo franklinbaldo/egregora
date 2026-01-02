@@ -38,7 +38,6 @@ from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import BinaryContent
 
 from egregora.agents.exceptions import MediaStagingError
-from egregora.agents.shared.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.datetime import ensure_datetime
