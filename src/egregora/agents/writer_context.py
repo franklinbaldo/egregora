@@ -30,8 +30,8 @@ if TYPE_CHECKING:
     from ibis.expr.types import Table
 
     from egregora.config.settings import EgregoraConfig
+    from egregora.llm.usage import UsageTracker
     from egregora.utils.cache import PipelineCache
-    from egregora.utils.metrics import UsageTracker
 
 logger = logging.getLogger(__name__)
 
