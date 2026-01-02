@@ -38,3 +38,16 @@ def test_preview_docs_command_called_process_error():
         result = runner.invoke(app, ["preview-docs"])
         assert result.exit_code == 0
         assert "Error running mkdocs serve" in result.stdout
+
+
+def test_preview_docs_exception_handling():
+    """Test the exception handling in the preview-docs command."""
+    with patch("egregora.cli.main.subprocess.run", side_effect=FileNotFoundError):
+        result = runner.invoke(app, ["preview-docs"])
+        assert result.exit_code == 0
+        assert "Error: 'mkdocs' command not found." in result.stdout
+
+    with patch("egregora.cli.main.subprocess.run", side_effect=subprocess.CalledProcessError(1, "mkdocs")):
+        result = runner.invoke(app, ["preview-docs"])
+        assert result.exit_code == 0
+        assert "Error running mkdocs serve" in result.stdout
