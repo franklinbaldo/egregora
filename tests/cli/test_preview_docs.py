@@ -10,7 +10,7 @@ runner = CliRunner()
 
 def test_preview_docs_command():
     """Test the preview-docs command."""
-    with patch("subprocess.run") as mock_run:
+    with patch("egregora.cli.main.subprocess.run") as mock_run:
         result = runner.invoke(app, ["preview-docs"])
         assert result.exit_code == 0
         mock_run.assert_called_once_with(["mkdocs", "serve", "-f", ".egregora/mkdocs.yml"], check=True)
@@ -18,7 +18,7 @@ def test_preview_docs_command():
 
 def test_preview_docs_command_with_custom_config():
     """Test the preview-docs command with a custom config file."""
-    with patch("subprocess.run") as mock_run:
+    with patch("egregora.cli.main.subprocess.run") as mock_run:
         result = runner.invoke(app, ["preview-docs", "--config-file", "my-docs/mkdocs.yml"])
         assert result.exit_code == 0
         mock_run.assert_called_once_with(["mkdocs", "serve", "-f", "my-docs/mkdocs.yml"], check=True)
@@ -26,7 +26,7 @@ def test_preview_docs_command_with_custom_config():
 
 def test_preview_docs_command_file_not_found():
     """Test the preview-docs command when mkdocs is not installed."""
-    with patch("subprocess.run", side_effect=FileNotFoundError):
+    with patch("egregora.cli.main.subprocess.run", side_effect=FileNotFoundError):
         result = runner.invoke(app, ["preview-docs"])
         assert result.exit_code == 0
         assert "Error: 'mkdocs' command not found." in result.stdout
@@ -34,7 +34,7 @@ def test_preview_docs_command_file_not_found():
 
 def test_preview_docs_command_called_process_error():
     """Test the preview-docs command when mkdocs fails."""
-    with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "mkdocs")):
+    with patch("egregora.cli.main.subprocess.run", side_effect=subprocess.CalledProcessError(1, "mkdocs")):
         result = runner.invoke(app, ["preview-docs"])
         assert result.exit_code == 0
         assert "Error running mkdocs serve" in result.stdout
