@@ -28,8 +28,9 @@ from egregora.constants import SourceType, WindowUnit
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
 from egregora.diagnostics import HealthStatus, run_diagnostics
-from egregora.init import ensure_mkdocs_project
 from egregora.orchestration.pipelines.write import run_cli_flow
+from egregora.output_adapters.mkdocs.paths import MkDocsPaths
+from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
 
 app = typer.Typer(
     name="egregora",
@@ -99,8 +100,12 @@ def init(
             "Site name",
             default=site_root.name or "Egregora Archive",
         )
+    else:
+        site_name = site_root.name or "Egregora Archive"
 
-    docs_dir, mkdocs_created = ensure_mkdocs_project(site_root, site_name=site_name)
+    scaffolder = MkDocsSiteScaffolder()
+    _, mkdocs_created = scaffolder.scaffold_site(site_root, site_name=site_name)
+    docs_dir = MkDocsPaths(site_root).docs_dir
     if mkdocs_created:
         console.print(
             Panel(
@@ -389,7 +394,8 @@ def _run_offline_demo(output_dir: Path) -> None:
     )
 
     # 1. Scaffold the site
-    ensure_mkdocs_project(output_dir, site_name="Egregora Demo (Offline)")
+    scaffolder = MkDocsSiteScaffolder()
+    scaffolder.scaffold_site(output_dir, site_name="Egregora Demo (Offline)")
 
     # 2. Create a placeholder post
     posts_dir = output_dir / "docs" / "posts"
