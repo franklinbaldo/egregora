@@ -1,9 +1,12 @@
-from unittest.mock import MagicMock
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from egregora.orchestration.cache import (
+    CacheTier,
     EnrichmentCache,
+    PipelineCache,
     make_enrichment_cache_key,
 )
 from egregora.utils.cache_backend import CacheBackend
@@ -79,12 +82,6 @@ def test_enrichment_cache_load_deserialization_error(mock_backend):
     mock_backend.delete.assert_called_once_with("test_key")
 
 
-from pathlib import Path
-from unittest.mock import patch
-
-from egregora.orchestration.cache import CacheTier, PipelineCache
-
-
 def test_pipeline_cache_initialization(tmp_path: Path):
     """Tests that PipelineCache initializes its tiers correctly."""
     cache = PipelineCache(base_dir=tmp_path)
@@ -112,7 +109,11 @@ def test_pipeline_cache_initialization(tmp_path: Path):
     ],
 )
 def test_pipeline_cache_should_refresh(
-    tmp_path: Path, refresh_tiers: set[str] | None, tier_to_check: CacheTier, expected: bool
+    tmp_path: Path,
+    refresh_tiers: set[str] | None,
+    tier_to_check: CacheTier,
+    *,
+    expected: bool,
 ):
     """Tests the logic for checking if a tier should be refreshed."""
     cache = PipelineCache(base_dir=tmp_path, refresh_tiers=refresh_tiers)

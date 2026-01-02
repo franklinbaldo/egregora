@@ -27,9 +27,9 @@ if TYPE_CHECKING:
     from egregora.database.protocols import StorageProtocol
     from egregora.database.task_store import TaskStore
     from egregora.llm.usage import UsageTracker
+    from egregora.orchestration.cache import PipelineCache
     from egregora.output_adapters import OutputSinkRegistry
     from egregora.rag.embedding_router import EmbeddingRouter
-    from egregora.orchestration.cache import PipelineCache
 
 
 __all__ = [

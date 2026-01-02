@@ -3,8 +3,8 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
+from egregora.orchestration.cache import EnrichmentCache
 
-from egregora.utils.cache import EnrichmentCache
 from egregora.utils.exceptions import (
     CacheDeserializationError,
     CacheKeyNotFoundError,
