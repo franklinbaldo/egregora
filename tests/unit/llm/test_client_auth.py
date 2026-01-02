@@ -88,3 +88,10 @@ def test_validate_gemini_api_key_invalid(mock_genai_client):
     with patch.dict(os.environ, {"GOOGLE_API_KEY": "invalid_key"}, clear=True):
         with pytest.raises(ValueError, match="Invalid Gemini API key"):
             validate_gemini_api_key()
+
+
+@patch.dict("sys.modules", {"google": None})
+def test_validate_gemini_api_key_import_error():
+    """Test validate_gemini_api_key raises ImportError when google-genai is not installed."""
+    with pytest.raises(ImportError, match="google-genai package not installed"):
+        validate_gemini_api_key()
