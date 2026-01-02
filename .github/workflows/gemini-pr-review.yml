@@ -137,19 +137,13 @@ jobs:
           # Construct prompt using Python + Jinja2 (quiet mode to reduce log verbosity)
           uv run --quiet python .github/scripts/construct_gemini_prompt.py 2>&1 | grep -v "^Resolved\|^Prepared\|^Built\|^Installed" || true
 
-          # Export prompt as environment variable for Gemini steps (supports large content)
-          PROMPT_DELIMITER="eof_gemini_prompt_${{ github.run_id }}_${{ github.run_attempt }}"
-          {
-            echo "GEMINI_PROMPT<<${PROMPT_DELIMITER}"
-            cat .github/tmp/prompt.txt
-            echo "${PROMPT_DELIMITER}"
-          } >> "$GITHUB_ENV"
-
-          # Log success without printing the entire prompt
-          echo "✓ Prompt constructed ($(wc -c < .github/tmp/prompt.txt) bytes)"
+          # Log success without printing the entire prompt (avoid bloating logs)
+          PROMPT_SIZE=$(wc -c < .github/tmp/prompt.txt)
+          echo "✓ Prompt constructed ($PROMPT_SIZE bytes)"
 
       # ----------------------------------------------------------------------
-      # Gemini Review Pipeline with Fallback Strategy
+      # Gemini Review using Python SDK (avoids GitHub Actions size limits)
+      # Fallback order:
       # 1. Gemini 3 Pro Preview (highest quality)
       # 2. Gemini 3 Flash Preview (fastest 3.x tier)
       # 3. Gemini 2.5 Pro (best quality in 2.5 family)
@@ -157,152 +151,43 @@ jobs:
       # 5. Gemini 2.5 Flash Lite (lowest cost fallback)
       # ----------------------------------------------------------------------
 
-      - name: Run Gemini PR Review (3 Pro Preview)
-        id: gemini_3_pro
-        continue-on-error: true
-        uses: google-github-actions/run-gemini-cli@v0
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: "gemini-3-pro-preview"
-          prompt: ${{ env.GEMINI_PROMPT }}
-
-      - name: Run Gemini PR Review (3 Flash Preview)
-        id: gemini_3_flash
-        if: steps.gemini_3_pro.outcome == 'failure'
-        continue-on-error: true
-        uses: google-github-actions/run-gemini-cli@v0
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: "gemini-3-flash-preview"
-          prompt: ${{ env.GEMINI_PROMPT }}
-
-      - name: Run Gemini PR Review (2.5 Pro)
-        id: gemini_25_pro
-        if: steps.gemini_3_pro.outcome == 'failure' && steps.gemini_3_flash.outcome == 'failure'
-        continue-on-error: true
-        uses: google-github-actions/run-gemini-cli@v0
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: "gemini-2.5-pro"
-          prompt: ${{ env.GEMINI_PROMPT }}
-
-      - name: Run Gemini PR Review (2.5 Flash)
-        id: gemini_25_flash
-        if: steps.gemini_3_pro.outcome == 'failure' && steps.gemini_3_flash.outcome == 'failure' && steps.gemini_25_pro.outcome == 'failure'
-        continue-on-error: true
-        uses: google-github-actions/run-gemini-cli@v0
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: "gemini-2.5-flash"
-          prompt: ${{ env.GEMINI_PROMPT }}
-
-      - name: Run Gemini PR Review (2.5 Flash Lite)
-        id: gemini_25_lite
-        if: steps.gemini_3_pro.outcome == 'failure' && steps.gemini_3_flash.outcome == 'failure' && steps.gemini_25_pro.outcome == 'failure' && steps.gemini_25_flash.outcome == 'failure'
-        continue-on-error: true
-        uses: google-github-actions/run-gemini-cli@v0
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: "gemini-2.5-flash-lite"
-          prompt: ${{ env.GEMINI_PROMPT }}
-
-      - name: Consolidate Gemini Results
+      - name: Call Gemini API with fallback models
         id: gemini_final
-        if: always()
-        uses: actions/github-script@v8
         env:
-          OUTCOME_3_PRO: ${{ steps.gemini_3_pro.outcome }}
-          SUMMARY_3_PRO: ${{ steps.gemini_3_pro.outputs.summary }}
-          CONCLUSION_3_PRO: ${{ steps.gemini_3_pro.conclusion }}
-          OUTCOME_3_FLASH: ${{ steps.gemini_3_flash.outcome }}
-          SUMMARY_3_FLASH: ${{ steps.gemini_3_flash.outputs.summary }}
-          CONCLUSION_3_FLASH: ${{ steps.gemini_3_flash.conclusion }}
-          OUTCOME_25_PRO: ${{ steps.gemini_25_pro.outcome }}
-          SUMMARY_25_PRO: ${{ steps.gemini_25_pro.outputs.summary }}
-          CONCLUSION_25_PRO: ${{ steps.gemini_25_pro.conclusion }}
-          OUTCOME_25_FLASH: ${{ steps.gemini_25_flash.outcome }}
-          SUMMARY_25_FLASH: ${{ steps.gemini_25_flash.outputs.summary }}
-          CONCLUSION_25_FLASH: ${{ steps.gemini_25_flash.conclusion }}
-          OUTCOME_25_LITE: ${{ steps.gemini_25_lite.outcome }}
-          SUMMARY_25_LITE: ${{ steps.gemini_25_lite.outputs.summary }}
-          CONCLUSION_25_LITE: ${{ steps.gemini_25_lite.conclusion }}
-        with:
-          script: |
-            const outcomes = {
-              threePro: process.env.OUTCOME_3_PRO,
-              threeFlash: process.env.OUTCOME_3_FLASH,
-              twoFivePro: process.env.OUTCOME_25_PRO,
-              twoFiveFlash: process.env.OUTCOME_25_FLASH,
-              twoFiveLite: process.env.OUTCOME_25_LITE
-            };
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PROMPT_FILE: .github/tmp/prompt.txt
+          OUTPUT_FILE: .github/tmp/gemini_response.txt
+          METADATA_FILE: .github/tmp/gemini_metadata.json
+        run: |
+          # Call Gemini using Python SDK (reads prompt from file, avoiding env var size limits)
+          uv run --quiet python .github/scripts/call_gemini.py 2>&1 | grep -v "^Resolved\|^Prepared\|^Built\|^Installed" || true
 
-            const summaries = {
-              threePro: process.env.SUMMARY_3_PRO,
-              threeFlash: process.env.SUMMARY_3_FLASH,
-              twoFivePro: process.env.SUMMARY_25_PRO,
-              twoFiveFlash: process.env.SUMMARY_25_FLASH,
-              twoFiveLite: process.env.SUMMARY_25_LITE
-            };
+          # Read metadata
+          if [ -f .github/tmp/gemini_metadata.json ]; then
+            OUTCOME=$(jq -r '.outcome' .github/tmp/gemini_metadata.json)
+            MODEL=$(jq -r '.model' .github/tmp/gemini_metadata.json)
+            RESPONSE_LENGTH=$(jq -r '.response_length' .github/tmp/gemini_metadata.json)
 
-            const conclusions = {
-              threePro: process.env.CONCLUSION_3_PRO,
-              threeFlash: process.env.CONCLUSION_3_FLASH,
-              twoFivePro: process.env.CONCLUSION_25_PRO,
-              twoFiveFlash: process.env.CONCLUSION_25_FLASH,
-              twoFiveLite: process.env.CONCLUSION_25_LITE
-            };
+            echo "outcome=$OUTCOME" >> "$GITHUB_OUTPUT"
+            echo "model=$MODEL" >> "$GITHUB_OUTPUT"
 
-            let finalOutcome = 'failure';
-            let finalSummary = '';
-            let finalModel = 'unknown';
+            # Store response in output using heredoc (safe for smaller responses after processing)
+            if [ -f .github/tmp/gemini_response.txt ]; then
+              {
+                echo "summary<<EOF_GEMINI_RESPONSE"
+                cat .github/tmp/gemini_response.txt
+                echo "EOF_GEMINI_RESPONSE"
+              } >> "$GITHUB_OUTPUT"
+            fi
 
-            // Build detailed error report
-            const errorDetails = [];
-            const modelNames = {
-              threePro: 'gemini-3-pro-preview',
-              threeFlash: 'gemini-3-flash-preview',
-              twoFivePro: 'gemini-2.5-pro',
-              twoFiveFlash: 'gemini-2.5-flash',
-              twoFiveLite: 'gemini-2.5-flash-lite'
-            };
-
-            for (const [key, modelName] of Object.entries(modelNames)) {
-              const outcome = outcomes[key];
-              const conclusion = conclusions[key];
-              const summary = summaries[key];
-
-              if (outcome === 'success') {
-                if (finalOutcome === 'failure') {
-                  finalOutcome = 'success';
-                  finalSummary = summary;
-                  finalModel = modelName;
-                }
-              } else if (outcome === 'failure') {
-                // Capture failure details
-                let errorMsg = 'Unknown error';
-                if (conclusion) {
-                  errorMsg = `Step conclusion: ${conclusion}`;
-                }
-                if (summary) {
-                  errorMsg += ` | ${summary}`;
-                }
-                errorDetails.push(`**${modelName}**: ${errorMsg}`);
-              } else if (outcome === 'skipped') {
-                errorDetails.push(`**${modelName}**: Skipped (previous model succeeded)`);
-              }
-            }
-
-            core.setOutput('outcome', finalOutcome);
-            core.setOutput('model', finalModel);
-            core.setOutput('summary', finalSummary);
-            core.setOutput('error_details', errorDetails.join('\n'));
-
-            console.log(`Final Model: ${finalModel}`);
-            console.log(`Final Outcome: ${finalOutcome}`);
-            if (errorDetails.length > 0) {
-              console.log('Error Details:');
-              console.log(errorDetails.join('\n'));
-            }
+            echo "✓ Gemini call completed: outcome=$OUTCOME, model=$MODEL, response=$RESPONSE_LENGTH bytes"
+          else
+            echo "outcome=failure" >> "$GITHUB_OUTPUT"
+            echo "model=unknown" >> "$GITHUB_OUTPUT"
+            echo "summary=Metadata file not found" >> "$GITHUB_OUTPUT"
+            echo "✗ Gemini call failed: metadata file not created"
+            exit 1
+          fi
 
       - name: Parse Combined Response
         id: parse_combined
@@ -397,16 +282,14 @@ jobs:
         if: always()
         run: |
           echo "Gemini pipeline outcome: ${{ steps.gemini_final.outputs.outcome }}"
+          echo "Model used: ${{ steps.gemini_final.outputs.model }}"
 
           if [ "${{ steps.gemini_final.outputs.outcome }}" != "success" ]; then
-            echo "::warning::All Gemini CLI attempts failed or were skipped"
+            echo "::warning::Gemini API call failed (all models in fallback chain failed)"
             echo "::group::Debugging Information"
             echo "Job status: ${{ job.status }}"
-            echo "3 Pro outcome: ${{ steps.gemini_3_pro.outcome }}"
-            echo "3 Flash outcome: ${{ steps.gemini_3_flash.outcome }}"
-            echo "2.5 Pro outcome: ${{ steps.gemini_25_pro.outcome }}"
-            echo "2.5 Flash outcome: ${{ steps.gemini_25_flash.outcome }}"
-            echo "2.5 Flash Lite outcome: ${{ steps.gemini_25_lite.outcome }}"
+            echo "Gemini step outcome: ${{ steps.gemini_final.outcome }}"
+            echo "Model: ${{ steps.gemini_final.outputs.model }}"
             echo "::endgroup::"
             # Check if API key is set (without exposing it or its length)
             if [ -z "${{ secrets.GEMINI_API_KEY }}" ]; then
@@ -425,7 +308,6 @@ jobs:
           GEMINI_REVIEW: ${{ steps.parse_combined.outputs.review_comment || steps.gemini_final.outputs.summary }}
           GEMINI_OUTCOME: ${{ steps.gemini_final.outputs.outcome }}
           GEMINI_MODEL: ${{ steps.gemini_final.outputs.model }}
-          ERROR_DETAILS: ${{ steps.gemini_final.outputs.error_details }}
           RAW_RESPONSE_PREVIEW: ${{ steps.parse_combined.outputs.raw_response_preview }}
           PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
           TRIGGER_MODE: ${{ steps.collect.outputs.trigger_mode }}
@@ -434,11 +316,8 @@ jobs:
           STEP_COLLECT_OUTCOME: ${{ steps.collect.outcome }}
           STEP_CONSTRUCT_OUTCOME: ${{ steps.construct_prompt.outcome }}
           STEP_CONSTRUCT_CONCLUSION: ${{ steps.construct_prompt.conclusion }}
-          STEP_GEMINI_3_PRO_OUTCOME: ${{ steps.gemini_3_pro.outcome }}
-          STEP_GEMINI_3_FLASH_OUTCOME: ${{ steps.gemini_3_flash.outcome }}
-          STEP_GEMINI_25_PRO_OUTCOME: ${{ steps.gemini_25_pro.outcome }}
-          STEP_GEMINI_25_FLASH_OUTCOME: ${{ steps.gemini_25_flash.outcome }}
-          STEP_GEMINI_25_LITE_OUTCOME: ${{ steps.gemini_25_lite.outcome }}
+          STEP_GEMINI_OUTCOME: ${{ steps.gemini_final.outcome }}
+          STEP_GEMINI_CONCLUSION: ${{ steps.gemini_final.conclusion }}
           STEP_PARSE_OUTCOME: ${{ steps.parse_combined.outcome }}
           STEP_PARSE_CONCLUSION: ${{ steps.parse_combined.conclusion }}
           RUN_ID: ${{ github.run_id }}
@@ -450,7 +329,6 @@ jobs:
             const triggerMode = process.env.TRIGGER_MODE;
             const geminiOutcome = process.env.GEMINI_OUTCOME;
             const geminiModel = process.env.GEMINI_MODEL;
-            const errorDetails = process.env.ERROR_DETAILS;
             const rawResponsePreview = process.env.RAW_RESPONSE_PREVIEW;
             const runId = process.env.RUN_ID;
             const runAttempt = process.env.RUN_ATTEMPT;
@@ -471,15 +349,8 @@ jobs:
                 'Get PR details': process.env.STEP_PR_OUTCOME,
                 'Collect PR diff': process.env.STEP_COLLECT_OUTCOME,
                 'Construct prompt': process.env.STEP_CONSTRUCT_OUTCOME,
+                'Call Gemini API': process.env.STEP_GEMINI_OUTCOME,
                 'Parse response': process.env.STEP_PARSE_OUTCOME
-              };
-
-              const geminiSteps = {
-                'gemini-3-pro-preview': process.env.STEP_GEMINI_3_PRO_OUTCOME,
-                'gemini-3-flash-preview': process.env.STEP_GEMINI_3_FLASH_OUTCOME,
-                'gemini-2.5-pro': process.env.STEP_GEMINI_25_PRO_OUTCOME,
-                'gemini-2.5-flash': process.env.STEP_GEMINI_25_FLASH_OUTCOME,
-                'gemini-2.5-flash-lite': process.env.STEP_GEMINI_25_LITE_OUTCOME
               };
 
               // Determine failure type
@@ -491,38 +362,18 @@ jobs:
                 troubleshooting = [
                   '- The prompt template file may be missing or invalid',
                   '- Check if `.github/prompts/pr-review-prompt-improved.md` exists',
-                  '- Verify template placeholder syntax is correct',
-                  `- Review [workflow logs](../../actions/runs/${runId})` for file read errors
+                  '- Verify Jinja2 template syntax is correct',
+                  `- Review [workflow logs](../../actions/runs/${runId}) for template rendering errors`
                 ];
-              } else if (geminiOutcome === 'failure') {
-                const allGeminiFailed = Object.values(geminiSteps).every(o => o === 'failure');
-                const allGeminiSkipped = Object.values(geminiSteps).every(o => o === 'skipped' || !o);
-
-                if (allGeminiFailed) {
-                  failureType = 'all_models_failed';
-                  troubleshooting = [
-                    '- All Gemini models failed to execute',
-                    '- Verify `GEMINI_API_KEY` secret is set correctly',
-                    '- Check Google AI Studio quota/availability',
-                    '- The prompt may be too large or contain invalid content',
-                    `- Review [workflow logs](../../actions/runs/${runId}) for API errors`
-                  ];
-                } else if (allGeminiSkipped) {
-                  failureType = 'no_models_ran';
-                  troubleshooting = [
-                    '- No Gemini models executed (all skipped)',
-                    '- The prompt construction step may have failed',
-                    '- Check workflow conditional logic',
-                    `- Review [workflow logs](../../actions/runs/${runId}) for skipped step reasons`
-                  ];
-                } else {
-                  failureType = 'model_fallback_exhausted';
-                  troubleshooting = [
-                    '- All Gemini models in fallback chain failed',
-                    '- Check model-specific errors below',
-                    `- Review [workflow logs](../../actions/runs/${runId}) for API responses`
-                  ];
-                }
+              } else if (process.env.STEP_GEMINI_OUTCOME === 'failure' || geminiOutcome === 'failure') {
+                failureType = 'gemini_api_call_failed';
+                troubleshooting = [
+                  '- All Gemini models in the fallback chain failed',
+                  '- Verify `GEMINI_API_KEY` secret is set correctly',
+                  '- Check Google AI Studio quota and model availability',
+                  '- The prompt may exceed model context limits',
+                  `- Review [workflow logs](../../actions/runs/${runId}) for detailed API error messages`
+                ];
               } else if (process.env.STEP_PARSE_OUTCOME === 'failure') {
                 failureType = 'json_parse_error';
                 troubleshooting = [
@@ -536,7 +387,7 @@ jobs:
                 failureType = 'empty_response';
                 troubleshooting = [
                   '- Gemini completed but returned an empty response',
-                  '- The prompt may have caused an empty output',
+                  '- The prompt may have caused safety filters to block output',
                   '- Check if the prompt is too restrictive',
                   `- Review [workflow logs](../../actions/runs/${runId})`
                 ];
@@ -550,13 +401,6 @@ jobs:
                   return `| ${emoji} | ${name} | \`${outcome}\` |`;
                 });
 
-              const geminiStatusRows = Object.entries(geminiSteps)
-                .filter(([_, outcome]) => outcome) // Only show models that attempted
-                .map(([model, outcome]) => {
-                  const emoji = outcome === 'success' ? '✅' : outcome === 'failure' ? '❌' : '⏭️';
-                  return `| ${emoji} | ${model} | \`${outcome}\` |`;
-                });
-
               // Build error comment
               body = `## ⚠️ Gemini Code Review Failed
 
@@ -568,28 +412,20 @@ jobs:
 
               ### 📋 Step Execution Status
 
-              #### Workflow Steps
               | Status | Step | Outcome |
               |--------|------|---------|
               ${stepStatusRows.join('\n')}
 
-              ${geminiStatusRows.length > 0 ? `#### Gemini Models
-              | Status | Model | Outcome |
-              |--------|-------|---------|
-              ${geminiStatusRows.join('\n')}` : ''}
-
               ### 🔧 Troubleshooting Steps
 
               ${troubleshooting.join('\n')}
-
-              ${errorDetails ? `### 📊 Model Execution Details\n\n${errorDetails}\n` : ''}
 
               ${rawResponsePreview ? `### 📄 Raw Response Preview\n\n\`\`\`\n${rawResponsePreview}\n\`\`\`\n` : ''}
 
               ### 🔗 Resources
 
               - **Workflow run:** [View logs](../../actions/runs/${runId}/attempts/${runAttempt})
-              - **Gemini docs:** [run-gemini-cli](https://github.com/google-github-actions/run-gemini-cli)
+              - **Gemini Python SDK:** [google-generativeai](https://ai.google.dev/gemini-api/docs/quickstart?lang=python)
               - **API status:** [Google AI Studio](https://aistudio.google.com/)
 
               ---
@@ -601,7 +437,7 @@ jobs:
             ${review}
 
             ---
-            *${triggerText} • Generated by ${geminiModel} using official Google GitHub Action*`;
+            *${triggerText} • Generated by ${geminiModel} using Google Gemini Python SDK*`;
             }
 
             await github.rest.issues.createComment({
