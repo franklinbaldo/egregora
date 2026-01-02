@@ -35,7 +35,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from egregora.data_primitives.document import Document, DocumentType, UrlConvention
-from egregora_v3.core.utils import slugify
+from egregora.utils.paths import slugify
 
 if TYPE_CHECKING:
     from egregora.data_primitives.document import UrlContext

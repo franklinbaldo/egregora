@@ -51,6 +51,8 @@ from egregora.resources.prompts import render_prompt
 from egregora.security.zip import validate_zip_contents
 from egregora.utils.datetime_utils import ensure_datetime
 from egregora_v3.core.utils import slugify
+from egregora.utils.env import get_google_api_key
+from egregora.utils.exceptions import CacheKeyNotFoundError
 
 if TYPE_CHECKING:
     from collections.abc import Iterator

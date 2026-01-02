@@ -12,7 +12,7 @@ from egregora.security.zip import (
     validate_zip_contents,
 )
 from egregora.utils.datetime_utils import parse_datetime_flexible
-from egregora_v3.core.utils import PathTraversalError, safe_path_join, slugify
+from egregora_v3.core.utils import PathTraversalError, safe_path_join
 
 __all__ = [
     "PathTraversalError",
@@ -23,7 +23,6 @@ __all__ = [
     "ensure_safe_member_size",
     "parse_datetime_flexible",
     "safe_path_join",
-    "slugify",
     "validate_public_url",
     "validate_zip_contents",
 ]
