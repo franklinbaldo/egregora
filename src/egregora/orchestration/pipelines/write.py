@@ -71,7 +71,7 @@ from egregora.transformations import (
     split_window_into_n_parts,
 )
 from egregora.utils.async_utils import run_async_safely
-from egregora.utils.cache import PipelineCache
+from egregora.orchestration.cache import PipelineCache
 from egregora.utils.env import get_google_api_keys, validate_gemini_api_key
 
 try:
