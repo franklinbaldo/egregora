@@ -61,7 +61,7 @@ from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import PipelineCache
-from egregora.utils.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
+from egregora.llm.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
