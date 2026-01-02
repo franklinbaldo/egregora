@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     import uuid
+    from datetime import datetime
     from pathlib import Path
 
     from google import genai
@@ -24,9 +24,9 @@ if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig, RAGSettings
     from egregora.data_primitives.document import OutputSink
     from egregora.database.task_store import TaskStore
-    from egregora.llm.usage import UsageTracker
     from egregora.orchestration.cache import PipelineCache
     from egregora.output_adapters import OutputSinkRegistry
+    from egregora.utils.metrics import UsageTracker
 
 logger = logging.getLogger(__name__)
 
@@ -52,40 +52,17 @@ class PromptTooLargeError(Exception):
         super().__init__(self.message)
 
 
-class Message(BaseModel):
-    """DTO representing a chat message for the writer agent.
-
-    This decouples the agent from the database schema.
-    """
-
-    event_id: str
-    ts: datetime
-    author_uuid: str
-    text: str | None = None
-    thread_id: str | None = None
-    created_by_run: str | None = None
-    source: str | None = None
-    msg_id: str | None = None
-    attrs: dict[str, Any] | None = None
-
-
 @dataclass(frozen=True)
 class WindowProcessingParams:
     """Parameters for processing a specific time window."""
 
     window_start: datetime
     window_end: datetime
+    window_label: str
     config: EgregoraConfig
     resources: WriterResources
     cache: PipelineCache
-    messages: list[Message]
-    signature: str | None = None
-    window_label: str | None = None
-    table: Table | None = None
-    smoke_test: bool = False
-    run_id: str | None = None
-    adapter_content_summary: str = ""
-    adapter_generation_instructions: str = ""
+    signature: str
 
 
 class PostMetadata(BaseModel):
@@ -206,7 +183,6 @@ class WriterDeps:
     window_end: datetime
     window_label: str
     model_name: str
-    messages: list[Message]
     # Reserved for future dynamic system prompt expansion
     # If used in system prompts, add appropriate null checks
     table: Table | None = None

@@ -563,7 +563,7 @@ def split_window_into_n_parts(window: Window, n: int) -> list[Window]:
 
 
 def generate_window_signature(
-    window_table: Table | None,
+    window_table: Table,
     config: EgregoraConfig,
     prompt_template: str,
     xml_content: str | None = None,
@@ -576,7 +576,7 @@ def generate_window_signature(
     3. ENGINE: Model ID.
 
     Args:
-        window_table: The window's data table (Optional if xml_content is provided).
+        window_table: The window's data table.
         config: Pipeline configuration.
         prompt_template: Raw template string for the writer prompt.
         xml_content: Optional pre-computed XML content to hash (avoid re-generating).
@@ -585,13 +585,11 @@ def generate_window_signature(
     # 1. Data Hash
     if xml_content:
         data_hash = hashlib.sha256(xml_content.encode()).hexdigest()
-    elif window_table is not None:
+    else:
         # Fallback to generating XML for hash consistency
         # (We use XML because that's what the LLM sees)
         xml_content = build_conversation_xml(window_table.to_pyarrow(), None)
         data_hash = hashlib.sha256(xml_content.encode()).hexdigest()
-    else:
-        raise ValueError("Either xml_content or window_table must be provided")
 
     # 2. Logic Hash
     # Combine template and user instructions

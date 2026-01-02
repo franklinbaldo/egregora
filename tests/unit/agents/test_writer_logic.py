@@ -187,9 +187,6 @@ async def test_write_posts_for_window_smoke_test(
         resources=MagicMock(),
         config=test_config,
         cache=MagicMock(),
-        messages=[MagicMock()],
-        window_label="test",
-        signature="sig",
     )
 
     result = await writer_module.write_posts_for_window(params)
