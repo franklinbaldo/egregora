@@ -101,3 +101,28 @@ def test_run_cli_flow_invalid_source_key_exits(
         raise AssertionError("run_cli_flow should exit when an unknown source key is provided")
 
     mock_run.assert_not_called()
+
+
+@patch("egregora.orchestration.pipelines.write.run")
+@patch("egregora.orchestration.pipelines.write.load_egregora_config")
+@patch("egregora.orchestration.pipelines.write._validate_api_key")
+@patch("egregora.orchestration.pipelines.write.MkDocsSiteScaffolder.scaffold_site")
+def test_run_cli_flow_scaffolds_if_no_config(
+    mock_scaffold_site, mock_validate_key, mock_load_config, mock_run, config_factory, tmp_path
+):
+    """Verify that a new site is scaffolded if the config doesn't exist."""
+    from egregora.orchestration.pipelines.write import run_cli_flow
+
+    # Simulate no config file existing
+    output_dir = tmp_path / "new-site"
+    # NOTE: We don't create output_dir to ensure the code handles it.
+    config_path = output_dir / ".egregora.toml"
+    assert not config_path.exists()
+
+    mock_load_config.return_value = config_factory()
+
+    run_cli_flow(input_file=Path("test.zip"), output=output_dir, source="whatsapp")
+
+    # Verify that scaffolding was called because the config was missing
+    mock_scaffold_site.assert_called_once_with(output_dir, site_name=output_dir.name)
+    assert mock_run.called
