@@ -93,15 +93,13 @@ jobs:
           # Create temp directory for files
           mkdir -p .github/tmp
 
-          # Ensure we have the base ref locally (works for forks and distant branches)
-          # No --depth flag since we already did fetch-depth: 0 in checkout
-          git fetch origin "${BASE_REF}"
+          # Ensure we have the base ref locally (quiet mode to reduce log verbosity)
+          git fetch --quiet origin "${BASE_REF}" 2>/dev/null || git fetch origin "${BASE_REF}"
 
           # Get unified diff between base and head, excluding non-code assets
           git diff --unified=3 "origin/${BASE_REF}" "${HEAD_SHA}" -- . ':!uv.lock' ':!.jules/' ':!docs/' ':!README.md' ':!pyproject.toml' ':!tests/v3/infra/sinks/fixtures/' > .github/tmp/diff.txt
 
           # Get commit messages to understand intent
-          # Format: hash - subject + body (if any)
           git log --format="%h - %s%n%b" "origin/${BASE_REF}..${HEAD_SHA}" > .github/tmp/commits.txt || echo "(No commits found)" > .github/tmp/commits.txt
 
           # Output metadata for next step
@@ -109,6 +107,8 @@ jobs:
             echo "user_instructions=$USER_INSTRUCTIONS"
             echo "trigger_mode=$TRIGGER_MODE"
           } >> "$GITHUB_OUTPUT"
+
+          echo "✓ Collected diff ($(wc -l < .github/tmp/diff.txt) lines) and commits"
 
       # Setup Python environment for prompt construction
       - name: Setup Python environment
@@ -134,12 +134,16 @@ jobs:
           COMMITS_PATH: .github/tmp/commits.txt
           OUTPUT_PATH: .github/tmp/prompt.txt
         run: |
-          # Construct prompt using Python + Jinja2
-          uv run python .github/scripts/construct_gemini_prompt.py
+          # Construct prompt using Python + Jinja2 (quiet mode to reduce log verbosity)
+          uv run --quiet python .github/scripts/construct_gemini_prompt.py 2>&1 | grep -v "^Resolved\|^Prepared\|^Built\|^Installed" || true
 
-          # Read prompt and make available to Gemini steps via file
-          # (Using file avoids "argument list too long" errors with large prompts)
-          echo "prompt_file=.github/tmp/prompt.txt" >> "$GITHUB_OUTPUT"
+          # Read prompt and export as step output using heredoc to avoid "argument list too long"
+          PROMPT_DELIMITER="eof_prompt_delimiter_${{ github.run_id }}_${{ github.run_attempt }}"
+          {
+            echo "prompt<<${PROMPT_DELIMITER}"
+            cat .github/tmp/prompt.txt
+            echo "${PROMPT_DELIMITER}"
+          } >> "$GITHUB_OUTPUT"
 
       # ----------------------------------------------------------------------
       # Gemini Review Pipeline with Fallback Strategy
@@ -157,7 +161,7 @@ jobs:
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_model: "gemini-3-pro-preview"
-          prompt_file: ${{ steps.construct_prompt.outputs.prompt_file }}
+          prompt: ${{ steps.construct_prompt.outputs.prompt }}
 
       - name: Run Gemini PR Review (3 Flash Preview)
         id: gemini_3_flash
@@ -167,7 +171,7 @@ jobs:
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_model: "gemini-3-flash-preview"
-          prompt_file: ${{ steps.construct_prompt.outputs.prompt_file }}
+          prompt: ${{ steps.construct_prompt.outputs.prompt }}
 
       - name: Run Gemini PR Review (2.5 Pro)
         id: gemini_25_pro
@@ -177,7 +181,7 @@ jobs:
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_model: "gemini-2.5-pro"
-          prompt_file: ${{ steps.construct_prompt.outputs.prompt_file }}
+          prompt: ${{ steps.construct_prompt.outputs.prompt }}
 
       - name: Run Gemini PR Review (2.5 Flash)
         id: gemini_25_flash
@@ -187,7 +191,7 @@ jobs:
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_model: "gemini-2.5-flash"
-          prompt_file: ${{ steps.construct_prompt.outputs.prompt_file }}
+          prompt: ${{ steps.construct_prompt.outputs.prompt }}
 
       - name: Run Gemini PR Review (2.5 Flash Lite)
         id: gemini_25_lite
@@ -197,7 +201,7 @@ jobs:
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_model: "gemini-2.5-flash-lite"
-          prompt_file: ${{ steps.construct_prompt.outputs.prompt_file }}
+          prompt: ${{ steps.construct_prompt.outputs.prompt }}
 
       - name: Consolidate Gemini Results
         id: gemini_final
