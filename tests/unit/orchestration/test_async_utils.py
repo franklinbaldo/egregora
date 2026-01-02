@@ -1,12 +1,15 @@
-
 import asyncio
+
 import pytest
+
 from egregora.orchestration.async_utils import run_async_safely
+
 
 # A simple async function to use in tests
 async def sample_coroutine(value):
     await asyncio.sleep(0.01)
     return f"Coroutine completed with value: {value}"
+
 
 def test_run_async_safely_without_running_loop():
     """
@@ -15,6 +18,7 @@ def test_run_async_safely_without_running_loop():
     test_value = "no_loop"
     result = run_async_safely(sample_coroutine(test_value))
     assert result == f"Coroutine completed with value: {test_value}"
+
 
 @pytest.mark.asyncio
 async def test_run_async_safely_with_running_loop():
@@ -27,12 +31,14 @@ async def test_run_async_safely_with_running_loop():
     result = run_async_safely(sample_coroutine(test_value))
     assert result == f"Coroutine completed with value: {test_value}"
 
+
 # Another test to be absolutely sure about the running loop case
 @pytest.mark.asyncio
 async def test_nested_run_async_safely():
     """
     Tests nesting calls to run_async_safely within a running event loop.
     """
+
     async def outer_coroutine():
         inner_result = run_async_safely(sample_coroutine("inner"))
         return f"Outer received: ({inner_result})"
