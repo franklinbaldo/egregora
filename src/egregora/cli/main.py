@@ -14,10 +14,10 @@ except ImportError:
 
 # Deferred import if needed, but for now moving it top level as requested by linter
 # We need to make sure this doesn't break things if import fails, but diagnostics is part of the package.
-from rich.console import Console
-from rich.logging import RichHandler
 import subprocess
 
+from rich.console import Console
+from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.table import Table
 
@@ -87,7 +87,7 @@ def preview_docs(
 ) -> None:
     """Preview the documentation site."""
     try:
-        subprocess.run(["mkdocs", "serve", "-f", str(config_file)], check=True)
+        subprocess.run(["mkdocs", "serve", "-f", str(config_file)], check=True)  # noqa: S603, S607
     except FileNotFoundError:
         console.print(
             "[red]Error: 'mkdocs' command not found. Please install the documentation dependencies:[/red]"
