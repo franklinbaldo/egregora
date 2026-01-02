@@ -30,7 +30,7 @@ def test_get_google_api_key_falls_back_to_gemini_key():
 def test_get_google_api_key_missing():
     """Test get_google_api_key raises ValueError when no key is set."""
     with patch.dict(os.environ, {}, clear=True):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="environment variable is required"):
             get_google_api_key()
 
 
