@@ -7,24 +7,19 @@ invalidation controls.
 
 from __future__ import annotations
 
-import json
 import logging
-from dataclasses import dataclass
 from enum import Enum
-from hashlib import sha256
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING
 
 import diskcache
 
-from egregora.utils.cache_backend import CacheBackend, DiskCacheBackend
 from egregora.agents.shared.cache import EnrichmentCache
-
+from egregora.utils.cache_backend import DiskCacheBackend
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 logger = logging.getLogger(__name__)
-
 
 
 class CacheTier(str, Enum):

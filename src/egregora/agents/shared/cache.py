@@ -10,13 +10,10 @@ import json
 import logging
 from dataclasses import dataclass
 from hashlib import sha256
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import Annotated, Any
 
 from egregora.utils.cache_backend import CacheBackend
 from egregora.utils.exceptions import CacheDeserializationError, CachePayloadTypeError
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,6 @@
+from unittest.mock import MagicMock
 
 import pytest
-from unittest.mock import MagicMock
 
 from egregora.agents.shared.cache import (
     EnrichmentCache,
