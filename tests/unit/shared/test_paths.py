@@ -1,6 +1,6 @@
 """Tests for the slugify utility function."""
 
-from egregora.utils.paths import slugify
+from egregora.shared.paths import slugify
 
 
 class TestSlugifyBasicBehavior:
