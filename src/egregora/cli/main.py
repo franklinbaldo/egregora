@@ -74,6 +74,19 @@ def main() -> None:
     """Initialize CLI (placeholder for future setup)."""
 
 
+def _run_mkdocs_serve(config_file: Path) -> None:
+    """Run the mkdocs serve command."""
+    try:
+        subprocess.run(["mkdocs", "serve", "-f", str(config_file)], check=True)  # noqa: S603, S607
+    except FileNotFoundError:
+        console.print(
+            "[red]Error: 'mkdocs' command not found. Please install the documentation dependencies:[/red]"
+        )
+        console.print("[cyan]uv tool install egregora[docs][/cyan]")
+    except subprocess.CalledProcessError as e:
+        console.print(f"[red]Error running mkdocs serve: {e}[/red]")
+
+
 @app.command()
 def preview_docs(
     config_file: Annotated[
@@ -86,15 +99,7 @@ def preview_docs(
     ] = Path(".egregora/mkdocs.yml"),
 ) -> None:
     """Preview the documentation site."""
-    try:
-        subprocess.run(["mkdocs", "serve", "-f", str(config_file)], check=True)  # noqa: S603, S607
-    except FileNotFoundError:
-        console.print(
-            "[red]Error: 'mkdocs' command not found. Please install the documentation dependencies:[/red]"
-        )
-        console.print("[cyan]uv tool install egregora[docs][/cyan]")
-    except subprocess.CalledProcessError as e:
-        console.print(f"[red]Error running mkdocs serve: {e}[/red]")
+    _run_mkdocs_serve(config_file)
 
 
 @app.command()
