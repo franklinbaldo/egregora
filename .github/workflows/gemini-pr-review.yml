@@ -177,38 +177,14 @@ jobs:
               .replace(/\{\{CLAUDE_MD\}\}/g, process.env.CLAUDE_MD);
 
             core.exportVariable('GEMINI_PROMPT', prompt);
-
       # ----------------------------------------------------------------------
       # Gemini Review Pipeline with Fallback Strategy
-      # 1. Gemini 3 Pro Preview (highest quality)
-      # 2. Gemini 3 Flash Preview (fastest 3.x tier)
-      # 3. Gemini 2.5 Pro (best quality in 2.5 family)
-      # 4. Gemini 2.5 Flash (fast 2.5 fallback)
-      # 5. Gemini 2.5 Flash Lite (lowest cost fallback)
+      # 1. Gemini 2.5 Pro (latest stable high-quality model)
+      # 2. Gemini 2.5 Flash (latest stable fast model)
       # ----------------------------------------------------------------------
 
-      - name: Run Gemini PR Review (3 Pro Preview)
-        id: gemini_3_pro
-        continue-on-error: true
-        uses: google-github-actions/run-gemini-cli@v0
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: "gemini-3-pro-preview"
-          prompt: ${{ env.GEMINI_PROMPT }}
-
-      - name: Run Gemini PR Review (3 Flash Preview)
-        id: gemini_3_flash
-        if: steps.gemini_3_pro.outcome == 'failure'
-        continue-on-error: true
-        uses: google-github-actions/run-gemini-cli@v0
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: "gemini-3-flash-preview"
-          prompt: ${{ env.GEMINI_PROMPT }}
-
       - name: Run Gemini PR Review (2.5 Pro)
-        id: gemini_25_pro
-        if: steps.gemini_3_pro.outcome == 'failure' && steps.gemini_3_flash.outcome == 'failure'
+        id: gemini_primary
         continue-on-error: true
         uses: google-github-actions/run-gemini-cli@v0
         with:
@@ -217,69 +193,40 @@ jobs:
           prompt: ${{ env.GEMINI_PROMPT }}
 
       - name: Run Gemini PR Review (2.5 Flash)
-        id: gemini_25_flash
-        if: steps.gemini_3_pro.outcome == 'failure' && steps.gemini_3_flash.outcome == 'failure' && steps.gemini_25_pro.outcome == 'failure'
+        id: gemini_fallback
+        if: steps.gemini_primary.outcome == 'failure'
         continue-on-error: true
         uses: google-github-actions/run-gemini-cli@v0
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_model: "gemini-2.5-flash"
           prompt: ${{ env.GEMINI_PROMPT }}
-
-      - name: Run Gemini PR Review (2.5 Flash Lite)
-        id: gemini_25_lite
-        if: steps.gemini_3_pro.outcome == 'failure' && steps.gemini_3_flash.outcome == 'failure' && steps.gemini_25_pro.outcome == 'failure' && steps.gemini_25_flash.outcome == 'failure'
-        continue-on-error: true
-        uses: google-github-actions/run-gemini-cli@v0
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: "gemini-2.5-flash-lite"
-          prompt: ${{ env.GEMINI_PROMPT }}
-
       - name: Consolidate Gemini Results
         id: gemini_final
         if: always()
         uses: actions/github-script@v8
         env:
-          OUTCOME_3_PRO: ${{ steps.gemini_3_pro.outcome }}
-          SUMMARY_3_PRO: ${{ steps.gemini_3_pro.outputs.summary }}
-          CONCLUSION_3_PRO: ${{ steps.gemini_3_pro.conclusion }}
-          OUTCOME_3_FLASH: ${{ steps.gemini_3_flash.outcome }}
-          SUMMARY_3_FLASH: ${{ steps.gemini_3_flash.outputs.summary }}
-          CONCLUSION_3_FLASH: ${{ steps.gemini_3_flash.conclusion }}
-          OUTCOME_25_PRO: ${{ steps.gemini_25_pro.outcome }}
-          SUMMARY_25_PRO: ${{ steps.gemini_25_pro.outputs.summary }}
-          CONCLUSION_25_PRO: ${{ steps.gemini_25_pro.conclusion }}
-          OUTCOME_25_FLASH: ${{ steps.gemini_25_flash.outcome }}
-          SUMMARY_25_FLASH: ${{ steps.gemini_25_flash.outputs.summary }}
-          CONCLUSION_25_FLASH: ${{ steps.gemini_25_flash.conclusion }}
-          OUTCOME_25_LITE: ${{ steps.gemini_25_lite.outcome }}
-          SUMMARY_25_LITE: ${{ steps.gemini_25_lite.outputs.summary }}
-          CONCLUSION_25_LITE: ${{ steps.gemini_25_lite.conclusion }}
+          OUTCOME_PRIMARY: ${{ steps.gemini_primary.outcome }}
+          SUMMARY_PRIMARY: ${{ steps.gemini_primary.outputs.summary }}
+          CONCLUSION_PRIMARY: ${{ steps.gemini_primary.conclusion }}
+          OUTCOME_FALLBACK: ${{ steps.gemini_fallback.outcome }}
+          SUMMARY_FALLBACK: ${{ steps.gemini_fallback.outputs.summary }}
+          CONCLUSION_FALLBACK: ${{ steps.gemini_fallback.conclusion }}
         with:
           script: |
             const outcomes = {
-              threePro: process.env.OUTCOME_3_PRO,
-              threeFlash: process.env.OUTCOME_3_FLASH,
-              twoFivePro: process.env.OUTCOME_25_PRO,
-              twoFiveFlash: process.env.OUTCOME_25_FLASH,
-              twoFiveLite: process.env.OUTCOME_25_LITE
+              primary: process.env.OUTCOME_PRIMARY,
+              fallback: process.env.OUTCOME_FALLBACK,
             };
 
             const summaries = {
-              threePro: process.env.SUMMARY_3_PRO,
-              threeFlash: process.env.SUMMARY_3_FLASH,
-              twoFivePro: process.env.SUMMARY_25_PRO,
-              twoFiveFlash: process.env.SUMMARY_25_FLASH,
-              twoFiveLite: process.env.SUMMARY_25_LITE
+              primary: process.env.SUMMARY_PRIMARY,
+              fallback: process.env.SUMMARY_FALLBACK,
             };
 
             const conclusions = {
-              threePro: process.env.CONCLUSION_3_PRO,
-              threeFlash: process.env.CONCLUSION_3_FLASH,
-              twoFivePro: process.env.CONCLUSION_25_PRO,
-              twoFiveFlash: process.env.CONCLUSION_25_FLASH,
-              twoFiveLite: process.env.CONCLUSION_25_LITE
+              primary: process.env.CONCLUSION_PRIMARY,
+              fallback: process.env.CONCLUSION_FALLBACK,
             };
 
             let finalOutcome = 'failure';
@@ -289,11 +236,8 @@ jobs:
             // Build detailed error report
             const errorDetails = [];
             const modelNames = {
-              threePro: 'gemini-3-pro-preview',
-              threeFlash: 'gemini-3-flash-preview',
-              twoFivePro: 'gemini-2.5-pro',
-              twoFiveFlash: 'gemini-2.5-flash',
-              twoFiveLite: 'gemini-2.5-flash-lite'
+              primary: 'gemini-2.5-pro',
+              fallback: 'gemini-2.5-flash',
             };
 
             for (const [key, modelName] of Object.entries(modelNames)) {
@@ -333,7 +277,6 @@ jobs:
               console.log('Error Details:');
               console.log(errorDetails.join('\n'));
             }
-
       - name: Parse Combined Response
         id: parse_combined
         if: always()
@@ -383,7 +326,6 @@ jobs:
             core.setOutput('pr_body', parsed.pr_body || '');
 
             console.log('Successfully parsed Gemini response');
-
       - name: Update PR Title/Description
         if: steps.gemini_final.outputs.outcome == 'success' && (steps.parse_combined.outputs.pr_title != '' || steps.parse_combined.outputs.pr_body != '')
         uses: actions/github-script@v8
@@ -422,7 +364,6 @@ jobs:
               ...update
             });
             console.log('Updated PR metadata:', update);
-
       - name: Check Gemini step result
         if: always()
         run: |
@@ -432,11 +373,8 @@ jobs:
             echo "::warning::All Gemini CLI attempts failed or were skipped"
             echo "::group::Debugging Information"
             echo "Job status: ${{ job.status }}"
-            echo "3 Pro outcome: ${{ steps.gemini_3_pro.outcome }}"
-            echo "3 Flash outcome: ${{ steps.gemini_3_flash.outcome }}"
-            echo "2.5 Pro outcome: ${{ steps.gemini_25_pro.outcome }}"
-            echo "2.5 Flash outcome: ${{ steps.gemini_25_flash.outcome }}"
-            echo "2.5 Flash Lite outcome: ${{ steps.gemini_25_lite.outcome }}"
+            echo "Primary model outcome: ${{ steps.gemini_primary.outcome }}"
+            echo "Fallback model outcome: ${{ steps.gemini_fallback.outcome }}"
             echo "::endgroup::"
             # Check if API key is set (without exposing it or its length)
             if [ -z "${{ secrets.GEMINI_API_KEY }}" ]; then
@@ -447,7 +385,6 @@ jobs:
           fi
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
       - name: Post review as PR comment
         if: always()
         uses: actions/github-script@v8
@@ -464,11 +401,8 @@ jobs:
           STEP_COLLECT_OUTCOME: ${{ steps.collect.outcome }}
           STEP_CONSTRUCT_OUTCOME: ${{ steps.construct_prompt.outcome }}
           STEP_CONSTRUCT_CONCLUSION: ${{ steps.construct_prompt.conclusion }}
-          STEP_GEMINI_3_PRO_OUTCOME: ${{ steps.gemini_3_pro.outcome }}
-          STEP_GEMINI_3_FLASH_OUTCOME: ${{ steps.gemini_3_flash.outcome }}
-          STEP_GEMINI_25_PRO_OUTCOME: ${{ steps.gemini_25_pro.outcome }}
-          STEP_GEMINI_25_FLASH_OUTCOME: ${{ steps.gemini_25_flash.outcome }}
-          STEP_GEMINI_25_LITE_OUTCOME: ${{ steps.gemini_25_lite.outcome }}
+          STEP_GEMINI_PRIMARY_OUTCOME: ${{ steps.gemini_primary.outcome }}
+          STEP_GEMINI_FALLBACK_OUTCOME: ${{ steps.gemini_fallback.outcome }}
           STEP_PARSE_OUTCOME: ${{ steps.parse_combined.outcome }}
           STEP_PARSE_CONCLUSION: ${{ steps.parse_combined.conclusion }}
           RUN_ID: ${{ github.run_id }}
@@ -505,11 +439,8 @@ jobs:
               };
 
               const geminiSteps = {
-                'gemini-3-pro-preview': process.env.STEP_GEMINI_3_PRO_OUTCOME,
-                'gemini-3-flash-preview': process.env.STEP_GEMINI_3_FLASH_OUTCOME,
-                'gemini-2.5-pro': process.env.STEP_GEMINI_25_PRO_OUTCOME,
-                'gemini-2.5-flash': process.env.STEP_GEMINI_25_FLASH_OUTCOME,
-                'gemini-2.5-flash-lite': process.env.STEP_GEMINI_25_LITE_OUTCOME
+                'gemini-2.5-pro': process.env.STEP_GEMINI_PRIMARY_OUTCOME,
+                'gemini-2.5-flash': process.env.STEP_GEMINI_FALLBACK_OUTCOME,
               };
 
               // Determine failure type
@@ -646,7 +577,6 @@ jobs:
             } else {
               console.log("⚠️ Diagnostic comment posted due to Gemini step failure");
             }
-
   # This job sets the check status for auto-merge
   review-status:
     name: Review Status Check
