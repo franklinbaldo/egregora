@@ -9,12 +9,12 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Sequence
 
-from egregora_v3.core.types import Document
-from egregora_v3.core.utils import (
+from egregora.rag.chunking import (
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_MAX_CHARS,
     simple_chunk_text,
 )
+from egregora_v3.core.types import Document
 
 if TYPE_CHECKING:
     pass
