@@ -354,6 +354,7 @@ async def write_posts_with_pydantic_agent(
         context.resources.usage.record(usage)
     saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
     intercalated_log = _extract_intercalated_log(result.all_messages())
+    # TODO: [Taskmaster] Refactor complex journal fallback logic
     if not intercalated_log:
         fallback_content = _extract_journal_content(result.all_messages())
         if fallback_content:
@@ -471,6 +472,7 @@ def _finalize_writer_results(params: WriterFinalizationParams) -> dict[str, list
     return result_payload
 
 
+# TODO: [Taskmaster] Refactor complex `write_posts_for_window` function
 async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
     """Let LLM analyze window's messages, write 0-N posts, and update author profiles.
 
@@ -514,6 +516,7 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
         resources.usage,
     )
     if cached_result:
+        # TODO: [Taskmaster] Refactor brittle cache validation logic
         # Validate cached posts still exist on disk (they may be missing if output dir is fresh)
         cached_posts = cached_result.get(RESULT_KEY_POSTS, [])
         if cached_posts:
