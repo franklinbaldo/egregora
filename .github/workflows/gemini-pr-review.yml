@@ -344,35 +344,45 @@ jobs:
           script: |
             const raw = process.env.GEMINI_RESPONSE || '';
 
-            let payload = {
-              review_comment: '',
-              merge: 'unknown',
-              merge_reason: 'Gemini response missing or unparsable',
-              merge_risk: 'unknown',
-              pr_title: '',
-              pr_body: ''
-            };
+            // Store raw response for debugging
+            const preview = raw.length > 500 ? raw.substring(0, 500) + '...[truncated]' : raw;
+            core.setOutput('raw_response_preview', preview);
 
-            if (raw) {
-              const jsonMatch = raw.match(/```json\s*([\s\S]*?)\s*```/i) || raw.match(/\{[\s\S]*\}/);
-              const candidate = jsonMatch ? jsonMatch[1] || jsonMatch[0] : raw;
-              try {
-                const parsed = JSON.parse(candidate);
-                payload.review_comment = parsed.review_comment || '';
-                payload.merge = String(parsed.merge === true);
-                payload.merge_reason = parsed.merge_reason || 'No reason provided';
-                payload.merge_risk = parsed.merge_risk || 'unknown';
-                payload.pr_title = parsed.pr_title || '';
-                payload.pr_body = parsed.pr_body || '';
-              } catch (error) {
-                console.log(`Failed to parse Gemini JSON: ${error.message}`);
-              }
+            // Fail fast with specific errors
+            if (!raw) {
+              throw new Error('GEMINI_RESPONSE_EMPTY: Gemini returned no response');
             }
 
-            for (const [key, value] of Object.entries(payload)) {
-              core.setOutput(key, value);
+            // Extract JSON from response
+            const jsonMatch = raw.match(/```json\s*([\s\S]*?)\s*```/i) || raw.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) {
+              throw new Error(`NO_JSON_FOUND: Response does not contain JSON. Preview: ${preview}`);
             }
-            console.log('Parsed Gemini response:', payload);
+
+            const candidate = jsonMatch[1] || jsonMatch[0];
+
+            // Parse JSON - let it throw if invalid
+            let parsed;
+            try {
+              parsed = JSON.parse(candidate);
+            } catch (error) {
+              throw new Error(`JSON_PARSE_ERROR: ${error.message}. JSON candidate: ${candidate.substring(0, 200)}`);
+            }
+
+            // Validate required field
+            if (!parsed.review_comment || parsed.review_comment.trim() === '') {
+              throw new Error('EMPTY_REVIEW_COMMENT: JSON parsed but review_comment field is empty or missing');
+            }
+
+            // Extract fields
+            core.setOutput('review_comment', parsed.review_comment);
+            core.setOutput('merge', String(parsed.merge === true));
+            core.setOutput('merge_reason', parsed.merge_reason || 'No reason provided');
+            core.setOutput('merge_risk', parsed.merge_risk || 'unknown');
+            core.setOutput('pr_title', parsed.pr_title || '');
+            core.setOutput('pr_body', parsed.pr_body || '');
+
+            console.log('Successfully parsed Gemini response');
 
       - name: Update PR Title/Description
         if: steps.gemini_final.outputs.outcome == 'success' && (steps.parse_combined.outputs.pr_title != '' || steps.parse_combined.outputs.pr_body != '')
@@ -446,6 +456,8 @@ jobs:
           GEMINI_OUTCOME: ${{ steps.gemini_final.outputs.outcome }}
           GEMINI_MODEL: ${{ steps.gemini_final.outputs.model }}
           ERROR_DETAILS: ${{ steps.gemini_final.outputs.error_details }}
+          PARSE_ERROR: ${{ steps.parse_combined.outputs.parse_error }}
+          RAW_RESPONSE_PREVIEW: ${{ steps.parse_combined.outputs.raw_response_preview }}
           PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
           TRIGGER_MODE: ${{ steps.collect.outputs.trigger_mode }}
         with:
@@ -456,6 +468,8 @@ jobs:
             const geminiOutcome = process.env.GEMINI_OUTCOME;
             const geminiModel = process.env.GEMINI_MODEL;
             const errorDetails = process.env.ERROR_DETAILS;
+            const parseError = process.env.PARSE_ERROR;
+            const rawResponsePreview = process.env.RAW_RESPONSE_PREVIEW;
 
             let review = process.env.GEMINI_REVIEW;
             let body;
@@ -465,47 +479,22 @@ jobs:
             const triggerText = triggerMode === 'manual' ? 'Manual review requested' : 'Automatic review';
 
             if (geminiOutcome !== 'success' || !review) {
-              // Gemini step failed - provide diagnostic info with detailed errors
+              // Show actual error from workflow steps
               body = `## ⚠️ Gemini Code Review Failed
 
-            The Gemini CLI review failed to complete after attempting all fallback models.
+            ### Error Details
 
-            ### Detailed Error Report
+            **Model:** ${geminiModel || 'unknown'}
+            **Outcome:** ${geminiOutcome}
 
-            ${errorDetails || 'No detailed error information available'}
+            ${errorDetails ? `**Model Execution Errors:**\n${errorDetails}\n` : ''}
 
-            ### Common Causes & Solutions
+            ${rawResponsePreview ? `**Response Preview:**\n\`\`\`\n${rawResponsePreview}\n\`\`\`\n` : ''}
 
-            - **API Key Issues**: The \`GEMINI_API_KEY\` secret may be missing or invalid
-              - Check: Repository Settings → Secrets and variables → Actions
-              - Verify the API key is valid at https://aistudio.google.com/apikey
-
-            - **Quota/Rate Limiting**: API quota may be exhausted for one or more models
-              - Check quota at: https://aistudio.google.com/
-              - Consider using lower-tier models (2.5-flash) or wait for quota reset
-
-            - **Context Length Exceeded**: The PR diff may be too large for the model's context window
-              - Try splitting the PR into smaller changes
-              - Check diff size: The model may have hit token limits
-
-            - **Timeout**: The request took too long (>15 minutes)
-              - Very large PRs may timeout
-              - Try re-running the workflow or splitting the PR
-
-            - **Model Availability**: Some preview models may not be available in all regions
-              - gemini-3-* models are preview and may have limited availability
-              - Fallback to gemini-2.5-* should usually work
-
-            ### Debugging Steps
-
-            1. Check the [workflow run logs](../../actions) for detailed error messages
-            2. Verify GEMINI_API_KEY is set and valid
-            3. Check your Gemini API quota and rate limits
-            4. Review the PR size (very large diffs may fail)
-            5. Try triggering a manual review with \`@gemini\` comment
+            **Check the [workflow run logs](../../actions) for complete error details.**
 
             ---
-            *${triggerText} • Step outcome: ${geminiOutcome}*`;
+            *${triggerText}*`;
             } else {
               // Gemini step succeeded
               body = `## ${triggerEmoji} Gemini Code Review
