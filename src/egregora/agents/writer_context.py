@@ -22,7 +22,7 @@ from egregora.knowledge.profiles import get_active_authors
 from egregora.rag import index_documents, reset_backend
 from egregora.resources.prompts import PromptManager
 from egregora.transformations.windowing import generate_window_signature
-from egregora.utils.cache import CacheTier
+from egregora.orchestration.cache import CacheTier
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
     from egregora.config.settings import EgregoraConfig
     from egregora.llm.usage import UsageTracker
-    from egregora.utils.cache import PipelineCache
+    from egregora.orchestration.cache import PipelineCache
 
 logger = logging.getLogger(__name__)
 

@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 import diskcache
 
-from egregora.utils.cache_backend import CacheBackend, DiskCacheBackend
-from egregora.utils.exceptions import CacheDeserializationError, CachePayloadTypeError
+from ..utils.cache_backend import CacheBackend, DiskCacheBackend
+from ..utils.exceptions import CacheDeserializationError, CachePayloadTypeError
 
 if TYPE_CHECKING:
     from pathlib import Path

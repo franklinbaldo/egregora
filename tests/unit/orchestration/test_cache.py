@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from egregora.utils.cache import (
+from egregora.orchestration.cache import (
     EnrichmentCache,
     make_enrichment_cache_key,
 )
@@ -77,6 +77,77 @@ def test_enrichment_cache_load_deserialization_error(mock_backend):
 
     mock_backend.get.assert_called_once_with("test_key")
     mock_backend.delete.assert_called_once_with("test_key")
+
+
+from pathlib import Path
+from unittest.mock import patch
+
+from egregora.orchestration.cache import CacheTier, PipelineCache
+
+
+def test_pipeline_cache_initialization(tmp_path: Path):
+    """Tests that PipelineCache initializes its tiers correctly."""
+    cache = PipelineCache(base_dir=tmp_path)
+    assert (tmp_path / "enrichment").is_dir()
+    assert (tmp_path / "rag").is_dir()
+    assert (tmp_path / "writer").is_dir()
+    assert isinstance(cache.enrichment, EnrichmentCache)
+    # The underlying cache objects in diskcache are created on demand,
+    # but the directories should exist. We can check the type of the attribute.
+    assert hasattr(cache.rag, "close")  # Check if it's a cache-like object
+    assert hasattr(cache.writer, "close")
+    cache.close()
+
+
+@pytest.mark.parametrize(
+    ("refresh_tiers", "tier_to_check", "expected"),
+    [
+        ({"all"}, CacheTier.ENRICHMENT, True),
+        ({"all"}, CacheTier.RAG, True),
+        ({"enrichment"}, CacheTier.ENRICHMENT, True),
+        ({"rag", "writer"}, CacheTier.WRITER, True),
+        ({"enrichment"}, CacheTier.RAG, False),
+        (set(), CacheTier.ENRICHMENT, False),
+        (None, CacheTier.RAG, False),
+    ],
+)
+def test_pipeline_cache_should_refresh(
+    tmp_path: Path, refresh_tiers: set[str] | None, tier_to_check: CacheTier, expected: bool
+):
+    """Tests the logic for checking if a tier should be refreshed."""
+    cache = PipelineCache(base_dir=tmp_path, refresh_tiers=refresh_tiers)
+    assert cache.should_refresh(tier_to_check) is expected
+    cache.close()
+
+
+def test_pipeline_cache_close(tmp_path: Path):
+    """Tests that closing the PipelineCache closes all its tiers."""
+    with patch("diskcache.Cache") as mock_diskcache:
+        # diskcache.Cache is instantiated 3 times in PipelineCache.__init__:
+        # 1. Inside DiskCacheBackend for the enrichment cache.
+        # 2. For the rag cache.
+        # 3. For the writer cache.
+        mock_enrichment_disk_cache = MagicMock()
+        mock_rag_disk_cache = MagicMock()
+        mock_writer_disk_cache = MagicMock()
+        mock_diskcache.side_effect = [
+            mock_enrichment_disk_cache,
+            mock_rag_disk_cache,
+            mock_writer_disk_cache,
+        ]
+
+        # This will call diskcache.Cache 3 times, consuming the side_effect mocks
+        cache = PipelineCache(base_dir=tmp_path)
+
+        # Call the close method
+        cache.close()
+
+        # PipelineCache.close() calls close() on each of its cache attributes.
+        # For enrichment, it's EnrichmentCache -> DiskCacheBackend -> diskcache.Cache.
+        # For rag/writer, it's a direct diskcache.Cache.
+        mock_enrichment_disk_cache.close.assert_called_once()
+        mock_rag_disk_cache.close.assert_called_once()
+        mock_writer_disk_cache.close.assert_called_once()
 
 
 def test_enrichment_cache_load_payload_type_error(mock_backend):
