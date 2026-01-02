@@ -523,4 +523,4 @@ def test_mkdocs_get_filename_logic() -> None:
         doc_type=DocumentType.POST,
         status=DocumentStatus.PUBLISHED,
     )
-    assert sink._get_filename(doc_with_id_only) == "urn-uuid-1234-abcd"
+    assert sink._get_filename(doc_with_id_only) == "urn:uuid:1234-abcd"

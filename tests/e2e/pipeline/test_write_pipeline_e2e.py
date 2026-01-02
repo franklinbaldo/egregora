@@ -70,7 +70,6 @@ def test_full_pipeline_smoke_test(pipeline_setup, tmp_path):
     options = WhatsAppProcessOptions(
         output_dir=site_root,
         timezone=pipeline_setup["whatsapp_fixture"].timezone,
-        gemini_api_key=pipeline_setup["gemini_api_key"],
     )
 
     # Run pipeline with mocked LLM
@@ -159,7 +158,6 @@ def test_pipeline_with_rag_enabled(pipeline_setup, tmp_path):
     options = WhatsAppProcessOptions(
         output_dir=site_root,
         timezone=pipeline_setup["whatsapp_fixture"].timezone,
-        gemini_api_key=pipeline_setup["gemini_api_key"],
     )
 
     # Run pipeline (RAG is enabled by default via config)

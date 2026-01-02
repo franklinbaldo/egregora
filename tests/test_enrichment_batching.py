@@ -6,9 +6,18 @@ and sends them in a single API call, rather than individual calls.
 
 import json
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 from egregora.agents.enricher import EnrichmentWorker
+
+
+@pytest.fixture
+def mock_genai():
+    """Mock the google.genai module."""
+    with patch("google.genai") as mock:
+        yield mock
 
 
 class MockPipelineContext:
@@ -196,4 +205,4 @@ if __name__ == "__main__":
 
     test_concurrent_batching()
 
-    test_verify_batching_logs()
+    test_verify_batching_logs(MagicMock())
