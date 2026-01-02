@@ -23,8 +23,8 @@ from egregora.agents.enricher import (
     EnrichmentOutput,
     load_file_as_binary_content,
 )
-from egregora.database.datetime import ensure_datetime
 from egregora.agents.shared.cache import EnrichmentCache, make_enrichment_cache_key
+from egregora.database.datetime import ensure_datetime
 from egregora.input_adapters.whatsapp.commands import extract_commands
 from egregora.knowledge.profiles import remove_profile_avatar, update_profile_avatar
 from egregora.orchestration.pipelines.modules.media import detect_media_type, extract_urls

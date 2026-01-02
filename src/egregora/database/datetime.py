@@ -132,6 +132,6 @@ __all__ = [
     "DateTimeParsingError",
     "InvalidDateTimeInputError",
     "ensure_datetime",
-    "parse_datetime_flexible",
     "normalize_timezone",
+    "parse_datetime_flexible",
 ]
