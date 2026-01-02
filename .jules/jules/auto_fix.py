@@ -16,6 +16,8 @@ from jules.github import (
     get_repo_info,
 )
 
+AUTOFIX_AUTOMATION_MODE = "AUTO_CREATE_PR"
+
 
 def post_pr_comment(pr_number: int, comment: str, repo_path: str = ".") -> None:
     """Post a comment on a PR using gh CLI.
@@ -64,6 +66,10 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
 
     client = JulesClient()
     session_id = details.get("session_id")
+    last_commit_author = details.get("last_commit_author_login")
+    last_commit_by_jules = bool(details.get("last_commit_by_jules"))
+    reuse_existing_session = bool(session_id and last_commit_by_jules)
+    creation_reason = "No session_id found"
 
     autonomous_instruction = (
         "\n\n**🤖 CRITICAL - Full Autonomy Required:**\n"
@@ -74,9 +80,19 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
     )
 
     # Decision point: Send message to existing session OR create new session
+    if not reuse_existing_session:
+        if session_id and not last_commit_by_jules:
+            print(
+                "ℹ️ Found existing Jules session, but latest commit is not from Jules "
+                f"({last_commit_author or 'unknown author'}); creating a new session "
+                "instead to avoid regression.",
+            )
+            creation_reason = "Existing session found but latest commit is not from Jules"
+        session_id = None
+
     if not session_id:
         # PR is NOT from Jules - create a new session to fix it
-        print(f"📋 No session_id found - creating NEW Jules session for PR #{pr_number}")
+        print(f"📋 {creation_reason} - creating NEW Jules session for PR #{pr_number}")
 
         # Get repo info from environment
         owner, repo = (
@@ -120,7 +136,7 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
                 repo=repo,
                 branch=details["branch"],
                 title=f"🔧 Auto-Fix PR #{pr_number}: {details['title'][:60]}",
-                automation_mode="AUTO_CREATE_PR",
+                automation_mode=AUTOFIX_AUTOMATION_MODE,
                 require_plan_approval=False,
             )
 
@@ -128,11 +144,19 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
             print(f"✅ Created new session: {new_session_id}")
 
             # Post success comment
+            reuse_note = ""
+            if details.get("session_id") and not last_commit_by_jules:
+                reuse_note = (
+                    f"- **Reason**: Latest commit authored by `{last_commit_author or 'unknown'}`; "
+                    "started a fresh session to avoid regressions.\n"
+                )
+
             comment = (
                 f"## 🤖 Auto-Fix: New Session Created\n\n"
                 f"✅ **Jules session created to fix this PR**\n\n"
                 f"- **Session ID**: `{new_session_id}`\n"
                 f"- **Branch**: `{details['branch']}`\n\n"
+                f"{reuse_note}"
                 f"### Issues to Fix:\n\n"
                 f"{feedback}\n\n"
                 f"Jules will:\n"
