@@ -61,7 +61,7 @@ from egregora.output_adapters import OutputSinkRegistry, create_default_output_r
 from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
 from egregora.resources.prompts import render_prompt
-from egregora.utils.cache import PipelineCache
+from egregora.orchestration.cache.pipeline_cache import PipelineCache
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table

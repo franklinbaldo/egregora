@@ -13,7 +13,7 @@ import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from egregora.config import EMBEDDING_DIM
-from egregora.utils.env import get_google_api_key, google_api_key_available
+from egregora.llm.env import get_google_api_key, google_api_key_available
 
 logger = logging.getLogger(__name__)
 

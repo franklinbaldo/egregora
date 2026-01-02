@@ -33,7 +33,7 @@ from egregora.output_adapters import (
     create_output_sink,
 )
 from egregora.output_adapters.mkdocs import MkDocsPaths
-from egregora.utils.cache import PipelineCache
+from egregora.orchestration.cache.pipeline_cache import PipelineCache
 
 if TYPE_CHECKING:
     import google.generativeai as genai

@@ -4,8 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from egregora.utils.cache import EnrichmentCache
-from egregora.utils.exceptions import (
+from egregora.orchestration.cache.pipeline_cache import EnrichmentCache
+from egregora.orchestration.cache.exceptions import (
     CacheDeserializationError,
     CacheKeyNotFoundError,
     CachePayloadTypeError,
