@@ -24,7 +24,7 @@ egregora init my-blog
 cd my-blog
 ```
 
-Running `egregora init` or the next `egregora write` call will automatically create `.egregora` (mkdocs config plus cache/RAG/LanceDB paths). If you ever need to rehydrate the scaffolding manually, run `python scripts/bootstrap_site.py ./my-blog` from the repo root or `python ../scripts/bootstrap_site.py .` from within the site directory.
+Running `egregora init` or the next `egregora write` call will automatically create `.egregora` (mkdocs config plus cache/RAG/LanceDB paths).
 
 This creates a minimal MkDocs site structure:
 
@@ -80,11 +80,7 @@ This will:
 Launch a local preview server:
 
 ```bash
-# 1. Install doc dependencies (if you haven't already)
-uv sync --all-extras
-
-# 2. Preview your site
-uv run mkdocs serve -f .egregora/mkdocs.yml
+egregora preview-docs
 ```
 
 Open [http://localhost:8000](http://localhost:8000) in your browser. 🎉

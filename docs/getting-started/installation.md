@@ -96,11 +96,7 @@ egregora --version
 To build the documentation locally:
 
 ```bash
-# 1. Install doc dependencies (only once)
-uv sync --all-extras
-
-# 2. Preview your site
-uv run mkdocs serve -f .egregora/mkdocs.yml
+egregora preview-docs
 ```
 
 ## Next Steps

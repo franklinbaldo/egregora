@@ -43,7 +43,7 @@ egregora init ./my-blog
 cd my-blog
 ```
 
-Egregora automatically bootstraps `.egregora` (mkdocs config, cache, RAG, and LanceDB directories) when you run `egregora init` or `egregora write`. Use `python scripts/bootstrap_site.py ./my-blog` (or `python ../scripts/bootstrap_site.py .` from inside the site) only if you need to regenerate the scaffolding manually.
+Egregora automatically bootstraps `.egregora` (mkdocs config, cache, RAG, and LanceDB directories) when you run `egregora init` or `egregora write`.
 
 **2. Generate posts from your chat export:**
 
@@ -54,11 +54,7 @@ egregora write path/to/chat_export.zip --output=.
 **3. Preview your site:**
 
 ```bash
-# 1. Install doc dependencies (only once)
-uv sync --all-extras
-
-# 2. Preview your site
-uv run mkdocs serve -f .egregora/mkdocs.yml
+egregora preview-docs
 ```
 
 *Visit <http://localhost:8000> to read your new blog.*
@@ -147,7 +143,7 @@ You can extend Egregora to read from other sources (e.g., Slack, Telegram) by im
 
 We welcome contributions! Please check out:
 
-* **[Technical Reference](v3/api-reference/):** Deep dive into CLI commands and architecture.
+* **[Technical Reference](docs/v3/api-reference/):** Deep dive into CLI commands and architecture.
 * **[Code of the Weaver](CLAUDE.md):** Guidelines for contributors and AI agents.
 
 To run tests:

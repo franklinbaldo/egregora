@@ -16,6 +16,8 @@ except ImportError:
 # We need to make sure this doesn't break things if import fails, but diagnostics is part of the package.
 from rich.console import Console
 from rich.logging import RichHandler
+import subprocess
+
 from rich.panel import Panel
 from rich.table import Table
 
@@ -73,6 +75,29 @@ def main() -> None:
 
 
 @app.command()
+def preview_docs(
+    config_file: Annotated[
+        Path,
+        typer.Option(
+            "--config-file",
+            "-f",
+            help="Path to the mkdocs.yml file",
+        ),
+    ] = Path(".egregora/mkdocs.yml"),
+) -> None:
+    """Preview the documentation site."""
+    try:
+        subprocess.run(["mkdocs", "serve", "-f", str(config_file)], check=True)
+    except FileNotFoundError:
+        console.print(
+            "[red]Error: 'mkdocs' command not found. Please install the documentation dependencies:[/red]"
+        )
+        console.print("[cyan]uv tool install egregora[docs][/cyan]")
+    except subprocess.CalledProcessError as e:
+        console.print(f"[red]Error running mkdocs serve: {e}[/red]")
+
+
+@app.command()
 def init(
     output_dir: Annotated[Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")],
     *,
@@ -114,7 +139,7 @@ def init(
                 f"📝 Docs directory: {docs_dir}\n\n"
                 f"[bold]Next steps:[/bold]\n"
                 f"1. Generate content:\n   [cyan]egregora write path/to/chat_export.zip --output-dir {output_dir}[/cyan]\n"
-                f"2. Preview the site:\n   [cyan]cd {output_dir}[/cyan]\n   [cyan]uvx --with mkdocs-material --with mkdocs-rss-plugin mkdocs serve[/cyan]",
+                f"2. Preview the site:\n   [cyan]cd {output_dir}[/cyan]\n   [cyan]egregora preview-docs[/cyan]",
                 title="🛠️ Initialization Complete",
                 border_style="green",
             )
@@ -484,7 +509,7 @@ def demo(
         Panel(
             "[bold green]✅ Demo site generated successfully![/bold green]\n\n"
             "To view the site, run:\n"
-            "[cyan]cd demo && uvx --with mkdocs-material --with mkdocs-rss-plugin mkdocs serve[/cyan]",
+            "[cyan]cd demo && egregora preview-docs[/cyan]",
             title="🚀 Demo Complete",
             border_style="green",
         )
