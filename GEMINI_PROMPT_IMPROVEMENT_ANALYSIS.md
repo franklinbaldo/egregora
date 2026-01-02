@@ -2,35 +2,73 @@
 
 ## Executive Summary
 
-The current Gemini PR review prompt is comprehensive but suffers from verbosity, conflicting instructions, and missing egregora-specific checks. The improved version reduces token usage by ~40% while adding critical missing functionality.
+The current Gemini PR review prompt is comprehensive but suffers from poor error diagnostics, conflicting instructions, and missing egregora-specific checks. The improved version prioritizes completeness and actionable feedback over token economy.
 
-**Key Metrics:**
-- **Token reduction:** ~3000 tokens → ~1800 tokens (saves ~40%)
-- **New checks added:** 6 egregora-specific pattern checks
+**Key Improvements:**
+- **Error diagnostics:** Detailed per-model failure reporting with specific error messages and solutions
+- **Comprehensive checks:** 6 explicit egregora-specific pattern checks with detailed rationale
 - **Clarity improvements:** Resolved 3 conflicting instruction sets
 - **Merge decision:** Added clear criteria and risk level definitions
+- **Completeness over brevity:** Expanded guidance for better review quality (no longer optimizing for token count)
 
 ---
 
 ## Detailed Comparison
 
-### 1. **Token Efficiency** ⭐ HIGH IMPACT
+### 1. **Improved Error Diagnostics** ⭐ CRITICAL IMPACT
 
 **Problem:**
-- Current prompt: ~270 lines, ~3000 tokens
-- Repetitive explanations (e.g., "understand first" appears 6+ times)
-- Verbose examples that waste space
+Current workflow provides generic error messages when Gemini review fails:
+```
+⚠️ Gemini Code Review Failed
+
+The Gemini CLI review failed to complete after attempting all fallback models.
+
+Possible causes:
+- API Key Issues
+- Quota/Rate Limiting
+- Timeout
+```
+
+**This tells you NOTHING about:**
+- Which specific model(s) failed
+- What the actual error was
+- Whether it was a rate limit, quota, timeout, or API error
+- How to debug or fix it
 
 **Solution:**
-- Consolidated repetitive sections
-- Condensed examples while keeping key lessons
-- Removed redundant explanations
-- **Result:** ~150 lines, ~1800 tokens (40% reduction)
+Enhanced workflow to capture and display detailed error information:
+
+1. **Capture per-model errors:**
+   - Added `conclusion` field to consolidation step
+   - Build detailed error report for each model attempt
+   - Include actual error messages from Gemini API
+
+2. **Enhanced error comment:**
+   ```markdown
+   ### Detailed Error Report
+
+   **gemini-3-pro-preview**: Step conclusion: failure | Error: Rate limit exceeded
+   **gemini-3-flash-preview**: Skipped (fallback)
+   **gemini-2.5-pro**: Step conclusion: failure | Error: Context length exceeded (45000 tokens)
+   **gemini-2.5-flash**: Step conclusion: failure | Error: Model not available in region
+   **gemini-2.5-flash-lite**: Step conclusion: failure | Error: API quota exhausted
+
+   ### Common Causes & Solutions
+   [Specific troubleshooting for each error type]
+   ```
+
+3. **Actionable debugging steps:**
+   - Link to workflow logs
+   - Link to API quota dashboard
+   - Suggestions based on error type (split PR, check quota, verify API key, etc.)
 
 **Expected Improvement:**
-- More space for code diffs in context window
-- Faster processing (fewer input tokens)
-- Lower API costs per review
+- ✅ Immediately understand WHY the review failed
+- ✅ Know which models failed and which were skipped
+- ✅ Get actionable next steps for each failure type
+- ✅ Faster debugging and resolution
+- ✅ Reduce frustration and "try again" cycles
 
 ---
 

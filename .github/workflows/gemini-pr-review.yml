@@ -243,14 +243,19 @@ jobs:
         env:
           OUTCOME_3_PRO: ${{ steps.gemini_3_pro.outcome }}
           SUMMARY_3_PRO: ${{ steps.gemini_3_pro.outputs.summary }}
+          CONCLUSION_3_PRO: ${{ steps.gemini_3_pro.conclusion }}
           OUTCOME_3_FLASH: ${{ steps.gemini_3_flash.outcome }}
           SUMMARY_3_FLASH: ${{ steps.gemini_3_flash.outputs.summary }}
+          CONCLUSION_3_FLASH: ${{ steps.gemini_3_flash.conclusion }}
           OUTCOME_25_PRO: ${{ steps.gemini_25_pro.outcome }}
           SUMMARY_25_PRO: ${{ steps.gemini_25_pro.outputs.summary }}
+          CONCLUSION_25_PRO: ${{ steps.gemini_25_pro.conclusion }}
           OUTCOME_25_FLASH: ${{ steps.gemini_25_flash.outcome }}
           SUMMARY_25_FLASH: ${{ steps.gemini_25_flash.outputs.summary }}
+          CONCLUSION_25_FLASH: ${{ steps.gemini_25_flash.conclusion }}
           OUTCOME_25_LITE: ${{ steps.gemini_25_lite.outcome }}
           SUMMARY_25_LITE: ${{ steps.gemini_25_lite.outputs.summary }}
+          CONCLUSION_25_LITE: ${{ steps.gemini_25_lite.conclusion }}
         with:
           script: |
             const outcomes = {
@@ -269,38 +274,65 @@ jobs:
               twoFiveLite: process.env.SUMMARY_25_LITE
             };
 
+            const conclusions = {
+              threePro: process.env.CONCLUSION_3_PRO,
+              threeFlash: process.env.CONCLUSION_3_FLASH,
+              twoFivePro: process.env.CONCLUSION_25_PRO,
+              twoFiveFlash: process.env.CONCLUSION_25_FLASH,
+              twoFiveLite: process.env.CONCLUSION_25_LITE
+            };
+
             let finalOutcome = 'failure';
             let finalSummary = '';
             let finalModel = 'unknown';
 
-            if (outcomes.threePro === 'success') {
-              finalOutcome = 'success';
-              finalSummary = summaries.threePro;
-              finalModel = 'gemini-3-pro-preview';
-            } else if (outcomes.threeFlash === 'success') {
-              finalOutcome = 'success';
-              finalSummary = summaries.threeFlash;
-              finalModel = 'gemini-3-flash-preview';
-            } else if (outcomes.twoFivePro === 'success') {
-              finalOutcome = 'success';
-              finalSummary = summaries.twoFivePro;
-              finalModel = 'gemini-2.5-pro';
-            } else if (outcomes.twoFiveFlash === 'success') {
-              finalOutcome = 'success';
-              finalSummary = summaries.twoFiveFlash;
-              finalModel = 'gemini-2.5-flash';
-            } else if (outcomes.twoFiveLite === 'success') {
-              finalOutcome = 'success';
-              finalSummary = summaries.twoFiveLite;
-              finalModel = 'gemini-2.5-flash-lite';
+            // Build detailed error report
+            const errorDetails = [];
+            const modelNames = {
+              threePro: 'gemini-3-pro-preview',
+              threeFlash: 'gemini-3-flash-preview',
+              twoFivePro: 'gemini-2.5-pro',
+              twoFiveFlash: 'gemini-2.5-flash',
+              twoFiveLite: 'gemini-2.5-flash-lite'
+            };
+
+            for (const [key, modelName] of Object.entries(modelNames)) {
+              const outcome = outcomes[key];
+              const conclusion = conclusions[key];
+              const summary = summaries[key];
+
+              if (outcome === 'success') {
+                if (finalOutcome === 'failure') {
+                  finalOutcome = 'success';
+                  finalSummary = summary;
+                  finalModel = modelName;
+                }
+              } else if (outcome === 'failure') {
+                // Capture failure details
+                let errorMsg = 'Unknown error';
+                if (conclusion) {
+                  errorMsg = `Step conclusion: ${conclusion}`;
+                }
+                if (summary) {
+                  errorMsg += ` | ${summary}`;
+                }
+                errorDetails.push(`**${modelName}**: ${errorMsg}`);
+              } else if (outcome === 'skipped') {
+                errorDetails.push(`**${modelName}**: Skipped (previous model succeeded)`);
+              }
             }
 
             core.setOutput('outcome', finalOutcome);
             core.setOutput('model', finalModel);
             core.setOutput('summary', finalSummary);
+            core.setOutput('error_details', errorDetails.join('\n'));
 
             console.log(`Final Model: ${finalModel}`);
             console.log(`Final Outcome: ${finalOutcome}`);
+            if (errorDetails.length > 0) {
+              console.log('Error Details:');
+              console.log(errorDetails.join('\n'));
+            }
 
       - name: Parse Combined Response
         id: parse_combined
@@ -413,6 +445,7 @@ jobs:
           GEMINI_REVIEW: ${{ steps.parse_combined.outputs.review_comment || steps.gemini_final.outputs.summary }}
           GEMINI_OUTCOME: ${{ steps.gemini_final.outputs.outcome }}
           GEMINI_MODEL: ${{ steps.gemini_final.outputs.model }}
+          ERROR_DETAILS: ${{ steps.gemini_final.outputs.error_details }}
           PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
           TRIGGER_MODE: ${{ steps.collect.outputs.trigger_mode }}
         with:
@@ -422,6 +455,7 @@ jobs:
             const triggerMode = process.env.TRIGGER_MODE;
             const geminiOutcome = process.env.GEMINI_OUTCOME;
             const geminiModel = process.env.GEMINI_MODEL;
+            const errorDetails = process.env.ERROR_DETAILS;
 
             let review = process.env.GEMINI_REVIEW;
             let body;
@@ -431,15 +465,44 @@ jobs:
             const triggerText = triggerMode === 'manual' ? 'Manual review requested' : 'Automatic review';
 
             if (geminiOutcome !== 'success' || !review) {
-              // Gemini step failed - provide diagnostic info
+              // Gemini step failed - provide diagnostic info with detailed errors
               body = `## ⚠️ Gemini Code Review Failed
 
-            The Gemini CLI review failed to complete after attempting all fallback models (3 Pro → 3 Flash → 2.5 Pro → 2.5 Flash → 2.5 Flash Lite).
+            The Gemini CLI review failed to complete after attempting all fallback models.
 
-            Possible causes:
-            - **API Key Issues:** The \`GEMINI_API_KEY\` secret may be missing or invalid
-            - **Quota/Rate Limiting:** API quota may be exhausted
-            - **Timeout:** The request took too long
+            ### Detailed Error Report
+
+            ${errorDetails || 'No detailed error information available'}
+
+            ### Common Causes & Solutions
+
+            - **API Key Issues**: The \`GEMINI_API_KEY\` secret may be missing or invalid
+              - Check: Repository Settings → Secrets and variables → Actions
+              - Verify the API key is valid at https://aistudio.google.com/apikey
+
+            - **Quota/Rate Limiting**: API quota may be exhausted for one or more models
+              - Check quota at: https://aistudio.google.com/
+              - Consider using lower-tier models (2.5-flash) or wait for quota reset
+
+            - **Context Length Exceeded**: The PR diff may be too large for the model's context window
+              - Try splitting the PR into smaller changes
+              - Check diff size: The model may have hit token limits
+
+            - **Timeout**: The request took too long (>15 minutes)
+              - Very large PRs may timeout
+              - Try re-running the workflow or splitting the PR
+
+            - **Model Availability**: Some preview models may not be available in all regions
+              - gemini-3-* models are preview and may have limited availability
+              - Fallback to gemini-2.5-* should usually work
+
+            ### Debugging Steps
+
+            1. Check the [workflow run logs](../../actions) for detailed error messages
+            2. Verify GEMINI_API_KEY is set and valid
+            3. Check your Gemini API quota and rate limits
+            4. Review the PR size (very large diffs may fail)
+            5. Try triggering a manual review with \`@gemini\` comment
 
             ---
             *${triggerText} • Step outcome: ${geminiOutcome}*`;
