@@ -12,15 +12,16 @@ import logging
 from datetime import UTC, datetime
 from importlib import resources
 from pathlib import Path
-from typing import cast
+from typing import Callable, cast
 
 from jinja2 import DictLoader, Environment, FileSystemLoader, select_autoescape
 
 from egregora.agents.banner.image_generation import (
-    ImageGenerationProvider,
     ImageGenerationRequest,
+    ImageGenerationResult,
 )
 from egregora_v3.core.types import Document, DocumentType, Entry, Feed
+from egregora_v3.engine.banner.generator import generate_image_with_gemini
 
 logger = logging.getLogger(__name__)
 DEFAULT_TEMPLATE_NAME = "banner.jinja"
@@ -31,11 +32,9 @@ class FeedBannerGenerator:
 
     def __init__(
         self,
-        provider: ImageGenerationProvider,
         prompts_dir: Path | None = None,
     ) -> None:
         """Initialize the feed-based banner generator."""
-        self.provider = provider
         self.jinja_env = self._create_environment(prompts_dir)
 
     def _create_environment(self, configured: Path | None) -> Environment:
@@ -60,7 +59,7 @@ class FeedBannerGenerator:
     def generate_from_feed(self, task_feed: Feed) -> Feed:
         """Generate banners from a feed of tasks."""
         output_entries = [
-            generate_banner_document(entry, self.provider, self.jinja_env)
+            generate_banner_document(entry, self.jinja_env)
             for entry in task_feed.entries
         ]
 
@@ -76,8 +75,8 @@ class FeedBannerGenerator:
 
 def generate_banner_document(
     entry: Entry,
-    provider: ImageGenerationProvider,
     jinja_env: Environment,
+    image_generator: Callable[[ImageGenerationRequest], ImageGenerationResult] = generate_image_with_gemini,
 ) -> Document:
     """Generates a banner document from a single task entry."""
     # 1. Build the prompt from the entry
@@ -93,7 +92,7 @@ def generate_banner_document(
         response_modalities=["IMAGE"],
         aspect_ratio="1:1",
     )
-    result = provider.generate(request)
+    result = image_generator(request)
 
     # 3. Create the output document
     if result.has_image and result.image_bytes:

@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
 from jinja2 import DictLoader, Environment, select_autoescape
 
 from egregora.agents.banner.image_generation import (
-    ImageGenerationProvider,
     ImageGenerationRequest,
     ImageGenerationResult,
 )
@@ -22,30 +21,6 @@ def jinja_env() -> Environment:
     """Provides a simple Jinja2 environment for testing."""
     loader = DictLoader({"banner.jinja": "Prompt: {{ post_title }} - {{ post_summary }}"})
     return Environment(loader=loader, autoescape=select_autoescape())
-
-
-class MockImageGenerationProvider(ImageGenerationProvider):
-    """A mock image generation provider for testing."""
-
-    def __init__(self, should_succeed: bool = True):
-        self.should_succeed = should_succeed
-        self.generate_called = False
-        self.last_request = None
-
-    def generate(self, request: ImageGenerationRequest) -> ImageGenerationResult:
-        self.generate_called = True
-        self.last_request = request
-        if self.should_succeed:
-            return ImageGenerationResult(
-                image_bytes=b"fake-image-bytes",
-                mime_type="image/png",
-            )
-        return ImageGenerationResult(
-            image_bytes=None,
-            mime_type=None,
-            error="Generation failed",
-            error_code="TEST_FAILURE",
-        )
 
 
 @pytest.fixture
@@ -67,10 +42,16 @@ def test_generate_banner_document_from_entry_success(
 ):
     """Verify successful generation of a banner document from an entry."""
     # Arrange
-    mock_provider = MockImageGenerationProvider(should_succeed=True)
+    mock_generator = MagicMock()
+    mock_generator.return_value = ImageGenerationResult(
+        image_bytes=b"fake-image-bytes",
+        mime_type="image/png",
+    )
 
     # Act
-    result_doc = generate_banner_document(task_entry, mock_provider, jinja_env)
+    result_doc = generate_banner_document(
+        task_entry, jinja_env, image_generator=mock_generator
+    )
 
     # Assert
     assert isinstance(result_doc, Document)
@@ -79,6 +60,7 @@ def test_generate_banner_document_from_entry_success(
     assert result_doc.content_type == "image/png"
     assert "task_id" in result_doc.internal_metadata
     assert result_doc.internal_metadata["task_id"] == "test-entry"
+    mock_generator.assert_called_once()
 
 
 def test_generate_banner_document_from_entry_failure(
@@ -86,10 +68,18 @@ def test_generate_banner_document_from_entry_failure(
 ):
     """Verify error document creation on failure."""
     # Arrange
-    mock_provider = MockImageGenerationProvider(should_succeed=False)
+    mock_generator = MagicMock()
+    mock_generator.return_value = ImageGenerationResult(
+        image_bytes=None,
+        mime_type=None,
+        error="Generation failed",
+        error_code="TEST_FAILURE",
+    )
 
     # Act
-    result_doc = generate_banner_document(task_entry, mock_provider, jinja_env)
+    result_doc = generate_banner_document(
+        task_entry, jinja_env, image_generator=mock_generator
+    )
 
     # Assert
     assert isinstance(result_doc, Document)
@@ -99,3 +89,4 @@ def test_generate_banner_document_from_entry_failure(
     assert result_doc.internal_metadata["task_id"] == "test-entry"
     assert "error_code" in result_doc.internal_metadata
     assert result_doc.internal_metadata["error_code"] == "TEST_FAILURE"
+    mock_generator.assert_called_once()
