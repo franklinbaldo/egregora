@@ -273,12 +273,7 @@ def _format_rag_hits(hits: list[Any]) -> str:
     )
     template = env.get_template("rag_context.md.jinja")
 
-    hits_data = []
-    for hit in hits:
-        hits_data.append({
-            "similarity_pct": int(hit.score * 100),
-            "text": hit.text[:500]
-        })
+    hits_data = [{"similarity_pct": int(hit.score * 100), "text": hit.text[:500]} for hit in hits]
 
     return template.render(hits=hits_data)
 
@@ -320,10 +315,7 @@ def load_profiles_context(active_authors: list[str], output_sink: Any) -> str:
             logger.debug("Could not read profile for %s: %s", author_uuid, exc)
             profile_content = ""
 
-        profiles_data.append({
-            "id": author_uuid,
-            "content": profile_content
-        })
+        profiles_data.append({"id": author_uuid, "content": profile_content})
 
     templates_dir = Path(__file__).resolve().parents[1] / "templates"
     env = Environment(
