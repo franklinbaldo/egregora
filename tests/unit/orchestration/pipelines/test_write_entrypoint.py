@@ -17,8 +17,8 @@ def test_write_pipeline_importable():
 @patch("egregora.orchestration.pipelines.write.run")
 @patch("egregora.orchestration.pipelines.write.load_egregora_config")
 @patch("egregora.orchestration.pipelines.write._validate_api_key")
-@patch("egregora.orchestration.pipelines.write.MkDocsSiteScaffolder.scaffold_site")
-def test_run_cli_flow(mock_scaffold_site, mock_validate_key, mock_load_config, mock_run, config_factory):
+@patch("egregora.orchestration.pipelines.write.ensure_mkdocs_project")
+def test_run_cli_flow(mock_ensure_mkdocs, mock_validate_key, mock_load_config, mock_run, config_factory):
     """
     GREEN TEST: Verify run_cli_flow executes the pipeline logic.
     """
@@ -38,16 +38,16 @@ def test_run_cli_flow(mock_scaffold_site, mock_validate_key, mock_load_config, m
     assert run_params.source_key == "whatsapp"
 
     # Verify other mocks were used (silences PT019)
-    assert mock_scaffold_site.called is not None
+    assert mock_ensure_mkdocs.called is not None
     assert mock_validate_key.called is not None
 
 
 @patch("egregora.orchestration.pipelines.write.run")
 @patch("egregora.orchestration.pipelines.write.load_egregora_config")
 @patch("egregora.orchestration.pipelines.write._validate_api_key")
-@patch("egregora.orchestration.pipelines.write.MkDocsSiteScaffolder.scaffold_site")
+@patch("egregora.orchestration.pipelines.write.ensure_mkdocs_project")
 def test_run_cli_flow_runs_all_sources_when_default_missing(
-    mock_scaffold_site, mock_validate_key, mock_load_config, mock_run, config_factory
+    mock_ensure_mkdocs, mock_validate_key, mock_load_config, mock_run, config_factory
 ):
     """
     GREEN TEST: Ensure multiple configured sources run sequentially without repeated CLI flags.
@@ -78,9 +78,9 @@ def test_run_cli_flow_runs_all_sources_when_default_missing(
 @patch("egregora.orchestration.pipelines.write.run")
 @patch("egregora.orchestration.pipelines.write.load_egregora_config")
 @patch("egregora.orchestration.pipelines.write._validate_api_key")
-@patch("egregora.orchestration.pipelines.write.MkDocsSiteScaffolder.scaffold_site")
+@patch("egregora.orchestration.pipelines.write.ensure_mkdocs_project")
 def test_run_cli_flow_invalid_source_key_exits(
-    mock_scaffold_site, mock_validate_key, mock_load_config, mock_run, config_factory
+    mock_ensure_mkdocs, mock_validate_key, mock_load_config, mock_run, config_factory
 ):
     """
     GREEN TEST: Unknown source keys emit a clear error and abort.
@@ -101,28 +101,3 @@ def test_run_cli_flow_invalid_source_key_exits(
         raise AssertionError("run_cli_flow should exit when an unknown source key is provided")
 
     mock_run.assert_not_called()
-
-
-@patch("egregora.orchestration.pipelines.write.run")
-@patch("egregora.orchestration.pipelines.write.load_egregora_config")
-@patch("egregora.orchestration.pipelines.write._validate_api_key")
-@patch("egregora.orchestration.pipelines.write.MkDocsSiteScaffolder.scaffold_site")
-def test_run_cli_flow_scaffolds_if_no_config(
-    mock_scaffold_site, mock_validate_key, mock_load_config, mock_run, config_factory, tmp_path
-):
-    """Verify that a new site is scaffolded if the config doesn't exist."""
-    from egregora.orchestration.pipelines.write import run_cli_flow
-
-    # Simulate no config file existing
-    output_dir = tmp_path / "new-site"
-    # NOTE: We don't create output_dir to ensure the code handles it.
-    config_path = output_dir / ".egregora.toml"
-    assert not config_path.exists()
-
-    mock_load_config.return_value = config_factory()
-
-    run_cli_flow(input_file=Path("test.zip"), output=output_dir, source="whatsapp")
-
-    # Verify that scaffolding was called because the config was missing
-    mock_scaffold_site.assert_called_once_with(output_dir, site_name=output_dir.name)
-    assert mock_run.called

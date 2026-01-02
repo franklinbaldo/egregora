@@ -14,9 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 import os
-from collections import deque
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -34,14 +32,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
-from egregora.agents.banner.worker import BannerWorker
-from egregora.agents.commands import command_to_announcement, filter_commands
-from egregora.agents.commands import extract_commands as extract_commands_list
-from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker, schedule_enrichment
-from egregora.agents.profile.generator import generate_profile_posts
-from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
 from egregora.constants import WindowUnit
@@ -50,17 +41,17 @@ from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.task_store import TaskStore
 from egregora.database.utils import resolve_db_uri
+from egregora.init.scaffolding import ensure_mkdocs_project
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.llm.usage import UsageTracker
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
-from egregora.orchestration.pipelines.modules.media import process_media_for_window
 from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
+from egregora.orchestration.runner import PipelineRunner
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import MkDocsPaths
-from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
 from egregora.rag import index_documents, reset_backend
 from egregora.transformations import (
     Window,
@@ -68,9 +59,7 @@ from egregora.transformations import (
     create_windows,
     load_checkpoint,
     save_checkpoint,
-    split_window_into_n_parts,
 )
-from egregora.utils.async_utils import run_async_safely
 from egregora.utils.cache import PipelineCache
 from egregora.utils.env import get_google_api_keys, validate_gemini_api_key
 from egregora.utils.rate_limit import init_rate_limiter
@@ -391,8 +380,7 @@ def run_cli_flow(
     if not config_path.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Initializing site in %s", output_dir)
-        scaffolder = MkDocsSiteScaffolder()
-        scaffolder.scaffold_site(output_dir, site_name=output_dir.name)
+        ensure_mkdocs_project(output_dir)
 
     _validate_api_key(output_dir)
 
@@ -518,51 +506,7 @@ class PreparedPipelineData:
     embedding_model: str
 
 
-@dataclass
-class Conversation:
-    """A conversation window prepared for processing (ETL completed)."""
-
-    window: Window
-    messages_table: ir.Table
-    media_mapping: dict[str, Any]
-    context: PipelineContext
-    adapter_info: tuple[str, str]
-    depth: int = 0
-
-
-def perform_enrichment(
-    context: PipelineContext,
-    window_table: ir.Table,
-    media_mapping: dict[str, Any],
-    override_config: Any | None = None,
-) -> ir.Table:
-    """Execute enrichment for a window's table."""
-    enrichment_context = EnrichmentRuntimeContext(
-        cache=context.enrichment_cache,
-        output_format=context.output_format,
-        site_root=context.site_root,
-        usage_tracker=context.usage_tracker,
-        pii_prevention=None,
-        task_store=context.task_store,
-    )
-
-    schedule_enrichment(
-        window_table,
-        media_mapping,
-        override_config or context.config.enrichment,
-        enrichment_context,
-        run_id=context.run_id,
-    )
-
-    # Execute enrichment worker immediately (synchronous for now in pipeline)
-    # The worker consumes tasks from the store until empty
-    with EnrichmentWorker(context, enrichment_config=override_config) as worker:
-        while True:
-            processed = worker.run()
-            if processed == 0:
-                break
-
-    return window_table
+# _create_writer_resources REMOVED - functionality moved to PipelineFactory.create_writer_resources
 
 
 def _extract_adapter_info(ctx: PipelineContext) -> tuple[str, str]:
@@ -592,236 +536,27 @@ def _extract_adapter_info(ctx: PipelineContext) -> tuple[str, str]:
     return (summary or "").strip(), (instructions or "").strip()
 
 
-def _calculate_max_window_size(config: EgregoraConfig) -> int:
-    """Calculate maximum window size based on LLM context window."""
-    use_full_window = getattr(config.pipeline, "use_full_context_window", False)
-    # Corresponds to a 1M token context window, expressed in characters
-    full_context_window_size = 1_048_576
+# _process_background_tasks REMOVED - functionality moved to PipelineRunner
 
-    if use_full_window:
-        max_tokens = full_context_window_size
-    else:
-        max_tokens = config.pipeline.max_prompt_tokens
+# _process_single_window REMOVED - functionality moved to PipelineRunner
 
-    # TODO: [Taskmaster] Externalize hardcoded configuration values.
-    avg_tokens_per_message = 5
-    buffer_ratio = 0.8
-    return int((max_tokens * buffer_ratio) / avg_tokens_per_message)
+# _process_window_with_auto_split REMOVED - functionality moved to PipelineRunner
 
+# _warn_if_window_too_small REMOVED - functionality moved to PipelineRunner
 
-def get_pending_conversations(dataset: PreparedPipelineData) -> Iterator[Conversation]:
-    """Yield prepared conversations ready for processing.
+# _ensure_split_depth REMOVED - functionality moved to PipelineRunner
 
-    This generator handles:
-    1. Window iteration
-    2. Size validation and splitting (heuristic)
-    3. Media processing
-    4. Enrichment
-    5. Command extraction (partial)
-    """
-    ctx = dataset.context
-    max_window_size = _calculate_max_window_size(ctx.config)
+# _split_window_for_retry REMOVED - functionality moved to PipelineRunner
 
-    # Use a queue to handle splitting
-    # Each item is (window, depth)
-    queue: deque[tuple[Window, int]] = deque([(w, 0) for w in dataset.windows_iterator])
+# _resolve_context_token_limit REMOVED - functionality moved to PipelineRunner
 
-    max_depth = 5
-    min_window_size = 5
+# _calculate_max_window_size REMOVED - functionality moved to PipelineRunner
 
-    processed_count = 0
-    max_windows = getattr(ctx.config.pipeline, "max_windows", None)
-    if max_windows == 0:
-        max_windows = None
+# _validate_window_size REMOVED - functionality moved to PipelineRunner
 
-    while queue:
-        if max_windows is not None and processed_count >= max_windows:
-            logger.info("Reached max_windows limit (%d). Stopping.", max_windows)
-            break
+# _process_all_windows REMOVED - functionality moved to PipelineRunner
 
-        window, depth = queue.popleft()
-
-        # Heuristic splitting check
-        if window.size > max_window_size and depth < max_depth:
-            # Too big, split immediately based on heuristic
-            logger.info(
-                "Window %d too large (%d > %d), splitting...",
-                window.window_index,
-                window.size,
-                max_window_size,
-            )
-            num_splits = max(2, math.ceil(window.size / max_window_size))
-            split_windows = split_window_into_n_parts(window, num_splits)
-            # Add back to front of queue
-            queue.extendleft(reversed([(w, depth + 1) for w in split_windows]))
-            continue
-
-        if window.size < min_window_size and depth > 0:
-            logger.warning("Window too small after split (%d messages), attempting anyway", window.size)
-
-        # ETL Step 1: Media Processing
-        output_sink = ctx.output_format
-        if output_sink is None:
-            # Should not happen if dataset is prepared correctly
-            raise ValueError("Output sink not initialized")
-
-        url_context = ctx.url_context or UrlContext()
-        window_table_processed, media_mapping = process_media_for_window(
-            window_table=window.table,
-            adapter=ctx.adapter,
-            url_convention=output_sink.url_convention,
-            url_context=url_context,
-            zip_path=ctx.input_path,
-        )
-
-        # Persist media if enrichment disabled (otherwise enrichment handles it/updates it)
-        if media_mapping and not dataset.enable_enrichment:
-            for media_doc in media_mapping.values():
-                try:
-                    output_sink.persist(media_doc)
-                except Exception as e:
-                    logger.exception("Failed to write media file: %s", e)
-
-        # ETL Step 2: Enrichment
-        if dataset.enable_enrichment:
-            enriched_table = perform_enrichment(ctx, window_table_processed, media_mapping)
-        else:
-            enriched_table = window_table_processed
-
-        # Prepare metadata
-        adapter_info = _extract_adapter_info(ctx)
-
-        yield Conversation(
-            window=window,
-            messages_table=enriched_table,
-            media_mapping=media_mapping,
-            context=ctx,
-            adapter_info=adapter_info,
-            depth=depth,
-        )
-        processed_count += 1
-
-
-def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
-    """Execute the agent on an isolated conversation item."""
-    ctx = conversation.context
-    output_sink = ctx.output_format
-
-    # Extract commands (ETL/Processing boundary - commands are side effects)
-    # We do this here or in generator? Generator does "data prep".
-    # Commands might generate announcements which is "output".
-    # But filtering commands from input to writer is "prep".
-
-    # Convert table to list
-    try:
-        messages_list = conversation.messages_table.execute().to_pylist()
-    except (AttributeError, TypeError):
-        try:
-            messages_list = conversation.messages_table.to_pylist()
-        except (AttributeError, TypeError):
-            messages_list = (
-                conversation.messages_table if isinstance(conversation.messages_table, list) else []
-            )
-
-    # Handle commands (Announcements)
-    command_messages = extract_commands_list(messages_list)
-    announcements_generated = 0
-    if command_messages:
-        for cmd_msg in command_messages:
-            try:
-                announcement = command_to_announcement(cmd_msg)
-                output_sink.persist(announcement)
-                announcements_generated += 1
-            except Exception as exc:
-                logger.exception("Failed to generate announcement: %s", exc)
-
-    clean_messages_list = filter_commands(messages_list)
-
-    # Prepare Resources
-    resources = PipelineFactory.create_writer_resources(ctx)
-
-    params = WindowProcessingParams(
-        table=conversation.messages_table,
-        messages=clean_messages_list,
-        window_start=conversation.window.start_time,
-        window_end=conversation.window.end_time,
-        resources=resources,
-        config=ctx.config,
-        cache=ctx.cache,
-        adapter_content_summary=conversation.adapter_info[0],
-        adapter_generation_instructions=conversation.adapter_info[1],
-        run_id=str(ctx.run_id) if ctx.run_id else None,
-        smoke_test=ctx.state.smoke_test,
-    )
-
-    # EXECUTE WRITER
-    # Note: We don't handle PromptTooLargeError here because we rely on heuristic splitting
-    # in the generator. If it fails here, it fails.
-    posts, profiles = run_async_safely(write_posts_for_window(params))
-
-    # Persist generated posts
-    # The writer agent returns documents (strings if pending).
-    # Pending posts are handled by background worker?
-    # The original runner logic didn't explicitly persist posts returned by `write_posts_for_window`.
-    # Let's check `write_posts_for_window` in `src/egregora/agents/writer.py`.
-    # It seems `write_posts_for_window` returns paths or IDs, and persistence happens inside tools.
-    # However, `generate_profile_posts` returns Document objects that need persistence.
-    # If `posts` contains Document objects, we should persist them.
-    for post in posts:
-        if hasattr(post, "document_id"):  # Is a Document
-            try:
-                output_sink.persist(post)
-            except Exception as exc:
-                logger.exception("Failed to persist post: %s", exc)
-
-    # EXECUTE PROFILE GENERATOR
-    window_date = conversation.window.start_time.strftime("%Y-%m-%d")
-    try:
-        profile_docs = run_async_safely(
-            generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date)
-        )
-        for profile_doc in profile_docs:
-            try:
-                output_sink.persist(profile_doc)
-                profiles.append(profile_doc.document_id)
-            except Exception as exc:
-                logger.exception("Failed to persist profile: %s", exc)
-    except Exception as exc:
-        logger.exception("Failed to generate profile posts: %s", exc)
-
-    # Process background tasks (Banner, etc)
-    # We can do it per item or once at end. The prompt says "Execute agent on isolated item".
-    # Background tasks are usually global or batched.
-    # We will trigger them here to ensure "isolated item" processing is complete.
-    process_background_tasks(ctx)
-
-    # Logging
-    window_label = f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
-    logger.info(
-        "  [green]✔ Generated[/] %d posts, %d profiles, %d announcements for %s",
-        len(posts),
-        len(profiles),
-        announcements_generated,
-        window_label,
-    )
-
-    return {window_label: {"posts": posts, "profiles": profiles}}
-
-
-def process_background_tasks(ctx: PipelineContext) -> None:
-    """Process pending background tasks."""
-    if not hasattr(ctx, "task_store") or not ctx.task_store:
-        return
-
-    banner_worker = BannerWorker(ctx)
-    banner_worker.run()
-
-    profile_worker = ProfileWorker(ctx)
-    profile_worker.run()
-
-    # Enrichment is already done in generator, but if new tasks were added:
-    enrichment_worker = EnrichmentWorker(ctx)
-    enrichment_worker.run()
+# _perform_enrichment REMOVED - functionality moved to PipelineRunner
 
 
 # TODO: [Taskmaster] Simplify database backend creation
@@ -1483,17 +1218,9 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
         try:
             dataset = _prepare_pipeline_data(adapter, run_params, ctx)
 
-            results = {}
-            max_processed_timestamp: datetime | None = None
-
-            # New simplified loop: Iterator (ETL) -> Process (Execution)
-            for conversation in get_pending_conversations(dataset):
-                item_results = process_item(conversation)
-                results.update(item_results)
-
-                # Track max timestamp for checkpoint
-                if max_processed_timestamp is None or conversation.window.end_time > max_processed_timestamp:
-                    max_processed_timestamp = conversation.window.end_time
+            # Use PipelineRunner for execution
+            runner = PipelineRunner(dataset.context)
+            results, max_processed_timestamp = runner.process_windows(dataset.windows_iterator)
 
             _index_media_into_rag(
                 enable_enrichment=dataset.enable_enrichment,
@@ -1507,8 +1234,8 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             # Save checkpoint first (critical path)
             _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
 
-            # Final pass for any lingering background tasks
-            process_background_tasks(dataset.context)
+            # Process remaining background tasks after all windows are done
+            runner.process_background_tasks()
 
             # Regenerate tags page with word cloud visualization
             if hasattr(dataset.context.output_format, "regenerate_tags_page"):

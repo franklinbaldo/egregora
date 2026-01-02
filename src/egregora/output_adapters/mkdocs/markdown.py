@@ -14,7 +14,7 @@ from egregora.output_adapters.exceptions import (
     MissingMetadataError,
     UniqueFilenameError,
 )
-from egregora.output_adapters.mkdocs.markdown_utils import (
+from egregora.utils.datetime_utils import (
     extract_clean_date,
     format_frontmatter_datetime,
 )

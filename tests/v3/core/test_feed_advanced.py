@@ -1,7 +1,7 @@
-"""Advanced tests for Feed.to_xml() demonstrating battle-tested libraries.
+"""Advanced tests for Atom feed XML serialization demonstrating battle-tested libraries.
 
 Tests:
-1. Roundtrip serialization (parse → Feed → to_xml())
+1. Roundtrip serialization (parse → Feed → XML)
 2. RFC 4287 schema validation with xmlschema
 3. Property-based testing with Hypothesis
 4. Snapshot testing with syrupy for regression detection
@@ -293,8 +293,8 @@ def test_documents_to_feed_count_invariant(titles: list[str]) -> None:
 
 
 @given(st.integers(min_value=1, max_value=10))
-def test_feed_to_xml_always_well_formed(num_entries: int) -> None:
-    """Property: Feed.to_xml() always produces well-formed XML."""
+def test_feed_xml_rendering_is_always_well_formed(num_entries: int) -> None:
+    """Property: Rendering a Feed to XML always produces well-formed XML."""
     docs = [
         Document(
             content=f"Content {i}",

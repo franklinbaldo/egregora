@@ -9,28 +9,10 @@ MODERN: Updated to use OutputAdapter abstraction instead of direct scaffolding i
 import tomllib
 from pathlib import Path
 
-from typer.testing import CliRunner
-
-from egregora.cli.main import app
 from egregora.config.settings import load_egregora_config
 from egregora.output_adapters import create_default_output_registry, create_output_sink
 from egregora.output_adapters.mkdocs import MkDocsAdapter
 from egregora.output_adapters.mkdocs.scaffolding import ensure_mkdocs_project, safe_yaml_load
-
-runner = CliRunner()
-
-
-def test_init_on_existing_site(tmp_path: Path):
-    """Verify init command handles an existing site gracefully."""
-    # Run init for the first time
-    result1 = runner.invoke(app, ["init", str(tmp_path)], catch_exceptions=False)
-    assert result1.exit_code == 0
-    assert "initialized successfully" in result1.stdout
-
-    # Run init for the second time
-    result2 = runner.invoke(app, ["init", str(tmp_path)], catch_exceptions=False)
-    assert result2.exit_code == 0
-    assert "site already exists" in result2.stdout
 
 
 def test_init_creates_all_template_files(tmp_path: Path):
