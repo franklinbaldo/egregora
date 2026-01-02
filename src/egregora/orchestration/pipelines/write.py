@@ -50,8 +50,8 @@ from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.runner import PipelineRunner
 from egregora.output_adapters import create_default_output_registry
-from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
 from egregora.output_adapters.mkdocs import MkDocsPaths
+from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
 from egregora.rag import index_documents, reset_backend
 from egregora.transformations import (
     Window,
