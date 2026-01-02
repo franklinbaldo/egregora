@@ -38,3 +38,15 @@ def test_initialize_database_creates_unified_table_only(memory_db):
     # 4. Verify the view is not created
     with pytest.raises(duckdb.CatalogException):
         memory_db.raw_sql("SELECT * FROM documents_view")
+
+
+def test_execute_sql_raises_for_invalid_connection():
+    """Verify the internal _execute_sql raises AttributeError for an unsupported connection type."""
+    # Import the internal function for direct testing
+    from egregora.database.init import _execute_sql
+
+    class InvalidConnection:
+        pass
+
+    with pytest.raises(AttributeError, match="does not support raw_sql or execute"):
+        _execute_sql(InvalidConnection(), "SELECT 1")
