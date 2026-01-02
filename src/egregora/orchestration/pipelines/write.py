@@ -72,7 +72,7 @@ from egregora.transformations import (
 )
 from egregora.utils.async_utils import run_async_safely
 from egregora.utils.cache import PipelineCache
-from egregora.utils.env import get_google_api_keys, validate_gemini_api_key
+from egregora.llm.client_auth import get_google_api_keys, validate_gemini_api_key
 from egregora.utils.rate_limit import init_rate_limiter
 
 try:
