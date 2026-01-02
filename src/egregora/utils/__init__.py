@@ -11,7 +11,7 @@ from egregora.security.zip import (
     ensure_safe_member_size,
     validate_zip_contents,
 )
-from egregora_v3.core.utils import PathTraversalError, safe_path_join, slugify
+from egregora_v3.core.utils import PathTraversalError, safe_path_join
 
 __all__ = [
     "PathTraversalError",
@@ -21,7 +21,6 @@ __all__ = [
     "configure_default_limits",
     "ensure_safe_member_size",
     "safe_path_join",
-    "slugify",
     "validate_public_url",
     "validate_zip_contents",
 ]
