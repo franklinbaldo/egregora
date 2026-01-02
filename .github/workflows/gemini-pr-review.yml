@@ -157,7 +157,7 @@ jobs:
             const fs = require('fs');
 
             // Read the prompt template
-            const promptTemplate = fs.readFileSync('.github/prompts/pr-review-prompt.md', 'utf8');
+            const promptTemplate = fs.readFileSync('.github/prompts/pr-review-prompt-improved.md', 'utf8');
 
             // Replace placeholders with actual values
             const userInstructionsText = process.env.USER_INSTRUCTIONS
