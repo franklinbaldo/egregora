@@ -1,13 +1,13 @@
-"""Environment variable utilities for Egregora.
+"""LLM authentication and API key management.
 
-This module provides utilities for accessing environment variables,
-particularly for API keys and credentials.
+This module consolidates all functions related to retrieving and validating
+API keys for various LLM providers (e.g., Google Gemini, OpenRouter).
 """
-
 from __future__ import annotations
 
 import logging
 import os
+from .exceptions import ApiKeyNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -22,13 +22,12 @@ def get_google_api_key() -> str:
         The API key string
 
     Raises:
-        ValueError: If neither environment variable is set
+        ApiKeyNotFoundError: If neither environment variable is set
 
     """
     api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        msg = "GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable is required"
-        raise ValueError(msg)
+        raise ApiKeyNotFoundError("GOOGLE_API_KEY or GEMINI_API_KEY")
     return api_key
 
 
@@ -86,15 +85,6 @@ def validate_gemini_api_key(api_key: str | None = None) -> None:
             msg = f"Failed to validate Gemini API key. Please check your network connection and API key.\nError: {error_msg}"
         raise ValueError(msg) from e
 
-
-__all__ = [
-    "get_google_api_key",
-    "get_google_api_keys",
-    "google_api_key_available",
-    "validate_gemini_api_key",
-]
-
-
 def get_google_api_keys() -> list[str]:
     """Get list of Google API keys from environment.
 
@@ -124,3 +114,18 @@ def get_google_api_keys() -> list[str]:
             keys.append(val.strip())
 
     return keys
+
+__all__ = [
+    "get_google_api_key",
+    "get_google_api_keys",
+    "google_api_key_available",
+    "validate_gemini_api_key",
+    "get_openrouter_api_key",
+]
+def get_openrouter_api_key() -> str:
+    """Get OpenRouter API key from environment."""
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise ApiKeyNotFoundError("OPENROUTER_API_KEY")
+    # Handle bash export syntax (e.g., "= value" instead of "value")
+    return api_key.strip().lstrip("=").strip()

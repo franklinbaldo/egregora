@@ -62,6 +62,7 @@ from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
 from egregora.rag import index_documents, reset_backend
+from egregora.llm.auth import get_google_api_keys, validate_gemini_api_key
 from egregora.transformations import (
     Window,
     WindowConfig,
@@ -72,7 +73,6 @@ from egregora.transformations import (
 )
 from egregora.utils.async_utils import run_async_safely
 from egregora.utils.cache import PipelineCache
-from egregora.utils.env import get_google_api_keys, validate_gemini_api_key
 
 try:
     import dotenv
