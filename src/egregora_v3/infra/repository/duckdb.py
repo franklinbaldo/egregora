@@ -1,6 +1,7 @@
 import builtins
 import contextlib
 from datetime import datetime
+from typing import List
 
 import ibis
 from ibis.expr.types import Table
@@ -106,7 +107,7 @@ class DuckDBDocumentRepository(DocumentRepository):
         doc_type: DocumentType | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[Document]:
+    ) -> List[Document]:
         """Lists documents, optionally filtered, sorted, and limited."""
         t = self._get_table()
         query = t
