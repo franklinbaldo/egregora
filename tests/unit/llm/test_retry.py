@@ -18,4 +18,4 @@ def test_retry_configuration() -> None:
     assert retry.RETRY_WAIT.max == 60.0
 
     assert isinstance(retry.RETRY_IF, retry_if_exception_type)
-    assert retry.RETRYABLE_EXCEPTIONS == (UnexpectedModelBehavior, HTTPError, ValidationError)
+    assert (UnexpectedModelBehavior, HTTPError, ValidationError) == retry.RETRYABLE_EXCEPTIONS
