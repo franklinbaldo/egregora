@@ -5,7 +5,7 @@ import uuid
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
-from xml.etree.ElementTree import Element, register_namespace, SubElement, tostring
+from xml.etree.ElementTree import register_namespace
 
 from markdown_it import MarkdownIt
 from pydantic import BaseModel, Field, model_validator

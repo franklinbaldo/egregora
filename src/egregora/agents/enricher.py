@@ -42,14 +42,14 @@ from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.message_repository import MessageRepository
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
+from egregora.infra.cache.exceptions import CacheKeyNotFoundError
+from egregora.infra.cache.pipeline import EnrichmentCache, make_enrichment_cache_key
+from egregora.infra.llm.google import get_google_api_key
 from egregora.llm.providers.google_batch import GoogleBatchModel
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.security.zip import validate_zip_contents
-from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import ensure_datetime
-from egregora.utils.env import get_google_api_key
-from egregora.utils.exceptions import CacheKeyNotFoundError
 from egregora_v3.core.utils import slugify
 
 if TYPE_CHECKING:
@@ -680,7 +680,7 @@ class EnrichmentWorker(BaseWorker):
         - max_concurrent_enrichments = 1: Explicitly disable auto-scaling (sequential)
         - max_concurrent_enrichments = N: Use exactly N concurrent requests
         """
-        from egregora.utils.env import get_google_api_keys
+        from egregora.infra.llm.google import get_google_api_keys
 
         # Get API keys
         api_keys = get_google_api_keys()

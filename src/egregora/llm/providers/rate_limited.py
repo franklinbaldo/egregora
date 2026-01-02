@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from pydantic_ai.models import Model, ModelRequestParameters, ModelSettings
 
-from egregora.utils.rate_limit import get_rate_limiter
+from egregora.infra.ratelimit.limiter import get_rate_limiter
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
