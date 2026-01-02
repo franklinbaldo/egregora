@@ -456,10 +456,23 @@ jobs:
           GEMINI_OUTCOME: ${{ steps.gemini_final.outputs.outcome }}
           GEMINI_MODEL: ${{ steps.gemini_final.outputs.model }}
           ERROR_DETAILS: ${{ steps.gemini_final.outputs.error_details }}
-          PARSE_ERROR: ${{ steps.parse_combined.outputs.parse_error }}
           RAW_RESPONSE_PREVIEW: ${{ steps.parse_combined.outputs.raw_response_preview }}
           PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
           TRIGGER_MODE: ${{ steps.collect.outputs.trigger_mode }}
+          # Capture step outcomes for diagnostics
+          STEP_PR_OUTCOME: ${{ steps.pr.outcome }}
+          STEP_COLLECT_OUTCOME: ${{ steps.collect.outcome }}
+          STEP_CONSTRUCT_OUTCOME: ${{ steps.construct_prompt.outcome }}
+          STEP_CONSTRUCT_CONCLUSION: ${{ steps.construct_prompt.conclusion }}
+          STEP_GEMINI_3_PRO_OUTCOME: ${{ steps.gemini_3_pro.outcome }}
+          STEP_GEMINI_3_FLASH_OUTCOME: ${{ steps.gemini_3_flash.outcome }}
+          STEP_GEMINI_25_PRO_OUTCOME: ${{ steps.gemini_25_pro.outcome }}
+          STEP_GEMINI_25_FLASH_OUTCOME: ${{ steps.gemini_25_flash.outcome }}
+          STEP_GEMINI_25_LITE_OUTCOME: ${{ steps.gemini_25_lite.outcome }}
+          STEP_PARSE_OUTCOME: ${{ steps.parse_combined.outcome }}
+          STEP_PARSE_CONCLUSION: ${{ steps.parse_combined.conclusion }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -468,8 +481,9 @@ jobs:
             const geminiOutcome = process.env.GEMINI_OUTCOME;
             const geminiModel = process.env.GEMINI_MODEL;
             const errorDetails = process.env.ERROR_DETAILS;
-            const parseError = process.env.PARSE_ERROR;
             const rawResponsePreview = process.env.RAW_RESPONSE_PREVIEW;
+            const runId = process.env.RUN_ID;
+            const runAttempt = process.env.RUN_ATTEMPT;
 
             let review = process.env.GEMINI_REVIEW;
             let body;
@@ -479,22 +493,137 @@ jobs:
             const triggerText = triggerMode === 'manual' ? 'Manual review requested' : 'Automatic review';
 
             if (geminiOutcome !== 'success' || !review) {
-              // Show actual error from workflow steps
+              // Build detailed diagnostics
+              const stepDiagnostics = [];
+
+              // Check which step failed
+              const steps = {
+                'Get PR details': process.env.STEP_PR_OUTCOME,
+                'Collect PR diff': process.env.STEP_COLLECT_OUTCOME,
+                'Construct prompt': process.env.STEP_CONSTRUCT_OUTCOME,
+                'Parse response': process.env.STEP_PARSE_OUTCOME
+              };
+
+              const geminiSteps = {
+                'gemini-3-pro-preview': process.env.STEP_GEMINI_3_PRO_OUTCOME,
+                'gemini-3-flash-preview': process.env.STEP_GEMINI_3_FLASH_OUTCOME,
+                'gemini-2.5-pro': process.env.STEP_GEMINI_25_PRO_OUTCOME,
+                'gemini-2.5-flash': process.env.STEP_GEMINI_25_FLASH_OUTCOME,
+                'gemini-2.5-flash-lite': process.env.STEP_GEMINI_25_LITE_OUTCOME
+              };
+
+              // Determine failure type
+              let failureType = 'unknown';
+              let troubleshooting = [];
+
+              if (process.env.STEP_CONSTRUCT_OUTCOME === 'failure') {
+                failureType = 'prompt_construction';
+                troubleshooting = [
+                  '- The prompt template file may be missing or invalid',
+                  '- Check if `.github/prompts/pr-review-prompt-improved.md` exists',
+                  '- Verify template placeholder syntax is correct',
+                  `- Review [workflow logs](../../actions/runs/${runId})` for file read errors
+                ];
+              } else if (geminiOutcome === 'failure') {
+                const allGeminiFailed = Object.values(geminiSteps).every(o => o === 'failure');
+                const allGeminiSkipped = Object.values(geminiSteps).every(o => o === 'skipped' || !o);
+
+                if (allGeminiFailed) {
+                  failureType = 'all_models_failed';
+                  troubleshooting = [
+                    '- All Gemini models failed to execute',
+                    '- Verify `GEMINI_API_KEY` secret is set correctly',
+                    '- Check Google AI Studio quota/availability',
+                    '- The prompt may be too large or contain invalid content',
+                    `- Review [workflow logs](../../actions/runs/${runId}) for API errors`
+                  ];
+                } else if (allGeminiSkipped) {
+                  failureType = 'no_models_ran';
+                  troubleshooting = [
+                    '- No Gemini models executed (all skipped)',
+                    '- The prompt construction step may have failed',
+                    '- Check workflow conditional logic',
+                    `- Review [workflow logs](../../actions/runs/${runId}) for skipped step reasons`
+                  ];
+                } else {
+                  failureType = 'model_fallback_exhausted';
+                  troubleshooting = [
+                    '- All Gemini models in fallback chain failed',
+                    '- Check model-specific errors below',
+                    `- Review [workflow logs](../../actions/runs/${runId}) for API responses`
+                  ];
+                }
+              } else if (process.env.STEP_PARSE_OUTCOME === 'failure') {
+                failureType = 'json_parse_error';
+                troubleshooting = [
+                  '- Gemini returned a response but JSON parsing failed',
+                  '- The response may not contain valid JSON',
+                  '- The response format may not match expected schema',
+                  '- Check the raw response preview below',
+                  `- Review [workflow logs](../../actions/runs/${runId}) for parsing error details`
+                ];
+              } else if (!review) {
+                failureType = 'empty_response';
+                troubleshooting = [
+                  '- Gemini completed but returned an empty response',
+                  '- The prompt may have caused an empty output',
+                  '- Check if the prompt is too restrictive',
+                  `- Review [workflow logs](../../actions/runs/${runId})`
+                ];
+              }
+
+              // Build step status table
+              const stepStatusRows = Object.entries(steps)
+                .filter(([_, outcome]) => outcome) // Only show steps that ran
+                .map(([name, outcome]) => {
+                  const emoji = outcome === 'success' ? '✅' : outcome === 'failure' ? '❌' : '⚠️';
+                  return `| ${emoji} | ${name} | \`${outcome}\` |`;
+                });
+
+              const geminiStatusRows = Object.entries(geminiSteps)
+                .filter(([_, outcome]) => outcome) // Only show models that attempted
+                .map(([model, outcome]) => {
+                  const emoji = outcome === 'success' ? '✅' : outcome === 'failure' ? '❌' : '⏭️';
+                  return `| ${emoji} | ${model} | \`${outcome}\` |`;
+                });
+
+              // Build error comment
               body = `## ⚠️ Gemini Code Review Failed
 
-            ### Error Details
+### 🔍 Failure Analysis
 
-            **Model:** ${geminiModel || 'unknown'}
-            **Outcome:** ${geminiOutcome}
+**Failure Type:** \`${failureType}\`
+**Selected Model:** ${geminiModel || 'none'}
+**Overall Outcome:** \`${geminiOutcome}\`
 
-            ${errorDetails ? `**Model Execution Errors:**\n${errorDetails}\n` : ''}
+### 📋 Step Execution Status
 
-            ${rawResponsePreview ? `**Response Preview:**\n\`\`\`\n${rawResponsePreview}\n\`\`\`\n` : ''}
+#### Workflow Steps
+| Status | Step | Outcome |
+|--------|------|---------|
+${stepStatusRows.join('\n')}
 
-            **Check the [workflow run logs](../../actions) for complete error details.**
+${geminiStatusRows.length > 0 ? `#### Gemini Models
+| Status | Model | Outcome |
+|--------|-------|---------|
+${geminiStatusRows.join('\n')}` : ''}
 
-            ---
-            *${triggerText}*`;
+### 🔧 Troubleshooting Steps
+
+${troubleshooting.join('\n')}
+
+${errorDetails ? `### 📊 Model Execution Details\n\n${errorDetails}\n` : ''}
+
+${rawResponsePreview ? `### 📄 Raw Response Preview\n\n\`\`\`\n${rawResponsePreview}\n\`\`\`\n` : ''}
+
+### 🔗 Resources
+
+- **Workflow run:** [View logs](../../actions/runs/${runId}/attempts/${runAttempt})
+- **Gemini docs:** [run-gemini-cli](https://github.com/google-github-actions/run-gemini-cli)
+- **API status:** [Google AI Studio](https://aistudio.google.com/)
+
+---
+*${triggerText}* • Run ID: ${runId}`;
             } else {
               // Gemini step succeeded
               body = `## ${triggerEmoji} Gemini Code Review
