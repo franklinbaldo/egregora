@@ -137,13 +137,16 @@ jobs:
           # Construct prompt using Python + Jinja2 (quiet mode to reduce log verbosity)
           uv run --quiet python .github/scripts/construct_gemini_prompt.py 2>&1 | grep -v "^Resolved\|^Prepared\|^Built\|^Installed" || true
 
-          # Read prompt and export as step output using heredoc to avoid "argument list too long"
-          PROMPT_DELIMITER="eof_prompt_delimiter_${{ github.run_id }}_${{ github.run_attempt }}"
+          # Export prompt as environment variable for Gemini steps (supports large content)
+          PROMPT_DELIMITER="eof_gemini_prompt_${{ github.run_id }}_${{ github.run_attempt }}"
           {
-            echo "prompt<<${PROMPT_DELIMITER}"
+            echo "GEMINI_PROMPT<<${PROMPT_DELIMITER}"
             cat .github/tmp/prompt.txt
             echo "${PROMPT_DELIMITER}"
-          } >> "$GITHUB_OUTPUT"
+          } >> "$GITHUB_ENV"
+
+          # Log success without printing the entire prompt
+          echo "✓ Prompt constructed ($(wc -c < .github/tmp/prompt.txt) bytes)"
 
       # ----------------------------------------------------------------------
       # Gemini Review Pipeline with Fallback Strategy
@@ -161,7 +164,7 @@ jobs:
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_model: "gemini-3-pro-preview"
-          prompt: ${{ steps.construct_prompt.outputs.prompt }}
+          prompt: ${{ env.GEMINI_PROMPT }}
 
       - name: Run Gemini PR Review (3 Flash Preview)
         id: gemini_3_flash
@@ -171,7 +174,7 @@ jobs:
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_model: "gemini-3-flash-preview"
-          prompt: ${{ steps.construct_prompt.outputs.prompt }}
+          prompt: ${{ env.GEMINI_PROMPT }}
 
       - name: Run Gemini PR Review (2.5 Pro)
         id: gemini_25_pro
@@ -181,7 +184,7 @@ jobs:
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_model: "gemini-2.5-pro"
-          prompt: ${{ steps.construct_prompt.outputs.prompt }}
+          prompt: ${{ env.GEMINI_PROMPT }}
 
       - name: Run Gemini PR Review (2.5 Flash)
         id: gemini_25_flash
@@ -191,7 +194,7 @@ jobs:
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_model: "gemini-2.5-flash"
-          prompt: ${{ steps.construct_prompt.outputs.prompt }}
+          prompt: ${{ env.GEMINI_PROMPT }}
 
       - name: Run Gemini PR Review (2.5 Flash Lite)
         id: gemini_25_lite
@@ -201,7 +204,7 @@ jobs:
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_model: "gemini-2.5-flash-lite"
-          prompt: ${{ steps.construct_prompt.outputs.prompt }}
+          prompt: ${{ env.GEMINI_PROMPT }}
 
       - name: Consolidate Gemini Results
         id: gemini_final
