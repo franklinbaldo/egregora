@@ -1,7 +1,7 @@
-"""Environment variable utilities for Egregora.
+"""Google API key management for Egregora.
 
-This module provides utilities for accessing environment variables,
-particularly for API keys and credentials.
+This module provides utilities for accessing and validating Google API keys,
+particularly for the Gemini models, from environment variables.
 """
 
 from __future__ import annotations

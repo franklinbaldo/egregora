@@ -4,12 +4,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from egregora.utils.cache import EnrichmentCache
-from egregora.utils.exceptions import (
+from egregora.utils.cache import (
     CacheDeserializationError,
-    CacheKeyNotFoundError,
     CachePayloadTypeError,
+    EnrichmentCache,
 )
+from egregora.utils.cache_backend import CacheKeyNotFoundError
 
 
 def test_enrichment_cache_load_propagates_key_not_found_error():
