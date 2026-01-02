@@ -37,13 +37,13 @@ def pipeline_setup(
     whatsapp_fixture,
     pipeline_mocks,
     gemini_api_key,
+    monkeypatch,
 ):
     """Bundle common pipeline fixtures to reduce test parameters."""
-
+    monkeypatch.setenv("GEMINI_API_KEY", gemini_api_key)
     return {
         "whatsapp_fixture": whatsapp_fixture,
         **pipeline_mocks,
-        "gemini_api_key": gemini_api_key,
     }
 
 

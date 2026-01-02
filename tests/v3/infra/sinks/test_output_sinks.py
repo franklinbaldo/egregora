@@ -156,8 +156,9 @@ def test_atom_xml_sink_uses_feed_to_xml(sample_feed: Feed, tmp_path: Path) -> No
 
     sink.publish(sample_feed)
 
-    # Output should match Feed.to_xml()
-    expected_xml = sample_feed.to_xml()
+    # Output should match feed_to_xml_string()
+    from egregora_v3.core.atom import feed_to_xml_string
+    expected_xml = feed_to_xml_string(sample_feed)
     actual_xml = output_file.read_text()
 
     assert actual_xml == expected_xml
@@ -523,4 +524,4 @@ def test_mkdocs_get_filename_logic() -> None:
         doc_type=DocumentType.POST,
         status=DocumentStatus.PUBLISHED,
     )
-    assert sink._get_filename(doc_with_id_only) == "urn:uuid:1234-abcd"
+    assert sink._get_filename(doc_with_id_only) == "urn-uuid-1234-abcd"
