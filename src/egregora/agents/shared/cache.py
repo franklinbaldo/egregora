@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 from typing import Annotated, Any
 
-from egregora.utils.cache_backend import CacheBackend
+from egregora.orchestration.cache_backend import CacheBackend
 from egregora.utils.exceptions import CacheDeserializationError, CachePayloadTypeError
 
 logger = logging.getLogger(__name__)

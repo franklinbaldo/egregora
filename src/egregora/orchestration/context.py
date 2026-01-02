@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from egregora.llm.usage import UsageTracker
     from egregora.output_adapters import OutputSinkRegistry
     from egregora.rag.embedding_router import EmbeddingRouter
-    from egregora.utils.cache import PipelineCache
+    from egregora.orchestration.cache import PipelineCache
 
 
 __all__ = [
