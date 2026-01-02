@@ -1,10 +1,8 @@
-
-import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from egregora.llm.api_keys import (
+from egregora.llm.google import (
     get_google_api_key,
     get_google_api_keys,
     google_api_key_available,
@@ -35,7 +33,7 @@ class TestGetGoogleApiKey:
         assert get_google_api_key() == "google_key"
 
     def test_get_google_api_key_not_set(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="environment variable is required"):
             get_google_api_key()
 
 
@@ -114,6 +112,6 @@ class TestValidateGeminiApiKey:
 
     def test_validate_gemini_api_key_import_error(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "valid_key")
-        with patch.dict('sys.modules', {'google.genai': None, 'google.genai.types': None}):
+        with patch.dict("sys.modules", {"google.genai": None, "google.genai.types": None}):
             with pytest.raises(ImportError, match="google-genai package not installed"):
                 validate_gemini_api_key()

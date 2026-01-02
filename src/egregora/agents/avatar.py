@@ -26,11 +26,11 @@ from egregora.agents.enricher import (
 )
 from egregora.input_adapters.whatsapp.commands import extract_commands
 from egregora.knowledge.profiles import remove_profile_avatar, update_profile_avatar
+from egregora.llm.google import get_google_api_key
 from egregora.orchestration.pipelines.modules.media import detect_media_type, extract_urls
 from egregora.resources.prompts import render_prompt
 from egregora.security.ssrf import SSRFValidationError, validate_public_url
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
-from egregora.llm.api_keys import get_google_api_key
 from egregora.utils.exceptions import CacheKeyNotFoundError
 
 if TYPE_CHECKING:

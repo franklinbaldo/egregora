@@ -3,7 +3,7 @@
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
-from egregora.llm.api_keys import get_google_api_key
+from egregora.llm.google import get_google_api_key
 
 
 class ClusterInput(BaseModel):
