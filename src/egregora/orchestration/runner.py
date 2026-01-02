@@ -28,7 +28,7 @@ from egregora.orchestration.exceptions import (
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.modules.media import process_media_for_window
 from egregora.transformations import split_window_into_n_parts
-from egregora.utils.async_utils import run_async_safely
+from egregora.orchestration.async_utils import run_async_safely
 
 if TYPE_CHECKING:
     from datetime import datetime
