@@ -16,7 +16,7 @@ from egregora.config.settings import (
     create_default_config,
 )
 from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file
-from egregora.utils.zip import validate_zip_contents
+from egregora.security.zip import validate_zip_contents
 from tests.utils.pydantic_test_models import MockEmbeddingModel, install_writer_test_model
 
 try:

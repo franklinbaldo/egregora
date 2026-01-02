@@ -15,7 +15,7 @@ from egregora.orchestration.pipelines.modules.media import (
     WA_MEDIA_PATTERN,
     detect_media_type,
 )
-from egregora.utils.zip import validate_zip_contents
+from egregora.security.zip import validate_zip_contents
 
 _CHW_PATTERN_RAW = r"WhatsApp(?: Chat with|.*) (.+)\.txt"
 _CHAT_FILE_PATTERN = re.compile(_CHW_PATTERN_RAW)

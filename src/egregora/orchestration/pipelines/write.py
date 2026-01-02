@@ -50,16 +50,17 @@ from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.task_store import TaskStore
 from egregora.database.utils import resolve_db_uri
-from egregora.init.scaffolding import ensure_mkdocs_project
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
+from egregora.llm.usage import UsageTracker
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.modules.media import process_media_for_window
 from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import MkDocsPaths
+from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
 from egregora.rag import index_documents, reset_backend
 from egregora.transformations import (
     Window,
@@ -69,9 +70,9 @@ from egregora.transformations import (
     save_checkpoint,
     split_window_into_n_parts,
 )
+from egregora.utils.async_utils import run_async_safely
 from egregora.utils.cache import PipelineCache
 from egregora.utils.env import get_google_api_keys, validate_gemini_api_key
-from egregora.utils.metrics import UsageTracker
 from egregora.utils.rate_limit import init_rate_limiter
 
 try:
@@ -88,28 +89,6 @@ console = Console()
 __all__ = ["WhatsAppProcessOptions", "WriteCommandOptions", "process_whatsapp_export", "run", "run_cli_flow"]
 
 MIN_WINDOWS_WARNING_THRESHOLD = 5
-
-
-def run_async_safely(coro: Any) -> Any:
-    """Run an async coroutine safely, handling nested event loops.
-
-    If an event loop is already running (e.g., in Jupyter or nested calls),
-    this will use run_until_complete instead of asyncio.run().
-    """
-    import asyncio
-
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        # No running loop - use asyncio.run()
-        return asyncio.run(coro)
-    else:
-        # Loop is already running - use run_until_complete in a new thread
-        import concurrent.futures
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(asyncio.run, coro)
-            return future.result()
 
 
 @dataclass
@@ -412,7 +391,8 @@ def run_cli_flow(
     if not config_path.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Initializing site in %s", output_dir)
-        ensure_mkdocs_project(output_dir)
+        scaffolder = MkDocsSiteScaffolder()
+        scaffolder.scaffold_site(output_dir, site_name=output_dir.name)
 
     _validate_api_key(output_dir)
 
@@ -664,7 +644,12 @@ def get_pending_conversations(dataset: PreparedPipelineData) -> Iterator[Convers
         # Heuristic splitting check
         if window.size > max_window_size and depth < max_depth:
             # Too big, split immediately based on heuristic
-            logger.info("Window %d too large (%d > %d), splitting...", window.window_index, window.size, max_window_size)
+            logger.info(
+                "Window %d too large (%d > %d), splitting...",
+                window.window_index,
+                window.size,
+                max_window_size,
+            )
             num_splits = max(2, math.ceil(window.size / max_window_size))
             split_windows = split_window_into_n_parts(window, num_splits)
             # Add back to front of queue
@@ -672,13 +657,13 @@ def get_pending_conversations(dataset: PreparedPipelineData) -> Iterator[Convers
             continue
 
         if window.size < min_window_size and depth > 0:
-             logger.warning("Window too small after split (%d messages), attempting anyway", window.size)
+            logger.warning("Window too small after split (%d messages), attempting anyway", window.size)
 
         # ETL Step 1: Media Processing
         output_sink = ctx.output_format
         if output_sink is None:
-             # Should not happen if dataset is prepared correctly
-             raise ValueError("Output sink not initialized")
+            # Should not happen if dataset is prepared correctly
+            raise ValueError("Output sink not initialized")
 
         url_context = ctx.url_context or UrlContext()
         window_table_processed, media_mapping = process_media_for_window(
@@ -686,12 +671,12 @@ def get_pending_conversations(dataset: PreparedPipelineData) -> Iterator[Convers
             adapter=ctx.adapter,
             url_convention=output_sink.url_convention,
             url_context=url_context,
-            zip_path=ctx.input_path,  # type: ignore[arg-type]
+            zip_path=ctx.input_path,
         )
 
         # Persist media if enrichment disabled (otherwise enrichment handles it/updates it)
         if media_mapping and not dataset.enable_enrichment:
-             for media_doc in media_mapping.values():
+            for media_doc in media_mapping.values():
                 try:
                     output_sink.persist(media_doc)
                 except Exception as e:
@@ -734,7 +719,9 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         try:
             messages_list = conversation.messages_table.to_pylist()
         except (AttributeError, TypeError):
-            messages_list = conversation.messages_table if isinstance(conversation.messages_table, list) else []
+            messages_list = (
+                conversation.messages_table if isinstance(conversation.messages_table, list) else []
+            )
 
     # Handle commands (Announcements)
     command_messages = extract_commands_list(messages_list)
@@ -743,8 +730,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         for cmd_msg in command_messages:
             try:
                 announcement = command_to_announcement(cmd_msg)
-                if output_sink:
-                    output_sink.persist(announcement)
+                output_sink.persist(announcement)
                 announcements_generated += 1
             except Exception as exc:
                 logger.exception("Failed to generate announcement: %s", exc)
@@ -756,6 +742,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
 
     params = WindowProcessingParams(
         table=conversation.messages_table,
+        messages=clean_messages_list,
         window_start=conversation.window.start_time,
         window_end=conversation.window.end_time,
         resources=resources,
@@ -782,24 +769,20 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     # If `posts` contains Document objects, we should persist them.
     for post in posts:
         if hasattr(post, "document_id"):  # Is a Document
-             try:
-                if output_sink:
-                    output_sink.persist(post)
-             except Exception as exc:
+            try:
+                output_sink.persist(post)
+            except Exception as exc:
                 logger.exception("Failed to persist post: %s", exc)
 
     # EXECUTE PROFILE GENERATOR
     window_date = conversation.window.start_time.strftime("%Y-%m-%d")
     try:
         profile_docs = run_async_safely(
-            generate_profile_posts(
-                ctx=ctx, messages=clean_messages_list, window_date=window_date
-            )
+            generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date)
         )
         for profile_doc in profile_docs:
             try:
-                if output_sink:
-                    output_sink.persist(profile_doc)
+                output_sink.persist(profile_doc)
                 profiles.append(profile_doc.document_id)
             except Exception as exc:
                 logger.exception("Failed to persist profile: %s", exc)
@@ -816,7 +799,10 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     window_label = f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
     logger.info(
         "  [green]✔ Generated[/] %d posts, %d profiles, %d announcements for %s",
-        len(posts), len(profiles), announcements_generated, window_label
+        len(posts),
+        len(profiles),
+        announcements_generated,
+        window_label,
     )
 
     return {window_label: {"posts": posts, "profiles": profiles}}

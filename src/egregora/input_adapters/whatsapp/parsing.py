@@ -29,7 +29,7 @@ from egregora.input_adapters.whatsapp.exceptions import (
     TimeParsingError,
 )
 from egregora.input_adapters.whatsapp.utils import build_message_attrs
-from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
+from egregora.security.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
