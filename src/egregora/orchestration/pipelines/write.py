@@ -24,7 +24,6 @@ from datetime import date as date_type
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import ibis
@@ -900,9 +899,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
 
     refresh_tiers = {r.strip().lower() for r in (run_params.refresh or "").split(",") if r.strip()}
     site_paths = _resolve_site_paths_or_raise(resolved_output, run_params.config)
-    _runtime_db_uri, pipeline_backend = _create_database_backend(
-        site_paths.site_root, run_params.config
-    )
+    _runtime_db_uri, pipeline_backend = _create_database_backend(site_paths.site_root, run_params.config)
 
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
     initialize_database(pipeline_backend)
