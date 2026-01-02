@@ -26,6 +26,12 @@ description: Collective consciousness through conversation
 
 ---
 
+## Contributors
+
+{% for profile in profiles %}
+- {{ profile.name }}
+{% endfor %}
+
 <div class="homepage-nav" markdown>
 
 [:fontawesome-solid-users: **Contributors**]({{ blog_dir }}/profiles/index.md){ .md-button }

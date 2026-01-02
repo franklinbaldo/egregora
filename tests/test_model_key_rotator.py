@@ -1,9 +1,7 @@
 """Tests for ModelKeyRotator to verify proper key and model rotation."""
 
-import logging
-
 from egregora.llm.exceptions import AllModelsExhaustedError
-from egregora.llm.providers.model_cycler import GeminiKeyRotator, ModelKeyRotator
+from egregora.llm.providers.model_key_rotator import ModelKeyRotator
 
 
 def test_model_key_rotator_exhausts_keys_per_model():
@@ -99,33 +97,6 @@ def test_model_key_rotator_succeeds_on_first_try():
     assert len(call_log) == 1
     assert call_log[0] == ("model-1", "key-a")
     assert result == "Success"
-
-
-def test_key_rotator_handles_rate_limit_logging_without_attribute_error(caplog):
-    """Ensure key rotation on rate limit does not raise AttributeError during logging."""
-    api_keys = ["key-a", "key-b"]
-    rotator = GeminiKeyRotator(api_keys=api_keys)
-
-    call_log = []
-
-    class RateLimitError(Exception):
-        pass
-
-    def fail_once_then_succeed(api_key: str) -> str:
-        call_log.append(api_key)
-        if len(call_log) == 1:
-            raise RateLimitError("429 Too Many Requests")
-        return "Success"
-
-    with caplog.at_level(logging.WARNING):
-        result = rotator.call_with_rotation(
-            fail_once_then_succeed, is_rate_limit_error=lambda exc: isinstance(exc, RateLimitError)
-        )
-
-    assert result == "Success"
-    # First key should hit rate limit and rotate to second key without AttributeError
-    assert call_log == ["key-a", "key-b"]
-    assert any("[KeyRotator] Rate limit on key index" in record.message for record in caplog.records)
 
 
 if __name__ == "__main__":

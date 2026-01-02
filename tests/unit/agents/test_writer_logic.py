@@ -1,50 +1,48 @@
 """Tests for writer agent decoupling logic."""
 
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-from jinja2.exceptions import TemplateNotFound
+import pytest  # type: ignore[import-not-found, unused-ignore]
+from jinja2.exceptions import TemplateNotFound  # type: ignore[import-not-found, unused-ignore]
 
-from egregora.agents.exceptions import AgentError as JournalFileSystemError
-from egregora.agents.exceptions import AgentError as JournalTemplateError
-from egregora.agents.writer import (
-    JournalEntry,
-    JournalEntryParams,
-    WindowProcessingParams,
-    _process_single_tool_result,
-    _save_journal_to_file,
-    write_posts_for_window,
+import egregora.agents.writer as writer_module  # type: ignore[import-not-found, unused-ignore]
+from egregora.agents.exceptions import (  # type: ignore[import-not-found, unused-ignore]
+    AgentError as JournalFileSystemError,
+)
+from egregora.agents.exceptions import (
+    AgentError as JournalTemplateError,
 )
 
 
 class TestWriterDecoupling:
-    def test_process_tool_result_ignores_path_structure(self):
+    def test_process_tool_result_ignores_path_structure(self) -> None:
         """Test that tool result processing relies on tool_name, not path string structure."""
-        saved_posts = []
-        saved_profiles = []
+        saved_posts: list[str] = []
+        saved_profiles: list[str] = []
 
         # Scenario: Tool name is missing, but path looks like a post.
         # In decoupled world, this should NOT be blindly added as a post
         # because we shouldn't rely on string matching file paths.
 
         content = {"status": "success", "path": "/posts/legacy-path.md"}
-        _process_single_tool_result(content, None, saved_posts, saved_profiles)
+        writer_module._process_single_tool_result(content, None, saved_posts, saved_profiles)
 
         assert len(saved_posts) == 0, "Should not infer type from path string"
 
-    def test_process_tool_result_uses_tool_name(self):
+    def test_process_tool_result_uses_tool_name(self) -> None:
         """Test that tool result processing uses tool_name correctly."""
-        saved_posts = []
-        saved_profiles = []
+        saved_posts: list[str] = []
+        saved_profiles: list[str] = []
 
         content = {"status": "success", "path": "some-id"}
-        _process_single_tool_result(content, "write_post_tool", saved_posts, saved_profiles)
+        writer_module._process_single_tool_result(content, "write_post_tool", saved_posts, saved_profiles)
 
         assert "some-id" in saved_posts
 
     @patch("egregora.agents.writer.Environment")
-    def test_journal_saves_agnostic_content(self, mock_env_cls):
+    def test_journal_saves_agnostic_content(self, mock_env_cls: MagicMock) -> None:
         """Test that journal saving does not apply MkDocs-specific path replacements."""
         # Arrange
         mock_env = MagicMock()
@@ -57,9 +55,9 @@ class TestWriterDecoupling:
         mock_output = MagicMock()
 
         # We need at least one entry for save to happen
-        entry = JournalEntry(entry_type="journal", content="test", timestamp=datetime.now())
+        entry = writer_module.JournalEntry(entry_type="journal", content="test", timestamp=datetime.now())
 
-        params = JournalEntryParams(
+        params = writer_module.JournalEntryParams(
             intercalated_log=[entry],
             window_label="test-window",
             output_format=mock_output,
@@ -70,7 +68,7 @@ class TestWriterDecoupling:
         )
 
         # Act
-        _save_journal_to_file(params)
+        writer_module._save_journal_to_file(params)
 
         # Assert
         # Check what was persisted
@@ -82,15 +80,15 @@ class TestWriterDecoupling:
         assert "/media/image.jpg" not in doc.content.replace("../media/", "")
 
     @patch("egregora.agents.writer.Environment")
-    def test_save_journal_raises_template_error(self, mock_env_cls):
+    def test_save_journal_raises_template_error(self, mock_env_cls: MagicMock) -> None:
         """Test that _save_journal_to_file raises JournalTemplateError on template issues."""
         # Arrange
         mock_env = MagicMock()
         mock_env.get_template.side_effect = TemplateNotFound("journal.md.jinja")
         mock_env_cls.return_value = mock_env
 
-        params = JournalEntryParams(
-            intercalated_log=[JournalEntry("journal", "test", datetime.now())],
+        params = writer_module.JournalEntryParams(
+            intercalated_log=[writer_module.JournalEntry("journal", "test", datetime.now())],
             window_label="test-window",
             output_format=MagicMock(),
             posts_published=0,
@@ -101,12 +99,12 @@ class TestWriterDecoupling:
 
         # Act & Assert
         with pytest.raises(JournalTemplateError) as exc_info:
-            _save_journal_to_file(params)
+            writer_module._save_journal_to_file(params)
 
         assert "journal.md.jinja" in str(exc_info.value)
 
     @patch("egregora.agents.writer.Environment")
-    def test_save_journal_raises_filesystem_error(self, mock_env_cls):
+    def test_save_journal_raises_filesystem_error(self, mock_env_cls: MagicMock) -> None:
         """Test that _save_journal_to_file raises JournalFileSystemError on file system issues."""
         # Arrange
         mock_env = MagicMock()
@@ -118,8 +116,8 @@ class TestWriterDecoupling:
         mock_output = MagicMock()
         mock_output.persist.side_effect = OSError("Disk full")
 
-        params = JournalEntryParams(
-            intercalated_log=[JournalEntry("journal", "test", datetime.now())],
+        params = writer_module.JournalEntryParams(
+            intercalated_log=[writer_module.JournalEntry("journal", "test", datetime.now())],
             window_label="test-window",
             output_format=mock_output,
             posts_published=0,
@@ -130,17 +128,17 @@ class TestWriterDecoupling:
 
         # Act & Assert
         with pytest.raises(JournalFileSystemError) as exc_info:
-            _save_journal_to_file(params)
+            writer_module._save_journal_to_file(params)
 
         assert "Disk full" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
 @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
-async def test_execute_writer_raises_specific_exception(mock_pydantic_writer, test_config):
+async def test_execute_writer_raises_specific_exception(
+    mock_pydantic_writer: MagicMock, test_config: MagicMock
+) -> None:
     """Test that _execute_writer_with_error_handling raises RuntimeError on agent failure."""
-    from egregora.agents.writer import _execute_writer_with_error_handling
-
     # Arrange
     mock_pydantic_writer.side_effect = Exception("LLM provider outage")
     mock_deps = MagicMock()
@@ -148,7 +146,7 @@ async def test_execute_writer_raises_specific_exception(mock_pydantic_writer, te
 
     # Act & Assert
     with pytest.raises(RuntimeError) as exc_info:
-        await _execute_writer_with_error_handling(
+        await writer_module._execute_writer_with_error_handling(
             prompt="test prompt",
             config=test_config,
             deps=mock_deps,
@@ -159,21 +157,21 @@ async def test_execute_writer_raises_specific_exception(mock_pydantic_writer, te
 
 
 @pytest.mark.asyncio
-@patch("egregora.agents.writer._build_context_and_signature")
-@patch("egregora.agents.writer._check_writer_cache")
-@patch("egregora.agents.writer._prepare_writer_dependencies")
+@patch("egregora.agents.writer.build_context_and_signature")
+@patch("egregora.agents.writer.check_writer_cache")
+@patch("egregora.agents.writer.prepare_writer_dependencies")
 @patch("egregora.agents.writer._render_writer_prompt")
 @patch("egregora.agents.writer._execute_writer_with_error_handling")
 @patch("egregora.agents.writer._finalize_writer_results")
 async def test_write_posts_for_window_smoke_test(
-    mock_finalize,
-    mock_execute,
-    mock_render,
-    mock_prepare_deps,
-    mock_check_cache,
-    mock_build_context,
-    test_config,
-):
+    mock_finalize: MagicMock,
+    mock_execute: MagicMock,
+    mock_render: MagicMock,
+    mock_prepare_deps: MagicMock,
+    mock_check_cache: MagicMock,
+    mock_build_context: MagicMock,
+    test_config: MagicMock,
+) -> None:
     """Smoke test to ensure write_posts_for_window can be called without error."""
     mock_table = MagicMock()
     mock_table.count.return_value.execute.return_value = 1
@@ -182,16 +180,17 @@ async def test_write_posts_for_window_smoke_test(
     mock_execute.return_value = ([], [])
     mock_finalize.return_value = {"posts": [], "profiles": []}
 
-    params = WindowProcessingParams(
+    params = writer_module.WindowProcessingParams(
         table=mock_table,
         window_start=datetime.now(),
         window_end=datetime.now(),
         resources=MagicMock(),
         config=test_config,
         cache=MagicMock(),
+        messages=[MagicMock()],
     )
 
-    result = await write_posts_for_window(params)
+    result = await writer_module.write_posts_for_window(params)
     assert result == {"posts": [], "profiles": []}
     mock_execute.assert_called_once()
     mock_finalize.assert_called_once()
@@ -201,10 +200,10 @@ async def test_write_posts_for_window_smoke_test(
 
 @pytest.mark.asyncio
 @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
-async def test_execute_writer_raises_specific_error(mock_writer_agent, test_config):
+async def test_execute_writer_raises_specific_error(
+    mock_writer_agent: MagicMock, test_config: MagicMock
+) -> None:
     """Test that _execute_writer_with_error_handling raises RuntimeError on agent failure."""
-    from egregora.agents.writer import _execute_writer_with_error_handling
-
     # Arrange
     original_error = ValueError("Underlying agent error")
     mock_writer_agent.side_effect = original_error
@@ -214,7 +213,7 @@ async def test_execute_writer_raises_specific_error(mock_writer_agent, test_conf
 
     # Act & Assert
     with pytest.raises(RuntimeError) as exc_info:
-        await _execute_writer_with_error_handling(
+        await writer_module._execute_writer_with_error_handling(
             prompt="test prompt",
             config=test_config,
             deps=mock_deps,
@@ -223,3 +222,73 @@ async def test_execute_writer_raises_specific_error(mock_writer_agent, test_conf
     # Verify the exception has the correct context
     assert "test-window-123" in str(exc_info.value)
     assert exc_info.value.__cause__ is original_error
+
+
+@pytest.mark.asyncio
+@patch("egregora.agents.writer.build_context_and_signature")
+@patch("egregora.agents.writer.check_writer_cache")
+@patch("egregora.agents.writer.prepare_writer_dependencies")
+@patch("egregora.agents.writer._render_writer_prompt")
+@patch("egregora.agents.writer._execute_writer_with_error_handling")
+@patch("egregora.agents.writer._finalize_writer_results")
+async def test_write_posts_for_window_cache_hit_valid(
+    mock_finalize: MagicMock,
+    mock_execute: MagicMock,
+    mock_render: MagicMock,
+    mock_prepare_deps: MagicMock,
+    mock_check_cache: MagicMock,
+    mock_build_context: MagicMock,
+    test_config: MagicMock,
+) -> None:
+    """Test cache hit logic when files exist on disk."""
+    mock_table = MagicMock()
+    mock_table.count.return_value.execute.return_value = 1
+    mock_build_context.return_value = (MagicMock(), "signature")
+
+    # Cache HIT
+    cached_result = {"posts": ["some-slug"], "profiles": []}
+    mock_check_cache.return_value = cached_result
+
+    # Mock resources to simulate file existence
+    mock_resources = MagicMock()
+    # Correctly mock the posts_dir attribute on the output object
+    mock_output = MagicMock()
+    mock_output.posts_dir.glob.return_value = [Path("found.md")]
+    mock_resources.output = mock_output
+
+    # Create a mock message to ensure cache check is reached
+    from egregora.agents.types import Message
+
+    mock_message = Message(
+        event_id="test-id",
+        ts=datetime.now(),
+        author_uuid="test-author",
+        text="test content",
+        thread_id="test-thread",
+        created_by_run="test-run",
+    )
+
+    params = writer_module.WindowProcessingParams(
+        table=mock_table,
+        window_start=datetime.now(),
+        window_end=datetime.now(),
+        resources=mock_resources,
+        config=test_config,
+        cache=MagicMock(),
+        messages=[mock_message],
+    )
+
+    result = await writer_module.write_posts_for_window(params)
+
+    assert result == cached_result
+    mock_execute.assert_not_called()
+
+
+def test_regenerate_site_indices_skips_if_no_site_root() -> None:
+    """Test that site generation is skipped if site_root is None."""
+    adapter = MagicMock()
+    adapter.site_root = None
+
+    with patch("egregora.agents.writer.SiteGenerator") as mock_gen:
+        writer_module._regenerate_site_indices(adapter)
+        mock_gen.assert_not_called()

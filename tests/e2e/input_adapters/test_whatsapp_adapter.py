@@ -29,8 +29,8 @@ from egregora.input_adapters.whatsapp.commands import filter_egregora_messages
 from egregora.input_adapters.whatsapp.exceptions import MediaNotFoundError
 from egregora.input_adapters.whatsapp.parsing import parse_source
 from egregora.orchestration.pipelines.modules.media import process_media_for_window
+from egregora.security.zip import ZipValidationError, validate_zip_contents
 from egregora.transformations.windowing import Window
-from egregora.utils.zip import ZipValidationError, validate_zip_contents
 
 if TYPE_CHECKING:
     from pathlib import Path

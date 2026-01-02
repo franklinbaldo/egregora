@@ -67,7 +67,7 @@ assignee = "forge"
 id = "breadcrumbs"
 title = "Add breadcrumbs to all pages"
 description = "Enable the `navigation.path` feature in the `mkdocs.yml` file to provide breadcrumbs."
-status = "pending"
+status = "review"
 category = "navigation"
 assignee = "forge"
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, date, datetime, tzinfo
 from typing import TYPE_CHECKING, Any
 
@@ -9,6 +10,8 @@ from dateutil import parser as dateutil_parser
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
+_DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 
 def parse_datetime_flexible(
@@ -127,4 +130,11 @@ class DateTimeParsingError(DateTimeError):
         super().__init__(f"Failed to parse datetime from '{value}': {original_exception}")
 
 
-__all__ = ["ensure_datetime", "normalize_timezone", "parse_datetime_flexible"]
+__all__ = [
+    "DateTimeError",
+    "DateTimeParsingError",
+    "InvalidDateTimeInputError",
+    "ensure_datetime",
+    "normalize_timezone",
+    "parse_datetime_flexible",
+]
