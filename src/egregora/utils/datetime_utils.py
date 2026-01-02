@@ -11,7 +11,7 @@ from dateutil import parser as dateutil_parser
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-_DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
+DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 
 def parse_datetime_flexible(
@@ -131,6 +131,7 @@ class DateTimeParsingError(DateTimeError):
 
 
 __all__ = [
+    "DATE_PATTERN",
     "DateTimeError",
     "DateTimeParsingError",
     "InvalidDateTimeInputError",

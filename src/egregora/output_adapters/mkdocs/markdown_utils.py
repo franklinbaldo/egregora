@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-import re
 from datetime import UTC, date, datetime
 
 from egregora.utils.datetime_utils import (
+    DATE_PATTERN,
     DateTimeError,
     DateTimeParsingError,
     InvalidDateTimeInputError,
     parse_datetime_flexible,
 )
-
-_DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 
 def extract_clean_date(date_obj: str | date | datetime) -> str:
@@ -25,7 +23,7 @@ def extract_clean_date(date_obj: str | date | datetime) -> str:
     date_str = str(date_obj).strip()
 
     # Fallback to regex for strings to find dates within larger text bodies.
-    match = _DATE_PATTERN.search(date_str)
+    match = DATE_PATTERN.search(date_str)
     if not match:
         raise DateExtractionError(date_str)
 
