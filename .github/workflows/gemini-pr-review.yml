@@ -590,40 +590,40 @@ jobs:
               // Build error comment
               body = `## ⚠️ Gemini Code Review Failed
 
-### 🔍 Failure Analysis
+              ### 🔍 Failure Analysis
 
-**Failure Type:** \`${failureType}\`
-**Selected Model:** ${geminiModel || 'none'}
-**Overall Outcome:** \`${geminiOutcome}\`
+              **Failure Type:** \`${failureType}\`
+              **Selected Model:** ${geminiModel || 'none'}
+              **Overall Outcome:** \`${geminiOutcome}\`
 
-### 📋 Step Execution Status
+              ### 📋 Step Execution Status
 
-#### Workflow Steps
-| Status | Step | Outcome |
-|--------|------|---------|
-${stepStatusRows.join('\n')}
+              #### Workflow Steps
+              | Status | Step | Outcome |
+              |--------|------|---------|
+              ${stepStatusRows.join('\n')}
 
-${geminiStatusRows.length > 0 ? `#### Gemini Models
-| Status | Model | Outcome |
-|--------|-------|---------|
-${geminiStatusRows.join('\n')}` : ''}
+              ${geminiStatusRows.length > 0 ? `#### Gemini Models
+              | Status | Model | Outcome |
+              |--------|-------|---------|
+              ${geminiStatusRows.join('\n')}` : ''}
 
-### 🔧 Troubleshooting Steps
+              ### 🔧 Troubleshooting Steps
 
-${troubleshooting.join('\n')}
+              ${troubleshooting.join('\n')}
 
-${errorDetails ? `### 📊 Model Execution Details\n\n${errorDetails}\n` : ''}
+              ${errorDetails ? `### 📊 Model Execution Details\n\n${errorDetails}\n` : ''}
 
-${rawResponsePreview ? `### 📄 Raw Response Preview\n\n\`\`\`\n${rawResponsePreview}\n\`\`\`\n` : ''}
+              ${rawResponsePreview ? `### 📄 Raw Response Preview\n\n\`\`\`\n${rawResponsePreview}\n\`\`\`\n` : ''}
 
-### 🔗 Resources
+              ### 🔗 Resources
 
-- **Workflow run:** [View logs](../../actions/runs/${runId}/attempts/${runAttempt})
-- **Gemini docs:** [run-gemini-cli](https://github.com/google-github-actions/run-gemini-cli)
-- **API status:** [Google AI Studio](https://aistudio.google.com/)
+              - **Workflow run:** [View logs](../../actions/runs/${runId}/attempts/${runAttempt})
+              - **Gemini docs:** [run-gemini-cli](https://github.com/google-github-actions/run-gemini-cli)
+              - **API status:** [Google AI Studio](https://aistudio.google.com/)
 
----
-*${triggerText}* • Run ID: ${runId}`;
+              ---
+              *${triggerText}* • Run ID: ${runId}`;
             } else {
               // Gemini step succeeded
               body = `## ${triggerEmoji} Gemini Code Review
