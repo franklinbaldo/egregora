@@ -1,11 +1,15 @@
 """Path-related utilities, including slugification."""
+
 from unicodedata import normalize
+
 from pymdownx.slugs import slugify as _md_slugify
 
 # Pre-configure a slugify instance for reuse.
 # This is more efficient than creating a new slugifier on each call.
 slugify_lower = _md_slugify(case="lower", separator="-")
 slugify_case = _md_slugify(separator="-")
+
+
 def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
     """Convert text to a safe URL-friendly slug using MkDocs/Python Markdown semantics.
 

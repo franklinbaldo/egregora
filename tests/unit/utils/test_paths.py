@@ -1,7 +1,5 @@
 """Tests for the slugify utility function."""
 
-import pytest
-
 from egregora.utils.paths import slugify
 
 
@@ -211,5 +209,3 @@ class TestSlugifyRealWorldExamples:
     def test_markdown_style_slugs(self):
         """BEHAVIOR: Already hyphenated markdown-style text."""
         assert slugify("my-existing-slug") == "my-existing-slug"
-
-
