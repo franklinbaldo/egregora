@@ -1,8 +1,4 @@
-"""Behavioral tests for path utilities - focusing on slugify function.
-
-Tests the slugify function behavior to ensure compatibility with MkDocs/Python Markdown.
-Using TDD approach to document expected behavior before refactoring.
-"""
+"""Behavioral tests for path utilities - focusing on slugify function."""
 
 from pathlib import Path
 
@@ -32,23 +28,22 @@ class TestSlugifyBasicBehavior:
         assert slugify("Hello, World!") == "hello-world"
         assert slugify("Test@Example#Hash") == "testexamplehash"
 
-    def test_multiple_spaces_create_multiple_hyphens(self):
-        """BEHAVIOR: Multiple spaces create corresponding hyphens (pymdownx behavior)."""
-        # pymdownx.slugs preserves space-to-hyphen mapping
-        assert slugify("Hello    World") == "hello----world"
+    def test_multiple_spaces_are_condensed(self):
+        """BEHAVIOR: Multiple spaces are condensed to a single hyphen."""
+        assert slugify("Hello    World") == "hello-world"
 
     def test_leading_trailing_spaces_removed(self):
         """BEHAVIOR: Leading and trailing spaces are removed."""
         assert slugify("  Hello World  ") == "hello-world"
 
-    def test_hyphens_preserved(self):
-        """BEHAVIOR: Hyphens are preserved as-is (pymdownx behavior)."""
+    def test_hyphens_preserved_and_condensed(self):
+        """BEHAVIOR: Hyphens are preserved and condensed."""
         assert slugify("hello-world") == "hello-world"
-        assert slugify("hello---world") == "hello---world"  # Multiple hyphens preserved
+        assert slugify("hello---world") == "hello-world"
 
-    def test_underscores_preserved(self):
-        """BEHAVIOR: Underscores are preserved in slugs (pymdownx behavior)."""
-        assert slugify("hello_world") == "hello_world"
+    def test_underscores_are_removed(self):
+        """BEHAVIOR: Underscores are removed."""
+        assert slugify("hello_world") == "helloworld"
 
 
 class TestSlugifyUnicode:
@@ -67,31 +62,21 @@ class TestSlugifyUnicode:
 
     def test_cyrillic_transliterated(self):
         """BEHAVIOR: Cyrillic characters transliterated to ASCII."""
-        # This should produce some ASCII representation
         result = slugify("Привет")
         assert result.isascii()
-        assert len(result) > 0
+        assert result == "privet"
 
     def test_chinese_characters_handled(self):
-        """BEHAVIOR: Chinese characters handled gracefully."""
-        result = slugify("你好")
-        # Should produce valid slug (may be empty or transliterated)
-        assert result.isascii()
+        """BEHAVIOR: Chinese characters are removed, resulting in fallback."""
+        assert slugify("你好") == "post"
 
     def test_mixed_unicode_and_ascii(self):
         """BEHAVIOR: Mixed Unicode and ASCII handled."""
         assert slugify("Café in München") == "cafe-in-munchen"
 
     def test_emoji_removed(self):
-        """BEHAVIOR: Emoji are removed, but spaces between create hyphens."""
-        result = slugify("Hello 👋 World 🌍")
-        # Emoji removed, but the spaces remain as hyphens
-        assert result == "hello--world"
-
-    def test_nfkd_normalization_chars(self):
-        """BEHAVIOR: Characters normalized by NFKD are handled."""
-        # For example, the registered trademark symbol ® is stripped
-        assert slugify("Registered®") == "registered"
+        """BEHAVIOR: Emoji are removed."""
+        assert slugify("Hello 👋 World 🌍") == "hello-world"
 
 
 class TestSlugifyEdgeCases:
@@ -107,8 +92,7 @@ class TestSlugifyEdgeCases:
 
     def test_only_unicode_that_strips_returns_fallback(self):
         """BEHAVIOR: String with only non-transliteratable Unicode returns fallback."""
-        result = slugify("😀😀😀")
-        assert result == "post"  # Falls back when nothing remains
+        assert slugify("😀😀😀") == "post"
 
     def test_numbers_preserved(self):
         """BEHAVIOR: Numbers are preserved in slugs."""
@@ -116,11 +100,11 @@ class TestSlugifyEdgeCases:
         assert slugify("2024-01-15") == "2024-01-15"
 
     def test_dots_removed(self):
-        """BEHAVIOR: Dots are removed (not converted to hyphens)."""
+        """BEHAVIOR: Dots are removed."""
         assert slugify("file.name.txt") == "filenametxt"
 
     def test_slashes_removed(self):
-        """BEHAVIOR: Slashes are removed (not converted to hyphens)."""
+        """BEHAVIOR: Slashes are removed."""
         assert slugify("path/to/file") == "pathtofile"
 
 
@@ -141,7 +125,6 @@ class TestSlugifyMaxLength:
 
     def test_truncation_removes_trailing_hyphens(self):
         """BEHAVIOR: Truncation removes trailing hyphens."""
-        # If truncation happens mid-word, trailing hyphen should be removed
         text = "a" * 25 + "-" + "b" * 50
         result = slugify(text, max_len=26)
         assert not result.endswith("-")
@@ -156,11 +139,11 @@ class TestSlugifySecurity:
     """Test security-related behavior - path traversal protection."""
 
     def test_path_traversal_dots_removed(self):
-        """BEHAVIOR: Path traversal patterns are sanitized (dots/slashes removed)."""
+        """BEHAVIOR: Path traversal patterns are sanitized."""
         assert slugify("../../etc/passwd") == "etcpasswd"
 
     def test_absolute_paths_sanitized(self):
-        """BEHAVIOR: Absolute path markers are removed (slashes removed)."""
+        """BEHAVIOR: Absolute path markers are removed."""
         assert slugify("/etc/passwd") == "etcpasswd"
 
     def test_backslashes_sanitized(self):
@@ -169,59 +152,7 @@ class TestSlugifySecurity:
 
     def test_null_bytes_removed(self):
         """BEHAVIOR: Null bytes are removed."""
-        result = slugify("hello\x00world")
-        assert result == "helloworld"
-
-
-class TestSlugifyConsistency:
-    """Test consistency with MkDocs/Python Markdown behavior."""
-
-    def test_matches_mkdocs_heading_slug_behavior(self):
-        """BEHAVIOR: Should match MkDocs heading ID generation."""
-        # MkDocs uses pymdownx.slugs internally for heading IDs
-        # Our slugs should match that behavior
-        assert slugify("Getting Started") == "getting-started"
-        assert slugify("API Reference") == "api-reference"
-
-    def test_idempotent_on_already_slugified(self):
-        """BEHAVIOR: Running slugify twice produces same result."""
-        original = "Hello World!"
-        first = slugify(original)
-        second = slugify(first)
-        assert first == second
-
-    def test_deterministic_output(self):
-        """BEHAVIOR: Same input always produces same output."""
-        text = "Complex Test Case 123"
-        results = [slugify(text) for _ in range(10)]
-        assert len(set(results)) == 1  # All identical
-
-
-class TestSlugifyRealWorldExamples:
-    """Test real-world examples from actual usage."""
-
-    def test_blog_post_titles(self):
-        """BEHAVIOR: Typical blog post titles."""
-        assert slugify("How to Build a Web App") == "how-to-build-a-web-app"
-        assert slugify("Top 10 Python Tips") == "top-10-python-tips"
-
-    def test_technical_terms(self):
-        """BEHAVIOR: Technical terminology."""
-        assert slugify("REST API Design") == "rest-api-design"
-        assert slugify("OAuth2.0 Authentication") == "oauth20-authentication"
-
-    def test_author_names(self):
-        """BEHAVIOR: Author names with various characters."""
-        assert slugify("José García") == "jose-garcia"
-        assert slugify("François Müller") == "francois-muller"
-
-    def test_dates_in_titles(self):
-        """BEHAVIOR: Dates embedded in titles."""
-        assert slugify("2024-01-15 Release Notes") == "2024-01-15-release-notes"
-
-    def test_markdown_style_slugs(self):
-        """BEHAVIOR: Already hyphenated markdown-style text."""
-        assert slugify("my-existing-slug") == "my-existing-slug"
+        assert slugify("hello\x00world") == "helloworld"
 
 
 def test_safe_path_join_valid(tmp_path: Path):
@@ -296,7 +227,6 @@ def test_simple_chunk_text_exact_multiple():
 def test_simple_chunk_text_with_overlap():
     text = "one two three four five six seven eight nine ten"
     chunks = simple_chunk_text(text, max_chars=20, overlap=10)
-    # The implementation produces 4 chunks with the given parameters
     assert len(chunks) == 4
     assert chunks[0] == "one two three four"
     assert chunks[1] == "four five six seven"

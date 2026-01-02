@@ -1,16 +1,21 @@
 """V3 utility functions - independent of V2."""
-from pathlib import Path
 import re
+from pathlib import Path
 from unicodedata import normalize
+
 from pymdownx.slugs import slugify as _md_slugify
+
 
 class PathTraversalError(Exception):
     """Raised when a path would escape its intended directory."""
+
 
 # Pre-configure a slugify instance for reuse.
 # This is more efficient than creating a new slugifier on each call.
 slugify_lower = _md_slugify(case="lower", separator="-")
 slugify_case = _md_slugify(separator="-")
+
+
 def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
     """Convert text to a safe URL-friendly slug using MkDocs/Python Markdown semantics.
 
@@ -56,6 +61,40 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
         slug = slug[:max_len].rstrip("-")
 
     return slug
+
+
+def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
+    """
+    Convert text to a URL-friendly slug.
+    - Converts to lowercase (optional)
+    - Removes non-alphanumeric characters
+    - Converts spaces to hyphens
+    - Condenses multiple hyphens to a single hyphen
+    - Strips leading/trailing hyphens
+    - Truncates to max_len
+    - Returns 'post' for empty slugs
+    """
+    if not text or text.isspace():
+        return "post"
+
+    # Transliterate to ASCII
+    text = normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
+    # Replace non-alphanumeric with hyphen
+    text = re.sub(r'[^\w\s-]', '', text).strip()
+    if lowercase:
+        text = text.lower()
+    # Condense whitespace to single hyphen
+    text = re.sub(r'\s+', '-', text)
+    # Condense multiple hyphens to a single hyphen
+    text = re.sub(r'-+', '-', text)
+    # Remove leading/trailing hyphens
+    slug = text.strip('-')
+
+    # Truncate and clean up trailing hyphens
+    if len(slug) > max_len:
+        slug = slug[:max_len].rstrip("-")
+
+    return slug or "post"
 
 
 def safe_path_join(base_dir: Path, *parts: str) -> Path:
