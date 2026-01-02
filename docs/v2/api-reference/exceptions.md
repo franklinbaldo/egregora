@@ -10,8 +10,6 @@
 
 ::: egregora.transformations.exceptions
 
-::: egregora.init.exceptions
-
 ::: egregora.database.exceptions
 
 ::: egregora.utils.exceptions

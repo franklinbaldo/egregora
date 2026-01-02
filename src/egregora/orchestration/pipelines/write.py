@@ -24,7 +24,6 @@ from datetime import date as date_type
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import ibis
@@ -825,58 +824,21 @@ def process_background_tasks(ctx: PipelineContext) -> None:
 
 
 # TODO: [Taskmaster] Simplify database backend creation
-def _create_database_backends(
+def _create_database_backend(
     site_root: Path,
     config: EgregoraConfig,
-) -> tuple[str, Any, Any]:
-    """Create database backends for pipeline and runs tracking.
+) -> tuple[str, Any]:
+    """Create the main database backend for the pipeline.
 
-    Uses Ibis for database abstraction, allowing future migration to
-    other databases (Postgres, SQLite, etc.) via connection strings.
-
-    Args:
-        site_root: Root directory for the site
-        config: Egregora configuration
-
-    Returns:
-        Tuple of (runtime_db_uri, pipeline_backend, runs_backend).
-
-    Notes:
-        DuckDB file URIs with the pattern ``duckdb:///./relative/path.duckdb`` are
-        resolved relative to ``site_root`` to keep configuration portable while
-        still using proper connection strings.
-
+    Returns a tuple of the resolved database URI and the Ibis backend connection.
     """
+    db_uri = config.database.pipeline_db
+    if not db_uri:
+        msg = "Database setting 'database.pipeline_db' must be a non-empty connection URI."
+        raise ValueError(msg)
 
-    def _validate_and_connect(value: str, setting_name: str) -> tuple[str, Any]:
-        if not value:
-            msg = f"Database setting '{setting_name}' must be a non-empty connection URI."
-            raise ValueError(msg)
-
-        parsed = urlparse(value)
-        if not parsed.scheme:
-            msg = (
-                "Database setting '{setting}' must be provided as an Ibis-compatible connection "
-                "URI (e.g. 'duckdb:///absolute/path/to/file.duckdb' or 'postgres://user:pass@host/db')."
-            )
-            raise ValueError(msg.format(setting=setting_name))
-
-        if len(parsed.scheme) == 1 and value[1:3] in {":/", ":\\"}:
-            msg = (
-                "Database setting '{setting}' looks like a filesystem path. Provide a full connection "
-                "URI instead (see the database settings documentation)."
-            )
-            raise ValueError(msg.format(setting=setting_name))
-
-        normalized_value = resolve_db_uri(value, site_root)
-        return normalized_value, ibis.connect(normalized_value)
-
-    runtime_db_uri, pipeline_backend = _validate_and_connect(
-        config.database.pipeline_db, "database.pipeline_db"
-    )
-    _runs_db_uri, runs_backend = _validate_and_connect(config.database.runs_db, "database.runs_db")
-
-    return runtime_db_uri, pipeline_backend, runs_backend
+    resolved_uri = resolve_db_uri(db_uri, site_root)
+    return resolved_uri, ibis.connect(resolved_uri)
 
 
 def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> MkDocsPaths:
@@ -928,24 +890,16 @@ def _create_gemini_client() -> genai.Client:
     return genai.Client(http_options=http_options)
 
 
-def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineContext, Any, Any]:
+def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineContext, Any]:
     """Create pipeline context with all resources and configuration.
 
-    Args:
-        run_params: Aggregated pipeline run parameters
-
-    Returns:
-        Tuple of (PipelineContext, pipeline_backend, runs_backend)
-        The backends are returned for cleanup by the context manager.
-
+    Returns a tuple of the PipelineContext and the pipeline_backend for cleanup.
     """
     resolved_output = run_params.output_dir.expanduser().resolve()
 
     refresh_tiers = {r.strip().lower() for r in (run_params.refresh or "").split(",") if r.strip()}
     site_paths = _resolve_site_paths_or_raise(resolved_output, run_params.config)
-    _runtime_db_uri, pipeline_backend, runs_backend = _create_database_backends(
-        site_paths.site_root, run_params.config
-    )
+    _runtime_db_uri, pipeline_backend = _create_database_backend(site_paths.site_root, run_params.config)
 
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
     initialize_database(pipeline_backend)
@@ -1007,47 +961,33 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
 
     ctx = PipelineContext(config_obj, state)
 
-    return ctx, pipeline_backend, runs_backend
+    return ctx, pipeline_backend
 
 
 @contextmanager
-def _pipeline_environment(run_params: PipelineRunParams) -> Iterator[tuple[PipelineContext, Any]]:
-    """Context manager that provisions and tears down pipeline resources.
-
-    Args:
-        run_params: Aggregated pipeline run parameters
-
-    Yields:
-        Tuple of (PipelineContext, runs_backend) for use in the pipeline
-
-    """
+def _pipeline_environment(run_params: PipelineRunParams) -> Iterator[PipelineContext]:
+    """Context manager that provisions and tears down pipeline resources."""
     options = getattr(ibis, "options", None)
     old_backend = getattr(options, "default_backend", None) if options else None
-    ctx, pipeline_backend, runs_backend = _create_pipeline_context(run_params)
+    ctx, pipeline_backend = _create_pipeline_context(run_params)
 
     if options is not None:
         options.default_backend = pipeline_backend
 
     try:
-        yield ctx, runs_backend
+        yield ctx
     finally:
         try:
             ctx.cache.close()
         finally:
-            try:
-                close_method = getattr(runs_backend, "close", None)
-                if callable(close_method):
-                    close_method()
-                elif hasattr(runs_backend, "con") and hasattr(runs_backend.con, "close"):
-                    runs_backend.con.close()
-            finally:
-                if options is not None:
-                    options.default_backend = old_backend
-                backend_close = getattr(pipeline_backend, "close", None)
-                if callable(backend_close):
-                    backend_close()
-                elif hasattr(pipeline_backend, "con") and hasattr(pipeline_backend.con, "close"):
-                    pipeline_backend.con.close()
+            if options is not None:
+                options.default_backend = old_backend
+
+            backend_close = getattr(pipeline_backend, "close", None)
+            if callable(backend_close):
+                backend_close()
+            elif hasattr(pipeline_backend, "con") and hasattr(pipeline_backend.con, "close"):
+                pipeline_backend.con.close()
 
 
 def _parse_and_validate_source(
@@ -1477,9 +1417,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
         # Fallback for adapters that don't accept config parameter
         adapter = adapter_cls()
 
-    # Generate run ID and timestamp for tracking
-
-    with _pipeline_environment(run_params) as (ctx, _runs_backend):
+    with _pipeline_environment(run_params) as ctx:
         try:
             dataset = _prepare_pipeline_data(adapter, run_params, ctx)
 
