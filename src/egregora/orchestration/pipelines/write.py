@@ -41,7 +41,6 @@ from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.task_store import TaskStore
 from egregora.database.utils import resolve_db_uri
-from egregora.init.scaffolding import ensure_mkdocs_project
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
@@ -51,6 +50,7 @@ from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.runner import PipelineRunner
 from egregora.output_adapters import create_default_output_registry
+from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
 from egregora.output_adapters.mkdocs import MkDocsPaths
 from egregora.rag import index_documents, reset_backend
 from egregora.transformations import (
@@ -380,7 +380,8 @@ def run_cli_flow(
     if not config_path.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Initializing site in %s", output_dir)
-        ensure_mkdocs_project(output_dir)
+        scaffolder = MkDocsSiteScaffolder()
+        scaffolder.scaffold_site(output_dir, site_name=output_dir.name)
 
     _validate_api_key(output_dir)
 
