@@ -6,7 +6,7 @@ from egregora.agents.shared.cache import (
     EnrichmentCache,
     make_enrichment_cache_key,
 )
-from egregora.utils.cache_backend import CacheBackend
+from egregora.infra.cache import CacheBackend
 from egregora.utils.exceptions import (
     CacheDeserializationError,
     CachePayloadTypeError,
