@@ -85,98 +85,61 @@ jobs:
           BASE_SHA: ${{ steps.pr.outputs.base_sha }}
           BASE_REF: ${{ steps.pr.outputs.base_ref }}
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
-          PR_TITLE: ${{ steps.pr.outputs.pr_title }}
-          PR_BODY: ${{ steps.pr.outputs.pr_body }}
           USER_INSTRUCTIONS: ${{ steps.pr.outputs.user_instructions }}
           TRIGGER_MODE: ${{ steps.pr.outputs.trigger_mode }}
         run: |
           set -euo pipefail
+
+          # Create temp directory for files
+          mkdir -p .github/tmp
 
           # Ensure we have the base ref locally (works for forks and distant branches)
           # No --depth flag since we already did fetch-depth: 0 in checkout
           git fetch origin "${BASE_REF}"
 
           # Get unified diff between base and head, excluding non-code assets
-          git diff --unified=3 "origin/${BASE_REF}" "${HEAD_SHA}" -- . ':!uv.lock' ':!.jules/' ':!docs/' ':!README.md' ':!pyproject.toml' ':!tests/v3/infra/sinks/fixtures/' > pr.diff
-
-          # Pass full diff to Gemini - let context window limit naturally fail
-          # for very large PRs rather than silently truncating
-          cp pr.diff pr-trimmed.diff
+          git diff --unified=3 "origin/${BASE_REF}" "${HEAD_SHA}" -- . ':!uv.lock' ':!.jules/' ':!docs/' ':!README.md' ':!pyproject.toml' ':!tests/v3/infra/sinks/fixtures/' > .github/tmp/diff.txt
 
           # Get commit messages to understand intent
           # Format: hash - subject + body (if any)
-          git log --format="%h - %s%n%b" "origin/${BASE_REF}..${HEAD_SHA}" > commits.txt || echo "(No commits found)" > commits.txt
+          git log --format="%h - %s%n%b" "origin/${BASE_REF}..${HEAD_SHA}" > .github/tmp/commits.txt || echo "(No commits found)" > .github/tmp/commits.txt
 
-          # Read CLAUDE.md for project-specific context
-          CLAUDE_MD=""
-          if [ -f "CLAUDE.md" ]; then
-            CLAUDE_MD=$(cat CLAUDE.md)
-          fi
-
-          # Output diff and context for the next step
-          # Use unique delimiters to avoid conflicts with diff content
-          RANDOM_ID="${{ github.run_id }}_${{ github.run_attempt }}_$(date +%s%N)"
-          DIFF_DELIMITER="ghadelimiter_diff_${RANDOM_ID}"
-          CLAUDE_DELIMITER="ghadelimiter_claude_${RANDOM_ID}"
-          COMMITS_DELIMITER="ghadelimiter_commits_${RANDOM_ID}"
-          PR_BODY_DELIMITER="ghadelimiter_pr_body_${RANDOM_ID}"
-
+          # Output metadata for next step
           {
-            echo "diff<<${DIFF_DELIMITER}"
-            cat pr-trimmed.diff
-            echo "${DIFF_DELIMITER}"
-            echo "claude_md<<${CLAUDE_DELIMITER}"
-            echo "$CLAUDE_MD"
-            echo "${CLAUDE_DELIMITER}"
-            echo "commits<<${COMMITS_DELIMITER}"
-            cat commits.txt
-            echo "${COMMITS_DELIMITER}"
-            echo "pr_body<<${PR_BODY_DELIMITER}"
-            echo "$PR_BODY"
-            echo "${PR_BODY_DELIMITER}"
             echo "user_instructions=$USER_INSTRUCTIONS"
             echo "trigger_mode=$TRIGGER_MODE"
           } >> "$GITHUB_OUTPUT"
 
-      # Construct the shared prompt dynamically after collection using JS for safety
+      # Setup Python environment for prompt construction
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: "3.12"
+          extras: "--no-dev"
+
+      # Construct the prompt using Python + Jinja2 (avoids "argument list too long" errors)
       - name: Construct Gemini Prompt
         id: construct_prompt
-        uses: actions/github-script@v8
         env:
-          DIFF: ${{ steps.collect.outputs.diff }}
-          CLAUDE_MD: ${{ steps.collect.outputs.claude_md }}
-          COMMITS: ${{ steps.collect.outputs.commits }}
-          PR_BODY: ${{ steps.collect.outputs.pr_body }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
           PR_TITLE: ${{ steps.pr.outputs.pr_title }}
           PR_AUTHOR: ${{ steps.pr.outputs.pr_author }}
-          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+          PR_BODY: ${{ steps.pr.outputs.pr_body }}
           USER_INSTRUCTIONS: ${{ steps.collect.outputs.user_instructions }}
           TRIGGER_MODE: ${{ steps.collect.outputs.trigger_mode }}
-        with:
-          script: |
-            const fs = require('fs');
+          TEMPLATE_PATH: .github/prompts/pr-review-prompt-improved.md
+          DIFF_PATH: .github/tmp/diff.txt
+          CLAUDE_MD_PATH: CLAUDE.md
+          COMMITS_PATH: .github/tmp/commits.txt
+          OUTPUT_PATH: .github/tmp/prompt.txt
+        run: |
+          # Construct prompt using Python + Jinja2
+          uv run python .github/scripts/construct_gemini_prompt.py
 
-            // Read the prompt template
-            const promptTemplate = fs.readFileSync('.github/prompts/pr-review-prompt-improved.md', 'utf8');
-
-            // Replace placeholders with actual values
-            const userInstructionsText = process.env.USER_INSTRUCTIONS
-              ? `**User Request:** ${process.env.USER_INSTRUCTIONS}`
-              : '';
-
-            const prompt = promptTemplate
-              .replace(/\{\{REPOSITORY\}\}/g, context.repo.owner + '/' + context.repo.repo)
-              .replace(/\{\{PR_NUMBER\}\}/g, process.env.PR_NUMBER)
-              .replace(/\{\{PR_TITLE\}\}/g, process.env.PR_TITLE)
-              .replace(/\{\{PR_AUTHOR\}\}/g, process.env.PR_AUTHOR)
-              .replace(/\{\{TRIGGER_MODE\}\}/g, process.env.TRIGGER_MODE)
-              .replace(/\{\{USER_INSTRUCTIONS\}\}/g, userInstructionsText)
-              .replace(/\{\{PR_BODY\}\}/g, process.env.PR_BODY)
-              .replace(/\{\{COMMITS\}\}/g, process.env.COMMITS)
-              .replace(/\{\{DIFF\}\}/g, process.env.DIFF)
-              .replace(/\{\{CLAUDE_MD\}\}/g, process.env.CLAUDE_MD);
-
-            core.exportVariable('GEMINI_PROMPT', prompt);
+          # Read prompt and make available to Gemini steps via file
+          # (Using file avoids "argument list too long" errors with large prompts)
+          echo "prompt_file=.github/tmp/prompt.txt" >> "$GITHUB_OUTPUT"
 
       # ----------------------------------------------------------------------
       # Gemini Review Pipeline with Fallback Strategy
@@ -194,7 +157,7 @@ jobs:
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_model: "gemini-3-pro-preview"
-          prompt: ${{ env.GEMINI_PROMPT }}
+          prompt_file: ${{ steps.construct_prompt.outputs.prompt_file }}
 
       - name: Run Gemini PR Review (3 Flash Preview)
         id: gemini_3_flash
@@ -204,7 +167,7 @@ jobs:
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_model: "gemini-3-flash-preview"
-          prompt: ${{ env.GEMINI_PROMPT }}
+          prompt_file: ${{ steps.construct_prompt.outputs.prompt_file }}
 
       - name: Run Gemini PR Review (2.5 Pro)
         id: gemini_25_pro
@@ -214,7 +177,7 @@ jobs:
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_model: "gemini-2.5-pro"
-          prompt: ${{ env.GEMINI_PROMPT }}
+          prompt_file: ${{ steps.construct_prompt.outputs.prompt_file }}
 
       - name: Run Gemini PR Review (2.5 Flash)
         id: gemini_25_flash
@@ -224,7 +187,7 @@ jobs:
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_model: "gemini-2.5-flash"
-          prompt: ${{ env.GEMINI_PROMPT }}
+          prompt_file: ${{ steps.construct_prompt.outputs.prompt_file }}
 
       - name: Run Gemini PR Review (2.5 Flash Lite)
         id: gemini_25_lite
@@ -234,7 +197,7 @@ jobs:
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           gemini_model: "gemini-2.5-flash-lite"
-          prompt: ${{ env.GEMINI_PROMPT }}
+          prompt_file: ${{ steps.construct_prompt.outputs.prompt_file }}
 
       - name: Consolidate Gemini Results
         id: gemini_final
