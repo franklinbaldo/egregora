@@ -1,18 +1,14 @@
 """Tests for the writer journal utilities."""
 
-import json
 from datetime import UTC, datetime
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic_ai.messages import (
-    ModelRequest,
     ModelResponse,
     TextPart,
     ThinkingPart,
     ToolCallPart,
-    ToolReturnPart,
 )
 
 from egregora.agents.writer_journal import (
@@ -108,7 +104,7 @@ def test_save_journal_to_file_success(mock_output_sink):
         mock_template = mock_env.get_template.return_value
         mock_template.render.return_value = "# Journal\n\nContent"
 
-        doc_id = save_journal_to_file(params)
+        save_journal_to_file(params)
 
         # Verify persistence
         mock_output_sink.persist.assert_called_once()

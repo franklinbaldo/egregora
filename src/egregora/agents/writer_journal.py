@@ -30,7 +30,7 @@ from egregora.agents.exceptions import AgentError
 from egregora.data_primitives.document import Document, DocumentType
 
 if TYPE_CHECKING:
-    from egregora.data_primitives.protocols import OutputSink
+    from egregora.data_primitives.document import OutputSink
 
 logger = logging.getLogger(__name__)
 
