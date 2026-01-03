@@ -18,8 +18,8 @@ from egregora.agents.writer_helpers import (
     register_writer_tools,
     validate_prompt_fits,
 )
-from egregora.config.exceptions import ApiKeyNotFoundError
-from egregora.config.settings import get_google_api_key
+from egregora.llm.auth import get_google_api_key
+from egregora.llm.exceptions import ApiKeyNotFoundError
 
 if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig
