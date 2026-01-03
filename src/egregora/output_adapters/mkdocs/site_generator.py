@@ -126,6 +126,24 @@ class SiteGenerator:
                 raise DocumentParsingError(str(author_dir), str(e)) from e
         return profiles
 
+    def get_recent_posts(self, limit: int = 5) -> list[dict[str, Any]]:
+        """Get recent posts for homepage."""
+        posts = []
+        for doc in sorted(
+            self._scan_directory(self.posts_dir, DocumentType.POST),
+            key=lambda d: d.metadata.get("date", ""),
+            reverse=True,
+        )[:limit]:
+            posts.append(
+                {
+                    "title": doc.metadata.get("title", "Untitled"),
+                    "url": f"posts/{doc.metadata.get('slug', doc.id)}.html",
+                    "date": doc.metadata.get("date", ""),
+                    "summary": doc.metadata.get("summary", "") or (doc.content[:200] + "..." if doc.content else ""),
+                }
+            )
+        return posts
+
     def get_recent_media(self, limit: int = 5) -> list[dict[str, Any]]:
         """Get recent media items for media index."""
         media_items = []
@@ -177,6 +195,7 @@ class SiteGenerator:
         """Regenerates the main index.md from a template."""
         context = {
             "stats": self.get_site_stats(),
+            "posts": self.get_recent_posts(limit=5),
             "recent_media": self.get_recent_media(limit=5),
             "profiles": self.get_profiles_data(),
             "generated_date": datetime.now(UTC).strftime("%Y-%m-%d"),

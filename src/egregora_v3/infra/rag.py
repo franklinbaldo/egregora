@@ -6,10 +6,9 @@ Port of V2 chunking logic to V3, enabling robust RAG support.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Sequence
 
-from egregora_v3.core.types import Document
+from egregora_v3.core.types import Document, RAGChunk
 from egregora_v3.core.utils import (
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_MAX_CHARS,
@@ -20,15 +19,6 @@ if TYPE_CHECKING:
     pass
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class RAGChunk:
-    """Internal representation of a RAG chunk."""
-    chunk_id: str
-    document_id: str
-    text: str
-    metadata: dict[str, Any]
 
 
 def chunks_from_documents(

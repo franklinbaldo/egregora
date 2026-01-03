@@ -46,6 +46,8 @@ class PipelineRunner:
 
     # Corresponds to a 1M token context window, expressed in characters
     FULL_CONTEXT_WINDOW_SIZE = 1_048_576
+    AVG_TOKENS_PER_MESSAGE = 5
+    BUFFER_RATIO = 0.8
 
     def __init__(self, context: PipelineContext) -> None:
         self.context = context
@@ -66,7 +68,6 @@ class PipelineRunner:
         results = {}
         max_processed_timestamp: datetime | None = None
 
-        # Calculate max window size from LLM context (once)
         max_window_size = self._calculate_max_window_size()
         effective_token_limit = self._resolve_context_token_limit()
         logger.debug(
@@ -75,7 +76,6 @@ class PipelineRunner:
             effective_token_limit,
         )
 
-        # Get max_windows limit from config (default 1 for single-window behavior)
         max_windows = getattr(self.context.config.pipeline, "max_windows", 1)
         if max_windows == 0:
             max_windows = None  # 0 means process all windows
@@ -130,17 +130,13 @@ class PipelineRunner:
     def _calculate_max_window_size(self) -> int:
         """Calculate maximum window size based on LLM context window."""
         max_tokens = self._resolve_context_token_limit()
-        # TODO: [Taskmaster] Externalize hardcoded configuration values.
-        avg_tokens_per_message = 5
-        buffer_ratio = 0.8
-        return int((max_tokens * buffer_ratio) / avg_tokens_per_message)
+        return int((max_tokens * self.BUFFER_RATIO) / self.AVG_TOKENS_PER_MESSAGE)
 
     def _resolve_context_token_limit(self) -> int:
         """Resolve the effective context window token limit."""
         config = self.context.config
         use_full_window = getattr(config.pipeline, "use_full_context_window", False)
 
-        # TODO: [Taskmaster] Refactor magic number for token limit
         if use_full_window:
             return self.FULL_CONTEXT_WINDOW_SIZE
 
@@ -160,7 +156,6 @@ class PipelineRunner:
         if not hasattr(self.context, "task_store") or not self.context.task_store:
             return
 
-        # TODO: [Taskmaster] Refactor worker logic to be more generic
         logger.info("⚙️  [bold cyan]Processing background tasks...[/]")
 
         banner_worker = BannerWorker(self.context)
@@ -221,8 +216,6 @@ class PipelineRunner:
         return results
 
     def _process_single_window(self, window: Any, *, depth: int = 0) -> dict[str, dict[str, list[str]]]:
-        # TODO: [Taskmaster] Refactor this method to reduce its complexity.
-        # TODO: [Taskmaster] Decompose _process_single_window method
         """Process a single window with media extraction, enrichment, and post writing."""
         indent = "  " * depth
         window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
@@ -233,6 +226,53 @@ class PipelineRunner:
         if output_sink is None:
             raise OutputSinkError("Output adapter must be initialized before processing windows.")
 
+        # 1. Handle Media & Enrichment
+        enriched_table = self._process_media_and_enrichment(window, output_sink)
+
+        # 2. Convert Data to DTOs
+        messages_list = self._convert_table_to_list(enriched_table)
+        messages_dtos = self._convert_list_to_dtos(messages_list)
+
+        # 3. Process Commands
+        announcements_generated = self._process_commands(messages_list, output_sink)
+        clean_messages_list = filter_commands(messages_list)
+
+        # 4. Prepare Resources & Run Writer
+        resources = PipelineFactory.create_writer_resources(self.context)
+        adapter_summary, adapter_instructions = self._extract_adapter_info()
+
+        params = WindowProcessingParams(
+            table=enriched_table,
+            window_start=window.start_time,
+            window_end=window.end_time,
+            resources=resources,
+            config=self.context.config,
+            cache=self.context.cache,
+            adapter_content_summary=adapter_summary,
+            adapter_generation_instructions=adapter_instructions,
+            run_id=str(self.context.run_id) if self.context.run_id else None,
+            smoke_test=self.context.state.smoke_test,
+            messages=messages_dtos,
+        )
+
+        posts, profiles = write_posts_for_window(params)
+
+        # 5. Generate Profiles
+        self._generate_profiles(clean_messages_list, window, output_sink, profiles)
+
+        # 6. Status Reporting
+        status_msg = self._construct_status_message(posts, profiles, announcements_generated)
+        logger.info(
+            "%s[green]✔ Generated[/] %s for %s",
+            indent,
+            status_msg,
+            window_label,
+        )
+
+        return {window_label: {"posts": posts, "profiles": profiles}}
+
+    def _process_media_and_enrichment(self, window: Any, output_sink: Any) -> ir.Table:
+        """Process media attachments and run enrichment pipeline."""
         url_context = self.context.url_context or UrlContext()
         window_table_processed, media_mapping = process_media_for_window(
             window_table=window.table,
@@ -250,86 +290,46 @@ class PipelineRunner:
                     logger.exception("Failed to write media file: %s", e)
 
         if self.context.enable_enrichment:
-            enriched_table = self._perform_enrichment(window_table_processed, media_mapping)
-        else:
-            enriched_table = window_table_processed
+            return self._perform_enrichment(window_table_processed, media_mapping)
 
-        resources = PipelineFactory.create_writer_resources(self.context)
-        adapter_summary, adapter_instructions = self._extract_adapter_info()
+        return window_table_processed
 
-        # TODO: [Taskmaster] Refactor data type conversion for consistency
-        # TODO: [Taskmaster] Improve brittle data conversion logic.
-        # Convert table to list for command processing
+    def _convert_table_to_list(self, table: ir.Table) -> list[dict]:
+        """Safely convert Ibis table to list of dicts."""
         try:
-            messages_list = enriched_table.execute().to_pylist()
+            return table.execute().to_pylist()
         except (AttributeError, TypeError):
             try:
-                messages_list = enriched_table.to_pylist()
+                return table.to_pylist()
             except (AttributeError, TypeError):
-                messages_list = enriched_table if isinstance(enriched_table, list) else []
+                return table if isinstance(table, list) else []
 
-        # CONVERT TO DTOs for Writer
-        # Ensure messages_list are dicts, convert to Message objects
+    def _convert_list_to_dtos(self, messages_list: list[dict]) -> list[Message]:
+        """Convert raw message dicts to Message DTOs."""
         messages_dtos = []
+        valid_keys = Message.model_fields.keys()
+
         for msg_dict in messages_list:
             try:
-                # We need to map keys if they don't match exactly or if extra keys exist.
-                # Message DTO expects: event_id, ts, author_uuid...
-                # The schema keys should match mostly.
-                # Use model_validate to be robust or simple constructor
-                # Since we don't know if extra fields are present and we want to ignore them
-                # unless we use strict mode.
-                # Let's use **msg_dict but filter only known fields or rely on ignore_extra if config set.
-                # We didn't set ignore_extra in Message config, let's assume keys match or update Message DTO.
-                # Actually, simply passing **msg_dict to constructor works if no unknown fields
-                # OR if we used class Config: extra = 'ignore'.
-                # Let's check keys manually to be safe or add extra='ignore' to DTO.
-                # I'll add extra='ignore' to DTO in a subsequent edit if needed,
-                # but for now let's assume the schema matches as we defined DTO based on it.
-                # BUT, wait, enriched_table might have extra columns.
-                # Let's filter keys.
-                valid_keys = Message.model_fields.keys()
                 filtered_dict = {k: v for k, v in msg_dict.items() if k in valid_keys}
-
-                # Check required fields. event_id, ts, author_uuid are required.
-                if "event_id" in filtered_dict and "ts" in filtered_dict and "author_uuid" in filtered_dict:
+                if all(k in filtered_dict for k in ("event_id", "ts", "author_uuid")):
                     messages_dtos.append(Message(**filtered_dict))
             except (ValueError, TypeError) as e:
                 logger.warning("Failed to convert message to DTO: %s", e)
+        return messages_dtos
 
-        command_messages = extract_commands_list(messages_list)
-        announcements_generated = 0
-        if command_messages:
-            for cmd_msg in command_messages:
-                try:
-                    announcement = command_to_announcement(cmd_msg)
-                    output_sink.persist(announcement)
-                    announcements_generated += 1
-                except Exception as exc:
-                    logger.exception("Failed to generate announcement: %s", exc)
-
-        clean_messages_list = filter_commands(messages_list)
-
-        params = WindowProcessingParams(
-            table=enriched_table,
-            window_start=window.start_time,
-            window_end=window.end_time,
-            resources=resources,
-            config=self.context.config,
-            cache=self.context.cache,
-            adapter_content_summary=adapter_summary,
-            adapter_generation_instructions=adapter_instructions,
-            run_id=str(self.context.run_id) if self.context.run_id else None,
-            smoke_test=self.context.state.smoke_test,
-            messages=messages_dtos,  # Inject DTOs
-        )
-
-        posts, profiles = write_posts_for_window(params)
-
+    def _generate_profiles(
+        self,
+        messages: list[dict],
+        window: Any,
+        output_sink: Any,
+        profiles: list
+    ) -> None:
+        """Generate and persist profile updates."""
         window_date = window.start_time.strftime("%Y-%m-%d")
         try:
             profile_docs = generate_profile_posts(
-                ctx=self.context, messages=clean_messages_list, window_date=window_date
+                ctx=self.context, messages=messages, window_date=window_date
             )
             for profile_doc in profile_docs:
                 try:
@@ -339,37 +339,6 @@ class PipelineRunner:
                     logger.exception("Failed to persist profile: %s", exc)
         except Exception as exc:
             logger.exception("Failed to generate profile posts: %s", exc)
-
-        # Scheduled tasks are returned as "pending:<task_id>"
-        scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
-        generated_posts = len(posts) - scheduled_posts
-
-        scheduled_profiles = sum(1 for p in profiles if isinstance(p, str) and p.startswith("pending:"))
-        generated_profiles = len(profiles) - scheduled_profiles
-
-        # Construct status message
-        status_parts = []
-        if generated_posts > 0:
-            status_parts.append(f"{generated_posts} posts")
-        if scheduled_posts > 0:
-            status_parts.append(f"{scheduled_posts} scheduled posts")
-        if generated_profiles > 0:
-            status_parts.append(f"{generated_profiles} profiles")
-        if scheduled_profiles > 0:
-            status_parts.append(f"{scheduled_profiles} scheduled profiles")
-        if announcements_generated > 0:
-            status_parts.append(f"{announcements_generated} announcements")
-
-        status_msg = ", ".join(status_parts) if status_parts else "0 items"
-
-        logger.info(
-            "%s[green]✔ Generated[/] %s for %s",
-            indent,
-            status_msg,
-            window_label,
-        )
-
-        return {window_label: {"posts": posts, "profiles": profiles}}
 
     def _perform_enrichment(
         self,
@@ -419,7 +388,6 @@ class PipelineRunner:
 
         return str(summary or "").strip(), str(instructions or "").strip()
 
-    # TODO: [Taskmaster] Extract command processing logic from _process_single_window
     def _process_commands(self, messages_list: list[dict], output_sink: Any) -> int:
         """Processes commands from a list of messages."""
         announcements_generated = 0
@@ -434,7 +402,6 @@ class PipelineRunner:
                     logger.exception("Failed to generate announcement: %s", exc)
         return announcements_generated
 
-    # TODO: [Taskmaster] Extract status message generation from _process_single_window
     def _construct_status_message(self, posts: list, profiles: list, announcements_generated: int) -> str:
         """Constructs a status message for logging."""
         scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
