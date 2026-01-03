@@ -145,8 +145,11 @@ jobs:
           COMMITS_PATH: .github/tmp/commits.txt
           OUTPUT_PATH: .github/tmp/prompt.txt
         run: |
+          set -euo pipefail
+
           # Construct prompt using Python + Jinja2 (quiet mode to reduce log verbosity)
-          uv run --quiet python .github/scripts/construct_gemini_prompt.py 2>&1 | grep -v "^Resolved\|^Prepared\|^Built\|^Installed" || true
+          # Use pipefail to catch script failures even when piped through grep
+          uv run --quiet python .github/scripts/construct_gemini_prompt.py 2>&1 | grep -v "^Resolved\|^Prepared\|^Built\|^Installed" || [[ ${PIPESTATUS[0]} -eq 0 ]]
 
           # Export prompt as environment variable for Gemini action
           PROMPT_DELIMITER="eof_gemini_prompt_${{ github.run_id }}_${{ github.run_attempt }}"
