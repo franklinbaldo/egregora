@@ -1,4 +1,3 @@
-
 import os
 import sys
 from unittest.mock import patch
@@ -93,7 +92,7 @@ class TestValidateGeminiApiKey:
         mock_genai_client.assert_called_once_with(api_key="explicit_key")
 
     @pytest.mark.parametrize(
-        "error_message, expected_snippet",
+        ("error_message", "expected_snippet"),
         [
             ("Invalid API key", "Invalid Gemini API key"),
             ("API key not valid", "Invalid Gemini API key"),
@@ -108,9 +107,7 @@ class TestValidateGeminiApiKey:
         self, mock_genai_client, mock_environ, error_message, expected_snippet
     ):
         mock_environ["GOOGLE_API_KEY"] = "bad_key"
-        mock_genai_client.return_value.models.count_tokens.side_effect = Exception(
-            error_message
-        )
+        mock_genai_client.return_value.models.count_tokens.side_effect = Exception(error_message)
         with pytest.raises(ValueError, match=expected_snippet):
             validate_gemini_api_key()
 
