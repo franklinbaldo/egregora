@@ -169,19 +169,20 @@ jobs:
           fi
 
           # Export prompt as environment variable for Gemini action
-          PROMPT_DELIMITER="eof_gemini_prompt_${{ github.run_id }}_${{ github.run_attempt }}"
+          # Using a simple, fixed delimiter to avoid any variable expansion issues
+          PROMPT_DELIMITER="EOF_GEMINI_PROMPT"
 
-          # Check for delimiter collision (extremely rare but would cause silent failure)
+          # Check for delimiter collision
           if grep -qF "$PROMPT_DELIMITER" .github/tmp/prompt.txt; then
-            echo "::error::Delimiter collision detected in prompt content"
-            echo "::error::The delimiter '$PROMPT_DELIMITER' appears in the prompt"
+            echo "::error::Delimiter '$PROMPT_DELIMITER' found in prompt content"
             exit 1
           fi
 
+          # Write to GITHUB_ENV with explicit quoting to prevent expansion
           {
-            echo "GEMINI_PROMPT<<${PROMPT_DELIMITER}"
+            printf 'GEMINI_PROMPT<<%s\n' "$PROMPT_DELIMITER"
             cat .github/tmp/prompt.txt
-            echo "${PROMPT_DELIMITER}"
+            printf '%s\n' "$PROMPT_DELIMITER"
           } >> "$GITHUB_ENV"
 
           echo "✓ Prompt exported to GITHUB_ENV"
