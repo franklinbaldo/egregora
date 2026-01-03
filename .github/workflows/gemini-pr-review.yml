@@ -205,13 +205,26 @@ jobs:
         uses: actions/github-script@v8
         env:
           GEMINI_RESPONSE: ${{ steps.gemini_final.outputs.summary }}
+          GEMINI_OUTCOME: ${{ steps.gemini_final.outputs.outcome }}
         with:
           script: |
+            const outcome = process.env.GEMINI_OUTCOME || 'unknown';
             const raw = process.env.GEMINI_RESPONSE || '';
 
             // Store raw response for debugging
             const preview = raw.length > 500 ? raw.substring(0, 500) + '...[truncated]' : raw;
             core.setOutput('raw_response_preview', preview);
+
+            if (outcome !== 'success') {
+              console.log(`Skipping JSON parsing because Gemini outcome is '${outcome}'.`);
+              core.setOutput('review_comment', '');
+              core.setOutput('merge', 'unknown');
+              core.setOutput('merge_reason', 'Gemini review unavailable due to failed API call');
+              core.setOutput('merge_risk', 'unknown');
+              core.setOutput('pr_title', '');
+              core.setOutput('pr_body', '');
+              return;
+            }
 
             // Fail fast with specific errors
             if (!raw) {
