@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from egregora.utils.cache import CacheTier, PipelineCache, make_enrichment_cache_key
-from egregora.utils.exceptions import (
+from egregora.orchestration.cache import CacheTier, PipelineCache, make_enrichment_cache_key
+from egregora.orchestration.exceptions import (
     CacheDeserializationError,
     CachePayloadTypeError,
 )

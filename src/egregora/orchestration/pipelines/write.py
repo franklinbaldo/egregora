@@ -55,6 +55,7 @@ from egregora.knowledge.profiles import filter_opted_out_authors, process_comman
 from egregora.llm.api_keys import get_google_api_keys, validate_gemini_api_key
 from egregora.llm.rate_limit import init_rate_limiter
 from egregora.llm.usage import UsageTracker
+from egregora.orchestration.cache import PipelineCache
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.modules.media import process_media_for_window
@@ -71,7 +72,6 @@ from egregora.transformations import (
     save_checkpoint,
     split_window_into_n_parts,
 )
-from egregora.utils.cache import PipelineCache
 
 try:
     import dotenv
