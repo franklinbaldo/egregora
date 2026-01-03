@@ -100,9 +100,9 @@ jobs:
           # Use --unified=1 for smaller context (GitHub Actions env vars have ~256KB limit per value)
           git diff --unified=1 "origin/${BASE_REF}" "${HEAD_SHA}" -- . ':!uv.lock' ':!.jules/' ':!docs/' ':!README.md' ':!pyproject.toml' ':!tests/v3/infra/sinks/fixtures/' > .github/tmp/diff.txt
 
-          # Truncate diff if too large (keep total prompt under 150KB for reliable GITHUB_ENV heredoc)
+          # Truncate diff if too large (very conservative limit for GITHUB_ENV heredoc stability)
           DIFF_SIZE=$(wc -c < .github/tmp/diff.txt)
-          MAX_DIFF_SIZE=100000
+          MAX_DIFF_SIZE=80000
           if [ "$DIFF_SIZE" -gt "$MAX_DIFF_SIZE" ]; then
             head -c "$MAX_DIFF_SIZE" .github/tmp/diff.txt > .github/tmp/diff_truncated.txt
             echo -e "\n\n... [DIFF TRUNCATED: Original ${DIFF_SIZE} bytes, showing first ${MAX_DIFF_SIZE} bytes] ..." >> .github/tmp/diff_truncated.txt
@@ -162,14 +162,22 @@ jobs:
           echo "✓ Prompt constructed ($PROMPT_SIZE bytes)"
 
           # Check if prompt is too large for GITHUB_ENV heredoc (empirically tested limit)
-          if [[ $PROMPT_SIZE -gt 150000 ]]; then
-            echo "::error::Prompt is too large ($PROMPT_SIZE bytes). Max safe size for GITHUB_ENV heredoc: 150KB"
+          if [[ $PROMPT_SIZE -gt 120000 ]]; then
+            echo "::error::Prompt is too large ($PROMPT_SIZE bytes). Max safe size for GITHUB_ENV heredoc: 120KB"
             echo "::error::Reduce MAX_DIFF_SIZE in the diff collection step to decrease prompt size"
             exit 1
           fi
 
           # Export prompt as environment variable for Gemini action
           PROMPT_DELIMITER="eof_gemini_prompt_${{ github.run_id }}_${{ github.run_attempt }}"
+
+          # Check for delimiter collision (extremely rare but would cause silent failure)
+          if grep -qF "$PROMPT_DELIMITER" .github/tmp/prompt.txt; then
+            echo "::error::Delimiter collision detected in prompt content"
+            echo "::error::The delimiter '$PROMPT_DELIMITER' appears in the prompt"
+            exit 1
+          fi
+
           {
             echo "GEMINI_PROMPT<<${PROMPT_DELIMITER}"
             cat .github/tmp/prompt.txt
