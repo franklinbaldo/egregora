@@ -1,14 +1,12 @@
-"""Behavioral tests for path utilities - focusing on slugify function.
-
-Tests the slugify function behavior to ensure compatibility with MkDocs/Python Markdown.
-Using TDD approach to document expected behavior before refactoring.
-"""
+"""Behavioral tests for V3 core utility functions."""
 
 from pathlib import Path
 
 import pytest
 
+# Corrected imports for the new canonical location
 from egregora_v3.core.utils import (
+    InvalidInputError,
     PathTraversalError,
     safe_path_join,
     simple_chunk_text,
@@ -110,6 +108,11 @@ class TestSlugifyEdgeCases:
         result = slugify("😀😀😀")
         assert result == "post"  # Falls back when nothing remains
 
+    def test_none_input_raises_invalid_input_error(self):
+        """BEHAVIOR: None input raises InvalidInputError."""
+        with pytest.raises(InvalidInputError, match="Input text cannot be None"):
+            slugify(None)
+
     def test_numbers_preserved(self):
         """BEHAVIOR: Numbers are preserved in slugs."""
         assert slugify("Test 123") == "test-123"
@@ -150,6 +153,12 @@ class TestSlugifyMaxLength:
     def test_short_text_not_padded(self):
         """BEHAVIOR: Short text is not padded to max_len."""
         assert slugify("hi", max_len=60) == "hi"
+
+    def test_text_shorter_than_max_len_is_not_truncated(self):
+        """BEHAVIOR: Text shorter than max_len is not truncated."""
+        text = "a" * 20
+        result = slugify(text, max_len=30)
+        assert result == text
 
 
 class TestSlugifySecurity:
@@ -224,6 +233,7 @@ class TestSlugifyRealWorldExamples:
         assert slugify("my-existing-slug") == "my-existing-slug"
 
 
+# Tests for other utils in the same file
 def test_safe_path_join_valid(tmp_path: Path):
     """Tests a valid, simple path join."""
     result = safe_path_join(tmp_path, "posts", "my-article.md")
@@ -261,13 +271,6 @@ def test_safe_path_join_current_dir(tmp_path: Path):
     result = safe_path_join(tmp_path, "a", ".", "b.txt")
     expected = tmp_path.resolve() / "a" / "b.txt"
     assert result == expected
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
-
-import pytest
-from egregora_v3.core.utils import simple_chunk_text
 
 
 def test_simple_chunk_text_empty():
