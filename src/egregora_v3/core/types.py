@@ -9,6 +9,8 @@ from xml.etree.ElementTree import Element, register_namespace, SubElement, tostr
 
 from markdown_it import MarkdownIt
 from pydantic import BaseModel, Field, model_validator
+
+from egregora.utils.exceptions import InvalidInputError
 from egregora_v3.core.utils import slugify
 
 # --- XML Configuration ---
@@ -186,8 +188,13 @@ class Document(Entry):
         slug = internal_metadata.get("slug")
 
         # If still no slug, generate from title if it exists
-        if not slug and data.get("title"):
-            slug = slugify(str(data["title"]).strip())
+        title = data.get("title")
+        if not slug and title:
+            try:
+                slug = slugify(title.strip())
+            except (InvalidInputError, AttributeError):
+                # Ignore if title is not a valid string for slugify
+                pass
 
         if slug:
             # Set the derived values

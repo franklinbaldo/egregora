@@ -4,6 +4,7 @@ from pathlib import Path
 import yaml
 from egregora_v3.core.types import Document, DocumentStatus, Feed
 from egregora_v3.core.utils import slugify
+from egregora.utils.exceptions import InvalidInputError
 
 
 class MkDocsOutputSink:
@@ -102,9 +103,15 @@ class MkDocsOutputSink:
 
         """
         # A list of potential filename values. The first valid one is used.
+        slug_from_title = None
+        try:
+            slug_from_title = slugify(doc.title, max_len=60)
+        except InvalidInputError:
+            pass  # Title was None, slug_from_title remains None
+
         potential_filenames = [
             doc.slug,
-            slugify(doc.title, max_len=60) if doc.title else None,
+            slug_from_title,
             slugify(doc.id, max_len=60),
         ]
 

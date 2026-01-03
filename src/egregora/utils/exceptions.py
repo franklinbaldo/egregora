@@ -38,3 +38,11 @@ class CachePayloadTypeError(CacheError):
             f"Unexpected cache payload type for key '{key}': got {payload_type.__name__}, expected dict."
         )
         super().__init__(message)
+
+
+class SlugifyError(EgregoraError):
+    """Base exception for slugify-related errors."""
+
+
+class InvalidInputError(SlugifyError):
+    """Raised when the input to a function is invalid."""
