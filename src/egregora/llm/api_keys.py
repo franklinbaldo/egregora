@@ -1,8 +1,4 @@
-"""Environment variable utilities for Egregora.
-
-This module provides utilities for accessing environment variables,
-particularly for API keys and credentials.
-"""
+"""API key utilities for LLM providers."""
 
 from __future__ import annotations
 
@@ -87,14 +83,6 @@ def validate_gemini_api_key(api_key: str | None = None) -> None:
         raise ValueError(msg) from e
 
 
-__all__ = [
-    "get_google_api_key",
-    "get_google_api_keys",
-    "google_api_key_available",
-    "validate_gemini_api_key",
-]
-
-
 def get_google_api_keys() -> list[str]:
     """Get list of Google API keys from environment.
 
@@ -124,3 +112,11 @@ def get_google_api_keys() -> list[str]:
             keys.append(val.strip())
 
     return keys
+
+
+__all__ = [
+    "get_google_api_key",
+    "get_google_api_keys",
+    "google_api_key_available",
+    "validate_gemini_api_key",
+]
