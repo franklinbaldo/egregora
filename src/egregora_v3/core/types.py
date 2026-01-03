@@ -9,7 +9,7 @@ from xml.etree.ElementTree import Element, register_namespace, SubElement, tostr
 
 from markdown_it import MarkdownIt
 from pydantic import BaseModel, Field, model_validator
-from egregora_v3.core.utils import slugify
+from egregora.utils.paths import slugify
 
 # --- XML Configuration ---
 

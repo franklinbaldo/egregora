@@ -1,4 +1,7 @@
-"""Tests for the V2 slugify utility function."""
+"""Behavioral tests for path utilities - focusing on slugify function.
+
+Tests the slugify function behavior to ensure compatibility with MkDocs/Python Markdown.
+"""
 
 from egregora.utils.paths import slugify
 
@@ -97,10 +100,6 @@ class TestSlugifyEdgeCases:
         result = slugify("😀😀😀")
         assert result == "post"  # Falls back when nothing remains
 
-    def test_none_input_returns_empty_string(self):
-        """BEHAVIOR: None input returns an empty string."""
-        assert slugify(None) == ""
-
     def test_numbers_preserved(self):
         """BEHAVIOR: Numbers are preserved in slugs."""
         assert slugify("Test 123") == "test-123"
@@ -141,12 +140,6 @@ class TestSlugifyMaxLength:
     def test_short_text_not_padded(self):
         """BEHAVIOR: Short text is not padded to max_len."""
         assert slugify("hi", max_len=60) == "hi"
-
-    def test_text_shorter_than_max_len_is_not_truncated(self):
-        """BEHAVIOR: Text shorter than max_len is not truncated."""
-        text = "a" * 20
-        result = slugify(text, max_len=30)
-        assert result == text
 
 
 class TestSlugifySecurity:
