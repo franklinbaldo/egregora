@@ -85,222 +85,119 @@ jobs:
           BASE_SHA: ${{ steps.pr.outputs.base_sha }}
           BASE_REF: ${{ steps.pr.outputs.base_ref }}
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
-          PR_TITLE: ${{ steps.pr.outputs.pr_title }}
-          PR_BODY: ${{ steps.pr.outputs.pr_body }}
           USER_INSTRUCTIONS: ${{ steps.pr.outputs.user_instructions }}
           TRIGGER_MODE: ${{ steps.pr.outputs.trigger_mode }}
         run: |
           set -euo pipefail
 
-          # Ensure we have the base ref locally (works for forks and distant branches)
-          # No --depth flag since we already did fetch-depth: 0 in checkout
-          git fetch origin "${BASE_REF}"
+          # Create temp directory for files
+          mkdir -p .github/tmp
+
+          # Ensure we have the base ref locally
+          git fetch --quiet origin "${BASE_REF}" 2>/dev/null || git fetch origin "${BASE_REF}"
 
           # Get unified diff between base and head, excluding non-code assets
-          git diff --unified=3 "origin/${BASE_REF}" "${HEAD_SHA}" -- . ':!uv.lock' ':!.jules/' ':!docs/' ':!README.md' ':!pyproject.toml' ':!tests/v3/infra/sinks/fixtures/' > pr.diff
+          git diff --unified=1 "origin/${BASE_REF}" "${HEAD_SHA}" -- . ':!uv.lock' ':!.jules/' ':!docs/' ':!README.md' ':!pyproject.toml' ':!tests/v3/infra/sinks/fixtures/' > .github/tmp/diff.txt
 
-          # Pass full diff to Gemini - let context window limit naturally fail
-          # for very large PRs rather than silently truncating
-          cp pr.diff pr-trimmed.diff
-
-          # Get commit messages to understand intent
-          # Format: hash - subject + body (if any)
-          git log --format="%h - %s%n%b" "origin/${BASE_REF}..${HEAD_SHA}" > commits.txt || echo "(No commits found)" > commits.txt
-
-          # Read CLAUDE.md for project-specific context
-          CLAUDE_MD=""
-          if [ -f "CLAUDE.md" ]; then
-            CLAUDE_MD=$(cat CLAUDE.md)
+          # Truncate diff if too large
+          DIFF_SIZE=$(wc -c < .github/tmp/diff.txt)
+          MAX_DIFF_SIZE=80000
+          if [ "$DIFF_SIZE" -gt "$MAX_DIFF_SIZE" ]; then
+            head -c "$MAX_DIFF_SIZE" .github/tmp/diff.txt > .github/tmp/diff_truncated.txt
+            echo -e "\n\n... [DIFF TRUNCATED: Original ${DIFF_SIZE} bytes, showing first ${MAX_DIFF_SIZE} bytes] ..." >> .github/tmp/diff_truncated.txt
+            mv .github/tmp/diff_truncated.txt .github/tmp/diff.txt
+            echo "⚠️  Diff truncated from $DIFF_SIZE to $MAX_DIFF_SIZE bytes"
           fi
 
-          # Output diff and context for the next step
-          # Use unique delimiters to avoid conflicts with diff content
-          RANDOM_ID="${{ github.run_id }}_${{ github.run_attempt }}_$(date +%s%N)"
-          DIFF_DELIMITER="ghadelimiter_diff_${RANDOM_ID}"
-          CLAUDE_DELIMITER="ghadelimiter_claude_${RANDOM_ID}"
-          COMMITS_DELIMITER="ghadelimiter_commits_${RANDOM_ID}"
-          PR_BODY_DELIMITER="ghadelimiter_pr_body_${RANDOM_ID}"
+          # Get commit messages
+          git log --format="%h - %s" -20 "origin/${BASE_REF}..${HEAD_SHA}" > .github/tmp/commits.txt || echo "(No commits found)" > .github/tmp/commits.txt
 
+          # Output metadata
           {
-            echo "diff<<${DIFF_DELIMITER}"
-            cat pr-trimmed.diff
-            echo "${DIFF_DELIMITER}"
-            echo "claude_md<<${CLAUDE_DELIMITER}"
-            echo "$CLAUDE_MD"
-            echo "${CLAUDE_DELIMITER}"
-            echo "commits<<${COMMITS_DELIMITER}"
-            cat commits.txt
-            echo "${COMMITS_DELIMITER}"
-            echo "pr_body<<${PR_BODY_DELIMITER}"
-            echo "$PR_BODY"
-            echo "${PR_BODY_DELIMITER}"
             echo "user_instructions=$USER_INSTRUCTIONS"
             echo "trigger_mode=$TRIGGER_MODE"
           } >> "$GITHUB_OUTPUT"
 
-      # Construct the shared prompt dynamically after collection using JS for safety
+          echo "✓ Collected diff ($(wc -c < .github/tmp/diff.txt) bytes) and commits"
+
+      # Setup Python environment for prompt construction
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: "3.12"
+          extras: "--no-dev"
+
+      # Construct the prompt using Python + Jinja2
       - name: Construct Gemini Prompt
         id: construct_prompt
-        uses: actions/github-script@v8
         env:
-          DIFF: ${{ steps.collect.outputs.diff }}
-          CLAUDE_MD: ${{ steps.collect.outputs.claude_md }}
-          COMMITS: ${{ steps.collect.outputs.commits }}
-          PR_BODY: ${{ steps.collect.outputs.pr_body }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
           PR_TITLE: ${{ steps.pr.outputs.pr_title }}
           PR_AUTHOR: ${{ steps.pr.outputs.pr_author }}
-          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+          PR_BODY: ${{ steps.pr.outputs.pr_body }}
           USER_INSTRUCTIONS: ${{ steps.collect.outputs.user_instructions }}
           TRIGGER_MODE: ${{ steps.collect.outputs.trigger_mode }}
-        with:
-          script: |
-            const fs = require('fs');
+          TEMPLATE_PATH: .github/prompts/pr-review-prompt-improved.md
+          DIFF_PATH: .github/tmp/diff.txt
+          CLAUDE_MD_PATH: CLAUDE.md
+          COMMITS_PATH: .github/tmp/commits.txt
+          OUTPUT_PATH: .github/tmp/prompt.txt
+        run: |
+          set -euo pipefail
 
-            // Read the prompt template
-            const promptTemplate = fs.readFileSync('.github/prompts/pr-review-prompt.md', 'utf8');
+          # Construct prompt using Python + Jinja2
+          uv run --quiet python .github/scripts/construct_gemini_prompt.py
 
-            // Replace placeholders with actual values
-            const userInstructionsText = process.env.USER_INSTRUCTIONS
-              ? `**User Request:** ${process.env.USER_INSTRUCTIONS}`
-              : '';
+          # Verify prompt file was created
+          if [[ ! -f .github/tmp/prompt.txt ]]; then
+            echo "::error::Prompt file was not created"
+            exit 1
+          fi
 
-            const prompt = promptTemplate
-              .replace(/\{\{REPOSITORY\}\}/g, context.repo.owner + '/' + context.repo.repo)
-              .replace(/\{\{PR_NUMBER\}\}/g, process.env.PR_NUMBER)
-              .replace(/\{\{PR_TITLE\}\}/g, process.env.PR_TITLE)
-              .replace(/\{\{PR_AUTHOR\}\}/g, process.env.PR_AUTHOR)
-              .replace(/\{\{TRIGGER_MODE\}\}/g, process.env.TRIGGER_MODE)
-              .replace(/\{\{USER_INSTRUCTIONS\}\}/g, userInstructionsText)
-              .replace(/\{\{PR_BODY\}\}/g, process.env.PR_BODY)
-              .replace(/\{\{COMMITS\}\}/g, process.env.COMMITS)
-              .replace(/\{\{DIFF\}\}/g, process.env.DIFF)
-              .replace(/\{\{CLAUDE_MD\}\}/g, process.env.CLAUDE_MD);
+          PROMPT_SIZE=$(wc -c < .github/tmp/prompt.txt)
+          echo "✓ Prompt constructed ($PROMPT_SIZE bytes)"
 
-            core.exportVariable('GEMINI_PROMPT', prompt);
-
-      # ----------------------------------------------------------------------
-      # Gemini Review Pipeline with Fallback Strategy
-      # 1. Gemini 3 Pro Preview (highest quality)
-      # 2. Gemini 3 Flash Preview (fastest 3.x tier)
-      # 3. Gemini 2.5 Pro (best quality in 2.5 family)
-      # 4. Gemini 2.5 Flash (fast 2.5 fallback)
-      # 5. Gemini 2.5 Flash Lite (lowest cost fallback)
-      # ----------------------------------------------------------------------
-
-      - name: Run Gemini PR Review (3 Pro Preview)
-        id: gemini_3_pro
-        continue-on-error: true
-        uses: google-github-actions/run-gemini-cli@v0
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: "gemini-3-pro-preview"
-          prompt: ${{ env.GEMINI_PROMPT }}
-
-      - name: Run Gemini PR Review (3 Flash Preview)
-        id: gemini_3_flash
-        if: steps.gemini_3_pro.outcome == 'failure'
-        continue-on-error: true
-        uses: google-github-actions/run-gemini-cli@v0
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: "gemini-3-flash-preview"
-          prompt: ${{ env.GEMINI_PROMPT }}
-
-      - name: Run Gemini PR Review (2.5 Pro)
-        id: gemini_25_pro
-        if: steps.gemini_3_pro.outcome == 'failure' && steps.gemini_3_flash.outcome == 'failure'
-        continue-on-error: true
-        uses: google-github-actions/run-gemini-cli@v0
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: "gemini-2.5-pro"
-          prompt: ${{ env.GEMINI_PROMPT }}
-
-      - name: Run Gemini PR Review (2.5 Flash)
-        id: gemini_25_flash
-        if: steps.gemini_3_pro.outcome == 'failure' && steps.gemini_3_flash.outcome == 'failure' && steps.gemini_25_pro.outcome == 'failure'
-        continue-on-error: true
-        uses: google-github-actions/run-gemini-cli@v0
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: "gemini-2.5-flash"
-          prompt: ${{ env.GEMINI_PROMPT }}
-
-      - name: Run Gemini PR Review (2.5 Flash Lite)
-        id: gemini_25_lite
-        if: steps.gemini_3_pro.outcome == 'failure' && steps.gemini_3_flash.outcome == 'failure' && steps.gemini_25_pro.outcome == 'failure' && steps.gemini_25_flash.outcome == 'failure'
-        continue-on-error: true
-        uses: google-github-actions/run-gemini-cli@v0
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: "gemini-2.5-flash-lite"
-          prompt: ${{ env.GEMINI_PROMPT }}
-
-      - name: Consolidate Gemini Results
+      # Call Gemini API directly with fallback models
+      - name: Call Gemini API with fallback models
         id: gemini_final
-        if: always()
-        uses: actions/github-script@v8
         env:
-          OUTCOME_3_PRO: ${{ steps.gemini_3_pro.outcome }}
-          SUMMARY_3_PRO: ${{ steps.gemini_3_pro.outputs.summary }}
-          OUTCOME_3_FLASH: ${{ steps.gemini_3_flash.outcome }}
-          SUMMARY_3_FLASH: ${{ steps.gemini_3_flash.outputs.summary }}
-          OUTCOME_25_PRO: ${{ steps.gemini_25_pro.outcome }}
-          SUMMARY_25_PRO: ${{ steps.gemini_25_pro.outputs.summary }}
-          OUTCOME_25_FLASH: ${{ steps.gemini_25_flash.outcome }}
-          SUMMARY_25_FLASH: ${{ steps.gemini_25_flash.outputs.summary }}
-          OUTCOME_25_LITE: ${{ steps.gemini_25_lite.outcome }}
-          SUMMARY_25_LITE: ${{ steps.gemini_25_lite.outputs.summary }}
-        with:
-          script: |
-            const outcomes = {
-              threePro: process.env.OUTCOME_3_PRO,
-              threeFlash: process.env.OUTCOME_3_FLASH,
-              twoFivePro: process.env.OUTCOME_25_PRO,
-              twoFiveFlash: process.env.OUTCOME_25_FLASH,
-              twoFiveLite: process.env.OUTCOME_25_LITE
-            };
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
 
-            const summaries = {
-              threePro: process.env.SUMMARY_3_PRO,
-              threeFlash: process.env.SUMMARY_3_FLASH,
-              twoFivePro: process.env.SUMMARY_25_PRO,
-              twoFiveFlash: process.env.SUMMARY_25_FLASH,
-              twoFiveLite: process.env.SUMMARY_25_LITE
-            };
+          # Call Gemini API using bash script with built-in fallback
+          if bash .github/scripts/call_gemini_api.sh; then
+            echo "✓ Gemini API call succeeded"
+          else
+            echo "::warning::Gemini API call failed after trying all models"
+          fi
 
-            let finalOutcome = 'failure';
-            let finalSummary = '';
-            let finalModel = 'unknown';
+          # Read metadata and set outputs
+          if [[ -f .github/tmp/gemini_metadata.json ]]; then
+            OUTCOME=$(jq -r '.outcome' .github/tmp/gemini_metadata.json)
+            MODEL=$(jq -r '.model' .github/tmp/gemini_metadata.json)
+            RESPONSE_LENGTH=$(jq -r '.response_length' .github/tmp/gemini_metadata.json)
 
-            if (outcomes.threePro === 'success') {
-              finalOutcome = 'success';
-              finalSummary = summaries.threePro;
-              finalModel = 'gemini-3-pro-preview';
-            } else if (outcomes.threeFlash === 'success') {
-              finalOutcome = 'success';
-              finalSummary = summaries.threeFlash;
-              finalModel = 'gemini-3-flash-preview';
-            } else if (outcomes.twoFivePro === 'success') {
-              finalOutcome = 'success';
-              finalSummary = summaries.twoFivePro;
-              finalModel = 'gemini-2.5-pro';
-            } else if (outcomes.twoFiveFlash === 'success') {
-              finalOutcome = 'success';
-              finalSummary = summaries.twoFiveFlash;
-              finalModel = 'gemini-2.5-flash';
-            } else if (outcomes.twoFiveLite === 'success') {
-              finalOutcome = 'success';
-              finalSummary = summaries.twoFiveLite;
-              finalModel = 'gemini-2.5-flash-lite';
-            }
+            echo "outcome=$OUTCOME" >> "$GITHUB_OUTPUT"
+            echo "model=$MODEL" >> "$GITHUB_OUTPUT"
 
-            core.setOutput('outcome', finalOutcome);
-            core.setOutput('model', finalModel);
-            core.setOutput('summary', finalSummary);
+            # Store response in output using heredoc
+            if [[ -f .github/tmp/gemini_response.txt ]]; then
+              {
+                echo "summary<<EOF_GEMINI_RESPONSE"
+                cat .github/tmp/gemini_response.txt
+                echo "EOF_GEMINI_RESPONSE"
+              } >> "$GITHUB_OUTPUT"
+            fi
 
-            console.log(`Final Model: ${finalModel}`);
-            console.log(`Final Outcome: ${finalOutcome}`);
+            echo "✓ Outcome: $OUTCOME, Model: $MODEL, Response: $RESPONSE_LENGTH bytes"
+          else
+            echo "outcome=failure" >> "$GITHUB_OUTPUT"
+            echo "model=unknown" >> "$GITHUB_OUTPUT"
+            echo "summary=Metadata file not created" >> "$GITHUB_OUTPUT"
+            echo "::error::Gemini API call failed: metadata file not created"
+          fi
 
       - name: Parse Combined Response
         id: parse_combined
@@ -312,35 +209,45 @@ jobs:
           script: |
             const raw = process.env.GEMINI_RESPONSE || '';
 
-            let payload = {
-              review_comment: '',
-              merge: 'unknown',
-              merge_reason: 'Gemini response missing or unparsable',
-              merge_risk: 'unknown',
-              pr_title: '',
-              pr_body: ''
-            };
+            // Store raw response for debugging
+            const preview = raw.length > 500 ? raw.substring(0, 500) + '...[truncated]' : raw;
+            core.setOutput('raw_response_preview', preview);
 
-            if (raw) {
-              const jsonMatch = raw.match(/```json\s*([\s\S]*?)\s*```/i) || raw.match(/\{[\s\S]*\}/);
-              const candidate = jsonMatch ? jsonMatch[1] || jsonMatch[0] : raw;
-              try {
-                const parsed = JSON.parse(candidate);
-                payload.review_comment = parsed.review_comment || '';
-                payload.merge = String(parsed.merge === true);
-                payload.merge_reason = parsed.merge_reason || 'No reason provided';
-                payload.merge_risk = parsed.merge_risk || 'unknown';
-                payload.pr_title = parsed.pr_title || '';
-                payload.pr_body = parsed.pr_body || '';
-              } catch (error) {
-                console.log(`Failed to parse Gemini JSON: ${error.message}`);
-              }
+            // Fail fast with specific errors
+            if (!raw) {
+              throw new Error('GEMINI_RESPONSE_EMPTY: Gemini returned no response');
             }
 
-            for (const [key, value] of Object.entries(payload)) {
-              core.setOutput(key, value);
+            // Extract JSON from response
+            const jsonMatch = raw.match(/```json\s*([\s\S]*?)\s*```/i) || raw.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) {
+              throw new Error(`NO_JSON_FOUND: Response does not contain JSON. Preview: ${preview}`);
             }
-            console.log('Parsed Gemini response:', payload);
+
+            const candidate = jsonMatch[1] || jsonMatch[0];
+
+            // Parse JSON - let it throw if invalid
+            let parsed;
+            try {
+              parsed = JSON.parse(candidate);
+            } catch (error) {
+              throw new Error(`JSON_PARSE_ERROR: ${error.message}. JSON candidate: ${candidate.substring(0, 200)}`);
+            }
+
+            // Validate required field
+            if (!parsed.review_comment || parsed.review_comment.trim() === '') {
+              throw new Error('EMPTY_REVIEW_COMMENT: JSON parsed but review_comment field is empty or missing');
+            }
+
+            // Extract fields
+            core.setOutput('review_comment', parsed.review_comment);
+            core.setOutput('merge', String(parsed.merge === true));
+            core.setOutput('merge_reason', parsed.merge_reason || 'No reason provided');
+            core.setOutput('merge_risk', parsed.merge_risk || 'unknown');
+            core.setOutput('pr_title', parsed.pr_title || '');
+            core.setOutput('pr_body', parsed.pr_body || '');
+
+            console.log('Successfully parsed Gemini response');
 
       - name: Update PR Title/Description
         if: steps.gemini_final.outputs.outcome == 'success' && (steps.parse_combined.outputs.pr_title != '' || steps.parse_combined.outputs.pr_body != '')
@@ -381,31 +288,6 @@ jobs:
             });
             console.log('Updated PR metadata:', update);
 
-      - name: Check Gemini step result
-        if: always()
-        run: |
-          echo "Gemini pipeline outcome: ${{ steps.gemini_final.outputs.outcome }}"
-
-          if [ "${{ steps.gemini_final.outputs.outcome }}" != "success" ]; then
-            echo "::warning::All Gemini CLI attempts failed or were skipped"
-            echo "::group::Debugging Information"
-            echo "Job status: ${{ job.status }}"
-            echo "3 Pro outcome: ${{ steps.gemini_3_pro.outcome }}"
-            echo "3 Flash outcome: ${{ steps.gemini_3_flash.outcome }}"
-            echo "2.5 Pro outcome: ${{ steps.gemini_25_pro.outcome }}"
-            echo "2.5 Flash outcome: ${{ steps.gemini_25_flash.outcome }}"
-            echo "2.5 Flash Lite outcome: ${{ steps.gemini_25_lite.outcome }}"
-            echo "::endgroup::"
-            # Check if API key is set (without exposing it or its length)
-            if [ -z "${{ secrets.GEMINI_API_KEY }}" ]; then
-              echo "::error::GEMINI_API_KEY secret is not set!"
-            else
-              echo "GEMINI_API_KEY is configured"
-            fi
-          fi
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
       - name: Post review as PR comment
         if: always()
         uses: actions/github-script@v8
@@ -413,8 +295,11 @@ jobs:
           GEMINI_REVIEW: ${{ steps.parse_combined.outputs.review_comment || steps.gemini_final.outputs.summary }}
           GEMINI_OUTCOME: ${{ steps.gemini_final.outputs.outcome }}
           GEMINI_MODEL: ${{ steps.gemini_final.outputs.model }}
+          RAW_RESPONSE_PREVIEW: ${{ steps.parse_combined.outputs.raw_response_preview }}
           PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
           TRIGGER_MODE: ${{ steps.collect.outputs.trigger_mode }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -422,35 +307,42 @@ jobs:
             const triggerMode = process.env.TRIGGER_MODE;
             const geminiOutcome = process.env.GEMINI_OUTCOME;
             const geminiModel = process.env.GEMINI_MODEL;
+            const rawResponsePreview = process.env.RAW_RESPONSE_PREVIEW;
+            const runId = process.env.RUN_ID;
+            const runAttempt = process.env.RUN_ATTEMPT;
 
             let review = process.env.GEMINI_REVIEW;
             let body;
 
-            // Add header with trigger mode info
             const triggerEmoji = triggerMode === 'manual' ? '👋' : '🤖';
             const triggerText = triggerMode === 'manual' ? 'Manual review requested' : 'Automatic review';
 
             if (geminiOutcome !== 'success' || !review) {
-              // Gemini step failed - provide diagnostic info
+              // Build error comment
               body = `## ⚠️ Gemini Code Review Failed
 
-            The Gemini CLI review failed to complete after attempting all fallback models (3 Pro → 3 Flash → 2.5 Pro → 2.5 Flash → 2.5 Flash Lite).
+**Failure Type:** Gemini API call failed
+**Model:** ${geminiModel || 'none'}
+**Outcome:** \`${geminiOutcome}\`
 
-            Possible causes:
-            - **API Key Issues:** The \`GEMINI_API_KEY\` secret may be missing or invalid
-            - **Quota/Rate Limiting:** API quota may be exhausted
-            - **Timeout:** The request took too long
+### 🔧 Troubleshooting Steps
 
-            ---
-            *${triggerText} • Step outcome: ${geminiOutcome}*`;
+- Verify \`GEMINI_API_KEY\` secret is set correctly
+- Check Google AI Studio quota/availability
+- Review [workflow logs](../../actions/runs/${runId}/attempts/${runAttempt}) for detailed error messages
+
+${rawResponsePreview ? `### 📄 Raw Response Preview\n\n\`\`\`\n${rawResponsePreview}\n\`\`\`\n` : ''}
+
+---
+*${triggerText}* • Run ID: ${runId}`;
             } else {
-              // Gemini step succeeded
+              // Success
               body = `## ${triggerEmoji} Gemini Code Review
 
-            ${review}
+${review}
 
-            ---
-            *${triggerText} • Generated by ${geminiModel} using official Google GitHub Action*`;
+---
+*${triggerText} • Generated by ${geminiModel} using Gemini API*`;
             }
 
             await github.rest.issues.createComment({
@@ -463,7 +355,7 @@ jobs:
             if (geminiOutcome === 'success') {
               console.log("✅ Review posted successfully!");
             } else {
-              console.log("⚠️ Diagnostic comment posted due to Gemini step failure");
+              console.log("⚠️ Diagnostic comment posted due to Gemini failure");
             }
 
   # This job sets the check status for auto-merge
