@@ -12,5 +12,3 @@ class CacheKeyNotFoundError(EgregoraError):
         self.key = key
         message = f"Key not found in cache: '{key}'"
         super().__init__(message)
-
-

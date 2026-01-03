@@ -1,8 +1,9 @@
 """Tests for shared agent cache utilities."""
+
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -42,9 +43,7 @@ def test_make_enrichment_cache_key_is_sensitive_to_version():
     assert key1 != key2
 
 
-def test_enrichment_cache_load_success(
-    enrichment_cache: EnrichmentCache, mock_cache_backend: MagicMock
-):
+def test_enrichment_cache_load_success(enrichment_cache: EnrichmentCache, mock_cache_backend: MagicMock):
     """Test successful loading of a valid cache entry."""
     mock_cache_backend.get.return_value = {"data": "test"}
     result = enrichment_cache.load("some_key")
@@ -72,26 +71,20 @@ def test_enrichment_cache_load_payload_type_error(
     mock_cache_backend.delete.assert_called_once_with("wrong_type_key")
 
 
-def test_enrichment_cache_store(
-    enrichment_cache: EnrichmentCache, mock_cache_backend: MagicMock
-):
+def test_enrichment_cache_store(enrichment_cache: EnrichmentCache, mock_cache_backend: MagicMock):
     """Test storing a payload in the cache."""
     payload = {"data": "value"}
     enrichment_cache.store("my_key", payload)
     mock_cache_backend.set.assert_called_once_with("my_key", payload, expire=None)
 
 
-def test_enrichment_cache_delete(
-    enrichment_cache: EnrichmentCache, mock_cache_backend: MagicMock
-):
+def test_enrichment_cache_delete(enrichment_cache: EnrichmentCache, mock_cache_backend: MagicMock):
     """Test deleting an entry from the cache."""
     enrichment_cache.delete("my_key")
     mock_cache_backend.delete.assert_called_once_with("my_key")
 
 
-def test_enrichment_cache_close(
-    enrichment_cache: EnrichmentCache, mock_cache_backend: MagicMock
-):
+def test_enrichment_cache_close(enrichment_cache: EnrichmentCache, mock_cache_backend: MagicMock):
     """Test closing the cache backend."""
     enrichment_cache.close()
     mock_cache_backend.close.assert_called_once()

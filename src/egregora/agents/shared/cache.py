@@ -1,20 +1,18 @@
 """Shared caching utilities for agents."""
+
 from __future__ import annotations
 
 import json
 import logging
 from dataclasses import dataclass
 from hashlib import sha256
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import Annotated, Any
 
 from egregora.agents.shared.exceptions import (
     CacheDeserializationError,
     CachePayloadTypeError,
 )
 from egregora.utils.cache_backend import CacheBackend
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 

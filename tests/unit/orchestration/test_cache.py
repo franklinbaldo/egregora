@@ -1,4 +1,5 @@
 """Tests for the orchestration cache."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -17,9 +18,10 @@ def temp_cache_dir(tmp_path: Path) -> Path:
 
 def test_pipeline_cache_initialization(temp_cache_dir: Path):
     """Test that PipelineCache initializes its tiers correctly."""
-    with patch("diskcache.Cache") as mock_diskcache, patch(
-        "egregora.orchestration.cache.EnrichmentCache"
-    ) as mock_enrichment_cache:
+    with (
+        patch("diskcache.Cache") as mock_diskcache,
+        patch("egregora.orchestration.cache.EnrichmentCache") as mock_enrichment_cache,
+    ):
         cache = PipelineCache(temp_cache_dir)
 
         assert cache.base_dir == temp_cache_dir
@@ -45,7 +47,10 @@ def test_pipeline_cache_initialization(temp_cache_dir: Path):
     ],
 )
 def test_pipeline_cache_should_refresh(
-    temp_cache_dir: Path, refresh_tiers: set[str] | None, tier_to_check: CacheTier, expected: bool
+    temp_cache_dir: Path,
+    refresh_tiers: set[str] | None,
+    tier_to_check: CacheTier,
+    expected: bool,  # noqa: FBT001
 ):
     """Test the should_refresh logic."""
     cache = PipelineCache(temp_cache_dir, refresh_tiers=refresh_tiers)
@@ -54,9 +59,10 @@ def test_pipeline_cache_should_refresh(
 
 def test_pipeline_cache_close(temp_cache_dir: Path):
     """Test that closing the PipelineCache closes all tier caches."""
-    with patch("diskcache.Cache") as mock_diskcache, patch(
-        "egregora.orchestration.cache.EnrichmentCache"
-    ) as mock_enrichment_cache:
+    with (
+        patch("diskcache.Cache") as mock_diskcache,
+        patch("egregora.orchestration.cache.EnrichmentCache") as mock_enrichment_cache,
+    ):
         # Instantiate mocks for the tier caches
         mock_enrichment_disk_cache = MagicMock()
         mock_rag_cache = MagicMock()
