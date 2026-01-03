@@ -161,31 +161,26 @@ jobs:
           PROMPT_SIZE=$(wc -c < .github/tmp/prompt.txt)
           echo "✓ Prompt constructed ($PROMPT_SIZE bytes)"
 
-          # Check if prompt is too large for GITHUB_ENV heredoc (empirically tested limit)
-          if [[ $PROMPT_SIZE -gt 120000 ]]; then
-            echo "::error::Prompt is too large ($PROMPT_SIZE bytes). Max safe size for GITHUB_ENV heredoc: 120KB"
-            echo "::error::Reduce MAX_DIFF_SIZE in the diff collection step to decrease prompt size"
-            exit 1
-          fi
+      - name: Export Gemini Prompt
+        id: export_prompt
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const promptPath = '.github/tmp/prompt.txt';
 
-          # Export prompt as environment variable for Gemini action
-          # Generate a unique delimiter using run ID and timestamp to avoid collisions
-          PROMPT_DELIMITER="EOF_PROMPT_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_$(date +%s%N)"
-
-          # Check for delimiter collision (extremely unlikely with unique ID)
-          if grep -qF "$PROMPT_DELIMITER" .github/tmp/prompt.txt; then
-            echo "::error::Delimiter collision detected (this should never happen)"
-            exit 1
-          fi
-
-          # Write to GITHUB_ENV with explicit quoting to prevent expansion
-          {
-            printf 'GEMINI_PROMPT<<%s\n' "$PROMPT_DELIMITER"
-            cat .github/tmp/prompt.txt
-            printf '%s\n' "$PROMPT_DELIMITER"
-          } >> "$GITHUB_ENV"
-
-          echo "✓ Prompt exported to GITHUB_ENV"
+            try {
+              if (fs.existsSync(promptPath)) {
+                const prompt = fs.readFileSync(promptPath, 'utf8');
+                // core.exportVariable handles multiline strings correctly
+                core.exportVariable('GEMINI_PROMPT', prompt);
+                console.log(`✓ Exported GEMINI_PROMPT (${prompt.length} bytes)`);
+              } else {
+                core.setFailed('Prompt file not found at ' + promptPath);
+              }
+            } catch (error) {
+              core.setFailed(`Failed to export prompt: ${error.message}`);
+            }
 
       # ----------------------------------------------------------------------
       # Gemini Review Pipeline using Official GitHub Action
