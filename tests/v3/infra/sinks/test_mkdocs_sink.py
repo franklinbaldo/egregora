@@ -1,5 +1,6 @@
 """Tests for the MkDocsOutputSink."""
 
+import pytest
 from datetime import datetime, timezone
 from pathlib import Path
 import tempfile
@@ -7,6 +8,29 @@ import yaml
 
 from egregora_v3.core.types import Author, Document, DocumentStatus, DocumentType, Feed, Category
 from egregora_v3.infra.sinks.mkdocs import MkDocsOutputSink
+
+
+@pytest.mark.parametrize(
+    "doc_params, expected_filename",
+    [
+        ({"slug": "explicit-slug", "title": "A Title", "id": "doc-id"}, "explicit-slug"),
+        ({"title": "A Title", "id": "doc-id"}, "a-title"),
+        # Untestable: ({"title": None, "id": "doc-id"}, "doc-id"), Pydantic validation prevents this
+        ({"title": "  ", "id": "doc-id"}, "doc-id"),
+    ],
+)
+def test_get_filename_fallback_logic(doc_params, expected_filename):
+    """Test the fallback logic of _get_filename."""
+    doc = Document(
+        content="...",
+        doc_type=DocumentType.POST,
+        internal_metadata={"slug": doc_params.get("slug")},
+        title=doc_params.get("title"),
+        id=doc_params.get("id"),
+        updated=datetime.now(timezone.utc),
+    )
+    sink = MkDocsOutputSink(Path("dummy"))
+    assert sink._get_filename(doc) == expected_filename
 
 
 def test_generate_frontmatter_single_author():

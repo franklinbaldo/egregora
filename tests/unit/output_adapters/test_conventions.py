@@ -154,3 +154,58 @@ class TestUrlConventionNoFilesystemDependency:
             assert "Path(" not in source, f"{method_name} contains Path operations"
             assert ".with_suffix(" not in source, f"{method_name} uses .with_suffix()"
             assert ".as_posix(" not in source, f"{method_name} uses .as_posix()"
+
+
+class TestStandardUrlConventionFallbacks:
+    """Test fallback logic for URL generation when metadata is missing."""
+
+    @pytest.fixture
+    def convention(self):
+        return StandardUrlConvention()
+
+    @pytest.fixture
+    def ctx(self):
+        return UrlContext()
+
+    def test_format_profile_url_fallback(self, convention, ctx):
+        """Test _format_profile_url fallback when slug is None."""
+        doc = Document(
+            type=DocumentType.PROFILE,
+            content="Test",
+            metadata={"subject": "author-uuid", "slug": None},
+        )
+        # Without a slug, it should use the document ID's first 8 chars
+        fallback_slug = doc.document_id[:8]
+        url = convention.canonical_url(doc, ctx)
+        assert f"/{convention.routes.profiles_prefix}/author-uuid/{fallback_slug}/" in url
+
+    def test_format_journal_url_fallback(self, convention, ctx):
+        """Test _format_journal_url fallback when labels are missing."""
+        doc = Document(type=DocumentType.JOURNAL, content="Test")
+        # Without window_label or slug, it should fall back to the posts prefix
+        url = convention.canonical_url(doc, ctx)
+        assert f"/{convention.routes.posts_prefix}/" == url
+
+    def test_format_annotation_url_fallback(self, convention, ctx):
+        """Test _format_annotation_url fallback when slug is None."""
+        doc = Document(
+            type=DocumentType.ANNOTATION,
+            content="Test",
+            metadata={"slug": None},
+        )
+        # slugify(None) raises, so it should fall back to the document ID's first 8 chars
+        fallback_slug = doc.document_id[:8]
+        url = convention.canonical_url(doc, ctx)
+        assert f"/{convention.routes.annotations_prefix}/{fallback_slug}/" in url
+
+    def test_format_post_url_fallback(self, convention, ctx):
+        """Test _format_post_url fallback when slug is None."""
+        doc = Document(
+            type=DocumentType.POST,
+            content="Test",
+            metadata={"slug": None, "date": "2025-01-10"},
+        )
+        # slugify(None) raises, so it should fall back to the document ID's first 8 chars
+        fallback_slug = doc.document_id[:8]
+        url = convention.canonical_url(doc, ctx)
+        assert f"/posts/2025-01-10-{fallback_slug}/" in url

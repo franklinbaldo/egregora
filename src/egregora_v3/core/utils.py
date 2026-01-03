@@ -1,10 +1,15 @@
 """V3 utility functions - independent of V2."""
 from pathlib import Path
 
+# Explicitly import from the canonical V2 utility
 from egregora.utils.paths import slugify
 
 
-class PathTraversalError(Exception):
+class V3UtilsError(Exception):
+    """Base exception for V3 utilities."""
+
+
+class PathTraversalError(V3UtilsError):
     """Raised when a path would escape its intended directory."""
 
 
