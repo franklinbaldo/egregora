@@ -43,18 +43,12 @@ from egregora.orchestration.exceptions import (
 from egregora.utils.datetime_utils import DateTimeError, DateTimeParsingError, InvalidDateTimeInputError
 
 
+from egregora_v3.core.utils import InvalidInputError, SlugifyError
+
+
 # Base exception for Egregora
 class EgregoraError(Exception):
     """Base exception for all Egregora errors."""
-
-
-# Slugify-specific exceptions (defined here as they're utils-level)
-class SlugifyError(EgregoraError):
-    """Base exception for slugify-related errors."""
-
-
-class InvalidInputError(SlugifyError):
-    """Raised when the input to a function is invalid."""
 
 
 __all__ = [
@@ -93,9 +87,10 @@ __all__ = [
     "ProfileGenerationError",
     "ProfileNotFoundError",
     "ProfileParseError",
-    "SlugifyError",
     "SourceNotFoundError",
     "WindowError",
     "WindowSizeError",
     "WindowSplitError",
+    "SlugifyError",
+    "InvalidInputError",
 ]
