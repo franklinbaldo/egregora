@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -39,9 +38,7 @@ def test_get_google_api_key_prefers_google_over_gemini(monkeypatch: pytest.Monke
 
 def test_get_google_api_key_raises_error_if_not_set():
     """It should raise a ValueError if no key is set."""
-    with pytest.raises(
-        ValueError, match="GOOGLE_API_KEY .* environment variable is required"
-    ):
+    with pytest.raises(ValueError, match=r"GOOGLE_API_KEY .* environment variable is required"):
         env.get_google_api_key()
 
 
@@ -65,9 +62,7 @@ def test_google_api_key_available_returns_false_if_not_set():
 
 
 @patch("google.genai.Client")
-def test_validate_gemini_api_key_success(
-    mock_genai_client: MagicMock, monkeypatch: pytest.MonkeyPatch
-):
+def test_validate_gemini_api_key_success(mock_genai_client: MagicMock, monkeypatch: pytest.MonkeyPatch):
     """It should not raise an error for a valid key."""
     monkeypatch.setenv("GOOGLE_API_KEY", "valid_key")
     # Mock the client and its methods to simulate a successful API call
@@ -81,9 +76,7 @@ def test_validate_gemini_api_key_success(
 
 
 @patch("google.genai.Client")
-def test_validate_gemini_api_key_failure(
-    mock_genai_client: MagicMock, monkeypatch: pytest.MonkeyPatch
-):
+def test_validate_gemini_api_key_failure(mock_genai_client: MagicMock, monkeypatch: pytest.MonkeyPatch):
     """It should raise a ValueError for an invalid key."""
     monkeypatch.setenv("GOOGLE_API_KEY", "invalid_key")
     # Mock the client to simulate an API error
