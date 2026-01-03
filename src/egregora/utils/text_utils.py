@@ -1,4 +1,4 @@
-"""Path-related utilities, including slugification."""
+"""General text manipulation utilities."""
 
 from unicodedata import normalize
 
