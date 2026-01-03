@@ -100,9 +100,9 @@ jobs:
           # Use --unified=1 for smaller context (GitHub Actions env vars have ~256KB limit per value)
           git diff --unified=1 "origin/${BASE_REF}" "${HEAD_SHA}" -- . ':!uv.lock' ':!.jules/' ':!docs/' ':!README.md' ':!pyproject.toml' ':!tests/v3/infra/sinks/fixtures/' > .github/tmp/diff.txt
 
-          # Truncate diff if too large (prompt template ~23KB + diff must fit in ~256KB total)
+          # Truncate diff if too large (keep total prompt under 150KB for reliable GITHUB_ENV heredoc)
           DIFF_SIZE=$(wc -c < .github/tmp/diff.txt)
-          MAX_DIFF_SIZE=150000
+          MAX_DIFF_SIZE=100000
           if [ "$DIFF_SIZE" -gt "$MAX_DIFF_SIZE" ]; then
             head -c "$MAX_DIFF_SIZE" .github/tmp/diff.txt > .github/tmp/diff_truncated.txt
             echo -e "\n\n... [DIFF TRUNCATED: Original ${DIFF_SIZE} bytes, showing first ${MAX_DIFF_SIZE} bytes] ..." >> .github/tmp/diff_truncated.txt
@@ -161,9 +161,10 @@ jobs:
           PROMPT_SIZE=$(wc -c < .github/tmp/prompt.txt)
           echo "✓ Prompt constructed ($PROMPT_SIZE bytes)"
 
-          # Check if prompt is too large for GITHUB_ENV
-          if [[ $PROMPT_SIZE -gt 200000 ]]; then
-            echo "::error::Prompt is too large ($PROMPT_SIZE bytes). Max recommended: 200KB for GITHUB_ENV"
+          # Check if prompt is too large for GITHUB_ENV heredoc (empirically tested limit)
+          if [[ $PROMPT_SIZE -gt 150000 ]]; then
+            echo "::error::Prompt is too large ($PROMPT_SIZE bytes). Max safe size for GITHUB_ENV heredoc: 150KB"
+            echo "::error::Reduce MAX_DIFF_SIZE in the diff collection step to decrease prompt size"
             exit 1
           fi
 
