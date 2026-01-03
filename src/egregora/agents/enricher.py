@@ -38,13 +38,13 @@ from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import BinaryContent
 
 from egregora.agents.exceptions import MediaStagingError
+from egregora.agents.shared.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.message_repository import MessageRepository
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.llm.providers.google_batch import GoogleBatchModel
 from egregora.orchestration.worker_base import BaseWorker
-from egregora.agents.shared.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.resources.prompts import render_prompt
 from egregora.security.zip import validate_zip_contents
 from egregora.utils.datetime_utils import ensure_datetime
