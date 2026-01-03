@@ -1,14 +1,17 @@
+from __future__ import annotations
+
 from unittest.mock import MagicMock
 
 import pytest
 
-from egregora.utils.cache import (
+from egregora.agents.shared.cache import (
     EnrichmentCache,
     make_enrichment_cache_key,
 )
 from egregora.utils.cache_backend import CacheBackend
 from egregora.utils.exceptions import (
     CacheDeserializationError,
+    CacheKeyNotFoundError,
     CachePayloadTypeError,
 )
 
@@ -89,3 +92,42 @@ def test_enrichment_cache_load_payload_type_error(mock_backend):
 
     mock_backend.get.assert_called_once_with("test_key")
     mock_backend.delete.assert_called_once_with("test_key")
+
+
+def test_enrichment_cache_load_propagates_key_not_found_error():
+    """Verify `EnrichmentCache.load` propagates CacheKeyNotFoundError from the backend."""
+    mock_backend = MagicMock()
+    mock_backend.get.side_effect = CacheKeyNotFoundError("test-key")
+
+    cache = EnrichmentCache(backend=mock_backend)
+
+    with pytest.raises(CacheKeyNotFoundError):
+        cache.load("test-key")
+
+    mock_backend.get.assert_called_once_with("test-key")
+
+
+def test_enrichment_cache_load_raises_deserialization_error():
+    """Verify `EnrichmentCache.load` raises CacheDeserializationError on backend error."""
+    mock_backend = MagicMock()
+    mock_backend.get.side_effect = TypeError("corrupted data")
+
+    cache = EnrichmentCache(backend=mock_backend)
+
+    with pytest.raises(CacheDeserializationError):
+        cache.load("test-key")
+
+    mock_backend.delete.assert_called_once_with("test-key")
+
+
+def test_enrichment_cache_load_raises_payload_type_error():
+    """Verify `EnrichmentCache.load` raises CachePayloadTypeError for invalid data types."""
+    mock_backend = MagicMock()
+    mock_backend.get.return_value = "not a dict"
+
+    cache = EnrichmentCache(backend=mock_backend)
+
+    with pytest.raises(CachePayloadTypeError):
+        cache.load("test-key")
+
+    mock_backend.delete.assert_called_once_with("test-key")
