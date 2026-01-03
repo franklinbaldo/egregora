@@ -348,7 +348,7 @@ skips = ["B101", "B608", "B701"]  # B101: assert_used, B608: hardcoded_sql (Duck
 exclude_dirs = ["tests", ".venv", "build"]
 
 [tool.coverage.run]
-source = ["src/egregora"]
+source = ["src/egregora", "src/egregora_v3"]
 omit = ["*/tests/*", "*/__pycache__/*", "*/site-packages/*"]
 
 [tool.coverage.report]
