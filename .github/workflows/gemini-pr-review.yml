@@ -169,8 +169,8 @@ jobs:
           fi
 
           # Export prompt as environment variable for Gemini action
-          # Using a simple, fixed delimiter to avoid any variable expansion issues
-          PROMPT_DELIMITER="EOF_GEMINI_PROMPT"
+          # Using a highly unique delimiter unlikely to appear in prompt content
+          PROMPT_DELIMITER="___EGREGORA_GEMINI_PROMPT_BOUNDARY_XYZ789___"
 
           # Check for delimiter collision
           if grep -qF "$PROMPT_DELIMITER" .github/tmp/prompt.txt; then
