@@ -463,6 +463,10 @@ def _serialize_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# TODO: [Taskmaster] Decompose EnrichmentWorker into separate classes
+# This class violates the Single Responsibility Principle by handling both URL and
+# media enrichment. It should be split into UrlEnrichmentWorker and MediaEnrichmentWorker
+# to reduce its size and complexity.
 class EnrichmentWorker(BaseWorker):
     """Worker for media enrichment (e.g. image description)."""
 
@@ -531,6 +535,10 @@ class EnrichmentWorker(BaseWorker):
         """Context manager exit - ensures ZIP handle is closed."""
         self.close()
 
+    # TODO: [Taskmaster] Refactor the run method to simplify its logic
+    # This method has multiple responsibilities: fetching tasks for both URLs and
+    # media, calculating concurrency, and orchestrating batch processing. It should
+    # be broken down into smaller, more focused helpers to improve readability.
     def run(self) -> int:
         """Process pending enrichment tasks in batches."""
         # Determine concurrency to scale fetch limit
@@ -615,6 +623,10 @@ class EnrichmentWorker(BaseWorker):
             # Since this is running in a thread pool (via _execute_url_individual),
             # we can create a new event loop for this thread.
 
+            # TODO: [Taskmaster] Simplify the async-in-sync execution pattern
+            # Creating a new event loop for each task in a thread pool is overly
+            # complex and inefficient. This should be refactored to use a more
+            # standard pattern for running async code from a sync context.
             async def _run_async() -> Any:
                 return await agent.run(prompt)
 
@@ -773,6 +785,10 @@ class EnrichmentWorker(BaseWorker):
         logger.info("[Enrichment] URL tasks complete: %d/%d", len(results), total)
         return results
 
+    # TODO: [Taskmaster] Refactor single-call execution to simplify logic
+    # This method mixes prompt rendering, client instantiation, and response
+    # parsing. It should be simplified by delegating these tasks to dedicated
+    # helper functions to improve clarity and separation of concerns.
     def _execute_url_single_call(
         self, tasks_data: list[dict[str, Any]]
     ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
@@ -783,6 +799,10 @@ class EnrichmentWorker(BaseWorker):
         from google import genai
         from google.genai import types
 
+        # TODO: [Taskmaster] Centralize genai.Client instantiation
+        # The genai.Client is instantiated multiple times in this file. A factory
+        # function or a shared client instance should be used to avoid redundant
+        # object creation and centralize the client configuration logic.
         api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         if not api_key:
             msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for URL enrichment"
@@ -1151,6 +1171,10 @@ class EnrichmentWorker(BaseWorker):
             )
             return self._execute_media_individual(requests, task_map, model_name, api_key)
 
+    # TODO: [Taskmaster] Refactor single-call execution to simplify logic
+    # This method is overly complex, handling prompt rendering, multi-part request
+    # construction, and response parsing in one place. It should be broken down
+    # into smaller helpers to improve readability and maintainability.
     def _execute_media_single_call(
         self,
         requests: list[dict[str, Any]],
@@ -1350,6 +1374,10 @@ class EnrichmentWorker(BaseWorker):
 
         return results
 
+    # TODO: [Taskmaster] Refactor _persist_media_results to reduce complexity
+    # This method is too long and handles multiple concerns: parsing results,
+    # managing filesystem paths, creating two different types of documents,
+    # persisting them, and updating the database. It should be decomposed.
     def _persist_media_results(self, results: list[Any], task_map: dict[str, dict[str, Any]]) -> int:
         new_rows = []
         for res in results:
@@ -1495,6 +1523,10 @@ class EnrichmentWorker(BaseWorker):
 
                 # Using SQL replace to update all occurrences
                 try:
+                    # TODO: [Taskmaster] Use parameterized queries to prevent SQL injection
+                    # This code uses an f-string to build a SQL query, which is a security
+                    # vulnerability. It should be refactored to use parameterized queries
+                    # to ensure that user-provided values are safely escaped.
                     # We need to use valid SQL string escaping
                     safe_original = original_ref.replace("'", "''")
                     safe_new = new_path.replace("'", "''")
@@ -1518,6 +1550,10 @@ class EnrichmentWorker(BaseWorker):
 
         return len(results)
 
+    # TODO: [Taskmaster] Replace brittle string cleaning with robust JSON parsing
+    # This function uses multiple `removeprefix` and `removesuffix` calls to clean
+    # the LLM's response before parsing it as JSON. This is fragile and should be
+    # replaced with a more robust method, such as a regex that extracts the JSON block.
     def _parse_media_result(self, res: Any, task: dict[str, Any]) -> tuple[dict[str, Any], str, str] | None:
         text = self._extract_text(res.response)
         try:
