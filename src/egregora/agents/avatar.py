@@ -30,7 +30,7 @@ from egregora.orchestration.pipelines.modules.media import detect_media_type, ex
 from egregora.resources.prompts import render_prompt
 from egregora.security.ssrf import SSRFValidationError, validate_public_url
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
-from egregora.utils.env import get_google_api_key
+from egregora.llm.credentials import get_google_api_key
 from egregora.utils.exceptions import CacheKeyNotFoundError
 
 if TYPE_CHECKING:
