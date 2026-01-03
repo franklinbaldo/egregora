@@ -62,7 +62,7 @@ def test_generate_profile_content_handles_importerror_on_history():
         ),
         patch(
             "egregora.agents.profile.generator._call_llm_decision",
-            ) as mock_llm,
+        ) as mock_llm,
     ):
         mock_llm.return_value = MagicMock(significant=False)
         result = _generate_profile_content(ctx, [{"text": "message"}], "author_name", "author_uuid")

@@ -39,7 +39,8 @@ import asyncio
 import inspect
 import logging
 from collections import defaultdict
-from typing import Any, Awaitable
+from collections.abc import Awaitable
+from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field
