@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from datetime import UTC, date, datetime, tzinfo
 from typing import TYPE_CHECKING, Any
 
@@ -10,6 +9,7 @@ from dateutil import parser as dateutil_parser
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
 
 def parse_datetime_flexible(
     value: datetime | date | str | Any | None,
@@ -53,7 +53,9 @@ def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) 
 
     raw = str(value).strip()
     if not raw:
-        raise InvalidDateTimeInputError(str(value), "Input value cannot be an empty or whitespace-only string")
+        raise InvalidDateTimeInputError(
+            str(value), "Input value cannot be an empty or whitespace-only string"
+        )
 
     # Fast-path for ISO 8601 format, which is much faster to parse
     try:
