@@ -1,5 +1,5 @@
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -50,7 +50,9 @@ def test_create_writer_model_success_with_google_api_key(
         assert model == model_instance
 
 
-def test_create_writer_model_returns_test_model_if_provided(mock_config: EgregoraConfig, mock_context: MagicMock):
+def test_create_writer_model_returns_test_model_if_provided(
+    mock_config: EgregoraConfig, mock_context: MagicMock
+):
     """Test that create_writer_model returns the test_model directly if it is provided."""
     test_model = MagicMock()
     model = create_writer_model(mock_config, mock_context, "test prompt", test_model=test_model)
