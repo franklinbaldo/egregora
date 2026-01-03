@@ -819,8 +819,9 @@ def process_background_tasks(ctx: PipelineContext) -> None:
     profile_worker.run()
 
     # Enrichment is already done in generator, but if new tasks were added:
-    enrichment_worker = EnrichmentWorker(ctx)
-    enrichment_worker.run()
+    if ctx.config.enrichment.enabled:
+        enrichment_worker = EnrichmentWorker(ctx)
+        enrichment_worker.run()
 
 
 # TODO: [Taskmaster] Simplify database backend creation

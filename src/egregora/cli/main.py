@@ -441,6 +441,13 @@ def demo(
             help="The directory to output the demo site to.",
         ),
     ] = Path("demo"),
+    enable_enrichment: Annotated[
+        bool,
+        typer.Option(
+            "--enable-enrichment/--no-enable-enrichment",
+            help="Enable AI enrichment (images, links)",
+        ),
+    ] = True,
 ) -> None:
     """Generate a demo site from a sample WhatsApp export."""
     try:
@@ -461,7 +468,7 @@ def demo(
             step_size=100,
             step_unit=WindowUnit.MESSAGES,
             overlap=0.0,
-            enable_enrichment=True,
+            enable_enrichment=enable_enrichment,
             from_date=None,
             to_date=None,
             timezone=None,
