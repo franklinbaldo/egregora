@@ -7,6 +7,7 @@ capabilities before executing the conversation through a ``pydantic_ai.Agent``.
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import json
 import logging
@@ -311,7 +312,7 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
 
 @sleep_and_retry
 @limits(calls=100, period=60)
-async def write_posts_with_pydantic_agent(
+def write_posts_with_pydantic_agent(
     *,
     prompt: str,
     config: EgregoraConfig,
@@ -321,7 +322,7 @@ async def write_posts_with_pydantic_agent(
     """Execute the writer flow using Pydantic-AI agent tooling."""
     logger.info("Running writer via Pydantic-AI backend")
 
-    model = await create_writer_model(config, context, prompt, test_model)
+    model = create_writer_model(config, context, prompt, test_model)
     agent = setup_writer_agent(model, prompt, config=config)
 
     if context.resources.quota:
@@ -338,10 +339,12 @@ async def write_posts_with_pydantic_agent(
     for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
         with attempt:
             # Execute model directly without tools
-            result = await agent.run(
-                "Analyze the conversation context provided and write posts/profiles as needed.",
-                deps=context,
-                usage_limits=usage_limits,
+            result = asyncio.run(
+                agent.run(
+                    "Analyze the conversation context provided and write posts/profiles as needed.",
+                    deps=context,
+                    usage_limits=usage_limits,
+                )
             )
 
     if not result:
@@ -411,7 +414,7 @@ def _render_writer_prompt(
     )
 
 
-async def _execute_writer_with_error_handling(
+def _execute_writer_with_error_handling(
     prompt: str,
     config: EgregoraConfig,
     deps: WriterDeps,
@@ -427,7 +430,7 @@ async def _execute_writer_with_error_handling(
 
     """
     try:
-        return await write_posts_with_pydantic_agent(
+        return write_posts_with_pydantic_agent(
             prompt=prompt,
             config=config,
             context=deps,
@@ -473,7 +476,7 @@ def _finalize_writer_results(params: WriterFinalizationParams) -> dict[str, list
 
 
 # TODO: [Taskmaster] Refactor complex `write_posts_for_window` function
-async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
+def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
     """Let LLM analyze window's messages, write 0-N posts, and update author profiles.
 
     This acts as the public entry point, orchestrating the setup and execution
@@ -572,9 +575,9 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
 
     if getattr(params.config.pipeline, "economic_mode", False):
         logger.info("💰 Economic Mode enabled: Using simple generation (no tools)")
-        saved_posts, saved_profiles = await _execute_economic_writer(prompt, params.config, deps)
+        saved_posts, saved_profiles = _execute_economic_writer(prompt, params.config, deps)
     else:
-        saved_posts, saved_profiles = await _execute_writer_with_error_handling(prompt, params.config, deps)
+        saved_posts, saved_profiles = _execute_writer_with_error_handling(prompt, params.config, deps)
 
     # 6. Finalize results (output, RAG indexing, caching)
     return _finalize_writer_results(
@@ -616,7 +619,7 @@ def _regenerate_site_indices(adapter: OutputSink) -> None:
     logger.info("Successfully regenerated site indices.")
 
 
-async def _execute_economic_writer(
+def _execute_economic_writer(
     prompt: str,
     config: EgregoraConfig,
     deps: WriterDeps,

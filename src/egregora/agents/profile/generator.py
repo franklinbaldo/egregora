@@ -35,6 +35,7 @@ The `subject` field is validated by `validate_profile_document()` before persist
 to prevent routing failures.
 """
 
+import asyncio
 import logging
 from collections import defaultdict
 from typing import Any
@@ -207,7 +208,7 @@ Update Content Guidelines (if significant):
 """
 
 
-async def _generate_profile_content(
+def _generate_profile_content(
     ctx: Any,
     author_messages: list[dict[str, Any]],
     author_name: str,
@@ -257,7 +258,7 @@ async def _generate_profile_content(
     )
 
     # Call LLM
-    decision = await _call_llm_decision(prompt, ctx)
+    decision = _call_llm_decision(prompt, ctx)
 
     if not decision.significant:
         logger.info("Skipping profile update for %s (not significant)", author_name)
@@ -266,7 +267,7 @@ async def _generate_profile_content(
     return decision.content
 
 
-async def _call_llm_decision(prompt: str, ctx: Any) -> ProfileUpdateDecision:
+def _call_llm_decision(prompt: str, ctx: Any) -> ProfileUpdateDecision:
     """Call LLM with prompt and expect structured decision.
 
     Args:
@@ -284,14 +285,12 @@ async def _call_llm_decision(prompt: str, ctx: Any) -> ProfileUpdateDecision:
     agent = Agent(model_name, result_type=ProfileUpdateDecision)
 
     # Run agent
-    result = await agent.run(prompt)
+    result = asyncio.run(agent.run(prompt))
 
     return result.data
 
 
-async def generate_profile_posts(
-    ctx: Any, messages: list[dict[str, Any]], window_date: str
-) -> list[Document]:
+def generate_profile_posts(ctx: Any, messages: list[dict[str, Any]], window_date: str) -> list[Document]:
     """Generate PROFILE posts for all active authors in window.
 
     Generates profile posts only if significant updates are detected.
@@ -327,7 +326,7 @@ async def generate_profile_posts(
 
         try:
             # Generate content (returns None if not significant)
-            content = await _generate_profile_content(
+            content = _generate_profile_content(
                 ctx=ctx, author_messages=msgs, author_name=author_name, author_uuid=author_uuid
             )
 
