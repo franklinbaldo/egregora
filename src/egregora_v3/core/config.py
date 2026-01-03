@@ -1,3 +1,4 @@
+import importlib
 from pathlib import Path
 
 
@@ -76,3 +77,17 @@ class EgregoraConfig(BaseSettings):
             dotenv_settings,
             file_secret_settings,
         )
+
+    @classmethod
+    def load(cls, site_root: Path | None = None) -> "EgregoraConfig":
+        """Load configuration.
+
+        Uses importlib to import ConfigLoader to avoid circular dependency
+        and resolves Pylint PLC0415 (import outside toplevel).
+        """
+        # Dynamic import to break circular dependency:
+        # ConfigLoader imports EgregoraConfig.
+        loader_module = importlib.import_module("egregora_v3.core.loader")
+        config_loader = loader_module.ConfigLoader
+
+        return config_loader.load(site_root)
