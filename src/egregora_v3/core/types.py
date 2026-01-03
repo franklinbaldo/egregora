@@ -189,11 +189,13 @@ class Document(Entry):
 
         # If still no slug, generate from title if it exists
         title = data.get("title")
-        if not slug and title:
+        if not slug:
             try:
-                slug = slugify(title.strip())
+                if not title or not title.strip():
+                    raise InvalidInputError("Title is empty or whitespace")
+                slug = slugify(title)
             except (InvalidInputError, AttributeError):
-                # Ignore if title is not a valid string for slugify
+                # Ignore if title is None, empty, or not a string
                 pass
 
         if slug:
