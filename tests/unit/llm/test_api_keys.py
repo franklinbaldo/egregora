@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -16,7 +16,10 @@ from egregora.llm.api_keys import (
 @patch.dict(os.environ, {}, clear=True)
 def test_get_google_api_key_missing():
     """Test that getting the API key raises an error if not set."""
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError,
+        match="GOOGLE_API_KEY \\(or GEMINI_API_KEY\\) environment variable is required",
+    ):
         get_google_api_key()
 
 
@@ -72,9 +75,7 @@ def test_get_google_api_keys_single_gemini_key():
     assert get_google_api_keys() == ["key2"]
 
 
-@patch.dict(
-    os.environ, {"GEMINI_API_KEYS": "key3, key4,key5 "}, clear=True
-)
+@patch.dict(os.environ, {"GEMINI_API_KEYS": "key3, key4,key5 "}, clear=True)
 def test_get_google_api_keys_comma_separated():
     """Test retrieving multiple keys from GEMINI_API_KEYS."""
     assert get_google_api_keys() == ["key3", "key4", "key5"]
@@ -145,13 +146,11 @@ def test_validate_gemini_api_key_failure_generic(mock_client):
         validate_gemini_api_key(api_key="generic_key")
 
 
-@patch(
-    "builtins.__import__",
-    side_effect=ImportError("google-genai package not installed"),
-)
-def test_validate_gemini_api_key_import_error(mock_import):
+def test_validate_gemini_api_key_import_error():
     """Test that an ImportError is raised if google-genai is not installed."""
-    with pytest.raises(
-        ImportError, match="google-genai package not installed"
+    with patch(
+        "builtins.__import__",
+        side_effect=ImportError("google-genai package not installed"),
     ):
-        validate_gemini_api_key(api_key="any_key")
+        with pytest.raises(ImportError, match="google-genai package not installed"):
+            validate_gemini_api_key(api_key="any_key")
