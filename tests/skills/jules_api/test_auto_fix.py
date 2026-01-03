@@ -44,6 +44,7 @@ class TestAutoFixPrompt:
                 repo: str,
                 branch: str = "main",
                 title: str | None = None,
+                *,
                 require_plan_approval: bool = False,
                 automation_mode: str = "AUTO_CREATE_PR",
             ):
@@ -76,7 +77,7 @@ class TestAutoFixPrompt:
         monkeypatch.setattr(
             self.auto_fix,
             "get_pr_details_via_gh",
-            lambda _pr_number, repo_path=".": {
+            lambda _pr_number, **_kwargs: {
                 "session_id": "existing-session",
                 "last_commit_by_jules": False,
                 "last_commit_author_login": "contributor",
@@ -126,7 +127,7 @@ class TestAutoFixPrompt:
         monkeypatch.setattr(
             self.auto_fix,
             "get_pr_details_via_gh",
-            lambda _pr_number, repo_path=".": {
+            lambda _pr_number, **_kwargs: {
                 "session_id": "existing-session",
                 "last_commit_by_jules": True,
                 "last_commit_author_login": "google-labs-jules[bot]",
@@ -148,5 +149,6 @@ class TestAutoFixPrompt:
         assert result["action"] == "messaged_existing_session"
         assert created_sessions == []
         assert fetched_sessions == ["existing-session"]
-        assert sent_messages and sent_messages[0][0] == "existing-session"
+        assert sent_messages
+        assert sent_messages[0][0] == "existing-session"
         assert "feedback" in sent_messages[0][1]
