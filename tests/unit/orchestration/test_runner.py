@@ -63,9 +63,11 @@ def test_pipeline_runner_process_windows():
 @patch("egregora.orchestration.runner.extract_commands_list")
 @patch("egregora.orchestration.runner.command_to_announcement")
 @patch("egregora.orchestration.runner.filter_commands")
-@patch("egregora.orchestration.runner.run_async_safely")
+@patch("egregora.orchestration.runner.write_posts_for_window")
+@patch("egregora.orchestration.runner.generate_profile_posts")
 def test_process_single_window_orchestration(
-    mock_run_async_safely,
+    mock_generate_profiles,
+    mock_write_posts,
     mock_filter_commands,
     mock_command_to_announcement,
     mock_extract_commands,
@@ -96,10 +98,8 @@ def test_process_single_window_orchestration(
     mock_filter_commands.return_value = [{"id": 2, "text": "not a command"}]
 
     # Mock the two async calls
-    mock_run_async_safely.side_effect = [
-        (["post1"], []),  # write_posts_for_window
-        [MagicMock()],  # generate_profile_posts
-    ]
+    mock_write_posts.return_value = (["post1"], [])
+    mock_generate_profiles.return_value = [MagicMock()]
 
     runner._extract_adapter_info = MagicMock(return_value=("summary", "instructions"))
 
@@ -120,7 +120,8 @@ def test_process_single_window_orchestration(
     mock_extract_commands.assert_called_once()
     mock_command_to_announcement.assert_called_once()
     mock_filter_commands.assert_called_once()
-    assert mock_run_async_safely.call_count == 2
+    assert mock_write_posts.call_count == 1
+    assert mock_generate_profiles.call_count == 1
 
 
 def test_validate_window_size_raises_exception_on_oversized_window():

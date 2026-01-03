@@ -61,6 +61,7 @@ from egregora.output_adapters import OutputSinkRegistry, create_default_output_r
 from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
 from egregora.resources.prompts import render_prompt
+from egregora.utils.async_utils import run_async_safely
 from egregora.utils.cache import PipelineCache
 
 if TYPE_CHECKING:
@@ -411,7 +412,7 @@ def _render_writer_prompt(
     )
 
 
-async def _execute_writer_with_error_handling(
+def _execute_writer_with_error_handling(
     prompt: str,
     config: EgregoraConfig,
     deps: WriterDeps,
@@ -427,10 +428,12 @@ async def _execute_writer_with_error_handling(
 
     """
     try:
-        return await write_posts_with_pydantic_agent(
-            prompt=prompt,
-            config=config,
-            context=deps,
+        return run_async_safely(
+            write_posts_with_pydantic_agent(
+                prompt=prompt,
+                config=config,
+                context=deps,
+            )
         )
     except Exception as exc:
         if isinstance(exc, PromptTooLargeError):
@@ -473,7 +476,7 @@ def _finalize_writer_results(params: WriterFinalizationParams) -> dict[str, list
 
 
 # TODO: [Taskmaster] Refactor complex `write_posts_for_window` function
-async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
+def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
     """Let LLM analyze window's messages, write 0-N posts, and update author profiles.
 
     This acts as the public entry point, orchestrating the setup and execution
@@ -572,9 +575,13 @@ async def write_posts_for_window(params: WindowProcessingParams) -> dict[str, li
 
     if getattr(params.config.pipeline, "economic_mode", False):
         logger.info("💰 Economic Mode enabled: Using simple generation (no tools)")
-        saved_posts, saved_profiles = await _execute_economic_writer(prompt, params.config, deps)
+        saved_posts, saved_profiles = _execute_economic_writer(
+            prompt, params.config, deps
+        )
     else:
-        saved_posts, saved_profiles = await _execute_writer_with_error_handling(prompt, params.config, deps)
+        saved_posts, saved_profiles = _execute_writer_with_error_handling(
+            prompt, params.config, deps
+        )
 
     # 6. Finalize results (output, RAG indexing, caching)
     return _finalize_writer_results(
@@ -616,7 +623,7 @@ def _regenerate_site_indices(adapter: OutputSink) -> None:
     logger.info("Successfully regenerated site indices.")
 
 
-async def _execute_economic_writer(
+def _execute_economic_writer(
     prompt: str,
     config: EgregoraConfig,
     deps: WriterDeps,

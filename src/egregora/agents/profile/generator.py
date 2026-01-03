@@ -46,6 +46,7 @@ from pydantic_ai import Agent
 from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.orchestration.persistence import validate_profile_document
+from egregora.utils.async_utils import run_async_safely
 from egregora.utils.paths import slugify
 
 try:
@@ -207,7 +208,7 @@ Update Content Guidelines (if significant):
 """
 
 
-async def _generate_profile_content(
+def _generate_profile_content(
     ctx: Any,
     author_messages: list[dict[str, Any]],
     author_name: str,
@@ -257,7 +258,7 @@ async def _generate_profile_content(
     )
 
     # Call LLM
-    decision = await _call_llm_decision(prompt, ctx)
+    decision = run_async_safely(_call_llm_decision(prompt, ctx))
 
     if not decision.significant:
         logger.info("Skipping profile update for %s (not significant)", author_name)
@@ -289,7 +290,7 @@ async def _call_llm_decision(prompt: str, ctx: Any) -> ProfileUpdateDecision:
     return result.data
 
 
-async def generate_profile_posts(
+def generate_profile_posts(
     ctx: Any, messages: list[dict[str, Any]], window_date: str
 ) -> list[Document]:
     """Generate PROFILE posts for all active authors in window.
@@ -327,7 +328,7 @@ async def generate_profile_posts(
 
         try:
             # Generate content (returns None if not significant)
-            content = await _generate_profile_content(
+            content = _generate_profile_content(
                 ctx=ctx, author_messages=msgs, author_name=author_name, author_uuid=author_uuid
             )
 
