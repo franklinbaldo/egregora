@@ -35,6 +35,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from egregora.data_primitives.document import Document, DocumentType, UrlConvention
+from egregora.utils.exceptions import InvalidInputError
 from egregora.utils.paths import slugify
 
 if TYPE_CHECKING:
@@ -221,19 +222,32 @@ class StandardUrlConvention(UrlConvention):
             or document.metadata.get("profile_aspect")
             or document.document_id[:8]
         )
+        try:
+            safe_slug = slugify(slug_value)
+        except InvalidInputError:
+            safe_slug = document.document_id[:8]
+
         if not subject_uuid:
-            return self._join(ctx, self.routes.posts_prefix, slugify(str(slug_value)))
-        return self._join(ctx, self.routes.profiles_prefix, str(subject_uuid), slugify(str(slug_value)))
+            return self._join(ctx, self.routes.posts_prefix, safe_slug)
+        return self._join(ctx, self.routes.profiles_prefix, str(subject_uuid), safe_slug)
 
     def _format_journal_url(self, ctx: UrlContext, document: Document) -> str:
         window_label = document.metadata.get("window_label")
         if window_label:
-            safe_label = slugify(window_label)
-            return self._join(ctx, self.routes.journal_prefix, safe_label)
+            try:
+                safe_label = slugify(window_label)
+                return self._join(ctx, self.routes.journal_prefix, safe_label)
+            except InvalidInputError:
+                pass  # Fallback to slug_value
+
         slug_value = document.metadata.get("slug")
         if slug_value:
-            safe_label = slugify(slug_value)
-            return self._join(ctx, self.routes.journal_prefix, safe_label)
+            try:
+                safe_label = slugify(slug_value)
+                return self._join(ctx, self.routes.journal_prefix, safe_label)
+            except InvalidInputError:
+                pass  # Fallback to posts_prefix
+
         # Fallback: no window_label or slug, unified output goes to posts/
         return self._join(ctx, self.routes.posts_prefix)
 
@@ -252,11 +266,18 @@ class StandardUrlConvention(UrlConvention):
 
     def _format_annotation_url(self, ctx: UrlContext, document: Document) -> str:
         slug = document.metadata.get("slug", document.document_id[:8])
-        return self._join(ctx, self.routes.annotations_prefix, slugify(slug))
+        try:
+            safe_slug = slugify(slug)
+        except InvalidInputError:
+            safe_slug = document.document_id[:8]
+        return self._join(ctx, self.routes.annotations_prefix, safe_slug)
 
     def _format_post_url(self, ctx: UrlContext, document: Document) -> str:
         slug = document.metadata.get("slug", document.document_id[:8])
-        normalized_slug = slugify(slug)
+        try:
+            normalized_slug = slugify(slug)
+        except InvalidInputError:
+            normalized_slug = document.document_id[:8]
 
         if self.routes.date_in_url:
             date_val = document.metadata.get("date", "")

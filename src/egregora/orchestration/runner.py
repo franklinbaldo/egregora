@@ -28,7 +28,6 @@ from egregora.orchestration.exceptions import (
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.modules.media import process_media_for_window
 from egregora.transformations import split_window_into_n_parts
-from egregora.utils.async_utils import run_async_safely
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -325,14 +324,12 @@ class PipelineRunner:
             messages=messages_dtos,  # Inject DTOs
         )
 
-        posts, profiles = run_async_safely(write_posts_for_window(params))
+        posts, profiles = write_posts_for_window(params)
 
         window_date = window.start_time.strftime("%Y-%m-%d")
         try:
-            profile_docs = run_async_safely(
-                generate_profile_posts(
-                    ctx=self.context, messages=clean_messages_list, window_date=window_date
-                )
+            profile_docs = generate_profile_posts(
+                ctx=self.context, messages=clean_messages_list, window_date=window_date
             )
             for profile_doc in profile_docs:
                 try:

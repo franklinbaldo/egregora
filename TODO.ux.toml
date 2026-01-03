@@ -75,7 +75,7 @@ assignee = "forge"
 id = "active-state"
 title = "Implement 'you are here' active state styling"
 description = "Enable the `navigation.tracking` and `navigation.tabs` features in the `mkdocs.yml` file to provide active state styling."
-status = "pending"
+status = "review"
 category = "navigation"
 assignee = "forge"
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import uuid
@@ -327,7 +328,7 @@ def load_profiles_context(active_authors: list[str], output_sink: Any) -> str:
     return profiles_context
 
 
-async def validate_prompt_fits(
+def validate_prompt_fits(
     prompt: str,
     model_name: str,
     config: EgregoraConfig,
@@ -339,7 +340,7 @@ async def validate_prompt_fits(
 
     Uses native SDK counting if possible, else character-based estimation.
     """
-    token_count = await count_tokens(prompt, model_instance)
+    token_count = count_tokens(prompt, model_instance)
 
     max_allowed = config.pipeline.max_prompt_tokens
     use_full = config.pipeline.use_full_context_window
@@ -359,11 +360,11 @@ async def validate_prompt_fits(
     return token_count
 
 
-async def count_tokens(prompt: str, model: Any | None = None) -> int:
+def count_tokens(prompt: str, model: Any | None = None) -> int:
     """Count tokens in a prompt, using native SDK if available."""
     if model and hasattr(model, "count_tokens") and callable(model.count_tokens):
         try:
-            return await model.count_tokens(prompt)
+            return asyncio.run(model.count_tokens(prompt))
         except Exception:  # noqa: BLE001
             logger.debug("Native token counting failed, falling back to estimation")
 

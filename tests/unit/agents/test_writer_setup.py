@@ -1,5 +1,5 @@
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -21,22 +21,20 @@ def mock_context() -> MagicMock:
     return MagicMock()
 
 
-@pytest.mark.asyncio
-async def test_create_writer_model_raises_error_on_missing_google_api_key(
+def test_create_writer_model_raises_error_on_missing_google_api_key(
     mock_config: EgregoraConfig, mock_context: MagicMock
 ):
     """Test that create_writer_model raises ValueError when Google API key is missing."""
     with patch.dict(os.environ, {}, clear=True):
         with pytest.raises(ValueError, match=r"A Google model is configured, but no API key was found\."):
-            await create_writer_model(mock_config, mock_context, "test prompt")
+            create_writer_model(mock_config, mock_context, "test prompt")
 
 
-@pytest.mark.asyncio
-@patch("egregora.agents.writer_setup.validate_prompt_fits", new_callable=AsyncMock)
+@patch("egregora.agents.writer_setup.validate_prompt_fits")
 @patch("pydantic_ai.models.google.GoogleModel")
-async def test_create_writer_model_success_with_google_api_key(
+def test_create_writer_model_success_with_google_api_key(
     mock_google_model: MagicMock,
-    mock_validate_prompt: AsyncMock,
+    mock_validate_prompt: MagicMock,
     mock_config: EgregoraConfig,
     mock_context: MagicMock,
 ):
@@ -45,18 +43,17 @@ async def test_create_writer_model_success_with_google_api_key(
         model_instance = MagicMock()
         mock_google_model.return_value = model_instance
 
-        model = await create_writer_model(mock_config, mock_context, "test prompt")
+        model = create_writer_model(mock_config, mock_context, "test prompt")
 
         mock_google_model.assert_called_once_with(model_name="gemini-test")
-        mock_validate_prompt.assert_awaited_once()
+        mock_validate_prompt.assert_called_once()
         assert model == model_instance
 
 
-@pytest.mark.asyncio
-async def test_create_writer_model_returns_test_model_if_provided(
+def test_create_writer_model_returns_test_model_if_provided(
     mock_config: EgregoraConfig, mock_context: MagicMock
 ):
     """Test that create_writer_model returns the test_model directly if it is provided."""
     test_model = MagicMock()
-    model = await create_writer_model(mock_config, mock_context, "test prompt", test_model=test_model)
+    model = create_writer_model(mock_config, mock_context, "test prompt", test_model=test_model)
     assert model == test_model

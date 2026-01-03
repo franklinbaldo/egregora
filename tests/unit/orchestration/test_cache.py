@@ -2,12 +2,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from egregora.utils.cache import (
+from egregora.orchestration.cache import (
+    CacheBackend,
     EnrichmentCache,
     make_enrichment_cache_key,
 )
-from egregora.utils.cache_backend import CacheBackend
-from egregora.utils.exceptions import (
+from egregora.orchestration.exceptions import (
     CacheDeserializationError,
     CachePayloadTypeError,
 )

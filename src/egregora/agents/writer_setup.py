@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig
 
 
-async def create_writer_model(
+def create_writer_model(
     config: EgregoraConfig,
     context: WriterDeps,
     prompt: str,
@@ -57,7 +57,7 @@ async def create_writer_model(
     model = GoogleModel(model_name=model_name)
 
     # Validate prompt fits (only check for real models)
-    await validate_prompt_fits(prompt, config.models.writer, config, context.window_label)
+    validate_prompt_fits(prompt, config.models.writer, config, context.window_label)
     return model
 
 

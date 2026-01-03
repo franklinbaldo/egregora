@@ -1,40 +1,101 @@
-"""Custom exceptions for egregora."""
+"""Backward-compatible exception aliases for legacy imports.
+
+This module preserves the historical ``egregora.utils.exceptions`` import path
+by re-exporting exception classes from their current modules. Prefer importing
+from the owning modules (e.g., ``egregora.orchestration.exceptions``) in new
+code, but keep this file to avoid breaking existing users and documentation.
+"""
+
+from egregora.knowledge.exceptions import (
+    AuthorsError,
+    AuthorsFileError,
+    AuthorsFileLoadError,
+    AuthorsFileParseError,
+    AuthorsFileSaveError,
+    InvalidAliasError,
+    ProfileError,
+    ProfileNotFoundError,
+    ProfileParseError,
+)
+from egregora.orchestration.exceptions import (
+    ApiKeyInvalidError,
+    ApiKeyMissingError,
+    CacheDeserializationError,
+    CacheError,
+    CacheKeyNotFoundError,
+    CachePayloadTypeError,
+    CommandProcessingError,
+    ConfigError,
+    ConfigNotFoundError,
+    ConfigValidationError,
+    EnrichmentError,
+    InvalidDateArgumentError,
+    InvalidTimezoneArgumentError,
+    OrchestrationError,
+    OutputSinkError,
+    PipelineSetupError,
+    ProfileGenerationError,
+    SourceNotFoundError,
+    WindowError,
+    WindowSizeError,
+    WindowSplitError,
+)
+from egregora.utils.datetime_utils import DateTimeError, DateTimeParsingError, InvalidDateTimeInputError
 
 
+# Base exception for Egregora
 class EgregoraError(Exception):
-    """Base class for exceptions in this module."""
+    """Base exception for all Egregora errors."""
 
 
-class CacheKeyNotFoundError(EgregoraError):
-    """Raised when a cache key is not found."""
-
-    def __init__(self, key: str) -> None:
-        self.key = key
-        message = f"Key not found in cache: '{key}'"
-        super().__init__(message)
+# Slugify-specific exceptions (defined here as they're utils-level)
+class SlugifyError(EgregoraError):
+    """Base exception for slugify-related errors."""
 
 
-class CacheError(EgregoraError):
-    """Base exception for cache-related errors."""
+class InvalidInputError(SlugifyError):
+    """Raised when the input to a function is invalid."""
 
 
-class CacheDeserializationError(CacheError):
-    """Raised when a cache entry cannot be deserialized."""
-
-    def __init__(self, key: str, original_exception: Exception) -> None:
-        self.key = key
-        self.original_exception = original_exception
-        message = f"Failed to deserialize cache entry for key '{key}'. Original error: {original_exception}"
-        super().__init__(message)
-
-
-class CachePayloadTypeError(CacheError):
-    """Raised when a cache entry has an unexpected type."""
-
-    def __init__(self, key: str, payload_type: type) -> None:
-        self.key = key
-        self.payload_type = payload_type
-        message = (
-            f"Unexpected cache payload type for key '{key}': got {payload_type.__name__}, expected dict."
-        )
-        super().__init__(message)
+__all__ = [
+    # Orchestration
+    "ApiKeyInvalidError",
+    "ApiKeyMissingError",
+    # Knowledge / profiles
+    "AuthorsError",
+    "AuthorsFileError",
+    "AuthorsFileLoadError",
+    "AuthorsFileParseError",
+    "AuthorsFileSaveError",
+    "CacheDeserializationError",
+    "CacheError",
+    "CacheKeyNotFoundError",
+    "CachePayloadTypeError",
+    "CommandProcessingError",
+    "ConfigError",
+    "ConfigNotFoundError",
+    "ConfigValidationError",
+    # Datetime utilities
+    "DateTimeError",
+    "DateTimeParsingError",
+    # Base exceptions
+    "EgregoraError",
+    "EnrichmentError",
+    "InvalidAliasError",
+    "InvalidDateArgumentError",
+    "InvalidDateTimeInputError",
+    "InvalidInputError",
+    "InvalidTimezoneArgumentError",
+    "OrchestrationError",
+    "OutputSinkError",
+    "PipelineSetupError",
+    "ProfileError",
+    "ProfileGenerationError",
+    "ProfileNotFoundError",
+    "ProfileParseError",
+    "SlugifyError",
+    "SourceNotFoundError",
+    "WindowError",
+    "WindowSizeError",
+    "WindowSplitError",
+]

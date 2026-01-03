@@ -52,8 +52,10 @@ from egregora.database.utils import resolve_db_uri
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
+from egregora.llm.api_keys import get_google_api_keys, validate_gemini_api_key
 from egregora.llm.rate_limit import init_rate_limiter
 from egregora.llm.usage import UsageTracker
+from egregora.orchestration.cache import PipelineCache
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.modules.media import process_media_for_window
@@ -70,9 +72,6 @@ from egregora.transformations import (
     save_checkpoint,
     split_window_into_n_parts,
 )
-from egregora.utils.async_utils import run_async_safely
-from egregora.utils.cache import PipelineCache
-from egregora.utils.env import get_google_api_keys, validate_gemini_api_key
 
 try:
     import dotenv
@@ -756,7 +755,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     # EXECUTE WRITER
     # Note: We don't handle PromptTooLargeError here because we rely on heuristic splitting
     # in the generator. If it fails here, it fails.
-    posts, profiles = run_async_safely(write_posts_for_window(params))
+    posts, profiles = write_posts_for_window(params)
 
     # Persist generated posts
     # The writer agent returns documents (strings if pending).
@@ -776,9 +775,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     # EXECUTE PROFILE GENERATOR
     window_date = conversation.window.start_time.strftime("%Y-%m-%d")
     try:
-        profile_docs = run_async_safely(
-            generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date)
-        )
+        profile_docs = generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date)
         for profile_doc in profile_docs:
             try:
                 output_sink.persist(profile_doc)
@@ -819,8 +816,9 @@ def process_background_tasks(ctx: PipelineContext) -> None:
     profile_worker.run()
 
     # Enrichment is already done in generator, but if new tasks were added:
-    enrichment_worker = EnrichmentWorker(ctx)
-    enrichment_worker.run()
+    if ctx.config.enrichment.enabled:
+        enrichment_worker = EnrichmentWorker(ctx)
+        enrichment_worker.run()
 
 
 # TODO: [Taskmaster] Simplify database backend creation
