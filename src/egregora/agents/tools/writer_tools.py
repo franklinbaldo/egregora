@@ -351,11 +351,7 @@ def generate_banner_impl(ctx: BannerContext, post_slug: str, title: str, summary
         logger.info("Scheduled banner generation task: %s", task_id)
 
         # Predict path
-        try:
-            slug = slugify(post_slug, max_len=60)
-        except InvalidInputError:
-            logger.warning("Cannot generate banner placeholder path with invalid slug: %s", post_slug)
-            return BannerResult(status="failed", error="Invalid post_slug provided for banner generation.")
+        slug = slugify(post_slug or title, max_len=60)
         extension = ".jpg"
         filename = f"{slug}{extension}"
 
