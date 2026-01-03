@@ -169,12 +169,12 @@ jobs:
           fi
 
           # Export prompt as environment variable for Gemini action
-          # Using a highly unique delimiter unlikely to appear in prompt content
-          PROMPT_DELIMITER="___EGREGORA_GEMINI_PROMPT_BOUNDARY_XYZ789___"
+          # Generate a unique delimiter using run ID and timestamp to avoid collisions
+          PROMPT_DELIMITER="EOF_PROMPT_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_$(date +%s%N)"
 
-          # Check for delimiter collision
+          # Check for delimiter collision (extremely unlikely with unique ID)
           if grep -qF "$PROMPT_DELIMITER" .github/tmp/prompt.txt; then
-            echo "::error::Delimiter '$PROMPT_DELIMITER' found in prompt content"
+            echo "::error::Delimiter collision detected (this should never happen)"
             exit 1
           fi
 
