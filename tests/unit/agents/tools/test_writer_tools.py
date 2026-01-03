@@ -1,8 +1,9 @@
 """Tests for writer agent tool implementations."""
 
-import pytest
 from unittest.mock import MagicMock
-from egregora.agents.tools.writer_tools import generate_banner_impl, BannerResult
+
+from egregora.agents.tools.writer_tools import BannerResult, generate_banner_impl
+
 
 def test_generate_banner_impl_handles_none_slug(monkeypatch):
     """Verify generate_banner_impl gracefully handles a None post_slug."""
@@ -11,12 +12,7 @@ def test_generate_banner_impl_handles_none_slug(monkeypatch):
     mock_context.run_id = "test-run"
 
     # This test is for the async path, where slugify is called.
-    result = generate_banner_impl(
-        ctx=mock_context,
-        post_slug=None,
-        title="A Title",
-        summary="A summary"
-    )
+    result = generate_banner_impl(ctx=mock_context, post_slug=None, title="A Title", summary="A summary")
 
     assert isinstance(result, BannerResult)
     assert result.status == "failed"
