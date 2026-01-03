@@ -11,9 +11,6 @@ from dateutil import parser as dateutil_parser
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
-
-
 def parse_datetime_flexible(
     value: datetime | date | str | Any | None,
     *,
@@ -56,14 +53,17 @@ def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) 
 
     raw = str(value).strip()
     if not raw:
-        raise InvalidDateTimeInputError(
-            str(value), "Input value cannot be an empty or whitespace-only string"
-        )
+        raise InvalidDateTimeInputError(str(value), "Input value cannot be an empty or whitespace-only string")
 
+    # Fast-path for ISO 8601 format, which is much faster to parse
     try:
-        return dateutil_parser.parse(raw, **(parser_kwargs or {}))
-    except (TypeError, ValueError, OverflowError) as e:
-        raise DateTimeParsingError(raw, e) from e
+        return datetime.fromisoformat(raw)
+    except (TypeError, ValueError):
+        # Fallback to dateutil for more flexible parsing
+        try:
+            return dateutil_parser.parse(raw, **(parser_kwargs or {}))
+        except (TypeError, ValueError, OverflowError) as e:
+            raise DateTimeParsingError(raw, e) from e
 
 
 def normalize_timezone(dt: datetime, *, default_timezone: tzinfo = UTC) -> datetime:
@@ -131,7 +131,6 @@ class DateTimeParsingError(DateTimeError):
 
 
 __all__ = [
-    "DATE_PATTERN",
     "DateTimeError",
     "DateTimeParsingError",
     "InvalidDateTimeInputError",
