@@ -15,13 +15,14 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from egregora.agents.shared.cache import EnrichmentCache
+
 if TYPE_CHECKING:
     from pathlib import Path
 
     from google import genai
 
     from egregora.agents.shared.annotations import AnnotationStore
-    from egregora.agents.shared.cache import EnrichmentCache
     from egregora.config.settings import EgregoraConfig
     from egregora.data_primitives.document import OutputSink, UrlContext
     from egregora.database.protocols import StorageProtocol
