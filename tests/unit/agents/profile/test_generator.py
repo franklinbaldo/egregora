@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import yaml
 
@@ -20,7 +20,6 @@ def test_generate_profile_content_handles_oserror_on_get_author_profile():
     # Mock the LLM call to return a non-significant result
     with patch(
         "egregora.agents.profile.generator._call_llm_decision",
-        new_callable=AsyncMock,
     ) as mock_llm:
         mock_llm.return_value = MagicMock(significant=False)
         result = _generate_profile_content(ctx, [{"text": "message"}], "author_name", "author_uuid")
@@ -40,7 +39,6 @@ def test_generate_profile_content_handles_yamlerror_on_get_author_profile():
     # Mock the LLM call to return a non-significant result
     with patch(
         "egregora.agents.profile.generator._call_llm_decision",
-        new_callable=AsyncMock,
     ) as mock_llm:
         mock_llm.return_value = MagicMock(significant=False)
         result = _generate_profile_content(ctx, [{"text": "message"}], "author_name", "author_uuid")
@@ -64,8 +62,7 @@ def test_generate_profile_content_handles_importerror_on_history():
         ),
         patch(
             "egregora.agents.profile.generator._call_llm_decision",
-            new_callable=AsyncMock,
-        ) as mock_llm,
+            ) as mock_llm,
     ):
         mock_llm.return_value = MagicMock(significant=False)
         result = _generate_profile_content(ctx, [{"text": "message"}], "author_name", "author_uuid")

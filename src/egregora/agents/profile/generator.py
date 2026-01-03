@@ -47,7 +47,6 @@ from pydantic_ai import Agent
 from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.orchestration.persistence import validate_profile_document
-from egregora.utils.async_utils import run_async_safely
 from egregora.utils.paths import slugify
 
 try:
