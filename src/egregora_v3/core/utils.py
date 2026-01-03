@@ -1,7 +1,10 @@
 """V3 utility functions - independent of V2."""
+from functools import partial
 from pathlib import Path
 from unicodedata import normalize
+
 from pymdownx.slugs import slugify as _md_slugify
+
 
 class V3UtilsError(Exception):
     """Base exception for V3 utilities."""
@@ -11,7 +14,7 @@ class PathTraversalError(V3UtilsError):
     """Raised when a path would escape its intended directory."""
 
 # Pre-configure a slugify instance for reuse.
-# This is more efficient than creating a new slugifier on each call.
+# pymdownx.slugs.slugify returns a partial when called with configuration but no text.
 slugify_lower = _md_slugify(case="lower", separator="-")
 slugify_case = _md_slugify(separator="-")
 
@@ -50,6 +53,7 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
         slug = slug[:max_len].rstrip("-")
 
     return slug
+
 
 def safe_path_join(base_dir: Path, *parts: str) -> Path:
     r"""Safely join path parts and ensure result stays within base_dir.
@@ -94,6 +98,7 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
         raise PathTraversalError(msg) from err
 
     return candidate_resolved
+
 
 DEFAULT_MAX_CHARS = 800
 DEFAULT_CHUNK_OVERLAP = 200

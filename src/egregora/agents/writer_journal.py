@@ -158,8 +158,9 @@ def save_journal_to_file(params: JournalEntryParams) -> str | None:
 
     # Resolve templates directory relative to egregora package root (assuming standard layout)
     # src/egregora/agents/writer_journal.py -> src/egregora/templates
-    # parents[1] from here is src/egregora/agents, parents[2] is src/egregora
-    templates_dir = Path(__file__).resolve().parents[2] / TEMPLATES_DIR_NAME
+    # parents[0]: src/egregora/agents
+    # parents[1]: src/egregora (Package Root)
+    templates_dir = Path(__file__).resolve().parents[1] / TEMPLATES_DIR_NAME
 
     now_utc = datetime.now(tz=UTC)
     window_start_iso = params.window_start.astimezone(UTC).isoformat()
