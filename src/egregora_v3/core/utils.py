@@ -1,5 +1,4 @@
 """V3 utility functions - independent of V2."""
-from functools import partial
 from pathlib import Path
 from unicodedata import normalize
 
@@ -14,10 +13,22 @@ class PathTraversalError(V3UtilsError):
     """Raised when a path would escape its intended directory."""
 
 # Pre-configure a slugify instance for reuse.
-# pymdownx.slugs.slugify returns a partial when called with configuration but no text.
-slugify_lower = _md_slugify(case="lower", separator="-")
-slugify_case = _md_slugify(separator="-")
+# pymdownx.slugs.slugify acts as a factory returning a partial when called with kwargs.
+# However, the returned partial expects 'sep' to be passed if not baked in?
+# Let's verify behavior:
+# slugify(case='lower', separator='-') returns a partial of `_uslugify`.
+# Calling that partial with 'text' seems to work IF 'sep' is handled correctly.
+# The original code used: slugify_lower = _md_slugify(case="lower", separator="-")
+# My test showed: TypeError: _uslugify() missing 1 required positional argument: 'sep'
+# This means 'separator' argument to `slugify` factory might not be mapping to 'sep' in `_uslugify` correctly in this version?
+# OR `_md_slugify` (the factory) expects different arguments?
+# Wait, `pymdownx.slugs` documentation says `slugify(text, sep='-')`?
+# But `help(slugify)` said `slugify(**kwargs)`.
+# Let's try calling the factory and using the result.
 
+# To be safe and simple, we will wrap the factory call properly or avoid it.
+# It seems safer to avoid the factory assumption if it's brittle.
+# We will define our own wrapper.
 
 def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
     """Convert text to a safe URL-friendly slug using MkDocs/Python Markdown semantics.
@@ -43,8 +54,29 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
     # Normalize Unicode to ASCII using NFKD (preserves transliteration).
     normalized = normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
 
-    # Choose the appropriate pre-configured slugifier.
-    slugifier = slugify_lower if lowercase else slugify_case
+    # Create slugifier with desired configuration
+    # Note: pymdownx.slugs.slugify is a factory that returns the actual slugify function
+    # when called with keyword arguments.
+    # We explicitly pass 'separator' as 'sep' if needed by the inner function,
+    # but based on docs `slugify(case='lower', separator='-')` should return a configured function.
+    # If the direct call fails, we fallback to manual construction if needed,
+    # but let's try to mimic `mkdocs` behavior which uses `pymdownx.slugs`.
+
+    # After investigation: `pymdownx.slugs.slugify` returns a partial.
+    # The partial signature seems to require `sep` if not provided?
+    # Let's instantiate it freshly.
+
+    if lowercase:
+        slugifier = _md_slugify(case="lower", separator="-")
+    else:
+        slugifier = _md_slugify(separator="-")
+
+    # The returned slugifier takes (text, sep) arguments?
+    # In my bash test: `s = slugify(case='lower', separator='-'); print(s('Test', sep='-'))` worked.
+    # `print(s('Test'))` failed with missing 'sep'.
+    # So `separator='-'` in factory config MIGHT NOT be setting the default for `sep` arg in `_uslugify`?
+    # Let's explicitly pass `sep='-'` when calling the slugifier.
+
     slug = slugifier(normalized, sep="-")
 
     # Fallback for empty slugs, truncate, and clean up trailing hyphens.
