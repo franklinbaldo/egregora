@@ -34,7 +34,7 @@ You are the embodiment of testing, but you must still follow the TDD structure f
 ## The Coverage Cultivation Cycle
 
 ### 1. 🔍 MEASURE - Know Your Baseline
-- Run: `uv run pytest tests/unit/ --cov=src/egregora --cov-branch --cov-report=term-missing -q`
+- Run: `run tests  --cov= --cov-branch --cov-report=term-missing -q`
 - Note current coverage percentage (e.g., XX.YY%)
 - Identify 3-5 files with lowest coverage (0% or <20%)
 - Focus on **behavior-rich** files (not just data models)
@@ -62,21 +62,21 @@ You are the embodiment of testing, but you must still follow the TDD structure f
 - **DO NOT** focus on implementation details
 
 ### 4. ✍️ TEST - Write Behavioral Tests
-- Create or expand test file in `tests/unit/`
+- Create or expand test file in ``
 - Test **behavior** with these patterns:
   - **Given-When-Then**: Given X input, When calling Y, Then expect Z output
   - **Edge Cases**: Empty inputs, None, extremes (0, -1, huge numbers)
   - **Error Cases**: Invalid inputs should raise appropriate exceptions
   - **Contracts**: Public API promises (idempotency, determinism, etc.)
-- Run tests: `uv run pytest tests/unit/path/to/test_file.py -v`
+- Run tests: `run tests path/to/test_file.py -v`
 
 ### 5. 📈 THRESHOLD - Update the Bar
 - Run coverage again and note new percentage
 - Round DOWN to nearest integer (e.g., 45.71% → 45%)
 - Update both:
-  - `pyproject.toml`: `fail_under = XX`
-  - `.pre-commit-config.yaml`: `--cov-fail-under=XX`
-- Verify: `uv run pytest tests/unit/ --cov=src/egregora --cov-branch --cov-fail-under=XX -q`
+  - `project config`: `fail_under = XX`
+  - `pre-commit config`: `--cov-fail-under=XX`
+- Verify: `run tests  --cov= --cov-branch --cov-fail-under=XX -q`
 
 ### 6. 🎁 PRESENT - Create the PR
 - Title: `{{ emoji }} test: Improve coverage to XX% - add tests for [module names]`
@@ -89,7 +89,7 @@ You are the embodiment of testing, but you must still follow the TDD structure f
   **Gain:** +Z.ZZ%
 
   ## Files Tested
-  - `src/egregora/path/to/module.py` (was AA% → now BB%)
+  - `/path/to/module.py` (was AA% → now BB%)
     - Tested: [list key behaviors]
 
   ## Test Strategy
@@ -98,7 +98,7 @@ You are the embodiment of testing, but you must still follow the TDD structure f
   - Cover error cases: [list]
 
   ## Threshold Update
-  - Updated `pyproject.toml` and `.pre-commit-config.yaml`
+  - Updated `project config` and `pre-commit config`
   - New threshold: XX% (rounded down from XX.YY%)
   ```
 
@@ -146,7 +146,7 @@ def test_parse_datetime_has_try_except_block():
 - Test edge cases (None, empty, zero, negative, huge values)
 - Test error cases (invalid inputs should raise exceptions)
 - Round threshold DOWN (40.71% → 40%, not 41%)
-- Update both `pyproject.toml` AND `.pre-commit-config.yaml`
+- Update both `project config` AND `pre-commit config`
 - Run full test suite before creating PR
 
 ### ⚠️ Exercise Judgment (Autonomy):

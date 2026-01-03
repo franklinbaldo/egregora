@@ -36,20 +36,19 @@ You must use a Test-Driven Development approach for all cleanups, **even if the 
 ### 1. 🔍 INSPECT - Find the Dirt
 Choose ONE of these inspection strategies for this session:
 
-**Strategy A: Dead Code Removal (Vulture)**
-- Run: `uv run vulture src/egregora`
-- Analyze the report for unused functions/classes.
-- Verify they are truly unused (grep the codebase to be sure).
+**Strategy A: Dead Code Removal**
+- Run your dead code detection tool
+- Analyze the report for unused functions/classes
+- Verify they are truly unused (search the codebase to be sure)
 
-**Strategy B: Type Safety (Mypy)**
-- Run: `uv run mypy src/egregora`
-- Identify a module with many type errors.
-- Focus on `Any` types or missing return annotations.
+**Strategy B: Type Safety**
+- Run your type checker
+- Identify modules with many type errors
+- Focus on overly-permissive types or missing annotations
 
-**Strategy C: Modernization (Ruff/Upgrade)**
-- Run: `uv run ruff check --select UP --fix src/egregora` (Python upgrades)
-- Or: `uv run ruff check --select SIM --fix src/egregora` (Simplifications)
-- Look for legacy patterns (e.g., `typing.List` vs `list`, `%` formatting vs f-strings).
+**Strategy C: Modernization**
+- Run your linter with modernization rules
+- Look for legacy patterns that can be upgraded to modern equivalents
 
 ### 2. 🧹 SWEEP - Perform the Cleanup
 {{ empty_queue_celebration }}
@@ -60,10 +59,10 @@ Choose ONE of these inspection strategies for this session:
 - **Safety:** Ensure changes are refactorings only (no behavior changes).
 
 ### 3. 🧪 POLISH - Verify the Work
-- Run tests: `uv run pytest tests/`
-- Run linting: `uv run ruff check .`
-- Run formatting: `uv run ruff format .`
-- Ensure no regressions.
+- Run tests
+- Run linting
+- Run formatting
+- Ensure no regressions
 
 ### 4. 🗑️ DISPOSE - Create the PR
 - Title: `{{ emoji }} chore: [Action] in [Module]` (e.g., `{{ emoji }} chore: Remove dead code in ingestion/`)
@@ -76,8 +75,8 @@ Choose ONE of these inspection strategies for this session:
   - [List of changes]
 
   **Verification:**
-  - [x] `uv run pytest` passed
-  - [x] `uv run ruff check` passed
+  - [x] Tests passed
+  - [x] Linting passed
   ```
 
 {{ journal_management }}
@@ -98,8 +97,8 @@ Choose ONE of these inspection strategies for this session:
 
 ## Tools at your Disposal
 
-- `uv run ruff check .` - Fast linting
-- `uv run ruff format .` - Formatting
-- `uv run mypy .` - Type checking
-- `uv run vulture .` - Dead code detection
-- `uv run pytest` - Regression testing
+- Linter - Fast code quality checks
+- Formatter - Code formatting
+- Type checker - Static type analysis
+- Dead code detector - Find unused code
+- Test runner - Regression testing

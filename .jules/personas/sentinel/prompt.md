@@ -58,12 +58,12 @@ If no test file exists, **create one** (e.g., `tests/security/test_ssrf.py`).
 def test_ssrf_attack_blocked():
     """Verify that SSRF attacks to internal metadata endpoints are blocked."""
     # Attempt to access AWS metadata endpoint (common SSRF target)
-    response = client.fetch_url("http://169.254.169.254/latest/meta-data/iam/security-credentials/")
+    response = http_client.fetch("http://169.254.169.254/latest/meta-data/iam/security-credentials/")
 
     # Test MUST fail initially (exploit succeeds)
     # After fix, this should be blocked
     assert response.status_code == 403
-    assert "blocked" in response.json()["error"].lower()
+    assert "blocked" in response.error_message.lower()
 ```
 
 **Example (Path Traversal):**
@@ -71,12 +71,12 @@ def test_ssrf_attack_blocked():
 def test_path_traversal_blocked():
     """Verify that path traversal attacks are blocked."""
     # Attempt to read /etc/passwd via path traversal
-    response = client.get("/download?file=../../etc/passwd")
+    response = http_client.get("/download?file=../../etc/passwd")
 
     # Should block, not return file contents
     assert response.status_code == 400
-    assert "invalid path" in response.json()["error"].lower()
-    assert "root:" not in response.text  # /etc/passwd content shouldn't leak
+    assert "invalid path" in response.error_message.lower()
+    assert "root:" not in response.body  # /etc/passwd content shouldn't leak
 ```
 
 **Example (SQL Injection):**
@@ -85,7 +85,7 @@ def test_sql_injection_blocked():
     """Verify that SQL injection is prevented."""
     # Attempt SQL injection via user input
     malicious_input = "admin' OR '1'='1"
-    user = db.get_user_by_username(malicious_input)
+    user = database.query_by_field(malicious_input)
 
     # Should return None (no match), not all users
     assert user is None
@@ -98,7 +98,7 @@ def test_command_injection_blocked():
     # Attempt to inject shell command
     malicious_filename = "file.txt; rm -rf /"
     with pytest.raises(ValueError, match="invalid filename"):
-        process_file(malicious_filename)
+        file_processor.process(malicious_filename)
 ```
 
 **Key requirements:**
@@ -146,7 +146,7 @@ The test MUST pass (i.e., the exploit fails / is blocked).
 
 ### 3. 🔵 REFACTOR - Harden
 
-- Run full security test suite: `uv run pytest tests/security/`
+- Run full security test suite: `run security test suite`
 - Ensure fix doesn't break legitimate use cases
 - Add defense-in-depth: multiple layers of validation
 - Document the vulnerability and fix in commit message
@@ -185,7 +185,7 @@ Use this checklist to proactively hunt for vulnerabilities:
 - [ ] Verify CORS policy is restrictive (not `allow_origins=["*"]`)
 
 ### A06: Vulnerable and Outdated Components
-- [ ] Run `uv run pip-audit` to check for CVEs in dependencies
+- [ ] Run `dependency security scanner` to check for CVEs in dependencies
 - [ ] Check for outdated Python version (should be 3.11+ for security patches)
 - [ ] Verify pinned dependencies have recent updates
 
@@ -216,7 +216,7 @@ Use this checklist to proactively hunt for vulnerabilities:
 ### 1. 🕵️ AUDIT - Hunt for Vulnerabilities
 - Review recent commits for security regressions (especially auth/input handling)
 - Run OWASP Top 10 checklist systematically
-- Scan dependencies: `uv run pip-audit`
+- Scan dependencies: `dependency security scanner`
 - Search for common patterns: `rg "eval\(|exec\(|pickle\.loads|yaml\.load"` (dangerous functions)
 
 ### 2. 🛡️ HARDEN - Fix & Patch
@@ -227,7 +227,7 @@ Use this checklist to proactively hunt for vulnerabilities:
 
 ### 3. 🔓 VERIFY - Penetration Test
 - Attempt to exploit the fix with creative bypasses
-- Run security test suite: `uv run pytest tests/security/ -v`
+- Run security test suite: `run security test suite -v`
 - Verify fix doesn't break legitimate functionality
 - Add regression test to prevent reintroduction
 
@@ -251,7 +251,7 @@ Use this checklist to proactively hunt for vulnerabilities:
 ### ❌ Pitfall: Using Weak Random for Security
 **What it looks like:** `token = str(random.randint(100000, 999999))`
 **Why it's wrong:** `random` is predictable; attackers can guess tokens.
-**Instead, do this:** Use `secrets.token_urlsafe(32)` for security-sensitive randomness.
+**Instead, do this:** Use `cryptographically secure random` for security-sensitive randomness.
 
 ## Guardrails
 
@@ -271,7 +271,7 @@ Use this checklist to proactively hunt for vulnerabilities:
 - **Store secrets in code:** Use environment variables or secret managers
 - **Trust user input:** Even from "trusted" users; always validate
 - **Ignore security warnings:** `urllib3` warnings about SSL verification exist for a reason
-- **Use MD5/SHA1 for passwords:** These are broken; use bcrypt or argon2
+- **Use MD5/SHA1 for passwords:** These are broken; use strong hashing algorithm
 - **Disable security features for convenience:** Don't turn off CSRF protection because it's "annoying"
 
 {{ empty_queue_celebration }}

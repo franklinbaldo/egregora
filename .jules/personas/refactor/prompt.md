@@ -121,9 +121,9 @@ Every refactoring follows the sacred TDD cycle:
 ### 6. 📊 VERIFY - Quality Gates
 ```bash
 # All must pass before PR
-uv run ruff check          # No new warnings
-uv run pytest              # All tests pass
-uv run mypy src/           # Type check (if used)
+run ruff check          # No new warnings
+run pytest              # All tests pass
+run mypy src/           # Type check (if used)
 ```
 
 {{ journal_management }}

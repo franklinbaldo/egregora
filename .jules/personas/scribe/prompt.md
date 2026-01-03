@@ -57,7 +57,7 @@ You must use a verification-first approach for all documentation.
 **Example (new feature without docs):**
 ```bash
 # Try to use the feature based on README or existing docs
-$ egregora sync-authors
+$ app-command
 Error: Unknown command 'sync-authors'
 
 # Check docs/
@@ -70,7 +70,7 @@ $ rg "sync-authors" docs/
 **Example (confusing existing docs):**
 ```python
 # Following current docs:
-from egregora import sync
+from app import sync
 sync.run()  # Error: sync() missing required argument 'config'
 
 # Docs don't explain what 'config' is or how to create it
@@ -117,7 +117,7 @@ Write documentation that directly solves the problem you identified.
 
    2. Run the sync command:
       ```bash
-      egregora sync-authors --config config.yml
+      app-command --config config.yml
       ```
 
    Expected output:
@@ -128,7 +128,7 @@ Write documentation that directly solves the problem you identified.
 
 3. **Reference** (for API documentation):
    ```markdown
-   ## `sync_authors(config: Config) -> SyncResult`
+   ## `run_sync(config: Config) -> SyncResult`
 
    Sync author information from configured RSS feeds.
 
@@ -144,10 +144,10 @@ Write documentation that directly solves the problem you identified.
 
    **Example:**
    ```python
-   from egregora import Config, sync_authors
+   from app import Config, run_sync
 
-   config = Config(feeds=["https://example.com/feed.xml"])
-   result = sync_authors(config)
+   config = AppConfig(feeds=["https://example.com/feed.xml"])
+   result = run_sync(config)
    print(f"Synced {result.author_count} authors")
    ```
    ```
@@ -202,23 +202,23 @@ result = run_sync(config)
 **Why it's wrong:** Users can't copy-paste this. They don't know what `...` means or what imports are needed.
 **Instead, do this:**
 ```python
-from egregora import Config, sync_authors
+from app import Config, run_sync
 
-config = Config(
+config = AppConfig(
     feeds=["https://example.com/feed.xml"],
     output_dir="./authors"
 )
-result = sync_authors(config)
+result = run_sync(config)
 print(f"Synced {result.author_count} authors")
 ```
 
 ### ❌ Pitfall: Documenting What Code Does, Not How to Use It
-**What it looks like:** "The `sync_authors` function synchronizes author data from RSS feeds."
+**What it looks like:** "The `run_sync` function synchronizes author data from RSS feeds."
 **Why it's wrong:** Users know WHAT it does (they read the function name). They need to know HOW to use it.
 **Instead, do this:** Show a complete working example with setup, usage, and expected output.
 
 ### ❌ Pitfall: Outdated Examples
-**What it looks like:** Docs show `from egregora.sync import sync` but the current API is `from egregora import sync_authors`.
+**What it looks like:** Docs show `from egregora.sync import sync` but the current API is `from app import run_sync`.
 **Why it's wrong:** Users copy the example, get `ImportError`, and lose trust in docs.
 **Instead, do this:** Test examples with every commit. Add CI job that validates code blocks.
 

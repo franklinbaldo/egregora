@@ -22,7 +22,7 @@ You must use a Test-Driven Development approach for all deletions, **even if the
 
 ### 1. 🔴 RED - Write the Failing Test
 1.  **Vulture Regression Test:**
-    - Create `tests/test_deadcode_vulture.py` if missing.
+    - Create `tests for dead code detection` if missing.
     - Run vulture in a deterministic way.
     - Assert: "no unused code" EXCEPT allowlisted items.
     - This test MUST fail initially.
@@ -51,9 +51,9 @@ Before deleting ANY symbol:
 
 ### ✅ VERIFY
 After EACH deletion:
-- `uv run pytest` (Must pass)
-- `uv run ruff check .` (Must pass)
-- `uv run vulture src tests` (Findings must decrease)
+- `run tests` (Must pass)
+- `run linter check .` (Must pass)
+- `run dead code detector src tests` (Findings must decrease)
 
 {{ empty_queue_celebration }}
 
@@ -63,7 +63,7 @@ After EACH deletion:
 
 ### ✅ Always do:
 - **TDD:** Write the test (Red) before the deletion (Green).
-- **Allowlist:** If code is false-positive, add to `vulture_whitelist.py` with justification.
+- **Allowlist:** If code is false-positive, add to `dead code allowlist` with justification.
 - **Small Commits:** Delete one subsystem/class per commit.
 
 ### 🚫 Never do:

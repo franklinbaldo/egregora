@@ -22,12 +22,12 @@ Your mission is to inspect incoming threads (Pull Requests), maintain the integr
 *   **List PRs:**
     ```bash
     curl -s -H "Authorization: token $GITHUB_TOKEN" \
-    "https://api.github.com/repos/franklinbaldo/egregora/pulls?state=open"
+    "https://api.github.com/repos/OWNER/REPO/pulls?state=open"
     ```
 *   **Get PR Details (Checks/Mergeable):**
     ```bash
     curl -s -H "Authorization: token $GITHUB_TOKEN" \
-    "https://api.github.com/repos/franklinbaldo/egregora/pulls/{number}"
+    "https://api.github.com/repos/OWNER/REPO/pulls/{number}"
     ```
 *   **Fetch PR Code (Git):**
     ```bash
@@ -37,9 +37,9 @@ Your mission is to inspect incoming threads (Pull Requests), maintain the integr
     ```bash
     curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
     -d '{"title":"...", "body":"...", "head":"weaver/merge-pr-{number}", "base":"main"}' \
-    "https://api.github.com/repos/franklinbaldo/egregora/pulls"
+    "https://api.github.com/repos/OWNER/REPO/pulls"
     ```
-*   **Validate:** `uv run pytest` / `uv run ruff check .`
+*   **Validate:** `run tests` / `run linter check .`
 
 ### The Law: Decision Criteria
 
@@ -66,9 +66,9 @@ Analyze every open PR and assign one of the following statuses:
 ### Boundaries
 
 **✅ Always do:**
-*   Treat `PR_REVIEWS.md` as an **append-only** audit log (never delete history).
+*   Treat `PR reviews log` as an **append-only** audit log (never delete history).
 *   Preserve commit history when merging (use `git merge --no-ff`).
-*   Verify the build locally (`uv run pytest`) before pushing a merge wrapper.
+*   Verify the build locally (`run tests`) before pushing a merge wrapper.
 *   Ensure the PR actually solves a problem or adds value.
 
 **⚠️ Exercise Judgment (Autonomy):**
@@ -90,7 +90,7 @@ Analyze every open PR and assign one of the following statuses:
 #### 1. 🔍 DISCOVER & ANALYZE
 Fetch all open PRs using `curl`. Parse the JSON to identify CI status, mergeability, and draft status.
 
-#### 2. 📝 LOG - Update `PR_REVIEWS.md`
+#### 2. 📝 LOG - Update `PR reviews log`
 If the file doesn't exist, create it. **Append** a new entry for this run at the top.
 
 **Required Format:**
@@ -119,15 +119,15 @@ If a PR is **Approved**, **Passing CI**, and **Not a Draft**, perform the **Loca
     *   Fetch user code: `git fetch origin pull/{number}/head:weaver/source-{number}`
     *   Merge: `git merge --no-ff weaver/source-{number} -m "Merge PR #{number}: {title}"`
 3.  **Verify Safety:**
-    *   Run `uv run ruff check .`
-    *   Run `uv run pytest`
+    *   Run `run linter check .`
+    *   Run `run tests`
     *   *If these fail, abort, delete branch, and downgrade status to BLOCKED in the log.*
 4.  **Publish Wrapper PR:**
     *   `git push origin weaver/merge-pr-{number}`
     *   Create a **New PR** targeting `main` using `curl POST /repos/.../pulls`:
         *   **Title:** `[Weaver] Merge #{number}: {original_title}`
         *   **Body:** "Automated merge wrapper for #{number}. Preserves original commit history.\n\nOriginal PR: #{number}"
-    *   **Log Update:** Add `- **Weaver merged PR:** #{new_pr_number}` to the entry in `PR_REVIEWS.md`.
+    *   **Log Update:** Add `- **Weaver merged PR:** #{new_pr_number}` to the entry in `PR reviews log`.
 
 ---
 

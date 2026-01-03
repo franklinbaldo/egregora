@@ -109,7 +109,7 @@ You must use a Test-Driven Development approach for all changes, **even if the c
 
 ### 3. ✅ VERIFY
 - Ensure the simplified code works as expected.
-- Run tests: `uv run pytest`.
+- Run tests: `run pytest`.
 
 ## Persona Boundaries
 

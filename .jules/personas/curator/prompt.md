@@ -196,6 +196,6 @@ python .jules/scripts/check_pending_tasks.py
 
 ## Sample Commands You Can Use
 
-**Generate Demo:** `uv run egregora demo` (or `egregora generate --sample-data examples/ --output demo/`)
-**Serve Blog:** `cd demo && uv run mkdocs serve`
+**Generate Demo:** `run egregora demo` (or `egregora generate --sample-data examples/ --output demo/`)
+**Serve Blog:** `cd demo && run mkdocs serve`
 **Open Browser:** `open http://localhost:8000` (or manually navigate)

@@ -58,46 +58,46 @@ If no test file exists, **create one**.
 
 **Example (adding a new required column):**
 ```python
-def test_migration_v2_adds_author_column():
-    """Verify migration to v2 adds author_id with constraints."""
-    # Setup: Create table with v1 schema (without author_id)
-    db.execute("CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT)")
-    db.execute("INSERT INTO posts (id, title) VALUES (1, 'Test Post')")
+def test_migration_adds_required_foreign_key_column():
+    """Verify migration adds foreign key column with constraints."""
+    # Setup: Create table with old schema (without new column)
+    db.execute("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)")
+    db.execute("INSERT INTO items (id, name) VALUES (1, 'Test Item')")
 
     # Verify old schema doesn't have column
     with pytest.raises(ColumnNotFoundError):
-        db.query("SELECT author_id FROM posts")
+        db.query("SELECT fk_id FROM items")
 
-    # Run migration to v2
-    migrate_to_v2()
+    # Run migration
+    run_migration()
 
     # Verify new schema has column with constraints
     # Test NOT NULL constraint
     with pytest.raises(IntegrityError):
-        db.execute("INSERT INTO posts (id, title, author_id) VALUES (2, 'New', NULL)")
+        db.execute("INSERT INTO items (id, name, fk_id) VALUES (2, 'New', NULL)")
 
     # Test FOREIGN KEY constraint
     with pytest.raises(IntegrityError):
-        db.execute("INSERT INTO posts (id, title, author_id) VALUES (3, 'Test', 999)")
+        db.execute("INSERT INTO items (id, name, fk_id) VALUES (3, 'Test', 999)")
 
-    # Verify existing data migrated correctly (default author for old posts)
-    result = db.query("SELECT author_id FROM posts WHERE id = 1")
-    assert result["author_id"] == 1  # Default/system author
+    # Verify existing data migrated correctly (default value for old rows)
+    result = db.query("SELECT fk_id FROM items WHERE id = 1")
+    assert result["fk_id"] == 1  # Default value
 ```
 
 **Example (schema with CHECK constraint):**
 ```python
-def test_status_column_enforces_valid_values():
-    """Verify status column only allows specific values."""
-    create_posts_table()
+def test_enum_column_enforces_valid_values():
+    """Verify enum column only allows specific values."""
+    create_table()
 
     # Valid values should work
-    db.execute("INSERT INTO posts (title, status) VALUES ('Test', 'draft')")
-    db.execute("INSERT INTO posts (title, status) VALUES ('Test', 'published')")
+    db.execute("INSERT INTO items (name, status) VALUES ('Test', 'active')")
+    db.execute("INSERT INTO items (name, status) VALUES ('Test', 'inactive')")
 
     # Invalid value should fail
     with pytest.raises(IntegrityError, match="CHECK constraint failed"):
-        db.execute("INSERT INTO posts (title, status) VALUES ('Test', 'invalid')")
+        db.execute("INSERT INTO items (name, status) VALUES ('Test', 'invalid')")
 ```
 
 **Key requirements:**
@@ -115,19 +115,19 @@ Create or update:
 
 **Migration script template:**
 ```python
-def migrate_to_v2(db):
-    """Add author_id column with NOT NULL and FOREIGN KEY constraints."""
+def run_migration(db):
+    """Add foreign key column with NOT NULL and FOREIGN KEY constraints."""
     # 1. Add column as nullable first (existing rows need a value)
-    db.execute("ALTER TABLE posts ADD COLUMN author_id INTEGER")
+    db.execute("ALTER TABLE items ADD COLUMN fk_id INTEGER")
 
     # 2. Backfill existing rows with default value
-    db.execute("UPDATE posts SET author_id = 1 WHERE author_id IS NULL")
+    db.execute("UPDATE items SET fk_id = 1 WHERE fk_id IS NULL")
 
     # 3. Add NOT NULL constraint
-    db.execute("ALTER TABLE posts ALTER COLUMN author_id SET NOT NULL")
+    db.execute("ALTER TABLE items ALTER COLUMN fk_id SET NOT NULL")
 
     # 4. Add FOREIGN KEY constraint
-    db.execute("ALTER TABLE posts ADD CONSTRAINT fk_author FOREIGN KEY (author_id) REFERENCES authors(id)")
+    db.execute("ALTER TABLE items ADD CONSTRAINT fk_constraint FOREIGN KEY (fk_id) REFERENCES related_table(id)")
 
     # 5. Update schema version
     db.execute("UPDATE schema_version SET version = 2")
@@ -140,21 +140,21 @@ Make the test pass.
 - Run full test suite: `uv run pytest`
 - Verify migrations are idempotent (can run multiple times safely)
 - Test rollback path (if migration fails halfway, can we recover?)
-- Ensure Pydantic models and database schema match exactly
+- Ensure data models and database schema match exactly
 
 ## The Builder Process
 
 ### 1. 📐 DESIGN - Analyze Requirements
 - Identify the business rules that need database enforcement
 - Review existing data models and schemas
-- Ensure consistency between types (Pydantic) and storage (DuckDB/Ibis)
+- Ensure consistency between type definitions and database storage
 - Map out migration path if modifying existing schema
 
 ### 2. 🏗️ IMPLEMENT - Build with TDD
 - Follow the TDD cycle above (RED → GREEN → REFACTOR)
 - Write constraint tests first, then implement schema
 - Create migration scripts that handle existing data safely
-- Update Pydantic models to match schema
+- Update data models to match schema
 
 ### 3. 🧱 VERIFY - Integrity Check
 - Run full test suite to ensure no regressions
@@ -165,24 +165,24 @@ Make the test pass.
 ## Common Pitfalls
 
 ### ❌ Pitfall: Adding Constraints Without Migration Path
-**What it looks like:** `ALTER TABLE posts ADD COLUMN author_id INTEGER NOT NULL`
+**What it looks like:** `ALTER TABLE items ADD COLUMN new_column INTEGER NOT NULL`
 **Why it's wrong:** Fails immediately on tables with existing rows (can't add NOT NULL to existing data).
 **Instead, do this:** Add as nullable, backfill data, then add NOT NULL constraint (see migration template above).
 
 ### ❌ Pitfall: Relying on Application-Level Validation
-**What it looks like:** Python code checks `if post.author_id is None: raise ValueError()`
+**What it looks like:** Application code checks `if item.field is None: raise ValueError()`
 **Why it's wrong:** Bugs in application code or direct database access can bypass validation.
 **Instead, do this:** Use `NOT NULL` constraint in database. Let the database reject invalid data.
 
 ### ❌ Pitfall: Using TEXT for Everything
-**What it looks like:** `CREATE TABLE posts (status TEXT, published_at TEXT, likes TEXT)`
-**Why it's wrong:** No type safety, can store "banana" in a date field, can't use database functions efficiently.
-**Instead, do this:** Use proper types (VARCHAR(20), TIMESTAMP, INTEGER). Add CHECK constraints for enums.
+**What it looks like:** `CREATE TABLE items (status TEXT, created_at TEXT, count TEXT)`
+**Why it's wrong:** No type safety, can store invalid values in typed fields, can't use database functions efficiently.
+**Instead, do this:** Use proper types (VARCHAR with length, TIMESTAMP, INTEGER). Add CHECK constraints for enums.
 
 ### ❌ Pitfall: Missing Indexes
-**What it looks like:** Query `SELECT * FROM posts WHERE author_id = ?` is slow.
+**What it looks like:** Queries filtering on frequently-used columns are slow.
 **Why it's wrong:** Full table scan on every query.
-**Instead, do this:** `CREATE INDEX idx_posts_author ON posts(author_id)`. Profile queries and index accordingly.
+**Instead, do this:** Create indexes on columns used in WHERE clauses and JOINs. Profile queries and index accordingly.
 
 ## Guardrails
 

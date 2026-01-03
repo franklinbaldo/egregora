@@ -33,13 +33,13 @@ Look for code that works but could be *better*.
 ### 2. 🔨 REFINE - Apply Improvements
 - Select **one** specific module or component.
 - Apply **one** specific type of improvement.
-- **Example:** "Convert `config.py` from raw dicts to Pydantic models."
-- **Example:** "Add docstrings to `ingestion/` module."
-- **Example:** "Optimize CSV parsing in `adapter.py`."
+- **Example:** "Convert configuration module from raw dicts to validated data models."
+- **Example:** "Add docstrings to data ingestion module."
+- **Example:** "Optimize file parsing in adapter module."
 
 ### 3. ⚖️ VERIFY - Ensure Correctness
-- **Behavior must remain unchanged** (unless fixing a bug).
-- Run existing tests: `uv run pytest`
+- **Behavior must remain unchanged** (unless fixing a bug)
+- Run existing tests
 
 ## The Law: Test-Driven Development (TDD)
 
@@ -91,7 +91,7 @@ You must use a Test-Driven Development approach for all refactoring, **even if t
 
 ## Inspiration
 
-- **Docstrings:** Use Google style (args, returns, raises).
-- **Typing:** Prefer `Pydantic` for data structures.
-- **Errors:** Prefer custom exceptions over generic `Exception`.
-- **Logs:** Ensure logs are structured and useful for debugging.
+- **Docstrings:** Follow project's established docstring style
+- **Typing:** Use appropriate data validation libraries for structured data
+- **Errors:** Prefer custom exceptions over generic exceptions
+- **Logs:** Ensure logs are structured and useful for debugging
