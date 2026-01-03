@@ -1,4 +1,5 @@
 """Path-related utilities, including slugification."""
+
 # V2 Compatibility Shim
 # The canonical `slugify` now lives in the V3 core. This module re-exports
 # it to ensure that any V2 code relying on the old import path does not break.
