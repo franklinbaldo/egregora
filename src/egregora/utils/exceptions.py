@@ -41,8 +41,6 @@ from egregora.orchestration.exceptions import (
     WindowSplitError,
 )
 from egregora.utils.datetime_utils import DateTimeError, DateTimeParsingError, InvalidDateTimeInputError
-
-
 from egregora_v3.core.utils import InvalidInputError, SlugifyError
 
 
@@ -79,6 +77,7 @@ __all__ = [
     "InvalidDateArgumentError",
     "InvalidDateTimeInputError",
     "InvalidInputError",
+    "InvalidInputError",
     "InvalidTimezoneArgumentError",
     "OrchestrationError",
     "OutputSinkError",
@@ -87,10 +86,9 @@ __all__ = [
     "ProfileGenerationError",
     "ProfileNotFoundError",
     "ProfileParseError",
+    "SlugifyError",
     "SourceNotFoundError",
     "WindowError",
     "WindowSizeError",
     "WindowSplitError",
-    "SlugifyError",
-    "InvalidInputError",
 ]
