@@ -133,9 +133,8 @@ class TestWriterDecoupling:
         assert "Disk full" in str(exc_info.value)
 
 
-@pytest.mark.asyncio
 @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
-async def test_execute_writer_raises_specific_exception(
+def test_execute_writer_raises_specific_exception(
     mock_pydantic_writer: MagicMock, test_config: MagicMock
 ) -> None:
     """Test that _execute_writer_with_error_handling raises RuntimeError on agent failure."""
@@ -146,7 +145,7 @@ async def test_execute_writer_raises_specific_exception(
 
     # Act & Assert
     with pytest.raises(RuntimeError) as exc_info:
-        await writer_module._execute_writer_with_error_handling(
+        writer_module._execute_writer_with_error_handling(
             prompt="test prompt",
             config=test_config,
             deps=mock_deps,
@@ -156,14 +155,13 @@ async def test_execute_writer_raises_specific_exception(
     assert "test-window" in str(exc_info.value)
 
 
-@pytest.mark.asyncio
 @patch("egregora.agents.writer.build_context_and_signature")
 @patch("egregora.agents.writer.check_writer_cache")
 @patch("egregora.agents.writer.prepare_writer_dependencies")
 @patch("egregora.agents.writer._render_writer_prompt")
 @patch("egregora.agents.writer._execute_writer_with_error_handling")
 @patch("egregora.agents.writer._finalize_writer_results")
-async def test_write_posts_for_window_smoke_test(
+def test_write_posts_for_window_smoke_test(
     mock_finalize: MagicMock,
     mock_execute: MagicMock,
     mock_render: MagicMock,
@@ -190,7 +188,7 @@ async def test_write_posts_for_window_smoke_test(
         messages=[MagicMock()],
     )
 
-    result = await writer_module.write_posts_for_window(params)
+    result = writer_module.write_posts_for_window(params)
     assert result == {"posts": [], "profiles": []}
     mock_execute.assert_called_once()
     mock_finalize.assert_called_once()
@@ -198,11 +196,8 @@ async def test_write_posts_for_window_smoke_test(
     mock_prepare_deps.assert_called_once()
 
 
-@pytest.mark.asyncio
 @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
-async def test_execute_writer_raises_specific_error(
-    mock_writer_agent: MagicMock, test_config: MagicMock
-) -> None:
+def test_execute_writer_raises_specific_error(mock_writer_agent: MagicMock, test_config: MagicMock) -> None:
     """Test that _execute_writer_with_error_handling raises RuntimeError on agent failure."""
     # Arrange
     original_error = ValueError("Underlying agent error")
@@ -213,7 +208,7 @@ async def test_execute_writer_raises_specific_error(
 
     # Act & Assert
     with pytest.raises(RuntimeError) as exc_info:
-        await writer_module._execute_writer_with_error_handling(
+        writer_module._execute_writer_with_error_handling(
             prompt="test prompt",
             config=test_config,
             deps=mock_deps,
@@ -224,14 +219,13 @@ async def test_execute_writer_raises_specific_error(
     assert exc_info.value.__cause__ is original_error
 
 
-@pytest.mark.asyncio
 @patch("egregora.agents.writer.build_context_and_signature")
 @patch("egregora.agents.writer.check_writer_cache")
 @patch("egregora.agents.writer.prepare_writer_dependencies")
 @patch("egregora.agents.writer._render_writer_prompt")
 @patch("egregora.agents.writer._execute_writer_with_error_handling")
 @patch("egregora.agents.writer._finalize_writer_results")
-async def test_write_posts_for_window_cache_hit_valid(
+def test_write_posts_for_window_cache_hit_valid(
     mock_finalize: MagicMock,
     mock_execute: MagicMock,
     mock_render: MagicMock,
@@ -278,7 +272,7 @@ async def test_write_posts_for_window_cache_hit_valid(
         messages=[mock_message],
     )
 
-    result = await writer_module.write_posts_for_window(params)
+    result = writer_module.write_posts_for_window(params)
 
     assert result == cached_result
     mock_execute.assert_not_called()

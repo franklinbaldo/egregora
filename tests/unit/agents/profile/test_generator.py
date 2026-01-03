@@ -1,6 +1,5 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 import yaml
 
 from egregora.agents.profile.generator import (
@@ -9,8 +8,7 @@ from egregora.agents.profile.generator import (
 )
 
 
-@pytest.mark.asyncio
-async def test_generate_profile_content_handles_oserror_on_get_author_profile():
+def test_generate_profile_content_handles_oserror_on_get_author_profile():
     """
     Verify that _generate_profile_content handles OSError gracefully
     when get_author_profile fails.
@@ -25,13 +23,12 @@ async def test_generate_profile_content_handles_oserror_on_get_author_profile():
         new_callable=AsyncMock,
     ) as mock_llm:
         mock_llm.return_value = MagicMock(significant=False)
-        result = await _generate_profile_content(ctx, [{"text": "message"}], "author_name", "author_uuid")
+        result = _generate_profile_content(ctx, [{"text": "message"}], "author_name", "author_uuid")
         assert result is None
         ctx.output_format.get_author_profile.assert_called_once_with("author_uuid")
 
 
-@pytest.mark.asyncio
-async def test_generate_profile_content_handles_yamlerror_on_get_author_profile():
+def test_generate_profile_content_handles_yamlerror_on_get_author_profile():
     """
     Verify that _generate_profile_content handles YAMLError gracefully
     when get_author_profile fails to parse a profile.
@@ -46,13 +43,12 @@ async def test_generate_profile_content_handles_yamlerror_on_get_author_profile(
         new_callable=AsyncMock,
     ) as mock_llm:
         mock_llm.return_value = MagicMock(significant=False)
-        result = await _generate_profile_content(ctx, [{"text": "message"}], "author_name", "author_uuid")
+        result = _generate_profile_content(ctx, [{"text": "message"}], "author_name", "author_uuid")
         assert result is None
         ctx.output_format.get_author_profile.assert_called_once_with("author_uuid")
 
 
-@pytest.mark.asyncio
-async def test_generate_profile_content_handles_importerror_on_history():
+def test_generate_profile_content_handles_importerror_on_history():
     """
     Verify that _generate_profile_content handles ImportError gracefully
     when get_profile_history_for_context is not available.
@@ -72,12 +68,11 @@ async def test_generate_profile_content_handles_importerror_on_history():
         ) as mock_llm,
     ):
         mock_llm.return_value = MagicMock(significant=False)
-        result = await _generate_profile_content(ctx, [{"text": "message"}], "author_name", "author_uuid")
+        result = _generate_profile_content(ctx, [{"text": "message"}], "author_name", "author_uuid")
         assert result is None
 
 
-@pytest.mark.asyncio
-async def test_generate_profile_posts_continues_on_exception():
+def test_generate_profile_posts_continues_on_exception():
     """
     Verify that generate_profile_posts continues processing other authors
     if one author fails.
@@ -90,11 +85,10 @@ async def test_generate_profile_posts_continues_on_exception():
 
     with patch(
         "egregora.agents.profile.generator._generate_profile_content",
-        new_callable=AsyncMock,
     ) as mock_generate:
         # First author fails, second succeeds
         mock_generate.side_effect = [ValueError("Unexpected error"), "# Profile Update"]
-        results = await generate_profile_posts(ctx, messages, "2024-01-01")
+        results = generate_profile_posts(ctx, messages, "2024-01-01")
 
         # Assert that we have one successful profile and the error was handled.
         assert len(results) == 1
