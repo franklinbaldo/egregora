@@ -197,9 +197,7 @@ def test_write_posts_for_window_smoke_test(
 
 
 @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
-def test_execute_writer_raises_specific_error(
-    mock_writer_agent: MagicMock, test_config: MagicMock
-) -> None:
+def test_execute_writer_raises_specific_error(mock_writer_agent: MagicMock, test_config: MagicMock) -> None:
     """Test that _execute_writer_with_error_handling raises RuntimeError on agent failure."""
     # Arrange
     original_error = ValueError("Underlying agent error")

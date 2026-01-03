@@ -6,7 +6,6 @@ from egregora.agents.profile.generator import (
     _generate_profile_content,
     generate_profile_posts,
 )
-from egregora.utils.async_utils import run_async_safely
 
 
 def test_generate_profile_content_handles_oserror_on_get_author_profile():

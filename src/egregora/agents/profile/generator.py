@@ -290,9 +290,7 @@ async def _call_llm_decision(prompt: str, ctx: Any) -> ProfileUpdateDecision:
     return result.data
 
 
-def generate_profile_posts(
-    ctx: Any, messages: list[dict[str, Any]], window_date: str
-) -> list[Document]:
+def generate_profile_posts(ctx: Any, messages: list[dict[str, Any]], window_date: str) -> list[Document]:
     """Generate PROFILE posts for all active authors in window.
 
     Generates profile posts only if significant updates are detected.

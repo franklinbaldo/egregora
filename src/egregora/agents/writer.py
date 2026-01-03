@@ -575,13 +575,9 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str
 
     if getattr(params.config.pipeline, "economic_mode", False):
         logger.info("💰 Economic Mode enabled: Using simple generation (no tools)")
-        saved_posts, saved_profiles = _execute_economic_writer(
-            prompt, params.config, deps
-        )
+        saved_posts, saved_profiles = _execute_economic_writer(prompt, params.config, deps)
     else:
-        saved_posts, saved_profiles = _execute_writer_with_error_handling(
-            prompt, params.config, deps
-        )
+        saved_posts, saved_profiles = _execute_writer_with_error_handling(prompt, params.config, deps)
 
     # 6. Finalize results (output, RAG indexing, caching)
     return _finalize_writer_results(

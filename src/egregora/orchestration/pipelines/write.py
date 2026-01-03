@@ -775,9 +775,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     # EXECUTE PROFILE GENERATOR
     window_date = conversation.window.start_time.strftime("%Y-%m-%d")
     try:
-        profile_docs = generate_profile_posts(
-            ctx=ctx, messages=clean_messages_list, window_date=window_date
-        )
+        profile_docs = generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date)
         for profile_doc in profile_docs:
             try:
                 output_sink.persist(profile_doc)
