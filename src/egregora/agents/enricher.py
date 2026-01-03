@@ -47,8 +47,8 @@ from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.security.zip import validate_zip_contents
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
+from egregora.llm.api_keys import get_google_api_key, get_google_api_keys
 from egregora.utils.datetime_utils import ensure_datetime
-from egregora.utils.env import get_google_api_key
 from egregora.utils.exceptions import CacheKeyNotFoundError
 from egregora.utils.paths import slugify
 
