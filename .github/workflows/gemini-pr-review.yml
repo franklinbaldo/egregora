@@ -151,6 +151,22 @@ jobs:
           # Use pipefail to catch script failures even when piped through grep
           uv run --quiet python .github/scripts/construct_gemini_prompt.py 2>&1 | grep -v "^Resolved\|^Prepared\|^Built\|^Installed" || [[ ${PIPESTATUS[0]} -eq 0 ]]
 
+          # Verify prompt file was created
+          if [[ ! -f .github/tmp/prompt.txt ]]; then
+            echo "::error::Prompt file was not created"
+            exit 1
+          fi
+
+          # Log success without printing the entire prompt (avoid bloating logs)
+          PROMPT_SIZE=$(wc -c < .github/tmp/prompt.txt)
+          echo "✓ Prompt constructed ($PROMPT_SIZE bytes)"
+
+          # Check if prompt is too large for GITHUB_ENV
+          if [[ $PROMPT_SIZE -gt 200000 ]]; then
+            echo "::error::Prompt is too large ($PROMPT_SIZE bytes). Max recommended: 200KB for GITHUB_ENV"
+            exit 1
+          fi
+
           # Export prompt as environment variable for Gemini action
           PROMPT_DELIMITER="eof_gemini_prompt_${{ github.run_id }}_${{ github.run_attempt }}"
           {
@@ -159,9 +175,7 @@ jobs:
             echo "${PROMPT_DELIMITER}"
           } >> "$GITHUB_ENV"
 
-          # Log success without printing the entire prompt (avoid bloating logs)
-          PROMPT_SIZE=$(wc -c < .github/tmp/prompt.txt)
-          echo "✓ Prompt constructed ($PROMPT_SIZE bytes)"
+          echo "✓ Prompt exported to GITHUB_ENV"
 
       # ----------------------------------------------------------------------
       # Gemini Review Pipeline using Official GitHub Action
