@@ -1,7 +1,7 @@
-"""Environment variable utilities for Egregora.
+"""LLM credential and API key utilities for Egregora.
 
 This module provides utilities for accessing environment variables,
-particularly for API keys and credentials.
+particularly for API keys and credentials for LLM providers.
 """
 
 from __future__ import annotations
