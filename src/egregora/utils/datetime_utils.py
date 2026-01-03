@@ -7,11 +7,6 @@ from typing import TYPE_CHECKING, Any
 
 from dateutil import parser as dateutil_parser
 
-from egregora.utils.exceptions import (
-    DateTimeParsingError,
-    InvalidDateTimeInputError,
-)
-
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -108,6 +103,28 @@ def ensure_datetime(value: datetime | str | Any) -> datetime:
     except (DateTimeParsingError, InvalidDateTimeInputError) as e:
         msg = f"Unsupported datetime type: {type(value)}"
         raise TypeError(msg) from e
+
+
+class DateTimeError(Exception):
+    """Base exception for datetime parsing and manipulation errors."""
+
+
+class InvalidDateTimeInputError(DateTimeError):
+    """Raised when the input value for a datetime operation is invalid (e.g., None, empty string)."""
+
+    def __init__(self, value: str, reason: str) -> None:
+        self.value = value
+        self.reason = reason
+        super().__init__(f"Invalid datetime input '{value}': {reason}")
+
+
+class DateTimeParsingError(DateTimeError):
+    """Raised when a string cannot be parsed into a datetime object."""
+
+    def __init__(self, value: str, original_exception: Exception) -> None:
+        self.value = value
+        self.original_exception = original_exception
+        super().__init__(f"Failed to parse datetime from '{value}': {original_exception}")
 
 
 __all__ = ["ensure_datetime", "normalize_timezone", "parse_datetime_flexible"]

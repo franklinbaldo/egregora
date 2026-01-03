@@ -4,8 +4,7 @@ import datetime
 import pytest
 from freezegun import freeze_time
 
-from egregora.utils.exceptions import DateExtractionError
-from egregora.utils.filesystem import _extract_clean_date
+from egregora.utils.filesystem import DateExtractionError, _extract_clean_date
 
 # Valid date inputs that should be successfully extracted
 VALID_DATE_TEST_CASES = [

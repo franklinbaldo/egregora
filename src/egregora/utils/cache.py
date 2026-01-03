@@ -7,143 +7,19 @@ invalidation controls.
 
 from __future__ import annotations
 
-import contextlib
-import json
 import logging
-from dataclasses import dataclass
 from enum import Enum
-from hashlib import sha256
-from typing import TYPE_CHECKING, Annotated, Any, Protocol
+from typing import TYPE_CHECKING
 
 import diskcache
 
-from egregora.utils.exceptions import (
-    CacheDeserializationError,
-    CacheKeyNotFoundError,
-    CachePayloadTypeError,
-)
+from egregora.agents.cache import EnrichmentCache
+from egregora.utils.cache_backend import DiskCacheBackend
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 logger = logging.getLogger(__name__)
-
-ENRICHMENT_CACHE_VERSION = "v2"
-
-
-def make_enrichment_cache_key(
-    *,
-    kind: Annotated[str, "The type of enrichment, e.g., 'url' or 'media'"],
-    identifier: Annotated[str, "A unique identifier for the content being enriched"],
-    version: Annotated[
-        str, "A version string to invalidate caches when the format changes"
-    ] = ENRICHMENT_CACHE_VERSION,
-) -> Annotated[str, "A stable, unique cache key"]:
-    """Create a stable cache key using the enrichment type and identifier.
-
-    Args:
-        kind: Entry type, e.g. "url" or "media".
-        identifier: Unique identifier for the entry.
-        version: Optional semantic version to bust caches when format changes.
-
-    """
-    raw = f"{version}:{kind}:{identifier}".encode()
-    return sha256(raw).hexdigest()
-
-
-class CacheBackend(Protocol):
-    """Abstract protocol for cache backends."""
-
-    def get(self, key: str) -> Any: ...
-
-    def set(self, key: str, value: Any, expire: float | None = None) -> None: ...
-
-    def delete(self, key: str) -> None: ...
-
-    def close(self) -> None: ...
-
-    def __getitem__(self, key: str) -> Any: ...
-
-    def __setitem__(self, key: str, value: Any) -> None: ...
-
-    def __delitem__(self, key: str) -> None: ...
-
-
-class DiskCacheBackend:
-    """Adapter for diskcache.Cache to match CacheBackend protocol."""
-
-    def __init__(self, directory: Path, **kwargs: Any) -> None:
-        self._cache = diskcache.Cache(str(directory), **kwargs)
-
-    def get(self, key: str) -> Any:
-        try:
-            return self._cache[key]
-        except KeyError as e:
-            raise CacheKeyNotFoundError(key) from e
-
-    def set(self, key: str, value: Any, expire: float | None = None) -> None:
-        self._cache.set(key, value, expire=expire)
-
-    def delete(self, key: str) -> None:
-        with contextlib.suppress(KeyError):
-            del self._cache[key]
-
-    def close(self) -> None:
-        self._cache.close()
-
-    def __getitem__(self, key: str) -> Any:
-        return self._cache[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self._cache[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self._cache[key]
-
-
-@dataclass(slots=True)
-class EnrichmentCache:
-    """Disk-backed cache for enrichment markdown payloads."""
-
-    backend: CacheBackend
-
-    def load(
-        self, key: Annotated[str, "The cache key to look up"]
-    ) -> Annotated[dict[str, Any], "The cached payload, or None if not found"]:
-        """Return cached payload when present."""
-        try:
-            value = self.backend.get(key)
-        except (json.JSONDecodeError, TypeError, ValueError) as e:
-            logger.warning(
-                "Failed to deserialize cache entry for key %s: %s. Clearing entry - will be regenerated.",
-                key,
-                e,
-            )
-            self.backend.delete(key)
-            raise CacheDeserializationError(key, e) from e
-
-        if not isinstance(value, dict):
-            logger.warning("Unexpected cache payload type for key %s; clearing entry", key)
-            self.backend.delete(key)
-            raise CachePayloadTypeError(key, type(value))
-        return value
-
-    def store(
-        self,
-        key: Annotated[str, "The cache key to store the payload under"],
-        payload: Annotated[dict[str, Any], "The payload to store"],
-    ) -> None:
-        """Persist enrichment payload."""
-        self.backend.set(key, payload, expire=None)
-        logger.debug("Cached enrichment entry for key %s", key)
-
-    def delete(self, key: Annotated[str, "The cache key to delete"]) -> None:
-        """Remove an entry from the cache if present."""
-        self.backend.delete(key)
-
-    def close(self) -> None:
-        """Release underlying cache resources."""
-        self.backend.close()
 
 
 class CacheTier(str, Enum):
@@ -208,3 +84,38 @@ class PipelineCache:
         self.enrichment.close()
         self.rag.close()
         self.writer.close()
+
+
+class CacheError(Exception):
+    """Base exception for cache-related errors."""
+
+
+class CacheDeserializationError(CacheError):
+    """Raised when a cache entry cannot be deserialized."""
+
+    def __init__(self, key: str, original_exception: Exception) -> None:
+        self.key = key
+        self.original_exception = original_exception
+        message = f"Failed to deserialize cache entry for key '{key}'. Original error: {original_exception}"
+        super().__init__(message)
+
+
+class CachePayloadTypeError(CacheError):
+    """Raised when a cache entry has an unexpected type."""
+
+    def __init__(self, key: str, payload_type: type) -> None:
+        self.key = key
+        self.payload_type = payload_type
+        message = (
+            f"Unexpected cache payload type for key '{key}': got {payload_type.__name__}, expected dict."
+        )
+        super().__init__(message)
+
+
+class CacheKeyNotFoundError(CacheError):
+    """Raised when a key is not found in the cache."""
+
+    def __init__(self, key: str) -> None:
+        self.key = key
+        message = f"Key not found in cache: '{key}'"
+        super().__init__(message)
