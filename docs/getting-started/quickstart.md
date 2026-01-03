@@ -80,11 +80,7 @@ This will:
 Launch a local preview server:
 
 ```bash
-# 1. Install doc dependencies (if you haven't already)
-uv sync --all-extras
-
-# 2. Preview your site
-uv run mkdocs serve -f .egregora/mkdocs.yml
+uv tool run --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox mkdocs serve -f .egregora/mkdocs.yml
 ```
 
 Open [http://localhost:8000](http://localhost:8000) in your browser. 🎉
