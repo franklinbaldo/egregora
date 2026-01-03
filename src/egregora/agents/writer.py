@@ -573,7 +573,11 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str
 
     prompt = _render_writer_prompt(writer_context, deps.resources.prompts_dir)
 
-    if getattr(params.config.pipeline, "economic_mode", False):
+    import os
+    if os.environ.get("EGREGORA_USE_MOCK_WRITER"):
+        from egregora.agents.mock_writer import _execute_mock_writer
+        saved_posts, saved_profiles = _execute_mock_writer(deps)
+    elif getattr(params.config.pipeline, "economic_mode", False):
         logger.info("💰 Economic Mode enabled: Using simple generation (no tools)")
         saved_posts, saved_profiles = _execute_economic_writer(prompt, params.config, deps)
     else:

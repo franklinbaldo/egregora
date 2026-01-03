@@ -14,7 +14,8 @@ from typing import Any
 import lancedb
 import numpy as np
 
-from egregora_v3.infra.rag import chunks_from_documents, RAGChunk
+from egregora_v3.core.types import RAGChunk
+from egregora_v3.infra.rag import chunks_from_documents
 
 try:
     from lancedb.pydantic import LanceModel, Vector

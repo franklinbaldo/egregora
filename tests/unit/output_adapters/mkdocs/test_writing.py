@@ -6,7 +6,7 @@ from datetime import date, datetime
 
 import pytest
 
-from egregora.output_adapters.mkdocs.markdown_utils import (
+from egregora.output_adapters.mkdocs.writing import (
     DateExtractionError,
     FrontmatterDateFormattingError,
     extract_clean_date,
