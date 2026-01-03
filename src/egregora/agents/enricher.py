@@ -680,7 +680,7 @@ class EnrichmentWorker(BaseWorker):
         - max_concurrent_enrichments = 1: Explicitly disable auto-scaling (sequential)
         - max_concurrent_enrichments = N: Use exactly N concurrent requests
         """
-        from egregora.utils.env import get_google_api_keys
+        from egregora.llm.credentials import get_google_api_keys
 
         # Get API keys
         api_keys = get_google_api_keys()
