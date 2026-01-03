@@ -1,12 +1,13 @@
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
+
 from egregora.llm.credentials import (
     get_google_api_key,
+    get_google_api_keys,
     google_api_key_available,
     validate_gemini_api_key,
-    get_google_api_keys,
 )
 
 
