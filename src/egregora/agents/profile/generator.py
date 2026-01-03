@@ -36,9 +36,10 @@ to prevent routing failures.
 """
 
 import asyncio
+import inspect
 import logging
 from collections import defaultdict
-from typing import Any
+from typing import Any, Awaitable
 
 import yaml
 from pydantic import BaseModel, Field
@@ -208,7 +209,7 @@ Update Content Guidelines (if significant):
 """
 
 
-def _generate_profile_content(
+async def _generate_profile_content_async(
     ctx: Any,
     author_messages: list[dict[str, Any]],
     author_name: str,
@@ -258,7 +259,7 @@ def _generate_profile_content(
     )
 
     # Call LLM
-    decision = _call_llm_decision(prompt, ctx)
+    decision = await _resolve_awaitable(_call_llm_decision(prompt, ctx))
 
     if not decision.significant:
         logger.info("Skipping profile update for %s (not significant)", author_name)
@@ -267,7 +268,28 @@ def _generate_profile_content(
     return decision.content
 
 
-def _call_llm_decision(prompt: str, ctx: Any) -> ProfileUpdateDecision:
+def _generate_profile_content(
+    ctx: Any,
+    author_messages: list[dict[str, Any]],
+    author_name: str,
+    author_uuid: str,
+) -> str | None | Awaitable[str | None]:
+    """Generate profile content with sync+async compatibility."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(
+            _generate_profile_content_async(
+                ctx=ctx, author_messages=author_messages, author_name=author_name, author_uuid=author_uuid
+            )
+        )
+
+    return _generate_profile_content_async(
+        ctx=ctx, author_messages=author_messages, author_name=author_name, author_uuid=author_uuid
+    )
+
+
+async def _call_llm_decision(prompt: str, ctx: Any) -> ProfileUpdateDecision:
     """Call LLM with prompt and expect structured decision.
 
     Args:
@@ -285,12 +307,21 @@ def _call_llm_decision(prompt: str, ctx: Any) -> ProfileUpdateDecision:
     agent = Agent(model_name, result_type=ProfileUpdateDecision)
 
     # Run agent
-    result = asyncio.run(agent.run(prompt))
+    result = await agent.run(prompt)
 
     return result.data
 
 
-def generate_profile_posts(ctx: Any, messages: list[dict[str, Any]], window_date: str) -> list[Document]:
+async def _resolve_awaitable(result: Any) -> Any:
+    """Await a value if it is awaitable, otherwise return it directly."""
+    if inspect.isawaitable(result):
+        return await result
+    return result
+
+
+async def _generate_profile_posts_async(
+    ctx: Any, messages: list[dict[str, Any]], window_date: str
+) -> list[Document]:
     """Generate PROFILE posts for all active authors in window.
 
     Generates profile posts only if significant updates are detected.
@@ -326,8 +357,10 @@ def generate_profile_posts(ctx: Any, messages: list[dict[str, Any]], window_date
 
         try:
             # Generate content (returns None if not significant)
-            content = _generate_profile_content(
-                ctx=ctx, author_messages=msgs, author_name=author_name, author_uuid=author_uuid
+            content = await _resolve_awaitable(
+                _generate_profile_content(
+                    ctx=ctx, author_messages=msgs, author_name=author_name, author_uuid=author_uuid
+                )
             )
 
             if not content:
@@ -368,3 +401,19 @@ def generate_profile_posts(ctx: Any, messages: list[dict[str, Any]], window_date
             continue
 
     return profiles
+
+
+def generate_profile_posts(
+    ctx: Any, messages: list[dict[str, Any]], window_date: str
+) -> list[Document] | Awaitable[list[Document]]:
+    """Generate PROFILE posts with sync+async compatibility.
+
+    If called from synchronous code, the coroutine is executed with ``asyncio.run``.
+    When called from an async context, a coroutine is returned and must be awaited.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(_generate_profile_posts_async(ctx=ctx, messages=messages, window_date=window_date))
+
+    return _generate_profile_posts_async(ctx=ctx, messages=messages, window_date=window_date)
