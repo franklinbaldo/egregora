@@ -4,7 +4,7 @@ Last updated: 2026-01-05
 
 ## Current Organizational State
 
-The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 structure contains a `utils` directory which often holds misplaced domain-specific code. Previous refactoring has addressed some of these issues, but more may exist.
+The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 structure contains a `utils` directory and a `constants.py` file which have historically held misplaced domain-specific code.
 
 ## Identified Issues
 
@@ -13,6 +13,12 @@ The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 struc
 ## Prioritized Improvements
 
 *   Continue the systematic evaluation of the `src/egregora/utils` directory.
+1.  **`src/egregora/constants.py`**: **[HIGH PRIORITY]** This module acts as a "junk drawer" for various constants and enums. Investigation shows that most enums are either unused (dead code) or belong to a specific domain (e.g., `config`, `rag`). This violates the Single Responsibility Principle and makes the codebase harder to navigate.
+2.  **`src/egregora/utils/datetime_utils.py`**: **[EVALUATED - OK]** This module was investigated as a potential candidate for refactoring. However, a `grep` search revealed its functions are used across multiple, disparate domains. It serves as a true, cross-cutting utility and is correctly located. No action is required.
+
+## Prioritized Improvements
+
+1.  **Refactor `src/egregora/constants.py`**: Move domain-specific enums (`RetrievalMode`, `SourceType`, `WindowUnit`) to a new `src/egregora/config/enums.py` file. Delete dead code (`FileFormat`, `IndexType`, `MediaType`) from the module. This will improve modularity and code clarity.
 
 ## Completed Improvements
 
@@ -28,4 +34,4 @@ The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 struc
 
 ## Organizational Strategy
 
-My primary strategy is to inspect the `src/egregora/utils` directory, as it has historically been a collection point for domain-specific logic that should be co-located with its primary users. Each module within `utils` will be evaluated by tracing its usage to determine if it's a true, cross-cutting concern or if it can be moved to a more specific domain.
+My primary strategy is to identify and refactor modules that violate the Single Responsibility Principle, such as generic `utils` or `constants` files. Each component will be evaluated by tracing its usage to determine if it's a true, cross-cutting concern or if it should be moved to a more specific domain.
