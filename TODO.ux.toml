@@ -1,132 +1,330 @@
-# UX/UI TODO - Structured format for programmatic task management
-# Last updated: 2024-07-26
+# Egregora UX/UI Task List
+# Maintained by Curator persona
+# Format: TOML with structured tasks
+# Validation: python .jules/scripts/validate_todo.py
 
-[metadata]
-version = "1.0"
-last_updated = "2024-07-26T00:00:00Z"
-vision_doc = "docs/ux-vision.md"
-template_location = "src/egregora/rendering/templates/site"
-
-[workflow]
-curator_persona = ".jules/personas/curator.md"
-forge_persona = ".jules/personas/forge.md"
-description = "Curator evaluates blogs and updates TODO. Forge implements items from high_priority."
-
-# High Priority - Critical for Excellence
-[[tasks.high_priority]]
-id = "fix-mkdocs-custom-dir"
-title = "Correct the `custom_dir` path in the `mkdocs.yml` template"
-description = """
-**Root Cause Analysis:** The `mkdocs build` command fails because the `theme.custom_dir` in `.egregora/mkdocs.yml` points to a directory in the site root (`overrides`), but the scaffolding logic is designed to place this directory inside `.egregora/`. This conflict was causing build failures. A workaround was implemented to force the `overrides` directory into the root, but the correct fix is to make the `mkdocs.yml` template point to the right place.
-
-1. **Locate Template:** Find the `mkdocs.yml.jinja` template file in `src/egregora/rendering/templates/site`.
-2. **Correct Path:** Change the `custom_dir` value from `overrides` to `.egregora/overrides`.
-3. **Revert Workaround:** The test `tests/unit/output_adapters/mkdocs/test_scaffolding.py::test_overrides_are_in_site_root` and the corresponding code in `scaffolding.py` should be reverted to place `overrides` back into the `.egregora` directory.
-**Verification:** After these changes, the `mkdocs build` command should succeed, and the test suite should pass.
-
-**Curator's Note (2025-12-25):** Moving this back to 'pending'. The underlying issue is in the `mkdocs.yml.jinja` template. The `custom_dir` is hardcoded to `overrides`, which is incorrect. The previous fix was a workaround. The template itself must be corrected.
-"""
-status = "review"
-category = "infrastructure"
-assignee = "forge"
-
+# ============================================================================
+# HIGH PRIORITY - Critical UX Issues
+# ============================================================================
 
 [[tasks.high_priority]]
-id = "fix-broken-nav-links"
-title = "Fix broken navigation links in the site header"
+id = "missing-custom-css"
+title = "Create missing custom CSS file"
 description = """
-The generated site has a broken navigation link for "Media". This creates a poor user experience and gives the impression of an incomplete site.
-**Review Finding (2025-12-25):** The "Media" link points to `posts/media/index.md`, which is incorrect. The target `demo/site/posts/media/` directory is not being generated at all during the build process. The "About" link appears to be working correctly.
-1. **Fix `mkdocs.yml` nav entry**: The path for "Media" in the `nav` section of the `mkdocs.yml` template must be corrected to point to a valid directory (e.g., `media/index.md` or similar, not inside `posts/`).
-2. **Ensure file generation**: Confirm that the corresponding media index file is being correctly generated in the `docs` directory during the site build.
-**Verification**: The "Media" link in the main navigation must resolve to a valid, styled page without any 404 errors.
+WHY: The mkdocs.yml references 'stylesheets/extra.css' but the file doesn't exist.
+This causes a 404 error and prevents custom styling from being applied.
+
+WHAT: Create demo/docs/stylesheets/extra.css with baseline UX improvements:
+- Optimal line length (65-75 characters for body text)
+- Improved heading hierarchy (clear visual distinction)
+- Better spacing between elements (consistent 8px grid)
+- Enhanced readability (increased line-height for body text)
+
+HOW TO VERIFY:
+- File exists at demo/docs/stylesheets/extra.css
+- No 404 errors in browser console
+- Line length limited to 65-75 characters
+- Visual hierarchy clear at a glance
+
+WHERE: demo/docs/stylesheets/extra.css (to be created)
+TEMPLATE SOURCE: src/egregora/output_adapters/mkdocs/scaffolding.py
 """
-status = "review"
-category = "navigation"
+status = "pending"
+category = "baseline"
 assignee = "forge"
 
 [[tasks.high_priority]]
-id = "implement-lighthouse-audit-script"
-title = "Implement a script to run a Lighthouse audit"
+id = "generic-color-palette"
+title = "Replace generic teal/amber color palette with distinctive brand colors"
 description = """
-**Curator's Finding (2025-12-25):** There is currently no tooling in the repository to run a Lighthouse audit. This is a blocker for establishing baseline UX metrics. A script is needed to automate this process.
+WHY: The current teal/amber palette is Material Design's default and doesn't
+create a distinctive brand identity. A thoughtful color palette improves recognition
+and creates emotional connection with readers.
 
-**Requirements:**
-1.  The script should be callable from the command line (e.g., `python .jules/scripts/run_lighthouse.py`).
-2.  It must be able to serve the generated site from `demo/.egregora/site`.
-3.  It should run a Lighthouse audit against the served site's index page.
-4.  The script should output the key scores (Performance, Accessibility, Best Practices, SEO) to the console.
-5.  Bonus: Have the script automatically update the `[lighthouse.current]` section in `TODO.ux.toml`.
+WHAT: Design and implement a custom color palette that:
+- Reflects the "collective consciousness" theme (consider: deep blue/purple for thought, warm orange/gold for connection)
+- Maintains WCAG AA contrast ratios (4.5:1 minimum for body text)
+- Works well in both light and dark modes
+- Uses 3-5 purposeful colors maximum
+
+HOW TO VERIFY:
+- Color palette is unique and not default Material colors
+- All text has >=4.5:1 contrast ratio (test with WebAIM tool)
+- Palette documented in docs/ux-vision.md
+- Colors feel cohesive and intentional
+
+WHERE:
+- Configuration: demo/.egregora/mkdocs.yml (theme.palette section)
+- Documentation: docs/ux-vision.md (to be created)
+TEMPLATE SOURCE: src/egregora/output_adapters/mkdocs/scaffolding.py (generates mkdocs.yml)
 """
-status = "review"
-category = "infrastructure"
-assignee = "forge"
-
-# Medium Priority - Refinement & Polish
-[[tasks.medium_priority]]
-id = "breadcrumbs"
-title = "Add breadcrumbs to all pages"
-description = "Enable the `navigation.path` feature in the `mkdocs.yml` file to provide breadcrumbs."
-status = "review"
-category = "navigation"
-assignee = "forge"
-
-[[tasks.medium_priority]]
-id = "active-state"
-title = "Implement 'you are here' active state styling"
-description = "Enable the `navigation.tracking` and `navigation.tabs` features in the `mkdocs.yml` file to provide active state styling."
-status = "review"
-category = "navigation"
-assignee = "forge"
-
-# Completed tasks will be moved here
-[[tasks.completed]]
-id = "find-templates"
-title = "Find MkDocs template location in src/"
-description = "Document exact template location in vision.md"
-status = "completed"
-category = "infrastructure"
-assignee = "curator"
-
-[[tasks.completed]]
-id = "fix-demo-command"
-title = "Fix the `egregora demo` command"
-description = "The `egregora demo` command was failing due to scaffolding issues and incorrect dependency installation commands. These issues have been resolved."
-status = "completed"
-category = "infrastructure"
-assignee = "curator"
-
-[[tasks.completed]]
-id = "implement-core-readability-css"
-title = "Implement Core Readability CSS in extra.css"
-description = "Core readability improvements have been implemented and verified."
-status = "completed"
+status = "pending"
 category = "visual"
 assignee = "curator"
 
-# Lighthouse score tracking
-[lighthouse.baseline]
-performance = 0  # Measure first
-accessibility = 0
-best_practices = 0
-seo = 0
-measured_date = ""
+[[tasks.high_priority]]
+id = "missing-favicon"
+title = "Add custom favicon and branding"
+description = """
+WHY: Favicon is a critical branding touchpoint visible in browser tabs, bookmarks,
+and mobile home screens. Missing favicon makes the site look unfinished and unprofessional.
 
-[lighthouse.target]
-performance = 95
-accessibility = 100
-best_practices = 100
-seo = 100
+WHAT: Design and add a custom favicon that:
+- Represents "collective consciousness" or "egregora" concept
+- Works at 16x16, 32x32, and 180x180 sizes (SVG preferred)
+- Includes apple-touch-icon for iOS
+- Matches the site's color palette
 
-[lighthouse.current]
-performance = 0
-accessibility = 0
-best_practices = 0
-seo = 0
-last_measured = ""
+HOW TO VERIFY:
+- Favicon visible in browser tab
+- Apple touch icon works on iOS (180x180)
+- Icon is distinctive and recognizable at small sizes
+- SVG or multiple PNG sizes provided
 
-# Reference examples for comparison
-[[references]]
-name = "Stripe Docs"
-url = "https://stripe.com/docs"
-strength = "Search, clarity, hierarchy"
+WHERE:
+- Files: demo/docs/assets/images/ (favicon.svg, apple-touch-icon.png)
+- Config: demo/.egregora/mkdocs.yml (theme.icon section)
+TEMPLATE SOURCE: src/egregora/output_adapters/mkdocs/scaffolding.py
+"""
+status = "pending"
+category = "visual"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "analytics-placeholder"
+title = "Remove or configure Google Analytics placeholder"
+description = """
+WHY: The mkdocs.yml contains a placeholder Google Analytics key ("__GOOGLE_ANALYTICS_KEY__")
+which doesn't work and may cause JavaScript errors. This is either unused or incorrectly configured.
+
+WHAT: Either:
+A) Remove analytics section entirely (recommended for privacy-first blog)
+B) Make analytics optional and document how users can enable it
+C) Use privacy-preserving alternative (Plausible, Umami)
+
+HOW TO VERIFY:
+- No "__GOOGLE_ANALYTICS_KEY__" placeholder in config
+- No JavaScript errors related to analytics
+- If analytics enabled, privacy policy documented
+- User can easily opt out
+
+WHERE:
+- Config: demo/.egregora/mkdocs.yml (extra.analytics section)
+- Docs: demo/docs/about.md or demo/docs/privacy.md
+TEMPLATE SOURCE: src/egregora/output_adapters/mkdocs/scaffolding.py
+"""
+status = "pending"
+category = "baseline"
+assignee = "curator"
+
+# ============================================================================
+# MEDIUM PRIORITY - Important UX Improvements
+# ============================================================================
+
+[[tasks.medium_priority]]
+id = "empty-state-messaging"
+title = "Improve empty state messaging when no posts exist"
+description = """
+WHY: When the site is first generated or API fails, users see "No posts yet. Run egregora write"
+which is helpful but could be more engaging and provide clearer next steps.
+
+WHAT: Enhanced empty state that:
+- Explains what will appear here (examples of post types)
+- Provides clear next steps (command to run, expected wait time)
+- Maintains encouraging tone (not just an error message)
+- Shows visual placeholder (maybe illustration or icon)
+
+HOW TO VERIFY:
+- Message is clear and actionable
+- Tone is helpful, not technical/cold
+- User knows exactly what to do next
+- Visual element makes page feel less empty
+
+WHERE: demo/docs/index.md (template with Jinja2 conditional)
+TEMPLATE SOURCE: src/egregora/output_adapters/mkdocs/adapter.py (likely generates index.md)
+"""
+status = "pending"
+category = "content"
+assignee = "curator"
+
+[[tasks.medium_priority]]
+id = "social-card-images-404"
+title = "Fix 404 errors for social card images"
+description = """
+WHY: Build log shows 404 errors for social card images (og:image for sharing on
+Twitter, Facebook, etc.). These images are critical for professional sharing.
+
+WHAT: Investigate and fix social card image generation:
+- Understand why social plugin can't find images
+- Ensure images are generated correctly
+- Verify og:image meta tags are correct
+- Test social sharing preview
+
+HOW TO VERIFY:
+- No 404 errors for social card images in build log
+- Images accessible at expected URLs
+- Twitter/Facebook preview shows correct image
+- Images are visually appealing (1200x630 recommended)
+
+WHERE:
+- Plugin config: demo/.egregora/mkdocs.yml (plugins.social section)
+- Images: demo/docs/assets/images/social/ (to be verified)
+TEMPLATE SOURCE: src/egregora/output_adapters/mkdocs/scaffolding.py
+"""
+status = "pending"
+category = "baseline"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "navigation-structure"
+title = "Review and optimize navigation structure"
+description = """
+WHY: The navigation has only 4 items (Home, Blog, Media, About) which is good,
+but "Media" at the top level may not be the best information architecture for
+a blog. Media is supportive content, not primary.
+
+WHAT: Consider restructuring navigation to:
+- Keep Home and Blog as primary
+- Move Media under Blog or into a separate Resources section
+- Add Journal to navigation (currently missing from nav but exists in docs/)
+- Ensure "You are here" indicators work correctly
+
+HOW TO VERIFY:
+- Navigation has 3-7 top-level items (currently 4 - good)
+- Most important content is most accessible
+- Breadcrumbs show correct path
+- Mobile hamburger menu works smoothly
+
+WHERE:
+- Config: demo/.egregora/mkdocs.yml (nav section)
+- Missing page: demo/docs/journal/index.md (exists but not in nav)
+TEMPLATE SOURCE: src/egregora/output_adapters/mkdocs/scaffolding.py
+"""
+status = "pending"
+category = "accessibility"
+assignee = "curator"
+
+[[tasks.medium_priority]]
+id = "site-name-branding"
+title = "Replace generic 'demo' site name with distinctive brand"
+description = """
+WHY: The site is currently named "demo" which is generic and not evocative.
+A good site name creates identity and helps with recall.
+
+WHAT: Choose a distinctive site name that:
+- Reflects the "collective consciousness" theme
+- Is memorable and pronounceable
+- Works well in browser titles and social shares
+- Avoids generic tech terms
+
+HOW TO VERIFY:
+- Site name appears in browser tab title
+- Name is distinctive (not "demo", "test", "blog")
+- Name documented in docs/ux-vision.md
+- All pages show correct site name
+
+WHERE:
+- Config: demo/.egregora/mkdocs.yml (site_name)
+- Homepage: demo/docs/index.md (title and description)
+TEMPLATE SOURCE: src/egregora/output_adapters/mkdocs/scaffolding.py
+DECISION NEEDED: Curator to propose names, or allow Egregora to generate from data?
+"""
+status = "pending"
+category = "visual"
+assignee = "curator"
+
+# ============================================================================
+# LOW PRIORITY - Nice-to-Have Improvements
+# ============================================================================
+
+[[tasks.low_priority]]
+id = "documentation-ux-vision"
+title = "Create docs/ux-vision.md documenting UX decisions"
+description = """
+WHY: The Curator persona needs a living document to track UX vision, principles,
+and evolving design system. This is reference material for all future UX work.
+
+WHAT: Create docs/ux-vision.md with:
+- UX principles and philosophy
+- Color palette and rationale
+- Typography scale
+- Spacing system
+- Component decisions
+- Template architecture (where source files live)
+
+HOW TO VERIFY:
+- File exists at docs/ux-vision.md
+- Documented: color palette, typography, spacing
+- Template source locations mapped (src/egregora/output_adapters/mkdocs/)
+- Living document, updated as decisions are made
+
+WHERE: docs/ux-vision.md (to be created by Curator)
+"""
+status = "pending"
+category = "baseline"
+assignee = "curator"
+
+[[tasks.low_priority]]
+id = "typography-scale"
+title = "Define and implement consistent typography scale"
+description = """
+WHY: Typography is 95% of web design. A harmonious typography scale creates
+visual rhythm and makes content scannable.
+
+WHAT: Define typography scale with:
+- Base font size (16px recommended for readability)
+- Modular scale for headings (1.25 or 1.333 ratio)
+- Line heights optimized per text size (1.5 for body, tighter for headings)
+- Font weights used consistently (limit to 2-3 weights)
+
+HOW TO VERIFY:
+- H1-H6 sizes follow harmonic scale
+- Visual hierarchy obvious at a glance
+- Line heights create good rhythm
+- Documented in docs/ux-vision.md
+
+WHERE:
+- CSS: demo/docs/stylesheets/extra.css
+- Documentation: docs/ux-vision.md
+"""
+status = "pending"
+category = "visual"
+assignee = "curator"
+
+[[tasks.low_priority]]
+id = "git-warnings-cleanup"
+title = "Investigate and fix git-related warnings in build"
+description = """
+WHY: Build log shows numerous git-related warnings ("no git logs", "First revision
+timestamp is older than last revision"). While not user-facing, clean builds are
+a sign of quality.
+
+WHAT: Investigate warnings and either:
+- Fix the git configuration issue
+- Disable git-revision-date-localized plugin if not needed
+- Set enable_git_follow: false as suggested
+
+HOW TO VERIFY:
+- Build completes with no warnings (or only expected warnings)
+- Dates still work correctly on pages
+- Plugin configuration documented
+
+WHERE:
+- Config: demo/.egregora/mkdocs.yml (plugins.git-revision-date-localized)
+- Investigation: Check git status in demo/ directory
+"""
+status = "pending"
+category = "baseline"
+assignee = "forge"
+
+# ============================================================================
+# COMPLETED TASKS (moved here after verification)
+# ============================================================================
+
+# No completed tasks yet
+
+# ============================================================================
+# DEFERRED TASKS (postponed, not currently planned)
+# ============================================================================
+
+# No deferred tasks yet
