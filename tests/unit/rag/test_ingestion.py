@@ -4,8 +4,8 @@
 from egregora.rag.ingestion import _simple_chunk_text
 from egregora_v3.infra.rag import simple_chunk_text as simple_chunk_text_v3
 
-
 # --- V2 Tests ---
+
 
 def test_v2_simple_chunk_text_empty():
     """Empty text should produce a single empty chunk in V2."""
@@ -47,6 +47,7 @@ def test_v2_simple_chunk_text_with_overlap():
 
 
 # --- V3 Tests ---
+
 
 def test_v3_simple_chunk_text_empty():
     assert simple_chunk_text_v3("") == []

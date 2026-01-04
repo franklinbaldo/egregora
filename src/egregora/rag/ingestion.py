@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from egregora.data_primitives.document import Document, DocumentType
+from egregora_v3.infra.rag import simple_chunk_text as _simple_chunk_text_v3
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -21,8 +22,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_MAX_CHARS = 800  # Conservative default for manageable chunks
 DEFAULT_CHUNK_OVERLAP = 200  # Overlap between chunks to preserve context
 
-
-from egregora_v3.infra.rag import simple_chunk_text as _simple_chunk_text_v3
 
 @dataclass
 class _RAGChunk:
