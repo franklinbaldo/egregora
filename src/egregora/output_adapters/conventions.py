@@ -265,18 +265,24 @@ class StandardUrlConvention(UrlConvention):
         )
 
     def _format_annotation_url(self, ctx: UrlContext, document: Document) -> str:
-        slug = document.metadata.get("slug", document.document_id[:8])
-        try:
-            safe_slug = slugify(slug)
-        except InvalidInputError:
+        slug = document.metadata.get("slug")
+        if slug:
+            try:
+                safe_slug = slugify(slug)
+            except InvalidInputError:
+                safe_slug = document.document_id[:8]
+        else:
             safe_slug = document.document_id[:8]
         return self._join(ctx, self.routes.annotations_prefix, safe_slug)
 
     def _format_post_url(self, ctx: UrlContext, document: Document) -> str:
-        slug = document.metadata.get("slug", document.document_id[:8])
-        try:
-            normalized_slug = slugify(slug)
-        except InvalidInputError:
+        slug = document.metadata.get("slug")
+        if slug:
+            try:
+                normalized_slug = slugify(slug)
+            except InvalidInputError:
+                normalized_slug = document.document_id[:8]
+        else:
             normalized_slug = document.document_id[:8]
 
         if self.routes.date_in_url:
