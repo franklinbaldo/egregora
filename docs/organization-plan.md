@@ -20,6 +20,11 @@ The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 struc
 
 1.  **Refactor `src/egregora/constants.py`**: Move domain-specific enums (`RetrievalMode`, `SourceType`, `WindowUnit`) to a new `src/egregora/config/enums.py` file. Delete dead code (`FileFormat`, `IndexType`, `MediaType`) from the module. This will improve modularity and code clarity.
 
+## Abandoned Improvements
+
+*   **Refactor `src/egregora/knowledge/profiles.py`**: **[ATTEMPTED - FAILED]** An attempt was made to refactor the `profiles.py` module by moving the author-syncing logic to a dedicated module in the `mkdocs` adapter. The refactoring failed due to a complex circular dependency that could not be easily resolved. All changes were reverted. This refactoring should be re-evaluated in the future with a more comprehensive understanding of the codebase's dependency graph.
+
+
 ## Completed Improvements
 
 *   **2026-01-05**: Centralized core exceptions by moving `EgregoraError` and its subclasses from `utils/text.py` to a new `core/exceptions.py` module.
