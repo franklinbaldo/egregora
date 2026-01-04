@@ -2,7 +2,8 @@
 
 import pytest
 
-from egregora.utils.text import InvalidInputError, slugify
+from egregora.core.exceptions import EgregoraError
+from egregora.utils.text import InvalidInputError, SlugifyError, slugify
 
 
 class TestSlugifyBasicBehavior:
@@ -222,3 +223,10 @@ class TestSlugifyRealWorldExamples:
     def test_markdown_style_slugs(self):
         """BEHAVIOR: Already hyphenated markdown-style text."""
         assert slugify("my-existing-slug") == "my-existing-slug"
+
+class TestExceptionHierarchy:
+    """Verify the exception class hierarchy."""
+
+    def test_slugify_error_inherits_from_egregora_error(self):
+        """BEHAVIOR: SlugifyError should be a subclass of the core EgregoraError."""
+        assert issubclass(SlugifyError, EgregoraError)
