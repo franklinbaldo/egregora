@@ -3,7 +3,7 @@
 import pytest
 
 from egregora.utils.exceptions import InvalidInputError
-from egregora.utils.paths import slugify
+from egregora.utils.text import slugify
 
 
 class TestSlugifyBasicBehavior:

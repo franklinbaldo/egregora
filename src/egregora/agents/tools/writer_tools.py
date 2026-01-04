@@ -29,7 +29,7 @@ from egregora.output_adapters.exceptions import DocumentNotFoundError
 from egregora.rag import search
 from egregora.rag.models import RAGQueryRequest
 from egregora.utils.exceptions import InvalidInputError
-from egregora.utils.paths import slugify
+from egregora.utils.text import slugify
 
 if TYPE_CHECKING:
     import uuid
