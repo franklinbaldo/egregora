@@ -11,17 +11,16 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from egregora.data_primitives.document import Document, DocumentType
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
-
-logger = logging.getLogger(__name__)
-
 from egregora.text_processing.chunking import (
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_MAX_CHARS,
     simple_chunk_text,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
