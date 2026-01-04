@@ -18,11 +18,13 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import frontmatter
+import yaml
+from ibis.common.exceptions import IbisError
 
 from egregora.database import schemas
 
@@ -31,13 +33,15 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+MIN_PATH_PARTS_FOR_PROFILE_AUTHOR = 2
+
 
 def _parse_frontmatter(content: str) -> dict[str, Any]:
     """Parse YAML frontmatter from profile content."""
     try:
         post = frontmatter.loads(content)
         return dict(post.metadata)
-    except Exception as e:
+    except yaml.YAMLError as e:
         logger.debug("Failed to parse frontmatter: %s", e)
         return {}
 
@@ -79,6 +83,7 @@ def scan_and_cache_profiles(
 
     Returns:
         Number of profiles cached
+
     """
     if not profiles_dir.exists():
         logger.info("Profiles directory does not exist: %s", profiles_dir)
@@ -115,7 +120,7 @@ def scan_and_cache_profiles(
             row = {
                 "id": author_uuid,  # Use UUID as ID
                 "content": content,
-                "created_at": datetime.now(timezone.utc),
+                "created_at": datetime.now(UTC),
                 "source_checksum": _calculate_checksum(content),
                 "subject_uuid": author_uuid,
                 "title": metadata.get("alias", metadata.get("name", author_uuid)),
@@ -135,7 +140,7 @@ def scan_and_cache_profiles(
             cached_count += 1
             logger.debug("Cached profile for %s", author_uuid)
 
-        except Exception as e:
+        except (OSError, IbisError) as e:
             logger.warning("Failed to cache profile %s: %s", profile_path, e)
             continue
 
@@ -155,6 +160,7 @@ def get_profile_from_db(
 
     Returns:
         Profile content as markdown (empty string if not found)
+
     """
     try:
         table = storage.read_table("profiles")
@@ -165,7 +171,7 @@ def get_profile_from_db(
             return ""
 
         return str(result.iloc[0]["content"])
-    except Exception as e:
+    except IbisError as e:
         logger.warning("Failed to read profile from DB for %s: %s", author_uuid, e)
         return ""
 
@@ -180,6 +186,7 @@ def get_all_profiles_from_db(
 
     Returns:
         Dict mapping author UUID to profile content
+
     """
     try:
         table = storage.read_table("profiles")
@@ -191,7 +198,7 @@ def get_all_profiles_from_db(
 
         logger.debug("Retrieved %d profiles from database", len(profiles))
         return profiles
-    except Exception as e:
+    except IbisError as e:
         logger.warning("Failed to read profiles from DB: %s", e)
         return {}
 
@@ -208,6 +215,7 @@ def get_opted_out_authors_from_db(
 
     Returns:
         Set of opted-out author UUIDs
+
     """
     try:
         table = storage.read_table("profiles")
@@ -222,7 +230,7 @@ def get_opted_out_authors_from_db(
 
         logger.debug("Found %d opted-out authors in database", len(opted_out))
         return opted_out
-    except Exception as e:
+    except IbisError as e:
         logger.warning("Failed to read opted-out authors from DB: %s", e)
         return set()
 
@@ -239,6 +247,7 @@ def _extract_author_from_path(post_path: Path, posts_dir: Path) -> list[str]:
 
     Returns:
         List of author UUIDs
+
     """
     try:
         # Get relative path from posts_dir
@@ -246,7 +255,7 @@ def _extract_author_from_path(post_path: Path, posts_dir: Path) -> list[str]:
         parts = rel_path.parts
 
         # Check if this is a profile post: profiles/{uuid}/filename.md
-        if len(parts) >= 2 and parts[0] == "profiles":
+        if len(parts) >= MIN_PATH_PARTS_FOR_PROFILE_AUTHOR and parts[0] == "profiles":
             uuid_candidate = parts[1]
             # Validate UUID format
             if len(uuid_candidate) in (32, 36) and all(
@@ -271,6 +280,7 @@ def scan_and_cache_posts(
 
     Returns:
         Number of posts cached
+
     """
     if not posts_dir.exists():
         logger.info("Posts directory does not exist: %s", posts_dir)
@@ -313,7 +323,7 @@ def scan_and_cache_posts(
             row = {
                 "id": slug,  # Use slug as ID
                 "content": content,
-                "created_at": datetime.now(timezone.utc),
+                "created_at": datetime.now(UTC),
                 "source_checksum": _calculate_checksum(content),
                 "title": metadata.get("title", ""),
                 "slug": slug,
@@ -334,7 +344,7 @@ def scan_and_cache_posts(
             cached_count += 1
             logger.debug("Cached post: %s (authors: %s)", slug, authors)
 
-        except Exception as e:
+        except (OSError, IbisError) as e:
             logger.warning("Failed to cache post %s: %s", post_path, e)
             continue
 
@@ -354,6 +364,7 @@ def get_profile_posts_from_db(
 
     Returns:
         List of post dicts with content, metadata, etc.
+
     """
     try:
         table = storage.read_table("posts")
@@ -376,7 +387,7 @@ def get_profile_posts_from_db(
 
         logger.debug("Retrieved %d profile posts for %s from database", len(posts), author_uuid)
         return posts
-    except Exception as e:
+    except IbisError as e:
         logger.warning("Failed to read profile posts from DB for %s: %s", author_uuid, e)
         return []
 
@@ -395,6 +406,7 @@ def scan_and_cache_all_documents(
 
     Returns:
         Dict with counts for each document type cached
+
     """
     logger.info("Starting comprehensive document caching...")
 

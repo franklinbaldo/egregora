@@ -45,6 +45,7 @@ from typing import Annotated, Any
 import frontmatter
 import ibis.expr.types as ir
 import yaml
+from ibis.common.exceptions import IbisError
 
 from egregora.knowledge.exceptions import (
     AuthorExtractionError,
@@ -751,7 +752,7 @@ def get_opted_out_authors(
 
         try:
             return get_opted_out_authors_from_db(storage)
-        except Exception as e:
+        except IbisError as e:
             logger.warning("Failed to read opted-out authors from DB, falling back to files: %s", e)
             # Fall through to file-based scanning
 

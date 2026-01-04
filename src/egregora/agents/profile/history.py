@@ -17,6 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from ibis.common.exceptions import IbisError
 from jinja2 import Template
 
 logger = logging.getLogger(__name__)
@@ -175,7 +176,7 @@ def load_profile_posts(author_uuid: str, profiles_dir: Path, storage: Any | None
             logger.info("Loaded %d profile posts for %s from database", len(posts), author_uuid)
             return posts
 
-        except Exception as e:
+        except IbisError as e:
             logger.warning("Failed to load from database, falling back to files: %s", e)
             # Fall through to file-based loading
 
