@@ -1,7 +1,9 @@
 """Jules Scheduler."""
 
+import csv
 import sys
 import tomllib
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -11,7 +13,7 @@ import jinja2
 
 # Import from new package relative to execution or absolute
 from jules.client import JulesClient
-from jules.github import get_open_prs, get_repo_info
+from jules.github import get_open_prs, get_repo_info, _extract_session_id
 
 # --- Standard Text Blocks ---
 
@@ -191,57 +193,77 @@ def check_schedule(schedule_str: str) -> bool:
 
     return True
 
+# --- History Manager ---
 
-def get_latest_jules_pr(open_prs: list[dict[str, Any]], personas: dict[str, Any]) -> dict[str, Any] | None:
-    """Find the latest PR created by a Jules persona."""
-    # Filter for Jules PRs (assuming author or title patterns)
-    # Since 'author' from get_open_prs might be just login string or dict
-    jules_prs = []
+class HistoryManager:
+    def __init__(self, filepath: Path = Path(".jules/history.csv")):
+        self.filepath = filepath
+        self._ensure_file()
 
-    # Create a mapping of emoji to persona ID for easier lookup
-    emoji_to_id = {meta["emoji"]: pid for pid, meta in personas.items() if meta.get("emoji")}
+    def _ensure_file(self) -> None:
+        if not self.filepath.exists():
+            with open(self.filepath, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["timestamp", "session_id", "persona", "base_branch", "base_pr_number"])
 
+    def get_last_entry(self) -> dict[str, str] | None:
+        entries = []
+        try:
+            with open(self.filepath, newline="") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    entries.append(row)
+        except Exception:
+            return None
+
+        if not entries:
+            return None
+        return entries[-1]
+
+    def append_entry(self, session_id: str, persona: str, base_branch: str, base_pr_number: str = "") -> None:
+        with open(self.filepath, "a", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                datetime.now(timezone.utc).isoformat(),
+                session_id,
+                persona,
+                base_branch,
+                base_pr_number
+            ])
+
+    def commit_history(self) -> None:
+        """Commits and pushes the history file."""
+        try:
+            # Check if there are changes
+            status = subprocess.run(["git", "status", "--porcelain", str(self.filepath)], capture_output=True, text=True)
+            if not status.stdout.strip():
+                return
+
+            # Configure git if needed (CI environment)
+            subprocess.run(["git", "config", "user.name", "Jules Bot"], check=False)
+            subprocess.run(["git", "config", "user.email", "jules-bot@google.com"], check=False)
+
+            subprocess.run(["git", "add", str(self.filepath)], check=True)
+            subprocess.run(["git", "commit", "-m", "chore: update jules session history"], check=True)
+            subprocess.run(["git", "push"], check=True)
+            print("Successfully pushed session history.")
+        except Exception as e:
+            print(f"Failed to push session history: {e}", file=sys.stderr)
+
+
+def get_pr_by_session_id(open_prs: list[dict[str, Any]], session_id: str) -> dict[str, Any] | None:
+    """Find a PR that matches the given session ID."""
     for pr in open_prs:
-        # Check author (if available) - usually "app/google-labs-jules" or similar
-        author = pr.get("author", {})
-        login = author.get("login") if isinstance(author, dict) else str(author)
+        # Check title or branch for session ID
+        # We can reuse _extract_session_id but need to be careful with branch format
+        head_ref = pr.get("headRefName", "")
+        body = pr.get("body", "") or "" # body might be None
 
-        # Also check title for persona emojis
-        title = pr.get("title", "")
-
-        is_jules = "jules" in login.lower()
-        if not is_jules:
-            # Fallback: check if title starts with a known persona emoji
-            for emoji in emoji_to_id:
-                if title.strip().startswith(emoji):
-                    is_jules = True
-                    break
-
-        if is_jules:
-            jules_prs.append(pr)
-
-    if not jules_prs:
-        return None
-
-    # Sort by number descending (proxy for time) or creation date if available
-    # get_open_prs returns simplified list, usually sorted by number desc by default from GH CLI
-    # but let's sort by number just in case
-    jules_prs.sort(key=lambda x: x.get("number", 0), reverse=True)
-    return jules_prs[0]
-
-
-def identify_persona_from_pr(pr: dict[str, Any], personas: dict[str, Any]) -> str | None:
-    """Identify which persona created the PR based on title emoji or other markers."""
-    title = pr.get("title", "").strip()
-
-    # Check emojis
-    for pid, meta in personas.items():
-        emoji = meta.get("emoji")
-        if emoji and title.startswith(emoji):
-            return pid
+        extracted_id = _extract_session_id(head_ref, body)
+        if extracted_id == session_id:
+            return pr
 
     return None
-
 
 def run_cycle_step(
     client: JulesClient,
@@ -252,33 +274,53 @@ def run_cycle_step(
     dry_run: bool,
     base_context: dict
 ) -> None:
-    """Run a single step of the cycle scheduler."""
+    """Run a single step of the cycle scheduler using history CSV for state."""
     print(f"Running in CYCLE mode with order: {cycle_list}")
 
-    latest_pr = get_latest_jules_pr(open_prs, personas)
+    history_mgr = HistoryManager()
+    last_entry = history_mgr.get_last_entry()
 
     next_pid = cycle_list[0]
     base_branch = "main"
+    base_pr_number = ""
 
-    if latest_pr:
-        print(f"Found latest Jules PR: #{latest_pr['number']} - {latest_pr['title']}")
-        last_pid = identify_persona_from_pr(latest_pr, personas)
+    if last_entry:
+        last_sid = last_entry["session_id"]
+        last_pid = last_entry["persona"]
+        print(f"Last recorded session: {last_sid} ({last_pid})")
 
-        if last_pid and last_pid in cycle_list:
-            # Find next in cycle
-            idx = cycle_list.index(last_pid)
-            next_idx = (idx + 1) % len(cycle_list)
-            next_pid = cycle_list[next_idx]
-            print(f"Last persona was {last_pid}. Next is {next_pid}.")
+        # Find the PR for this session
+        pr = get_pr_by_session_id(open_prs, last_sid)
+
+        if pr:
+            print(f"Found PR for last session: #{pr['number']} - {pr['title']}")
+            base_branch = pr.get("headRefName")
+            base_pr_number = str(pr.get("number"))
+
+            # Determine next persona
+            if last_pid in cycle_list:
+                idx = cycle_list.index(last_pid)
+                next_idx = (idx + 1) % len(cycle_list)
+                next_pid = cycle_list[next_idx]
+            else:
+                # If last persona not in current cycle, start from beginning
+                print(f"Last persona {last_pid} not in cycle list. Restarting cycle.")
+
+            print(f"Next persona: {next_pid}. Chaining from {base_branch}.")
         else:
-            print(f"Could not identify persona from PR or persona not in cycle. defaulting to start: {next_pid}")
-
-        # Use the PR's branch as base
-        base_branch = latest_pr.get("headRefName", "main")
-        print(f"Chaining from branch: {base_branch}")
+            # PR not found. Either it's not created yet, or it was closed/merged.
+            # If it was merged, we should probably start from main?
+            # Or if it failed?
+            # For now, let's assume if it's not open, we wait.
+            # BUT: We can check if it's merged via API. get_open_prs only returns OPEN.
+            # If we wait forever for a merged PR, we are stuck.
+            # For safety: If not found, check if it's just "not ready".
+            # For this iteration, we will just log and exit.
+            print(f"PR for session {last_sid} not found in OPEN PRs. Waiting for it to appear or manual intervention.")
+            return
 
     else:
-        print("No open Jules PRs found. Starting fresh cycle from main.")
+        print("No history found. Starting fresh cycle from main.")
 
     # Execute the next persona
     if next_pid not in personas:
@@ -309,14 +351,13 @@ def run_cycle_step(
 
         if not config.get("enabled", True):
              print(f"Skipping {next_pid} (disabled).")
-             # In a real cycle we might want to skip to the NEXT one recursively,
-             # but for now let's just abort this tick to avoid infinite loops if all disabled.
              return
 
         print(f"Starting session for {next_pid} on branch {base_branch}...")
 
+        session_id = "dry-run-session-id"
         if not dry_run:
-            client.create_session(
+            result = client.create_session(
                 prompt=prompt_body,
                 owner=repo_info["owner"],
                 repo=repo_info["repo"],
@@ -325,8 +366,16 @@ def run_cycle_step(
                 automation_mode=config.get("automation_mode", "AUTO_CREATE_PR"),
                 require_plan_approval=config.get("require_plan_approval", False),
             )
+            # result['name'] is like "sessions/uuid"
+            session_id = result.get("name", "").split("/")[-1]
+            print(f"Created session: {session_id}")
+
+            # Update History
+            history_mgr.append_entry(session_id, next_pid, base_branch, base_pr_number)
+            history_mgr.commit_history()
+
         else:
-            print(f"[Dry Run] Would create session for {next_pid}")
+            print(f"[Dry Run] Would create session for {next_pid} and update history.")
 
     except Exception as e:
         print(f"Error processing prompt {p_file.name}: {e}", file=sys.stderr)
