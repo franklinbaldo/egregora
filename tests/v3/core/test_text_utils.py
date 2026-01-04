@@ -2,8 +2,8 @@
 
 import pytest
 
-from egregora_v3.core.exceptions import InvalidInputError
-from egregora_v3.core.text_utils import slugify
+from src.egregora_v3.core.exceptions import InvalidInputError
+from src.egregora_v3.core.text_utils import slugify
 
 
 class TestSlugifyBasicBehavior:
