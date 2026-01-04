@@ -614,7 +614,7 @@ class EnrichmentWorker(BaseWorker):
                 model=model,
                 output_type=EnrichmentOutput,
                 builtin_tools=[UrlContextTool()],  # Built-in tools must use builtin_tools param
-                tools=[fetch_url_with_jina],       # Custom tools use regular tools param
+                tools=[fetch_url_with_jina],  # Custom tools use regular tools param
             )
 
             # Use run_sync to execute the async agent synchronously
