@@ -104,19 +104,14 @@ def test_generate_banner_image_handles_api_error(monkeypatch):
     request = ImageGenerationRequest(prompt="prompt", response_modalities=["IMAGE"], aspect_ratio="1:1")
     input_data = BannerInput(post_title="Title", post_summary="Summary")
 
-    # 2. Act
-    output = _generate_banner_image(
-        client=object(),
-        input_data=input_data,
-        image_model="model-id",
-        generation_request=request,
-    )
-
-    # 3. Assert
-    assert not output.success
-    assert output.document is None
-    assert output.error == "ResourceExhausted"
-    assert output.error_code == "GENERATION_EXCEPTION"
+    # 2. Act & Assert
+    with pytest.raises(google_exceptions.ResourceExhausted, match="Rate limit exceeded"):
+        _generate_banner_image(
+            client=object(),
+            input_data=input_data,
+            image_model="model-id",
+            generation_request=request,
+        )
 
 
 def test_generate_banner_reraises_unexpected_errors(monkeypatch):

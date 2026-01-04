@@ -79,35 +79,30 @@ def _generate_banner_image(
     """Generate banner image using Gemini multimodal image model."""
     logger.info("Generating banner with %s for: %s", image_model, input_data.post_title)
 
-    try:
-        provider = GeminiImageGenerationProvider(client=client, model=image_model)
-        result = provider.generate(generation_request)
+    provider = GeminiImageGenerationProvider(client=client, model=image_model)
+    result = provider.generate(generation_request)
 
-        if not result.has_image:
-            error_message = result.error or "Image generation returned no data"
-            logger.error("%s for post '%s'", error_message, input_data.post_title)
-            return BannerOutput(error=error_message, error_code=result.error_code)
+    if not result.has_image:
+        error_message = result.error or "Image generation returned no data"
+        logger.error("%s for post '%s'", error_message, input_data.post_title)
+        return BannerOutput(error=error_message, error_code=result.error_code)
 
-        # Create Document with binary content
-        document = Document(
-            content=result.image_bytes,
-            type=DocumentType.MEDIA,
-            metadata={
-                "mime_type": result.mime_type,
-                "source": image_model,
-                "slug": input_data.slug,
-                "language": input_data.language,
-            },
-        )
+    # Create Document with binary content
+    document = Document(
+        content=result.image_bytes,
+        type=DocumentType.MEDIA,
+        metadata={
+            "mime_type": result.mime_type,
+            "source": image_model,
+            "slug": input_data.slug,
+            "language": input_data.language,
+        },
+    )
 
-        if result.debug_text:
-            logger.debug("Banner generation debug text: %s", result.debug_text)
+    if result.debug_text:
+        logger.debug("Banner generation debug text: %s", result.debug_text)
 
-        return BannerOutput(document=document, debug_text=result.debug_text)
-
-    except google_exceptions.GoogleAPICallError as e:
-        logger.exception("Banner image generation failed for post '%s'", input_data.post_title)
-        return BannerOutput(error=type(e).__name__, error_code="GENERATION_EXCEPTION")
+    return BannerOutput(document=document, debug_text=result.debug_text)
 
 
 def generate_banner(
