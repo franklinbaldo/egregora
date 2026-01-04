@@ -167,6 +167,14 @@ def parse_prompt_file(filepath: Path, context: dict) -> dict:
 
 
 def check_schedule(schedule_str: str) -> bool:
+    """Check if schedule matches current time.
+
+    Supports cron expressions:
+    - Exact value: "12" (match hour 12)
+    - Wildcard: "*" (match any)
+    - Step values: "*/2" (every 2 hours), "*/3" (every 3 hours), etc.
+
+    """
     if not schedule_str:
         return False
 
@@ -178,14 +186,31 @@ def check_schedule(schedule_str: str) -> bool:
     now = datetime.now(timezone.utc)
 
     # Check Hour
-    if hour_s != "*" and int(hour_s) != now.hour:
-        return False
+    if hour_s != "*":
+        # Handle step values like "*/2" (every 2 hours)
+        if hour_s.startswith("*/"):
+            try:
+                step = int(hour_s[2:])
+                if now.hour % step != 0:
+                    return False
+            except ValueError:
+                return False
+        else:
+            # Exact hour match
+            try:
+                if int(hour_s) != now.hour:
+                    return False
+            except ValueError:
+                return False
 
     # Check Day of Week
     if dow_s != "*":
         py_dow = now.weekday()  # 0=Mon
         cron_dow = (py_dow + 1) % 7
-        if int(dow_s) != cron_dow:
+        try:
+            if int(dow_s) != cron_dow:
+                return False
+        except ValueError:
             return False
 
     return True
