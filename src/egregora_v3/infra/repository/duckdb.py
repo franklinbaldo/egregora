@@ -136,7 +136,7 @@ class DuckDBDocumentRepository(DocumentRepository):
             query = query.limit(limit)
 
         result = query.select("doc_type", "json_data").execute()
-        return [self._hydrate_document(row["json_data"]) for _, row in result.iterrows()]
+        return [self._hydrate_document(json_data) for json_data in result["json_data"]]
 
     def delete(self, doc_id: str) -> None:
         """Deletes a document by ID using a parameterized query."""
@@ -185,4 +185,7 @@ class DuckDBDocumentRepository(DocumentRepository):
         sql = f"SELECT json_data, doc_type FROM {self.table_name} WHERE json_extract_string(json_data, '$.source.id') = ?"
         result = self.conn.con.execute(sql, [source_id]).fetch_df()
 
-        return [self._hydrate_entry(row["json_data"], row["doc_type"]) for _, row in result.iterrows()]
+        return [
+            self._hydrate_entry(json_data, doc_type)
+            for json_data, doc_type in zip(result["json_data"], result["doc_type"])
+        ]
