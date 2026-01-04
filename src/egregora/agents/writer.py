@@ -324,7 +324,9 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
         _extract_from_message(message, saved_posts, saved_profiles)
 
     if saved_posts or saved_profiles:
-        logger.info("Agent Tool Results: %d posts, %d profiles extracted", len(saved_posts), len(saved_profiles))
+        logger.info(
+            "Agent Tool Results: %d posts, %d profiles extracted", len(saved_posts), len(saved_profiles)
+        )
     else:
         logger.debug("No post/profile tool results extracted from agent history")
 
@@ -381,7 +383,7 @@ def write_posts_with_pydantic_agent(
                     )
                 )
     except Exception as e:
-        logger.error("Error during agent run: %s", e)
+        logger.exception("Error during agent run: %s", e)
         raise
 
     if not result:
@@ -389,7 +391,9 @@ def write_posts_with_pydantic_agent(
         raise RuntimeError(msg)
 
     # Log total tool calls made
-    tool_calls = [p for m in result.all_messages() if hasattr(m, "parts") for p in m.parts if hasattr(p, "tool_name")]
+    tool_calls = [
+        p for m in result.all_messages() if hasattr(m, "parts") for p in m.parts if hasattr(p, "tool_name")
+    ]
     logger.info("Agent run complete. Total tool calls attempt: %d", len(tool_calls))
     for tc in tool_calls:
         logger.info("  - Called tool: %s", getattr(tc, "tool_name", "unknown"))
@@ -400,7 +404,7 @@ def write_posts_with_pydantic_agent(
 
     saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
     intercalated_log = _extract_intercalated_log(result.all_messages())
-    
+
     # ... (rest of the journal logic remains the same)
     if not intercalated_log:
         fallback_content = _extract_journal_content(result.all_messages())

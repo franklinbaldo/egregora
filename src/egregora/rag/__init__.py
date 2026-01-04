@@ -49,9 +49,12 @@ def get_backend(db_dir: Path | str | None = None) -> VectorStore:
     # we need to re-initialize it.
     if _backend is not None and db_dir is not None:
         from pathlib import Path
+
         requested_path = Path(db_dir)
         if hasattr(_backend, "db_dir") and _backend.db_dir != requested_path:
-            logger.debug("RAG backend path changed from %s to %s. Re-initializing.", _backend.db_dir, requested_path)
+            logger.debug(
+                "RAG backend path changed from %s to %s. Re-initializing.", _backend.db_dir, requested_path
+            )
             reset_backend()
 
     if _backend is None:

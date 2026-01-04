@@ -20,7 +20,7 @@ from egregora.agents.types import WriterDeps, WriterResources
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors
 from egregora.orchestration.cache import CacheTier
-from egregora.rag import index_documents, reset_backend
+from egregora.rag import get_backend, index_documents, reset_backend
 from egregora.resources.prompts import PromptManager
 from egregora.transformations.windowing import generate_window_signature
 
@@ -289,7 +289,7 @@ def index_new_content_in_rag(
     try:
         # Use the specific RAG directory for this run
         lancedb_dir = resources.storage.config.paths.lancedb_dir if resources.storage else None
-        backend = get_backend(db_dir=lancedb_dir)
+        get_backend(db_dir=lancedb_dir)
         # Read the newly saved post documents
         docs: list[Document] = []
         for post_id in saved_posts:
