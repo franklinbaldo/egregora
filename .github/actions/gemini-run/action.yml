@@ -68,7 +68,7 @@ runs:
         prompt: ${{ inputs.prompt }}
 
     - name: Run Gemini (2)
-      if: ${{ steps.gemini_1.outcome == 'failure' && steps.models.outputs.model_2 != '' }}
+      if: ${{ steps.models.outputs.model_2 != '' && steps.gemini_1.outputs.outcome != 'success' }}
       id: gemini_2
       continue-on-error: true
       uses: google-github-actions/run-gemini-cli@v0
@@ -78,7 +78,7 @@ runs:
         prompt: ${{ inputs.prompt }}
 
     - name: Run Gemini (3)
-      if: ${{ steps.gemini_2.outcome == 'failure' && steps.models.outputs.model_3 != '' }}
+      if: ${{ steps.models.outputs.model_3 != '' && steps.gemini_2.outputs.outcome != 'success' }}
       id: gemini_3
       continue-on-error: true
       uses: google-github-actions/run-gemini-cli@v0
@@ -88,7 +88,7 @@ runs:
         prompt: ${{ inputs.prompt }}
 
     - name: Run Gemini (4)
-      if: ${{ steps.gemini_3.outcome == 'failure' && steps.models.outputs.model_4 != '' }}
+      if: ${{ steps.models.outputs.model_4 != '' && steps.gemini_3.outputs.outcome != 'success' }}
       id: gemini_4
       continue-on-error: true
       uses: google-github-actions/run-gemini-cli@v0
@@ -98,7 +98,7 @@ runs:
         prompt: ${{ inputs.prompt }}
 
     - name: Run Gemini (5)
-      if: ${{ steps.gemini_4.outcome == 'failure' && steps.models.outputs.model_5 != '' }}
+      if: ${{ steps.models.outputs.model_5 != '' && steps.gemini_4.outputs.outcome != 'success' }}
       id: gemini_5
       continue-on-error: true
       uses: google-github-actions/run-gemini-cli@v0
@@ -115,20 +115,29 @@ runs:
         MODELS: ${{ steps.models.outputs.models }}
         OUTCOME_1: ${{ steps.gemini_1.outcome }}
         SUMMARY_1: ${{ steps.gemini_1.outputs.summary }}
+        ACTION_OUTCOME_1: ${{ steps.gemini_1.outputs.outcome }}
         OUTCOME_2: ${{ steps.gemini_2.outcome }}
         SUMMARY_2: ${{ steps.gemini_2.outputs.summary }}
+        ACTION_OUTCOME_2: ${{ steps.gemini_2.outputs.outcome }}
         OUTCOME_3: ${{ steps.gemini_3.outcome }}
         SUMMARY_3: ${{ steps.gemini_3.outputs.summary }}
+        ACTION_OUTCOME_3: ${{ steps.gemini_3.outputs.outcome }}
         OUTCOME_4: ${{ steps.gemini_4.outcome }}
         SUMMARY_4: ${{ steps.gemini_4.outputs.summary }}
+        ACTION_OUTCOME_4: ${{ steps.gemini_4.outputs.outcome }}
         OUTCOME_5: ${{ steps.gemini_5.outcome }}
         SUMMARY_5: ${{ steps.gemini_5.outputs.summary }}
+        ACTION_OUTCOME_5: ${{ steps.gemini_5.outputs.outcome }}
       with:
         script: |
           const fs = require('fs');
 
           const models = JSON.parse(process.env.MODELS || '[]');
-          const outcomes = models.map((_, index) => process.env[`OUTCOME_${index + 1}`] || 'skipped');
+          const outcomes = models.map((_, index) => {
+            const actionOutcome = process.env[`ACTION_OUTCOME_${index + 1}`];
+            const stepOutcome = process.env[`OUTCOME_${index + 1}`];
+            return actionOutcome || stepOutcome || 'skipped';
+          });
           const summaries = models.map((_, index) => process.env[`SUMMARY_${index + 1}`] || '');
 
           let finalOutcome = 'failure';
@@ -136,7 +145,7 @@ runs:
           let finalModel = '';
 
           for (let i = 0; i < models.length; i++) {
-            if (outcomes[i] === 'success') {
+            if (outcomes[i] === 'success' && summaries[i]) {
               finalOutcome = 'success';
               finalSummary = summaries[i];
               finalModel = models[i];
