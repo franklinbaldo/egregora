@@ -100,15 +100,19 @@ def test_migrate_documents_table_from_legacy(legacy_db):
     with pytest.raises(duckdb.ConstraintException):
         legacy_db.execute("INSERT INTO documents (id, doc_type, status) VALUES ('new-doc-2', 'post', NULL)")
 
-def test_migration_is_idempotent(legacy_db):
+import logging
+
+def test_migration_is_idempotent(legacy_db, caplog):
     """
-    Verify that running the migration script multiple times does not cause errors.
+    Verify that running the migration script multiple times does not cause errors
+    and that it correctly logs that no migration is needed on the second run.
     """
     # Run the migration the first time
     migrate_documents_table(legacy_db)
 
-    # Run the migration a second time
-    try:
+    # Run the migration a second time with logging captured
+    with caplog.at_level(logging.INFO):
         migrate_documents_table(legacy_db)
-    except Exception as e:
-        pytest.fail(f"Running the migration a second time should not have raised an exception, but it did: {e}")
+
+    # Verify that the log message indicates that no migration was needed
+    assert "Schema is already up to date. No migration needed." in caplog.text
