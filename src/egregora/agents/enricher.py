@@ -39,6 +39,7 @@ from pydantic_ai.messages import BinaryContent
 
 from egregora.agents.exceptions import MediaStagingError
 from egregora.config.settings import EnrichmentSettings
+from egregora.data_primitives.datetime import ensure_datetime
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.message_repository import MessageRepository
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
@@ -49,7 +50,6 @@ from egregora.orchestration.exceptions import CacheKeyNotFoundError
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.security.zip import validate_zip_contents
-from egregora.data_primitives.datetime import ensure_datetime
 from egregora.utils.text import slugify
 
 if TYPE_CHECKING:
