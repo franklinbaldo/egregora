@@ -10,10 +10,11 @@ def test_generate_banner_impl_handles_none_slug(monkeypatch):
     mock_context = MagicMock()
     mock_context.task_store = MagicMock()  # Enable the task store path
     mock_context.run_id = "test-run"
+    mock_context.output_sink.url_convention.canonical_url.return_value = "/media/images/a-title.jpg"
 
     # This test is for the async path, where slugify is called.
     result = generate_banner_impl(ctx=mock_context, post_slug=None, title="A Title", summary="A summary")
 
     assert isinstance(result, BannerResult)
-    assert result.status == "failed"
-    assert "Invalid post_slug" in result.error
+    assert result.status == "scheduled"
+    assert "a-title" in result.path
