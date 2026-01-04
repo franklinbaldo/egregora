@@ -8,6 +8,7 @@ from ibis.expr import datatypes as dt
 # This import will fail initially, which is expected for TDD
 from egregora.database.migrations import migrate_documents_table
 from egregora.database.schemas import UNIFIED_SCHEMA, ibis_to_duckdb_type
+from egregora_v3.core.types import DocumentStatus, DocumentType
 
 
 # A simplified, legacy schema representing the state *before* V3 fields were added.
@@ -89,8 +90,8 @@ def test_migrate_documents_table_from_legacy(legacy_db):
 
     assert row_dict["id"] == "legacy-doc-1"
     assert row_dict["title"] == "Legacy Title"
-    assert row_dict["doc_type"] == "note"  # Check for backfilled value
-    assert row_dict["status"] == "draft"  # Check for backfilled value
+    assert row_dict["doc_type"] == DocumentType.NOTE.value
+    assert row_dict["status"] == DocumentStatus.DRAFT.value
 
     # Verify NOT NULL constraint by trying to insert a NULL value
     with pytest.raises(duckdb.ConstraintException):
