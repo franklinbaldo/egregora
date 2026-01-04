@@ -1,4 +1,5 @@
 """Custom exceptions for LLM provider interactions."""
+
 from egregora.exceptions import EgregoraError
 
 

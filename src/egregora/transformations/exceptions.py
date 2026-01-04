@@ -1,4 +1,5 @@
 """Exceptions for the transformations module."""
+
 from egregora.exceptions import EgregoraError
 
 

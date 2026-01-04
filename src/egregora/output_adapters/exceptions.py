@@ -1,4 +1,5 @@
 """Custom exceptions for output adapters."""
+
 from egregora.exceptions import EgregoraError
 
 

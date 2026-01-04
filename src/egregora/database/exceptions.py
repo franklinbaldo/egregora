@@ -1,4 +1,5 @@
 """Custom exceptions for database operations."""
+
 from egregora.exceptions import EgregoraError
 
 

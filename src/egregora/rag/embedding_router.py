@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 import httpx
 
 from egregora.config import EMBEDDING_DIM
+from egregora.exceptions import EgregoraError
 from egregora.llm.api_keys import get_google_api_key, get_google_api_keys
 
 if TYPE_CHECKING:
@@ -40,8 +41,6 @@ HTTP_SERVER_ERROR = 500
 
 # Type alias for task type
 TaskType = str
-
-from egregora.exceptions import EgregoraError
 
 
 class EmbeddingError(EgregoraError):

@@ -1,4 +1,5 @@
 """Exceptions for the knowledge management module."""
+
 from egregora.exceptions import EgregoraError
 
 

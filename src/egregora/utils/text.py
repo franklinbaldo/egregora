@@ -4,6 +4,8 @@ from unicodedata import normalize
 
 from pymdownx.slugs import slugify as _md_slugify
 
+from egregora.exceptions import EgregoraError
+
 # Pre-configure a slugify instance for reuse.
 # This is more efficient than creating a new slugifier on each call.
 slugify_lower = _md_slugify(case="lower", separator="-")
@@ -41,9 +43,6 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
         slug = slug[:max_len].rstrip("-")
 
     return slug
-
-
-from egregora.exceptions import EgregoraError
 
 
 # Slugify-specific exceptions (defined here as they're utils-level)

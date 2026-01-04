@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 
 from dateutil import parser as dateutil_parser
 
+from egregora.exceptions import EgregoraError
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -108,8 +110,6 @@ def ensure_datetime(value: datetime | str | Any) -> datetime:
     except (DateTimeParsingError, InvalidDateTimeInputError) as e:
         msg = f"Unsupported datetime type: {type(value)}"
         raise TypeError(msg) from e
-
-from egregora.exceptions import EgregoraError
 
 
 class DateTimeError(EgregoraError):

@@ -1,4 +1,5 @@
 """Exceptions for the orchestration module."""
+
 from egregora.exceptions import EgregoraError
 
 
