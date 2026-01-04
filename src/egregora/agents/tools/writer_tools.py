@@ -23,12 +23,13 @@ from pydantic import BaseModel
 from pydantic_ai import ModelRetry
 
 from egregora.agents.banner.agent import generate_banner
+from egregora.core.exceptions import InvalidInputError
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
 from egregora.output_adapters.exceptions import DocumentNotFoundError
 from egregora.rag import search
 from egregora.rag.models import RAGQueryRequest
-from egregora.utils.text import InvalidInputError, slugify
+from egregora.utils.text import slugify
 
 if TYPE_CHECKING:
     import uuid
