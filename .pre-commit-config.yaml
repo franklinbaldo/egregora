@@ -2,32 +2,8 @@ exclude: ^\.jules/
 repos:
   - repo: local
     hooks:
-      - id: ci-environment-probe
-        name: Probe CI Environment for Diagnostics
-        entry: |
-          bash -c '
-            echo "============================================="
-            echo ">>> CI Environment Diagnostic Probe <<<"
-            echo "============================================="
-            echo "--- User and Permissions ---"
-            echo "User: $(whoami)"
-            echo "Groups: $(id)"
-            echo "--- Directory Information ---"
-            echo "Working Directory: $(pwd)"
-            echo "Directory Contents:"
-            ls -la
-            echo "--- System Information ---"
-            echo "Kernel: $(uname -a)"
-            echo "--- Environment Variables ---"
-            env
-            echo "--- Python Information ---"
-            echo "which python: $(which python)"
-            echo "python version: $(python --version)"
-            echo "which pip: $(which pip)"
-            echo "pip version: $(pip --version)"
-            echo "--- Pre-commit Environment ---"
-            echo "PRE_COMMIT_HOME: $PRE_COMMIT_HOME"
-            echo "============================================="
-          '
+      - id: ci-python-probe
+        name: Probe CI Environment with Python
+        entry: python dev_tools/ci_probe.py
         language: system
         pass_filenames: false
