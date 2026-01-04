@@ -1,7 +1,8 @@
 """Exceptions for the transformations module."""
+from egregora.exceptions import EgregoraError
 
 
-class TransformationsError(Exception):
+class TransformationsError(EgregoraError):
     """Base exception for transformations errors."""
 
 

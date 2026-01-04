@@ -1,7 +1,8 @@
 """Exceptions for the WhatsApp input adapter."""
+from egregora.exceptions import EgregoraError
 
 
-class WhatsAppError(Exception):
+class WhatsAppError(EgregoraError):
     """Base exception for WhatsApp adapter errors."""
 
 

@@ -1,7 +1,8 @@
 """Custom exceptions for the agents module."""
+from egregora.exceptions import EgregoraError
 
 
-class AgentError(Exception):
+class AgentError(EgregoraError):
     """Base exception for all agent-related errors."""
 
 

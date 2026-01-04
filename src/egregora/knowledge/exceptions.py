@@ -1,7 +1,8 @@
 """Exceptions for the knowledge management module."""
+from egregora.exceptions import EgregoraError
 
 
-class ProfileError(Exception):
+class ProfileError(EgregoraError):
     """Base exception for profile-related errors."""
 
 

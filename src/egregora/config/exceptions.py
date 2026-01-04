@@ -6,7 +6,10 @@ from collections.abc import Sequence
 from pathlib import Path
 
 
-class ConfigError(Exception):
+from egregora.exceptions import EgregoraError
+
+
+class ConfigError(EgregoraError):
     """Base exception for all configuration-related errors."""
 
 

@@ -55,8 +55,10 @@ MAGIC_BYTES = {
     b"RIFF": "image/webp",
 }
 
+from egregora.exceptions import EgregoraError
 
-class AvatarProcessingError(Exception):
+
+class AvatarProcessingError(EgregoraError):
     """Error during avatar processing."""
 
 

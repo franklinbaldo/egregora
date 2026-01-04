@@ -22,6 +22,7 @@ import frontmatter
 import yaml
 
 from egregora.agents.models import AgentConfig
+from egregora.exceptions import EgregoraError
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -31,7 +32,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class ToolRegistryError(Exception):
+class ToolRegistryError(EgregoraError):
     """Raised when tool definitions or profiles cannot be loaded."""
 
 

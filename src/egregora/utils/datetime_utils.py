@@ -109,8 +109,10 @@ def ensure_datetime(value: datetime | str | Any) -> datetime:
         msg = f"Unsupported datetime type: {type(value)}"
         raise TypeError(msg) from e
 
+from egregora.exceptions import EgregoraError
 
-class DateTimeError(Exception):
+
+class DateTimeError(EgregoraError):
     """Base exception for datetime parsing and manipulation errors."""
 
 

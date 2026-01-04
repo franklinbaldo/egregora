@@ -1,7 +1,8 @@
 """Custom exceptions for LLM provider interactions."""
+from egregora.exceptions import EgregoraError
 
 
-class LLMProviderError(Exception):
+class LLMProviderError(EgregoraError):
     """Base exception for all LLM provider related errors."""
 
 

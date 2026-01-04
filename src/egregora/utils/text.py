@@ -43,9 +43,7 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
     return slug
 
 
-# Base exception for Egregora
-class EgregoraError(Exception):
-    """Base exception for all Egregora errors."""
+from egregora.exceptions import EgregoraError
 
 
 # Slugify-specific exceptions (defined here as they're utils-level)

@@ -1,7 +1,8 @@
 """Custom exceptions for output adapters."""
+from egregora.exceptions import EgregoraError
 
 
-class OutputAdapterError(Exception):
+class OutputAdapterError(EgregoraError):
     """Base class for output adapter errors."""
 
 

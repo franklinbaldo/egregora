@@ -28,10 +28,12 @@ if TYPE_CHECKING:
     from egregora.orchestration.cache import PipelineCache
     from egregora.output_adapters import OutputSinkRegistry
 
+from egregora.exceptions import EgregoraError
+
 logger = logging.getLogger(__name__)
 
 
-class PromptTooLargeError(Exception):
+class PromptTooLargeError(EgregoraError):
     """Exception raised when a prompt exceeds the model's context window.
 
     Attributes:

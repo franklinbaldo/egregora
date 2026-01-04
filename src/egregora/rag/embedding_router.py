@@ -41,8 +41,10 @@ HTTP_SERVER_ERROR = 500
 # Type alias for task type
 TaskType = str
 
+from egregora.exceptions import EgregoraError
 
-class EmbeddingError(Exception):
+
+class EmbeddingError(EgregoraError):
     """Exception raised for embedding API errors with detailed error message."""
 
     def __init__(
