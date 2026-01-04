@@ -1,9 +1,29 @@
 exclude: ^\.jules/
 repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.7
+    hooks:
+      - id: ruff
+        args: ["--fix", "--unsafe-fixes"]
+      - id: ruff-format
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-ast
+      - id: check-case-conflict
+      - id: check-json
+      - id: check-toml
+      - id: check-yaml
+        args: ["--allow-multiple-documents", "--unsafe"]
+      - id: debug-statements
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+      - id: trailing-whitespace
   - repo: local
     hooks:
-      - id: ci-diagnostic-script
-        name: Run CI Diagnostic Script
-        entry: bash dev_tools/ci_pre_commit_check.sh
+      - id: local-quality-checks
+        name: Run all local quality checks
+        entry: scripts/quality_checks.sh
         language: system
         pass_filenames: false

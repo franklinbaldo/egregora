@@ -2,18 +2,8 @@
 set -ex
 
 echo "============================================="
-echo ">>> CI Pre-Commit Diagnostic Script <<<"
+echo ">>> Running Consolidated Quality Checks <<<"
 echo "============================================="
-
-echo "--- Basic Environment Info ---"
-whoami
-pwd
-ls -la
-env
-which python
-python --version
-which uv
-uv --version
 
 echo "--- Running Vulture ---"
 uv run vulture src tests vulture_whitelist.py --min-confidence=80
@@ -43,5 +33,5 @@ echo "--- Running Coverage Check ---"
 uv run pytest tests/unit/ --cov=src/egregora --cov-report=term-missing -q
 
 echo "============================================="
-echo ">>> Diagnostic Script Complete <<<"
+echo ">>> Quality Checks Complete <<<"
 echo "============================================="
