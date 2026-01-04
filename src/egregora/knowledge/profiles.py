@@ -43,9 +43,13 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import frontmatter
+import ibis
+import ibis.common.exceptions
 import ibis.expr.types as ir
 import yaml
 
+from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.profile_cache import get_opted_out_authors_from_db
 from egregora.knowledge.exceptions import (
     AuthorExtractionError,
     AuthorsFileLoadError,
@@ -730,7 +734,7 @@ def is_opted_out(
 
 def get_opted_out_authors(
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
-    storage: Any | None = None,
+    storage: DuckDBStorageManager | None = None,
 ) -> Annotated[set[str], "A set of author UUIDs who have opted out"]:
     """Get set of all authors who have opted out.
 
@@ -747,11 +751,9 @@ def get_opted_out_authors(
     """
     # Use database cache if available
     if storage is not None:
-        from egregora.database.profile_cache import get_opted_out_authors_from_db
-
         try:
             return get_opted_out_authors_from_db(storage)
-        except Exception as e:
+        except ibis.common.exceptions.IbisError as e:
             logger.warning("Failed to read opted-out authors from DB, falling back to files: %s", e)
             # Fall through to file-based scanning
 
@@ -773,7 +775,7 @@ def get_opted_out_authors(
 def filter_opted_out_authors(
     table: Annotated[ir.Table, "The Ibis table with an 'author_uuid' column"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
-    storage: Any | None = None,
+    storage: DuckDBStorageManager | None = None,
 ) -> tuple[Annotated[ir.Table, "The filtered table"], Annotated[int, "The number of removed messages"]]:
     """Remove all messages from opted-out authors.
 

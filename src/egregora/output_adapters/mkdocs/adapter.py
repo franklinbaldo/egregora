@@ -76,6 +76,7 @@ class MkDocsAdapter(BaseOutputSink):
 
         Args:
             storage: DuckDBStorageManager for database-backed document reading
+
         """
         self._scaffolder = MkDocsSiteScaffolder()
         self._initialized = False
@@ -95,6 +96,7 @@ class MkDocsAdapter(BaseOutputSink):
             site_root: Root directory of the site
             url_context: URL context for canonical URL generation
             storage: DuckDBStorageManager for database-backed document reading
+
         """
         site_paths = MkDocsPaths(site_root)
         self.site_root = site_paths.site_root
@@ -337,6 +339,7 @@ class MkDocsAdapter(BaseOutputSink):
         Raises:
             DocumentNotFoundError: If document not found in database
             DocumentParsingError: If document parsing fails
+
         """
         # Use database as canonical source if available
         if self._storage is not None:
@@ -352,7 +355,7 @@ class MkDocsAdapter(BaseOutputSink):
                     post = frontmatter.loads(content)
                     return Document(content=post.content, type=doc_type, metadata=post.metadata)
 
-                elif doc_type == DocumentType.POST:
+                if doc_type == DocumentType.POST:
                     # Query posts table
                     table = self._storage.read_table("posts")
                     result = table.filter(table.slug == identifier).execute()
