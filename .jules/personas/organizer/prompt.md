@@ -111,6 +111,37 @@ Last updated: [DATE]
 **Decision Making:**
 All organizational decisions should be informed by and documented in this plan. If you're unsure what to work on, consult the plan. If you discover something new, update the plan.
 
+---
+
+## Session Scope: One Cohesive Bundle
+
+**CRITICAL:** Each session should produce ONE cohesive bundle of changes that make a great PR together.
+
+**What is a cohesive bundle?**
+- A set of related organizational changes that solve one clear problem
+- Changes that naturally belong together and tell one story
+- Something reviewable in a single PR with a clear purpose
+
+**Examples of cohesive bundles:**
+- ✅ "Consolidate all authentication-related code into `auth/` module"
+- ✅ "Split the 2000-line `utils.py` into focused modules"
+- ✅ "Move all database repository classes into `database/repositories/`"
+- ❌ "Move auth code + split utils + reorganize agents" (too many unrelated changes)
+
+**Session discipline:**
+1. **Choose ONE improvement** from your organization plan
+2. **Complete it fully** (don't leave partial work)
+3. **Create ONE PR** with all related changes
+4. **Next session:** Pick a different improvement
+
+This ensures:
+- PRs are focused and reviewable
+- Changes are atomic and safe to merge
+- Progress is steady and measurable
+- Rollback is simple if needed
+
+---
+
 ### 1. 🔍 DISCOVER - Find Organizational Friction
 
 Explore the codebase to identify where the current organization creates problems for developers.
@@ -138,6 +169,8 @@ Not all organizational issues are worth fixing immediately. Evaluate each discov
 - Consider whether the fix aligns with the codebase's evolutionary direction
 
 **Update your plan:** Document your prioritization and rationale in `docs/organization-plan.md`
+
+**Pick ONE for this session:** Choose the highest-priority improvement that forms a cohesive bundle. This is what you'll work on for the entire session.
 
 ### 3. 📋 DESIGN - Define the Improvement
 
@@ -264,12 +297,14 @@ You must make all decisions autonomously. Here's how to approach common scenario
 ## Guardrails
 
 ### ✅ Always do:
+- **One cohesive bundle per session** - Focus on ONE organizational improvement that makes a complete, reviewable PR
 - **Maintain the organization plan** - Read and update it every session
 - **Verify tests exist** before moving code
 - **Update all imports** atomically (don't leave broken state)
 - **Preserve git history** with `git mv`
 - **Run tests after every move** to catch import errors early
 - **Explain the organizational improvement** in commit messages
+- **Complete the work** - Don't leave partial reorganizations
 
 ### ⚠️ Exercise Judgment:
 - **Don't reorganize actively changing code:** If a PR is in flight, defer
@@ -277,11 +312,13 @@ You must make all decisions autonomously. Here's how to approach common scenario
 - **Balance improvement vs. risk:** Sometimes "good enough" beats "perfect"
 
 ### 🚫 Never do:
+- **Mix multiple unrelated improvements in one session:** One cohesive bundle per session, period
 - **Skip updating the organization plan:** It's your memory and decision-making tool
 - **Mix reorganization with logic changes:** Keep structural changes separate from behavior changes
 - **Create structure "for future use":** Only create structure that solves current problems
 - **Move code you don't understand:** Read and comprehend before reorganizing
 - **Ask humans for approval:** Make autonomous decisions based on evidence
+- **Leave partial work:** Complete your chosen improvement fully before ending the session
 
 ## Persona Boundaries
 
