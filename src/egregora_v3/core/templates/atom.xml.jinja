@@ -3,52 +3,54 @@
   <id>{{ feed.id }}</id>
   <title>{{ feed.title }}</title>
   <updated>{{ feed.updated.isoformat().replace('+00:00', 'Z') }}</updated>
-
   {% for author in feed.authors %}
   <author>
     <name>{{ author.name }}</name>
-    {% if author.email %}<email>{{ author.email }}</email>{% endif %}
+    {% if author.email %}
+    <email>{{ author.email }}</email>
+    {% endif %}
+    {% if author.uri %}
+    <uri>{{ author.uri }}</uri>
+    {% endif %}
   </author>
   {% endfor %}
-
   {% for link in feed.links %}
-  <link href="{{ link.href }}" {% if link.rel %}rel="{{ link.rel }}"{% endif %} {% if link.type %}type="{{ link.type }}"{% endif %} />
+  <link href="{{ link.href }}"{% if link.rel %} rel="{{ link.rel }}"{% endif %}{% if link.type %} type="{{ link.type }}"{% endif %}{% if link.length %} length="{{ link.length }}"{% endif %} />
   {% endfor %}
-
   {% for entry in feed.entries %}
   <entry>
     <id>{{ entry.id }}</id>
     <title>{{ entry.title }}</title>
     <updated>{{ entry.updated.isoformat().replace('+00:00', 'Z') }}</updated>
-
     {% if entry.published %}
     <published>{{ entry.published.isoformat().replace('+00:00', 'Z') }}</published>
     {% endif %}
-
-    {% if entry.in_reply_to %}
-    <thr:in-reply-to ref="{{ entry.in_reply_to.ref }}" {% if entry.in_reply_to.href %}href="{{ entry.in_reply_to.href }}"{% endif %} {% if entry.in_reply_to.type %}type="{{ entry.in_reply_to.type }}"{% endif %} />
+    {% if entry.summary %}
+    <summary>{{ entry.summary }}</summary>
     {% endif %}
-
+    {% if entry.in_reply_to %}
+    <thr:in-reply-to ref="{{ entry.in_reply_to.ref }}"{% if entry.in_reply_to.href %} href="{{ entry.in_reply_to.href }}"{% endif %}{% if entry.in_reply_to.type %} type="{{ entry.in_reply_to.type }}"{% endif %} />
+    {% endif %}
     {% for author in entry.authors %}
     <author>
       <name>{{ author.name }}</name>
+      {% if author.email %}
+      <email>{{ author.email }}</email>
+      {% endif %}
+      {% if author.uri %}
+      <uri>{{ author.uri }}</uri>
+      {% endif %}
     </author>
     {% endfor %}
-
     {% for link in entry.links %}
-    <link href="{{ link.href }}" {% if link.rel %}rel="{{ link.rel }}"{% endif %} {% if link.type %}type="{{ link.type }}"{% endif %} {% if link.length %}length="{{ link.length }}"{% endif %} />
+    <link href="{{ link.href }}"{% if link.rel %} rel="{{ link.rel }}"{% endif %}{% if link.type %} type="{{ link.type }}"{% endif %}{% if link.length %} length="{{ link.length }}"{% endif %} />
     {% endfor %}
-
     {% for category in entry.categories %}
-    <category term="{{ category.term }}" {% if category.scheme %}scheme="{{ category.scheme }}"{% endif %} {% if category.label %}label="{{ category.label }}"{% endif %} />
+    <category term="{{ category.term }}"{% if category.scheme %} scheme="{{ category.scheme }}"{% endif %}{% if category.label %} label="{{ category.label }}"{% endif %} />
     {% endfor %}
-
-    {% if entry.content %}
-    <content type="{% if entry.content_type in ['text/html', 'text/xhtml'] %}html{% elif entry.content_type == 'text/markdown' %}text{% else %}{{ entry.content_type or 'text' }}{% endif %}">{{ entry.content }}</content>
-    {% else %}
-    <content type="text" />
+    {% if entry.content is not none %}
+    <content type="{{ entry.content_type | atom_content_type }}">{{ entry.content }}</content>
     {% endif %}
-
     {% if entry.is_document %}
     <category scheme="https://egregora.app/schema#doc_type" term="{{ entry.doc_type.value }}" />
     <category scheme="https://egregora.app/schema#status" term="{{ entry.status.value }}" />

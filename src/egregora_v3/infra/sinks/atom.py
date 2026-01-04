@@ -1,6 +1,5 @@
 from pathlib import Path
 
-from egregora_v3.core.atom import feed_to_xml_string
 from egregora_v3.core.types import Feed
 
 
@@ -12,6 +11,6 @@ class AtomSink:
 
     def publish(self, feed: Feed):
         """Renders the feed to XML and writes it to the output path."""
-        xml_content = feed_to_xml_string(feed)
+        xml_content = feed.to_xml()
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
         self.output_path.write_text(xml_content)

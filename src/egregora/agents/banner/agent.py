@@ -178,4 +178,14 @@ def is_banner_generation_available() -> bool:
         True if GOOGLE_API_KEY environment variable is set
 
     """
+    skip_validation = os.getenv("EGREGORA_SKIP_API_KEY_VALIDATION", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "y",
+        "on",
+    }
+    if skip_validation:
+        return True
+
     return bool(os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY"))
