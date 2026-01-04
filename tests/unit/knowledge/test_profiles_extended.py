@@ -415,3 +415,12 @@ def test_sync_all_profiles_mixed(tmp_path: Path):
     assert authors[legacy_uuid]["name"] == "legacy-user"
     assert new_uuid in authors
     assert authors[new_uuid]["name"] == "new-user"
+
+
+def test_read_profile_not_found(tmp_path: Path):
+    """Test that read_profile raises ProfileNotFoundError when no profile exists."""
+    profiles_dir = tmp_path / "profiles"
+    author_uuid = "a-uuid-that-does-not-exist"
+
+    with pytest.raises(ProfileNotFoundError):
+        read_profile(author_uuid, profiles_dir)
