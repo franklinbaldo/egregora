@@ -4,6 +4,20 @@ Last updated: 2026-01-05
 
 ## Current Organizational State
 
+The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 structure has a `utils` directory that has been significantly cleaned up. The v3 `core` module contains some misplaced domain-specific logic.
+
+## Identified Issues
+
+1.  **`src/egregora_v3/core/utils.py`**: The `simple_chunk_text` function, a utility for chunking text for RAG, is located in the core `utils` module. This violates the Single Responsibility Principle, as the core should be domain-agnostic.
+
+## Prioritized Improvements
+
+1.  **Refactor `src/egregora_v3/core/utils.py`**: **[HIGH PRIORITY]** Move the `simple_chunk_text` function to `src/egregora_v3/infra/rag.py`, where it is exclusively used. This will improve modularity by co-locating the function with its related RAG logic.
+
+## Abandoned Improvements
+
+*   **Refactor `src/egregora/knowledge/profiles.py`**: **[ATTEMPTED - FAILED]** An attempt was made to refactor the `profiles.py` module by moving the author-syncing logic to a dedicated module in the `mkdocs` adapter. The refactoring failed due to a complex circular dependency that could not be easily resolved. All changes were reverted. This refactoring should be re-evaluated in the future with a more comprehensive understanding of the codebase's dependency graph.
+
 The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 structure contains a `utils` directory which often holds misplaced domain-specific code.
 
 ## Identified Issues

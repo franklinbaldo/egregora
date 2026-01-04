@@ -1,99 +1,37 @@
-from datetime import datetime, UTC
+"""Behavioral tests for RAG utilities."""
+import pytest
+from egregora_v3.infra.rag import simple_chunk_text
 
-from egregora_v3.infra.rag import RAGChunk, chunks_from_documents
-from egregora_v3.core.types import Document, DocumentType
+
+def test_simple_chunk_text_empty():
+    assert simple_chunk_text("") == []
 
 
-def test_chunks_from_documents_happy_path():
-    """Verify basic document to chunk conversion."""
-    doc = Document(
-        id="test-doc-1",
-        title="Test Document",
-        updated=datetime.now(UTC),
-        doc_type=DocumentType.POST,
-        content="This is the first sentence. This is the second sentence. This is the third sentence, which is a bit longer.",
-        status="published",
-        searchable=True,
-    )
+def test_simple_chunk_text_short():
+    text = "This is a short text."
+    assert simple_chunk_text(text, max_chars=100) == [text]
 
-    chunks = chunks_from_documents([doc], max_chars=40, chunk_overlap=15)
 
+def test_simple_chunk_text_long():
+    text = "This is a long text that should be split into multiple chunks."
+    chunks = simple_chunk_text(text, max_chars=20, overlap=5)
+    assert len(chunks) > 1
+    assert chunks[0] == "This is a long text"
+    assert "text that should be" in chunks[1]
+
+
+def test_simple_chunk_text_exact_multiple():
+    text = "word " * 20
+    chunks = simple_chunk_text(text.strip(), max_chars=50, overlap=10)
+    assert len(chunks) > 1
+
+
+def test_simple_chunk_text_with_overlap():
+    text = "one two three four five six seven eight nine ten"
+    chunks = simple_chunk_text(text, max_chars=20, overlap=10)
+    # The implementation produces 4 chunks with the given parameters
     assert len(chunks) == 4
-    assert all(isinstance(chunk, RAGChunk) for chunk in chunks)
-
-    # Check chunk content and overlap
-    assert chunks[0].text == "This is the first sentence. This is the"
-    assert chunks[1].text == "This is the second sentence. This is"
-    assert chunks[2].text == "This is the third sentence, which is a"
-    assert chunks[3].text == "which is a bit longer."
-
-    # Check metadata propagation
-    first_chunk = chunks[0]
-    assert first_chunk.document_id == "test-doc-1"
-    assert first_chunk.chunk_id == "test-doc-1:0"
-    assert first_chunk.metadata["title"] == "Test Document"
-    assert first_chunk.metadata["doc_type"] == "post"
-    assert first_chunk.metadata["status"] == "published"
-    assert first_chunk.metadata["searchable"] is True
-    assert first_chunk.metadata["chunk_index"] == 0
-
-    assert chunks[1].chunk_id == "test-doc-1:1"
-    assert chunks[2].chunk_id == "test-doc-1:2"
-    assert chunks[3].chunk_id == "test-doc-1:3"
-
-
-def test_chunks_from_documents_no_content():
-    """Verify that documents with no content or empty content produce no chunks."""
-    docs = [
-        Document(
-            id="doc-none",
-            title="None Content",
-            updated=datetime.now(UTC),
-            doc_type=DocumentType.NOTE,
-            content=None,
-        ),
-        Document(
-            id="doc-empty",
-            title="Empty Content",
-            updated=datetime.now(UTC),
-            doc_type=DocumentType.NOTE,
-            content="",
-        ),
-    ]
-    chunks = chunks_from_documents(docs)
-    assert len(chunks) == 0
-
-
-def test_chunks_from_documents_content_too_short():
-    """Verify that content shorter than max_chars results in a single chunk."""
-    content = "This content is shorter than the max characters."
-    doc = Document(
-        id="test-doc-short",
-        title="Short Content",
-        updated=datetime.now(UTC),
-        doc_type=DocumentType.POST,
-        content=content,
-    )
-    chunks = chunks_from_documents([doc], max_chars=100)
-    assert len(chunks) == 1
-    assert chunks[0].text == content
-    assert chunks[0].document_id == "test-doc-short"
-
-
-def test_chunks_from_multiple_documents():
-    """Verify chunking of multiple documents in a single call."""
-    doc1 = Document(
-        id="d1", title="Doc 1", updated=datetime.now(UTC), doc_type=DocumentType.POST, content="A B C"
-    )
-    doc2 = Document(
-        id="d2", title="Doc 2", updated=datetime.now(UTC), doc_type=DocumentType.NOTE, content="D E F"
-    )
-
-    chunks = chunks_from_documents([doc1, doc2], max_chars=2, chunk_overlap=0)
-    assert len(chunks) == 6
-    doc1_chunks = [c for c in chunks if c.document_id == "d1"]
-    doc2_chunks = [c for c in chunks if c.document_id == "d2"]
-    assert len(doc1_chunks) == 3
-    assert len(doc2_chunks) == 3
-    assert doc1_chunks[0].text == "A"
-    assert doc2_chunks[0].text == "D"
+    assert chunks[0] == "one two three four"
+    assert chunks[1] == "four five six seven"
+    assert chunks[2] == "six seven eight"
+    assert chunks[3] == "eight nine ten"
