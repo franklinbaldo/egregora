@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime
 import pytest
 from freezegun import freeze_time
 
-from egregora.utils.datetime_utils import (
+from egregora.data_primitives.datetime import (
     DateTimeParsingError,
     InvalidDateTimeInputError,
     parse_datetime_flexible,

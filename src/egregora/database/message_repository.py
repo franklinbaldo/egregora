@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.ops.media import extract_urls, find_media_references
-from egregora.utils.datetime_utils import ensure_datetime
+from egregora.data_primitives.datetime import ensure_datetime
 
 if TYPE_CHECKING:
     from ibis.backends.duckdb import Backend as DuckDBBackend

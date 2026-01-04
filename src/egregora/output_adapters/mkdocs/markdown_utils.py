@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from datetime import UTC, date, datetime
 
-from egregora.utils.datetime_utils import (
+from egregora.data_primitives.datetime import (
     DateTimeError,
     DateTimeParsingError,
     InvalidDateTimeInputError,

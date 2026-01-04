@@ -11,7 +11,6 @@ from egregora.security.zip import (
     ensure_safe_member_size,
     validate_zip_contents,
 )
-from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora_v3.core.utils import PathTraversalError, safe_path_join
 
 __all__ = [
@@ -21,7 +20,6 @@ __all__ = [
     "ZipValidationSettings",
     "configure_default_limits",
     "ensure_safe_member_size",
-    "parse_datetime_flexible",
     "safe_path_join",
     "validate_public_url",
     "validate_zip_contents",

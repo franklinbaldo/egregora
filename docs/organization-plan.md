@@ -1,6 +1,6 @@
 # Codebase Organization Plan
 
-Last updated: 2026-01-05
+Last updated: 2026-01-06
 
 ## Current Organizational State
 
@@ -16,6 +16,7 @@ The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 struc
 
 ## Completed Improvements
 
+*   **2026-01-06**: Moved the generic datetime parsing utilities from `src/egregora/utils/datetime_utils.py` to `src/egregora/data_primitives/datetime.py`. This refactoring co-locates the module with other fundamental data types, creating a more logical and intentional structure than the generic `utils` directory.
 *   **2026-01-05**: Moved `media.py` and `taxonomy.py` from the misplaced `src/egregora/orchestration/pipelines/modules` directory to `src/egregora/ops`. This co-locates domain-specific media and taxonomy logic in a more intuitive and discoverable `ops` module, improving the overall codebase structure.
 *   **2026-01-05**: Centralized the v2 exception hierarchy by creating a single `EgregoraError` base class in `src/egregora/exceptions.py` and refactoring all custom exceptions to inherit from it. This improves maintainability and enables consistent high-level error handling.
 *   **2026-01-04**: Refactored `slugify` from `utils/paths.py` to `utils/text.py`.
