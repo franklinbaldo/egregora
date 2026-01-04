@@ -30,7 +30,7 @@ from egregora.knowledge.profiles import remove_profile_avatar, update_profile_av
 from egregora.llm.api_keys import get_google_api_key
 from egregora.orchestration.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.orchestration.exceptions import CacheKeyNotFoundError
-from egregora.orchestration.pipelines.modules.media import (
+from egregora.ops.media import (
     detect_media_type,
     extract_urls,
 )

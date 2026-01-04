@@ -26,7 +26,7 @@ from egregora.orchestration.exceptions import (
     WindowSplitError,
 )
 from egregora.orchestration.factory import PipelineFactory
-from egregora.orchestration.pipelines.modules.media import process_media_for_window
+from egregora.ops.media import process_media_for_window
 from egregora.transformations import split_window_into_n_parts
 
 if TYPE_CHECKING:
