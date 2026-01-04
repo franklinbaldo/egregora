@@ -142,6 +142,9 @@ def generate_banner(
             error="Banner generation is not available. Please set GOOGLE_API_KEY.",
             error_code="NOT_CONFIGURED",
         )
+
+    if slug is None:
+        return BannerOutput(error="Post slug cannot be None.", error_code="INVALID_INPUT")
     # Client reads GOOGLE_API_KEY from environment automatically
     client = genai.Client()
 

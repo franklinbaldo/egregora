@@ -34,8 +34,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from egregora.core.exceptions import InvalidInputError
 from egregora.data_primitives.document import Document, DocumentType, UrlConvention
+from egregora.exceptions import InvalidInputError
 from egregora.utils.text import slugify
 
 if TYPE_CHECKING:

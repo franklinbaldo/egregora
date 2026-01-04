@@ -48,7 +48,7 @@ def test_generate_banner_success_with_debug_text():
         )
         mock_provider_instance.generate.return_value = mock_result
 
-        result = generate_banner("A Title", "A summary")
+        result = generate_banner("A Title", "A summary", slug="a-slug")
 
     assert result.success is True
     assert result.document is not None
@@ -75,7 +75,7 @@ def test_generate_banner_failure_no_image_data():
         )
         mock_provider_instance.generate.return_value = mock_result
 
-        result = generate_banner("A Title", "A summary")
+        result = generate_banner("A Title", "A summary", slug="a-slug")
 
     assert result.success is False
     assert result.document is None
@@ -94,7 +94,7 @@ def test_generate_banner_handles_google_api_call_error():
         mock_provider_cls.return_value = mock_provider_instance
         mock_provider_instance.generate.side_effect = google_exceptions.GoogleAPICallError("API error")
 
-        result = generate_banner("A Title", "A summary")
+        result = generate_banner("A Title", "A summary", slug="a-slug")
 
     assert result.success is False
     assert result.document is None

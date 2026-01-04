@@ -146,7 +146,7 @@ def test_generate_banner_reraises_unexpected_errors(monkeypatch):
 
     # 2. Act & Assert
     with pytest.raises(ValueError, match="Something went wrong"):
-        agent.generate_banner(post_title="Title", post_summary="Summary")
+        agent.generate_banner(post_title="Title", post_summary="Summary", slug="a-slug")
 
 
 def test_generate_banner_image_reraises_unexpected_errors(monkeypatch):
