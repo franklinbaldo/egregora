@@ -6,6 +6,7 @@ site_url: {{ site_url | default("http://127.0.0.1:8000") }}  # Update with your 
 # repo_name: your-repo
 docs_dir: ../{{ docs_dir }}
 site_dir: {{ site_dir | default("site") }}  # Set per-site to avoid build collisions in multi-site configs
+copyright: Copyright &copy; {{ now.year }} {{ site_name }}
 
 theme:
   name: material
@@ -71,6 +72,7 @@ plugins:
   - social
   - search:
       lang: en
+      separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
   - macros
   - glightbox
   - blog:
@@ -214,7 +216,6 @@ extra:
             <a href="{{ repo_url }}/issues/new?title=[Docs]" target="_blank">opening an issue</a>.
   # Disable MkDocs generator notice
   generator: false
-  copyright: Copyright &copy; {{ now.year }} {{ site_name }}
   # Add social links to the footer for a more professional look.
   # These will only appear if the corresponding variables are set in the user's config.
   {% if github_user or twitter_handle or linkedin_user %}
