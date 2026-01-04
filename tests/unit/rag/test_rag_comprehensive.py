@@ -658,9 +658,8 @@ def test_chunking_empty_document():
 
     chunks = chunks_from_document(doc)
 
-    # Should return a single chunk with empty text
-    assert len(chunks) == 1
-    assert chunks[0].text == ""
+    # Should return no chunks for an empty document
+    assert len(chunks) == 0
 
 
 def test_chunking_whitespace_only():
