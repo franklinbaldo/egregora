@@ -1,8 +1,8 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from egregora.config.enums import SourceType
 from egregora.config.settings import SiteSettings, SourceSettings
+from egregora.constants import SourceType
 
 
 def test_write_pipeline_importable():

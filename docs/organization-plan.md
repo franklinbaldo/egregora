@@ -4,30 +4,19 @@ Last updated: 2026-01-05
 
 ## Current Organizational State
 
-The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 structure contains a `utils` directory and a `constants.py` file which have historically held misplaced domain-specific code.
+The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 structure contains a `utils` directory which often holds misplaced domain-specific code.
 
 ## Identified Issues
 
-1.  **`src/egregora/utils/` modules**: The `utils` directory has historically contained misplaced domain logic. A full audit is needed to ensure all remaining modules are true, cross-cutting utilities.
+1.  **`src/egregora/utils/datetime_utils.py`**: **[EVALUATED - OK]** This module was investigated as a potential candidate for refactoring. However, a `grep` search revealed its functions (`ensure_datetime`, `parse_datetime_flexible`, etc.) and exceptions are used across multiple, disparate domains (agents, database, adapters, other utils). It serves as a true, cross-cutting utility and is correctly located. No action is required.
 
 ## Prioritized Improvements
 
-*   Continue the systematic evaluation of the `src/egregora/utils` directory.
-1.  **`src/egregora/constants.py`**: **[HIGH PRIORITY]** This module acts as a "junk drawer" for various constants and enums. Investigation shows that most enums are either unused (dead code) or belong to a specific domain (e.g., `config`, `rag`). This violates the Single Responsibility Principle and makes the codebase harder to navigate.
-2.  **`src/egregora/utils/datetime_utils.py`**: **[EVALUATED - OK]** This module was investigated as a potential candidate for refactoring. However, a `grep` search revealed its functions are used across multiple, disparate domains. It serves as a true, cross-cutting utility and is correctly located. No action is required.
-
-## Prioritized Improvements
-
-1.  **Refactor `src/egregora/constants.py`**: Move domain-specific enums (`RetrievalMode`, `SourceType`, `WindowUnit`) to a new `src/egregora/config/enums.py` file. Delete dead code (`FileFormat`, `IndexType`, `MediaType`) from the module. This will improve modularity and code clarity.
-
-## Abandoned Improvements
-
-*   **Refactor `src/egregora/knowledge/profiles.py`**: **[ATTEMPTED - FAILED]** An attempt was made to refactor the `profiles.py` module by moving the author-syncing logic to a dedicated module in the `mkdocs` adapter. The refactoring failed due to a complex circular dependency that could not be easily resolved. All changes were reverted. This refactoring should be re-evaluated in the future with a more comprehensive understanding of the codebase's dependency graph.
-
+*No high-priority improvements have been identified yet. The next step is to continue discovery.*
 
 ## Completed Improvements
 
-*   **2026-01-05**: Centralized core exceptions by moving `EgregoraError` and its subclasses from `utils/text.py` to a new `core/exceptions.py` module.
+*   **2026-01-05**: Centralized the v2 exception hierarchy by creating a single `EgregoraError` base class in `src/egregora/exceptions.py` and refactoring all custom exceptions to inherit from it. This improves maintainability and enables consistent high-level error handling.
 *   **2026-01-04**: Refactored `slugify` from `utils/paths.py` to `utils/text.py`.
 *   **2026-01-04**: Moved API key utilities from `utils/env.py` to `llm/api_keys.py`.
 *   **2026-01-03**: Moved `GlobalRateLimiter` from `utils/rate_limit.py` to `llm/rate_limit.py`.
@@ -39,4 +28,4 @@ The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 struc
 
 ## Organizational Strategy
 
-My primary strategy is to identify and refactor modules that violate the Single Responsibility Principle, such as generic `utils` or `constants` files. Each component will be evaluated by tracing its usage to determine if it's a true, cross-cutting concern or if it should be moved to a more specific domain.
+My primary strategy is to inspect the `src/egregora/utils` directory, as it has historically been a collection point for domain-specific logic that should be co-located with its primary users. Each module within `utils` will be evaluated by tracing its usage to determine if it's a true, cross-cutting concern or if it can be moved to a more specific domain. A secondary strategy is to identify and fix cross-cutting organizational issues like the inconsistent exception hierarchy.

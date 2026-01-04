@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from egregora.config import load_egregora_config
-from egregora.config.enums import SourceType
+from egregora.constants import SourceType
 from egregora.orchestration.context import PipelineRunParams
 from egregora.orchestration.pipelines.write import run as run_write_pipeline
 from egregora.output_adapters.mkdocs.scaffolding import ensure_mkdocs_project
