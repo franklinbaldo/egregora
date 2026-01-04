@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from egregora.agents import EGREGORA_NAME, EGREGORA_UUID
+from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import DocumentType
 
 
