@@ -114,7 +114,7 @@ class MkDocsOutputSink:
         potential_filenames = [
             doc.slug,
             slug_from_title,
-            slugify(doc.id, max_len=60),
+            slugify(doc.id.replace(":", "-"), max_len=60),
         ]
 
         for filename in potential_filenames:

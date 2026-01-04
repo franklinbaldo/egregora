@@ -126,6 +126,7 @@ def test_generate_banner_reraises_unexpected_errors(monkeypatch):
     def mock_generate_banner_image(*args, **kwargs):
         raise ValueError("Something went wrong")
 
+    monkeypatch.setenv("EGREGORA_SKIP_API_KEY_VALIDATION", "1")
     monkeypatch.setattr(agent, "_generate_banner_image", mock_generate_banner_image)
     # Mock the genai.Client at the module level where it's imported
 
