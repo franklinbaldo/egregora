@@ -19,6 +19,7 @@ from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.types import Message, PromptTooLargeError, WindowProcessingParams
 from egregora.agents.writer import write_posts_for_window
 from egregora.data_primitives.document import UrlContext
+from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.exceptions import (
     OutputSinkError,
@@ -26,7 +27,6 @@ from egregora.orchestration.exceptions import (
     WindowSplitError,
 )
 from egregora.orchestration.factory import PipelineFactory
-from egregora.orchestration.pipelines.modules.media import process_media_for_window
 from egregora.transformations import split_window_into_n_parts
 
 if TYPE_CHECKING:

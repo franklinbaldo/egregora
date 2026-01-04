@@ -10,7 +10,7 @@ import ibis
 import ibis.expr.datatypes as dt
 
 from egregora.input_adapters.whatsapp.exceptions import ChatFileNotFoundError
-from egregora.orchestration.pipelines.modules.media import (
+from egregora.ops.media import (
     ATTACHMENT_MARKERS,
     WA_MEDIA_PATTERN,
     detect_media_type,

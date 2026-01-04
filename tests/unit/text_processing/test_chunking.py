@@ -1,6 +1,6 @@
 """Behavioral tests for RAG utilities."""
-import pytest
-from egregora_v3.infra.rag import simple_chunk_text
+
+from egregora.text_processing.chunking import simple_chunk_text
 
 
 def test_simple_chunk_text_empty():

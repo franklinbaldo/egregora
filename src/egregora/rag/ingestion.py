@@ -11,15 +11,16 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.text_processing.chunking import (
+    DEFAULT_CHUNK_OVERLAP,
+    DEFAULT_MAX_CHARS,
+    simple_chunk_text,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
 logger = logging.getLogger(__name__)
-
-# Chunking constants
-DEFAULT_MAX_CHARS = 800  # Conservative default for manageable chunks
-DEFAULT_CHUNK_OVERLAP = 200  # Overlap between chunks to preserve context
 
 
 @dataclass
@@ -33,76 +34,6 @@ class _RAGChunk:
     document_id: str
     text: str
     metadata: dict[str, Any]
-
-
-def _simple_chunk_text(
-    text: str,
-    max_chars: int = DEFAULT_MAX_CHARS,
-    overlap: int = DEFAULT_CHUNK_OVERLAP,
-) -> list[str]:
-    """Simple chunking: split text into ~max_chars chunks with overlap on whitespace.
-
-    Splits on word boundaries to avoid breaking mid-word.
-    Overlapping chunks ensure context is preserved across boundaries.
-
-    Args:
-        text: Text to chunk
-        max_chars: Maximum characters per chunk
-        overlap: Number of characters to overlap between chunks
-
-    Returns:
-        List of text chunks with overlap
-
-    """
-    if len(text) <= max_chars:
-        return [text]
-
-    # Ensure overlap is less than max_chars
-    overlap = min(overlap, max_chars // 2)
-
-    words = text.split()
-    chunks: list[str] = []
-    current: list[str] = []
-    current_len = 0
-
-    # Track words for overlap
-    overlap_words: list[str] = []
-    overlap_len = 0
-
-    for w in words:
-        word_len = len(w) + 1  # +1 for space
-
-        # Check if we need to start a new chunk
-        if current_len + word_len > max_chars and current:
-            # Save current chunk
-            chunk_text = " ".join(current)
-            chunks.append(chunk_text)
-
-            # Build overlap from end of current chunk (O(n) not O(n²))
-            overlap_words = []
-            overlap_len = 0
-            for overlap_word in reversed(current):
-                overlap_word_len = len(overlap_word) + 1
-                if overlap_len + overlap_word_len <= overlap:
-                    overlap_words.append(overlap_word)  # O(1) append, not O(n) insert(0)
-                    overlap_len += overlap_word_len
-                else:
-                    break
-            # Reverse once at the end (O(n) once, not O(n) per word)
-            overlap_words.reverse()
-
-            # Start new chunk with overlap
-            current = overlap_words.copy()
-            current_len = overlap_len
-
-        current.append(w)
-        current_len += word_len
-
-    # Add final chunk
-    if current:
-        chunks.append(" ".join(current))
-
-    return chunks
 
 
 def chunks_from_document(
@@ -151,7 +82,9 @@ def chunks_from_document(
     doc_id = doc.document_id
 
     # Chunk the text with overlap
-    pieces = _simple_chunk_text(text, max_chars=max_chars, overlap=chunk_overlap)
+    pieces = simple_chunk_text(text, max_chars=max_chars, overlap=chunk_overlap)
+    if not pieces and text == "":
+        pieces = [""]
 
     chunks: list[_RAGChunk] = []
 
