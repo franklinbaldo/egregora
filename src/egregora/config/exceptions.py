@@ -5,8 +5,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
+from egregora.exceptions import EgregoraError
 
-class ConfigError(Exception):
+
+class ConfigError(EgregoraError):
     """Base exception for all configuration-related errors."""
 
 

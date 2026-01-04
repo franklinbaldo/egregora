@@ -1,7 +1,9 @@
 """Custom exceptions for database operations."""
 
+from egregora.exceptions import EgregoraError
 
-class DatabaseError(Exception):
+
+class DatabaseError(EgregoraError):
     """Base exception for database-related errors."""
 
 

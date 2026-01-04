@@ -1,7 +1,9 @@
 """Exceptions for the orchestration module."""
 
+from egregora.exceptions import EgregoraError
 
-class OrchestrationError(Exception):
+
+class OrchestrationError(EgregoraError):
     """Base exception for orchestration errors."""
 
 
