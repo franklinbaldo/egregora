@@ -8,28 +8,19 @@ The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 struc
 
 ## Identified Issues
 
-1.  **`src/egregora_v3/core/utils.py`**: The `simple_chunk_text` function, a utility for chunking text for RAG, is located in the core `utils` module. This violates the Single Responsibility Principle, as the core should be domain-agnostic.
-
-## Prioritized Improvements
-
-1.  **Refactor `src/egregora_v3/core/utils.py`**: **[HIGH PRIORITY]** Move the `simple_chunk_text` function to `src/egregora_v3/infra/rag.py`, where it is exclusively used. This will improve modularity by co-locating the function with its related RAG logic.
-
-## Abandoned Improvements
-
-*   **Refactor `src/egregora/knowledge/profiles.py`**: **[ATTEMPTED - FAILED]** An attempt was made to refactor the `profiles.py` module by moving the author-syncing logic to a dedicated module in the `mkdocs` adapter. The refactoring failed due to a complex circular dependency that could not be easily resolved. All changes were reverted. This refactoring should be re-evaluated in the future with a more comprehensive understanding of the codebase's dependency graph.
-
-The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 structure contains a `utils` directory which often holds misplaced domain-specific code.
-
-## Identified Issues
-
-1.  **`src/egregora/utils/datetime_utils.py`**: **[EVALUATED - OK]** This module was investigated as a potential candidate for refactoring. However, a `grep` search revealed its functions (`ensure_datetime`, `parse_datetime_flexible`, etc.) and exceptions are used across multiple, disparate domains (agents, database, adapters, other utils). It serves as a true, cross-cutting utility and is correctly located. No action is required.
+*No high-priority issues have been identified yet. The next step is to continue discovery.*
 
 ## Prioritized Improvements
 
 *No high-priority improvements have been identified yet. The next step is to continue discovery.*
 
+## Abandoned Improvements
+
+*   **Refactor `src/egregora/knowledge/profiles.py`**: **[ATTEMPTED - FAILED]** An attempt was made to refactor the `profiles.py` module by moving the author-syncing logic to a dedicated module in the `mkdocs` adapter. The refactoring failed due to a complex circular dependency that could not be easily resolved. All changes were reverted. This refactoring should be re-evaluated in the future with a more comprehensive understanding of the codebase's dependency graph.
+
 ## Completed Improvements
 
+*   **2026-01-05**: Removed dead code from `src/egregora/ops/media.py`. The file contained a placeholder function that was not used anywhere in the codebase.
 *   **2026-01-05**: Centralized the v2 exception hierarchy by creating a single `EgregoraError` base class in `src/egregora/exceptions.py` and refactoring all custom exceptions to inherit from it. This improves maintainability and enables consistent high-level error handling.
 *   **2026-01-04**: Refactored `slugify` from `utils/paths.py` to `utils/text.py`.
 *   **2026-01-04**: Moved API key utilities from `utils/env.py` to `llm/api_keys.py`.
