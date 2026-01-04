@@ -1366,7 +1366,9 @@ def _apply_filters(
         logger.info("[yellow]🧹 Removed[/] %s /egregora messages", egregora_removed)
 
     # Filter opted-out authors
-    messages_table, removed_count = filter_opted_out_authors(messages_table, ctx.profiles_dir)
+    messages_table, removed_count = filter_opted_out_authors(
+        messages_table, ctx.profiles_dir, storage=ctx.state.storage
+    )
     if removed_count > 0:
         logger.warning("⚠️  %s messages removed from opted-out users", removed_count)
 

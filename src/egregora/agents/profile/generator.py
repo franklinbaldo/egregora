@@ -243,8 +243,17 @@ async def _generate_profile_content_async(
             from pathlib import Path
 
             profiles_dir = Path(ctx.output_dir) / "docs" / "posts" / "profiles"
+
+            # Get storage from context if available
+            storage = None
+            if hasattr(ctx, "state") and hasattr(ctx.state, "storage"):
+                storage = ctx.state.storage
+
             profile_history = get_profile_history_for_context(
-                author_uuid, profiles_dir, max_posts=ctx.config.profile.history_window_size
+                author_uuid,
+                profiles_dir,
+                max_posts=ctx.config.profile.history_window_size,
+                storage=storage,
             )
             logger.debug("Loaded profile history for %s (%d chars)", author_uuid, len(profile_history))
     except ImportError as e:

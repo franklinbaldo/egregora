@@ -19,6 +19,7 @@ from egregora.agents.types import WriterResources
 from egregora.data_primitives.document import UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.profile_cache import scan_and_cache_all_documents
 from egregora.database.repository import ContentRepository
 from egregora.llm.usage import UsageTracker
 from egregora.orchestration.cache import PipelineCache
@@ -76,6 +77,14 @@ class PipelineFactory:
         site_paths.egregora_dir.mkdir(parents=True, exist_ok=True)
         storage = DuckDBStorageManager.from_ibis_backend(pipeline_backend)
         repository = ContentRepository(storage)
+
+        # Cache all documents (profiles, posts, etc.) from filesystem to database
+        # This eliminates file I/O bottleneck during pipeline execution
+        scan_and_cache_all_documents(
+            storage,
+            profiles_dir=site_paths.profiles_dir,
+            posts_dir=site_paths.posts_dir,
+        )
 
         output_registry = create_default_output_registry()
 

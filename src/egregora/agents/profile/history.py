@@ -15,6 +15,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from jinja2 import Template
 
@@ -124,17 +125,61 @@ Based on the profile history above:
 """
 
 
-def load_profile_posts(author_uuid: str, profiles_dir: Path) -> list[ProfilePost]:
-    """Load all profile posts for an author from their directory.
+def load_profile_posts(author_uuid: str, profiles_dir: Path, storage: Any | None = None) -> list[ProfilePost]:
+    """Load all profile posts for an author from database or directory.
+
+    Reads from database cache if available, eliminating file I/O bottleneck.
+    Falls back to file-based reading if storage is not provided.
 
     Args:
         author_uuid: The author's UUID
         profiles_dir: Base profiles directory (e.g., docs/posts/profiles/)
+        storage: DuckDBStorageManager instance for database access (optional)
 
     Returns:
         List of ProfilePost objects, sorted by date
 
     """
+    # Use database cache if available
+    if storage is not None:
+        from egregora.database.profile_cache import get_profile_posts_from_db
+
+        try:
+            db_posts = get_profile_posts_from_db(storage, author_uuid)
+            posts = []
+
+            for post_data in db_posts:
+                # Extract metadata from content or use defaults
+                content = post_data["content"]
+                slug = post_data["slug"]
+
+                # Parse aspect from slug if possible
+                parts = slug.split("-")
+                if len(parts) >= MIN_FILENAME_PARTS:
+                    aspect_parts = parts[3:-1] if len(parts) > MIN_FILENAME_PARTS else parts[3:4]
+                    aspect = " ".join(aspect_parts).replace("-", " ").title()
+                else:
+                    aspect = "General Profile"
+
+                posts.append(
+                    ProfilePost(
+                        date=post_data["date"],
+                        title=post_data["title"] or "Profile Post",
+                        slug=slug,
+                        content=content,
+                        file_path=profiles_dir / author_uuid / f"{slug}.md",  # Reconstructed path
+                        aspect=aspect,
+                    )
+                )
+
+            logger.info("Loaded %d profile posts for %s from database", len(posts), author_uuid)
+            return posts
+
+        except Exception as e:
+            logger.warning("Failed to load from database, falling back to files: %s", e)
+            # Fall through to file-based loading
+
+    # Fallback to file-based reading
     author_dir = profiles_dir / author_uuid
 
     if not author_dir.exists():
@@ -188,7 +233,7 @@ def load_profile_posts(author_uuid: str, profiles_dir: Path) -> list[ProfilePost
             logger.exception("Failed to load profile post: %s", file_path)
             continue
 
-    logger.info("Loaded %d profile posts for %s", len(posts), author_uuid)
+    logger.info("Loaded %d profile posts for %s from files", len(posts), author_uuid)
     return posts
 
 
@@ -196,6 +241,7 @@ def render_profile_history(
     author_uuid: str,
     profiles_dir: Path,
     template: Template | None = None,
+    storage: Any | None = None,
 ) -> str:
     """Render a complete profile history for an author.
 
@@ -203,13 +249,14 @@ def render_profile_history(
         author_uuid: The author's UUID
         profiles_dir: Base profiles directory
         template: Optional custom Jinja template (uses default if None)
+        storage: DuckDBStorageManager instance for database access (optional)
 
     Returns:
         Rendered profile history as markdown
 
     """
     # Load all profile posts
-    posts = load_profile_posts(author_uuid, profiles_dir)
+    posts = load_profile_posts(author_uuid, profiles_dir, storage=storage)
 
     # Build history object
     history = ProfileHistory.from_posts(author_uuid, posts)
@@ -226,6 +273,7 @@ def get_profile_history_for_context(
     author_uuid: str,
     profiles_dir: Path,
     max_posts: int = 5,
+    storage: Any | None = None,
 ) -> str:
     """Get condensed profile history suitable for LLM context window.
 
@@ -236,12 +284,13 @@ def get_profile_history_for_context(
         author_uuid: The author's UUID
         profiles_dir: Base profiles directory
         max_posts: Maximum number of recent posts to include
+        storage: DuckDBStorageManager instance for database access (optional)
 
     Returns:
         Condensed markdown summary for context window
 
     """
-    posts = load_profile_posts(author_uuid, profiles_dir)
+    posts = load_profile_posts(author_uuid, profiles_dir, storage=storage)
 
     if not posts:
         return f"# Profile History for {author_uuid}\n\nNo prior profile posts exist."

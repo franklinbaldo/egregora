@@ -286,15 +286,16 @@ def _store_rag_context(cache: Any | None, query_text: str, context: str) -> None
         logger.warning("Cache storage failed")
 
 
-def load_profiles_context(active_authors: list[str], output_sink: Any) -> str:
-    """Load profiles for top active authors via output_sink.
+def load_profiles_context(active_authors: list[str], output_sink: Any, storage: Any | None = None) -> str:
+    """Load profiles for top active authors from database cache.
 
-    Uses output_sink.read_document() to read profiles from the unified
-    output directory (e.g., posts/ in MkDocs), rather than direct file access.
+    Reads profiles from the database instead of files, eliminating file I/O bottleneck.
+    Falls back to output_sink if storage is not available.
 
     Args:
         active_authors: List of author UUIDs to load profiles for
-        output_sink: OutputSink instance that knows where profiles are stored
+        output_sink: OutputSink instance (fallback for legacy compatibility)
+        storage: DuckDBStorageManager instance for database access
 
     Returns:
         Formatted string with profile context for each author
@@ -306,22 +307,38 @@ def load_profiles_context(active_authors: list[str], output_sink: Any) -> str:
 
     parts = [
         "\n\n## Active Participants (Profiles):\n",
-        "Understanding the participants helps you write posts that match their style, voice, and interests.\n\n",
+        "Understanding the participants helps you write posts that match their style, voice, "
+        "and interests.\n\n",
     ]
 
-    for author_uuid in active_authors:
-        try:
-            doc = output_sink.read_document(DocumentType.PROFILE, author_uuid)
-            profile_content = doc.content
-        except DocumentNotFoundError as exc:
-            logger.debug("Could not read profile for %s: %s", author_uuid, exc)
-            profile_content = ""
+    # Use database cache if available
+    if storage is not None:
+        from egregora.database.profile_cache import get_profile_from_db
 
-        parts.append(f"### Author: {author_uuid}\n")
-        if profile_content:
-            parts.append(f"{profile_content}\n\n")
-        else:
-            parts.append("(No profile yet - first appearance)\n\n")
+        for author_uuid in active_authors:
+            profile_content = get_profile_from_db(storage, author_uuid)
+
+            parts.append(f"### Author: {author_uuid}\n")
+            if profile_content:
+                parts.append(f"{profile_content}\n\n")
+            else:
+                parts.append("(No profile yet - first appearance)\n\n")
+    else:
+        # Fallback to file-based reading
+        logger.warning("Storage not available, falling back to file-based profile reading")
+        for author_uuid in active_authors:
+            try:
+                doc = output_sink.read_document(DocumentType.PROFILE, author_uuid)
+                profile_content = doc.content
+            except DocumentNotFoundError as exc:
+                logger.debug("Could not read profile for %s: %s", author_uuid, exc)
+                profile_content = ""
+
+            parts.append(f"### Author: {author_uuid}\n")
+            if profile_content:
+                parts.append(f"{profile_content}\n\n")
+            else:
+                parts.append("(No profile yet - first appearance)\n\n")
 
     profiles_context = "".join(parts)
     logger.info("Profiles context: %s characters", len(profiles_context))
