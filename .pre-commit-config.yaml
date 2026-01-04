@@ -73,8 +73,8 @@ repos:
         files: tests/.*\.py$
       - id: check-private-function-anti-patterns
         name: Check for private function anti-patterns
-        entry: python dev_tools/check_private_imports.py
-        language: system
+        entry: dev_tools/check_private_imports.py
+        language: python
         types: [python]
         files: ^src/
       - id: unit-tests
