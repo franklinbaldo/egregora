@@ -288,7 +288,7 @@ def write_profile(
 
     # Find existing file to preserve identity/handle renames
     try:
-        existing_path: Path | None = _find_profile_path(author_uuid, profiles_dir)
+        existing_path = _find_profile_path(author_uuid, profiles_dir)
         metadata = _extract_profile_metadata(existing_path)
     except ProfileNotFoundError:
         existing_path = None
@@ -814,7 +814,7 @@ def update_profile_avatar(
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
     try:
-        profile_path: Path | None = _find_profile_path(author_uuid, profiles_dir)
+        profile_path = _find_profile_path(author_uuid, profiles_dir)
         content = profile_path.read_text(encoding="utf-8")
     except ProfileNotFoundError:
         profile_path = None
@@ -866,7 +866,7 @@ def remove_profile_avatar(
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
     try:
-        profile_path: Path | None = _find_profile_path(author_uuid, profiles_dir)
+        profile_path = _find_profile_path(author_uuid, profiles_dir)
         content = profile_path.read_text(encoding="utf-8")
     except ProfileNotFoundError:
         profile_path = None
