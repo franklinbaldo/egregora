@@ -9,6 +9,7 @@ TDD: Profile generation from author's full message history.
 from unittest.mock import Mock, patch
 
 import pytest
+from ibis import memtable
 
 from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import DocumentType
@@ -130,6 +131,39 @@ class TestProfileGeneration:
         ctx.config.models = Mock()
         ctx.config.models.writer = "gemini-2.0-flash"
         ctx.output_dir = "/tmp/test_output"
+        # Mock database responses
+        from unittest.mock import MagicMock
+
+        # Mocks for different tables
+        mock_posts_table = MagicMock()
+        mock_profiles_table = MagicMock()
+
+        # Configure mock for "posts" table (for load_profile_posts)
+        mock_posts_df = memtable(
+            {
+                "slug": [],
+                "title": [],
+                "content": [],
+                "date": [],
+                "summary": [],
+            }
+        )
+        mock_posts_table.filter.return_value.execute.return_value = mock_posts_df.execute()
+
+        # Configure mock for "profiles" table (for load_author_profile_content)
+        mock_profile_df = memtable(
+            {"content": ["---\nsubject_uuid: john-uuid\n---\nOld Bio"], "subject_uuid": ["john-uuid"]}
+        )
+        mock_profiles_table.filter.return_value.execute.return_value = mock_profile_df.execute()
+
+        def read_table_side_effect(table_name):
+            if table_name == "posts":
+                return mock_posts_table
+            if table_name == "profiles":
+                return mock_profiles_table
+            return MagicMock()
+
+        ctx.state.storage.read_table.side_effect = read_table_side_effect
         # Mock existing profile response
         ctx.output_format.get_author_profile.return_value = {"bio": "Old Bio", "interests": ["Old Interest"]}
 
