@@ -131,6 +131,20 @@ class Document:
     # Hints for output formats (optional, not authoritative)
     suggested_path: str | None = None
 
+    def _clean_slug(self, value: Any) -> str | None:
+        """Clean and validate a slug value.
+
+        Args:
+            value: Raw slug value from metadata (could be any type)
+
+        Returns:
+            Cleaned slug string if valid, None otherwise
+
+        """
+        if isinstance(value, str) and (stripped := value.strip()):
+            return _slugify(stripped, max_len=60)
+        return None
+
     @property
     def document_id(self) -> str:
         """Return the document's stable identifier.
@@ -148,9 +162,8 @@ class Document:
         # Only for Posts and Media, as per V3 spec
         if self.type in (DocumentType.POST, DocumentType.MEDIA):
             # Do NOT call self.slug property here to avoid recursion fallback loop
-            meta_slug = self.metadata.get("slug")
-            if meta_slug and isinstance(meta_slug, str) and meta_slug.strip():
-                return _slugify(meta_slug.strip(), max_len=60)
+            if cleaned_slug := self._clean_slug(self.metadata.get("slug")):
+                return cleaned_slug
 
         # 3. Fallback: Content-addressed UUIDv5
         if isinstance(self.content, bytes):
@@ -163,11 +176,8 @@ class Document:
     @property
     def slug(self) -> str:
         """Return a human-friendly identifier when available."""
-        slug_value = self.metadata.get("slug")
-        if isinstance(slug_value, str) and slug_value.strip():
-            cleaned = _slugify(slug_value.strip(), max_len=60)
-            if cleaned:
-                return cleaned
+        if cleaned_slug := self._clean_slug(self.metadata.get("slug")):
+            return cleaned_slug
 
         # Fallback: if we have an explicit ID, use it (it might be a slug)
         if self.id:
