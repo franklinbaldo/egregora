@@ -20,3 +20,74 @@ repos:
       - id: end-of-file-fixer
       - id: mixed-line-ending
       - id: trailing-whitespace
+  # Removed custom hooks - now handled by ruff + scripts/quality.sh
+  # - check-complexity, check-dead-code, check-security: Use scripts/quality.sh instead
+  - repo: local
+    hooks:
+      - id: vulture
+        name: Check for dead code with vulture
+        entry: uv run vulture
+        args: ["src", "tests", "vulture_whitelist.py", "--min-confidence=80"]
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: radon-cc
+        name: Check cyclomatic complexity with radon
+        entry: uvx radon cc
+        args: ["src", "-n", "C", "--total-average"]
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: radon-mi
+        name: Check maintainability index with radon
+        entry: uvx radon mi
+        args: ["src", "-n", "B"]
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: xenon
+        name: Enforce complexity thresholds with xenon
+        entry: uvx xenon
+        args: ["src", "--max-absolute", "E", "--max-modules", "C", "--max-average", "B", "--exclude", "*/database/*.py"]
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: bandit
+        name: Check security issues with bandit
+        entry: uvx bandit
+        args: ["-r", "src", "-f", "screen", "-c", "pyproject.toml", "-lll", "-ii"]
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: check-private-imports
+        name: Check private imports
+        entry: dev_tools/check_private_imports.py
+        language: python
+        types: [python]
+        pass_filenames: true
+      - id: check-test-config
+        name: Check test configuration
+        entry: dev_tools/check_test_config.py
+        language: python
+        pass_filenames: false
+        files: tests/.*\.py$
+      - id: check-private-function-anti-patterns
+        name: Check for private function anti-patterns
+        entry: dev_tools/check_private_imports.py
+        language: python
+        types: [python]
+        files: ^src/
+      - id: unit-tests
+        name: Run unit tests
+        entry: uv run pytest tests/unit/ -x -q --tb=line
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      - id: coverage
+        name: Check test coverage
+        entry: uv run pytest
+        args: ["tests/unit/", "--cov=src/egregora", "--cov-report=term-missing", "-q"]
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]
