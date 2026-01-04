@@ -47,6 +47,7 @@ from egregora.constants import WindowUnit
 from egregora.data_primitives.document import OutputSink, UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.profile_cache import scan_and_cache_all_documents
 from egregora.database.task_store import TaskStore
 from egregora.database.utils import resolve_db_uri
 from egregora.input_adapters import ADAPTER_REGISTRY
@@ -1160,6 +1161,15 @@ def _prepare_pipeline_data(
         adapter, run_params.input_path, timezone, output_adapter=output_format
     )
     _setup_content_directories(ctx)
+
+    # Cache all documents (profiles, posts, etc.) from filesystem to database
+    # This eliminates file I/O bottleneck during pipeline execution
+    scan_and_cache_all_documents(
+        ctx.state.storage,
+        profiles_dir=ctx.profiles_dir,
+        posts_dir=ctx.posts_dir,
+    )
+
     messages_table = _process_commands_and_avatars(messages_table, ctx, vision_model)
 
     checkpoint_path = ctx.site_root / ".egregora" / "checkpoint.json"

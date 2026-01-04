@@ -78,14 +78,6 @@ class PipelineFactory:
         storage = DuckDBStorageManager.from_ibis_backend(pipeline_backend)
         repository = ContentRepository(storage)
 
-        # Cache all documents (profiles, posts, etc.) from filesystem to database
-        # This eliminates file I/O bottleneck during pipeline execution
-        scan_and_cache_all_documents(
-            storage,
-            profiles_dir=site_paths.profiles_dir,
-            posts_dir=site_paths.posts_dir,
-        )
-
         output_registry = create_default_output_registry()
 
         url_ctx = UrlContext(
@@ -253,6 +245,7 @@ class PipelineFactory:
 
         Returns:
             Initialized output adapter
+
         """
         resolved_output = output_dir.expanduser().resolve()
         site_paths = MkDocsPaths(resolved_output, config=config)
