@@ -2,7 +2,7 @@
 from pathlib import Path
 
 # Explicitly import from the canonical V2 utility
-from egregora.utils.paths import slugify
+from egregora.utils.text import slugify
 
 
 class V3UtilsError(Exception):
