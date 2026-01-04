@@ -608,11 +608,14 @@ class EnrichmentWorker(BaseWorker):
             )
 
             # REGISTER TOOLS:
-            # 1. UrlContextTool: Standard client-side fetcher (primary)
-            # 2. fetch_url_with_jina: Fallback service for difficult pages
-            tools = [UrlContextTool(), fetch_url_with_jina]
-
-            agent = Agent(model=model, output_type=EnrichmentOutput, tools=tools)
+            # 1. UrlContextTool: Standard client-side fetcher (primary) - passed via builtin_tools
+            # 2. fetch_url_with_jina: Fallback service for difficult pages - passed via tools
+            agent = Agent(
+                model=model,
+                output_type=EnrichmentOutput,
+                builtin_tools=[UrlContextTool()],  # Built-in tools must use builtin_tools param
+                tools=[fetch_url_with_jina],       # Custom tools use regular tools param
+            )
 
             # Use run_sync to execute the async agent synchronously
             # pydantic_ai Agent.run_sync is async internally but runs in loop?
