@@ -224,6 +224,7 @@ class TestSlugifyRealWorldExamples:
         """BEHAVIOR: Already hyphenated markdown-style text."""
         assert slugify("my-existing-slug") == "my-existing-slug"
 
+
 class TestExceptionHierarchy:
     """Verify the exception class hierarchy."""
 
