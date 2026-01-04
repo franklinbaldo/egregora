@@ -12,6 +12,9 @@
 # So the first field (minute) must be "0" or "*" to ever match.
 
 [schedules]
+# --- ⏱️ Every 2 Hours ---
+simplifier   = "0 */2 * * *" # Every 2 hours - 📉 Complexity Reduction
+
 # --- ⏱️ Hourly ---
 organizer    = "0 * * * *"   # Hourly - 🗂️ Project Organization
 
@@ -29,7 +32,6 @@ sentinel     = "0 5 * * *"  # 05:00 - 🛡️ Security Audit
 builder      = "0 6 * * *"  # 06:00 - 🏗️ Data Architecture
 shepherd     = "0 7 * * *"  # 07:00 - 🧑‍🌾 Test Coverage
 janitor      = "0 8 * * *"  # 08:00 - 🧹 Code Hygiene
-simplifier   = "0 8 * * 1-5" # 08:00 - 📉 Complexity Reduction
 docs_curator = "0 9 * * *"  # 09:00 - 📚 Docs Gardening
 artisan      = "0 10 * * *" # 10:00 - 🔨 Code Craftsmanship
 palette      = "0 11 * * *" # 11:00 - 🎨 Design System
@@ -38,6 +40,7 @@ palette      = "0 11 * * *" # 11:00 - 🎨 Design System
 scribe       = "0 12 * * *" # 12:00 - ✍️ Technical Writing
 forge        = "0 14 * * *" # 14:00 - ⚒️ Feature Implementation
 sheriff      = "0 16 * * *" # 16:00 - 🤠 Test Stability
+streamliner  = "0 17 * * *" # 17:00 - 🌊 Data Processing Optimization
 
 # --- 🌙 Evening (UTC) ---
 weaver       = "0 22 * * *" # 22:00 - 🕸️ Integration Build
