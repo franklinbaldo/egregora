@@ -1,4 +1,4 @@
-"""Tests for the V2 slugify utility function."""
+"""Tests for the V3 slugify utility function."""
 
 import pytest
 
