@@ -53,18 +53,13 @@ class GeminiV3BannerGenerator(ImageGenerationProvider):
         """
         logger.info("Generating banner with model %s", self._model)
 
-        # Prepare configuration declaratively
-        config_params = {"aspect_ratio": request.aspect_ratio} if request.aspect_ratio else {}
-
         try:
+            config = None
+            if request.aspect_ratio:
+                config = types.GenerateImagesConfig(aspect_ratio=request.aspect_ratio)
+
             response = self._client.models.generate_images(
-                model=self._model,
-                prompt=request.prompt,
-                config=(
-                    types.GenerateImagesConfig(**config_params)
-                    if config_params
-                    else None
-                ),
+                model=self._model, prompt=request.prompt, config=config
             )
         except Exception as e:
             logger.error("Gemini image generation failed: %s", e, exc_info=True)
