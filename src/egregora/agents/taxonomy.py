@@ -52,4 +52,4 @@ def create_global_taxonomy_agent(model_name: str) -> Agent[None, GlobalTaxonomyR
     4. **Output**: Return a strictly structured mapping of Cluster ID to Tag List.
     """
 
-    return Agent(model=model, result_type=GlobalTaxonomyResult, system_prompt=system_prompt)
+    return Agent(model=model, output_type=GlobalTaxonomyResult, system_prompt=system_prompt)

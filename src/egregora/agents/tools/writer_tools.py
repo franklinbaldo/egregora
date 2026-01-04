@@ -168,7 +168,19 @@ def write_post_impl(ctx: ToolContext, metadata: dict | str, content: str) -> Wri
         source_window=ctx.window_label,
     )
 
-    ctx.output_sink.persist(doc)
+    try:
+        ctx.output_sink.persist(doc)
+    except Exception as exc:
+        msg = f"Failed to persist post document: {exc}"
+        logger.exception(msg)
+        raise RuntimeError(msg) from exc
+
+    # Verify persistence succeeded
+    if not doc.document_id:
+        msg = "Post document has no ID after persist - persistence may have failed silently"
+        logger.error(msg)
+        raise RuntimeError(msg)
+
     logger.info("Writer agent saved post (doc_id: %s)", doc.document_id)
     return WritePostResult(status="success", path=doc.document_id)
 

@@ -757,6 +757,15 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     # in the generator. If it fails here, it fails.
     posts, profiles = write_posts_for_window(params)
 
+    # Warn if writer processed messages but generated no posts
+    if not posts and clean_messages_list:
+        logger.warning(
+            "⚠️ Writer agent processed %d messages but generated no posts for window %s. "
+            "Check if write_post_tool was called by the agent.",
+            len(clean_messages_list),
+            f"{conversation.window.start_time:%Y-%m-%d %H:%M}",
+        )
+
     # Persist generated posts
     # The writer agent returns documents (strings if pending).
     # Pending posts are handled by background worker?
