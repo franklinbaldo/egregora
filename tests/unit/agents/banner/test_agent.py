@@ -9,7 +9,7 @@ from egregora.agents.banner.image_generation import ImageGenerationResult
 # Test for is_banner_generation_available
 @patch("os.environ.get")
 def test_is_banner_generation_available_when_key_is_set(mock_get_env):
-    def side_effect(key, default=None):
+    def side_effect(key, _default=None):
         if key == "GOOGLE_API_KEY":
             return "fake-key"
         if key == "EGREGORA_SKIP_API_KEY_VALIDATION":
@@ -22,7 +22,7 @@ def test_is_banner_generation_available_when_key_is_set(mock_get_env):
 
 @patch("os.environ.get")
 def test_is_banner_generation_available_when_key_is_not_set(mock_get_env):
-    def side_effect(key, default=None):
+    def side_effect(key, _default=None):
         if key == "EGREGORA_SKIP_API_KEY_VALIDATION":
             return ""  # Ensure it's a string to avoid AttributeError
         return None
@@ -33,7 +33,7 @@ def test_is_banner_generation_available_when_key_is_not_set(mock_get_env):
 
 @patch("os.environ.get")
 def test_is_banner_generation_available_when_skip_validation_is_set(mock_get_env):
-    def side_effect(key, default=None):
+    def side_effect(key, _default=None):
         if key == "EGREGORA_SKIP_API_KEY_VALIDATION":
             return "true"
         return None
