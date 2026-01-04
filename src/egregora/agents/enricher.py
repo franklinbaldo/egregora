@@ -537,6 +537,9 @@ class EnrichmentWorker(BaseWorker):
 
     def run(self) -> int:
         """Process pending enrichment tasks in batches."""
+        if not self.enrichment_config.enabled:
+            logger.info("Enrichment is disabled. Skipping enrichment worker.")
+            return 0
         # Determine concurrency to scale fetch limit
         # We assume typical batch size of 50.
         base_batch_size = 50
