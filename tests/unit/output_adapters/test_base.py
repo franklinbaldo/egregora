@@ -87,7 +87,7 @@ def test_finalize_window_runs_without_error():
     # block is not necessary.
     sink.finalize_window(
         window_label="test_window",
-        posts_created=["post1", "post2"],
+        _posts_created=["post1", "post2"],
         profiles_updated=["profile1"],
         metadata={},
     )
