@@ -1,0 +1,99 @@
+﻿2025-12-31T23:29:17.5153785Z ##[group]Run actions/checkout@v6
+2025-12-31T23:29:17.5154649Z with:
+2025-12-31T23:29:17.5155078Z   repository: franklinbaldo/egregora
+2025-12-31T23:29:17.5155823Z   token: ***
+2025-12-31T23:29:17.5156408Z   ssh-strict: true
+2025-12-31T23:29:17.5156823Z   ssh-user: git
+2025-12-31T23:29:17.5157241Z   persist-credentials: true
+2025-12-31T23:29:17.5157734Z   clean: true
+2025-12-31T23:29:17.5158156Z   sparse-checkout-cone-mode: true
+2025-12-31T23:29:17.5158700Z   fetch-depth: 1
+2025-12-31T23:29:17.5159105Z   fetch-tags: false
+2025-12-31T23:29:17.5159526Z   show-progress: true
+2025-12-31T23:29:17.5159955Z   lfs: false
+2025-12-31T23:29:17.5160327Z   submodules: false
+2025-12-31T23:29:17.5160773Z   set-safe-directory: true
+2025-12-31T23:29:17.5161458Z env:
+2025-12-31T23:29:17.5161849Z   PYTHON_VERSION: 3.12
+2025-12-31T23:29:17.5162305Z   ARTIFACT_RETENTION_DAYS: 7
+2025-12-31T23:29:17.5162809Z   COVERAGE_RETENTION_DAYS: 30
+2025-12-31T23:29:17.5163289Z ##[endgroup]
+2025-12-31T23:29:17.6111075Z Syncing repository: franklinbaldo/egregora
+2025-12-31T23:29:17.6113051Z ##[group]Getting Git version info
+2025-12-31T23:29:17.6113849Z Working directory is '/home/runner/work/egregora/egregora'
+2025-12-31T23:29:17.6114912Z [command]/usr/bin/git version
+2025-12-31T23:29:17.7751171Z git version 2.52.0
+2025-12-31T23:29:17.7771470Z ##[endgroup]
+2025-12-31T23:29:17.7785728Z Temporarily overriding HOME='/home/runner/work/_temp/2481d409-f202-41c8-88fd-0bed5c388a2a' before making global git config changes
+2025-12-31T23:29:17.7788565Z Adding repository directory to the temporary git global config as a safe directory
+2025-12-31T23:29:17.7790726Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/egregora/egregora
+2025-12-31T23:29:17.8111579Z Deleting the contents of '/home/runner/work/egregora/egregora'
+2025-12-31T23:29:17.8116326Z ##[group]Initializing the repository
+2025-12-31T23:29:17.8121585Z [command]/usr/bin/git init /home/runner/work/egregora/egregora
+2025-12-31T23:29:17.8240391Z hint: Using 'master' as the name for the initial branch. This default branch name
+2025-12-31T23:29:17.8243441Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2025-12-31T23:29:17.8246306Z hint: to use in all of your new repositories, which will suppress this warning,
+2025-12-31T23:29:17.8247870Z hint: call:
+2025-12-31T23:29:17.8248766Z hint:
+2025-12-31T23:29:17.8249604Z hint: 	git config --global init.defaultBranch <name>
+2025-12-31T23:29:17.8251184Z hint:
+2025-12-31T23:29:17.8252702Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2025-12-31T23:29:17.8255330Z hint: 'development'. The just-created branch can be renamed via this command:
+2025-12-31T23:29:17.8257563Z hint:
+2025-12-31T23:29:17.8258516Z hint: 	git branch -m <name>
+2025-12-31T23:29:17.8259705Z hint:
+2025-12-31T23:29:17.8261379Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2025-12-31T23:29:17.8264496Z Initialized empty Git repository in /home/runner/work/egregora/egregora/.git/
+2025-12-31T23:29:17.8268377Z [command]/usr/bin/git remote add origin https://github.com/franklinbaldo/egregora
+2025-12-31T23:29:17.8595494Z ##[endgroup]
+2025-12-31T23:29:17.8598255Z ##[group]Disabling automatic garbage collection
+2025-12-31T23:29:17.8600810Z [command]/usr/bin/git config --local gc.auto 0
+2025-12-31T23:29:17.9217177Z ##[endgroup]
+2025-12-31T23:29:17.9218667Z ##[group]Setting up auth
+2025-12-31T23:29:17.9219736Z Removing SSH command configuration
+2025-12-31T23:29:17.9223193Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-12-31T23:29:17.9261347Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-12-31T23:29:18.1612180Z Removing HTTP extra header
+2025-12-31T23:29:18.1619673Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-12-31T23:29:18.1661334Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-12-31T23:29:18.1899157Z Removing includeIf entries pointing to credentials config files
+2025-12-31T23:29:18.1905677Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2025-12-31T23:29:18.1935104Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2025-12-31T23:29:18.2172793Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-cea386b7-b395-43d9-ad0b-d993a0f53185.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2025-12-31T23:29:18.3195064Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/egregora/egregora/.git.path /home/runner/work/_temp/git-credentials-cea386b7-b395-43d9-ad0b-d993a0f53185.config
+2025-12-31T23:29:18.3679149Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/egregora/egregora/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-cea386b7-b395-43d9-ad0b-d993a0f53185.config
+2025-12-31T23:29:18.3716767Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-cea386b7-b395-43d9-ad0b-d993a0f53185.config
+2025-12-31T23:29:18.3750594Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-cea386b7-b395-43d9-ad0b-d993a0f53185.config
+2025-12-31T23:29:18.3781190Z ##[endgroup]
+2025-12-31T23:29:18.3783386Z ##[group]Fetching the repository
+2025-12-31T23:29:18.3789478Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +b30aa2c7ac96af9e22605ea9491bd914f73b346c:refs/remotes/pull/2028/merge
+2025-12-31T23:29:19.2974299Z From https://github.com/franklinbaldo/egregora
+2025-12-31T23:29:19.2976159Z  * [new ref]         b30aa2c7ac96af9e22605ea9491bd914f73b346c -> pull/2028/merge
+2025-12-31T23:29:19.3006802Z ##[endgroup]
+2025-12-31T23:29:19.3007346Z ##[group]Determining the checkout info
+2025-12-31T23:29:19.3009423Z ##[endgroup]
+2025-12-31T23:29:19.3014015Z [command]/usr/bin/git sparse-checkout disable
+2025-12-31T23:29:19.3054657Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2025-12-31T23:29:19.3080620Z ##[group]Checking out the ref
+2025-12-31T23:29:19.3084143Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/2028/merge
+2025-12-31T23:29:19.3710349Z Note: switching to 'refs/remotes/pull/2028/merge'.
+2025-12-31T23:29:19.3711470Z
+2025-12-31T23:29:19.3711859Z You are in 'detached HEAD' state. You can look around, make experimental
+2025-12-31T23:29:19.3712694Z changes and commit them, and you can discard any commits you make in this
+2025-12-31T23:29:19.3713506Z state without impacting any branches by switching back to a branch.
+2025-12-31T23:29:19.3713974Z
+2025-12-31T23:29:19.3714443Z If you want to create a new branch to retain commits you create, you may
+2025-12-31T23:29:19.3715221Z do so (now or later) by using -c with the switch command. Example:
+2025-12-31T23:29:19.3715644Z
+2025-12-31T23:29:19.3715847Z   git switch -c <new-branch-name>
+2025-12-31T23:29:19.3716390Z
+2025-12-31T23:29:19.3716592Z Or undo this operation with:
+2025-12-31T23:29:19.3716830Z
+2025-12-31T23:29:19.3716948Z   git switch -
+2025-12-31T23:29:19.3717119Z
+2025-12-31T23:29:19.3717352Z Turn off this advice by setting config variable advice.detachedHead to false
+2025-12-31T23:29:19.3717669Z
+2025-12-31T23:29:19.3718021Z HEAD is now at b30aa2c Merge 5107e2e853d348432dc245dd795d839c51f95a60 into 56fdad5c4071a0aac6dc5a292c7341f78e8c68f9
+2025-12-31T23:29:19.3720857Z ##[endgroup]
+2025-12-31T23:29:19.3756342Z [command]/usr/bin/git log -1 --format=%H
+2025-12-31T23:29:19.3778742Z b30aa2c7ac96af9e22605ea9491bd914f73b346c

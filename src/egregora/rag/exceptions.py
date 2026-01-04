@@ -20,13 +20,16 @@ class EmbeddingAPIError(EmbeddingError):
     HTTP library implementation details.
     """
 
-    def __init__(self, message: str, *, status_code: int | None = None, original_error: Exception | None = None):
+    def __init__(
+        self, message: str, *, status_code: int | None = None, original_error: Exception | None = None
+    ) -> None:
         """Initialize the API error.
 
         Args:
             message: Error message describing what went wrong
             status_code: Optional HTTP status code if applicable
             original_error: Optional original exception that was wrapped
+
         """
         self.status_code = status_code
         self.original_error = original_error
@@ -48,12 +51,13 @@ class RateLimitError(EmbeddingAPIError):
     overload and can be retried after a delay.
     """
 
-    def __init__(self, message: str = "Rate limit exceeded", *, retry_after: float | None = None):
+    def __init__(self, message: str = "Rate limit exceeded", *, retry_after: float | None = None) -> None:
         """Initialize the rate limit error.
 
         Args:
             message: Error message
             retry_after: Optional number of seconds to wait before retrying
+
         """
         super().__init__(message, status_code=429)
         self.retry_after = retry_after

@@ -2,7 +2,6 @@
 
 import ipaddress
 import socket
-from unittest.mock import Mock
 
 import pytest
 

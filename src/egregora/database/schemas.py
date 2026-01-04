@@ -193,9 +193,7 @@ def create_index(
     conn.execute(sql)
 
 
-def add_check_constraint(
-    conn: Any, table_name: str, constraint_name: str, check_expression: str
-) -> None:
+def add_check_constraint(conn: Any, table_name: str, constraint_name: str, check_expression: str) -> None:
     """Add a CHECK constraint to an existing table.
 
     Args:
@@ -239,7 +237,7 @@ def get_table_check_constraints(table_name: str) -> dict[str, str]:
     if table_name == "posts":
         valid_values = ", ".join(f"'{status}'" for status in VALID_POST_STATUSES)
         return {"chk_posts_status": f"status IN ({valid_values})"}
-    elif table_name == "tasks":
+    if table_name == "tasks":
         valid_values = ", ".join(f"'{status}'" for status in VALID_TASK_STATUSES)
         return {"chk_tasks_status": f"status IN ({valid_values})"}
     return {}

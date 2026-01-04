@@ -8,9 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 from uuid import uuid4
 
-import pytest
-
-from egregora.input_adapters.base import InputAdapter, AdapterMeta
+from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.orchestration.context import PipelineState
 
 

@@ -1391,6 +1391,7 @@ def extract_authors_from_post(md_file: Path, *, fast: bool = True) -> set[str]:
     Performance:
         - fast=True: ~2-3x faster, uses regex to extract authors field
         - fast=False: Robust YAML parsing via frontmatter library
+
     """
     try:
         if fast:
@@ -1421,18 +1422,17 @@ def extract_authors_from_post(md_file: Path, *, fast: bool = True) -> set[str]:
                     return {author}
 
             return set()
-        else:
-            # Slow path: Full YAML parsing (more robust, handles edge cases)
-            post = frontmatter.load(str(md_file))
-            authors_meta = post.metadata.get("authors")
-            if not authors_meta:
-                return set()
+        # Slow path: Full YAML parsing (more robust, handles edge cases)
+        post = frontmatter.load(str(md_file))
+        authors_meta = post.metadata.get("authors")
+        if not authors_meta:
+            return set()
 
-            # Normalize to a list
-            if not isinstance(authors_meta, list):
-                authors_meta = [authors_meta]
+        # Normalize to a list
+        if not isinstance(authors_meta, list):
+            authors_meta = [authors_meta]
 
-            return {str(a) for a in authors_meta if a}
+        return {str(a) for a in authors_meta if a}
 
     except OSError as e:
         raise AuthorExtractionError(str(md_file), e) from e

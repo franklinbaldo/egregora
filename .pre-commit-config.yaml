@@ -52,13 +52,6 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-      - id: bandit
-        name: Check security issues with bandit
-        entry: uvx bandit
-        args: ["-r", "src", "-f", "screen", "-c", "pyproject.toml", "-lll", "-ii"]
-        language: system
-        types: [python]
-        pass_filenames: false
       - id: check-private-imports
         name: Check private imports
         entry: dev_tools/check_private_imports.py

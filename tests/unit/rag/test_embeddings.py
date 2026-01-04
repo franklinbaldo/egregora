@@ -4,8 +4,6 @@ Tests verify WHAT the embedding API does, not HOW it does it.
 Focus on public API contracts, edge cases, and error handling.
 """
 
-from unittest.mock import MagicMock, patch
-
 import pytest
 import respx
 from httpx import Response
@@ -52,7 +50,9 @@ class TestEmbedText:
 
         # Mock successful API response
         mock_embedding = [0.1] * 768  # 768-dimensional vector
-        respx.post("https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent").mock(
+        respx.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent"
+        ).mock(
             return_value=Response(
                 200,
                 json={"embedding": {"values": mock_embedding}},
@@ -71,7 +71,9 @@ class TestEmbedText:
         monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
 
         # Mock API response with missing embedding
-        respx.post("https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent").mock(
+        respx.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent"
+        ).mock(
             return_value=Response(200, json={})  # No "embedding" key
         )
 
@@ -83,9 +85,9 @@ class TestEmbedText:
         """Should raise RateLimitError when API returns 429 status."""
         monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
 
-        respx.post("https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent").mock(
-            return_value=Response(429, json={"error": "Rate limit exceeded"})
-        )
+        respx.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent"
+        ).mock(return_value=Response(429, json={"error": "Rate limit exceeded"}))
 
         with pytest.raises(RateLimitError):
             embed_text("test", model="models/text-embedding-004")
@@ -95,9 +97,9 @@ class TestEmbedText:
         """Should raise EmbeddingAPIError on server errors (5xx)."""
         monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
 
-        respx.post("https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent").mock(
-            return_value=Response(500, json={"error": "Internal server error"})
-        )
+        respx.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent"
+        ).mock(return_value=Response(500, json={"error": "Internal server error"}))
 
         with pytest.raises(EmbeddingAPIError, match="API server error"):
             embed_text("test", model="models/text-embedding-004")
@@ -107,9 +109,9 @@ class TestEmbedText:
         """Should raise EmbeddingAPIError on client errors (4xx except 429)."""
         monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
 
-        respx.post("https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent").mock(
-            return_value=Response(400, json={"error": "Bad request"})
-        )
+        respx.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent"
+        ).mock(return_value=Response(400, json={"error": "Bad request"}))
 
         with pytest.raises(EmbeddingAPIError, match="API client error"):
             embed_text("test", model="models/text-embedding-004")
@@ -120,7 +122,7 @@ class TestEmbedText:
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("GEMINI_API_KEYS", raising=False)
 
-        with pytest.raises(ValueError, match="GOOGLE_API_KEY.*required"):
+        with pytest.raises(ValueError, match=r"GOOGLE_API_KEY.*required"):
             embed_text("test", model="models/text-embedding-004")
 
     @respx.mock
