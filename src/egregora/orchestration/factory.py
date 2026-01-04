@@ -100,6 +100,7 @@ class PipelineFactory:
             site_root=site_paths.site_root,
             registry=output_registry,
             url_context=url_ctx,
+            storage=storage,
         )
 
         annotations_store = AnnotationStore(repository)
@@ -238,8 +239,21 @@ class PipelineFactory:
         site_root: Path | None = None,
         registry: OutputSinkRegistry | None = None,
         url_context: UrlContext | None = None,
+        storage: Any | None = None,
     ) -> Any:
-        """Create and initialize the output adapter for the pipeline."""
+        """Create and initialize the output adapter for the pipeline.
+
+        Args:
+            config: Egregora configuration
+            output_dir: Output directory
+            site_root: Site root directory (optional)
+            registry: Output sink registry (optional)
+            url_context: URL context for canonical URLs (optional)
+            storage: DuckDBStorageManager for database-backed reading (optional)
+
+        Returns:
+            Initialized output adapter
+        """
         resolved_output = output_dir.expanduser().resolve()
         site_paths = MkDocsPaths(resolved_output, config=config)
 
@@ -251,7 +265,7 @@ class PipelineFactory:
         if adapter is None:
             adapter = create_output_sink(root, format_type="mkdocs", registry=registry)
 
-        adapter.initialize(root, url_context=url_context)
+        adapter.initialize(root, url_context=url_context, storage=storage)
         return adapter
 
     @staticmethod

@@ -1152,6 +1152,7 @@ def _prepare_pipeline_data(
         site_root=ctx.site_root,
         registry=ctx.output_registry,
         url_context=ctx.url_context,
+        storage=ctx.state.storage,
     )
     ctx = ctx.with_output_format(output_format)
 

@@ -71,8 +71,12 @@ class MkDocsAdapter(BaseOutputSink):
     implement only OutputSink. For pure initialization tools, implement only SiteScaffolder.
     """
 
-    def __init__(self) -> None:
-        """Initializes the adapter."""
+    def __init__(self, storage: Any | None = None) -> None:
+        """Initializes the adapter.
+
+        Args:
+            storage: DuckDBStorageManager for database-backed document reading
+        """
         self._scaffolder = MkDocsSiteScaffolder()
         self._initialized = False
         self.site_root = None
@@ -80,9 +84,18 @@ class MkDocsAdapter(BaseOutputSink):
         self._index: dict[str, Path] = {}
         self._ctx: UrlContext | None = None
         self._template_env: Environment | None = None
+        self._storage = storage
 
-    def initialize(self, site_root: Path, url_context: UrlContext | None = None) -> None:
-        """Initializes the adapter with all necessary paths and dependencies."""
+    def initialize(
+        self, site_root: Path, url_context: UrlContext | None = None, storage: Any | None = None
+    ) -> None:
+        """Initializes the adapter with all necessary paths and dependencies.
+
+        Args:
+            site_root: Root directory of the site
+            url_context: URL context for canonical URL generation
+            storage: DuckDBStorageManager for database-backed document reading
+        """
         site_paths = MkDocsPaths(site_root)
         self.site_root = site_paths.site_root
         self._site_root = self.site_root
@@ -96,6 +109,10 @@ class MkDocsAdapter(BaseOutputSink):
         self.journal_dir = site_paths.journal_dir
         self.media_dir = site_paths.media_dir
         self.urls_dir = self.media_dir / "urls"
+
+        # Store storage if provided (overrides __init__ value)
+        if storage is not None:
+            self._storage = storage
 
         self.posts_dir.mkdir(parents=True, exist_ok=True)
         self.profiles_dir.mkdir(parents=True, exist_ok=True)
@@ -305,6 +322,56 @@ class MkDocsAdapter(BaseOutputSink):
                 raise UnsupportedDocumentTypeError(str(doc_type))
 
     def get(self, doc_type: DocumentType, identifier: str) -> Document:
+        """Retrieve a document from the database (canonical source).
+
+        This method reads from the database instead of files, making the database
+        the single source of truth for all document content.
+
+        Args:
+            doc_type: Type of document to retrieve
+            identifier: Document identifier (UUID for profiles, slug for posts, etc.)
+
+        Returns:
+            Document object
+
+        Raises:
+            DocumentNotFoundError: If document not found in database
+            DocumentParsingError: If document parsing fails
+        """
+        # Use database as canonical source if available
+        if self._storage is not None:
+            from egregora.database.profile_cache import get_profile_from_db
+
+            try:
+                if doc_type == DocumentType.PROFILE:
+                    content = get_profile_from_db(self._storage, identifier)
+                    if not content:
+                        raise DocumentNotFoundError(doc_type.value, identifier)
+
+                    # Parse frontmatter from content
+                    post = frontmatter.loads(content)
+                    return Document(content=post.content, type=doc_type, metadata=post.metadata)
+
+                elif doc_type == DocumentType.POST:
+                    # Query posts table
+                    table = self._storage.read_table("posts")
+                    result = table.filter(table.slug == identifier).execute()
+
+                    if len(result) == 0:
+                        raise DocumentNotFoundError(doc_type.value, identifier)
+
+                    row = result.iloc[0]
+                    # Parse frontmatter from content
+                    post = frontmatter.loads(row["content"])
+                    return Document(content=post.content, type=doc_type, metadata=post.metadata)
+
+            except Exception as e:
+                if isinstance(e, DocumentNotFoundError):
+                    raise
+                logger.warning("Failed to read from database: %s", e)
+                # Don't fall back - database is canonical
+
+        # Fallback to file-based reading for media and other types not yet in DB
         path = self._resolve_document_path(doc_type, identifier)
 
         if not path.exists():
