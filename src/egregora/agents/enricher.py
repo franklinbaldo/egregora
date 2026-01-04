@@ -50,7 +50,7 @@ from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.security.zip import validate_zip_contents
 from egregora.utils.datetime_utils import ensure_datetime
-from egregora.utils.paths import slugify
+from egregora_v3.core.utils import slugify
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
