@@ -755,7 +755,9 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     # EXECUTE WRITER
     # Note: We don't handle PromptTooLargeError here because we rely on heuristic splitting
     # in the generator. If it fails here, it fails.
-    posts, profiles = write_posts_for_window(params)
+    writer_result = write_posts_for_window(params)
+    posts = writer_result.get("posts", [])
+    profiles = writer_result.get("profiles", [])
 
     # Warn if writer processed messages but generated no posts
     if not posts and clean_messages_list:
