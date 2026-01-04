@@ -4,21 +4,15 @@ Last updated: 2026-01-05
 
 ## Current Organizational State
 
-The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 structure contains a `utils` directory and a `constants.py` file which have historically held misplaced domain-specific code.
+The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 structure has a `utils` directory that has been significantly cleaned up. The v3 `core` module contains some misplaced domain-specific logic.
 
 ## Identified Issues
 
-1.  **`src/egregora/utils/` modules**: The `utils` directory has historically contained misplaced domain logic. A full audit is needed to ensure all remaining modules are true, cross-cutting utilities.
+1.  **`src/egregora_v3/core/utils.py`**: The `simple_chunk_text` function, a utility for chunking text for RAG, is located in the core `utils` module. This violates the Single Responsibility Principle, as the core should be domain-agnostic.
 
 ## Prioritized Improvements
 
-*   Continue the systematic evaluation of the `src/egregora/utils` directory.
-1.  **`src/egregora/constants.py`**: **[HIGH PRIORITY]** This module acts as a "junk drawer" for various constants and enums. Investigation shows that most enums are either unused (dead code) or belong to a specific domain (e.g., `config`, `rag`). This violates the Single Responsibility Principle and makes the codebase harder to navigate.
-2.  **`src/egregora/utils/datetime_utils.py`**: **[EVALUATED - OK]** This module was investigated as a potential candidate for refactoring. However, a `grep` search revealed its functions are used across multiple, disparate domains. It serves as a true, cross-cutting utility and is correctly located. No action is required.
-
-## Prioritized Improvements
-
-1.  **Refactor `src/egregora/constants.py`**: Move domain-specific enums (`RetrievalMode`, `SourceType`, `WindowUnit`) to a new `src/egregora/config/enums.py` file. Delete dead code (`FileFormat`, `IndexType`, `MediaType`) from the module. This will improve modularity and code clarity.
+1.  **Refactor `src/egregora_v3/core/utils.py`**: **[HIGH PRIORITY]** Move the `simple_chunk_text` function to `src/egregora_v3/infra/rag.py`, where it is exclusively used. This will improve modularity by co-locating the function with its related RAG logic.
 
 ## Abandoned Improvements
 
