@@ -6,6 +6,8 @@ import re
 import subprocess
 from typing import Any
 
+JULES_BOT_LOGINS = {"google-labs-jules[bot]", "app/google-labs-jules", "google-labs-jules"}
+
 
 def run_gh_command(args: list[str], cwd: str = ".") -> Any:
     """Run a gh CLI command and return JSON."""
@@ -73,6 +75,8 @@ def get_pr_details_via_gh(pr_number: int, repo_path: str = ".") -> dict[str, Any
     branch = pr_data.get("headRefName", "")
     body = pr_data.get("body", "")
     session_id = _extract_session_id(branch, body)
+    commits = pr_data.get("commits", [])
+    last_commit_author = _get_last_commit_author_login(commits)
 
     # Check CI
     checks_rollup = pr_data.get("statusCheckRollup", [])
@@ -98,6 +102,8 @@ def get_pr_details_via_gh(pr_number: int, repo_path: str = ".") -> dict[str, Any
         "commits": pr_data.get("commits", []),
         "author": pr_data.get("author", {}),
         "statusCheckRollup": checks_rollup,
+        "last_commit_author_login": last_commit_author,
+        "last_commit_by_jules": _is_jules_login(last_commit_author),
     }
 
 
@@ -140,6 +146,42 @@ def _extract_session_id(branch: str, body: str) -> str | None:
                     session_id = match.group(1)
 
     return session_id
+
+
+def _get_last_commit_author_login(commits: list[dict[str, Any]] | None) -> str | None:
+    """Return the login of the last commit author, if available."""
+    if not commits:
+        return None
+
+    last_commit = commits[-1] or {}
+    author = last_commit.get("author")
+    if isinstance(author, dict):
+        login = author.get("login")
+        if login:
+            return login
+
+    for commit_author in last_commit.get("authors") or []:
+        if not isinstance(commit_author, dict):
+            continue
+
+        user = commit_author.get("user")
+        if isinstance(user, dict):
+            login = user.get("login")
+            if login:
+                return login
+
+        login = commit_author.get("login")
+        if login:
+            return login
+
+    return None
+
+
+def _is_jules_login(login: str | None) -> bool:
+    """Check whether a login belongs to the Jules bot account."""
+    if not login:
+        return False
+    return login in JULES_BOT_LOGINS
 
 
 def _analyze_checks(checks_rollup: list[dict[str, Any]]) -> tuple[bool, list[str]]:

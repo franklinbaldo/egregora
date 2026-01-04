@@ -1,6 +1,6 @@
 """Tests for the writer agent."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -15,11 +15,10 @@ def test_writer_module_imports():
     assert write_posts_for_window is not None
 
 
-@pytest.mark.asyncio
-async def test_execute_writer_with_error_handling_raises_specific_exception(monkeypatch):
+def test_execute_writer_with_error_handling_raises_specific_exception(monkeypatch):
     """Test that _execute_writer_with_error_handling raises RuntimeError on agent failure."""
     # Arrange
-    mock_inner_agent = AsyncMock(side_effect=ValueError("Internal agent error"))
+    mock_inner_agent = MagicMock(side_effect=ValueError("Internal agent error"))
     monkeypatch.setattr("egregora.agents.writer.write_posts_with_pydantic_agent", mock_inner_agent)
 
     mock_config = MagicMock()
@@ -28,7 +27,7 @@ async def test_execute_writer_with_error_handling_raises_specific_exception(monk
 
     # Act & Assert
     with pytest.raises(RuntimeError) as exc_info:
-        await _execute_writer_with_error_handling(
+        _execute_writer_with_error_handling(
             prompt="test prompt",
             config=mock_config,
             deps=mock_deps,

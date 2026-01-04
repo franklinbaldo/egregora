@@ -23,12 +23,13 @@ from pydantic import BaseModel
 from pydantic_ai import ModelRetry
 
 from egregora.agents.banner.agent import generate_banner
+from egregora.core.exceptions import InvalidInputError
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
 from egregora.output_adapters.exceptions import DocumentNotFoundError
 from egregora.rag import search
 from egregora.rag.models import RAGQueryRequest
-from egregora.utils.paths import slugify
+from egregora.utils.text import slugify
 
 if TYPE_CHECKING:
     import uuid
@@ -350,7 +351,11 @@ def generate_banner_impl(ctx: BannerContext, post_slug: str, title: str, summary
         logger.info("Scheduled banner generation task: %s", task_id)
 
         # Predict path
-        slug = slugify(post_slug, max_len=60)
+        try:
+            slug = slugify(post_slug, max_len=60)
+        except InvalidInputError:
+            logger.warning("Cannot generate banner placeholder path with invalid slug: %s", post_slug)
+            return BannerResult(status="failed", error="Invalid post_slug provided for banner generation.")
         extension = ".jpg"
         filename = f"{slug}{extension}"
 

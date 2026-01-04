@@ -35,18 +35,21 @@ The `subject` field is validated by `validate_profile_document()` before persist
 to prevent routing failures.
 """
 
+import asyncio
+import inspect
 import logging
 from collections import defaultdict
+from collections.abc import Awaitable
 from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
-from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
+from egregora.agents import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.orchestration.persistence import validate_profile_document
-from egregora.utils.paths import slugify
+from egregora.utils.text import slugify
 
 try:
     from egregora.agents.profile.history import get_profile_history_for_context
@@ -207,7 +210,7 @@ Update Content Guidelines (if significant):
 """
 
 
-async def _generate_profile_content(
+async def _generate_profile_content_async(
     ctx: Any,
     author_messages: list[dict[str, Any]],
     author_name: str,
@@ -257,13 +260,34 @@ async def _generate_profile_content(
     )
 
     # Call LLM
-    decision = await _call_llm_decision(prompt, ctx)
+    decision = await _resolve_awaitable(_call_llm_decision(prompt, ctx))
 
     if not decision.significant:
         logger.info("Skipping profile update for %s (not significant)", author_name)
         return None
 
     return decision.content
+
+
+def _generate_profile_content(
+    ctx: Any,
+    author_messages: list[dict[str, Any]],
+    author_name: str,
+    author_uuid: str,
+) -> str | None | Awaitable[str | None]:
+    """Generate profile content with sync+async compatibility."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(
+            _generate_profile_content_async(
+                ctx=ctx, author_messages=author_messages, author_name=author_name, author_uuid=author_uuid
+            )
+        )
+
+    return _generate_profile_content_async(
+        ctx=ctx, author_messages=author_messages, author_name=author_name, author_uuid=author_uuid
+    )
 
 
 async def _call_llm_decision(prompt: str, ctx: Any) -> ProfileUpdateDecision:
@@ -289,7 +313,14 @@ async def _call_llm_decision(prompt: str, ctx: Any) -> ProfileUpdateDecision:
     return result.data
 
 
-async def generate_profile_posts(
+async def _resolve_awaitable(result: Any) -> Any:
+    """Await a value if it is awaitable, otherwise return it directly."""
+    if inspect.isawaitable(result):
+        return await result
+    return result
+
+
+async def _generate_profile_posts_async(
     ctx: Any, messages: list[dict[str, Any]], window_date: str
 ) -> list[Document]:
     """Generate PROFILE posts for all active authors in window.
@@ -327,8 +358,10 @@ async def generate_profile_posts(
 
         try:
             # Generate content (returns None if not significant)
-            content = await _generate_profile_content(
-                ctx=ctx, author_messages=msgs, author_name=author_name, author_uuid=author_uuid
+            content = await _resolve_awaitable(
+                _generate_profile_content(
+                    ctx=ctx, author_messages=msgs, author_name=author_name, author_uuid=author_uuid
+                )
             )
 
             if not content:
@@ -369,3 +402,19 @@ async def generate_profile_posts(
             continue
 
     return profiles
+
+
+def generate_profile_posts(
+    ctx: Any, messages: list[dict[str, Any]], window_date: str
+) -> list[Document] | Awaitable[list[Document]]:
+    """Generate PROFILE posts with sync+async compatibility.
+
+    If called from synchronous code, the coroutine is executed with ``asyncio.run``.
+    When called from an async context, a coroutine is returned and must be awaited.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(_generate_profile_posts_async(ctx=ctx, messages=messages, window_date=window_date))
+
+    return _generate_profile_posts_async(ctx=ctx, messages=messages, window_date=window_date)

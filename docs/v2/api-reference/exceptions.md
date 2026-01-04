@@ -12,7 +12,6 @@
 
 ::: egregora.database.exceptions
 
-::: egregora.utils.exceptions
 
 ::: egregora.output_adapters.exceptions
 

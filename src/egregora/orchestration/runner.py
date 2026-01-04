@@ -325,14 +325,12 @@ class PipelineRunner:
             messages=messages_dtos,  # Inject DTOs
         )
 
-        posts, profiles = run_async_safely(write_posts_for_window(params))
+        posts, profiles = write_posts_for_window(params)
 
         window_date = window.start_time.strftime("%Y-%m-%d")
         try:
-            profile_docs = run_async_safely(
-                generate_profile_posts(
-                    ctx=self.context, messages=clean_messages_list, window_date=window_date
-                )
+            profile_docs = generate_profile_posts(
+                ctx=self.context, messages=clean_messages_list, window_date=window_date
             )
             for profile_doc in profile_docs:
                 try:

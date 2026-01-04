@@ -1,8 +1,10 @@
-"""Path-related utilities, including slugification."""
+"""Text-related utilities, including slugification."""
 
 from unicodedata import normalize
 
 from pymdownx.slugs import slugify as _md_slugify
+
+from egregora.core.exceptions import InvalidInputError
 
 # Pre-configure a slugify instance for reuse.
 # This is more efficient than creating a new slugifier on each call.
@@ -26,7 +28,7 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
 
     """
     if text is None:
-        return ""
+        raise InvalidInputError("Input text cannot be None")
 
     # Normalize Unicode to ASCII using NFKD (preserves transliteration).
     normalized = normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")

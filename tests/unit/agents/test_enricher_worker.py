@@ -47,6 +47,28 @@ def test_media_batch_usage_limit_fallback(mock_context):
         mock_fallback.assert_called_once()
 
 
+def test_enrichment_worker_disabled_returns_zero(mock_context):
+    """
+    Verify that the EnrichmentWorker.run() method returns 0 immediately
+    if enrichment is disabled in the configuration.
+    """
+    # Disable enrichment in the mock configuration
+    mock_context.config.enrichment.enabled = False
+
+    worker = EnrichmentWorker(ctx=mock_context)
+
+    # Mock the task store to ensure it's not called
+    with patch.object(worker, "task_store", MagicMock()) as mock_task_store:
+        mock_task_store.fetch_pending.return_value = []
+
+        # Execute the run method
+        result = worker.run()
+
+        # Assert that the method returned 0 and did not fetch tasks
+        assert result == 0
+        mock_task_store.fetch_pending.assert_not_called()
+
+
 def test_media_batch_http_error_fallback(mock_context):
     """
     Verify that _execute_media_batch falls back to individual calls

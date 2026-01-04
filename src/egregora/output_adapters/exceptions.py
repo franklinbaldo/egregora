@@ -14,6 +14,17 @@ class DocumentNotFoundError(OutputAdapterError):
         super().__init__(f"Document of type '{doc_type}' with identifier '{identifier}' not found.")
 
 
+class DocumentIterationError(OutputAdapterError):
+    """Raised when a document cannot be read during iteration."""
+
+    def __init__(self, doc_type: str, identifier: str) -> None:
+        self.doc_type = doc_type
+        self.identifier = identifier
+        super().__init__(
+            f"Failed to read document of type '{doc_type}' with identifier '{identifier}' during iteration."
+        )
+
+
 class DocumentParsingError(OutputAdapterError):
     """Raised when a document cannot be parsed."""
 

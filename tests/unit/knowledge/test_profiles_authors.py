@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from textwrap import dedent
 from typing import TYPE_CHECKING, Any
@@ -356,6 +357,7 @@ def test_load_authors_yml_os_error(tmp_path: Path) -> None:
         load_authors_yml(non_existent_path)
 
 
+@pytest.mark.skipif(os.getuid() == 0, reason="Root user can write to read-only directories")
 def test_save_authors_yml_os_error(tmp_path: Path) -> None:
     """Verify that save_authors_yml raises AuthorsFileSaveError on OSError."""
     # Arrange

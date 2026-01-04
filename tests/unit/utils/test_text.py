@@ -1,6 +1,9 @@
 """Tests for the V2 slugify utility function."""
 
-from egregora.utils.paths import slugify
+import pytest
+
+from egregora.core.exceptions import InvalidInputError
+from egregora.utils.text import slugify
 
 
 class TestSlugifyBasicBehavior:
@@ -97,9 +100,10 @@ class TestSlugifyEdgeCases:
         result = slugify("😀😀😀")
         assert result == "post"  # Falls back when nothing remains
 
-    def test_none_input_returns_empty_string(self):
-        """BEHAVIOR: None input returns an empty string."""
-        assert slugify(None) == ""
+    def test_none_input_raises_invalid_input_error(self):
+        """BEHAVIOR: None input raises InvalidInputError."""
+        with pytest.raises(InvalidInputError, match="Input text cannot be None"):
+            slugify(None)
 
     def test_numbers_preserved(self):
         """BEHAVIOR: Numbers are preserved in slugs."""

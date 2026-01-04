@@ -1,12 +1,10 @@
-"""Agent systems for Egregora.
+"""Agent-related classes and functions."""
 
-This package contains all LLM-powered agent behaviors including
-writing and banner generation.
-"""
+from egregora.agents.registry import AgentResolver, ToolRegistry
 
-from __future__ import annotations
+# Egregora system author constants
+# Used when Egregora generates content (PROFILE posts, ANNOUNCEMENT posts)
+EGREGORA_UUID = "00000000-0000-0000-0000-000000000000"
+EGREGORA_NAME = "Egregora"
 
-from egregora.agents import banner, writer
-from egregora.agents.registry import AgentResolver, ToolRegistry, load_agent
-
-__all__ = ["AgentResolver", "ToolRegistry", "banner", "load_agent", "writer"]
+__all__ = ["EGREGORA_NAME", "EGREGORA_UUID", "AgentResolver", "ToolRegistry"]

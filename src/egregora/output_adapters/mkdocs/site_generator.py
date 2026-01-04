@@ -22,7 +22,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.output_adapters.exceptions import DocumentParsingError
-from egregora.utils.paths import slugify
+from egregora.utils.text import slugify
 
 if TYPE_CHECKING:
     from egregora.data_primitives.document import UrlContext
