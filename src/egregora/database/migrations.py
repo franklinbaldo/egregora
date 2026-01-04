@@ -6,6 +6,7 @@ import duckdb
 
 # Import the target schema and the type conversion utility
 from egregora.database.schemas import UNIFIED_SCHEMA, ibis_to_duckdb_type
+from egregora_v3.core.types import DocumentStatus, DocumentType
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +47,9 @@ def migrate_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
         if name in existing_columns:
             select_expressions.append(f'"{name}"')
         elif name == "doc_type":
-            select_expressions.append("'note' AS doc_type")
+            select_expressions.append(f"'{DocumentType.NOTE.value}' AS doc_type")
         elif name == "status":
-            select_expressions.append("'draft' AS status")
+            select_expressions.append(f"'{DocumentStatus.DRAFT.value}' AS status")
         else:
             select_expressions.append(f'NULL AS "{name}"')
 
