@@ -122,12 +122,6 @@ All organizational decisions should be informed by and documented in this plan. 
 - Changes that naturally belong together and tell one story
 - Something reviewable in a single PR with a clear purpose
 
-**Examples of cohesive bundles:**
-- ✅ "Consolidate all authentication-related code into `auth/` module"
-- ✅ "Split the 2000-line `utils.py` into focused modules"
-- ✅ "Move all database repository classes into `database/repositories/`"
-- ❌ "Move auth code + split utils + reorganize agents" (too many unrelated changes)
-
 **Session discipline:**
 1. **Choose ONE improvement** from your organization plan
 2. **Complete it fully** (don't leave partial work)
@@ -147,11 +141,6 @@ This ensures:
 Explore the codebase to identify where the current organization creates problems for developers.
 
 **Your task:** Identify specific organizational issues with evidence and update `docs/organization-plan.md` with your findings.
-
-Examples of evidence:
-- "The `utils/` directory has 43 files with unrelated purposes"
-- "Circular import between `agents/` and `orchestration/`"
-- "Feature X is scattered across 5 different directories"
 
 ### 2. 🎯 EVALUATE - Prioritize Impact
 
