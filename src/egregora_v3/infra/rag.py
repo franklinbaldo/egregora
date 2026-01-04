@@ -9,7 +9,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Sequence
 
-from egregora.text_processing.chunking import (
+from egregora_shared.text_processing.chunking import (
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_MAX_CHARS,
     simple_chunk_text,

@@ -4,24 +4,19 @@ Last updated: 2026-01-05
 
 ## Current Organizational State
 
-The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 structure has a `utils` directory that has been significantly cleaned up. There is some code duplication between the v2 and v3 modules, particularly in the RAG text processing logic.
+The codebase contains two parallel versions: `egregora` (v2) and `egregora_v3`. While some effort has been made to centralize shared logic, there are still instances where the newer v3 module has a direct and improper dependency on the internals of the v2 module. This creates tight coupling and hinders independent development.
 
 ## Identified Issues
 
-1.  **Duplicated Chunking Logic**: The `simple_chunk_text` function is implemented in both `src/egregora/rag/ingestion.py` (v2) and `src/egregora_v3/infra/rag.py` (v3). This violates the DRY principle and creates maintenance overhead.
+1.  **V3 Dependency on V2 Implementation**: The `egregora_v3` RAG module directly imports and uses the `simple_chunk_text` function from `src/egregora/text_processing/chunking.py`. This is an architectural smell, as the new v3 system should not be coupled to the implementation details of the legacy v2 system.
 
 ## Prioritized Improvements
 
-1.  **Consolidate Chunking Logic**: **[HIGH PRIORITY]** Refactor the duplicated `simple_chunk_text` function into a single, shared module at `src/egregora/text_processing/chunking.py`. Both the v2 and v3 RAG modules will be updated to use this new centralized function. This will improve maintainability and reduce code duplication.
+1.  **Create Version-Agnostic Shared Module**: **[HIGH PRIORITY]** Decouple the v3 module from the v2 module by moving the shared text processing logic to a version-agnostic location. The `src/egregora/text_processing/` directory will be moved to a new `src/egregora_shared/text_processing/` location, and both v2 and v3 consumers will be updated to import from this new shared path.
 
 ## Abandoned Improvements
 
 *   **Refactor `src/egregora/knowledge/profiles.py`**: **[ATTEMPTED - FAILED]** An attempt was made to refactor the `profiles.py` module by moving the author-syncing logic to a dedicated module in the `mkdocs` adapter. The refactoring failed due to a complex circular dependency that could not be easily resolved. All changes were reverted. This refactoring should be re-evaluated in the future with a more comprehensive understanding of the codebase's dependency graph.
-*No high-priority issues have been identified yet. The next step is to continue discovery.*
-
-## Prioritized Improvements
-
-*No high-priority improvements have been identified yet. The next step is to continue discovery.*
 
 ## Completed Improvements
 
@@ -38,4 +33,4 @@ The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 struc
 
 ## Organizational Strategy
 
-My primary strategy is to inspect the `src/egregora/utils` directory, as it has historically been a collection point for domain-specific logic that should be co-located with its primary users. Each module within `utils` will be evaluated by tracing its usage to determine if it's a true, cross-cutting concern or if it can be moved to a more specific domain. A secondary strategy is to identify and fix cross-cutting organizational issues like code duplication between the v2 and v3 modules.
+My primary strategy is to identify and resolve organizational issues that cross-cut the v2 and v3 modules, such as improper dependencies or duplicated code. A secondary strategy is to continue inspecting the `src/egregora/utils` directory, as it has historically been a collection point for domain-specific logic that should be co-located with its primary users.

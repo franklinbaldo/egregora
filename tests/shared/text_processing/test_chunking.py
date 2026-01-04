@@ -1,6 +1,6 @@
 """Behavioral tests for RAG utilities."""
 
-from egregora.text_processing.chunking import simple_chunk_text
+from egregora_shared.text_processing.chunking import simple_chunk_text
 
 
 def test_simple_chunk_text_empty():
