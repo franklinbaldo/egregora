@@ -4,6 +4,7 @@ import ibis
 import duckdb
 from ibis import _
 from ibis.expr import datatypes as dt
+import logging
 
 # This import will fail initially, which is expected for TDD
 from egregora.database.migrations import migrate_documents_table
@@ -99,8 +100,6 @@ def test_migrate_documents_table_from_legacy(legacy_db):
 
     with pytest.raises(duckdb.ConstraintException):
         legacy_db.execute("INSERT INTO documents (id, doc_type, status) VALUES ('new-doc-2', 'post', NULL)")
-
-import logging
 
 def test_migration_is_idempotent(legacy_db, caplog):
     """
