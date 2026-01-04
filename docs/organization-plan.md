@@ -8,14 +8,15 @@ The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 struc
 
 ## Identified Issues
 
-1.  **`src/egregora/utils/datetime_utils.py`**: **[EVALUATED - OK]** This module was investigated as a potential candidate for refactoring. However, a `grep` search revealed its functions (`ensure_datetime`, `parse_datetime_flexible`, etc.) and exceptions are used across multiple, disparate domains (agents, database, adapters, other utils). It serves as a true, cross-cutting utility and is correctly located. No action is required.
+1.  **`src/egregora/utils/` modules**: The `utils` directory has historically contained misplaced domain logic. A full audit is needed to ensure all remaining modules are true, cross-cutting utilities.
 
 ## Prioritized Improvements
 
-*No high-priority improvements have been identified yet. The next step is to continue discovery.*
+*   Continue the systematic evaluation of the `src/egregora/utils` directory.
 
 ## Completed Improvements
 
+*   **2026-01-05**: Centralized core exceptions by moving `EgregoraError` and its subclasses from `utils/text.py` to a new `core/exceptions.py` module.
 *   **2026-01-04**: Refactored `slugify` from `utils/paths.py` to `utils/text.py`.
 *   **2026-01-04**: Moved API key utilities from `utils/env.py` to `llm/api_keys.py`.
 *   **2026-01-03**: Moved `GlobalRateLimiter` from `utils/rate_limit.py` to `llm/rate_limit.py`.
