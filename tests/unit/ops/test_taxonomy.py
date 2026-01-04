@@ -7,7 +7,7 @@ import pytest
 
 from egregora.agents.taxonomy import ClusterTags
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
+from egregora.ops.taxonomy import generate_semantic_taxonomy
 
 
 @pytest.fixture(autouse=True)
@@ -58,7 +58,7 @@ def mock_backend():
 
 def test_generate_semantic_taxonomy_insufficient_docs(mock_output_sink, mock_config):
     """Test early exit when not enough documents."""
-    with patch("egregora.orchestration.pipelines.modules.taxonomy.get_backend") as mock_get_backend:
+    with patch("egregora.ops.taxonomy.get_backend") as mock_get_backend:
         backend = MagicMock()
         rng = np.random.default_rng(seed=42)
         backend.get_all_post_vectors = MagicMock(return_value=(["1", "2"], rng.random((2, 768))))
@@ -82,10 +82,8 @@ def test_generate_semantic_taxonomy_docstring_adheres_to_d413():
 def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config):
     """Test successful global taxonomy generation."""
     with (
-        patch("egregora.orchestration.pipelines.modules.taxonomy.get_backend") as mock_get_backend,
-        patch(
-            "egregora.orchestration.pipelines.modules.taxonomy.create_global_taxonomy_agent"
-        ) as mock_create_agent,
+        patch("egregora.ops.taxonomy.get_backend") as mock_get_backend,
+        patch("egregora.ops.taxonomy.create_global_taxonomy_agent") as mock_create_agent,
     ):
         # Setup Backend
         backend = MagicMock()
@@ -120,11 +118,9 @@ def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config):
 def test_generate_semantic_taxonomy_batching(mock_output_sink, mock_config):
     """Test that large inputs are batched."""
     with (
-        patch("egregora.orchestration.pipelines.modules.taxonomy.get_backend") as mock_get_backend,
-        patch(
-            "egregora.orchestration.pipelines.modules.taxonomy.create_global_taxonomy_agent"
-        ) as mock_create_agent,
-        patch("egregora.orchestration.pipelines.modules.taxonomy.MAX_PROMPT_CHARS", 100),
+        patch("egregora.ops.taxonomy.get_backend") as mock_get_backend,
+        patch("egregora.ops.taxonomy.create_global_taxonomy_agent") as mock_create_agent,
+        patch("egregora.ops.taxonomy.MAX_PROMPT_CHARS", 100),
     ):  # FORCE tiny limit
         # Setup Backend
         backend = MagicMock()
@@ -158,10 +154,8 @@ def test_generate_semantic_taxonomy_batching(mock_output_sink, mock_config):
 def test_generate_semantic_taxonomy_agent_failure(mock_output_sink, mock_config):
     """Test graceful failure if agent errors out."""
     with (
-        patch("egregora.orchestration.pipelines.modules.taxonomy.get_backend") as mock_get_backend,
-        patch(
-            "egregora.orchestration.pipelines.modules.taxonomy.create_global_taxonomy_agent"
-        ) as mock_create_agent,
+        patch("egregora.ops.taxonomy.get_backend") as mock_get_backend,
+        patch("egregora.ops.taxonomy.create_global_taxonomy_agent") as mock_create_agent,
     ):
         backend = MagicMock()
         real_docs = list(mock_output_sink.documents())

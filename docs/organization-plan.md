@@ -21,6 +21,9 @@ The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. This has led
 ## Completed Improvements
 
 *   **2026-01-05**: Consolidated duplicated RAG chunking logic. The V2 `_simple_chunk_text` function was removed and replaced with a wrapper around the canonical V3 `simple_chunk_text` function. This change eliminates code duplication while preserving the specific behavior of the V2 implementation. All related tests were consolidated into a single file.
+## Completed Improvements
+
+*   **2026-01-05**: Moved `media.py` and `taxonomy.py` from the misplaced `src/egregora/orchestration/pipelines/modules` directory to `src/egregora/ops`. This co-locates domain-specific media and taxonomy logic in a more intuitive and discoverable `ops` module, improving the overall codebase structure.
 *   **2026-01-05**: Centralized the v2 exception hierarchy by creating a single `EgregoraError` base class in `src/egregora/exceptions.py` and refactoring all custom exceptions to inherit from it. This improves maintainability and enables consistent high-level error handling.
 *   **2026-01-04**: Refactored `slugify` from `utils/paths.py` to `utils/text.py`.
 *   **2026-01-04**: Moved API key utilities from `utils/env.py` to `llm/api_keys.py`.
