@@ -22,9 +22,9 @@ from rich.table import Table
 # from egregora.cli.db import db_app  # Removed - db.py no longer exists
 from egregora.cli.read import read_app
 from egregora.config import load_egregora_config
-from egregora.config.enums import SourceType, WindowUnit
 from egregora.config.exceptions import ApiKeyNotFoundError
 from egregora.config.settings import get_google_api_key
+from egregora.constants import SourceType, WindowUnit
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
 from egregora.diagnostics import HealthStatus, run_diagnostics
