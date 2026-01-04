@@ -4,6 +4,7 @@ import sys
 import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import frontmatter
 import jinja2
@@ -103,7 +104,7 @@ def load_schedule_registry(registry_path: Path) -> dict:
         return {}
     with open(registry_path, "rb") as f:
         data = tomllib.load(f)
-    return data.get("schedules", {})
+    return data
 
 
 def ensure_journals_directory(persona_dir: Path) -> None:
@@ -191,6 +192,148 @@ def check_schedule(schedule_str: str) -> bool:
     return True
 
 
+def get_latest_jules_pr(open_prs: list[dict[str, Any]], personas: dict[str, Any]) -> dict[str, Any] | None:
+    """Find the latest PR created by a Jules persona."""
+    # Filter for Jules PRs (assuming author or title patterns)
+    # Since 'author' from get_open_prs might be just login string or dict
+    jules_prs = []
+
+    # Create a mapping of emoji to persona ID for easier lookup
+    emoji_to_id = {meta["emoji"]: pid for pid, meta in personas.items() if meta.get("emoji")}
+
+    for pr in open_prs:
+        # Check author (if available) - usually "app/google-labs-jules" or similar
+        author = pr.get("author", {})
+        login = author.get("login") if isinstance(author, dict) else str(author)
+
+        # Also check title for persona emojis
+        title = pr.get("title", "")
+
+        is_jules = "jules" in login.lower()
+        if not is_jules:
+            # Fallback: check if title starts with a known persona emoji
+            for emoji in emoji_to_id:
+                if title.strip().startswith(emoji):
+                    is_jules = True
+                    break
+
+        if is_jules:
+            jules_prs.append(pr)
+
+    if not jules_prs:
+        return None
+
+    # Sort by number descending (proxy for time) or creation date if available
+    # get_open_prs returns simplified list, usually sorted by number desc by default from GH CLI
+    # but let's sort by number just in case
+    jules_prs.sort(key=lambda x: x.get("number", 0), reverse=True)
+    return jules_prs[0]
+
+
+def identify_persona_from_pr(pr: dict[str, Any], personas: dict[str, Any]) -> str | None:
+    """Identify which persona created the PR based on title emoji or other markers."""
+    title = pr.get("title", "").strip()
+
+    # Check emojis
+    for pid, meta in personas.items():
+        emoji = meta.get("emoji")
+        if emoji and title.startswith(emoji):
+            return pid
+
+    return None
+
+
+def run_cycle_step(
+    client: JulesClient,
+    repo_info: dict,
+    cycle_list: list[str],
+    personas: dict[str, Any],
+    open_prs: list[dict[str, Any]],
+    dry_run: bool,
+    base_context: dict
+) -> None:
+    """Run a single step of the cycle scheduler."""
+    print(f"Running in CYCLE mode with order: {cycle_list}")
+
+    latest_pr = get_latest_jules_pr(open_prs, personas)
+
+    next_pid = cycle_list[0]
+    base_branch = "main"
+
+    if latest_pr:
+        print(f"Found latest Jules PR: #{latest_pr['number']} - {latest_pr['title']}")
+        last_pid = identify_persona_from_pr(latest_pr, personas)
+
+        if last_pid and last_pid in cycle_list:
+            # Find next in cycle
+            idx = cycle_list.index(last_pid)
+            next_idx = (idx + 1) % len(cycle_list)
+            next_pid = cycle_list[next_idx]
+            print(f"Last persona was {last_pid}. Next is {next_pid}.")
+        else:
+            print(f"Could not identify persona from PR or persona not in cycle. defaulting to start: {next_pid}")
+
+        # Use the PR's branch as base
+        base_branch = latest_pr.get("headRefName", "main")
+        print(f"Chaining from branch: {base_branch}")
+
+    else:
+        print("No open Jules PRs found. Starting fresh cycle from main.")
+
+    # Execute the next persona
+    if next_pid not in personas:
+        print(f"Error: Persona {next_pid} not found in configuration.", file=sys.stderr)
+        return
+
+    p_data = personas[next_pid]
+    p_file = p_data["path"]
+
+    try:
+        persona_dir = p_file.parent
+        ensure_journals_directory(persona_dir)
+        journal_entries = collect_journals(persona_dir)
+
+        # Load raw again to ensure clean state
+        raw_post = frontmatter.load(p_file)
+
+        context = {
+            **base_context,
+            "journal_entries": journal_entries,
+            "emoji": raw_post.metadata.get("emoji", ""),
+            "id": raw_post.metadata.get("id", ""),
+        }
+
+        parsed = parse_prompt_file(p_file, context)
+        config = parsed["config"]
+        prompt_body = parsed["prompt"]
+
+        if not config.get("enabled", True):
+             print(f"Skipping {next_pid} (disabled).")
+             # In a real cycle we might want to skip to the NEXT one recursively,
+             # but for now let's just abort this tick to avoid infinite loops if all disabled.
+             return
+
+        print(f"Starting session for {next_pid} on branch {base_branch}...")
+
+        if not dry_run:
+            client.create_session(
+                prompt=prompt_body,
+                owner=repo_info["owner"],
+                repo=repo_info["repo"],
+                branch=base_branch,
+                title=config.get("title", f"Task: {next_pid}"),
+                automation_mode=config.get("automation_mode", "AUTO_CREATE_PR"),
+                require_plan_approval=config.get("require_plan_approval", False),
+            )
+        else:
+            print(f"[Dry Run] Would create session for {next_pid}")
+
+    except Exception as e:
+        print(f"Error processing prompt {p_file.name}: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+
+
 def run_scheduler(
     command: str, run_all: bool = False, dry_run: bool = False, prompt_id: str | None = None
 ) -> None:
@@ -202,13 +345,38 @@ def run_scheduler(
     if not prompts_dir.exists():
         sys.exit(1)
 
+    # Load ALL personas first to have a lookup map
+    prompt_files = list(prompts_dir.glob("*/prompt.md"))
+    personas = {}
+    for p_file in prompt_files:
+        try:
+            post = frontmatter.load(p_file)
+            pid = post.metadata.get("id")
+            if pid:
+                personas[pid] = {
+                    "path": p_file,
+                    **post.metadata
+                }
+        except Exception:
+            pass
+
     open_prs = get_open_prs(repo_info["owner"], repo_info["repo"])
     base_context = {**repo_info, "open_prs": open_prs}
-    if open_prs:
-        pass
 
-    prompt_files = list(prompts_dir.glob("*/prompt.md"))
-    registry = load_schedule_registry(registry_path)
+    full_registry = load_schedule_registry(registry_path)
+    schedules = full_registry.get("schedules", {})
+    cycle_list = full_registry.get("cycle", [])
+
+    # Check for Cycle Mode
+    # If a prompt_id is provided, or run_all is set, we bypass cycle mode logic and run specific/all.
+    # Cycle mode runs only on standard 'tick' without overrides, IF cycle list is present.
+    is_cycle_mode = command == "tick" and not run_all and not prompt_id and bool(cycle_list)
+
+    if is_cycle_mode:
+        run_cycle_step(client, repo_info, cycle_list, personas, open_prs, dry_run, base_context)
+        return
+
+    # --- Standard Schedule / Manual Mode ---
 
     for p_file in prompt_files:
         try:
@@ -245,7 +413,7 @@ def run_scheduler(
                     continue
 
             should_run = False
-            schedule_str = registry.get(pid)
+            schedule_str = schedules.get(pid)
 
             if not schedule_str and config.get("schedule"):
                 schedule_str = config.get("schedule")
@@ -270,7 +438,7 @@ def run_scheduler(
                         require_plan_approval=config.get("require_plan_approval", False),
                     )
                 else:
-                    pass
+                    print(f"[Dry Run] Would create session for {pid}")
 
         except Exception as e:
             # Print error to logs so we can debug failed prompts
