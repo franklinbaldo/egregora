@@ -1,6 +1,7 @@
 """Performance tests for datetime utilities."""
 
 import pytest
+
 from egregora.utils.datetime_utils import parse_datetime_flexible
 
 # A variety of date formats to test against
@@ -12,6 +13,7 @@ DATE_FORMATS = [
     "Jan 1, 2025",
     "Wednesday, January 1, 2025",
 ]
+
 
 @pytest.mark.benchmark(
     group="parse-datetime",
