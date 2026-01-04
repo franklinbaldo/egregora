@@ -70,6 +70,7 @@ logger = logging.getLogger(__name__)
 # Constants & Patterns
 # ---------------------------------------------------------------------------
 
+# TODO: [Taskmaster] Externalize hardcoded configuration values
 HEARTBEAT_INTERVAL = 10  # Seconds for heartbeat logging
 
 _MARKDOWN_LINK_PATTERN = re.compile(r"(?:!\[|\[)[^\]]*\]\([^)]*?([^/)]+\.\w+)\)")
@@ -231,6 +232,7 @@ def _create_enrichment_row(
     }
 
 
+# TODO: [Taskmaster] Refactor brittle data conversion logic
 def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
     """Convert backend frames into dict records consistently."""
     if hasattr(frame, "to_dict"):
@@ -314,6 +316,7 @@ def schedule_enrichment(
     logger.info("Scheduled %d URL tasks and %d Media tasks", url_count, media_count)
 
 
+# TODO: [Taskmaster] Refactor duplicated enrichment check logic
 def _enqueue_url_enrichments(
     messages_table: Table,
     max_enrichments: int,
@@ -463,6 +466,7 @@ def _serialize_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# TODO: [Taskmaster] Decompose monolithic EnrichmentWorker class
 class EnrichmentWorker(BaseWorker):
     """Worker for media enrichment (e.g. image description)."""
 
@@ -581,6 +585,7 @@ class EnrichmentWorker(BaseWorker):
         results = self._execute_url_enrichments(tasks_data, max_concurrent)
         return self._persist_url_results(results)
 
+    # TODO: [Taskmaster] Simplify complex async-in-sync wrapper
     def _enrich_single_url(self, task_data: dict) -> tuple[dict, EnrichmentOutput | None, str | None]:
         """Enrich a single URL with fallback support (sync wrapper)."""
         from pydantic_ai.models.google import GoogleModel
@@ -773,6 +778,7 @@ class EnrichmentWorker(BaseWorker):
         logger.info("[Enrichment] URL tasks complete: %d/%d", len(results), total)
         return results
 
+    # TODO: [Taskmaster] Decompose complex batch execution method
     def _execute_url_single_call(
         self, tasks_data: list[dict[str, Any]]
     ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
@@ -1021,6 +1027,7 @@ class EnrichmentWorker(BaseWorker):
 
         return requests, task_map
 
+    # TODO: [Taskmaster] Simplify complex file staging logic
     def _stage_file(self, task: dict[str, Any], payload: dict[str, Any]) -> Path:
         """Extract media file from ZIP to ephemeral staging directory."""
         original_filename = payload.get("original_filename") or payload.get("filename")
@@ -1494,6 +1501,7 @@ class EnrichmentWorker(BaseWorker):
                 new_path = f"media/{media_subdir}/{slug_value}{Path(filename).suffix}"
 
                 # Using SQL replace to update all occurrences
+                # TODO: [Taskmaster] Refactor to use parameterized queries to prevent SQL injection
                 try:
                     # We need to use valid SQL string escaping
                     safe_original = original_ref.replace("'", "''")
@@ -1518,6 +1526,7 @@ class EnrichmentWorker(BaseWorker):
 
         return len(results)
 
+    # TODO: [Taskmaster] Improve brittle JSON parsing from LLM output
     def _parse_media_result(self, res: Any, task: dict[str, Any]) -> tuple[dict[str, Any], str, str] | None:
         text = self._extract_text(res.response)
         try:
