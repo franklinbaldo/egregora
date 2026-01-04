@@ -1,1 +1,1 @@
-"""Text-related utilities, including slugification."""
+"""Text-related utilities."""
