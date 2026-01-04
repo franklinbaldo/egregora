@@ -14,6 +14,11 @@ The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 struc
 
 *No high-priority improvements have been identified yet. The next step is to continue discovery.*
 
+## Abandoned Improvements
+
+*   **Refactor `src/egregora/knowledge/profiles.py`**: **[ATTEMPTED - FAILED]** An attempt was made to refactor the `profiles.py` module by moving the author-syncing logic to a dedicated module in the `mkdocs` adapter. The refactoring failed due to a complex circular dependency that could not be easily resolved. All changes were reverted. This refactoring should be re-evaluated in the future with a more comprehensive understanding of the codebase's dependency graph.
+
+
 ## Completed Improvements
 
 *   **2026-01-04**: Refactored `slugify` from `utils/paths.py` to `utils/text.py`.
