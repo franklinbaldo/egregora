@@ -13,6 +13,11 @@ The codebase contains two parallel versions: `egregora` (v2) and `egregora_v3`. 
 ## Prioritized Improvements
 
 1.  **Create Version-Agnostic Shared Module**: **[HIGH PRIORITY]** Decouple the v3 module from the v2 module by moving the shared text processing logic to a version-agnostic location. The `src/egregora/text_processing/` directory will be moved to a new `src/egregora_shared/text_processing/` location, and both v2 and v3 consumers will be updated to import from this new shared path.
+*No high-priority issues have been identified yet. The next step is to continue discovery.*
+
+## Prioritized Improvements
+
+*No high-priority improvements have been identified yet. The next step is to continue discovery.*
 
 ## Abandoned Improvements
 
@@ -20,6 +25,7 @@ The codebase contains two parallel versions: `egregora` (v2) and `egregora_v3`. 
 
 ## Completed Improvements
 
+*   **2026-01-05**: Removed the orphaned `src/egregora/infra` directory, which was an empty and unused package from a previous refactoring. This removes clutter from the codebase.
 *   **2026-01-05**: Moved `media.py` and `taxonomy.py` from the misplaced `src/egregora/orchestration/pipelines/modules` directory to `src/egregora/ops`. This co-locates domain-specific media and taxonomy logic in a more intuitive and discoverable `ops` module, improving the overall codebase structure.
 *   **2026-01-05**: Centralized the v2 exception hierarchy by creating a single `EgregoraError` base class in `src/egregora/exceptions.py` and refactoring all custom exceptions to inherit from it. This improves maintainability and enables consistent high-level error handling.
 *   **2026-01-04**: Refactored `slugify` from `utils/paths.py` to `utils/text.py`.
