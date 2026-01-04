@@ -28,7 +28,7 @@ from egregora.orchestration.persistence import persist_banner_document, persist_
 from egregora.output_adapters.exceptions import DocumentNotFoundError
 from egregora.rag import search
 from egregora.rag.models import RAGQueryRequest
-from egregora.utils.exceptions import InvalidInputError
+from egregora.utils.text import InvalidInputError
 from egregora.utils.text import slugify
 
 if TYPE_CHECKING:
