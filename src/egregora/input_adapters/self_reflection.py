@@ -18,7 +18,7 @@ from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.output_adapters.exceptions import DocumentNotFoundError
 from egregora.utils.datetime_utils import parse_datetime_flexible
-from egregora.utils.text import slugify
+from egregora_v3.core.text_utils import slugify
 
 if TYPE_CHECKING:
     from egregora.data_primitives.protocols import OutputSink

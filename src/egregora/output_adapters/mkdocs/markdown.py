@@ -18,7 +18,7 @@ from egregora.output_adapters.mkdocs.markdown_utils import (
     extract_clean_date,
     format_frontmatter_datetime,
 )
-from egregora.utils.text import slugify
+from egregora_v3.core.text_utils import slugify
 from egregora_v3.core.utils import safe_path_join
 
 if TYPE_CHECKING:

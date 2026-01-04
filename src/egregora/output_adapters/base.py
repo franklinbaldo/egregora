@@ -21,7 +21,7 @@ from egregora.output_adapters.exceptions import (
     RegistryNotProvidedError,
 )
 from egregora.utils import safe_path_join
-from egregora.utils.text import slugify
+from egregora_v3.core.text_utils import slugify
 
 if TYPE_CHECKING:
     from collections.abc import Iterator

@@ -2,7 +2,7 @@
 
 import pytest
 
-from egregora.utils.text import InvalidInputError, slugify
+from egregora_v3.core.text_utils import slugify
 
 
 class TestSlugifyBasicBehavior:
@@ -99,9 +99,9 @@ class TestSlugifyEdgeCases:
         result = slugify("😀😀😀")
         assert result == "post"  # Falls back when nothing remains
 
-    def test_none_input_raises_invalid_input_error(self):
-        """BEHAVIOR: None input raises InvalidInputError."""
-        with pytest.raises(InvalidInputError, match="Input text cannot be None"):
+    def test_none_input_raises_value_error(self):
+        """BEHAVIOR: None input raises ValueError."""
+        with pytest.raises(ValueError, match="Input text cannot be None"):
             slugify(None)
 
     def test_numbers_preserved(self):
