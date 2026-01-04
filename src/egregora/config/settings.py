@@ -45,11 +45,10 @@ from egregora.config.exceptions import (
     ConfigNotFoundError,
     ConfigValidationError,
     InvalidDateFormatError,
-    InvalidRetrievalModeError,
     InvalidTimezoneError,
     SiteNotFoundError,
 )
-from egregora.constants import SourceType, WindowUnit
+from egregora.config.enums import SourceType, WindowUnit
 
 logger = logging.getLogger(__name__)
 
