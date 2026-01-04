@@ -51,6 +51,9 @@ def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) 
     if isinstance(value, date):
         return datetime.combine(value, datetime.min.time())
 
+    if isinstance(value, int):
+        raise DateTimeParsingError(str(value), ValueError("Integer input is not supported"))
+
     raw = str(value).strip()
     if not raw:
         raise InvalidDateTimeInputError(
