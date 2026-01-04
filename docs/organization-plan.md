@@ -4,25 +4,11 @@ Last updated: 2026-01-05
 
 ## Current Organizational State
 
-The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 structure has a `utils` directory that has been significantly cleaned up. The v3 `core` module contains some misplaced domain-specific logic.
+The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 structure has a `utils` directory that has been significantly cleaned up, and the `constants.py` file has been refactored to remove domain-specific values.
 
 ## Identified Issues
 
-1.  **`src/egregora_v3/core/utils.py`**: The `simple_chunk_text` function, a utility for chunking text for RAG, is located in the core `utils` module. This violates the Single Responsibility Principle, as the core should be domain-agnostic.
-
-## Prioritized Improvements
-
-1.  **Refactor `src/egregora_v3/core/utils.py`**: **[HIGH PRIORITY]** Move the `simple_chunk_text` function to `src/egregora_v3/infra/rag.py`, where it is exclusively used. This will improve modularity by co-locating the function with its related RAG logic.
-
-## Abandoned Improvements
-
-*   **Refactor `src/egregora/knowledge/profiles.py`**: **[ATTEMPTED - FAILED]** An attempt was made to refactor the `profiles.py` module by moving the author-syncing logic to a dedicated module in the `mkdocs` adapter. The refactoring failed due to a complex circular dependency that could not be easily resolved. All changes were reverted. This refactoring should be re-evaluated in the future with a more comprehensive understanding of the codebase's dependency graph.
-
-The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 structure contains a `utils` directory which often holds misplaced domain-specific code.
-
-## Identified Issues
-
-1.  **`src/egregora/utils/datetime_utils.py`**: **[EVALUATED - OK]** This module was investigated as a potential candidate for refactoring. However, a `grep` search revealed its functions (`ensure_datetime`, `parse_datetime_flexible`, etc.) and exceptions are used across multiple, disparate domains (agents, database, adapters, other utils). It serves as a true, cross-cutting utility and is correctly located. No action is required.
+*No high-priority issues have been identified yet. The next step is to continue discovery.*
 
 ## Prioritized Improvements
 
@@ -30,6 +16,7 @@ The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 struc
 
 ## Completed Improvements
 
+*   **2026-01-05**: Moved agent-specific constants (`EGREGORA_UUID`, `EGREGORA_NAME`, `SystemIdentifier`) from the global `src/egregora/constants.py` to a new domain-specific module at `src/egregora/agents/domain.py`. This improves modularity and makes the `agents` module more self-contained.
 *   **2026-01-05**: Centralized the v2 exception hierarchy by creating a single `EgregoraError` base class in `src/egregora/exceptions.py` and refactoring all custom exceptions to inherit from it. This improves maintainability and enables consistent high-level error handling.
 *   **2026-01-04**: Refactored `slugify` from `utils/paths.py` to `utils/text.py`.
 *   **2026-01-04**: Moved API key utilities from `utils/env.py` to `llm/api_keys.py`.
@@ -42,4 +29,4 @@ The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 struc
 
 ## Organizational Strategy
 
-My primary strategy is to inspect the `src/egregora/utils` directory, as it has historically been a collection point for domain-specific logic that should be co-located with its primary users. Each module within `utils` will be evaluated by tracing its usage to determine if it's a true, cross-cutting concern or if it can be moved to a more specific domain. A secondary strategy is to identify and fix cross-cutting organizational issues like the inconsistent exception hierarchy.
+My primary strategy is to inspect the `src/egregora` directory for modules that violate the Single Responsibility Principle, such as global `constants.py` files or `utils` directories that have become a collection point for domain-specific logic. Each module will be evaluated by tracing its usage to determine if it's a true, cross-cutting concern or if it can be moved to a more specific domain.

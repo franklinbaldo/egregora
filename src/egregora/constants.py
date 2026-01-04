@@ -75,18 +75,6 @@ class Limits:
     LONG_REQUEST_TIMEOUT = 120
 
 
-class SystemIdentifier(str, Enum):
-    """Special system identifiers used for generated content."""
-
-    EGREGORA_AUTHOR = "egregora"
-    ANONYMOUS_USER = "anonymous"
-
-
-# Egregora system author constants
-# Used when Egregora generates content (PROFILE posts, ANNOUNCEMENT posts)
-EGREGORA_UUID = "00000000-0000-0000-0000-000000000000"
-EGREGORA_NAME = "Egregora"
-
 # Profile history context settings
 # Maximum number of recent profile posts to include in LLM context window
 
