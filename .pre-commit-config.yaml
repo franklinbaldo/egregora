@@ -71,7 +71,7 @@ repos:
         language: system
         pass_filenames: false
         files: tests/.*\.py$
-      - id: check-private-imports
+      - id: check-private-function-anti-patterns
         name: Check for private function anti-patterns
         entry: python dev_tools/check_private_imports.py
         language: system
