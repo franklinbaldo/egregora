@@ -17,6 +17,7 @@ Usage:
 
 import logging
 from functools import lru_cache
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from egregora.rag.backend import VectorStore
@@ -34,21 +35,40 @@ logger = logging.getLogger(__name__)
 _backend: VectorStore | None = None
 
 
-def get_backend() -> VectorStore:
-    """Get or initialize the global RAG backend."""
+def get_backend(db_dir: Path | str | None = None) -> VectorStore:
+    """Get or initialize the global RAG backend.
+
+    Args:
+        db_dir: Optional directory path for the vector store. If not provided,
+                it will be loaded from the application configuration.
+
+    """
     global _backend
+
+    # If we have an existing backend but the requested db_dir is different,
+    # we need to re-initialize it.
+    if _backend is not None and db_dir is not None:
+        from pathlib import Path
+        requested_path = Path(db_dir)
+        if hasattr(_backend, "db_dir") and _backend.db_dir != requested_path:
+            logger.debug("RAG backend path changed from %s to %s. Re-initializing.", _backend.db_dir, requested_path)
+            reset_backend()
+
     if _backend is None:
         from pathlib import Path
 
         from egregora.config import load_egregora_config
 
-        try:
-            config = load_egregora_config()
-            lancedb_path = Path(config.paths.lancedb_dir)
-        except Exception:  # noqa: BLE001
-            logger.warning("Could not load RAG config, using defaults")
-            # Default fallback matching PathsSettings
-            lancedb_path = Path(".egregora/lancedb")
+        if db_dir is not None:
+            lancedb_path = Path(db_dir)
+        else:
+            try:
+                config = load_egregora_config()
+                lancedb_path = Path(config.paths.lancedb_dir)
+            except Exception:  # noqa: BLE001
+                logger.warning("Could not load RAG config, using defaults")
+                # Default fallback matching PathsSettings
+                lancedb_path = Path(".egregora/lancedb")
 
         # Initialize LanceDB backend with embedding function
         # Note: We inject embed_fn here to decouple backend from router

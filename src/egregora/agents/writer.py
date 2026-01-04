@@ -278,14 +278,29 @@ def _process_single_tool_result(
 ) -> None:
     """Process a single tool result and append to the appropriate list."""
     data = process_tool_result(content)
-    if not data or data.get("status") not in ("success", "scheduled") or "path" not in data:
+    if not data:
+        logger.debug("Tool '%s' result could not be parsed as dict", tool_name)
         return
 
-    path = data["path"]
+    status = data.get("status")
+    path = data.get("path")
+
+    if status not in ("success", "scheduled"):
+        logger.debug("Tool '%s' result ignored due to status: %s", tool_name, status)
+        return
+
+    if not path:
+        logger.debug("Tool '%s' result ignored due to missing path", tool_name)
+        return
+
     if tool_name == "write_post_tool":
+        logger.info("Found successfully saved post in tool results: %s", path)
         saved_posts.append(path)
     elif tool_name == "write_profile_tool":
+        logger.info("Found successfully saved profile in tool results: %s", path)
         saved_profiles.append(path)
+    else:
+        logger.debug("Tool '%s' result processed but not a post/profile (status: %s)", tool_name, status)
 
 
 def _extract_from_message(message: Any, saved_posts: list[str], saved_profiles: list[str]) -> None:
@@ -304,8 +319,14 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
     saved_posts: list[str] = []
     saved_profiles: list[str] = []
 
+    logger.debug("Extracting tool results from %d agent messages", len(messages))
     for message in messages:
         _extract_from_message(message, saved_posts, saved_profiles)
+
+    if saved_posts or saved_profiles:
+        logger.info("Agent Tool Results: %d posts, %d profiles extracted", len(saved_posts), len(saved_profiles))
+    else:
+        logger.debug("No post/profile tool results extracted from agent history")
 
     return saved_posts, saved_profiles
 
@@ -328,36 +349,59 @@ def write_posts_with_pydantic_agent(
     if context.resources.quota:
         context.resources.quota.reserve(1)
 
+    logger.info(
+        "Starting writer agent: period=%s messages=%d xml_chars=%d",
+        context.window_label,
+        len(context.messages),
+        len(context.conversation_xml),
+    )
+
+    if not context.messages:
+        logger.warning("Writer agent called with 0 messages for window %s", context.window_label)
+        return [], []
+
+    # Log the first 500 characters of the XML for debugging
+    logger.debug("Conversation XML snippet (first 500 chars): %s", context.conversation_xml[:500])
+
     # Define usage limits
     usage_limits = UsageLimits(
         request_limit=15,  # Reasonable limit for tool loops
-        # response_tokens_limit=... # Optional
     )
 
     result = None
     # Use tenacity for retries
-    for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
-        with attempt:
-            # Execute model directly without tools
-            result = asyncio.run(
-                agent.run(
-                    "Analyze the conversation context provided and write posts/profiles as needed.",
-                    deps=context,
-                    usage_limits=usage_limits,
+    try:
+        for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
+            with attempt:
+                result = asyncio.run(
+                    agent.run(
+                        "Analyze the conversation context provided and write posts/profiles as needed.",
+                        deps=context,
+                        usage_limits=usage_limits,
+                    )
                 )
-            )
+    except Exception as e:
+        logger.error("Error during agent run: %s", e)
+        raise
 
     if not result:
-        # Should be unreachable due to reraise=True
-        msg = "Agent failed after retries"
+        msg = "Agent failed to return a result"
         raise RuntimeError(msg)
+
+    # Log total tool calls made
+    tool_calls = [p for m in result.all_messages() if hasattr(m, "parts") for p in m.parts if hasattr(p, "tool_name")]
+    logger.info("Agent run complete. Total tool calls attempt: %d", len(tool_calls))
+    for tc in tool_calls:
+        logger.info("  - Called tool: %s", getattr(tc, "tool_name", "unknown"))
 
     usage = result.usage()
     if context.resources.usage:
         context.resources.usage.record(usage)
+
     saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
     intercalated_log = _extract_intercalated_log(result.all_messages())
-    # TODO: [Taskmaster] Refactor complex journal fallback logic
+    
+    # ... (rest of the journal logic remains the same)
     if not intercalated_log:
         fallback_content = _extract_journal_content(result.all_messages())
         if fallback_content:
@@ -476,12 +520,8 @@ def _finalize_writer_results(params: WriterFinalizationParams) -> dict[str, list
 
 
 # TODO: [Taskmaster] Refactor complex `write_posts_for_window` function
-def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str]]:
-    """Let LLM analyze window's messages, write 0-N posts, and update author profiles.
-
-    This acts as the public entry point, orchestrating the setup and execution
-    of the writer agent.
-    """
+def write_posts_for_window(params: WindowProcessingParams) -> dict[str, Any]:
+    """Public entry point for the writer agent."""
     if params.smoke_test:
         logger.info("Smoke test mode: skipping writer agent.")
         return {RESULT_KEY_POSTS: [], RESULT_KEY_PROFILES: []}

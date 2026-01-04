@@ -45,7 +45,7 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
         logger.warning("Failed to import scikit-learn dependencies. Skipping taxonomy: %s", exc)
         return 0
 
-    backend = get_backend()
+    backend = get_backend(db_dir=config.paths.lancedb_dir)
 
     # 1. Fetch & Cluster (Standard K-Means)
     if not hasattr(backend, "get_all_post_vectors"):

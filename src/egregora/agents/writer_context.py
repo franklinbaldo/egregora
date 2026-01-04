@@ -287,6 +287,9 @@ def index_new_content_in_rag(
         return
 
     try:
+        # Use the specific RAG directory for this run
+        lancedb_dir = resources.storage.config.paths.lancedb_dir if resources.storage else None
+        backend = get_backend(db_dir=lancedb_dir)
         # Read the newly saved post documents
         docs: list[Document] = []
         for post_id in saved_posts:
