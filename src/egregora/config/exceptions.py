@@ -58,11 +58,3 @@ class InvalidTimezoneError(ConfigError):
         self.timezone_str = timezone_str
         self.original_exception = original_exception
         super().__init__(f"Invalid timezone '{timezone_str}': {original_exception}")
-
-
-class InvalidRetrievalModeError(ConfigError):
-    """Raised when an invalid retrieval mode is specified."""
-
-    def __init__(self, mode: str) -> None:
-        self.mode = mode
-        super().__init__(f"Invalid retrieval mode: '{mode}'. Choose 'ann' or 'exact'.")

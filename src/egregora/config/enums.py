@@ -1,4 +1,5 @@
 """Configuration-specific enumerations."""
+
 from enum import Enum
 
 

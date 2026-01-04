@@ -39,6 +39,7 @@ import tomli_w
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from egregora.config.enums import SourceType, WindowUnit
 from egregora.config.exceptions import (
     ApiKeyNotFoundError,
     ConfigError,
@@ -48,7 +49,6 @@ from egregora.config.exceptions import (
     InvalidTimezoneError,
     SiteNotFoundError,
 )
-from egregora.config.enums import SourceType, WindowUnit
 
 logger = logging.getLogger(__name__)
 
@@ -1103,28 +1103,6 @@ def validate_timezone(timezone_str: str) -> ZoneInfo:
         raise InvalidTimezoneError(timezone_str, e) from e
 
 
-def validate_retrieval_config(
-    retrieval_mode: str,
-    retrieval_nprobe: int | None = None,
-    retrieval_overfetch: int | None = None,
-) -> str:
-    """Validate and normalize retrieval mode configuration.
-
-    (Kept for compatibility with any remaining callers, though params are deprecated)
-    """
-    normalized_mode = (retrieval_mode or "ann").lower()
-    if normalized_mode not in {"ann", "exact"}:
-        raise InvalidRetrievalModeError(normalized_mode)
-
-    if retrieval_nprobe is not None and retrieval_nprobe <= 0:
-        raise ValueError("retrieval_nprobe must be positive")
-
-    if retrieval_overfetch is not None and retrieval_overfetch <= 0:
-        raise ValueError("retrieval_overfetch must be positive")
-
-    return normalized_mode
-
-
 # ============================================================================
 # Runtime Configuration Dataclasses
 # ============================================================================
@@ -1259,7 +1237,6 @@ __all__ = [
     "load_egregora_config",
     "parse_date_arg",
     "save_egregora_config",
-    "validate_retrieval_config",
     "validate_timezone",
 ]
 
