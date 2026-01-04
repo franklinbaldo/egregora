@@ -1,42 +1,31 @@
 # Codebase Organization Plan
 
-Last updated: 2026-01-05
+Last updated: 2024-07-25
 
 ## Current Organizational State
 
-The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 structure has a `utils` directory that has been significantly cleaned up. There is some code duplication between the v2 and v3 modules, particularly in the RAG text processing logic.
+The codebase contains a `src/egregora/text_processing` directory with a single module, `chunking.py`. This module provides text chunking functionality. This has been addressed in the latest improvement.
 
 ## Identified Issues
 
-*No high-priority issues have been identified yet. The next step is to continue discovery.*
+*   **Misplaced Responsibility:** The `simple_chunk_text` function in `src/egregora/text_processing/chunking.py` is only used by the Retrieval-Augmented Generation (RAG) components in `src/egregora/rag/` and `src/egregora_v3/infra/rag.py`. This violates the principle of co-location, as the chunking logic is tightly coupled to the RAG domain but resides in a generic utility directory. The `text_processing` directory itself seems redundant if this is its only content.
 
 ## Prioritized Improvements
 
-*No high-priority improvements have been identified yet. The next step is to continue discovery.*
-
-## Abandoned Improvements
-
-*   **Refactor `src/egregora/knowledge/profiles.py`**: **[ATTEMPTED - FAILED]** An attempt was made to refactor the `profiles.py` module by moving the author-syncing logic to a dedicated module in the `mkdocs` adapter. The refactoring failed due to a complex circular dependency that could not be easily resolved. All changes were reverted. This refactoring should be re-evaluated in the future with a more comprehensive understanding of the codebase's dependency graph.
-*No high-priority issues have been identified yet. The next step is to continue discovery.*
-
-## Prioritized Improvements
-
-*No high-priority improvements have been identified yet. The next step is to continue discovery.*
+*None at the moment.*
 
 ## Completed Improvements
 
-*   **2026-01-05**: Removed the orphaned `src/egregora/infra` directory, which was an empty and unused package from a previous refactoring. This removes clutter from the codebase.
-*   **2026-01-05**: Moved `media.py` and `taxonomy.py` from the misplaced `src/egregora/orchestration/pipelines/modules` directory to `src/egregora/ops`. This co-locates domain-specific media and taxonomy logic in a more intuitive and discoverable `ops` module, improving the overall codebase structure.
-*   **2026-01-05**: Centralized the v2 exception hierarchy by creating a single `EgregoraError` base class in `src/egregora/exceptions.py` and refactoring all custom exceptions to inherit from it. This improves maintainability and enables consistent high-level error handling.
-*   **2026-01-04**: Refactored `slugify` from `utils/paths.py` to `utils/text.py`.
-*   **2026-01-04**: Moved API key utilities from `utils/env.py` to `llm/api_keys.py`.
-*   **2026-01-03**: Moved `GlobalRateLimiter` from `utils/rate_limit.py` to `llm/rate_limit.py`.
-*   **2026-01-03**: Removed legacy site scaffolding wrapper from `init/`.
-*   **2026-01-02**: Moved domain-specific datetime functions to `output_adapters/mkdocs/markdown_utils.py`.
-*   **2026-01-02**: Removed duplicated `run_async_safely` function.
-*   **2026-01-01**: Consolidated author management logic into `knowledge/profiles.py`.
-*   **2026-01-01**: Moved `UsageTracker` from `utils/metrics.py` to `llm/usage.py`.
+*   **Co-locate Chunking Logic with RAG:** Moved the chunking functionality from the generic `text_processing` module into the `rag` module. This improves modularity and makes the codebase easier to understand by placing domain-specific logic where it is used.
+*   **Refactored `UsageTracker` to `src/egregora/llm/usage.py`:** Co-located LLM usage tracking logic with other LLM-related code.
+*   **Removed duplicated `run_async_safely` function:** Eliminated dead, duplicated code from the orchestration pipeline.
+*   **Refactored `datetime` utilities:** Moved domain-specific datetime functions from generic utils to the `mkdocs` output adapter.
+*   **Refactor Site Scaffolding:** Eliminated a redundant and confusing compatibility layer for site initialization.
+*   **Refactored `Rate_Limiter` to `llm` module:** Co-located the LLM rate-limiting logic with other LLM-related code.
+*   **Refactored `Slugify` Utility:** Moved the `slugify` function from `utils/paths.py` to `utils/text.py` to better reflect its purpose.
+*   **Refactored API Key Utilities:** Moved API key management functions from generic utils to the `llm` module.
+*   **Removed Orphaned Infra Directory:** Removed an empty and unused `src/egregora/infra` directory.
 
 ## Organizational Strategy
 
-My primary strategy is to inspect the `src/egregora/utils` directory, as it has historically been a collection point for domain-specific logic that should be co-located with its primary users. Each module within `utils` will be evaluated by tracing its usage to determine if it's a true, cross-cutting concern or if it can be moved to a more specific domain. A secondary strategy is to identify and fix cross-cutting organizational issues like code duplication between the v2 and v3 modules.
+My strategy is to improve the modularity and navigability of the codebase by moving domain-specific logic out of generic utility modules and into the modules that use them. This follows the principle of co-location and the Single Responsibility Principle. I will use a Test-Driven Development (TDD) approach to ensure that all refactoring is safe and does not introduce regressions.
