@@ -4,7 +4,7 @@ from unicodedata import normalize
 
 from pymdownx.slugs import slugify as _md_slugify
 
-from egregora.exceptions import EgregoraError
+from egregora.core.exceptions import InvalidInputError
 
 # Pre-configure a slugify instance for reuse.
 # This is more efficient than creating a new slugifier on each call.
