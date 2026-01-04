@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from egregora.exceptions import EgregoraError
 
@@ -23,7 +24,7 @@ class ConfigNotFoundError(ConfigError):
 class ConfigValidationError(ConfigError):
     """Raised when the configuration file fails validation."""
 
-    def __init__(self, errors: Sequence[dict[str, any]] | None = None) -> None:
+    def __init__(self, errors: Sequence[dict[str, Any]] | None = None) -> None:
         self.errors = errors or []
         super().__init__(f"Configuration validation failed with {len(self.errors)} error(s).")
 
