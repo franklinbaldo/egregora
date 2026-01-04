@@ -28,12 +28,12 @@ from egregora.exceptions import EgregoraError
 from egregora.input_adapters.whatsapp.commands import extract_commands
 from egregora.knowledge.profiles import remove_profile_avatar, update_profile_avatar
 from egregora.llm.api_keys import get_google_api_key
-from egregora.orchestration.cache import EnrichmentCache, make_enrichment_cache_key
-from egregora.orchestration.exceptions import CacheKeyNotFoundError
-from egregora.orchestration.pipelines.modules.media import (
+from egregora.ops.media import (
     detect_media_type,
     extract_urls,
 )
+from egregora.orchestration.cache import EnrichmentCache, make_enrichment_cache_key
+from egregora.orchestration.exceptions import CacheKeyNotFoundError
 from egregora.resources.prompts import render_prompt
 from egregora.security.ssrf import SSRFValidationError, validate_public_url
 

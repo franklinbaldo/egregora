@@ -1,14 +1,15 @@
-import pytest
-from datetime import datetime, timedelta, timezone
+import uuid
+from datetime import datetime, timezone, timedelta
 
 import ibis
+import pytest
 
-from egregora_v3.core.types import Document, DocumentType
+from egregora_v3.core.types import Document, DocumentType, Entry, Source
 from egregora_v3.infra.repository.duckdb import DuckDBDocumentRepository
 
 
 @pytest.fixture
-def duckdb_repo() -> DuckDBDocumentRepository:
+def repo() -> DuckDBDocumentRepository:
     """Provides an in-memory DuckDB repository for testing."""
     conn = ibis.duckdb.connect()
     repo = DuckDBDocumentRepository(conn)
@@ -16,96 +17,87 @@ def duckdb_repo() -> DuckDBDocumentRepository:
     return repo
 
 
-def test_list_with_order_by_and_limit(duckdb_repo: DuckDBDocumentRepository):
-    """Tests that the list method correctly applies sorting and limiting."""
+def test_list_documents(repo: DuckDBDocumentRepository):
+    """Verify that the list method retrieves all documents correctly."""
     # ARRANGE
-    now = datetime.now(timezone.utc)
-    docs = []
-    for i in range(5):
-        doc = Document(
-            content=f"Post {i}",
-            doc_type=DocumentType.POST,
-            title=f"Post {i}",
+    repo.save(Document(doc_type=DocumentType.POST, title="Post 1"))
+    repo.save(Document(doc_type=DocumentType.MEDIA, title="Media 1"))
+    repo.save(
+        Entry(
+            id=str(uuid.uuid4()),
+            title="Raw Entry",
+            updated=datetime.now(timezone.utc),
         )
-        doc.updated = now - timedelta(days=i)
-        docs.append(doc)
-
-    for doc in docs:
-        duckdb_repo.save(doc)
-
-    # ACT
-    # Fetch the 3 most recent posts
-    result = duckdb_repo.list(
-        doc_type=DocumentType.POST, order_by="-updated", limit=3
     )
 
+    # ACT
+    all_docs = repo.list()
+    post_docs = repo.list(doc_type=DocumentType.POST)
+
     # ASSERT
-    assert len(result) == 3
-    assert result[0].title == "Post 0"  # Most recent
-    assert result[1].title == "Post 1"
-    assert result[2].title == "Post 2"
+    assert len(all_docs) == 2
+    assert all(isinstance(d, Document) for d in all_docs)
 
-    # Check that they are sorted correctly (most recent first)
-    assert result[0].updated > result[1].updated > result[2].updated
+    assert len(post_docs) == 1
+    assert post_docs[0].title == "Post 1"
 
 
-from egregora_v3.core.types import Entry, Source
-
-
-def test_get_retrieves_document_but_not_entry(duckdb_repo: DuckDBDocumentRepository):
-    """Locks behavior: get() should only retrieve Documents, not raw Entries."""
+def test_list_with_order_by_and_limit(repo: DuckDBDocumentRepository):
+    """Tests that ordering and limiting work correctly."""
     # ARRANGE
     now = datetime.now(timezone.utc)
-    doc = Document(content="A document", doc_type=DocumentType.POST, title="Doc")
-    entry = Entry(id="entry-1", title="Raw Entry", updated=now, content="An entry")
-    duckdb_repo.save(doc)
-    duckdb_repo.save(entry)
+    repo.save(
+        Document(
+            doc_type=DocumentType.POST, title="Post 1", updated=now - timedelta(days=2)
+        )
+    )
+    repo.save(
+        Document(
+            doc_type=DocumentType.POST, title="Post 2", updated=now - timedelta(days=1)
+        )
+    )
+    repo.save(Document(doc_type=DocumentType.POST, title="Post 3", updated=now))
 
     # ACT
-    retrieved_doc = duckdb_repo.get(doc.id)
-    retrieved_entry = duckdb_repo.get(entry.id)
+    results = repo.list(order_by="-updated", limit=2)
+
+    # ASSERT
+    assert len(results) == 2
+    assert results[0].title == "Post 3"
+    assert results[1].title == "Post 2"
+
+
+def test_get_retrieves_document_but_not_entry(repo: DuckDBDocumentRepository):
+    """Tests that `get` retrieves a Document but returns None for a raw Entry."""
+    # ARRANGE
+    doc = Document(doc_type=DocumentType.POST, title="A Document")
+    entry = Entry(id="entry-1", title="An Entry", updated=datetime.now(timezone.utc))
+    repo.save(doc)
+    repo.save(entry)
+
+    # ACT
+    retrieved_doc = repo.get(doc.id)
+    retrieved_entry = repo.get(entry.id)
 
     # ASSERT
     assert retrieved_doc is not None
-    assert isinstance(retrieved_doc, Document)
     assert retrieved_doc.id == doc.id
     assert retrieved_entry is None
 
 
-def test_list_retrieves_documents_but_not_entries(
-    duckdb_repo: DuckDBDocumentRepository,
-):
-    """Locks behavior: list() should only retrieve Documents, not raw Entries."""
-    # ARRANGE
-    now = datetime.now(timezone.utc)
-    doc = Document(content="A document", doc_type=DocumentType.POST, title="Doc")
-    entry = Entry(id="entry-1", title="Raw Entry", updated=now, content="An entry")
-    duckdb_repo.save(doc)
-    duckdb_repo.save(entry)
-
-    # ACT
-    result = duckdb_repo.list()
-
-    # ASSERT
-    assert len(result) == 1
-    assert isinstance(result[0], Document)
-    assert result[0].id == doc.id
-
-
 def test_get_entry_retrieves_both_document_and_entry(
-    duckdb_repo: DuckDBDocumentRepository,
+    repo: DuckDBDocumentRepository,
 ):
-    """Locks behavior: get_entry() should retrieve any Entry or subclass."""
+    """Tests that `get_entry` retrieves both a Document and a raw Entry."""
     # ARRANGE
-    now = datetime.now(timezone.utc)
-    doc = Document(content="A document", doc_type=DocumentType.POST, title="Doc")
-    entry = Entry(id="entry-1", title="Raw Entry", updated=now, content="An entry")
-    duckdb_repo.save(doc)
-    duckdb_repo.save(entry)
+    doc = Document(doc_type=DocumentType.POST, title="A Document")
+    entry = Entry(id="entry-1", title="An Entry", updated=datetime.now(timezone.utc))
+    repo.save(doc)
+    repo.save(entry)
 
     # ACT
-    retrieved_doc = duckdb_repo.get_entry(doc.id)
-    retrieved_entry = duckdb_repo.get_entry(entry.id)
+    retrieved_doc = repo.get_entry(doc.id)
+    retrieved_entry = repo.get_entry(entry.id)
 
     # ASSERT
     assert retrieved_doc is not None
@@ -114,46 +106,40 @@ def test_get_entry_retrieves_both_document_and_entry(
 
     assert retrieved_entry is not None
     assert isinstance(retrieved_entry, Entry)
-    assert not isinstance(
-        retrieved_entry, Document
-    )  # Make sure it's a raw Entry
+    assert not isinstance(retrieved_entry, Document)
     assert retrieved_entry.id == entry.id
 
 
-def test_get_entries_by_source(duckdb_repo: DuckDBDocumentRepository):
-    """Locks behavior: get_entries_by_source() retrieves all entries for a source."""
+def test_get_entries_by_source(repo: DuckDBDocumentRepository):
+    """Verify that entries can be retrieved by their source ID."""
     # ARRANGE
-    now = datetime.now(timezone.utc)
-    source_id = "source-1"
+    source_id = "shared-source"
     entry1 = Entry(
-        id="entry-1",
+        id=str(uuid.uuid4()),
         title="Entry 1",
-        updated=now,
-        content="Entry 1",
-        source=Source(id=source_id, name="Test Source"),
+        source=Source(id=source_id, collector="test"),
+        updated=datetime.now(timezone.utc),
     )
     entry2 = Document(
-        content="Doc 1",
-        doc_type=DocumentType.POST,
+        id=str(uuid.uuid4()),
         title="Doc 1",
-        source=Source(id=source_id, name="Test Source"),
+        doc_type=DocumentType.POST,
+        source=Source(id=source_id, collector="test"),
+        updated=datetime.now(timezone.utc),
     )
     other_entry = Entry(
-        id="other-entry",
-        title="Other",
-        updated=now,
-        content="Other",
-        source=Source(id="source-2", name="Other Source"),
+        id=str(uuid.uuid4()),
+        title="Other Entry",
+        source=Source(id="other-source", collector="test"),
+        updated=datetime.now(timezone.utc),
     )
-    duckdb_repo.save(entry1)
-    duckdb_repo.save(entry2)
-    duckdb_repo.save(other_entry)
+    repo.save(entry1)
+    repo.save(entry2)
+    repo.save(other_entry)
 
     # ACT
-    results = duckdb_repo.get_entries_by_source(source_id)
+    retrieved_entries = repo.get_entries_by_source(source_id)
 
     # ASSERT
-    assert len(results) == 2
-    result_ids = {e.id for e in results}
-    assert entry1.id in result_ids
-    assert entry2.id in result_ids
+    assert len(retrieved_entries) == 2
+    assert {e.id for e in retrieved_entries} == {entry1.id, entry2.id}
