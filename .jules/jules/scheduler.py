@@ -13,7 +13,7 @@ import jinja2
 
 # Import from new package relative to execution or absolute
 from jules.client import JulesClient
-from jules.github import get_open_prs, get_repo_info, _extract_session_id
+from jules.github import get_open_prs, get_repo_info, _extract_session_id, get_pr_details_via_gh
 
 # --- Standard Text Blocks ---
 
@@ -265,6 +265,32 @@ def get_pr_by_session_id(open_prs: list[dict[str, Any]], session_id: str) -> dic
 
     return None
 
+def is_pr_green(pr_details: dict[str, Any]) -> bool:
+    """Check if all PR status checks are passing."""
+    status_check_rollup = pr_details.get("statusCheckRollup", [])
+    if not status_check_rollup:
+        # If no checks, we assume it's safe to proceed (or repo doesn't have CI)
+        # But usually we expect checks. Let's assume True if empty,
+        # unless there's a reason to believe checks are required but missing.
+        return True
+
+    for check in status_check_rollup:
+        # Normalized status fields
+        status = check.get("conclusion") or check.get("status") or check.get("state")
+
+        # Consider these statuses as "not finished/passed"
+        # SUCCESS, NEUTRAL, SKIPPED are OK.
+        # FAILURE, TIMED_OUT, CANCELLED, ACTION_REQUIRED are FAIL.
+        # PENDING, IN_PROGRESS, QUEUED are WAIT.
+
+        if status in ["SUCCESS", "success", "NEUTRAL", "neutral", "SKIPPED", "skipped", "COMPLETED", "completed"]:
+            continue
+
+        # If any check is not in the safe list, return False
+        return False
+
+    return True
+
 def run_cycle_step(
     client: JulesClient,
     repo_info: dict,
@@ -294,6 +320,17 @@ def run_cycle_step(
 
         if pr:
             print(f"Found PR for last session: #{pr['number']} - {pr['title']}")
+
+            # Check if PR is Green
+            try:
+                pr_details = get_pr_details_via_gh(pr["number"])
+                if not is_pr_green(pr_details):
+                    print(f"PR #{pr['number']} is not green (CI pending or failed). Waiting for CI/Autofix.")
+                    return
+            except Exception as e:
+                print(f"Failed to fetch PR details for #{pr['number']}: {e}", file=sys.stderr)
+                return
+
             base_branch = pr.get("headRefName")
             base_pr_number = str(pr.get("number"))
 
@@ -308,14 +345,6 @@ def run_cycle_step(
 
             print(f"Next persona: {next_pid}. Chaining from {base_branch}.")
         else:
-            # PR not found. Either it's not created yet, or it was closed/merged.
-            # If it was merged, we should probably start from main?
-            # Or if it failed?
-            # For now, let's assume if it's not open, we wait.
-            # BUT: We can check if it's merged via API. get_open_prs only returns OPEN.
-            # If we wait forever for a merged PR, we are stuck.
-            # For safety: If not found, check if it's just "not ready".
-            # For this iteration, we will just log and exit.
             print(f"PR for session {last_sid} not found in OPEN PRs. Waiting for it to appear or manual intervention.")
             return
 
