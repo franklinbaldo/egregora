@@ -7,6 +7,7 @@ import ibis
 import pytest
 from ibis import memtable
 
+from egregora.database import schemas
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.profile_cache import (
     get_all_profiles_from_db,
@@ -17,7 +18,7 @@ from egregora.database.profile_cache import (
     scan_and_cache_posts,
     scan_and_cache_profiles,
 )
-from egregora.database import schemas
+
 
 @pytest.fixture
 def storage_manager() -> DuckDBStorageManager:
@@ -33,7 +34,9 @@ def test_scan_and_cache_profiles_e2e(storage_manager: DuckDBStorageManager, tmp_
     uuid1 = str(uuid.uuid4())
     uuid2 = str(uuid.uuid4())
 
-    (profiles_dir / f"{uuid1}.md").write_text(f"---\nuuid: {uuid1}\nalias: User One\n---\n\nBio for User One.")
+    (profiles_dir / f"{uuid1}.md").write_text(
+        f"---\nuuid: {uuid1}\nalias: User One\n---\n\nBio for User One."
+    )
     (profiles_dir / uuid2).mkdir()
     (profiles_dir / uuid2 / "index.md").write_text(
         f"---\nuuid: {uuid2}\nalias: User Two\nopt-out: true\n---\n\nBio for User Two."
@@ -66,7 +69,12 @@ def test_get_profile_from_db_e2e(storage_manager: DuckDBStorageManager):
     """Test retrieving a single profile from the in-memory database."""
     schemas.create_table_if_not_exists(storage_manager._conn, "profiles", schemas.PROFILES_SCHEMA)
     profile_data = [
-        {"id": "user1", "content": "---\nuuid: user1\n---\n\nBio", "subject_uuid": "user1", "title": "User One"}
+        {
+            "id": "user1",
+            "content": "---\nuuid: user1\n---\n\nBio",
+            "subject_uuid": "user1",
+            "title": "User One",
+        }
     ]
     storage_manager.write_table(name="profiles", table=memtable(profile_data))
 
@@ -115,9 +123,7 @@ def test_scan_and_cache_posts_e2e(storage_manager: DuckDBStorageManager, tmp_pat
     (posts_dir / "post1.md").write_text(f"---\nslug: post1\nauthors: ['{author_uuid}']\n---\n\nContent 1.")
     (posts_dir / "profiles").mkdir()
     (posts_dir / "profiles" / author_uuid).mkdir()
-    (posts_dir / "profiles" / author_uuid / "post2.md").write_text(
-        "---\nslug: post2\n---\n\nContent 2."
-    )
+    (posts_dir / "profiles" / author_uuid / "post2.md").write_text("---\nslug: post2\n---\n\nContent 2.")
 
     count = scan_and_cache_posts(storage_manager, posts_dir)
 
@@ -138,9 +144,33 @@ def test_get_profile_posts_from_db_e2e(storage_manager: DuckDBStorageManager):
     """Test retrieving profile posts from the in-memory database."""
     schemas.create_table_if_not_exists(storage_manager._conn, "posts", schemas.POSTS_SCHEMA)
     post_data = [
-        {"id": "post1", "slug": "post1", "title": "Post 1", "content": "Content 1", "date": "2025-01-01", "summary": "Summary 1", "authors": ["user1"]},
-        {"id": "post2", "slug": "post2", "title": "Post 2", "content": "Content 2", "date": "2025-01-02", "summary": "Summary 2", "authors": ["user1", "user2"]},
-        {"id": "post3", "slug": "post3", "title": "Post 3", "content": "Content 3", "date": "2025-01-03", "summary": "Summary 3", "authors": ["user2"]},
+        {
+            "id": "post1",
+            "slug": "post1",
+            "title": "Post 1",
+            "content": "Content 1",
+            "date": "2025-01-01",
+            "summary": "Summary 1",
+            "authors": ["user1"],
+        },
+        {
+            "id": "post2",
+            "slug": "post2",
+            "title": "Post 2",
+            "content": "Content 2",
+            "date": "2025-01-02",
+            "summary": "Summary 2",
+            "authors": ["user1", "user2"],
+        },
+        {
+            "id": "post3",
+            "slug": "post3",
+            "title": "Post 3",
+            "content": "Content 3",
+            "date": "2025-01-03",
+            "summary": "Summary 3",
+            "authors": ["user2"],
+        },
     ]
     storage_manager.write_table(name="posts", table=memtable(post_data))
 

@@ -26,9 +26,7 @@ def test_get_opted_out_authors_fallback(tmp_path: Path):
 
     # Opted-out user
     (profiles_dir / "user1").mkdir()
-    (profiles_dir / "user1" / "index.md").write_text(
-        "---\nuuid: user1\n---\n\nStatus: OPTED OUT"
-    )
+    (profiles_dir / "user1" / "index.md").write_text("---\nuuid: user1\n---\n\nStatus: OPTED OUT")
 
     # Opted-in user
     (profiles_dir / "user2").mkdir()
