@@ -691,7 +691,9 @@ def get_pending_conversations(dataset: PreparedPipelineData) -> Iterator[Convers
         # DEBUG: Verify enriched table has data
         try:
             enriched_count = enriched_table.count().execute()
-            logger.info("      [dim]Window %d: %d messages after enrichment[/]", window.window_index, enriched_count)
+            logger.info(
+                "      [dim]Window %d: %d messages after enrichment[/]", window.window_index, enriched_count
+            )
         except ibis.common.exceptions.IbisError as e:
             logger.debug("Failed to count enriched table: %s", e)
 
@@ -732,15 +734,24 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         df = conversation.messages_table.execute()
         # Convert DataFrame to list of records
         messages_list = df.to_dict(orient="records")
-        logger.info("[dim]process_item: messages_list size from execute().to_dict(): %d[/]", len(messages_list))
+        logger.info(
+            "[dim]process_item: messages_list size from execute().to_dict(): %d[/]", len(messages_list)
+        )
     except ibis.common.exceptions.IbisError as e:
-        logger.warning("      [dim]execute().to_dict() failed (%s), falling back to to_pyarrow().to_pylist()[/]", e)
+        logger.warning(
+            "      [dim]execute().to_dict() failed (%s), falling back to to_pyarrow().to_pylist()[/]", e
+        )
         try:
             # Fallback to PyArrow path
             messages_list = conversation.messages_table.to_pyarrow().to_pylist()
-            logger.info("[dim]process_item: messages_list size from to_pyarrow().to_pylist(): %d[/]", len(messages_list))
+            logger.info(
+                "[dim]process_item: messages_list size from to_pyarrow().to_pylist(): %d[/]",
+                len(messages_list),
+            )
         except (ibis.common.exceptions.IbisError, duckdb.Error) as e2:
-            logger.warning("      [dim]to_pyarrow().to_pylist() also failed (%s), falling back to list check[/]", e2)
+            logger.warning(
+                "      [dim]to_pyarrow().to_pylist() also failed (%s), falling back to list check[/]", e2
+            )
             messages_list = (
                 conversation.messages_table if isinstance(conversation.messages_table, list) else []
             )

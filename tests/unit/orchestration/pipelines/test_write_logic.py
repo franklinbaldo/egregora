@@ -1,22 +1,21 @@
 from __future__ import annotations
 
 import logging
-from unittest.mock import MagicMock, patch
-
-import pytest
-import ibis
-import ibis.common.exceptions
-import duckdb
-import pyarrow
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import duckdb
+import ibis
+import ibis.common.exceptions
+import pytest
 
 from egregora.orchestration.pipelines.write import (
-    get_pending_conversations,
-    process_item,
-    _parse_and_validate_source,
     Conversation,
     PreparedPipelineData,
+    _parse_and_validate_source,
+    get_pending_conversations,
+    process_item,
 )
 
 
@@ -30,6 +29,7 @@ def mock_ibis_table():
     table.to_pyarrow.return_value.to_pylist.return_value = [{"message": "test"}]
     return table
 
+
 @pytest.fixture
 def mock_prepared_pipeline_data(mock_ibis_table):
     """Returns a mock PreparedPipelineData object."""
@@ -40,6 +40,7 @@ def mock_prepared_pipeline_data(mock_ibis_table):
     dataset.windows_iterator = [MagicMock(table=mock_ibis_table, size=10)]
     dataset.enable_enrichment = False
     return dataset
+
 
 @pytest.fixture
 def mock_conversation(mock_ibis_table):
@@ -52,6 +53,7 @@ def mock_conversation(mock_ibis_table):
     conversation.window.end_time = datetime.now()
     conversation.adapter_info = ("", "")
     return conversation
+
 
 def test_get_pending_conversations_handles_ibis_error_on_count(mock_prepared_pipeline_data, caplog):
     """
@@ -73,26 +75,32 @@ def test_get_pending_conversations_handles_ibis_error_on_count(mock_prepared_pip
     assert "Failed to count enriched table" in caplog.text
     assert "DB error" in caplog.text
 
+
 def test_process_item_handles_ibis_error_on_count(mock_conversation, caplog):
     """
     Verify process_item gracefully handles IbisError when counting messages table.
     """
-    mock_conversation.messages_table.count.return_value.execute.side_effect = ibis.common.exceptions.IbisError("Count failed")
+    mock_conversation.messages_table.count.return_value.execute.side_effect = (
+        ibis.common.exceptions.IbisError("Count failed")
+    )
 
     with caplog.at_level(logging.WARNING):
         # Patch the downstream calls to prevent them from executing as we are only testing the error handling
-        with patch("egregora.orchestration.pipelines.write.extract_commands_list", return_value=[]), \
-             patch("egregora.orchestration.pipelines.write.filter_commands", return_value=[]), \
-             patch("egregora.orchestration.pipelines.write.PipelineFactory.create_writer_resources"), \
-             patch("egregora.orchestration.pipelines.write.write_posts_for_window", return_value={}), \
-             patch("egregora.orchestration.pipelines.write.generate_profile_posts", return_value=[]), \
-             patch("egregora.orchestration.pipelines.write.process_background_tasks"):
+        with (
+            patch("egregora.orchestration.pipelines.write.extract_commands_list", return_value=[]),
+            patch("egregora.orchestration.pipelines.write.filter_commands", return_value=[]),
+            patch("egregora.orchestration.pipelines.write.PipelineFactory.create_writer_resources"),
+            patch("egregora.orchestration.pipelines.write.write_posts_for_window", return_value={}),
+            patch("egregora.orchestration.pipelines.write.generate_profile_posts", return_value=[]),
+            patch("egregora.orchestration.pipelines.write.process_background_tasks"),
+        ):
             process_item(mock_conversation)
 
     assert "Failed to count messages_table" in caplog.text
     assert "Count failed" in caplog.text
     # Verify that the function continued to the next step, which is converting the table to a list
     mock_conversation.messages_table.execute.assert_called_once()
+
 
 def test_process_item_handles_ibis_error_on_execute(mock_conversation, caplog):
     """
@@ -101,12 +109,14 @@ def test_process_item_handles_ibis_error_on_execute(mock_conversation, caplog):
     mock_conversation.messages_table.execute.side_effect = ibis.common.exceptions.IbisError("Execute failed")
 
     with caplog.at_level(logging.WARNING):
-        with patch("egregora.orchestration.pipelines.write.extract_commands_list", return_value=[]), \
-             patch("egregora.orchestration.pipelines.write.filter_commands", return_value=[]), \
-             patch("egregora.orchestration.pipelines.write.PipelineFactory.create_writer_resources"), \
-             patch("egregora.orchestration.pipelines.write.write_posts_for_window", return_value={}), \
-             patch("egregora.orchestration.pipelines.write.generate_profile_posts", return_value=[]), \
-             patch("egregora.orchestration.pipelines.write.process_background_tasks"):
+        with (
+            patch("egregora.orchestration.pipelines.write.extract_commands_list", return_value=[]),
+            patch("egregora.orchestration.pipelines.write.filter_commands", return_value=[]),
+            patch("egregora.orchestration.pipelines.write.PipelineFactory.create_writer_resources"),
+            patch("egregora.orchestration.pipelines.write.write_posts_for_window", return_value={}),
+            patch("egregora.orchestration.pipelines.write.generate_profile_posts", return_value=[]),
+            patch("egregora.orchestration.pipelines.write.process_background_tasks"),
+        ):
             process_item(mock_conversation)
 
     assert "execute().to_dict() failed" in caplog.text
@@ -114,26 +124,32 @@ def test_process_item_handles_ibis_error_on_execute(mock_conversation, caplog):
     # Verify that the fallback to pyarrow was attempted
     mock_conversation.messages_table.to_pyarrow.assert_called_once()
 
+
 def test_process_item_handles_ibis_error_on_fallback(mock_conversation, caplog):
     """
     Verify process_item gracefully handles ibis error on fallback.
     """
     mock_conversation.messages_table.execute.side_effect = ibis.common.exceptions.IbisError("Execute failed")
-    mock_conversation.messages_table.to_pyarrow.return_value.to_pylist.side_effect = ibis.common.exceptions.IbisError("Ibis fallback failed")
+    mock_conversation.messages_table.to_pyarrow.return_value.to_pylist.side_effect = (
+        ibis.common.exceptions.IbisError("Ibis fallback failed")
+    )
 
     with caplog.at_level(logging.WARNING):
-        with patch("egregora.orchestration.pipelines.write.extract_commands_list") as mock_extract, \
-             patch("egregora.orchestration.pipelines.write.filter_commands", return_value=[]), \
-             patch("egregora.orchestration.pipelines.write.PipelineFactory.create_writer_resources"), \
-             patch("egregora.orchestration.pipelines.write.write_posts_for_window", return_value={}), \
-             patch("egregora.orchestration.pipelines.write.generate_profile_posts", return_value=[]), \
-             patch("egregora.orchestration.pipelines.write.process_background_tasks"):
+        with (
+            patch("egregora.orchestration.pipelines.write.extract_commands_list") as mock_extract,
+            patch("egregora.orchestration.pipelines.write.filter_commands", return_value=[]),
+            patch("egregora.orchestration.pipelines.write.PipelineFactory.create_writer_resources"),
+            patch("egregora.orchestration.pipelines.write.write_posts_for_window", return_value={}),
+            patch("egregora.orchestration.pipelines.write.generate_profile_posts", return_value=[]),
+            patch("egregora.orchestration.pipelines.write.process_background_tasks"),
+        ):
             process_item(mock_conversation)
 
     assert "to_pyarrow().to_pylist() also failed" in caplog.text
     assert "Ibis fallback failed" in caplog.text
     # After all failures, the messages_list should be empty
     mock_extract.assert_called_once_with([])
+
 
 def test_parse_and_validate_source_handles_duckdb_error(caplog):
     """
@@ -149,10 +165,7 @@ def test_parse_and_validate_source_handles_duckdb_error(caplog):
 
     with caplog.at_level(logging.WARNING):
         table = _parse_and_validate_source(
-            adapter=mock_adapter,
-            input_path=Path("dummy.zip"),
-            timezone="UTC",
-            ctx=mock_ctx
+            adapter=mock_adapter, input_path=Path("dummy.zip"), timezone="UTC", ctx=mock_ctx
         )
 
     assert "Failed to materialize messages to DuckDB" in caplog.text
