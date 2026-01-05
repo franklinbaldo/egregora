@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 from typing import Any
+from jules.exceptions import GitHubError
 
 JULES_BOT_LOGINS = {"google-labs-jules[bot]", "app/google-labs-jules", "google-labs-jules"}
 
@@ -63,13 +64,11 @@ def get_pr_details_via_gh(pr_number: int, repo_path: str = ".") -> dict[str, Any
             ],
             cwd=repo_path,
         )
-    except Exception:
-        msg = f"Failed to view PR {pr_number}"
-        raise Exception(msg)
+    except Exception as e:
+        raise GitHubError(f"Failed to view PR {pr_number}: {e}") from e
 
     if not pr_data:
-        msg = f"PR {pr_number} not found"
-        raise Exception(msg)
+        raise GitHubError(f"PR {pr_number} not found")
 
     # Extract session ID
     branch = pr_data.get("headRefName", "")

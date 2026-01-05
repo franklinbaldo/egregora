@@ -14,6 +14,7 @@ import jinja2
 # Import from new package relative to execution or absolute
 from jules.client import JulesClient
 from jules.github import get_open_prs, get_repo_info, _extract_session_id, get_pr_details_via_gh
+from jules.exceptions import JulesError, SchedulerError, BranchError, MergeError, GitHubError
 
 # --- Standard Text Blocks ---
 
@@ -293,11 +294,11 @@ def get_pr_by_session_id(open_prs: list[dict[str, Any]], session_id: str) -> dic
 JULES_BRANCH = "jules"
 
 
-def ensure_jules_branch_exists() -> bool:
+def ensure_jules_branch_exists() -> None:
     """Ensure the 'jules' branch exists, creating it from main if needed.
     
-    Returns:
-        True if branch exists or was created successfully.
+    Raises:
+        BranchError: If any branch operation fails.
     """
     try:
         # Fetch latest
@@ -311,7 +312,7 @@ def ensure_jules_branch_exists() -> bool:
         
         if result.stdout.strip():
             print(f"Branch '{JULES_BRANCH}' exists on remote.")
-            return True
+            return
         
         # Jules branch doesn't exist - create it from main
         print(f"Branch '{JULES_BRANCH}' doesn't exist. Creating from main...")
@@ -329,38 +330,34 @@ def ensure_jules_branch_exists() -> bool:
             check=True, capture_output=True
         )
         print(f"Created '{JULES_BRANCH}' branch from main at {main_sha[:12]}")
-        return True
         
     except subprocess.CalledProcessError as e:
-        print(f"Failed to ensure jules branch exists: {e}", file=sys.stderr)
-        return False
+        stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
+        raise BranchError(f"Failed to ensure jules branch exists: {stderr}") from e
 
 
-def merge_pr_into_jules(pr_number: int) -> bool:
+def merge_pr_into_jules(pr_number: int) -> None:
     """Merge a PR into the jules branch using gh CLI.
     
     Args:
         pr_number: The PR number to merge.
         
-    Returns:
-        True if merge was successful.
+    Raises:
+        MergeError: If the merge operation fails.
     """
     try:
         print(f"Merging PR #{pr_number} into '{JULES_BRANCH}'...")
         
         # Use gh pr merge with squash to keep history clean
-        result = subprocess.run(
+        subprocess.run(
             ["gh", "pr", "merge", str(pr_number), "--squash", "--delete-branch"],
             capture_output=True, text=True, check=True
         )
         print(f"Successfully merged PR #{pr_number} into '{JULES_BRANCH}'")
-        return True
         
     except subprocess.CalledProcessError as e:
-        print(f"Failed to merge PR #{pr_number}: {e}", file=sys.stderr)
-        if e.stderr:
-            print(f"  stderr: {e.stderr}", file=sys.stderr)
-        return False
+        stderr = e.stderr or ""
+        raise MergeError(f"Failed to merge PR #{pr_number}: {stderr}") from e
 
 
 def is_pr_green(pr_details: dict[str, Any]) -> bool:
@@ -409,9 +406,7 @@ def run_cycle_step(
     print(f"Running in CYCLE mode with order: {cycle_list}")
 
     # Ensure jules branch exists
-    if not ensure_jules_branch_exists():
-        print("Failed to ensure jules branch exists. Aborting.")
-        return
+    ensure_jules_branch_exists()
 
     history_mgr = HistoryManager()
     last_entry = history_mgr.get_last_entry()
@@ -431,21 +426,20 @@ def run_cycle_step(
             print(f"Found PR for last session: #{pr_number} - {pr['title']}")
 
             # Check if PR is Green
-            try:
-                pr_details = get_pr_details_via_gh(pr_number)
-                if not is_pr_green(pr_details):
-                    print(f"PR #{pr_number} is not green (CI pending or failed). Waiting for CI/Autofix.")
-                    return
-            except Exception as e:
-                print(f"Failed to fetch PR details for #{pr_number}: {e}", file=sys.stderr)
+            pr_details = get_pr_details_via_gh(pr_number)
+            
+            if pr_details.get("is_draft"):
+                print(f"PR #{pr_number} is still a draft. Waiting for it to be ready.")
+                return
+
+            if not is_pr_green(pr_details):
+                print(f"PR #{pr_number} is not green (CI pending or failed). Waiting for CI/Autofix.")
                 return
 
             # PR is green! Merge it into jules branch
             print(f"PR #{pr_number} is green! Merging into '{JULES_BRANCH}'...")
             if not dry_run:
-                if not merge_pr_into_jules(pr_number):
-                    print(f"Failed to merge PR #{pr_number}. Aborting.")
-                    return
+                merge_pr_into_jules(pr_number)
             else:
                 print(f"[Dry Run] Would merge PR #{pr_number} into '{JULES_BRANCH}'")
 
@@ -640,7 +634,12 @@ def run_scheduler(
                     print(f"[Dry Run] Would create session for {pid}")
 
         except Exception as e:
-            # Print error to logs so we can debug failed prompts
+            # Propagate critical errors, log others
+            if isinstance(e, (SchedulerError, JulesError)):
+                raise
+            
             print(f"Error processing prompt {p_file.name}: {e}", file=sys.stderr)
             import traceback
             traceback.print_exc()
+            # If we're in a critical cycle, we might want to raise, 
+            # but for regular tick we just continue
