@@ -84,6 +84,7 @@ def scan_and_cache_profiles(
 
     Returns:
         Number of profiles cached
+
     """
     # Ensure profiles table exists, even if directory doesn't yet
     schemas.create_table_if_not_exists(
@@ -159,6 +160,7 @@ def get_profile_from_db(
 
     Returns:
         Profile content as markdown (empty string if not found)
+
     """
     try:
         table = storage.read_table("profiles")
@@ -184,6 +186,7 @@ def get_all_profiles_from_db(
 
     Returns:
         Dict mapping author UUID to profile content
+
     """
     try:
         table = storage.read_table("profiles")
@@ -212,6 +215,7 @@ def get_opted_out_authors_from_db(
 
     Returns:
         Set of opted-out author UUIDs
+
     """
     try:
         table = storage.read_table("profiles")
@@ -243,6 +247,7 @@ def _extract_author_from_path(post_path: Path, posts_dir: Path) -> list[str]:
 
     Returns:
         List of author UUIDs
+
     """
     try:
         # Get relative path from posts_dir
@@ -275,6 +280,7 @@ def scan_and_cache_posts(
 
     Returns:
         Number of posts cached
+
     """
     # Ensure posts table exists, even if directory doesn't yet
     schemas.create_table_if_not_exists(
@@ -357,6 +363,7 @@ def get_profile_posts_from_db(
 
     Returns:
         List of post dicts with content, metadata, etc.
+
     """
     try:
         table = storage.read_table("posts")
@@ -398,6 +405,7 @@ def scan_and_cache_all_documents(
 
     Returns:
         Dict with counts for each document type cached
+
     """
     logger.info("Starting comprehensive document caching...")
 

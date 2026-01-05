@@ -76,6 +76,11 @@ class PipelineFactory:
         cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
         site_paths.egregora_dir.mkdir(parents=True, exist_ok=True)
         storage = DuckDBStorageManager.from_ibis_backend(pipeline_backend)
+        scan_and_cache_all_documents(
+            storage,
+            profiles_dir=site_paths.profiles_dir,
+            posts_dir=site_paths.posts_dir,
+        )
         repository = ContentRepository(storage)
 
         output_registry = create_default_output_registry()

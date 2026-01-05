@@ -287,8 +287,13 @@ class MkDocsAdapter(BaseOutputSink):
                     author_uuid, slug = identifier.split("/", 1)
                     return self.profiles_dir / author_uuid / f"{slug}.md"
                 author_dir = self.profiles_dir / identifier
+                index_path = author_dir / "index.md"
+                if index_path.exists():
+                    return index_path
+
                 if not author_dir.exists():
                     raise DocumentNotFoundError(doc_type.value, identifier)
+
                 candidates = [p for p in author_dir.glob("*.md") if p.name != "index.md"]
                 if not candidates:
                     raise DocumentNotFoundError(doc_type.value, identifier)
