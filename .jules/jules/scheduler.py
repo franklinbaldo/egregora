@@ -354,9 +354,9 @@ def merge_pr_into_jules(pr_number: int) -> None:
             capture_output=True, text=True, check=False # Ignore errors if already ready
         )
 
-        # Use gh pr merge with squash to keep history clean
+        # Use gh pr merge with --merge as squash is disabled in this repo
         subprocess.run(
-            ["gh", "pr", "merge", str(pr_number), "--squash", "--delete-branch"],
+            ["gh", "pr", "merge", str(pr_number), "--merge", "--delete-branch"],
             capture_output=True, text=True, check=True
         )
         print(f"Successfully merged PR #{pr_number} into '{JULES_BRANCH}'")
