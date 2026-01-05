@@ -282,7 +282,11 @@ def test_feed_xml_snapshot_regression(sample_feed: Feed, snapshot: SnapshotAsser
 def test_documents_to_feed_count_invariant(titles: list[str]) -> None:
     """Property: Number of documents equals number of feed entries."""
     docs = [
-        Document(content=f"Content {i}", doc_type=DocumentType.NOTE, title=title)
+        Document(
+            content=f"Content {i}",
+            doc_type=DocumentType.NOTE,
+            title=title or f"Default Title {i}",
+        )
         for i, title in enumerate(titles)
     ]
 
