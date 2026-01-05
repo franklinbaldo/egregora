@@ -148,12 +148,7 @@ def _parse_message_date(token: str) -> date:
 
 def _is_standard_hh_mm(token: str) -> bool:
     """Check if token matches HH:MM exactly."""
-    return (
-        len(token) == TIME_STR_LEN
-        and token[2] == ":"
-        and token[0:2].isdigit()
-        and token[3:5].isdigit()
-    )
+    return len(token) == TIME_STR_LEN and token[2] == ":" and token[0:2].isdigit() and token[3:5].isdigit()
 
 
 def _parse_ampm_time(token: str, upper_token: str) -> time | None:
