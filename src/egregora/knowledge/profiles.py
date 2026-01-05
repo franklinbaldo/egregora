@@ -765,6 +765,8 @@ def get_opted_out_authors(
         return set()
     opted_out = set()
     for profile_path in profiles_dir.rglob("*.md"):
+        if profile_path.name == "index.md":
+            continue
         try:
             author_uuid = _get_uuid_from_profile(profile_path)
             if author_uuid and is_opted_out(author_uuid, profiles_dir):
