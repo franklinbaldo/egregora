@@ -279,10 +279,17 @@ def test_feed_xml_snapshot_regression(sample_feed: Feed, snapshot: SnapshotAsser
         max_size=5,
     )
 )
+@freeze_time("2025-01-01 12:00:00")
 def test_documents_to_feed_count_invariant(titles: list[str]) -> None:
     """Property: Number of documents equals number of feed entries."""
     docs = [
-        Document(content=f"Content {i}", doc_type=DocumentType.NOTE, title=title)
+        Document(
+            id=f"test-doc-{i}",
+            content=f"Content {i}",
+            doc_type=DocumentType.NOTE,
+            title=title,
+            updated=datetime.now(UTC),
+        )
         for i, title in enumerate(titles)
     ]
 

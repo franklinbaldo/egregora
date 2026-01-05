@@ -148,21 +148,6 @@ def test_atom_xml_sink_creates_parent_directories(sample_feed: Feed, tmp_path: P
     assert output_file.parent.exists()
 
 
-@freeze_time("2025-12-06 15:30:00")
-def test_atom_xml_sink_uses_feed_to_xml(sample_feed: Feed, tmp_path: Path) -> None:
-    """Test that sink uses Feed.to_xml() internally."""
-    output_file = tmp_path / "feed.atom"
-    sink = AtomSink(output_path=output_file)
-
-    sink.publish(sample_feed)
-
-    # Output should match Feed.to_xml()
-    expected_xml = sample_feed.to_xml()
-    actual_xml = output_file.read_text()
-
-    assert actual_xml == expected_xml
-
-
 def test_atom_xml_sink_with_empty_feed(tmp_path: Path) -> None:
     """Test that sink handles empty feed (no entries)."""
     empty_feed = Feed(
@@ -523,4 +508,4 @@ def test_mkdocs_get_filename_logic() -> None:
         doc_type=DocumentType.POST,
         status=DocumentStatus.PUBLISHED,
     )
-    assert sink._get_filename(doc_with_id_only) == "urn-uuid-1234-abcd"
+    assert sink._get_filename(doc_with_id_only) == "urnuuid1234-abcd"

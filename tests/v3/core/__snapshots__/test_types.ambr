@@ -37,6 +37,10 @@
 
 
 
+
+
+
+
       <content type="text">This is the content.</content>
 
 
@@ -57,6 +61,12 @@
 
 
 
+
+
+
+
+
+      <content type="text" />
 
 
 

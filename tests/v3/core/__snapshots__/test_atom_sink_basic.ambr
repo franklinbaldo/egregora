@@ -29,7 +29,11 @@
 
 
 
-      <content type="text/plain">Test content</content>
+
+
+
+
+      <content type="text">Test content</content>
 
 
 
