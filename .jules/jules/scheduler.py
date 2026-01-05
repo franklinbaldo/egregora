@@ -391,7 +391,7 @@ def ensure_jules_branch_exists() -> None:
         
         # Create jules branch pointing to main
         subprocess.run(
-            ["git", "push", "origin", f"{main_sha}:refs/heads/{JULES_BRANCH}"],
+            ["git", "push", "origin", f"+{main_sha}:refs/heads/{JULES_BRANCH}"],
             check=True, capture_output=True
         )
         print(f"Created fresh '{JULES_BRANCH}' branch from main at {main_sha[:12]}")
