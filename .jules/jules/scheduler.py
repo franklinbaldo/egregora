@@ -1,16 +1,19 @@
 """Jules Scheduler."""
 
+import csv
 import sys
 import tomllib
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import frontmatter
 import jinja2
 
 # Import from new package relative to execution or absolute
 from jules.client import JulesClient
-from jules.github import get_open_prs, get_repo_info
+from jules.github import get_open_prs, get_repo_info, _extract_session_id, get_pr_details_via_gh
 
 # --- Standard Text Blocks ---
 
@@ -103,7 +106,7 @@ def load_schedule_registry(registry_path: Path) -> dict:
         return {}
     with open(registry_path, "rb") as f:
         data = tomllib.load(f)
-    return data.get("schedules", {})
+    return data
 
 
 def ensure_journals_directory(persona_dir: Path) -> None:
@@ -215,6 +218,224 @@ def check_schedule(schedule_str: str) -> bool:
 
     return True
 
+# --- History Manager ---
+
+class HistoryManager:
+    def __init__(self, filepath: Path = Path(".jules/history.csv")):
+        self.filepath = filepath
+        self._ensure_file()
+
+    def _ensure_file(self) -> None:
+        if not self.filepath.exists():
+            with open(self.filepath, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["timestamp", "session_id", "persona", "base_branch", "base_pr_number"])
+
+    def get_last_entry(self) -> dict[str, str] | None:
+        entries = []
+        try:
+            with open(self.filepath, newline="") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    entries.append(row)
+        except Exception:
+            return None
+
+        if not entries:
+            return None
+        return entries[-1]
+
+    def append_entry(self, session_id: str, persona: str, base_branch: str, base_pr_number: str = "") -> None:
+        with open(self.filepath, "a", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                datetime.now(timezone.utc).isoformat(),
+                session_id,
+                persona,
+                base_branch,
+                base_pr_number
+            ])
+
+    def commit_history(self) -> None:
+        """Commits and pushes the history file."""
+        try:
+            # Check if there are changes
+            status = subprocess.run(["git", "status", "--porcelain", str(self.filepath)], capture_output=True, text=True)
+            if not status.stdout.strip():
+                return
+
+            # Configure git if needed (CI environment)
+            subprocess.run(["git", "config", "user.name", "Jules Bot"], check=False)
+            subprocess.run(["git", "config", "user.email", "jules-bot@google.com"], check=False)
+
+            subprocess.run(["git", "add", str(self.filepath)], check=True)
+            subprocess.run(["git", "commit", "-m", "chore: update jules session history"], check=True)
+            subprocess.run(["git", "push"], check=True)
+            print("Successfully pushed session history.")
+        except Exception as e:
+            print(f"Failed to push session history: {e}", file=sys.stderr)
+
+
+def get_pr_by_session_id(open_prs: list[dict[str, Any]], session_id: str) -> dict[str, Any] | None:
+    """Find a PR that matches the given session ID."""
+    for pr in open_prs:
+        # Check title or branch for session ID
+        # We can reuse _extract_session_id but need to be careful with branch format
+        head_ref = pr.get("headRefName", "")
+        body = pr.get("body", "") or "" # body might be None
+
+        extracted_id = _extract_session_id(head_ref, body)
+        if extracted_id == session_id:
+            return pr
+
+    return None
+
+def is_pr_green(pr_details: dict[str, Any]) -> bool:
+    """Check if all PR status checks are passing."""
+    status_check_rollup = pr_details.get("statusCheckRollup", [])
+    if not status_check_rollup:
+        # If no checks, we assume it's safe to proceed (or repo doesn't have CI)
+        # But usually we expect checks. Let's assume True if empty,
+        # unless there's a reason to believe checks are required but missing.
+        return True
+
+    for check in status_check_rollup:
+        # Normalized status fields
+        status = check.get("conclusion") or check.get("status") or check.get("state")
+
+        # Consider these statuses as "not finished/passed"
+        # SUCCESS, NEUTRAL, SKIPPED are OK.
+        # FAILURE, TIMED_OUT, CANCELLED, ACTION_REQUIRED are FAIL.
+        # PENDING, IN_PROGRESS, QUEUED are WAIT.
+
+        if status in ["SUCCESS", "success", "NEUTRAL", "neutral", "SKIPPED", "skipped", "COMPLETED", "completed"]:
+            continue
+
+        # If any check is not in the safe list, return False
+        return False
+
+    return True
+
+def run_cycle_step(
+    client: JulesClient,
+    repo_info: dict,
+    cycle_list: list[str],
+    personas: dict[str, Any],
+    open_prs: list[dict[str, Any]],
+    dry_run: bool,
+    base_context: dict
+) -> None:
+    """Run a single step of the cycle scheduler using history CSV for state."""
+    print(f"Running in CYCLE mode with order: {cycle_list}")
+
+    history_mgr = HistoryManager()
+    last_entry = history_mgr.get_last_entry()
+
+    next_pid = cycle_list[0]
+    base_branch = "main"
+    base_pr_number = ""
+
+    if last_entry:
+        last_sid = last_entry["session_id"]
+        last_pid = last_entry["persona"]
+        print(f"Last recorded session: {last_sid} ({last_pid})")
+
+        # Find the PR for this session
+        pr = get_pr_by_session_id(open_prs, last_sid)
+
+        if pr:
+            print(f"Found PR for last session: #{pr['number']} - {pr['title']}")
+
+            # Check if PR is Green
+            try:
+                pr_details = get_pr_details_via_gh(pr["number"])
+                if not is_pr_green(pr_details):
+                    print(f"PR #{pr['number']} is not green (CI pending or failed). Waiting for CI/Autofix.")
+                    return
+            except Exception as e:
+                print(f"Failed to fetch PR details for #{pr['number']}: {e}", file=sys.stderr)
+                return
+
+            base_branch = pr.get("headRefName")
+            base_pr_number = str(pr.get("number"))
+
+            # Determine next persona
+            if last_pid in cycle_list:
+                idx = cycle_list.index(last_pid)
+                next_idx = (idx + 1) % len(cycle_list)
+                next_pid = cycle_list[next_idx]
+            else:
+                # If last persona not in current cycle, start from beginning
+                print(f"Last persona {last_pid} not in cycle list. Restarting cycle.")
+
+            print(f"Next persona: {next_pid}. Chaining from {base_branch}.")
+        else:
+            print(f"PR for session {last_sid} not found in OPEN PRs. Waiting for it to appear or manual intervention.")
+            return
+
+    else:
+        print("No history found. Starting fresh cycle from main.")
+
+    # Execute the next persona
+    if next_pid not in personas:
+        print(f"Error: Persona {next_pid} not found in configuration.", file=sys.stderr)
+        return
+
+    p_data = personas[next_pid]
+    p_file = p_data["path"]
+
+    try:
+        persona_dir = p_file.parent
+        ensure_journals_directory(persona_dir)
+        journal_entries = collect_journals(persona_dir)
+
+        # Load raw again to ensure clean state
+        raw_post = frontmatter.load(p_file)
+
+        context = {
+            **base_context,
+            "journal_entries": journal_entries,
+            "emoji": raw_post.metadata.get("emoji", ""),
+            "id": raw_post.metadata.get("id", ""),
+        }
+
+        parsed = parse_prompt_file(p_file, context)
+        config = parsed["config"]
+        prompt_body = parsed["prompt"]
+
+        if not config.get("enabled", True):
+             print(f"Skipping {next_pid} (disabled).")
+             return
+
+        print(f"Starting session for {next_pid} on branch {base_branch}...")
+
+        session_id = "dry-run-session-id"
+        if not dry_run:
+            result = client.create_session(
+                prompt=prompt_body,
+                owner=repo_info["owner"],
+                repo=repo_info["repo"],
+                branch=base_branch,
+                title=config.get("title", f"Task: {next_pid}"),
+                automation_mode=config.get("automation_mode", "AUTO_CREATE_PR"),
+                require_plan_approval=config.get("require_plan_approval", False),
+            )
+            # result['name'] is like "sessions/uuid"
+            session_id = result.get("name", "").split("/")[-1]
+            print(f"Created session: {session_id}")
+
+            # Update History
+            history_mgr.append_entry(session_id, next_pid, base_branch, base_pr_number)
+            history_mgr.commit_history()
+
+        else:
+            print(f"[Dry Run] Would create session for {next_pid} and update history.")
+
+    except Exception as e:
+        print(f"Error processing prompt {p_file.name}: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+
 
 def run_scheduler(
     command: str, run_all: bool = False, dry_run: bool = False, prompt_id: str | None = None
@@ -227,13 +448,38 @@ def run_scheduler(
     if not prompts_dir.exists():
         sys.exit(1)
 
+    # Load ALL personas first to have a lookup map
+    prompt_files = list(prompts_dir.glob("*/prompt.md"))
+    personas = {}
+    for p_file in prompt_files:
+        try:
+            post = frontmatter.load(p_file)
+            pid = post.metadata.get("id")
+            if pid:
+                personas[pid] = {
+                    "path": p_file,
+                    **post.metadata
+                }
+        except Exception:
+            pass
+
     open_prs = get_open_prs(repo_info["owner"], repo_info["repo"])
     base_context = {**repo_info, "open_prs": open_prs}
-    if open_prs:
-        pass
 
-    prompt_files = list(prompts_dir.glob("*/prompt.md"))
-    registry = load_schedule_registry(registry_path)
+    full_registry = load_schedule_registry(registry_path)
+    schedules = full_registry.get("schedules", {})
+    cycle_list = full_registry.get("cycle", [])
+
+    # Check for Cycle Mode
+    # If a prompt_id is provided, or run_all is set, we bypass cycle mode logic and run specific/all.
+    # Cycle mode runs only on standard 'tick' without overrides, IF cycle list is present.
+    is_cycle_mode = command == "tick" and not run_all and not prompt_id and bool(cycle_list)
+
+    if is_cycle_mode:
+        run_cycle_step(client, repo_info, cycle_list, personas, open_prs, dry_run, base_context)
+        return
+
+    # --- Standard Schedule / Manual Mode ---
 
     for p_file in prompt_files:
         try:
@@ -270,7 +516,7 @@ def run_scheduler(
                     continue
 
             should_run = False
-            schedule_str = registry.get(pid)
+            schedule_str = schedules.get(pid)
 
             if not schedule_str and config.get("schedule"):
                 schedule_str = config.get("schedule")
@@ -295,7 +541,7 @@ def run_scheduler(
                         require_plan_approval=config.get("require_plan_approval", False),
                     )
                 else:
-                    pass
+                    print(f"[Dry Run] Would create session for {pid}")
 
         except Exception as e:
             # Print error to logs so we can debug failed prompts

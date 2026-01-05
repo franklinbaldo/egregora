@@ -11,6 +11,34 @@
 # Note: The scheduler currently runs hourly (minute is always 0 in the GitHub Action trigger).
 # So the first field (minute) must be "0" or "*" to ever match.
 
+# --- Cycle Mode Configuration ---
+# If enabled, Jules will cycle through these personas in order,
+# waiting for the previous one to create a PR before starting the next.
+# This overrides the cron schedules below if the scheduler is run in cycle mode.
+cycle = [
+    "curator",      # 🎭 UX Evaluation
+    "refactor",     # 🔧 Code Improvements
+    "visionary",    # 🔮 Moonshot Strategy
+    "bolt",         # ⚡ Performance Check
+    "sentinel",     # 🛡️ Security Audit
+    "builder",      # 🏗️ Data Architecture
+    "shepherd",     # 🧑‍🌾 Test Coverage
+    "janitor",      # 🧹 Code Hygiene
+    "docs_curator", # 📚 Docs Gardening
+    "artisan",      # 🔨 Code Craftsmanship
+    "palette",      # 🎨 Design System
+    "scribe",       # ✍️ Technical Writing
+    "forge",        # ⚒️ Feature Implementation
+    "sheriff",      # 🤠 Test Stability
+    "streamliner",  # 🌊 Data Processing Optimization
+    "weaver",       # 🕸️ Integration Build
+    "simplifier",   # 📉 Complexity Reduction
+    "organizer",    # 🗂️ Project Organization
+    "taskmaster",   # 📋 Task Identification
+    "essentialist", # 💎 Pragmatism & Cuts
+    "sapper"        # 💣 Exception Structuring
+]
+
 [schedules]
 # --- ⏱️ Every 2 Hours ---
 simplifier   = "0 */2 * * *" # Every 2 hours - 📉 Complexity Reduction
