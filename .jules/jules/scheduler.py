@@ -290,6 +290,62 @@ def get_pr_by_session_id(open_prs: list[dict[str, Any]], session_id: str) -> dic
 
     return None
 
+
+STAGING_BRANCH_NAME = "jules-staging"
+
+
+def prepare_staging_branch(base_branch: str, owner: str, repo: str) -> str:
+    """Reset the staging branch to the current base branch.
+    
+    This prevents exponential branch name growth when chaining Jules sessions.
+    Instead of branching from 'jules/curator-123-bolt-456-pruner-789...',
+    we always branch from 'jules-staging' which gets reset each time.
+    
+    Args:
+        base_branch: The branch to copy from (e.g., 'main' or a PR branch)
+        owner: Repository owner
+        repo: Repository name
+        
+    Returns:
+        The staging branch name to use for the Jules session.
+    """
+    try:
+        # Fetch the latest from origin
+        subprocess.run(["git", "fetch", "origin", base_branch], check=True, capture_output=True)
+        
+        # Get the SHA of the base branch
+        result = subprocess.run(
+            ["git", "rev-parse", f"origin/{base_branch}"],
+            capture_output=True, text=True, check=True
+        )
+        base_sha = result.stdout.strip()
+        print(f"Base branch '{base_branch}' is at SHA: {base_sha[:12]}")
+        
+        # Create or reset the staging branch to that SHA
+        # First, try to delete any existing staging branch
+        subprocess.run(
+            ["git", "push", "origin", "--delete", STAGING_BRANCH_NAME],
+            capture_output=True, check=False  # Ignore if doesn't exist
+        )
+        
+        # Create the staging branch pointing to base_sha and push it
+        subprocess.run(
+            ["git", "push", "origin", f"{base_sha}:refs/heads/{STAGING_BRANCH_NAME}"],
+            check=True, capture_output=True
+        )
+        print(f"Created staging branch '{STAGING_BRANCH_NAME}' from {base_branch}")
+        
+        return STAGING_BRANCH_NAME
+        
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to prepare staging branch: {e}", file=sys.stderr)
+        if e.stderr:
+            print(f"  stderr: {e.stderr}", file=sys.stderr)
+        # Fall back to using the base_branch directly
+        print(f"Falling back to base branch: {base_branch}")
+        return base_branch
+
+
 def is_pr_green(pr_details: dict[str, Any]) -> bool:
     """Check if all PR status checks are passing."""
     status_check_rollup = pr_details.get("statusCheckRollup", [])
@@ -411,11 +467,14 @@ def run_cycle_step(
 
         session_id = "dry-run-session-id"
         if not dry_run:
+            # Prepare staging branch to prevent exponential branch name growth
+            session_branch = prepare_staging_branch(base_branch, repo_info["owner"], repo_info["repo"])
+            
             result = client.create_session(
                 prompt=prompt_body,
                 owner=repo_info["owner"],
                 repo=repo_info["repo"],
-                branch=base_branch,
+                branch=session_branch,
                 title=config.get("title", f"Task: {next_pid}"),
                 automation_mode=config.get("automation_mode", "AUTO_CREATE_PR"),
                 require_plan_approval=config.get("require_plan_approval", False),
