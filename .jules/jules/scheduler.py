@@ -348,6 +348,12 @@ def merge_pr_into_jules(pr_number: int) -> None:
     try:
         print(f"Merging PR #{pr_number} into '{JULES_BRANCH}'...")
         
+        # Ensure PR is ready for review (not a draft)
+        subprocess.run(
+            ["gh", "pr", "ready", str(pr_number)],
+            capture_output=True, text=True, check=False # Ignore errors if already ready
+        )
+
         # Use gh pr merge with squash to keep history clean
         subprocess.run(
             ["gh", "pr", "merge", str(pr_number), "--squash", "--delete-branch"],
@@ -428,10 +434,6 @@ def run_cycle_step(
             # Check if PR is Green
             pr_details = get_pr_details_via_gh(pr_number)
             
-            if pr_details.get("is_draft"):
-                print(f"PR #{pr_number} is still a draft. Waiting for it to be ready.")
-                return
-
             if not is_pr_green(pr_details):
                 print(f"PR #{pr_number} is not green (CI pending or failed). Waiting for CI/Autofix.")
                 return
