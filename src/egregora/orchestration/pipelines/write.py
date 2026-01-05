@@ -58,8 +58,8 @@ from egregora.llm.usage import UsageTracker
 from egregora.orchestration.cache import PipelineCache
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
-from egregora.orchestration.pipelines.modules.media import process_media_for_window
-from egregora.orchestration.pipelines.modules.taxonomy import generate_semantic_taxonomy
+from egregora.ops.media import process_media_for_window
+from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder

@@ -719,7 +719,6 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, Any]:
             window_label=f"{params.window_start:%Y-%m-%d %H:%M} to {params.window_end:%H:%M}",
             adapter_content_summary=params.adapter_content_summary,
             adapter_generation_instructions=params.adapter_generation_instructions,
-            messages=params.messages,  # NEW
         ),
         resources.prompts_dir,
     )
@@ -773,7 +772,6 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, Any]:
             active_authors=writer_context.active_authors,
             adapter_content_summary=params.adapter_content_summary,
             adapter_generation_instructions=params.adapter_generation_instructions,
-            messages=params.messages,  # NEW
         )
     )
 

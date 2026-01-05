@@ -75,14 +75,21 @@ def install_writer_test_model(monkeypatch, captured_windows: list[str] | None = 
 
     original_func = write_posts_with_pydantic_agent
 
-    def _wrapper(*, prompt, config, context, test_model=None):
+    def _wrapper(*, prompt, config, context, test_model=None, max_tokens_override=None, **kwargs):
         if captured_windows is not None:
             captured_windows.append(context.window_label)
 
         # Use our deterministic TestModel
         test_model = WriterTestModel(window_label=context.window_label)
 
-        return original_func(prompt=prompt, config=config, context=context, test_model=test_model)
+        return original_func(
+            prompt=prompt,
+            config=config,
+            context=context,
+            test_model=test_model,
+            max_tokens_override=max_tokens_override,
+            **kwargs,
+        )
 
     if original_func:
         monkeypatch.setattr("egregora.agents.writer.write_posts_with_pydantic_agent", _wrapper)
