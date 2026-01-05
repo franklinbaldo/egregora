@@ -291,24 +291,35 @@ def get_pr_by_session_id(open_prs: list[dict[str, Any]], session_id: str) -> dic
     return None
 
 
-STAGING_BRANCH_NAME = "jules-staging"
+STAGING_BRANCH_PREFIX = "jules-staging"
 
 
-def prepare_staging_branch(base_branch: str, owner: str, repo: str) -> str:
+def prepare_staging_branch(base_branch: str, owner: str, repo: str, base_pr_number: str = "") -> str:
     """Reset the staging branch to the current base branch.
     
     This prevents exponential branch name growth when chaining Jules sessions.
     Instead of branching from 'jules/curator-123-bolt-456-pruner-789...',
-    we always branch from 'jules-staging' which gets reset each time.
+    we always branch from a fixed staging branch which gets reset each time.
+    
+    The staging branch is named with the base PR for easy identification:
+    - 'jules-staging-main' when starting from main
+    - 'jules-staging-pr1234' when chaining from PR #1234
     
     Args:
         base_branch: The branch to copy from (e.g., 'main' or a PR branch)
         owner: Repository owner
         repo: Repository name
+        base_pr_number: The PR number we're branching from (empty if from main)
         
     Returns:
         The staging branch name to use for the Jules session.
     """
+    # Create descriptive staging branch name
+    if base_pr_number:
+        staging_branch = f"{STAGING_BRANCH_PREFIX}-pr{base_pr_number}"
+    else:
+        staging_branch = f"{STAGING_BRANCH_PREFIX}-main"
+    
     try:
         # Fetch the latest from origin
         subprocess.run(["git", "fetch", "origin", base_branch], check=True, capture_output=True)
@@ -322,20 +333,20 @@ def prepare_staging_branch(base_branch: str, owner: str, repo: str) -> str:
         print(f"Base branch '{base_branch}' is at SHA: {base_sha[:12]}")
         
         # Create or reset the staging branch to that SHA
-        # First, try to delete any existing staging branch
+        # First, try to delete any existing staging branch with this name
         subprocess.run(
-            ["git", "push", "origin", "--delete", STAGING_BRANCH_NAME],
+            ["git", "push", "origin", "--delete", staging_branch],
             capture_output=True, check=False  # Ignore if doesn't exist
         )
         
         # Create the staging branch pointing to base_sha and push it
         subprocess.run(
-            ["git", "push", "origin", f"{base_sha}:refs/heads/{STAGING_BRANCH_NAME}"],
+            ["git", "push", "origin", f"{base_sha}:refs/heads/{staging_branch}"],
             check=True, capture_output=True
         )
-        print(f"Created staging branch '{STAGING_BRANCH_NAME}' from {base_branch}")
+        print(f"Created staging branch '{staging_branch}' from {base_branch}")
         
-        return STAGING_BRANCH_NAME
+        return staging_branch
         
     except subprocess.CalledProcessError as e:
         print(f"Failed to prepare staging branch: {e}", file=sys.stderr)
@@ -468,7 +479,7 @@ def run_cycle_step(
         session_id = "dry-run-session-id"
         if not dry_run:
             # Prepare staging branch to prevent exponential branch name growth
-            session_branch = prepare_staging_branch(base_branch, repo_info["owner"], repo_info["repo"])
+            session_branch = prepare_staging_branch(base_branch, repo_info["owner"], repo_info["repo"], base_pr_number)
             
             result = client.create_session(
                 prompt=prompt_body,
