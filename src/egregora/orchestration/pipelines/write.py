@@ -926,6 +926,14 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     # Use the pipeline backend for storage to ensure we share the same connection
     # This prevents "read-only transaction" errors and database invalidation
     storage = DuckDBStorageManager.from_ibis_backend(pipeline_backend)
+
+    # Cache all documents (profiles, posts, etc.) from filesystem to database
+    # This eliminates file I/O bottleneck during pipeline execution
+    scan_and_cache_all_documents(
+        storage,
+        profiles_dir=site_paths.profiles_dir,
+        posts_dir=site_paths.posts_dir,
+    )
     annotations_store = AnnotationStore(storage)
 
     # Initialize TaskStore for async operations
@@ -1161,14 +1169,6 @@ def _prepare_pipeline_data(
         adapter, run_params.input_path, timezone, output_adapter=output_format
     )
     _setup_content_directories(ctx)
-
-    # Cache all documents (profiles, posts, etc.) from filesystem to database
-    # This eliminates file I/O bottleneck during pipeline execution
-    scan_and_cache_all_documents(
-        ctx.state.storage,
-        profiles_dir=ctx.profiles_dir,
-        posts_dir=ctx.posts_dir,
-    )
 
     messages_table = _process_commands_and_avatars(messages_table, ctx, vision_model)
 
