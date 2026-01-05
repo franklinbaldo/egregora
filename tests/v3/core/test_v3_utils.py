@@ -1,8 +1,8 @@
-"""Tests for the V2 slugify utility function."""
+"""Tests for V3 core utility functions."""
 
 import pytest
 
-from egregora.utils.text import InvalidInputError, slugify
+from egregora_v3.core.utils import InvalidInputError, slugify
 
 
 class TestSlugifyBasicBehavior:

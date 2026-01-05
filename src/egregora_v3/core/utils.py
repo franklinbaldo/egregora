@@ -1,8 +1,8 @@
 """V3 utility functions - independent of V2."""
 from pathlib import Path
 
-# Explicitly import from the canonical V2 utility
-from egregora.utils.text import slugify
+# V2 Compatibility Shim: slugify and related exceptions are now defined in this
+# module. The V2 `egregora.utils.text` module re-exports them from here.
 
 
 class V3UtilsError(Exception):
@@ -56,3 +56,47 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
         raise PathTraversalError(msg) from err
 
     return candidate_resolved
+
+
+# --- V2 Compatibility ---
+# The following slugify logic is ported from V2 to consolidate text utilities
+# in the V3 core. V2's text_utils now acts as a compatibility shim.
+
+from unicodedata import normalize
+
+from pymdownx.slugs import slugify as _md_slugify
+from egregora.exceptions import EgregoraError
+
+
+# Slugify-specific exceptions (defined here as they're utils-level)
+class SlugifyError(EgregoraError):
+    """Base exception for slugify-related errors."""
+
+
+class InvalidInputError(SlugifyError):
+    """Raised when the input to a function is invalid."""
+
+
+# Pre-configure a slugify instance for reuse.
+slugify_lower = _md_slugify(case="lower", separator="-")
+slugify_case = _md_slugify(separator="-")
+
+
+def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
+    """Convert text to a safe URL-friendly slug using MkDocs/Python Markdown semantics."""
+    if text is None:
+        raise InvalidInputError("Input text cannot be None")
+
+    # Normalize Unicode to ASCII using NFKD (preserves transliteration).
+    normalized = normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+
+    # Choose the appropriate pre-configured slugifier.
+    slugifier = slugify_lower if lowercase else slugify_case
+    slug = slugifier(normalized, sep="-")
+
+    # Fallback for empty slugs, truncate, and clean up trailing hyphens.
+    slug = slug or "post"
+    if len(slug) > max_len:
+        slug = slug[:max_len].rstrip("-")
+
+    return slug
