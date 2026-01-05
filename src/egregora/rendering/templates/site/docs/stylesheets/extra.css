@@ -1,0 +1,13 @@
+:root {
+  --md-text-font-size: 1.1rem;
+}
+
+.md-main__inner {
+  max-width: 50rem;
+  margin: 0 auto;
+}
+
+.md-typeset {
+    font-size: 1.1rem;
+    line-height: 1.6;
+}
