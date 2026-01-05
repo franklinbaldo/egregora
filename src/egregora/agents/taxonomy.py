@@ -1,4 +1,7 @@
 """Pydantic-AI agent for generating semantic taxonomy from content clusters."""
+# TODO: [Taskmaster] Move function-level imports to the top of the file
+# TODO: [Taskmaster] Add docstrings to Pydantic models
+# TODO: [Taskmaster] Refactor brittle model name prefix stripping
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
