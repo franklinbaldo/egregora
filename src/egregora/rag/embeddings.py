@@ -47,6 +47,7 @@ def _call_with_retries(func: Any) -> Any:
     Raises:
         RateLimitError: If rate limit (429) is exceeded
         EmbeddingAPIError: If API request fails after retries
+
     """
     try:
         return func()
@@ -56,14 +57,13 @@ def _call_with_retries(func: Any) -> Any:
             retry_after = e.response.headers.get("Retry-After")
             retry_seconds = float(retry_after) if retry_after else None
             raise RateLimitError(retry_after=retry_seconds) from e
-        elif e.response.status_code >= HTTP_SERVER_ERROR:
+        if e.response.status_code >= HTTP_SERVER_ERROR:
             logger.warning("Server error %s. Retrying...", e.response.status_code)
             msg = f"API server error (HTTP {e.response.status_code})"
             raise EmbeddingAPIError(msg, status_code=e.response.status_code, original_error=e) from e
-        else:
-            # Don't retry client errors (4xx) except 429
-            msg = f"API client error (HTTP {e.response.status_code})"
-            raise EmbeddingAPIError(msg, status_code=e.response.status_code, original_error=e) from e
+        # Don't retry client errors (4xx) except 429
+        msg = f"API client error (HTTP {e.response.status_code})"
+        raise EmbeddingAPIError(msg, status_code=e.response.status_code, original_error=e) from e
     except httpx.HTTPError as e:
         # Network errors, timeouts, etc.
         msg = f"API request failed: {e!s}"
@@ -75,6 +75,7 @@ def _validate_embedding_response(data: dict[str, Any]) -> dict[str, Any]:
 
     Raises:
         EmbeddingValidationError: If response format is invalid
+
     """
     embedding = data.get("embedding")
     if not embedding:
@@ -88,6 +89,7 @@ def _validate_batch_response(data: dict[str, Any]) -> list[dict[str, Any]]:
 
     Raises:
         EmbeddingValidationError: If response format is invalid
+
     """
     embeddings = data.get("embeddings")
     if not embeddings:
@@ -101,6 +103,7 @@ def _validate_embedding_values(values: Any, text_index: int, text: str) -> None:
 
     Raises:
         EmbeddingValidationError: If embedding values are missing or invalid
+
     """
     if not values:
         msg = f"No embedding returned for text {text_index}: {text[:50]}..."
