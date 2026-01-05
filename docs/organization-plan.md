@@ -25,7 +25,6 @@ The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 struc
 
 ## Completed Improvements
 
-*   **2026-01-05**: Consolidated the `slugify` text utility by moving the canonical implementation to `src/egregora_v3/core/utils.py` and refactoring the v2 version into a backward-compatibility shim. This improves the v3 module's independence and clarifies the codebase's architectural direction.
 *   **2026-01-05**: Removed the orphaned `src/egregora/infra` directory, which was an empty and unused package from a previous refactoring. This removes clutter from the codebase.
 *   **2026-01-05**: Moved `media.py` and `taxonomy.py` from the misplaced `src/egregora/orchestration/pipelines/modules` directory to `src/egregora/ops`. This co-locates domain-specific media and taxonomy logic in a more intuitive and discoverable `ops` module, improving the overall codebase structure.
 *   **2026-01-05**: Centralized the v2 exception hierarchy by creating a single `EgregoraError` base class in `src/egregora/exceptions.py` and refactoring all custom exceptions to inherit from it. This improves maintainability and enables consistent high-level error handling.
