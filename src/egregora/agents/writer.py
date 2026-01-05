@@ -22,6 +22,7 @@ import ibis.common.exceptions
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
 from pydantic_ai import UsageLimits
+from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.messages import (
     ModelRequest,
@@ -75,6 +76,35 @@ logger = logging.getLogger(__name__)
 
 # Template names
 WRITER_TEMPLATE_NAME = "writer.jinja"
+
+GEMINI_MODEL_PRIORITY = [
+    "gemini-3-pro-preview",
+    "gemini-3-flash-preview",
+    "gemini-2.5-flash-lite-preview-09-2025",
+    "gemini-2.5-flash-preview-09-2025",
+    "gemini-2.5-flash-lite",
+    "gemini-pro-latest",
+    "gemini-flash-lite-latest",
+    "gemini-flash-latest",
+    "gemma-3n-e2b-it",
+    "gemma-3n-e4b-it",
+    "gemma-3-27b-it",
+    "gemma-3-12b-it",
+    "gemma-3-4b-it",
+    "gemma-3-1b-it",
+    "gemini-2.5-pro-preview-tts",
+    "gemini-2.5-flash-preview-tts",
+    "gemini-exp-1206",
+    "gemini-2.0-flash-lite-preview",
+    "gemini-2.0-flash-lite-preview-02-05",
+    "gemini-2.0-flash-lite",
+    "gemini-2.0-flash-lite-001",
+    "gemini-2.0-flash-001",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-exp",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+]
 JOURNAL_TEMPLATE_NAME = "journal.md.jinja"
 TEMPLATES_DIR_NAME = "templates"
 
@@ -481,19 +511,67 @@ def _execute_writer_with_error_handling(
         RuntimeError: For other agent failures (wrapped with context)
 
     """
-    try:
-        return write_posts_with_pydantic_agent(
-            prompt=prompt,
-            config=config,
-            context=deps,
-        )
-    except Exception as exc:
-        if isinstance(exc, PromptTooLargeError):
-            raise
+    def _iter_writer_models() -> list[str]:
+        model_name = config.models.writer
+        if model_name.startswith("google-gla:"):
+            return [f"google-gla:{name}" for name in GEMINI_MODEL_PRIORITY]
+        if model_name.startswith("openrouter:"):
+            return [f"openrouter:google/{name}" for name in GEMINI_MODEL_PRIORITY]
+        return [model_name]
 
-        msg = f"Writer agent failed for {deps.window_label}"
-        logger.exception(msg)
-        raise RuntimeError(msg) from exc
+    def _override_text_models(model_name: str) -> EgregoraConfig:
+        return config.model_copy(
+            deep=True,
+            update={
+                "models": config.models.model_copy(
+                    update={
+                        "writer": model_name,
+                        "enricher": model_name,
+                        "enricher_vision": model_name,
+                        "ranking": model_name,
+                        "editor": model_name,
+                        "reader": model_name,
+                    }
+                )
+            },
+        )
+
+    def _should_cycle(exc: Exception) -> bool:
+        if isinstance(exc, UsageLimitExceeded):
+            return True
+        if isinstance(exc, ModelHTTPError):
+            if exc.status_code == 429:
+                return True
+            if exc.status_code in (400, 404):
+                msg = str(exc).lower()
+                if "not found" in msg or "not supported for generatecontent" in msg:
+                    return True
+                if "function calling is not enabled" in msg:
+                    return True
+        return False
+
+    last_exc: Exception | None = None
+    for model_name in _iter_writer_models():
+        try:
+            return write_posts_with_pydantic_agent(
+                prompt=prompt,
+                config=_override_text_models(model_name),
+                context=deps,
+            )
+        except PromptTooLargeError:
+            raise
+        except Exception as exc:
+            last_exc = exc
+            if _should_cycle(exc):
+                logger.warning("Writer model %s failed; cycling to next model.", model_name)
+                continue
+            msg = f"Writer agent failed for {deps.window_label}"
+            logger.exception(msg)
+            raise RuntimeError(msg) from exc
+
+    msg = f"Writer agent failed for {deps.window_label}"
+    logger.exception(msg)
+    raise RuntimeError(msg) from last_exc
 
 
 @dataclass
