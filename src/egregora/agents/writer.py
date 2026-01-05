@@ -86,12 +86,6 @@ GEMINI_MODEL_PRIORITY = [
     "gemini-pro-latest",
     "gemini-flash-lite-latest",
     "gemini-flash-latest",
-    "gemma-3n-e2b-it",
-    "gemma-3n-e4b-it",
-    "gemma-3-27b-it",
-    "gemma-3-12b-it",
-    "gemma-3-4b-it",
-    "gemma-3-1b-it",
     "gemini-2.5-pro-preview-tts",
     "gemini-2.5-flash-preview-tts",
     "gemini-exp-1206",
@@ -104,6 +98,12 @@ GEMINI_MODEL_PRIORITY = [
     "gemini-2.0-flash-exp",
     "gemini-2.5-pro",
     "gemini-2.5-flash",
+    "gemma-3n-e2b-it",
+    "gemma-3n-e4b-it",
+    "gemma-3-27b-it",
+    "gemma-3-12b-it",
+    "gemma-3-4b-it",
+    "gemma-3-1b-it",
 ]
 JOURNAL_TEMPLATE_NAME = "journal.md.jinja"
 TEMPLATES_DIR_NAME = "templates"
