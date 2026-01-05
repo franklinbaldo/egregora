@@ -8,11 +8,11 @@ The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 struc
 
 ## Identified Issues
 
-1.  **Duplicated Chunking Logic**: The `simple_chunk_text` function is implemented in both `src/egregora/rag/ingestion.py` (v2) and `src/egregora_v3/infra/rag.py` (v3). This violates the DRY principle and creates maintenance overhead.
+*No high-priority issues have been identified yet. The next step is to continue discovery.*
 
 ## Prioritized Improvements
 
-1.  **Consolidate Chunking Logic**: **[HIGH PRIORITY]** Refactor the duplicated `simple_chunk_text` function into a single, shared module at `src/egregora/text_processing/chunking.py`. Both the v2 and v3 RAG modules will be updated to use this new centralized function. This will improve maintainability and reduce code duplication.
+*No high-priority improvements have been identified yet. The next step is to continue discovery.*
 
 ## Abandoned Improvements
 
@@ -25,6 +25,7 @@ The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 struc
 
 ## Completed Improvements
 
+*   **2026-01-05**: Removed the orphaned `src/egregora/infra` directory, which was an empty and unused package from a previous refactoring. This removes clutter from the codebase.
 *   **2026-01-05**: Moved `media.py` and `taxonomy.py` from the misplaced `src/egregora/orchestration/pipelines/modules` directory to `src/egregora/ops`. This co-locates domain-specific media and taxonomy logic in a more intuitive and discoverable `ops` module, improving the overall codebase structure.
 *   **2026-01-05**: Centralized the v2 exception hierarchy by creating a single `EgregoraError` base class in `src/egregora/exceptions.py` and refactoring all custom exceptions to inherit from it. This improves maintainability and enables consistent high-level error handling.
 *   **2026-01-04**: Refactored `slugify` from `utils/paths.py` to `utils/text.py`.
