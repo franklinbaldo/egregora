@@ -54,8 +54,8 @@ jobs:
             fi
           fi
 
-          # Using new CLI
-          uv run --with requests --with python-frontmatter --with jinja2 --with typer --with pydantic python -m jules.cli schedule "${args[@]}"
+          # Using new CLI with --no-project for speed
+          uv run --no-project --with requests --with python-frontmatter --with jinja2 --with typer --with pydantic python -m jules.cli schedule "${args[@]}"
 
       - name: Run Jules Feedback Loop
         # Run on schedule or if requested manually (unless prompt_id is specific for something else, but safe to run)
@@ -71,5 +71,5 @@ jobs:
               args+=(--dry-run)
            fi
 
-           # Run the feedback script
-           uv run --with requests --with typer --with pydantic python -m jules.cli feedback loop "${args[@]}"
+           # Run the feedback script with --no-project
+           uv run --no-project --with requests --with typer --with pydantic python -m jules.cli feedback loop "${args[@]}"

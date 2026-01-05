@@ -135,4 +135,4 @@ jobs:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           PYTHONPATH: .jules
         run: |
-          uv run --with requests --with typer --with pydantic python -m jules.cli autofix analyze ${{ steps.pr-info.outputs.pr_number }}
+          uv run --no-project --with requests --with typer --with pydantic python -m jules.cli autofix analyze ${{ steps.pr-info.outputs.pr_number }}

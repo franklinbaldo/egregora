@@ -196,6 +196,7 @@ def run_feedback_loop(dry_run: bool = False, author_filter: str = "app/google-la
                             branch=branch_name,
                             title=f"Fix PR #{pr_num}: {pr_summary['title']}",
                             automation_mode="AUTO_CREATE_PR",
+                            require_plan_approval=False,
                         )
 
                     marker_body = "🤖 Feedback sent to Jules session. \n<!-- # Task: Fix Pull Request -->"
