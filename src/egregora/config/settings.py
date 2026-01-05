@@ -135,15 +135,16 @@ class ModelSettings(BaseModel):
     @classmethod
     def validate_pydantic_model_format(cls, v: str) -> str:
         """Validate Pydantic-AI model name format."""
-        if not v.startswith("google-gla:"):
+        if not v.startswith(("google-gla:", "openrouter:")):
             msg = (
                 f"Invalid Pydantic-AI model format: {v!r}\n"
-                f"Expected format: 'google-gla:<model-name>'\n"
+                f"Expected format: 'google-gla:<model-name>' or 'openrouter:<model-name>'\n"
                 f"Examples:\n"
                 f"  - google-gla:gemini-2.0-flash-exp\n"
                 f"  - google-gla:gemini-flash-latest\n"
                 f"  - google-gla:gemini-2.0-flash-exp\n"
-                f"  - google-gla:gemini-1.5-pro"
+                f"  - google-gla:gemini-1.5-pro\n"
+                f"  - openrouter:openai/gpt-4o"
             )
             raise ValueError(msg)
         return v

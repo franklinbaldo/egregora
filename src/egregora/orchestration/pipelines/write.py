@@ -167,7 +167,8 @@ def _validate_api_key(output_dir: Path) -> None:
         raise SystemExit(1)
 
     if skip_validation:
-        os.environ["GOOGLE_API_KEY"] = api_keys[0]
+        if not os.environ.get("GOOGLE_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
+            os.environ["GOOGLE_API_KEY"] = api_keys[0]
         return
 
     console.print("[cyan]Validating Gemini API key...[/cyan]")
@@ -175,7 +176,8 @@ def _validate_api_key(output_dir: Path) -> None:
     for key in api_keys:
         try:
             validate_gemini_api_key(key)
-            os.environ["GOOGLE_API_KEY"] = key
+            if not os.environ.get("GOOGLE_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
+                os.environ["GOOGLE_API_KEY"] = key
             console.print("[green]✓ API key validated successfully[/green]")
             return
         except ValueError as e:
@@ -712,7 +714,13 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
 
     # Convert table to list
     try:
-        messages_list = conversation.messages_table.execute().to_pylist()
+        executed = conversation.messages_table.execute()
+        if hasattr(executed, "to_pylist"):
+            messages_list = executed.to_pylist()
+        elif hasattr(executed, "to_dict"):
+            messages_list = executed.to_dict(orient="records")
+        else:
+            messages_list = []
     except (AttributeError, TypeError):
         try:
             messages_list = conversation.messages_table.to_pylist()

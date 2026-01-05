@@ -16,7 +16,7 @@ from egregora.agents.formatting import (
     build_conversation_xml,
     load_journal_memory,
 )
-from egregora.agents.types import WriterDeps, WriterResources
+from egregora.agents.types import Message, WriterDeps, WriterResources
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors
 from egregora.orchestration.cache import CacheTier
@@ -110,6 +110,7 @@ class WriterDepsParams:
     window_end: datetime
     resources: WriterResources
     model_name: str
+    messages: list[Message] | None = None
     table: Table | None = None
     config: EgregoraConfig | None = None
     conversation_xml: str = ""
@@ -186,6 +187,7 @@ def prepare_writer_dependencies(params: WriterDepsParams) -> WriterDeps:
         window_end=params.window_end,
         window_label=window_label,
         model_name=params.model_name,
+        messages=params.messages or [],
         table=params.table,
         config=params.config,
         conversation_xml=params.conversation_xml,

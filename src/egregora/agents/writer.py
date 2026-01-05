@@ -22,6 +22,7 @@ import ibis.common.exceptions
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
 from pydantic_ai import UsageLimits
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -323,7 +324,10 @@ def write_posts_with_pydantic_agent(
     logger.info("Running writer via Pydantic-AI backend")
 
     model = create_writer_model(config, context, prompt, test_model)
-    agent = setup_writer_agent(model, prompt, config=config)
+    model_settings: ModelSettings | None = None
+    if config.models.writer.startswith("openrouter:"):
+        model_settings = {"max_tokens": 1024}
+    agent = setup_writer_agent(model, prompt, config=config, model_settings=model_settings)
 
     if context.resources.quota:
         context.resources.quota.reserve(1)
@@ -553,6 +557,7 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str
             window_end=params.window_end,
             resources=resources,
             model_name=params.config.models.writer,
+            messages=params.messages,
             table=params.table,
             config=params.config,
             conversation_xml=writer_context.conversation_xml,

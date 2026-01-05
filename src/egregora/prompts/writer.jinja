@@ -120,6 +120,8 @@ Use write_post tool 0-N times based on what's worth communicating:
 - 0 times if it's noise/trivial chat
 - 1 time if there's a single coherent thought thread
 - Multiple times if you're genuinely thinking about distinct, substantial topics
+**Important:** When you decide to publish a post, you MUST call `write_post_tool` with the metadata and content.
+Do not output the post content directly in your response.
 
 For each post:
 - **title**: Engaging, conversational, makes the reader curious
@@ -173,6 +175,7 @@ After writing posts, update profiles for authors who made substantial contributi
 1. Use read_profile(author_uuid) to check current profile
 2. Consider their contributions in this period
 3. Use write_profile(author_uuid, content) to update
+**Important:** If you update a profile, use `write_profile_tool` and do not output the profile content directly.
 
 Profile format (markdown):
 - Writing style and communication patterns
