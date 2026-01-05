@@ -290,71 +290,77 @@ def get_pr_by_session_id(open_prs: list[dict[str, Any]], session_id: str) -> dic
 
     return None
 
+JULES_BRANCH = "jules"
 
-STAGING_BRANCH_PREFIX = "jules-staging"
 
-
-def prepare_staging_branch(base_branch: str, owner: str, repo: str, base_pr_number: str = "") -> str:
-    """Reset the staging branch to the current base branch.
+def ensure_jules_branch_exists() -> bool:
+    """Ensure the 'jules' branch exists, creating it from main if needed.
     
-    This prevents exponential branch name growth when chaining Jules sessions.
-    Instead of branching from 'jules/curator-123-bolt-456-pruner-789...',
-    we always branch from a fixed staging branch which gets reset each time.
-    
-    The staging branch is named with the base PR for easy identification:
-    - 'jules-staging-main' when starting from main
-    - 'jules-staging-pr1234' when chaining from PR #1234
-    
-    Args:
-        base_branch: The branch to copy from (e.g., 'main' or a PR branch)
-        owner: Repository owner
-        repo: Repository name
-        base_pr_number: The PR number we're branching from (empty if from main)
-        
     Returns:
-        The staging branch name to use for the Jules session.
+        True if branch exists or was created successfully.
     """
-    # Create descriptive staging branch name
-    if base_pr_number:
-        staging_branch = f"{STAGING_BRANCH_PREFIX}-pr{base_pr_number}"
-    else:
-        staging_branch = f"{STAGING_BRANCH_PREFIX}-main"
-    
     try:
-        # Fetch the latest from origin
-        subprocess.run(["git", "fetch", "origin", base_branch], check=True, capture_output=True)
+        # Fetch latest
+        subprocess.run(["git", "fetch", "origin"], check=True, capture_output=True)
         
-        # Get the SHA of the base branch
+        # Check if jules branch exists on remote
         result = subprocess.run(
-            ["git", "rev-parse", f"origin/{base_branch}"],
+            ["git", "ls-remote", "--heads", "origin", JULES_BRANCH],
             capture_output=True, text=True, check=True
         )
-        base_sha = result.stdout.strip()
-        print(f"Base branch '{base_branch}' is at SHA: {base_sha[:12]}")
         
-        # Create or reset the staging branch to that SHA
-        # First, try to delete any existing staging branch with this name
-        subprocess.run(
-            ["git", "push", "origin", "--delete", staging_branch],
-            capture_output=True, check=False  # Ignore if doesn't exist
+        if result.stdout.strip():
+            print(f"Branch '{JULES_BRANCH}' exists on remote.")
+            return True
+        
+        # Jules branch doesn't exist - create it from main
+        print(f"Branch '{JULES_BRANCH}' doesn't exist. Creating from main...")
+        
+        # Get main SHA
+        result = subprocess.run(
+            ["git", "rev-parse", "origin/main"],
+            capture_output=True, text=True, check=True
         )
+        main_sha = result.stdout.strip()
         
-        # Create the staging branch pointing to base_sha and push it
+        # Create jules branch pointing to main
         subprocess.run(
-            ["git", "push", "origin", f"{base_sha}:refs/heads/{staging_branch}"],
+            ["git", "push", "origin", f"{main_sha}:refs/heads/{JULES_BRANCH}"],
             check=True, capture_output=True
         )
-        print(f"Created staging branch '{staging_branch}' from {base_branch}")
-        
-        return staging_branch
+        print(f"Created '{JULES_BRANCH}' branch from main at {main_sha[:12]}")
+        return True
         
     except subprocess.CalledProcessError as e:
-        print(f"Failed to prepare staging branch: {e}", file=sys.stderr)
+        print(f"Failed to ensure jules branch exists: {e}", file=sys.stderr)
+        return False
+
+
+def merge_pr_into_jules(pr_number: int) -> bool:
+    """Merge a PR into the jules branch using gh CLI.
+    
+    Args:
+        pr_number: The PR number to merge.
+        
+    Returns:
+        True if merge was successful.
+    """
+    try:
+        print(f"Merging PR #{pr_number} into '{JULES_BRANCH}'...")
+        
+        # Use gh pr merge with squash to keep history clean
+        result = subprocess.run(
+            ["gh", "pr", "merge", str(pr_number), "--squash", "--delete-branch"],
+            capture_output=True, text=True, check=True
+        )
+        print(f"Successfully merged PR #{pr_number} into '{JULES_BRANCH}'")
+        return True
+        
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to merge PR #{pr_number}: {e}", file=sys.stderr)
         if e.stderr:
             print(f"  stderr: {e.stderr}", file=sys.stderr)
-        # Fall back to using the base_branch directly
-        print(f"Falling back to base branch: {base_branch}")
-        return base_branch
+        return False
 
 
 def is_pr_green(pr_details: dict[str, Any]) -> bool:
@@ -392,15 +398,25 @@ def run_cycle_step(
     dry_run: bool,
     base_context: dict
 ) -> None:
-    """Run a single step of the cycle scheduler using history CSV for state."""
+    """Run a single step of the cycle scheduler.
+    
+    This uses a persistent 'jules' branch that accumulates all work:
+    1. Ensure 'jules' branch exists (create from main if not)
+    2. If there's a pending PR from the last session, check if it's green
+    3. If green, merge it into 'jules' branch
+    4. Start the next session from 'jules' branch
+    """
     print(f"Running in CYCLE mode with order: {cycle_list}")
+
+    # Ensure jules branch exists
+    if not ensure_jules_branch_exists():
+        print("Failed to ensure jules branch exists. Aborting.")
+        return
 
     history_mgr = HistoryManager()
     last_entry = history_mgr.get_last_entry()
 
     next_pid = cycle_list[0]
-    base_branch = "main"
-    base_pr_number = ""
 
     if last_entry:
         last_sid = last_entry["session_id"]
@@ -411,20 +427,27 @@ def run_cycle_step(
         pr = get_pr_by_session_id(open_prs, last_sid)
 
         if pr:
-            print(f"Found PR for last session: #{pr['number']} - {pr['title']}")
+            pr_number = pr["number"]
+            print(f"Found PR for last session: #{pr_number} - {pr['title']}")
 
             # Check if PR is Green
             try:
-                pr_details = get_pr_details_via_gh(pr["number"])
+                pr_details = get_pr_details_via_gh(pr_number)
                 if not is_pr_green(pr_details):
-                    print(f"PR #{pr['number']} is not green (CI pending or failed). Waiting for CI/Autofix.")
+                    print(f"PR #{pr_number} is not green (CI pending or failed). Waiting for CI/Autofix.")
                     return
             except Exception as e:
-                print(f"Failed to fetch PR details for #{pr['number']}: {e}", file=sys.stderr)
+                print(f"Failed to fetch PR details for #{pr_number}: {e}", file=sys.stderr)
                 return
 
-            base_branch = pr.get("headRefName")
-            base_pr_number = str(pr.get("number"))
+            # PR is green! Merge it into jules branch
+            print(f"PR #{pr_number} is green! Merging into '{JULES_BRANCH}'...")
+            if not dry_run:
+                if not merge_pr_into_jules(pr_number):
+                    print(f"Failed to merge PR #{pr_number}. Aborting.")
+                    return
+            else:
+                print(f"[Dry Run] Would merge PR #{pr_number} into '{JULES_BRANCH}'")
 
             # Determine next persona
             if last_pid in cycle_list:
@@ -435,13 +458,13 @@ def run_cycle_step(
                 # If last persona not in current cycle, start from beginning
                 print(f"Last persona {last_pid} not in cycle list. Restarting cycle.")
 
-            print(f"Next persona: {next_pid}. Chaining from {base_branch}.")
+            print(f"Next persona: {next_pid}. Starting from '{JULES_BRANCH}'.")
         else:
             print(f"PR for session {last_sid} not found in OPEN PRs. Waiting for it to appear or manual intervention.")
             return
 
     else:
-        print("No history found. Starting fresh cycle from main.")
+        print(f"No history found. Starting fresh cycle from '{JULES_BRANCH}'.")
 
     # Execute the next persona
     if next_pid not in personas:
@@ -474,18 +497,15 @@ def run_cycle_step(
              print(f"Skipping {next_pid} (disabled).")
              return
 
-        print(f"Starting session for {next_pid} on branch {base_branch}...")
+        print(f"Starting session for {next_pid} on branch '{JULES_BRANCH}'...")
 
         session_id = "dry-run-session-id"
         if not dry_run:
-            # Prepare staging branch to prevent exponential branch name growth
-            session_branch = prepare_staging_branch(base_branch, repo_info["owner"], repo_info["repo"], base_pr_number)
-            
             result = client.create_session(
                 prompt=prompt_body,
                 owner=repo_info["owner"],
                 repo=repo_info["repo"],
-                branch=session_branch,
+                branch=JULES_BRANCH,
                 title=config.get("title", f"Task: {next_pid}"),
                 automation_mode=config.get("automation_mode", "AUTO_CREATE_PR"),
                 require_plan_approval=config.get("require_plan_approval", False),
@@ -497,7 +517,7 @@ def run_cycle_step(
             print(f"🔗 Jules Session URL: {session_url}")
 
             # Update History
-            history_mgr.append_entry(session_id, next_pid, base_branch, base_pr_number)
+            history_mgr.append_entry(session_id, next_pid, JULES_BRANCH, "")
             history_mgr.commit_history()
 
         else:
