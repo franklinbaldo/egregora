@@ -75,8 +75,8 @@ class JulesClient:
         if title:
             data["title"] = title
 
-        if require_plan_approval:
-            data["requirePlanApproval"] = require_plan_approval
+        # Always send requirePlanApproval explicitly (even when false)
+        data["requirePlanApproval"] = require_plan_approval
 
         response = requests.post(url, headers=self._get_headers(), json=data)
         response.raise_for_status()
