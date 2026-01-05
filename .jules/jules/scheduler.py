@@ -294,8 +294,67 @@ def get_pr_by_session_id(open_prs: list[dict[str, Any]], session_id: str) -> dic
 JULES_BRANCH = "jules"
 
 
+def is_jules_drifted() -> bool:
+    """Check if the 'jules' branch is drifted (unmergeable) with 'main'."""
+    try:
+        # Check if jules is unmergeable with main
+        # git merge-tree --write-tree HEAD1 HEAD2 checks mergeability without checkout
+        result = subprocess.run(
+            ["git", "merge-tree", "--write-tree", "origin/" + JULES_BRANCH, "origin/main"],
+            capture_output=True, text=True
+        )
+        return result.returncode != 0
+    except Exception:
+        # If git merge-tree fails (e.g. old git), assume drift to be safe if we suspect it
+        return False
+
+
+def rotate_drifted_jules_branch() -> None:
+    """Rename drifted jules branch and create a PR to main."""
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M")
+    drift_branch = f"{JULES_BRANCH}-drift-{timestamp}"
+    
+    print(f"Drift detected in '{JULES_BRANCH}'. Rotating to '{drift_branch}'...")
+    
+    try:
+        # 1. Create the drift branch from current remote jules
+        subprocess.run(
+            ["git", "push", "origin", f"origin/{JULES_BRANCH}:refs/heads/{drift_branch}"],
+            check=True, capture_output=True
+        )
+        
+        # 2. Create a PR from drift branch to main
+        pr_title = f"Drifted work from {JULES_BRANCH} ({timestamp})"
+        pr_body = (
+            f"This PR was automatically created because the `{JULES_BRANCH}` branch "
+            "became unmergeable with `main`. \n\n"
+            "Please resolve the conflicts and merge this work manually if needed. "
+            "A fresh `jules` branch will be started from `main` once this is deleted."
+        )
+        subprocess.run(
+            ["gh", "pr", "create", "--head", drift_branch, "--base", "main", 
+             "--title", pr_title, "--body", pr_body],
+            check=True, capture_output=True
+        )
+        print(f"Created PR for drifted branch: {drift_branch}")
+
+        # 3. Delete the old jules branch on remote
+        subprocess.run(
+            ["git", "push", "origin", f":refs/heads/{JULES_BRANCH}"],
+            check=True, capture_output=True
+        )
+        print(f"Deleted outdated '{JULES_BRANCH}' branch.")
+        
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
+        print(f"Warning: Failed to rotate jules branch fully: {stderr}", file=sys.stderr)
+
+
 def ensure_jules_branch_exists() -> None:
-    """Ensure the 'jules' branch exists, creating it from main if needed.
+    """Ensure the 'jules' branch exists and is not drifted.
+    
+    If it doesn't exist, create from main.
+    If it exists but is unmergeable with main, rotate it and start fresh.
     
     Raises:
         BranchError: If any branch operation fails.
@@ -311,11 +370,17 @@ def ensure_jules_branch_exists() -> None:
         )
         
         if result.stdout.strip():
-            print(f"Branch '{JULES_BRANCH}' exists on remote.")
-            return
+            # Branch exists - check for drift
+            if is_jules_drifted():
+                rotate_drifted_jules_branch()
+                # If rotation worked, jules is gone, so we proceed to create it fresh.
+                # If rotation failed partially, we'll try to recreate it anyway.
+            else:
+                print(f"Branch '{JULES_BRANCH}' exists and is healthy.")
+                return
         
-        # Jules branch doesn't exist - create it from main
-        print(f"Branch '{JULES_BRANCH}' doesn't exist. Creating from main...")
+        # Jules branch doesn't exist (or was just rotated) - create it from main
+        print(f"Branch '{JULES_BRANCH}' needs recreation. Creating from main...")
         
         # Get main SHA
         result = subprocess.run(
@@ -329,7 +394,7 @@ def ensure_jules_branch_exists() -> None:
             ["git", "push", "origin", f"{main_sha}:refs/heads/{JULES_BRANCH}"],
             check=True, capture_output=True
         )
-        print(f"Created '{JULES_BRANCH}' branch from main at {main_sha[:12]}")
+        print(f"Created fresh '{JULES_BRANCH}' branch from main at {main_sha[:12]}")
         
     except subprocess.CalledProcessError as e:
         stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")

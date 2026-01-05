@@ -146,71 +146,63 @@ def _parse_message_date(token: str) -> date:
     raise DateParsingError(msg)
 
 
+def _is_standard_hh_mm(token: str) -> bool:
+    """Check if token matches HH:MM exactly."""
+    return (
+        len(token) == TIME_STR_LEN
+        and token[2] == ":"
+        and token[0:2].isdigit()
+        and token[3:5].isdigit()
+    )
+
+
+def _parse_ampm_time(token: str, upper_token: str) -> time | None:
+    """Parse AM/PM time formats."""
+    is_pm = upper_token.endswith("PM")
+    is_am = upper_token.endswith("AM")
+
+    if not (is_pm or is_am):
+        return None
+
+    try:
+        # Slice off "AM" or "PM" and strip remaining whitespace
+        main_part = token[:-2].strip()
+        if ":" in main_part:
+            h_str, m_str = main_part.split(":")
+            h, m = int(h_str), int(m_str)
+
+            if is_pm and h != HOURS_IN_HALF_DAY:
+                h += HOURS_IN_HALF_DAY
+            elif is_am and h == HOURS_IN_HALF_DAY:
+                h = 0
+            return time(h, m)
+    except ValueError:
+        pass
+    return None
+
+
 @lru_cache(maxsize=4096)
 def _parse_message_time(time_token: str) -> time:
-    """Parse time token into a time object (naive, for later localization).
-
-    Performance:
-    - Optimized string parsing replaces slower datetime.strptime (~8x speedup)
-    - Uses lru_cache(4096) to cover full 24h cycle (1440 mins) + variations,
-      ensuring we parse each unique time string only once per execution.
-    """
+    """Parse time token into a time object (naive, for later localization)."""
     token = time_token.strip()
     if not token:
         raise TimeParsingError("Time string is empty.")
 
-    # Fast path for standard HH:MM (e.g., "12:30", "09:15")
-    # Checks length and digit presence to avoid splitting/parsing invalid strings
-    if (
-        len(token) == TIME_STR_LEN
-        and token[2] == ":"
-        and token[0].isdigit()
-        and token[1].isdigit()
-        and token[3].isdigit()
-        and token[4].isdigit()
-    ):
+    # 1. Fast path for standard HH:MM
+    if _is_standard_hh_mm(token):
         try:
-            # Direct slicing is faster than splitting
             return time(int(token[:2]), int(token[3:]))
         except ValueError:
-            # Falls through to full parsing if hours/minutes are out of range
             pass
 
-    # Handle AM/PM and other formats
-    is_ampm = False
-    is_pm = False
-    ampm_offset = 0
+    # 2. Handle AM/PM formats
+    ampm_time = _parse_ampm_time(token, token.upper())
+    if ampm_time:
+        return ampm_time
 
-    upper = token.upper()
-
-    # Check for AM/PM suffix (case-insensitive)
-    if upper.endswith("M"):
-        if upper.endswith("AM"):
-            is_ampm = True
-            is_pm = False
-            ampm_offset = 2
-        elif upper.endswith("PM"):
-            is_ampm = True
-            is_pm = True
-            ampm_offset = 2
-
-    # Parse logic
+    # 3. Fallback for H:MM or HH:MM that failed fast path
     try:
-        if is_ampm:
-            # Slice off "AM" or "PM" and strip remaining whitespace
-            main_part = token[:-ampm_offset].strip()
-            if ":" in main_part:
-                h_str, m_str = main_part.split(":")
-                h = int(h_str)
-                m = int(m_str)
-
-                if is_pm and h != HOURS_IN_HALF_DAY:
-                    h += HOURS_IN_HALF_DAY
-                elif not is_pm and h == HOURS_IN_HALF_DAY:
-                    h = 0
-                return time(h, m)
-        elif ":" in token:
-            # Standard "H:MM" or fallback for "HH:MM" that failed fast path
+        if ":" in token:
             parts = token.split(":")
             if len(parts) == PARTS_IN_TIME_STR:
                 return time(int(parts[0]), int(parts[1]))

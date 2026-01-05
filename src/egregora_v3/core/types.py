@@ -169,46 +169,44 @@ class Document(Entry):
         """Get the semantic slug for this document."""
         return self.internal_metadata.get("slug")
 
-    @model_validator(mode="before")
     @classmethod
-    def _set_identity_and_timestamps(cls, data: Any) -> Any:
-        """Set identity (id, slug) and timestamps before validation.
-
-        This allows for declarative instantiation of Document and its subclasses
-        without needing a factory method.
-        """
-        if not isinstance(data, dict):
-            return data  # Not a dict, let Pydantic handle it
-
-        # If 'id' is already set, respect it.
+    def _ensure_slug(cls, data: dict[str, Any]) -> None:
+        """Ensure the document has a slug and ID."""
         if "id" in data and data["id"]:
-            return data
+            return
 
         internal_metadata = data.get("internal_metadata", {})
         slug = internal_metadata.get("slug")
 
         # If still no slug, generate from title if it exists
         title = data.get("title")
-        if not slug:
+        if not slug and title and isinstance(title, str) and title.strip():
             try:
-                if not title or not title.strip():
-                    raise InvalidInputError("Title is empty or whitespace")
                 slug = slugify(title)
-            except (InvalidInputError, AttributeError):
-                # Ignore if title is None, empty, or not a string
+            except InvalidInputError:
                 pass
 
         if slug:
-            # Set the derived values
             data["id"] = slug
             if "internal_metadata" not in data:
                 data["internal_metadata"] = {}
-            data["internal_metadata"]["slug"] = slug
+            data.get("internal_metadata", {})["slug"] = slug
 
-        # Set timestamp if not present
+    @classmethod
+    def _ensure_updated_timestamp(cls, data: dict[str, Any]) -> None:
+        """Ensure the document has an updated timestamp."""
         if "updated" not in data:
             data["updated"] = datetime.now(UTC)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _set_identity_and_timestamps(cls, data: Any) -> Any:
+        """Set identity (id, slug) and timestamps before validation."""
+        if not isinstance(data, dict):
+            return data
+
+        cls._ensure_slug(data)
+        cls._ensure_updated_timestamp(data)
         return data
 
 
