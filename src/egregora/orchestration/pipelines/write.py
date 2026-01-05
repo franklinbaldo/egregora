@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
+import duckdb
 import ibis
 import ibis.common.exceptions
 from google import genai
@@ -691,7 +692,7 @@ def get_pending_conversations(dataset: PreparedPipelineData) -> Iterator[Convers
         try:
             enriched_count = enriched_table.count().execute()
             logger.info("      [dim]Window %d: %d messages after enrichment[/]", window.window_index, enriched_count)
-        except Exception as e:
+        except ibis.common.exceptions.IbisError as e:
             logger.debug("Failed to count enriched table: %s", e)
 
         # Prepare metadata
@@ -724,7 +725,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         try:
             tbl_count = conversation.messages_table.count().execute()
             logger.info("      [dim]Executing writer for window with %d messages[/]", tbl_count)
-        except Exception as e:
+        except ibis.common.exceptions.IbisError as e:
             logger.warning("      [dim]Failed to count messages_table: %s[/]", e)
 
         # Execute the Ibis table to get a pandas DataFrame
@@ -732,13 +733,13 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         # Convert DataFrame to list of records
         messages_list = df.to_dict(orient="records")
         logger.info("[dim]process_item: messages_list size from execute().to_dict(): %d[/]", len(messages_list))
-    except Exception as e:
+    except ibis.common.exceptions.IbisError as e:
         logger.warning("      [dim]execute().to_dict() failed (%s), falling back to to_pyarrow().to_pylist()[/]", e)
         try:
             # Fallback to PyArrow path
             messages_list = conversation.messages_table.to_pyarrow().to_pylist()
             logger.info("[dim]process_item: messages_list size from to_pyarrow().to_pylist(): %d[/]", len(messages_list))
-        except Exception as e2:
+        except (ibis.common.exceptions.IbisError, duckdb.Error) as e2:
             logger.warning("      [dim]to_pyarrow().to_pylist() also failed (%s), falling back to list check[/]", e2)
             messages_list = (
                 conversation.messages_table if isinstance(conversation.messages_table, list) else []
@@ -1068,7 +1069,7 @@ def _parse_and_validate_source(
         con.insert("messages", messages_table)
         # Return the persistent table instead of the ephemeral memtable
         messages_table = con.table("messages")
-    except Exception as e:
+    except (ibis.common.exceptions.IbisError, duckdb.Error) as e:
         logger.warning("Failed to materialize messages to DuckDB (falling back to in-memory): %s", e)
 
     metadata = adapter.get_metadata(input_path)
