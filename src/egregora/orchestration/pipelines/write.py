@@ -687,6 +687,13 @@ def get_pending_conversations(dataset: PreparedPipelineData) -> Iterator[Convers
         else:
             enriched_table = window_table_processed
 
+        # DEBUG: Verify enriched table has data
+        try:
+            enriched_count = enriched_table.count().execute()
+            logger.info("      [dim]Window %d: %d messages after enrichment[/]", window.window_index, enriched_count)
+        except Exception as e:
+            logger.debug("Failed to count enriched table: %s", e)
+
         # Prepare metadata
         adapter_info = _extract_adapter_info(ctx)
 
@@ -713,14 +720,31 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
 
     # Convert table to list
     try:
-        messages_list = conversation.messages_table.execute().to_pylist()
-    except (AttributeError, TypeError):
+        # DEBUG: Log table state before execution
         try:
-            messages_list = conversation.messages_table.to_pylist()
-        except (AttributeError, TypeError):
+            tbl_count = conversation.messages_table.count().execute()
+            logger.info("      [dim]Executing writer for window with %d messages[/]", tbl_count)
+        except Exception as e:
+            logger.warning("      [dim]Failed to count messages_table: %s[/]", e)
+
+        # Execute the Ibis table to get a pandas DataFrame
+        df = conversation.messages_table.execute()
+        # Convert DataFrame to list of records
+        messages_list = df.to_dict(orient="records")
+        logger.info("[dim]process_item: messages_list size from execute().to_dict(): %d[/]", len(messages_list))
+    except Exception as e:
+        logger.warning("      [dim]execute().to_dict() failed (%s), falling back to to_pyarrow().to_pylist()[/]", e)
+        try:
+            # Fallback to PyArrow path
+            messages_list = conversation.messages_table.to_pyarrow().to_pylist()
+            logger.info("[dim]process_item: messages_list size from to_pyarrow().to_pylist(): %d[/]", len(messages_list))
+        except Exception as e2:
+            logger.warning("      [dim]to_pyarrow().to_pylist() also failed (%s), falling back to list check[/]", e2)
             messages_list = (
                 conversation.messages_table if isinstance(conversation.messages_table, list) else []
             )
+
+    logger.info("[dim]process_item: messages_list size: %d[/]", len(messages_list))
 
     # Handle commands (Announcements)
     command_messages = extract_commands_list(messages_list)
@@ -735,6 +759,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
                 logger.exception("Failed to generate announcement: %s", exc)
 
     clean_messages_list = filter_commands(messages_list)
+    logger.info("[dim]process_item: clean_messages_list size: %d[/]", len(clean_messages_list))
 
     # Prepare Resources
     resources = PipelineFactory.create_writer_resources(ctx)
@@ -1012,6 +1037,7 @@ def _parse_and_validate_source(
     adapter: Any,
     input_path: Path,
     timezone: str,
+    ctx: PipelineContext,
     *,
     output_adapter: OutputSink | None = None,
 ) -> ir.Table:
@@ -1031,6 +1057,19 @@ def _parse_and_validate_source(
     messages_table = adapter.parse(input_path, timezone=timezone, output_adapter=output_adapter)
     total_messages = messages_table.count().execute()
     logger.info("[green]✅ Parsed[/] %s messages", total_messages)
+
+    # NEW: Materialize messages into DuckDB ingestion table
+    # This ensures that original messages are persisted and can be joined with enrichments later.
+    try:
+        con = ctx.storage.ibis_conn
+        logger.info("[bold cyan]💾 Materializing messages to DuckDB...[/]")
+        # We use insert() which is generally safe due to idx_messages_pk UNIQUE constraint on event_id.
+        # This handles append-only ingestion.
+        con.insert("messages", messages_table)
+        # Return the persistent table instead of the ephemeral memtable
+        messages_table = con.table("messages")
+    except Exception as e:
+        logger.warning("Failed to materialize messages to DuckDB (falling back to in-memory): %s", e)
 
     metadata = adapter.get_metadata(input_path)
     logger.info("[yellow]👥 Group:[/] %s", metadata.get("group_name", "Unknown"))
@@ -1166,7 +1205,7 @@ def _prepare_pipeline_data(
     ctx = ctx.with_output_format(output_format)
 
     messages_table = _parse_and_validate_source(
-        adapter, run_params.input_path, timezone, output_adapter=output_format
+        adapter, run_params.input_path, timezone, ctx, output_adapter=output_format
     )
     _setup_content_directories(ctx)
 

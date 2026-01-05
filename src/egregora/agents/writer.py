@@ -532,7 +532,11 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, Any]:
 
     # We check if messages list is empty
     if not params.messages:
+        logger.warning("write_posts_for_window called with 0 messages for window %s", params.window_label)
         return {RESULT_KEY_POSTS: [], RESULT_KEY_PROFILES: []}
+
+    # NEW: Trace message count
+    logger.info("Writer agent received %d messages for processing", len(params.messages))
 
     # 1. Prepare dependencies (partial, will update with context later)
     resources = params.resources
@@ -551,6 +555,7 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, Any]:
             window_label=f"{params.window_start:%Y-%m-%d %H:%M} to {params.window_end:%H:%M}",
             adapter_content_summary=params.adapter_content_summary,
             adapter_generation_instructions=params.adapter_generation_instructions,
+            messages=params.messages,  # NEW
         ),
         resources.prompts_dir,
     )
@@ -603,8 +608,12 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, Any]:
             active_authors=writer_context.active_authors,
             adapter_content_summary=params.adapter_content_summary,
             adapter_generation_instructions=params.adapter_generation_instructions,
+            messages=params.messages,  # NEW
         )
     )
+
+    # Trace final deps message count
+    logger.info("WriterDeps initialized with %d messages", len(deps.messages))
 
     # 5. Render prompt and execute agent
     # NOTE: _render_writer_prompt uses writer_context, which we stripped RAG/Profiles from.
@@ -683,7 +692,6 @@ def _execute_economic_writer(
     # BUT the user asked for "content generation instead of streaming" and "avoid tool usage".
 
     # Simple approach: Use genai.Client directly if available in deps, or creating one.
-    # deps.resources.client should be a genai.Client
     client = deps.resources.client
     if not client:
         # Fallback creation if not in deps

@@ -8,7 +8,7 @@ from agent execution.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -16,7 +16,7 @@ from egregora.agents.formatting import (
     build_conversation_xml,
     load_journal_memory,
 )
-from egregora.agents.types import WriterDeps, WriterResources
+from egregora.agents.types import Message, WriterDeps, WriterResources
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors
 from egregora.orchestration.cache import CacheTier
@@ -100,6 +100,7 @@ class WriterContextParams:
     window_label: str
     adapter_content_summary: str
     adapter_generation_instructions: str
+    messages: list[Message]  # NEW
 
 
 @dataclass
@@ -116,6 +117,7 @@ class WriterDepsParams:
     active_authors: list[str] | None = None
     adapter_content_summary: str = ""
     adapter_generation_instructions: str = ""
+    messages: list[Message] = field(default_factory=list)  # NEW
 
 
 # ============================================================================
@@ -125,8 +127,18 @@ class WriterDepsParams:
 
 def build_writer_context(params: WriterContextParams) -> WriterContext:
     """Collect contextual inputs used when rendering the writer prompt."""
-    messages_table = params.table.to_pyarrow()
-    conversation_xml = build_conversation_xml(messages_table, params.resources.annotations_store)
+    if params.messages:
+        # Handle both Message DTOs (have model_dump) and plain dicts
+        if params.messages and hasattr(params.messages[0], "model_dump"):
+            messages_records = [m.model_dump() for m in params.messages]
+        else:
+            # Already dicts from df.to_dict(orient='records')
+            messages_records = params.messages
+    else:
+        messages_table = params.table.to_pyarrow()
+        messages_records = messages_table.to_pylist()
+
+    conversation_xml = build_conversation_xml(messages_records, params.resources.annotations_store)
 
     # CACHE INVALIDATION STRATEGY:
     # RAG and Profiles context building moved to dynamic system prompts for lazy evaluation.
@@ -186,6 +198,7 @@ def prepare_writer_dependencies(params: WriterDepsParams) -> WriterDeps:
         window_end=params.window_end,
         window_label=window_label,
         model_name=params.model_name,
+        messages=params.messages,  # NEW
         table=params.table,
         config=params.config,
         conversation_xml=params.conversation_xml,
