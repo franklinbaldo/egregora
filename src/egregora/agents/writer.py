@@ -500,6 +500,10 @@ def _execute_writer_with_error_handling(
                     return True
                 if "function calling is not enabled" in msg:
                     return True
+        if isinstance(exc, RuntimeError):
+            msg = str(exc).lower()
+            if "event loop is closed" in msg:
+                return True
         return False
 
     last_exc: Exception | None = None
