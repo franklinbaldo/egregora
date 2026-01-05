@@ -8,20 +8,15 @@ The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 struc
 
 ## Identified Issues
 
-*No high-priority issues have been identified yet. The next step is to continue discovery.*
+*   **Cross-Version Dependency**: The V3 RAG implementation (`src/egregora_v3/infra/rag.py`) directly imports and uses the `simple_chunk_text` function from the V2 module (`src/egregora/text_processing/chunking.py`). This creates an unhealthy coupling between V2 and V3, making the codebase harder to understand and maintain.
 
 ## Prioritized Improvements
 
-*No high-priority improvements have been identified yet. The next step is to continue discovery.*
+*   **Move Text Chunking Logic to a Shared Module**: Relocate the `simple_chunk_text` function to a new, version-agnostic module at `src/egregora/text/chunking.py`. This will break the V2/V3 siloing and create a more unified codebase. Update all consumers to import from the new location.
 
 ## Abandoned Improvements
 
 *   **Refactor `src/egregora/knowledge/profiles.py`**: **[ATTEMPTED - FAILED]** An attempt was made to refactor the `profiles.py` module by moving the author-syncing logic to a dedicated module in the `mkdocs` adapter. The refactoring failed due to a complex circular dependency that could not be easily resolved. All changes were reverted. This refactoring should be re-evaluated in the future with a more comprehensive understanding of the codebase's dependency graph.
-*No high-priority issues have been identified yet. The next step is to continue discovery.*
-
-## Prioritized Improvements
-
-*No high-priority improvements have been identified yet. The next step is to continue discovery.*
 
 ## Completed Improvements
 
