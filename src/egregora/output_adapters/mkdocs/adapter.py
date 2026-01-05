@@ -670,7 +670,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 # Early return - database path complete
                 return
 
-            except Exception as e:
+            except (OSError, KeyError, AttributeError) as e:
                 logger.warning("Failed to read documents from database, falling back to filesystem: %s", e)
                 # Fall through to filesystem fallback
 

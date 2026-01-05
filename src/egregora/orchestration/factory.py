@@ -19,7 +19,6 @@ from egregora.agents.types import WriterResources
 from egregora.data_primitives.document import UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.database.profile_cache import scan_and_cache_all_documents
 from egregora.database.repository import ContentRepository
 from egregora.llm.usage import UsageTracker
 from egregora.orchestration.cache import PipelineCache
