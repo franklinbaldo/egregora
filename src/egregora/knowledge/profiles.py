@@ -185,8 +185,9 @@ def _get_uuid_from_profile(profile_path: Path) -> str:
     try:
         content = profile_path.read_text(encoding="utf-8")
         metadata = _parse_frontmatter(content)
-        if "uuid" in metadata:
-            return str(metadata["uuid"])
+        for key in ("uuid", "subject", "author_uuid"):
+            if key in metadata:
+                return str(metadata[key])
 
         # Fallback for legacy files where filename IS the uuid
         stem = profile_path.stem
@@ -765,6 +766,8 @@ def get_opted_out_authors(
         return set()
     opted_out = set()
     for profile_path in profiles_dir.rglob("*.md"):
+        if profile_path.name == "index.md" and profile_path.parent == profiles_dir:
+            continue
         try:
             author_uuid = _get_uuid_from_profile(profile_path)
             if author_uuid and is_opted_out(author_uuid, profiles_dir):

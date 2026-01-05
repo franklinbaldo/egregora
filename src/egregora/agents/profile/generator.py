@@ -314,12 +314,15 @@ async def _call_llm_decision(prompt: str, ctx: Any) -> ProfileUpdateDecision:
     model_name = ctx.config.models.writer
 
     # Create pydantic-ai agent with structured output
-    agent = Agent(model_name, output_type=ProfileUpdateDecision)
+    model_settings = None
+    if model_name.startswith("openrouter:"):
+        model_settings = {"max_tokens": 512}
+    agent = Agent(model_name, output_type=ProfileUpdateDecision, model_settings=model_settings)
 
     # Run agent
     result = await agent.run(prompt)
 
-    return result.data
+    return result.output
 
 
 async def _resolve_awaitable(result: Any) -> Any:
@@ -396,6 +399,7 @@ async def _generate_profile_posts_async(
                     "slug": slug,
                     "authors": [{"uuid": EGREGORA_UUID, "name": EGREGORA_NAME}],
                     "subject": author_uuid,
+                    "author_uuid": author_uuid,
                     "date": window_date,
                 },
             )

@@ -47,7 +47,6 @@ from egregora.constants import WindowUnit
 from egregora.data_primitives.document import OutputSink, UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.database.profile_cache import scan_and_cache_all_documents
 from egregora.database.task_store import TaskStore
 from egregora.database.utils import resolve_db_uri
 from egregora.input_adapters import ADAPTER_REGISTRY
@@ -168,7 +167,8 @@ def _validate_api_key(output_dir: Path) -> None:
         raise SystemExit(1)
 
     if skip_validation:
-        os.environ["GOOGLE_API_KEY"] = api_keys[0]
+        if not os.environ.get("GOOGLE_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
+            os.environ["GOOGLE_API_KEY"] = api_keys[0]
         return
 
     console.print("[cyan]Validating Gemini API key...[/cyan]")
@@ -176,7 +176,8 @@ def _validate_api_key(output_dir: Path) -> None:
     for key in api_keys:
         try:
             validate_gemini_api_key(key)
-            os.environ["GOOGLE_API_KEY"] = key
+            if not os.environ.get("GOOGLE_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
+                os.environ["GOOGLE_API_KEY"] = key
             console.print("[green]✓ API key validated successfully[/green]")
             return
         except ValueError as e:
@@ -687,13 +688,6 @@ def get_pending_conversations(dataset: PreparedPipelineData) -> Iterator[Convers
         else:
             enriched_table = window_table_processed
 
-        # DEBUG: Verify enriched table has data
-        try:
-            enriched_count = enriched_table.count().execute()
-            logger.info("      [dim]Window %d: %d messages after enrichment[/]", window.window_index, enriched_count)
-        except Exception as e:
-            logger.debug("Failed to count enriched table: %s", e)
-
         # Prepare metadata
         adapter_info = _extract_adapter_info(ctx)
 
@@ -720,31 +714,20 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
 
     # Convert table to list
     try:
-        # DEBUG: Log table state before execution
+        executed = conversation.messages_table.execute()
+        if hasattr(executed, "to_pylist"):
+            messages_list = executed.to_pylist()
+        elif hasattr(executed, "to_dict"):
+            messages_list = executed.to_dict(orient="records")
+        else:
+            messages_list = []
+    except (AttributeError, TypeError):
         try:
-            tbl_count = conversation.messages_table.count().execute()
-            logger.info("      [dim]Executing writer for window with %d messages[/]", tbl_count)
-        except Exception as e:
-            logger.warning("      [dim]Failed to count messages_table: %s[/]", e)
-
-        # Execute the Ibis table to get a pandas DataFrame
-        df = conversation.messages_table.execute()
-        # Convert DataFrame to list of records
-        messages_list = df.to_dict(orient="records")
-        logger.info("[dim]process_item: messages_list size from execute().to_dict(): %d[/]", len(messages_list))
-    except Exception as e:
-        logger.warning("      [dim]execute().to_dict() failed (%s), falling back to to_pyarrow().to_pylist()[/]", e)
-        try:
-            # Fallback to PyArrow path
-            messages_list = conversation.messages_table.to_pyarrow().to_pylist()
-            logger.info("[dim]process_item: messages_list size from to_pyarrow().to_pylist(): %d[/]", len(messages_list))
-        except Exception as e2:
-            logger.warning("      [dim]to_pyarrow().to_pylist() also failed (%s), falling back to list check[/]", e2)
+            messages_list = conversation.messages_table.to_pylist()
+        except (AttributeError, TypeError):
             messages_list = (
                 conversation.messages_table if isinstance(conversation.messages_table, list) else []
             )
-
-    logger.info("[dim]process_item: messages_list size: %d[/]", len(messages_list))
 
     # Handle commands (Announcements)
     command_messages = extract_commands_list(messages_list)
@@ -759,7 +742,6 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
                 logger.exception("Failed to generate announcement: %s", exc)
 
     clean_messages_list = filter_commands(messages_list)
-    logger.info("[dim]process_item: clean_messages_list size: %d[/]", len(clean_messages_list))
 
     # Prepare Resources
     resources = PipelineFactory.create_writer_resources(ctx)
@@ -951,14 +933,6 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     # Use the pipeline backend for storage to ensure we share the same connection
     # This prevents "read-only transaction" errors and database invalidation
     storage = DuckDBStorageManager.from_ibis_backend(pipeline_backend)
-
-    # Cache all documents (profiles, posts, etc.) from filesystem to database
-    # This eliminates file I/O bottleneck during pipeline execution
-    scan_and_cache_all_documents(
-        storage,
-        profiles_dir=site_paths.profiles_dir,
-        posts_dir=site_paths.posts_dir,
-    )
     annotations_store = AnnotationStore(storage)
 
     # Initialize TaskStore for async operations
@@ -1037,7 +1011,6 @@ def _parse_and_validate_source(
     adapter: Any,
     input_path: Path,
     timezone: str,
-    ctx: PipelineContext,
     *,
     output_adapter: OutputSink | None = None,
 ) -> ir.Table:
@@ -1057,19 +1030,6 @@ def _parse_and_validate_source(
     messages_table = adapter.parse(input_path, timezone=timezone, output_adapter=output_adapter)
     total_messages = messages_table.count().execute()
     logger.info("[green]✅ Parsed[/] %s messages", total_messages)
-
-    # NEW: Materialize messages into DuckDB ingestion table
-    # This ensures that original messages are persisted and can be joined with enrichments later.
-    try:
-        con = ctx.storage.ibis_conn
-        logger.info("[bold cyan]💾 Materializing messages to DuckDB...[/]")
-        # We use insert() which is generally safe due to idx_messages_pk UNIQUE constraint on event_id.
-        # This handles append-only ingestion.
-        con.insert("messages", messages_table)
-        # Return the persistent table instead of the ephemeral memtable
-        messages_table = con.table("messages")
-    except Exception as e:
-        logger.warning("Failed to materialize messages to DuckDB (falling back to in-memory): %s", e)
 
     metadata = adapter.get_metadata(input_path)
     logger.info("[yellow]👥 Group:[/] %s", metadata.get("group_name", "Unknown"))
@@ -1200,15 +1160,13 @@ def _prepare_pipeline_data(
         site_root=ctx.site_root,
         registry=ctx.output_registry,
         url_context=ctx.url_context,
-        storage=ctx.state.storage,
     )
     ctx = ctx.with_output_format(output_format)
 
     messages_table = _parse_and_validate_source(
-        adapter, run_params.input_path, timezone, ctx, output_adapter=output_format
+        adapter, run_params.input_path, timezone, output_adapter=output_format
     )
     _setup_content_directories(ctx)
-
     messages_table = _process_commands_and_avatars(messages_table, ctx, vision_model)
 
     checkpoint_path = ctx.site_root / ".egregora" / "checkpoint.json"
@@ -1416,9 +1374,7 @@ def _apply_filters(
         logger.info("[yellow]🧹 Removed[/] %s /egregora messages", egregora_removed)
 
     # Filter opted-out authors
-    messages_table, removed_count = filter_opted_out_authors(
-        messages_table, ctx.profiles_dir, storage=ctx.state.storage
-    )
+    messages_table, removed_count = filter_opted_out_authors(messages_table, ctx.profiles_dir)
     if removed_count > 0:
         logger.warning("⚠️  %s messages removed from opted-out users", removed_count)
 

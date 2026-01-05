@@ -11,6 +11,7 @@ import asyncio
 import dataclasses
 import json
 import logging
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -22,6 +23,7 @@ import ibis.common.exceptions
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
 from pydantic_ai import UsageLimits
+from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -30,6 +32,7 @@ from pydantic_ai.messages import (
     ToolCallPart,
     ToolReturnPart,
 )
+from pydantic_ai.settings import ModelSettings
 from ratelimit import limits, sleep_and_retry
 from tenacity import Retrying
 
@@ -56,6 +59,8 @@ from egregora.agents.writer_setup import (
     create_writer_model,
     setup_writer_agent,
 )
+from egregora.config.exceptions import ApiKeyNotFoundError
+from egregora.config.settings import get_openrouter_api_key
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.llm.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.orchestration.cache import PipelineCache
@@ -72,8 +77,44 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# HTTP Status Codes
+HTTP_STATUS_TOO_MANY_REQUESTS = 429
+HTTP_STATUS_PAYMENT_REQUIRED = 402
+HTTP_STATUS_BAD_REQUEST = 400
+HTTP_STATUS_NOT_FOUND = 404
+
+
 # Template names
 WRITER_TEMPLATE_NAME = "writer.jinja"
+
+GEMINI_MODEL_PRIORITY = [
+    "gemini-3-pro-preview",
+    "gemini-3-flash-preview",
+    "gemini-2.5-flash-lite-preview-09-2025",
+    "gemini-2.5-flash-preview-09-2025",
+    "gemini-2.5-flash-lite",
+    "gemini-pro-latest",
+    "gemini-flash-lite-latest",
+    "gemini-flash-latest",
+    "gemini-2.5-pro-preview-tts",
+    "gemini-2.5-flash-preview-tts",
+    "gemini-exp-1206",
+    "gemini-2.0-flash-lite-preview",
+    "gemini-2.0-flash-lite-preview-02-05",
+    "gemini-2.0-flash-lite",
+    "gemini-2.0-flash-lite-001",
+    "gemini-2.0-flash-001",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-exp",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "gemma-3n-e2b-it",
+    "gemma-3n-e4b-it",
+    "gemma-3-27b-it",
+    "gemma-3-12b-it",
+    "gemma-3-4b-it",
+    "gemma-3-1b-it",
+]
 JOURNAL_TEMPLATE_NAME = "journal.md.jinja"
 TEMPLATES_DIR_NAME = "templates"
 
@@ -94,6 +135,8 @@ RESULT_KEY_PROFILES = "profiles"
 MessageHistory = Sequence[ModelRequest | ModelResponse]
 LLMClient = Any
 AgentModel = Any
+
+_WRITER_LOOP: asyncio.AbstractEventLoop | None = None
 
 
 # ============================================================================
@@ -191,6 +234,13 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
             )
 
     return entries
+
+
+def _get_writer_loop() -> asyncio.AbstractEventLoop:
+    global _WRITER_LOOP
+    if _WRITER_LOOP is None or _WRITER_LOOP.is_closed():
+        _WRITER_LOOP = asyncio.new_event_loop()
+    return _WRITER_LOOP
 
 
 @dataclass
@@ -341,12 +391,16 @@ def write_posts_with_pydantic_agent(
     config: EgregoraConfig,
     context: WriterDeps,
     test_model: AgentModel | None = None,
+    max_tokens_override: int | None = None,
 ) -> tuple[list[str], list[str]]:
     """Execute the writer flow using Pydantic-AI agent tooling."""
     logger.info("Running writer via Pydantic-AI backend")
 
     model = create_writer_model(config, context, prompt, test_model)
-    agent = setup_writer_agent(model, prompt, config=config)
+    model_settings: ModelSettings | None = None
+    if config.models.writer.startswith("openrouter:"):
+        model_settings = {"max_tokens": max_tokens_override or 1024}
+    agent = setup_writer_agent(model, prompt, config=config, model_settings=model_settings)
 
     if context.resources.quota:
         context.resources.quota.reserve(1)
@@ -371,17 +425,31 @@ def write_posts_with_pydantic_agent(
     )
 
     result = None
+
     # Use tenacity for retries
+    def _run_agent_sync() -> Any:
+        async def _run_async() -> Any:
+            return await agent.run(
+                "Analyze the conversation context provided and write posts/profiles as needed.",
+                deps=context,
+                usage_limits=usage_limits,
+            )
+
+        loop = _get_writer_loop()
+        if loop.is_running():
+            msg = "Writer loop already running; cannot run synchronously."
+            raise RuntimeError(msg)
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(_run_async())
+        finally:
+            asyncio.set_event_loop(None)
+
     try:
         for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
             with attempt:
-                result = asyncio.run(
-                    agent.run(
-                        "Analyze the conversation context provided and write posts/profiles as needed.",
-                        deps=context,
-                        usage_limits=usage_limits,
-                    )
-                )
+                # Execute model directly without tools
+                result = _run_agent_sync()
     except Exception as e:
         logger.exception("Error during agent run: %s", e)
         raise
@@ -401,11 +469,16 @@ def write_posts_with_pydantic_agent(
     usage = result.usage()
     if context.resources.usage:
         context.resources.usage.record(usage)
-
-    saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
-    intercalated_log = _extract_intercalated_log(result.all_messages())
-
-    # ... (rest of the journal logic remains the same)
+    messages = result.all_messages()
+    saved_posts, saved_profiles = _extract_tool_results(messages)
+    if not saved_posts and not saved_profiles:
+        has_tool_calls = any(
+            isinstance(part, ToolCallPart) for message in messages for part in getattr(message, "parts", [])
+        )
+        if not has_tool_calls:
+            raise AgentError("Writer response did not include any tool calls.")
+    intercalated_log = _extract_intercalated_log(messages)
+    # TODO: [Taskmaster] Refactor complex journal fallback logic
     if not intercalated_log:
         fallback_content = _extract_journal_content(result.all_messages())
         if fallback_content:
@@ -477,19 +550,121 @@ def _execute_writer_with_error_handling(
         RuntimeError: For other agent failures (wrapped with context)
 
     """
-    try:
-        return write_posts_with_pydantic_agent(
-            prompt=prompt,
-            config=config,
-            context=deps,
-        )
-    except Exception as exc:
-        if isinstance(exc, PromptTooLargeError):
-            raise
 
-        msg = f"Writer agent failed for {deps.window_label}"
-        logger.exception(msg)
-        raise RuntimeError(msg) from exc
+    def _iter_writer_models() -> list[str]:
+        model_name = config.models.writer
+        if model_name.startswith("google-gla:"):
+            google_models = [f"google-gla:{name}" for name in GEMINI_MODEL_PRIORITY]
+            try:
+                get_openrouter_api_key()
+            except ApiKeyNotFoundError:
+                return google_models
+            openrouter_models = [f"openrouter:google/{name}" for name in GEMINI_MODEL_PRIORITY]
+            return google_models + openrouter_models
+        if model_name.startswith("openrouter:"):
+            return [f"openrouter:google/{name}" for name in GEMINI_MODEL_PRIORITY]
+        return [model_name]
+
+    def _override_text_models(model_name: str) -> EgregoraConfig:
+        return config.model_copy(
+            deep=True,
+            update={
+                "models": config.models.model_copy(
+                    update={
+                        "writer": model_name,
+                        "enricher": model_name,
+                        "enricher_vision": model_name,
+                        "ranking": model_name,
+                        "editor": model_name,
+                        "reader": model_name,
+                    }
+                )
+            },
+        )
+
+    def _should_cycle(exc: Exception) -> bool:
+        if isinstance(exc, AgentError):
+            if "tool calls" in str(exc).lower():
+                return True
+        if isinstance(exc, UsageLimitExceeded):
+            return True
+        if isinstance(exc, ModelHTTPError):
+            if exc.status_code == HTTP_STATUS_TOO_MANY_REQUESTS:
+                return True
+            if exc.status_code == HTTP_STATUS_PAYMENT_REQUIRED:
+                return True
+            if exc.status_code in (HTTP_STATUS_BAD_REQUEST, HTTP_STATUS_NOT_FOUND):
+                msg = str(exc).lower()
+                if "not found" in msg or "not supported for generatecontent" in msg:
+                    return True
+                if "not a valid model id" in msg:
+                    return True
+                if (
+                    "response modalities" in msg
+                    or "accepts the following combination of response modalities" in msg
+                ):
+                    return True
+                if "function calling is not enabled" in msg:
+                    return True
+        if isinstance(exc, RuntimeError):
+            msg = str(exc).lower()
+            if "event loop is closed" in msg:
+                return True
+        return False
+
+    def _get_openrouter_affordable_tokens(exc: ModelHTTPError) -> int | None:
+        if exc.status_code != HTTP_STATUS_PAYMENT_REQUIRED:
+            return None
+        message = ""
+        body = getattr(exc, "body", None)
+        if isinstance(body, dict):
+            message = str(body.get("message", ""))
+        if not message:
+            message = str(exc)
+        match = re.search(r"can only afford (\d+)", message)
+        if match:
+            return int(match.group(1))
+        return None
+
+    last_exc: Exception | None = None
+    openrouter_max_tokens: int | None = None
+    model_names = _iter_writer_models()
+    idx = 0
+    while idx < len(model_names):
+        model_name = model_names[idx]
+        max_tokens_override = openrouter_max_tokens if model_name.startswith("openrouter:") else None
+        try:
+            return write_posts_with_pydantic_agent(
+                prompt=prompt,
+                config=_override_text_models(model_name),
+                context=deps,
+                max_tokens_override=max_tokens_override,
+            )
+        except PromptTooLargeError:
+            raise
+        except Exception as exc:
+            last_exc = exc
+            if isinstance(exc, ModelHTTPError) and model_name.startswith("openrouter:"):
+                affordable = _get_openrouter_affordable_tokens(exc)
+                if affordable and (openrouter_max_tokens is None or affordable < openrouter_max_tokens):
+                    openrouter_max_tokens = affordable
+                    logger.warning(
+                        "OpenRouter credits allow up to %s response tokens; retrying %s.",
+                        affordable,
+                        model_name,
+                    )
+                    continue
+            if _should_cycle(exc):
+                logger.warning("Writer model %s failed; cycling to next model.", model_name)
+                idx += 1
+                continue
+            msg = f"Writer agent failed for {deps.window_label}"
+            logger.exception(msg)
+            raise RuntimeError(msg) from exc
+
+    msg = f"Writer agent failed for {deps.window_label}"
+    logger.exception(msg)
+    raise RuntimeError(msg) from last_exc
 
 
 @dataclass
@@ -555,7 +730,6 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, Any]:
             window_label=f"{params.window_start:%Y-%m-%d %H:%M} to {params.window_end:%H:%M}",
             adapter_content_summary=params.adapter_content_summary,
             adapter_generation_instructions=params.adapter_generation_instructions,
-            messages=params.messages,  # NEW
         ),
         resources.prompts_dir,
     )
@@ -602,13 +776,13 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, Any]:
             window_end=params.window_end,
             resources=resources,
             model_name=params.config.models.writer,
+            messages=params.messages,
             table=params.table,
             config=params.config,
             conversation_xml=writer_context.conversation_xml,
             active_authors=writer_context.active_authors,
             adapter_content_summary=params.adapter_content_summary,
             adapter_generation_instructions=params.adapter_generation_instructions,
-            messages=params.messages,  # NEW
         )
     )
 

@@ -10,6 +10,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.models import infer_model
+from pydantic_ai.settings import ModelSettings
 
 from egregora.agents.types import WriterAgentReturn, WriterDeps
 from egregora.agents.writer_helpers import (
@@ -19,7 +21,7 @@ from egregora.agents.writer_helpers import (
     validate_prompt_fits,
 )
 from egregora.config.exceptions import ApiKeyNotFoundError
-from egregora.config.settings import get_google_api_key
+from egregora.config.settings import get_google_api_key, get_openrouter_api_key
 
 if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig
@@ -46,18 +48,21 @@ def create_writer_model(
                 "You can get a free key from Google AI Studio: https://aistudio.google.com/app/apikey"
             )
             raise ValueError(msg) from e
+    elif model_name.startswith("openrouter:"):
+        try:
+            get_openrouter_api_key()  # Fail fast if key is missing
+        except ApiKeyNotFoundError as e:
+            msg = (
+                "An OpenRouter model is configured, but no API key was found.\n"
+                "Please set the OPENROUTER_API_KEY environment variable.\n"
+                "You can get a key from OpenRouter: https://openrouter.ai/keys"
+            )
+            raise ValueError(msg) from e
 
-    # Directly instantiate the GoogleModel from pydantic-ai
-    # This replaces the need for the `create_fallback_model` utility.
-    if model_name.startswith("google-gla:"):
-        model_name = model_name.replace("google-gla:", "")
-
-    from pydantic_ai.models.google import GoogleModel
-
-    model = GoogleModel(model_name=model_name)
+    model = infer_model(model_name)
 
     # Validate prompt fits (only check for real models)
-    validate_prompt_fits(prompt, config.models.writer, config, context.window_label)
+    validate_prompt_fits(prompt, config.models.writer, config, context.window_label, model_instance=model)
     return model
 
 
@@ -65,6 +70,7 @@ def setup_writer_agent(
     model: Any,
     prompt: str,
     config: EgregoraConfig | None = None,
+    model_settings: ModelSettings | None = None,
 ) -> Agent[WriterDeps, WriterAgentReturn]:
     """Initialize and configure the writer agent."""
     agent = Agent[WriterDeps, WriterAgentReturn](
@@ -72,6 +78,8 @@ def setup_writer_agent(
         deps_type=WriterDeps,
         retries=3,
         system_prompt=prompt,
+        model_settings=model_settings,
+        output_type=WriterAgentReturn,
     )
     register_writer_tools(agent, config=config)
 

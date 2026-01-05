@@ -8,7 +8,7 @@ from agent execution.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -20,7 +20,7 @@ from egregora.agents.types import Message, WriterDeps, WriterResources
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors
 from egregora.orchestration.cache import CacheTier
-from egregora.rag import get_backend, index_documents, reset_backend
+from egregora.rag import index_documents, reset_backend
 from egregora.resources.prompts import PromptManager
 from egregora.transformations.windowing import generate_window_signature
 
@@ -100,7 +100,6 @@ class WriterContextParams:
     window_label: str
     adapter_content_summary: str
     adapter_generation_instructions: str
-    messages: list[Message]  # NEW
 
 
 @dataclass
@@ -111,13 +110,13 @@ class WriterDepsParams:
     window_end: datetime
     resources: WriterResources
     model_name: str
+    messages: list[Message] | None = None
     table: Table | None = None
     config: EgregoraConfig | None = None
     conversation_xml: str = ""
     active_authors: list[str] | None = None
     adapter_content_summary: str = ""
     adapter_generation_instructions: str = ""
-    messages: list[Message] = field(default_factory=list)  # NEW
 
 
 # ============================================================================
@@ -127,18 +126,8 @@ class WriterDepsParams:
 
 def build_writer_context(params: WriterContextParams) -> WriterContext:
     """Collect contextual inputs used when rendering the writer prompt."""
-    if params.messages:
-        # Handle both Message DTOs (have model_dump) and plain dicts
-        if params.messages and hasattr(params.messages[0], "model_dump"):
-            messages_records = [m.model_dump() for m in params.messages]
-        else:
-            # Already dicts from df.to_dict(orient='records')
-            messages_records = params.messages
-    else:
-        messages_table = params.table.to_pyarrow()
-        messages_records = messages_table.to_pylist()
-
-    conversation_xml = build_conversation_xml(messages_records, params.resources.annotations_store)
+    messages_table = params.table.to_pyarrow()
+    conversation_xml = build_conversation_xml(messages_table, params.resources.annotations_store)
 
     # CACHE INVALIDATION STRATEGY:
     # RAG and Profiles context building moved to dynamic system prompts for lazy evaluation.
@@ -198,7 +187,7 @@ def prepare_writer_dependencies(params: WriterDepsParams) -> WriterDeps:
         window_end=params.window_end,
         window_label=window_label,
         model_name=params.model_name,
-        messages=params.messages,  # NEW
+        messages=params.messages or [],
         table=params.table,
         config=params.config,
         conversation_xml=params.conversation_xml,
@@ -300,9 +289,6 @@ def index_new_content_in_rag(
         return
 
     try:
-        # Use the specific RAG directory for this run
-        lancedb_dir = resources.storage.config.paths.lancedb_dir if resources.storage else None
-        get_backend(db_dir=lancedb_dir)
         # Read the newly saved post documents
         docs: list[Document] = []
         for post_id in saved_posts:

@@ -6,38 +6,17 @@
     <id>http://example.org/feed</id>
     <title>Test Feed</title>
     <updated>2024-01-01T12:00:00Z</updated>
-
-
     <author>
       <name>Alice</name>
-
     </author>
-
-
-
-
-
     <entry>
       <id>test-post-123</id>
       <title>Test Post</title>
       <updated>2024-01-01T12:00:00Z</updated>
-
-
-
-
-
-
-
-
-      <content type="text/plain">Test content</content>
-
-
-
+      <content type="html">Test content</content>
       <category scheme="https://egregora.app/schema#doc_type" term="post" />
       <category scheme="https://egregora.app/schema#status" term="draft" />
-
     </entry>
-
   </feed>
   '''
 # ---
