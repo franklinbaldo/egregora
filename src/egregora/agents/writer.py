@@ -11,6 +11,7 @@ import asyncio
 import dataclasses
 import json
 import logging
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -58,6 +59,8 @@ from egregora.agents.writer_setup import (
     create_writer_model,
     setup_writer_agent,
 )
+from egregora.config.exceptions import ApiKeyNotFoundError
+from egregora.config.settings import get_openrouter_api_key
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.llm.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.orchestration.cache import PipelineCache
@@ -125,6 +128,8 @@ RESULT_KEY_PROFILES = "profiles"
 MessageHistory = Sequence[ModelRequest | ModelResponse]
 LLMClient = Any
 AgentModel = Any
+
+_WRITER_LOOP: asyncio.AbstractEventLoop | None = None
 
 
 # ============================================================================
@@ -222,6 +227,13 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
             )
 
     return entries
+
+
+def _get_writer_loop() -> asyncio.AbstractEventLoop:
+    global _WRITER_LOOP
+    if _WRITER_LOOP is None or _WRITER_LOOP.is_closed():
+        _WRITER_LOOP = asyncio.new_event_loop()
+    return _WRITER_LOOP
 
 
 @dataclass
@@ -372,6 +384,7 @@ def write_posts_with_pydantic_agent(
     config: EgregoraConfig,
     context: WriterDeps,
     test_model: AgentModel | None = None,
+    max_tokens_override: int | None = None,
 ) -> tuple[list[str], list[str]]:
     """Execute the writer flow using Pydantic-AI agent tooling."""
     logger.info("Running writer via Pydantic-AI backend")
@@ -379,7 +392,7 @@ def write_posts_with_pydantic_agent(
     model = create_writer_model(config, context, prompt, test_model)
     model_settings: ModelSettings | None = None
     if config.models.writer.startswith("openrouter:"):
-        model_settings = {"max_tokens": 1024}
+        model_settings = {"max_tokens": max_tokens_override or 1024}
     agent = setup_writer_agent(model, prompt, config=config, model_settings=model_settings)
 
     if context.resources.quota:
@@ -406,16 +419,29 @@ def write_posts_with_pydantic_agent(
 
     result = None
     # Use tenacity for retries
+    def _run_agent_sync() -> Any:
+        async def _run_async() -> Any:
+            return await agent.run(
+                "Analyze the conversation context provided and write posts/profiles as needed.",
+                deps=context,
+                usage_limits=usage_limits,
+            )
+
+        loop = _get_writer_loop()
+        if loop.is_running():
+            msg = "Writer loop already running; cannot run synchronously."
+            raise RuntimeError(msg)
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(_run_async())
+        finally:
+            asyncio.set_event_loop(None)
+
     try:
         for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
             with attempt:
-                result = asyncio.run(
-                    agent.run(
-                        "Analyze the conversation context provided and write posts/profiles as needed.",
-                        deps=context,
-                        usage_limits=usage_limits,
-                    )
-                )
+                # Execute model directly without tools
+                result = _run_agent_sync()
     except Exception as e:
         logger.exception("Error during agent run: %s", e)
         raise
@@ -435,11 +461,16 @@ def write_posts_with_pydantic_agent(
     usage = result.usage()
     if context.resources.usage:
         context.resources.usage.record(usage)
-
-    saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
-    intercalated_log = _extract_intercalated_log(result.all_messages())
-
-    # ... (rest of the journal logic remains the same)
+    messages = result.all_messages()
+    saved_posts, saved_profiles = _extract_tool_results(messages)
+    if not saved_posts and not saved_profiles:
+        has_tool_calls = any(
+            isinstance(part, ToolCallPart) for message in messages for part in getattr(message, "parts", [])
+        )
+        if not has_tool_calls:
+            raise AgentError("Writer response did not include any tool calls.")
+    intercalated_log = _extract_intercalated_log(messages)
+    # TODO: [Taskmaster] Refactor complex journal fallback logic
     if not intercalated_log:
         fallback_content = _extract_journal_content(result.all_messages())
         if fallback_content:
@@ -514,7 +545,13 @@ def _execute_writer_with_error_handling(
     def _iter_writer_models() -> list[str]:
         model_name = config.models.writer
         if model_name.startswith("google-gla:"):
-            return [f"google-gla:{name}" for name in GEMINI_MODEL_PRIORITY]
+            google_models = [f"google-gla:{name}" for name in GEMINI_MODEL_PRIORITY]
+            try:
+                get_openrouter_api_key()
+            except ApiKeyNotFoundError:
+                return google_models
+            openrouter_models = [f"openrouter:google/{name}" for name in GEMINI_MODEL_PRIORITY]
+            return google_models + openrouter_models
         if model_name.startswith("openrouter:"):
             return [f"openrouter:google/{name}" for name in GEMINI_MODEL_PRIORITY]
         return [model_name]
@@ -537,14 +574,23 @@ def _execute_writer_with_error_handling(
         )
 
     def _should_cycle(exc: Exception) -> bool:
+        if isinstance(exc, AgentError):
+            if "tool calls" in str(exc).lower():
+                return True
         if isinstance(exc, UsageLimitExceeded):
             return True
         if isinstance(exc, ModelHTTPError):
             if exc.status_code == 429:
                 return True
+            if exc.status_code == 402:
+                return True
             if exc.status_code in (400, 404):
                 msg = str(exc).lower()
                 if "not found" in msg or "not supported for generatecontent" in msg:
+                    return True
+                if "not a valid model id" in msg:
+                    return True
+                if "response modalities" in msg or "accepts the following combination of response modalities" in msg:
                     return True
                 if "function calling is not enabled" in msg:
                     return True
@@ -554,24 +600,56 @@ def _execute_writer_with_error_handling(
                 return True
         return False
 
+    def _get_openrouter_affordable_tokens(exc: ModelHTTPError) -> int | None:
+        if exc.status_code != 402:
+            return None
+        message = ""
+        body = getattr(exc, "body", None)
+        if isinstance(body, dict):
+            message = str(body.get("message", ""))
+        if not message:
+            message = str(exc)
+        match = re.search(r"can only afford (\d+)", message)
+        if match:
+            return int(match.group(1))
+        return None
+
     last_exc: Exception | None = None
-    for model_name in _iter_writer_models():
+    openrouter_max_tokens: int | None = None
+    model_names = _iter_writer_models()
+    idx = 0
+    while idx < len(model_names):
+        model_name = model_names[idx]
+        max_tokens_override = openrouter_max_tokens if model_name.startswith("openrouter:") else None
         try:
             return write_posts_with_pydantic_agent(
                 prompt=prompt,
                 config=_override_text_models(model_name),
                 context=deps,
+                max_tokens_override=max_tokens_override,
             )
         except PromptTooLargeError:
             raise
         except Exception as exc:
             last_exc = exc
+            if isinstance(exc, ModelHTTPError) and model_name.startswith("openrouter:"):
+                affordable = _get_openrouter_affordable_tokens(exc)
+                if affordable and (openrouter_max_tokens is None or affordable < openrouter_max_tokens):
+                    openrouter_max_tokens = affordable
+                    logger.warning(
+                        "OpenRouter credits allow up to %s response tokens; retrying %s.",
+                        affordable,
+                        model_name,
+                    )
+                    continue
             if _should_cycle(exc):
                 logger.warning("Writer model %s failed; cycling to next model.", model_name)
+                idx += 1
                 continue
             msg = f"Writer agent failed for {deps.window_label}"
             logger.exception(msg)
             raise RuntimeError(msg) from exc
+        idx += 1
 
     msg = f"Writer agent failed for {deps.window_label}"
     logger.exception(msg)

@@ -79,6 +79,7 @@ def setup_writer_agent(
         retries=3,
         system_prompt=prompt,
         model_settings=model_settings,
+        output_type=WriterAgentReturn,
     )
     register_writer_tools(agent, config=config)
 
