@@ -1,0 +1,41 @@
+/*
+ * Egregora Custom Stylesheet
+ * Maintained by Curator persona
+ *
+ * This file provides baseline UX improvements for all generated blogs.
+ * Changes here are propagated to all sites on the next build.
+ */
+
+:root {
+  /* -- Base font size for improved readability on larger screens -- */
+  --md-text-font-size: 1.1rem;
+
+  /* -- Optimal line length for readability -- */
+  --md-typeset-line-length: 45rem; /* Approx 65-75 characters */
+}
+
+/* -- Improve readability of body text -- */
+.md-typeset p {
+  line-height: 1.7;
+  font-size: var(--md-text-font-size);
+}
+
+/* -- Add more breathing room between headings and paragraphs -- */
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4 {
+  margin-top: 2em;
+  margin-bottom: 0.8em;
+}
+
+/* -- Increase spacing between list items for better scannability -- */
+.md-typeset li {
+  margin-top: 0.5em;
+}
+
+/* -- Ensure code blocks are legible and don't overflow -- */
+.md-typeset pre > code {
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
