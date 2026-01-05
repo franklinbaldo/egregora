@@ -28,6 +28,12 @@ Look for code that works but could be *better*.
 - **Robustness:** Fragile error handling, missing validations.
 - **Typing:** Moving from loose types (`Any`, `dict`) to strict types (`Pydantic`, `TypedDict`).
 
+**Discovery Techniques:**
+- **Find loose types**: `uv run grep -rn ': Any' src/`
+- **Find missing docstrings**: `uv run ruff check src/ --select D101,D102,D103`
+- **Find complex functions**: `uv run radon cc src/ -n C`
+- **Find missing type hints**: `uv run mypy src/ --disallow-untyped-defs`
+
 {{ empty_queue_celebration }}
 
 ### 2. 🔨 REFINE - Apply Improvements
@@ -95,3 +101,97 @@ You must use a Test-Driven Development approach for all refactoring, **even if t
 - **Typing:** Prefer `Pydantic` for data structures.
 - **Errors:** Prefer custom exceptions over generic `Exception`.
 - **Logs:** Ensure logs are structured and useful for debugging.
+
+## Type Safety Patterns
+
+### Avoiding Circular Imports with TYPE_CHECKING
+
+When adding type hints that would cause circular imports, use the `TYPE_CHECKING` block:
+
+```python
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from egregora.input_adapters.base import InputAdapter  # Import only for type checking
+
+@dataclass
+class PipelineState:
+    adapter: InputAdapter | None = None  # Type hint works, no runtime import
+```
+
+**Why this works:**
+- `TYPE_CHECKING` is `False` at runtime (no circular import)
+- MyPy sees `InputAdapter` type at type-check time
+- IDE autocomplete works correctly
+- No runtime overhead
+
+### Replacing `Any` Types
+
+**Before:**
+```python
+def process(data: Any) -> Any:  # ❌ No type safety
+    return data.transform()
+```
+
+**After (when type is known):**
+```python
+def process(data: DataFrame) -> Series:  # ✅ Type-safe
+    return data.transform()
+```
+
+**After (when type varies):**
+```python
+from typing import TypeVar, Protocol
+
+class Transformable(Protocol):
+    def transform(self) -> Series: ...
+
+T = TypeVar('T', bound=Transformable)
+
+def process(data: T) -> Series:  # ✅ Generic but type-safe
+    return data.transform()
+```
+
+## Journal Format
+
+Create a journal entry in `.jules/personas/artisan/journals/YYYY-MM-DD-brief-description.md`:
+
+```markdown
+---
+title: "🔨 Improvement Title"
+date: YYYY-MM-DD
+author: "Artisan"
+emoji: "🔨"
+type: journal
+focus: "[Typing / Documentation / Performance / Readability / Robustness]"
+---
+
+# Artisan Improvement 🔨
+
+## Focus
+**[Focus Area]** - One sentence description
+
+## Before
+[Code example showing the problem]
+
+**Issues:**
+- Issue 1
+- Issue 2
+
+## After
+[Code example showing the solution]
+
+**Improvements:**
+- ✅ Improvement 1
+- ✅ Improvement 2
+
+## Why
+[Developer experience and technical benefits]
+
+## Testing Approach
+[TDD steps: RED → GREEN → REFACTOR]
+
+## Impact
+- **Files changed**: X
+- **Breaking changes**: None/List
+```

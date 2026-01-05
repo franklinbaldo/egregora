@@ -184,6 +184,33 @@ Make the test pass.
 **Why it's wrong:** Full table scan on every query.
 **Instead, do this:** `CREATE INDEX idx_posts_author ON posts(author_id)`. Profile queries and index accordingly.
 
+### ❌ Pitfall: Assuming All Databases Support Same DDL
+**What it looks like:** `ALTER TABLE posts ADD CONSTRAINT chk_status CHECK (status IN ('draft', 'published'))`
+**Why it's wrong:** DuckDB doesn't support `ALTER TABLE ADD CONSTRAINT CHECK` (throws "Not implemented Error").
+**Instead, do this:** Include CHECK constraints in the `CREATE TABLE` statement:
+```python
+# ✅ DuckDB-compatible approach
+def create_table_if_not_exists(
+    conn, table_name, schema,
+    check_constraints: dict[str, str] | None = None
+):
+    # Include constraints in CREATE TABLE
+    constraint_clauses = []
+    if check_constraints:
+        for name, expr in check_constraints.items():
+            constraint_clauses.append(
+                f"CONSTRAINT {name} CHECK ({expr})"
+            )
+    # Build CREATE TABLE with constraints
+```
+
+**Key lesson:** Always check database-specific documentation before implementing constraints. Different databases have different DDL support:
+- **DuckDB**: CHECK constraints must be in CREATE TABLE (no ALTER TABLE ADD CONSTRAINT CHECK)
+- **SQLite**: Limited ALTER TABLE support (can't modify column types)
+- **PostgreSQL**: Full ALTER TABLE support for most operations
+
+**Best practice:** Centralize constraint definitions in helper functions (e.g., `get_table_check_constraints(table_name)`) to make it easy to apply them consistently across different table creation methods.
+
 ## Guardrails
 
 ### ✅ Always do:

@@ -31,8 +31,13 @@ You must use a Test-Driven Development approach for all deletions, **even if the
     - **Even if no tests exist**, you must create one to prove the code is reachable or unreachable before deleting it.
     - Example: Test CLI registry to prove a command is truly unreachable before deleting it.
 
-### 2. 🟢 GREEN - Delete Dead Code
-Delete in this order:
+### 2. 🟢 GREEN - Delete Dead Code (or Mark as Intentionally Unused)
+
+**Decision Tree**:
+1. **Is it a false-positive?** → Mark as intentionally unused (see Common False-Positives below)
+2. **Is it truly dead?** → Delete it
+
+**Delete in this order**:
 1.  **Obvious:** Unused constants, enums, private variables.
 2.  **Unwired:** CLI commands proven to be unregistered.
 3.  **Obsolete:** Fallback machinery replaced by libraries (e.g., tenacity).
@@ -42,7 +47,8 @@ Delete in this order:
 Before deleting ANY symbol:
 - `ripgrep` the symbol name across the repo.
 - Check dynamic usage: `importlib`, `getattr`, `entrypoints`.
-- If dynamic usage exists: Write a test to protect it, or allowlist it.
+- Check if it's part of a protocol/interface (ABC methods, Protocol methods).
+- If dynamic usage exists OR it's an interface: Write a test to protect it, or mark as intentionally unused.
 
 ### 🔵 REFACTOR - Clean Up
 - Remove now-unused imports.
@@ -54,6 +60,104 @@ After EACH deletion:
 - `uv run pytest` (Must pass)
 - `uv run ruff check .` (Must pass)
 - `uv run vulture src tests` (Findings must decrease)
+
+## Common False-Positives
+
+Vulture sometimes flags code that is intentionally unused. Here's how to handle each case:
+
+### 1. Interface/Protocol Parameters
+
+**Symptom**: Parameter flagged in abstract base class or protocol method.
+
+**Example**:
+```python
+class BaseOutputSink(ABC):
+    def finalize_window(
+        self,
+        window_label: str,
+        posts_created: list[str],  # ← Flagged, but needed for interface
+        profiles_updated: list[str],
+    ) -> None:
+        # Base implementation may not use all parameters
+        pass
+```
+
+**Fix**: Prefix with underscore to signal intentional non-use (PEP 8 convention):
+```python
+def finalize_window(
+    self,
+    window_label: str,
+    _posts_created: list[str],  # ← Underscore = intentionally unused
+    profiles_updated: list[str],
+) -> None:
+    # Base implementation may not use all parameters
+    pass
+```
+
+**IMPORTANT**: Update all call sites and tests to use the new parameter name:
+```python
+# Before
+adapter.finalize_window(window_label="test", posts_created=[], ...)
+
+# After
+adapter.finalize_window(window_label="test", _posts_created=[], ...)
+```
+
+### 2. Protocol/ABC Method Implementations
+
+**Symptom**: Method flagged in concrete class implementing protocol/ABC.
+
+**Example**:
+```python
+class MkDocsAdapter(BaseOutputSink):
+    def finalize_window(
+        self,
+        window_label: str,
+        _posts_created: list[str],  # ← Must match interface, even if unused here
+        profiles_updated: list[str],
+    ) -> None:
+        logger.info(f"Finalizing {window_label}")
+        # This implementation doesn't need posts_created
+```
+
+**Fix**: Keep the underscore-prefixed parameter. DO NOT delete it (breaks interface contract).
+
+### 3. Dynamic Usage (getattr, importlib)
+
+**Symptom**: Code flagged but loaded dynamically at runtime.
+
+**Example**:
+```python
+# Flagged by vulture
+def handle_special_case():
+    ...
+
+# But loaded dynamically in another file
+handler = getattr(module, "handle_special_case")
+```
+
+**Fix**: Add to `vulture_whitelist.py` with justification:
+```python
+# vulture_whitelist.py
+# Used via getattr in orchestration/dispatcher.py:123
+_.handle_special_case
+```
+
+### 4. Callback/Hook Functions
+
+**Symptom**: Function flagged but registered as a callback.
+
+**Example**:
+```python
+# Flagged by vulture
+def on_pre_commit():
+    ...
+
+# But registered as hook
+register_hook("pre-commit", on_pre_commit)
+```
+
+**Fix**: Trace registration path. If truly used, add to whitelist with reference.
 
 {{ empty_queue_celebration }}
 

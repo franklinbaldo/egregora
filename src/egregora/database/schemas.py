@@ -22,12 +22,31 @@ logger = logging.getLogger(__name__)
 
 
 def create_table_if_not_exists(
-    conn: Any, table_name: str, schema: ibis.Schema, *, overwrite: bool = False
+    conn: Any,
+    table_name: str,
+    schema: ibis.Schema,
+    *,
+    overwrite: bool = False,
+    check_constraints: dict[str, str] | None = None,
 ) -> None:
-    """Create a table using Ibis if it doesn't already exist."""
+    """Create a table using Ibis if it doesn't already exist.
+
+    Args:
+        conn: Database connection (Ibis or raw DuckDB)
+        table_name: Name of the table to create
+        schema: Ibis schema definition
+        overwrite: If True, drop existing table first
+        check_constraints: Optional dict of constraint_name -> check_expression
+                          Example: {"chk_status": "status IN ('draft', 'published')"}
+
+    """
     if hasattr(conn, "list_tables"):  # More reliable check for Ibis connection
         if table_name not in conn.list_tables() or overwrite:
             conn.create_table(table_name, schema=schema, overwrite=overwrite)
+            # Note: Ibis doesn't support CHECK constraints, so we add them manually after
+            if check_constraints:
+                for constraint_name, check_expr in check_constraints.items():
+                    add_check_constraint(conn.raw_sql, table_name, constraint_name, check_expr)
     else:
         # Raw duckdb connection
         if overwrite:
@@ -37,10 +56,22 @@ def create_table_if_not_exists(
             f"{quote_identifier(name)} {ibis_to_duckdb_type(dtype)}" for name, dtype in schema.items()
         )
 
+        # Add CHECK constraints to CREATE TABLE statement
+        constraint_clauses = []
+        if check_constraints:
+            for constraint_name, check_expr in check_constraints.items():
+                constraint_clauses.append(
+                    f"CONSTRAINT {quote_identifier(constraint_name)} CHECK ({check_expr})"
+                )
+
+        all_clauses = [columns_sql]
+        if constraint_clauses:
+            all_clauses.extend(constraint_clauses)
+
         # If we dropped the table, we must use CREATE TABLE.
         # Otherwise, CREATE TABLE IF NOT EXISTS is safe.
         create_verb = "CREATE TABLE" if overwrite else "CREATE TABLE IF NOT EXISTS"
-        create_sql = f"{create_verb} {quote_identifier(table_name)} ({columns_sql})"
+        create_sql = f"{create_verb} {quote_identifier(table_name)} ({', '.join(all_clauses)})"
         conn.execute(create_sql)
 
 
@@ -162,9 +193,86 @@ def create_index(
     conn.execute(sql)
 
 
+def add_check_constraint(conn: Any, table_name: str, constraint_name: str, check_expression: str) -> None:
+    """Add a CHECK constraint to an existing table.
+
+    Args:
+        conn: DuckDB connection (raw, not Ibis)
+        table_name: Name of the table
+        constraint_name: Name for the constraint
+        check_expression: SQL expression for the constraint (e.g., "status IN ('draft', 'published')")
+
+    Note:
+        This must be called on raw DuckDB connection, not Ibis connection.
+        DuckDB requires ALTER TABLE for check constraints.
+        Idempotent: silently succeeds if constraint already exists.
+
+    """
+    try:
+        quoted_table = quote_identifier(table_name)
+        quoted_constraint = quote_identifier(constraint_name)
+        sql = f"ALTER TABLE {quoted_table} ADD CONSTRAINT {quoted_constraint} CHECK ({check_expression})"
+        conn.execute(sql)
+    except duckdb.Error as e:
+        # Constraint may already exist - log and continue
+        logger.debug("Could not add CHECK constraint to %s: %s", table_name, e)
+
+
+def get_table_check_constraints(table_name: str) -> dict[str, str]:
+    """Get CHECK constraints for a table based on business logic.
+
+    Args:
+        table_name: Name of the table
+
+    Returns:
+        Dictionary mapping constraint names to CHECK expressions
+
+    Note:
+        This function defines business rules at the database level by specifying
+        CHECK constraints for enum-like fields. Currently supports:
+        - posts.status: Must be one of VALID_POST_STATUSES
+        - tasks.status: Must be one of VALID_TASK_STATUSES
+
+    """
+    if table_name == "posts":
+        valid_values = ", ".join(f"'{status}'" for status in VALID_POST_STATUSES)
+        return {"chk_posts_status": f"status IN ({valid_values})"}
+    if table_name == "tasks":
+        valid_values = ", ".join(f"'{status}'" for status in VALID_TASK_STATUSES)
+        return {"chk_tasks_status": f"status IN ({valid_values})"}
+    return {}
+
+
+def apply_table_constraints(conn: Any, table_name: str) -> None:
+    """Apply business-logic CHECK constraints to a table based on its schema.
+
+    Args:
+        conn: DuckDB connection (raw, not Ibis)
+        table_name: Name of the table to apply constraints to
+
+    Note:
+        DEPRECATED: Use get_table_check_constraints() with create_table_if_not_exists()
+        instead. This function is kept for backward compatibility but won't work with
+        DuckDB as ALTER TABLE ADD CONSTRAINT CHECK is not supported.
+
+        This function enforces business rules at the database level by adding
+        CHECK constraints for enum-like fields. Currently supports:
+        - posts.status: Must be one of VALID_POST_STATUSES
+        - tasks.status: Must be one of VALID_TASK_STATUSES
+
+    """
+    constraints = get_table_check_constraints(table_name)
+    for constraint_name, check_expr in constraints.items():
+        add_check_constraint(conn, table_name, constraint_name, check_expr)
+
+
 # ============================================================================
 # Core Tables (Append-Only)
 # ============================================================================
+
+# Valid status values for business logic enforcement
+VALID_POST_STATUSES = ("draft", "published", "archived")
+VALID_TASK_STATUSES = ("pending", "processing", "completed", "failed", "superseded")
 
 # Common columns for all types
 BASE_COLUMNS = {

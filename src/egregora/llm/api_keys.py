@@ -119,8 +119,8 @@ def get_google_api_keys() -> list[str]:
 
     # 2. Check individual keys
     for var in ["GEMINI_API_KEY", "GOOGLE_API_KEY"]:
-        val = os.environ.get(var)
-        if val and val.strip() and val.strip() not in keys:
-            keys.append(val.strip())
+        key = os.environ.get(var)
+        if key and key.strip() and key.strip() not in keys:
+            keys.append(key.strip())
 
     return keys

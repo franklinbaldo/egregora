@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from egregora.data_primitives.document import OutputSink, UrlContext
     from egregora.database.protocols import StorageProtocol
     from egregora.database.task_store import TaskStore
+    from egregora.input_adapters.base import InputAdapter
     from egregora.llm.usage import UsageTracker
     from egregora.orchestration.cache import PipelineCache
     from egregora.output_adapters import OutputSinkRegistry
@@ -146,7 +147,7 @@ class PipelineState:
 
     # Output & Adapters (Initialized lazily or updated)
     output_format: OutputSink | None = None  # ISP-compliant: Runtime data operations only
-    adapter: Any = None  # InputAdapter protocol
+    adapter: InputAdapter | None = None  # InputAdapter instance for source-specific parsing
     usage_tracker: UsageTracker | None = None
     output_registry: OutputSinkRegistry | None = None
     embedding_router: EmbeddingRouter | None = None
@@ -252,7 +253,7 @@ class PipelineContext:
         return self.config_obj.url_context
 
     @property
-    def adapter(self) -> Any:
+    def adapter(self) -> InputAdapter | None:
         return self.state.adapter
 
     @property
@@ -296,8 +297,16 @@ class PipelineContext:
     def retrieval_overfetch(self) -> int:
         return self.config_obj.retrieval_overfetch
 
-    def with_adapter(self, adapter: Any) -> PipelineContext:
-        """Update adapter in state."""
+    def with_adapter(self, adapter: InputAdapter) -> PipelineContext:
+        """Update adapter in state.
+
+        Args:
+            adapter: InputAdapter instance for source-specific parsing
+
+        Returns:
+            Self for method chaining
+
+        """
         self.state.adapter = adapter
         return self
 

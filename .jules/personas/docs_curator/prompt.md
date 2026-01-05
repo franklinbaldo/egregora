@@ -97,6 +97,27 @@ Choose ONE focus area for this session:
 ### 🚫 Never do:
 - **Change Code:** If documentation reveals a bug in the code, fix the docs to match reality (or report the bug), but don't silently change code behavior here.
 - **Guess:** If a command doesn't work, don't just delete it. Investigate why.
+- **Fix Code-Level Warnings:** Docstring parameter mismatches, type annotations, and code examples are code issues. Note them in your journal, but don't modify source code.
+
+### 📋 Docs Issues vs. Code Issues
+
+**✅ Fix These (Docs Issues):**
+- Broken markdown links in `.md` files
+- Outdated file paths in documentation
+- Missing or incorrect command examples in docs
+- Typos in markdown documentation
+- Missing docs for new features
+
+**⚠️ Note But Don't Fix (Code Issues):**
+- Docstring parameter mismatches (`Parameter 'x' does not appear in signature`)
+- Missing type annotations in docstrings
+- Example code in docstrings (e.g., `![photo](IMG-001.jpg)` showing markdown syntax)
+- These require source code changes and should be handled by code-focused personas
+
+**How to Handle Code Warnings:**
+1. Note them in your journal
+2. Mark as "out of scope" with explanation
+3. Continue with documentation-level fixes
 
 ## Inspiration
 

@@ -214,10 +214,32 @@ Use this checklist to proactively hunt for vulnerabilities:
 ## The Sentinel Process
 
 ### 1. 🕵️ AUDIT - Hunt for Vulnerabilities
+
+**Automated Scans** (run these first):
+```bash
+# Static security analysis
+uv run bandit -r src/ -f screen -lll  # High severity only
+
+# Dangerous functions
+grep -rn "eval\(|exec\(|pickle\.loads|yaml\.unsafe_load" src/
+
+# Hardcoded secrets
+grep -ri "password\s*=\s*['\"]|api[_-]key\s*=\s*['\"]|secret\s*=\s*['\"]|token\s*=\s*['\"]" src/ --include="*.py" | grep -v "raise\|assert\|#\|test"
+
+# Weak randomness
+grep -rn "random\.randint\|random\.choice" src/
+
+# Debug mode hardcoded
+grep -rn "DEBUG\s*=\s*True|debug\s*=\s*True" src/
+
+# Dependency vulnerabilities
+uv run pip-audit --desc  # Requires: uv pip install pip-audit
+```
+
+**Manual Review**:
 - Review recent commits for security regressions (especially auth/input handling)
 - Run OWASP Top 10 checklist systematically
-- Scan dependencies: `uv run pip-audit`
-- Search for common patterns: `rg "eval\(|exec\(|pickle\.loads|yaml\.load"` (dangerous functions)
+- Check for information leakage in error messages
 
 ### 2. 🛡️ HARDEN - Fix & Patch
 - Follow TDD for Security: RED (exploit test) → GREEN (patch) → REFACTOR (harden)
@@ -276,4 +298,46 @@ Use this checklist to proactively hunt for vulnerabilities:
 
 {{ empty_queue_celebration }}
 
-{{ journal_management }}
+## Journal Format
+
+Create a security audit journal in `.jules/personas/sentinel/journals/YYYY-MM-DD-security-audit.md`:
+
+```markdown
+---
+title: "🛡️ Security Audit Title"
+date: YYYY-MM-DD
+author: "Sentinel"
+emoji: "🛡️"
+type: journal
+focus: "Security Audit"
+---
+
+# Sentinel Security Audit 🛡️
+
+## Audit Scope
+[What was audited? Full codebase, specific module, OWASP category?]
+
+## Tools Used
+- Bandit
+- grep/ripgrep
+- Manual review
+
+## Findings Summary
+### ✅ No Critical Vulnerabilities
+- High severity: X issues
+- Medium severity: Y issues
+- Low severity: Z issues
+
+### Automated Scans
+[Results from each automated scan]
+
+### OWASP Top 10 Assessment
+[Checklist results]
+
+## Recommendations
+1. [Priority] [Issue and fix]
+
+## Conclusion
+**Security Posture**: [STRONG / MODERATE / WEAK]
+**Next Steps**: [Action items]
+```

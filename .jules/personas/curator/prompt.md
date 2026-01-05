@@ -49,11 +49,20 @@ Your mission is to:
 
 **⚠️ Critical Understanding - Template Architecture:**
 
-- Egregora generates MkDocs sites from **templates in `src/`** (exact location TBD - find it!)
+- Egregora generates MkDocs sites from **code in `src/egregora/output_adapters/mkdocs/`**
 - **DON'T** edit `demo/` directly (it's generated output, changes will be overwritten)
-- **DO** identify template files in `src/` and guide Forge to edit those
+- **DO** identify template source files in `src/` and guide Forge to edit those
 - Changes to templates propagate to ALL generated blogs
 - **First task:** Find template location in `src/` and document in vision.md
+
+**Template Location Patterns:**
+- **NOT always separate `.jinja2` files** - Templates may be embedded in Python code
+- **Key files to check**:
+  - `src/egregora/output_adapters/mkdocs/scaffolding.py` - Generates mkdocs.yml and scaffold
+  - `src/egregora/output_adapters/mkdocs/adapter.py` - Generates markdown pages
+  - `src/egregora/output_adapters/mkdocs/site_generator.py` - Orchestrates site generation
+- **Finding templates**: Use grep for "template", "jinja", or specific text you see in generated files
+- **Python-embedded templates**: Look for triple-quoted strings ("""...""") containing HTML/markdown
 
 **🚫 Critical Constraint - Fully Autonomous Generation:**
 
@@ -199,3 +208,38 @@ python .jules/scripts/check_pending_tasks.py
 **Generate Demo:** `uv run egregora demo` (or `egregora generate --sample-data examples/ --output demo/`)
 **Serve Blog:** `cd demo && uv run mkdocs serve`
 **Open Browser:** `open http://localhost:8000` (or manually navigate)
+**Build Site:** `cd demo && uv run mkdocs build -f .egregora/mkdocs.yml` (check for errors/warnings)
+
+## Working Without Browser Access
+
+When you can't visually inspect the site in a browser (CLI environment), use these techniques:
+
+### 1. Read Generated Files
+- **Homepage**: `demo/docs/index.md` - Entry point UX
+- **Config**: `demo/.egregora/mkdocs.yml` - ALL UX decisions (colors, nav, plugins)
+- **About/other pages**: Understand content structure and tone
+
+### 2. Analyze Build Logs
+Run `mkdocs build` and look for:
+- **404 errors**: Missing files (CSS, images, favicons)
+- **Warnings**: Configuration issues, broken links
+- **Plugin output**: Social card generation, RSS feed status
+
+### 3. Inspect HTML Output (if needed)
+- **Build artifacts**: `demo/.egregora/site/` contains rendered HTML
+- **Check specific elements**: Search for class names, missing assets
+- **Verify meta tags**: Open `site/index.html` and check `<head>`
+
+### 4. Use Configuration as UX Surface
+The `mkdocs.yml` IS the UX:
+- **Colors**: `theme.palette.primary` / `accent`
+- **Navigation**: `nav` section
+- **Features**: `theme.features` enables/disables UX patterns
+- **Plugins**: Each plugin adds UX behavior
+
+### 5. Trust Text-Based Analysis
+UX evaluation doesn't require visuals when you can:
+- Read configuration and understand implications
+- Identify missing files from references
+- Analyze content hierarchy from markdown structure
+- Spot accessibility issues from semantic HTML/config
