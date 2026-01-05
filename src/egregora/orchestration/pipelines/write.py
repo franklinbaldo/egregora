@@ -47,6 +47,7 @@ from egregora.constants import WindowUnit
 from egregora.data_primitives.document import OutputSink, UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.profile_cache import scan_and_cache_all_documents
 from egregora.database.task_store import TaskStore
 from egregora.database.utils import resolve_db_uri
 from egregora.input_adapters import ADAPTER_REGISTRY
@@ -925,6 +926,14 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     # Use the pipeline backend for storage to ensure we share the same connection
     # This prevents "read-only transaction" errors and database invalidation
     storage = DuckDBStorageManager.from_ibis_backend(pipeline_backend)
+
+    # Cache all documents (profiles, posts, etc.) from filesystem to database
+    # This eliminates file I/O bottleneck during pipeline execution
+    scan_and_cache_all_documents(
+        storage,
+        profiles_dir=site_paths.profiles_dir,
+        posts_dir=site_paths.posts_dir,
+    )
     annotations_store = AnnotationStore(storage)
 
     # Initialize TaskStore for async operations
@@ -1152,6 +1161,7 @@ def _prepare_pipeline_data(
         site_root=ctx.site_root,
         registry=ctx.output_registry,
         url_context=ctx.url_context,
+        storage=ctx.state.storage,
     )
     ctx = ctx.with_output_format(output_format)
 
@@ -1159,6 +1169,7 @@ def _prepare_pipeline_data(
         adapter, run_params.input_path, timezone, output_adapter=output_format
     )
     _setup_content_directories(ctx)
+
     messages_table = _process_commands_and_avatars(messages_table, ctx, vision_model)
 
     checkpoint_path = ctx.site_root / ".egregora" / "checkpoint.json"
@@ -1366,7 +1377,9 @@ def _apply_filters(
         logger.info("[yellow]🧹 Removed[/] %s /egregora messages", egregora_removed)
 
     # Filter opted-out authors
-    messages_table, removed_count = filter_opted_out_authors(messages_table, ctx.profiles_dir)
+    messages_table, removed_count = filter_opted_out_authors(
+        messages_table, ctx.profiles_dir, storage=ctx.state.storage
+    )
     if removed_count > 0:
         logger.warning("⚠️  %s messages removed from opted-out users", removed_count)
 

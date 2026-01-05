@@ -287,14 +287,14 @@ def _store_rag_context(cache: Any | None, query_text: str, context: str) -> None
 
 
 def load_profiles_context(active_authors: list[str], output_sink: Any) -> str:
-    """Load profiles for top active authors via output_sink.
+    """Load profiles for top active authors via output sink (database-backed).
 
-    Uses output_sink.read_document() to read profiles from the unified
-    output directory (e.g., posts/ in MkDocs), rather than direct file access.
+    Uses output_sink.read_document() which reads from the database (canonical source),
+    eliminating file I/O bottleneck.
 
     Args:
         active_authors: List of author UUIDs to load profiles for
-        output_sink: OutputSink instance that knows where profiles are stored
+        output_sink: OutputSink instance (database-backed)
 
     Returns:
         Formatted string with profile context for each author
@@ -306,7 +306,8 @@ def load_profiles_context(active_authors: list[str], output_sink: Any) -> str:
 
     parts = [
         "\n\n## Active Participants (Profiles):\n",
-        "Understanding the participants helps you write posts that match their style, voice, and interests.\n\n",
+        "Understanding the participants helps you write posts that match their style, voice, "
+        "and interests.\n\n",
     ]
 
     for author_uuid in active_authors:

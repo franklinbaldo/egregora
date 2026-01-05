@@ -43,9 +43,13 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import frontmatter
+import ibis
+import ibis.common.exceptions
 import ibis.expr.types as ir
 import yaml
 
+from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.profile_cache import get_opted_out_authors_from_db
 from egregora.knowledge.exceptions import (
     AuthorExtractionError,
     AuthorsFileLoadError,
@@ -733,18 +737,30 @@ def is_opted_out(
 
 def get_opted_out_authors(
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
+    storage: DuckDBStorageManager | None = None,
 ) -> Annotated[set[str], "A set of author UUIDs who have opted out"]:
     """Get set of all authors who have opted out.
 
-    Scans all profiles to find opted-out users.
+    Reads from database cache if available, eliminating file I/O bottleneck.
+    Falls back to file-based scanning if storage is not provided.
 
     Args:
         profiles_dir: Where profiles are stored
+        storage: DuckDBStorageManager instance for database access (optional)
 
     Returns:
         Set of author UUIDs who have opted out
 
     """
+    # Use database cache if available
+    if storage is not None:
+        try:
+            return get_opted_out_authors_from_db(storage)
+        except ibis.common.exceptions.IbisError as e:
+            logger.warning("Failed to read opted-out authors from DB, falling back to files: %s", e)
+            # Fall through to file-based scanning
+
+    # Fallback to file-based scanning
     if not profiles_dir.exists():
         return set()
     opted_out = set()
@@ -762,6 +778,7 @@ def get_opted_out_authors(
 def filter_opted_out_authors(
     table: Annotated[ir.Table, "The Ibis table with an 'author_uuid' column"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
+    storage: DuckDBStorageManager | None = None,
 ) -> tuple[Annotated[ir.Table, "The filtered table"], Annotated[int, "The number of removed messages"]]:
     """Remove all messages from opted-out authors.
 
@@ -771,6 +788,7 @@ def filter_opted_out_authors(
     Args:
         table: Ibis Table with 'author_uuid' column
         profiles_dir: Where profiles are stored
+        storage: DuckDBStorageManager instance for database access (optional)
 
     Returns:
         (filtered_table, num_removed_messages)
@@ -778,7 +796,7 @@ def filter_opted_out_authors(
     """
     if table.count().execute() == 0:
         return (table, 0)
-    opted_out = get_opted_out_authors(profiles_dir)
+    opted_out = get_opted_out_authors(profiles_dir, storage=storage)
     if not opted_out:
         return (table, 0)
     logger.info("Found %s opted-out authors", len(opted_out))
