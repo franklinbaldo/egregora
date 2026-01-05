@@ -331,12 +331,16 @@ def rotate_drifted_jules_branch() -> None:
             "Please resolve the conflicts and merge this work manually if needed. "
             "A fresh `jules` branch will be started from `main` once this is deleted."
         )
-        subprocess.run(
-            ["gh", "pr", "create", "--head", drift_branch, "--base", "main", 
-             "--title", pr_title, "--body", pr_body],
-            check=True, capture_output=True
-        )
-        print(f"Created PR for drifted branch: {drift_branch}")
+        try:
+            subprocess.run(
+                ["gh", "pr", "create", "--head", drift_branch, "--base", "main",
+                 "--title", pr_title, "--body", pr_body],
+                check=True, capture_output=True
+            )
+            print(f"Created PR for drifted branch: {drift_branch}")
+        except subprocess.CalledProcessError as e:
+            stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
+            print(f"Warning: Failed to create PR for drift branch: {stderr}", file=sys.stderr)
 
         # 3. Delete the old jules branch on remote
         subprocess.run(
@@ -391,7 +395,7 @@ def ensure_jules_branch_exists() -> None:
         
         # Create jules branch pointing to main
         subprocess.run(
-            ["git", "push", "origin", f"+{main_sha}:refs/heads/{JULES_BRANCH}"],
+            ["git", "push", "--force", "origin", f"{main_sha}:refs/heads/{JULES_BRANCH}"],
             check=True, capture_output=True
         )
         print(f"Created fresh '{JULES_BRANCH}' branch from main at {main_sha[:12]}")
