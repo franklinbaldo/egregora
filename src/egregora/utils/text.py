@@ -13,9 +13,9 @@ from egregora_v3.core.utils import (
 )
 
 __all__ = [
-    "slugify",
-    "slugify_lower",
-    "slugify_case",
-    "SlugifyError",
     "InvalidInputError",
+    "SlugifyError",
+    "slugify",
+    "slugify_case",
+    "slugify_lower",
 ]
