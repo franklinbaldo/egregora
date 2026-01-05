@@ -632,10 +632,49 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 """
 
     def documents(self, doc_type: DocumentType | None = None) -> Iterator[Document]:
-        """Return all MkDocs documents as Document instances (lazy iterator)."""
+        """Return all MkDocs documents as Document instances (database-backed).
+
+        Reads from cached database tables instead of filesystem for performance.
+        Falls back to filesystem scanning if database not available.
+        """
         if not hasattr(self, "_site_root") or self._site_root is None:
             return
 
+        # Use database cache if available (automatic self-adapter optimization!)
+        if self._storage is not None:
+            try:
+                # Read posts from database
+                if doc_type is None or doc_type == DocumentType.POST:
+                    posts_table = self._storage.read_table("posts")
+                    for _, row in posts_table.execute().iterrows():
+                        # Parse frontmatter from cached content
+                        post = frontmatter.loads(row["content"])
+                        yield Document(
+                            content=post.content,
+                            type=DocumentType.POST,
+                            metadata=post.metadata,
+                        )
+
+                # Read profiles from database
+                if doc_type is None or doc_type == DocumentType.PROFILE:
+                    profiles_table = self._storage.read_table("profiles")
+                    for _, row in profiles_table.execute().iterrows():
+                        # Parse frontmatter from cached content
+                        profile = frontmatter.loads(row["content"])
+                        yield Document(
+                            content=profile.content,
+                            type=DocumentType.PROFILE,
+                            metadata=profile.metadata,
+                        )
+
+                # Early return - database path complete
+                return
+
+            except Exception as e:
+                logger.warning("Failed to read documents from database, falling back to filesystem: %s", e)
+                # Fall through to filesystem fallback
+
+        # Fallback: filesystem-based reading (legacy path)
         # DRY: Use list() to scan directories, then get() to load content
         # Note: list() returns metadata where identifier is a relative path (e.g., "posts/slug.md")
         # but get() expects a simpler identifier for some types (e.g., "slug" for posts).
