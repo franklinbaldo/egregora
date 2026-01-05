@@ -422,7 +422,9 @@ def run_cycle_step(
             )
             # result['name'] is like "sessions/uuid"
             session_id = result.get("name", "").split("/")[-1]
+            session_url = f"https://jules.google.com/sessions/{session_id}"
             print(f"Created session: {session_id}")
+            print(f"🔗 Jules Session URL: {session_url}")
 
             # Update History
             history_mgr.append_entry(session_id, next_pid, base_branch, base_pr_number)
@@ -531,7 +533,7 @@ def run_scheduler(
 
             if should_run:
                 if not dry_run:
-                    client.create_session(
+                    result = client.create_session(
                         prompt=prompt_body,
                         owner=repo_info["owner"],
                         repo=repo_info["repo"],
@@ -540,6 +542,10 @@ def run_scheduler(
                         automation_mode=config.get("automation_mode", "AUTO_CREATE_PR"),
                         require_plan_approval=config.get("require_plan_approval", False),
                     )
+                    session_id = result.get("name", "").split("/")[-1]
+                    session_url = f"https://jules.google.com/sessions/{session_id}"
+                    print(f"Created session for {pid}: {session_id}")
+                    print(f"🔗 Jules Session URL: {session_url}")
                 else:
                     print(f"[Dry Run] Would create session for {pid}")
 
