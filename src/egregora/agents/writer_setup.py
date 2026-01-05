@@ -10,8 +10,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from pydantic_ai import Agent, RunContext
-from pydantic_ai.settings import ModelSettings
 from pydantic_ai.models import infer_model
+from pydantic_ai.settings import ModelSettings
 
 from egregora.agents.types import WriterAgentReturn, WriterDeps
 from egregora.agents.writer_helpers import (

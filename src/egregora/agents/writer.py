@@ -24,7 +24,6 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
 from pydantic_ai import UsageLimits
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
-from pydantic_ai.settings import ModelSettings
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -33,6 +32,7 @@ from pydantic_ai.messages import (
     ToolCallPart,
     ToolReturnPart,
 )
+from pydantic_ai.settings import ModelSettings
 from ratelimit import limits, sleep_and_retry
 from tenacity import Retrying
 
@@ -76,6 +76,13 @@ if TYPE_CHECKING:
     from egregora.data_primitives.protocols import OutputSink
 
 logger = logging.getLogger(__name__)
+
+# HTTP Status Codes
+HTTP_STATUS_TOO_MANY_REQUESTS = 429
+HTTP_STATUS_PAYMENT_REQUIRED = 402
+HTTP_STATUS_BAD_REQUEST = 400
+HTTP_STATUS_NOT_FOUND = 404
+
 
 # Template names
 WRITER_TEMPLATE_NAME = "writer.jinja"
@@ -418,6 +425,7 @@ def write_posts_with_pydantic_agent(
     )
 
     result = None
+
     # Use tenacity for retries
     def _run_agent_sync() -> Any:
         async def _run_async() -> Any:
@@ -542,6 +550,7 @@ def _execute_writer_with_error_handling(
         RuntimeError: For other agent failures (wrapped with context)
 
     """
+
     def _iter_writer_models() -> list[str]:
         model_name = config.models.writer
         if model_name.startswith("google-gla:"):
@@ -580,17 +589,20 @@ def _execute_writer_with_error_handling(
         if isinstance(exc, UsageLimitExceeded):
             return True
         if isinstance(exc, ModelHTTPError):
-            if exc.status_code == 429:
+            if exc.status_code == HTTP_STATUS_TOO_MANY_REQUESTS:
                 return True
-            if exc.status_code == 402:
+            if exc.status_code == HTTP_STATUS_PAYMENT_REQUIRED:
                 return True
-            if exc.status_code in (400, 404):
+            if exc.status_code in (HTTP_STATUS_BAD_REQUEST, HTTP_STATUS_NOT_FOUND):
                 msg = str(exc).lower()
                 if "not found" in msg or "not supported for generatecontent" in msg:
                     return True
                 if "not a valid model id" in msg:
                     return True
-                if "response modalities" in msg or "accepts the following combination of response modalities" in msg:
+                if (
+                    "response modalities" in msg
+                    or "accepts the following combination of response modalities" in msg
+                ):
                     return True
                 if "function calling is not enabled" in msg:
                     return True
@@ -601,7 +613,7 @@ def _execute_writer_with_error_handling(
         return False
 
     def _get_openrouter_affordable_tokens(exc: ModelHTTPError) -> int | None:
-        if exc.status_code != 402:
+        if exc.status_code != HTTP_STATUS_PAYMENT_REQUIRED:
             return None
         message = ""
         body = getattr(exc, "body", None)
@@ -649,7 +661,6 @@ def _execute_writer_with_error_handling(
             msg = f"Writer agent failed for {deps.window_label}"
             logger.exception(msg)
             raise RuntimeError(msg) from exc
-        idx += 1
 
     msg = f"Writer agent failed for {deps.window_label}"
     logger.exception(msg)
