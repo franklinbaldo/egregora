@@ -31,9 +31,9 @@ def test_create_writer_model_raises_error_on_missing_google_api_key(
 
 
 @patch("egregora.agents.writer_setup.validate_prompt_fits")
-@patch("pydantic_ai.models.google.GoogleModel")
+@patch("egregora.agents.writer_setup.infer_model")
 def test_create_writer_model_success_with_google_api_key(
-    mock_google_model: MagicMock,
+    mock_infer_model: MagicMock,
     mock_validate_prompt: MagicMock,
     mock_config: EgregoraConfig,
     mock_context: MagicMock,
@@ -41,12 +41,18 @@ def test_create_writer_model_success_with_google_api_key(
     """Test that create_writer_model succeeds when Google API key is present."""
     with patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"}, clear=True):
         model_instance = MagicMock()
-        mock_google_model.return_value = model_instance
+        mock_infer_model.return_value = model_instance
 
         model = create_writer_model(mock_config, mock_context, "test prompt")
 
-        mock_google_model.assert_called_once_with(model_name="gemini-test")
-        mock_validate_prompt.assert_called_once()
+        mock_infer_model.assert_called_once_with("google-gla:gemini-test")
+        mock_validate_prompt.assert_called_once_with(
+            "test prompt",
+            "google-gla:gemini-test",
+            mock_config,
+            mock_context.window_label,
+            model_instance=model_instance,
+        )
         assert model == model_instance
 
 
