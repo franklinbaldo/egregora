@@ -13,7 +13,13 @@ import jinja2
 
 # Import from new package relative to execution or absolute
 from jules.client import JulesClient
-from jules.github import get_open_prs, get_repo_info, _extract_session_id, get_pr_details_via_gh
+from jules.github import (
+    get_open_prs,
+    get_repo_info,
+    _extract_session_id,
+    get_pr_details_via_gh,
+    get_pr_by_session_id_any_state,
+)
 from jules.exceptions import JulesError, SchedulerError, BranchError, MergeError, GitHubError
 
 # --- Standard Text Blocks ---
@@ -525,8 +531,30 @@ def run_cycle_step(
 
             print(f"Next persona: {next_pid}. Starting from '{JULES_BRANCH}'.")
         else:
-            print(f"PR for session {last_sid} not found in OPEN PRs. Waiting for it to appear or manual intervention.")
-            return
+            merged_pr = get_pr_by_session_id_any_state(repo_info["owner"], repo_info["repo"], last_sid)
+            if merged_pr and merged_pr.get("mergedAt"):
+                print(
+                    f"PR for session {last_sid} already merged (#{merged_pr.get('number')} at {merged_pr.get('mergedAt')}). "
+                    "Continuing to next persona."
+                )
+                if last_pid in cycle_list:
+                    idx = cycle_list.index(last_pid)
+                    next_idx = (idx + 1) % len(cycle_list)
+                    next_pid = cycle_list[next_idx]
+                else:
+                    print(f"Last persona {last_pid} not in cycle list. Restarting cycle.")
+                print(f"Next persona: {next_pid}. Starting from '{JULES_BRANCH}'.")
+            elif merged_pr and (merged_pr.get("state") or "").lower() == "closed":
+                print(
+                    f"PR for session {last_sid} is closed without merge "
+                    f"(#{merged_pr.get('number')}). Waiting for manual intervention."
+                )
+                return
+            else:
+                print(
+                    f"PR for session {last_sid} not found in open PRs. Waiting for it to appear or manual intervention."
+                )
+                return
 
     else:
         print(f"No history found. Starting fresh cycle from '{JULES_BRANCH}'.")
