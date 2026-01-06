@@ -37,8 +37,6 @@ from egregora.output_adapters import (
 from egregora.output_adapters.mkdocs import MkDocsPaths
 
 if TYPE_CHECKING:
-    import google.generativeai as genai
-
     from egregora.config.settings import EgregoraConfig
 
 logger = logging.getLogger(__name__)

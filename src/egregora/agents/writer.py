@@ -74,7 +74,6 @@ if TYPE_CHECKING:
 
     from egregora.config.settings import EgregoraConfig
     from egregora.data_primitives.protocols import OutputSink
-    from google import genai
 
 logger = logging.getLogger(__name__)
 
