@@ -305,15 +305,13 @@ class PipelineFactory:
 
         The client reads the API key from GOOGLE_API_KEY environment variable automatically.
         """
-        import google.generativeai as genai  # Lazy import at runtime
-
-        http_options = genai.types.HttpOptions(
-            retryOptions=genai.types.HttpRetryOptions(
-                attempts=5,
-                initialDelay=2.0,
-                maxDelay=15.0,
-                expBase=2.0,
-                httpStatusCodes=[429, 503],
-            )
-        )
+        http_options = {
+            "retry_options": {
+                "attempts": 5,
+                "initial_delay": 2.0,
+                "max_delay": 15.0,
+                "multiplier": 2.0,
+                "http_status_codes": [429, 503],
+            }
+        }
         return genai.Client(http_options=http_options)

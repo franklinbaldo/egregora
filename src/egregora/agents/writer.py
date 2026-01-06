@@ -74,6 +74,7 @@ if TYPE_CHECKING:
 
     from egregora.config.settings import EgregoraConfig
     from egregora.data_primitives.protocols import OutputSink
+    from google import genai
 
 logger = logging.getLogger(__name__)
 
@@ -852,7 +853,7 @@ def _execute_economic_writer(
     deps: WriterDeps,
 ) -> tuple[list[str], list[str]]:
     """Execute writer in economic mode (one-shot, no tools, no streaming)."""
-    import google.generativeai as genai  # Lazy import at runtime
+    from google import genai
 
     # 1. Create simple model for generation
     model_name = config.models.writer
