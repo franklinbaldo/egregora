@@ -546,10 +546,16 @@ def run_cycle_step(
                 print(f"Next persona: {next_pid}. Starting from '{JULES_BRANCH}'.")
             elif merged_pr and (merged_pr.get("state") or "").lower() == "closed":
                 print(
-                    f"PR for session {last_sid} is closed without merge "
-                    f"(#{merged_pr.get('number')}). Waiting for manual intervention."
+                    f"PR for session {last_sid} was closed without merge "
+                    f"(#{merged_pr.get('number')}). Skipping to next persona as requested."
                 )
-                return
+                if last_pid in cycle_list:
+                    idx = cycle_list.index(last_pid)
+                    next_idx = (idx + 1) % len(cycle_list)
+                    next_pid = cycle_list[next_idx]
+                else:
+                    print(f"Last persona {last_pid} not in cycle list. Restarting cycle.")
+                print(f"Next persona: {next_pid}. Starting from '{JULES_BRANCH}'.")
             else:
                 print(
                     f"PR for session {last_sid} not found in open PRs. Waiting for it to appear or manual intervention."
