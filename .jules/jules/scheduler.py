@@ -557,9 +557,23 @@ def run_cycle_step(
                     print(f"Last persona {last_pid} not in cycle list. Restarting cycle.")
                 print(f"Next persona: {next_pid}. Starting from '{JULES_BRANCH}'.")
             else:
-                print(
-                    f"PR for session {last_sid} not found in open PRs. Waiting for it to appear or manual intervention."
-                )
+                # Check if session is stuck awaiting plan approval
+                try:
+                    session_details = client.get_session(last_sid)
+                    if session_details.get("state") == "AWAITING_PLAN_APPROVAL":
+                        print(f"Session {last_sid} is awaiting plan approval. Approving automatically...")
+                        if not dry_run:
+                            client.approve_plan(last_sid)
+                            print(f"Plan for session {last_sid} approved. Waiting for it to complete.")
+                        else:
+                            print(f"[Dry Run] Would approve plan for session {last_sid}")
+                    else:
+                        print(
+                            f"PR for session {last_sid} not found in open PRs. "
+                            f"Session state: {session_details.get('state')}. Waiting."
+                        )
+                except Exception as e:
+                    print(f"Error checking/approving session {last_sid}: {e}")
                 return
 
     else:
