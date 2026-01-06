@@ -51,6 +51,42 @@ def get_open_prs(owner: str, repo: str) -> list[dict[str, Any]]:
         return []
 
 
+def get_pr_by_session_id_any_state(owner: str, repo: str, session_id: str) -> dict[str, Any] | None:
+    """Fetch a PR by session ID across all PR states.
+
+    This provides a fallback for cycle mode so we can detect PRs that have
+    already been merged (and thus won't appear in the open PR list).
+    """
+    if not os.environ.get("GITHUB_TOKEN") and not os.environ.get("GH_TOKEN"):
+        return None
+
+    try:
+        prs = run_gh_command(
+            [
+                "pr",
+                "list",
+                "--repo",
+                f"{owner}/{repo}",
+                "--state",
+                "all",
+                "--json",
+                "number,title,headRefName,mergedAt,closedAt,state",
+                "--limit",
+                "100",
+            ]
+        )
+    except Exception:
+        return None
+
+    for pr in prs or []:
+        head_ref = pr.get("headRefName", "")
+        extracted_id = _extract_session_id(head_ref, "")
+        if extracted_id == session_id:
+            return pr
+
+    return None
+
+
 def get_pr_details_via_gh(pr_number: int, repo_path: str = ".") -> dict[str, Any]:
     """Retrieve PR details using the gh CLI."""
     try:
