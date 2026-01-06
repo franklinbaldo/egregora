@@ -305,13 +305,21 @@ def is_jules_drifted() -> bool:
     try:
         # Check if jules is unmergeable with main
         # git merge-tree --write-tree HEAD1 HEAD2 checks mergeability without checkout
+        # Returns 0 if merge is clean, 1 if there are conflicts, >1 for other errors.
         result = subprocess.run(
             ["git", "merge-tree", "--write-tree", "origin/" + JULES_BRANCH, "origin/main"],
             capture_output=True, text=True
         )
-        return result.returncode != 0
-    except Exception:
-        # If git merge-tree fails (e.g. old git), assume drift to be safe if we suspect it
+        if result.returncode == 1:
+            print(f"Drift detected: Conflicting changes between 'origin/{JULES_BRANCH}' and 'origin/main'.")
+            return True
+        if result.returncode > 1:
+            stderr = result.stderr.strip()
+            print(f"Warning: git merge-tree failed with code {result.returncode}: {stderr}. Assuming NO drift to avoid accidental rotation.")
+            return False
+        return False
+    except Exception as e:
+        print(f"Warning: Error checking drift: {e}. Assuming NO drift.")
         return False
 
 
@@ -348,12 +356,11 @@ def rotate_drifted_jules_branch() -> None:
             stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
             print(f"Warning: Failed to create PR for drift branch: {stderr}", file=sys.stderr)
 
-        # 3. Delete the old jules branch on remote
-        subprocess.run(
-            ["git", "push", "origin", f":refs/heads/{JULES_BRANCH}"],
-            check=True, capture_output=True
-        )
-        print(f"Deleted outdated '{JULES_BRANCH}' branch.")
+        # 3. We NO LONGER delete the old jules branch on remote explicitly.
+        # The subsequent step in ensure_jules_branch_exists() uses a --force push 
+        # to overwrite 'jules' with the new base, which is safer and avoids
+        # periods where the branch appears "deleted" to other processes.
+        print(f"Branch '{JULES_BRANCH}' will be reset from main in the next step.")
         
     except subprocess.CalledProcessError as e:
         stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
