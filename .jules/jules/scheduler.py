@@ -647,9 +647,10 @@ def run_cycle_step(
         config = parsed["config"]
         prompt_body = parsed["prompt"]
 
-        if not config.get("enabled", True):
-             print(f"Skipping {next_pid} (disabled).")
-             return
+        # Execute all personas in the cycle regardless of 'enabled' status in frontmatter
+        # if not config.get("enabled", True):
+        #      print(f"Skipping {next_pid} (disabled).")
+        #      return
 
         print(f"Starting session for {next_pid} on branch '{JULES_BRANCH}'...")
 
