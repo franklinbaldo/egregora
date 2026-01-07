@@ -306,9 +306,9 @@ class DuckDBStorageManager:
         """
         return self._conn.execute(sql, params or [])
 
-    def execute_sql(self, sql: str, params: Sequence | None = None) -> Any:
-        """Execute a raw SQL statement and return the cursor."""
-        return self._conn.execute(sql, params or [])
+    def execute_sql(self, sql: str, params: Sequence | None = None) -> None:
+        """Execute a raw SQL statement without returning results."""
+        self._conn.execute(sql, params or [])
 
     def execute_query_single(self, sql: str, params: list | None = None) -> tuple | None:
         """Execute a raw SQL query and return a single result row.

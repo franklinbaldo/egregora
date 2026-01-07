@@ -21,6 +21,7 @@ import ibis.expr.datatypes as dt
 from dateutil import parser as date_parser
 from pydantic import BaseModel
 
+from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.exceptions import (
     DateParsingError,
     MalformedLineError,
@@ -450,4 +451,4 @@ def parse_source(
         created_by_run=created_by_literal,
     )
 
-    return result_table
+    return result_table.select(*INGESTION_MESSAGE_SCHEMA.names)
