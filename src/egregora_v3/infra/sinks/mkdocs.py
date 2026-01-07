@@ -26,11 +26,14 @@ class MkDocsOutputSink:
 
     def _setup_jinja_env(self) -> "jinja2.Environment":
         """Configure Jinja2 environment for rendering templates."""
-        from jinja2 import Environment, PackageLoader
+        from jinja2 import Environment, PackageLoader, select_autoescape
 
         return Environment(
             loader=PackageLoader("egregora_v3.infra.sinks", "templates"),
-            autoescape=False,  # We are generating Markdown, not HTML
+            autoescape=select_autoescape(
+                enabled_extensions=(".md.jinja", ".xml.jinja"),
+                default_for_string=True,
+            ),
             trim_blocks=True,
             lstrip_blocks=True,
         )
