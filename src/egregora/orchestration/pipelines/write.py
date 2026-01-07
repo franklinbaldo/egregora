@@ -1276,9 +1276,7 @@ def _apply_date_filters(
     return messages_table
 
 
-def _apply_checkpoint_filter(
-    messages_table: ir.Table, *, checkpoint_enabled: bool
-) -> ir.Table:
+def _apply_checkpoint_filter(messages_table: ir.Table, *, checkpoint_enabled: bool) -> ir.Table:
     """Apply checkpoint-based resume logic.
 
     DEPRECATED: We now rely on window skipping in runner.py based on JOURNAL entries.
@@ -1330,9 +1328,7 @@ def _apply_filters(
     messages_table = _apply_date_filters(messages_table, options.from_date, options.to_date)
 
     # Checkpoint-based resume logic (Delegated to Runner / Journal check)
-    return _apply_checkpoint_filter(
-        messages_table, checkpoint_enabled=options.checkpoint_enabled
-    )
+    return _apply_checkpoint_filter(messages_table, checkpoint_enabled=options.checkpoint_enabled)
 
 
 def _init_global_rate_limiter(quota_config: Any) -> None:

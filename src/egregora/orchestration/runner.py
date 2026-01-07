@@ -18,7 +18,7 @@ from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.types import Message, PromptTooLargeError, WindowProcessingParams
 from egregora.agents.writer import write_posts_for_window
-from egregora.data_primitives.document import UrlContext
+from egregora.data_primitives.document import DocumentType, UrlContext
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.exceptions import (
@@ -27,9 +27,7 @@ from egregora.orchestration.exceptions import (
     WindowSplitError,
 )
 from egregora.orchestration.factory import PipelineFactory
-from egregora.data_primitives.document import DocumentType
 from egregora.transformations import split_window_into_n_parts
-from egregora.transformations.windowing import Window
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -86,7 +84,6 @@ class PipelineRunner:
         total_windows = max_windows if max_windows else "unlimited"
         logger.info("Processing windows (limit: %s)", total_windows)
 
-        resources = PipelineFactory.create_writer_resources(self.context)
         processed_intervals = self._fetch_processed_intervals()
 
         for window in windows_iterator:
@@ -95,7 +92,9 @@ class PipelineRunner:
             end_iso = window.end_time.isoformat()
 
             if (start_iso, end_iso) in processed_intervals:
-                logger.info("⏭️  Skipping window %d: %s (Already Processed)", window.window_index, window.start_time)
+                logger.info(
+                    "⏭️  Skipping window %d: %s (Already Processed)", window.window_index, window.start_time
+                )
                 continue
 
             if max_windows is not None and windows_processed >= max_windows:
@@ -173,6 +172,7 @@ class PipelineRunner:
 
         Returns:
             Set of (start_iso, end_iso) tuples.
+
         """
         processed = set()
         if not self.context.library:
@@ -195,7 +195,7 @@ class PipelineRunner:
                 if j_start and j_end:
                     processed.add((str(j_start), str(j_end)))
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning("Failed to fetch processed journals: %s", e)
 
         return processed
