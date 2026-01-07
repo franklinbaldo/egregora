@@ -383,7 +383,7 @@ class DuckDBStorageManager:
             msg = f"Table '{name}' not found in database"
             logger.debug(msg)
             raise TableNotFoundError(name)
-        
+
         try:
             return self.ibis_conn.table(name)
         except Exception as e:

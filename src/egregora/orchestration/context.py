@@ -166,50 +166,62 @@ class PipelineContext:
 
     @property
     def config(self) -> EgregoraConfig:
+        """Return the full, immutable Egregora configuration object."""
         return self.config_obj.config
 
     @property
     def run_id(self) -> UUID:
+        """Return the unique identifier for the current pipeline run."""
         return self.state.run_id
 
     @property
     def start_time(self) -> datetime:
+        """Return the UTC timestamp when the current pipeline run started."""
         return self.state.start_time
 
     @property
     def source_type(self) -> str:
+        """Return the type of the input source (e.g., 'whatsapp')."""
         return self.state.source_type
 
     @property
     def input_path(self) -> Path:
+        """Return the path to the input data file or directory."""
         return self.state.input_path
 
     @property
     def output_dir(self) -> Path:
+        """Return the root directory for all generated output."""
         return self.config_obj.output_dir
 
     @property
     def site_root(self) -> Path | None:
+        """Return the root directory of the site being generated."""
         return self.config_obj.site_root
 
     @property
     def docs_dir(self) -> Path:
+        """Return the directory where Markdown content is stored."""
         return self.config_obj.docs_dir
 
     @property
     def posts_dir(self) -> Path:
+        """Return the directory for generated blog posts."""
         return self.config_obj.posts_dir
 
     @property
     def profiles_dir(self) -> Path:
+        """Return the directory for generated author profiles."""
         return self.config_obj.profiles_dir
 
     @property
     def media_dir(self) -> Path:
+        """Return the directory for extracted and generated media files."""
         return self.config_obj.media_dir
 
     @property
     def client(self) -> genai.Client:
+        """Return the Google Generative AI client instance."""
         return self.state.client
 
     @property
@@ -219,6 +231,7 @@ class PipelineContext:
 
     @property
     def cache(self) -> PipelineCache:
+        """Return the main pipeline cache instance."""
         return self.state.cache
 
     @property
@@ -228,14 +241,17 @@ class PipelineContext:
 
     @property
     def annotations_store(self) -> AnnotationStore | None:
+        """Return the store for managing annotations and metadata."""
         return self.state.annotations_store
 
     @property
     def task_store(self) -> TaskStore | None:
+        """Return the store for managing background tasks."""
         return self.state.task_store
 
     @property
     def library(self) -> Any:  # V3 ContentLibrary (avoid V2→V3 import)
+        """Return the V3 Content Library for unified content access."""
         return self.state.library
 
     @property
@@ -250,51 +266,63 @@ class PipelineContext:
 
     @property
     def url_context(self) -> UrlContext | None:
+        """Return the context for generating canonical URLs."""
         return self.config_obj.url_context
 
     @property
     def adapter(self) -> InputAdapter | None:
+        """Return the currently configured input adapter instance."""
         return self.state.adapter
 
     @property
     def usage_tracker(self) -> UsageTracker | None:
+        """Return the tracker for LLM token and API usage."""
         return self.state.usage_tracker
 
     @property
     def embedding_router(self) -> EmbeddingRouter | None:
+        """Return the router for selecting embedding models."""
         return self.state.embedding_router
 
     # Forward config properties
     @property
     def enable_enrichment(self) -> bool:
+        """Return True if the enrichment pipeline is enabled."""
         return self.config_obj.enable_enrichment
 
     @property
     def enable_rag(self) -> bool:
+        """Return True if Retrieval-Augmented Generation (RAG) is enabled."""
         return self.config_obj.enable_rag
 
     @property
     def writer_model(self) -> str:
+        """Return the name of the LLM used for writing posts."""
         return self.config_obj.writer_model
 
     @property
     def enricher_model(self) -> str:
+        """Return the name of the LLM used for data enrichment."""
         return self.config_obj.enricher_model
 
     @property
     def embedding_model(self) -> str:
+        """Return the name of the model used for generating embeddings."""
         return self.config_obj.embedding_model
 
     @property
     def retrieval_mode(self) -> str:
+        """Return the configured RAG retrieval mode (e.g., 'exact', 'vector')."""
         return self.config_obj.retrieval_mode
 
     @property
     def retrieval_nprobe(self) -> int:
+        """Return the configured RAG nprobe value for vector search."""
         return self.config_obj.retrieval_nprobe
 
     @property
     def retrieval_overfetch(self) -> int:
+        """Return the configured RAG overfetch multiplier."""
         return self.config_obj.retrieval_overfetch
 
     def with_adapter(self, adapter: InputAdapter) -> PipelineContext:

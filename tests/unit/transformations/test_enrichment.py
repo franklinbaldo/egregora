@@ -54,9 +54,7 @@ class TestCombineWithEnrichmentRows:
         """Should return the original table if enrichment rows are empty."""
         from egregora.transformations.enrichment import combine_with_enrichment_rows
 
-        combined = combine_with_enrichment_rows(
-            base_messages_table, [], base_messages_table.schema()
-        )
+        combined = combine_with_enrichment_rows(base_messages_table, [], base_messages_table.schema())
 
         assert combined.count().execute() == 2
 
@@ -88,13 +86,9 @@ class TestCombineWithEnrichmentRows:
         """Should cast the final table to the provided schema."""
         from egregora.transformations.enrichment import combine_with_enrichment_rows
 
-        target_schema = schema(
-            {"id": "string", "ts": "timestamp('UTC')", "text": "string"}
-        )
+        target_schema = schema({"id": "string", "ts": "timestamp('UTC')", "text": "string"})
 
-        combined = combine_with_enrichment_rows(
-            base_messages_table, enrichment_rows, target_schema
-        )
+        combined = combine_with_enrichment_rows(base_messages_table, enrichment_rows, target_schema)
 
         assert combined.schema() == target_schema
         assert combined.count().execute() == 4
@@ -113,9 +107,7 @@ class TestCombineWithEnrichmentRows:
 
         new_rows = [{"id": 2, "timestamp": datetime(2023, 1, 1, 9, 0, 0), "msg": "b"}]
 
-        combined = combine_with_enrichment_rows(
-            base_table, new_rows, base_table.schema()
-        )
+        combined = combine_with_enrichment_rows(base_table, new_rows, base_table.schema())
 
         assert combined.count().execute() == 2
 
