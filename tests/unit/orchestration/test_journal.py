@@ -1,11 +1,11 @@
 
-import pytest
-from unittest.mock import Mock, MagicMock
+from datetime import UTC, datetime
+from unittest.mock import Mock
 from uuid import uuid4
-from datetime import datetime, UTC
 
-from egregora.data_primitives.document import DocumentType, Document, DocumentMetadata
-from egregora.orchestration.journal import window_already_processed, create_journal_document
+from egregora.data_primitives.document import Document, DocumentMetadata, DocumentType
+from egregora.orchestration.journal import create_journal_document, window_already_processed
+
 
 class TestJournalUtils:
 

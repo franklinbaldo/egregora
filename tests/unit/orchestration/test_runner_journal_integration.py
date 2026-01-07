@@ -1,13 +1,14 @@
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch
-from datetime import datetime, UTC
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-from egregora.orchestration.runner import PipelineRunner
+import pytest
+
 from egregora.orchestration.context import PipelineContext
-from egregora.data_primitives.document import DocumentType, DocumentMetadata
 from egregora.orchestration.exceptions import OutputSinkError
+from egregora.orchestration.runner import PipelineRunner
+
 
 @pytest.fixture
 def mock_context():
@@ -104,7 +105,7 @@ class TestPipelineRunnerJournalIntegration:
         result = runner._process_single_window(mock_window)
 
         # Verify
-        assert "post1" in result[list(result.keys())[0]]["posts"]
+        assert "post1" in result[next(iter(result.keys()))]["posts"]
 
         # Check journal creation
         mock_create_journal.assert_called_once_with(

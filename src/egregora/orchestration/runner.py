@@ -403,7 +403,7 @@ class PipelineRunner:
             )
             output_sink.persist(journal)
             logger.debug("Persisted JOURNAL for window: %s", window_label)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # Non-fatal: Log warning but don't fail the pipeline
             logger.warning("Failed to persist JOURNAL for window %s: %s", window_label, e)
 

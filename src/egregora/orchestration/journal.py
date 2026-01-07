@@ -27,6 +27,7 @@ def window_already_processed(output_sink: OutputSink, signature: str) -> bool:
 
     Returns:
         True if a JOURNAL with the matching signature exists, False otherwise.
+
     """
     try:
         # Optimization: Some sinks might support filtering by metadata in the future,
@@ -37,7 +38,7 @@ def window_already_processed(output_sink: OutputSink, signature: str) -> bool:
                 logger.debug("Found existing JOURNAL for signature: %s", signature[:12])
                 return True
         return False
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning("Error checking for existing JOURNAL: %s. Assuming not processed.", e)
         return False
 
@@ -66,6 +67,7 @@ def create_journal_document(
 
     Returns:
         A Document object of type JOURNAL.
+
     """
     content = reasoning or f"Window processed: {window_start.isoformat()} to {window_end.isoformat()}"
 
