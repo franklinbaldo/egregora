@@ -1,13 +1,48 @@
-:root {
-  --md-text-font-size: 1.1rem;
+/*
+ * Egregora Custom Stylesheet
+ * -------------------------
+ * This file contains UX improvements for the default Material for MkDocs theme.
+ * Using high-specificity selectors to ensure overrides.
+ */
+
+/* --- Content Width & Centering --- */
+body .md-main__inner {
+  max-width: 70rem;
 }
 
-.md-main__inner {
-  max-width: 50rem;
-  margin: 0 auto;
+body .md-typeset {
+  max-width: 70ch; /* Optimal line length for readability */
+  font-size: 1.1rem;
+  line-height: 1.7;
 }
 
-.md-typeset {
-    font-size: 1.1rem;
-    line-height: 1.6;
+/* --- Heading Hierarchy --- */
+body .md-typeset h1 {
+  font-size: 2.8rem;
+  font-weight: 800;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+body .md-typeset h2 {
+  font-size: 2.2rem;
+  font-weight: 700;
+  margin-top: 2em;
+  margin-bottom: 0.8em;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 0.3em;
+}
+
+body .md-typeset h3 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-top: 1.8em;
+  margin-bottom: 0.6em;
+}
+
+/* --- Spacing & Rhythm --- */
+body .md-typeset p,
+body .md-typeset ul,
+body .md-typeset ol {
+  margin-bottom: 1.25em;
 }
