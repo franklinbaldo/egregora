@@ -129,7 +129,8 @@ class Entry(BaseModel):
 
 class DocumentType(str, Enum):
     RECAP = "recap"
-    NOTE = "note"
+    NOTE = "note"  # TODO: Deprecate in favor of JOURNAL?
+    JOURNAL = "journal"
     PLAN = "plan"
     POST = "post"
     MEDIA = "media"

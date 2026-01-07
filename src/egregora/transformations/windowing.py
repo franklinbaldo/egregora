@@ -50,57 +50,8 @@ HOURS_PER_DAY = 24  # Hours in a day for time unit conversion
 # Checkpoint / Sentinel File Utilities
 # ============================================================================
 
-
-def load_checkpoint(checkpoint_path: Path) -> dict | None:
-    """Load processing checkpoint from sentinel file.
-
-    Args:
-        checkpoint_path: Path to .egregora/checkpoint.json
-
-    Returns:
-        Checkpoint dict with 'last_processed_timestamp' or None if not found
-
-    """
-    if not checkpoint_path.exists():
-        return None
-
-    try:
-        with checkpoint_path.open() as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        logger.warning("Failed to load checkpoint from %s: %s", checkpoint_path, e)
-        return None
-
-
-def save_checkpoint(checkpoint_path: Path, last_timestamp: datetime, messages_processed: int) -> None:
-    """Save processing checkpoint to sentinel file.
-
-    Args:
-        checkpoint_path: Path to .egregora/checkpoint.json
-        last_timestamp: Timestamp of last processed message
-        messages_processed: Total count of messages processed
-
-    """
-    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-
-    utc_zone = ZoneInfo("UTC")
-    if last_timestamp.tzinfo is None:
-        last_timestamp = last_timestamp.replace(tzinfo=utc_zone)
-    else:
-        last_timestamp = last_timestamp.astimezone(utc_zone)
-
-    checkpoint = {
-        "last_processed_timestamp": last_timestamp.isoformat(),
-        "messages_processed": int(messages_processed),
-        "schema_version": "1.0",
-    }
-
-    try:
-        with checkpoint_path.open("w") as f:
-            json.dump(checkpoint, f, indent=2)
-        logger.info("Checkpoint saved: %s", checkpoint_path)
-    except OSError as e:
-        logger.warning("Failed to save checkpoint to %s: %s", checkpoint_path, e)
+# DEPRECATED: Checkpoints are now handled via DocumentType.JOURNAL in database.
+# Functions load_checkpoint/save_checkpoint removed.
 
 
 # ============================================================================
