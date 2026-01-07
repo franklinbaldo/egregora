@@ -367,6 +367,38 @@ def rotate_drifted_jules_branch() -> None:
         print(f"Warning: Failed to rotate jules branch fully: {stderr}", file=sys.stderr)
 
 
+def update_jules_from_main() -> bool:
+    """Updates the jules branch with changes from main.
+
+    Returns:
+        True if successful, False if failed (and triggered rotation).
+    """
+    try:
+        # Configure git identity for the merge commit if needed
+        subprocess.run(["git", "config", "user.name", "Jules Bot"], check=False)
+        subprocess.run(["git", "config", "user.email", "jules-bot@google.com"], check=False)
+
+        # Checkout jules tracking origin/jules
+        # We use -B to force create/reset it to origin/jules
+        subprocess.run(["git", "checkout", "-B", JULES_BRANCH, f"origin/{JULES_BRANCH}"], check=True, capture_output=True)
+
+        # Merge origin/main
+        print(f"Merging origin/main into '{JULES_BRANCH}'...")
+        subprocess.run(["git", "merge", "origin/main", "--no-edit"], check=True, capture_output=True)
+
+        # Push back
+        subprocess.run(["git", "push", "origin", JULES_BRANCH], check=True, capture_output=True)
+        print(f"Successfully updated '{JULES_BRANCH}' from main.")
+        return True
+
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
+        print(f"Failed to update jules from main: {stderr}. Treating as drift...")
+        # If update fails (e.g. conflict during merge), we treat it as drift.
+        rotate_drifted_jules_branch()
+        return False
+
+
 def ensure_jules_branch_exists() -> None:
     """Ensure the 'jules' branch exists and is not drifted.
     
@@ -393,8 +425,10 @@ def ensure_jules_branch_exists() -> None:
                 # If rotation worked, jules is gone, so we proceed to create it fresh.
                 # If rotation failed partially, we'll try to recreate it anyway.
             else:
-                print(f"Branch '{JULES_BRANCH}' exists and is healthy.")
-                return
+                print(f"Branch '{JULES_BRANCH}' exists and is healthy. Updating from main...")
+                if update_jules_from_main():
+                    return
+                # If update failed (and presumably rotated), we proceed to create fresh.
         
         # Jules branch doesn't exist (or was just rotated) - create it from main
         print(f"Branch '{JULES_BRANCH}' needs recreation. Creating from main...")
