@@ -352,7 +352,7 @@ source = ["src/egregora"]
 omit = ["*/tests/*", "*/__pycache__/*", "*/site-packages/*"]
 
 [tool.coverage.report]
-fail_under = 0
+fail_under = 54
 show_missing = true
 skip_covered = false
 precision = 2
