@@ -35,31 +35,16 @@ def test_full_pipeline_with_openrouter() -> bool | None:
         return False
 
     pytest.importorskip(
-        "google.generativeai",
+        "google.genai",
         reason=(
-            "google.generativeai is required for the OpenRouter pipeline test; "
+            "google.genai is required for the OpenRouter pipeline test; "
             "install it to exercise the full pipeline."
         ),
     )
     pytest.importorskip(
         "cryptography",
         reason=(
-            "cryptography is required for google.generativeai/OpenRouter integration; "
-            "install it to exercise the full pipeline."
-        ),
-    )
-
-    pytest.importorskip(
-        "google.generativeai",
-        reason=(
-            "google.generativeai is required for the OpenRouter pipeline test; "
-            "install it to exercise the full pipeline."
-        ),
-    )
-    pytest.importorskip(
-        "cryptography",
-        reason=(
-            "cryptography is required for google.generativeai/OpenRouter integration; "
+            "cryptography is required for google.genai/OpenRouter integration; "
             "install it to exercise the full pipeline."
         ),
     )

@@ -31,16 +31,16 @@ except ImportError:  # pragma: no cover - depends on test env
 
 @pytest.fixture(scope="session", autouse=True)
 def stub_google_generativeai():
-    """Inject a lightweight google.generativeai stub when the real package is unavailable."""
+    """Inject a lightweight google.genai stub when the real package is unavailable."""
     try:  # pragma: no cover - depends on test env
-        import google.generativeai  # noqa: F401
+        import google.genai  # noqa: F401
     except ImportError:
         pass
     else:
         yield
         return
 
-    module_names = ("google", "google.generativeai", "google.api_core", "google.api_core.exceptions")
+    module_names = ("google", "google.genai", "google.api_core", "google.api_core.exceptions")
     previous_modules = {name: sys.modules.get(name) for name in module_names}
 
     google_module = previous_modules["google"] or ModuleType("google")
@@ -60,18 +60,18 @@ def stub_google_generativeai():
     exceptions_module.ResourceExhausted = ResourceExhaustedError
     api_core_module.exceptions = exceptions_module
 
-    genai_module = ModuleType("google.generativeai")
+    genai_module = ModuleType("google.genai")
 
     class Client:
         def __init__(self, *args, **kwargs): ...
 
     genai_module.Client = Client
 
-    google_module.generativeai = genai_module
+    google_module.genai = genai_module
     google_module.api_core = api_core_module
 
     sys.modules["google"] = google_module
-    sys.modules["google.generativeai"] = genai_module
+    sys.modules["google.genai"] = genai_module
     sys.modules["google.api_core"] = api_core_module
     sys.modules["google.api_core.exceptions"] = exceptions_module
 
