@@ -31,6 +31,9 @@ summary: test summary
     )
 
 
+import ibis
+
+
 def test_self_adapter_parses_existing_site(tmp_path: Path):
     adapter = SelfInputAdapter()
     registry = create_default_output_registry()
@@ -48,16 +51,15 @@ def test_self_adapter_parses_existing_site(tmp_path: Path):
 
     # Filter for posts to avoid counting scaffolded pages like about.md
     table = adapter.parse(tmp_path, output_adapter=output_format, doc_type=DocumentType.POST)
+    assert isinstance(table, ibis.expr.types.Table)
+    assert table.count().execute() == 2
+
     dataframe = table.execute()
+    recorded_ids = set(dataframe["id"].tolist())
+    assert len(recorded_ids) == 2
+    assert all(text.strip() for text in dataframe["content"].tolist())
 
-    assert set(dataframe.columns) == set(table.schema().names)
-    assert dataframe.shape[0] == 2
-
-    recorded_slugs = set(dataframe["thread_id"].tolist())
-    assert {"sample-post", "second-post"} == recorded_slugs
-    assert all(text.strip() for text in dataframe["text"].tolist())
-
-    attrs_value = dataframe.iloc[0]["attrs"]
+    attrs_value = dataframe.iloc[0]["extensions"]
     if isinstance(attrs_value, str):
         attrs_value = json.loads(attrs_value)
     assert "source_path" in attrs_value

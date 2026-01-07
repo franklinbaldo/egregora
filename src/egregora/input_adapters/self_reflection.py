@@ -14,7 +14,7 @@ import ibis
 import yaml
 
 from egregora.data_primitives.document import DocumentType
-from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
+from egregora.database.schemas import UNIFIED_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.output_adapters.exceptions import DocumentNotFoundError
 from egregora.utils.datetime_utils import parse_datetime_flexible
@@ -133,25 +133,29 @@ class SelfInputAdapter(InputAdapter):
 
             records.append(
                 {
-                    "event_id": event_id,
-                    "tenant_id": site_name,
-                    "source": self.source_identifier,
-                    "thread_id": slug,
-                    "msg_id": f"self-{slug}",
-                    "ts": timestamp,
-                    "author_raw": author_label,
-                    "author_uuid": author_uuid,
-                    "text": text,
-                    "media_url": None,
-                    "media_type": None,
-                    "attrs": attrs_json,
-                    "pii_flags": None,
+                    "id": event_id,
+                    "doc_type": "post",
+                    "status": "published",
+                    "title": metadata.get("title", slug),
+                    "content": text,
                     "created_at": timestamp,
-                    "created_by_run": "adapter:self-reflection",
+                    "source_checksum": str(uuid5(EVENT_NAMESPACE, storage_identifier)),
+                    "authors": [author_uuid],
+                    "tags": metadata.get("tags", []),
+                    "extensions": attrs_json,
                 }
             )
 
-        return ibis.memtable(records, schema=INGESTION_MESSAGE_SCHEMA)
+        # UNIFIED_SCHEMA requires all columns to be present.
+        # We'll fill in the missing ones with None.
+        for record in records:
+            record.setdefault("slug", record.get("id"))
+            record.setdefault("date", record.get("created_at").date())
+            record.setdefault("summary", record.get("content", "")[:200])
+            for col in UNIFIED_SCHEMA.names:
+                if col not in record:
+                    record[col] = None
+        return ibis.memtable(records, schema=UNIFIED_SCHEMA)
 
     def get_metadata(self, _input_path: Path, **_kwargs: Any) -> dict[str, Any]:
         _, site_root = self._resolve_docs_dir(_input_path)

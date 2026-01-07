@@ -230,16 +230,12 @@ def get_table_check_constraints(table_name: str) -> dict[str, str]:
     Note:
         This function defines business rules at the database level by specifying
         CHECK constraints for enum-like fields. Currently supports:
-        - posts.status: Must be one of VALID_POST_STATUSES
-        - tasks.status: Must be one of VALID_TASK_STATUSES
+        - documents.status: Must be one of VALID_DOCUMENT_STATUSES
 
     """
-    if table_name == "posts":
-        valid_values = ", ".join(f"'{status}'" for status in VALID_POST_STATUSES)
-        return {"chk_posts_status": f"status IN ({valid_values})"}
-    if table_name == "tasks":
-        valid_values = ", ".join(f"'{status}'" for status in VALID_TASK_STATUSES)
-        return {"chk_tasks_status": f"status IN ({valid_values})"}
+    if table_name == "documents":
+        valid_values = ", ".join(f"'{status}'" for status in VALID_DOCUMENT_STATUSES)
+        return {"chk_documents_status": f"status IN ({valid_values})"}
     return {}
 
 
@@ -271,8 +267,16 @@ def apply_table_constraints(conn: Any, table_name: str) -> None:
 # ============================================================================
 
 # Valid status values for business logic enforcement
-VALID_POST_STATUSES = ("draft", "published", "archived")
-VALID_TASK_STATUSES = ("pending", "processing", "completed", "failed", "superseded")
+VALID_DOCUMENT_STATUSES = (
+    "draft",
+    "published",
+    "archived",
+    "pending",
+    "processing",
+    "completed",
+    "failed",
+    "superseded",
+)
 
 # Common columns for all types
 BASE_COLUMNS = {
@@ -330,23 +334,6 @@ JOURNALS_SCHEMA = ibis.schema(
     }
 )
 
-# ----------------------------------------------------------------------------
-# Tasks Schema (Asynchronous Background Tasks)
-# ----------------------------------------------------------------------------
-TASKS_SCHEMA = ibis.schema(
-    {
-        "task_id": dt.UUID,
-        "task_type": dt.string,  # "generate_banner", "update_profile", "enrich_media"
-        "status": dt.string,  # "pending", "processing", "completed", "failed", "superseded"
-        "payload": dt.JSON,  # Arguments for the task
-        "created_at": dt.Timestamp(timezone="UTC"),
-        "processed_at": dt.Timestamp(timezone="UTC", nullable=True),
-        "error": dt.String(nullable=True),
-        # run_id is no longer part of the schema in V2, but was in V1.
-        # Removing run_id dependency for clean break.
-    }
-)
-
 # ============================================================================
 # V3 Unified Schema
 # ============================================================================
@@ -381,42 +368,6 @@ CREATE OR REPLACE VIEW documents_view AS
 """
 
 # ============================================================================
-# Legacy / Ingestion Schemas (Moved from IR_SCHEMA)
-# ============================================================================
-
-# ----------------------------------------------------------------------------
-# Interchange Representation (IR) v1 Message Schema
-# ----------------------------------------------------------------------------
-
-INGESTION_MESSAGE_SCHEMA = ibis.schema(
-    {
-        # Identity
-        "event_id": dt.string,
-        # Multi-Tenant
-        "tenant_id": dt.string,
-        "source": dt.string,
-        # Threading
-        "thread_id": dt.string,
-        "msg_id": dt.string,
-        # Temporal
-        "ts": dt.Timestamp(timezone="UTC"),
-        # Authors (PRIVACY BOUNDARY)
-        "author_raw": dt.string,
-        "author_uuid": dt.string,
-        # Content
-        "text": dt.String(nullable=True),
-        "media_url": dt.String(nullable=True),
-        "media_type": dt.String(nullable=True),
-        # Metadata
-        "attrs": dt.JSON(nullable=True),
-        "pii_flags": dt.JSON(nullable=True),
-        # Lineage
-        "created_at": dt.Timestamp(timezone="UTC"),
-        "created_by_run": dt.string,
-    }
-)
-
-# ----------------------------------------------------------------------------
 # Annotations Schema
 # ----------------------------------------------------------------------------
 
