@@ -117,6 +117,9 @@ class Document:
     # Metadata (format-agnostic)
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    # Internal system metadata (not serialized to public outputs if possible)
+    internal_metadata: dict[str, Any] = field(default_factory=dict)
+
     # V3: Explicit ID (Semantic Identity)
     id: str | None = field(default=None)
 
