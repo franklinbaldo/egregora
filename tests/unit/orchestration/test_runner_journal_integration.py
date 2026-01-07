@@ -1,0 +1,134 @@
+
+import pytest
+from unittest.mock import Mock, MagicMock, patch
+from datetime import datetime, UTC
+from uuid import uuid4
+
+from egregora.orchestration.runner import PipelineRunner
+from egregora.orchestration.context import PipelineContext
+from egregora.data_primitives.document import DocumentType, DocumentMetadata
+from egregora.orchestration.exceptions import OutputSinkError
+
+@pytest.fixture
+def mock_context():
+    ctx = MagicMock(spec=PipelineContext)
+    ctx.config = MagicMock()
+    ctx.config.pipeline.max_prompt_tokens = 1000
+    ctx.config.models.writer = "gpt-4"
+    ctx.config.enrichment.enabled = False  # Disable enrichment to simplify mocks
+    ctx.site_root = None
+    ctx.run_id = uuid4()
+    ctx.output_format = MagicMock()
+    ctx.adapter = MagicMock()
+    # Ensure enrichment property mirrors config
+    ctx.enable_enrichment = False
+    return ctx
+
+@pytest.fixture
+def mock_window():
+    window = MagicMock()
+    window.start_time = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
+    window.end_time = datetime(2023, 1, 1, 13, 0, 0, tzinfo=UTC)
+    window.size = 10
+    window.table = MagicMock()
+    return window
+
+class TestPipelineRunnerJournalIntegration:
+
+    @patch("egregora.orchestration.runner.generate_window_signature")
+    @patch("egregora.orchestration.runner.PromptManager")
+    @patch("egregora.orchestration.runner.window_already_processed")
+    def test_process_window_skipped_if_already_processed(
+        self,
+        mock_check,
+        mock_pm,
+        mock_sig,
+        mock_context,
+        mock_window
+    ):
+        """Test that window processing is skipped if journal exists."""
+        runner = PipelineRunner(mock_context)
+
+        # Setup mocks
+        mock_pm.get_template_content.return_value = "template"
+        mock_sig.return_value = "existing-signature"
+        mock_check.return_value = True  # Simulate already processed
+
+        # Execute
+        result = runner._process_single_window(mock_window)
+
+        # Verify
+        assert result == {}
+        mock_check.assert_called_once_with(mock_context.output_format, "existing-signature")
+        # Ensure heavy operations were skipped
+        mock_context.output_format.persist.assert_not_called()
+
+    @patch("egregora.orchestration.runner.generate_window_signature")
+    @patch("egregora.orchestration.runner.PromptManager")
+    @patch("egregora.orchestration.runner.window_already_processed")
+    @patch("egregora.orchestration.runner.process_media_for_window")
+    @patch("egregora.orchestration.runner.write_posts_for_window")
+    @patch("egregora.orchestration.runner.generate_profile_posts")
+    @patch("egregora.orchestration.runner.create_journal_document")
+    @patch("egregora.orchestration.runner.PipelineFactory") # for writer resources
+    def test_process_window_creates_journal_on_success(
+        self,
+        mock_factory,
+        mock_create_journal,
+        mock_gen_profiles,
+        mock_write_posts,
+        mock_media,
+        mock_check,
+        mock_pm,
+        mock_sig,
+        mock_context,
+        mock_window
+    ):
+        """Test that journal is created and persisted after successful processing."""
+        runner = PipelineRunner(mock_context)
+
+        # Setup mocks
+        mock_pm.get_template_content.return_value = "template"
+        mock_sig.return_value = "new-signature"
+        mock_check.return_value = False  # Not processed yet
+
+        # Mock processing returns
+        mock_media.return_value = (MagicMock(), {})
+        mock_write_posts.return_value = (["post1"], ["profile1"])
+        mock_gen_profiles.return_value = []
+
+        mock_journal_doc = MagicMock()
+        mock_create_journal.return_value = mock_journal_doc
+
+        # Execute
+        result = runner._process_single_window(mock_window)
+
+        # Verify
+        assert "post1" in result[list(result.keys())[0]]["posts"]
+
+        # Check journal creation
+        mock_create_journal.assert_called_once_with(
+            signature="new-signature",
+            run_id=mock_context.run_id,
+            window_start=mock_window.start_time,
+            window_end=mock_window.end_time,
+            model="gpt-4",
+            posts_generated=1, # 1 post generated (minus 0 scheduled)
+            profiles_updated=1 # 1 profile generated
+        )
+
+        # Check persistence
+        # persist is called for posts/profiles/announcements too, so we check if journal was passed
+        mock_context.output_format.persist.assert_any_call(mock_journal_doc)
+
+    @patch("egregora.orchestration.runner.generate_window_signature")
+    @patch("egregora.orchestration.runner.PromptManager")
+    @patch("egregora.orchestration.runner.window_already_processed")
+    def test_process_window_raises_sink_error(
+        self, mock_check, mock_pm, mock_sig, mock_context, mock_window
+    ):
+        runner = PipelineRunner(mock_context)
+        mock_context.output_format = None
+
+        with pytest.raises(OutputSinkError):
+            runner._process_single_window(mock_window)
