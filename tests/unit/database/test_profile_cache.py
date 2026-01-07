@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
+from unittest.mock import patch
 
 import ibis
 import pytest
@@ -207,29 +208,31 @@ def test_scan_and_cache_all_documents_e2e(storage_manager: DuckDBStorageManager,
     assert storage_manager.table_exists("posts")
     assert storage_manager.read_table("posts").count().execute() == 1
 
-from unittest.mock import patch
 
 def test_get_profile_from_db_exception(storage_manager: DuckDBStorageManager):
     """Test exception handling in get_profile_from_db."""
     # Mock read_table to raise Exception
-    with patch.object(storage_manager, 'read_table', side_effect=Exception("DB Error")):
+    with patch.object(storage_manager, "read_table", side_effect=Exception("DB Error")):
         result = get_profile_from_db(storage_manager, "user1")
         assert result == ""
 
+
 def test_get_all_profiles_from_db_exception(storage_manager: DuckDBStorageManager):
     """Test exception handling in get_all_profiles_from_db."""
-    with patch.object(storage_manager, 'read_table', side_effect=Exception("DB Error")):
+    with patch.object(storage_manager, "read_table", side_effect=Exception("DB Error")):
         result = get_all_profiles_from_db(storage_manager)
         assert result == {}
 
+
 def test_get_opted_out_authors_from_db_exception(storage_manager: DuckDBStorageManager):
     """Test exception handling in get_opted_out_authors_from_db."""
-    with patch.object(storage_manager, 'read_table', side_effect=Exception("DB Error")):
+    with patch.object(storage_manager, "read_table", side_effect=Exception("DB Error")):
         result = get_opted_out_authors_from_db(storage_manager)
         assert result == set()
 
+
 def test_get_profile_posts_from_db_exception(storage_manager: DuckDBStorageManager):
     """Test exception handling in get_profile_posts_from_db."""
-    with patch.object(storage_manager, 'read_table', side_effect=Exception("DB Error")):
+    with patch.object(storage_manager, "read_table", side_effect=Exception("DB Error")):
         result = get_profile_posts_from_db(storage_manager, "user1")
         assert result == []
