@@ -378,6 +378,12 @@ class DuckDBStorageManager:
             >>> df = table.execute()
 
         """
+        # Check if table exists first to provide better error handling
+        if not self.table_exists(name):
+            msg = f"Table '{name}' not found in database"
+            logger.debug(msg)
+            raise TableNotFoundError(name)
+        
         try:
             return self.ibis_conn.table(name)
         except Exception as e:
