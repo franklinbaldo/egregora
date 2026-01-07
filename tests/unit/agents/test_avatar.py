@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch, call
-
-import respx
-from httpx import Response
+from unittest.mock import call, patch
 
 import pytest
+import respx
+from httpx import Response
 
 from egregora.agents.avatar import AvatarProcessingError, download_avatar_from_url
 from egregora.security.ssrf import SSRFValidationError
