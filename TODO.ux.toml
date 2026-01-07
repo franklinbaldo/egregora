@@ -29,7 +29,7 @@ HOW TO VERIFY:
 WHERE: demo/docs/stylesheets/extra.css (to be created)
 TEMPLATE SOURCE: src/egregora/output_adapters/mkdocs/scaffolding.py
 """
-status = "pending"
+status = "review"
 category = "baseline"
 assignee = "forge"
 
