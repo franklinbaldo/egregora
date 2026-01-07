@@ -11,7 +11,7 @@ from egregora.agents.exceptions import MediaStagingError
 
 
 @pytest.fixture
-def mock_context(minimal_config):
+def mock_context(minimal_config: EgregoraConfig):
     """Provides a mock PipelineContext."""
     ctx = MagicMock()
     ctx.input_path = Path("/mock/archive.zip")
