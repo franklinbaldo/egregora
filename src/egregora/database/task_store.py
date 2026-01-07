@@ -13,10 +13,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-import ibis
-from ibis import literal as L
-
-from egregora.database.schemas import quote_identifier
+from egregora.database.schemas import TASKS_SCHEMA, quote_identifier
 
 if TYPE_CHECKING:
     from egregora.database.duckdb_manager import DuckDBStorageManager
@@ -25,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class TaskStore:
-    """DuckDB-backed task queue using the unified 'documents' table."""
+    """DuckDB-backed task queue for async operations."""
 
     def __init__(self, storage: DuckDBStorageManager) -> None:
         """Initialize the task store.
@@ -35,80 +32,81 @@ class TaskStore:
 
         """
         self.storage = storage
+        self._ensure_table()
+
+    def _ensure_table(self) -> None:
+        """Create the tasks table if it was dropped or the database was rebuilt."""
+        try:
+            if "tasks" not in self.storage.list_tables():
+                self.storage.ibis_conn.create_table("tasks", schema=TASKS_SCHEMA)
+        except Exception as e:
+            # Verify table exists (might have been created by another worker during race)
+            if "tasks" in self.storage.list_tables():
+                # Race condition - table was created by another worker, continue
+                return
+            # Table doesn't exist and creation failed - this is a real error
+            msg = f"Failed to create tasks table: {e}"
+            raise RuntimeError(msg) from e
 
     def enqueue(self, task_type: str, payload: dict[str, Any], run_id: uuid.UUID | None = None) -> str:
-        """Add a new task to the documents table.
+        """Add a new task to the queue.
 
         Args:
             task_type: Identifier for the worker (e.g., "generate_banner")
             payload: JSON-serializable dictionary of task arguments
-            run_id: UUID of the pipeline run (optional, for lineage)
+            run_id: UUID of the pipeline run creating this task (optional, deprecated)
 
         Returns:
-            The generated task_id as a string.
+            The generated task_id as a string
 
         """
+        self._ensure_table()
         task_id = uuid.uuid4()
-        now = datetime.now(UTC)
 
-        # Map task data to the UNIFIED_SCHEMA
-        # 'content' can store task details or be null if payload is sufficient.
-        # 'extensions' will store the main payload and metadata.
-        task_doc = {
-            "id": str(task_id),
-            "doc_type": "task",
-            "title": task_type,
+        # Ibis handles the dict -> JSON conversion for the payload column
+        # Converting UUIDs to strings to avoid Arrow serialization issues
+        # Explicitly serializing payload to JSON string to avoid PyArrow/DuckDB conversion issues
+        row = {
+            "task_id": str(task_id),
+            "task_type": task_type,
             "status": "pending",
-            "content": f"Task for {task_type}",
-            "created_at": now,
-            "source_checksum": str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{task_type}-{now.isoformat()}")),
-            "extensions": {
-                "payload": payload,
-                "processed_at": None,
-                "run_id": str(run_id) if run_id else None,
-            },
+            "payload": json.dumps(payload),
+            "created_at": datetime.now(UTC),
+            "processed_at": None,
+            "error": None,
         }
 
-        self.storage.ibis_conn.insert("documents", [task_doc])
+        # Pass as a list to ensure it's treated as a row, not scalar values
+        self.storage.ibis_conn.insert("tasks", [row])
         logger.debug("Enqueued task %s (%s)", task_id, task_type)
         return str(task_id)
 
     def fetch_pending(self, task_type: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
-        """Fetch pending tasks from the documents table.
+        """Fetch pending tasks, optionally filtered by type.
 
         Args:
             task_type: Optional filter (e.g., "update_profile")
             limit: Maximum number of tasks to retrieve
 
         Returns:
-            List of task document dictionaries, with payload extracted.
+            List of task dictionaries (including payload)
 
         """
-        t = self.storage.read_table("documents")
-        query = t.filter((t.doc_type == "task") & (t.status == "pending"))
+        try:
+            t = self.storage.read_table("tasks")
+        except ValueError:
+            self._ensure_table()
+            return []
+        query = t.filter(t.status == "pending")
 
         if task_type:
-            query = query.filter(t.title == task_type)
+            query = query.filter(t.task_type == task_type)
 
+        # Order by creation time to ensure FIFO processing
+        # (Workers may override this order for optimization, e.g., coalescing)
         query = query.order_by(t.created_at).limit(limit)
 
-        results = []
-        for doc in query.execute().to_dict(orient="records"):
-            extensions = doc.get("extensions") or {}
-            if isinstance(extensions, str):
-                extensions = json.loads(extensions)
-
-            task_data = {
-                "task_id": doc.get("id"),
-                "task_type": doc.get("title"),
-                "status": doc.get("status"),
-                "created_at": doc.get("created_at"),
-                "error": doc.get("summary"),
-                "payload": extensions.get("payload"),
-                "processed_at": extensions.get("processed_at"),
-            }
-            results.append(task_data)
-        return results
+        return query.execute().to_dict(orient="records")
 
     def _update_status(
         self,
@@ -116,40 +114,21 @@ class TaskStore:
         status: str,
         error: str | None = None,
     ) -> None:
-        """Update a task's status and metadata in the documents table."""
+        """Internal helper to update task status using raw SQL."""
         now = datetime.now(UTC)
-        table = self.storage.read_table("documents")
+        table_name = quote_identifier("tasks")
+        self._ensure_table()
+
+        # Use raw SQL for specific updates to ensure immediate visibility
+        sql = f"""
+            UPDATE {table_name}
+            SET status = ?, processed_at = ?, error = ?
+            WHERE task_id = ?
+        """
+        # Ensure UUID is string for DuckDB binding
         t_id = str(task_id)
 
-        # Use Ibis mutation for safe updates
-        # Update status, summary (for error), and extensions.processed_at
-        table_name = quote_identifier("documents")
-
-        # Update status and summary directly
-        sql_update = f"""
-            UPDATE {table_name}
-            SET status = ?, summary = ?
-            WHERE id = ? AND doc_type = 'task'
-        """
-        self.storage.execute_sql(sql_update, params=[status, error, t_id])
-
-        # Update the processed_at in the JSON extensions field
-        # DuckDB's JSON support is good, but json_set is not always available.
-        # We'll read the extensions, update in Python, and write back.
-        sql_select = f"""
-            SELECT extensions FROM {table_name}
-            WHERE id = ? AND doc_type = 'task'
-        """
-        result = self.storage.execute_sql(sql_select, params=[t_id]).fetchone()
-        if result:
-            extensions = json.loads(result[0]) if isinstance(result[0], str) else result[0]
-            extensions["processed_at"] = now.isoformat()
-            sql_update_json = f"""
-                UPDATE {table_name}
-                SET extensions = ?
-                WHERE id = ? AND doc_type = 'task'
-            """
-            self.storage.execute_sql(sql_update_json, params=[json.dumps(extensions), t_id])
+        self.storage.execute_sql(sql, params=[status, now, error, t_id])
 
     def mark_completed(self, task_id: uuid.UUID | str) -> None:
         """Mark a task as successfully completed."""

@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING, Any
 
 from egregora.database.migrations import migrate_documents_table
 from egregora.database.schemas import (
+    INGESTION_MESSAGE_SCHEMA,
+    TASKS_SCHEMA,
     UNIFIED_SCHEMA,
     create_table_if_not_exists,
 )
@@ -57,6 +59,18 @@ def initialize_database(backend: BaseBackend) -> None:
     # 2. Run V3 schema migration to handle tables created with older schemas.
     # The migration script is idempotent and will do nothing if the schema is current.
     migrate_documents_table(conn)
+
+    # 3. Tasks Table
+    create_table_if_not_exists(conn, "tasks", TASKS_SCHEMA)
+
+    # 4. Ingestion / Messages Table (Legacy/Ingestion Support)
+    create_table_if_not_exists(conn, "messages", INGESTION_MESSAGE_SCHEMA)
+
+    # Indexes for messages table (Ingestion performance)
+    _execute_sql(conn, "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_pk ON messages(event_id)")
+    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts)")
+    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id)")
+    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_author ON messages(author_uuid)")
 
     logger.info("✓ Database tables initialized successfully")
 

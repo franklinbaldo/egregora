@@ -12,10 +12,8 @@ from uuid import UUID, uuid5
 import httpx
 import ibis
 
-from egregora.database.schemas import UNIFIED_SCHEMA
+from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
-
-EVENT_NAMESPACE = UUID("3d99325f-85e5-4c4b-9a85-4e80bc9a6d33")
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -95,7 +93,7 @@ class IperonTJROAdapter(InputAdapter):
             logger.warning("No communications returned for %s", input_path)
 
         rows = [self._normalize_item(item, timezone) for item in items if isinstance(item, dict)]
-        return ibis.memtable(rows, schema=UNIFIED_SCHEMA)
+        return ibis.memtable(rows, schema=INGESTION_MESSAGE_SCHEMA)
 
     # ------------------------------------------------------------------
     # Configuration helpers
@@ -186,25 +184,23 @@ class IperonTJROAdapter(InputAdapter):
 
         text = self._build_body(item, processo)
 
-        record = {
-            "id": str(item.get("id")),
-            "content": text,
+        return {
+            "event_id": str(item.get("id")),
+            "tenant_id": tribunal,
+            "source": self.source_identifier,
+            "thread_id": thread_id,
+            "msg_id": msg_id,
+            "ts": ts,
+            "author_raw": author_raw,
+            "author_uuid": author_uuid,
+            "text": text,
+            "media_url": item.get("link"),
+            "media_type": "url" if item.get("link") else None,
+            "attrs": json.dumps(attrs),
+            "pii_flags": None,
             "created_at": ts,
-            "source_checksum": str(uuid5(EVENT_NAMESPACE, str(item.get("id")))),
-            "title": f"Communication from {tribunal}: {processo}",
-            "slug": processo,
-            "date": ts.date(),
-            "summary": text[:200],
-            "authors": [author_uuid],
-            "tags": [item.get("tipoComunicacao"), item.get("nomeClasse")],
-            "status": "published",
-            "doc_type": "post",
-            "extensions": json.dumps(attrs),
+            "created_by_run": RUN_IDENTIFIER,
         }
-        for col in UNIFIED_SCHEMA.names:
-            if col not in record:
-                record[col] = None
-        return record
 
     def _build_body(self, item: dict[str, Any], processo: Any) -> str:
         parts: list[str] = []

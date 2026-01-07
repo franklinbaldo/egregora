@@ -17,22 +17,25 @@ def test_initialize_database_creates_unified_table_only(memory_db):
     # 1. Run initialization
     initialize_database(memory_db)
 
-    # 2. Verify that ONLY the 'documents' table exists
-    all_tables = sorted(memory_db.list_tables())
-    assert all_tables == ["documents"], f"Expected only ['documents'], but found: {all_tables}"
+    # 2. Verify 'documents' table exists and has the correct schema
+    assert "documents" in memory_db.list_tables()
 
-
-    # 3. Verify 'documents' table has the correct schema
     # Check a few key columns from UNIFIED_SCHEMA
     table_info = memory_db.raw_sql("PRAGMA table_info('documents')").fetchall()
     column_names = {row[1] for row in table_info}
     assert "doc_type" in column_names
     assert "status" in column_names
     assert "extensions" in column_names
-    assert "authors" in column_names  # from POSTS_SCHEMA
-    assert "subject_uuid" in column_names  # from PROFILES_SCHEMA
+    assert "authors" in column_names # from POSTS_SCHEMA
+    assert "subject_uuid" in column_names # from PROFILES_SCHEMA
 
-    # 4. Verify the legacy view is not created
+
+    # 3. Verify legacy tables are NOT created
+    legacy_tables = {"posts", "profiles", "media", "journals", "annotations"}
+    for table in legacy_tables:
+        assert table not in memory_db.list_tables(), f"Legacy table '{table}' should not be created."
+
+    # 4. Verify the view is not created
     with pytest.raises(duckdb.CatalogException):
         memory_db.raw_sql("SELECT * FROM documents_view")
 

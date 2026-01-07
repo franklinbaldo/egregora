@@ -23,6 +23,7 @@ import ibis
 import pytest
 
 from egregora.data_primitives.document import Document, DocumentType, UrlContext, UrlConvention
+from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 from egregora.input_adapters.whatsapp.commands import filter_egregora_messages
 from egregora.input_adapters.whatsapp.exceptions import MediaNotFoundError
@@ -80,8 +81,7 @@ def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
-    assert "text" in table.columns
-    assert "ts" in table.columns
+    assert set(table.columns) == set(INGESTION_MESSAGE_SCHEMA.names)
     assert table.count().execute() == 10
     messages = table["text"].execute().tolist()
     assert all(message is not None and message.strip() for message in messages)
@@ -122,10 +122,10 @@ def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture):
 def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
     """Test that parser strictly enforces IR MESSAGE_SCHEMA without extra columns."""
     export = create_export_from_fixture(whatsapp_fixture)
-    parse_source(export, timezone=whatsapp_fixture.timezone)
+    table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
-    # Test that it runs without error. Column check is removed.
-    assert True
+    expected_columns = set(INGESTION_MESSAGE_SCHEMA.names)
+    assert set(table.columns) == expected_columns
 
 
 # =============================================================================

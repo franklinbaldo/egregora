@@ -946,7 +946,7 @@ class EnrichmentWorker(BaseWorker):
 
         if new_rows:
             try:
-                self.ctx.storage.ibis_conn.insert("documents", new_rows)
+                self.ctx.storage.ibis_conn.insert("messages", new_rows)
                 logger.info("Inserted %d enrichment rows", len(new_rows))
             except Exception:
                 logger.exception("Failed to insert enrichment rows")
@@ -1516,7 +1516,7 @@ class EnrichmentWorker(BaseWorker):
                     # Update text column
                     # Note: This updates ALL messages containing this ref.
                     # Given filenames are usually unique (timestamps), this is safe.
-                    query = f"UPDATE documents SET content = replace(content, '{safe_original}', '{safe_new}') WHERE content LIKE '%{safe_original}%'"
+                    query = f"UPDATE messages SET text = replace(text, '{safe_original}', '{safe_new}') WHERE text LIKE '%{safe_original}%'"
                     self.ctx.storage._conn.execute(query)
                 except duckdb.Error as exc:
                     logger.warning("Failed to update message references for %s: %s", original_ref, exc)
@@ -1525,7 +1525,7 @@ class EnrichmentWorker(BaseWorker):
 
         if new_rows:
             try:
-                self.ctx.storage.ibis_conn.insert("documents", new_rows)
+                self.ctx.storage.ibis_conn.insert("messages", new_rows)
                 logger.info("Inserted %d media enrichment rows", len(new_rows))
             except (IbisError, duckdb.Error):
                 logger.exception("Failed to insert media enrichment rows")
