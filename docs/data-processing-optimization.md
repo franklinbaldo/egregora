@@ -4,34 +4,31 @@ Last updated: 2024-07-22
 
 ## Current Data Processing Patterns
 
-The `egregora_v3` codebase utilizes Ibis for declarative queries against a DuckDB backend. Data is stored in a central `documents` table, where one column (`json_data`) contains a JSON blob of the full Pydantic model (`Entry` or `Document`).
+The `egregora_v3` codebase uses an Ibis-based repository pattern (`DuckDBDocumentRepository`) to interact with a DuckDB database. Data is stored in a single `documents` table with a JSON blob column (`json_data`) holding the serialized `Entry` or `Document` objects.
 
-Data retrieval methods in `DuckDBDocumentRepository` follow a common pattern:
-1.  Execute an Ibis query to fetch metadata and the `json_data` blob.
-2.  Load the results into a Pandas DataFrame.
-3.  Iterate over the DataFrame rows using `iterrows()`.
-4.  In each iteration, deserialize the JSON string into a Pydantic model.
+While most methods use the declarative Ibis API, some operations drop down to raw SQL for complex queries, particularly for filtering on nested JSON fields.
 
 ## Identified Inefficiencies
 
--   **Inefficient Iteration:** The use of `pandas.DataFrame.iterrows()` in `DuckDBDocumentRepository.list` and `DuckDBDocumentRepository.get_entries_by_source` is a well-known performance anti-pattern. It is slow because it creates a new Series object for each row, adding significant overhead.
--   **Row-by-Row Deserialization:** While JSON deserialization is inherently a single-row operation, coupling it with `iterrows()` makes the entire data hydration process much slower than necessary.
+1.  **Raw SQL for JSON Filtering:**
+    - **Location:** `src/egregora_v3/infra/repository/duckdb.py` in the `get_entries_by_source` method.
+    - **Problem:** The method uses a raw SQL query with `json_extract_string` to filter entries by `source.id`. A comment suggests this is for reliability, but it bypasses the Ibis query optimizer, is less portable, and harder to maintain than a declarative Ibis expression.
+    - **Evidence:**
+      ```python
+      sql = f"SELECT json_data, doc_type FROM {self.table_name} WHERE json_extract_string(json_data, '$.source.id') = ?"
+      result = self.conn.con.execute(sql, [source_id]).fetch_df()
+      ```
 
 ## Prioritized Optimizations
 
-_None at the moment._
+1.  **Refactor `get_entries_by_source` to use declarative Ibis API:**
+    - **Rationale:** This is a high-impact, low-risk optimization. It aligns the entire repository with a declarative approach, improving maintainability and allowing the database to fully optimize the query. It serves as a clear example of the "let the database do the work" principle.
+    - **Expected Impact:** Improved code clarity and maintainability. Potential for performance improvement as Ibis can generate a more optimized query plan than the raw string.
 
 ## Completed Optimizations
 
-1.  **Vectorize DataFrame Processing:**
-    -   **Target:** `DuckDBDocumentRepository.list` and `DuckDBDocumentRepository.get_entries_by_source`.
-    -   **Impact:** Replaced slow `iterrows()` calls with efficient, direct iteration over DataFrame columns (Series). This is a standard, high-impact performance improvement that avoids the overhead of creating a Series object for every row, significantly speeding up data hydration for lists of documents. Correctness was ensured by establishing comprehensive tests before the refactor.
+_None yet._
 
 ## Optimization Strategy
 
-My strategy is to systematically eliminate imperative, row-by-row data processing patterns in favor of declarative and vectorized operations.
-
-1.  **Prioritize Ibis:** Keep data processing within Ibis queries as much as possible.
-2.  **Efficient Pandas Usage:** When data must be brought into memory as a DataFrame, use vectorized operations and avoid `iterrows()`.
-3.  **Benchmark:** Ensure that optimizations provide a measurable performance improvement.
-4.  **TDD:** Follow a strict Test-Driven Development process to ensure correctness is maintained.
+My strategy is to systematically eliminate raw SQL execution within the data repository and replace it with equivalent declarative Ibis expressions. All optimizations will follow a strict TDD process to ensure correctness is preserved. Each session will focus on a single, cohesive optimization bundle.

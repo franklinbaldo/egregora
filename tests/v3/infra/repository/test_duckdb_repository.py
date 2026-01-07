@@ -2,7 +2,7 @@ import ibis
 import pytest
 from datetime import datetime, UTC
 
-from egregora_v3.core.types import Document, DocumentType, Entry
+from egregora_v3.core.types import Document, DocumentType, Entry, Source
 from egregora_v3.infra.repository.duckdb import DuckDBDocumentRepository
 
 
@@ -57,3 +57,38 @@ def test_get_method_returns_none_for_entry_locking(repo: DuckDBDocumentRepositor
 
     # ASSERT
     assert result is None
+
+
+def test_get_entries_by_source(repo: DuckDBDocumentRepository):
+    """
+    Verifies that get_entries_by_source correctly retrieves entries
+    matching a given source ID.
+    """
+    # ARRANGE
+    now = datetime.now(UTC)
+    source = Source(id="source-1", title="Original Source")
+    entry_with_source = Entry(
+        id="entry-1",
+        title="Entry with Source",
+        updated=now,
+        source=source
+    )
+    entry_without_source = Entry(
+        id="entry-2",
+        title="Entry without Source",
+        updated=now
+    )
+
+    repo.save(entry_with_source)
+    repo.save(entry_without_source)
+
+    # ACT
+    entries_found = repo.get_entries_by_source("source-1")
+    entries_not_found = repo.get_entries_by_source("non-existent-source")
+
+    # ASSERT
+    assert len(entries_found) == 1
+    assert entries_found[0].id == "entry-1"
+    assert entries_found[0].source.id == "source-1"
+
+    assert len(entries_not_found) == 0
