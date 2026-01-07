@@ -61,6 +61,15 @@ uv run pre-commit install
 
 # Run tests
 uv run pytest tests/
+
+### Previewing the Docs (for Developers)
+
+After syncing all dependencies with `uv sync --all-extras`, you can preview the documentation site locally with:
+
+```bash
+uv run mkdocs serve
+```
+This command uses the project's virtual environment, which is the standard workflow for developers. It is simpler than the `uv tool run` command, which is intended for end-users who have installed Egregora as a standalone tool.
 ```
 
 See [Contributing Guide](https://github.com/franklinbaldo/egregora/blob/main/CONTRIBUTING.md) for full development setup.
