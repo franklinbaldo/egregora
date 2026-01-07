@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import ibis
 import pandas as pd
@@ -65,12 +65,12 @@ class TestCombineWithEnrichmentRows:
             [
                 {
                     "id": 1,
-                    "ts": datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+                    "ts": datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC),
                     "text": "message 1",
                 },
                 {
                     "id": 2,
-                    "ts": datetime(2023, 1, 1, 12, 5, 0, tzinfo=timezone.utc),
+                    "ts": datetime(2023, 1, 1, 12, 5, 0, tzinfo=UTC),
                     "text": "message 2",
                 },
             ]

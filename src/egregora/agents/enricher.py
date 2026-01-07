@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any, Self
 
 import duckdb
 import httpx
+import ibis
 from google.api_core import exceptions as google_exceptions
 from ibis.common.exceptions import IbisError
 from pydantic import BaseModel
@@ -371,8 +372,9 @@ def _enqueue_url_enrichments(
             "url": url,
             "message_metadata": _serialize_metadata(metadata),
         }
-        context.task_store.enqueue("enrich_url", payload, run_id)
-        scheduled += 1
+        if context.task_store:
+            context.task_store.enqueue("enrich_url", payload, run_id)
+            scheduled += 1
     return scheduled
 
 
@@ -445,8 +447,9 @@ def _enqueue_media_enrichments(
             "suggested_path": (str(media_doc.suggested_path) if media_doc.suggested_path else None),
             "message_metadata": _serialize_metadata(metadata),
         }
-        context.task_store.enqueue("enrich_media", payload, run_id)
-        scheduled += 1
+        if context.task_store:
+            context.task_store.enqueue("enrich_media", payload, run_id)
+            scheduled += 1
         if scheduled >= config.max_enrichments:
             break
     return scheduled
@@ -456,12 +459,12 @@ def _serialize_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
     timestamp = metadata.get("ts")
     created_at = metadata.get("created_at")
     return {
-        "ts": timestamp.isoformat() if timestamp else None,
+        "ts": timestamp.isoformat() if isinstance(timestamp, datetime) else None,
         "tenant_id": metadata.get("tenant_id"),
         "source": metadata.get("source"),
         "thread_id": _uuid_to_str(metadata.get("thread_id")),
         "author_uuid": _uuid_to_str(metadata.get("author_uuid")),
-        "created_at": (created_at.isoformat() if hasattr(created_at, "isoformat") else created_at),
+        "created_at": (created_at.isoformat() if isinstance(created_at, datetime) else created_at),
         "created_by_run": _uuid_to_str(metadata.get("created_by_run")),
     }
 
@@ -472,7 +475,7 @@ class EnrichmentWorker(BaseWorker):
 
     def __init__(
         self,
-        ctx: PipelineContext | EnrichmentRuntimeContext,
+        ctx: PipelineContext,
         enrichment_config: EnrichmentSettings | None = None,
     ) -> None:
         super().__init__(ctx)
@@ -480,7 +483,9 @@ class EnrichmentWorker(BaseWorker):
         self.zip_handle: zipfile.ZipFile | None = None
         self.media_index: dict[str, str] = {}
         # V3 Architecture: Ephemeral media staging
-        self.staging_dir = tempfile.TemporaryDirectory(prefix="egregora_staging_")
+        self.staging_dir: tempfile.TemporaryDirectory[str] | None = tempfile.TemporaryDirectory(
+            prefix="egregora_staging_"
+        )
         self.staged_files: set[str] = set()
 
         if self.ctx.input_path and self.ctx.input_path.exists() and self.ctx.input_path.is_file():
@@ -931,7 +936,7 @@ class EnrichmentWorker(BaseWorker):
                 # V3 Architecture: Use ContentLibrary if available
                 if self.ctx.library:
                     self.ctx.library.save(doc)
-                else:
+                elif self.ctx.output_format:
                     self.ctx.output_format.persist(doc)
 
                 metadata = payload["message_metadata"]
@@ -946,7 +951,8 @@ class EnrichmentWorker(BaseWorker):
 
         if new_rows:
             try:
-                self.ctx.storage.ibis_conn.insert("messages", new_rows)
+                rows_table = ibis.memtable(new_rows)
+                self.ctx.storage.write_table(rows_table, "messages", mode="append")
                 logger.info("Inserted %d enrichment rows", len(new_rows))
             except Exception:
                 logger.exception("Failed to insert enrichment rows")
@@ -966,7 +972,7 @@ class EnrichmentWorker(BaseWorker):
             return ""
         if "text" in response:
             return response["text"]
-        texts = []
+        texts: list[str] = []
         for cand in response.get("candidates") or []:
             content = cand.get("content") or {}
             texts.extend(part["text"] for part in content.get("parts") or [] if "text" in part)
@@ -1069,6 +1075,10 @@ class EnrichmentWorker(BaseWorker):
             full_path = media_index.get(target_lower)
             if not full_path:
                 msg = f"Media file {original_filename} not found in ZIP"
+                raise MediaStagingError(msg)
+
+            if not self.staging_dir:
+                msg = "Staging directory not available"
                 raise MediaStagingError(msg)
 
             safe_name = f"{task['task_id']}_{Path(full_path).name}"
@@ -1437,7 +1447,7 @@ class EnrichmentWorker(BaseWorker):
             try:
                 if self.ctx.library:
                     self.ctx.library.save(media_doc)
-                else:
+                elif self.ctx.output_format:
                     self.ctx.output_format.persist(media_doc)
                 logger.info("Persisted enriched media: %s -> %s", filename, media_doc.metadata["filename"])
             except Exception as exc:
@@ -1474,7 +1484,7 @@ class EnrichmentWorker(BaseWorker):
 
             if self.ctx.library:
                 self.ctx.library.save(doc)
-            else:
+            elif self.ctx.output_format:
                 self.ctx.output_format.persist(doc)
 
             metadata = payload["message_metadata"]
@@ -1509,23 +1519,22 @@ class EnrichmentWorker(BaseWorker):
                 # Using SQL replace to update all occurrences
                 # TODO: [Taskmaster] Refactor to use parameterized queries to prevent SQL injection
                 try:
-                    # We need to use valid SQL string escaping
-                    safe_original = original_ref.replace("'", "''")
-                    safe_new = new_path.replace("'", "''")
-
-                    # Update text column
+                    # Use a parameterized query to prevent SQL injection.
                     # Note: This updates ALL messages containing this ref.
                     # Given filenames are usually unique (timestamps), this is safe.
-                    query = f"UPDATE messages SET text = replace(text, '{safe_original}', '{safe_new}') WHERE text LIKE '%{safe_original}%'"
-                    self.ctx.storage._conn.execute(query)
+                    query = "UPDATE messages SET text = replace(text, ?, ?) WHERE text LIKE ?"
+                    params = [original_ref, new_path, f"%{original_ref}%"]
+                    self.ctx.storage.execute_query(query, params)
                 except duckdb.Error as exc:
                     logger.warning("Failed to update message references for %s: %s", original_ref, exc)
 
-            self.task_store.mark_completed(task["task_id"])
+            if self.task_store:
+                self.task_store.mark_completed(task["task_id"])
 
         if new_rows:
             try:
-                self.ctx.storage.ibis_conn.insert("messages", new_rows)
+                rows_table = ibis.memtable(new_rows)
+                self.ctx.storage.write_table(rows_table, "messages", mode="append")
                 logger.info("Inserted %d media enrichment rows", len(new_rows))
             except (IbisError, duckdb.Error):
                 logger.exception("Failed to insert media enrichment rows")
