@@ -647,10 +647,7 @@ def run_cycle_step(
         config = parsed["config"]
         prompt_body = parsed["prompt"]
 
-        # Execute all personas in the cycle regardless of 'enabled' status in frontmatter
-        # if not config.get("enabled", True):
-        #      print(f"Skipping {next_pid} (disabled).")
-        #      return
+        # Execute all personas in the cycle as defined in the scheduler's cycle_list
 
         print(f"Starting session for {next_pid} on branch '{JULES_BRANCH}'...")
 
@@ -756,11 +753,12 @@ def run_scheduler(
             if prompt_id and prompt_id != pid:
                 continue
 
-            if not config.get("enabled", True):
-                if prompt_id == pid:
-                    pass
-                else:
-                    continue
+            # Execute persona as it is explicitly requested or scheduled
+            # if not config.get("enabled", True):
+            #     if prompt_id == pid:
+            #         pass
+            #     else:
+            #         continue
 
             should_run = False
             schedule_str = schedules.get(pid)
