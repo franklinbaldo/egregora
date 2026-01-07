@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch, call
-
-import respx
-from httpx import Response
+from unittest.mock import call, patch
 
 import pytest
+import respx
+from httpx import Response
 
 from egregora.agents.avatar import AvatarProcessingError, download_avatar_from_url
 from egregora.security.ssrf import SSRFValidationError
@@ -29,18 +28,14 @@ def test_download_avatar_blocks_ssrf_via_redirect(mock_validate_public_url, tmp_
     mock_validate_public_url.side_effect = validation_side_effect
 
     # Mock the HTTP redirect
-    respx.get(public_url).mock(
-        return_value=Response(302, headers={"Location": private_url})
-    )
+    respx.get(public_url).mock(return_value=Response(302, headers={"Location": private_url}))
 
     media_dir = tmp_path / "media"
     media_dir.mkdir()
 
     # The download function should catch the SSRFValidationError and
     # wrap it in its own exception type.
-    with pytest.raises(
-        AvatarProcessingError, match="URL resolves to blocked IP address"
-    ):
+    with pytest.raises(AvatarProcessingError, match="URL resolves to blocked IP address"):
         download_avatar_from_url(public_url, media_dir)
 
     # CRITICAL: Verify that the validator was called for both the initial

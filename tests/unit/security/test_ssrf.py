@@ -16,9 +16,7 @@ class TestValidatePublicUrl:
     @patch("socket.getaddrinfo")
     def test_allows_public_ipv4_url(self, mock_getaddrinfo):
         """Should allow a URL that resolves to a public IPv4 address."""
-        mock_getaddrinfo.return_value = [
-            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))
-        ]
+        mock_getaddrinfo.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))]
         validate_public_url("https://example.com")
 
     @patch("socket.getaddrinfo")
@@ -32,18 +30,14 @@ class TestValidatePublicUrl:
     @patch("socket.getaddrinfo")
     def test_blocks_private_ipv4_url(self, mock_getaddrinfo):
         """Should block a URL that resolves to a private IPv4 address."""
-        mock_getaddrinfo.return_value = [
-            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.168.1.1", 443))
-        ]
+        mock_getaddrinfo.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.168.1.1", 443))]
         with pytest.raises(SSRFValidationError, match="resolves to blocked IP address"):
             validate_public_url("https://private.local")
 
     @patch("socket.getaddrinfo")
     def test_blocks_private_ipv6_url(self, mock_getaddrinfo):
         """Should block a URL that resolves to a private IPv6 address."""
-        mock_getaddrinfo.return_value = [
-            (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("fd00::1", 443))
-        ]
+        mock_getaddrinfo.return_value = [(socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("fd00::1", 443))]
         with pytest.raises(SSRFValidationError, match="resolves to blocked IP address"):
             validate_public_url("https://private.local")
 
@@ -82,9 +76,7 @@ class TestValidatePublicUrl:
     @patch("socket.getaddrinfo")
     def test_getaddrinfo_returns_invalid_ip(self, mock_getaddrinfo):
         """Should raise an error if getaddrinfo returns an invalid IP."""
-        mock_getaddrinfo.return_value = [
-            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("not-an-ip", 443))
-        ]
+        mock_getaddrinfo.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("not-an-ip", 443))]
         with pytest.raises(SSRFValidationError, match="Invalid IP address"):
             validate_public_url("https://invalid.ip")
 

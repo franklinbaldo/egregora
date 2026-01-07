@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import ibis
-import pandas as pd
 import pytest
 from ibis import schema
 
@@ -15,10 +14,10 @@ def base_messages_table() -> ibis.Table:
     """Fixture for a base table of messages."""
     return ibis.memtable(
         [
-            {"id": 1, "ts": datetime(2023, 1, 1, 12, 0, 0), "text": "message 1"},
-            {"id": 2, "ts": datetime(2023, 1, 1, 12, 5, 0), "text": "message 2"},
+            {"id": 1, "ts": datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC), "text": "message 1"},
+            {"id": 2, "ts": datetime(2023, 1, 1, 12, 5, 0, tzinfo=UTC), "text": "message 2"},
         ],
-        schema=schema({"id": "int", "ts": "timestamp", "text": "string"}),
+        schema=schema({"id": "int", "ts": "timestamp('UTC')", "text": "string"}),
     )
 
 
@@ -54,47 +53,26 @@ class TestCombineWithEnrichmentRows:
         """Should return the original table if enrichment rows are empty."""
         from egregora.transformations.enrichment import combine_with_enrichment_rows
 
-        combined = combine_with_enrichment_rows(
-            base_messages_table, [], base_messages_table.schema()
-        )
+        combined = combine_with_enrichment_rows(base_messages_table, [], base_messages_table.schema())
 
         assert combined.count().execute() == 2
 
-        # The function casts to UTC, so we expect the output to have UTC timestamps.
-        expected_df = pd.DataFrame(
-            [
-                {
-                    "id": 1,
-                    "ts": datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
-                    "text": "message 1",
-                },
-                {
-                    "id": 2,
-                    "ts": datetime(2023, 1, 1, 12, 5, 0, tzinfo=timezone.utc),
-                    "text": "message 2",
-                },
-            ]
-        )
-        # Ensure the 'ts' column is of the correct type for comparison
-        expected_df["ts"] = pd.to_datetime(expected_df["ts"])
+        expected_data = [
+            (1, datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC), "message 1"),
+            (2, datetime(2023, 1, 1, 12, 5, 0, tzinfo=UTC), "message 2"),
+        ]
 
-        pd.testing.assert_frame_equal(
-            combined.execute().reset_index(drop=True),
-            expected_df.reset_index(drop=True),
-            check_dtype=False,
-        )
+        result_data = [tuple(row) for row in combined.execute().itertuples(index=False)]
+
+        assert result_data == expected_data
 
     def test_casts_to_provided_schema(self, base_messages_table, enrichment_rows):
         """Should cast the final table to the provided schema."""
         from egregora.transformations.enrichment import combine_with_enrichment_rows
 
-        target_schema = schema(
-            {"id": "string", "ts": "timestamp('UTC')", "text": "string"}
-        )
+        target_schema = schema({"id": "string", "ts": "timestamp('UTC')", "text": "string"})
 
-        combined = combine_with_enrichment_rows(
-            base_messages_table, enrichment_rows, target_schema
-        )
+        combined = combine_with_enrichment_rows(base_messages_table, enrichment_rows, target_schema)
 
         assert combined.schema() == target_schema
         assert combined.count().execute() == 4
@@ -113,9 +91,7 @@ class TestCombineWithEnrichmentRows:
 
         new_rows = [{"id": 2, "timestamp": datetime(2023, 1, 1, 9, 0, 0), "msg": "b"}]
 
-        combined = combine_with_enrichment_rows(
-            base_table, new_rows, base_table.schema()
-        )
+        combined = combine_with_enrichment_rows(base_table, new_rows, base_table.schema())
 
         assert combined.count().execute() == 2
 
