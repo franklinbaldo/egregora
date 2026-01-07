@@ -1,9 +1,8 @@
-
+import subprocess
 import sys
 import unittest
-import subprocess
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 # Add .jules to path so we can import jules.scheduler
 # We use relative path from repo root
@@ -12,11 +11,15 @@ JULES_PATH = REPO_ROOT / ".jules"
 if str(JULES_PATH) not in sys.path:
     sys.path.append(str(JULES_PATH))
 
-from jules.scheduler import ensure_jules_branch_exists, update_jules_from_main, JULES_BRANCH
+from jules.scheduler import (  # noqa: E402
+    JULES_BRANCH,
+    ensure_jules_branch_exists,
+    update_jules_from_main,
+)
+
 
 class TestJulesSchedulerUpdate(unittest.TestCase):
-
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_update_jules_from_main_success(self, mock_run):
         """Test that update_jules_from_main runs the correct git commands on success."""
         # Mock successful execution
@@ -32,18 +35,23 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
         mock_run.assert_any_call(["git", "config", "user.email", "jules-bot@google.com"], check=False)
 
         # Checkout
-        mock_run.assert_any_call(["git", "checkout", "-B", JULES_BRANCH, f"origin/{JULES_BRANCH}"], check=True, capture_output=True)
+        mock_run.assert_any_call(
+            ["git", "checkout", "-B", JULES_BRANCH, f"origin/{JULES_BRANCH}"], check=True, capture_output=True
+        )
 
         # Merge
-        mock_run.assert_any_call(["git", "merge", "origin/main", "--no-edit"], check=True, capture_output=True)
+        mock_run.assert_any_call(
+            ["git", "merge", "origin/main", "--no-edit"], check=True, capture_output=True
+        )
 
         # Push
         mock_run.assert_any_call(["git", "push", "origin", JULES_BRANCH], check=True, capture_output=True)
 
-    @patch('jules.scheduler.rotate_drifted_jules_branch')
-    @patch('subprocess.run')
+    @patch("jules.scheduler.rotate_drifted_jules_branch")
+    @patch("subprocess.run")
     def test_update_jules_from_main_failure(self, mock_run, mock_rotate):
         """Test that update_jules_from_main fails gracefully and rotates on error."""
+
         # Mock failure during merge
         def side_effect(*args, **kwargs):
             cmd = args[0]
@@ -58,9 +66,9 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
         self.assertFalse(result)
         mock_rotate.assert_called_once()
 
-    @patch('jules.scheduler.update_jules_from_main')
-    @patch('jules.scheduler.is_jules_drifted')
-    @patch('subprocess.run')
+    @patch("jules.scheduler.update_jules_from_main")
+    @patch("jules.scheduler.is_jules_drifted")
+    @patch("subprocess.run")
     def test_ensure_jules_branch_exists_calls_update(self, mock_run, mock_is_drifted, mock_update):
         """Test that ensure_jules_branch_exists calls update when branch is healthy."""
         # Mock fetch success
@@ -78,9 +86,9 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
 
         mock_update.assert_called_once()
 
-    @patch('jules.scheduler.update_jules_from_main')
-    @patch('jules.scheduler.is_jules_drifted')
-    @patch('subprocess.run')
+    @patch("jules.scheduler.update_jules_from_main")
+    @patch("jules.scheduler.is_jules_drifted")
+    @patch("subprocess.run")
     def test_ensure_jules_branch_exists_fallback_on_update_fail(self, mock_run, mock_is_drifted, mock_update):
         """Test that ensure_jules_branch_exists recreates branch if update fails."""
         # Mock fetch success
@@ -114,7 +122,10 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
 
         mock_update.assert_called_once()
         # Verify it proceeded to recreate (calls git rev-parse origin/main)
-        mock_run.assert_any_call(["git", "rev-parse", "origin/main"], capture_output=True, text=True, check=True)
+        mock_run.assert_any_call(
+            ["git", "rev-parse", "origin/main"], capture_output=True, text=True, check=True
+        )
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()
