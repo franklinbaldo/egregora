@@ -1,4 +1,3 @@
-
 from datetime import UTC, datetime
 from unittest.mock import Mock
 from uuid import uuid4
@@ -8,18 +7,19 @@ from egregora.orchestration.journal import create_journal_document, window_alrea
 
 
 class TestJournalUtils:
-
     def test_window_not_processed_yet(self):
         """Test that returns False when no journal with signature exists."""
         mock_output_sink = Mock()
         # Mock list() to return an empty iterator or iterator with unrelated documents
-        mock_output_sink.list.return_value = iter([
-            DocumentMetadata(
-                identifier="journal-other",
-                doc_type=DocumentType.JOURNAL,
-                metadata={"window_signature": "different-signature"}
-            )
-        ])
+        mock_output_sink.list.return_value = iter(
+            [
+                DocumentMetadata(
+                    identifier="journal-other",
+                    doc_type=DocumentType.JOURNAL,
+                    metadata={"window_signature": "different-signature"},
+                )
+            ]
+        )
 
         result = window_already_processed(mock_output_sink, "target-signature")
 
@@ -29,13 +29,15 @@ class TestJournalUtils:
     def test_window_already_processed(self):
         """Test that returns True when journal with signature exists."""
         mock_output_sink = Mock()
-        mock_output_sink.list.return_value = iter([
-            DocumentMetadata(
-                identifier="journal-target",
-                doc_type=DocumentType.JOURNAL,
-                metadata={"window_signature": "target-signature"}
-            )
-        ])
+        mock_output_sink.list.return_value = iter(
+            [
+                DocumentMetadata(
+                    identifier="journal-target",
+                    doc_type=DocumentType.JOURNAL,
+                    metadata={"window_signature": "target-signature"},
+                )
+            ]
+        )
 
         result = window_already_processed(mock_output_sink, "target-signature")
 
@@ -64,7 +66,7 @@ class TestJournalUtils:
             window_end=now,
             model="gpt-4",
             posts_generated=5,
-            profiles_updated=2
+            profiles_updated=2,
         )
 
         assert isinstance(doc, Document)

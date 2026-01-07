@@ -234,9 +234,7 @@ class PipelineRunner:
         if output_sink is None:
             raise OutputSinkError("Output adapter must be initialized before processing windows.")
 
-        template_content = PromptManager.get_template_content(
-            "writer.jinja", site_dir=self.context.site_root
-        )
+        template_content = PromptManager.get_template_content("writer.jinja", site_dir=self.context.site_root)
         signature = generate_window_signature(
             window.table,
             self.context.config,

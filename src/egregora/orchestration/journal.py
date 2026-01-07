@@ -1,4 +1,5 @@
 """Journal-based execution log utilities."""
+
 from __future__ import annotations
 
 import logging

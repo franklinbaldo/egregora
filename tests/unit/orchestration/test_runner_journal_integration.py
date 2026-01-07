@@ -1,4 +1,3 @@
-
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
@@ -25,6 +24,7 @@ def mock_context():
     ctx.enable_enrichment = False
     return ctx
 
+
 @pytest.fixture
 def mock_window():
     window = MagicMock()
@@ -34,18 +34,13 @@ def mock_window():
     window.table = MagicMock()
     return window
 
-class TestPipelineRunnerJournalIntegration:
 
+class TestPipelineRunnerJournalIntegration:
     @patch("egregora.orchestration.runner.generate_window_signature")
     @patch("egregora.orchestration.runner.PromptManager")
     @patch("egregora.orchestration.runner.window_already_processed")
     def test_process_window_skipped_if_already_processed(
-        self,
-        mock_check,
-        mock_pm,
-        mock_sig,
-        mock_context,
-        mock_window
+        self, mock_check, mock_pm, mock_sig, mock_context, mock_window
     ):
         """Test that window processing is skipped if journal exists."""
         runner = PipelineRunner(mock_context)
@@ -71,7 +66,7 @@ class TestPipelineRunnerJournalIntegration:
     @patch("egregora.orchestration.runner.write_posts_for_window")
     @patch("egregora.orchestration.runner.generate_profile_posts")
     @patch("egregora.orchestration.runner.create_journal_document")
-    @patch("egregora.orchestration.runner.PipelineFactory") # for writer resources
+    @patch("egregora.orchestration.runner.PipelineFactory")  # for writer resources
     def test_process_window_creates_journal_on_success(
         self,
         mock_factory,
@@ -83,7 +78,7 @@ class TestPipelineRunnerJournalIntegration:
         mock_pm,
         mock_sig,
         mock_context,
-        mock_window
+        mock_window,
     ):
         """Test that journal is created and persisted after successful processing."""
         runner = PipelineRunner(mock_context)
@@ -114,8 +109,8 @@ class TestPipelineRunnerJournalIntegration:
             window_start=mock_window.start_time,
             window_end=mock_window.end_time,
             model="gpt-4",
-            posts_generated=1, # 1 post generated (minus 0 scheduled)
-            profiles_updated=1 # 1 profile generated
+            posts_generated=1,  # 1 post generated (minus 0 scheduled)
+            profiles_updated=1,  # 1 profile generated
         )
 
         # Check persistence
@@ -125,11 +120,61 @@ class TestPipelineRunnerJournalIntegration:
     @patch("egregora.orchestration.runner.generate_window_signature")
     @patch("egregora.orchestration.runner.PromptManager")
     @patch("egregora.orchestration.runner.window_already_processed")
-    def test_process_window_raises_sink_error(
-        self, mock_check, mock_pm, mock_sig, mock_context, mock_window
-    ):
+    def test_process_window_raises_sink_error(self, mock_check, mock_pm, mock_sig, mock_context, mock_window):
         runner = PipelineRunner(mock_context)
         mock_context.output_format = None
 
         with pytest.raises(OutputSinkError):
             runner._process_single_window(mock_window)
+
+    @patch("egregora.orchestration.runner.generate_window_signature")
+    @patch("egregora.orchestration.runner.PromptManager")
+    @patch("egregora.orchestration.runner.window_already_processed")
+    @patch("egregora.orchestration.runner.process_media_for_window")
+    @patch("egregora.orchestration.runner.write_posts_for_window")
+    @patch("egregora.orchestration.runner.generate_profile_posts")
+    @patch("egregora.orchestration.runner.create_journal_document")
+    @patch("egregora.orchestration.runner.PipelineFactory")
+    def test_process_window_handles_journal_persist_error(
+        self,
+        mock_factory,
+        mock_create_journal,
+        mock_gen_profiles,
+        mock_write_posts,
+        mock_media,
+        mock_check,
+        mock_pm,
+        mock_sig,
+        mock_context,
+        mock_window,
+    ):
+        """Test that pipeline continues if journal persistence fails."""
+        runner = PipelineRunner(mock_context)
+
+        # Setup mocks
+        mock_pm.get_template_content.return_value = "template"
+        mock_sig.return_value = "new-signature"
+        mock_check.return_value = False
+
+        mock_media.return_value = (MagicMock(), {})
+        mock_write_posts.return_value = (["post1"], [])
+        mock_gen_profiles.return_value = []
+
+        mock_journal_doc = MagicMock()
+        mock_create_journal.return_value = mock_journal_doc
+
+        # Configure output_sink.persist to raise error ONLY for journal
+        def persist_side_effect(doc):
+            if doc == mock_journal_doc:
+                raise Exception("DB Error")
+
+        mock_context.output_format.persist.side_effect = persist_side_effect
+
+        # Execute
+        result = runner._process_single_window(mock_window)
+
+        # Verify pipeline succeeded (returned posts)
+        assert "post1" in result[next(iter(result.keys()))]["posts"]
+
+        # Verify persist was attempted
+        mock_context.output_format.persist.assert_any_call(mock_journal_doc)
