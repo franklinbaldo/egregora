@@ -12,12 +12,12 @@ from egregora.config.settings import EgregoraConfig
 
 
 @pytest.fixture
-def mock_context():
+def mock_context(minimal_config: EgregoraConfig):
     """Provides a mock PipelineContext."""
     ctx = MagicMock()
     ctx.input_path = Path("/mock/archive.zip")
     ctx.site_root = Path("/mock/site")
-    ctx.config = EgregoraConfig()
+    ctx.config = minimal_config
     return ctx
 
 
