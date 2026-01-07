@@ -11,7 +11,7 @@ JULES_PATH = REPO_ROOT / ".jules"
 if str(JULES_PATH) not in sys.path:
     sys.path.append(str(JULES_PATH))
 
-from jules.scheduler import (  # noqa: E402
+from jules.scheduler import (  # type: ignore[import-not-found] # noqa: E402
     JULES_BRANCH,
     ensure_jules_branch_exists,
     update_jules_from_main,
@@ -20,7 +20,7 @@ from jules.scheduler import (  # noqa: E402
 
 class TestJulesSchedulerUpdate(unittest.TestCase):
     @patch("subprocess.run")
-    def test_update_jules_from_main_success(self, mock_run):
+    def test_update_jules_from_main_success(self, mock_run: MagicMock) -> None:
         """Test that update_jules_from_main runs the correct git commands on success."""
         # Mock successful execution
         mock_run.return_value.returncode = 0
@@ -49,13 +49,13 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
 
     @patch("jules.scheduler.rotate_drifted_jules_branch")
     @patch("subprocess.run")
-    def test_update_jules_from_main_failure(self, mock_run, mock_rotate):
+    def test_update_jules_from_main_failure(self, mock_run: MagicMock, mock_rotate: MagicMock) -> None:
         """Test that update_jules_from_main fails gracefully and rotates on error."""
 
         # Mock failure during merge
-        def side_effect(*args, **kwargs):
+        def side_effect(*args: object, **kwargs: object) -> MagicMock:
             cmd = args[0]
-            if "merge" in cmd:
+            if isinstance(cmd, list) and "merge" in cmd:
                 raise subprocess.CalledProcessError(1, cmd, stderr=b"Conflict")
             return MagicMock(returncode=0)
 
@@ -69,7 +69,9 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
     @patch("jules.scheduler.update_jules_from_main")
     @patch("jules.scheduler.is_jules_drifted")
     @patch("subprocess.run")
-    def test_ensure_jules_branch_exists_calls_update(self, mock_run, mock_is_drifted, mock_update):
+    def test_ensure_jules_branch_exists_calls_update(
+        self, mock_run: MagicMock, mock_is_drifted: MagicMock, mock_update: MagicMock
+    ) -> None:
         """Test that ensure_jules_branch_exists calls update when branch is healthy."""
         # Mock fetch success
         mock_run.return_value.returncode = 0
@@ -89,7 +91,9 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
     @patch("jules.scheduler.update_jules_from_main")
     @patch("jules.scheduler.is_jules_drifted")
     @patch("subprocess.run")
-    def test_ensure_jules_branch_exists_fallback_on_update_fail(self, mock_run, mock_is_drifted, mock_update):
+    def test_ensure_jules_branch_exists_fallback_on_update_fail(
+        self, mock_run: MagicMock, mock_is_drifted: MagicMock, mock_update: MagicMock
+    ) -> None:
         """Test that ensure_jules_branch_exists recreates branch if update fails."""
         # Mock fetch success
         # We need to simulate the sequence of subprocess calls
@@ -98,7 +102,7 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
         # 3. git rev-parse origin/main (for recreation)
         # 4. git push --force (recreation)
 
-        def run_side_effect(*args, **kwargs):
+        def run_side_effect(*args: object, **kwargs: object) -> MagicMock:
             cmd = args[0]
             if cmd == ["git", "fetch", "origin"]:
                 return MagicMock(returncode=0)
@@ -106,7 +110,7 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
                 return MagicMock(stdout="hash refs/heads/jules\n")
             if cmd == ["git", "rev-parse", "origin/main"]:
                 return MagicMock(stdout="main_sha\n")
-            if cmd[:4] == ["git", "push", "--force", "origin"]:
+            if isinstance(cmd, list) and cmd[:4] == ["git", "push", "--force", "origin"]:
                 return MagicMock(returncode=0)
             return MagicMock()
 
