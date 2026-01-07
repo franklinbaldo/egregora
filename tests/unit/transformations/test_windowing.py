@@ -2,7 +2,6 @@
 
 from datetime import datetime, timedelta
 from unittest.mock import patch
-from zoneinfo import ZoneInfo
 
 import ibis
 import pytest
