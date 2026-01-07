@@ -1,4 +1,3 @@
-
 from datetime import datetime
 from unittest.mock import MagicMock
 
@@ -12,10 +11,7 @@ def test_fetch_processed_intervals():
     context = MagicMock(spec=PipelineContext)
     # Mock library.journal.list()
     mock_journal1 = MagicMock()
-    mock_journal1.metadata = {
-        "window_start": "2023-01-01T10:00:00",
-        "window_end": "2023-01-01T12:00:00"
-    }
+    mock_journal1.metadata = {"window_start": "2023-01-01T10:00:00", "window_end": "2023-01-01T12:00:00"}
     mock_journal2 = MagicMock()
     # Missing metadata should be ignored
     mock_journal2.metadata = {}
@@ -42,10 +38,7 @@ def test_process_windows_skips_existing():
 
     # Mock processed intervals (via library)
     mock_journal = MagicMock()
-    mock_journal.metadata = {
-        "window_start": "2023-01-01T10:00:00",
-        "window_end": "2023-01-01T12:00:00"
-    }
+    mock_journal.metadata = {"window_start": "2023-01-01T10:00:00", "window_end": "2023-01-01T12:00:00"}
     context.library.journal.list.return_value = [mock_journal]
 
     runner = PipelineRunner(context)
