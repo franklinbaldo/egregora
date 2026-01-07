@@ -84,6 +84,9 @@ Launch a local preview server:
 uv tool run --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox mkdocs serve -f .egregora/mkdocs.yml
 ```
 
+!!! note "For Developers"
+    If you are working from a cloned repository, you can use the simpler `uv run mkdocs serve` command after running `uv sync --all-extras`. The `uv tool run` command is intended for end-users who have installed Egregora as a standalone tool.
+
 Open [http://localhost:8000](http://localhost:8000) in your browser. 🎉
 
 ## What Just Happened?

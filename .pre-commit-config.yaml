@@ -1,7 +1,7 @@
 exclude: ^\.jules/
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.7
+    rev: v0.14.10
     hooks:
       - id: ruff
         args: ["--fix", "--unsafe-fixes"]
@@ -86,7 +86,7 @@ repos:
       - id: coverage
         name: Check test coverage
         entry: uv run pytest
-        args: ["tests/unit/", "--cov=src/egregora", "--cov-report=term-missing", "-q"]
+        args: ["tests/unit/", "--cov=src/egregora", "--cov-report=term-missing", "--cov-fail-under=54", "-q"]
         language: system
         types: [python]
         pass_filenames: false

@@ -138,6 +138,14 @@ We use **Ibis** and **DuckDB** to handle large datasets efficiently.
 
 You can extend Egregora to read from other sources (e.g., Slack, Telegram) by implementing the `InputAdapter` protocol in `src/egregora/input_adapters/base.py`.
 
+### Previewing Documentation
+
+To preview the documentation site locally, first set up the development environment as described in the [Installation Guide](docs/getting-started/installation.md#from-source), then run:
+
+```bash
+uv run mkdocs serve
+```
+
 ---
 
 ## 🤝 Contributing
@@ -145,7 +153,7 @@ You can extend Egregora to read from other sources (e.g., Slack, Telegram) by im
 We welcome contributions! Please check out:
 
 * **[Technical Reference](docs/v3/api-reference/):** Deep dive into CLI commands and architecture.
-* **[Code of the Weaver](CLAUDE.md):** Guidelines for contributors and AI agents.
+* **[Code of the Weaver](docs/CLAUDE.md):** Guidelines for contributors and AI agents.
 
 To run tests:
 

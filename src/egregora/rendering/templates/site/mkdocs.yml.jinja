@@ -1,11 +1,11 @@
 site_name: {{ site_name }}
 site_description: Collective consciousness journal - {{ site_name }}
-site_url: {{ site_url | default("http://127.0.0.1:8000") }}  # Update with your deployment URL (e.g., https://example.com)
-# When using multiple sites from a shared repo, give each site its own mkdocs.yml via sites.<name>.output.adapters[*].config_path
-# repo_url: https://github.com/your-user/your-repo  # Uncomment to enable 'Edit on GitHub'
-# repo_name: your-repo
+site_url: {{ site_url | default("http://127.0.0.1:8000") }}
+repo_url: "{{ repo_url }}"
+repo_name: "{{ repo_name }}"
+edit_uri: "{{ edit_uri }}"
 docs_dir: ../{{ docs_dir }}
-site_dir: {{ site_dir | default("site") }}  # Set per-site to avoid build collisions in multi-site configs
+site_dir: {{ site_dir | default("site") }}
 copyright: Copyright &copy; {{ now.year }} {{ site_name }}
 
 theme:
@@ -216,6 +216,9 @@ extra:
             <a href="{{ repo_url }}/issues/new?title=[Docs]" target="_blank">opening an issue</a>.
   # Disable MkDocs generator notice
   generator: false
+  status:
+    new: Recently added
+    deprecated: Deprecated
   # Add social links to the footer for a more professional look.
   # These will only appear if the corresponding variables are set in the user's config.
   {% if github_user or twitter_handle or linkedin_user %}

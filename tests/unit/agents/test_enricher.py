@@ -8,16 +8,16 @@ import pytest
 
 from egregora.agents.enricher import EnrichmentWorker
 from egregora.agents.exceptions import MediaStagingError
+from egregora.config.settings import EgregoraConfig
 
 
 @pytest.fixture
-def mock_context():
+def mock_context(minimal_config: EgregoraConfig):
     """Provides a mock PipelineContext."""
     ctx = MagicMock()
     ctx.input_path = Path("/mock/archive.zip")
     ctx.site_root = Path("/mock/site")
-    ctx.config.enrichment.max_concurrent_enrichments = 1
-    ctx.config.quota.concurrency = 1
+    ctx.config = minimal_config
     return ctx
 
 
@@ -44,3 +44,17 @@ def test_stage_file_raises_error_when_file_not_in_zip(mock_context, mock_zip_fil
 
         with pytest.raises(MediaStagingError, match=r"Media file non_existent_file.jpg not found in ZIP"):
             worker._stage_file(task, payload)
+
+
+def test_enrichment_worker_instantiates_and_closes(mock_context: MagicMock) -> None:
+    """Ensures the EnrichmentWorker can be created and closed without error."""
+    worker = None
+    try:
+        # We patch zipfile.ZipFile to avoid filesystem access during instantiation
+        with patch("zipfile.ZipFile"):
+            worker = EnrichmentWorker(ctx=mock_context)
+            assert worker is not None, "Worker should be instantiated"
+    finally:
+        # Ensure cleanup is called regardless of assertion outcomes
+        if worker:
+            worker.close()
