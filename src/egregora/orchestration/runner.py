@@ -18,7 +18,7 @@ from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.types import Message, PromptTooLargeError, WindowProcessingParams
 from egregora.agents.writer import write_posts_for_window
-from egregora.data_primitives.document import UrlContext
+from egregora.data_primitives.document import DocumentType, UrlContext
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.exceptions import (
@@ -86,7 +86,19 @@ class PipelineRunner:
         total_windows = max_windows if max_windows else "unlimited"
         logger.info("Processing windows (limit: %s)", total_windows)
 
+        processed_intervals = self._fetch_processed_intervals()
+
         for window in windows_iterator:
+            # Check if window already processed (using Journal-based deduplication)
+            start_iso = window.start_time.isoformat()
+            end_iso = window.end_time.isoformat()
+
+            if (start_iso, end_iso) in processed_intervals:
+                logger.info(
+                    "⏭️  Skipping window %d: %s (Already Processed)", window.window_index, window.start_time
+                )
+                continue
+
             if max_windows is not None and windows_processed >= max_windows:
                 logger.info("Reached max_windows limit (%d). Stopping processing.", max_windows)
                 if max_windows < MIN_WINDOWS_WARNING_THRESHOLD:
@@ -156,6 +168,39 @@ class PipelineRunner:
                 f"Reduce --step-size to create smaller windows."
             )
             raise WindowSizeError(msg)
+
+    def _fetch_processed_intervals(self) -> set[tuple[str, str]]:
+        """Fetch all processed window intervals from JOURNAL entries.
+
+        Returns:
+            Set of (start_iso, end_iso) tuples.
+
+        """
+        processed = set()
+        if not self.context.library:
+            return processed
+
+        try:
+            # Using list(DocumentType.JOURNAL) on library.journal (which is a DocumentRepository)
+            journals = self.context.library.journal.list(doc_type=DocumentType.JOURNAL)
+
+            for journal in journals:
+                # journal is DocumentMetadata (identifier, doc_type, metadata)
+                meta = journal.metadata
+                if not meta:
+                    continue
+
+                # Check timestamps (allowing for string/datetime diffs)
+                j_start = meta.get("window_start")
+                j_end = meta.get("window_end")
+
+                if j_start and j_end:
+                    processed.add((str(j_start), str(j_end)))
+
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Failed to fetch processed journals: %s", e)
+
+        return processed
 
     def process_background_tasks(self) -> None:
         """Process pending background tasks."""

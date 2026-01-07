@@ -2,7 +2,6 @@
 
 from datetime import datetime, timedelta
 from unittest.mock import patch
-from zoneinfo import ZoneInfo
 
 import ibis
 import pytest
@@ -12,8 +11,6 @@ from egregora.transformations.windowing import (
     WindowConfig,
     create_windows,
     generate_window_signature,
-    load_checkpoint,
-    save_checkpoint,
     split_window_into_n_parts,
 )
 
@@ -168,34 +165,6 @@ def test_split_window_invalid_n_raises_specific_error():
     with pytest.raises(InvalidSplitError) as exc_info:
         split_window_into_n_parts(main_window, 1)
     assert exc_info.value.n == 1
-
-
-def test_checkpoint_operations(tmp_path):
-    """Test saving and loading checkpoints."""
-    checkpoint_path = tmp_path / ".egregora" / "checkpoint.json"
-
-    # Test loading non-existent checkpoint
-    assert load_checkpoint(checkpoint_path) is None
-
-    # Test saving checkpoint
-    last_timestamp = datetime(2023, 1, 1, 12, 0, 0, tzinfo=ZoneInfo("UTC"))
-    messages_processed = 150
-
-    save_checkpoint(checkpoint_path, last_timestamp, messages_processed)
-
-    assert checkpoint_path.exists()
-
-    # Test loading saved checkpoint
-    loaded = load_checkpoint(checkpoint_path)
-    assert loaded is not None
-    assert loaded["messages_processed"] == 150
-    # JSON stores ISO string, verify it parses back
-    loaded_ts = datetime.fromisoformat(loaded["last_processed_timestamp"])
-    assert loaded_ts == last_timestamp
-
-    # Test corrupted checkpoint
-    checkpoint_path.write_text("invalid json")
-    assert load_checkpoint(checkpoint_path) is None
 
 
 def test_generate_window_signature(config_factory):

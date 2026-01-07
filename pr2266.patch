@@ -1,0 +1,754 @@
+From 4052d572102876923d46244aa8556c46b6637adf Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Wed, 7 Jan 2026 22:19:12 +0000
+Subject: [PATCH 1/5] Refactor: Replace file-based checkpoints with
+ Journal-based deduplication
+
+Replaces the legacy `checkpoint.json` mechanism with a database-backed execution log using `DocumentType.JOURNAL`. The pipeline now tracks processed windows by querying the database for existing journals with matching start/end timestamps.
+
+- Added `DocumentType.JOURNAL` to V3 types.
+- Updated `PipelineRunner` to skip windows based on existing Journal entries.
+- Optimized `PipelineRunner` to fetch processed intervals once.
+- Updated `Writer` agent to persist `window_start` and `window_end` in Journal metadata.
+- Removed legacy checkpoint logic from `windowing.py` and `write.py`.
+- Added ADR 0006.
+---
+ docs/adr/0006-journal-based-execution-log.md  | 49 ++++++++++++
+ src/egregora/agents/writer.py                 |  4 +
+ src/egregora/orchestration/pipelines/write.py | 79 +++----------------
+ src/egregora/orchestration/runner.py          | 45 +++++++++++
+ src/egregora/transformations/__init__.py      |  5 +-
+ src/egregora/transformations/windowing.py     | 53 +------------
+ src/egregora_v3/core/types.py                 |  3 +-
+ 7 files changed, 116 insertions(+), 122 deletions(-)
+ create mode 100644 docs/adr/0006-journal-based-execution-log.md
+
+diff --git a/docs/adr/0006-journal-based-execution-log.md b/docs/adr/0006-journal-based-execution-log.md
+new file mode 100644
+index 000000000..77ef66888
+--- /dev/null
++++ b/docs/adr/0006-journal-based-execution-log.md
+@@ -0,0 +1,49 @@
++# 6. Journal-Based Execution Log
++
++Date: 2025-05-23
++
++## Status
++
++Accepted
++
++## Context
++
++The Egregora pipeline needs to track which "windows" of messages have already been processed to avoid duplicate work and duplicate posts.
++
++Previously, this was handled by a `checkpoint.json` file in the `.egregora/` directory, which tracked the timestamp of the last processed message.
++
++**Problems with file-based checkpoints:**
++1.  **State Drift:** The file is local and mutable. If the database (DuckDB) and the file get out of sync (e.g., DB deleted but checkpoint remains), the pipeline silently skips data.
++2.  **Granularity:** It only tracked a simple timestamp (`last_processed_timestamp`). It could not handle gaps or re-processing of specific windows.
++3.  **Atomicity:** The checkpoint was updated separately from the content insertion, leading to potential inconsistencies if the process crashed between writing posts and saving the checkpoint.
++
++## Decision
++
++We will use the **Agent's Journal** (`DocumentType.JOURNAL`) as the authoritative record of execution.
++
++1.  **Unified Storage:** Execution logs are just `Document` objects stored in the same `documents` table as Posts and Profiles.
++2.  **1:1 Correspondence:** Every processed window produces exactly one `JOURNAL` document.
++3.  **Deduplication Key:** The system checks for the existence of a `JOURNAL` covering the exact time range (`window_start`, `window_end`).
++4.  **Logic:** Before processing a window, the pipeline queries the `documents` table to see if a Journal with matching start/end timestamps already exists. If found, the window is skipped.
++
++## Consequences
++
++**Positive:**
++*   **Atomic:** The "flag" that a window is done is written in the same transaction/operation as the content itself.
++*   **Robust:** Deleting the database resets the state automatically. No stale files.
++*   **Audit Trail:** The Journal contains the "why" (Agent's reasoning) and the "what" (metadata), serving double duty as a debug log and a state lock.
++
++**Negative:**
++*   **Storage Size:** Storing full journal text for every window increases database size (though negligible for text).
++*   **Query Overhead:** Must query the database/metadata for existing journals.
++
++## Future Enhancements
++
++*   **Signature-Based Invalidation:** In the future, we may include a `window_signature` (hash of data + prompt + model) in the deduplication logic. This would allow automatic re-processing if the prompt or model logic changes, effectively versioning the pipeline execution. For the initial implementation, simple time-based deduplication is sufficient.
++
++## Implementation Details
++
++*   **Type:** `DocumentType.JOURNAL`
++*   **Metadata Fields (in `internal_metadata`):**
++    *   `window_start` (ISO8601)
++    *   `window_end` (ISO8601)
+diff --git a/src/egregora/agents/writer.py b/src/egregora/agents/writer.py
+index 1dcbc0cfd..52a9cae29 100644
+--- a/src/egregora/agents/writer.py
++++ b/src/egregora/agents/writer.py
+@@ -308,6 +308,10 @@ def _save_journal_to_file(params: JournalEntryParams) -> str | None:
+                 "nav_exclude": True,
+                 "hide": ["navigation"],
+             },
++            internal_metadata={
++                "window_start": window_start_iso,
++                "window_end": window_end_iso,
++            },
+             source_window=params.window_label,
+         )
+         params.output_format.persist(doc)
+diff --git a/src/egregora/orchestration/pipelines/write.py b/src/egregora/orchestration/pipelines/write.py
+index 7c8ff3ab3..17c10661d 100644
+--- a/src/egregora/orchestration/pipelines/write.py
++++ b/src/egregora/orchestration/pipelines/write.py
+@@ -68,8 +68,6 @@
+     Window,
+     WindowConfig,
+     create_windows,
+-    load_checkpoint,
+-    save_checkpoint,
+     split_window_into_n_parts,
+ )
+
+@@ -1169,7 +1167,6 @@ def _prepare_pipeline_data(
+     _setup_content_directories(ctx)
+     messages_table = _process_commands_and_avatars(messages_table, ctx, vision_model)
+
+-    checkpoint_path = ctx.site_root / ".egregora" / "checkpoint.json"
+     filter_options = FilterOptions(
+         from_date=from_date,
+         to_date=to_date,
+@@ -1179,7 +1176,6 @@ def _prepare_pipeline_data(
+         messages_table,
+         ctx,
+         filter_options,
+-        checkpoint_path,
+     )
+
+     logger.info("🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit)
+@@ -1219,7 +1215,7 @@ def _prepare_pipeline_data(
+     return PreparedPipelineData(
+         messages_table=messages_table,
+         windows_iterator=windows_iterator,
+-        checkpoint_path=checkpoint_path,
++        checkpoint_path=Path("deprecated"),  # No longer used
+         context=ctx,
+         enable_enrichment=enable_enrichment,
+         embedding_model=embedding_model,
+@@ -1250,31 +1246,7 @@ def _index_media_into_rag(
+     # ... (removed for now)
+
+
+-def _save_checkpoint(results: dict, max_processed_timestamp: datetime | None, checkpoint_path: Path) -> None:
+-    """Save checkpoint after successful window processing.
+-
+-    Args:
+-        results: Window processing results
+-        max_processed_timestamp: Latest end_time from successfully processed windows
+-        checkpoint_path: Path to checkpoint file
+-
+-    """
+-    if not results or max_processed_timestamp is None:
+-        logger.warning(
+-            "⚠️  [yellow]No windows processed[/] - checkpoint not saved. "
+-            "All windows may have been empty or filtered out."
+-        )
+-        return
+-
+-    # Count total messages processed (approximate from results)
+-    total_posts = sum(len(r.get("posts", [])) for r in results.values())
+-
+-    save_checkpoint(checkpoint_path, max_processed_timestamp, total_posts)
+-    logger.info(
+-        "💾 [cyan]Checkpoint saved:[/] processed up to %s (%d posts written)",
+-        max_processed_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+-        total_posts,
+-    )
++# _save_checkpoint removed - replaced by Journal-based execution log
+
+
+ def _apply_date_filters(
+@@ -1305,39 +1277,17 @@ def _apply_date_filters(
+
+
+ def _apply_checkpoint_filter(
+-    messages_table: ir.Table, checkpoint_path: Path, *, checkpoint_enabled: bool
++    messages_table: ir.Table, *, checkpoint_enabled: bool
+ ) -> ir.Table:
+-    """Apply checkpoint-based resume logic."""
+-    if not checkpoint_enabled:
+-        logger.info("🆕 [cyan]Full rebuild[/] (checkpoint disabled - default behavior)")
+-        return messages_table
+-
+-    checkpoint = load_checkpoint(checkpoint_path)
+-    if not (checkpoint and "last_processed_timestamp" in checkpoint):
+-        logger.info("🆕 [cyan]Starting fresh[/] (checkpoint enabled, but no checkpoint found)")
+-        return messages_table
+-
+-    last_timestamp_str = checkpoint["last_processed_timestamp"]
+-    last_timestamp = datetime.fromisoformat(last_timestamp_str)
++    """Apply checkpoint-based resume logic.
+
+-    # Ensure timezone-aware comparison
+-    utc_zone = ZoneInfo("UTC")
+-    if last_timestamp.tzinfo is None:
+-        last_timestamp = last_timestamp.replace(tzinfo=utc_zone)
+-    else:
+-        last_timestamp = last_timestamp.astimezone(utc_zone)
++    DEPRECATED: We now rely on window skipping in runner.py based on JOURNAL entries.
++    However, for massive datasets, filtering at the source is still more efficient.
+
+-    original_count = messages_table.count().execute()
+-    messages_table = messages_table.filter(messages_table.ts > last_timestamp)
+-    filtered_count = messages_table.count().execute()
+-    resumed_count = original_count - filtered_count
+-
+-    if resumed_count > 0:
+-        logger.info(
+-            "♻️  [cyan]Resuming:[/] skipped %s already processed messages (last: %s)",
+-            resumed_count,
+-            last_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+-        )
++    TODO: [Refactor] Implement source-level filtering based on Max(window_end) from Journals.
++    For now, we let runner.py skip windows individually.
++    """
++    # Just return full table - runner will skip processed windows
+     return messages_table
+
+
+@@ -1354,7 +1304,6 @@ def _apply_filters(
+     messages_table: ir.Table,
+     ctx: PipelineContext,
+     options: FilterOptions,
+-    checkpoint_path: Path,
+ ) -> ir.Table:
+     """Apply all filters: egregora messages, opted-out users, date range, checkpoint resume.
+
+@@ -1362,7 +1311,6 @@ def _apply_filters(
+         messages_table: Input messages table
+         ctx: Pipeline context
+         options: Filter configuration
+-        checkpoint_path: Path to checkpoint file
+
+     Returns:
+         Filtered messages table
+@@ -1381,9 +1329,9 @@ def _apply_filters(
+     # Date range filtering
+     messages_table = _apply_date_filters(messages_table, options.from_date, options.to_date)
+
+-    # Checkpoint-based resume logic
++    # Checkpoint-based resume logic (Delegated to Runner / Journal check)
+     return _apply_checkpoint_filter(
+-        messages_table, checkpoint_path, checkpoint_enabled=options.checkpoint_enabled
++        messages_table, checkpoint_enabled=options.checkpoint_enabled
+     )
+
+
+@@ -1459,8 +1407,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
+
+             _generate_taxonomy(dataset)
+
+-            # Save checkpoint first (critical path)
+-            _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
++            # Checkpoint saving removed - Journals are saved atomically during processing
+
+             # Final pass for any lingering background tasks
+             process_background_tasks(dataset.context)
+diff --git a/src/egregora/orchestration/runner.py b/src/egregora/orchestration/runner.py
+index b3db905be..3334755b3 100644
+--- a/src/egregora/orchestration/runner.py
++++ b/src/egregora/orchestration/runner.py
+@@ -27,7 +27,9 @@
+     WindowSplitError,
+ )
+ from egregora.orchestration.factory import PipelineFactory
++from egregora.data_primitives.document import DocumentType
+ from egregora.transformations import split_window_into_n_parts
++from egregora.transformations.windowing import Window
+
+ if TYPE_CHECKING:
+     from datetime import datetime
+@@ -84,7 +86,18 @@ def process_windows(
+         total_windows = max_windows if max_windows else "unlimited"
+         logger.info("Processing windows (limit: %s)", total_windows)
+
++        resources = PipelineFactory.create_writer_resources(self.context)
++        processed_intervals = self._fetch_processed_intervals()
++
+         for window in windows_iterator:
++            # Check if window already processed (using Journal-based deduplication)
++            start_iso = window.start_time.isoformat()
++            end_iso = window.end_time.isoformat()
++
++            if (start_iso, end_iso) in processed_intervals:
++                logger.info("⏭️  Skipping window %d: %s (Already Processed)", window.window_index, window.start_time)
++                continue
++
+             if max_windows is not None and windows_processed >= max_windows:
+                 logger.info("Reached max_windows limit (%d). Stopping processing.", max_windows)
+                 if max_windows < MIN_WINDOWS_WARNING_THRESHOLD:
+@@ -155,6 +168,38 @@ def _validate_window_size(self, window: Any, max_size: int) -> None:
+             )
+             raise WindowSizeError(msg)
+
++    def _fetch_processed_intervals(self) -> set[tuple[str, str]]:
++        """Fetch all processed window intervals from JOURNAL entries.
++
++        Returns:
++            Set of (start_iso, end_iso) tuples.
++        """
++        processed = set()
++        if not self.context.library:
++            return processed
++
++        try:
++            # Using list(DocumentType.JOURNAL) on library.journal (which is a DocumentRepository)
++            journals = self.context.library.journal.list(doc_type=DocumentType.JOURNAL)
++
++            for journal in journals:
++                # journal is DocumentMetadata (identifier, doc_type, metadata)
++                meta = journal.metadata
++                if not meta:
++                    continue
++
++                # Check timestamps (allowing for string/datetime diffs)
++                j_start = meta.get("window_start")
++                j_end = meta.get("window_end")
++
++                if j_start and j_end:
++                    processed.add((str(j_start), str(j_end)))
++
++        except Exception as e:
++            logger.warning("Failed to fetch processed journals: %s", e)
++
++        return processed
++
+     def process_background_tasks(self) -> None:
+         """Process pending background tasks."""
+         if not hasattr(self.context, "task_store") or not self.context.task_store:
+diff --git a/src/egregora/transformations/__init__.py b/src/egregora/transformations/__init__.py
+index 666b4d036..0b44b9bdf 100644
+--- a/src/egregora/transformations/__init__.py
++++ b/src/egregora/transformations/__init__.py
+@@ -58,8 +58,7 @@
+     Window,
+     WindowConfig,
+     create_windows,
+-    load_checkpoint,
+-    save_checkpoint,
++    generate_window_signature,
+     split_window_into_n_parts,
+ )
+
+@@ -69,9 +68,7 @@
+     "create_windows",
+     "extract_media_references",
+     "generate_window_signature",
+-    "load_checkpoint",
+     "process_media_for_window",
+     "replace_media_references",
+-    "save_checkpoint",
+     "split_window_into_n_parts",
+ ]
+diff --git a/src/egregora/transformations/windowing.py b/src/egregora/transformations/windowing.py
+index bf7d2cefe..952da4143 100644
+--- a/src/egregora/transformations/windowing.py
++++ b/src/egregora/transformations/windowing.py
+@@ -50,57 +50,8 @@
+ # Checkpoint / Sentinel File Utilities
+ # ============================================================================
+
+-
+-def load_checkpoint(checkpoint_path: Path) -> dict | None:
+-    """Load processing checkpoint from sentinel file.
+-
+-    Args:
+-        checkpoint_path: Path to .egregora/checkpoint.json
+-
+-    Returns:
+-        Checkpoint dict with 'last_processed_timestamp' or None if not found
+-
+-    """
+-    if not checkpoint_path.exists():
+-        return None
+-
+-    try:
+-        with checkpoint_path.open() as f:
+-            return json.load(f)
+-    except (json.JSONDecodeError, OSError) as e:
+-        logger.warning("Failed to load checkpoint from %s: %s", checkpoint_path, e)
+-        return None
+-
+-
+-def save_checkpoint(checkpoint_path: Path, last_timestamp: datetime, messages_processed: int) -> None:
+-    """Save processing checkpoint to sentinel file.
+-
+-    Args:
+-        checkpoint_path: Path to .egregora/checkpoint.json
+-        last_timestamp: Timestamp of last processed message
+-        messages_processed: Total count of messages processed
+-
+-    """
+-    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+-
+-    utc_zone = ZoneInfo("UTC")
+-    if last_timestamp.tzinfo is None:
+-        last_timestamp = last_timestamp.replace(tzinfo=utc_zone)
+-    else:
+-        last_timestamp = last_timestamp.astimezone(utc_zone)
+-
+-    checkpoint = {
+-        "last_processed_timestamp": last_timestamp.isoformat(),
+-        "messages_processed": int(messages_processed),
+-        "schema_version": "1.0",
+-    }
+-
+-    try:
+-        with checkpoint_path.open("w") as f:
+-            json.dump(checkpoint, f, indent=2)
+-        logger.info("Checkpoint saved: %s", checkpoint_path)
+-    except OSError as e:
+-        logger.warning("Failed to save checkpoint to %s: %s", checkpoint_path, e)
++# DEPRECATED: Checkpoints are now handled via DocumentType.JOURNAL in database.
++# Functions load_checkpoint/save_checkpoint removed.
+
+
+ # ============================================================================
+diff --git a/src/egregora_v3/core/types.py b/src/egregora_v3/core/types.py
+index 7f8efef36..fdcd37dfd 100644
+--- a/src/egregora_v3/core/types.py
++++ b/src/egregora_v3/core/types.py
+@@ -129,7 +129,8 @@ def has_enclosure(self) -> bool:
+
+ class DocumentType(str, Enum):
+     RECAP = "recap"
+-    NOTE = "note"
++    NOTE = "note"  # TODO: Deprecate in favor of JOURNAL?
++    JOURNAL = "journal"
+     PLAN = "plan"
+     POST = "post"
+     MEDIA = "media"
+
+From 6fd3592109765d8d0bdc9403249a036872729064 Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Wed, 7 Jan 2026 22:29:27 +0000
+Subject: [PATCH 2/5] Fix: Resolve linting errors in PipelineRunner
+
+- Removed unused `resources` variable in `PipelineRunner.process_windows`.
+- Suppressed `BLE001` (blind exception catch) in `_fetch_processed_intervals` with explicit `noqa` as fail-safe behavior is intended.
+- Verified linting passes with `ruff`.
+- Verified unit tests pass.
+---
+ src/egregora/orchestration/pipelines/write.py |  8 ++------
+ src/egregora/orchestration/runner.py          | 12 ++++++------
+ src/egregora/transformations/windowing.py     |  3 ---
+ 3 files changed, 8 insertions(+), 15 deletions(-)
+
+diff --git a/src/egregora/orchestration/pipelines/write.py b/src/egregora/orchestration/pipelines/write.py
+index 17c10661d..2a85ecf70 100644
+--- a/src/egregora/orchestration/pipelines/write.py
++++ b/src/egregora/orchestration/pipelines/write.py
+@@ -1276,9 +1276,7 @@ def _apply_date_filters(
+     return messages_table
+
+
+-def _apply_checkpoint_filter(
+-    messages_table: ir.Table, *, checkpoint_enabled: bool
+-) -> ir.Table:
++def _apply_checkpoint_filter(messages_table: ir.Table, *, checkpoint_enabled: bool) -> ir.Table:
+     """Apply checkpoint-based resume logic.
+
+     DEPRECATED: We now rely on window skipping in runner.py based on JOURNAL entries.
+@@ -1330,9 +1328,7 @@ def _apply_filters(
+     messages_table = _apply_date_filters(messages_table, options.from_date, options.to_date)
+
+     # Checkpoint-based resume logic (Delegated to Runner / Journal check)
+-    return _apply_checkpoint_filter(
+-        messages_table, checkpoint_enabled=options.checkpoint_enabled
+-    )
++    return _apply_checkpoint_filter(messages_table, checkpoint_enabled=options.checkpoint_enabled)
+
+
+ def _init_global_rate_limiter(quota_config: Any) -> None:
+diff --git a/src/egregora/orchestration/runner.py b/src/egregora/orchestration/runner.py
+index 3334755b3..2cdcdf7c2 100644
+--- a/src/egregora/orchestration/runner.py
++++ b/src/egregora/orchestration/runner.py
+@@ -18,7 +18,7 @@
+ from egregora.agents.profile.worker import ProfileWorker
+ from egregora.agents.types import Message, PromptTooLargeError, WindowProcessingParams
+ from egregora.agents.writer import write_posts_for_window
+-from egregora.data_primitives.document import UrlContext
++from egregora.data_primitives.document import DocumentType, UrlContext
+ from egregora.ops.media import process_media_for_window
+ from egregora.orchestration.context import PipelineContext
+ from egregora.orchestration.exceptions import (
+@@ -27,9 +27,7 @@
+     WindowSplitError,
+ )
+ from egregora.orchestration.factory import PipelineFactory
+-from egregora.data_primitives.document import DocumentType
+ from egregora.transformations import split_window_into_n_parts
+-from egregora.transformations.windowing import Window
+
+ if TYPE_CHECKING:
+     from datetime import datetime
+@@ -86,7 +84,6 @@ def process_windows(
+         total_windows = max_windows if max_windows else "unlimited"
+         logger.info("Processing windows (limit: %s)", total_windows)
+
+-        resources = PipelineFactory.create_writer_resources(self.context)
+         processed_intervals = self._fetch_processed_intervals()
+
+         for window in windows_iterator:
+@@ -95,7 +92,9 @@ def process_windows(
+             end_iso = window.end_time.isoformat()
+
+             if (start_iso, end_iso) in processed_intervals:
+-                logger.info("⏭️  Skipping window %d: %s (Already Processed)", window.window_index, window.start_time)
++                logger.info(
++                    "⏭️  Skipping window %d: %s (Already Processed)", window.window_index, window.start_time
++                )
+                 continue
+
+             if max_windows is not None and windows_processed >= max_windows:
+@@ -173,6 +172,7 @@ def _fetch_processed_intervals(self) -> set[tuple[str, str]]:
+
+         Returns:
+             Set of (start_iso, end_iso) tuples.
++
+         """
+         processed = set()
+         if not self.context.library:
+@@ -195,7 +195,7 @@ def _fetch_processed_intervals(self) -> set[tuple[str, str]]:
+                 if j_start and j_end:
+                     processed.add((str(j_start), str(j_end)))
+
+-        except Exception as e:
++        except Exception as e:  # noqa: BLE001
+             logger.warning("Failed to fetch processed journals: %s", e)
+
+         return processed
+diff --git a/src/egregora/transformations/windowing.py b/src/egregora/transformations/windowing.py
+index 952da4143..695628b48 100644
+--- a/src/egregora/transformations/windowing.py
++++ b/src/egregora/transformations/windowing.py
+@@ -24,14 +24,11 @@
+ """
+
+ import hashlib
+-import json
+ import logging
+ import math
+ from collections.abc import Iterator
+ from dataclasses import dataclass
+ from datetime import datetime, timedelta
+-from pathlib import Path
+-from zoneinfo import ZoneInfo
+
+ import ibis
+ from ibis.expr.types import Table
+
+From d53e4fd9f526013a846ca699d733e9b59937c81e Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Wed, 7 Jan 2026 22:46:27 +0000
+Subject: [PATCH 3/5] Fix: Document.__init__ internal_metadata TypeError
+
+- Updated `src/egregora/data_primitives/document.py` to add `internal_metadata` field to the `Document` dataclass.
+- Verified unit tests pass with the updated class definition.
+- Fixed `ImportError` in `test_windowing.py` by removing deleted function import.
+- Verified linting passes.
+---
+ src/egregora/data_primitives/document.py     |  3 ++
+ tests/unit/transformations/test_windowing.py | 30 --------------------
+ 2 files changed, 3 insertions(+), 30 deletions(-)
+
+diff --git a/src/egregora/data_primitives/document.py b/src/egregora/data_primitives/document.py
+index 33d9d0400..e2674e20d 100644
+--- a/src/egregora/data_primitives/document.py
++++ b/src/egregora/data_primitives/document.py
+@@ -117,6 +117,9 @@ class Document:
+     # Metadata (format-agnostic)
+     metadata: dict[str, Any] = field(default_factory=dict)
+
++    # Internal system metadata (not serialized to public outputs if possible)
++    internal_metadata: dict[str, Any] = field(default_factory=dict)
++
+     # V3: Explicit ID (Semantic Identity)
+     id: str | None = field(default=None)
+
+diff --git a/tests/unit/transformations/test_windowing.py b/tests/unit/transformations/test_windowing.py
+index 8016724b4..16d2adfd2 100644
+--- a/tests/unit/transformations/test_windowing.py
++++ b/tests/unit/transformations/test_windowing.py
+@@ -12,8 +12,6 @@
+     WindowConfig,
+     create_windows,
+     generate_window_signature,
+-    load_checkpoint,
+-    save_checkpoint,
+     split_window_into_n_parts,
+ )
+
+@@ -170,34 +168,6 @@ def test_split_window_invalid_n_raises_specific_error():
+     assert exc_info.value.n == 1
+
+
+-def test_checkpoint_operations(tmp_path):
+-    """Test saving and loading checkpoints."""
+-    checkpoint_path = tmp_path / ".egregora" / "checkpoint.json"
+-
+-    # Test loading non-existent checkpoint
+-    assert load_checkpoint(checkpoint_path) is None
+-
+-    # Test saving checkpoint
+-    last_timestamp = datetime(2023, 1, 1, 12, 0, 0, tzinfo=ZoneInfo("UTC"))
+-    messages_processed = 150
+-
+-    save_checkpoint(checkpoint_path, last_timestamp, messages_processed)
+-
+-    assert checkpoint_path.exists()
+-
+-    # Test loading saved checkpoint
+-    loaded = load_checkpoint(checkpoint_path)
+-    assert loaded is not None
+-    assert loaded["messages_processed"] == 150
+-    # JSON stores ISO string, verify it parses back
+-    loaded_ts = datetime.fromisoformat(loaded["last_processed_timestamp"])
+-    assert loaded_ts == last_timestamp
+-
+-    # Test corrupted checkpoint
+-    checkpoint_path.write_text("invalid json")
+-    assert load_checkpoint(checkpoint_path) is None
+-
+-
+ def test_generate_window_signature(config_factory):
+     """Test window signature generation."""
+     table = create_test_table(10)
+
+From ca238b67975201fe0876b1bc8a0446b56a173f6e Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Wed, 7 Jan 2026 22:55:04 +0000
+Subject: [PATCH 4/5] Fix: Unused import in windowing tests
+
+- Removed unused `ZoneInfo` import from `tests/unit/transformations/test_windowing.py` to fix linting failure.
+- Verified linting passes cleanly.
+- Verified relevant unit tests pass.
+---
+ tests/unit/transformations/test_windowing.py | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/tests/unit/transformations/test_windowing.py b/tests/unit/transformations/test_windowing.py
+index 16d2adfd2..7a2810665 100644
+--- a/tests/unit/transformations/test_windowing.py
++++ b/tests/unit/transformations/test_windowing.py
+@@ -2,7 +2,6 @@
+
+ from datetime import datetime, timedelta
+ from unittest.mock import patch
+-from zoneinfo import ZoneInfo
+
+ import ibis
+ import pytest
+
+From 0b128f712e4d5199c03447e1971c1d8815eeef0a Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Wed, 7 Jan 2026 23:12:56 +0000
+Subject: [PATCH 5/5] Fix: Add Journal logic test coverage and fix type safety
+
+- Created `tests/unit/orchestration/test_runner_journal.py` to test `_fetch_processed_intervals` and window skipping logic.
+- Updated `PipelineRunner` test mocks to include `config.pipeline.max_windows` integer to prevent `TypeError`.
+- Fixed linting errors in new test file.
+- Verified unit tests pass and code coverage is improved.
+---
+ .../unit/orchestration/test_runner_journal.py | 80 +++++++++++++++++++
+ 1 file changed, 80 insertions(+)
+ create mode 100644 tests/unit/orchestration/test_runner_journal.py
+
+diff --git a/tests/unit/orchestration/test_runner_journal.py b/tests/unit/orchestration/test_runner_journal.py
+new file mode 100644
+index 000000000..8080ce5ac
+--- /dev/null
++++ b/tests/unit/orchestration/test_runner_journal.py
+@@ -0,0 +1,80 @@
++
++from datetime import datetime
++from unittest.mock import MagicMock
++
++from egregora.data_primitives.document import OutputSink
++from egregora.orchestration.context import PipelineContext
++from egregora.orchestration.runner import PipelineRunner
++
++
++def test_fetch_processed_intervals():
++    """Test fetching processed intervals from journal documents."""
++    context = MagicMock(spec=PipelineContext)
++    # Mock library.journal.list()
++    mock_journal1 = MagicMock()
++    mock_journal1.metadata = {
++        "window_start": "2023-01-01T10:00:00",
++        "window_end": "2023-01-01T12:00:00"
++    }
++    mock_journal2 = MagicMock()
++    # Missing metadata should be ignored
++    mock_journal2.metadata = {}
++
++    context.library.journal.list.return_value = [mock_journal1, mock_journal2]
++
++    runner = PipelineRunner(context)
++    intervals = runner._fetch_processed_intervals()
++
++    assert len(intervals) == 1
++    assert ("2023-01-01T10:00:00", "2023-01-01T12:00:00") in intervals
++
++
++def test_process_windows_skips_existing():
++    """Test that process_windows skips windows that match processed intervals."""
++    context = MagicMock(spec=PipelineContext)
++    # Mock OutputSink to avoid validation errors
++    context.output_format = MagicMock(spec=OutputSink)
++
++    # Mock config to avoid type error on max_windows
++    config = MagicMock()
++    config.pipeline.max_windows = 100
++    context.config = config
++
++    # Mock processed intervals (via library)
++    mock_journal = MagicMock()
++    mock_journal.metadata = {
++        "window_start": "2023-01-01T10:00:00",
++        "window_end": "2023-01-01T12:00:00"
++    }
++    context.library.journal.list.return_value = [mock_journal]
++
++    runner = PipelineRunner(context)
++    # Mock internal processing to avoid complex setup
++    runner._process_single_window = MagicMock(return_value={})
++    runner.process_background_tasks = MagicMock()
++
++    # Define windows
++    # Window 1: Matches journal -> Should be skipped
++    window1 = MagicMock()
++    window1.start_time = datetime(2023, 1, 1, 10, 0, 0)
++    window1.end_time = datetime(2023, 1, 1, 12, 0, 0)
++    window1.window_index = 0
++    window1.size = 10
++
++    # Window 2: New -> Should be processed
++    window2 = MagicMock()
++    window2.start_time = datetime(2023, 1, 1, 12, 0, 0)
++    window2.end_time = datetime(2023, 1, 1, 14, 0, 0)
++    window2.window_index = 1
++    window2.size = 10
++
++    windows = [window1, window2]
++
++    _results, _max_ts = runner.process_windows(windows)
++
++    # Assertions
++    # Only window 2 should trigger processing
++    assert runner._process_single_window.call_count == 1
++    # Verify call args to ensure it was window2
++    args, _ = runner._process_single_window.call_args
++    assert args[0] == window2
