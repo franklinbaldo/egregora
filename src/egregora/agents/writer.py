@@ -308,6 +308,10 @@ def _save_journal_to_file(params: JournalEntryParams) -> str | None:
                 "nav_exclude": True,
                 "hide": ["navigation"],
             },
+            internal_metadata={
+                "window_start": window_start_iso,
+                "window_end": window_end_iso,
+            },
             source_window=params.window_label,
         )
         params.output_format.persist(doc)

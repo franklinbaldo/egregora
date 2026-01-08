@@ -68,8 +68,6 @@ from egregora.transformations import (
     Window,
     WindowConfig,
     create_windows,
-    load_checkpoint,
-    save_checkpoint,
     split_window_into_n_parts,
 )
 
@@ -1169,7 +1167,6 @@ def _prepare_pipeline_data(
     _setup_content_directories(ctx)
     messages_table = _process_commands_and_avatars(messages_table, ctx, vision_model)
 
-    checkpoint_path = ctx.site_root / ".egregora" / "checkpoint.json"
     filter_options = FilterOptions(
         from_date=from_date,
         to_date=to_date,
@@ -1179,7 +1176,6 @@ def _prepare_pipeline_data(
         messages_table,
         ctx,
         filter_options,
-        checkpoint_path,
     )
 
     logger.info("🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit)
@@ -1219,7 +1215,7 @@ def _prepare_pipeline_data(
     return PreparedPipelineData(
         messages_table=messages_table,
         windows_iterator=windows_iterator,
-        checkpoint_path=checkpoint_path,
+        checkpoint_path=Path("deprecated"),  # No longer used
         context=ctx,
         enable_enrichment=enable_enrichment,
         embedding_model=embedding_model,
@@ -1250,31 +1246,7 @@ def _index_media_into_rag(
     # ... (removed for now)
 
 
-def _save_checkpoint(results: dict, max_processed_timestamp: datetime | None, checkpoint_path: Path) -> None:
-    """Save checkpoint after successful window processing.
-
-    Args:
-        results: Window processing results
-        max_processed_timestamp: Latest end_time from successfully processed windows
-        checkpoint_path: Path to checkpoint file
-
-    """
-    if not results or max_processed_timestamp is None:
-        logger.warning(
-            "⚠️  [yellow]No windows processed[/] - checkpoint not saved. "
-            "All windows may have been empty or filtered out."
-        )
-        return
-
-    # Count total messages processed (approximate from results)
-    total_posts = sum(len(r.get("posts", [])) for r in results.values())
-
-    save_checkpoint(checkpoint_path, max_processed_timestamp, total_posts)
-    logger.info(
-        "💾 [cyan]Checkpoint saved:[/] processed up to %s (%d posts written)",
-        max_processed_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-        total_posts,
-    )
+# _save_checkpoint removed - replaced by Journal-based execution log
 
 
 def _apply_date_filters(
@@ -1304,40 +1276,16 @@ def _apply_date_filters(
     return messages_table
 
 
-def _apply_checkpoint_filter(
-    messages_table: ir.Table, checkpoint_path: Path, *, checkpoint_enabled: bool
-) -> ir.Table:
-    """Apply checkpoint-based resume logic."""
-    if not checkpoint_enabled:
-        logger.info("🆕 [cyan]Full rebuild[/] (checkpoint disabled - default behavior)")
-        return messages_table
+def _apply_checkpoint_filter(messages_table: ir.Table, *, checkpoint_enabled: bool) -> ir.Table:
+    """Apply checkpoint-based resume logic.
 
-    checkpoint = load_checkpoint(checkpoint_path)
-    if not (checkpoint and "last_processed_timestamp" in checkpoint):
-        logger.info("🆕 [cyan]Starting fresh[/] (checkpoint enabled, but no checkpoint found)")
-        return messages_table
+    DEPRECATED: We now rely on window skipping in runner.py based on JOURNAL entries.
+    However, for massive datasets, filtering at the source is still more efficient.
 
-    last_timestamp_str = checkpoint["last_processed_timestamp"]
-    last_timestamp = datetime.fromisoformat(last_timestamp_str)
-
-    # Ensure timezone-aware comparison
-    utc_zone = ZoneInfo("UTC")
-    if last_timestamp.tzinfo is None:
-        last_timestamp = last_timestamp.replace(tzinfo=utc_zone)
-    else:
-        last_timestamp = last_timestamp.astimezone(utc_zone)
-
-    original_count = messages_table.count().execute()
-    messages_table = messages_table.filter(messages_table.ts > last_timestamp)
-    filtered_count = messages_table.count().execute()
-    resumed_count = original_count - filtered_count
-
-    if resumed_count > 0:
-        logger.info(
-            "♻️  [cyan]Resuming:[/] skipped %s already processed messages (last: %s)",
-            resumed_count,
-            last_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-        )
+    TODO: [Refactor] Implement source-level filtering based on Max(window_end) from Journals.
+    For now, we let runner.py skip windows individually.
+    """
+    # Just return full table - runner will skip processed windows
     return messages_table
 
 
@@ -1354,7 +1302,6 @@ def _apply_filters(
     messages_table: ir.Table,
     ctx: PipelineContext,
     options: FilterOptions,
-    checkpoint_path: Path,
 ) -> ir.Table:
     """Apply all filters: egregora messages, opted-out users, date range, checkpoint resume.
 
@@ -1362,7 +1309,6 @@ def _apply_filters(
         messages_table: Input messages table
         ctx: Pipeline context
         options: Filter configuration
-        checkpoint_path: Path to checkpoint file
 
     Returns:
         Filtered messages table
@@ -1381,10 +1327,8 @@ def _apply_filters(
     # Date range filtering
     messages_table = _apply_date_filters(messages_table, options.from_date, options.to_date)
 
-    # Checkpoint-based resume logic
-    return _apply_checkpoint_filter(
-        messages_table, checkpoint_path, checkpoint_enabled=options.checkpoint_enabled
-    )
+    # Checkpoint-based resume logic (Delegated to Runner / Journal check)
+    return _apply_checkpoint_filter(messages_table, checkpoint_enabled=options.checkpoint_enabled)
 
 
 def _init_global_rate_limiter(quota_config: Any) -> None:
@@ -1459,8 +1403,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
 
             _generate_taxonomy(dataset)
 
-            # Save checkpoint first (critical path)
-            _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
+            # Checkpoint saving removed - Journals are saved atomically during processing
 
             # Final pass for any lingering background tasks
             process_background_tasks(dataset.context)
