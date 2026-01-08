@@ -276,6 +276,18 @@ def load_prompt_entries(prompts_dir: Path, cycle_list: list[str]) -> list[dict[s
     return entries
 
 
+def load_prompt_block(block_name: str) -> str:
+    """Load a shared prompt block from .jules/blocks."""
+    blocks_dir = Path(".jules/blocks")
+    block_path = blocks_dir / block_name
+    if not block_path.exists():
+        return ""
+    try:
+        return block_path.read_text().strip()
+    except OSError:
+        return ""
+
+
 def ensure_journals_directory(persona_dir: Path) -> None:
     """Ensure the journals directory exists for a persona."""
     journals_dir = persona_dir / "journals"
@@ -320,6 +332,9 @@ def parse_prompt_file(filepath: Path, context: dict) -> dict:
 
     full_context = {**context, **config}
     env = jinja2.Environment()
+
+    full_context["autonomy_block"] = load_prompt_block("autonomy.md")
+    full_context["sprint_planning_block"] = load_prompt_block("sprint_planning.md")
 
     full_context["identity_branding"] = env.from_string(IDENTITY_BRANDING).render(**full_context)
     full_context["journal_management"] = env.from_string(JOURNAL_MANAGEMENT).render(**full_context)
