@@ -19,6 +19,10 @@ on:
         default: false
   schedule:
     - cron: '*/15 * * * *'
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
 
 permissions:
   contents: write
@@ -28,6 +32,7 @@ permissions:
 
 jobs:
   tick:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
