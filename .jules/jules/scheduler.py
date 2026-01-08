@@ -449,10 +449,10 @@ def get_last_cycle_session(
         if not pr:
             continue
 
-        branch_name = pr.get("headRefName", "") or ""
-        if not _is_scheduler_branch(branch_name):
+        base_branch = pr.get("baseRefName", "") or ""
+        if not _is_scheduler_branch(base_branch):
             continue
-        persona_id = _match_persona_from_branch(branch_name, cycle_entries)
+        persona_id = _match_persona_from_branch(base_branch, cycle_entries)
         if persona_id:
             return session_id, persona_id
 

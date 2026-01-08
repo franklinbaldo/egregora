@@ -40,7 +40,7 @@ def get_open_prs(owner: str, repo: str) -> list[dict[str, Any]]:
                     "--state",
                     "open",
                     "--json",
-                    "number,title,headRefName,url,author,isDraft",
+                    "number,title,headRefName,baseRefName,url,author,isDraft",
                     "--limit",
                     "50",
                 ]
@@ -70,7 +70,7 @@ def get_pr_by_session_id_any_state(owner: str, repo: str, session_id: str) -> di
                 "--state",
                 "all",
                 "--json",
-                "number,title,headRefName,mergedAt,closedAt,state",
+                "number,title,headRefName,baseRefName,mergedAt,closedAt,state",
                 "--limit",
                 "100",
             ]

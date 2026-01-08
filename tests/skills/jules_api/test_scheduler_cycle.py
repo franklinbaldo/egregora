@@ -56,6 +56,7 @@ class TestSchedulerCycleFallback:
                 "number": 42,
                 "mergedAt": "2026-01-05T03:30:00Z",
                 "headRefName": "jules-sched-curator-pr42-123456789012345",
+                "baseRefName": "jules-sched-curator-pr42",
             },
         )
         monkeypatch.setattr(scheduler, "get_open_prs", lambda *_args, **_kwargs: [])
