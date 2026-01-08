@@ -8,6 +8,48 @@
 # ============================================================================
 
 [[tasks.high_priority]]
+id = "fix-demo-output-path"
+title = "Fix `egregora demo` output path to comply with root directory policy"
+description = """
+WHY: The `egregora demo` command currently generates the `demo` site in the repository root. This violates the project's root directory cleanliness policy, causing the `check-root-structure` pre-commit hook to fail. This blocks all submissions.
+
+WHAT: Modify the `egregora demo` command (likely in `src/egregora/cli/main.py`) to output the generated site to the `artifacts/demo/` directory instead of the root.
+
+HOW TO VERIFY:
+- Run `uv run egregora demo`.
+- Verify that the generated site is located at `artifacts/demo/`.
+- Verify that the root directory does not contain a `demo` directory.
+- Run `uv run --with pre-commit pre-commit run --all-files` and confirm the `check-root-structure` hook passes.
+
+WHERE: The command is likely defined in `src/egregora/cli/main.py`.
+"""
+status = "pending"
+category = "baseline"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "create-validation-scripts"
+title = "Create missing validation scripts for TODO.ux.toml"
+description = """
+WHY: The Curator persona instructions rely on validation scripts (`.jules/scripts/validate_todo.py` and `.jules/scripts/check_pending_tasks.py`) that are missing from the repository. This prevents programmatic validation of the TODO list, forcing manual checks and risking errors.
+
+WHAT: Create the two Python scripts.
+- `validate_todo.py` should parse `notes/TODO.ux.toml` and ensure it conforms to the required structure (e.g., all tasks have id, title, description, status, category, assignee).
+- `check_pending_tasks.py` should check for any tasks in the `high_priority` section with a status of `pending` and exit with a non-zero status code if any are found.
+
+HOW TO VERIFY:
+- The scripts exist at the specified paths.
+- Running `python .jules/scripts/validate_todo.py` on a valid file exits with 0.
+- Running it on an invalid file exits with 1 and prints an error.
+- Running `check_pending_tasks.py` when there are pending high-priority tasks exits with 1.
+
+WHERE: Create the directory `.jules/scripts/` and add the two python files.
+"""
+status = "pending"
+category = "baseline"
+assignee = "forge"
+
+[[tasks.high_priority]]
 id = "missing-custom-css"
 title = "Create missing custom CSS file"
 description = """

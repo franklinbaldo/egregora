@@ -1,54 +1,37 @@
-# Plano: Curator - Sprint 2
+# Curator Plan - Sprint 2
 
-**Persona:** curator  
-**Sprint:** 2  
-**Criado em:** 2026-01-07 (durante sprint-1)  
-**Prioridade:** Alta  
+**Persona:** Curator
+**Sprint:** 2
+**Date:** 2024-07-27
+**Priority:** High
 
-## Objetivos
+## Goals
 
-O curator tem como missão manter o repositório organizado e saudável. Para o sprint-2, os objetivos são:
+The primary goal for Sprint 2 is to address the most critical baseline UX issues identified in the initial audit. This involves establishing a unique brand identity and fixing foundational technical problems that prevent any custom styling.
 
-- [ ] Implementar sistema de labels estruturado
-- [ ] Categorizar todas as issues abertas (150+)
-- [ ] Criar documento de processo de triagem
-- [ ] Identificar e fechar issues duplicadas ou obsoletas
+- [ ] **Define Brand Identity:** Establish a unique color palette and favicon to move beyond the generic Material for MkDocs defaults.
+- [ ] **Enable Custom Styling:** Ensure the custom CSS file is correctly created and linked, unblocking all future styling work.
+- [ ] **Address Privacy/Analytics:** Make a decision on the placeholder Google Analytics key to align with the project's privacy-first stance.
+- [ ] **Verify Forge's Work:** Review the implementation of the tasks assigned to the Forge persona.
 
-## Dependências
+## Dependencies
 
-As seguintes dependências foram identificadas:
+- **Forge:** This plan is highly dependent on the Forge persona to implement the technical changes, such as creating the CSS file and adding the favicon. I will provide the design assets and specifications, but Forge will perform the implementation.
 
-- **refactor:** Aguardando refatoração do módulo de issues para facilitar automação de labels
-- **docs_curator:** Coordenar sobre documentação do processo de triagem
-- **sheriff:** Alinhar sobre políticas de fechamento de issues
+## Context
 
-## Contexto
+The initial UX audit in Sprint 1 revealed several high-priority issues that make the generated blog look generic and unprofessional. Addressing these foundational issues is a prerequisite for any further UX improvements. The `TODO.ux.toml` file contains the detailed specifications for these tasks.
 
-Durante o sprint-1, foi identificado que o repositório possui mais de 150 issues abertas sem organização clara. Muitas issues não têm labels, algumas são duplicadas, e outras estão obsoletas. Isso dificulta a priorização e o trabalho de outras personas.
+## Deliverables
 
-A implementação de um sistema de labels estruturado e a categorização das issues existentes vai melhorar significativamente a eficiência do trabalho de todas as personas, especialmente builder, visionary e taskmaster.
+1.  **Color Palette:** A defined color palette in `docs/ux-vision.md` with rationale.
+2.  **Favicon:** A decision on the favicon design concept.
+3.  **Analytics Decision:** A clear decision on the analytics placeholder, documented in `docs/ux-vision.md`.
+4.  **Updated TODO List:** `TODO.ux.toml` updated to reflect the completed and in-progress tasks.
 
-## Entregáveis Esperados
+## Risks and Mitigations
 
-1. **Sistema de Labels:** Conjunto completo de labels criadas no GitHub (tipo, prioridade, área, status)
-2. **Issues Categorizadas:** Todas as 150+ issues com labels apropriadas
-3. **Documento de Processo:** Markdown descrevendo como fazer triagem de novas issues
-4. **Limpeza:** Lista de issues fechadas (duplicadas/obsoletas) com justificativa
-
-## Riscos e Mitigações
-
-| Risco | Probabilidade | Impacto | Mitigação |
-|-------|---------------|---------|-----------|
-| Volume de issues muito alto | Alta | Médio | Priorizar issues mais recentes e ativas |
-| Conflito sobre fechamento | Média | Alto | Consultar sheriff antes de fechar issues controversas |
-| Labels inconsistentes | Baixa | Médio | Revisar com docs_curator antes de aplicar em massa |
-
-## Colaborações Propostas
-
-- **Com refactor:** Após refatoração do módulo de issues, implementar automação de labels
-- **Com docs_curator:** Revisar documento de processo e incluir na documentação oficial
-- **Com sheriff:** Definir políticas claras de fechamento de issues
-
-## Notas Adicionais
-
-Este trabalho vai beneficiar diretamente o trabalho do taskmaster (priorização) e do organizer (estruturação). Considerar criar um dashboard de métricas de issues após a categorização.
+| Risk | Probability | Impact | Mitigation |
+|---|---|---|---|
+| Forge is blocked | Medium | High | I will ensure the tasks assigned to Forge are extremely clear and provide all necessary information to unblock them. |
+| Disagreement on design | Low | Medium | I will document the rationale for my design decisions in `docs/ux-vision.md` to ensure clarity and alignment with the project's goals. |
