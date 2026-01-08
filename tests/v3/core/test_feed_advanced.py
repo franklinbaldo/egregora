@@ -286,6 +286,7 @@ def test_documents_to_feed_count_invariant(titles: list[str]) -> None:
             content=f"Content {i}",
             doc_type=DocumentType.NOTE,
             title=title or f"Default Title {i}",
+                internal_metadata={"slug": f"doc-{i}"},
         )
         for i, title in enumerate(titles)
     ]

@@ -459,12 +459,12 @@ def _serialize_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
     timestamp = metadata.get("ts")
     created_at = metadata.get("created_at")
     return {
-        "ts": timestamp.isoformat() if isinstance(timestamp, datetime) else None,
+        "ts": timestamp.isoformat() if timestamp else None,
         "tenant_id": metadata.get("tenant_id"),
         "source": metadata.get("source"),
         "thread_id": _uuid_to_str(metadata.get("thread_id")),
         "author_uuid": _uuid_to_str(metadata.get("author_uuid")),
-        "created_at": (created_at.isoformat() if isinstance(created_at, datetime) else created_at),
+        "created_at": (created_at.isoformat() if hasattr(created_at, "isoformat") else created_at),
         "created_by_run": _uuid_to_str(metadata.get("created_by_run")),
     }
 
@@ -475,7 +475,7 @@ class EnrichmentWorker(BaseWorker):
 
     def __init__(
         self,
-        ctx: PipelineContext,
+        ctx: PipelineContext | EnrichmentRuntimeContext,
         enrichment_config: EnrichmentSettings | None = None,
     ) -> None:
         super().__init__(ctx)

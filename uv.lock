@@ -754,49 +754,27 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-docs = [
+dev = [
+    { name = "bandit" },
     { name = "codespell" },
-    { name = "mkdocs" },
-    { name = "mkdocs-autorefs" },
-    { name = "mkdocs-git-revision-date-localized-plugin" },
-    { name = "mkdocs-macros-plugin" },
-    { name = "mkdocs-material", extra = ["imaging"] },
-    { name = "mkdocs-minify-plugin" },
-    { name = "mkdocs-static-i18n" },
-    { name = "mkdocstrings", extra = ["python"] },
-    { name = "pymdown-extensions" },
-]
-rss = [
-    { name = "mkdocs-rss-plugin" },
-]
-test = [
+    { name = "deptry" },
     { name = "faker" },
     { name = "freezegun" },
     { name = "google-genai" },
     { name = "hypothesis" },
     { name = "ibis-framework", extra = ["duckdb"] },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-mock" },
-    { name = "pytest-xdist" },
-    { name = "respx" },
-    { name = "syrupy" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "bandit" },
-    { name = "deptry" },
-    { name = "faker" },
-    { name = "freezegun" },
-    { name = "hypothesis" },
+    { name = "mkdocs" },
+    { name = "mkdocs-autorefs" },
     { name = "mkdocs-blogging-plugin" },
     { name = "mkdocs-git-revision-date-localized-plugin" },
     { name = "mkdocs-macros-plugin" },
+    { name = "mkdocs-material", extra = ["imaging"] },
     { name = "mkdocs-minify-plugin" },
     { name = "mkdocs-rss-plugin" },
+    { name = "mkdocs-static-i18n" },
     { name = "mkdocstrings-python" },
     { name = "pre-commit" },
+    { name = "pymdown-extensions" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-benchmark" },
@@ -814,88 +792,70 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "codespell", marker = "extra == 'docs'", specifier = ">=2.4.1" },
+    { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.9" },
+    { name = "codespell", marker = "extra == 'dev'", specifier = ">=2.4.1" },
+    { name = "deptry", marker = "extra == 'dev'", specifier = ">=0.24" },
     { name = "diskcache", specifier = ">=5.6.3" },
     { name = "duckdb" },
-    { name = "faker", marker = "extra == 'test'", specifier = ">=34.1" },
-    { name = "freezegun", marker = "extra == 'test'", specifier = ">=1.5" },
+    { name = "faker", marker = "extra == 'dev'", specifier = ">=34.1" },
+    { name = "freezegun", marker = "extra == 'dev'", specifier = ">=1.5" },
     { name = "google-api-core" },
     { name = "google-genai", specifier = ">=0.8.6" },
-    { name = "google-genai", marker = "extra == 'test'", specifier = ">=0.8.6" },
+    { name = "google-genai", marker = "extra == 'dev'", specifier = ">=0.8.6" },
     { name = "httpx", specifier = ">=0.28" },
-    { name = "hypothesis", marker = "extra == 'test'", specifier = ">=6.134" },
+    { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.134" },
     { name = "ibis-framework", extras = ["duckdb"], specifier = ">=11.0" },
-    { name = "ibis-framework", extras = ["duckdb"], marker = "extra == 'test'", specifier = ">=11.0" },
+    { name = "ibis-framework", extras = ["duckdb"], marker = "extra == 'dev'", specifier = ">=11.0" },
     { name = "jinja2", specifier = ">=3.1" },
     { name = "lancedb", specifier = ">=0.25" },
     { name = "lxml", specifier = ">=5.4" },
     { name = "mkdocs", specifier = ">=1.6" },
-    { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6.1" },
-    { name = "mkdocs-autorefs", marker = "extra == 'docs'", specifier = ">=1.4.3" },
-    { name = "mkdocs-git-revision-date-localized-plugin", marker = "extra == 'docs'", specifier = ">=1.5.0" },
+    { name = "mkdocs", marker = "extra == 'dev'", specifier = ">=1.6.1" },
+    { name = "mkdocs-autorefs", marker = "extra == 'dev'", specifier = ">=1.4.3" },
+    { name = "mkdocs-blogging-plugin", marker = "extra == 'dev'", specifier = ">=2.2.11" },
+    { name = "mkdocs-git-revision-date-localized-plugin", marker = "extra == 'dev'", specifier = ">=1.5.0" },
     { name = "mkdocs-glightbox", specifier = ">=0.5.2" },
     { name = "mkdocs-macros-plugin", specifier = ">=1.5" },
-    { name = "mkdocs-macros-plugin", marker = "extra == 'docs'", specifier = ">=1.5.0" },
+    { name = "mkdocs-macros-plugin", marker = "extra == 'dev'", specifier = ">=1.5.0" },
     { name = "mkdocs-material", extras = ["imaging"], specifier = ">=9.7" },
-    { name = "mkdocs-material", extras = ["imaging"], marker = "extra == 'docs'", specifier = ">=9.7.0" },
-    { name = "mkdocs-minify-plugin", marker = "extra == 'docs'", specifier = ">=0.8.0" },
+    { name = "mkdocs-material", extras = ["imaging"], marker = "extra == 'dev'", specifier = ">=9.7.0" },
+    { name = "mkdocs-minify-plugin", marker = "extra == 'dev'", specifier = ">=0.8.0" },
     { name = "mkdocs-rss-plugin", specifier = ">=1.17" },
-    { name = "mkdocs-rss-plugin", marker = "extra == 'rss'", specifier = ">=1.17.7" },
-    { name = "mkdocs-static-i18n", marker = "extra == 'docs'", specifier = ">=1.3.0" },
-    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=1.0.0" },
+    { name = "mkdocs-rss-plugin", marker = "extra == 'dev'", specifier = ">=1.17.7" },
+    { name = "mkdocs-static-i18n", marker = "extra == 'dev'", specifier = ">=1.3.0" },
+    { name = "mkdocstrings-python", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "pillow", specifier = ">=11.3" },
+    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.5" },
     { name = "pydantic", specifier = ">=2.12" },
     { name = "pydantic-ai", specifier = ">=1.25" },
     { name = "pydantic-evals", specifier = ">=1.25" },
     { name = "pydantic-settings", specifier = ">=2.7" },
     { name = "pymdown-extensions", specifier = ">=10.17" },
-    { name = "pymdown-extensions", marker = "extra == 'docs'", specifier = ">=10.17.2" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=9.0" },
-    { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.25" },
-    { name = "pytest-mock", marker = "extra == 'test'", specifier = ">=3.14" },
-    { name = "pytest-xdist", marker = "extra == 'test'", specifier = ">=3.6" },
+    { name = "pymdown-extensions", marker = "extra == 'dev'", specifier = ">=10.17.2" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.25" },
+    { name = "pytest-benchmark", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.0" },
+    { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.14" },
+    { name = "pytest-socket", marker = "extra == 'dev'", specifier = ">=0.7.0" },
+    { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.6" },
     { name = "python-dateutil", specifier = ">=2.9" },
     { name = "python-frontmatter", specifier = ">=1.1" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "radon", marker = "extra == 'dev'", specifier = ">=6.0" },
     { name = "ratelimit", specifier = ">=2.2" },
-    { name = "respx", marker = "extra == 'test'", specifier = ">=0.22.0" },
+    { name = "respx", marker = "extra == 'dev'", specifier = ">=0.22.0" },
     { name = "rich", specifier = ">=13.9" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.14" },
     { name = "scikit-learn", specifier = ">=1.7" },
-    { name = "syrupy", marker = "extra == 'test'", specifier = ">=4.9" },
+    { name = "syrupy", marker = "extra == 'dev'", specifier = ">=4.9" },
     { name = "tenacity", specifier = ">=9.1" },
     { name = "tomli-w", specifier = ">=1.2.0" },
     { name = "typer", specifier = ">=0.20" },
+    { name = "vulture", marker = "extra == 'dev'", specifier = ">=2.14" },
+    { name = "xenon", marker = "extra == 'dev'", specifier = ">=0.9" },
 ]
-provides-extras = ["docs", "rss", "test"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "bandit", specifier = ">=1.9" },
-    { name = "deptry", specifier = ">=0.24" },
-    { name = "faker", specifier = ">=34.1" },
-    { name = "freezegun", specifier = ">=1.5" },
-    { name = "hypothesis", specifier = ">=6.134" },
-    { name = "mkdocs-blogging-plugin", specifier = ">=2.2.11" },
-    { name = "mkdocs-git-revision-date-localized-plugin", specifier = ">=1.5.0" },
-    { name = "mkdocs-macros-plugin", specifier = ">=1.5.0" },
-    { name = "mkdocs-minify-plugin", specifier = ">=0.8.0" },
-    { name = "mkdocs-rss-plugin", specifier = ">=1.17.7" },
-    { name = "mkdocstrings-python", specifier = ">=2.0.0" },
-    { name = "pre-commit", specifier = ">=4.5" },
-    { name = "pytest", specifier = ">=9.0" },
-    { name = "pytest-asyncio", specifier = ">=0.25" },
-    { name = "pytest-benchmark", specifier = ">=4.0.0" },
-    { name = "pytest-cov", specifier = ">=6.0" },
-    { name = "pytest-mock", specifier = ">=3.14" },
-    { name = "pytest-socket", specifier = ">=0.7.0" },
-    { name = "pytest-xdist", specifier = ">=3.6" },
-    { name = "radon", specifier = ">=6.0" },
-    { name = "respx", specifier = ">=0.22.0" },
-    { name = "ruff", specifier = ">=0.14" },
-    { name = "syrupy", specifier = ">=4.9" },
-    { name = "vulture", specifier = ">=2.14" },
-    { name = "xenon", specifier = ">=0.9" },
-]
+provides-extras = ["dev"]
 
 [[package]]
 name = "email-validator"
@@ -2111,11 +2071,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e5/13/10bbf9d56565fd91b91e6f5a8cd9b9d8a2b101c4e8ad6eeafa35a706301d/mkdocstrings-1.0.0.tar.gz", hash = "sha256:351a006dbb27aefce241ade110d3cd040c1145b7a3eb5fd5ac23f03ed67f401a", size = 101086, upload-time = "2025-11-27T15:39:40.534Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ec/fc/80aa31b79133634721cf7855d37b76ea49773599214896f2ff10be03de2a/mkdocstrings-1.0.0-py3-none-any.whl", hash = "sha256:4c50eb960bff6e05dfc631f6bc00dfabffbcb29c5ff25f676d64daae05ed82fa", size = 35135, upload-time = "2025-11-27T15:39:39.301Z" },
-]
-
-[package.optional-dependencies]
-python = [
-    { name = "mkdocstrings-python" },
 ]
 
 [[package]]
