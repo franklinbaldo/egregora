@@ -34,4 +34,4 @@ def test_execute_writer_with_error_handling_raises_specific_exception(monkeypatc
         )
 
     # Assert exception message contains window label
-    assert "Writer agent failed for test-window-label" in str(exc_info.value)
+    assert "Non-recoverable writer agent failure for test-window-label" in str(exc_info.value)

@@ -32,6 +32,7 @@ def create_writer_model(
     context: WriterDeps,
     prompt: str,
     test_model: Any | None = None,
+    api_key: str | None = None,
 ) -> Any:
     """Create or configure the writer model."""
     if test_model is not None:
@@ -39,27 +40,40 @@ def create_writer_model(
 
     model_name = config.models.writer
     if model_name.startswith("google-gla:"):
-        try:
-            get_google_api_key()  # Fail fast if key is missing
-        except ApiKeyNotFoundError as e:
-            msg = (
-                "A Google model is configured, but no API key was found.\n"
-                "Please set the GEMINI_API_key or GOOGLE_API_KEY environment variable.\n"
-                "You can get a free key from Google AI Studio: https://aistudio.google.com/app/apikey"
-            )
-            raise ValueError(msg) from e
+        effective_key = api_key
+        if not effective_key:
+            try:
+                effective_key = get_google_api_key()
+            except ApiKeyNotFoundError as e:
+                msg = (
+                    "A Google model is configured, but no API key was found.\n"
+                    "Please set the GEMINI_API_key or GOOGLE_API_KEY environment variable.\n"
+                    "You can get a free key from Google AI Studio: https://aistudio.google.com/app/apikey"
+                )
+                raise ValueError(msg) from e
+        model = infer_model(model_name)
+        # Some models in pydantic-ai might not accept api_key in infer_model directly for all providers
+        # but for Gemini it should be fine if we use the underlying client or if infer_model supports it.
+        # Actually, pydantic-ai.models.gemini.GeminiModel takes api_key.
+        if hasattr(model, "api_key") and effective_key:
+            model.api_key = effective_key
     elif model_name.startswith("openrouter:"):
-        try:
-            get_openrouter_api_key()  # Fail fast if key is missing
-        except ApiKeyNotFoundError as e:
-            msg = (
-                "An OpenRouter model is configured, but no API key was found.\n"
-                "Please set the OPENROUTER_API_KEY environment variable.\n"
-                "You can get a key from OpenRouter: https://openrouter.ai/keys"
-            )
-            raise ValueError(msg) from e
-
-    model = infer_model(model_name)
+        effective_key = api_key
+        if not effective_key:
+            try:
+                effective_key = get_openrouter_api_key()
+            except ApiKeyNotFoundError as e:
+                msg = (
+                    "An OpenRouter model is configured, but no API key was found.\n"
+                    "Please set the OPENROUTER_API_KEY environment variable.\n"
+                    "You can get a key from OpenRouter: https://openrouter.ai/keys"
+                )
+                raise ValueError(msg) from e
+        model = infer_model(model_name)
+        if hasattr(model, "api_key") and effective_key:
+            model.api_key = effective_key
+    else:
+        model = infer_model(model_name)
 
     # Validate prompt fits (only check for real models)
     validate_prompt_fits(prompt, config.models.writer, config, context.window_label, model_instance=model)

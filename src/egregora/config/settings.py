@@ -292,14 +292,13 @@ class EnrichmentSettings(BaseModel):
         default=True,
         description="Rotate through Gemini models on 429 errors",
     )
-    # Centralized list of Gemini models for rotation (used by all components)
-    # IMPORTANT: Only Gemini 2.5+ models (confirmed working, no 404/429 errors)
     rotation_models: list[str] = Field(
         default=[
-            "gemini-2.5-flash",  # Primary model
-            "gemini-3-flash-preview",  # Preview access
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-3-flash-preview",
         ],
-        description="List of working Gemini 2.5+ models to rotate through on rate limits",
+        description="List of Gemini models to rotate through on rate limits",
     )
     max_enrichments: int = Field(
         default=50,
@@ -1258,6 +1257,10 @@ __all__ = [
     "WriterRuntimeConfig",
     "create_default_config",
     "find_egregora_config",
+    "get_google_api_key",
+    "get_google_api_keys",
+    "get_openrouter_api_key",
+    "get_openrouter_api_keys",
     "load_egregora_config",
     "parse_date_arg",
     "save_egregora_config",
@@ -1274,10 +1277,46 @@ def get_google_api_key() -> str:
     return api_key
 
 
+def get_google_api_keys() -> list[str]:
+    """Get list of Google API keys from environment."""
+    keys = []
+    # 1. Check GEMINI_API_KEYS (comma-separated list)
+    keys_str = os.environ.get("GEMINI_API_KEYS", "")
+    if keys_str:
+        for k in keys_str.split(","):
+            val = k.strip()
+            if val and val not in keys:
+                keys.append(val)
+    # 2. Check individual keys
+    for var in ["GEMINI_API_KEY", "GOOGLE_API_KEY"]:
+        key = os.environ.get(var)
+        if key and key.strip() and key.strip() not in keys:
+            keys.append(key.strip())
+    return keys
+
+
 def get_openrouter_api_key() -> str:
     """Get OpenRouter API key from environment."""
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-    if not api_key:
-        raise ApiKeyNotFoundError("OPENROUTER_API_KEY")
-    # Handle bash export syntax (e.g., "= value" instead of "value")
-    return api_key.strip().lstrip("=").strip()
+    keys = get_openrouter_api_keys()
+    if not keys:
+        raise ApiKeyNotFoundError("OPENROUTER_API_KEY or OPENROUTER_API_KEYS")
+    return keys[0]
+
+
+def get_openrouter_api_keys() -> list[str]:
+    """Get list of OpenRouter API keys from environment."""
+    keys = []
+    # 1. Check OPENROUTER_API_KEYS (comma-separated list)
+    keys_str = os.environ.get("OPENROUTER_API_KEYS", "")
+    if keys_str:
+        for k in keys_str.split(","):
+            val = k.strip().lstrip("=").strip()
+            if val and val not in keys:
+                keys.append(val)
+    # 2. Check individual key
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if key and key.strip():
+        val = key.strip().lstrip("=").strip()
+        if val and val not in keys:
+            keys.append(val)
+    return keys
