@@ -27,7 +27,9 @@ from egregora.orchestration.exceptions import (
     WindowSplitError,
 )
 from egregora.orchestration.factory import PipelineFactory
-from egregora.transformations import split_window_into_n_parts
+from egregora.orchestration.journal import create_journal_document, window_already_processed
+from egregora.resources.prompts import PromptManager
+from egregora.transformations.windowing import generate_window_signature, split_window_into_n_parts
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -272,11 +274,28 @@ class PipelineRunner:
         indent = "  " * depth
         window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
 
-        logger.info("%s➡️  [bold]%s[/] — %s messages (depth=%d)", indent, window_label, window.size, depth)
-
+        # === Journal Check: Skip if already processed ===
         output_sink = self.context.output_format
         if output_sink is None:
             raise OutputSinkError("Output adapter must be initialized before processing windows.")
+
+        template_content = PromptManager.get_template_content("writer.jinja", site_dir=self.context.site_root)
+        signature = generate_window_signature(
+            window.table,
+            self.context.config,
+            template_content,
+        )
+
+        if window_already_processed(output_sink, signature):
+            logger.info(
+                "%s⏭️  [yellow]Skipping window %s[/] (already processed, signature: %s)",
+                indent,
+                window_label,
+                signature[:12],
+            )
+            return {}  # Empty results, window skipped
+
+        logger.info("%s➡️  [bold]%s[/] — %s messages (depth=%d)", indent, window_label, window.size, depth)
 
         url_context = self.context.url_context or UrlContext()
         window_table_processed, media_mapping = process_media_for_window(
@@ -413,6 +432,23 @@ class PipelineRunner:
             status_msg,
             window_label,
         )
+
+        # === Journal Persist: Mark window as processed ===
+        try:
+            journal = create_journal_document(
+                signature=signature,
+                run_id=self.context.run_id,
+                window_start=window.start_time,
+                window_end=window.end_time,
+                model=self.context.config.models.writer,
+                posts_generated=len(posts),
+                profiles_updated=len(profiles),
+            )
+            output_sink.persist(journal)
+            logger.debug("Persisted JOURNAL for window: %s", window_label)
+        except Exception as e:  # noqa: BLE001
+            # Non-fatal: Log warning but don't fail the pipeline
+            logger.warning("Failed to persist JOURNAL for window %s: %s", window_label, e)
 
         return {window_label: {"posts": posts, "profiles": profiles}}
 

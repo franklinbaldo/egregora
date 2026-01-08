@@ -114,8 +114,8 @@ def test_process_single_window_orchestration(
     assert len(window_result["profiles"]) == 1  # from generate_profile_posts
 
     mock_process_media.assert_called_once()
-    # one for media, one for announcement, one for profile
-    assert context.output_format.persist.call_count == 3
+    # one for media, one for announcement, one for profile, one for journal
+    assert context.output_format.persist.call_count == 4
 
     mock_extract_commands.assert_called_once()
     mock_command_to_announcement.assert_called_once()
