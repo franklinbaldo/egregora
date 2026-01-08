@@ -103,7 +103,7 @@ def test_vector_store_creates_table(vector_store: LanceDBVectorStore) -> None:
     vector_store.index_documents([doc])
 
     # Table should exist after indexing
-    assert "test_vectors" in vector_store._db.table_names()
+    assert "test_vectors" in vector_store._db.list_tables()
 
 
 # ========== Indexing Tests ==========

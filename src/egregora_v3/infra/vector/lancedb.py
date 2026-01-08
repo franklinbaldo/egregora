@@ -74,7 +74,7 @@ class LanceDBVectorStore:
         self._db = lancedb.connect(str(self._db_dir))
 
         # Create or open table using Pydantic schema
-        if table_name not in self._db.table_names():
+        if table_name not in self._db.list_tables():
             logger.info("Creating new LanceDB table: %s", table_name)
             self._table = self._db.create_table(
                 table_name,
@@ -172,7 +172,7 @@ class LanceDBVectorStore:
         """
         # Check if table is empty
         try:
-            if self._table_name not in self._db.table_names():
+            if self._table_name not in self._db.list_tables():
                 return []
             if len(self._table.search().limit(1).to_arrow()) == 0:
                 return []

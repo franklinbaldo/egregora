@@ -283,6 +283,7 @@ def test_documents_to_feed_count_invariant(titles: list[str]) -> None:
     """Property: Number of documents equals number of feed entries."""
     docs = [
         Document(
+            id=f"doc-{i}",
             content=f"Content {i}",
             doc_type=DocumentType.NOTE,
             title=title or f"Default Title {i}",
@@ -300,6 +301,7 @@ def test_feed_to_xml_always_well_formed(num_entries: int) -> None:
     """Property: Feed.to_xml() always produces well-formed XML."""
     docs = [
         Document(
+            id=f"doc-{i}",
             content=f"Content {i}",
             doc_type=DocumentType.POST,
             title=f"Post {i}",
