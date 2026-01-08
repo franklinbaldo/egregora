@@ -634,23 +634,31 @@ class DuckDBStorageManager:
             raise InvalidOperationError("count must be positive")
 
         with self._lock:
-            # Fetch sequence values one at a time to avoid DuckDB internal errors
-            # triggered by batching ``nextval`` in a single query.
+            # Vectorized fetch: Generate a series and select nextval for each element.
+            # This is significantly more efficient than a Python loop.
             def _fetch_values() -> list[int]:
-                results: list[int] = []
                 escaped_name = sequence_name.replace("'", "''")
                 sequence_literal = f"'{escaped_name}'"
-                for _ in range(count):
-                    row = self.execute(f"SELECT nextval({sequence_literal})").fetchone()
-                    if row is None:
-                        raise SequenceFetchError(sequence_name)
-                    results.append(int(row[0]))
-                return results
+                # The query uses range(count) to generate N rows, and calls nextval for each.
+                # This is a common DuckDB pattern for batch-fetching sequence values.
+                query = f"SELECT nextval({sequence_literal}) FROM range({count})"
+                result = self.execute(query).fetchall()
+                if not result:
+                    # This can happen if the sequence doesn't exist
+                    raise SequenceFetchError(sequence_name)
+                return [int(row[0]) for row in result]
 
             try:
                 values = _fetch_values()
             except duckdb.Error as exc:
                 if not self._is_invalidated_error(exc):
+                    # It's possible the sequence doesn't exist, which raises a CatalogException.
+                    # We check for this case before re-raising.
+                    if "Sequence not found" in str(exc):
+                        logger.warning("Sequence '%s' not found, creating it", sequence_name)
+                        self.ensure_sequence(sequence_name)
+                        # Retry the fetch after creating the sequence
+                        return _fetch_values()
                     raise
 
                 # DuckDB occasionally invalidates the connection after a fatal internal error.
@@ -673,25 +681,10 @@ class DuckDBStorageManager:
                     logger.exception("Retry after connection reset also failed: %s", retry_exc)
                     raise SequenceRetryFailedError(sequence_name) from retry_exc
 
-        # Defensive check: if query returns empty, sequence might not exist
+        # Defensive check: if query returns empty, it's an unexpected state.
         if not values:
-            # Check if sequence exists
-            try:
-                self.get_sequence_state(sequence_name)
-            except SequenceNotFoundError:
-                # Sequence doesn't exist - create it
-                logger.warning("Sequence '%s' not found, creating it", sequence_name)
-                self.ensure_sequence(sequence_name)
-                # Retry the query
-                escaped_name = sequence_name.replace("'", "''")
-                values = [
-                    int(self._conn.execute(f"SELECT nextval('{escaped_name}')").fetchone()[0])
-                    for _ in range(count)
-                ]
-            else:
-                # Sequence exists but query returned empty - this is unexpected
-                msg = f"Sequence '{sequence_name}' exists but nextval query returned no results"
-                raise RuntimeError(msg)
+            msg = f"Sequence '{sequence_name}' exists but nextval query returned no results"
+            raise RuntimeError(msg)
 
         return values
 

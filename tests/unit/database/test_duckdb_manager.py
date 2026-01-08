@@ -183,11 +183,11 @@ def test_next_sequence_values_invalid_count():
 
 
 def test_next_sequence_values_raises_fetch_error(mocker):
-    """Test that next_sequence_values raises SequenceFetchError when fetchone returns None."""
+    """Test that next_sequence_values raises SequenceFetchError when fetchall returns an empty list."""
     with DuckDBStorageManager() as storage:
         storage.ensure_sequence("test_sequence")
         mock_cursor = MagicMock()
-        mock_cursor.fetchone.return_value = None
+        mock_cursor.fetchall.return_value = []
         mocker.patch.object(storage, "execute", return_value=mock_cursor)
 
         with pytest.raises(SequenceFetchError) as exc_info:
@@ -223,3 +223,15 @@ def test_get_table_columns_raises_table_not_found_for_missing_table():
     storage = temp_storage()
     with pytest.raises(TableNotFoundError):
         storage.get_table_columns("non_existent_table")
+
+
+def test_next_sequence_values_returns_multiple_values():
+    """Test that next_sequence_values returns the correct number of sequential values."""
+    with DuckDBStorageManager() as storage:
+        storage.ensure_sequence("test_multi_sequence", start=1)
+        values = storage.next_sequence_values("test_multi_sequence", count=5)
+        assert values == [1, 2, 3, 4, 5]
+
+        # Verify the next value is correct
+        next_value = storage.next_sequence_value("test_multi_sequence")
+        assert next_value == 6
