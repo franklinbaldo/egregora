@@ -419,10 +419,6 @@ def main() -> int:
         _rewrite_site_url(mkdocs_config, args.site_url)
 
     config_path = output_dir / ".egregora" / "config.yml"
-    # Also check .toml as recent versions might use TOML
-    # The generated config is usually .egregora.toml now (v3).
-    # Since we don't have a safe toml writer loaded, we skip toml config hacking for now
-    # relying on CLI args to disable things (e.g. --no-enable-enrichment).
     # The 'egregora write' command arguments cover most needs (max_prompt_tokens, enable_enrichment).
     # Disabling banner generation specifically isn't a CLI arg, but we patch
     # 'is_banner_generation_available' in _patch_pipeline_for_offline_demo anyway.
