@@ -1,6 +1,6 @@
 # Egregora V2
 >
-> ⚠️ **This is the legacy Egregora V2 repository.**  
+> ⚠️ **This is the legacy Egregora V2 repository.**
 > For the modern version with DuckDB, UUIDs, and Ibis-based pipelines, see [Egregora Pure](https://github.com/franklinbaldo/egregora-v3).
 
 *Turn your chaotic group chat into a structured, readable blog.*

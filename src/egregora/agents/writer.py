@@ -90,8 +90,8 @@ WRITER_TEMPLATE_NAME = "writer.jinja"
 # Centralized model rotation list (matches settings.py and model_cycler.py)
 # Only Gemini 2.5+ models
 GEMINI_MODEL_PRIORITY = [
-    "gemini-2.5-flash",           # Primary model
-    "gemini-3-flash-preview",      # Preview access
+    "gemini-2.5-flash",  # Primary model
+    "gemini-3-flash-preview",  # Preview access
 ]
 JOURNAL_TEMPLATE_NAME = "journal.md.jinja"
 TEMPLATES_DIR_NAME = "templates"

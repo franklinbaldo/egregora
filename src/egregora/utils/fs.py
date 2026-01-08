@@ -1,4 +1,5 @@
 """Filesystem utilities for Egregora V2."""
+
 from pathlib import Path
 
 
@@ -26,6 +27,7 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
 
     Raises:
         PathTraversalError: If resulting path would escape base_dir
+
     """
     if any(Path(part).is_absolute() for part in parts):
         absolute_part = next(part for part in parts if Path(part).is_absolute())

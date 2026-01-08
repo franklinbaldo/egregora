@@ -296,8 +296,8 @@ class EnrichmentSettings(BaseModel):
     # IMPORTANT: Only Gemini 2.5+ models (confirmed working, no 404/429 errors)
     rotation_models: list[str] = Field(
         default=[
-            "gemini-2.5-flash",           # Primary model
-            "gemini-3-flash-preview",      # Preview access
+            "gemini-2.5-flash",  # Primary model
+            "gemini-3-flash-preview",  # Preview access
         ],
         description="List of working Gemini 2.5+ models to rotate through on rate limits",
     )
