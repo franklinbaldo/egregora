@@ -1,37 +1,31 @@
 # Data Processing Optimization Plan
 
-Last updated: 2024-07-22
+Last updated: 2024-07-25
 
 ## Current Data Processing Patterns
 
-The `egregora` codebase utilizes Ibis for declarative queries against a DuckDB backend. Data is stored in a central `documents` table, where one column (`json_data`) contains a JSON blob of the full Pydantic model (`Entry` or `Document`).
-
-Data retrieval methods in `DuckDBDocumentRepository` follow a common pattern:
-1.  Execute an Ibis query to fetch metadata and the `json_data` blob.
-2.  Load the results into a Pandas DataFrame.
-3.  Iterate over the DataFrame rows using `iterrows()`.
-4.  In each iteration, deserialize the JSON string into a Pydantic model.
+The codebase uses Ibis for database interactions, which is excellent. However, in `src/egregora/transformations/windowing.py`, the windowing logic for message streams is implemented using imperative Python loops. Functions like `_window_by_count` and `_window_by_time` iterate and execute multiple small queries (`.count()`, `.limit()`, `.aggregate()`) inside a `while` loop. This pattern pulls data back and forth between the Python process and the DuckDB engine, preventing the database from performing holistic optimizations.
 
 ## Identified Inefficiencies
 
--   **Inefficient Iteration:** The use of `pandas.DataFrame.iterrows()` in `DuckDBDocumentRepository.list` and `DuckDBDocumentRepository.get_entries_by_source` is a well-known performance anti-pattern. It is slow because it creates a new Series object for each row, adding significant overhead.
--   **Row-by-Row Deserialization:** While JSON deserialization is inherently a single-row operation, coupling it with `iterrows()` makes the entire data hydration process much slower than necessary.
+1.  **Iterative Query Execution:** The primary inefficiency is the use of loops in Python to process data row-by-row or chunk-by-chunk instead of using vectorized, declarative Ibis expressions.
+    - **Location:** `src/egregora/transformations/windowing.py`
+    - **Functions:** `_window_by_count`, `_window_by_time`, `_window_by_bytes`.
+    - **Evidence:** The code contains `while offset < total_count:` loops that repeatedly call `.execute()` on small slices of the main table. This is a known performance bottleneck in database-backed applications.
 
 ## Prioritized Optimizations
 
-_None at the moment._
+(None)
 
 ## Completed Optimizations
 
-1.  **Vectorize DataFrame Processing:**
-    -   **Target:** `DuckDBDocumentRepository.list` and `DuckDBDocumentRepository.get_entries_by_source`.
-    -   **Impact:** Replaced slow `iterrows()` calls with efficient, direct iteration over DataFrame columns (Series). This is a standard, high-impact performance improvement that avoids the overhead of creating a Series object for every row, significantly speeding up data hydration for lists of documents. Correctness was ensured by establishing comprehensive tests before the refactor.
+1.  **Attempted Refactoring of `windowing.py` (Reverted).**
+    - **Date:** 2024-07-25
+    - **Observation:** The `_window_by_count` and `_window_by_time` functions in `src/egregora/transformations/windowing.py` used imperative Python loops, which was identified as a potential performance bottleneck.
+    - **Action:** I attempted to refactor these functions into a single, declarative Ibis query to improve performance.
+    - **Result:** The declarative implementations for both functions failed to pass the existing test suite, producing incorrect window calculations. The logic for handling overlaps and steps proved to be too complex to express reliably in a simple declarative query. The changes were reverted in favor of the original, correct imperative implementation.
+    - **Conclusion:** While the "declarative over imperative" principle is a good guideline, in this case, the imperative code is more correct and maintainable. The optimization was not worth the added complexity and risk of bugs.
 
 ## Optimization Strategy
 
-My strategy is to systematically eliminate imperative, row-by-row data processing patterns in favor of declarative and vectorized operations.
-
-1.  **Prioritize Ibis:** Keep data processing within Ibis queries as much as possible.
-2.  **Efficient Pandas Usage:** When data must be brought into memory as a DataFrame, use vectorized operations and avoid `iterrows()`.
-3.  **Benchmark:** Ensure that optimizations provide a measurable performance improvement.
-4.  **TDD:** Follow a strict Test-Driven Development process to ensure correctness is maintained.
+My strategy for this codebase is to systematically identify and eliminate iterative, imperative data processing patterns and replace them with declarative, vectorized Ibis expressions. I will always follow a strict TDD methodology, leveraging existing tests or creating new ones to ensure that optimizations do not alter behavior. All changes will be measured and documented.
