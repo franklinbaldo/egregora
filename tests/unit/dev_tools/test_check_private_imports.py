@@ -3,8 +3,13 @@
 import sys
 from pathlib import Path
 
-# Add dev_tools to path
-sys.path.insert(0, str(Path(__file__).parents[3] / "dev_tools"))
+# Add scripts/dev_tools to path
+# We are in tests/unit/dev_tools/test_check_private_imports.py
+# parents[0] = dev_tools
+# parents[1] = unit
+# parents[2] = tests
+# parents[3] = root
+sys.path.insert(0, str(Path(__file__).parents[3] / "scripts" / "dev_tools"))
 
 from check_private_imports import (
     check_all_for_private_names,
