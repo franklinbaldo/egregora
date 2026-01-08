@@ -24,10 +24,16 @@ repos:
   # - check-complexity, check-dead-code, check-security: Use scripts/quality.sh instead
   - repo: local
     hooks:
+      - id: check-root-structure
+        name: Enforce Clean Root Directory
+        entry: python scripts/dev_tools/check_root_structure.py
+        language: system
+        pass_filenames: false
+        always_run: true
       - id: vulture
         name: Check for dead code with vulture
         entry: uv run vulture
-        args: ["src", "tests", "vulture_whitelist.py", "--min-confidence=80"]
+        args: ["src", "tests", "scripts/dev_tools/vulture_whitelist.py", "--min-confidence=80"]
         language: system
         types: [python]
         pass_filenames: false
@@ -61,19 +67,19 @@ repos:
         pass_filenames: false
       - id: check-private-imports
         name: Check private imports
-        entry: dev_tools/check_private_imports.py
+        entry: scripts/dev_tools/check_private_imports.py
         language: python
         types: [python]
         pass_filenames: true
       - id: check-test-config
         name: Check test configuration
-        entry: python dev_tools/check_test_config.py
+        entry: python scripts/dev_tools/check_test_config.py
         language: system
         pass_filenames: false
         files: tests/.*\.py$
-      - id: check-private-imports
+      - id: check-private-imports-antipattern
         name: Check for private function anti-patterns
-        entry: python dev_tools/check_private_imports.py
+        entry: python scripts/dev_tools/check_private_imports.py
         language: system
         types: [python]
         files: ^src/
