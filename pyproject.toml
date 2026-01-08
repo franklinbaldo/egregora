@@ -207,6 +207,8 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# Generated artifacts
+"artifacts/site/.egregora/__init__.py" = ["N999"]
 # Test files - allow testing patterns
 "tests/**/*.py" = [
     "S101",    # Assert statements (expected in tests)
