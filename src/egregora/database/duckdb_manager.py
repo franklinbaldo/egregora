@@ -637,15 +637,19 @@ class DuckDBStorageManager:
             # Fetch sequence values one at a time to avoid DuckDB internal errors
             # triggered by batching ``nextval`` in a single query.
             def _fetch_values() -> list[int]:
-                results: list[int] = []
                 escaped_name = sequence_name.replace("'", "''")
                 sequence_literal = f"'{escaped_name}'"
-                for _ in range(count):
-                    row = self.execute(f"SELECT nextval({sequence_literal})").fetchone()
-                    if row is None:
-                        raise SequenceFetchError(sequence_name)
-                    results.append(int(row[0]))
-                return results
+                # Vectorized query: call nextval for each number in the generated
+                # series from 1 to `count`. This performs all sequence fetches
+                # in a single database round-trip.
+                query = f"""
+                SELECT nextval({sequence_literal})
+                FROM UNNEST(range({count}))
+                """
+                rows = self.execute(query).fetchall()
+                if not rows:
+                    raise SequenceFetchError(sequence_name)
+                return [int(row[0]) for row in rows]
 
             try:
                 values = _fetch_values()
