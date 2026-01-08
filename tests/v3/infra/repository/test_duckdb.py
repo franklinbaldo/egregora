@@ -112,34 +112,49 @@ def test_get_entry_retrieves_both_document_and_entry(
 
 def test_get_entries_by_source(repo: DuckDBDocumentRepository):
     """Verify that entries can be retrieved by their source ID."""
-    # ARRANGE
-    source_id = "shared-source"
-    entry1 = Entry(
-        id=str(uuid.uuid4()),
-        title="Entry 1",
-        source=Source(id=source_id, collector="test"),
-        updated=datetime.now(timezone.utc),
-    )
-    entry2 = Document(
-        id=str(uuid.uuid4()),
-        title="Doc 1",
-        doc_type=DocumentType.POST,
-        source=Source(id=source_id, collector="test"),
-        updated=datetime.now(timezone.utc),
-    )
-    other_entry = Entry(
-        id=str(uuid.uuid4()),
-        title="Other Entry",
-        source=Source(id="other-source", collector="test"),
-        updated=datetime.now(timezone.utc),
-    )
+    source_id_1 = str(uuid.uuid4())
+    source_id_2 = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+
+    # Entries for the first source
+    entry1 = Entry(id="entry1", title="Entry 1", updated=now, source=Source(id=source_id_1, type="test"))
+    entry2 = Entry(id="entry2", title="Entry 2", updated=now, source=Source(id=source_id_1, type="test"))
+
+    # A document, which is also an entry
+    doc1 = Document(id="doc1", title="Doc 1", updated=now, source=Source(id=source_id_1, type="test"), doc_type=DocumentType.POST, content="test")
+
+
+    # Entry for the second source
+    entry3 = Entry(id="entry3", title="Entry 3", updated=now, source=Source(id=source_id_2, type="test"))
+
+    # Entry with no source
+    entry4 = Entry(id="entry4", title="Entry 4", updated=now)
+
+
     repo.save(entry1)
     repo.save(entry2)
-    repo.save(other_entry)
+    repo.save(doc1)
+    repo.save(entry3)
+    repo.save(entry4)
 
-    # ACT
-    retrieved_entries = repo.get_entries_by_source(source_id)
 
-    # ASSERT
-    assert len(retrieved_entries) == 2
-    assert {e.id for e in retrieved_entries} == {entry1.id, entry2.id}
+    # Retrieve entries for the first source
+    retrieved_entries = repo.get_entries_by_source(source_id_1)
+
+    assert len(retrieved_entries) == 3
+    retrieved_ids = {entry.id for entry in retrieved_entries}
+    assert retrieved_ids == {"entry1", "entry2", "doc1"}
+
+    # Verify that the retrieved objects are correct
+    for entry in retrieved_entries:
+        assert entry.source
+        assert entry.source.id == source_id_1
+
+    # Retrieve entries for the second source
+    retrieved_entries_2 = repo.get_entries_by_source(source_id_2)
+    assert len(retrieved_entries_2) == 1
+    assert retrieved_entries_2[0].id == "entry3"
+
+    # Retrieve entries for a non-existent source
+    retrieved_entries_3 = repo.get_entries_by_source("non-existent-source")
+    assert len(retrieved_entries_3) == 0

@@ -16,6 +16,7 @@ Data retrieval methods in `DuckDBDocumentRepository` follow a common pattern:
 
 -   **Inefficient Iteration:** The use of `pandas.DataFrame.iterrows()` in `DuckDBDocumentRepository.list` and `DuckDBDocumentRepository.get_entries_by_source` is a well-known performance anti-pattern. It is slow because it creates a new Series object for each row, adding significant overhead.
 -   **Row-by-Row Deserialization:** While JSON deserialization is inherently a single-row operation, coupling it with `iterrows()` makes the entire data hydration process much slower than necessary.
+-   **Raw SQL Usage:** The `get_entries_by_source` method uses raw SQL for JSON extraction. This bypasses the Ibis query optimizer and makes the code less portable and harder to maintain.
 
 ## Prioritized Optimizations
 
@@ -26,6 +27,9 @@ _None at the moment._
 1.  **Vectorize DataFrame Processing:**
     -   **Target:** `DuckDBDocumentRepository.list` and `DuckDBDocumentRepository.get_entries_by_source`.
     -   **Impact:** Replaced slow `iterrows()` calls with efficient, direct iteration over DataFrame columns (Series). This is a standard, high-impact performance improvement that avoids the overhead of creating a Series object for every row, significantly speeding up data hydration for lists of documents. Correctness was ensured by establishing comprehensive tests before the refactor.
+2.  **Replace Raw SQL with Ibis:**
+    -   **Target:** `DuckDBDocumentRepository.get_entries_by_source`.
+    -   **Impact:** Replaced a raw SQL query with a declarative Ibis expression using dictionary-style JSON access. This improves portability, maintainability, and allows the query to be optimized by the database backend. Correctness was ensured by a dedicated test.
 
 ## Optimization Strategy
 

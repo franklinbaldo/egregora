@@ -176,14 +176,19 @@ class DuckDBDocumentRepository(DocumentRepository):
         return self._hydrate_entry(row["json_data"], row["doc_type"])
 
     def get_entries_by_source(self, source_id: str) -> builtins.list[Entry]:
-        """Lists entries by source ID using raw SQL for reliable JSON extraction."""
-        if not hasattr(self.conn, "con"):
-            # This method relies on raw SQL for DuckDB's JSON support, which is more reliable than the Ibis API
-            # for this purpose. If we don't have a raw connection, we can't proceed.
-            return []
+        """Lists entries by source ID using a declarative Ibis query."""
+        t = self._get_table()
 
-        sql = f"SELECT json_data, doc_type FROM {self.table_name} WHERE json_extract_string(json_data, '$.source.id') = ?"
-        result = self.conn.con.execute(sql, [source_id]).fetch_df()
+        # Use dictionary-style access for a portable, declarative query.
+        # The result of the JSON extraction is a JSON-encoded string (e.g., '"<id>"'),
+        # so we cast it to string and then replace the quotes for a raw string comparison.
+        source_id_col = t.json_data["source"]["id"].cast("string").replace('"', "")
+        query = t.filter(source_id_col == source_id)
+
+        result = query.select("json_data", "doc_type").execute()
+
+        if result.empty:
+            return []
 
         return [
             self._hydrate_entry(json_data, doc_type)
