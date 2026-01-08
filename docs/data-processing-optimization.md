@@ -16,10 +16,15 @@ Data retrieval methods in `DuckDBDocumentRepository` follow a common pattern:
 
 -   **Inefficient Iteration:** The use of `pandas.DataFrame.iterrows()` in `DuckDBDocumentRepository.list` and `DuckDBDocumentRepository.get_entries_by_source` is a well-known performance anti-pattern. It is slow because it creates a new Series object for each row, adding significant overhead.
 -   **Row-by-Row Deserialization:** While JSON deserialization is inherently a single-row operation, coupling it with `iterrows()` makes the entire data hydration process much slower than necessary.
+-   **Imperative WhatsApp Parsing:** The `_parse_whatsapp_lines` function in `src/egregora/input_adapters/whatsapp/parsing.py` reads and processes WhatsApp chat logs line by line. This imperative, row-by-row approach is inefficient and prevents the database from optimizing the data ingestion and parsing process.
 
 ## Prioritized Optimizations
 
 _None at the moment._
+
+## Deferred Optimizations
+
+- **Vectorize WhatsApp Parser:** An attempt to refactor the WhatsApp parser to a declarative, Ibis-based approach was made. However, due to significant challenges with the Ibis API for complex string parsing and timestamp creation in the installed version (`11.0.0`), the effort was unsuccessful and the changes were reverted. This remains a valid optimization target, but will require a more in-depth investigation of the Ibis API or a different approach.
 
 ## Completed Optimizations
 
