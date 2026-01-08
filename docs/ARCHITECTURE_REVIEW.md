@@ -89,22 +89,65 @@ app/
 
 ## 5. Refactoring Roadmap
 
-**Phase 1: solidify the Core (V3 Merge)**
-*   **Goal:** Establish a shared domain model.
-*   **Step 1:** Move `src/egregora_v3/core` to `src/egregora/core`.
-*   **Step 2:** Refactor `InputAdapter`s to return `Iterator[Entry]` (Atom standard) instead of raw Ibis tables or dicts.
-*   **Step 3:** Adopt `OutputSink` protocol strictly. Ensure `runner.py` never writes files directly, only via the sink.
+This roadmap is designed to be executed in small, incremental PRs. Each step brings the V2 codebase closer to V3 principles without stopping feature development.
 
-**Phase 2: Purify Agents**
-*   **Goal:** Make agents testable without mocks.
-*   **Step 1:** Refactor `WriterAgent` to return a `Feed` or `List[Document]` object instead of calling `write_post_tool`.
-*   **Step 2:** Move the "saving" logic out of the agent and into the `PipelineRunner`. The runner receives the documents and calls `sink.persist(doc)`.
+### Phase 1: Core Consolidation & Type Safety (Weeks 1-2)
+**Goal:** Establish a shared domain model by merging `src/egregora_v3/core` into the main application.
 
-**Phase 3: Decouple Orchestration**
-*   **Goal:** Kill `write.py`.
-*   **Step 1:** Create a `Pipeline` class that accepts `Source`, `Transform`, `Sink`.
-*   **Step 2:** Move the CLI logic to just *configuring* this class.
-*   **Step 3:** Delete `runner.py` and replacing it with the generic `Pipeline.run()`.
+*   **Task 1.1: Merge Core Types**
+    *   **Action:** Copy `src/egregora_v3/core/types.py` (Atom `Entry`, `Feed`, `Document`) to `src/egregora/core/types.py`.
+    *   **Refactor:** Update `src/egregora/data_primitives/document.py` to inherit from or alias these new core types.
+    *   **Verify:** Existing tests for `Document` still pass.
+
+*   **Task 1.2: Standardize Protocols**
+    *   **Action:** Copy `src/egregora_v3/core/ports.py` to `src/egregora/core/ports.py`.
+    *   **Refactor:** Update `src/egregora/data_primitives/protocols.py` to use the new V3 protocols (`OutputSink`, `InputAdapter`).
+    *   **Verify:** `mypy` passes on `src/egregora/output_adapters`.
+
+*   **Task 1.3: Flatten Configuration**
+    *   **Action:** Audit `EgregoraConfig` in `src/egregora/config/settings.py`. Move `EgregoraConfig` definition to `src/egregora/core/config.py`.
+    *   **Goal:** Remove circular dependency risks by having config live in the Core layer.
+
+### Phase 2: Agent Purification (Weeks 3-4)
+**Goal:** Make agents purely functional (Input -> Output) and remove side effects (I/O).
+
+*   **Task 2.1: Refactor `write_post_tool`**
+    *   **Context:** Currently, `src/egregora/agents/tools/writer_tools.py` writes to disk via `ctx.output_sink.persist()`.
+    *   **Action:** Change `write_post_tool` to return a `Document` object instead of writing it.
+    *   **Update:** Update `WriterAgent` to collect these `Document` objects and return them as a list.
+
+*   **Task 2.2: Lift Persistence to Runner**
+    *   **Context:** `PipelineRunner.process_window()` currently ignores the return value of tools.
+    *   **Action:** Update `PipelineRunner` to receive the `List[Document]` returned by the purified `WriterAgent`.
+    *   **Action:** Iterate through the list and call `output_sink.persist(doc)` in the Runner, not the Agent.
+
+*   **Task 2.3: Isolate `EnricherAgent`**
+    *   **Action:** Apply the same pattern to `EnricherWorker`. It should return enriched `Entry` objects, not update the DB directly.
+
+### Phase 3: Pipeline Abstraction (Weeks 5-6)
+**Goal:** Decouple the "how" (orchestration) from the "what" (CLI/Config).
+
+*   **Task 3.1: Define `Pipeline` Class**
+    *   **Action:** Create `src/egregora/orchestration/pipeline.py`.
+    *   **Interface:** `class Pipeline: def run(self, source: InputAdapter, sink: OutputSink): ...`
+    *   **Refactor:** Move the loop logic from `runner.py` into this class.
+
+*   **Task 3.2: Slim Down `write.py`**
+    *   **Action:** Remove all DB initialization and logic from `src/egregora/orchestration/pipelines/write.py`.
+    *   **Action:** `write.py` should only:
+        1.  Parse CLI args.
+        2.  Load Config.
+        3.  Instantiate `Pipeline`.
+        4.  Call `pipeline.run()`.
+
+*   **Task 3.3: Functional Input Adapters**
+    *   **Action:** Refactor `WhatsAppAdapter.parse()` to return a Python Generator `Iterator[Entry]` instead of an Ibis Table.
+    *   **Benefit:** Allows streaming processing of infinite logs without memory issues.
+
+### Quick Wins (Immediate)
+*   **Fix 1:** Delete `src/egregora/agents/tools/definitions.py` if it duplicates `writer_tools.py`.
+*   **Fix 2:** Rename `src/egregora/orchestration/pipelines/write.py` to `src/egregora/cli/commands/write.py` to reflect its true nature (CLI command, not pipeline logic).
+*   **Fix 3:** Add a `Makefile` or `justfile` to standardize running tests and linting (currently relies on `uv` commands in docs).
 
 ---
 
