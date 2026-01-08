@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v7
         with:
-          cache: false
+          enable-cache: false
 
       - name: Run Jules Scheduler
         if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
