@@ -292,14 +292,17 @@ class EnrichmentSettings(BaseModel):
         default=True,
         description="Rotate through Gemini models on 429 errors",
     )
+    # Centralized list of Gemini models for rotation (used by all components)
+    # IMPORTANT: Only add models that are confirmed to work (no 404/429 errors)
     rotation_models: list[str] = Field(
         default=[
-            "gemini-2.5-flash",
-            "gemini-3-flash-preview",
-            "gemini-2.0-flash",
-            # Removed: "gemini-2.0-flash-exp" - returns 404 (no endpoints found)
+            "gemini-2.5-flash",           # Primary model
+            "gemini-3-flash-preview",      # Preview access
+            "gemini-2.0-flash",            # Stable backup
+            "gemini-1.5-flash-8b",         # Lightweight option
+            "gemini-1.5-pro",              # High-quality option
         ],
-        description="List of Gemini models to rotate through on rate limits",
+        description="List of working Gemini models to rotate through on rate limits",
     )
     max_enrichments: int = Field(
         default=50,
