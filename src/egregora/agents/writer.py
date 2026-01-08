@@ -90,9 +90,8 @@ WRITER_TEMPLATE_NAME = "writer.jinja"
 GEMINI_MODEL_PRIORITY = [
     "gemini-3-pro-preview",
     "gemini-3-flash-preview",
-    "gemini-2.5-flash-lite-preview-09-2025",
     "gemini-2.5-flash-preview-09-2025",
-    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash-lite",  # Removed deprecated gemini-2.5-flash-lite-preview-09-2025
     "gemini-pro-latest",
     "gemini-flash-lite-latest",
     "gemini-flash-latest",
