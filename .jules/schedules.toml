@@ -37,7 +37,8 @@ cycle = [
     "personas/organizer/prompt.md",    # 🗂️ Project Organization
     "personas/taskmaster/prompt.md",   # 📋 Task Identification
     "personas/essentialist/prompt.md", # 💎 Pragmatism & Cuts
-    "personas/sapper/prompt.md"        # 💣 Exception Structuring
+    "personas/sapper/prompt.md",       # 💣 Exception Structuring
+    "personas/maintainer/prompt.md"    # 🧭 Sprint Maintainer
 ]
 
 [schedules]

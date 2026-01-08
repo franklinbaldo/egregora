@@ -390,19 +390,14 @@ def get_pr_by_session_id(open_prs: list[dict[str, Any]], session_id: str) -> dic
             return pr
     return None
 
-def _match_persona_from_title(title: str, cycle_entries: list[dict[str, Any]]) -> str | None:
-    for entry in cycle_entries:
-        pid = entry.get("id", "")
-        emoji = entry.get("emoji", "")
-        if emoji and emoji in title:
-            return pid
-    title_lower = title.lower()
+def _match_persona_from_branch(branch_name: str, cycle_entries: list[dict[str, Any]]) -> str | None:
+    branch_lower = branch_name.lower()
     for entry in cycle_entries:
         pid = entry.get("id", "")
         if not pid:
             continue
         pattern = rf"(?<![\\w-]){re.escape(pid.lower())}(?![\\w-])"
-        if re.search(pattern, title_lower):
+        if re.search(pattern, branch_lower):
             return pid
     return None
 
@@ -411,46 +406,48 @@ def get_last_cycle_session(
     client: JulesClient,
     cycle_entries: list[dict[str, Any]],
     repo_info: dict[str, Any],
+    open_prs: list[dict[str, Any]],
 ) -> tuple[str | None, str | None]:
     """Find the most recent session that matches one of the cycle personas."""
     response = client.list_sessions()
     sessions = response.get("sessions", [])
-    repo_name = repo_info.get("repo", "")
+    sessions_sorted = sorted(sessions, key=lambda s: s.get("createTime", ""), reverse=True)
 
-    candidates: list[tuple[str, dict[str, Any], str]] = []
-    for session in sessions:
-        title = session.get("title") or ""
-        if repo_name and repo_name not in title:
+    for session in sessions_sorted:
+        session_name = session.get("name", "")
+        session_id = session_name.split("/")[-1] if session_name else None
+        if not session_id:
             continue
-        persona_id = _match_persona_from_title(title, cycle_entries)
+
+        pr = get_pr_by_session_id(open_prs, session_id)
+        if not pr:
+            pr = get_pr_by_session_id_any_state(repo_info["owner"], repo_info["repo"], session_id)
+        if not pr:
+            continue
+
+        branch_name = pr.get("headRefName", "") or ""
+        persona_id = _match_persona_from_branch(branch_name, cycle_entries)
         if persona_id:
-            candidates.append((session.get("createTime", ""), session, persona_id))
+            return session_id, persona_id
 
-    if not candidates:
-        return None, None
-
-    candidates.sort(key=lambda item: item[0], reverse=True)
-    latest = candidates[0][1]
-    latest_persona = candidates[0][2]
-    session_name = latest.get("name", "")
-    session_id = session_name.split("/")[-1] if session_name else None
-    return session_id, latest_persona
+    return None, None
 
 JULES_BRANCH = "jules"
 
 def prepare_session_base_branch(
     base_branch: str,
+    persona_id: str,
     base_pr_number: str = "",
     last_session_id: str | None = None,
 ) -> str:
     """Create a short, stable base branch before starting a Jules session."""
     if base_pr_number and last_session_id:
-        base_ref = f"jules-pr{base_pr_number}-{last_session_id}"
+        base_ref = f"jules-{persona_id}-pr{base_pr_number}"
     elif base_pr_number:
-        base_ref = f"jules-pr{base_pr_number}"
+        base_ref = f"jules-{persona_id}-pr{base_pr_number}"
     else:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
-        base_ref = f"jules-main-{stamp}"
+        base_ref = f"jules-{persona_id}-main-{stamp}"
 
     try:
         subprocess.run(["git", "fetch", "origin", base_branch], check=True, capture_output=True)
@@ -615,7 +612,7 @@ def run_cycle_step(
     cycle_ids = [entry["id"] for entry in cycle_entries]
     print(f"Running in CYCLE mode with order: {cycle_ids}")
     ensure_jules_branch_exists()
-    last_session_id, last_pid = get_last_cycle_session(client, cycle_entries, repo_info)
+    last_session_id, last_pid = get_last_cycle_session(client, cycle_entries, repo_info, open_prs)
     next_entry = cycle_entries[0]
     base_pr_number = ""
 
@@ -713,6 +710,7 @@ def run_cycle_step(
 
         session_branch = prepare_session_base_branch(
             JULES_BRANCH,
+            next_pid,
             base_pr_number,
             last_session_id=last_session_id,
         )

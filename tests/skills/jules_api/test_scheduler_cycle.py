@@ -21,7 +21,6 @@ class TestSchedulerCycleFallback:
                     "sessions": [
                         {
                             "name": "sessions/123456789012345",
-                            "title": "🎭 curator task for repo",
                             "createTime": "2026-01-05T03:30:00Z",
                         }
                     ]
@@ -48,12 +47,16 @@ class TestSchedulerCycleFallback:
         monkeypatch.setattr(
             scheduler,
             "prepare_session_base_branch",
-            lambda *_args, **_kwargs: "jules-pr42-123456789012345",
+            lambda *_args, **_kwargs: "jules-builder-pr42",
         )
         monkeypatch.setattr(
             scheduler,
             "get_pr_by_session_id_any_state",
-            lambda *_args: {"number": 42, "mergedAt": "2026-01-05T03:30:00Z"},
+            lambda *_args: {
+                "number": 42,
+                "mergedAt": "2026-01-05T03:30:00Z",
+                "headRefName": "jules-curator-pr42-123456789012345",
+            },
         )
         monkeypatch.setattr(scheduler, "get_open_prs", lambda *_args, **_kwargs: [])
         monkeypatch.setattr(scheduler, "JulesClient", lambda: DummyClient())
@@ -75,5 +78,4 @@ class TestSchedulerCycleFallback:
         )
 
         assert created_sessions, "Scheduler should start the next persona session after merged PR."
-        assert isinstance(created_sessions[0]["branch"], str)
-        assert created_sessions[0]["branch"]
+        assert created_sessions[0]["branch"] == "jules-builder-pr42"
