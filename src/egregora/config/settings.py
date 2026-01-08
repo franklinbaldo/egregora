@@ -297,7 +297,7 @@ class EnrichmentSettings(BaseModel):
             "gemini-2.5-flash",
             "gemini-3-flash-preview",
             "gemini-2.0-flash",
-            "gemini-2.0-flash-exp",
+            # Removed: "gemini-2.0-flash-exp" - returns 404 (no endpoints found)
         ],
         description="List of Gemini models to rotate through on rate limits",
     )
