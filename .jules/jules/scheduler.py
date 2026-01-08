@@ -405,13 +405,22 @@ def get_pr_by_session_id(open_prs: list[dict[str, Any]], session_id: str) -> dic
             return pr
     return None
 
+JULES_BRANCH = "jules"
+JULES_SCHEDULER_PREFIX = "jules-sched"
+
+
+def _is_scheduler_branch(branch_name: str) -> bool:
+    return branch_name.lower().startswith(f"{JULES_SCHEDULER_PREFIX}-")
+
+
 def _match_persona_from_branch(branch_name: str, cycle_entries: list[dict[str, Any]]) -> str | None:
     branch_lower = branch_name.lower()
     for entry in cycle_entries:
         pid = entry.get("id", "")
         if not pid:
             continue
-        pattern = rf"(?<![\\w-]){re.escape(pid.lower())}(?![\\w-])"
+        pid_lower = pid.lower()
+        pattern = rf"(?:^|[-_/]){re.escape(pid_lower)}(?:$|[-_/])"
         if re.search(pattern, branch_lower):
             return pid
     return None
@@ -441,13 +450,13 @@ def get_last_cycle_session(
             continue
 
         branch_name = pr.get("headRefName", "") or ""
+        if not _is_scheduler_branch(branch_name):
+            continue
         persona_id = _match_persona_from_branch(branch_name, cycle_entries)
         if persona_id:
             return session_id, persona_id
 
     return None, None
-
-JULES_BRANCH = "jules"
 
 def prepare_session_base_branch(
     base_branch: str,
@@ -457,12 +466,12 @@ def prepare_session_base_branch(
 ) -> str:
     """Create a short, stable base branch before starting a Jules session."""
     if base_pr_number and last_session_id:
-        base_ref = f"jules-{persona_id}-pr{base_pr_number}"
+        base_ref = f"{JULES_SCHEDULER_PREFIX}-{persona_id}-pr{base_pr_number}"
     elif base_pr_number:
-        base_ref = f"jules-{persona_id}-pr{base_pr_number}"
+        base_ref = f"{JULES_SCHEDULER_PREFIX}-{persona_id}-pr{base_pr_number}"
     else:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
-        base_ref = f"jules-{persona_id}-main-{stamp}"
+        base_ref = f"{JULES_SCHEDULER_PREFIX}-{persona_id}-main-{stamp}"
 
     try:
         subprocess.run(["git", "fetch", "origin", base_branch], check=True, capture_output=True)
