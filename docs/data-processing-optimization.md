@@ -16,6 +16,7 @@ Data retrieval methods in `DuckDBDocumentRepository` follow a common pattern:
 
 -   **Inefficient Iteration:** The use of `pandas.DataFrame.iterrows()` in `DuckDBDocumentRepository.list` and `DuckDBDocumentRepository.get_entries_by_source` is a well-known performance anti-pattern. It is slow because it creates a new Series object for each row, adding significant overhead.
 -   **Row-by-Row Deserialization:** While JSON deserialization is inherently a single-row operation, coupling it with `iterrows()` makes the entire data hydration process much slower than necessary.
+-   **In-Memory Data Loading:** The `list` and `get_all` methods in `ContentRepository` previously loaded the entire result set into a Pandas DataFrame before returning the data. This is inefficient for large tables, leading to high memory consumption.
 
 ## Prioritized Optimizations
 
@@ -26,6 +27,9 @@ _None at the moment._
 1.  **Vectorize DataFrame Processing:**
     -   **Target:** `DuckDBDocumentRepository.list` and `DuckDBDocumentRepository.get_entries_by_source`.
     -   **Impact:** Replaced slow `iterrows()` calls with efficient, direct iteration over DataFrame columns (Series). This is a standard, high-impact performance improvement that avoids the overhead of creating a Series object for every row, significantly speeding up data hydration for lists of documents. Correctness was ensured by establishing comprehensive tests before the refactor.
+2.  **Stream Database Results:**
+    -   **Target:** `ContentRepository.list` and `ContentRepository.get_all`.
+    -   **Impact:** Refactored the methods to stream results directly from the database using `fetch_arrow_table().to_pylist()` instead of loading the entire result set into an in-memory Pandas DataFrame. This reduces memory usage and improves performance by leveraging the database's efficient data retrieval capabilities. The change was verified with a comprehensive suite of unit tests.
 
 ## Optimization Strategy
 

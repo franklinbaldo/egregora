@@ -62,17 +62,38 @@ def test_list_raises_unsupported_document_type_error(content_repository):
         list(content_repository.list(doc_type="UNSUPPORTED"))
 
 
+def test_list_with_doc_type_returns_correct_data(content_repository, mock_db_manager):
+    """Verify list() with a doc_type returns the expected data."""
+    # Mock the Ibis table and the data it returns
+    mock_table = MagicMock()
+    mock_arrow_table = MagicMock()
+    expected_data = [{"id": "1", "title": "Test Post"}]
+    mock_arrow_table.to_pylist.return_value = expected_data
+    mock_table.execute.return_value.fetch_arrow_table.return_value = mock_arrow_table
+    mock_db_manager.read_table.return_value = mock_table
+
+    # Call the list method
+    result = list(content_repository.list(doc_type=DocumentType.POST))
+
+    # Verify the correct table was read and the data is correct
+    mock_db_manager.read_table.assert_called_once_with("posts")
+    assert result == expected_data
+
+
 def test_list_handles_ibis_error_and_falls_back(content_repository, mock_db_manager):
     """Verify list() falls back to manual query on IbisError."""
     # Simulate IbisError on reading the view
     mock_db_manager.read_table.side_effect = IbisError("View not found")
 
     # Mock the fallback execute call
+    mock_relation = MagicMock()
+    mock_relation.description = [("id",), ("type",), ("content",), ("created_at",), ("title",), ("slug",), ("subject_uuid",)]
     mock_rows = [
         ("1", "post", "content1", "2023-01-01", "title1", "slug1", None),
         ("2", "profile", "content2", "2023-01-02", "title2", None, "uuid2"),
     ]
-    mock_db_manager.execute.return_value.fetchall.return_value = mock_rows
+    mock_relation.fetchall.return_value = mock_rows
+    mock_db_manager.execute.return_value = mock_relation
 
     # Call the list method (without doc_type to trigger the view logic)
     result = list(content_repository.list())

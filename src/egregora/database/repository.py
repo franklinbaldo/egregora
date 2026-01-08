@@ -101,7 +101,7 @@ class ContentRepository:
 
     def get_all(self) -> Iterator[dict]:
         """Stream all documents via the unified view."""
-        return self.db.execute("SELECT * FROM documents_view").fetchall()
+        return self.db.execute("SELECT * FROM documents_view").fetch_arrow_table().to_pylist()
 
     def get(self, doc_type: DocumentType, identifier: str) -> Document:
         """Retrieve a single document by type and identifier."""
@@ -134,23 +134,21 @@ class ContentRepository:
         if doc_type:
             table_name = self._get_table_for_type(doc_type)
             t = self.db.read_table(table_name)
-            # Select relevant columns for metadata
-            # We need to return iterator of dicts
-            yield from t.execute().to_dict(orient="records")
+            # Use fetch_arrow_table().to_pylist() for efficient streaming
+            yield from t.execute().fetch_arrow_table().to_pylist()
         else:
             # Use Ibis to read the view as a table for consistent dict output
             from ibis.common.exceptions import IbisError
 
             try:
                 t = self.db.read_table("documents_view")
-                yield from t.execute().to_dict(orient="records")
+                yield from t.execute().fetch_arrow_table().to_pylist()
             except IbisError:
                 # Fallback if view not registered in ibis cache or other issue
                 # Manually map columns for robustness
-                rows = self.db.execute("SELECT * FROM documents_view").fetchall()
-                # columns: id, type, content, created_at, title, slug, subject_uuid
-                cols = ["id", "type", "content", "created_at", "title", "slug", "subject_uuid"]
-                for row in rows:
+                relation = self.db.execute("SELECT * FROM documents_view")
+                cols = [desc[0] for desc in relation.description]
+                for row in relation.fetchall():
                     yield dict(zip(cols, row, strict=False))
 
     def _get_table_for_type(self, doc_type: DocumentType) -> str:
