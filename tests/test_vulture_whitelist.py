@@ -1,6 +1,6 @@
 """Tests for vulture_whitelist.py."""
 
-import vulture_whitelist
+from tests import vulture_whitelist
 
 
 def test_whitelist_docstring_imperative():
