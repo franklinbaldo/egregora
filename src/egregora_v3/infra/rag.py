@@ -14,7 +14,7 @@ from egregora.text_processing.chunking import (
     DEFAULT_MAX_CHARS,
     simple_chunk_text,
 )
-from egregora_v3.core.types import Document
+from egregora.core.types import Document
 
 if TYPE_CHECKING:
     pass

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import logging
 import zipfile
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict, Unpack
 
+from egregora.core.types import Author, Entry, Source
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.input_adapters.whatsapp.commands import EGREGORA_COMMAND_PATTERN
@@ -92,7 +94,9 @@ class WhatsAppAdapter(InputAdapter):
             ir_version="v1",
         )
 
-    def parse(self, input_path: Path, *, timezone: str | None = None, **_kwargs: _EmptyKwargs) -> ibis.Table:
+    def parse(
+        self, input_path: Path, *, timezone: str | None = None, **_kwargs: _EmptyKwargs
+    ) -> Iterator[Entry]:
         try:
             if not input_path.exists():
                 msg = f"Input path does not exist: {input_path}"
@@ -118,7 +122,30 @@ class WhatsAppAdapter(InputAdapter):
             )
 
             logger.debug("Parsed WhatsApp export with %s messages", messages_table.count().execute())
-            return messages_table
+
+            # Iterate over the Ibis table and yield Entry objects
+            # Convert to list of dicts first to iterate in Python
+            try:
+                rows = messages_table.to_pylist()
+            except AttributeError:
+                # Fallback for older ibis/backends
+                rows = messages_table.execute().to_dict(orient="records")
+
+            for row in rows:
+                # Map row to Entry
+                # Expected fields from INGESTION_MESSAGE_SCHEMA:
+                # msg_id, ts, author_uuid, text, etc.
+
+                yield Entry(
+                    id=str(row["msg_id"]),
+                    title=f"Message {row['msg_id']}",
+                    updated=row["ts"],
+                    content=row["text"],
+                    authors=[Author(name=str(row["author_uuid"]))],
+                    source=Source(id="whatsapp", title="WhatsApp"),
+                    internal_metadata=row  # Preserve full row data for reconstruction
+                )
+
         except (FileNotFoundError, ValueError) as e:
             logger.exception("Validation failed for input path %s: %s", input_path, e)
             msg = f"Invalid input path: {input_path}"

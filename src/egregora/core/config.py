@@ -87,7 +87,7 @@ class EgregoraConfig(BaseSettings):
         """
         # Dynamic import to break circular dependency:
         # ConfigLoader imports EgregoraConfig.
-        loader_module = importlib.import_module("egregora_v3.core.loader")
+        loader_module = importlib.import_module("egregora.core.loader")
         config_loader = loader_module.ConfigLoader
 
         return config_loader.load(site_root)

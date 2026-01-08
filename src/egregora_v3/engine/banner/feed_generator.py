@@ -20,7 +20,7 @@ from egregora.agents.banner.image_generation import (
     ImageGenerationProvider,
     ImageGenerationRequest,
 )
-from egregora_v3.core.types import Document, DocumentType, Entry, Feed
+from egregora.core.types import Document, DocumentType, Entry, Feed
 
 logger = logging.getLogger(__name__)
 DEFAULT_TEMPLATE_NAME = "banner.jinja"

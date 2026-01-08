@@ -11,7 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from egregora_v3.core.types import Document, DocumentType, DocumentStatus, InReplyTo
+from egregora.core.types import Document, DocumentType, DocumentStatus, InReplyTo
 
 
 class ConceptType(str, Enum):

@@ -6,11 +6,11 @@ from typing import TYPE_CHECKING, cast
 
 from pydantic import BaseModel, ConfigDict
 
-from egregora_v3.core.ports import DocumentRepository
-from egregora_v3.core.types import DocumentType
+from egregora.core.ports import DocumentRepository
+from egregora.core.types import DocumentType
 
 if TYPE_CHECKING:
-    from egregora_v3.core.types import Document
+    from egregora.core.types import Document
 
 logger = logging.getLogger(__name__)
 

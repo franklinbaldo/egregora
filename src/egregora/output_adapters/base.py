@@ -13,7 +13,9 @@ import ibis
 import ibis.expr.datatypes as dt
 import yaml
 
-from egregora.data_primitives import DocumentMetadata, OutputSink, UrlConvention
+from egregora.core.ports import OutputSink, UrlConvention
+from egregora.core.types import Feed
+from egregora.data_primitives import DocumentMetadata
 from egregora.output_adapters.exceptions import (
     AdapterNotDetectedError,
     FilenameGenerationError,
@@ -28,7 +30,7 @@ if TYPE_CHECKING:
 
     from ibis.expr.types import Table
 
-    from egregora.data_primitives.document import Document, DocumentType
+    from egregora.core.types import Document, DocumentType
 
 # Constants
 ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
@@ -137,6 +139,23 @@ class BaseOutputSink(OutputSink, ABC):
     @abstractmethod
     def initialize(self, site_root: Path) -> None:
         """Initialize internal state for a specific site."""
+
+    def publish(self, feed: Feed) -> None:
+        """Publish a feed of documents.
+
+        Implements the OutputSink.publish protocol method.
+        Iterates through entries in the feed and persists them individually.
+        """
+        for entry in feed.entries:
+            # Check if entry is a Document (which has doc_type, content, etc.)
+            # persist() expects a Document.
+            if hasattr(entry, "doc_type"):
+                # It's likely a Document
+                self.persist(entry)  # type: ignore
+            else:
+                # If it's a raw Entry, we can't persist it as a file easily without knowing doc_type
+                # But in our pipeline, we produce Documents.
+                pass
 
     # ===== Common Utility Methods (Concrete) =====
 

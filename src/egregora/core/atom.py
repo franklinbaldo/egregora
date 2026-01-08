@@ -4,7 +4,7 @@ from pathlib import Path
 
 import jinja2
 
-from egregora_v3.core.types import Feed
+from egregora.core.types import Feed
 
 
 def _normalize_content_type(value: str | None) -> str:

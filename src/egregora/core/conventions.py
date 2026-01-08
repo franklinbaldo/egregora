@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from egregora_v3.core.ports import UrlConvention
-from egregora_v3.core.types import Document, DocumentType
+from egregora.core.ports import UrlConvention
+from egregora.core.types import Document, DocumentType
 
 
 class DateSlugConvention(UrlConvention):

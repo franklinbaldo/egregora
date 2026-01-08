@@ -4,24 +4,21 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterator
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid5
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-import ibis
 import yaml
 
-from egregora.data_primitives.document import DocumentType
-from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
+from egregora.core.ports import OutputSink
+from egregora.core.types import Author, DocumentType, Entry, Source
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.output_adapters.exceptions import DocumentNotFoundError
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.text import slugify
-
-if TYPE_CHECKING:
-    from egregora.data_primitives.protocols import OutputSink
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +73,7 @@ class SelfInputAdapter(InputAdapter):
         timezone: str | None = None,
         doc_type: DocumentType = DocumentType.POST,
         **_: Any,
-    ) -> ibis.Table:
+    ) -> Iterator[Entry]:
         if output_adapter is None:
             msg = "output_adapter must be provided when parsing an existing site"
             raise ValueError(msg)
@@ -106,7 +103,6 @@ class SelfInputAdapter(InputAdapter):
             raise RuntimeError(msg)
 
         site_name = self._load_site_name(site_root)
-        records: list[dict[str, Any]] = []
         for document in documents:
             metadata = document.metadata.copy()
             source_path = metadata.get("source_path")
@@ -131,27 +127,33 @@ class SelfInputAdapter(InputAdapter):
             storage_identifier = metadata.get("storage_identifier") or slug
             event_id = str(uuid5(EVENT_NAMESPACE, storage_identifier))
 
-            records.append(
-                {
-                    "event_id": event_id,
-                    "tenant_id": site_name,
-                    "source": self.source_identifier,
-                    "thread_id": slug,
-                    "msg_id": f"self-{slug}",
-                    "ts": timestamp,
-                    "author_raw": author_label,
-                    "author_uuid": author_uuid,
-                    "text": text,
-                    "media_url": None,
-                    "media_type": None,
-                    "attrs": attrs_json,
-                    "pii_flags": None,
-                    "created_at": timestamp,
-                    "created_by_run": "adapter:self-reflection",
-                }
-            )
+            row = {
+                "event_id": event_id,
+                "tenant_id": site_name,
+                "source": self.source_identifier,
+                "thread_id": slug,
+                "msg_id": f"self-{slug}",
+                "ts": timestamp,
+                "author_raw": author_label,
+                "author_uuid": author_uuid,
+                "text": text,
+                "media_url": None,
+                "media_type": None,
+                "attrs": attrs_json,
+                "pii_flags": None,
+                "created_at": timestamp,
+                "created_by_run": "adapter:self-reflection",
+            }
 
-        return ibis.memtable(records, schema=INGESTION_MESSAGE_SCHEMA)
+            yield Entry(
+                id=row["msg_id"],
+                title=f"Self-reflection {row['msg_id']}",
+                updated=row["ts"],
+                content=row["text"],
+                authors=[Author(name=row["author_uuid"])],
+                source=Source(id=self.source_identifier),
+                internal_metadata=row,
+            )
 
     def get_metadata(self, _input_path: Path, **_kwargs: Any) -> dict[str, Any]:
         _, site_root = self._resolve_docs_dir(_input_path)

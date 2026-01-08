@@ -6,7 +6,7 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
-from egregora_v3.core.types import Document, Feed
+from egregora.core.types import Document, Feed
 
 
 TABLE_SCHEMA = OrderedDict([

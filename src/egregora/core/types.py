@@ -4,16 +4,18 @@ import hashlib
 import uuid
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any
+from typing import Any, ForwardRef
 from xml.etree.ElementTree import Element, register_namespace, SubElement, tostring
 
 from markdown_it import MarkdownIt
 from pydantic import BaseModel, Field, model_validator
 
 from egregora.utils.text import InvalidInputError
-from egregora_v3.core.utils import slugify
+from egregora.core.utils import slugify
 
 # --- XML Configuration ---
+
+NAMESPACE_DOCUMENT = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 
 # Register namespaces globally to ensure pretty prefixes in all XML output
 # This is a module-level side effect, but necessary for clean Atom feeds.
@@ -137,6 +139,14 @@ class DocumentType(str, Enum):
     PROFILE = "profile"
     ENRICHMENT = "enrichment"
     CONCEPT = "concept"
+    # Added from data_primitives for compatibility
+    ANNOUNCEMENT = "announcement"
+    ENRICHMENT_URL = "enrichment_url"
+    ENRICHMENT_MEDIA = "enrichment_media"
+    ENRICHMENT_IMAGE = "enrichment_image"
+    ENRICHMENT_VIDEO = "enrichment_video"
+    ENRICHMENT_AUDIO = "enrichment_audio"
+    ANNOTATION = "annotation"
 
 
 class DocumentStatus(str, Enum):
@@ -151,7 +161,7 @@ class Document(Entry):
     Inherits from Entry to ensure Atom compatibility.
     """
 
-    doc_type: DocumentType
+    doc_type: DocumentType = Field(alias="type")
     status: DocumentStatus = DocumentStatus.DRAFT
 
     # RAG Indexing Policy
@@ -160,10 +170,42 @@ class Document(Entry):
     # Suggestion for path for file-based OutputAdapters (MkDocs/Hugo)
     url_path: str | None = None
 
+    # Compatibility fields
+    parent_id: str | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    source_window: str | None = None
+    suggested_path: str | None = None
+
     @property
     def is_document(self) -> bool:
         """Type guard for Jinja templates."""
         return True
+
+    @property
+    def type(self) -> DocumentType:
+        """Alias for doc_type to maintain compatibility."""
+        return self.doc_type
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Alias for internal_metadata to maintain compatibility."""
+        return self.internal_metadata
+
+    @property
+    def document_id(self) -> str:
+        """Alias for id to maintain compatibility."""
+        return self.id
+
+    def with_parent(self, parent: "Document | str") -> "Document":
+        """Return new document with parent relationship."""
+        parent_id = parent.document_id if hasattr(parent, "document_id") else parent
+        return self.model_copy(update={"parent_id": parent_id})
+
+    def with_metadata(self, **updates: Any) -> "Document":
+        """Return new document with updated metadata."""
+        new_meta = self.internal_metadata.copy()
+        new_meta.update(updates)
+        return self.model_copy(update={"internal_metadata": new_meta})
 
     @property
     def slug(self) -> str | None:
@@ -177,6 +219,12 @@ class Document(Entry):
             return
 
         internal_metadata = data.get("internal_metadata", {})
+        # Also check "metadata" alias if present in input dict (e.g. from legacy code)
+        if not internal_metadata and "metadata" in data:
+            internal_metadata = data["metadata"]
+            if "internal_metadata" not in data:
+                data["internal_metadata"] = internal_metadata
+
         slug = internal_metadata.get("slug")
 
         # If still no slug, generate from title if it exists
@@ -188,16 +236,31 @@ class Document(Entry):
                 pass
 
         if slug:
-            data["id"] = slug
-            if "internal_metadata" not in data:
-                data["internal_metadata"] = {}
-            data.get("internal_metadata", {})["slug"] = slug
+            # If ID is missing, set it to slug
+            if "id" not in data:
+                data["id"] = slug
+            internal_metadata["slug"] = slug
 
     @classmethod
     def _ensure_updated_timestamp(cls, data: dict[str, Any]) -> None:
         """Ensure the document has an updated timestamp."""
         if "updated" not in data:
             data["updated"] = datetime.now(UTC)
+
+    @classmethod
+    def _ensure_id_fallback(cls, data: dict[str, Any]) -> None:
+        """Ensure ID exists, falling back to content hash."""
+        if data.get("id"):
+            return
+
+        content = data.get("content")
+        if content:
+            if isinstance(content, bytes):
+                payload = content
+            else:
+                payload = str(content).encode("utf-8")
+            content_hash = hashlib.sha256(payload).hexdigest()
+            data["id"] = str(uuid.uuid5(NAMESPACE_DOCUMENT, content_hash))
 
     @model_validator(mode="before")
     @classmethod
@@ -206,7 +269,23 @@ class Document(Entry):
         if not isinstance(data, dict):
             return data
 
+        # Map 'metadata' to 'internal_metadata' if present
+        if "metadata" in data and "internal_metadata" not in data:
+            data["internal_metadata"] = data["metadata"]
+
+        # Map 'type' to 'doc_type' is handled by alias="type" in Field,
+        # but if we access data dict directly we might need to be careful.
+
+        # Ensure title if missing (Entry requires title)
+        if "title" not in data:
+            data["title"] = "Untitled"
+
         cls._ensure_slug(data)
+
+        # Fallback to content-based ID if slug/explicit ID not present
+        if not data.get("id"):
+            cls._ensure_id_fallback(data)
+
         cls._ensure_updated_timestamp(data)
         return data
 
@@ -221,7 +300,7 @@ class Feed(BaseModel):
 
     def to_xml(self) -> str:
         """Serialize this feed to an Atom XML string."""
-        from egregora_v3.core.atom import feed_to_xml_string
+        from egregora.core.atom import feed_to_xml_string
 
         return feed_to_xml_string(self)
 

@@ -8,8 +8,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from egregora_v3.core.catalog import ContentLibrary
-from egregora_v3.core.config import EgregoraConfig
+from egregora.core.catalog import ContentLibrary
+from egregora.core.config import EgregoraConfig
 
 
 @dataclass(frozen=True)

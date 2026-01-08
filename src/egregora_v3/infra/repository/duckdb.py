@@ -6,8 +6,8 @@ from typing import List
 import ibis
 from ibis.expr.types import Table
 
-from egregora_v3.core.ports import DocumentRepository
-from egregora_v3.core.types import Document, DocumentType, Entry
+from egregora.core.ports import DocumentRepository
+from egregora.core.types import Document, DocumentType, Entry
 
 _DOCUMENT_TYPE_VALUES = {item.value for item in DocumentType}
 

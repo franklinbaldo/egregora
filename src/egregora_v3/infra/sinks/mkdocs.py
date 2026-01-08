@@ -2,8 +2,8 @@
 
 from pathlib import Path
 import yaml
-from egregora_v3.core.types import Document, DocumentStatus, Feed
-from egregora_v3.core.utils import slugify
+from egregora.core.types import Document, DocumentStatus, Feed
+from egregora.core.utils import slugify
 from egregora.utils.text import InvalidInputError
 
 

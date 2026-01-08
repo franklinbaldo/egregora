@@ -32,7 +32,7 @@ def test_parse_raises_invalid_zip_error_on_bad_zip(adapter: WhatsAppAdapter, tmp
     bad_zip.write_text("not a zip file")
 
     with pytest.raises(InvalidZipFileError):
-        adapter.parse(bad_zip)
+        list(adapter.parse(bad_zip))
 
 
 def test_deliver_media_raises_invalid_zip_error_on_bad_zip(adapter: WhatsAppAdapter, tmp_path: Path) -> None:
@@ -85,7 +85,7 @@ def test_parse_raises_adapter_error_on_parsing_error(adapter: WhatsAppAdapter, t
     ):
         mock_parse_source.side_effect = WhatsAppParsingError("mock error")
         with pytest.raises(WhatsAppAdapterError):
-            adapter.parse(zip_path)
+            list(adapter.parse(zip_path))
 
 
 def test_deliver_media_raises_on_missing_file(adapter: WhatsAppAdapter, tmp_path: Path):
