@@ -1,6 +1,9 @@
-# Egregora
+# Egregora V2
 >
-> *Turn your chaotic group chat into a structured, readable blog.*
+> ⚠️ **This is the legacy Egregora V2 repository.**  
+> For the modern version with DuckDB, UUIDs, and Ibis-based pipelines, see [Egregora V3](https://github.com/franklinbaldo/egregora-v3).
+
+*Turn your chaotic group chat into a structured, readable blog.*
 
 [![CI](https://github.com/franklinbaldo/egregora/actions/workflows/ci.yml/badge.svg)](https://github.com/franklinbaldo/egregora/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/franklinbaldo/egregora/actions/workflows/codeql.yml/badge.svg)](https://github.com/franklinbaldo/egregora/actions/workflows/codeql.yml)
