@@ -14,30 +14,19 @@ class TestSchedulerCycleFallback:
         scheduler = jules.scheduler
 
         created_sessions: list[dict] = []
-        history_appends: list[tuple[str, str]] = []
-        commit_history_calls: list[str] = []
-
-        class DummyHistoryManager:
-            def __init__(self, *_args, **_kwargs):
-                pass
-
-            def get_last_entry(self):
-                return {
-                    "session_id": "123456789012345",
-                    "persona": "curator",
-                    "base_branch": "jules",
-                    "base_pr_number": "",
-                }
-
-            def append_entry(
-                self, session_id: str, persona: str, _base_branch: str, _base_pr_number: str = ""
-            ):
-                history_appends.append((session_id, persona))
-
-            def commit_history(self):
-                commit_history_calls.append("commit")
 
         class DummyClient:
+            def list_sessions(self):
+                return {
+                    "sessions": [
+                        {
+                            "name": "sessions/123456789012345",
+                            "title": "🎭 curator task for repo",
+                            "createTime": "2026-01-05T03:30:00Z",
+                        }
+                    ]
+                }
+
             def create_session(self, **kwargs):
                 created_sessions.append(kwargs)
                 return {"name": "sessions/new-session-id"}
@@ -55,7 +44,6 @@ class TestSchedulerCycleFallback:
             "---\nid: builder\nemoji: 🏗️\ntitle: Builder Task\n---\n\nDo builder things.\n"
         )
 
-        monkeypatch.setattr(scheduler, "HistoryManager", DummyHistoryManager)
         monkeypatch.setattr(scheduler, "ensure_jules_branch_exists", lambda: None)
         monkeypatch.setattr(
             scheduler,
@@ -89,5 +77,3 @@ class TestSchedulerCycleFallback:
         assert created_sessions, "Scheduler should start the next persona session after merged PR."
         assert isinstance(created_sessions[0]["branch"], str)
         assert created_sessions[0]["branch"]
-        assert history_appends == [("new-session-id", "builder")]
-        assert commit_history_calls == ["commit"]

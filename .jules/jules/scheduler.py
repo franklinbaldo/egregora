@@ -1,6 +1,5 @@
 """Jules Scheduler."""
 
-import csv
 import sys
 import tomllib
 import subprocess
@@ -246,10 +245,14 @@ def load_prompt_entries(prompts_dir: Path, cycle_list: list[str]) -> list[dict[s
             try:
                 post = frontmatter.load(p_file)
                 pid = post.metadata.get("id")
+                emoji = post.metadata.get("emoji", "")
+                title = post.metadata.get("title", "")
                 if not pid:
                     print(f"Cycle prompt missing id: {rel_path}", file=sys.stderr)
                     continue
-                entries.append({"id": pid, "path": p_file, "rel_path": rel_path})
+                entries.append(
+                    {"id": pid, "path": p_file, "rel_path": rel_path, "emoji": emoji, "title": title}
+                )
             except Exception as exc:
                 print(f"Failed to load cycle prompt {rel_path}: {exc}", file=sys.stderr)
         return entries
@@ -259,9 +262,13 @@ def load_prompt_entries(prompts_dir: Path, cycle_list: list[str]) -> list[dict[s
         try:
             post = frontmatter.load(p_file)
             pid = post.metadata.get("id")
+            emoji = post.metadata.get("emoji", "")
+            title = post.metadata.get("title", "")
             if pid:
                 rel_path = str(p_file.relative_to(base_dir))
-                entries.append({"id": pid, "path": p_file, "rel_path": rel_path})
+                entries.append(
+                    {"id": pid, "path": p_file, "rel_path": rel_path, "emoji": emoji, "title": title}
+                )
         except Exception:
             pass
 
@@ -372,62 +379,6 @@ def check_schedule(schedule_str: str) -> bool:
 
     return True
 
-# --- History Manager ---
-
-class HistoryManager:
-    def __init__(self, filepath: Path = Path(".jules/history.csv")):
-        self.filepath = filepath
-        self._ensure_file()
-
-    def _ensure_file(self) -> None:
-        if not self.filepath.exists():
-            with open(self.filepath, "w", newline="") as f:
-                writer = csv.writer(f)
-                writer.writerow(["timestamp", "session_id", "persona", "base_branch", "base_pr_number"])
-
-    def get_last_entry(self) -> dict[str, str] | None:
-        entries = []
-        try:
-            with open(self.filepath, newline="") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    entries.append(row)
-        except Exception:
-            return None
-
-        if not entries:
-            return None
-        return entries[-1]
-
-    def append_entry(self, session_id: str, persona: str, base_branch: str, base_pr_number: str = "") -> None:
-        with open(self.filepath, "a", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                datetime.now(timezone.utc).isoformat(),
-                session_id,
-                persona,
-                base_branch,
-                base_pr_number
-            ])
-
-    def commit_history(self) -> None:
-        """Commits and pushes the history file."""
-        try:
-            status = subprocess.run(["git", "status", "--porcelain", str(self.filepath)], capture_output=True, text=True)
-            if not status.stdout.strip():
-                return
-
-            subprocess.run(["git", "config", "user.name", "Jules Bot"], check=False)
-            subprocess.run(["git", "config", "user.email", "jules-bot@google.com"], check=False)
-
-            subprocess.run(["git", "add", str(self.filepath)], check=True)
-            subprocess.run(["git", "commit", "-m", "chore: update jules session history"], check=True)
-            subprocess.run(["git", "push"], check=True)
-            print("Successfully pushed session history.")
-        except Exception as e:
-            print(f"Failed to push session history: {e}", file=sys.stderr)
-
-
 def get_pr_by_session_id(open_prs: list[dict[str, Any]], session_id: str) -> dict[str, Any] | None:
     """Find a PR that matches the given session ID."""
     for pr in open_prs:
@@ -437,6 +388,47 @@ def get_pr_by_session_id(open_prs: list[dict[str, Any]], session_id: str) -> dic
         if extracted_id == session_id:
             return pr
     return None
+
+def _match_persona_from_title(title: str, cycle_entries: list[dict[str, Any]]) -> str | None:
+    title_lower = title.lower()
+    for entry in cycle_entries:
+        pid = entry.get("id", "")
+        emoji = entry.get("emoji", "")
+        if pid and pid.lower() in title_lower:
+            return pid
+        if emoji and emoji in title:
+            return pid
+    return None
+
+
+def get_last_cycle_session(
+    client: JulesClient,
+    cycle_entries: list[dict[str, Any]],
+    repo_info: dict[str, Any],
+) -> tuple[str | None, str | None]:
+    """Find the most recent session that matches one of the cycle personas."""
+    response = client.list_sessions()
+    sessions = response.get("sessions", [])
+    repo_name = repo_info.get("repo", "")
+
+    candidates: list[tuple[str, dict[str, Any], str]] = []
+    for session in sessions:
+        title = session.get("title") or ""
+        if repo_name and repo_name not in title:
+            continue
+        persona_id = _match_persona_from_title(title, cycle_entries)
+        if persona_id:
+            candidates.append((session.get("createTime", ""), session, persona_id))
+
+    if not candidates:
+        return None, None
+
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    latest = candidates[0][1]
+    latest_persona = candidates[0][2]
+    session_name = latest.get("name", "")
+    session_id = session_name.split("/")[-1] if session_name else None
+    return session_id, latest_persona
 
 JULES_BRANCH = "jules"
 
@@ -617,15 +609,11 @@ def run_cycle_step(
     cycle_ids = [entry["id"] for entry in cycle_entries]
     print(f"Running in CYCLE mode with order: {cycle_ids}")
     ensure_jules_branch_exists()
-    history_mgr = HistoryManager()
-    last_entry = history_mgr.get_last_entry()
+    last_session_id, last_pid = get_last_cycle_session(client, cycle_entries, repo_info)
     next_entry = cycle_entries[0]
     base_pr_number = ""
-    last_session_id: str | None = None
 
-    if last_entry:
-        last_session_id = last_entry["session_id"]
-        last_pid = last_entry["persona"]
+    if last_session_id and last_pid:
         print(f"Last recorded session: {last_session_id} ({last_pid})")
         pr = get_pr_by_session_id(open_prs, last_session_id)
 
@@ -735,8 +723,6 @@ def run_cycle_step(
             )
             session_id = result.get("name", "").split("/")[-1]
             print(f"Created session: {session_id}")
-            history_mgr.append_entry(session_id, next_pid, session_branch, base_pr_number)
-            history_mgr.commit_history()
         else:
             print(f"[Dry Run] Would create session for {next_pid}.")
 
