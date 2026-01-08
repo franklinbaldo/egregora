@@ -42,15 +42,26 @@ class TestSchedulerCycleFallback:
                 created_sessions.append(kwargs)
                 return {"name": "sessions/new-session-id"}
 
-        prompt_dir = tmp_path / "curator"
-        prompt_dir.mkdir()
-        prompt_file = prompt_dir / "prompt.md"
-        prompt_file.write_text(
+        curator_dir = tmp_path / "curator"
+        curator_dir.mkdir()
+        curator_prompt = curator_dir / "prompt.md"
+        curator_prompt.write_text(
             "---\nid: curator\nemoji: 🎭\ntitle: Curator Task\n---\n\nDo curator things.\n"
+        )
+        builder_dir = tmp_path / "builder"
+        builder_dir.mkdir()
+        builder_prompt = builder_dir / "prompt.md"
+        builder_prompt.write_text(
+            "---\nid: builder\nemoji: 🏗️\ntitle: Builder Task\n---\n\nDo builder things.\n"
         )
 
         monkeypatch.setattr(scheduler, "HistoryManager", DummyHistoryManager)
         monkeypatch.setattr(scheduler, "ensure_jules_branch_exists", lambda: None)
+        monkeypatch.setattr(
+            scheduler,
+            "prepare_session_base_branch",
+            lambda *_args, **_kwargs: "jules-pr42-123456789012345",
+        )
         monkeypatch.setattr(
             scheduler,
             "get_pr_by_session_id_any_state",
@@ -60,35 +71,22 @@ class TestSchedulerCycleFallback:
         monkeypatch.setattr(scheduler, "JulesClient", lambda: DummyClient())
 
         repo_info = {"owner": "owner", "repo": "repo"}
-        personas = {
-            "curator": {
-                "path": prompt_file,
-                "id": "curator",
-                "emoji": "🎭",
-                "title": "Curator Task",
-            },
-            "builder": {
-                "path": prompt_file,
-                "id": "builder",
-                "emoji": "🏗️",
-                "title": "Builder Task",
-            },
-        }
-
-        cycle_list = ["curator", "builder"]
+        cycle_entries = [
+            {"id": "curator", "path": curator_prompt},
+            {"id": "builder", "path": builder_prompt},
+        ]
         base_context = {"open_prs": []}
 
         scheduler.run_cycle_step(
             client=DummyClient(),
             repo_info=repo_info,
-            cycle_list=cycle_list,
-            personas=personas,
+            cycle_entries=cycle_entries,
             open_prs=[],
             dry_run=False,
             base_context=base_context,
         )
 
         assert created_sessions, "Scheduler should start the next persona session after merged PR."
-        assert created_sessions[0]["branch"] == scheduler.JULES_BRANCH
+        assert created_sessions[0]["branch"] == "jules-pr42-123456789012345"
         assert history_appends == [("new-session-id", "builder")]
         assert commit_history_calls == ["commit"]

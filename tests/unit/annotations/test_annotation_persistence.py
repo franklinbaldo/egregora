@@ -44,14 +44,11 @@ class TestAnnotationStorePersistence:
         )
 
         # Verify annotation was created with correct values
-        assert annotation.id == 1
+        assert isinstance(annotation.id, str)
         assert annotation.parent_id == "msg-123"
         assert annotation.parent_type == "message"
         assert annotation.commentary == "Important observation."
         assert annotation.author == "egregora"
-
-        # Verify sequence was incremented
-        mock_storage.next_sequence_value.assert_called_once_with("annotations_id_seq")
 
         # Verify insert was called on backend
         mock_storage.ibis_conn.insert.assert_called_once()
@@ -96,7 +93,7 @@ class TestAnnotationStorePersistence:
         annotations = store.list_annotations_for_message("msg-1")
 
         assert len(annotations) == 1
-        assert annotations[0].id == 1
+        assert annotations[0].id == "1"
         assert annotations[0].parent_id == "msg-1"
         assert annotations[0].parent_type == "message"
         assert annotations[0].author == "egregora"
