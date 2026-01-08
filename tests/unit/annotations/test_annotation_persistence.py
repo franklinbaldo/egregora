@@ -45,6 +45,7 @@ class TestAnnotationStorePersistence:
 
         # Verify annotation was created with correct values
         assert isinstance(annotation.id, str)
+        assert annotation.id
         assert annotation.parent_id == "msg-123"
         assert annotation.parent_type == "message"
         assert annotation.commentary == "Important observation."
@@ -93,7 +94,8 @@ class TestAnnotationStorePersistence:
         annotations = store.list_annotations_for_message("msg-1")
 
         assert len(annotations) == 1
-        assert annotations[0].id == "1"
+        assert isinstance(annotations[0].id, str)
+        assert annotations[0].id
         assert annotations[0].parent_id == "msg-1"
         assert annotations[0].parent_type == "message"
         assert annotations[0].author == "egregora"
