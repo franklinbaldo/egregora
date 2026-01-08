@@ -603,12 +603,19 @@ def run_cycle_step(
             else:
                 try:
                     session_details = client.get_session(last_sid)
-                    if session_details.get("state") == "AWAITING_PLAN_APPROVAL":
+                    state = session_details.get("state")
+                    if state == "AWAITING_PLAN_APPROVAL":
                         print(f"Session {last_sid} is awaiting plan approval. Approving automatically...")
                         if not dry_run:
                             client.approve_plan(last_sid)
+                    elif state == "AWAITING_USER_FEEDBACK":
+                        print(f"Session {last_sid} is awaiting user feedback (stuck). Sending nudge...")
+                        if not dry_run:
+                            nudge_text = "Por favor, tome a melhor decisão possível e prossiga autonomamente para completar a tarefa."
+                            client.send_message(last_sid, nudge_text)
+                            print(f"Nudge sent to session {last_sid}.")
                     else:
-                        print(f"PR for session {last_sid} not found. Session state: {session_details.get('state')}. Waiting.")
+                        print(f"PR for session {last_sid} not found. Session state: {state}. Waiting.")
                 except Exception as e:
                     print(f"Error checking/approving session {last_sid}: {e}")
                 return
