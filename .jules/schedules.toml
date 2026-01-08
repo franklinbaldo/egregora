@@ -15,28 +15,29 @@
 # If enabled, Jules will cycle through these personas in order,
 # waiting for the previous one to create a PR before starting the next.
 # This overrides the cron schedules below if the scheduler is run in cycle mode.
+# Entries are prompt paths relative to the .jules/ directory.
 cycle = [
-    "curator",      # 🎭 UX Evaluation
-    "refactor",     # 🔧 Code Improvements
-    "visionary",    # 🔮 Moonshot Strategy
-    "bolt",         # ⚡ Performance Check
-    "sentinel",     # 🛡️ Security Audit
-    "builder",      # 🏗️ Data Architecture
-    "shepherd",     # 🧑‍🌾 Test Coverage
-    "janitor",      # 🧹 Code Hygiene
-    "docs_curator", # 📚 Docs Gardening
-    "artisan",      # 🔨 Code Craftsmanship
-    "palette",      # 🎨 Design System
-    "scribe",       # ✍️ Technical Writing
-    "forge",        # ⚒️ Feature Implementation
-    "sheriff",      # 🤠 Test Stability
-    "streamliner",  # 🌊 Data Processing Optimization
-    "weaver",       # 🕸️ Integration Build
-    "simplifier",   # 📉 Complexity Reduction
-    "organizer",    # 🗂️ Project Organization
-    "taskmaster",   # 📋 Task Identification
-    "essentialist", # 💎 Pragmatism & Cuts
-    "sapper"        # 💣 Exception Structuring
+    "personas/curator/prompt.md",      # 🎭 UX Evaluation
+    "personas/refactor/prompt.md",     # 🔧 Code Improvements
+    "personas/visionary/prompt.md",    # 🔮 Moonshot Strategy
+    "personas/bolt/prompt.md",         # ⚡ Performance Check
+    "personas/sentinel/prompt.md",     # 🛡️ Security Audit
+    "personas/builder/prompt.md",      # 🏗️ Data Architecture
+    "personas/shepherd/prompt.md",     # 🧑‍🌾 Test Coverage
+    "personas/janitor/prompt.md",      # 🧹 Code Hygiene
+    "personas/docs_curator/prompt.md", # 📚 Docs Gardening
+    "personas/artisan/prompt.md",      # 🔨 Code Craftsmanship
+    "personas/palette/prompt.md",      # 🎨 Design System
+    "personas/scribe/prompt.md",       # ✍️ Technical Writing
+    "personas/forge/prompt.md",        # ⚒️ Feature Implementation
+    "personas/sheriff/prompt.md",      # 🤠 Test Stability
+    "personas/streamliner/prompt.md",  # 🌊 Data Processing Optimization
+    "personas/weaver/prompt.md",       # 🕸️ Integration Build
+    "personas/simplifier/prompt.md",   # 📉 Complexity Reduction
+    "personas/organizer/prompt.md",    # 🗂️ Project Organization
+    "personas/taskmaster/prompt.md",   # 📋 Task Identification
+    "personas/essentialist/prompt.md", # 💎 Pragmatism & Cuts
+    "personas/sapper/prompt.md"        # 💣 Exception Structuring
 ]
 
 [schedules]

@@ -1,6 +1,5 @@
 ---
 id: scribe
-enabled: true
 emoji: ✍️
 branch: "main"
 automation_mode: "AUTO_CREATE_PR"

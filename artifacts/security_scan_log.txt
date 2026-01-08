@@ -524,22 +524,22 @@ Security Scan	Run safety check	2026-01-05T04:07:38.3594214Z ##[endgroup]
 Security Scan	Run safety check	2026-01-05T04:07:38.5648890Z Downloading nltk (1.4MiB)
 Security Scan	Run safety check	2026-01-05T04:07:38.6450179Z  Downloaded nltk
 Security Scan	Run safety check	2026-01-05T04:07:38.6717702Z Installed 40 packages in 26ms
-Security Scan	Run safety check	2026-01-05T04:07:40.9710791Z 
-Security Scan	Run safety check	2026-01-05T04:07:40.9710844Z 
+Security Scan	Run safety check	2026-01-05T04:07:40.9710791Z
+Security Scan	Run safety check	2026-01-05T04:07:40.9710844Z
 Security Scan	Run safety check	2026-01-05T04:07:40.9711966Z [33m[1m+===========================================================================================================================================================================================+[0m
-Security Scan	Run safety check	2026-01-05T04:07:40.9712343Z 
-Security Scan	Run safety check	2026-01-05T04:07:40.9712350Z 
+Security Scan	Run safety check	2026-01-05T04:07:40.9712343Z
+Security Scan	Run safety check	2026-01-05T04:07:40.9712350Z
 Security Scan	Run safety check	2026-01-05T04:07:40.9713025Z [31m[1mDEPRECATED: [0m[33m[1mthis command (`check`) has been DEPRECATED, and will be unsupported beyond 01 June 2024.[0m
-Security Scan	Run safety check	2026-01-05T04:07:40.9713544Z 
-Security Scan	Run safety check	2026-01-05T04:07:40.9713550Z 
+Security Scan	Run safety check	2026-01-05T04:07:40.9713544Z
+Security Scan	Run safety check	2026-01-05T04:07:40.9713550Z
 Security Scan	Run safety check	2026-01-05T04:07:40.9714278Z [32mWe highly encourage switching to the new [0m[32m[1m`scan`[0m[32m command which is easier to use, more powerful, and can be set up to mimic the deprecated command if required.[0m
-Security Scan	Run safety check	2026-01-05T04:07:40.9715259Z 
-Security Scan	Run safety check	2026-01-05T04:07:40.9715266Z 
+Security Scan	Run safety check	2026-01-05T04:07:40.9715259Z
+Security Scan	Run safety check	2026-01-05T04:07:40.9715266Z
 Security Scan	Run safety check	2026-01-05T04:07:40.9715600Z [33m[1m+===========================================================================================================================================================================================+[0m
-Security Scan	Run safety check	2026-01-05T04:07:40.9715894Z 
-Security Scan	Run safety check	2026-01-05T04:07:40.9715900Z 
+Security Scan	Run safety check	2026-01-05T04:07:40.9715894Z
+Security Scan	Run safety check	2026-01-05T04:07:40.9715900Z
 Security Scan	Run safety check	2026-01-05T04:07:41.2894335Z +==============================================================================+
-Security Scan	Run safety check	2026-01-05T04:07:41.2894766Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2894766Z
 Security Scan	Run safety check	2026-01-05T04:07:41.2894914Z                                /$$$$$$            /$$
 Security Scan	Run safety check	2026-01-05T04:07:41.2895388Z                               /$$__  $$          | $$
 Security Scan	Run safety check	2026-01-05T04:07:41.2895823Z            /$$$$$$$  /$$$$$$ | $$  \__//$$$$$$  /$$$$$$   /$$   /$$
@@ -551,41 +551,41 @@ Security Scan	Run safety check	2026-01-05T04:07:41.2898204Z          |_______/  
 Security Scan	Run safety check	2026-01-05T04:07:41.2898636Z                                                           /$$  | $$
 Security Scan	Run safety check	2026-01-05T04:07:41.2899047Z                                                          |  $$$$$$/
 Security Scan	Run safety check	2026-01-05T04:07:41.2899539Z   by safetycli.com                                        \______/
-Security Scan	Run safety check	2026-01-05T04:07:41.2899913Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2899913Z
 Security Scan	Run safety check	2026-01-05T04:07:41.2900063Z +==============================================================================+
-Security Scan	Run safety check	2026-01-05T04:07:41.2900389Z 
-Security Scan	Run safety check	2026-01-05T04:07:41.2900693Z  [1mREPORT[0m 
-Security Scan	Run safety check	2026-01-05T04:07:41.2900875Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2900389Z
+Security Scan	Run safety check	2026-01-05T04:07:41.2900693Z  [1mREPORT[0m
+Security Scan	Run safety check	2026-01-05T04:07:41.2900875Z
 Security Scan	Run safety check	2026-01-05T04:07:41.2901291Z   Safety [1mv3.7.0[0m is scanning for [1mVulnerabilities[0m[1m...[0m
 Security Scan	Run safety check	2026-01-05T04:07:41.2902065Z [1m  Scanning dependencies[0m in your [1menvironment:[0m
-Security Scan	Run safety check	2026-01-05T04:07:41.2902431Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2902431Z
 Security Scan	Run safety check	2026-01-05T04:07:41.2902587Z   -> /home/runner/work/_temp/setup-uv-
 Security Scan	Run safety check	2026-01-05T04:07:41.2903151Z   cache/archive-v0/4TkLs4FF77YQiqdPZYDP_/lib/python3.12/site-packages
-Security Scan	Run safety check	2026-01-05T04:07:41.2903586Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2903586Z
 Security Scan	Run safety check	2026-01-05T04:07:41.2903867Z   Using [1mopen-source vulnerability database[0m
 Security Scan	Run safety check	2026-01-05T04:07:41.2904396Z [1m  Found and scanned 40 packages[0m
 Security Scan	Run safety check	2026-01-05T04:07:41.2904890Z   Timestamp [1m2026-01-05 04:07:41[0m
 Security Scan	Run safety check	2026-01-05T04:07:41.2905405Z [1m  0[0m[1m vulnerabilities reported[0m
 Security Scan	Run safety check	2026-01-05T04:07:41.2905935Z [1m  0[0m[1m vulnerabilities ignored[0m
 Security Scan	Run safety check	2026-01-05T04:07:41.2906389Z +==============================================================================+
-Security Scan	Run safety check	2026-01-05T04:07:41.2907024Z 
-Security Scan	Run safety check	2026-01-05T04:07:41.2907554Z  [32m[1mNo known security vulnerabilities reported.[0m 
-Security Scan	Run safety check	2026-01-05T04:07:41.2907945Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2907024Z
+Security Scan	Run safety check	2026-01-05T04:07:41.2907554Z  [32m[1mNo known security vulnerabilities reported.[0m
+Security Scan	Run safety check	2026-01-05T04:07:41.2907945Z
 Security Scan	Run safety check	2026-01-05T04:07:41.2908242Z +==============================================================================+[0m
-Security Scan	Run safety check	2026-01-05T04:07:41.2908570Z 
-Security Scan	Run safety check	2026-01-05T04:07:41.2908577Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2908570Z
+Security Scan	Run safety check	2026-01-05T04:07:41.2908577Z
 Security Scan	Run safety check	2026-01-05T04:07:41.2909045Z [33m[1m+===========================================================================================================================================================================================+[0m
-Security Scan	Run safety check	2026-01-05T04:07:41.2909445Z 
-Security Scan	Run safety check	2026-01-05T04:07:41.2909452Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2909445Z
+Security Scan	Run safety check	2026-01-05T04:07:41.2909452Z
 Security Scan	Run safety check	2026-01-05T04:07:41.2910149Z [31m[1mDEPRECATED: [0m[33m[1mthis command (`check`) has been DEPRECATED, and will be unsupported beyond 01 June 2024.[0m
-Security Scan	Run safety check	2026-01-05T04:07:41.2910846Z 
-Security Scan	Run safety check	2026-01-05T04:07:41.2910854Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2910846Z
+Security Scan	Run safety check	2026-01-05T04:07:41.2910854Z
 Security Scan	Run safety check	2026-01-05T04:07:41.2911803Z [32mWe highly encourage switching to the new [0m[32m[1m`scan`[0m[32m command which is easier to use, more powerful, and can be set up to mimic the deprecated command if required.[0m
-Security Scan	Run safety check	2026-01-05T04:07:41.2912665Z 
-Security Scan	Run safety check	2026-01-05T04:07:41.2912672Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2912665Z
+Security Scan	Run safety check	2026-01-05T04:07:41.2912672Z
 Security Scan	Run safety check	2026-01-05T04:07:41.2913118Z [33m[1m+===========================================================================================================================================================================================+[0m
-Security Scan	Run safety check	2026-01-05T04:07:41.2913699Z 
-Security Scan	Run safety check	2026-01-05T04:07:41.2913707Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2913699Z
+Security Scan	Run safety check	2026-01-05T04:07:41.2913707Z
 Security Scan	Run pip-audit	﻿2026-01-05T04:07:41.3960237Z ##[group]Run uvx pip-audit
 Security Scan	Run pip-audit	2026-01-05T04:07:41.3960533Z [36;1muvx pip-audit[0m
 Security Scan	Run pip-audit	2026-01-05T04:07:41.3992716Z shell: /usr/bin/bash -e {0}

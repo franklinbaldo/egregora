@@ -7,7 +7,7 @@ import subprocess
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import frontmatter
 import jinja2
@@ -233,6 +233,41 @@ def load_schedule_registry(registry_path: Path) -> dict:
     return data
 
 
+def load_prompt_entries(prompts_dir: Path, cycle_list: list[str]) -> list[dict[str, Any]]:
+    """Load prompt metadata for scheduler execution."""
+    entries: list[dict[str, Any]] = []
+    if cycle_list:
+        base_dir = prompts_dir.parent
+        for rel_path in cycle_list:
+            p_file = (base_dir / rel_path).resolve()
+            if not p_file.exists():
+                print(f"Cycle prompt not found: {rel_path}", file=sys.stderr)
+                continue
+            try:
+                post = frontmatter.load(p_file)
+                pid = post.metadata.get("id")
+                if not pid:
+                    print(f"Cycle prompt missing id: {rel_path}", file=sys.stderr)
+                    continue
+                entries.append({"id": pid, "path": p_file, "rel_path": rel_path})
+            except Exception as exc:
+                print(f"Failed to load cycle prompt {rel_path}: {exc}", file=sys.stderr)
+        return entries
+
+    base_dir = prompts_dir.parent
+    for p_file in prompts_dir.glob("*/prompt.md"):
+        try:
+            post = frontmatter.load(p_file)
+            pid = post.metadata.get("id")
+            if pid:
+                rel_path = str(p_file.relative_to(base_dir))
+                entries.append({"id": pid, "path": p_file, "rel_path": rel_path})
+        except Exception:
+            pass
+
+    return entries
+
+
 def ensure_journals_directory(persona_dir: Path) -> None:
     """Ensure the journals directory exists for a persona."""
     journals_dir = persona_dir / "journals"
@@ -405,6 +440,41 @@ def get_pr_by_session_id(open_prs: list[dict[str, Any]], session_id: str) -> dic
 
 JULES_BRANCH = "jules"
 
+def prepare_session_base_branch(
+    base_branch: str,
+    base_pr_number: str = "",
+    last_session_id: str | None = None,
+) -> str:
+    """Create a short, stable base branch before starting a Jules session."""
+    if base_pr_number and last_session_id:
+        base_ref = f"jules-pr{base_pr_number}-{last_session_id}"
+    elif base_pr_number:
+        base_ref = f"jules-pr{base_pr_number}"
+    else:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
+        base_ref = f"jules-main-{stamp}"
+
+    try:
+        subprocess.run(["git", "fetch", "origin", base_branch], check=True, capture_output=True)
+        result = subprocess.run(
+            ["git", "rev-parse", f"origin/{base_branch}"],
+            capture_output=True, text=True, check=True
+        )
+        base_sha = result.stdout.strip()
+        print(f"Base branch '{base_branch}' is at SHA: {base_sha[:12]}")
+
+        subprocess.run(
+            ["git", "push", "origin", f"{base_sha}:refs/heads/{base_ref}"],
+            check=True, capture_output=True
+        )
+        print(f"Prepared base branch '{base_ref}' from {base_branch}")
+        return base_ref
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
+        print(f"Failed to prepare base branch: {stderr}", file=sys.stderr)
+        print(f"Falling back to base branch: {base_branch}")
+        return base_branch
+
 def is_jules_drifted() -> bool:
     """Check if the 'jules' branch is drifted (unmergeable) with 'main'."""
     try:
@@ -538,27 +608,30 @@ def is_pr_green(pr_details: dict) -> bool:
 def run_cycle_step(
     client: JulesClient,
     repo_info: dict,
-    cycle_list: list[str],
-    personas: dict[str, Any],
+    cycle_entries: list[dict[str, Any]],
     open_prs: list[dict[str, Any]],
     dry_run: bool,
     base_context: dict
 ) -> None:
     """Run a single step of the cycle scheduler."""
-    print(f"Running in CYCLE mode with order: {cycle_list}")
+    cycle_ids = [entry["id"] for entry in cycle_entries]
+    print(f"Running in CYCLE mode with order: {cycle_ids}")
     ensure_jules_branch_exists()
     history_mgr = HistoryManager()
     last_entry = history_mgr.get_last_entry()
-    next_pid = cycle_list[0]
+    next_entry = cycle_entries[0]
+    base_pr_number = ""
+    last_session_id: str | None = None
 
     if last_entry:
-        last_sid = last_entry["session_id"]
+        last_session_id = last_entry["session_id"]
         last_pid = last_entry["persona"]
-        print(f"Last recorded session: {last_sid} ({last_pid})")
-        pr = get_pr_by_session_id(open_prs, last_sid)
+        print(f"Last recorded session: {last_session_id} ({last_pid})")
+        pr = get_pr_by_session_id(open_prs, last_session_id)
 
         if pr:
             pr_number = pr["number"]
+            base_pr_number = str(pr_number)
             print(f"Found PR for last session: #{pr_number} - {pr['title']}")
             pr_details = get_pr_details_via_gh(pr_number)
             if not is_pr_green(pr_details):
@@ -568,10 +641,10 @@ def run_cycle_step(
             if not dry_run:
                 merge_pr_into_jules(pr_number)
             
-            if last_pid in cycle_list:
-                idx = cycle_list.index(last_pid)
-                next_idx = (idx + 1) % len(cycle_list)
-                next_pid = cycle_list[next_idx]
+            if last_pid in cycle_ids:
+                idx = cycle_ids.index(last_pid)
+                next_idx = (idx + 1) % len(cycle_entries)
+                next_entry = cycle_entries[next_idx]
                 
                 # If we completed a full cycle, increment sprint
                 if next_idx == 0:
@@ -579,55 +652,53 @@ def run_cycle_step(
                     new_sprint = sprint_manager.increment_sprint()
                     print(f"Cycle completed! Sprint incremented: {old_sprint} → {new_sprint}")
             
-            print(f"Next persona: {next_pid}. Starting from '{JULES_BRANCH}'.")
+            print(f"Next persona: {next_entry['id']}. Starting from '{JULES_BRANCH}'.")
         else:
-            merged_pr = get_pr_by_session_id_any_state(repo_info["owner"], repo_info["repo"], last_sid)
+            merged_pr = get_pr_by_session_id_any_state(repo_info["owner"], repo_info["repo"], last_session_id)
             if merged_pr and merged_pr.get("mergedAt"):
-                print(f"PR for session {last_sid} already merged. Continuing.")
-                if last_pid in cycle_list:
-                    idx = cycle_list.index(last_pid)
-                    next_idx = (idx + 1) % len(cycle_list)
-                    next_pid = cycle_list[next_idx]
+                base_pr_number = str(merged_pr.get("number", ""))
+                print(f"PR for session {last_session_id} already merged. Continuing.")
+                if last_pid in cycle_ids:
+                    idx = cycle_ids.index(last_pid)
+                    next_idx = (idx + 1) % len(cycle_entries)
+                    next_entry = cycle_entries[next_idx]
                     if next_idx == 0:
                         sprint_manager.increment_sprint()
-                print(f"Next persona: {next_pid}. Starting from '{JULES_BRANCH}'.")
+                print(f"Next persona: {next_entry['id']}. Starting from '{JULES_BRANCH}'.")
             elif merged_pr and (merged_pr.get("state") or "").lower() == "closed":
-                print(f"PR for session {last_sid} was closed. Skipping.")
-                if last_pid in cycle_list:
-                    idx = cycle_list.index(last_pid)
-                    next_idx = (idx + 1) % len(cycle_list)
-                    next_pid = cycle_list[next_idx]
+                base_pr_number = str(merged_pr.get("number", ""))
+                print(f"PR for session {last_session_id} was closed. Skipping.")
+                if last_pid in cycle_ids:
+                    idx = cycle_ids.index(last_pid)
+                    next_idx = (idx + 1) % len(cycle_entries)
+                    next_entry = cycle_entries[next_idx]
                     if next_idx == 0:
                         sprint_manager.increment_sprint()
-                print(f"Next persona: {next_pid}. Starting from '{JULES_BRANCH}'.")
+                print(f"Next persona: {next_entry['id']}. Starting from '{JULES_BRANCH}'.")
             else:
                 try:
-                    session_details = client.get_session(last_sid)
+                    session_details = client.get_session(last_session_id)
                     state = session_details.get("state")
                     if state == "AWAITING_PLAN_APPROVAL":
-                        print(f"Session {last_sid} is awaiting plan approval. Approving automatically...")
+                        print(f"Session {last_session_id} is awaiting plan approval. Approving automatically...")
                         if not dry_run:
-                            client.approve_plan(last_sid)
+                            client.approve_plan(last_session_id)
                     elif state == "AWAITING_USER_FEEDBACK":
-                        print(f"Session {last_sid} is awaiting user feedback (stuck). Sending nudge...")
+                        print(f"Session {last_session_id} is awaiting user feedback (stuck). Sending nudge...")
                         if not dry_run:
                             nudge_text = "Por favor, tome a melhor decisão possível e prossiga autonomamente para completar a tarefa."
-                            client.send_message(last_sid, nudge_text)
-                            print(f"Nudge sent to session {last_sid}.")
+                            client.send_message(last_session_id, nudge_text)
+                            print(f"Nudge sent to session {last_session_id}.")
                     else:
-                        print(f"PR for session {last_sid} not found. Session state: {state}. Waiting.")
+                        print(f"PR for session {last_session_id} not found. Session state: {state}. Waiting.")
                 except Exception as e:
-                    print(f"Error checking/approving session {last_sid}: {e}")
+                    print(f"Error checking/approving session {last_session_id}: {e}")
                 return
     else:
         print(f"No history found. Starting fresh cycle from '{JULES_BRANCH}'.")
 
-    if next_pid not in personas:
-        print(f"Error: Persona {next_pid} not found.", file=sys.stderr)
-        return
-
-    p_data = personas[next_pid]
-    p_file = p_data["path"]
+    p_file = next_entry["path"]
+    next_pid = next_entry["id"]
 
     try:
         persona_dir = p_file.parent
@@ -646,20 +717,25 @@ def run_cycle_step(
         config = parsed["config"]
         prompt_body = parsed["prompt"]
 
-        print(f"Starting session for {next_pid} on branch '{JULES_BRANCH}'...")
+        session_branch = prepare_session_base_branch(
+            JULES_BRANCH,
+            base_pr_number,
+            last_session_id=last_session_id,
+        )
+        print(f"Starting session for {next_pid} on branch '{session_branch}'...")
         if not dry_run:
             result = client.create_session(
                 prompt=prompt_body,
                 owner=repo_info["owner"],
                 repo=repo_info["repo"],
-                branch=JULES_BRANCH,
+                branch=session_branch,
                 title=config.get("title", f"Task: {next_pid}"),
                 automation_mode=config.get("automation_mode", "AUTO_CREATE_PR"),
                 require_plan_approval=config.get("require_plan_approval", False),
             )
             session_id = result.get("name", "").split("/")[-1]
             print(f"Created session: {session_id}")
-            history_mgr.append_entry(session_id, next_pid, JULES_BRANCH, "")
+            history_mgr.append_entry(session_id, next_pid, session_branch, base_pr_number)
             history_mgr.commit_history()
         else:
             print(f"[Dry Run] Would create session for {next_pid}.")
@@ -680,30 +756,24 @@ def run_scheduler(
     if not prompts_dir.exists():
         sys.exit(1)
 
-    prompt_files = list(prompts_dir.glob("*/prompt.md"))
-    personas = {}
-    for p_file in prompt_files:
-        try:
-            post = frontmatter.load(p_file)
-            pid = post.metadata.get("id")
-            if pid:
-                personas[pid] = {"path": p_file, **post.metadata}
-        except Exception:
-            pass
-
     open_prs = get_open_prs(repo_info["owner"], repo_info["repo"])
     base_context = {**repo_info, "open_prs": open_prs}
     full_registry = load_schedule_registry(registry_path)
     schedules = full_registry.get("schedules", {})
     cycle_list = full_registry.get("cycle", [])
+    prompt_entries = load_prompt_entries(prompts_dir, cycle_list)
+    if cycle_list and not prompt_entries:
+        print("Cycle list provided but no valid prompts were loaded.", file=sys.stderr)
+        return
 
     is_cycle_mode = command == "tick" and not run_all and not prompt_id and bool(cycle_list)
 
     if is_cycle_mode:
-        run_cycle_step(client, repo_info, cycle_list, personas, open_prs, dry_run, base_context)
+        run_cycle_step(client, repo_info, prompt_entries, open_prs, dry_run, base_context)
         return
 
-    for p_file in prompt_files:
+    for entry in prompt_entries:
+        p_file = entry["path"]
         try:
             persona_dir = p_file.parent
             ensure_journals_directory(persona_dir)
@@ -719,7 +789,7 @@ def run_scheduler(
             config = parsed["config"]
             prompt_body = parsed["prompt"]
             pid = config.get("id")
-            if not pid or (prompt_id and prompt_id != pid):
+            if not pid or (prompt_id and prompt_id not in {pid, entry.get("rel_path")}):
                 continue
 
             should_run = False

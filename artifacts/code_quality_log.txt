@@ -2201,7 +2201,7 @@ Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4983035Z     M 4
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4983260Z     M 55:4 DuckDBDocumentRepository._upsert_record - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4983594Z     M 141:4 DuckDBDocumentRepository.delete - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4983785Z     M 146:4 DuckDBDocumentRepository.exists - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4985244Z 
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4985244Z
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4985483Z 1541 blocks (classes, functions, methods) analyzed.
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4985651Z Average complexity: A (3.0408825438027254)
 Code Quality Metrics	Run xenon (threshold enforcement)	﻿2026-01-05T04:09:40.5136149Z ##[group]Run uv run xenon src/ --max-absolute B --max-modules B --max-average B

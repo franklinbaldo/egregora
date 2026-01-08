@@ -122,7 +122,7 @@ tick	Run astral-sh/setup-uv@v7	**/*constraints*.in
 tick	Run astral-sh/setup-uv@v7	**/pyproject.toml
 tick	Run astral-sh/setup-uv@v7	**/uv.lock
 tick	Run astral-sh/setup-uv@v7	**/*.py.lock
-tick	Run astral-sh/setup-uv@v7	
+tick	Run astral-sh/setup-uv@v7
 tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.3174497Z   restore-cache: true
 tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.3175403Z   save-cache: true
 tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.3176271Z   prune-cache: true

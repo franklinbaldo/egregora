@@ -16,7 +16,7 @@ app.add_typer(autofix_app, name="autofix")
 def schedule_tick(
     all: bool = typer.Option(False, "--all", help="Run all enabled prompts regardless of schedule"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Do not create sessions"),
-    prompt_id: str = typer.Option(None, "--prompt-id", help="Run only specific prompt ID"),
+    prompt_id: str = typer.Option(None, "--prompt-id", help="Run only specific prompt ID or prompt path"),
 ) -> None:
     """Run the scheduler tick."""
     run_scheduler("tick", run_all=all, dry_run=dry_run, prompt_id=prompt_id)

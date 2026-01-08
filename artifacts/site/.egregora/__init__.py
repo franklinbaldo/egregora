@@ -1,0 +1,1 @@
+"""Egregora MkDocs artifact package."""

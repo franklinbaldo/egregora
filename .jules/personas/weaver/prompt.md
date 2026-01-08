@@ -1,6 +1,5 @@
 ---
 id: weaver
-enabled: false
 emoji: 🕸️
 branch: "main"
 automation_mode: "AUTO_COMMIT"

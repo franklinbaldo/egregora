@@ -161,7 +161,7 @@ extra:
   copyright: Copyright &copy; 2025 site
   # Add social links to the footer for a more professional look.
   # These will only appear if the corresponding variables are set in the user's config.
-  
+
 
 # Custom CSS for improved UX
 extra_css:
