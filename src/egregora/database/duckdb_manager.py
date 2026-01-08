@@ -634,18 +634,16 @@ class DuckDBStorageManager:
             raise InvalidOperationError("count must be positive")
 
         with self._lock:
-            # Fetch sequence values one at a time to avoid DuckDB internal errors
-            # triggered by batching ``nextval`` in a single query.
+
             def _fetch_values() -> list[int]:
-                results: list[int] = []
+                # Optimized to fetch multiple values in a single query
                 escaped_name = sequence_name.replace("'", "''")
                 sequence_literal = f"'{escaped_name}'"
-                for _ in range(count):
-                    row = self.execute(f"SELECT nextval({sequence_literal})").fetchone()
-                    if row is None:
-                        raise SequenceFetchError(sequence_name)
-                    results.append(int(row[0]))
-                return results
+                query = f"SELECT nextval({sequence_literal}) FROM range({count})"
+                rows = self.execute(query).fetchall()
+                if not rows:
+                    raise SequenceFetchError(sequence_name)
+                return [int(row[0]) for row in rows]
 
             try:
                 values = _fetch_values()
@@ -675,23 +673,16 @@ class DuckDBStorageManager:
 
         # Defensive check: if query returns empty, sequence might not exist
         if not values:
-            # Check if sequence exists
             try:
                 self.get_sequence_state(sequence_name)
-            except SequenceNotFoundError:
-                # Sequence doesn't exist - create it
-                logger.warning("Sequence '%s' not found, creating it", sequence_name)
-                self.ensure_sequence(sequence_name)
-                # Retry the query
-                escaped_name = sequence_name.replace("'", "''")
-                values = [
-                    int(self._conn.execute(f"SELECT nextval('{escaped_name}')").fetchone()[0])
-                    for _ in range(count)
-                ]
-            else:
                 # Sequence exists but query returned empty - this is unexpected
                 msg = f"Sequence '{sequence_name}' exists but nextval query returned no results"
                 raise RuntimeError(msg)
+            except SequenceNotFoundError:
+                # Sequence doesn't exist - create it and retry
+                logger.warning("Sequence '%s' not found, creating it", sequence_name)
+                self.ensure_sequence(sequence_name)
+                values = _fetch_values()
 
         return values
 

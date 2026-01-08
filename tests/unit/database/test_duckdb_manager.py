@@ -183,12 +183,12 @@ def test_next_sequence_values_invalid_count():
 
 
 def test_next_sequence_values_raises_fetch_error(mocker):
-    """Test that next_sequence_values raises SequenceFetchError when fetchone returns None."""
+    """Test that next_sequence_values raises SequenceFetchError when fetchall returns empty."""
     with DuckDBStorageManager() as storage:
         storage.ensure_sequence("test_sequence")
-        mock_cursor = MagicMock()
-        mock_cursor.fetchone.return_value = None
-        mocker.patch.object(storage, "execute", return_value=mock_cursor)
+        mock_relation = MagicMock()
+        mock_relation.fetchall.return_value = []
+        mocker.patch.object(storage, "execute", return_value=mock_relation)
 
         with pytest.raises(SequenceFetchError) as exc_info:
             storage.next_sequence_values("test_sequence")
