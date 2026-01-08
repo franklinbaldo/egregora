@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from egregora_v3.core.config import EgregoraConfig
+from egregora.core.config import EgregoraConfig
 
 
 class ConfigLoader:

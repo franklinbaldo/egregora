@@ -16,7 +16,7 @@ import httpx
 from lxml import etree
 from pydantic import ValidationError
 
-from egregora_v3.core.types import Author, Entry, Link
+from egregora.core.types import Author, Entry, Link
 
 logger = logging.getLogger(__name__)
 

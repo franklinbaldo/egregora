@@ -7,9 +7,12 @@ from __future__ import annotations
 
 import logging
 import math
+import uuid
 from collections import deque
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from egregora.core.types import Feed
 from egregora.agents.banner.worker import BannerWorker
 from egregora.agents.commands import command_to_announcement, filter_commands
 from egregora.agents.commands import extract_commands as extract_commands_list
@@ -309,7 +312,7 @@ class PipelineRunner:
         if media_mapping and not self.context.enable_enrichment:
             for media_doc in media_mapping.values():
                 try:
-                    output_sink.persist(media_doc)
+                    self._publish_document(output_sink, media_doc)
                 except Exception as e:
                     logger.exception("Failed to write media file: %s", e)
 
@@ -367,7 +370,7 @@ class PipelineRunner:
             for cmd_msg in command_messages:
                 try:
                     announcement = command_to_announcement(cmd_msg)
-                    output_sink.persist(announcement)
+                    self._publish_document(output_sink, announcement)
                     announcements_generated += 1
                 except Exception as exc:
                     logger.exception("Failed to generate announcement: %s", exc)
@@ -397,7 +400,7 @@ class PipelineRunner:
             )
             for profile_doc in profile_docs:
                 try:
-                    output_sink.persist(profile_doc)
+                    self._publish_document(output_sink, profile_doc)
                     profiles.append(profile_doc.document_id)
                 except Exception as exc:
                     logger.exception("Failed to persist profile: %s", exc)
@@ -444,13 +447,23 @@ class PipelineRunner:
                 posts_generated=len(posts),
                 profiles_updated=len(profiles),
             )
-            output_sink.persist(journal)
+            self._publish_document(output_sink, journal)
             logger.debug("Persisted JOURNAL for window: %s", window_label)
         except Exception as e:  # noqa: BLE001
             # Non-fatal: Log warning but don't fail the pipeline
             logger.warning("Failed to persist JOURNAL for window %s: %s", window_label, e)
 
         return {window_label: {"posts": posts, "profiles": profiles}}
+
+    def _publish_document(self, output_sink: Any, doc: Any) -> None:
+        """Publish a single document via OutputSink.publish (Feed-based)."""
+        feed = Feed(
+            id=f"urn:uuid:{uuid.uuid4()}",
+            title="Single Document Feed",
+            updated=datetime.now(UTC),
+            entries=[doc],
+        )
+        output_sink.publish(feed)
 
     def _perform_enrichment(
         self,

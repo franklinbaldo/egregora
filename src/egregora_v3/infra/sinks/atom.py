@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from egregora_v3.core.types import Feed
+from egregora.core.types import Feed
 
 
 class AtomSink:

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from egregora.agents.types import PromptTooLargeError
-from egregora.data_primitives.document import OutputSink
+from egregora.data_primitives.document import Document, DocumentType, OutputSink
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.exceptions import (
     OutputSinkError,
@@ -76,6 +76,8 @@ def test_process_single_window_orchestration(
     # Arrange
     context = MagicMock(spec=PipelineContext)
     context.output_format = MagicMock(spec=OutputSink)
+    # Mock property url_convention
+    context.output_format.url_convention = MagicMock()
     context.url_context = None
     context.enable_enrichment = False
     context.config.pipeline.is_demo = False
@@ -91,15 +93,33 @@ def test_process_single_window_orchestration(
 
     mock_table = MagicMock()
     mock_table.execute.return_value.to_pylist.return_value = [{"id": 1, "text": "/cmd"}]
-    mock_process_media.return_value = (mock_table, {"media.jpg": MagicMock()})
+    mock_process_media.return_value = (
+        mock_table,
+        {
+            "media.jpg": Document(
+                content="img", type=DocumentType.MEDIA, metadata={"slug": "media"}
+            )
+        },
+    )
 
     mock_extract_commands.return_value = [{"id": 1, "text": "/cmd"}]
-    mock_command_to_announcement.return_value = MagicMock()
+    mock_command_to_announcement.return_value = Document(
+        content="announcement",
+        type=DocumentType.ANNOUNCEMENT,
+        metadata={"slug": "announcement"},
+    )
     mock_filter_commands.return_value = [{"id": 2, "text": "not a command"}]
 
     # Mock the two async calls
     mock_write_posts_for_window.return_value = (["post1"], [])
-    mock_generate_profile_posts.return_value = [MagicMock()]
+    mock_generate_profile_posts.return_value = [
+        Document(
+            content="profile",
+            type=DocumentType.PROFILE,
+            metadata={"slug": "profile"},
+            id="profile-id",
+        )
+    ]
 
     runner._extract_adapter_info = MagicMock(return_value=("summary", "instructions"))
 
@@ -115,7 +135,8 @@ def test_process_single_window_orchestration(
 
     mock_process_media.assert_called_once()
     # one for media, one for announcement, one for profile, one for journal
-    assert context.output_format.persist.call_count == 4
+    # persist() was replaced by publish() (via _publish_document helper)
+    assert context.output_format.publish.call_count == 4
 
     mock_extract_commands.assert_called_once()
     mock_command_to_announcement.assert_called_once()

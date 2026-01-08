@@ -1025,7 +1025,32 @@ def _parse_and_validate_source(
 
     """
     logger.info("[bold cyan]📦 Parsing with adapter:[/] %s", adapter.source_name)
-    messages_table = adapter.parse(input_path, timezone=timezone, output_adapter=output_adapter)
+    entries_iterator = adapter.parse(input_path, timezone=timezone, output_adapter=output_adapter)
+
+    # Convert Atom Entries back to Ibis Table for internal processing
+    # This maintains compatibility with existing windowing logic while respecting the new input contract
+    rows = []
+    for entry in entries_iterator:
+        if entry.internal_metadata:
+            rows.append(entry.internal_metadata)
+        else:
+            # Fallback reconstruction if internal_metadata is missing
+            rows.append({
+                "msg_id": entry.id,
+                "ts": entry.updated,
+                "text": entry.content,
+                "author_uuid": entry.authors[0].name if entry.authors else "unknown",
+                # Minimal schema satisfaction
+            })
+
+    if not rows:
+        # TODO: Handle empty source gracefully
+        logger.warning("No entries parsed from source.")
+        # Create empty table with schema?
+        # For now, let ibis handle empty list (might fail inference)
+        pass
+
+    messages_table = ibis.memtable(rows)
     total_messages = messages_table.count().execute()
     logger.info("[green]✅ Parsed[/] %s messages", total_messages)
 

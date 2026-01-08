@@ -4,7 +4,7 @@ import csv
 import json
 from pathlib import Path
 
-from egregora_v3.core.types import Document, DocumentStatus, Feed
+from egregora.core.types import Document, DocumentStatus, Feed
 
 
 class CSVOutputSink:

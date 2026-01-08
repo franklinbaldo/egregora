@@ -23,7 +23,7 @@ except ImportError:
     # This is a workaround to allow the documentation to build.
     LanceModel = object
     Vector = object
-from egregora_v3.core.types import (
+from egregora.core.types import (
     Author,
     Category,
     Document,

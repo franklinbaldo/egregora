@@ -3,7 +3,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
-from egregora_v3.core.types import Document, DocumentType, Entry, Feed, Link
+from egregora.core.types import Document, DocumentType, Entry, Feed, Link
 
 
 @runtime_checkable

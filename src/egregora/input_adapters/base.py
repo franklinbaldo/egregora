@@ -4,7 +4,7 @@ This module provides the core abstractions for implementing chat platform adapte
 
 1. **InputAdapter** (Modern Interface):
    - The standard adapter interface for all sources
-   - Returns Table directly conforming to IR schema
+   - Returns stream of Atom Entries (Iterator[Entry])
    - Supports media delivery and content-hash UUIDs
    - All new implementations must use this interface
 
@@ -23,10 +23,12 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypedDict
 from uuid import UUID
 
+from egregora.core.types import Entry
 from egregora.data_primitives.document import Document
 
 if TYPE_CHECKING:
@@ -120,7 +122,7 @@ class InputAdapter(ABC):
 
     A source adapter is responsible for:
     1. Parsing raw exports from a specific platform (REQUIRED)
-    2. Converting messages to the standardized IR schema (REQUIRED)
+    2. Converting messages to a stream of standardized Atom Entries (REQUIRED)
     3. Optionally extracting media files and providing a mapping (OPTIONAL)
     4. Optionally providing export metadata (OPTIONAL)
 
@@ -128,7 +130,7 @@ class InputAdapter(ABC):
         - source_name (property): Human-readable name
         - source_identifier (property): CLI identifier
         - get_adapter_metadata(): Return adapter metadata for plugin discovery
-        - parse(): Convert raw export to IR-compliant table
+        - parse(): Convert raw export to Iterator[Entry]
 
     Optional Methods (with default implementations):
         - extract_media(): Extract bundled media files
@@ -177,21 +179,11 @@ class InputAdapter(ABC):
         """
 
     @abstractmethod
-    def parse(self, input_path: Path, *, timezone: str | None = None, **kwargs: Any) -> Table:
-        """Parse the raw export and return an IR-compliant Ibis Table.
+    def parse(self, input_path: Path, *, timezone: str | None = None, **kwargs: Any) -> Iterator[Entry]:
+        """Parse the raw export and return an iterator of Atom Entries.
 
         This is the primary method that converts source-specific data into
-        the standardized Intermediate Representation.
-
-        **Media References**: Messages should include media as markdown links:
-        - Images: `![alt text](filename.jpg)`
-        - Videos/Files: `[link text](filename.mp4)`
-
-        The adapter should use original filenames/references. The runner will:
-        1. Extract markdown references
-        2. Call `deliver_media()` to get the actual files
-        3. Standardize naming (content-hash based UUIDs)
-        4. Replace references with standardized paths
+        standardized Atom Entries.
 
         Args:
             input_path: Path to the raw export (ZIP file, JSON, etc.)
@@ -199,14 +191,7 @@ class InputAdapter(ABC):
             **kwargs: Source-specific parameters
 
         Returns:
-            Ibis Table conforming to IR_SCHEMA with columns:
-                - timestamp: Timestamp with timezone
-                - date: Date derived from timestamp
-                - author: Anonymized author identifier
-                - message: Message content (with markdown media links)
-                - original_line: Raw source line (debugging)
-                - tagged_line: Processing tracking
-                - message_id: Deterministic message ID
+            Iterator of Entry objects conforming to Atom standard.
 
         Raises:
             ValueError: If input is invalid or cannot be parsed

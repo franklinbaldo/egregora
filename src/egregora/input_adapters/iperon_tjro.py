@@ -5,14 +5,14 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid5
 
 import httpx
-import ibis
 
-from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
+from egregora.core.types import Author, Entry, Source
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 
 if TYPE_CHECKING:
@@ -72,7 +72,7 @@ class IperonTJROAdapter(InputAdapter):
             "ir_version": "v1",
         }
 
-    def parse(self, input_path: Path, *, timezone: str | None = None, **_: Any) -> ibis.Table:
+    def parse(self, input_path: Path, *, timezone: str | None = None, **_: Any) -> Iterator[Entry]:
         """Fetch communications and convert them to the IR schema."""
         plan = self._load_plan(input_path)
         items: list[dict[str, Any]] = []
@@ -92,8 +92,19 @@ class IperonTJROAdapter(InputAdapter):
         if not items:
             logger.warning("No communications returned for %s", input_path)
 
-        rows = [self._normalize_item(item, timezone) for item in items if isinstance(item, dict)]
-        return ibis.memtable(rows, schema=INGESTION_MESSAGE_SCHEMA)
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            row = self._normalize_item(item, timezone)
+            yield Entry(
+                id=str(row["msg_id"]),
+                title=f"Update {row['msg_id']}",
+                updated=row["ts"],
+                content=row["text"],
+                authors=[Author(name=str(row["author_uuid"]))],
+                source=Source(id=self.source_identifier),
+                internal_metadata=row,
+            )
 
     # ------------------------------------------------------------------
     # Configuration helpers
