@@ -1,0 +1,63 @@
+[[tasks.high_priority]]
+id = "missing-custom-css"
+title = "Create missing custom CSS file"
+description = "The mkdocs.yml references `stylesheets/extra.css` but the file is not created during scaffolding. This prevents any custom styling. Create the file with baseline improvements."
+status = "pending"
+category = "baseline"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "design-color-palette"
+title = "Design a custom color palette"
+description = "The default teal/amber color palette is generic. A custom palette should be designed to reflect the 'collective consciousness' theme of Egregora."
+status = "pending"
+category = "visual"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "add-favicon"
+title = "Add a custom favicon"
+description = "The site is missing a favicon, which makes it look unprofessional. A custom favicon and apple-touch-icon should be designed and added."
+status = "pending"
+category = "visual"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "remove-analytics-placeholder"
+title = "Remove Google Analytics placeholder"
+description = "The `extra.analytics.property` is set to a placeholder. This is either a broken feature or a privacy concern. It should be removed entirely to align with a privacy-first approach."
+status = "pending"
+category = "privacy"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "improve-empty-state"
+title = "Improve empty state messaging"
+description = "The 'No posts yet' message is functional but cold. It should be replaced with more engaging and welcoming guidance for new users."
+status = "pending"
+category = "content"
+assignee = "curator"
+
+[[tasks.medium_priority]]
+id = "fix-social-card-images"
+title = "Fix social card image 404s"
+description = "The build log shows 404 errors for social card images (og:image). This needs to be debugged to ensure proper social sharing previews."
+status = "pending"
+category = "visual"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "restructure-navigation"
+title = "Restructure site navigation"
+description = "The navigation structure could be improved. 'Media' is a top-level item, while 'Journal' is not in the navigation at all. The hierarchy should be reconsidered."
+status = "pending"
+category = "ia"
+assignee = "curator"
+
+[[tasks.medium_priority]]
+id = "create-distinctive-site-name"
+title = "Create a distinctive site name"
+description = "The site name defaults to 'demo'. Egregora should be able to generate a distinctive name from the data, or a better default should be chosen."
+status = "pending"
+category = "branding"
+assignee = "curator"
