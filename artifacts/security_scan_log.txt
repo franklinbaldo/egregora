@@ -1,0 +1,658 @@
+Security Scan	Set up job	﻿2026-01-05T04:07:26.6644509Z Current runner version: '2.330.0'
+Security Scan	Set up job	2026-01-05T04:07:26.6668687Z ##[group]Runner Image Provisioner
+Security Scan	Set up job	2026-01-05T04:07:26.6669501Z Hosted Compute Agent
+Security Scan	Set up job	2026-01-05T04:07:26.6670009Z Version: 20251211.462
+Security Scan	Set up job	2026-01-05T04:07:26.6670663Z Commit: 6cbad8c2bb55d58165063d031ccabf57e2d2db61
+Security Scan	Set up job	2026-01-05T04:07:26.6671313Z Build Date: 2025-12-11T16:28:49Z
+Security Scan	Set up job	2026-01-05T04:07:26.6671964Z Worker ID: {28aa6be2-fa29-4c34-8b0d-d0b13f0bb10b}
+Security Scan	Set up job	2026-01-05T04:07:26.6672715Z ##[endgroup]
+Security Scan	Set up job	2026-01-05T04:07:26.6673204Z ##[group]Operating System
+Security Scan	Set up job	2026-01-05T04:07:26.6673751Z Ubuntu
+Security Scan	Set up job	2026-01-05T04:07:26.6674245Z 24.04.3
+Security Scan	Set up job	2026-01-05T04:07:26.6674695Z LTS
+Security Scan	Set up job	2026-01-05T04:07:26.6675102Z ##[endgroup]
+Security Scan	Set up job	2026-01-05T04:07:26.6675693Z ##[group]Runner Image
+Security Scan	Set up job	2026-01-05T04:07:26.6676189Z Image: ubuntu-24.04
+Security Scan	Set up job	2026-01-05T04:07:26.6676689Z Version: 20251215.174.1
+Security Scan	Set up job	2026-01-05T04:07:26.6678092Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20251215.174/images/ubuntu/Ubuntu2404-Readme.md
+Security Scan	Set up job	2026-01-05T04:07:26.6679437Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20251215.174
+Security Scan	Set up job	2026-01-05T04:07:26.6680644Z ##[endgroup]
+Security Scan	Set up job	2026-01-05T04:07:26.6681704Z ##[group]GITHUB_TOKEN Permissions
+Security Scan	Set up job	2026-01-05T04:07:26.6684282Z Contents: read
+Security Scan	Set up job	2026-01-05T04:07:26.6684936Z Metadata: read
+Security Scan	Set up job	2026-01-05T04:07:26.6685409Z SecurityEvents: write
+Security Scan	Set up job	2026-01-05T04:07:26.6686020Z ##[endgroup]
+Security Scan	Set up job	2026-01-05T04:07:26.6688136Z Secret source: Actions
+Security Scan	Set up job	2026-01-05T04:07:26.6688811Z Prepare workflow directory
+Security Scan	Set up job	2026-01-05T04:07:26.7056655Z Prepare all required actions
+Security Scan	Set up job	2026-01-05T04:07:26.7092671Z Getting action download info
+Security Scan	Set up job	2026-01-05T04:07:26.9686716Z Download action repository 'actions/checkout@v6' (SHA:8e8c483db84b4bee98b60c0593521ed34d9990e8)
+Security Scan	Set up job	2026-01-05T04:07:27.0887989Z Download action repository 'actions/setup-python@v6' (SHA:83679a892e2d95755f2dac6acb0bfd1e9ac5d548)
+Security Scan	Set up job	2026-01-05T04:07:27.2033351Z Download action repository 'github/codeql-action@v4' (SHA:5d4e8d1aca955e8d8589aabd499c5cae939e33c7)
+Security Scan	Set up job	2026-01-05T04:07:27.8627315Z Complete job name: Security Scan
+Security Scan	Checkout code	﻿2026-01-05T04:07:27.9315088Z ##[group]Run actions/checkout@v6
+Security Scan	Checkout code	2026-01-05T04:07:27.9315979Z with:
+Security Scan	Checkout code	2026-01-05T04:07:27.9316434Z   repository: franklinbaldo/egregora
+Security Scan	Checkout code	2026-01-05T04:07:27.9317319Z   token: ***
+Security Scan	Checkout code	2026-01-05T04:07:27.9317733Z   ssh-strict: true
+Security Scan	Checkout code	2026-01-05T04:07:27.9318150Z   ssh-user: git
+Security Scan	Checkout code	2026-01-05T04:07:27.9318572Z   persist-credentials: true
+Security Scan	Checkout code	2026-01-05T04:07:27.9319078Z   clean: true
+Security Scan	Checkout code	2026-01-05T04:07:27.9319504Z   sparse-checkout-cone-mode: true
+Security Scan	Checkout code	2026-01-05T04:07:27.9320019Z   fetch-depth: 1
+Security Scan	Checkout code	2026-01-05T04:07:27.9320434Z   fetch-tags: false
+Security Scan	Checkout code	2026-01-05T04:07:27.9320867Z   show-progress: true
+Security Scan	Checkout code	2026-01-05T04:07:27.9321310Z   lfs: false
+Security Scan	Checkout code	2026-01-05T04:07:27.9321698Z   submodules: false
+Security Scan	Checkout code	2026-01-05T04:07:27.9322153Z   set-safe-directory: true
+Security Scan	Checkout code	2026-01-05T04:07:27.9322862Z env:
+Security Scan	Checkout code	2026-01-05T04:07:27.9323278Z   PYTHON_VERSION: 3.12
+Security Scan	Checkout code	2026-01-05T04:07:27.9323740Z   ARTIFACT_RETENTION_DAYS: 7
+Security Scan	Checkout code	2026-01-05T04:07:27.9324232Z   COVERAGE_RETENTION_DAYS: 30
+Security Scan	Checkout code	2026-01-05T04:07:27.9324700Z ##[endgroup]
+Security Scan	Checkout code	2026-01-05T04:07:28.0225694Z Syncing repository: franklinbaldo/egregora
+Security Scan	Checkout code	2026-01-05T04:07:28.0228125Z ##[group]Getting Git version info
+Security Scan	Checkout code	2026-01-05T04:07:28.0229028Z Working directory is '/home/runner/work/egregora/egregora'
+Security Scan	Checkout code	2026-01-05T04:07:28.0230043Z [command]/usr/bin/git version
+Security Scan	Checkout code	2026-01-05T04:07:28.0304398Z git version 2.52.0
+Security Scan	Checkout code	2026-01-05T04:07:28.0324669Z ##[endgroup]
+Security Scan	Checkout code	2026-01-05T04:07:28.0338350Z Temporarily overriding HOME='/home/runner/work/_temp/96ae5605-650e-467d-a3f7-e4564e15f83d' before making global git config changes
+Security Scan	Checkout code	2026-01-05T04:07:28.0340612Z Adding repository directory to the temporary git global config as a safe directory
+Security Scan	Checkout code	2026-01-05T04:07:28.0343236Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/egregora/egregora
+Security Scan	Checkout code	2026-01-05T04:07:28.0382309Z Deleting the contents of '/home/runner/work/egregora/egregora'
+Security Scan	Checkout code	2026-01-05T04:07:28.0385780Z ##[group]Initializing the repository
+Security Scan	Checkout code	2026-01-05T04:07:28.0390246Z [command]/usr/bin/git init /home/runner/work/egregora/egregora
+Security Scan	Checkout code	2026-01-05T04:07:28.0507934Z hint: Using 'master' as the name for the initial branch. This default branch name
+Security Scan	Checkout code	2026-01-05T04:07:28.0509643Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+Security Scan	Checkout code	2026-01-05T04:07:28.0510598Z hint: to use in all of your new repositories, which will suppress this warning,
+Security Scan	Checkout code	2026-01-05T04:07:28.0511318Z hint: call:
+Security Scan	Checkout code	2026-01-05T04:07:28.0511693Z hint:
+Security Scan	Checkout code	2026-01-05T04:07:28.0512539Z hint: 	git config --global init.defaultBranch <name>
+Security Scan	Checkout code	2026-01-05T04:07:28.0513585Z hint:
+Security Scan	Checkout code	2026-01-05T04:07:28.0514553Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+Security Scan	Checkout code	2026-01-05T04:07:28.0516016Z hint: 'development'. The just-created branch can be renamed via this command:
+Security Scan	Checkout code	2026-01-05T04:07:28.0516779Z hint:
+Security Scan	Checkout code	2026-01-05T04:07:28.0517622Z hint: 	git branch -m <name>
+Security Scan	Checkout code	2026-01-05T04:07:28.0518525Z hint:
+Security Scan	Checkout code	2026-01-05T04:07:28.0519358Z hint: Disable this message with "git config set advice.defaultBranchName false"
+Security Scan	Checkout code	2026-01-05T04:07:28.0520401Z Initialized empty Git repository in /home/runner/work/egregora/egregora/.git/
+Security Scan	Checkout code	2026-01-05T04:07:28.0523728Z [command]/usr/bin/git remote add origin https://github.com/franklinbaldo/egregora
+Security Scan	Checkout code	2026-01-05T04:07:28.0558096Z ##[endgroup]
+Security Scan	Checkout code	2026-01-05T04:07:28.0558886Z ##[group]Disabling automatic garbage collection
+Security Scan	Checkout code	2026-01-05T04:07:28.0561372Z [command]/usr/bin/git config --local gc.auto 0
+Security Scan	Checkout code	2026-01-05T04:07:28.0587919Z ##[endgroup]
+Security Scan	Checkout code	2026-01-05T04:07:28.0589137Z ##[group]Setting up auth
+Security Scan	Checkout code	2026-01-05T04:07:28.0589733Z Removing SSH command configuration
+Security Scan	Checkout code	2026-01-05T04:07:28.0595666Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Security Scan	Checkout code	2026-01-05T04:07:28.0626596Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Security Scan	Checkout code	2026-01-05T04:07:28.1023605Z Removing HTTP extra header
+Security Scan	Checkout code	2026-01-05T04:07:28.1029195Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Security Scan	Checkout code	2026-01-05T04:07:28.1059518Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Security Scan	Checkout code	2026-01-05T04:07:28.1270348Z Removing includeIf entries pointing to credentials config files
+Security Scan	Checkout code	2026-01-05T04:07:28.1275599Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Security Scan	Checkout code	2026-01-05T04:07:28.1305048Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Security Scan	Checkout code	2026-01-05T04:07:28.1522689Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-8c79c4bc-9780-4c9a-8465-66740eaec064.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+Security Scan	Checkout code	2026-01-05T04:07:28.1555567Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/egregora/egregora/.git.path /home/runner/work/_temp/git-credentials-8c79c4bc-9780-4c9a-8465-66740eaec064.config
+Security Scan	Checkout code	2026-01-05T04:07:28.1584272Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/egregora/egregora/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-8c79c4bc-9780-4c9a-8465-66740eaec064.config
+Security Scan	Checkout code	2026-01-05T04:07:28.1612964Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-8c79c4bc-9780-4c9a-8465-66740eaec064.config
+Security Scan	Checkout code	2026-01-05T04:07:28.1641064Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-8c79c4bc-9780-4c9a-8465-66740eaec064.config
+Security Scan	Checkout code	2026-01-05T04:07:28.1665546Z ##[endgroup]
+Security Scan	Checkout code	2026-01-05T04:07:28.1666286Z ##[group]Fetching the repository
+Security Scan	Checkout code	2026-01-05T04:07:28.1674819Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +4503577c07f63a6d03a236f512a75499567a3195:refs/remotes/origin/main
+Security Scan	Checkout code	2026-01-05T04:07:28.5576025Z From https://github.com/franklinbaldo/egregora
+Security Scan	Checkout code	2026-01-05T04:07:28.5578098Z  * [new ref]         4503577c07f63a6d03a236f512a75499567a3195 -> origin/main
+Security Scan	Checkout code	2026-01-05T04:07:28.5608020Z ##[endgroup]
+Security Scan	Checkout code	2026-01-05T04:07:28.5609551Z ##[group]Determining the checkout info
+Security Scan	Checkout code	2026-01-05T04:07:28.5611251Z ##[endgroup]
+Security Scan	Checkout code	2026-01-05T04:07:28.5614787Z [command]/usr/bin/git sparse-checkout disable
+Security Scan	Checkout code	2026-01-05T04:07:28.5655688Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+Security Scan	Checkout code	2026-01-05T04:07:28.5682629Z ##[group]Checking out the ref
+Security Scan	Checkout code	2026-01-05T04:07:28.5685333Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+Security Scan	Checkout code	2026-01-05T04:07:28.6372928Z Switched to a new branch 'main'
+Security Scan	Checkout code	2026-01-05T04:07:28.6375888Z branch 'main' set up to track 'origin/main'.
+Security Scan	Checkout code	2026-01-05T04:07:28.6383781Z ##[endgroup]
+Security Scan	Checkout code	2026-01-05T04:07:28.6419494Z [command]/usr/bin/git log -1 --format=%H
+Security Scan	Checkout code	2026-01-05T04:07:28.6443714Z 4503577c07f63a6d03a236f512a75499567a3195
+Security Scan	Setup Python environment	﻿2026-01-05T04:07:28.6734958Z Prepare all required actions
+Security Scan	Setup Python environment	2026-01-05T04:07:28.6736660Z Getting action download info
+Security Scan	Setup Python environment	2026-01-05T04:07:28.7911533Z Download action repository 'astral-sh/setup-uv@v5' (SHA:d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86)
+Security Scan	Setup Python environment	2026-01-05T04:07:29.0925041Z ##[group]Run ./.github/actions/setup-python-uv
+Security Scan	Setup Python environment	2026-01-05T04:07:29.0926120Z with:
+Security Scan	Setup Python environment	2026-01-05T04:07:29.0926782Z   python-version: 3.12
+Security Scan	Setup Python environment	2026-01-05T04:07:29.0927743Z   extras: --all-extras
+Security Scan	Setup Python environment	2026-01-05T04:07:29.0928489Z env:
+Security Scan	Setup Python environment	2026-01-05T04:07:29.0929122Z   PYTHON_VERSION: 3.12
+Security Scan	Setup Python environment	2026-01-05T04:07:29.0929920Z   ARTIFACT_RETENTION_DAYS: 7
+Security Scan	Setup Python environment	2026-01-05T04:07:29.0930793Z   COVERAGE_RETENTION_DAYS: 30
+Security Scan	Setup Python environment	2026-01-05T04:07:29.0931654Z ##[endgroup]
+Security Scan	Setup Python environment	2026-01-05T04:07:29.1172645Z ##[group]Run astral-sh/setup-uv@v5
+Security Scan	Setup Python environment	2026-01-05T04:07:29.1173628Z with:
+Security Scan	Setup Python environment	2026-01-05T04:07:29.1174278Z   enable-cache: true
+Security Scan	Setup Python environment	2026-01-05T04:07:29.1175084Z   cache-dependency-glob: uv.lock
+Security Scan	Setup Python environment	2026-01-05T04:07:29.1176318Z   github-token: ***
+Security Scan	Setup Python environment	2026-01-05T04:07:29.1177329Z   prune-cache: true
+Security Scan	Setup Python environment	2026-01-05T04:07:29.1178143Z   ignore-nothing-to-cache: false
+Security Scan	Setup Python environment	2026-01-05T04:07:29.1179139Z   ignore-empty-workdir: false
+Security Scan	Setup Python environment	2026-01-05T04:07:29.1179978Z env:
+Security Scan	Setup Python environment	2026-01-05T04:07:29.1180626Z   PYTHON_VERSION: 3.12
+Security Scan	Setup Python environment	2026-01-05T04:07:29.1181432Z   ARTIFACT_RETENTION_DAYS: 7
+Security Scan	Setup Python environment	2026-01-05T04:07:29.1182299Z   COVERAGE_RETENTION_DAYS: 30
+Security Scan	Setup Python environment	2026-01-05T04:07:29.1183133Z ##[endgroup]
+Security Scan	Setup Python environment	2026-01-05T04:07:29.6156671Z Downloading uv from "https://github.com/astral-sh/uv/releases/download/0.9.21/uv-x86_64-unknown-linux-gnu.tar.gz" ...
+Security Scan	Setup Python environment	2026-01-05T04:07:29.9098393Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/d60fd4bf-3949-40ec-bdc3-85689c031ec4 -f /home/runner/work/_temp/7a1ada69-6dc4-4fc7-9ffc-24c7a2aa729f
+Security Scan	Setup Python environment	2026-01-05T04:07:30.3543925Z Added /home/runner/.local/bin to the path
+Security Scan	Setup Python environment	2026-01-05T04:07:30.3546970Z Added /opt/hostedtoolcache/uv/0.9.21/x86_64 to the path
+Security Scan	Setup Python environment	2026-01-05T04:07:30.3571949Z Set UV_CACHE_DIR to /home/runner/work/_temp/setup-uv-cache
+Security Scan	Setup Python environment	2026-01-05T04:07:30.3572891Z Successfully installed uv version 0.9.21
+Security Scan	Setup Python environment	2026-01-05T04:07:30.3573838Z Searching files using cache dependency glob: uv.lock
+Security Scan	Setup Python environment	2026-01-05T04:07:30.3599909Z /home/runner/work/egregora/egregora/uv.lock
+Security Scan	Setup Python environment	2026-01-05T04:07:30.3626679Z Found 1 files to hash.
+Security Scan	Setup Python environment	2026-01-05T04:07:30.4568536Z Trying to restore uv cache from GitHub Actions cache with key: setup-uv-1-x86_64-unknown-linux-gnu-3.12.3-0d933c493c6268085afef3465b6bbb32fcbb7ab4cfa1aa01e24ec1a9b237f2c9
+Security Scan	Setup Python environment	2026-01-05T04:07:30.5288216Z Cache hit for: setup-uv-1-x86_64-unknown-linux-gnu-3.12.3-0d933c493c6268085afef3465b6bbb32fcbb7ab4cfa1aa01e24ec1a9b237f2c9
+Security Scan	Setup Python environment	2026-01-05T04:07:30.6952623Z Received 5171242 of 5171242 (100.0%), 42.5 MBs/sec
+Security Scan	Setup Python environment	2026-01-05T04:07:30.6953602Z Cache Size: ~5 MB (5171242 B)
+Security Scan	Setup Python environment	2026-01-05T04:07:30.6983789Z [command]/usr/bin/tar -xf /home/runner/work/_temp/869fd646-39eb-47d6-8b51-babac473454d/cache.tzst -P -C /home/runner/work/egregora/egregora --use-compress-program unzstd
+Security Scan	Setup Python environment	2026-01-05T04:07:30.7445952Z Cache restored successfully
+Security Scan	Setup Python environment	2026-01-05T04:07:30.7461299Z uv cache restored from GitHub Actions cache with key: setup-uv-1-x86_64-unknown-linux-gnu-3.12.3-0d933c493c6268085afef3465b6bbb32fcbb7ab4cfa1aa01e24ec1a9b237f2c9
+Security Scan	Setup Python environment	2026-01-05T04:07:30.7625368Z ##[group]Run uv python install 3.12
+Security Scan	Setup Python environment	2026-01-05T04:07:30.7625913Z [36;1muv python install 3.12[0m
+Security Scan	Setup Python environment	2026-01-05T04:07:30.7665053Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Security Scan	Setup Python environment	2026-01-05T04:07:30.7665705Z env:
+Security Scan	Setup Python environment	2026-01-05T04:07:30.7666040Z   PYTHON_VERSION: 3.12
+Security Scan	Setup Python environment	2026-01-05T04:07:30.7666416Z   ARTIFACT_RETENTION_DAYS: 7
+Security Scan	Setup Python environment	2026-01-05T04:07:30.7666785Z   COVERAGE_RETENTION_DAYS: 30
+Security Scan	Setup Python environment	2026-01-05T04:07:30.7667438Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+Security Scan	Setup Python environment	2026-01-05T04:07:30.7667885Z ##[endgroup]
+Security Scan	Setup Python environment	2026-01-05T04:07:30.9225030Z Downloading cpython-3.12.12-linux-x86_64-gnu (download) (31.7MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:31.7582344Z  Downloaded cpython-3.12.12-linux-x86_64-gnu (download)
+Security Scan	Setup Python environment	2026-01-05T04:07:31.7635483Z Installed Python 3.12.12 in 982ms
+Security Scan	Setup Python environment	2026-01-05T04:07:31.7637218Z  + cpython-3.12.12-linux-x86_64-gnu (python3.12)
+Security Scan	Setup Python environment	2026-01-05T04:07:31.7686726Z ##[group]Run uv sync --all-extras
+Security Scan	Setup Python environment	2026-01-05T04:07:31.7687638Z [36;1muv sync --all-extras[0m
+Security Scan	Setup Python environment	2026-01-05T04:07:31.7720780Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Security Scan	Setup Python environment	2026-01-05T04:07:31.7721171Z env:
+Security Scan	Setup Python environment	2026-01-05T04:07:31.7721353Z   PYTHON_VERSION: 3.12
+Security Scan	Setup Python environment	2026-01-05T04:07:31.7721571Z   ARTIFACT_RETENTION_DAYS: 7
+Security Scan	Setup Python environment	2026-01-05T04:07:31.7721799Z   COVERAGE_RETENTION_DAYS: 30
+Security Scan	Setup Python environment	2026-01-05T04:07:31.7722065Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+Security Scan	Setup Python environment	2026-01-05T04:07:31.7722340Z ##[endgroup]
+Security Scan	Setup Python environment	2026-01-05T04:07:31.9437252Z Using CPython 3.12.12
+Security Scan	Setup Python environment	2026-01-05T04:07:31.9437762Z Creating virtual environment at: .venv
+Security Scan	Setup Python environment	2026-01-05T04:07:31.9535195Z Resolved 267 packages in 0.93ms
+Security Scan	Setup Python environment	2026-01-05T04:07:31.9708056Z    Building egregora @ file:///home/runner/work/egregora/egregora
+Security Scan	Setup Python environment	2026-01-05T04:07:31.9938934Z Downloading scikit-learn (8.5MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:31.9941801Z Downloading mkdocs (3.7MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:31.9942930Z Downloading fastavro (3.3MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:31.9944940Z Downloading faker (1.9MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:31.9947236Z Downloading deptry (1.8MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:31.9948705Z Downloading tiktoken (1.1MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0036459Z Downloading pyarrow (45.5MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0040553Z Downloading babel (9.7MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0042610Z Downloading google-api-python-client (14.0MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0044821Z Downloading tokenizers (3.1MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0047349Z Downloading cryptography (4.3MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0049450Z Downloading mkdocs-material (8.9MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0051676Z Downloading aiohttp (1.7MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0054006Z Downloading pydantic-core (2.0MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0059244Z Downloading beartype (1.3MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0061775Z Downloading botocore (13.9MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0065052Z Downloading google-ai-generativelanguage (1.3MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0070116Z Downloading openai (1.0MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0073082Z Downloading lxml (5.0MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0078810Z Downloading numpy (15.6MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0084586Z Downloading pygments (1.2MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0094513Z Downloading ruff (13.6MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0098342Z Downloading virtualenv (5.7MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0104918Z Downloading scipy (34.0MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0111650Z Downloading lancedb (43.8MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0119365Z Downloading pillow (6.3MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0126294Z Downloading temporalio (11.6MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0130432Z Downloading grpcio (6.3MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0134624Z Downloading pandas (11.8MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0139040Z Downloading hf-xet (3.2MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0146987Z Downloading duckdb (19.5MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0151408Z Downloading lupa (2.0MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0184940Z Downloading selectolax (2.2MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.0191982Z Downloading ibis-framework (1.8MiB)
+Security Scan	Setup Python environment	2026-01-05T04:07:32.7254374Z  Downloaded tiktoken
+Security Scan	Setup Python environment	2026-01-05T04:07:32.7928764Z  Downloaded pygments
+Security Scan	Setup Python environment	2026-01-05T04:07:32.8521708Z  Downloaded google-ai-generativelanguage
+Security Scan	Setup Python environment	2026-01-05T04:07:32.9259132Z  Downloaded beartype
+Security Scan	Setup Python environment	2026-01-05T04:07:33.1018341Z  Downloaded aiohttp
+Security Scan	Setup Python environment	2026-01-05T04:07:33.1115434Z  Downloaded deptry
+Security Scan	Setup Python environment	2026-01-05T04:07:33.3428621Z  Downloaded pydantic-core
+Security Scan	Setup Python environment	2026-01-05T04:07:33.3785093Z  Downloaded lupa
+Security Scan	Setup Python environment	2026-01-05T04:07:33.4563248Z  Downloaded selectolax
+Security Scan	Setup Python environment	2026-01-05T04:07:33.8796036Z  Downloaded hf-xet
+Security Scan	Setup Python environment	2026-01-05T04:07:33.8797816Z  Downloaded tokenizers
+Security Scan	Setup Python environment	2026-01-05T04:07:33.9160081Z  Downloaded fastavro
+Security Scan	Setup Python environment	2026-01-05T04:07:34.0262039Z  Downloaded openai
+Security Scan	Setup Python environment	2026-01-05T04:07:34.0669474Z  Downloaded mkdocs
+Security Scan	Setup Python environment	2026-01-05T04:07:34.1208598Z  Downloaded faker
+Security Scan	Setup Python environment	2026-01-05T04:07:34.3080396Z       Built egregora @ file:///home/runner/work/egregora/egregora
+Security Scan	Setup Python environment	2026-01-05T04:07:34.3211455Z  Downloaded cryptography
+Security Scan	Setup Python environment	2026-01-05T04:07:34.3770642Z  Downloaded lxml
+Security Scan	Setup Python environment	2026-01-05T04:07:34.5123966Z  Downloaded virtualenv
+Security Scan	Setup Python environment	2026-01-05T04:07:34.5960479Z  Downloaded grpcio
+Security Scan	Setup Python environment	2026-01-05T04:07:34.6009903Z  Downloaded pillow
+Security Scan	Setup Python environment	2026-01-05T04:07:35.0138548Z  Downloaded scikit-learn
+Security Scan	Setup Python environment	2026-01-05T04:07:35.0723324Z  Downloaded babel
+Security Scan	Setup Python environment	2026-01-05T04:07:35.3323089Z  Downloaded ibis-framework
+Security Scan	Setup Python environment	2026-01-05T04:07:35.5027453Z  Downloaded ruff
+Security Scan	Setup Python environment	2026-01-05T04:07:35.5069083Z  Downloaded temporalio
+Security Scan	Setup Python environment	2026-01-05T04:07:35.5468830Z  Downloaded google-api-python-client
+Security Scan	Setup Python environment	2026-01-05T04:07:35.6858994Z  Downloaded numpy
+Security Scan	Setup Python environment	2026-01-05T04:07:35.7454274Z  Downloaded botocore
+Security Scan	Setup Python environment	2026-01-05T04:07:35.8530914Z  Downloaded duckdb
+Security Scan	Setup Python environment	2026-01-05T04:07:36.0152299Z  Downloaded pandas
+Security Scan	Setup Python environment	2026-01-05T04:07:36.3962039Z  Downloaded lancedb
+Security Scan	Setup Python environment	2026-01-05T04:07:36.4108985Z  Downloaded scipy
+Security Scan	Setup Python environment	2026-01-05T04:07:36.5006674Z  Downloaded pyarrow
+Security Scan	Setup Python environment	2026-01-05T04:07:37.6728684Z  Downloaded mkdocs-material
+Security Scan	Setup Python environment	2026-01-05T04:07:37.6731097Z Prepared 261 packages in 5.71s
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3293673Z Installed 261 packages in 655ms
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3296711Z  + ag-ui-protocol==0.1.10
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3297615Z  + aiohappyeyeballs==2.6.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3298076Z  + aiohttp==3.13.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3298456Z  + aiosignal==1.4.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3298851Z  + annotated-types==0.7.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3299292Z  + anthropic==0.75.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3299694Z  + anyio==4.12.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3300097Z  + argcomplete==3.6.3
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3300511Z  + atpublic==7.0.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3300865Z  + attrs==25.4.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3301163Z  + authlib==1.6.6
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3301484Z  + babel==2.17.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3301789Z  + backrefs==6.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3302105Z  + bandit==1.9.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3302416Z  + beartype==0.22.9
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3302737Z  + boto3==1.42.17
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3303056Z  + botocore==1.42.17
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3303400Z  + cachecontrol==0.14.4
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3303761Z  + cachetools==6.2.4
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3304094Z  + cairocffi==1.7.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3304414Z  + cairosvg==2.8.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3304750Z  + certifi==2025.11.12
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3305097Z  + cffi==2.0.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3305402Z  + cfgv==3.5.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3305744Z  + charset-normalizer==3.4.4
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3306134Z  + click==8.3.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3306465Z  + cloudpickle==3.1.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3306813Z  + codespell==2.4.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3307301Z  + cohere==5.20.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3307629Z  + colorama==0.4.6
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3307946Z  + coverage==7.13.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3308311Z  + cryptography==46.0.3
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3308682Z  + csscompressor==0.9.5
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3309041Z  + cssselect2==0.8.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3309390Z  + cyclopts==4.4.3
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3309703Z  + defusedxml==0.7.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3310049Z  + deprecation==2.1.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3310404Z  + deptry==0.24.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3310742Z  + diskcache==5.6.3
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3311057Z  + distlib==0.4.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3311366Z  + distro==1.9.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3311702Z  + dnspython==2.8.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3312052Z  + docstring-parser==0.17.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3312433Z  + docutils==0.22.4
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3312753Z  + duckdb==1.4.3
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3313236Z  + egregora==2.0.0 (from file:///home/runner/work/egregora/egregora)
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3313830Z  + email-validator==2.3.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3314229Z  + eval-type-backport==0.3.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3314657Z  + exceptiongroup==1.3.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3315026Z  + execnet==2.1.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3315682Z  + executing==2.2.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3316020Z  + faker==39.0.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3316337Z  + fakeredis==2.33.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3316682Z  + fastavro==1.12.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3317010Z  + fastmcp==2.14.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3317488Z  + filelock==3.20.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3317811Z  + freezegun==1.5.5
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3318133Z  + frozenlist==1.8.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3318459Z  + fsspec==2025.12.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3318788Z  + genai-prices==0.0.49
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3319149Z  + ghp-import==2.1.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3319504Z  + gitdb==4.0.12
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3319830Z  + gitpython==3.1.45
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3320221Z  + google-ai-generativelanguage==0.6.15
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3320752Z  + google-api-core==2.28.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3321239Z  + google-api-python-client==2.187.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3321679Z  + google-auth==2.45.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3322063Z  + google-auth-httplib2==0.3.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3322716Z  + google-genai==1.56.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3323104Z  + google-generativeai==0.8.6
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3323530Z  + googleapis-common-protos==1.72.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3323962Z  + griffe==1.15.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3324283Z  + groq==1.0.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3324596Z  + grpcio==1.76.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3324933Z  + grpcio-status==1.71.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3325295Z  + h11==0.16.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3325605Z  + hf-xet==1.2.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3325912Z  + hjson==3.1.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3326228Z  + htmlmin2==0.1.13
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3326622Z  + httpcore==1.0.9
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3326945Z  + httplib2==0.31.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3327411Z  + httpx==0.28.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3327719Z  + httpx-sse==0.4.3
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3328056Z  + huggingface-hub==0.36.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3328436Z  + hypothesis==6.148.8
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3328787Z  + ibis-framework==11.0.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3329148Z  + identify==2.6.15
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3329462Z  + idna==3.11
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3329811Z  + importlib-metadata==8.7.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3330214Z  + iniconfig==2.3.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3330566Z  + invoke==2.2.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3330895Z  + jaraco-classes==3.4.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3331269Z  + jaraco-context==6.0.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3331649Z  + jaraco-functools==4.4.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3332011Z  + jeepney==0.9.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3332316Z  + jinja2==3.1.6
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3332627Z  + jiter==0.12.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3332940Z  + jmespath==1.0.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3333257Z  + joblib==1.5.3
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3333571Z  + jsmin==3.0.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3333905Z  + jsonschema==4.25.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3334253Z  + jsonschema-path==0.3.4
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3334678Z  + jsonschema-specifications==2025.9.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3335116Z  + keyring==25.7.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3335465Z  + lance-namespace==0.4.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3335882Z  + lance-namespace-urllib3-client==0.4.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3336339Z  + lancedb==0.26.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3336659Z  + logfire==4.16.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3336994Z  + logfire-api==4.16.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3337538Z  + lupa==2.6
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3337847Z  + lxml==6.0.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3338142Z  + mando==0.7.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3338462Z  + markdown==3.10
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3338800Z  + markdown-it-py==4.0.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3339175Z  + markupsafe==3.0.3
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3339521Z  + mcp==1.25.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3339840Z  + mdurl==0.1.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3340161Z  + mergedeep==1.3.4
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3340500Z  + mistralai==1.9.11
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3340837Z  + mkdocs==1.6.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3341168Z  + mkdocs-autorefs==1.4.3
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3341554Z  + mkdocs-blogging-plugin==2.2.11
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3341991Z  + mkdocs-get-deps==0.2.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3342469Z  + mkdocs-git-revision-date-localized-plugin==1.5.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3343016Z  + mkdocs-glightbox==0.5.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3343420Z  + mkdocs-macros-plugin==1.5.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3343830Z  + mkdocs-material==9.7.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3344226Z  + mkdocs-material-extensions==1.3.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3344689Z  + mkdocs-minify-plugin==0.8.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3345368Z  + mkdocs-rss-plugin==1.17.7
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3345780Z  + mkdocs-static-i18n==1.3.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3346173Z  + mkdocstrings==1.0.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3346558Z  + mkdocstrings-python==2.0.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3346963Z  + more-itertools==10.8.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3347457Z  + msgpack==1.1.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3347797Z  + multidict==6.7.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3348143Z  + nexus-rpc==1.2.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3348462Z  + nodeenv==1.10.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3348784Z  + numpy==2.4.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3349094Z  + openai==2.14.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3349441Z  + openapi-pydantic==0.5.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3349849Z  + opentelemetry-api==1.39.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3350356Z  + opentelemetry-exporter-otlp-proto-common==1.39.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3350973Z  + opentelemetry-exporter-otlp-proto-http==1.39.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3351549Z  + opentelemetry-exporter-prometheus==0.60b1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3352281Z  + opentelemetry-instrumentation==0.60b1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3352840Z  + opentelemetry-instrumentation-httpx==0.60b1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3353369Z  + opentelemetry-proto==1.39.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3353793Z  + opentelemetry-sdk==1.39.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3354265Z  + opentelemetry-semantic-conventions==0.60b1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3354780Z  + opentelemetry-util-http==0.60b1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3355209Z  + packaging==25.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3355543Z  + paginate==0.5.7
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3355863Z  + pandas==2.3.3
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3356178Z  + parsy==2.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3356496Z  + pathable==0.4.4
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3356821Z  + pathspec==0.12.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3357275Z  + pathvalidate==3.3.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3357632Z  + pillow==11.3.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3357963Z  + platformdirs==4.5.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3358291Z  + pluggy==1.6.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3358624Z  + pre-commit==4.5.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3358998Z  + prometheus-client==0.23.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3359404Z  + prompt-toolkit==3.0.52
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3359777Z  + propcache==0.4.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3360119Z  + proto-plus==1.27.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3360463Z  + protobuf==5.29.5
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3360794Z  + py-cpuinfo==9.0.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3361153Z  + py-key-value-aio==0.3.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3361535Z  + py-key-value-shared==0.3.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3361919Z  + pyarrow==22.0.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3362263Z  + pyarrow-hotfix==0.7
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3362612Z  + pyasn1==0.6.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3362944Z  + pyasn1-modules==0.4.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3363317Z  + pycparser==2.23
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3363660Z  + pydantic==2.12.5
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3363987Z  + pydantic-ai==1.39.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3364353Z  + pydantic-ai-slim==1.39.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3364742Z  + pydantic-core==2.41.5
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3365111Z  + pydantic-evals==1.39.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3365491Z  + pydantic-graph==1.39.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3365898Z  + pydantic-settings==2.12.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3366290Z  + pydocket==0.16.3
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3366650Z  + pygments==2.19.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3366990Z  + pyjwt==2.10.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3367473Z  + pymdown-extensions==10.19.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3367894Z  + pyparsing==3.3.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3368231Z  + pyperclip==1.11.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3368565Z  + pytest==9.0.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3368908Z  + pytest-asyncio==1.3.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3369295Z  + pytest-benchmark==5.2.3
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3369684Z  + pytest-cov==7.0.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3370062Z  + pytest-mock==3.15.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3370432Z  + pytest-socket==0.7.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3370790Z  + pytest-xdist==3.8.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3371164Z  + python-dateutil==2.9.0.post0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3371581Z  + python-dotenv==1.2.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3371963Z  + python-frontmatter==1.1.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3372385Z  + python-json-logger==4.0.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3372780Z  + python-multipart==0.0.21
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3373153Z  + pytz==2025.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3373469Z  + pyyaml==6.0.3
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3373813Z  + pyyaml-env-tag==1.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3374170Z  + radon==6.0.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3374484Z  + ratelimit==2.2.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3375034Z  + redis==7.1.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3375367Z  + referencing==0.36.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3375722Z  + regex==2025.11.3
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3376047Z  + requests==2.32.5
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3376387Z  + requirements-parser==0.13.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3376785Z  + respx==0.22.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3377222Z  + rich==14.2.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3377540Z  + rich-rst==1.3.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3377866Z  + rpds-py==0.30.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3378187Z  + rsa==4.9.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3378494Z  + ruff==0.14.10
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3378807Z  + s3transfer==0.16.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3379167Z  + scikit-learn==1.8.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3379511Z  + scipy==1.16.3
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3379832Z  + secretstorage==3.5.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3380199Z  + selectolax==0.4.6
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3380540Z  + shellingham==1.5.4
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3380873Z  + six==1.17.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3381177Z  + smmap==5.0.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3381711Z  + sniffio==1.3.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3382057Z  + sortedcontainers==2.4.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3382304Z  + sqlglot==28.5.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3382494Z  + sse-starlette==3.1.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3382691Z  + starlette==0.50.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3382869Z  + stevedore==5.6.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3383060Z  + super-collections==0.6.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3383264Z  + syrupy==5.0.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3383438Z  + temporalio==1.20.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3383624Z  + tenacity==9.1.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3383804Z  + termcolor==3.2.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3383978Z  + threadpoolctl==3.6.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3384166Z  + tiktoken==0.12.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3384336Z  + tinycss2==1.5.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3384511Z  + tokenizers==0.22.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3384691Z  + tomli-w==1.2.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3384864Z  + toolz==1.1.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3385024Z  + tqdm==4.67.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3385191Z  + typer==0.21.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3385375Z  + types-protobuf==6.32.1.20251210
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3385609Z  + types-requests==2.32.4.20250913
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3385834Z  + typing-extensions==4.15.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3386057Z  + typing-inspection==0.4.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3386254Z  + tzdata==2024.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3386425Z  + uritemplate==4.2.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3386607Z  + urllib3==2.6.2
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3386775Z  + uvicorn==0.40.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3386945Z  + virtualenv==20.35.4
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3387370Z  + vulture==2.14
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3387548Z  + watchdog==6.0.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3387712Z  + wcwidth==0.2.14
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3387889Z  + webencodings==0.5.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3388076Z  + websockets==15.0.1
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3388250Z  + wrapt==1.17.3
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3388419Z  + xenon==0.9.3
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3388585Z  + yarl==1.22.0
+Security Scan	Setup Python environment	2026-01-05T04:07:38.3388742Z  + zipp==3.23.0
+Security Scan	Run safety check	﻿2026-01-05T04:07:38.3560316Z ##[group]Run uvx safety check --full-report
+Security Scan	Run safety check	2026-01-05T04:07:38.3560664Z [36;1muvx safety check --full-report[0m
+Security Scan	Run safety check	2026-01-05T04:07:38.3592833Z shell: /usr/bin/bash -e {0}
+Security Scan	Run safety check	2026-01-05T04:07:38.3593067Z env:
+Security Scan	Run safety check	2026-01-05T04:07:38.3593241Z   PYTHON_VERSION: 3.12
+Security Scan	Run safety check	2026-01-05T04:07:38.3593458Z   ARTIFACT_RETENTION_DAYS: 7
+Security Scan	Run safety check	2026-01-05T04:07:38.3593678Z   COVERAGE_RETENTION_DAYS: 30
+Security Scan	Run safety check	2026-01-05T04:07:38.3593945Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+Security Scan	Run safety check	2026-01-05T04:07:38.3594214Z ##[endgroup]
+Security Scan	Run safety check	2026-01-05T04:07:38.5648890Z Downloading nltk (1.4MiB)
+Security Scan	Run safety check	2026-01-05T04:07:38.6450179Z  Downloaded nltk
+Security Scan	Run safety check	2026-01-05T04:07:38.6717702Z Installed 40 packages in 26ms
+Security Scan	Run safety check	2026-01-05T04:07:40.9710791Z 
+Security Scan	Run safety check	2026-01-05T04:07:40.9710844Z 
+Security Scan	Run safety check	2026-01-05T04:07:40.9711966Z [33m[1m+===========================================================================================================================================================================================+[0m
+Security Scan	Run safety check	2026-01-05T04:07:40.9712343Z 
+Security Scan	Run safety check	2026-01-05T04:07:40.9712350Z 
+Security Scan	Run safety check	2026-01-05T04:07:40.9713025Z [31m[1mDEPRECATED: [0m[33m[1mthis command (`check`) has been DEPRECATED, and will be unsupported beyond 01 June 2024.[0m
+Security Scan	Run safety check	2026-01-05T04:07:40.9713544Z 
+Security Scan	Run safety check	2026-01-05T04:07:40.9713550Z 
+Security Scan	Run safety check	2026-01-05T04:07:40.9714278Z [32mWe highly encourage switching to the new [0m[32m[1m`scan`[0m[32m command which is easier to use, more powerful, and can be set up to mimic the deprecated command if required.[0m
+Security Scan	Run safety check	2026-01-05T04:07:40.9715259Z 
+Security Scan	Run safety check	2026-01-05T04:07:40.9715266Z 
+Security Scan	Run safety check	2026-01-05T04:07:40.9715600Z [33m[1m+===========================================================================================================================================================================================+[0m
+Security Scan	Run safety check	2026-01-05T04:07:40.9715894Z 
+Security Scan	Run safety check	2026-01-05T04:07:40.9715900Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2894335Z +==============================================================================+
+Security Scan	Run safety check	2026-01-05T04:07:41.2894766Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2894914Z                                /$$$$$$            /$$
+Security Scan	Run safety check	2026-01-05T04:07:41.2895388Z                               /$$__  $$          | $$
+Security Scan	Run safety check	2026-01-05T04:07:41.2895823Z            /$$$$$$$  /$$$$$$ | $$  \__//$$$$$$  /$$$$$$   /$$   /$$
+Security Scan	Run safety check	2026-01-05T04:07:41.2896266Z           /$$_____/ |____  $$| $$$$   /$$__  $$|_  $$_/  | $$  | $$
+Security Scan	Run safety check	2026-01-05T04:07:41.2896714Z          |  $$$$$$   /$$$$$$$| $$_/  | $$$$$$$$  | $$    | $$  | $$
+Security Scan	Run safety check	2026-01-05T04:07:41.2897340Z           \____  $$ /$$__  $$| $$    | $$_____/  | $$ /$$| $$  | $$
+Security Scan	Run safety check	2026-01-05T04:07:41.2897768Z           /$$$$$$$/|  $$$$$$$| $$    |  $$$$$$$  |  $$$$/|  $$$$$$$
+Security Scan	Run safety check	2026-01-05T04:07:41.2898204Z          |_______/  \_______/|__/     \_______/   \___/   \____  $$
+Security Scan	Run safety check	2026-01-05T04:07:41.2898636Z                                                           /$$  | $$
+Security Scan	Run safety check	2026-01-05T04:07:41.2899047Z                                                          |  $$$$$$/
+Security Scan	Run safety check	2026-01-05T04:07:41.2899539Z   by safetycli.com                                        \______/
+Security Scan	Run safety check	2026-01-05T04:07:41.2899913Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2900063Z +==============================================================================+
+Security Scan	Run safety check	2026-01-05T04:07:41.2900389Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2900693Z  [1mREPORT[0m 
+Security Scan	Run safety check	2026-01-05T04:07:41.2900875Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2901291Z   Safety [1mv3.7.0[0m is scanning for [1mVulnerabilities[0m[1m...[0m
+Security Scan	Run safety check	2026-01-05T04:07:41.2902065Z [1m  Scanning dependencies[0m in your [1menvironment:[0m
+Security Scan	Run safety check	2026-01-05T04:07:41.2902431Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2902587Z   -> /home/runner/work/_temp/setup-uv-
+Security Scan	Run safety check	2026-01-05T04:07:41.2903151Z   cache/archive-v0/4TkLs4FF77YQiqdPZYDP_/lib/python3.12/site-packages
+Security Scan	Run safety check	2026-01-05T04:07:41.2903586Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2903867Z   Using [1mopen-source vulnerability database[0m
+Security Scan	Run safety check	2026-01-05T04:07:41.2904396Z [1m  Found and scanned 40 packages[0m
+Security Scan	Run safety check	2026-01-05T04:07:41.2904890Z   Timestamp [1m2026-01-05 04:07:41[0m
+Security Scan	Run safety check	2026-01-05T04:07:41.2905405Z [1m  0[0m[1m vulnerabilities reported[0m
+Security Scan	Run safety check	2026-01-05T04:07:41.2905935Z [1m  0[0m[1m vulnerabilities ignored[0m
+Security Scan	Run safety check	2026-01-05T04:07:41.2906389Z +==============================================================================+
+Security Scan	Run safety check	2026-01-05T04:07:41.2907024Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2907554Z  [32m[1mNo known security vulnerabilities reported.[0m 
+Security Scan	Run safety check	2026-01-05T04:07:41.2907945Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2908242Z +==============================================================================+[0m
+Security Scan	Run safety check	2026-01-05T04:07:41.2908570Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2908577Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2909045Z [33m[1m+===========================================================================================================================================================================================+[0m
+Security Scan	Run safety check	2026-01-05T04:07:41.2909445Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2909452Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2910149Z [31m[1mDEPRECATED: [0m[33m[1mthis command (`check`) has been DEPRECATED, and will be unsupported beyond 01 June 2024.[0m
+Security Scan	Run safety check	2026-01-05T04:07:41.2910846Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2910854Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2911803Z [32mWe highly encourage switching to the new [0m[32m[1m`scan`[0m[32m command which is easier to use, more powerful, and can be set up to mimic the deprecated command if required.[0m
+Security Scan	Run safety check	2026-01-05T04:07:41.2912665Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2912672Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2913118Z [33m[1m+===========================================================================================================================================================================================+[0m
+Security Scan	Run safety check	2026-01-05T04:07:41.2913699Z 
+Security Scan	Run safety check	2026-01-05T04:07:41.2913707Z 
+Security Scan	Run pip-audit	﻿2026-01-05T04:07:41.3960237Z ##[group]Run uvx pip-audit
+Security Scan	Run pip-audit	2026-01-05T04:07:41.3960533Z [36;1muvx pip-audit[0m
+Security Scan	Run pip-audit	2026-01-05T04:07:41.3992716Z shell: /usr/bin/bash -e {0}
+Security Scan	Run pip-audit	2026-01-05T04:07:41.3992954Z env:
+Security Scan	Run pip-audit	2026-01-05T04:07:41.3993129Z   PYTHON_VERSION: 3.12
+Security Scan	Run pip-audit	2026-01-05T04:07:41.3993347Z   ARTIFACT_RETENTION_DAYS: 7
+Security Scan	Run pip-audit	2026-01-05T04:07:41.3993571Z   COVERAGE_RETENTION_DAYS: 30
+Security Scan	Run pip-audit	2026-01-05T04:07:41.3993833Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+Security Scan	Run pip-audit	2026-01-05T04:07:41.3994129Z ##[endgroup]
+Security Scan	Run pip-audit	2026-01-05T04:07:41.5653631Z Downloading pip (1.7MiB)
+Security Scan	Run pip-audit	2026-01-05T04:07:41.6490193Z  Downloaded pip
+Security Scan	Run pip-audit	2026-01-05T04:07:41.6707870Z Installed 29 packages in 21ms
+Security Scan	Run pip-audit	2026-01-05T04:07:43.1183102Z No known vulnerabilities found
+Security Scan	Run bandit (security linter)	﻿2026-01-05T04:07:43.1628885Z ##[group]Run uvx bandit -r src/ -f sarif -o bandit-report.sarif
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.1629655Z [36;1muvx bandit -r src/ -f sarif -o bandit-report.sarif[0m
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.1666287Z shell: /usr/bin/bash -e {0}
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.1666524Z env:
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.1666698Z   PYTHON_VERSION: 3.12
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.1666922Z   ARTIFACT_RETENTION_DAYS: 7
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.1667366Z   COVERAGE_RETENTION_DAYS: 30
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.1667636Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.1667911Z ##[endgroup]
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.2718551Z Installed 7 packages in 10ms
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.5827931Z usage: bandit [-h] [-r] [-a {file,vuln}] [-n CONTEXT_LINES] [-c CONFIG_FILE]
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.5828715Z               [-p PROFILE] [-t TESTS] [-s SKIPS]
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.5829334Z               [-l | --severity-level {all,low,medium,high}]
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.5829883Z               [-i | --confidence-level {all,low,medium,high}]
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.5830412Z               [-f {csv,custom,html,json,screen,txt,xml,yaml}]
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.5831086Z               [--msg-template MSG_TEMPLATE] [-o [OUTPUT_FILE]] [-v] [-d] [-q]
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.5831562Z               [--ignore-nosec] [-x EXCLUDED_PATHS] [-b BASELINE]
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.5831905Z               [--ini INI_PATH] [--exit-zero] [--version]
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.5832167Z               [targets ...]
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.5832623Z bandit: error: argument -f/--format: invalid choice: 'sarif' (choose from csv, custom, html, json, screen, txt, xml, yaml)
+Security Scan	Run bandit (security linter)	2026-01-05T04:07:43.6035765Z ##[error]Process completed with exit code 2.
+Security Scan	Post Setup Python environment	﻿2026-01-05T04:07:43.6560237Z Post job cleanup.
+Security Scan	Post Setup Python environment	2026-01-05T04:07:43.6611325Z Post job cleanup.
+Security Scan	Post Setup Python environment	2026-01-05T04:07:43.8119595Z Cache hit occurred on key setup-uv-1-x86_64-unknown-linux-gnu-3.12.3-0d933c493c6268085afef3465b6bbb32fcbb7ab4cfa1aa01e24ec1a9b237f2c9, not saving cache.
+Security Scan	Post Checkout code	﻿2026-01-05T04:07:43.8239866Z Post job cleanup.
+Security Scan	Post Checkout code	2026-01-05T04:07:43.9067830Z [command]/usr/bin/git version
+Security Scan	Post Checkout code	2026-01-05T04:07:43.9102893Z git version 2.52.0
+Security Scan	Post Checkout code	2026-01-05T04:07:43.9140214Z Temporarily overriding HOME='/home/runner/work/_temp/5445e807-4482-433f-96e0-fd6788d8140c' before making global git config changes
+Security Scan	Post Checkout code	2026-01-05T04:07:43.9141526Z Adding repository directory to the temporary git global config as a safe directory
+Security Scan	Post Checkout code	2026-01-05T04:07:43.9146055Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/egregora/egregora
+Security Scan	Post Checkout code	2026-01-05T04:07:43.9280136Z Removing SSH command configuration
+Security Scan	Post Checkout code	2026-01-05T04:07:43.9287591Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Security Scan	Post Checkout code	2026-01-05T04:07:43.9331802Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Security Scan	Post Checkout code	2026-01-05T04:07:43.9778756Z Removing HTTP extra header
+Security Scan	Post Checkout code	2026-01-05T04:07:43.9781640Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Security Scan	Post Checkout code	2026-01-05T04:07:43.9817604Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0051457Z Removing includeIf entries pointing to credentials config files
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0057673Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0079660Z includeif.gitdir:/home/runner/work/egregora/egregora/.git.path
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0080458Z includeif.gitdir:/home/runner/work/egregora/egregora/.git/worktrees/*.path
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0080897Z includeif.gitdir:/github/workspace/.git.path
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0081255Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0089605Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/egregora/egregora/.git.path
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0110252Z /home/runner/work/_temp/git-credentials-8c79c4bc-9780-4c9a-8465-66740eaec064.config
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0120538Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/egregora/egregora/.git.path /home/runner/work/_temp/git-credentials-8c79c4bc-9780-4c9a-8465-66740eaec064.config
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0222413Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/egregora/egregora/.git/worktrees/*.path
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0250943Z /home/runner/work/_temp/git-credentials-8c79c4bc-9780-4c9a-8465-66740eaec064.config
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0263826Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/egregora/egregora/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-8c79c4bc-9780-4c9a-8465-66740eaec064.config
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0298067Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0320195Z /github/runner_temp/git-credentials-8c79c4bc-9780-4c9a-8465-66740eaec064.config
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0332812Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-8c79c4bc-9780-4c9a-8465-66740eaec064.config
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0361394Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0384762Z /github/runner_temp/git-credentials-8c79c4bc-9780-4c9a-8465-66740eaec064.config
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0394842Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-8c79c4bc-9780-4c9a-8465-66740eaec064.config
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0695295Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Security Scan	Post Checkout code	2026-01-05T04:07:44.0925686Z Removing credentials config '/home/runner/work/_temp/git-credentials-8c79c4bc-9780-4c9a-8465-66740eaec064.config'
+Security Scan	Complete job	﻿2026-01-05T04:07:44.1038135Z Cleaning up orphan processes

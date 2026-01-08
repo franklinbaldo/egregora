@@ -1,0 +1,338 @@
+tick	Set up job	﻿2026-01-05T04:00:25.3695033Z Current runner version: '2.330.0'
+tick	Set up job	2026-01-05T04:00:25.3719439Z ##[group]Runner Image Provisioner
+tick	Set up job	2026-01-05T04:00:25.3720264Z Hosted Compute Agent
+tick	Set up job	2026-01-05T04:00:25.3720942Z Version: 20251211.462
+tick	Set up job	2026-01-05T04:00:25.3721544Z Commit: 6cbad8c2bb55d58165063d031ccabf57e2d2db61
+tick	Set up job	2026-01-05T04:00:25.3722241Z Build Date: 2025-12-11T16:28:49Z
+tick	Set up job	2026-01-05T04:00:25.3723122Z Worker ID: {9d402c29-69f0-414f-81ef-ad770ed7e3b1}
+tick	Set up job	2026-01-05T04:00:25.3723803Z ##[endgroup]
+tick	Set up job	2026-01-05T04:00:25.3724336Z ##[group]Operating System
+tick	Set up job	2026-01-05T04:00:25.3724883Z Ubuntu
+tick	Set up job	2026-01-05T04:00:25.3725374Z 24.04.3
+tick	Set up job	2026-01-05T04:00:25.3725831Z LTS
+tick	Set up job	2026-01-05T04:00:25.3726294Z ##[endgroup]
+tick	Set up job	2026-01-05T04:00:25.3726839Z ##[group]Runner Image
+tick	Set up job	2026-01-05T04:00:25.3727375Z Image: ubuntu-24.04
+tick	Set up job	2026-01-05T04:00:25.3727883Z Version: 20251215.174.1
+tick	Set up job	2026-01-05T04:00:25.3728921Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20251215.174/images/ubuntu/Ubuntu2404-Readme.md
+tick	Set up job	2026-01-05T04:00:25.3730250Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20251215.174
+tick	Set up job	2026-01-05T04:00:25.3731566Z ##[endgroup]
+tick	Set up job	2026-01-05T04:00:25.3733057Z ##[group]GITHUB_TOKEN Permissions
+tick	Set up job	2026-01-05T04:00:25.3735293Z Actions: read
+tick	Set up job	2026-01-05T04:00:25.3735825Z Contents: write
+tick	Set up job	2026-01-05T04:00:25.3736424Z Metadata: read
+tick	Set up job	2026-01-05T04:00:25.3736907Z PullRequests: write
+tick	Set up job	2026-01-05T04:00:25.3737435Z ##[endgroup]
+tick	Set up job	2026-01-05T04:00:25.3739880Z Secret source: Actions
+tick	Set up job	2026-01-05T04:00:25.3740813Z Prepare workflow directory
+tick	Set up job	2026-01-05T04:00:25.4107756Z Prepare all required actions
+tick	Set up job	2026-01-05T04:00:25.4162538Z Getting action download info
+tick	Set up job	2026-01-05T04:00:25.7478853Z Download action repository 'actions/checkout@v6' (SHA:8e8c483db84b4bee98b60c0593521ed34d9990e8)
+tick	Set up job	2026-01-05T04:00:25.8726346Z Download action repository 'astral-sh/setup-uv@v7' (SHA:681c641aba71e4a1c380be3ab5e12ad51f415867)
+tick	Set up job	2026-01-05T04:00:26.4164734Z Complete job name: tick
+tick	Run actions/checkout@v6	﻿2026-01-05T04:00:26.4817490Z ##[group]Run actions/checkout@v6
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.4818371Z with:
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.4818803Z   repository: franklinbaldo/egregora
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.4819459Z   token: ***
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.4819843Z   ssh-strict: true
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.4820241Z   ssh-user: git
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.4820649Z   persist-credentials: true
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.4821095Z   clean: true
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.4821499Z   sparse-checkout-cone-mode: true
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.4821984Z   fetch-depth: 1
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.4822380Z   fetch-tags: false
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.4822980Z   show-progress: true
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.4823385Z   lfs: false
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.4823743Z   submodules: false
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.4824144Z   set-safe-directory: true
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.4824840Z ##[endgroup]
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.5728635Z Syncing repository: franklinbaldo/egregora
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.5730502Z ##[group]Getting Git version info
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.5731261Z Working directory is '/home/runner/work/egregora/egregora'
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.5732198Z [command]/usr/bin/git version
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.5800389Z git version 2.52.0
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.5852778Z ##[endgroup]
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.5866401Z Temporarily overriding HOME='/home/runner/work/_temp/e072af8b-8996-4d6d-8af8-51dc46ad1a26' before making global git config changes
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.5868110Z Adding repository directory to the temporary git global config as a safe directory
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.5870705Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/egregora/egregora
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.5908799Z Deleting the contents of '/home/runner/work/egregora/egregora'
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.5912384Z ##[group]Initializing the repository
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.5916891Z [command]/usr/bin/git init /home/runner/work/egregora/egregora
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6021431Z hint: Using 'master' as the name for the initial branch. This default branch name
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6023135Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6024938Z hint: to use in all of your new repositories, which will suppress this warning,
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6026804Z hint: call:
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6027558Z hint:
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6028479Z hint: 	git config --global init.defaultBranch <name>
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6029530Z hint:
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6030453Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6031548Z hint: 'development'. The just-created branch can be renamed via this command:
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6032388Z hint:
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6033200Z hint: 	git branch -m <name>
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6033912Z hint:
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6034721Z hint: Disable this message with "git config set advice.defaultBranchName false"
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6035693Z Initialized empty Git repository in /home/runner/work/egregora/egregora/.git/
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6038303Z [command]/usr/bin/git remote add origin https://github.com/franklinbaldo/egregora
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6073597Z ##[endgroup]
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6074325Z ##[group]Disabling automatic garbage collection
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6077035Z [command]/usr/bin/git config --local gc.auto 0
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6104733Z ##[endgroup]
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6106172Z ##[group]Setting up auth
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6106756Z Removing SSH command configuration
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6111804Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6144035Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6525462Z Removing HTTP extra header
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6531511Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6562079Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6773517Z Removing includeIf entries pointing to credentials config files
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6778995Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.6808856Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.7027967Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-24cebe2f-9aa1-46d4-a157-eea011259e70.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.7065322Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/egregora/egregora/.git.path /home/runner/work/_temp/git-credentials-24cebe2f-9aa1-46d4-a157-eea011259e70.config
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.7094687Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/egregora/egregora/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-24cebe2f-9aa1-46d4-a157-eea011259e70.config
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.7124620Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-24cebe2f-9aa1-46d4-a157-eea011259e70.config
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.7155254Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-24cebe2f-9aa1-46d4-a157-eea011259e70.config
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.7181485Z ##[endgroup]
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.7182265Z ##[group]Fetching the repository
+tick	Run actions/checkout@v6	2026-01-05T04:00:26.7190435Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +4cb4f080abc1f1acbe0469dd36089ed68322af46:refs/remotes/origin/main
+tick	Run actions/checkout@v6	2026-01-05T04:00:27.1960425Z From https://github.com/franklinbaldo/egregora
+tick	Run actions/checkout@v6	2026-01-05T04:00:27.1962293Z  * [new ref]         4cb4f080abc1f1acbe0469dd36089ed68322af46 -> origin/main
+tick	Run actions/checkout@v6	2026-01-05T04:00:27.1997097Z ##[endgroup]
+tick	Run actions/checkout@v6	2026-01-05T04:00:27.1998348Z ##[group]Determining the checkout info
+tick	Run actions/checkout@v6	2026-01-05T04:00:27.1999907Z ##[endgroup]
+tick	Run actions/checkout@v6	2026-01-05T04:00:27.2005967Z [command]/usr/bin/git sparse-checkout disable
+tick	Run actions/checkout@v6	2026-01-05T04:00:27.2059500Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+tick	Run actions/checkout@v6	2026-01-05T04:00:27.2090454Z ##[group]Checking out the ref
+tick	Run actions/checkout@v6	2026-01-05T04:00:27.2094916Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+tick	Run actions/checkout@v6	2026-01-05T04:00:27.2771868Z Switched to a new branch 'main'
+tick	Run actions/checkout@v6	2026-01-05T04:00:27.2774407Z branch 'main' set up to track 'origin/main'.
+tick	Run actions/checkout@v6	2026-01-05T04:00:27.2781468Z ##[endgroup]
+tick	Run actions/checkout@v6	2026-01-05T04:00:27.2817930Z [command]/usr/bin/git log -1 --format=%H
+tick	Run actions/checkout@v6	2026-01-05T04:00:27.2841772Z 4cb4f080abc1f1acbe0469dd36089ed68322af46
+tick	Run astral-sh/setup-uv@v7	﻿2026-01-05T04:00:27.3164327Z ##[group]Run astral-sh/setup-uv@v7
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.3165472Z with:
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.3166333Z   activate-environment: false
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.3167572Z   working-directory: /home/runner/work/egregora/egregora
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.3169169Z   github-token: ***
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.3170110Z   enable-cache: auto
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.3172092Z   cache-dependency-glob: **/*requirements*.txt
+tick	Run astral-sh/setup-uv@v7	**/*requirements*.in
+tick	Run astral-sh/setup-uv@v7	**/*constraints*.txt
+tick	Run astral-sh/setup-uv@v7	**/*constraints*.in
+tick	Run astral-sh/setup-uv@v7	**/pyproject.toml
+tick	Run astral-sh/setup-uv@v7	**/uv.lock
+tick	Run astral-sh/setup-uv@v7	**/*.py.lock
+tick	Run astral-sh/setup-uv@v7	
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.3174497Z   restore-cache: true
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.3175403Z   save-cache: true
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.3176271Z   prune-cache: true
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.3177168Z   cache-python: false
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.3178129Z   ignore-nothing-to-cache: false
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.3179186Z   ignore-empty-workdir: false
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.3180346Z   add-problem-matchers: true
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.3181518Z   resolution-strategy: highest
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.3182546Z ##[endgroup]
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.4649900Z (node:2171) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.4653074Z (Use `node --trace-deprecation ...` to show where the warning was created)
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.4764620Z Trying to find version for uv in: /home/runner/work/egregora/egregora/uv.toml
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.4767483Z Could not find file: /home/runner/work/egregora/egregora/uv.toml
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.4770357Z Trying to find version for uv in: /home/runner/work/egregora/egregora/pyproject.toml
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.4783712Z Could not determine uv version from uv.toml or pyproject.toml. Falling back to latest.
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.4787585Z Getting latest version from GitHub API...
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.7199828Z manifest-file not provided, reading from local file.
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.7240036Z manifest-file does not contain version 0.9.21, arch x86_64, platform unknown-linux-gnu. Falling back to GitHub releases.
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.7248869Z Downloading uv from "https://github.com/astral-sh/uv/releases/download/0.9.21/uv-x86_64-unknown-linux-gnu.tar.gz" ...
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:27.9852075Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/1993b6b3-758d-4272-82f2-8da27d5da1ac -f /home/runner/work/_temp/6bce605e-6847-4399-af61-7e4c82407f68
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:28.4369671Z Added /home/runner/.local/bin to the path
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:28.4373812Z Added /opt/hostedtoolcache/uv/0.9.21/x86_64 to the path
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:28.4375166Z Set UV_PYTHON_INSTALL_DIR to /home/runner/work/_temp/uv-python-dir
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:28.4381326Z Added /home/runner/work/_temp/uv-python-dir to the path
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:28.4403459Z Set UV_CACHE_DIR to /home/runner/work/_temp/setup-uv-cache
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:28.4404107Z Successfully installed uv version 0.9.21
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:28.4406820Z Searching files using cache dependency glob: /home/runner/work/egregora/egregora/**/*requirements*.txt,/home/runner/work/egregora/egregora/**/*requirements*.in,/home/runner/work/egregora/egregora/**/*constraints*.txt,/home/runner/work/egregora/egregora/**/*constraints*.in,/home/runner/work/egregora/egregora/**/pyproject.toml,/home/runner/work/egregora/egregora/**/uv.lock,/home/runner/work/egregora/egregora/**/*.py.lock
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:28.5297919Z /home/runner/work/egregora/egregora/pyproject.toml
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:28.5995696Z /home/runner/work/egregora/egregora/uv.lock
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:28.6018104Z Found 2 files to hash.
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:28.7024662Z Trying to restore uv cache from GitHub Actions cache with key: setup-uv-2-x86_64-unknown-linux-gnu-ubuntu-24.04-3.12.3-pruned-7e249882cca4f3101808eb750f9a454fccfa7e1f380f5f729fa1b82b6ef2b708
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:28.7807540Z Cache hit for: setup-uv-2-x86_64-unknown-linux-gnu-ubuntu-24.04-3.12.3-pruned-7e249882cca4f3101808eb750f9a454fccfa7e1f380f5f729fa1b82b6ef2b708
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:28.7913631Z (node:2171) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:29.0752072Z Received 491520 of 491520 (100.0%), 2.7 MBs/sec
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:29.0753029Z Cache Size: ~0 MB (491520 B)
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:29.0780769Z [command]/usr/bin/tar -xf /home/runner/work/_temp/87042503-1fb3-4fa7-b2d3-b9f1a579f7fe/cache.tzst -P -C /home/runner/work/egregora/egregora --use-compress-program unzstd
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:29.0880164Z Cache restored successfully
+tick	Run astral-sh/setup-uv@v7	2026-01-05T04:00:29.0886859Z uv cache restored from GitHub Actions cache with key: setup-uv-2-x86_64-unknown-linux-gnu-ubuntu-24.04-3.12.3-pruned-7e249882cca4f3101808eb750f9a454fccfa7e1f380f5f729fa1b82b6ef2b708
+tick	Run Jules Scheduler	﻿2026-01-05T04:00:29.1615402Z ##[group]Run args=(tick)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1615734Z [36;1margs=(tick)[0m
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1615937Z [36;1m[0m
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1616224Z [36;1mif [ "workflow_dispatch" = "workflow_dispatch" ]; then[0m
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1616553Z [36;1m  if [ "false" = "true" ]; then[0m
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1616813Z [36;1m    args+=(--all)[0m
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1617026Z [36;1m  fi[0m
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1617234Z [36;1m  if [ "false" = "true" ]; then[0m
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1617483Z [36;1m    args+=(--dry-run)[0m
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1617700Z [36;1m  fi[0m
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1617874Z [36;1m  if [ -n "" ]; then[0m
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1618133Z [36;1m    args+=(--prompt-id "")[0m
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1618406Z [36;1m  fi[0m
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1618575Z [36;1mfi[0m
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1618758Z [36;1m[0m
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1618931Z [36;1m# Using new CLI[0m
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1619455Z [36;1muv run --with requests --with python-frontmatter --with jinja2 --with typer --with pydantic python -m jules.cli schedule "${args[@]}"[0m
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1658204Z shell: /usr/bin/bash -e {0}
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1658479Z env:
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1658753Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1659135Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1659635Z   JULES_API_KEY: ***
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1660065Z   GITHUB_TOKEN: ***
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1660273Z   PYTHONPATH: .jules
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1660481Z ##[endgroup]
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2156330Z Using CPython 3.12.3 interpreter at: /usr/bin/python3.12
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2157263Z Creating virtual environment at: .venv
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2410317Z    Building egregora @ file:///home/runner/work/egregora/egregora
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2593773Z Downloading numpy (15.6MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2602063Z Downloading openai (1.0MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2619444Z Downloading google-api-python-client (14.0MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2620783Z Downloading hf-xet (3.2MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2622272Z Downloading beartype (1.3MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2624373Z Downloading tokenizers (3.1MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2626068Z Downloading virtualenv (5.7MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2628552Z Downloading lxml (5.0MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2630088Z Downloading scipy (34.0MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2632230Z Downloading babel (9.7MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2635239Z Downloading pyarrow (45.5MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2639136Z Downloading pandas (11.8MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2642169Z Downloading pygments (1.2MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2643224Z Downloading pydantic-core (2.0MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2646566Z Downloading google-ai-generativelanguage (1.3MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2648718Z Downloading ruff (13.6MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2651789Z Downloading grpcio (6.3MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2653787Z Downloading pillow (6.3MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2655647Z Downloading tiktoken (1.1MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2658970Z Downloading deptry (1.8MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2660829Z Downloading cryptography (4.3MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2662916Z Downloading selectolax (2.2MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2664911Z Downloading faker (1.9MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2717114Z Downloading mkdocs (3.7MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2722348Z Downloading fastavro (3.3MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2725286Z Downloading botocore (13.9MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2728084Z Downloading temporalio (11.6MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2731016Z Downloading aiohttp (1.7MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2793633Z Downloading ibis-framework (1.8MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2799256Z Downloading lupa (2.0MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2801930Z Downloading duckdb (19.5MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2805748Z Downloading mkdocs-material (8.9MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2809453Z Downloading scikit-learn (8.5MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:29.2813386Z Downloading lancedb (43.8MiB)
+tick	Run Jules Scheduler	2026-01-05T04:00:30.0417795Z  Downloaded tiktoken
+tick	Run Jules Scheduler	2026-01-05T04:00:30.1365768Z  Downloaded pygments
+tick	Run Jules Scheduler	2026-01-05T04:00:30.1902293Z  Downloaded google-ai-generativelanguage
+tick	Run Jules Scheduler	2026-01-05T04:00:30.2542353Z  Downloaded beartype
+tick	Run Jules Scheduler	2026-01-05T04:00:30.3940726Z  Downloaded aiohttp
+tick	Run Jules Scheduler	2026-01-05T04:00:30.4186685Z  Downloaded deptry
+tick	Run Jules Scheduler	2026-01-05T04:00:30.5907974Z  Downloaded pydantic-core
+tick	Run Jules Scheduler	2026-01-05T04:00:30.6344536Z  Downloaded lupa
+tick	Run Jules Scheduler	2026-01-05T04:00:30.7313577Z  Downloaded selectolax
+tick	Run Jules Scheduler	2026-01-05T04:00:31.0614407Z  Downloaded tokenizers
+tick	Run Jules Scheduler	2026-01-05T04:00:31.1196080Z  Downloaded hf-xet
+tick	Run Jules Scheduler	2026-01-05T04:00:31.1761888Z  Downloaded fastavro
+tick	Run Jules Scheduler	2026-01-05T04:00:31.2297222Z  Downloaded mkdocs
+tick	Run Jules Scheduler	2026-01-05T04:00:31.2737670Z       Built egregora @ file:///home/runner/work/egregora/egregora
+tick	Run Jules Scheduler	2026-01-05T04:00:31.3189123Z  Downloaded openai
+tick	Run Jules Scheduler	2026-01-05T04:00:31.3778917Z  Downloaded faker
+tick	Run Jules Scheduler	2026-01-05T04:00:31.4618896Z  Downloaded cryptography
+tick	Run Jules Scheduler	2026-01-05T04:00:31.5370704Z  Downloaded lxml
+tick	Run Jules Scheduler	2026-01-05T04:00:31.6251298Z  Downloaded virtualenv
+tick	Run Jules Scheduler	2026-01-05T04:00:31.7336440Z  Downloaded grpcio
+tick	Run Jules Scheduler	2026-01-05T04:00:31.7360862Z  Downloaded pillow
+tick	Run Jules Scheduler	2026-01-05T04:00:32.0742204Z  Downloaded scikit-learn
+tick	Run Jules Scheduler	2026-01-05T04:00:32.2272259Z  Downloaded babel
+tick	Run Jules Scheduler	2026-01-05T04:00:32.6051858Z  Downloaded temporalio
+tick	Run Jules Scheduler	2026-01-05T04:00:32.6203163Z  Downloaded ruff
+tick	Run Jules Scheduler	2026-01-05T04:00:32.6491430Z  Downloaded ibis-framework
+tick	Run Jules Scheduler	2026-01-05T04:00:32.6899943Z  Downloaded google-api-python-client
+tick	Run Jules Scheduler	2026-01-05T04:00:32.8254051Z  Downloaded numpy
+tick	Run Jules Scheduler	2026-01-05T04:00:32.9909353Z  Downloaded botocore
+tick	Run Jules Scheduler	2026-01-05T04:00:33.0459842Z  Downloaded duckdb
+tick	Run Jules Scheduler	2026-01-05T04:00:33.5444988Z  Downloaded lancedb
+tick	Run Jules Scheduler	2026-01-05T04:00:33.5828514Z  Downloaded pandas
+tick	Run Jules Scheduler	2026-01-05T04:00:33.5923776Z  Downloaded scipy
+tick	Run Jules Scheduler	2026-01-05T04:00:33.6854481Z  Downloaded pyarrow
+tick	Run Jules Scheduler	2026-01-05T04:00:34.9519224Z  Downloaded mkdocs-material
+tick	Run Jules Scheduler	2026-01-05T04:00:35.6906576Z Installed 259 packages in 738ms
+tick	Run Jules Scheduler	2026-01-05T04:00:48.4444044Z [main 6fc1b549] chore: update jules session history
+tick	Run Jules Scheduler	2026-01-05T04:00:48.4444445Z  1 file changed, 1 insertion(+)
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6375160Z To https://github.com/franklinbaldo/egregora
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6375778Z  ! [rejected]          main -> main (non-fast-forward)
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6376195Z error: failed to push some refs to 'https://github.com/franklinbaldo/egregora'
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6400069Z hint: Updates were rejected because the tip of your current branch is behind
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6400606Z hint: its remote counterpart. If you want to integrate the remote changes,
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6400999Z hint: use 'git pull' before pushing again.
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6401362Z hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6410079Z Failed to push session history: Command '['git', 'push']' returned non-zero exit status 1.
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6414512Z Running in CYCLE mode with order: ['curator', 'refactor', 'visionary', 'bolt', 'sentinel', 'builder', 'shepherd', 'janitor', 'docs_curator', 'artisan', 'palette', 'scribe', 'forge', 'sheriff', 'streamliner', 'weaver', 'simplifier', 'organizer', 'taskmaster', 'essentialist', 'sapper']
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6416364Z Branch 'jules' exists on remote.
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6416780Z Last recorded session: 9064785372207513113 (refactor)
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6417701Z Found PR for last session: #2233 - 🔧 Refactor: Fix BLE001 warnings in write.py
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6418310Z PR #2233 is green! Merging into 'jules'...
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6418701Z Merging PR #2233 into 'jules'...
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6419071Z Successfully merged PR #2233 into 'jules'
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6419502Z Next persona: visionary. Starting from 'jules'.
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6419977Z Starting session for visionary on branch 'jules'...
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6420407Z Created session: 1618828474548067264
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6421076Z 🔗 Jules Session URL: https://jules.google.com/sessions/1618828474548067264
+tick	Run Jules Feedback Loop	﻿2026-01-05T04:00:48.7147216Z ##[group]Run args=()
+tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7147507Z [36;1margs=()[0m
+tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7147717Z [36;1mif [ "false" = "true" ]; then[0m
+tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7148034Z [36;1m   args+=(--dry-run)[0m
+tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7148267Z [36;1mfi[0m
+tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7148444Z [36;1m[0m
+tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7148631Z [36;1m# Run the feedback script[0m
+tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7149086Z [36;1muv run --with requests --with typer --with pydantic python -m jules.cli feedback loop "${args[@]}"[0m
+tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7182950Z shell: /usr/bin/bash -e {0}
+tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7183196Z env:
+tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7183448Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7183808Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7184289Z   JULES_API_KEY: ***
+tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7184615Z   GITHUB_TOKEN: ***
+tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7184880Z   GH_TOKEN: ***
+tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7185072Z   PYTHONPATH: .jules
+tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7185268Z ##[endgroup]
+tick	Post Run astral-sh/setup-uv@v7	﻿2026-01-05T04:00:52.5531407Z Post job cleanup.
+tick	Post Run astral-sh/setup-uv@v7	2026-01-05T04:00:52.6772879Z UV_CACHE_DIR is already set to /home/runner/work/_temp/setup-uv-cache
+tick	Post Run astral-sh/setup-uv@v7	2026-01-05T04:00:52.6779562Z UV_PYTHON_INSTALL_DIR is already set to  /home/runner/work/_temp/uv-python-dir
+tick	Post Run astral-sh/setup-uv@v7	2026-01-05T04:00:52.6784655Z Cache hit occurred on key setup-uv-2-x86_64-unknown-linux-gnu-ubuntu-24.04-3.12.3-pruned-7e249882cca4f3101808eb750f9a454fccfa7e1f380f5f729fa1b82b6ef2b708, not saving cache.
+tick	Post Run astral-sh/setup-uv@v7	2026-01-05T04:00:52.6786505Z (node:2384) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+tick	Post Run astral-sh/setup-uv@v7	2026-01-05T04:00:52.6787607Z (Use `node --trace-deprecation ...` to show where the warning was created)
+tick	Post Run actions/checkout@v6	﻿2026-01-05T04:00:52.7417061Z Post job cleanup.
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8194680Z [command]/usr/bin/git version
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8230300Z git version 2.52.0
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8299659Z Temporarily overriding HOME='/home/runner/work/_temp/564d4e9f-09b7-41c8-ba6f-a292eaf42aad' before making global git config changes
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8300989Z Adding repository directory to the temporary git global config as a safe directory
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8305824Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/egregora/egregora
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8337027Z Removing SSH command configuration
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8343616Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8377150Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8628150Z Removing HTTP extra header
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8634497Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8671113Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8909889Z Removing includeIf entries pointing to credentials config files
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8915178Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8938538Z includeif.gitdir:/home/runner/work/egregora/egregora/.git.path
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8939771Z includeif.gitdir:/home/runner/work/egregora/egregora/.git/worktrees/*.path
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8941331Z includeif.gitdir:/github/workspace/.git.path
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8941964Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8949547Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/egregora/egregora/.git.path
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8971353Z /home/runner/work/_temp/git-credentials-24cebe2f-9aa1-46d4-a157-eea011259e70.config
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.8982561Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/egregora/egregora/.git.path /home/runner/work/_temp/git-credentials-24cebe2f-9aa1-46d4-a157-eea011259e70.config
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.9017843Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/egregora/egregora/.git/worktrees/*.path
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.9039964Z /home/runner/work/_temp/git-credentials-24cebe2f-9aa1-46d4-a157-eea011259e70.config
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.9050125Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/egregora/egregora/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-24cebe2f-9aa1-46d4-a157-eea011259e70.config
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.9081504Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.9101694Z /github/runner_temp/git-credentials-24cebe2f-9aa1-46d4-a157-eea011259e70.config
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.9110498Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-24cebe2f-9aa1-46d4-a157-eea011259e70.config
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.9143480Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.9163682Z /github/runner_temp/git-credentials-24cebe2f-9aa1-46d4-a157-eea011259e70.config
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.9172268Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-24cebe2f-9aa1-46d4-a157-eea011259e70.config
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.9201994Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+tick	Post Run actions/checkout@v6	2026-01-05T04:00:52.9418682Z Removing credentials config '/home/runner/work/_temp/git-credentials-24cebe2f-9aa1-46d4-a157-eea011259e70.config'
+tick	Complete job	﻿2026-01-05T04:00:52.9535247Z Cleaning up orphan processes

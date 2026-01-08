@@ -70,6 +70,7 @@ Note:
 from __future__ import annotations
 
 import logging
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
@@ -120,7 +121,7 @@ class Annotation:
 
     """
 
-    id: int
+    id: str  # UUID v4 instead of integer sequence
     parent_id: str
     parent_type: str
     author: str
@@ -205,8 +206,8 @@ class AnnotationStore:
         self.storage = storage
         self.output_sink = output_sink
         self._backend = storage.ibis_conn
-        self._sequence_name = f"{ANNOTATIONS_TABLE}_id_seq"
-        self._initialize()
+        # No longer using sequences - UUIDs are generated in save_annotation()
+        self._initialize_schema()
 
     # Note: Removed _connection property - use storage.connection() context manager instead
 
@@ -214,47 +215,28 @@ class AnnotationStore:
     # Schema Initialization
     # ========================================================================
 
-    def _initialize(self) -> None:
-        """Initialize database schema, sequences, and indexes.
+    def _initialize_schema(self) -> None:
+        """Initialize database schema and indexes.
 
         This method is called during __init__ and performs:
-        1. Create auto-increment sequence for annotation IDs
-        2. Create annotations table with proper schema
-        3. Add primary key constraint
-        4. Set default value for id column to use sequence
-        5. Create composite index on (parent_id, parent_type, created_at)
-        6. Sync sequence state with existing data (handles database restarts)
+        1. Create annotations table with proper schema (UUID-based ID)
+        2. Add primary key constraint
+        3. Create composite index on (parent_id, parent_type, created_at)
 
-        The sequence synchronization ensures that if the database already contains
-        annotations, the sequence starts at max(id) + 1 to avoid conflicts.
+        Note: We no longer use sequences - IDs are UUIDs generated in save_annotation().
         """
-        sequence_name = self._sequence_name
-        self.storage.ensure_sequence(sequence_name)
         # Use centralized schema definition
         database_schema.create_table_if_not_exists(
             self._backend, ANNOTATIONS_TABLE, database_schema.ANNOTATIONS_SCHEMA
         )
-        # Manually alter ID to use sequence (ibis create_table doesn't support DEFAULT nextval yet)
-        try:
-            self._backend.raw_sql(
-                f"ALTER TABLE {ANNOTATIONS_TABLE} ALTER COLUMN id SET DEFAULT nextval('{sequence_name}')"
-            )
-        except Exception as e:
-            # Table may already have the sequence default set, or have dependencies
-            if "depend" in str(e).lower() or "already" in str(e).lower():
-                pass  # Sequence default already set or dependencies exist - this is fine
-            else:
-                raise
 
         # Use protocol method instead of accessing protected member
         with self.storage.connection() as conn:
             database_schema.add_primary_key(conn, ANNOTATIONS_TABLE, "id")
 
-        self.storage.ensure_sequence_default(ANNOTATIONS_TABLE, "id", sequence_name)
         self._backend.raw_sql(
             f"\n            CREATE INDEX IF NOT EXISTS idx_annotations_parent_created\n            ON {ANNOTATIONS_TABLE} (parent_id, parent_type, created_at)\n            "
         )
-        self.storage.sync_sequence_with_table(sequence_name, table=ANNOTATIONS_TABLE, column="id")
 
     # ========================================================================
     # Internal Utilities
@@ -281,7 +263,7 @@ class AnnotationStore:
         """Persist an annotation and return the saved record."""
         # Trust internal callers, type hints enforce contract
         created_at = datetime.now(UTC)
-        annotation_id = self.storage.next_sequence_value(self._sequence_name)
+        annotation_id = str(uuid.uuid4())  # Generate UUID v4 instead of using sequence
         # Note: commentary is stored in 'content' column per schema
         # We also provide empty 'id' and 'source_checksum' to satisfy BASE_COLUMNS if needed,
         # but id is handled by sequence and source_checksum is nullable/defaulted usually.
@@ -419,7 +401,7 @@ class AnnotationStore:
         else:
             created_at = created_at.astimezone(UTC)
         return Annotation(
-            id=int(row["id"]),
+            id=str(row["id"]),  # ID is now a UUID string
             parent_id=str(row["parent_id"]),
             parent_type=str(row["parent_type"]),
             author=str(row["author"]),

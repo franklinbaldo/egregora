@@ -106,7 +106,6 @@ class WriteCommandOptions:
     use_full_context_window: bool
     max_windows: int | None
     resume: bool
-    economic_mode: bool
     refresh: str | None
     force: bool
     debug: bool
@@ -322,7 +321,6 @@ def run_cli_flow(
     use_full_context_window: bool = False,
     max_windows: int | None = None,
     resume: bool = True,
-    economic_mode: bool = False,
     refresh: str | None = None,
     force: bool = False,
     debug: bool = False,
@@ -351,7 +349,6 @@ def run_cli_flow(
         "use_full_context_window": use_full_context_window,
         "max_windows": max_windows,
         "resume": resume,
-        "economic_mode": economic_mode,
         "refresh": refresh,
         "force": force,
         "debug": debug,
@@ -891,15 +888,15 @@ def _create_gemini_client() -> genai.Client:
 
     We disable retries for 429 (Resource Exhausted) to allow our application-level
     Model/Key rotator to handle it immediately (Story 8).
-    We still retry 503 (Service Unavailable).
+    We retry all common 5xx server errors (500, 502, 503, 504) with increased attempts.
     """
     http_options = genai.types.HttpOptions(
         retry_options=genai.types.HttpRetryOptions(
-            attempts=3,  # Reduced from 15
-            initial_delay=1.0,
-            max_delay=10.0,
+            attempts=5,  # Increased from 3 to 5 for better resilience
+            initial_delay=2.0,  # Increased from 1.0 to wait longer on first retry
+            max_delay=30.0,  # Increased from 10.0 to allow longer backoff
             exp_base=2.0,
-            http_status_codes=[503],
+            http_status_codes=[500, 502, 503, 504],  # All common 5xx server errors
         )
     )
     return genai.Client(http_options=http_options)
