@@ -6,9 +6,13 @@ This document outlines the user experience (UX) vision for the generated blogs.
 
 The MkDocs templates are located in the following directory:
 
-`src/egregora/rendering/templates/site/`
+`src/egregora/output_adapters/mkdocs/`
 
-This directory contains the Jinja2 templates for `mkdocs.yml`, theme overrides, and content pages. All frontend changes should be made to these templates.
+This directory contains the Python source files where the MkDocs templates and configuration are embedded. Key files include:
+- `scaffolding.py`: Generates `mkdocs.yml` and site structure.
+- `adapter.py`: Generates Markdown pages.
+- `site_generator.py`: Orchestrates site-wide features.
+All frontend changes require modifying the template strings within these Python files.
 
 ## Core Readability
 
