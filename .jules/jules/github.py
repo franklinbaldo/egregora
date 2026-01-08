@@ -293,6 +293,7 @@ def fetch_full_ci_logs(pr_number: int, branch: str, repo_full: str, cwd: str = "
 
     for run in failing_runs[:1]:
         run_id = run.get("id")
+        run_url = run.get("html_url")
         if not run_id:
             continue
 
@@ -319,8 +320,17 @@ def fetch_full_ci_logs(pr_number: int, branch: str, repo_full: str, cwd: str = "
         if not log_text:
             continue
 
+        # Limit log size to avoid token overflow, focusing on the end where errors usually are
+        max_chars = 10000
+        if len(log_text) > max_chars:
+            log_text = f"... (truncated) ...\n{log_text[-max_chars:]}"
+
         workflow_name = run.get("name") or "Workflow"
-        logs_sections.append(f"### {workflow_name} (Run ID: {run_id})\n\n{log_text}")
+        section = f"### {workflow_name} (Run ID: {run_id})\n"
+        if run_url:
+            section += f"**Full Log URL**: {run_url}\n\n"
+        section += f"```text\n{log_text}\n```"
+        logs_sections.append(section)
 
     return "\n\n".join(logs_sections)
 

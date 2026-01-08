@@ -1,34 +1,26 @@
 # Data Processing Optimization Plan
 
-Last updated: 2024-07-22
+Last updated: 2024-07-25
 
 ## Current Data Processing Patterns
 
-The `egregora_v3` codebase uses an Ibis-based repository pattern (`DuckDBDocumentRepository`) to interact with a DuckDB database. Data is stored in a single `documents` table with a JSON blob column (`json_data`) holding the serialized `Entry` or `Document` objects.
-
-While most methods use the declarative Ibis API, some operations drop down to raw SQL for complex queries, particularly for filtering on nested JSON fields.
+The `DuckDBDocumentRepository` in `src/egregora_v3/infra/repository/duckdb.py` uses a mix of Ibis for structured data queries and raw SQL for operations involving JSON fields. Client-side hydration loops are used to deserialize JSON data into Pydantic models after fetching it from the database.
 
 ## Identified Inefficiencies
 
-1.  **Raw SQL for JSON Filtering:**
-    - **Location:** `src/egregora_v3/infra/repository/duckdb.py` in the `get_entries_by_source` method.
-    - **Problem:** The method uses a raw SQL query with `json_extract_string` to filter entries by `source.id`. A comment suggests this is for reliability, but it bypasses the Ibis query optimizer, is less portable, and harder to maintain than a declarative Ibis expression.
-    - **Evidence:**
-      ```python
-      sql = f"SELECT json_data, doc_type FROM {self.table_name} WHERE json_extract_string(json_data, '$.source.id') = ?"
-      result = self.conn.con.execute(sql, [source_id]).fetch_df()
-      ```
+1.  **Imperative JSON Filtering:** The `get_entries_by_source` method uses raw SQL (`json_extract_string`) to filter entries by a nested JSON field (`source.id`). This bypasses the Ibis compiler and relies on database-specific functions, making the code less portable and harder to maintain.
+2.  **Client-Side Hydration:** The same method fetches a DataFrame of JSON strings and then iterates over it in Python to deserialize each row into an `Entry` object. This is inefficient as it moves a large amount of data from the database to the application and performs costly per-row processing in Python.
 
 ## Prioritized Optimizations
 
-1.  **Refactor `get_entries_by_source` to use declarative Ibis API:**
-    - **Rationale:** This is a high-impact, low-risk optimization. It aligns the entire repository with a declarative approach, improving maintainability and allowing the database to fully optimize the query. It serves as a clear example of the "let the database do the work" principle.
-    - **Expected Impact:** Improved code clarity and maintainability. Potential for performance improvement as Ibis can generate a more optimized query plan than the raw string.
+1.  **Refactor `get_entries_by_source` to use Ibis JSON functions.**
+    *   **Rationale:** Modern Ibis has robust support for JSON operations. Using Ibis's `unpack` or `get_field` functions will allow the filtering to be expressed declaratively and executed entirely within the database engine. This will improve performance by reducing data transfer and leveraging DuckDB's optimized JSON processing.
+    *   **Expected Impact:** High. This is a hot path for retrieving related entries, and the optimization will significantly reduce memory usage and execution time.
 
 ## Completed Optimizations
 
-_None yet._
+None yet.
 
 ## Optimization Strategy
 
-My strategy is to systematically eliminate raw SQL execution within the data repository and replace it with equivalent declarative Ibis expressions. All optimizations will follow a strict TDD process to ensure correctness is preserved. Each session will focus on a single, cohesive optimization bundle.
+My strategy is to systematically replace raw SQL and client-side processing loops with declarative Ibis expressions. The goal is to push as much of the data transformation logic as possible into the DuckDB engine, leveraging its vectorized execution and query optimization capabilities. All changes will be validated with TDD to ensure correctness.

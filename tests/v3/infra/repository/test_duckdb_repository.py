@@ -59,36 +59,49 @@ def test_get_method_returns_none_for_entry_locking(repo: DuckDBDocumentRepositor
     assert result is None
 
 
-def test_get_entries_by_source(repo: DuckDBDocumentRepository):
+def test_get_entries_by_source_locking(repo: DuckDBDocumentRepository):
     """
-    Verifies that get_entries_by_source correctly retrieves entries
-    matching a given source ID.
+    Locks the behavior of get_entries_by_source.
+    It should return only entries with the matching source.id.
     """
     # ARRANGE
     now = datetime.now(UTC)
-    source = Source(id="source-1", title="Original Source")
-    entry_with_source = Entry(
+    source_id = "source-1"
+
+    # Entries that should be found
+    entry_with_source1 = Entry(
         id="entry-1",
         title="Entry with Source",
         updated=now,
-        source=source
+        source={"id": source_id, "title": "Source Feed"},
     )
-    entry_without_source = Entry(
-        id="entry-2",
-        title="Entry without Source",
-        updated=now
+    doc_with_source = Document(
+        id="doc-1",
+        title="Document with Source",
+        updated=now,
+        doc_type=DocumentType.POST,
+        source={"id": source_id, "title": "Source Feed"},
     )
 
-    repo.save(entry_with_source)
+    # Entries that should NOT be found
+    entry_without_source = Entry(id="entry-2", title="No Source", updated=now)
+    entry_with_diff_source = Entry(
+        id="entry-3",
+        title="Different Source",
+        updated=now,
+        source={"id": "source-2", "title": "Another Feed"},
+    )
+
+    repo.save(entry_with_source1)
+    repo.save(doc_with_source)
     repo.save(entry_without_source)
+    repo.save(entry_with_diff_source)
 
     # ACT
-    entries_found = repo.get_entries_by_source("source-1")
-    entries_not_found = repo.get_entries_by_source("non-existent-source")
+    results = repo.get_entries_by_source(source_id)
 
     # ASSERT
-    assert len(entries_found) == 1
-    assert entries_found[0].id == "entry-1"
-    assert entries_found[0].source.id == "source-1"
-
-    assert len(entries_not_found) == 0
+    assert len(results) == 2
+    result_ids = {entry.id for entry in results}
+    assert "entry-1" in result_ids
+    assert "doc-1" in result_ids

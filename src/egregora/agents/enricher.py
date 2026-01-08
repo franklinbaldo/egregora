@@ -1373,163 +1373,163 @@ class EnrichmentWorker(BaseWorker):
 
         return results
 
-    def _persist_media_results(self, results: list[Any], task_map: dict[str, dict[str, Any]]) -> int:
-        new_rows = []
-        for res in results:
-            task = task_map.get(res.tag)
-            if not task:
-                continue
+    def _create_media_document(
+        self, payload: dict[str, Any], slug_value: str, source_path: str
+    ) -> Document:
+        from egregora.ops.media import get_media_subfolder
 
-            if res.error:
+        filename = payload["filename"]
+        media_type = payload["media_type"]
+        media_id = payload.get("media_id")
+        extension = Path(filename).suffix
+        media_subdir = get_media_subfolder(extension)
+        final_filename = f"{slug_value}{extension}"
+        suggested_path = f"media/{media_subdir}/{final_filename}"
+
+        media_metadata = {
+            "original_filename": payload.get("original_filename"),
+            "filename": final_filename,
+            "media_type": media_type,
+            "slug": slug_value,
+            "nav_exclude": True,
+            "hide": ["navigation"],
+            "source_path": source_path,
+            "media_subdir": media_subdir,
+        }
+
+        return Document(
+            content=b"",
+            type=DocumentType.MEDIA,
+            metadata=media_metadata,
+            id=media_id if media_id else str(uuid.uuid4()),
+            parent_id=None,
+            suggested_path=suggested_path,
+        )
+
+    def _create_enrichment_document(
+        self, payload: dict[str, Any], slug_value: str, markdown: str, suggested_path: str
+    ) -> Document:
+        final_filename = Path(suggested_path).name
+        enrichment_metadata = {
+            "filename": final_filename,
+            "original_filename": payload.get("original_filename"),
+            "media_type": payload["media_type"],
+            "parent_path": suggested_path,
+            "slug": slug_value,
+            "nav_exclude": True,
+            "hide": ["navigation"],
+        }
+        media_type_to_doc_type = {
+            "image": DocumentType.ENRICHMENT_IMAGE,
+            "video": DocumentType.ENRICHMENT_VIDEO,
+            "audio": DocumentType.ENRICHMENT_AUDIO,
+        }
+        doc_type = media_type_to_doc_type.get(
+            payload["media_type"], DocumentType.ENRICHMENT_MEDIA
+        )
+
+        return Document(
+            content=markdown,
+            type=doc_type,
+            metadata=enrichment_metadata,
+            id=slug_value,
+            parent_id=None,
+        )
+
+    def _update_message_references(
+        self, original_ref: str | None, slug_value: str, filename: str, media_type: str
+    ) -> None:
+        if not original_ref:
+            return
+
+        media_subdir = "files"
+        if media_type:
+            if media_type.startswith("image"):
+                media_subdir = "images"
+            elif media_type.startswith("video"):
+                media_subdir = "videos"
+            elif media_type.startswith("audio"):
+                media_subdir = "audio"
+
+        new_path = f"media/{media_subdir}/{slug_value}{Path(filename).suffix}"
+        try:
+            query = "UPDATE messages SET text = replace(text, ?, ?) WHERE text LIKE ?"
+            params = [original_ref, new_path, f"%{original_ref}%"]
+            self.ctx.storage.execute_query(query, params)
+        except duckdb.Error as exc:
+            logger.warning("Failed to update message references for %s: %s", original_ref, exc)
+
+    def _handle_media_persistence(self, task: dict[str, Any], payload: dict[str, Any]) -> str:
+        staged_path = task.get("_staged_path")
+        if staged_path and Path(staged_path).exists():
+            return staged_path
+
+        try:
+            re_staged = self._stage_file(task, payload)
+            return str(re_staged) if re_staged else ""
+        except MediaStagingError as e:
+            logger.warning(
+                "Could not stage media file for persistence: %s. Error: %s",
+                payload["filename"],
+                e,
+            )
+            self.task_store.mark_failed(task["task_id"], "Failed to stage media file")
+            return ""
+
+    def _persist_media_result(self, res: Any, task_map: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+        task = task_map.get(res.tag)
+        if not task or res.error:
+            if task:
                 self.task_store.mark_failed(task["task_id"], str(res.error))
-                continue
+            return None
 
-            task_result = self._parse_media_result(res, task)
-            if task_result is None:
-                continue
+        task_result = self._parse_media_result(res, task)
+        if not task_result:
+            return None
 
-            payload, slug_value, markdown = task_result
-            filename = payload["filename"]
-            media_type = payload["media_type"]
-            media_id = payload.get("media_id")
+        payload, slug_value, markdown = task_result
+        source_path = self._handle_media_persistence(task, payload)
+        if not source_path:
+            return None
 
-            # Use staged path if available, or fall back to loading bytes (legacy/small files)
-            staged_path = task.get("_staged_path")
-            source_path = None
-
-            if staged_path and Path(staged_path).exists():
-                source_path = staged_path
-            else:
-                # Fallback to re-extraction (should be rare if staging works)
-                re_staged = self._stage_file(task, payload)
-                if re_staged:
-                    source_path = str(re_staged)
-                else:
-                    logger.warning("Could not stage media file for persistence: %s", filename)
-                    self.task_store.mark_failed(task["task_id"], "Failed to stage media file")
-                    continue
-
-            # Determine subfolder based on media_type
-            from egregora.ops.media import get_media_subfolder
-
-            extension = Path(filename).suffix
-            media_subdir = get_media_subfolder(extension)
-
-            # Use slug-based filename
-            final_filename = f"{slug_value}{extension}"
-
-            # V3 Architecture: Set suggested_path to ensure correct filesystem placement
-            suggested_path = f"media/{media_subdir}/{final_filename}"
-
-            # Create media document with slug-based metadata
-            media_metadata = {
-                "original_filename": payload.get("original_filename"),
-                "filename": final_filename,
-                "media_type": media_type,
-                "slug": slug_value,
-                "nav_exclude": True,
-                "hide": ["navigation"],
-                "source_path": source_path,  # Path to staged file for efficient move
-                "media_subdir": media_subdir,
-            }
-
-            # Persist the actual media file
-            # We pass empty bytes for content because source_path is provided
-            media_doc = Document(
-                content=b"",
-                type=DocumentType.MEDIA,
-                metadata=media_metadata,
-                id=media_id if media_id else str(uuid.uuid4()),
-                parent_id=None,  # Media files have no parent document
-                suggested_path=suggested_path,
-            )
-
-            try:
-                if self.ctx.library:
-                    self.ctx.library.save(media_doc)
-                elif self.ctx.output_format:
-                    self.ctx.output_format.persist(media_doc)
-                logger.info("Persisted enriched media: %s -> %s", filename, media_doc.metadata["filename"])
-            except Exception as exc:
-                logger.exception("Failed to persist media file %s", filename)
-                self.task_store.mark_failed(task["task_id"], f"Persistence failed: {exc}")
-                continue
-
-            # Create and persist the enrichment text document (description)
-            enrichment_metadata = {
-                "filename": final_filename,
-                "original_filename": payload.get("original_filename"),  # Preserve original
-                "media_type": media_type,
-                "parent_path": suggested_path,
-                "slug": slug_value,
-                "nav_exclude": True,
-                "hide": ["navigation"],
-            }
-
-            # Map media_type to specific DocumentType for folder organization
-            media_type_to_doc_type = {
-                "image": DocumentType.ENRICHMENT_IMAGE,
-                "video": DocumentType.ENRICHMENT_VIDEO,
-                "audio": DocumentType.ENRICHMENT_AUDIO,
-            }
-            doc_type = media_type_to_doc_type.get(media_type, DocumentType.ENRICHMENT_MEDIA)
-
-            doc = Document(
-                content=markdown,
-                type=doc_type,
-                metadata=enrichment_metadata,
-                id=slug_value,
-                parent_id=None,  # No parent document needed - slug + filename uniquely identify media
-            )
-
+        media_doc = self._create_media_document(payload, slug_value, source_path)
+        try:
             if self.ctx.library:
-                self.ctx.library.save(doc)
+                self.ctx.library.save(media_doc)
             elif self.ctx.output_format:
-                self.ctx.output_format.persist(doc)
+                self.ctx.output_format.persist(media_doc)
+        except Exception as exc:
+            logger.exception("Failed to persist media file %s", payload["filename"])
+            self.task_store.mark_failed(task["task_id"], f"Persistence failed: {exc}")
+            return None
 
-            metadata = payload["message_metadata"]
-            row = _create_enrichment_row(
-                metadata, "Media", filename, doc.document_id, media_identifier=media_id
-            )
-            if row:
-                new_rows.append(row)
+        enrichment_doc = self._create_enrichment_document(
+            payload, slug_value, markdown, media_doc.suggested_path
+        )
+        if self.ctx.library:
+            self.ctx.library.save(enrichment_doc)
+        elif self.ctx.output_format:
+            self.ctx.output_format.persist(enrichment_doc)
 
-            # Update original references in messages table
-            original_ref = payload.get("original_filename")
-            if original_ref:
-                # Determine relative path for replacement (e.g. media/images/slug.jpg)
-                # We use the path relative to site root, which works for most SSGs if configured right
-                # or we might need to be smarter about relative paths.
-                # MKDocs usually resolves from the current page, so 'media/' works if at root,
-                # but posts are in 'posts/'. So we might need '../media/' or absolute '/media/'.
-                # Let's use the standard "media/" and assume site configuration handles it
-                # or use absolute path "/media/..."
+        self._update_message_references(
+            payload.get("original_filename"), slug_value, payload["filename"], payload["media_type"]
+        )
 
-                # Determine subfolder based on media_type
-                media_subdir = "files"
-                if media_type and media_type.startswith("image"):
-                    media_subdir = "images"
-                elif media_type and media_type.startswith("video"):
-                    media_subdir = "videos"
-                elif media_type and media_type.startswith("audio"):
-                    media_subdir = "audio"
+        if self.task_store:
+            self.task_store.mark_completed(task["task_id"])
 
-                new_path = f"media/{media_subdir}/{slug_value}{Path(filename).suffix}"
+        return _create_enrichment_row(
+            payload["message_metadata"],
+            "Media",
+            payload["filename"],
+            enrichment_doc.document_id,
+            media_identifier=payload.get("media_id"),
+        )
 
-                # Using SQL replace to update all occurrences
-                # TODO: [Taskmaster] Refactor to use parameterized queries to prevent SQL injection
-                try:
-                    # Use a parameterized query to prevent SQL injection.
-                    # Note: This updates ALL messages containing this ref.
-                    # Given filenames are usually unique (timestamps), this is safe.
-                    query = "UPDATE messages SET text = replace(text, ?, ?) WHERE text LIKE ?"
-                    params = [original_ref, new_path, f"%{original_ref}%"]
-                    self.ctx.storage.execute_query(query, params)
-                except duckdb.Error as exc:
-                    logger.warning("Failed to update message references for %s: %s", original_ref, exc)
-
-            if self.task_store:
-                self.task_store.mark_completed(task["task_id"])
+    def _persist_media_results(
+        self, results: list[Any], task_map: dict[str, dict[str, Any]]
+    ) -> int:
+        new_rows = [row for res in results if (row := self._persist_media_result(res, task_map))]
 
         if new_rows:
             try:
@@ -1539,7 +1539,7 @@ class EnrichmentWorker(BaseWorker):
             except (IbisError, duckdb.Error):
                 logger.exception("Failed to insert media enrichment rows")
 
-        return len(results)
+        return len(new_rows)
 
     # TODO: [Taskmaster] Improve brittle JSON parsing from LLM output
     def _parse_media_result(self, res: Any, task: dict[str, Any]) -> tuple[dict[str, Any], str, str] | None:

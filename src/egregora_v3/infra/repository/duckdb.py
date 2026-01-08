@@ -176,21 +176,15 @@ class DuckDBDocumentRepository(DocumentRepository):
         return self._hydrate_entry(row["json_data"], row["doc_type"])
 
     def get_entries_by_source(self, source_id: str) -> builtins.list[Entry]:
-        """Lists entries by source ID using the declarative Ibis API."""
+        """Lists entries by source ID using a declarative Ibis query."""
         t = self._get_table()
 
-        # Use Ibis's JSON functionality to access the nested field.
-        # The json_data column is treated as a struct-like object.
-        # Ibis's JSON accessor `['id']` is equivalent to DuckDB's `->` operator,
-        # which returns a JSON string literal (e.g., '"source-1"').
-        # To match the behavior of the original raw SQL (`json_extract_string` or `->>`),
-        # we cast the result to a string and then use a regex replacement
-        # to strip the surrounding quotes before comparison.
-        source_id_json = t.json_data["source"]["id"].cast("string")
-        source_id_unquoted = source_id_json.re_replace('^"|"$', "")
-        query = t.filter(source_id_unquoted == source_id)
-
-        # Select the necessary columns and execute the query.
+        # Use Ibis's JSON functionality to filter directly in the database.
+        # This avoids raw SQL and client-side processing.
+        # Use dictionary-style access to extract nested JSON fields, and `unwrap_as`
+        # to convert the JSON string value into a native string for comparison.
+        json_id_val = t.json_data["source"]["id"]
+        query = t.filter(json_id_val.unwrap_as("string") == source_id)
         result = query.select("json_data", "doc_type").execute()
 
         if result.empty:
