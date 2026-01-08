@@ -2,7 +2,7 @@ import ibis
 import pytest
 from datetime import datetime, UTC
 
-from egregora_v3.core.types import Document, DocumentType, Entry
+from egregora_v3.core.types import Document, DocumentType, Entry, Source
 from egregora_v3.infra.repository.duckdb import DuckDBDocumentRepository
 
 
