@@ -55,8 +55,6 @@ def main() -> int:
         # Skip conftest.py (defines fixtures) and utils (test infrastructure)
         if file_path.name == "conftest.py" or "utils" in file_path.parts:
             continue
-        if ("tests" in file_path.parts) and ("v3" in file_path.parts):
-            continue
 
         errors = check_file(file_path)
         all_errors.extend(errors)

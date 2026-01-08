@@ -1,7 +1,7 @@
 """Vulture whitelist for known false positives.
 
 This file tells vulture about intentional "unused" code that shouldn't be flagged.
-Only includes v3 code and test mocks - v2 code should be kept clean with actual fixes.
+Only includes test mocks and protocol parameters - v2 code should be kept clean with actual fixes.
 """
 
 
