@@ -17,7 +17,7 @@ This document analyzes improvements to the Jules Auto-Fix workflow prompt, apply
 
 **Critical Gaps:**
 - ❌ **No project context** - Jules doesn't know about Egregora's architecture
-- ❌ **No V2/V3 separation guidance** - Risk of mixing architectures
+- ❌ **No V2/Pure separation guidance** - Risk of mixing architectures
 - ❌ **No testing philosophy** - May write implementation-focused tests
 - ❌ **No coding standards** - Missing banned imports, line length, type annotation requirements
 - ❌ **No error handling guidance** - Risk of adding defensive code that hides errors
@@ -40,9 +40,9 @@ These principles were established through iterative refinement of the Gemini PR 
 - **Implementation**: Expanded from 20 lines to 400+ lines with detailed guidance
 - **Impact**: Jules gets full context to make informed decisions
 
-### 2. **V2/V3 Architecture Separation**
+### 2. **V2/Main Architecture Separation**
 - **Rationale**: Critical architectural constraint that MUST NOT be violated
-- **Implementation**: Prominent section with clear rules about mixing V2/V3
+- **Implementation**: Prominent section with clear rules about mixing V2/Pure
 - **Impact**: Prevents architectural violations in fixes
 
 ### 3. **TDD and Behavior-Focused Testing**
@@ -84,14 +84,14 @@ These principles were established through iterative refinement of the Gemini PR 
 #### 1. **📋 Project Overview: Egregora** (Lines 3-28)
 - **Purpose**: Provide architectural context
 - **Content**:
-  - V2/V3 separation (CRITICAL RULE)
+  - V2/Pure separation (CRITICAL RULE)
   - Technology stack (DuckDB, Ibis, Pydantic-AI, LanceDB)
   - Core principles (functional transformations, type safety)
 
 **Example:**
 ```markdown
-**🚨 CRITICAL RULE: New code should use V3 types when available.
-NEVER mix V2 and V3 imports in the same module. This is a critical violation.**
+**🚨 CRITICAL RULE: New code should use Pure types when available.
+NEVER mix V2 and Pure imports in the same module. This is a critical violation.**
 ```
 
 #### 2. **🛠️ Code Standards and Patterns** (Lines 63-110)
@@ -192,7 +192,7 @@ class DateParserFactory:
 |--------|---------------|-----------------|
 | **Length** | ~20 lines | ~400 lines |
 | **Token Count** | ~150 tokens | ~3500 tokens |
-| **Project Context** | None | Comprehensive (V2/V3, tech stack) |
+| **Project Context** | None | Comprehensive (V2/Pure, tech stack) |
 | **Code Standards** | None | Complete (imports, types, formatting) |
 | **Testing Guidance** | None | TDD philosophy with examples |
 | **Error Handling** | None | Specific propagation vs defensive code |
@@ -241,11 +241,11 @@ class DateParserFactory:
 
 ### 1. Architecture Violations
 
-**Current**: Jules might mix V2/V3 without knowing it's wrong
+**Current**: Jules might mix V2/Pure without knowing it's wrong
 
 **Improved**:
 ```markdown
-🚨 CRITICAL RULE: NEVER mix V2 and V3 imports in the same module
+🚨 CRITICAL RULE: NEVER mix V2 and Pure imports in the same module
 ```
 Jules knows this is a critical violation and checks imports carefully
 

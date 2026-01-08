@@ -1,12 +1,12 @@
 # Architectural Layers
 
-Egregora V3 is structured into three distinct layers to ensure separation of concerns and testability.
+Egregora Pure is structured into three distinct layers to ensure separation of concerns and testability.
 
-## 1. Core Domain (`src/egregora_v3/core`)
+## 1. Core Domain (`src/egregora/core`)
 
 Defines the fundamental types (`Entry`, `Document`, `Feed`) and protocols (`LLMModel`, `DocumentRepository`). This layer contains **no business logic** and **no I/O**. It is purely declarative.
 
-## 2. Infrastructure & Engine (`src/egregora_v3/infra`, `src/egregora_v3/engine`)
+## 2. Infrastructure & Engine (`src/egregora/infra`, `src/egregora/engine`)
 
 Implements the protocols defined in the Core.
 

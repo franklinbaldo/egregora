@@ -1,13 +1,13 @@
-# Egregora V3 API Reference
+# Egregora Pure API Reference
 
-This section contains the auto-generated API reference for the V3 codebase (`src/egregora_v3`).
+This section contains the auto-generated API reference for the Pure codebase (`src/egregora`).
 
 ## Core
 
-::: egregora_v3.core.types
-::: egregora_v3.core.ports
-::: egregora_v3.core.config
+::: egregora.core.types
+::: egregora.core.ports
+::: egregora.core.config
 
 ## Infrastructure
 
-::: egregora_v3.infra.repository.duckdb
+::: egregora.infra.repository.duckdb

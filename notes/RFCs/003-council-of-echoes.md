@@ -38,7 +38,7 @@ New Paradigm:
 ## 3. The Mechanics (High Level)
 
 ### Input: The "Soul" of the Group
-We already have the raw materials in the V3 architecture:
+We already have the raw materials in the Pure architecture:
 *   **Profiles (DNA):** Author vectors, writing style samples, common phrases (already in `src/egregora/knowledge/profiles.py`).
 *   **Knowledge (Memory):** The RAG store (`LanceDB`) containing the factual history and opinions of each member.
 *   **Structure:** The Atom-centric data model.
@@ -65,4 +65,4 @@ We introduce a new Agent type: **The Echo**.
 4.  **Privacy-First Social:** It uses your private data to build a private simulation. No data is leaked to a public model training set; it's local (or private-cloud) orchestration.
 
 **Why this fits Egregora:**
-Egregora means "Group Mind." V1/V2 built the *body* (the text). V3 builds the *brain* (vectors/RAG). The Council of Echoes wakes it up.
+Egregora means "Group Mind." V1/V2 built the *body* (the text). Pure builds the *brain* (vectors/RAG). The Council of Echoes wakes it up.

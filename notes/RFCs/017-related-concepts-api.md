@@ -4,7 +4,7 @@
 **Disruption Level:** Low - Fast Path
 
 ## 1. The Vision
-This RFC proposes a small, surgical addition to the existing V3 pipeline. During the build process, we will generate a `_concepts.json` file. This file will contain a simple key-value map of the most important concepts, entities, and decisions discussed, with links to the posts where they are mentioned. We will then ship a tiny, local-only FastAPI or Flask server that serves this JSON file. This provides immediate value by allowing developers and power-users to programmatically query the knowledge base, serving as a powerful validation of the "Collective Memory" vision.
+This RFC proposes a small, surgical addition to the existing Pure pipeline. During the build process, we will generate a `_concepts.json` file. This file will contain a simple key-value map of the most important concepts, entities, and decisions discussed, with links to the posts where they are mentioned. We will then ship a tiny, local-only FastAPI or Flask server that serves this JSON file. This provides immediate value by allowing developers and power-users to programmatically query the knowledge base, serving as a powerful validation of the "Collective Memory" vision.
 
 ## 2. The Broken Assumption
 We assume that the only useful output of the pipeline is human-readable documents (the blog). This RFC challenges that by proposing that a machine-readable summary of the knowledge is an equally valuable, and perhaps more powerful, artifact.

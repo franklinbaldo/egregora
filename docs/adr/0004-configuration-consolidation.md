@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-The previous configuration system in Egregora V3 was fragmented across multiple modules (`settings.py`, `overrides.py`, `config_validation.py`), leading to maintenance overhead and unclear precedence rules. Configuration was stored in a YAML file (`.egregora/config.yml`) inside a hidden directory, which made it less visible and susceptible to YAML's parsing ambiguities (e.g., the "Norway problem"). Additionally, the loading logic was over-engineered with intermediate builder classes that complicated simple overrides.
+The previous configuration system in Egregora Pure was fragmented across multiple modules (`settings.py`, `overrides.py`, `config_validation.py`), leading to maintenance overhead and unclear precedence rules. Configuration was stored in a YAML file (`.egregora/config.yml`) inside a hidden directory, which made it less visible and susceptible to YAML's parsing ambiguities (e.g., the "Norway problem"). Additionally, the loading logic was over-engineered with intermediate builder classes that complicated simple overrides.
 
 There was also a tendency to have "magic" configuration values that were calculated or mutated based on other settings during validation, leading to hidden behaviors and confusion about what the actual configuration state was.
 

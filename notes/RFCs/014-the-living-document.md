@@ -11,7 +11,7 @@ A team member sees the summary and corrects a misinterpreted point directly on t
 The next time the pipeline runs, Egregora **reads this page first**. It ingests the human edits to refine its internal memory. It sees the comment and amends the document to clarify that "Alice" was assigned the follow-up task. The document is no longer a dead artifact; it's a shared, persistent, and evolving understanding between the team and their AI. The output has become an input, creating a virtuous feedback loop.
 
 ## 2. The Broken Assumption
-This proposal challenges the most fundamental architectural assumption in Egregora V3: **that the data pipeline is a one-way street (`Input -> Output`).**
+This proposal challenges the most fundamental architectural assumption in Egregora Pure: **that the data pipeline is a one-way street (`Input -> Output`).**
 
 > "We currently assume that the system's job is to produce a final, immutable artifact from a raw input. This forces the AI to be a passive archivist, forever looking at the past. This prevents us from creating a true symbiotic relationship where the AI can learn from human feedback and participate in the present."
 

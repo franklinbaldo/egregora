@@ -755,10 +755,10 @@ index 243241d..3243fd6 100644
      try:
          return parse_datetime_flexible(value, default_timezone=UTC)
      except (DateTimeParsingError, InvalidDateTimeInputError) as e:
-diff --git a/src/egregora_v3/core/types.py b/src/egregora_v3/core/types.py
+diff --git a/src/egregora/core/types.py b/src/egregora/core/types.py
 index 61a30ff..a38ff2d 100644
---- a/src/egregora_v3/core/types.py
-+++ b/src/egregora_v3/core/types.py
+--- a/src/egregora/core/types.py
++++ b/src/egregora/core/types.py
 @@ -5,6 +5,7 @@ import uuid
  from datetime import UTC, datetime
  from enum import Enum
@@ -908,12 +908,12 @@ index 61a30ff..a38ff2d 100644
 +            authors=authors or [],
 +            entries=sorted_docs,
 +        )
-diff --git a/src/egregora_v3/engine/prompts/base.jinja2 b/src/egregora_v3/engine/prompts/base.jinja2
+diff --git a/src/egregora/engine/prompts/base.jinja2 b/src/egregora/engine/prompts/base.jinja2
 index 5e665b0..262e930 100644
---- a/src/egregora_v3/engine/prompts/base.jinja2
-+++ b/src/egregora_v3/engine/prompts/base.jinja2
+--- a/src/egregora/engine/prompts/base.jinja2
++++ b/src/egregora/engine/prompts/base.jinja2
 @@ -1,15 +1,2 @@
--You are a helpful AI assistant working with the Egregora V3 publishing system.
+-You are a helpful AI assistant working with the Egregora Pure publishing system.
 -
 -Current date: {{ current_date | format_datetime }}
 -Run ID: {{ run_id }}
@@ -930,18 +930,18 @@ index 5e665b0..262e930 100644
 -{% endblock %}
 +{# Base template #}
 +{% block content %}{% endblock %}
-diff --git a/src/egregora_v3/infra/sinks/atom.py b/src/egregora_v3/infra/sinks/atom.py
+diff --git a/src/egregora/infra/sinks/atom.py b/src/egregora/infra/sinks/atom.py
 index 8b18aa9..ef69ec6 100644
---- a/src/egregora_v3/infra/sinks/atom.py
-+++ b/src/egregora_v3/infra/sinks/atom.py
+--- a/src/egregora/infra/sinks/atom.py
++++ b/src/egregora/infra/sinks/atom.py
 @@ -1,24 +1,16 @@
  from pathlib import Path
  import jinja2
 -from markdown_it import MarkdownIt
 
--from egregora_v3.core.types import Feed
- from egregora_v3.core.filters import format_datetime
-+from egregora_v3.core.types import Feed
+-from egregora.core.types import Feed
+ from egregora.core.filters import format_datetime
++from egregora.core.types import Feed
 
 -def content_type_filter(value: str | None) -> str:
 -    """Jinja2 filter to provide a default content type."""
@@ -958,7 +958,7 @@ index 8b18aa9..ef69ec6 100644
 -    def _setup_jinja_env(self) -> jinja2.Environment:
 -        """Configures the Jinja2 environment."""
          env = jinja2.Environment(
-             loader=jinja2.PackageLoader("egregora_v3.infra.sinks", "templates"),
+             loader=jinja2.PackageLoader("egregora.infra.sinks", "templates"),
              autoescape=jinja2.select_autoescape(['xml']),
 @@ -26,17 +18,10 @@ class AtomSink:
              lstrip_blocks=True,
@@ -980,10 +980,10 @@ index 8b18aa9..ef69ec6 100644
 -        xml_content = template.render(feed=feed_for_render).strip()
 +        xml_content = template.render(feed=feed).strip()
          self.output_path.write_text(xml_content)
-diff --git a/src/egregora_v3/infra/sinks/sqlite.py b/src/egregora_v3/infra/sinks/sqlite.py
+diff --git a/src/egregora/infra/sinks/sqlite.py b/src/egregora/infra/sinks/sqlite.py
 index 1f90cf0..31f3fd3 100644
---- a/src/egregora_v3/infra/sinks/sqlite.py
-+++ b/src/egregora_v3/infra/sinks/sqlite.py
+--- a/src/egregora/infra/sinks/sqlite.py
++++ b/src/egregora/infra/sinks/sqlite.py
 @@ -2,10 +2,43 @@
 
  import json
@@ -992,8 +992,8 @@ index 1f90cf0..31f3fd3 100644
  from pathlib import Path
  from typing import Any
 
--from egregora_v3.core.types import Document, DocumentStatus, Feed
-+from egregora_v3.core.types import Document, Feed
+-from egregora.core.types import Document, DocumentStatus, Feed
++from egregora.core.types import Document, Feed
 +
 +
 +TABLE_SCHEMA = OrderedDict([
@@ -2350,13 +2350,13 @@ diff --git a/tests/v3/core/test_atom_sink_basic.py b/tests/v3/core/test_atom_sin
 index 00e84ab..b2e5734 100644
 --- a/tests/v3/core/test_atom_sink_basic.py
 +++ b/tests/v3/core/test_atom_sink_basic.py
-@@ -14,7 +14,6 @@ from egregora_v3.core.types import (
+@@ -14,7 +14,6 @@ from egregora.core.types import (
      Entry,
      Feed,
      Link,
 -    documents_to_feed,
  )
- from egregora_v3.infra.sinks.atom import AtomSink
+ from egregora.infra.sinks.atom import AtomSink
 
 @@ -142,7 +141,7 @@ def test_feed_parses_as_valid_xml(snapshot):
      )
@@ -2379,9 +2379,9 @@ index f6e188a..5b847ec 100644
 
  from defusedxml import ElementTree
 
--from egregora_v3.core.types import Document, DocumentStatus, DocumentType, Feed, documents_to_feed, Entry
-+from egregora_v3.core.types import Author, Document, DocumentStatus, DocumentType, Feed, Entry
- from egregora_v3.infra.sinks.atom import AtomSink
+-from egregora.core.types import Document, DocumentStatus, DocumentType, Feed, documents_to_feed, Entry
++from egregora.core.types import Author, Document, DocumentStatus, DocumentType, Feed, Entry
+ from egregora.infra.sinks.atom import AtomSink
 
 
 @@ -66,7 +66,7 @@ def test_documents_to_feed_sorts_entries_newest_first():
@@ -2469,14 +2469,14 @@ diff --git a/tests/v3/core/test_feed_advanced.py b/tests/v3/core/test_feed_advan
 index 5a0690f..a0c98a7 100644
 --- a/tests/v3/core/test_feed_advanced.py
 +++ b/tests/v3/core/test_feed_advanced.py
-@@ -29,7 +29,6 @@ from egregora_v3.core.types import (
+@@ -29,7 +29,6 @@ from egregora.core.types import (
      Feed,
      InReplyTo,
      Link,
 -    documents_to_feed,
  )
- from egregora_v3.infra.sinks.atom import AtomSink
- from egregora_v3.infra.adapters.rss import RSSAdapter
+ from egregora.infra.sinks.atom import AtomSink
+ from egregora.infra.adapters.rss import RSSAdapter
 @@ -92,7 +91,7 @@ def sample_feed() -> Feed:
          in_reply_to=InReplyTo(ref=doc1.id, href="https://example.com/first-post"),
      )
@@ -2546,7 +2546,7 @@ index 0000000..b9bcb86
 --- /dev/null
 +++ b/tests/v3/engine/banner/test_banner_generation.py
 @@ -0,0 +1,101 @@
-+"""Tests for the V3 simplified banner generation function."""
++"""Tests for the Pure simplified banner generation function."""
 +
 +from __future__ import annotations
 +
@@ -2561,8 +2561,8 @@ index 0000000..b9bcb86
 +    ImageGenerationRequest,
 +    ImageGenerationResult,
 +)
-+from egregora_v3.core.types import Document, DocumentType, Entry
-+from egregora_v3.engine.banner.feed_generator import generate_banner_document
++from egregora.core.types import Document, DocumentType, Entry
++from egregora.engine.banner.feed_generator import generate_banner_document
 +
 +
 +@pytest.fixture
@@ -2654,9 +2654,9 @@ index e2f642c..b3722a8 100644
 @@ -13,7 +13,7 @@ from egregora.agents.banner.image_generation import (
      ImageGenerationResult,
  )
- from egregora_v3.core.types import Document, DocumentType, Entry, Feed
--from egregora_v3.engine.banner.feed_generator import BannerTaskEntry, FeedBannerGenerator
-+from egregora_v3.engine.banner.feed_generator import FeedBannerGenerator
+ from egregora.core.types import Document, DocumentType, Entry, Feed
+-from egregora.engine.banner.feed_generator import BannerTaskEntry, FeedBannerGenerator
++from egregora.engine.banner.feed_generator import FeedBannerGenerator
 
 
  class MockImageGenerationProvider(ImageGenerationProvider):
@@ -2814,8 +2814,8 @@ index 0000000..22bec7b
 +from freezegun import freeze_time
 +import pytest
 +
-+from egregora_v3.core.types import Feed, Entry, Author, Link, Category, InReplyTo
-+from egregora_v3.infra.sinks.atom import AtomSink
++from egregora.core.types import Feed, Entry, Author, Link, Category, InReplyTo
++from egregora.infra.sinks.atom import AtomSink
 +
 +
 +@pytest.fixture
@@ -2880,11 +2880,11 @@ index 7fd7d1c..a6a5628 100644
  from hypothesis import strategies as st
  from lxml import etree
 
--from egregora_v3.core.types import Author, Document, DocumentStatus, DocumentType, Feed, documents_to_feed
-+from egregora_v3.core.types import Author, Document, DocumentStatus, DocumentType, Feed
- from egregora_v3.infra.adapters.rss import RSSAdapter
- from egregora_v3.infra.sinks.atom import AtomSink
- from egregora_v3.infra.sinks.mkdocs import MkDocsOutputSink
+-from egregora.core.types import Author, Document, DocumentStatus, DocumentType, Feed, documents_to_feed
++from egregora.core.types import Author, Document, DocumentStatus, DocumentType, Feed
+ from egregora.infra.adapters.rss import RSSAdapter
+ from egregora.infra.sinks.atom import AtomSink
+ from egregora.infra.sinks.mkdocs import MkDocsOutputSink
 @@ -51,7 +51,7 @@ def sample_feed() -> Feed:
      )
      doc2.published = datetime(2025, 12, 6, tzinfo=UTC)
@@ -2964,7 +2964,7 @@ index 6527916..ab8c585 100644
 @@ -6,23 +6,23 @@ from pathlib import Path
  import pytest
 
- from egregora_v3.core.types import (
+ from egregora.core.types import (
 +    Author,
      Category,
      Document,
@@ -2974,8 +2974,8 @@ index 6527916..ab8c585 100644
      Link,
 -    Author,
  )
--from egregora_v3.infra.sinks.sqlite import SQLiteOutputSink
-+from egregora_v3.infra.sinks.sqlite import SQLiteOutputSink, _document_to_record
+-from egregora.infra.sinks.sqlite import SQLiteOutputSink
++from egregora.infra.sinks.sqlite import SQLiteOutputSink, _document_to_record
 
 
  @pytest.fixture
@@ -3133,7 +3133,7 @@ index d894abc..0000000
 -from hypothesis import given, settings
 -from hypothesis import strategies as st
 -
--from egregora_v3.core.types import (
+-from egregora.core.types import (
 -    Author,
 -    Category,
 -    Document,
@@ -3141,8 +3141,8 @@ index d894abc..0000000
 -    DocumentType,
 -    Feed,
 -)
--from egregora_v3.infra.sinks.csv import CSVOutputSink
--from egregora_v3.infra.sinks.sqlite import SQLiteOutputSink
+-from egregora.infra.sinks.csv import CSVOutputSink
+-from egregora.infra.sinks.sqlite import SQLiteOutputSink
 -
 -fake = Faker()
 -

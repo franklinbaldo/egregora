@@ -113,8 +113,6 @@ extend-exclude = [
     ".claude",
     ".jules",
     "prompt_tests",
-    "src/egregora_v3",
-    "tests/v3",
     "scripts",
     "docs/demo/.egregora",
     "README.md",

@@ -1,6 +1,6 @@
 # Data Model: Atom Protocol
 
-Egregora V3 standardizes on the **Atom Syndication Format (RFC 4287)** for internal data representation.
+Egregora Pure standardizes on the **Atom Syndication Format (RFC 4287)** for internal data representation.
 
 ## The `Entry`
 

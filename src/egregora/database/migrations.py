@@ -1,4 +1,4 @@
-"""V3 Schema Migration Script."""
+"""Schema Migration Script."""
 
 import logging
 
@@ -44,7 +44,7 @@ def _build_insert_select_sql(temp_table: str, existing_columns: set[str]) -> str
 
 
 def migrate_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
-    """Applies the V3 UNIFIED_SCHEMA to an existing 'documents' table.
+    """Applies the Pure UNIFIED_SCHEMA to an existing 'documents' table.
 
     This migration is idempotent and robustly handles NOT NULL constraints
     by creating a new table, copying data, and replacing the old table.

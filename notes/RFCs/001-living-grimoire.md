@@ -16,7 +16,7 @@ The site is no longer just an archive; it is the **Encyclopedia of Us**. It feel
 ## 2. The Broken Assumption
 **"The primary unit of human conversation is the Event (Time)."**
 
-Current Architecture (V3) is "Atom-Centric." It assumes that `Entry` (a point in time) is the atomic unit of truth.
+Current Architecture (Pure) is "Atom-Centric." It assumes that `Entry` (a point in time) is the atomic unit of truth.
 *   *Limitation:* Human memory is semantic, not episodic. We remember "Concepts" and "Relationships," not "Timestamps."
 *   *Friction:* To understand a running joke, a user currently has to search for keywords and manually piece together 50 disparate blog posts.
 

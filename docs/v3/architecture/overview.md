@@ -1,6 +1,6 @@
 # Architecture Overview
 
-Egregora V3 adopts a functional pipeline architecture that processes data streams using the Atom protocol as its core data model.
+Egregora Pure adopts a functional pipeline architecture that processes data streams using the Atom protocol as its core data model.
 
 ## Key Concepts
 

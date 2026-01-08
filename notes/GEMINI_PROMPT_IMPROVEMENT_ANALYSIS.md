@@ -86,7 +86,7 @@ Added explicit checklist in "Egregora Pattern Compliance" section:
 - [ ] No banned imports (`pandas`, `pyarrow` - use `ibis` instead)
 - [ ] Type annotations present on all new functions
 - [ ] Absolute imports only (no relative imports)
-- [ ] V2/V3 compatibility maintained
+- [ ] V2/Pure compatibility maintained
 - [ ] Custom exceptions inherit from `EgregoraError`
 - [ ] Tests added/updated for new code
 ```
@@ -95,7 +95,7 @@ Added explicit checklist in "Egregora Pattern Compliance" section:
 - Catch banned `pandas`/`pyarrow` imports (currently missed)
 - Enforce type annotations (critical for mypy strict mode)
 - Flag relative imports (banned by ruff configuration)
-- Ensure V2/V3 Document class compatibility
+- Ensure V2/Pure Document class compatibility
 - Require tests for new features/bug fixes
 
 ---

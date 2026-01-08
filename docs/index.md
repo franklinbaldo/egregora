@@ -32,7 +32,7 @@ Egregora parses your raw data streams (WhatsApp, RSS, etc.), groups content into
 
     Install Egregora and generate your first site in minutes.
 
-- :material-creation: __[V3 Architecture](v3/architecture/overview.md)__
+- :material-creation: __[Main Architecture](v3/architecture/overview.md)__
 
     ---
 

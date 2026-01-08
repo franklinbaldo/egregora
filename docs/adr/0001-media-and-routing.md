@@ -1,11 +1,11 @@
 # ADR 0001: Media, Profiles, and Routing Conventions
 
 ## Context
-Egregora V3 architecture requires deterministic and predictable paths for generated content (posts, profiles, media) to support the Atom-centric data model and static site generation (MkDocs). V2 had issues with inconsistent routing and media handling.
+Egregora Pure architecture requires deterministic and predictable paths for generated content (posts, profiles, media) to support the Atom-centric data model and static site generation (MkDocs). V2 had issues with inconsistent routing and media handling.
 
 ## Decision
 
-We adopt the following conventions for V3:
+We adopt the following conventions for Pure:
 
 ### 1. Unified Post Storage
 All generated content (Posts, Profiles, Journal Entries) resides in the `docs/posts/` directory (or configured `posts_dir`). This allows MkDocs to treat them uniformly as blog posts.

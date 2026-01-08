@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-The Egregora project already has mkdocstrings configured and working well. Current usage shows 22+ mkdocstrings directives across V2 and V3 API documentation. The opportunity is to:
+The Egregora project already has mkdocstrings configured and working well. Current usage shows 22+ mkdocstrings directives across V2 and Pure API documentation. The opportunity is to:
 
 1. **Expand mkdocstrings coverage** to undocumented modules (CLI, agents, adapters, database)
 2. **Remove redundant manual API docs** that duplicate what mkdocstrings generates
@@ -33,7 +33,7 @@ The Egregora project already has mkdocstrings configured and working well. Curre
    - Good display options
 
 2. **Existing mkdocstrings usage**:
-   - V3 API reference (core.types, core.ports, core.config, repository)
+   - Pure API reference (core.types, core.ports, core.config, repository)
    - V2 data primitives (Document, DocumentType, etc.)
    - V2 knowledge/RAG (VectorStore, RAG functions)
    - V2 configuration classes

@@ -4,7 +4,7 @@ Last updated: 2026-01-05
 
 ## Current Organizational State
 
-The codebase is a mix of `egregora` (v2) and `egregora_v3` modules. The v2 structure has a `utils` directory that has been significantly cleaned up. There is some code duplication between the v2 and v3 modules, particularly in the RAG text processing logic.
+The codebase is a mix of `egregora` (v2) and `egregora` modules. The v2 structure has a `utils` directory that has been significantly cleaned up. There is some code duplication between the v2 and v3 modules, particularly in the RAG text processing logic.
 
 ## Identified Issues
 

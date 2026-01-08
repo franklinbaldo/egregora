@@ -31,10 +31,10 @@ logger = logging.getLogger(__name__)
 
 
 def initialize_database(backend: BaseBackend) -> None:
-    """Initialize all database tables using Ibis schema definitions for V3.
+    """Initialize all database tables using Ibis schema definitions for Pure.
 
     Creates:
-    - documents (Unified V3 table)
+    - documents (Unified Pure table)
     - tasks (Background jobs)
     - messages (Ingestion buffer)
 
@@ -45,18 +45,18 @@ def initialize_database(backend: BaseBackend) -> None:
         Exception: If table creation fails
 
     """
-    logger.info("Initializing V3 database tables...")
+    logger.info("Initializing Pure database tables...")
 
     if hasattr(backend, "con"):
         conn = backend.con
     else:
         conn = backend
 
-    # 1. V3 Unified Documents Table
+    # 1. Pure Unified Documents Table
     # This creates the table with the full schema if it's missing.
     create_table_if_not_exists(conn, "documents", UNIFIED_SCHEMA)
 
-    # 2. Run V3 schema migration to handle tables created with older schemas.
+    # 2. Run Pure schema migration to handle tables created with older schemas.
     # The migration script is idempotent and will do nothing if the schema is current.
     migrate_documents_table(conn)
 

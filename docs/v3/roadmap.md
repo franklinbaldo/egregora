@@ -1,10 +1,10 @@
-# Egregora V3 Development Plan
+# Egregora Pure Development Plan
 
 > **📋 Strategic Architecture Plan**
 >
-> This document outlines the roadmap for **Egregora V3**, the next-generation architecture designed for public/privacy-ready data processing. V3 will eventually replace V2, which is optimized for private chat archives.
+> This document outlines the roadmap for **Egregora Pure**, the next-generation architecture designed for public/privacy-ready data processing. Pure will eventually replace V2, which is optimized for private chat archives.
 >
-> **Current Status:** Planning phase with core types defined in `src/egregora_v3/core/`. V2 remains the production system (`src/egregora/`).
+> **Current Status:** Planning phase with core types defined in `src/egregora/core/`. V2 remains the production system (`src/egregora/`).
 >
 > **Target Timeline:** Alpha in 12 months, feature parity in 24 months.
 
@@ -12,10 +12,10 @@
 
 ## Project Goal
 
-Build a general-purpose document processing library (`src/egregora_v3`) that supports diverse use cases beyond private chat processing. V3 targets public data sources (RSS feeds, APIs, public archives) and provides a clean, synchronous, modular architecture following Test-Driven Development (TDD).
+Build a general-purpose document processing library (`src/egregora`) that supports diverse use cases beyond private chat processing. Pure targets public data sources (RSS feeds, APIs, public archives) and provides a clean, synchronous, modular architecture following Test-Driven Development (TDD).
 
 **Key Differences from V2:**
-- **Privacy:** Optional application concern (not core) - V3 assumes data is already privacy-ready
+- **Privacy:** Optional application concern (not core) - Pure assumes data is already privacy-ready
 - **Scope:** General-purpose library (not just chat → blog)
 - **Architecture:** Strict 4-layer design with enforced dependencies
 - **Organization:** ContentLibrary pattern (simpler than AtomPub)
@@ -24,7 +24,7 @@ Build a general-purpose document processing library (`src/egregora_v3`) that sup
 
 ## Design Philosophy
 
-Egregora V3 draws inspiration from the golden age of open, composable feed processing:
+Egregora Pure draws inspiration from the golden age of open, composable feed processing:
 
 ### Yahoo Pipes (2007-2015)
 The original visual programming environment for RSS/data feeds. Pipes pioneered:
@@ -40,20 +40,20 @@ The definitive RSS/Atom aggregator that proved feeds could be a universal conten
 - **State management** - Read/unread, tagging, organization
 - **OPML for collections** - Workspace/subscription organization
 
-### V3's Vision: Modern Pipes + Reader
+### Pure's Vision: Modern Pipes + Reader
 
-Egregora V3 combines these philosophies for the LLM era:
+Egregora Pure combines these philosophies for the LLM era:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Yahoo Pipes (2007)              →  V3 Graph Pipelines       │
+│ Yahoo Pipes (2007)              →  Pure Graph Pipelines       │
 │ - Visual node graph             →  Pydantic AI Graph        │
 │ - Fetch/Transform/Output        →  Ingest/Process/Publish   │
 │ - Composable operators          →  Agents as nodes          │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│ Google Reader (2005)            →  V3 Content Model         │
+│ Google Reader (2005)            →  Pure Content Model         │
 │ - Atom Entry/Feed primitives    →  Entry/Document/Feed      │
 │ - RSS aggregation               →  Multi-source ingestion   │
 │ - OPML collections              →  ContentLibrary           │
@@ -61,7 +61,7 @@ Egregora V3 combines these philosophies for the LLM era:
 
             ↓
 
-    V3 = Pipes + Reader + LLMs
+    Pure = Pipes + Reader + LLMs
 
     Graph-based pipelines transforming Atom feeds,
     with AI agents as processing nodes
@@ -70,7 +70,7 @@ Egregora V3 combines these philosophies for the LLM era:
 **What this means:**
 - **Atom compliance** (Reader) - Entry/Feed as universal content model
 - **Graph pipelines** (Pipes) - Composable, declarative transformations
-- **Agent nodes** (V3) - LLM-powered processing steps
+- **Agent nodes** (Pure) - LLM-powered processing steps
 - **RSS in, RSS out** (Both) - Interoperable with feed ecosystem
 
 **Why it matters:**
@@ -85,7 +85,7 @@ Egregora V3 combines these philosophies for the LLM era:
 ## Core Principles
 
 ### 1. Privacy as Optional Agent
-**V3 doesn't enforce privacy.** Privacy can be added as an optional agent anywhere in the pipeline. Privacy agents don't need to be LLM-based (can use rule-based anonymization).
+**Pure doesn't enforce privacy.** Privacy can be added as an optional agent anywhere in the pipeline. Privacy agents don't need to be LLM-based (can use rule-based anonymization).
 
 **Examples:**
 ```python
@@ -337,30 +337,30 @@ entry.content = enrichment.description  # "A sunset over the ocean with orange c
 
 #### 2.1 Input Adapters
 ```python
-# egregora_v3/infra/adapters/rss.py
+# egregora/infra/adapters/rss.py
 class RSSAdapter(InputAdapter):
     """Parse RSS/Atom feeds into Entry stream."""
     def read_entries(self) -> Iterator[Entry]: ...
 
-# egregora_v3/infra/adapters/json_api.py
+# egregora/infra/adapters/json_api.py
 class JSONAPIAdapter(InputAdapter):
     """Generic HTTP JSON API adapter."""
     def read_entries(self) -> Iterator[Entry]: ...
 
-# egregora_v3/infra/adapters/whatsapp.py
+# egregora/infra/adapters/whatsapp.py
 class WhatsAppAdapter(InputAdapter):
     """WhatsApp parser (reused from V2)."""
     def read_entries(self) -> Iterator[Entry]: ...
 
 ```
 
-**Note:** Privacy is NOT an adapter in V3. Users handle privacy preparation before feeding data to V3.
+**Note:** Privacy is NOT an adapter in Pure. Users handle privacy preparation before feeding data to Pure.
 
 **Testing:** Contract tests ensuring all adapters return valid Entry objects.
 
 #### 2.2 Document Repository
 ```python
-# egregora_v3/infra/repository/duckdb.py
+# egregora/infra/repository/duckdb.py
 class DuckDBDocumentRepository(DocumentRepository):
     """DuckDB-backed document storage."""
     def save(self, doc: Document) -> None: ...
@@ -373,20 +373,20 @@ class DuckDBDocumentRepository(DocumentRepository):
 
 #### 2.3 Vector Store (RAG)
 ```python
-# egregora_v3/infra/rag/lancedb.py
+# egregora/infra/rag/lancedb.py
 class LanceDBVectorStore(VectorStore):
     """Port from V2 (already synchronous)."""
     def index_documents(self, docs: list[Document]) -> None: ...
     def search(self, query: str, top_k: int = 5) -> list[Document]: ...
 ```
 
-**Testing:** Port existing V2 tests, adapt to V3 Document model.
+**Testing:** Port existing V2 tests, adapt to Pure Document model.
 
 #### 2.4 Output Sinks (Feed → Format Transformation)
 Output sinks transform the final Feed into any desired format. Multiple sinks can be used simultaneously.
 
 ```python
-# egregora_v3/infra/output/mkdocs.py
+# egregora/infra/output/mkdocs.py
 class MkDocsOutputSink(OutputSink):
     """Generate MkDocs blog: markdown files + navigation."""
     def publish(self, feed: Feed) -> None:
@@ -396,14 +396,14 @@ class MkDocsOutputSink(OutputSink):
         # Generate mkdocs.yml navigation
         self._generate_nav(feed)
 
-# egregora_v3/infra/output/atom_xml.py
+# egregora/infra/output/atom_xml.py
 class AtomXMLOutputSink(OutputSink):
     """Export Atom/RSS XML feed."""
     def publish(self, feed: Feed) -> None:
         xml = feed.to_xml()  # Atom RFC 4287 compliant
         self.path.write_text(xml)
 
-# egregora_v3/infra/output/sqlite.py
+# egregora/infra/output/sqlite.py
 class SQLiteOutputSink(OutputSink):
     """Export to SQLite database."""
     def publish(self, feed: Feed) -> None:
@@ -411,7 +411,7 @@ class SQLiteOutputSink(OutputSink):
             for entry in feed.entries:
                 conn.execute("INSERT INTO entries ...", entry.to_dict())
 
-# egregora_v3/infra/output/csv.py
+# egregora/infra/output/csv.py
 class CSVOutputSink(OutputSink):
     """Export to CSV files (flat format)."""
     def publish(self, feed: Feed) -> None:
@@ -438,7 +438,7 @@ sqlite_sink.publish(output_feed)
 
 #### 2.5 Privacy Agent (Optional Pipeline Component)
 ```python
-# egregora_v3/infra/agents/privacy.py
+# egregora/infra/agents/privacy.py
 class PrivacyAgent:
     """Optional privacy agent - Feed → Feed transformer.
 
@@ -635,15 +635,15 @@ pipeline:
 ## FAQ
 
 **Q: Is privacy required?**
-A: No. V3 assumes input data is already privacy-ready. Privacy can be added via optional agent.
+A: No. Pure assumes input data is already privacy-ready. Privacy can be added via optional agent.
 
 **Q: Why Atom instead of JSON?**
 A: Atom provides standardized vocabulary and compatibility with feed readers. JSON serialization is supported, but Atom is canonical.
 
 **Q: Will V2 be deprecated?**
-A: Eventually, after V3 reaches parity and migration tools are available.
+A: Eventually, after Pure reaches parity and migration tools are available.
 
-**Q: How does V3 handle media?**
+**Q: How does Pure handle media?**
 A: Media is referenced via Links (`rel="enclosure"`), following Atom. Use EnricherAgent to generate descriptions.
 
 **Q: Do I need async everywhere?**
@@ -705,7 +705,7 @@ Threading allows hierarchical discussions via `in-reply-to` links.
 </entry>
 ```
 
-V3 should support threading by allowing `Entry` to include `in_reply_to` metadata, enabling conversation trees.
+Pure should support threading by allowing `Entry` to include `in_reply_to` metadata, enabling conversation trees.
 
 ### Semantic Identity
 Human-readable identifiers improve UX (slugs), while UUIDv5 ensures content-addressable stability.
@@ -733,7 +733,7 @@ ContentLibrary acts as a facade over multiple repositories, each managing a docu
 - Consistent interface for applications
 
 ### Privacy Considerations
-Even though privacy is optional, V3 should provide helper utilities:
+Even though privacy is optional, Pure should provide helper utilities:
 - PII detectors (regex, ML)
 - Redaction/anonymization transformers
 - Audit logs for privacy actions
@@ -811,7 +811,7 @@ Even though privacy is optional, V3 should provide helper utilities:
 
 ## Migration Helpers
 
-- Config converter (V2 → V3)
+- Config converter (V2 → Pure)
 - Data importer with history preservation
 - Compatibility checker (`egregora doctor`)
 
@@ -863,7 +863,7 @@ class EgregoraGraph:
 
 ## Closing
 
-Egregora V3 aims to be the **Pipes + Reader** for the LLM era—composable feed processing with modern AI capabilities. This plan serves as a living document guiding architecture, implementation, and testing.
+Egregora Pure aims to be the **Pipes + Reader** for the LLM era—composable feed processing with modern AI capabilities. This plan serves as a living document guiding architecture, implementation, and testing.
 
 **Status:** Living document, updated quarterly.
 **Last Updated:** December 2025

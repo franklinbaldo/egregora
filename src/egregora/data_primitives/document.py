@@ -73,7 +73,7 @@ class Document:
 
     Core abstraction for all generated content.
 
-    V3 CHANGE (2025-11-28): Adopts "Semantic Identity".
+    REFACTOR (2025-11-28): Adopts "Semantic Identity".
     - Posts: ID = Slug
     - Media: ID = Semantic Slug
     - Others: ID = UUID (or specific logic)
@@ -120,7 +120,7 @@ class Document:
     # Internal system metadata (not serialized to public outputs if possible)
     internal_metadata: dict[str, Any] = field(default_factory=dict)
 
-    # V3: Explicit ID (Semantic Identity)
+    # Pure: Explicit ID (Semantic Identity)
     id: str | None = field(default=None)
 
     # Parent relationship (for enrichments)
@@ -152,7 +152,7 @@ class Document:
     def document_id(self) -> str:
         """Return the document's stable identifier.
 
-        Strategy (V3):
+        Strategy (Pure):
         1. Explicit ID (self.id)
         2. Semantic Slug (for POST/MEDIA if present)
         3. Content-based UUIDv5 (Fallback)
@@ -162,7 +162,7 @@ class Document:
             return self.id
 
         # 2. Semantic Identity (Slug)
-        # Only for Posts and Media, as per V3 spec
+        # Only for Posts and Media, as per Pure spec
         if self.type in (DocumentType.POST, DocumentType.MEDIA):
             # Do NOT call self.slug property here to avoid recursion fallback loop
             if cleaned_slug := self._clean_slug(self.metadata.get("slug")):

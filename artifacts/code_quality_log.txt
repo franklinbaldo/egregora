@@ -2032,35 +2032,35 @@ Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4710433Z     C 7
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4710888Z     M 246:4 MessageBuilder.start_new_message - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4711407Z     M 307:4 MessageBuilder.get_rows - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4711885Z     M 315:4 ZipMessageSource.__init__ - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4712386Z src/egregora_v3/engine/filters.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4712386Z src/egregora/engine/filters.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4712817Z     F 6:0 format_datetime - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4724043Z src/egregora_v3/engine/banner/feed_generator.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4724043Z src/egregora/engine/banner/feed_generator.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4724996Z     F 77:0 generate_banner_document - B
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4725690Z     C 29:0 FeedBannerGenerator - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4726236Z     M 41:4 FeedBannerGenerator._create_environment - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4726839Z     M 60:4 FeedBannerGenerator.generate_from_feed - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4727403Z     M 32:4 FeedBannerGenerator.__init__ - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4732795Z src/egregora_v3/engine/banner/generator.py
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4733736Z     M 45:4 GeminiV3BannerGenerator.generate - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4734495Z     C 28:0 GeminiV3BannerGenerator - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4735025Z     M 35:4 GeminiV3BannerGenerator.__init__ - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4742264Z src/egregora_v3/core/context.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4732795Z src/egregora/engine/banner/generator.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4733736Z     M 45:4 GeminiPureBannerGenerator.generate - A
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4734495Z     C 28:0 GeminiPureBannerGenerator - A
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4735025Z     M 35:4 GeminiPureBannerGenerator.__init__ - A
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4742264Z src/egregora/core/context.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4742749Z     C 16:0 PipelineContext - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4743137Z     M 37:4 PipelineContext.__post_init__ - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4743341Z     M 44:4 PipelineContext.full_metadata - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4745517Z src/egregora_v3/core/loader.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4745517Z src/egregora/core/loader.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4748911Z     C 8:0 ConfigLoader - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4749560Z     M 12:4 ConfigLoader.load - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4753794Z src/egregora_v3/core/conventions.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4753794Z src/egregora/core/conventions.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4754277Z     C 7:0 DateSlugConvention - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4754696Z     M 22:4 DateSlugConvention.resolve - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4755160Z     M 49:4 DateSlugConvention._extract_date - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4755609Z     M 45:4 DateSlugConvention._get_base_dir - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4760573Z src/egregora_v3/core/utils.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4760573Z src/egregora/core/utils.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4761158Z     F 16:0 safe_path_join - B
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4761564Z     C 8:0 V3UtilsError - A
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4761564Z     C 8:0 PureUtilsError - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4761755Z     C 12:0 PathTraversalError - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4785829Z src/egregora_v3/core/types.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4785829Z src/egregora/core/types.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4786380Z     M 174:4 Document._set_identity_and_timestamps - C
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4786746Z     M 110:4 Entry.has_enclosure - B
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4786905Z     C 147:0 Document - A
@@ -2080,10 +2080,10 @@ Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4794996Z     C 1
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4795141Z     M 163:4 Document.is_document - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4795290Z     M 168:4 Document.slug - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4795430Z     M 223:4 Feed.to_xml - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4795811Z src/egregora_v3/core/filters.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4795811Z src/egregora/core/filters.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4795979Z     F 11:0 normalize_content_type - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4796116Z     F 4:0 format_datetime - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4803354Z src/egregora_v3/core/ports.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4803354Z src/egregora/core/ports.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4803809Z     C 10:0 InputAdapter - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4804302Z     C 17:0 DocumentRepository - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4804774Z     C 34:0 MediaStore - A
@@ -2109,7 +2109,7 @@ Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4814691Z     M 6
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4815036Z     M 76:4 Agent.process - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4815375Z     M 91:4 UrlConvention.resolve - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4815700Z     M 100:4 OutputSink.publish - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4819209Z src/egregora_v3/core/catalog.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4819209Z src/egregora/core/catalog.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4819574Z     M 56:4 ContentLibrary.get - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4819928Z     C 18:0 ContentLibrary - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4820136Z     M 64:4 ContentLibrary.get_repo - A
@@ -2117,37 +2117,37 @@ Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4820492Z     M 3
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4820702Z     M 40:4 ContentLibrary.save - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4820913Z     M 46:4 ContentLibrary.repositories - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4821193Z     M 73:4 ContentLibrary.count - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4827710Z src/egregora_v3/core/atom.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4827710Z src/egregora/core/atom.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4827985Z     F 10:0 _normalize_content_type - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4828232Z     F 24:0 feed_to_xml_string - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4836808Z src/egregora_v3/core/config.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4836808Z src/egregora/core/config.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4837319Z     C 18:0 PathsSettings - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4837521Z     M 40:4 PathsSettings.resolve - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4837680Z     C 47:0 EgregoraConfig - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4837842Z     C 10:0 ModelSettings - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4838091Z     M 65:4 EgregoraConfig.settings_customise_sources - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4838253Z     M 82:4 EgregoraConfig.load - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4845348Z src/egregora_v3/knowledge/concepts.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4845348Z src/egregora/knowledge/concepts.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4845785Z     C 17:0 ConceptType - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4845961Z     C 28:0 ConceptRelation - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4846129Z     C 35:0 ConceptExtraction - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4846263Z     C 44:0 WikiPage - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4852821Z src/egregora_v3/infra/rag.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4852821Z src/egregora/infra/rag.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4853196Z     F 36:0 chunks_from_documents - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4853362Z     C 28:0 RAGChunk - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4873609Z src/egregora_v3/infra/vector/lancedb.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4873609Z src/egregora/infra/vector/lancedb.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4873964Z     M 88:4 LanceDBVectorStore.index_documents - B
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4874398Z     M 167:4 LanceDBVectorStore.search - B
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4874556Z     C 55:0 LanceDBVectorStore - B
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4874834Z     M 61:4 LanceDBVectorStore.__init__ - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4875154Z     M 142:4 LanceDBVectorStore._reconstruct_document_from_chunk - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4875321Z     C 45:0 DocumentVectorModel - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4886094Z src/egregora_v3/infra/sinks/sqlite.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4886094Z src/egregora/infra/sinks/sqlite.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4886880Z     M 54:4 SQLiteOutputSink.publish - B
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4887245Z     C 38:0 SQLiteOutputSink - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4887423Z     F 27:0 _document_to_record - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4887598Z     M 45:4 SQLiteOutputSink.__init__ - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4902698Z src/egregora_v3/infra/sinks/mkdocs.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4902698Z src/egregora/infra/sinks/mkdocs.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4903254Z     M 127:4 MkDocsOutputSink._generate_frontmatter - B
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4903665Z     M 90:4 MkDocsOutputSink._get_filename - B
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4903840Z     C 10:0 MkDocsOutputSink - A
@@ -2157,16 +2157,16 @@ Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4904439Z     M 6
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4904642Z     M 70:4 MkDocsOutputSink._write_document - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4908138Z     M 17:4 MkDocsOutputSink.__init__ - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4908662Z     M 27:4 MkDocsOutputSink._setup_jinja_env - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4909025Z src/egregora_v3/infra/sinks/atom.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4909025Z src/egregora/infra/sinks/atom.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4909196Z     C 6:0 AtomSink - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4909653Z     M 9:4 AtomSink.__init__ - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4909825Z     M 12:4 AtomSink.publish - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4919032Z src/egregora_v3/infra/sinks/csv.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4919032Z src/egregora/infra/sinks/csv.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4919729Z     M 66:4 CSVOutputSink._document_to_row - B
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4920142Z     C 10:0 CSVOutputSink - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4920344Z     M 26:4 CSVOutputSink.publish - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4920516Z     M 17:4 CSVOutputSink.__init__ - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4952822Z src/egregora_v3/infra/adapters/rss.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4952822Z src/egregora/infra/adapters/rss.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4953369Z     M 323:4 RSSAdapter._parse_rss2_item - B
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4953750Z     M 173:4 RSSAdapter._parse_atom_entry - B
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4953959Z     M 221:4 RSSAdapter._get_atom_content - B
@@ -2185,7 +2185,7 @@ Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4959821Z     M 4
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4960345Z     M 60:4 RSSAdapter.__enter__ - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4960489Z     M 64:4 RSSAdapter.__exit__ - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4960680Z     M 384:4 RSSAdapter._get_safe_xml_parser - A
-Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4980151Z src/egregora_v3/infra/repository/duckdb.py
+Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4980151Z src/egregora/infra/repository/duckdb.py
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4980367Z     M 104:4 DuckDBDocumentRepository.list - B
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4980530Z     C 20:0 DuckDBDocumentRepository - A
 Code Quality Metrics	Run radon (complexity)	2026-01-05T04:09:40.4980753Z     M 63:4 DuckDBDocumentRepository._hydrate_entry - A
@@ -2268,7 +2268,7 @@ Code Quality Metrics	Run xenon (threshold enforcement)	2026-01-05T04:09:41.13949
 Code Quality Metrics	Run xenon (threshold enforcement)	2026-01-05T04:09:41.1395574Z ERROR:xenon:block "src/egregora/input_adapters/self_reflection.py:71 parse" has a rank of C
 Code Quality Metrics	Run xenon (threshold enforcement)	2026-01-05T04:09:41.1396194Z ERROR:xenon:block "src/egregora/input_adapters/whatsapp/utils.py:51 _convert_whatsapp_media_to_markdown" has a rank of C
 Code Quality Metrics	Run xenon (threshold enforcement)	2026-01-05T04:09:41.1396880Z ERROR:xenon:block "src/egregora/input_adapters/whatsapp/parsing.py:150 _parse_message_time" has a rank of D
-Code Quality Metrics	Run xenon (threshold enforcement)	2026-01-05T04:09:41.1397494Z ERROR:xenon:block "src/egregora_v3/core/types.py:174 _set_identity_and_timestamps" has a rank of C
+Code Quality Metrics	Run xenon (threshold enforcement)	2026-01-05T04:09:41.1397494Z ERROR:xenon:block "src/egregora/core/types.py:174 _set_identity_and_timestamps" has a rank of C
 Code Quality Metrics	Run xenon (threshold enforcement)	2026-01-05T04:09:41.1397992Z ERROR:xenon:module 'src/egregora/database/migrations.py' has a rank of C
 Code Quality Metrics	Run xenon (threshold enforcement)	2026-01-05T04:09:41.1586058Z ##[error]Process completed with exit code 1.
 Code Quality Metrics	Run vulture (dead code detection)	﻿2026-01-05T04:09:41.1626952Z ##[group]Run uv run vulture src tests vulture_whitelist.py --min-confidence=80

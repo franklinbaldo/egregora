@@ -479,7 +479,7 @@ class EnrichmentWorker(BaseWorker):
         self._enrichment_config_override = enrichment_config
         self.zip_handle: zipfile.ZipFile | None = None
         self.media_index: dict[str, str] = {}
-        # V3 Architecture: Ephemeral media staging
+        # Main Architecture: Ephemeral media staging
         self.staging_dir = tempfile.TemporaryDirectory(prefix="egregora_staging_")
         self.staged_files: set[str] = set()
 
@@ -928,7 +928,7 @@ class EnrichmentWorker(BaseWorker):
                     id=slug_value,  # Semantic ID
                 )
 
-                # V3 Architecture: Use ContentLibrary if available
+                # Main Architecture: Use ContentLibrary if available
                 if self.ctx.library:
                     self.ctx.library.save(doc)
                 else:
@@ -1408,7 +1408,7 @@ class EnrichmentWorker(BaseWorker):
             # Use slug-based filename
             final_filename = f"{slug_value}{extension}"
 
-            # V3 Architecture: Set suggested_path to ensure correct filesystem placement
+            # Main Architecture: Set suggested_path to ensure correct filesystem placement
             suggested_path = f"media/{media_subdir}/{final_filename}"
 
             # Create media document with slug-based metadata

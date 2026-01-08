@@ -1,4 +1,4 @@
-# Egregora V3: Strategic Vision (NEXT_VERSION_PLAN.md)
+# Egregora Pure: Strategic Vision (NEXT_VERSION_PLAN.md)
 
 **"The Cathedral of Context"**
 
@@ -6,7 +6,7 @@
 
 Egregora V2 successfully proved the concept of converting chat logs into structured knowledge. However, the current architecture suffers from "God Classes" (Writer Agent), procedural coupling (Pipeline), and scattered concerns (Privacy, Media).
 
-V3 introduces a **Functional Data Pipeline** architecture centered on the **Atom Protocol**. By treating all content as standardized `Entry` objects, we decouple ingestion, enrichment, and publication, allowing the system to scale to new sources and output formats without friction.
+Pure introduces a **Functional Data Pipeline** architecture centered on the **Atom Protocol**. By treating all content as standardized `Entry` objects, we decouple ingestion, enrichment, and publication, allowing the system to scale to new sources and output formats without friction.
 
 ## 2. Core Architectural Pillars
 
@@ -79,7 +79,7 @@ flowchart TD
 
 ## 4. Migration Strategy (The Strangler Fig)
 
-We will migrate from V2 to V3 incrementally, without a complete rewrite.
+We will migrate from V2 to Pure incrementally, without a complete rewrite.
 
 1.  **Phase 1: Structure & Boundaries (Current Focus)**
     *   Refactor `Writer` agent into a cohesive package.

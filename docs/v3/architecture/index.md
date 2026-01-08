@@ -1,6 +1,6 @@
-# Egregora V3 Architecture
+# Egregora Main Architecture
 
-This section documents the V3 architecture of Egregora, focusing on the Atom-centric model, agent pipelines, and functional transformations.
+This section documents the Pure architecture of Egregora, focusing on the Atom-centric model, agent pipelines, and functional transformations.
 
 ## Contents
 

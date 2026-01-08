@@ -4,7 +4,7 @@
 **Disruption Level:** Total Paradigm Shift
 
 ## 1. The Vision
-Imagine Egregora is no longer a tool you *run*, but a service that's *always running*. It's a "fifth brain" for the group, a persistent, dynamic entity with a constantly evolving understanding of the conversations it's part of. Developers can query this "Collective Memory" via a simple API to build new, real-time experiences. A new team member could ask, "What's the history behind the 'V3' project?" and get a coherent, synthesized answer with links to the key conversations. A bot could listen for the phrase "What do we think about..." and instantly surface the group's established position on the topic. The blog becomes just one possible *view* of the memory, not the final product.
+Imagine Egregora is no longer a tool you *run*, but a service that's *always running*. It's a "fifth brain" for the group, a persistent, dynamic entity with a constantly evolving understanding of the conversations it's part of. Developers can query this "Collective Memory" via a simple API to build new, real-time experiences. A new team member could ask, "What's the history behind the 'Pure' project?" and get a coherent, synthesized answer with links to the key conversations. A bot could listen for the phrase "What do we think about..." and instantly surface the group's established position on the topic. The blog becomes just one possible *view* of the memory, not the final product.
 
 ## 2. The Broken Assumption
 This proposal challenges the core assumption that Egregora is a **batch-processing tool**.

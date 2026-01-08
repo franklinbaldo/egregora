@@ -1,3 +1,3 @@
 # Examples
 
-*Coming soon: End-to-end tutorials for V3 pipelines.*
+*Coming soon: End-to-end tutorials for Pure pipelines.*

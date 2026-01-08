@@ -802,7 +802,7 @@ class EgregoraConfig(BaseSettings):
 
         # Apply rag settings overrides
         rag_overrides = {}
-        # NOTE: retrieval_mode/nprobe/overfetch removed from CLI args as per V3 simplification
+        # NOTE: retrieval_mode/nprobe/overfetch removed from CLI args as per Pure simplification
 
         # Apply model overrides
         model_overrides = {}

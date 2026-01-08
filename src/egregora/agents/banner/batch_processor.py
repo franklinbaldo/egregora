@@ -1,6 +1,6 @@
 """Batch banner processor for asynchronous workers.
 
-This module keeps the V2 pipeline independent from the V3 feed-based plan by
+This module keeps the V2 pipeline independent from the Pure feed-based plan by
 operating on simple task payloads that mirror what the TaskStore enqueues.
 """
 

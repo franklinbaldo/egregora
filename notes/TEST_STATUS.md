@@ -10,9 +10,9 @@ Full test suite cannot run due to environment dependency issues with `cryptograp
 
 ### ✅ Syntax Validation
 All modified files compile successfully:
-- `src/egregora_v3/core/types.py`
-- `src/egregora_v3/infra/sinks/atom.py`
-- `src/egregora_v3/infra/repository/duckdb.py`
+- `src/egregora/core/types.py`
+- `src/egregora/infra/sinks/atom.py`
+- `src/egregora/infra/repository/duckdb.py`
 - `src/egregora/agents/avatar.py`
 - `src/egregora/agents/enricher.py`
 - `src/egregora/data_primitives/document.py`

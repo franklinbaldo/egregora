@@ -5,7 +5,7 @@
 
 ## 1. The Vision
 
-Imagine this: You're starting your morning commute. Instead of tuning into a generic news podcast, you open your podcast player and press play on "The Daily Egregora." A warm, familiar AI-generated voice greets you and begins, "Yesterday, the team had a major breakthrough on the V3 architecture, and it all started with a question from Alex..."
+Imagine this: You're starting your morning commute. Instead of tuning into a generic news podcast, you open your podcast player and press play on "The Daily Egregora." A warm, familiar AI-generated voice greets you and begins, "Yesterday, the team had a major breakthrough on the Pure architecture, and it all started with a question from Alex..."
 
 For the next 10 minutes, you listen to a professionally produced audio summary of your team's most important conversations from the previous day. It's not a robotic text-to-speech reading of chat logs. It's a narrative. The "Showrunner" agent has identified a central theme, woven together key decisions and arguments, included insightful quotes (using distinct, permission-based voice clones), and even added subtle background music to keep it engaging.
 
@@ -21,7 +21,7 @@ This proposal challenges the most fundamental assumption of Egregora: **that the
 
 *   **Input:** The fully processed, structured `Document` objects from the `ContentLibrary`. This becomes the "tape" for the show.
 *   **Processing:** A new, specialized **"Showrunner Agent"** is triggered on a daily schedule.
-    *   **Theme Identification:** It analyzes the documents from the last 24 hours to find a central narrative thread (e.g., "The Debate on Caching," "The Eureka Moment with V3").
+    *   **Theme Identification:** It analyzes the documents from the last 24 hours to find a central narrative thread (e.g., "The Debate on Caching," "The Eureka Moment with Pure").
     *   **Script Generation:** It writes a concise, engaging script, much like a podcast host would, summarizing the key points, quoting key insights, and structuring the narrative.
     *   **Voice Synthesis:** It uses a generative voice model (e.g., ElevenLabs, Play.ht) to perform the script. For added depth, with user consent, it could use voice cloning to represent quotes from different authors in their own unique AI-generated voice.
     *   **Audio Production:** The agent mixes the voice track with intro/outro music and potentially subtle sound effects, producing a final `.mp3` file.

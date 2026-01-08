@@ -142,8 +142,8 @@ class PipelineState:
     annotations_store: AnnotationStore | None = None
     task_store: TaskStore | None = None
 
-    # V3 Content Library Facade
-    library: Any = None  # V3 ContentLibrary (avoid V2→V3 import)
+    # Pure Content Library Facade
+    library: Any = None  # Pure ContentLibrary (avoid V2→Pure import)
 
     # Output & Adapters (Initialized lazily or updated)
     output_format: OutputSink | None = None  # ISP-compliant: Runtime data operations only
@@ -235,7 +235,7 @@ class PipelineContext:
         return self.state.task_store
 
     @property
-    def library(self) -> Any:  # V3 ContentLibrary (avoid V2→V3 import)
+    def library(self) -> Any:  # Pure ContentLibrary (avoid V2→Pure import)
         return self.state.library
 
     @property

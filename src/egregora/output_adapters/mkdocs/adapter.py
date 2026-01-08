@@ -1164,7 +1164,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             logger.info("Skipping persistence of PII-containing media: %s", path.name)
             return
 
-        # V3 Large File Support: If source_path is present, move/copy from there
+        # Pure Large File Support: If source_path is present, move/copy from there
         # instead of loading content into memory.
         source_path = document.metadata.get("source_path")
         if source_path:

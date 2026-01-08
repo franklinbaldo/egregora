@@ -22,7 +22,7 @@ We treat Egregora as a *publishing* engine (Atom/RSS -> HTML). But the Atom spec
 ### Input
 *   **Chat Logs:** The standard `Entry` stream.
 *   **Prosody/Vibe Analysis:** Analyze the sentiment, capitalization, and emoji usage to determine the "emotional tone" of segments.
-*   **Voice Notes:** Extract audio attachments (already supported in V3 plan) and transcribe them (Speech-to-Text) for context, but keep raw audio for mixing.
+*   **Voice Notes:** Extract audio attachments (already supported in Pure plan) and transcribe them (Speech-to-Text) for context, but keep raw audio for mixing.
 
 ### Processing
 **Evolution:** Initially conceived as a multi-stage pipeline (Script -> TTS -> Mixer), recent advances in **native multimodal generation** allow us to collapse this into a single, elegant step.

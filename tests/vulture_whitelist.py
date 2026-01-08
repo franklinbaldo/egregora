@@ -18,8 +18,8 @@ def _whitelist() -> None:
 
     _ = _Placeholder()
 
-    # V3: __exit__ method signature (required by context manager protocol)
-    # src/egregora_v3/infra/adapters/rss.py
+    # Pure: __exit__ method signature (required by context manager protocol)
+    # src/egregora/infra/adapters/rss.py
     _.exc_type  # noqa: B018
     _.exc_val  # noqa: B018
     _.exc_tb  # noqa: B018

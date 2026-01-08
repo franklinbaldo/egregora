@@ -1,6 +1,6 @@
-# Egregora V3: Tactical Backlog (TODO.md)
+# Egregora Pure: Tactical Backlog (TODO.md)
 
-This backlog directs the engineering team on *what* to build next to stabilize the current architecture and prepare for the V3 migration.
+This backlog directs the engineering team on *what* to build next to stabilize the current architecture and prepare for the Pure migration.
 
 **Priorities:**
 *   🔴 **HIGH**: Blocking issues, critical technical debt, or architectural violations.
@@ -12,9 +12,9 @@ This backlog directs the engineering team on *what* to build next to stabilize t
 ## 🔴 High Priority (Blocking / Critical Debt)
 
 ### 1. Unify Data Model (The "One Schema" Rule)
-*   **Context:** Currently, we have `IR_MESSAGE_SCHEMA` (V2) in DuckDB and `Entry`/`Document` (V3) in Pydantic. This duality causes friction.
-*   **Task:** Migrate the DuckDB `documents` table to fully support the V3 `Entry` schema.
-    *   [x] Update `src/egregora/database/ir_schema.py` to match fields in `src/egregora_v3/core/types.py`.
+*   **Context:** Currently, we have `IR_MESSAGE_SCHEMA` (V2) in DuckDB and `Entry`/`Document` (Pure) in Pydantic. This duality causes friction.
+*   **Task:** Migrate the DuckDB `documents` table to fully support the Pure `Entry` schema.
+    *   [x] Update `src/egregora/database/ir_schema.py` to match fields in `src/egregora/core/types.py`.
     *   [x] Add `doc_type` column (ENUM) to distinguish `message`, `post`, `profile`, `log`.
     *   [x] Add `extensions` column (JSON) for Atom extensions.
     *   [x] Create a migration script to alter existing tables.
@@ -64,7 +64,7 @@ This backlog directs the engineering team on *what* to build next to stabilize t
     - **Action**:
         - Modify `parse_source` in `src/egregora/input_adapters/whatsapp/parsing.py` to yield `Entry` instances.
         - Ensure `author` maps to `Entry.authors` and `timestamp` to `Entry.updated`.
-    - **Goal**: Align ingestion with V3 data model.
+    - **Goal**: Align ingestion with Pure data model.
 
 - [ ] **[Privacy] Isolate Privacy Logic as Stream Transformation**
     - **Context**: Privacy logic is scattered across adapters and helpers.
@@ -87,7 +87,7 @@ This backlog directs the engineering team on *what* to build next to stabilize t
     - **Goal**: Improve CLI discoverability and maintainability.
 
 - [ ] **[Cleanup] Remove Legacy V2 Code**
-    - **Context**: V2 schemas and types will be obsolete once V3 is adopted.
+    - **Context**: V2 schemas and types will be obsolete once Pure is adopted.
     - **Task**: Delete unused V2 code.
     - **Action**:
         - Remove `IR_MESSAGE_SCHEMA` once `UNIFIED_SCHEMA` is fully adopted.
@@ -104,6 +104,6 @@ This backlog directs the engineering team on *what* to build next to stabilize t
     - **Goal**: Prevent dependency inversion violations.
 
 - [ ] **[Refactor] Use Jinja2 Templates in Enricher Agent**
-    - **Context**: `EnricherAgent` in `src/egregora_v3/engine/agents/enricher.py` uses hardcoded strings.
+    - **Context**: `EnricherAgent` in `src/egregora/engine/agents/enricher.py` uses hardcoded strings.
     - **Task**: Replace `_get_default_system_prompt` and `_build_prompt` with Jinja2 templates.
     - **Goal**: Align with Phase 3.4 architecture.

@@ -4,7 +4,7 @@ Last updated: 2024-07-22
 
 ## Current Data Processing Patterns
 
-The `egregora_v3` codebase utilizes Ibis for declarative queries against a DuckDB backend. Data is stored in a central `documents` table, where one column (`json_data`) contains a JSON blob of the full Pydantic model (`Entry` or `Document`).
+The `egregora` codebase utilizes Ibis for declarative queries against a DuckDB backend. Data is stored in a central `documents` table, where one column (`json_data`) contains a JSON blob of the full Pydantic model (`Entry` or `Document`).
 
 Data retrieval methods in `DuckDBDocumentRepository` follow a common pattern:
 1.  Execute an Ibis query to fetch metadata and the `json_data` blob.

@@ -69,9 +69,9 @@ The cryptography error prevents importing the pipeline, but all our merged code 
 
 All modified files compile successfully:
 ```
-✓ src/egregora_v3/core/types.py
-✓ src/egregora_v3/infra/sinks/atom.py (refactored)
-✓ src/egregora_v3/infra/repository/duckdb.py (explicit hydration)
+✓ src/egregora/core/types.py
+✓ src/egregora/infra/sinks/atom.py (refactored)
+✓ src/egregora/infra/repository/duckdb.py (explicit hydration)
 ✓ src/egregora/agents/avatar.py
 ✓ src/egregora/agents/enricher.py
 ✓ src/egregora/data_primitives/document.py
@@ -157,7 +157,7 @@ All modified files compile successfully:
 - ✅ Fixed import organization (auto-formatted by ruff)
 
 ### Architecture Verified
-- ✅ V3 Document class has all business logic intact
+- ✅ Pure Document class has all business logic intact
 - ✅ Slug generation working (`_set_identity_and_timestamps`)
 - ✅ ID generation from slug preserved
 - ✅ Metadata handling unchanged
@@ -198,7 +198,7 @@ This prevents:
 1. **test_blog_generation.py** - Integration test suite (4/4 passing)
 2. **test_full_pipeline.py** - E2E pipeline test (blocked by env)
 3. **TEST_STATUS.md** - Detailed test verification status
-4. **ARCHITECTURE_CLARIFICATION.md** - V2/V3 architecture docs
+4. **ARCHITECTURE_CLARIFICATION.md** - V2/Pure architecture docs
 5. **FINAL_TEST_REPORT.md** - This comprehensive report
 
 ## Conclusion

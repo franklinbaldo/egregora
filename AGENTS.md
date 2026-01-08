@@ -11,7 +11,7 @@ This document provides practical instructions for AI agents. For comprehensive c
 Before starting work, familiarize yourself with:
 - **[CLAUDE.md](CLAUDE.md)**: Authoritative coding standards, architecture patterns, and development practices
 - **[.jules/README.md](.jules/README.md)**: Jules persona definitions and scheduling
-- **[ARCHITECTURE_CLARIFICATION.md](ARCHITECTURE_CLARIFICATION.md)**: V2/V3 migration details
+- **[ARCHITECTURE_CLARIFICATION.md](ARCHITECTURE_CLARIFICATION.md)**: V2/Pure migration details
 - **[README.md](README.md)**: User-facing documentation and project overview
 
 ---
@@ -58,7 +58,7 @@ pytest tests/  # assumes global install
 - [ ] Docstrings for public APIs
 - [ ] Error handling uses custom exceptions
 - [ ] Pre-commit hooks pass
-- [ ] V2/V3 compatibility maintained (see [ARCHITECTURE_CLARIFICATION.md](ARCHITECTURE_CLARIFICATION.md))
+- [ ] V2/Pure compatibility maintained (see [ARCHITECTURE_CLARIFICATION.md](ARCHITECTURE_CLARIFICATION.md))
 
 ---
 
@@ -230,7 +230,7 @@ schedule: "0 */6 * * *"  # Optional cron expression
 2. **Search for patterns**: Use grep/glob to find similar code
 3. **Check tests**: Look for existing tests to understand behavior
 4. **Review exceptions**: Check `exceptions.py` for proper error types
-5. **Verify migrations**: Ensure V2/V3 compatibility if needed
+5. **Verify migrations**: Ensure V2/Pure compatibility if needed
 
 ### Making Changes
 

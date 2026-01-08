@@ -262,7 +262,7 @@ tick	Run Jules Scheduler	2026-01-05T03:58:06.2154746Z Installed 259 packages in 
 tick	Run Jules Scheduler	2026-01-05T03:58:14.3470880Z Running in CYCLE mode with order: ['curator', 'refactor', 'visionary', 'bolt', 'sentinel', 'builder', 'shepherd', 'janitor', 'docs_curator', 'artisan', 'palette', 'scribe', 'forge', 'sheriff', 'streamliner', 'weaver', 'simplifier', 'organizer', 'taskmaster', 'essentialist', 'sapper']
 tick	Run Jules Scheduler	2026-01-05T03:58:14.3471896Z Branch 'jules' exists on remote.
 tick	Run Jules Scheduler	2026-01-05T03:58:14.3472176Z Last recorded session: 15351284206648001659 (refactor)
-tick	Run Jules Scheduler	2026-01-05T03:58:14.3474631Z Found PR for last session: #2228 - 🗂️ refactor(utils): Consolidate slugify utility in V3 core
+tick	Run Jules Scheduler	2026-01-05T03:58:14.3474631Z Found PR for last session: #2228 - 🗂️ refactor(utils): Consolidate slugify utility in Pure core
 tick	Run Jules Scheduler	2026-01-05T03:58:14.3475422Z PR #2228 is not green (CI pending or failed). Waiting for CI/Autofix.
 tick	Run Jules Feedback Loop	﻿2026-01-05T03:58:14.4415326Z ##[group]Run args=()
 tick	Run Jules Feedback Loop	2026-01-05T03:58:14.4415605Z [36;1margs=()[0m

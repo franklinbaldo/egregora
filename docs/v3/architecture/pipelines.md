@@ -1,6 +1,6 @@
 # Agent Pipelines
 
-Pipelines in Egregora V3 are sequences of functional transformations.
+Pipelines in Egregora Pure are sequences of functional transformations.
 
 ## The `Write` Pipeline
 
