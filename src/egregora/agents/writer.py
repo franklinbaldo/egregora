@@ -88,12 +88,10 @@ HTTP_STATUS_NOT_FOUND = 404
 WRITER_TEMPLATE_NAME = "writer.jinja"
 
 # Centralized model rotation list (matches settings.py and model_cycler.py)
+# Only Gemini 2.5+ models
 GEMINI_MODEL_PRIORITY = [
     "gemini-2.5-flash",           # Primary model
     "gemini-3-flash-preview",      # Preview access
-    "gemini-2.0-flash",            # Stable backup
-    "gemini-1.5-flash-8b",         # Lightweight option
-    "gemini-1.5-pro",              # High-quality option
 ]
 JOURNAL_TEMPLATE_NAME = "journal.md.jinja"
 TEMPLATES_DIR_NAME = "templates"
