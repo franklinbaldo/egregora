@@ -1,54 +1,41 @@
-# Plano: Curator - Sprint 2
+# Plan: Curator - Sprint 2
 
-**Persona:** curator  
-**Sprint:** 2  
-**Criado em:** 2026-01-07 (durante sprint-1)  
-**Prioridade:** Alta  
+**Persona:** 🎭 Curator
+**Sprint:** 2
+**Created in:** 2024-07-26 (during sprint-1)
+**Priority:** High
 
-## Objetivos
+## Goals
 
-O curator tem como missão manter o repositório organizado e saudável. Para o sprint-2, os objetivos são:
+My mission is to establish the foundational UX/UI vision for Egregora-generated blogs. This sprint is focused on discovery, documentation, and creating a tactical backlog.
 
-- [ ] Implementar sistema de labels estruturado
-- [ ] Categorizar todas as issues abertas (150+)
-- [ ] Criar documento de processo de triagem
-- [ ] Identificar e fechar issues duplicadas ou obsoletas
+- [ ] **Initial UX Audit:** Systematically evaluate the current state of the generated demo blog.
+- [ ] **Create `TODO.ux.toml`:** Establish the tactical backlog of UX issues and improvements.
+- [ ] **Create `docs/ux-vision.md`:** Document the initial UX vision, principles, and key architectural findings (like template locations).
+- [ ] **Define Baseline Metrics:** Identify key metrics (e.g., Lighthouse scores, accessibility standards) to track progress against.
 
-## Dependências
+## Dependencies
 
-As seguintes dependências foram identificadas:
+- **Forge:** The `Forge` persona will be the primary implementer of tasks created in `TODO.ux.toml`. My work this sprint is to provide them with a clear, actionable backlog for future sprints.
 
-- **refactor:** Aguardando refatoração do módulo de issues para facilitar automação de labels
-- **docs_curator:** Coordenar sobre documentação do processo de triagem
-- **sheriff:** Alinhar sobre políticas de fechamento de issues
+## Context
 
-## Contexto
+As the Curator, I've discovered that the core UX artifacts (`TODO.ux.toml` and `docs/ux-vision.md`) do not exist. The previous sprint plan was misaligned with my persona's actual responsibilities. This sprint is a hard reset to establish the baseline and create the necessary documents to guide all future UX/UI work. The Curation Cycle (Generate -> Serve -> Inspect -> Curate) will be executed for the first time.
 
-Durante o sprint-1, foi identificado que o repositório possui mais de 150 issues abertas sem organização clara. Muitas issues não têm labels, algumas são duplicadas, e outras estão obsoletas. Isso dificulta a priorização e o trabalho de outras personas.
+## Expected Deliverables
 
-A implementação de um sistema de labels estruturado e a categorização das issues existentes vai melhorar significativamente a eficiência do trabalho de todas as personas, especialmente builder, visionary e taskmaster.
+1.  **`TODO.ux.toml`:** A well-structured TOML file containing the initial set of prioritized UX tasks.
+2.  **`docs/ux-vision.md`:** The first version of the UX vision document.
+3.  **Journal Entry:** A detailed journal entry documenting the audit process, findings, and decisions made.
 
-## Entregáveis Esperados
+## Risks and Mitigations
 
-1. **Sistema de Labels:** Conjunto completo de labels criadas no GitHub (tipo, prioridade, área, status)
-2. **Issues Categorizadas:** Todas as 150+ issues com labels apropriadas
-3. **Documento de Processo:** Markdown descrevendo como fazer triagem de novas issues
-4. **Limpeza:** Lista de issues fechadas (duplicadas/obsoletas) com justificativa
+| Risk | Probability | Impact | Mitigation |
+|---|---|---|---|
+| Demo Generation Fails | Medium | High | My persona instructions include guidance on how to debug build issues and work without browser access by analyzing generated files and logs. I will proceed with the audit even if the site isn't perfectly rendered. |
+| Initial Audit is Overwhelming | Medium | Medium | I will focus on creating high-priority, foundational tasks first (e.g., fixing broken elements, establishing a color palette) and defer lower-impact items to the backlog for future sprints. |
 
-## Riscos e Mitigações
+## Collaborations Proposed
 
-| Risco | Probabilidade | Impacto | Mitigação |
-|-------|---------------|---------|-----------|
-| Volume de issues muito alto | Alta | Médio | Priorizar issues mais recentes e ativas |
-| Conflito sobre fechamento | Média | Alto | Consultar sheriff antes de fechar issues controversas |
-| Labels inconsistentes | Baixa | Médio | Revisar com docs_curator antes de aplicar em massa |
-
-## Colaborações Propostas
-
-- **Com refactor:** Após refatoração do módulo de issues, implementar automação de labels
-- **Com docs_curator:** Revisar documento de processo e incluir na documentação oficial
-- **Com sheriff:** Definir políticas claras de fechamento de issues
-
-## Notas Adicionais
-
-Este trabalho vai beneficiar diretamente o trabalho do taskmaster (priorização) e do organizer (estruturação). Considerar criar um dashboard de métricas de issues após a categorização.
+- **With Forge:** Clearly hand off the `TODO.ux.toml` file with detailed tasks so they can begin implementation in the next sprint.
+- **With Docs Curator:** Ensure the new `docs/ux-vision.md` is discoverable and linked within the broader project documentation.
