@@ -4,6 +4,7 @@ import sys
 import tomllib
 import subprocess
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -390,13 +391,18 @@ def get_pr_by_session_id(open_prs: list[dict[str, Any]], session_id: str) -> dic
     return None
 
 def _match_persona_from_title(title: str, cycle_entries: list[dict[str, Any]]) -> str | None:
-    title_lower = title.lower()
     for entry in cycle_entries:
         pid = entry.get("id", "")
         emoji = entry.get("emoji", "")
-        if pid and pid.lower() in title_lower:
-            return pid
         if emoji and emoji in title:
+            return pid
+    title_lower = title.lower()
+    for entry in cycle_entries:
+        pid = entry.get("id", "")
+        if not pid:
+            continue
+        pattern = rf"(?<![\\w-]){re.escape(pid.lower())}(?![\\w-])"
+        if re.search(pattern, title_lower):
             return pid
     return None
 
