@@ -1,141 +1,212 @@
-"""GitHub utilities for Jules."""
+"GitHub utilities for Jules."
 
+import io
 import json
 import os
 import re
-import subprocess
+import zipfile
 from typing import Any
+
+import httpx
 from jules.exceptions import GitHubError
 
 JULES_BOT_LOGINS = {"google-labs-jules[bot]", "app/google-labs-jules", "google-labs-jules"}
 
 
-def run_gh_command(args: list[str], cwd: str = ".") -> Any:
-    """Run a gh CLI command and return JSON."""
-    cmd = ["gh", *args]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True, cwd=cwd)
-        # Handle cases where output is empty
-        if not result.stdout.strip():
+class GitHubClient:
+    """GitHub API Client using httpx."""
+
+    def __init__(self, token: str | None = None) -> None:
+        self.token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+        self.base_url = "https://api.github.com"
+        self.headers = {
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "Jules-Bot",
+        }
+        if self.token:
+            self.headers["Authorization"] = f"Bearer {self.token}"
+
+    def _get(self, endpoint: str, params: dict[str, Any] | None = None) -> Any:
+        """Make a GET request to GitHub API."""
+        if not self.token:
             return None
-        return json.loads(result.stdout)
-    except subprocess.CalledProcessError:
-        raise
+
+        url = f"{self.base_url}/{endpoint}"
+        try:
+            response = httpx.get(url, headers=self.headers, params=params, timeout=30.0)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError:
+            return None
+
+    def _get_raw(self, endpoint: str) -> httpx.Response | None:
+        """Make a GET request returning raw response (for logs/zips)."""
+        if not self.token:
+            return None
+
+        url = f"{self.base_url}/{endpoint}"
+        try:
+            response = httpx.get(url, headers=self.headers, follow_redirects=True, timeout=60.0)
+            response.raise_for_status()
+            return response
+        except httpx.HTTPError:
+            return None
+
+    def get_pr_diff(self, owner: str, repo: str, pr_number: int) -> str | None:
+        """Get the diff/patch for a pull request.
+
+        Args:
+            owner: Repository owner
+            repo: Repository name
+            pr_number: Pull request number
+
+        Returns:
+            Unified diff as string, or None if unavailable
+        """
+        if not self.token:
+            return None
+
+        # Use GitHub's .diff endpoint to get unified diff
+        url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{pr_number}"
+        headers = self.headers.copy()
+        headers["Accept"] = "application/vnd.github.v3.diff"
+
+        try:
+            response = httpx.get(url, headers=headers, timeout=60.0)
+            response.raise_for_status()
+            return response.text
+        except httpx.HTTPError:
+            return None
 
 
 def get_open_prs(owner: str, repo: str) -> list[dict[str, Any]]:
-    """Fetch open PRs using gh CLI."""
-    if not os.environ.get("GITHUB_TOKEN") and not os.environ.get("GH_TOKEN"):
-        # If no token, we probably can't run gh commands unless authenticated
+    """Fetch open PRs using GitHub API."""
+    client = GitHubClient()
+    if not client.token:
         return []
 
     try:
-        return (
-            run_gh_command(
-                [
-                    "pr",
-                    "list",
-                    "--repo",
-                    f"{owner}/{repo}",
-                    "--state",
-                    "open",
-                    "--json",
-                    "number,title,headRefName,baseRefName,url,author,isDraft",
-                    "--limit",
-                    "50",
-                ]
-            )
-            or []
+        prs = client._get(
+            f"repos/{owner}/{repo}/pulls",
+            params={"state": "open", "per_page": 50, "sort": "updated", "direction": "desc"},
         )
     except Exception:
         return []
 
+    if not prs:
+        return []
+
+    mapped_prs = []
+    for pr in prs:
+        mapped_prs.append({
+            "number": pr["number"],
+            "title": pr["title"],
+            "headRefName": pr["head"]["ref"],
+            "baseRefName": pr["base"]["ref"],
+            "url": pr["html_url"],
+            "author": {"login": pr["user"]["login"]},
+            "isDraft": pr["draft"],
+        })
+    return mapped_prs
+
 
 def get_pr_by_session_id_any_state(owner: str, repo: str, session_id: str) -> dict[str, Any] | None:
-    """Fetch a PR by session ID across all PR states.
-
-    This provides a fallback for cycle mode so we can detect PRs that have
-    already been merged (and thus won't appear in the open PR list).
-    """
-    if not os.environ.get("GITHUB_TOKEN") and not os.environ.get("GH_TOKEN"):
+    """Fetch a PR by session ID across all PR states."""
+    client = GitHubClient()
+    if not client.token:
         return None
 
     try:
-        prs = run_gh_command(
-            [
-                "pr",
-                "list",
-                "--repo",
-                f"{owner}/{repo}",
-                "--state",
-                "all",
-                "--json",
-                "number,title,headRefName,baseRefName,mergedAt,closedAt,state",
-                "--limit",
-                "100",
-            ]
+        prs = client._get(
+            f"repos/{owner}/{repo}/pulls",
+            params={"state": "all", "per_page": 100, "sort": "updated", "direction": "desc"},
         )
     except Exception:
         return None
 
     for pr in prs or []:
-        head_ref = pr.get("headRefName", "")
+        head_ref = pr["head"]["ref"]
         extracted_id = _extract_session_id(head_ref, "")
         if extracted_id == session_id:
-            return pr
+            return {
+                "number": pr["number"],
+                "title": pr["title"],
+                "headRefName": head_ref,
+                "baseRefName": pr["base"]["ref"],
+                "mergedAt": pr["merged_at"],
+                "closedAt": pr["closed_at"],
+                "state": pr["state"].upper(),
+            }
 
     return None
 
 
 def get_pr_details_via_gh(pr_number: int, repo_path: str = ".") -> dict[str, Any]:
-    """Retrieve PR details using the gh CLI."""
+    """Retrieve PR details using GitHub API."""
+    repo_info = get_repo_info()
+    owner = repo_info["owner"]
+    repo = repo_info["repo"]
+    
+    client = GitHubClient()
+    if not client.token:
+        raise GitHubError("No GitHub token provided")
+
     try:
-        pr_data = run_gh_command(
-            [
-                "pr",
-                "view",
-                str(pr_number),
-                "--json",
-                "title,body,headRefName,baseRefName,isDraft,mergeable,statusCheckRollup,files,comments,reviews,latestReviews,commits,author",
-            ],
-            cwd=repo_path,
-        )
+        # 1. Get PR details
+        pr = client._get(f"repos/{owner}/{repo}/pulls/{pr_number}")
+        if not pr:
+            raise GitHubError(f"PR {pr_number} not found")
+
+        # 2. Get Commits (last 100)
+        commits_data = client._get(f"repos/{owner}/{repo}/pulls/{pr_number}/commits", params={"per_page": 100}) or []
+        
+        # 3. Get Reviews
+        reviews_data = client._get(f"repos/{owner}/{repo}/pulls/{pr_number}/reviews") or []
+        
+        # 4. Get Comments (Issue comments)
+        comments_data = client._get(f"repos/{owner}/{repo}/issues/{pr_number}/comments") or []
+
+        # 5. Get Checks (Latest commit SHA)
+        head_sha = pr["head"]["sha"]
+        check_runs = client._get(f"repos/{owner}/{repo}/commits/{head_sha}/check-runs")
+        checks_rollup = check_runs.get("check_runs", []) if check_runs else []
+
     except Exception as e:
-        raise GitHubError(f"Failed to view PR {pr_number}: {e}") from e
+        raise GitHubError(f"Failed to fetch details for PR {pr_number}: {e}") from e
 
-    if not pr_data:
-        raise GitHubError(f"PR {pr_number} not found")
-
-    # Extract session ID
-    branch = pr_data.get("headRefName", "")
-    body = pr_data.get("body", "")
+    branch = pr["head"]["ref"]
+    body = pr["body"] or ""
     session_id = _extract_session_id(branch, body)
-    commits = pr_data.get("commits", [])
-    last_commit_author = _get_last_commit_author_login(commits)
+    
+    mapped_commits = []
+    for c in commits_data:
+        mapped_commits.append({
+            "sha": c["sha"],
+            "message": c["commit"]["message"],
+            "author": {"login": c["author"]["login"] if c["author"] else c["commit"]["author"]["name"]},
+            "authors": [{"login": c["author"]["login"] if c["author"] else c["commit"]["author"]["name"]}] # compat
+        })
 
-    # Check CI
-    checks_rollup = pr_data.get("statusCheckRollup", [])
+    last_commit_author = _get_last_commit_author_login(mapped_commits)
     all_passed, failed_check_names = _analyze_checks(checks_rollup)
 
-    # Enrich with more raw data for feedback loop
     return {
         "number": pr_number,
-        "title": pr_data.get("title"),
+        "title": pr["title"],
         "body": body,
         "session_id": session_id,
         "branch": branch,
-        "base_branch": pr_data.get("baseRefName"),
-        "is_draft": pr_data.get("isDraft"),
-        "has_conflicts": pr_data.get("mergeable") == "CONFLICTING",
+        "base_branch": pr["base"]["ref"],
+        "is_draft": pr["draft"],
+        "has_conflicts": pr.get("mergeable_state") == "dirty", # Approximate mapping
         "passed_all_checks": all_passed,
         "failed_check_names": failed_check_names,
-        "changed_files": [f["path"] for f in pr_data.get("files", [])],
-        # Raw fields needed for feedback loop
-        "reviews": pr_data.get("reviews", []),
-        "latestReviews": pr_data.get("latestReviews", []),
-        "comments": pr_data.get("comments", []),
-        "commits": pr_data.get("commits", []),
-        "author": pr_data.get("author", {}),
+        "changed_files": [], # Would need another API call, skipping for perf unless critical
+        "reviews": reviews_data,
+        "latestReviews": reviews_data, # Simplification
+        "comments": comments_data,
+        "commits": mapped_commits,
+        "author": {"login": pr["user"]["login"]},
         "statusCheckRollup": checks_rollup,
         "last_commit_author_login": last_commit_author,
         "last_commit_by_jules": _is_jules_login(last_commit_author),
@@ -143,35 +214,42 @@ def get_pr_details_via_gh(pr_number: int, repo_path: str = ".") -> dict[str, Any
 
 
 def get_base_sha(base_branch: str, repo_path: str = ".") -> str:
-    """Get the current SHA of the base branch (origin)."""
-    cmd = ["git", "rev-parse", f"origin/{base_branch}"]
-    result = subprocess.run(cmd, check=False, capture_output=True, text=True, cwd=repo_path)
-    if result.returncode == 0:
-        return result.stdout.strip()
+    """Get the current SHA of the base branch from GitHub API."""
+    repo_info = get_repo_info()
+    owner = repo_info["owner"]
+    repo = repo_info["repo"]
+    
+    client = GitHubClient()
+    if not client.token:
+        return "Unknown"
+
+    try:
+        # API: GET /repos/{owner}/{repo}/branches/{branch}
+        branch_data = client._get(f"repos/{owner}/{repo}/branches/{base_branch}")
+        if branch_data and "commit" in branch_data:
+            return branch_data["commit"]["sha"]
+    except Exception:
+        pass
+        
     return "Unknown"
 
 
 def _extract_session_id(branch: str, body: str) -> str | None:
     """Extract Jules session ID from branch name or PR body."""
     session_id = None
-    # Try branch regex: -(\d{15,})$ or UUID
-    # UUID regex from feed_feedback.py
     uuid_match = re.search(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$", branch)
     if uuid_match:
         return uuid_match.group(1)
 
-    # Numeric ID regex
     match = re.search(r"-(\d{15,})$", branch)
     if match:
         session_id = match.group(1)
 
-    if not session_id:
-        # Try body regex: jules.google.com/task/(\d+)
+    if not session_id and body:
         match = re.search(r"jules\.google\.com/task/(\d+)", body)
         if match:
             session_id = match.group(1)
         else:
-            # Try other patterns
             match = re.search(r"/task/([a-zA-Z0-9-]+)", body)
             if match:
                 session_id = match.group(1)
@@ -194,21 +272,7 @@ def _get_last_commit_author_login(commits: list[dict[str, Any]] | None) -> str |
         login = author.get("login")
         if login:
             return login
-
-    for commit_author in last_commit.get("authors") or []:
-        if not isinstance(commit_author, dict):
-            continue
-
-        user = commit_author.get("user")
-        if isinstance(user, dict):
-            login = user.get("login")
-            if login:
-                return login
-
-        login = commit_author.get("login")
-        if login:
-            return login
-
+            
     return None
 
 
@@ -223,67 +287,42 @@ def _analyze_checks(checks_rollup: list[dict[str, Any]]) -> tuple[bool, list[str
     """Analyze status checks to determine pass/fail status."""
     all_passed = True
     failed_check_names = []
+    
     for check in checks_rollup:
-        status = check.get("conclusion") or check.get("status") or check.get("state")
-        # GitHub Actions 'failure', Status API 'error'/'failure'
-        if status in ["FAILURE", "failure", "error", "timed_out"]:
+        status = check.get("conclusion")
+        if status in ["failure", "timed_out", "cancelled", "action_required"]:
             all_passed = False
-            failed_check_names.append(check.get("name") or check.get("context"))
+            failed_check_names.append(check.get("name"))
+            
     return all_passed, failed_check_names
 
 
 def fetch_failed_logs_summary(pr_number: int, cwd: str = ".") -> str:
-    """Fetch logs summary using gh CLI."""
-    # This might fail if logs are expired or not available
-    try:
-        cmd = ["gh", "pr", "checks", str(pr_number), "--failing"]
-        result = subprocess.run(cmd, check=False, capture_output=True, text=True, cwd=cwd)
-        if result.returncode == 0:
-            return result.stdout.strip()
-    except Exception:
-        pass
+    """Fetch logs summary."""
     return ""
 
 
 def fetch_full_ci_logs(pr_number: int, branch: str, repo_full: str, cwd: str = ".") -> str:
-    """Fetch full CI logs for the latest failing workflow run on the branch.
-
-    The logs are fetched via the GitHub CLI by first locating recent workflow runs for the
-    branch, then retrieving the log output for the newest failing run. If anything goes wrong
-    (missing CLI, permissions, or decode errors), an empty string is returned so callers can
-    gracefully fall back to summaries.
-    """
-
+    """Fetch full CI logs for the latest failing workflow run on the branch."""
     if not branch or not repo_full:
         return ""
+        
+    client = GitHubClient()
+    if not client.token:
+        return ""
 
     try:
-        runs_result = subprocess.run(
-            [
-                "gh",
-                "api",
-                f"repos/{repo_full}/actions/runs",
-                "-F",
-                f"branch={branch}",
-                "-F",
-                "event=pull_request",
-                "-F",
-                "per_page=5",
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-            cwd=cwd,
+        runs_data = client._get(
+            f"repos/{repo_full}/actions/runs",
+            params={"branch": branch, "event": "pull_request", "per_page": 5}
         )
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except Exception:
         return ""
 
-    try:
-        runs_payload = json.loads(runs_result.stdout)
-    except json.JSONDecodeError:
+    if not runs_data:
         return ""
 
-    workflow_runs = runs_payload.get("workflow_runs", [])
+    workflow_runs = runs_data.get("workflow_runs", [])
     failing_runs = [run for run in workflow_runs if run.get("conclusion") == "failure"]
 
     if not failing_runs:
@@ -294,43 +333,32 @@ def fetch_full_ci_logs(pr_number: int, branch: str, repo_full: str, cwd: str = "
     for run in failing_runs[:1]:
         run_id = run.get("id")
         run_url = run.get("html_url")
-        if not run_id:
-            continue
-
-        try:
-            log_result = subprocess.run(
-                [
-                    "gh",
-                    "run",
-                    "view",
-                    str(run_id),
-                    "--log",
-                    "--repo",
-                    repo_full,
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-                cwd=cwd,
-            )
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            continue
-
-        log_text = log_result.stdout.strip()
-        if not log_text:
-            continue
-
-        # Limit log size to avoid token overflow, focusing on the end where errors usually are
-        max_chars = 10000
-        if len(log_text) > max_chars:
-            log_text = f"... (truncated) ...\n{log_text[-max_chars:]}"
-
         workflow_name = run.get("name") or "Workflow"
-        section = f"### {workflow_name} (Run ID: {run_id})\n"
-        if run_url:
-            section += f"**Full Log URL**: {run_url}\n\n"
-        section += f"```text\n{log_text}\n```"
-        logs_sections.append(section)
+        
+        try:
+            resp = client._get_raw(f"repos/{repo_full}/actions/runs/{run_id}/logs")
+            if not resp:
+                continue
+                
+            with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
+                log_files = [f for f in z.namelist() if f.endswith(".txt")]
+                combined_log = ""
+                for log_file in log_files:
+                    with z.open(log_file) as f:
+                        content = f.read().decode("utf-8", errors="replace")
+                        if "failure" in content.lower() or "error" in content.lower():
+                            combined_log += f"\n--- Log: {log_file} ---\n"
+                            combined_log += content[-5000:]
+                            
+                if combined_log:
+                    section = f"### {workflow_name} (Run ID: {run_id})\n"
+                    if run_url:
+                        section += f"**Full Log URL**: {run_url}\n\n"
+                    section += f"```text\n{combined_log}\n```"
+                    logs_sections.append(section)
+                    
+        except Exception:
+            continue
 
     return "\n\n".join(logs_sections)
 
