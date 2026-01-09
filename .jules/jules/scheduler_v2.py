@@ -152,10 +152,26 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
 
             pr_details = get_pr_details_via_gh(pr_number)
 
-            # Check if PR is draft
+            # Check if PR is draft - auto-mark as ready if session is complete
             if pr_mgr.is_draft(pr_details):
-                print(f"📝 PR #{pr_number} is still a draft. Waiting for it to be ready for review.")
-                return
+                print(f"📝 PR #{pr_number} is a draft. Checking session status...")
+                try:
+                    session_details = client.get_session(state.last_session_id)
+                    session_state = session_details.get("state")
+
+                    if session_state == "COMPLETED":
+                        # Session done but PR still draft - mark as ready
+                        print(f"✅ Session completed. Auto-marking PR as ready for review...")
+                        if not dry_run:
+                            pr_mgr.mark_ready(pr_number)
+                        # Re-fetch PR details after marking ready
+                        pr_details = get_pr_details_via_gh(pr_number)
+                    else:
+                        print(f"⏳ Session state: {session_state}. Waiting for completion...")
+                        return
+                except Exception as e:
+                    print(f"❌ Error checking session: {e}. Waiting for next tick.")
+                    return
 
             # Check if PR is green
             if not pr_mgr.is_green(pr_details):
