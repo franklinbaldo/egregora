@@ -303,6 +303,17 @@ class PRManager:
         """
         self.jules_branch = jules_branch
 
+    def is_draft(self, pr_details: dict) -> bool:
+        """Check if a PR is a draft.
+
+        Args:
+            pr_details: PR details from GitHub API
+
+        Returns:
+            True if PR is a draft, False otherwise
+        """
+        return pr_details.get("isDraft", False)
+
     def is_green(self, pr_details: dict) -> bool:
         """Check if all CI checks on a PR are passing.
 

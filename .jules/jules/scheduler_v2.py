@@ -151,11 +151,18 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
             print(f"Found PR #{pr_number}: {pr['title']}")
 
             pr_details = get_pr_details_via_gh(pr_number)
+
+            # Check if PR is draft
+            if pr_mgr.is_draft(pr_details):
+                print(f"📝 PR #{pr_number} is still a draft. Waiting for it to be ready for review.")
+                return
+
+            # Check if PR is green
             if not pr_mgr.is_green(pr_details):
                 print(f"❌ PR #{pr_number} is not green. Waiting for CI to pass.")
                 return
 
-            # PR is green - merge it!
+            # PR is ready - merge it!
             print(f"✅ PR #{pr_number} is green! Merging into '{JULES_BRANCH}'...")
             if not dry_run:
                 pr_mgr.merge_into_jules(pr_number)
