@@ -303,6 +303,37 @@ class PRManager:
         """
         self.jules_branch = jules_branch
 
+    def is_draft(self, pr_details: dict) -> bool:
+        """Check if a PR is a draft.
+
+        Args:
+            pr_details: PR details from GitHub API
+
+        Returns:
+            True if PR is a draft, False otherwise
+        """
+        return pr_details.get("isDraft", False)
+
+    def mark_ready(self, pr_number: int) -> None:
+        """Mark a draft PR as ready for review.
+
+        Args:
+            pr_number: PR number to mark as ready
+
+        Raises:
+            MergeError: If marking ready fails
+        """
+        try:
+            subprocess.run(
+                ["gh", "pr", "ready", str(pr_number)],
+                check=True,
+                capture_output=True,
+            )
+            print(f"✅ Marked PR #{pr_number} as ready for review.")
+        except subprocess.CalledProcessError as e:
+            stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
+            raise MergeError(f"Failed to mark PR #{pr_number} as ready: {stderr}") from e
+
     def is_green(self, pr_details: dict) -> bool:
         """Check if all CI checks on a PR are passing.
 
