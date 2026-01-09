@@ -1,7 +1,6 @@
 ---
 id: weaver
 emoji: 🕸️
-branch: "main"
 automation_mode: "AUTO_COMMIT"
 require_plan_approval: true
 dedupe: true

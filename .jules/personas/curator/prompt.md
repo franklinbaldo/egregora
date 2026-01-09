@@ -1,7 +1,6 @@
 ---
 id: curator
 emoji: 🎭
-branch: "main"
 automation_mode: "AUTO_CREATE_PR"
 require_plan_approval: false
 dedupe: true
