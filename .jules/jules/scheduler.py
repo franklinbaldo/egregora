@@ -8,8 +8,12 @@ New code should use scheduler_v2.py for the main scheduler logic.
 from jules.client import JulesClient
 from jules.github import get_open_prs, get_pr_by_session_id_any_state
 from jules.scheduler_legacy import (
+    CELEBRATION,
+    IDENTITY_BRANDING,
+    JOURNAL_MANAGEMENT,
     JULES_BRANCH,
     JULES_SCHEDULER_PREFIX,
+    PRE_COMMIT_INSTRUCTIONS,
     SprintManager,
     check_schedule,
     ensure_jules_branch_exists,
@@ -23,9 +27,13 @@ from jules.scheduler_legacy import (
 )
 
 __all__ = [
+    "CELEBRATION",
+    "IDENTITY_BRANDING",
+    "JOURNAL_MANAGEMENT",
     "JULES_BRANCH",
     "JULES_SCHEDULER_PREFIX",
     "JulesClient",
+    "PRE_COMMIT_INSTRUCTIONS",
     "SprintManager",
     "check_schedule",
     "ensure_jules_branch_exists",
