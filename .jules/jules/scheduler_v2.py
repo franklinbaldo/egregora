@@ -110,6 +110,10 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
             if not dry_run:
                 pr_mgr.merge_into_jules(pr_number)
 
+                # Sync with main to capture external changes
+                print(f"📥 Syncing '{JULES_BRANCH}' with main...")
+                branch_mgr.sync_with_main()
+
             # Check if we should increment sprint
             if state.should_increment_sprint:
                 old_sprint = sprint_manager.get_current_sprint()
@@ -133,6 +137,12 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
             if pr_any_state and pr_any_state.get("mergedAt"):
                 # PR already merged - advance!
                 print(f"✅ PR already merged. Continuing to {state.next_persona_id}")
+
+                # Sync with main to ensure we have latest changes
+                if not dry_run:
+                    print(f"📥 Syncing '{JULES_BRANCH}' with main...")
+                    branch_mgr.sync_with_main()
+
                 if state.should_increment_sprint:
                     sprint_manager.increment_sprint()
                 print()

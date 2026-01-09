@@ -240,6 +240,41 @@ class BranchManager:
             self._rotate_drifted_branch()
             return False
 
+    def sync_with_main(self) -> None:
+        """Sync Jules branch with main after a PR merge.
+
+        This ensures the next session is based on the latest main,
+        capturing both cycle PRs and external changes to main.
+
+        This is a non-critical operation - if it fails, the next tick
+        will attempt to sync again during branch initialization.
+        """
+        try:
+            subprocess.run(["git", "fetch", "origin"], check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.name", "Jules Bot"], check=False)
+            subprocess.run(["git", "config", "user.email", "jules-bot@google.com"], check=False)
+            subprocess.run(
+                ["git", "checkout", "-B", self.jules_branch, f"origin/{self.jules_branch}"],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "merge", "origin/main", "--no-edit"],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "push", "origin", self.jules_branch],
+                check=True,
+                capture_output=True,
+            )
+            print(f"✅ Synced '{self.jules_branch}' with main")
+        except subprocess.CalledProcessError as e:
+            stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
+            # Non-critical: next tick will try again
+            print(f"⚠️  Warning: Could not sync with main: {stderr}")
+            print("    The next tick will attempt to sync again.")
+
 
 class PRManager:
     """Handles GitHub PR operations."""
