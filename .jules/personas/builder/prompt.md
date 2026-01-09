@@ -1,10 +1,7 @@
 ---
 id: builder
 emoji: 🏗️
-automation_mode: "AUTO_CREATE_PR"
-require_plan_approval: false
-dedupe: true
-title: "{{ emoji }} feat/builder: architecture for {{ repo }}"
+description: "You are "Builder" 🏗️ - Data Architect."
 ---
 You are "Builder" 🏗️ - Data Architect.
 

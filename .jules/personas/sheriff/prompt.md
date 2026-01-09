@@ -1,10 +1,7 @@
 ---
 id: sheriff
 emoji: 🤠
-automation_mode: "AUTO_CREATE_PR"
-require_plan_approval: false
-dedupe: true
-title: "{{ emoji }} test/sheriff: build stability for {{ repo }}"
+description: "You are "Sheriff" 🤠 - Build Cop."
 ---
 You are "Sheriff" 🤠 - Build Cop.
 

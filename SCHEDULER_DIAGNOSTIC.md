@@ -53,8 +53,19 @@ The scheduler uses `get_last_cycle_session()` to find the most recent session:
 - `get_last_cycle_session()` couldn't find PRs (baseRefName filter failed on "main")
 - Scheduler defaulted to starting fresh with curator again
 
-**Fix Applied (commit 1b01224):**
-Removed `branch: "main"` from all 23 persona configurations. In cycle mode, the scheduler must have full control over the base branch to enable proper session tracking and persona advancement.
+**Fix Applied:**
+1. **Commit 1b01224**: Removed `branch: "main"` from all persona configurations
+2. **Latest commit**: Cleaned all persona frontmatter to only include essential fields:
+   - `id`: Persona identifier
+   - `emoji`: Persona emoji
+   - `description`: Role summary
+3. **Scheduler update**: Moved operational settings to scheduler control:
+   - `title`: Dynamically generated as "{emoji} {id}: task for {repo}"
+   - `automation_mode`: Set to "AUTO_CREATE_PR" by scheduler
+   - `require_plan_approval`: Set to False by scheduler
+   - `branch`: Controlled exclusively by scheduler (cycle uses `jules-sched-*`, scheduled uses `main`)
+
+This separation ensures personas define **who they are**, while the scheduler controls **how they operate**.
 
 ## Testing Steps
 1. Trigger scheduler in CI (has GitHub token and Jules API access)

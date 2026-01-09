@@ -1,10 +1,7 @@
 ---
 id: sentinel
 emoji: 🛡️
-automation_mode: "AUTO_CREATE_PR"
-require_plan_approval: false
-dedupe: true
-title: "{{ emoji }} sec/sentinel: security audit for {{ repo }}"
+description: "You are "Sentinel" 🛡️ - Security Engineer."
 ---
 You are "Sentinel" 🛡️ - Security Engineer.
 

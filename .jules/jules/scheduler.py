@@ -739,15 +739,20 @@ def run_cycle_step(
             last_session_id=last_session_id,
         )
         print(f"Starting session for {next_pid} on branch '{session_branch}'...")
+
+        # Generate title from persona metadata
+        emoji = config.get("emoji", "")
+        title = f"{emoji} {next_pid}: automated cycle task for {repo_info['repo']}"
+
         if not dry_run:
             result = client.create_session(
                 prompt=prompt_body,
                 owner=repo_info["owner"],
                 repo=repo_info["repo"],
                 branch=session_branch,
-                title=config.get("title", f"Task: {next_pid}"),
-                automation_mode=config.get("automation_mode", "AUTO_CREATE_PR"),
-                require_plan_approval=config.get("require_plan_approval", False),
+                title=title,
+                automation_mode="AUTO_CREATE_PR",
+                require_plan_approval=False,
             )
             session_id = result.get("name", "").split("/")[-1]
             print(f"Created session: {session_id}")
@@ -814,15 +819,19 @@ def run_scheduler(
                 should_run = True
 
             if should_run:
+                # Generate title from persona metadata
+                emoji = config.get("emoji", "")
+                title = f"{emoji} {pid}: scheduled task for {repo_info['repo']}"
+
                 if not dry_run:
                     result = client.create_session(
                         prompt=prompt_body,
                         owner=repo_info["owner"],
                         repo=repo_info["repo"],
-                        branch=config.get("branch", "main"),
-                        title=config.get("title", f"Task: {pid}"),
-                        automation_mode=config.get("automation_mode", "AUTO_CREATE_PR"),
-                        require_plan_approval=config.get("require_plan_approval", False),
+                        branch="main",
+                        title=title,
+                        automation_mode="AUTO_CREATE_PR",
+                        require_plan_approval=False,
                     )
                     session_id = result.get("name", "").split("/")[-1]
                     print(f"Created session for {pid}: {session_id}")
