@@ -1,0 +1,89 @@
+# Egregora UX/UI Improvement Tasks
+# Managed by Curator (🎭)
+
+# Tasks are categorized by priority.
+# Each task MUST have a detailed description explaining:
+# 1. WHY it matters (user impact)
+# 2. WHAT to change (specifics)
+# 3. HOW to verify success (metrics, visual check)
+# 4. WHERE to look (file paths)
+
+[[tasks.high_priority]]
+id = "create-missing-css-file"
+title = "Create missing custom CSS file to enable styling"
+description = """
+**WHY:** The `mkdocs.yml` references `stylesheets/extra.css`, but this file does not exist in the generated scaffold. This is a high-priority blocker because it prevents ANY custom styling or UX improvements from being applied.
+
+**WHAT:** Create the file `docs/stylesheets/extra.css` within the site scaffold.
+
+**HOW:** The `egregora demo` command should produce a site with `demo/docs/stylesheets/extra.css` present. A simple verification is to add a body background color to the CSS and see it applied.
+
+**WHERE:** The change needs to happen in the scaffolding logic, likely within `src/egregora/output_adapters/mkdocs/scaffolding.py`, to ensure the file is created during `egregora init` and `egregora demo`.
+"""
+status = "pending"
+category = "baseline"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "design-custom-color-palette"
+title = "Design a custom color palette to replace Material defaults"
+description = """
+**WHY:** The current site uses the default 'teal' and 'amber' colors from Material for MkDocs. This makes it look generic. A custom palette will establish a unique brand identity for Egregora-generated blogs, reflecting the theme of a 'collective consciousness'.
+
+**WHAT:** Research and define a primary and accent color to replace 'teal' and 'amber'. The palette should be professional, accessible, and distinctive.
+
+**HOW:** Success is when the `mkdocs.yml` `theme.palette` section is updated with the new color codes, and the generated site reflects this new branding. Contrast ratios must meet WCAG AA standards (4.5:1).
+
+**WHERE:** This is a design task for the Curator. Once the palette is chosen, the implementation will be in the `mkdocs.yml.jinja` template located in `src/egregora/output_adapters/mkdocs/scaffolding.py`.
+"""
+status = "pending"
+category = "visual"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "add-custom-favicon"
+title = "Add a custom favicon for professional branding"
+description = """
+**WHY:** The site currently lacks a favicon, showing a generic browser icon in tabs and bookmarks. This looks unprofessional and hurts brand recognition.
+
+**WHAT:** Design a simple, recognizable favicon for Egregora. Add the necessary configuration to `mkdocs.yml` to use it.
+
+**HOW:** The generated site should display the custom favicon in the browser tab. The `theme.favicon` and `theme.logo` properties in `mkdocs.yml` should be correctly configured.
+
+**WHERE:** A new `favicon.ico` or `favicon.png` needs to be added to the `docs/assets` directory (which may also need to be created). The template in `src/egregora/output_adapters/mkdocs/scaffolding.py` needs to be updated to include the favicon configuration.
+"""
+status = "pending"
+category = "visual"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "remove-google-analytics-placeholder"
+title = "Remove placeholder Google Analytics configuration"
+description = """
+**WHY:** The `mkdocs.yml` includes a Google Analytics configuration with a placeholder key `__GOOGLE_ANALYTICS_KEY__`. This is either a broken feature or a potential privacy concern if a key is ever accidentally injected. Egregora's philosophy is 'privacy-first'.
+
+**WHAT:** Remove the entire `extra.analytics` section from the `mkdocs.yml` template.
+
+**HOW:** The generated `demo/.egregora/mkdocs.yml` file should no longer contain the `extra.analytics` block.
+
+**WHERE:** The change must be made in the `mkdocs.yml.jinja` template within `src/egregora/output_adapters/mkdocs/scaffolding.py`.
+"""
+status = "pending"
+category = "privacy"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "improve-empty-state-messaging"
+title = "Improve the empty state messaging on the homepage"
+description = """
+**WHY:** When no posts are generated, the homepage is very basic. A more welcoming and informative empty state will improve the first-time user experience.
+
+**WHAT:** Design a more engaging empty state. This could include a welcome message, a brief explanation of what Egregora does, and a visual element.
+
+**HOW:** The `demo/docs/index.md` file should contain the new, improved content when generated in an empty state.
+
+**WHERE:** The logic for the index page content is likely in `src/egregora/output_adapters/mkdocs/adapter.py` or `site_generator.py`.
+"""
+status = "pending"
+category = "content"
+assignee = "curator"

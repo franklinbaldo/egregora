@@ -1,54 +1,44 @@
-# Plano: Curator - Sprint 2
+# Plan: Curator - Sprint 2
 
-**Persona:** curator  
-**Sprint:** 2  
-**Criado em:** 2026-01-07 (durante sprint-1)  
-**Prioridade:** Alta  
+**Persona:** Curator (🎭)
+**Sprint:** 2
+**Date:** 2026-01-08
+**Priority:** High
 
-## Objetivos
+## Goal
 
-O curator tem como missão manter o repositório organizado e saudável. Para o sprint-2, os objetivos são:
+The primary goal for Sprint 2 is to move beyond the generic Material for MkDocs defaults and establish a unique, professional visual identity for Egregora-generated blogs. This will be achieved by designing a custom color palette that is both aesthetically pleasing and highly accessible.
 
-- [ ] Implementar sistema de labels estruturado
-- [ ] Categorizar todas as issues abertas (150+)
-- [ ] Criar documento de processo de triagem
-- [ ] Identificar e fechar issues duplicadas ou obsoletas
+## Key Initiatives
 
-## Dependências
+1.  **Design Custom Color Palette:**
+    -   **Task:** `design-custom-color-palette` from `TODO.ux.toml`.
+    -   **Action:** I will research color theory and develop a primary and accent color palette that aligns with the Egregora brand concept of a "collective consciousness."
+    -   **Deliverable:** A set of specific hex codes for the new palette will be documented in `docs/ux-vision.md`.
+    -   **Verification:** The chosen colors must pass WCAG AA contrast ratio standards (at least 4.5:1 for normal text).
 
-As seguintes dependências foram identificadas:
+2.  **Guide Forge on Implementation:**
+    -   **Task:** Follow-up on `design-custom-color-palette`.
+    -   **Action:** Once the palette is defined, I will provide clear, actionable instructions for the Forge persona on how to implement it.
+    -   **Deliverable:** An update to the description of the `design-custom-color-palette` task in `TODO.ux.toml` with the chosen hex codes and implementation details.
 
-- **refactor:** Aguardando refatoração do módulo de issues para facilitar automação de labels
-- **docs_curator:** Coordenar sobre documentação do processo de triagem
-- **sheriff:** Alinhar sobre políticas de fechamento de issues
+3.  **Review High-Priority Fixes from Forge:**
+    -   **Task:** Review completed tasks from `TODO.ux.toml`.
+    -   **Action:** I will review the work done by the Forge persona on the high-priority baseline tasks created in Sprint 1, such as `create-missing-css-file` and `add-custom-favicon`.
+    -   **Verification:** I will visually inspect the generated demo site to confirm the fixes are implemented correctly and meet the acceptance criteria defined in the TODO tasks.
 
-## Contexto
+## Dependencies
 
-Durante o sprint-1, foi identificado que o repositório possui mais de 150 issues abertas sem organização clara. Muitas issues não têm labels, algumas são duplicadas, e outras estão obsoletas. Isso dificulta a priorização e o trabalho de outras personas.
+-   **Forge Persona:** I am dependent on Forge to implement the foundational fixes from Sprint 1 before I can effectively review the full visual impact of the new color palette.
 
-A implementação de um sistema de labels estruturado e a categorização das issues existentes vai melhorar significativamente a eficiência do trabalho de todas as personas, especialmente builder, visionary e taskmaster.
+## Risks & Mitigations
 
-## Entregáveis Esperados
+| Risk                                     | Probability | Impact | Mitigation                                                                                             |
+| ---------------------------------------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------ |
+| Color palette is not accessible          | Medium      | High   | Use a contrast checker tool during the design phase to validate all color combinations against WCAG AA.  |
+| Forge is blocked on foundational tasks   | Low         | Medium | Provide clear and detailed task descriptions in `TODO.ux.toml` to minimize ambiguity for Forge.        |
 
-1. **Sistema de Labels:** Conjunto completo de labels criadas no GitHub (tipo, prioridade, área, status)
-2. **Issues Categorizadas:** Todas as 150+ issues com labels apropriadas
-3. **Documento de Processo:** Markdown descrevendo como fazer triagem de novas issues
-4. **Limpeza:** Lista de issues fechadas (duplicadas/obsoletas) com justificativa
+## Next Steps
 
-## Riscos e Mitigações
-
-| Risco | Probabilidade | Impacto | Mitigação |
-|-------|---------------|---------|-----------|
-| Volume de issues muito alto | Alta | Médio | Priorizar issues mais recentes e ativas |
-| Conflito sobre fechamento | Média | Alto | Consultar sheriff antes de fechar issues controversas |
-| Labels inconsistentes | Baixa | Médio | Revisar com docs_curator antes de aplicar em massa |
-
-## Colaborações Propostas
-
-- **Com refactor:** Após refatoração do módulo de issues, implementar automação de labels
-- **Com docs_curator:** Revisar documento de processo e incluir na documentação oficial
-- **Com sheriff:** Definir políticas claras de fechamento de issues
-
-## Notas Adicionais
-
-Este trabalho vai beneficiar diretamente o trabalho do taskmaster (priorização) e do organizer (estruturação). Considerar criar um dashboard de métricas de issues após a categorização.
+-   Begin research on color theory and branding for the new palette.
+-   Prepare the `docs/ux-vision.md` file for the new design system section.
