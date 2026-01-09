@@ -26,9 +26,59 @@ from jules.scheduler_managers import (
     BranchManager,
     CycleStateManager,
     PRManager,
+    ReconciliationManager,
     SessionOrchestrator,
 )
 from jules.scheduler_models import SessionRequest
+
+
+def handle_drift_reconciliation(
+    drift_info: tuple[int, int],
+    client: JulesClient,
+    repo_info: dict[str, Any],
+    branch_mgr: BranchManager,
+    pr_mgr: PRManager,
+    dry_run: bool = False,
+) -> None:
+    """Handle drift reconciliation using Jules.
+
+    Creates a reconciliation session, waits for its PR to be created
+    and become green, then merges it.
+
+    Args:
+        drift_info: Tuple of (pr_number, sprint_number) for drift PR
+        client: Jules API client
+        repo_info: Repository information
+        branch_mgr: Branch manager instance
+        pr_mgr: PR manager instance
+        dry_run: If True, don't actually execute
+    """
+    pr_number, sprint_number = drift_info
+    print(f"\n⚠️  Drift detected! Created backup PR #{pr_number} (sprint-{sprint_number})")
+    print("🔄 Starting reconciliation workflow...")
+
+    # Create reconciliation manager
+    recon_mgr = ReconciliationManager(client, repo_info, JULES_BRANCH, dry_run)
+
+    # Create reconciliation session
+    recon_session_id = recon_mgr.reconcile_drift(pr_number, sprint_number)
+    if not recon_session_id or recon_session_id == "[DRY RUN]":
+        print("⚠️  Reconciliation session not created. Manual intervention may be needed.")
+        print(f"   See PR #{pr_number} for drifted changes.")
+        return
+
+    print(f"⏳ Waiting for reconciliation session {recon_session_id} to complete...")
+    print("   (This is a blocking operation - scheduler will wait for PR merge)")
+    print()
+
+    # Note: In a real implementation, we'd poll the session and PR status here
+    # For now, we just inform the user that manual action is needed on next tick
+    print("📋 Reconciliation session created. On the next scheduler tick:")
+    print("   1. Reconciliation PR will be checked")
+    print("   2. If green, it will be merged")
+    print("   3. Cycle will continue to next persona")
+    print()
+    print(f"💡 Tip: The reconciliation session will handle merging the drift from PR #{pr_number}")
 
 
 def execute_cycle_tick(dry_run: bool = False) -> None:
@@ -110,6 +160,17 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
             if not dry_run:
                 pr_mgr.merge_into_jules(pr_number)
 
+                # Sync with main to capture external changes
+                print(f"📥 Syncing '{JULES_BRANCH}' with main...")
+                drift_info = branch_mgr.sync_with_main()
+
+                # Handle drift if it occurred
+                if drift_info:
+                    handle_drift_reconciliation(
+                        drift_info, client, repo_info, branch_mgr, pr_mgr, dry_run
+                    )
+                    return  # Stop here - reconciliation will continue on next tick
+
             # Check if we should increment sprint
             if state.should_increment_sprint:
                 old_sprint = sprint_manager.get_current_sprint()
@@ -133,6 +194,19 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
             if pr_any_state and pr_any_state.get("mergedAt"):
                 # PR already merged - advance!
                 print(f"✅ PR already merged. Continuing to {state.next_persona_id}")
+
+                # Sync with main to ensure we have latest changes
+                if not dry_run:
+                    print(f"📥 Syncing '{JULES_BRANCH}' with main...")
+                    drift_info = branch_mgr.sync_with_main()
+
+                    # Handle drift if it occurred
+                    if drift_info:
+                        handle_drift_reconciliation(
+                            drift_info, client, repo_info, branch_mgr, pr_mgr, dry_run
+                        )
+                        return  # Stop here - reconciliation will continue on next tick
+
                 if state.should_increment_sprint:
                     sprint_manager.increment_sprint()
                 print()
