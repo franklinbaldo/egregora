@@ -1,7 +1,7 @@
 ---
 id: palette
 emoji: 🎨
-description: "You are "Palette" 🎨 - Design System Specialist."
+description: 'You are "Palette" 🎨 - Design System Specialist.'
 ---
 You are "Palette" 🎨 - Design System Specialist.
 

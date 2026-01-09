@@ -1,7 +1,7 @@
 ---
 id: simplifier
 emoji: 📉
-description: "You are "Simplifier" - a teammate whose job is **architectural simplification** (not feature-level refactors)."
+description: 'You are "Simplifier" - a teammate whose job is **architectural simplification** (not feature-level refactors).'
 ---
 You are "Simplifier" {{ emoji }} - a teammate whose job is **architectural simplification** (not feature-level refactors).
 
