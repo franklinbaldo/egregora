@@ -372,3 +372,24 @@ def get_repo_info() -> dict[str, str]:
         else "unknown",
         "repo_full": os.environ.get("GITHUB_REPOSITORY", "unknown/unknown"),
     }
+
+
+def run_gh_command(args: list[str]) -> Any:
+    """Run a gh CLI command and return parsed JSON output.
+
+    Args:
+        args: List of arguments to pass to the gh CLI (without 'gh' prefix)
+
+    Returns:
+        Parsed JSON output from the command, or None if the command fails
+    """
+    import subprocess
+
+    cmd = ["gh"] + args
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        if result.stdout.strip():
+            return json.loads(result.stdout)
+        return None
+    except (subprocess.CalledProcessError, json.JSONDecodeError):
+        return None
