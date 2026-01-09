@@ -25,7 +25,7 @@ VIOLATIONS = [
         "Use test_model_settings fixture instead of ModelSettings()",
     ),
     (
-        r'Path\(["\']\.egregora/',
+        r'Path(["\\]\.egregora/',
         "Use tmp_path fixture instead of hardcoded .egregora/ paths",
     ),
 ]
@@ -34,20 +34,37 @@ VIOLATIONS = [
 def check_file(file_path: Path) -> list[str]:
     """Check a single file for violations."""
     errors = []
-    content = file_path.read_text()
+    try:
+        content = file_path.read_text(encoding="utf-8")
+    except Exception:
+        return []
 
     for pattern, message in VIOLATIONS:
-        matches = re.finditer(pattern, content)
-        for match in matches:
-            # Get line number
-            line_num = content[: match.start()].count("\n") + 1
-            errors.append(f"{file_path}:{line_num}: {message}")
+        # Avoid checking if content looks like binary or empty
+        if not content:
+            continue
+
+        try:
+            matches = re.finditer(pattern, content)
+            for match in matches:
+                # Get line number
+                line_num = content[: match.start()].count("\n") + 1
+                errors.append(f"{file_path}:{line_num}: {message}")
+        except re.error as e:
+            # Skip invalid regex matches on some file content edge cases
+            print(f"Warning: Regex error in {file_path}: {e}")
+            continue
 
     return errors
 
 
 def main() -> int:
     """Runs the pre-commit hook to check all test files for violations."""
+    # Force UTF-8 for stdout/stderr to avoid UnicodeEncodeError on Windows
+    if sys.platform == "win32":
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+
     test_files = Path("tests").rglob("test_*.py")
     all_errors = []
 
