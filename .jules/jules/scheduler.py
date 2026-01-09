@@ -447,6 +447,16 @@ def get_last_cycle_session(
         if not pr:
             pr = get_pr_by_session_id_any_state(repo_info["owner"], repo_info["repo"], session_id)
         if not pr:
+            start_branch = (
+                session.get("sourceContext", {})
+                .get("githubRepoContext", {})
+                .get("startingBranch", "")
+                or ""
+            )
+            if _is_scheduler_branch(start_branch):
+                persona_id = _match_persona_from_branch(start_branch, cycle_entries)
+                if persona_id:
+                    return session_id, persona_id
             continue
 
         base_branch = pr.get("baseRefName", "") or ""
