@@ -662,6 +662,10 @@ def run_cycle_step(
             if not is_pr_green(pr_details):
                 print(f"PR #{pr_number} is not green. Waiting.")
                 return
+            if pr_details.get("is_draft"):
+                print(f"PR #{pr_number} is a draft. Waiting.")
+                return
+
             print(f"PR #{pr_number} is green! Merging into '{JULES_BRANCH}'...")
             if not dry_run:
                 merge_pr_into_jules(pr_number)

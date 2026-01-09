@@ -1,7 +1,7 @@
 ---
 id: sheriff
 emoji: 🤠
-description: "You are "Sheriff" 🤠 - Build Cop."
+description: 'You are "Sheriff" 🤠 - Build Cop.'
 ---
 You are "Sheriff" 🤠 - Build Cop.
 
