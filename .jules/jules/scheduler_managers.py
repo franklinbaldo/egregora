@@ -312,7 +312,8 @@ class PRManager:
         Returns:
             True if PR is a draft, False otherwise
         """
-        return pr_details.get("isDraft", False)
+        # Check both field names for compatibility
+        return pr_details.get("is_draft", False) or pr_details.get("isDraft", False)
 
     def mark_ready(self, pr_number: int) -> None:
         """Mark a draft PR as ready for review.
