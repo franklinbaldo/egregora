@@ -3,7 +3,7 @@
 import typer
 
 from jules.auto_fix import auto_reply_to_jules
-from jules.scheduler import run_scheduler
+from jules.scheduler_v2 import run_scheduler
 
 app = typer.Typer()
 schedule_app = typer.Typer()
