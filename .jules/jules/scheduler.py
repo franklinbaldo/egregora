@@ -1,11 +1,10 @@
 """Jules Scheduler."""
 
+import re
+import subprocess
 import sys
 import tomllib
-import subprocess
-import json
-import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -14,67 +13,68 @@ import jinja2
 
 # Import from new package relative to execution or absolute
 from jules.client import JulesClient
+from jules.exceptions import BranchError, MergeError
 from jules.github import (
-    get_open_prs,
-    get_repo_info,
     _extract_session_id,
-    get_pr_details_via_gh,
+    get_open_prs,
     get_pr_by_session_id_any_state,
+    get_pr_details_via_gh,
+    get_repo_info,
 )
-from jules.exceptions import JulesError, SchedulerError, BranchError, MergeError, GitHubError
 
 # --- Sprint Manager ---
 
+
 class SprintManager:
     """Manages sprint lifecycle and provides context to personas."""
-    
+
     SPRINTS_DIR = Path(".jules/sprints")
     CURRENT_FILE = SPRINTS_DIR / "current.txt"
-    
-    def __init__(self, repo_path: Path = Path(".")):
+
+    def __init__(self, repo_path: Path = Path()):
         self.repo_path = repo_path
         self.sprints_dir = self.repo_path / self.SPRINTS_DIR
         self.current_file = self.repo_path / self.CURRENT_FILE
         self._ensure_structure()
-    
+
     def _ensure_structure(self) -> None:
         """Ensure sprint directory structure exists."""
         if not self.sprints_dir.exists():
             self.sprints_dir.mkdir(parents=True)
-        
+
         if not self.current_file.exists():
             self.current_file.write_text("1\n")
             # Create initial sprint directories
             for i in range(1, 4):
                 sprint_dir = self.sprints_dir / f"sprint-{i}"
                 sprint_dir.mkdir(exist_ok=True)
-    
+
     def get_current_sprint(self) -> int:
         """Get the current sprint number."""
         try:
             return int(self.current_file.read_text().strip())
         except (ValueError, FileNotFoundError):
             return 1
-    
+
     def increment_sprint(self) -> int:
         """Increment to the next sprint and create necessary directories."""
         current = self.get_current_sprint()
         next_sprint = current + 1
-        
+
         # Update current.txt
         self.current_file.write_text(f"{next_sprint}\n")
-        
+
         # Create directories for next sprints if they don't exist
         for offset in [0, 1, 2]:
             sprint_num = next_sprint + offset
             sprint_dir = self.sprints_dir / f"sprint-{sprint_num}"
             sprint_dir.mkdir(exist_ok=True)
-            
+
             # Create README if it doesn't exist
             readme = sprint_dir / "README.md"
             if not readme.exists():
                 readme.write_text(f"# Sprint {sprint_num}\n\n**Status:** Planned\n")
-        
+
         print(f"Sprint incremented: {current} → {next_sprint}")
         return next_sprint
 
@@ -83,14 +83,14 @@ class SprintManager:
         current = self.get_current_sprint()
         next_sprint = current + 1
         plus_2 = current + 2
-        
+
         # List existing plans
         next_dir = self.sprints_dir / f"sprint-{next_sprint}"
         plus_2_dir = self.sprints_dir / f"sprint-{plus_2}"
-        
+
         next_plans = [p.name for p in next_dir.glob("*-plan.md")] if next_dir.exists() else []
         plus_2_plans = [p.name for p in plus_2_dir.glob("*-plan.md")] if plus_2_dir.exists() else []
-        
+
         prompt = f"""
 ## 🏃 Sprint Planning Context
 
@@ -109,7 +109,7 @@ Execute your normal persona responsibilities as defined in your prompt.
             prompt += "\n".join([f"- `.jules/sprints/sprint-{next_sprint}/{plan}`" for plan in next_plans])
         else:
             prompt += f"(No plans created yet for sprint-{next_sprint})"
-        
+
         prompt += f"""
 
 **For Sprint {plus_2}:**
@@ -118,7 +118,7 @@ Execute your normal persona responsibilities as defined in your prompt.
             prompt += "\n".join([f"- `.jules/sprints/sprint-{plus_2}/{plan}`" for plan in plus_2_plans])
         else:
             prompt += f"(No plans created yet for sprint-{plus_2})"
-        
+
         prompt += f"""
 
 ### 3. Provide Feedback
@@ -135,6 +135,7 @@ Create or update your plans for future sprints:
 Use the templates in `.jules/sprints/TEMPLATE-*.md` as guides.
 """
         return prompt
+
 
 # Global instance
 sprint_manager = SprintManager()
@@ -365,7 +366,7 @@ def check_schedule(schedule_str: str) -> bool:
         return False
 
     _min_s, hour_s, _dom_s, _month_s, dow_s = parts
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Check Hour
     if hour_s != "*":
@@ -395,6 +396,7 @@ def check_schedule(schedule_str: str) -> bool:
 
     return True
 
+
 def get_pr_by_session_id(open_prs: list[dict[str, Any]], session_id: str) -> dict[str, Any] | None:
     """Find a PR that matches the given session ID."""
     for pr in open_prs:
@@ -404,6 +406,7 @@ def get_pr_by_session_id(open_prs: list[dict[str, Any]], session_id: str) -> dic
         if extracted_id == session_id:
             return pr
     return None
+
 
 JULES_BRANCH = "jules"
 JULES_SCHEDULER_PREFIX = "jules-sched"
@@ -448,10 +451,7 @@ def get_last_cycle_session(
             pr = get_pr_by_session_id_any_state(repo_info["owner"], repo_info["repo"], session_id)
         if not pr:
             start_branch = (
-                session.get("sourceContext", {})
-                .get("githubRepoContext", {})
-                .get("startingBranch", "")
-                or ""
+                session.get("sourceContext", {}).get("githubRepoContext", {}).get("startingBranch", "") or ""
             )
             if _is_scheduler_branch(start_branch):
                 persona_id = _match_persona_from_branch(start_branch, cycle_entries)
@@ -468,6 +468,7 @@ def get_last_cycle_session(
 
     return None, None
 
+
 def prepare_session_base_branch(
     base_branch: str,
     persona_id: str,
@@ -475,26 +476,22 @@ def prepare_session_base_branch(
     last_session_id: str | None = None,
 ) -> str:
     """Create a short, stable base branch before starting a Jules session."""
-    if base_pr_number and last_session_id:
-        base_ref = f"{JULES_SCHEDULER_PREFIX}-{persona_id}-pr{base_pr_number}"
-    elif base_pr_number:
+    if (base_pr_number and last_session_id) or base_pr_number:
         base_ref = f"{JULES_SCHEDULER_PREFIX}-{persona_id}-pr{base_pr_number}"
     else:
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
+        stamp = datetime.now(UTC).strftime("%Y%m%d%H%M")
         base_ref = f"{JULES_SCHEDULER_PREFIX}-{persona_id}-main-{stamp}"
 
     try:
         subprocess.run(["git", "fetch", "origin", base_branch], check=True, capture_output=True)
         result = subprocess.run(
-            ["git", "rev-parse", f"origin/{base_branch}"],
-            capture_output=True, text=True, check=True
+            ["git", "rev-parse", f"origin/{base_branch}"], capture_output=True, text=True, check=True
         )
         base_sha = result.stdout.strip()
         print(f"Base branch '{base_branch}' is at SHA: {base_sha[:12]}")
 
         subprocess.run(
-            ["git", "push", "origin", f"{base_sha}:refs/heads/{base_ref}"],
-            check=True, capture_output=True
+            ["git", "push", "origin", f"{base_sha}:refs/heads/{base_ref}"], check=True, capture_output=True
         )
         print(f"Prepared base branch '{base_ref}' from {base_branch}")
         return base_ref
@@ -504,38 +501,45 @@ def prepare_session_base_branch(
         print(f"Falling back to base branch: {base_branch}")
         return base_branch
 
+
 def is_jules_drifted() -> bool:
     """Check if the 'jules' branch is drifted (unmergeable) with 'main'."""
     try:
         result = subprocess.run(
             ["git", "merge-tree", "--write-tree", "origin/" + JULES_BRANCH, "origin/main"],
-            capture_output=True, text=True
+            check=False,
+            capture_output=True,
+            text=True,
         )
         if result.returncode == 1:
             print(f"Drift detected: Conflicting changes between 'origin/{JULES_BRANCH}' and 'origin/main'.")
             return True
         if result.returncode > 1:
             stderr = result.stderr.strip()
-            print(f"Warning: git merge-tree failed with code {result.returncode}: {stderr}. Assuming NO drift to avoid accidental rotation.")
+            print(
+                f"Warning: git merge-tree failed with code {result.returncode}: {stderr}. Assuming NO drift to avoid accidental rotation."
+            )
             return False
         return False
     except Exception as e:
         print(f"Warning: Error checking drift: {e}. Assuming NO drift.")
         return False
 
+
 def rotate_drifted_jules_branch() -> None:
     """Rename drifted jules branch with sprint number."""
     current_sprint = sprint_manager.get_current_sprint()
     drift_branch = f"{JULES_BRANCH}-sprint-{current_sprint}"
-    
+
     print(f"Drift detected in '{JULES_BRANCH}'. Rotating to '{drift_branch}'...")
-    
+
     try:
         subprocess.run(
             ["git", "push", "origin", f"origin/{JULES_BRANCH}:refs/heads/{drift_branch}"],
-            check=True, capture_output=True
+            check=True,
+            capture_output=True,
         )
-        
+
         pr_title = f"Sprint {current_sprint} - Drifted work from {JULES_BRANCH}"
         pr_body = (
             f"This PR contains work from Sprint {current_sprint}.\n\n"
@@ -544,28 +548,43 @@ def rotate_drifted_jules_branch() -> None:
             "The `jules` branch became unmergeable with `main`. "
             "Please review and merge manually if needed."
         )
-        
+
         try:
             subprocess.run(
-                ["gh", "pr", "create", "--head", drift_branch, "--base", "main",
-                 "--title", pr_title, "--body", pr_body],
-                check=True, capture_output=True
+                [
+                    "gh",
+                    "pr",
+                    "create",
+                    "--head",
+                    drift_branch,
+                    "--base",
+                    "main",
+                    "--title",
+                    pr_title,
+                    "--body",
+                    pr_body,
+                ],
+                check=True,
+                capture_output=True,
             )
             print(f"Created PR for sprint {current_sprint}: {drift_branch}")
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
             print(f"Warning: Failed to create PR for drift branch: {stderr}", file=sys.stderr)
-            
+
     except subprocess.CalledProcessError as e:
         stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
         print(f"Warning: Failed to rotate jules branch fully: {stderr}", file=sys.stderr)
+
 
 def update_jules_from_main() -> bool:
     """Updates the jules branch with changes from main."""
     try:
         subprocess.run(["git", "config", "user.name", "Jules Bot"], check=False)
         subprocess.run(["git", "config", "user.email", "jules-bot@google.com"], check=False)
-        subprocess.run(["git", "checkout", "-B", JULES_BRANCH, f"origin/{JULES_BRANCH}"], check=True, capture_output=True)
+        subprocess.run(
+            ["git", "checkout", "-B", JULES_BRANCH, f"origin/{JULES_BRANCH}"], check=True, capture_output=True
+        )
         print(f"Merging origin/main into '{JULES_BRANCH}'...")
         subprocess.run(["git", "merge", "origin/main", "--no-edit"], check=True, capture_output=True)
         subprocess.run(["git", "push", "origin", JULES_BRANCH], check=True, capture_output=True)
@@ -577,15 +596,18 @@ def update_jules_from_main() -> bool:
         rotate_drifted_jules_branch()
         return False
 
+
 def ensure_jules_branch_exists() -> None:
     """Ensure the 'jules' branch exists and is not drifted."""
     try:
         subprocess.run(["git", "fetch", "origin"], check=True, capture_output=True)
         result = subprocess.run(
             ["git", "ls-remote", "--heads", "origin", JULES_BRANCH],
-            capture_output=True, text=True, check=True
+            capture_output=True,
+            text=True,
+            check=True,
         )
-        
+
         if result.stdout.strip():
             if is_jules_drifted():
                 rotate_drifted_jules_branch()
@@ -593,46 +615,47 @@ def ensure_jules_branch_exists() -> None:
                 print(f"Branch '{JULES_BRANCH}' exists and is healthy. Updating from main...")
                 if update_jules_from_main():
                     return
-        
+
         print(f"Branch '{JULES_BRANCH}' needs recreation. Creating from main...")
         result = subprocess.run(
-            ["git", "rev-parse", "origin/main"],
-            capture_output=True, text=True, check=True
+            ["git", "rev-parse", "origin/main"], capture_output=True, text=True, check=True
         )
         main_sha = result.stdout.strip()
         subprocess.run(
             ["git", "push", "--force", "origin", f"{main_sha}:refs/heads/{JULES_BRANCH}"],
-            check=True, capture_output=True
+            check=True,
+            capture_output=True,
         )
         print(f"Created fresh '{JULES_BRANCH}' branch from main at {main_sha[:12]}")
-        
+
     except subprocess.CalledProcessError as e:
         stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
         raise BranchError(f"Failed to ensure jules branch exists: {stderr}") from e
+
 
 def merge_pr_into_jules(pr_number: int) -> None:
     """Merge a PR into the jules branch using gh CLI."""
     try:
         subprocess.run(
             ["gh", "pr", "merge", str(pr_number), "--merge", "--delete-branch"],
-            check=True, capture_output=True
+            check=True,
+            capture_output=True,
         )
         print(f"Successfully merged PR #{pr_number} into '{JULES_BRANCH}'.")
     except subprocess.CalledProcessError as e:
         stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
         raise MergeError(f"Failed to merge PR #{pr_number}: {stderr}") from e
 
+
 def mark_pr_ready(pr_number: int) -> None:
     """Mark a PR as ready for review using gh CLI."""
     try:
-        subprocess.run(
-            ["gh", "pr", "ready", str(pr_number)],
-            check=True, capture_output=True
-        )
+        subprocess.run(["gh", "pr", "ready", str(pr_number)], check=True, capture_output=True)
         print(f"Successfully marked PR #{pr_number} as ready.")
     except subprocess.CalledProcessError as e:
         stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
         print(f"Warning: Failed to mark PR #{pr_number} as ready: {stderr}", file=sys.stderr)
+
 
 def is_pr_green(pr_details: dict) -> bool:
     """Check if all CI checks on a PR are successful."""
@@ -646,13 +669,14 @@ def is_pr_green(pr_details: dict) -> bool:
         return False
     return True
 
+
 def run_cycle_step(
     client: JulesClient,
     repo_info: dict,
     cycle_entries: list[dict[str, Any]],
     open_prs: list[dict[str, Any]],
     dry_run: bool,
-    base_context: dict
+    base_context: dict,
 ) -> None:
     """Run a single step of the cycle scheduler."""
     cycle_ids = [entry["id"] for entry in cycle_entries]
@@ -683,18 +707,18 @@ def run_cycle_step(
             print(f"PR #{pr_number} is green! Merging into '{JULES_BRANCH}'...")
             if not dry_run:
                 merge_pr_into_jules(pr_number)
-            
+
             if last_pid in cycle_ids:
                 idx = cycle_ids.index(last_pid)
                 next_idx = (idx + 1) % len(cycle_entries)
                 next_entry = cycle_entries[next_idx]
-                
+
                 # If we completed a full cycle, increment sprint
                 if next_idx == 0:
                     old_sprint = sprint_manager.get_current_sprint()
                     new_sprint = sprint_manager.increment_sprint()
                     print(f"Cycle completed! Sprint incremented: {old_sprint} → {new_sprint}")
-            
+
             print(f"Next persona: {next_entry['id']}. Starting from '{JULES_BRANCH}'.")
         else:
             merged_pr = get_pr_by_session_id_any_state(repo_info["owner"], repo_info["repo"], last_session_id)
@@ -722,21 +746,44 @@ def run_cycle_step(
                 try:
                     session_details = client.get_session(last_session_id)
                     state = session_details.get("state")
-                    if state == "AWAITING_PLAN_APPROVAL":
-                        print(f"Session {last_session_id} is awaiting plan approval. Approving automatically...")
+
+                    # Terminal states - session won't create a PR, advance to next persona
+                    if state in ["COMPLETED", "FAILED", "CANCELLED"]:
+                        print(
+                            f"Session {last_session_id} is in terminal state '{state}'. No PR will be created."
+                        )
+                        print("Advancing to next persona.")
+                        # Advance cycle similar to merged PR
+                        if last_pid in cycle_ids:
+                            idx = cycle_ids.index(last_pid)
+                            next_idx = (idx + 1) % len(cycle_entries)
+                            next_entry = cycle_entries[next_idx]
+                            if next_idx == 0:
+                                sprint_manager.increment_sprint()
+                        print(f"Next persona: {next_entry['id']}. Starting from '{JULES_BRANCH}'.")
+                        # Continue execution to create next session (don't return)
+                    elif state == "AWAITING_PLAN_APPROVAL":
+                        print(
+                            f"Session {last_session_id} is awaiting plan approval. Approving automatically..."
+                        )
                         if not dry_run:
                             client.approve_plan(last_session_id)
+                        return  # Wait for approval to take effect
                     elif state == "AWAITING_USER_FEEDBACK":
-                        print(f"Session {last_session_id} is awaiting user feedback (stuck). Sending nudge...")
+                        print(
+                            f"Session {last_session_id} is awaiting user feedback (stuck). Sending nudge..."
+                        )
                         if not dry_run:
                             nudge_text = "Por favor, tome a melhor decisão possível e prossiga autonomamente para completar a tarefa."
                             client.send_message(last_session_id, nudge_text)
                             print(f"Nudge sent to session {last_session_id}.")
+                        return  # Wait for nudge to take effect
                     else:
                         print(f"PR for session {last_session_id} not found. Session state: {state}. Waiting.")
+                        return
                 except Exception as e:
                     print(f"Error checking/approving session {last_session_id}: {e}")
-                return
+                    return
     else:
         print(f"No history found. Starting fresh cycle from '{JULES_BRANCH}'.")
 
@@ -790,7 +837,9 @@ def run_cycle_step(
     except Exception as e:
         print(f"Error processing prompt {p_file.name}: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc()
+
 
 def run_scheduler(
     command: str, run_all: bool = False, dry_run: bool = False, prompt_id: str | None = None
@@ -841,9 +890,11 @@ def run_scheduler(
 
             should_run = False
             schedule_str = schedules.get(pid) or config.get("schedule")
-            if run_all or (prompt_id == pid):
-                should_run = True
-            elif command == "tick" and schedule_str and check_schedule(schedule_str):
+            if (
+                run_all
+                or (prompt_id == pid)
+                or (command == "tick" and schedule_str and check_schedule(schedule_str))
+            ):
                 should_run = True
 
             if should_run:
