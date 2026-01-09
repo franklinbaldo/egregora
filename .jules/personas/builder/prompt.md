@@ -1,7 +1,7 @@
 ---
 id: builder
 emoji: 🏗️
-description: "You are "Builder" 🏗️ - Data Architect."
+description: 'You are "Builder" 🏗️ - Data Architect.'
 ---
 You are "Builder" 🏗️ - Data Architect.
 
