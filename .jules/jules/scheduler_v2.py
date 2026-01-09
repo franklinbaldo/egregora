@@ -145,10 +145,41 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                 print()
 
             else:
-                # Session might be stuck - try to unstick
-                print("🔧 Attempting to handle stuck session...")
-                orchestrator.handle_stuck_session(state.last_session_id)
-                return  # Don't start new session, wait for stuck one to complete
+                # Session might be stuck - check state first
+                print("🔧 Checking session state...")
+                try:
+                    session_details = client.get_session(state.last_session_id)
+                    session_state = session_details.get("state")
+
+                    # Handle terminal states
+                    if session_state == "CANCELLED":
+                        # Intentionally cancelled - skip to next persona
+                        print(f"⚠️  Session {state.last_session_id} was cancelled. Advancing to next persona.")
+                        if state.should_increment_sprint:
+                            sprint_manager.increment_sprint()
+                        print()
+                        # Don't return - continue to create next session
+                    elif session_state in ["COMPLETED", "FAILED"]:
+                        # Completed/failed but no PR - ask Jules to finalize
+                        print(f"⚠️  Session {state.last_session_id} is in state '{session_state}' but no PR was created.")
+                        print("Sending message to request PR creation...")
+                        if not dry_run:
+                            finalize_message = (
+                                "A sessão está em estado terminal mas nenhuma PR foi criada. "
+                                "Por favor, finalize o trabalho criando uma Pull Request com as mudanças realizadas, "
+                                "ou se não há mudanças a fazer, finalize a sessão adequadamente."
+                            )
+                            client.send_message(state.last_session_id, finalize_message)
+                            print(f"Finalization message sent to session {state.last_session_id}.")
+                        return  # Wait for Jules to respond
+                    else:
+                        # Session is stuck - try to unstick
+                        print(f"🔧 Session state: {session_state}. Attempting to unstick...")
+                        orchestrator.handle_stuck_session(state.last_session_id)
+                        return  # Don't start new session, wait for stuck one to complete
+                except Exception as e:
+                    print(f"❌ Error checking session {state.last_session_id}: {e}", file=sys.stderr)
+                    return
 
     # === START NEXT SESSION ===
     next_persona = personas[state.next_persona_index]
