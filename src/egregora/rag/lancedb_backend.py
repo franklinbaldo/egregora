@@ -117,29 +117,18 @@ class LanceDBRAGBackend(VectorStore):
         db_dir.mkdir(parents=True, exist_ok=True)
         self._db = lancedb.connect(str(db_dir))
 
-        # Create or open table using Pydantic schema
-        # Use exist_ok=True to handle race conditions in parallel test execution
+        # create_table with exist_ok=True is idempotent.
+        # It creates the table if it doesn't exist, or opens it if it does.
+        # This replaces the complex and buggy if/else/try/except block.
         try:
-            if table_name not in self._db.list_tables():
-                logger.info("Creating new LanceDB table: %s", table_name)
-                # Use Pydantic schema for type-safe table creation
-                self._table = self._db.create_table(
-                    table_name,
-                    schema=RagChunkModel,
-                    mode="overwrite",
-                    exist_ok=True,
-                )
-            else:
-                logger.info("Opening existing LanceDB table: %s", table_name)
-                self._table = self._db.open_table(table_name)
-        except Exception as e:  # noqa: BLE001
-            # If table creation fails (e.g., race condition), try to open existing table
-            logger.warning("Table creation failed, attempting to open existing table: %s", e)
-            try:
-                self._table = self._db.open_table(table_name)
-            except Exception as open_err:
-                msg = f"Failed to create or open table {table_name}: {open_err}"
-                raise RuntimeError(msg) from open_err
+            self._table = self._db.create_table(
+                table_name,
+                schema=RagChunkModel,
+                exist_ok=True,
+            )
+        except Exception as e:
+            msg = f"Failed to create or open LanceDB table {table_name}: {e}"
+            raise RuntimeError(msg) from e
 
     def add(self, documents: Sequence["Document"]) -> int:
         """Add documents to the store.
