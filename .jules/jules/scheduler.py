@@ -622,6 +622,18 @@ def merge_pr_into_jules(pr_number: int) -> None:
         stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
         raise MergeError(f"Failed to merge PR #{pr_number}: {stderr}") from e
 
+def mark_pr_ready(pr_number: int) -> None:
+    """Mark a PR as ready for review using gh CLI."""
+    try:
+        subprocess.run(
+            ["gh", "pr", "ready", str(pr_number)],
+            check=True, capture_output=True
+        )
+        print(f"Successfully marked PR #{pr_number} as ready.")
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
+        print(f"Warning: Failed to mark PR #{pr_number} as ready: {stderr}", file=sys.stderr)
+
 def is_pr_green(pr_details: dict) -> bool:
     """Check if all CI checks on a PR are successful."""
     status_check_rollup = pr_details.get("statusCheckRollup", [])
@@ -662,6 +674,12 @@ def run_cycle_step(
             if not is_pr_green(pr_details):
                 print(f"PR #{pr_number} is not green. Waiting.")
                 return
+
+            if pr_details.get("is_draft"):
+                print(f"PR #{pr_number} is a draft. Marking as ready...")
+                if not dry_run:
+                    mark_pr_ready(pr_number)
+
             print(f"PR #{pr_number} is green! Merging into '{JULES_BRANCH}'...")
             if not dry_run:
                 merge_pr_into_jules(pr_number)
