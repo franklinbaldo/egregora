@@ -1,9 +1,11 @@
 import pathlib
+
 import pytest
 
 # Define the path to the file relative to the project root
 ARTIFACT_FILE = pathlib.Path("artifacts/test_blog_1day_window.py")
 SCHEDULER_TEST_FILE = pathlib.Path("tests/unit/jules/test_scheduler.py")
+
 
 def test_scheduler_file_has_trailing_newline():
     """Verify that the scheduler test file ends with a newline."""
@@ -14,6 +16,7 @@ def test_scheduler_file_has_trailing_newline():
     with SCHEDULER_TEST_FILE.open("r") as f:
         content = f.read()
         assert content.endswith("\n"), "File should end with a newline"
+
 
 def test_artifact_file_has_no_shebang():
     """Verify that the artifact file does not start with a shebang."""
