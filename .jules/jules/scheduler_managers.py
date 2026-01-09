@@ -246,8 +246,9 @@ class BranchManager:
         This ensures the next session is based on the latest main,
         capturing both cycle PRs and external changes to main.
 
-        This is a non-critical operation - if it fails, the next tick
-        will attempt to sync again during branch initialization.
+        If sync fails (usually due to conflicts), treats it as drift:
+        creates a backup branch (jules-sprint-N) with a PR for manual
+        reconciliation, then recreates jules from main.
         """
         try:
             subprocess.run(["git", "fetch", "origin"], check=True, capture_output=True)
@@ -271,9 +272,8 @@ class BranchManager:
             print(f"✅ Synced '{self.jules_branch}' with main")
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
-            # Non-critical: next tick will try again
-            print(f"⚠️  Warning: Could not sync with main: {stderr}")
-            print("    The next tick will attempt to sync again.")
+            print(f"⚠️  Sync failed: {stderr}. Treating as drift...")
+            self._rotate_drifted_branch()  # Creates jules-sprint-N and PR automatically
 
 
 class PRManager:
