@@ -126,7 +126,7 @@ class LanceDBRAGBackend(VectorStore):
                 self._table = self._db.create_table(
                     table_name,
                     schema=RagChunkModel,
-                    mode="overwrite",
+                    mode="create",
                     exist_ok=True,
                 )
             else:
