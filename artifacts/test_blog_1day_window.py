@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Test blog generation with Egregora using 1-day time windows.
 
 This script runs the Egregora pipeline with:
