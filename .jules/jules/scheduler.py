@@ -747,13 +747,10 @@ def run_cycle_step(
                     session_details = client.get_session(last_session_id)
                     state = session_details.get("state")
 
-                    # Terminal states - session won't create a PR, advance to next persona
-                    if state in ["COMPLETED", "FAILED", "CANCELLED"]:
-                        print(
-                            f"Session {last_session_id} is in terminal state '{state}'. No PR will be created."
-                        )
-                        print("Advancing to next persona.")
-                        # Advance cycle similar to merged PR
+                    # Handle terminal states
+                    if state == "CANCELLED":
+                        # CANCELLED means intentionally stopped - skip to next persona
+                        print(f"Session {last_session_id} was cancelled. Advancing to next persona.")
                         if last_pid in cycle_ids:
                             idx = cycle_ids.index(last_pid)
                             next_idx = (idx + 1) % len(cycle_entries)
@@ -762,6 +759,21 @@ def run_cycle_step(
                                 sprint_manager.increment_sprint()
                         print(f"Next persona: {next_entry['id']}. Starting from '{JULES_BRANCH}'.")
                         # Continue execution to create next session (don't return)
+                    elif state in ["COMPLETED", "FAILED"]:
+                        # Session completed/failed but no PR - ask Jules to finalize
+                        print(
+                            f"Session {last_session_id} is in state '{state}' but no PR was created."
+                        )
+                        print("Sending message to request PR creation...")
+                        if not dry_run:
+                            finalize_message = (
+                                "A sessão está em estado terminal mas nenhuma PR foi criada. "
+                                "Por favor, finalize o trabalho criando uma Pull Request com as mudanças realizadas, "
+                                "ou se não há mudanças a fazer, finalize a sessão adequadamente."
+                            )
+                            client.send_message(last_session_id, finalize_message)
+                            print(f"Finalization message sent to session {last_session_id}.")
+                        return  # Wait for Jules to create PR
                     elif state == "AWAITING_PLAN_APPROVAL":
                         print(
                             f"Session {last_session_id} is awaiting plan approval. Approving automatically..."
