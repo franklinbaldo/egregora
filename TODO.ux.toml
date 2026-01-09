@@ -62,6 +62,29 @@ status = "pending"
 category = "visual"
 assignee = "curator"
 
+[[tasks.medium_priority]]
+id = "unlinked-pages-in-nav"
+title = "Add unlinked pages from build log to the main navigation"
+description = """
+WHY: The `mkdocs build` log explicitly warns that `journal/index.md` and `posts/profiles/index.md` exist but are not included in the 'nav' configuration. This makes key content undiscoverable to users.
+
+WHAT: Update the `nav` section in the `mkdocs.yml.jinja` template to include:
+- A top-level 'Journal' link pointing to `journal/index.md`.
+- A 'Profiles' link under the 'Blog' section, pointing to `posts/profiles/index.md`.
+
+HOW TO VERIFY:
+- The build log no longer shows warnings about these specific unlinked pages.
+- The 'Journal' link appears in the main navigation bar.
+- The 'Profiles' link appears in the 'Blog' dropdown menu.
+
+WHERE:
+- Config: `demo/.egregora/mkdocs.yml` (`nav` section)
+- TEMPLATE SOURCE: `src/egregora/output_adapters/mkdocs/scaffolding.py`
+"""
+status = "pending"
+category = "accessibility"
+assignee = "forge"
+
 [[tasks.high_priority]]
 id = "missing-favicon"
 title = "Add custom favicon and branding"

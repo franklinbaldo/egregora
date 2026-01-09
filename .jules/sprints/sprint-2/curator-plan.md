@@ -1,54 +1,43 @@
-# Plano: Curator - Sprint 2
+# Plan: Curator - Sprint 2
 
-**Persona:** curator  
-**Sprint:** 2  
-**Criado em:** 2026-01-07 (durante sprint-1)  
-**Prioridade:** Alta  
+**Persona:** Curator
+**Sprint:** 2
+**Created:** 2026-01-08 (during Sprint 1)
+**Priority:** High
 
-## Objetivos
+## Goals
 
-O curator tem como missão manter o repositório organizado e saudável. Para o sprint-2, os objetivos são:
+The primary goal for Sprint 2 is to address the most critical baseline UX issues identified in the initial audit. This will establish a stable, professional foundation upon which further improvements can be built. The focus is on moving from a generic, broken template to a distinctive and functional one.
 
-- [ ] Implementar sistema de labels estruturado
-- [ ] Categorizar todas as issues abertas (150+)
-- [ ] Criar documento de processo de triagem
-- [ ] Identificar e fechar issues duplicadas ou obsoletas
+- [ ] **Establish Visual Identity:** Move beyond the default Material for MkDocs look.
+- [ ] **Fix Critical Errors:** Eliminate 404s and broken features that degrade the user experience.
+- [ ] **Improve Information Architecture:** Ensure all generated content is discoverable.
 
-## Dependências
+## Key Deliverables
 
-As seguintes dependências foram identificadas:
+1.  **New Color Palette:** A custom, accessible color palette will be designed and documented in `docs/ux-vision.md`.
+2.  **Functional CSS & Favicon:** The site will have a working custom CSS file and a branded favicon.
+3.  **Corrected Navigation:** All key pages, including the Journal and Profiles, will be accessible from the main navigation.
+4.  **Cleaned Configuration:** The analytics placeholder will be removed, and social card image generation will be functional.
 
-- **refactor:** Aguardando refatoração do módulo de issues para facilitar automação de labels
-- **docs_curator:** Coordenar sobre documentação do processo de triagem
-- **sheriff:** Alinhar sobre políticas de fechamento de issues
+## Tasks from TODO.ux.toml
 
-## Contexto
+This sprint will prioritize the following high-priority tasks:
 
-Durante o sprint-1, foi identificado que o repositório possui mais de 150 issues abertas sem organização clara. Muitas issues não têm labels, algumas são duplicadas, e outras estão obsoletas. Isso dificulta a priorização e o trabalho de outras personas.
+- **`generic-color-palette` (curator):** I will design a new color palette that reflects the "collective consciousness" theme and meets accessibility standards.
+- **`analytics-placeholder` (curator):** I will make the decision to remove the Google Analytics placeholder entirely, aligning with a privacy-first approach. I will then create a task for Forge to implement this removal.
+- **`missing-custom-css` (forge):** Guide Forge to create the missing CSS file.
+- **`missing-favicon` (forge):** Guide Forge to add the favicon assets.
+- **`social-card-images-404` (forge):** Guide Forge to debug and fix the 404 errors for social sharing images.
+- **`unlinked-pages-in-nav` (forge):** Guide Forge to update the navigation to include the Journal and Profiles pages.
 
-A implementação de um sistema de labels estruturado e a categorização das issues existentes vai melhorar significativamente a eficiência do trabalho de todas as personas, especialmente builder, visionary e taskmaster.
+## Risks and Mitigations
 
-## Entregáveis Esperados
+| Risk | Probability | Impact | Mitigation |
+|---|---|---|---|
+| Forge cannot resolve template complexity | Medium | High | My updates to `docs/ux-vision.md` and the detailed tasks in `TODO.ux.toml` provide clear guidance on where and how to modify the Python-embedded templates. |
+| API rate limiting continues to block full site generation | High | Low | My focus is on the static scaffold. As long as `egregora demo` generates the site structure, I can validate the UX changes without AI-generated content. |
 
-1. **Sistema de Labels:** Conjunto completo de labels criadas no GitHub (tipo, prioridade, área, status)
-2. **Issues Categorizadas:** Todas as 150+ issues com labels apropriadas
-3. **Documento de Processo:** Markdown descrevendo como fazer triagem de novas issues
-4. **Limpeza:** Lista de issues fechadas (duplicadas/obsoletas) com justificativa
+## Collaborations
 
-## Riscos e Mitigações
-
-| Risco | Probabilidade | Impacto | Mitigação |
-|-------|---------------|---------|-----------|
-| Volume de issues muito alto | Alta | Médio | Priorizar issues mais recentes e ativas |
-| Conflito sobre fechamento | Média | Alto | Consultar sheriff antes de fechar issues controversas |
-| Labels inconsistentes | Baixa | Médio | Revisar com docs_curator antes de aplicar em massa |
-
-## Colaborações Propostas
-
-- **Com refactor:** Após refatoração do módulo de issues, implementar automação de labels
-- **Com docs_curator:** Revisar documento de processo e incluir na documentação oficial
-- **Com sheriff:** Definir políticas claras de fechamento de issues
-
-## Notas Adicionais
-
-Este trabalho vai beneficiar diretamente o trabalho do taskmaster (priorização) e do organizer (estruturação). Considerar criar um dashboard de métricas de issues após a categorização.
+- **Forge:** I will be the primary stakeholder for the tasks assigned to Forge, reviewing the implementation of the new CSS, favicon, and navigation structure. Clear acceptance criteria are defined in each task in `TODO.ux.toml`.
