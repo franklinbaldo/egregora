@@ -59,10 +59,6 @@ def get_open_prs(owner: str, repo: str) -> list[dict[str, Any]]:
     if not client.token:
         return []
 
-    # Map to schema expected by consumers
-    # gh json: number,title,headRefName,baseRefName,url,author,isDraft
-    # api json: number, title, head.ref, base.ref, html_url, user, draft
-    
     try:
         prs = client._get(
             f"repos/{owner}/{repo}/pulls",
@@ -104,7 +100,6 @@ def get_pr_by_session_id_any_state(owner: str, repo: str, session_id: str) -> di
 
     for pr in prs or []:
         head_ref = pr["head"]["ref"]
-        # In API response, merged_at is top-level. state is top-level.
         extracted_id = _extract_session_id(head_ref, "")
         if extracted_id == session_id:
             return {
@@ -122,8 +117,6 @@ def get_pr_by_session_id_any_state(owner: str, repo: str, session_id: str) -> di
 
 def get_pr_details_via_gh(pr_number: int, repo_path: str = ".") -> dict[str, Any]:
     """Retrieve PR details using GitHub API."""
-    # Note: repo_path ignored as we don't need cwd for API calls
-    
     repo_info = get_repo_info()
     owner = repo_info["owner"]
     repo = repo_info["repo"]
@@ -155,12 +148,10 @@ def get_pr_details_via_gh(pr_number: int, repo_path: str = ".") -> dict[str, Any
     except Exception as e:
         raise GitHubError(f"Failed to fetch details for PR {pr_number}: {e}") from e
 
-    # Map to schema expected by consumers
     branch = pr["head"]["ref"]
     body = pr["body"] or ""
     session_id = _extract_session_id(branch, body)
     
-    # Map commits to simple structure
     mapped_commits = []
     for c in commits_data:
         mapped_commits.append({
@@ -197,13 +188,23 @@ def get_pr_details_via_gh(pr_number: int, repo_path: str = ".") -> dict[str, Any
 
 
 def get_base_sha(base_branch: str, repo_path: str = ".") -> str:
-    """Get the current SHA of the base branch (origin)."""
-    # Stick to git CLI for local repo operations as it's more reliable for "current state"
-    import subprocess
-    cmd = ["git", "rev-parse", f"origin/{base_branch}"]
-    result = subprocess.run(cmd, check=False, capture_output=True, text=True, cwd=repo_path)
-    if result.returncode == 0:
-        return result.stdout.strip()
+    """Get the current SHA of the base branch from GitHub API."""
+    repo_info = get_repo_info()
+    owner = repo_info["owner"]
+    repo = repo_info["repo"]
+    
+    client = GitHubClient()
+    if not client.token:
+        return "Unknown"
+
+    try:
+        # API: GET /repos/{owner}/{repo}/branches/{branch}
+        branch_data = client._get(f"repos/{owner}/{repo}/branches/{base_branch}")
+        if branch_data and "commit" in branch_data:
+            return branch_data["commit"]["sha"]
+    except Exception:
+        pass
+        
     return "Unknown"
 
 
@@ -246,10 +247,6 @@ def _get_last_commit_author_login(commits: list[dict[str, Any]] | None) -> str |
         if login:
             return login
             
-    # Check mapped format
-    if "login" in author:
-        return author["login"]
-
     return None
 
 
@@ -265,7 +262,6 @@ def _analyze_checks(checks_rollup: list[dict[str, Any]]) -> tuple[bool, list[str
     all_passed = True
     failed_check_names = []
     
-    # Handle GitHub API check_runs format
     for check in checks_rollup:
         status = check.get("conclusion")
         if status in ["failure", "timed_out", "cancelled", "action_required"]:
@@ -276,7 +272,7 @@ def _analyze_checks(checks_rollup: list[dict[str, Any]]) -> tuple[bool, list[str
 
 
 def fetch_failed_logs_summary(pr_number: int, cwd: str = ".") -> str:
-    """Fetch logs summary - Not easily available via API without parsing logs."""
+    """Fetch logs summary."""
     return ""
 
 
@@ -289,7 +285,6 @@ def fetch_full_ci_logs(pr_number: int, branch: str, repo_full: str, cwd: str = "
     if not client.token:
         return ""
 
-    # 1. List workflow runs for PR/Branch
     try:
         runs_data = client._get(
             f"repos/{repo_full}/actions/runs",
@@ -309,37 +304,24 @@ def fetch_full_ci_logs(pr_number: int, branch: str, repo_full: str, cwd: str = "
 
     logs_sections: list[str] = []
 
-    for run in failing_runs[:1]: # Check latest failing run
+    for run in failing_runs[:1]:
         run_id = run.get("id")
         run_url = run.get("html_url")
         workflow_name = run.get("name") or "Workflow"
         
         try:
-            # 2. Download logs (Returns a zip file)
-            # API: GET /repos/{owner}/{repo}/actions/runs/{run_id}/logs
             resp = client._get_raw(f"repos/{repo_full}/actions/runs/{run_id}/logs")
             if not resp:
                 continue
                 
-            # 3. Unzip and find failure
             with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
-                # Naive approach: Look for files with 'failure' or larger files?
-                # Usually we want the job that failed.
-                # Zip structure: folder/job_name.txt
-                
-                # Filter for text files
                 log_files = [f for f in z.namelist() if f.endswith(".txt")]
-                
-                # Combine relevant logs (limit size)
                 combined_log = ""
                 for log_file in log_files:
-                    # Skip boring files if possible
                     with z.open(log_file) as f:
                         content = f.read().decode("utf-8", errors="replace")
                         if "failure" in content.lower() or "error" in content.lower():
-                            combined_log += f"\n--- Log: {log_file} ---
-"
-                            # Take tail of log
+                            combined_log += f"\n--- Log: {log_file} ---\n"
                             combined_log += content[-5000:]
                             
                 if combined_log:
