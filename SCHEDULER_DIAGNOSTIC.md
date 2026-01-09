@@ -36,8 +36,8 @@ The scheduler uses `get_last_cycle_session()` to find the most recent session:
 - ✅ Jules creates branches and PRs successfully
 - ✅ Scheduler creates base branches correctly
 
-### Hypothesis: Base Branch Mismatch
-The likely issue is that the PRs created by Jules are NOT targeting the `jules-sched-*` branches, but instead targeting `jules` or `main`.
+### Root Cause: Branch Override in Persona Configs ✅ FIXED
+**FOUND AND FIXED**: The persona frontmatter contained `branch: "main"` which was overriding the scheduler's dynamically-created base branch parameter.
 
 **Expected flow:**
 1. Scheduler creates `jules-sched-curator-main-202601082335`
@@ -46,10 +46,15 @@ The likely issue is that the PRs created by Jules are NOT targeting the `jules-s
 4. Next scheduler tick finds PR with `baseRefName="jules-sched-curator-main-202601082335"`
 5. Scheduler merges PR and advances to next persona
 
-**Actual behavior (suspected):**
-- Jules might be creating PRs targeting `jules` or `main` instead of the scheduler branch
-- This causes `get_last_cycle_session()` to not find any matching PRs (baseRefName filter fails)
-- Scheduler defaults to starting fresh with curator again
+**Actual behavior (before fix):**
+- Persona config had `branch: "main"` in frontmatter
+- Jules used the persona's branch config instead of the scheduler's parameter
+- PRs targeted `main` instead of `jules-sched-*` branches
+- `get_last_cycle_session()` couldn't find PRs (baseRefName filter failed on "main")
+- Scheduler defaulted to starting fresh with curator again
+
+**Fix Applied (commit 1b01224):**
+Removed `branch: "main"` from all 23 persona configurations. In cycle mode, the scheduler must have full control over the base branch to enable proper session tracking and persona advancement.
 
 ## Testing Steps
 1. Trigger scheduler in CI (has GitHub token and Jules API access)
