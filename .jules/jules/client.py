@@ -1,7 +1,6 @@
 """Jules API Client."""
 
 import os
-import subprocess
 from typing import Any
 
 import requests
@@ -25,30 +24,15 @@ class JulesClient:
         """Initialize the Jules client."""
         self.api_key = api_key or os.environ.get("JULES_API_KEY")
         self.base_url = base_url or os.environ.get("JULES_BASE_URL", "https://jules.googleapis.com/v1alpha")
-        self.access_token: str | None = None
 
     def _get_headers(self) -> dict[str, str]:
         """Get request headers with authentication."""
         headers = {"Content-Type": "application/json"}
-        if self.api_key:
-            headers["X-Goog-Api-Key"] = self.api_key
-        else:
-            if not self.access_token:
-                try:
-                    # Fallback to gcloud if available (dev environment)
-                    result = subprocess.run(
-                        ["gcloud", "auth", "print-access-token"],
-                        capture_output=True,
-                        text=True,
-                        check=True,
-                    )
-                    self.access_token = result.stdout.strip()
-                except (subprocess.CalledProcessError, FileNotFoundError):
-                    # Should ideally use google-auth, but keeping gcloud fallback for now
-                    # or raise informative error
-                    msg = "JULES_API_KEY not set and gcloud auth failed."
-                    raise ValueError(msg)
-            headers["Authorization"] = f"Bearer {self.access_token}"
+        if not self.api_key:
+            msg = "JULES_API_KEY not set."
+            raise ValueError(msg)
+            
+        headers["X-Goog-Api-Key"] = self.api_key
         return headers
 
     def create_session(
