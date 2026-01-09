@@ -41,7 +41,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v7
         with:
-          enable-cache: false
+          enable-cache: true  # Cache dependencies for faster runs
 
       - name: Run Jules Scheduler
         if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
@@ -64,8 +64,8 @@ jobs:
             fi
           fi
 
-          # Using new CLI with --no-project for speed
-          uv run --no-project --with requests --with httpx --with python-frontmatter --with jinja2 --with typer --with pydantic python -m jules.cli schedule "${args[@]}"
+          # All dependencies (httpx, requests, pydantic, typer, etc) are in pyproject.toml
+          uv run python -m jules.cli schedule "${args[@]}"
 
       - name: Run Jules Feedback Loop
         # Run on schedule or if requested manually (unless prompt_id is specific for something else, but safe to run)
@@ -81,5 +81,5 @@ jobs:
               args+=(--dry-run)
            fi
 
-           # Run the feedback script with --no-project
-           uv run --no-project --with requests --with httpx --with python-frontmatter --with jinja2 --with typer --with pydantic python -m jules.cli feedback loop "${args[@]}"
+           # All dependencies are in pyproject.toml, uv will use cached environment
+           uv run python -m jules.cli feedback loop "${args[@]}"
