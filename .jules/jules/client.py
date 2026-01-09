@@ -3,7 +3,7 @@
 import os
 from typing import Any
 
-import requests
+import httpx
 from pydantic import BaseModel, ConfigDict
 
 
@@ -62,7 +62,7 @@ class JulesClient:
         # Always send requirePlanApproval explicitly (even when false)
         data["requirePlanApproval"] = require_plan_approval
 
-        response = requests.post(url, headers=self._get_headers(), json=data)
+        response = httpx.post(url, headers=self._get_headers(), json=data)
         response.raise_for_status()
         return response.json()
 
@@ -73,14 +73,14 @@ class JulesClient:
             session_id = session_id.split("/")[-1]
 
         url = f"{self.base_url}/sessions/{session_id}"
-        response = requests.get(url, headers=self._get_headers())
+        response = httpx.get(url, headers=self._get_headers())
         response.raise_for_status()
         return response.json()
 
     def list_sessions(self) -> dict[str, Any]:
         """List all sessions."""
         url = f"{self.base_url}/sessions"
-        response = requests.get(url, headers=self._get_headers())
+        response = httpx.get(url, headers=self._get_headers())
         response.raise_for_status()
         return response.json()
 
@@ -91,7 +91,7 @@ class JulesClient:
 
         url = f"{self.base_url}/sessions/{session_id}:sendMessage"
         data = {"prompt": message}
-        response = requests.post(url, headers=self._get_headers(), json=data)
+        response = httpx.post(url, headers=self._get_headers(), json=data)
         response.raise_for_status()
         return response.json()
 
@@ -101,7 +101,7 @@ class JulesClient:
             session_id = session_id.split("/")[-1]
 
         url = f"{self.base_url}/sessions/{session_id}:approvePlan"
-        response = requests.post(url, headers=self._get_headers())
+        response = httpx.post(url, headers=self._get_headers())
         response.raise_for_status()
         return response.json()
 
@@ -111,6 +111,6 @@ class JulesClient:
             session_id = session_id.split("/")[-1]
 
         url = f"{self.base_url}/sessions/{session_id}/activities"
-        response = requests.get(url, headers=self._get_headers())
+        response = httpx.get(url, headers=self._get_headers())
         response.raise_for_status()
         return response.json()

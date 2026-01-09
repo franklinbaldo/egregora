@@ -27,7 +27,6 @@ dependencies = [
     "pyyaml>=6.0",
     "pymdown-extensions>=10.17",
     "ratelimit>=2.2",
-    "requests>=2.32",  # For Jules API client
     "rich>=13.9",
     "tenacity>=9.1",
     "typer>=0.20",
