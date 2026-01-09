@@ -135,4 +135,5 @@ jobs:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           PYTHONPATH: .jules
         run: |
-          uv run --no-project --with requests --with httpx --with typer --with pydantic python -m jules.cli autofix analyze ${{ steps.pr-info.outputs.pr_number }}
+          # All dependencies (httpx, requests, pydantic, typer) are in pyproject.toml
+          uv run python -m jules.cli autofix analyze ${{ steps.pr-info.outputs.pr_number }}
