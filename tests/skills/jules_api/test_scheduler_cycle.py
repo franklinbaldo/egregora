@@ -1,3 +1,4 @@
+import re
 import sys
 from pathlib import Path
 
@@ -8,10 +9,12 @@ class TestSchedulerCycleFallback:
         sys.path.insert(0, str(jules_path))
         try:
             import jules.scheduler
+            import jules.scheduler_legacy
         finally:
             sys.path.remove(str(jules_path))
 
         scheduler = jules.scheduler
+        scheduler_legacy = jules.scheduler_legacy
 
         created_sessions: list[dict] = []
 
@@ -43,14 +46,15 @@ class TestSchedulerCycleFallback:
             "---\nid: builder\nemoji: 🏗️\ntitle: Builder Task\n---\n\nDo builder things.\n"
         )
 
-        monkeypatch.setattr(scheduler, "ensure_jules_branch_exists", lambda: None)
+        # Mock on scheduler_legacy module where the functions are actually called
+        monkeypatch.setattr(scheduler_legacy, "ensure_jules_branch_exists", lambda: None)
         monkeypatch.setattr(
-            scheduler,
+            scheduler_legacy,
             "prepare_session_base_branch",
             lambda *_args, **_kwargs: "jules-sched-builder-pr42",
         )
         monkeypatch.setattr(
-            scheduler,
+            scheduler_legacy,
             "get_pr_by_session_id_any_state",
             lambda *_args: {
                 "number": 42,
@@ -59,8 +63,8 @@ class TestSchedulerCycleFallback:
                 "baseRefName": "jules-sched-curator-pr42",
             },
         )
-        monkeypatch.setattr(scheduler, "get_open_prs", lambda *_args, **_kwargs: [])
-        monkeypatch.setattr(scheduler, "JulesClient", lambda: DummyClient())
+        monkeypatch.setattr(scheduler_legacy, "get_open_prs", lambda *_args, **_kwargs: [])
+        monkeypatch.setattr(scheduler_legacy, "JulesClient", lambda: DummyClient())
 
         repo_info = {"owner": "owner", "repo": "repo"}
         cycle_entries = [

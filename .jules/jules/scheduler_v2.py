@@ -191,6 +191,11 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                         if pr_mgr.is_draft(pr_details):
                             print(f"⏳ PR still shows as draft after marking ready. Waiting for next tick...")
                             return
+                    elif session_state in ["AWAITING_PLAN_APPROVAL", "AWAITING_USER_FEEDBACK"]:
+                        # Session is stuck - unstick it before waiting for completion
+                        print(f"🔧 Session is stuck in state: {session_state}. Attempting to unstick...")
+                        orchestrator.handle_stuck_session(state.last_session_id)
+                        return  # Wait for unstick to take effect
                     else:
                         print(f"⏳ Session state: {session_state}. Waiting for completion...")
                         return
@@ -223,6 +228,10 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                         drift_info, client, repo_info, branch_mgr, pr_mgr, dry_run
                     )
                     return  # Stop here - reconciliation will continue on next tick
+
+                # Ensure integration PR exists for human review
+                print(f"\n📋 Ensuring integration PR exists...")
+                pr_mgr.ensure_integration_pr_exists(repo_info)
 
             # Check if we should increment sprint
             if should_increment:
@@ -259,6 +268,10 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                             drift_info, client, repo_info, branch_mgr, pr_mgr, dry_run
                         )
                         return  # Stop here - reconciliation will continue on next tick
+
+                    # Ensure integration PR exists for human review
+                    print(f"\n📋 Ensuring integration PR exists...")
+                    pr_mgr.ensure_integration_pr_exists(repo_info)
 
                 if should_increment:
                     sprint_manager.increment_sprint()
@@ -326,7 +339,7 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
         persona_id=next_persona.id,
         title=title,
         prompt=next_persona.prompt_body,
-        branch=session_branch,
+        branch=JULES_BRANCH,  # Use jules directly instead of intermediate branch
         owner=repo_info["owner"],
         repo=repo_info["repo"],
         automation_mode="AUTO_CREATE_PR",
