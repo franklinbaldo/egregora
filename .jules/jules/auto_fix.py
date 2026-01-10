@@ -144,19 +144,19 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
             f"{feedback}"
             f"{autonomous_instruction}\n\n"
             f"## Your Task\n\n"
-            f"### Step 1: Fetch + checkout (one-liner)\n"
+            f"### Step 1: Fetch + merge (one-liner)\n"
             f"```bash\n"
-            f"git fetch origin pull/{pr_number}/head:pr-{pr_number} && git switch pr-{pr_number}\n"
+            f"git fetch origin pull/{pr_number}/head:pr-{pr_number} && git merge --no-ff pr-{pr_number}\n"
             f"```\n\n"
             f"### Step 2-5: Fix, test, push\n"
             f"2. Investigate failures/conflicts\n"
             f"3. Fix all issues\n"
             f"4. Run tests to verify fixes\n"
-            f"5. Push updates back to the PR branch (if allowed):\n"
+            f"5. Push updates back to the PR branch:\n"
             f"```bash\n"
             f"git push origin HEAD:{details['branch']}\n"
             f"```\n\n"
-            f"Start by fetching the PR using the command above."
+            f"Start by fetching and merging the PR using the command above."
         )
 
         # Create new session
