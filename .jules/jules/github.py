@@ -77,7 +77,42 @@ class GitHubClient:
             return response.text
         except httpx.HTTPError:
             return None
+    def get_file_contents(self, owner: str, repo: str, path: str, ref: str = "main") -> dict[str, Any] | None:
+        """Get file contents and its SHA."""
+        return self._get(f"repos/{owner}/{repo}/contents/{path}", params={"ref": ref})
 
+    def create_or_update_file(
+        self,
+        owner: str,
+        repo: str,
+        path: str,
+        content: str,
+        message: str,
+        branch: str = "main",
+        sha: str | None = None,
+    ) -> bool:
+        """Create or update a file in the repository via API."""
+        import base64
+
+        if not self.token:
+            return False
+
+        url = f"{self.base_url}/repos/{owner}/{repo}/contents/{path}"
+        data = {
+            "message": message,
+            "content": base64.b64encode(content.encode()).decode(),
+            "branch": branch,
+        }
+        if sha:
+            data["sha"] = sha
+
+        try:
+            response = httpx.put(url, headers=self.headers, json=data, timeout=30.0)
+            response.raise_for_status()
+            return True
+        except httpx.HTTPError as e:
+            print(f"⚠️ GitHub API File Update Error: {e}")
+            return False
 
 def get_open_prs(owner: str, repo: str) -> list[dict[str, Any]]:
     """Fetch open PRs using GitHub API."""
