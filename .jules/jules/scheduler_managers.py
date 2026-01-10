@@ -433,8 +433,10 @@ class PRManager:
                 print(f"ℹ️  Branch '{self.jules_branch}' is in sync with main. No PR needed.")
                 return None
 
-            # Create PR: jules → main
+            # Create PR: jules → main using GitHub API (avoids GH Actions restrictions)
             print(f"📝 Creating integration PR: {self.jules_branch} → main ({commits_ahead} commits)")
+
+            from jules.github import GitHubClient
 
             pr_title = f"🤖 Integration: {self.jules_branch} → main"
             pr_body = f"""## Automated Integration PR
@@ -454,22 +456,24 @@ This PR contains accumulated work from the Jules autonomous development cycle.
 **Note**: This PR is automatically maintained by the Jules scheduler. New commits will be added as personas complete their work.
 """
 
-            create_result = subprocess.run(
-                ["gh", "pr", "create",
-                 "--head", self.jules_branch,
-                 "--base", "main",
-                 "--title", pr_title,
-                 "--body", pr_body],
-                capture_output=True,
-                text=True,
-                check=True,
+            github_client = GitHubClient()
+            pr_data = github_client.create_pull_request(
+                owner=repo_info["owner"],
+                repo=repo_info["repo"],
+                title=pr_title,
+                body=pr_body,
+                head=self.jules_branch,
+                base="main",
             )
 
-            # Extract PR number from URL (format: https://github.com/owner/repo/pull/123)
-            pr_url = create_result.stdout.strip()
-            pr_number = int(pr_url.split("/")[-1])
-            print(f"✅ Created integration PR #{pr_number}: {pr_url}")
-            return pr_number
+            if pr_data:
+                pr_number = pr_data["number"]
+                pr_url = pr_data["html_url"]
+                print(f"✅ Created integration PR #{pr_number}: {pr_url}")
+                return pr_number
+            else:
+                print("⚠️  Failed to create integration PR via GitHub API")
+                return None
 
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
