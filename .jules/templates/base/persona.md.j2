@@ -17,7 +17,7 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {% endblock %}
 
 {% block collaboration %}
-{# Optional: collaboration block #}
+{{ collaboration_block }}
 {% endblock %}
 
 {% block content %}
