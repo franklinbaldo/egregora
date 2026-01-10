@@ -19,6 +19,26 @@ from jules.github import (
 AUTOFIX_AUTOMATION_MODE = "AUTO_CREATE_PR"
 
 
+def _collect_gemini_reviews(comments: list[dict[str, Any]], limit: int = 1) -> list[str]:
+    """Extract latest Gemini review comments (authored by GitHub Actions)."""
+    if not comments:
+        return []
+
+    gemini = []
+    for c in comments:
+        login = (c.get("user") or {}).get("login")
+        body = c.get("body") or ""
+        if not login or "github-actions" not in login:
+            continue
+        if "Gemini Code Review" not in body:
+            continue
+        gemini.append({"body": body.strip(), "created_at": c.get("created_at", "")})
+
+    # Newest first
+    gemini.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return [g["body"] for g in gemini[:limit]]
+
+
 def post_pr_comment(pr_number: int, comment: str, repo_path: str = ".") -> None:
     """Post a comment on a PR using gh CLI.
 
@@ -63,6 +83,7 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
         logs_summary=logs_summary,
         full_ci_logs=full_ci_logs,
     )
+    gemini_reviews = _collect_gemini_reviews(details.get("comments") or [], limit=1)
 
     client = JulesClient()
     session_id = details.get("session_id")
@@ -82,6 +103,14 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
         "- **Ignore Gemini review status/comments:** fix CI failures directly; do not wait for Gemini gates\n"
         "- **You are a senior developer:** Trust your experience - ship working code confidently\n"
     )
+
+    gemini_block = ""
+    if gemini_reviews:
+        gemini_block = (
+            "\n\n## Gemini Review Feedback (latest)\n"
+            f"{gemini_reviews[0]}\n\n"
+            "Use this as additional context; do not wait for Gemini gates."
+        )
 
     # Decision point: Send message to existing session OR create new session
     if not reuse_existing_session:
@@ -122,6 +151,7 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
             f"{details['body'] or '_(No description provided)_'}\n\n"
             f"## Problems to Fix\n"
             f"{feedback}"
+            f"{gemini_block}"
             f"{autonomous_instruction}\n\n"
             f"## Your Task\n"
             f"1. Checkout the branch `{details['branch']}`\n"
@@ -227,7 +257,12 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
 
     # Step 2: Send message to session (separate error handling)
     try:
-        message_text = f"Hi Jules! Please fix these issues in PR #{pr_number}:\n\n{feedback}{autonomous_instruction}"
+        message_text = (
+            f"Hi Jules! Please fix these issues in PR #{pr_number}:\n\n"
+            f"{feedback}"
+            f"{gemini_block}"
+            f"{autonomous_instruction}"
+        )
         response = client.send_message(session_id, message_text)
 
         # Validate response (send_message should return a dict)
