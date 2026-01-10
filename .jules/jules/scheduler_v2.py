@@ -329,9 +329,9 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                             print("Sending message to request PR creation...")
                             if not dry_run:
                                 finalize_message = (
-                                    "A sessão está em estado terminal mas nenhuma PR foi criada. "
-                                    "Por favor, finalize o trabalho criando uma Pull Request com as mudanças realizadas, "
-                                    "ou se não há mudanças a fazer, finalize a sessão adequadamente."
+                                    "The session is in a terminal state but no PR was created. "
+                                    "Please finalize the work by creating a Pull Request with the changes made, "
+                                    "or if there are no changes to make, finalize the session appropriately."
                                 )
                                 client.send_message(last_session_id, finalize_message)
                                 print(f"Finalization message sent to session {last_session_id}.")
