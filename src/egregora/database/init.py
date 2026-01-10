@@ -18,12 +18,10 @@ from typing import TYPE_CHECKING, Any
 
 from egregora.database.migrations import (
     migrate_documents_table,
-    migrate_tasks_table,
     migrate_messages_table,
+    migrate_tasks_table,
 )
 from egregora.database.schemas import (
-    INGESTION_MESSAGE_SCHEMA,
-    TASKS_SCHEMA,
     UNIFIED_SCHEMA,
     create_table_if_not_exists,
 )

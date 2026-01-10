@@ -122,7 +122,9 @@ def _add_primary_key_migration(
     conn.execute(create_sql)
 
     existing_columns = ", ".join(f'"{col}"' for col in schema)
-    insert_sql = f"INSERT INTO {temp_table_name} ({existing_columns}) SELECT {existing_columns} FROM {table_name};"
+    insert_sql = (
+        f"INSERT INTO {temp_table_name} ({existing_columns}) SELECT {existing_columns} FROM {table_name};"
+    )
     conn.execute(insert_sql)
 
     conn.execute(f"DROP TABLE {table_name};")

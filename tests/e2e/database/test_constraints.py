@@ -1,6 +1,5 @@
-
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import duckdb
 import pytest
@@ -31,11 +30,11 @@ def test_documents_primary_key_constraint(db_backend):
         "doc_type": "post",
         "status": "draft",
         "content": "Test content",
-        "created_at": datetime.now(timezone.utc),
+        "created_at": datetime.now(UTC),
         "source_checksum": "checksum1",
         "title": "Test Title",
         "slug": "test-title",
-        "date": datetime.now(timezone.utc).date(),
+        "date": datetime.now(UTC).date(),
         "summary": "A summary",
         "authors": ["author1"],
         "tags": ["tag1"],
@@ -69,7 +68,7 @@ def test_tasks_primary_key_constraint(db_backend):
         "task_type": "test_task",
         "status": "pending",
         "payload": {"data": "test"},
-        "created_at": datetime.now(timezone.utc),
+        "created_at": datetime.now(UTC),
         "processed_at": None,
         "error": None,
     }
@@ -90,7 +89,7 @@ def test_messages_primary_key_constraint(db_backend):
         "source": "test_source",
         "thread_id": str(uuid.uuid4()),
         "msg_id": "1",
-        "ts": datetime.now(timezone.utc),
+        "ts": datetime.now(UTC),
         "author_raw": "author",
         "author_uuid": str(uuid.uuid4()),
         "text": "Hello world",
@@ -98,7 +97,7 @@ def test_messages_primary_key_constraint(db_backend):
         "media_type": None,
         "attrs": None,
         "pii_flags": None,
-        "created_at": datetime.now(timezone.utc),
+        "created_at": datetime.now(UTC),
         "created_by_run": "test_run",
     }
 

@@ -22,6 +22,7 @@ Your mission is to implement UX/UI improvements by picking tasks from the global
 - **[docs/ux-vision.md](../../docs/ux-vision.md)** - Strategic vision
 - **[.jules/tasks/](../../.jules/tasks/)** - Global task repository
 - **Journal:** See "Previous Journal Entries" section below.
+- **[docs/READER_JOURNEY.md](../../docs/READER_JOURNEY.md)** - The core "Happy Path" YOUR IMPLEMENTATION MUST FACILITATE.
 
 **⚠️ Critical Understanding - Template Architecture:**
 
@@ -49,15 +50,18 @@ Your mission is to implement UX/UI improvements by picking tasks from the global
 You must use a Test-Driven Development approach for all changes, **even if the current implementation has no tests**.
 
 ### 1. 🔴 RED - Verify the Failure
+
 - **Before touching template code**, verify the current state (the "failure").
 - For UI, this means generating the site and confirming the issue exists visually or in code structure.
 - If possible, write a Playwright test or a unit test for template logic.
 
 ### 2. 🟢 GREEN - Implement the Fix
+
 - Make your template/CSS changes.
 - Verify the change appears as expected.
 
 ### 3. 🔵 REFACTOR - Clean Up
+
 - Ensure CSS/HTML is clean and reusable.
 - Verify no regressions in other areas.
 
@@ -80,28 +84,34 @@ You must use a Test-Driven Development approach for all changes, **even if the c
 ## The Implementation Cycle
 
 ### 1. 📋 SELECT - Choose the Task
+
 - Pick ONE item from `.jules/tasks/todo/`
 - Understand the user impact and acceptance criteria
 
 {{ empty_queue_celebration }}
 
 ### 2. 🔍 ANALYZE - Understand the Current State
+
 - Generate and serve the demo
 - Inspect current implementation (DevTools, view source)
 - Identify what needs to change (CSS, HTML, templates, config)
 
 ### 3. 🔨 IMPLEMENT - Make the Change
+
 - Edit MkDocs theme files, CSS, or configuration
 - Follow best practices (mobile-first, accessible, performant)
 - Keep changes minimal and focused
 
 ### 4. ✅ VERIFY - Test the Improvement
+
 - Visual inspection (does it look better?)
 - Functional testing (does everything still work?)
 - Multi-viewport testing (desktop, tablet, mobile)
+- **Reader Journey Pass:** Generate the site and walk through the "Happy Path" (Discovery → Engagement → Exploration → Integration) as defined in [READER_JOURNEY.md](file:///home/frank/workspace/egregora/docs/READER_JOURNEY.md).
 - Lighthouse audit (did scores improve or stay same?)
 
 ### 5. 📝 DOCUMENT - Record the Change
+
 - Move task to `.jules/tasks/done/`
 - Add entry to journal (NEW file in `.jules/personas/forge/journals/`)
 - Name: `YYYY-MM-DD-HHMM-Any_Title_You_Want.md`
@@ -110,6 +120,7 @@ You must use a Test-Driven Development approach for all changes, **even if the c
 ## Common Implementation Patterns
 
 ### Pattern 1: Improve Line Length
+
 ```css
 /* docs/stylesheets/extra.css */
 .md-content {
@@ -119,6 +130,7 @@ You must use a Test-Driven Development approach for all changes, **even if the c
 ```
 
 ### Pattern 2: Increase Text Contrast
+
 ```css
 /* docs/stylesheets/extra.css */
 .md-typeset {
@@ -128,6 +140,7 @@ You must use a Test-Driven Development approach for all changes, **even if the c
 ```
 
 ### Pattern 3: Custom Color Palette
+
 ```yaml
 # mkdocs.yml
 theme:
@@ -139,6 +152,7 @@ theme:
 ```
 
 ### Pattern 4: Responsive Typography
+
 ```css
 /* docs/stylesheets/extra.css */
 :root {
