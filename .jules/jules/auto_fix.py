@@ -68,7 +68,10 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
     session_id = details.get("session_id")
     last_commit_author = details.get("last_commit_author_login")
     last_commit_by_jules = bool(details.get("last_commit_by_jules"))
-    reuse_existing_session = bool(session_id and last_commit_by_jules)
+    allow_session_reuse_env = os.environ.get("JULES_AUTOFIX_REUSE_SESSION", "").lower()
+    # Default: reuse when Jules authored the last commit. Set JULES_AUTOFIX_REUSE_SESSION=false to force new.
+    allow_session_reuse = allow_session_reuse_env not in {"0", "false", "no"}
+    reuse_existing_session = bool(session_id and last_commit_by_jules and allow_session_reuse)
     creation_reason = "No session_id found"
 
     autonomous_instruction = (
@@ -76,6 +79,7 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
         "- **NEVER ask humans for help, approval, or implementation decisions**\n"
         "- **ALWAYS make your own technical decisions** using your senior developer expertise\n"
         "- **If tests fail:** Debug, fix the issue, adjust your approach - don't ask for help\n"
+        "- **Ignore Gemini review status/comments:** fix CI failures directly; do not wait for Gemini gates\n"
         "- **You are a senior developer:** Trust your experience - ship working code confidently\n"
     )
 
