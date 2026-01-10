@@ -180,6 +180,11 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                             pr_mgr.mark_ready(pr_number)
                         # Re-fetch PR details after marking ready
                         pr_details = get_pr_details_via_gh(pr_number)
+
+                        # Verify PR is no longer draft (GitHub API might have delay)
+                        if pr_mgr.is_draft(pr_details):
+                            print(f"⏳ PR still shows as draft after marking ready. Waiting for next tick...")
+                            return
                     else:
                         print(f"⏳ Session state: {session_state}. Waiting for completion...")
                         return
@@ -190,6 +195,11 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
             # Check if PR is green
             if not pr_mgr.is_green(pr_details):
                 print(f"❌ PR #{pr_number} is not green. Waiting for CI to pass.")
+                return
+
+            # Final safety check: ensure PR is not a draft before merging
+            if pr_mgr.is_draft(pr_details):
+                print(f"⚠️  PR #{pr_number} is still a draft. Cannot merge. Waiting...")
                 return
 
             # PR is ready - merge it!
