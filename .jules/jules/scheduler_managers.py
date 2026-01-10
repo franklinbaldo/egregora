@@ -357,6 +357,9 @@ class PRManager:
     def merge_into_jules(self, pr_number: int) -> None:
         """Merge a PR into the Jules branch using gh CLI.
 
+        First retargets the PR to the jules branch (in case it was created
+        with a different base like main), then performs the merge.
+
         Args:
             pr_number: PR number to merge
 
@@ -364,6 +367,15 @@ class PRManager:
             MergeError: If merge fails
         """
         try:
+            # Retarget PR to jules branch to ensure proper merge flow
+            subprocess.run(
+                ["gh", "pr", "edit", str(pr_number), "--base", self.jules_branch],
+                check=True,
+                capture_output=True,
+            )
+            print(f"Retargeted PR #{pr_number} to '{self.jules_branch}'.")
+
+            # Merge the PR
             subprocess.run(
                 ["gh", "pr", "merge", str(pr_number), "--merge", "--delete-branch"],
                 check=True,
