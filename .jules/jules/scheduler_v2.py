@@ -154,15 +154,21 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
     print(f"➡️  Next persona: {next_persona_id}")
     print()
 
-    # === HANDLE PREVIOUS SESSION (only if PR exists) ===
+    # === HANDLE PREVIOUS SESSION ===
     last_session_id = persistent_state.last_session_id
-    if last_session_id and persistent_state.last_pr_number:
+    if last_session_id:
         pr = pr_mgr.find_by_session_id(open_prs, last_session_id)
 
         if pr:
             # Found open PR for last session
             pr_number = pr["number"]
             print(f"Found PR #{pr_number}: {pr['title']}")
+            
+            # Update persistent state with PR number if missing
+            if persistent_state.last_pr_number != pr_number:
+                persistent_state.update_pr_number(pr_number)
+                persistent_state.save(CYCLE_STATE_PATH)
+                # Don't commit state yet, wait for session change or merge
 
             pr_details = get_pr_details_via_gh(pr_number)
 
