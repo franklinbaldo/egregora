@@ -466,13 +466,13 @@ class CycleStateManager:
             if not pr:
                 continue
 
-            # Check if this is a scheduler branch
-            base_branch = pr.get("baseRefName", "") or ""
-            if not base_branch.lower().startswith(f"{JULES_SCHEDULER_PREFIX}-"):
+            # Check if this is a scheduler branch (from head, not base)
+            head_branch = pr.get("headRefName", "") or ""
+            if not head_branch.lower().startswith(f"{JULES_SCHEDULER_PREFIX}-"):
                 continue
 
-            # Extract persona from base branch
-            persona_id = self._match_persona_from_branch(base_branch)
+            # Extract persona from head branch
+            persona_id = self._match_persona_from_branch(head_branch)
             if persona_id:
                 # Found last cycle session!
                 next_idx, should_increment = self.advance_cycle(persona_id)
