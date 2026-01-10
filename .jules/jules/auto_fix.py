@@ -146,15 +146,15 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
             f"## Your Task\n\n"
             f"### Step 1: Fetch + checkout (one-liner)\n"
             f"```bash\n"
-            f"git fetch origin pull/{pr_number}/head:pr-{pr_number} && git switch pr-{pr_number}\n"
+            f"git fetch origin pull/{pr_number}/head:{details['branch']} && git switch {details['branch']}\n"
             f"```\n\n"
             f"### Step 2-5: Fix, test, push\n"
             f"2. Investigate failures/conflicts\n"
             f"3. Fix all issues\n"
             f"4. Run tests to verify fixes\n"
-            f"5. Push updates back to the PR branch:\n"
+            f"5. Push updates back:\n"
             f"```bash\n"
-            f"git push origin HEAD:{details['branch']}\n"
+            f"git push origin {details['branch']}\n"
             f"```\n\n"
             f"Start by fetching the PR using the command above."
         )
@@ -257,7 +257,14 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
 
     # Step 2: Send message to session (separate error handling)
     try:
-        message_text = f"Hi Jules! Please fix these issues in PR #{pr_number}:\n\n{feedback}{autonomous_instruction}"
+        message_text = (
+            f"Hi Jules! New issues detected in PR #{pr_number}.\n\n"
+            f"**Continue working on your current branch** (you should already have it checked out).\n\n"
+            f"## Issues to Fix:\n\n"
+            f"{feedback}"
+            f"{autonomous_instruction}\n\n"
+            f"Fix these issues, run tests, and push to the same branch when ready."
+        )
         response = client.send_message(session_id, message_text)
 
         # Validate response (send_message should return a dict)
