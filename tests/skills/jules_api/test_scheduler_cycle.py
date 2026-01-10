@@ -1,9 +1,10 @@
-import re
 import sys
 from pathlib import Path
 
 
 class TestSchedulerCycleFallback:
+    """Tests for the scheduler cycle logic, including fallback mechanisms."""
+
     def test_cycle_uses_merged_pr_and_moves_to_next_persona(self, monkeypatch, tmp_path):
         jules_path = Path(__file__).parents[3] / ".jules"
         sys.path.insert(0, str(jules_path))
