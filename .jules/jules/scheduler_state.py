@@ -11,7 +11,7 @@ from typing import Any
 @dataclass
 class CycleStateEntry:
     """Entry in cycle history."""
-    
+
     persona_id: str
     session_id: str
     pr_number: int | None
@@ -21,20 +21,20 @@ class CycleStateEntry:
 @dataclass
 class PersistentCycleState:
     """Persistent state for the cycle scheduler."""
-    
+
     last_persona_id: str | None = None
     last_persona_index: int = 0
     last_session_id: str | None = None
     last_pr_number: int | None = None
     updated_at: str = ""
     history: list[dict[str, Any]] = field(default_factory=list)
-    
+
     @classmethod
     def load(cls, path: Path) -> "PersistentCycleState":
         """Load state from JSON file."""
         if not path.exists():
             return cls()
-        
+
         try:
             with open(path) as f:
                 data = json.load(f)
@@ -48,13 +48,13 @@ class PersistentCycleState:
             )
         except (json.JSONDecodeError, OSError):
             return cls()
-    
+
     def save(self, path: Path) -> None:
         """Save state to JSON file."""
         self.updated_at = datetime.now(timezone.utc).isoformat()
         with open(path, "w") as f:
             json.dump(asdict(self), f, indent=2)
-    
+
     def record_session(
         self,
         persona_id: str,
@@ -67,7 +67,7 @@ class PersistentCycleState:
         self.last_persona_index = persona_index
         self.last_session_id = session_id
         self.last_pr_number = pr_number
-        
+
         # Add to history (keep full audit trail)
         entry = {
             "persona_id": persona_id,
@@ -76,7 +76,7 @@ class PersistentCycleState:
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         self.history.insert(0, entry)
-    
+
     def update_pr_number(self, pr_number: int) -> None:
         """Update the PR number for the last session."""
         self.last_pr_number = pr_number
@@ -86,13 +86,13 @@ class PersistentCycleState:
 
 def commit_cycle_state(state_path: Path, message: str = "chore: update cycle state") -> bool:
     """Commit the cycle state file to git via GitHub API.
-    
-    This updates the state in both 'main' and 'jules' branches to ensure 
+
+    This updates the state in both 'main' and 'jules' branches to ensure
     consistency. Using the API is more reliable than 'git push' in CI.
     """
     from jules.github import GitHubClient
     from jules.scheduler import JULES_BRANCH
-    
+
     client = GitHubClient()
     if not client.token:
         print("⚠️ No GITHUB_TOKEN found, skipping remote state persistence.")
@@ -101,18 +101,18 @@ def commit_cycle_state(state_path: Path, message: str = "chore: update cycle sta
     owner = "franklinbaldo"
     repo = "egregora"
     path = ".jules/cycle_state.json"
-    
+
     try:
         with open(state_path) as f:
             content = f.read()
-            
+
         success = True
         # Update both main and jules
         for branch in ["main", JULES_BRANCH]:
             # Get current file info for SHA
             file_info = client.get_file_contents(owner, repo, path, ref=branch)
             sha = file_info.get("sha") if file_info else None
-            
+
             if client.create_or_update_file(
                 owner=owner,
                 repo=repo,
@@ -126,7 +126,7 @@ def commit_cycle_state(state_path: Path, message: str = "chore: update cycle sta
             else:
                 print(f"⚠️ Failed to update cycle state on branch '{branch}'")
                 success = False
-                
+
         return success
     except Exception as e:
         print(f"❌ Error persisting cycle state via API: {e}")

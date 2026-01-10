@@ -134,7 +134,7 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
 
     # === LOAD PERSISTENT STATE ===
     persistent_state = PersistentCycleState.load(CYCLE_STATE_PATH)
-    
+
     # Determine next persona from persistent state
     if persistent_state.last_persona_id and persistent_state.last_persona_id in cycle_mgr.cycle_ids:
         next_idx, should_increment = cycle_mgr.advance_cycle(persistent_state.last_persona_id)
@@ -163,7 +163,7 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
             # Found open PR for last session
             pr_number = pr["number"]
             print(f"Found PR #{pr_number}: {pr['title']}")
-            
+
             # Update persistent state with PR number if missing
             if persistent_state.last_pr_number != pr_number:
                 persistent_state.update_pr_number(pr_number)

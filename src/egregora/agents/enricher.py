@@ -371,8 +371,9 @@ def _enqueue_url_enrichments(
             "url": url,
             "message_metadata": _serialize_metadata(metadata),
         }
-        context.task_store.enqueue("enrich_url", payload, run_id)
-        scheduled += 1
+        if context.task_store:
+            context.task_store.enqueue("enrich_url", payload, run_id)
+            scheduled += 1
     return scheduled
 
 
@@ -445,8 +446,9 @@ def _enqueue_media_enrichments(
             "suggested_path": (str(media_doc.suggested_path) if media_doc.suggested_path else None),
             "message_metadata": _serialize_metadata(metadata),
         }
-        context.task_store.enqueue("enrich_media", payload, run_id)
-        scheduled += 1
+        if context.task_store:
+            context.task_store.enqueue("enrich_media", payload, run_id)
+            scheduled += 1
         if scheduled >= config.max_enrichments:
             break
     return scheduled
@@ -456,12 +458,12 @@ def _serialize_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
     timestamp = metadata.get("ts")
     created_at = metadata.get("created_at")
     return {
-        "ts": timestamp.isoformat() if timestamp else None,
+        "ts": timestamp.isoformat() if timestamp is not None else None,
         "tenant_id": metadata.get("tenant_id"),
         "source": metadata.get("source"),
         "thread_id": _uuid_to_str(metadata.get("thread_id")),
         "author_uuid": _uuid_to_str(metadata.get("author_uuid")),
-        "created_at": (created_at.isoformat() if hasattr(created_at, "isoformat") else created_at),
+        "created_at": created_at.isoformat() if created_at is not None else None,
         "created_by_run": _uuid_to_str(metadata.get("created_by_run")),
     }
 
@@ -931,7 +933,7 @@ class EnrichmentWorker(BaseWorker):
                 # Main Architecture: Use ContentLibrary if available
                 if self.ctx.library:
                     self.ctx.library.save(doc)
-                else:
+                elif self.ctx.output_format:
                     self.ctx.output_format.persist(doc)
 
                 metadata = payload["message_metadata"]
@@ -1437,12 +1439,13 @@ class EnrichmentWorker(BaseWorker):
             try:
                 if self.ctx.library:
                     self.ctx.library.save(media_doc)
-                else:
+                elif self.ctx.output_format:
                     self.ctx.output_format.persist(media_doc)
                 logger.info("Persisted enriched media: %s -> %s", filename, media_doc.metadata["filename"])
             except Exception as exc:
                 logger.exception("Failed to persist media file %s", filename)
-                self.task_store.mark_failed(task["task_id"], f"Persistence failed: {exc}")
+                if self.task_store:
+                    self.task_store.mark_failed(task["task_id"], f"Persistence failed: {exc}")
                 continue
 
             # Create and persist the enrichment text document (description)
@@ -1474,7 +1477,7 @@ class EnrichmentWorker(BaseWorker):
 
             if self.ctx.library:
                 self.ctx.library.save(doc)
-            else:
+            elif self.ctx.output_format:
                 self.ctx.output_format.persist(doc)
 
             metadata = payload["message_metadata"]

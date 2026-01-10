@@ -36,6 +36,8 @@ dependencies = [
     "tomli-w>=1.2.0",
     "google-api-core",
     "google-genai>=0.8.6",
+    "aiohttp>=3.13.3",
+    "urllib3>=2.6.3",
 ]
 
 [project.scripts]
@@ -331,6 +333,7 @@ dev = [
     "mkdocs-blogging-plugin>=2.2.11",
     "pytest-socket>=0.7.0",
     "pytest-benchmark>=4.0.0",
+    "pip-audit>=2.10.0",
 ]
 
 [tool.vulture]
