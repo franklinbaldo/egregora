@@ -95,6 +95,25 @@ def commit_cycle_state(state_path: Path, message: str = "chore: update cycle sta
         True if commit succeeded, False otherwise
     """
     try:
+        # Configure git user (for CI)
+        subprocess.run(
+            ["git", "config", "user.name", "Jules Bot"],
+            check=False,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "jules-bot@google.com"],
+            check=False,
+            capture_output=True,
+        )
+        
+        # Pull latest changes first
+        subprocess.run(
+            ["git", "pull", "--rebase", "origin", "main"],
+            check=False,  # Don't fail if nothing to pull
+            capture_output=True,
+        )
+        
         subprocess.run(
             ["git", "add", str(state_path)],
             check=True,
