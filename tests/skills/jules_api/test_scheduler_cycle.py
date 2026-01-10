@@ -51,11 +51,6 @@ class TestSchedulerCycleFallback:
         monkeypatch.setattr(scheduler_legacy, "ensure_jules_branch_exists", lambda: None)
         monkeypatch.setattr(
             scheduler_legacy,
-            "prepare_session_base_branch",
-            lambda *_args, **_kwargs: "jules-sched-builder-pr42",
-        )
-        monkeypatch.setattr(
-            scheduler_legacy,
             "get_pr_by_session_id_any_state",
             lambda *_args: {
                 "number": 42,
@@ -84,7 +79,8 @@ class TestSchedulerCycleFallback:
         )
 
         assert created_sessions, "Scheduler should start the next persona session after merged PR."
-        assert created_sessions[0]["branch"] == "jules-sched-builder-pr42"
+        # After refactoring, scheduler uses 'jules' branch directly instead of intermediate branches
+        assert created_sessions[0]["branch"] == "jules"
 
     def test_cycle_uses_session_starting_branch_when_prs_unavailable(self, monkeypatch, tmp_path):
         jules_path = Path(__file__).parents[3] / ".jules"
