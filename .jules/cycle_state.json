@@ -1,0 +1,39 @@
+{
+  "last_persona_id": "shepherd",
+  "last_persona_index": 6,
+  "last_session_id": "17649408035246924265",
+  "last_pr_number": null,
+  "updated_at": "2026-01-10T04:25:08.264315+00:00",
+  "history": [
+    {
+      "persona_id": "shepherd",
+      "session_id": "17649408035246924265",
+      "pr_number": null,
+      "created_at": "2026-01-10T04:25:08.264299+00:00"
+    },
+    {
+      "persona_id": "builder",
+      "session_id": "8834881084755917470",
+      "pr_number": 2344,
+      "created_at": "2026-01-10T03:15:12.952536+00:00"
+    },
+    {
+      "persona_id": "sentinel",
+      "session_id": "15197170959032629360",
+      "pr_number": 2338,
+      "created_at": "2026-01-10T01:59:00.896884+00:00"
+    },
+    {
+      "persona_id": "bolt",
+      "session_id": "18009991608100417129",
+      "pr_number": null,
+      "created_at": "2026-01-10T01:28:22Z"
+    },
+    {
+      "persona_id": "visionary",
+      "session_id": "461807007656795018",
+      "pr_number": 2326,
+      "created_at": "2026-01-10T00:42:19Z"
+    }
+  ]
+}

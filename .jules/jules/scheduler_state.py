@@ -1,0 +1,133 @@
+"""Persistent cycle state management for Jules scheduler."""
+
+import json
+import subprocess
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+
+@dataclass
+class CycleStateEntry:
+    """Entry in cycle history."""
+    
+    persona_id: str
+    session_id: str
+    pr_number: int | None
+    created_at: str
+
+
+@dataclass
+class PersistentCycleState:
+    """Persistent state for the cycle scheduler."""
+    
+    last_persona_id: str | None = None
+    last_persona_index: int = 0
+    last_session_id: str | None = None
+    last_pr_number: int | None = None
+    updated_at: str = ""
+    history: list[dict[str, Any]] = field(default_factory=list)
+    
+    @classmethod
+    def load(cls, path: Path) -> "PersistentCycleState":
+        """Load state from JSON file."""
+        if not path.exists():
+            return cls()
+        
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            return cls(
+                last_persona_id=data.get("last_persona_id"),
+                last_persona_index=data.get("last_persona_index", 0),
+                last_session_id=data.get("last_session_id"),
+                last_pr_number=data.get("last_pr_number"),
+                updated_at=data.get("updated_at", ""),
+                history=data.get("history", []),
+            )
+        except (json.JSONDecodeError, OSError):
+            return cls()
+    
+    def save(self, path: Path) -> None:
+        """Save state to JSON file."""
+        self.updated_at = datetime.now(timezone.utc).isoformat()
+        with open(path, "w") as f:
+            json.dump(asdict(self), f, indent=2)
+    
+    def record_session(
+        self,
+        persona_id: str,
+        persona_index: int,
+        session_id: str,
+        pr_number: int | None = None,
+    ) -> None:
+        """Record a new session in state."""
+        self.last_persona_id = persona_id
+        self.last_persona_index = persona_index
+        self.last_session_id = session_id
+        self.last_pr_number = pr_number
+        
+        # Add to history (keep full audit trail)
+        entry = {
+            "persona_id": persona_id,
+            "session_id": session_id,
+            "pr_number": pr_number,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        self.history.insert(0, entry)
+    
+    def update_pr_number(self, pr_number: int) -> None:
+        """Update the PR number for the last session."""
+        self.last_pr_number = pr_number
+        if self.history:
+            self.history[0]["pr_number"] = pr_number
+
+
+def commit_cycle_state(state_path: Path, message: str = "chore: update cycle state") -> bool:
+    """Commit the cycle state file to git via GitHub API.
+    
+    This updates the state in both 'main' and 'jules' branches to ensure 
+    consistency. Using the API is more reliable than 'git push' in CI.
+    """
+    from jules.github import GitHubClient
+    from jules.scheduler import JULES_BRANCH
+    
+    client = GitHubClient()
+    if not client.token:
+        print("⚠️ No GITHUB_TOKEN found, skipping remote state persistence.")
+        return False
+
+    owner = "franklinbaldo"
+    repo = "egregora"
+    path = ".jules/cycle_state.json"
+    
+    try:
+        with open(state_path) as f:
+            content = f.read()
+            
+        success = True
+        # Update both main and jules
+        for branch in ["main", JULES_BRANCH]:
+            # Get current file info for SHA
+            file_info = client.get_file_contents(owner, repo, path, ref=branch)
+            sha = file_info.get("sha") if file_info else None
+            
+            if client.create_or_update_file(
+                owner=owner,
+                repo=repo,
+                path=path,
+                content=content,
+                message=message,
+                branch=branch,
+                sha=sha
+            ):
+                print(f"✅ Updated cycle state on branch '{branch}' via API")
+            else:
+                print(f"⚠️ Failed to update cycle state on branch '{branch}'")
+                success = False
+                
+        return success
+    except Exception as e:
+        print(f"❌ Error persisting cycle state via API: {e}")
+        return False

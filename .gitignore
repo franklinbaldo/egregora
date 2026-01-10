@@ -21,6 +21,7 @@ build/
 
 # Testing
 .pytest_cache/
+.benchmarks/
 .coverage
 coverage.xml
 htmlcov/

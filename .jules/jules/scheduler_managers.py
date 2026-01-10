@@ -386,6 +386,96 @@ class PRManager:
             stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
             raise MergeError(f"Failed to merge PR #{pr_number}: {stderr}") from e
 
+    def ensure_integration_pr_exists(self, repo_info: dict[str, Any]) -> int | None:
+        """Ensure a PR exists from jules branch to main for human review.
+
+        Creates a PR if:
+        - jules branch exists
+        - jules is ahead of main (has commits to merge)
+        - No open PR from jules to main exists
+
+        Args:
+            repo_info: Repository information (owner, repo)
+
+        Returns:
+            PR number if PR exists or was created, None if not needed
+        """
+        try:
+            # Check if PR already exists: jules → main
+            import json
+
+            result = subprocess.run(
+                ["gh", "pr", "list", "--head", self.jules_branch, "--base", "main", "--json", "number"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            prs = json.loads(result.stdout) if result.stdout.strip() else []
+
+            if prs:
+                pr_number = prs[0]["number"]
+                print(f"ℹ️  Integration PR #{pr_number} already exists: {self.jules_branch} → main")
+                return pr_number
+
+            # Check if jules is ahead of main
+            ahead_result = subprocess.run(
+                ["git", "rev-list", "--count", f"origin/main..origin/{self.jules_branch}"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            commits_ahead = int(ahead_result.stdout.strip())
+
+            if commits_ahead == 0:
+                print(f"ℹ️  Branch '{self.jules_branch}' is in sync with main. No PR needed.")
+                return None
+
+            # Create PR: jules → main
+            print(f"📝 Creating integration PR: {self.jules_branch} → main ({commits_ahead} commits)")
+
+            pr_title = f"🤖 Integration: {self.jules_branch} → main"
+            pr_body = f"""## Automated Integration PR
+
+This PR contains accumulated work from the Jules autonomous development cycle.
+
+**Stats**:
+- Commits: {commits_ahead}
+- Source: `{self.jules_branch}`
+- Target: `main`
+
+**Review Instructions**:
+1. Review the accumulated changes from persona iterations
+2. Verify all CI checks pass
+3. Merge when ready to integrate into main branch
+
+**Note**: This PR is automatically maintained by the Jules scheduler. New commits will be added as personas complete their work.
+"""
+
+            create_result = subprocess.run(
+                ["gh", "pr", "create",
+                 "--head", self.jules_branch,
+                 "--base", "main",
+                 "--title", pr_title,
+                 "--body", pr_body],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            # Extract PR number from URL (format: https://github.com/owner/repo/pull/123)
+            pr_url = create_result.stdout.strip()
+            pr_number = int(pr_url.split("/")[-1])
+            print(f"✅ Created integration PR #{pr_number}: {pr_url}")
+            return pr_number
+
+        except subprocess.CalledProcessError as e:
+            stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
+            print(f"⚠️  Failed to ensure integration PR: {stderr}", file=sys.stderr)
+            return None
+        except Exception as e:
+            print(f"⚠️  Error in ensure_integration_pr_exists: {e}", file=sys.stderr)
+            return None
+
     def find_by_session_id(
         self, open_prs: list[dict[str, Any]], session_id: str
     ) -> dict[str, Any] | None:
@@ -466,13 +556,13 @@ class CycleStateManager:
             if not pr:
                 continue
 
-            # Check if this is a scheduler branch
-            base_branch = pr.get("baseRefName", "") or ""
-            if not base_branch.lower().startswith(f"{JULES_SCHEDULER_PREFIX}-"):
+            # Check if this is a scheduler branch (from head, not base)
+            head_branch = pr.get("headRefName", "") or ""
+            if not head_branch.lower().startswith(f"{JULES_SCHEDULER_PREFIX}-"):
                 continue
 
-            # Extract persona from base branch
-            persona_id = self._match_persona_from_branch(base_branch)
+            # Extract persona from head branch
+            persona_id = self._match_persona_from_branch(head_branch)
             if persona_id:
                 # Found last cycle session!
                 next_idx, should_increment = self.advance_cycle(persona_id)

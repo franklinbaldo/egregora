@@ -38,7 +38,8 @@ cycle = [
     "personas/taskmaster/prompt.md",   # 📋 Task Identification
     "personas/essentialist/prompt.md", # 💎 Pragmatism & Cuts
     "personas/sapper/prompt.md",       # 💣 Exception Structuring
-    "personas/maintainer/prompt.md"    # 🧭 Sprint Maintainer
+    "personas/maintainer/prompt.md",   # 🧭 Sprint Maintainer
+    "personas/steward/prompt.md"       # 🧠 Strategy Steward
 ]
 
 [schedules]
@@ -47,6 +48,7 @@ simplifier   = "0 */2 * * *" # Every 2 hours - 📉 Complexity Reduction
 
 # --- ⏱️ Hourly ---
 organizer    = "0 * * * *"   # Hourly - 🗂️ Project Organization
+steward      = "0 * * * *"   # Hourly - 🧠 Strategy Steward
 
 # --- ⏱️ Daily (Previously Hourly) ---
 taskmaster   = "0 1 * * *"   # 01:00 - 📋 Task Identification and Aggregation
