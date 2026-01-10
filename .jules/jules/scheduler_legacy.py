@@ -812,9 +812,9 @@ def run_cycle_step(
                         print("Sending message to request PR creation...")
                         if not dry_run:
                             finalize_message = (
-                                "A sessão está em estado terminal mas nenhuma PR foi criada. "
-                                "Por favor, finalize o trabalho criando uma Pull Request com as mudanças realizadas, "
-                                "ou se não há mudanças a fazer, finalize a sessão adequadamente."
+                                "The session is in a terminal state but no PR was created. "
+                                "Please finalize the work by creating a Pull Request with the changes made, "
+                                "or if there are no changes to make, finalize the session appropriately."
                             )
                             client.send_message(last_session_id, finalize_message)
                             print(f"Finalization message sent to session {last_session_id}.")
@@ -831,7 +831,7 @@ def run_cycle_step(
                             f"Session {last_session_id} is awaiting user feedback (stuck). Sending nudge..."
                         )
                         if not dry_run:
-                            nudge_text = "Por favor, tome a melhor decisão possível e prossiga autonomamente para completar a tarefa."
+                            nudge_text = "Please make the best decision possible and proceed autonomously to complete the task."
                             client.send_message(last_session_id, nudge_text)
                             print(f"Nudge sent to session {last_session_id}.")
                         return  # Wait for nudge to take effect

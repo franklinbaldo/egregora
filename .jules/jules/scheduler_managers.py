@@ -738,8 +738,8 @@ class SessionOrchestrator:
             elif state == "AWAITING_USER_FEEDBACK":
                 print(f"Session {session_id} is awaiting user feedback (stuck). Sending nudge...")
                 nudge_text = (
-                    "Por favor, tome a melhor decisão possível e prossiga autonomamente "
-                    "para completar a tarefa."
+                    "Please make the best decision possible and proceed autonomously "
+                    "to complete the task."
                 )
                 self.client.send_message(session_id, nudge_text)
                 print(f"Nudge sent to session {session_id}.")
