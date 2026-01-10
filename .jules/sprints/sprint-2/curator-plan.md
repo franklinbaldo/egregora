@@ -2,53 +2,35 @@
 
 **Persona:** curator  
 **Sprint:** 2  
-**Criado em:** 2026-01-07 (durante sprint-1)  
+**Criado em:** 2026-01-09 (durante sprint-1)
 **Prioridade:** Alta  
 
 ## Objetivos
 
-O curator tem como missão manter o repositório organizado e saudável. Para o sprint-2, os objetivos são:
+O `curator` tem como missão garantir uma excelente experiência de usuário (UX) para os blogs gerados pelo Egregora. Para o sprint-2, os objetivos são focar na implementação de melhorias de alto impacto que estabeleçam uma identidade visual única e profissional para o produto.
 
-- [ ] Implementar sistema de labels estruturado
-- [ ] Categorizar todas as issues abertas (150+)
-- [ ] Criar documento de processo de triagem
-- [ ] Identificar e fechar issues duplicadas ou obsoletas
+- [ ] **Verificar a implementação do novo esquema de cores:** Garantir que a paleta de cores personalizada (azul primário `#2c3e50`, verde de destaque `#27ae60`) foi corretamente aplicada aos templates.
+- [ ] **Verificar a adição do favicon:** Confirmar que um favicon customizado foi criado e está sendo corretamente exibido no site gerado.
+- [ ] **Verificar a remoção do Google Analytics:** Assegurar que o placeholder do Google Analytics foi completamente removido dos templates, alinhando o produto com sua proposta de "privacidade em primeiro lugar".
+- [ ] **Avaliar e criar tarefas para a tipografia:** Analisar a hierarquia tipográfica, o tamanho das fontes e o espaçamento para garantir a legibilidade e criar tarefas para a `forge`, se necessário.
 
 ## Dependências
 
-As seguintes dependências foram identificadas:
-
-- **refactor:** Aguardando refatoração do módulo de issues para facilitar automação de labels
-- **docs_curator:** Coordenar sobre documentação do processo de triagem
-- **sheriff:** Alinhar sobre políticas de fechamento de issues
+- **forge:** A execução deste plano depende inteiramente do trabalho da `forge` para implementar as tarefas de UX criadas no sprint-1 (cores, favicon, analytics).
 
 ## Contexto
 
-Durante o sprint-1, foi identificado que o repositório possui mais de 150 issues abertas sem organização clara. Muitas issues não têm labels, algumas são duplicadas, e outras estão obsoletas. Isso dificulta a priorização e o trabalho de outras personas.
-
-A implementação de um sistema de labels estruturado e a categorização das issues existentes vai melhorar significativamente a eficiência do trabalho de todas as personas, especialmente builder, visionary e taskmaster.
+A auditoria de UX inicial realizada no sprint-1 revelou que, embora o blog gerado seja funcional, ele carece de uma identidade visual profissional. As tarefas criadas (`20260109-2027-ux-improve-color-palette.md`, `20260109-2027-ux-add-favicon.md`, `20260109-2028-ux-remove-analytics.md`) são a base para resolver essas questões. O Sprint 2 será dedicado a verificar a implementação dessas mudanças e aprofundar a análise em áreas secundárias, como a tipografia.
 
 ## Entregáveis Esperados
 
-1. **Sistema de Labels:** Conjunto completo de labels criadas no GitHub (tipo, prioridade, área, status)
-2. **Issues Categorizadas:** Todas as 150+ issues com labels apropriadas
-3. **Documento de Processo:** Markdown descrevendo como fazer triagem de novas issues
-4. **Limpeza:** Lista de issues fechadas (duplicadas/obsoletas) com justificativa
+1.  **Validação das Tarefas de UX:** Confirmação de que as melhorias de design foram implementadas corretamente.
+2.  **Novas Tarefas (se necessário):** Criação de tarefas detalhadas para `forge` relacionadas a melhorias de tipografia.
+3.  **Atualização do `docs/ux-vision.md`:** Documentar as decisões de design tomadas (paleta de cores, etc.) na visão de UX do produto.
 
 ## Riscos e Mitigações
 
 | Risco | Probabilidade | Impacto | Mitigação |
 |-------|---------------|---------|-----------|
-| Volume de issues muito alto | Alta | Médio | Priorizar issues mais recentes e ativas |
-| Conflito sobre fechamento | Média | Alto | Consultar sheriff antes de fechar issues controversas |
-| Labels inconsistentes | Baixa | Médio | Revisar com docs_curator antes de aplicar em massa |
-
-## Colaborações Propostas
-
-- **Com refactor:** Após refatoração do módulo de issues, implementar automação de labels
-- **Com docs_curator:** Revisar documento de processo e incluir na documentação oficial
-- **Com sheriff:** Definir políticas claras de fechamento de issues
-
-## Notas Adicionais
-
-Este trabalho vai beneficiar diretamente o trabalho do taskmaster (priorização) e do organizer (estruturação). Considerar criar um dashboard de métricas de issues após a categorização.
+| `forge` não completa as tarefas a tempo | Média | Alto | Acompanhar o progresso das tarefas no início do sprint e comunicar a importância delas. |
+| As mudanças implementadas não correspondem à especificação | Baixa | Médio | As tarefas de UX possuem critérios de verificação claros para minimizar a ambiguidade. |

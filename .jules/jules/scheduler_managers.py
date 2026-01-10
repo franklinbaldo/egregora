@@ -161,8 +161,12 @@ class BranchManager:
             print(f"Warning: Error checking drift: {e}. Assuming NO drift.")
             return False
 
-    def _rotate_drifted_branch(self) -> None:
-        """Rename drifted Jules branch with sprint number and create PR."""
+    def _rotate_drifted_branch(self) -> tuple[int, int] | None:
+        """Rename drifted Jules branch with sprint number and create PR.
+
+        Returns:
+            Tuple of (pr_number, sprint_number) if successful, None if failed
+        """
         current_sprint = sprint_manager.get_current_sprint()
         drift_branch = f"{self.jules_branch}-sprint-{current_sprint}"
 
@@ -183,11 +187,11 @@ class BranchManager:
                 f"**Sprint:** {current_sprint}\n"
                 f"**Branch:** {drift_branch}\n\n"
                 f"The `{self.jules_branch}` branch became unmergeable with `main`. "
-                f"Please review and merge manually if needed."
+                f"A reconciliation session will be created to merge these changes back."
             )
 
             try:
-                subprocess.run(
+                result = subprocess.run(
                     [
                         "gh",
                         "pr",
@@ -203,15 +207,23 @@ class BranchManager:
                     ],
                     check=True,
                     capture_output=True,
+                    text=True,
                 )
-                print(f"Created PR for sprint {current_sprint}: {drift_branch}")
+                # Extract PR number from output (URL format: https://github.com/owner/repo/pull/123)
+                pr_url = result.stdout.strip()
+                pr_number = int(pr_url.split("/")[-1])
+                print(f"Created PR #{pr_number} for sprint {current_sprint}: {drift_branch}")
+                return (pr_number, current_sprint)
+
             except subprocess.CalledProcessError as e:
                 stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
                 print(f"Warning: Failed to create PR for drift branch: {stderr}", file=sys.stderr)
+                return None
 
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
             print(f"Warning: Failed to rotate jules branch fully: {stderr}", file=sys.stderr)
+            return None
 
     def _update_from_main(self) -> bool:
         """Update Jules branch from main.
@@ -240,6 +252,45 @@ class BranchManager:
             self._rotate_drifted_branch()
             return False
 
+    def sync_with_main(self) -> tuple[int, int] | None:
+        """Sync Jules branch with main after a PR merge.
+
+        This ensures the next session is based on the latest main,
+        capturing both cycle PRs and external changes to main.
+
+        If sync fails (usually due to conflicts), treats it as drift:
+        creates a backup branch (jules-sprint-N) with a PR for manual
+        reconciliation, then recreates jules from main.
+
+        Returns:
+            Tuple of (pr_number, sprint_number) if drift occurred, None otherwise
+        """
+        try:
+            subprocess.run(["git", "fetch", "origin"], check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.name", "Jules Bot"], check=False)
+            subprocess.run(["git", "config", "user.email", "jules-bot@google.com"], check=False)
+            subprocess.run(
+                ["git", "checkout", "-B", self.jules_branch, f"origin/{self.jules_branch}"],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "merge", "origin/main", "--no-edit"],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "push", "origin", self.jules_branch],
+                check=True,
+                capture_output=True,
+            )
+            print(f"✅ Synced '{self.jules_branch}' with main")
+            return None  # No drift
+        except subprocess.CalledProcessError as e:
+            stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
+            print(f"⚠️  Sync failed: {stderr}. Treating as drift...")
+            return self._rotate_drifted_branch()  # Creates jules-sprint-N and PR automatically
+
 
 class PRManager:
     """Handles GitHub PR operations."""
@@ -251,6 +302,38 @@ class PRManager:
             jules_branch: Name of the Jules integration branch (for merges)
         """
         self.jules_branch = jules_branch
+
+    def is_draft(self, pr_details: dict) -> bool:
+        """Check if a PR is a draft.
+
+        Args:
+            pr_details: PR details from GitHub API
+
+        Returns:
+            True if PR is a draft, False otherwise
+        """
+        # Check both field names for compatibility
+        return pr_details.get("is_draft", False) or pr_details.get("isDraft", False)
+
+    def mark_ready(self, pr_number: int) -> None:
+        """Mark a draft PR as ready for review.
+
+        Args:
+            pr_number: PR number to mark as ready
+
+        Raises:
+            MergeError: If marking ready fails
+        """
+        try:
+            subprocess.run(
+                ["gh", "pr", "ready", str(pr_number)],
+                check=True,
+                capture_output=True,
+            )
+            print(f"✅ Marked PR #{pr_number} as ready for review.")
+        except subprocess.CalledProcessError as e:
+            stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
+            raise MergeError(f"Failed to mark PR #{pr_number} as ready: {stderr}") from e
 
     def is_green(self, pr_details: dict) -> bool:
         """Check if all CI checks on a PR are passing.
@@ -274,6 +357,9 @@ class PRManager:
     def merge_into_jules(self, pr_number: int) -> None:
         """Merge a PR into the Jules branch using gh CLI.
 
+        First retargets the PR to the jules branch (in case it was created
+        with a different base like main), then performs the merge.
+
         Args:
             pr_number: PR number to merge
 
@@ -281,12 +367,21 @@ class PRManager:
             MergeError: If merge fails
         """
         try:
+            # Retarget PR to jules branch to ensure proper merge flow
+            subprocess.run(
+                ["gh", "pr", "edit", str(pr_number), "--base", self.jules_branch],
+                check=True,
+                capture_output=True,
+            )
+            print(f"Retargeted PR #{pr_number} to '{self.jules_branch}'.")
+
+            # Merge the PR
             subprocess.run(
                 ["gh", "pr", "merge", str(pr_number), "--merge", "--delete-branch"],
                 check=True,
                 capture_output=True,
             )
-            print(f"Successfully merged PR #{pr_number} into '{self.jules_branch}'.")
+            print(f"Successfully merged PR #{pr_number} into '{self.jules_branch}'.") 
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
             raise MergeError(f"Failed to merge PR #{pr_number}: {stderr}") from e
@@ -371,13 +466,13 @@ class CycleStateManager:
             if not pr:
                 continue
 
-            # Check if this is a scheduler branch
-            base_branch = pr.get("baseRefName", "") or ""
-            if not base_branch.lower().startswith(f"{JULES_SCHEDULER_PREFIX}-"):
+            # Check if this is a scheduler branch (from head, not base)
+            head_branch = pr.get("headRefName", "") or ""
+            if not head_branch.lower().startswith(f"{JULES_SCHEDULER_PREFIX}-"):
                 continue
 
-            # Extract persona from base branch
-            persona_id = self._match_persona_from_branch(base_branch)
+            # Extract persona from head branch
+            persona_id = self._match_persona_from_branch(head_branch)
             if persona_id:
                 # Found last cycle session!
                 next_idx, should_increment = self.advance_cycle(persona_id)
@@ -510,3 +605,112 @@ class SessionOrchestrator:
 
         except Exception as e:
             print(f"Error checking/approving session {session_id}: {e}", file=sys.stderr)
+
+
+class ReconciliationManager:
+    """Manages drift reconciliation using Jules sessions."""
+
+    def __init__(
+        self,
+        client: JulesClient,
+        repo_info: dict[str, Any],
+        jules_branch: str = JULES_BRANCH,
+        dry_run: bool = False,
+    ):
+        """Initialize reconciliation manager.
+
+        Args:
+            client: Jules API client
+            repo_info: Repository information (owner, repo)
+            jules_branch: Name of the Jules integration branch
+            dry_run: If True, don't actually create sessions
+        """
+        self.client = client
+        self.repo_info = repo_info
+        self.jules_branch = jules_branch
+        self.dry_run = dry_run
+
+    def reconcile_drift(self, drift_pr_number: int, sprint_number: int) -> str | None:
+        """Create a Jules session to reconcile drifted changes.
+
+        Args:
+            drift_pr_number: PR number of the drift backup (jules-sprint-N)
+            sprint_number: Sprint number for naming
+
+        Returns:
+            Session ID of reconciliation session, or None if failed/dry-run
+        """
+        from jules.github import GitHubClient
+
+        print(f"\n🔄 Creating reconciliation session for drift PR #{drift_pr_number}...")
+
+        # Get the PR diff
+        gh_client = GitHubClient()
+        diff = gh_client.get_pr_diff(
+            self.repo_info["owner"], self.repo_info["repo"], drift_pr_number
+        )
+
+        if not diff:
+            print(f"❌ Could not fetch diff for PR #{drift_pr_number}. Skipping reconciliation.")
+            return None
+
+        # Truncate diff if too large (Jules has prompt limits)
+        MAX_DIFF_SIZE = 50000  # characters
+        if len(diff) > MAX_DIFF_SIZE:
+            print(
+                f"⚠️  Diff is large ({len(diff)} chars). Truncating to {MAX_DIFF_SIZE} chars..."
+            )
+            diff = diff[:MAX_DIFF_SIZE] + "\n\n[...diff truncated due to size...]"
+
+        # Create reconciliation prompt
+        prompt = f"""**Drift Reconciliation - Sprint {sprint_number}**
+
+The `jules` branch diverged from `main` and was backed up to `jules-sprint-{sprint_number}`.
+
+Your task is to reconcile the drifted changes with the current `main` branch.
+
+**Backup PR**: #{drift_pr_number}
+**Drift diff** (changes that need reconciliation):
+
+```diff
+{diff}
+```
+
+**Instructions**:
+1. Review the diff carefully to understand what changed in the drifted branch
+2. Apply these changes to the current codebase in a reconciliatory manner:
+   - Resolve any conflicts with current code
+   - Preserve the intent of the original changes
+   - Ensure code quality and consistency
+3. If changes are no longer relevant or conflict irreconcilably, document why in the PR
+4. Create a Pull Request with the reconciled changes
+
+**Important**: This is a reconciliation task. Be thoughtful about merging old changes with new code."""
+
+        title = f"[Reconciliation] Sprint {sprint_number} drift"
+
+        if self.dry_run:
+            print(f"[Dry Run] Would create reconciliation session")
+            print(f"  Prompt: {prompt[:200]}...")
+            print(f"  Base branch: {self.jules_branch}")
+            return "[DRY RUN]"
+
+        # Create the session
+        try:
+            result = self.client.create_session(
+                prompt=prompt,
+                owner=self.repo_info["owner"],
+                repo=self.repo_info["repo"],
+                branch=self.jules_branch,
+                title=title,
+                automation_mode="AUTO_CREATE_PR",
+                require_plan_approval=False,
+            )
+
+            session_id = result.get("name", "").split("/")[-1]
+            print(f"✅ Created reconciliation session: {session_id}")
+            return session_id
+
+        except Exception as e:
+            print(f"❌ Failed to create reconciliation session: {e}", file=sys.stderr)
+            return None

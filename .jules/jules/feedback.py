@@ -5,7 +5,7 @@ import sys
 from typing import Any
 
 from jules.client import JulesClient
-from jules.github import get_pr_details_via_gh, get_repo_info, run_gh_command
+from jules.github import get_open_prs, get_pr_details_via_gh, get_repo_info, JULES_BOT_LOGINS
 
 
 def should_trigger_feedback(pr_data: dict[str, Any]) -> bool:
@@ -64,15 +64,14 @@ def construct_prompt(pr_data: dict[str, Any], ci_checks: list[dict[str, Any]]) -
     pr_title = pr_data["title"]
     branch = pr_data.get("headRefName") or pr_data.get("branch", "")
 
-    # Analyze CI
-    failed_checks = [c for c in ci_checks if c["state"] in ["FAILURE", "ERROR"]]
+    # Analyze CI - check for failed checks
+    failed_checks = [c for c in ci_checks if c.get("conclusion") in ["failure", "timed_out", "cancelled"]]
     ci_section = ""
     if failed_checks:
         ci_section = "## CI Failures\nThe following checks failed:\n"
         for check in failed_checks:
-            ci_section += (
-                f"- **{check['name']}**: {check.get('url') or check.get('target_url') or 'No URL'}\n"
-            )
+            check_url = check.get("details_url") or check.get("html_url") or "No URL"
+            ci_section += f"- **{check.get('name', 'Unknown')}**: {check_url}\n"
     else:
         ci_section = "## CI Status\nCI checks passed (or none failed yet).\n"
 
@@ -85,16 +84,18 @@ def construct_prompt(pr_data: dict[str, Any], ci_checks: list[dict[str, Any]]) -
 
     # Get recent reviews (last 3 from latest state?)
     for review in latest_reviews[-3:]:
-        if review["state"] in ["CHANGES_REQUESTED", "COMMENTED"]:
-            review_section += (
-                f"### Review by {review['author']['login']} ({review['state']})\n{review['body']}\n\n"
-            )
+        if review.get("state") in ["CHANGES_REQUESTED", "COMMENTED"]:
+            author = review.get("author") or review.get("user") or {}
+            login = author.get("login", "Unknown")
+            body = review.get("body", "")
+            review_section += f"### Review by {login} ({review['state']})\n{body}\n\n"
 
     # Get recent comments (last 5)
     for comment in comments[-5:]:
-        login = comment["author"]["login"]
-        # Skip our own bot comments if possible, or include them for context
-        review_section += f"**{login}**: {comment['body'][:500]}...\n\n"
+        author = comment.get("author") or comment.get("user") or {}
+        login = author.get("login", "Unknown")
+        body = comment.get("body", "")[:500]
+        review_section += f"**{login}**: {body}...\n\n"
 
     return f"""
 # Task: Fix Pull Request #{pr_number}
@@ -121,23 +122,19 @@ def run_feedback_loop(dry_run: bool = False, author_filter: str = "app/google-la
     if owner == "unknown" or repo == "unknown":
         sys.exit(1)
 
-    # Fetch PRs
+    # Fetch PRs using GitHub API
     try:
-        prs = (
-            run_gh_command(
-                [
-                    "pr",
-                    "list",
-                    "--author",
-                    author_filter,
-                    "--state",
-                    "open",
-                    "--json",
-                    "number,title,headRefName,url,author,isDraft",
-                ]
-            )
-            or []
-        )
+        all_prs = get_open_prs(owner, repo)
+        # Filter by author - check if author matches filter or is a Jules bot
+        prs = []
+        for pr in all_prs:
+            pr_author = pr.get("author", {}).get("login", "")
+            if author_filter in JULES_BOT_LOGINS:
+                # If filtering for Jules bot, check against known logins
+                if pr_author in JULES_BOT_LOGINS:
+                    prs.append(pr)
+            elif pr_author == author_filter or f"app/{pr_author}" == author_filter:
+                prs.append(pr)
     except Exception:
         return
 
@@ -165,14 +162,8 @@ def run_feedback_loop(dry_run: bool = False, author_filter: str = "app/google-la
             continue
 
         if should_trigger_feedback(pr_details):
-            # Get detailed CI status manually if needed, or use rollup from details
-            # feed_feedback.py used `gh pr checks` separately to get links
-            try:
-                checks = (
-                    run_gh_command(["pr", "checks", str(pr_num), "--json", "name,state,url,target_url"]) or []
-                )
-            except Exception:
-                checks = []
+            # Use statusCheckRollup from pr_details instead of calling gh CLI
+            checks = pr_details.get("statusCheckRollup", [])
 
             prompt = construct_prompt(pr_details, checks)
             branch_name = pr_details["branch"]
