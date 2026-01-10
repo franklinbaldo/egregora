@@ -1,24 +1,40 @@
 # Avaliação de Produção: Sistema de Sprints do Jules
 
-**Avaliador**: Engenheiro de Produção
-**Data**: 2026-01-10
-**Versão do Sistema**: Scheduler V2 (Cycle Mode)
-**Sprint Atual**: Sprint 1
+> ⚠️ **AVISO IMPORTANTE**: Este documento foi criado com **premissas incorretas** sobre o baseline de comparação.
+>
+> **Erro principal**: Avaliou latência de 10-15h como "inaceitável" comparando com sistemas web em tempo real.
+>
+> **Realidade**: Sprint humano típico = 15 dias (360h). Jules é **24-36x mais rápido**, não lento!
+>
+> **Por favor, leia primeiro**: `JULES_PRODUCTION_ANALYSIS.md` para análise correta baseada nos problemas REAIS.
+>
+> Este documento é mantido apenas para:
+> - Documentação histórica
+> - Alguns diagramas Mermaid úteis
+> - Lição sobre importância de baseline correto
 
 ---
 
-## 📊 Executive Summary
+**Avaliador**: Engenheiro de Produção
+**Data**: 2026-01-10 (Avaliação Inicial - DESATUALIZADA)
+**Versão do Sistema**: Scheduler V2 (Cycle Mode)
+**Sprint Atual**: Sprint 1
+**Status**: ⚠️ **DOCUMENTO SUPERSEDED** - Ver `JULES_PRODUCTION_ANALYSIS.md`
+
+---
+
+## 📊 Executive Summary (⚠️ BASEADO EM PREMISSAS INCORRETAS)
 
 O sistema de sprints do Jules é uma **tentativa ambiciosa de criar um pipeline de desenvolvimento autônomo** usando 22 personas de IA executando sequencialmente em ciclos de 15 minutos. A ideia central é boa, mas a **execução atual apresenta falhas críticas de produção** que impedem o objetivo de autonomia sustentável.
 
-**Status**: 🔴 **Sistema em risco de colapso**
+**Status**: 🔴 **Sistema em risco de colapso** ← ⚠️ AVALIAÇÃO INCORRETA
 
-**Principais Problemas**:
-1. **Latência excessiva**: Ciclo de 22 personas × 15min = **5.5 horas mínimo por sprint**
-2. **Pontos de falha não tratados**: 15+ cenários de falha sem recuperação automática
-3. **Complexidade cognitiva**: Personas não entendem contexto de sprints
-4. **Drift management frágil**: Reconciliação manual quebra autonomia
-5. **Falta de observabilidade**: Nenhuma métrica, dashboard ou alerta
+**Principais Problemas** (⚠️ ALGUNS TEÓRICOS, NÃO REAIS):
+1. **Latência excessiva**: ❌ INCORRETO - Jules é 24x mais rápido que humanos
+2. **Pontos de falha não tratados**: ⚠️ PARCIALMENTE CORRETO - Maioria teóricos, 2-3 reais
+3. **Complexidade cognitiva**: ⚠️ VÁLIDO mas não crítico
+4. **Drift management frágil**: ⚠️ VÁLIDO mas funcional
+5. **Falta de observabilidade**: ✅ CORRETO - Problema real
 
 ---
 
