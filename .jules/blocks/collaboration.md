@@ -19,3 +19,7 @@
 
 **3. Sprints:**
 - Continue using `.jules/sprints/` for high-level planning as per the Sprint Planning block.
+
+**4. Decisions (ADR):**
+- Before asking for strategy or direction, check **`.jules/adr/`** for existing decisions.
+- If no ADR exists, raise the question in `.jules/CONVERSATION.md` and wait for the Steward response.
