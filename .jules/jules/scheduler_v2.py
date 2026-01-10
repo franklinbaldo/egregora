@@ -309,18 +309,33 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                         print()
                         # Don't return - continue to create next session
                     elif session_state in ["COMPLETED", "FAILED"]:
-                        # Completed/failed but no PR - ask Jules to finalize
+                        # Completed/failed but no PR - ask Jules to finalize or skip if timed out
                         print(f"⚠️  Session {last_session_id} is in state '{session_state}' but no PR was created.")
-                        print("Sending message to request PR creation...")
-                        if not dry_run:
-                            finalize_message = (
-                                "A sessão está em estado terminal mas nenhuma PR foi criada. "
-                                "Por favor, finalize o trabalho criando uma Pull Request com as mudanças realizadas, "
-                                "ou se não há mudanças a fazer, finalize a sessão adequadamente."
-                            )
-                            client.send_message(last_session_id, finalize_message)
-                            print(f"Finalization message sent to session {last_session_id}.")
-                        return  # Wait for Jules to respond
+
+                        # Check if we should skip this session due to timeout
+                        created_at = None
+                        if persistent_state.history and persistent_state.history[0].get("session_id") == last_session_id:
+                            created_at = persistent_state.history[0].get("created_at")
+
+                        should_skip = orchestrator.handle_stuck_session(last_session_id, created_at)
+                        if should_skip:
+                            print(f"⏭️  Session stuck in {session_state} state without PR. Skipping to {next_persona_id}")
+                            if should_increment:
+                                sprint_manager.increment_sprint()
+                            print()
+                            # Don't return - fall through to create next session
+                        else:
+                            # Try one more time - send finalization message
+                            print("Sending message to request PR creation...")
+                            if not dry_run:
+                                finalize_message = (
+                                    "A sessão está em estado terminal mas nenhuma PR foi criada. "
+                                    "Por favor, finalize o trabalho criando uma Pull Request com as mudanças realizadas, "
+                                    "ou se não há mudanças a fazer, finalize a sessão adequadamente."
+                                )
+                                client.send_message(last_session_id, finalize_message)
+                                print(f"Finalization message sent to session {last_session_id}.")
+                            return  # Wait for Jules to respond
                     else:
                         # Session is stuck - try to unstick
                         print(f"🔧 Session state: {session_state}. Attempting to unstick...")

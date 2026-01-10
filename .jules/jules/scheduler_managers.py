@@ -716,6 +716,16 @@ class SessionOrchestrator:
                     print(f"Session {session_id} state: IN_PROGRESS ({elapsed_hours:.1f}h elapsed, waiting...)")
                     return False
 
+            # Check for timeout on COMPLETED/FAILED sessions without PR
+            if state in ["COMPLETED", "FAILED"] and elapsed_hours is not None:
+                if elapsed_hours > SESSION_TIMEOUT_HOURS:
+                    print(f"⏰ Session {session_id} stuck in {state} for {elapsed_hours:.1f}h without PR (>{SESSION_TIMEOUT_HOURS}h threshold)")
+                    print(f"   Marking session as timed out. Skipping to next persona...")
+                    return True  # Skip this session
+                else:
+                    print(f"Session {session_id} state: {state} ({elapsed_hours:.1f}h elapsed, no PR yet...)")
+                    return False
+
             if state == "AWAITING_PLAN_APPROVAL":
                 print(f"Session {session_id} is awaiting plan approval. Approving automatically...")
                 self.client.approve_plan(session_id)
