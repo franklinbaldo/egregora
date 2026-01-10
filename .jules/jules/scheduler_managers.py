@@ -505,6 +505,51 @@ This PR contains accumulated work from the Jules autonomous development cycle.
             print(f"❌ Failed to merge integration PR #{pr_number}: {stderr}")
             return None
 
+    def merge_jules_into_main_direct(self) -> bool:
+        """Directly merge origin/jules into main without opening a PR."""
+        try:
+            subprocess.run(["git", "fetch", "origin", "main", self.jules_branch], check=True, capture_output=True)
+            ahead_result = subprocess.run(
+                ["git", "rev-list", "--count", f"origin/main..origin/{self.jules_branch}"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            commits_ahead = int(ahead_result.stdout.strip())
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Failed to prepare merge: {e.stderr or e.stdout or e}")
+            return False
+
+        if commits_ahead == 0:
+            print(f"ℹ️  '{self.jules_branch}' is not ahead of main. Nothing to merge.")
+            return True
+
+        print(f"🔀 Merging origin/{self.jules_branch} into main ({commits_ahead} commits ahead)")
+        try:
+            # Reset local main to origin/main
+            subprocess.run(["git", "checkout", "-B", "main", "origin/main"], check=True, capture_output=True, text=True)
+            # Merge jules into main
+            subprocess.run(
+                ["git", "merge", f"origin/{self.jules_branch}", "--no-ff", "-m", f"Merge {self.jules_branch} into main"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            # Push updated main
+            subprocess.run(["git", "push", "origin", "main"], check=True, capture_output=True, text=True)
+            print("✅ Merged jules into main and pushed.")
+            return True
+        except subprocess.CalledProcessError as e:
+            stderr = e.stderr or e.stdout or str(e)
+            print(f"❌ Merge jules → main failed: {stderr}")
+            # Fallback: rotate drifted jules branch to avoid blocking
+            try:
+                print("⚠️  Attempting to rotate drifted jules branch for manual reconciliation...")
+                self._rotate_drifted_branch()
+            except Exception as rotate_err:  # pragma: no cover - best-effort
+                print(f"⚠️  Failed to rotate drifted branch: {rotate_err}")
+            return False
+
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
             print(f"⚠️  Failed to ensure integration PR: {stderr}", file=sys.stderr)

@@ -34,12 +34,9 @@ jobs:
           PYTHONPATH: .jules
         run: |
           set -euo pipefail
-          # Ensure we have latest refs
           git fetch origin main jules
-          # Ensure an integration PR exists (creates if needed)
           uv run python - <<'PY'
           from jules.scheduler_managers import BranchManager
           mgr = BranchManager()
-          mgr.ensure_integration_pr_exists(None)
-          mgr.merge_integration_pr(merge_method="--merge")
+          mgr.merge_jules_into_main_direct()
           PY

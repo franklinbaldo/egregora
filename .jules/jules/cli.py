@@ -50,15 +50,11 @@ def feedback_loop(
 
 @sync_app.command("merge-main")
 def sync_merge_main(
-    merge_method: str = typer.Option("--merge", help="gh merge method flag, e.g., --merge/--squash/--rebase"),
 ) -> None:
-    """Merge jules → main integration PR if mergeable."""
+    """Directly merge jules → main (no PR)."""
     mgr = BranchManager()
-    pr_number = mgr.merge_integration_pr(merge_method=merge_method)
-    if pr_number:
-        print(f"Merged integration PR #{pr_number}")
-    else:
-        print("No merge performed.")
+    ok = mgr.merge_jules_into_main_direct()
+    print("Merge completed." if ok else "Merge not completed.")
 
 
 if __name__ == "__main__":
