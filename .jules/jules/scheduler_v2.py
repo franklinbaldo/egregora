@@ -191,6 +191,11 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                         if pr_mgr.is_draft(pr_details):
                             print(f"⏳ PR still shows as draft after marking ready. Waiting for next tick...")
                             return
+                    elif session_state in ["AWAITING_PLAN_APPROVAL", "AWAITING_USER_FEEDBACK"]:
+                        # Session is stuck - unstick it before waiting for completion
+                        print(f"🔧 Session is stuck in state: {session_state}. Attempting to unstick...")
+                        orchestrator.handle_stuck_session(state.last_session_id)
+                        return  # Wait for unstick to take effect
                     else:
                         print(f"⏳ Session state: {session_state}. Waiting for completion...")
                         return
