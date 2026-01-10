@@ -154,9 +154,10 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
     print(f"➡️  Next persona: {next_persona_id}")
     print()
 
-    # === HANDLE PREVIOUS SESSION ===
-    if state.last_session_id:
-        pr = pr_mgr.find_by_session_id(open_prs, state.last_session_id)
+    # === HANDLE PREVIOUS SESSION (only if PR exists) ===
+    last_session_id = persistent_state.last_session_id
+    if last_session_id and persistent_state.last_pr_number:
+        pr = pr_mgr.find_by_session_id(open_prs, last_session_id)
 
         if pr:
             # Found open PR for last session
@@ -169,7 +170,7 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
             if pr_mgr.is_draft(pr_details):
                 print(f"📝 PR #{pr_number} is a draft. Checking session status...")
                 try:
-                    session_details = client.get_session(state.last_session_id)
+                    session_details = client.get_session(last_session_id)
                     session_state = session_details.get("state")
 
                     if session_state == "COMPLETED":
@@ -208,28 +209,28 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                     return  # Stop here - reconciliation will continue on next tick
 
             # Check if we should increment sprint
-            if state.should_increment_sprint:
+            if should_increment:
                 old_sprint = sprint_manager.get_current_sprint()
                 new_sprint = sprint_manager.increment_sprint()
                 print(f"🎉 Cycle completed! Sprint: {old_sprint} → {new_sprint}")
 
-            print(f"✨ Ready to start next persona: {state.next_persona_id}")
+            print(f"✨ Ready to start next persona: {next_persona_id}")
             print()
 
         else:
             # PR not found in open PRs - check if merged or stuck
-            print(f"PR for session {state.last_session_id} not found in open PRs.")
+            print(f"PR for session {last_session_id} not found in open PRs.")
             print("Checking if session is stuck or PR already merged...")
 
             from jules.github import get_pr_by_session_id_any_state
 
             pr_any_state = get_pr_by_session_id_any_state(
-                repo_info["owner"], repo_info["repo"], state.last_session_id
+                repo_info["owner"], repo_info["repo"], last_session_id
             )
 
             if pr_any_state and pr_any_state.get("mergedAt"):
                 # PR already merged - advance!
-                print(f"✅ PR already merged. Continuing to {state.next_persona_id}")
+                print(f"✅ PR already merged. Continuing to {next_persona_id}")
 
                 # Sync with main to ensure we have latest changes
                 if not dry_run:
@@ -243,14 +244,14 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                         )
                         return  # Stop here - reconciliation will continue on next tick
 
-                if state.should_increment_sprint:
+                if should_increment:
                     sprint_manager.increment_sprint()
                 print()
 
             elif pr_any_state and (pr_any_state.get("state") or "").lower() == "closed":
                 # PR was closed without merging - skip it
-                print(f"⚠️  PR was closed without merging. Skipping to {state.next_persona_id}")
-                if state.should_increment_sprint:
+                print(f"⚠️  PR was closed without merging. Skipping to {next_persona_id}")
+                if should_increment:
                     sprint_manager.increment_sprint()
                 print()
 
@@ -258,20 +259,20 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                 # Session might be stuck - check state first
                 print("🔧 Checking session state...")
                 try:
-                    session_details = client.get_session(state.last_session_id)
+                    session_details = client.get_session(last_session_id)
                     session_state = session_details.get("state")
 
                     # Handle terminal states
                     if session_state == "CANCELLED":
                         # Intentionally cancelled - skip to next persona
-                        print(f"⚠️  Session {state.last_session_id} was cancelled. Advancing to next persona.")
-                        if state.should_increment_sprint:
+                        print(f"⚠️  Session {last_session_id} was cancelled. Advancing to next persona.")
+                        if should_increment:
                             sprint_manager.increment_sprint()
                         print()
                         # Don't return - continue to create next session
                     elif session_state in ["COMPLETED", "FAILED"]:
                         # Completed/failed but no PR - ask Jules to finalize
-                        print(f"⚠️  Session {state.last_session_id} is in state '{session_state}' but no PR was created.")
+                        print(f"⚠️  Session {last_session_id} is in state '{session_state}' but no PR was created.")
                         print("Sending message to request PR creation...")
                         if not dry_run:
                             finalize_message = (
@@ -279,16 +280,16 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                                 "Por favor, finalize o trabalho criando uma Pull Request com as mudanças realizadas, "
                                 "ou se não há mudanças a fazer, finalize a sessão adequadamente."
                             )
-                            client.send_message(state.last_session_id, finalize_message)
-                            print(f"Finalization message sent to session {state.last_session_id}.")
+                            client.send_message(last_session_id, finalize_message)
+                            print(f"Finalization message sent to session {last_session_id}.")
                         return  # Wait for Jules to respond
                     else:
                         # Session is stuck - try to unstick
                         print(f"🔧 Session state: {session_state}. Attempting to unstick...")
-                        orchestrator.handle_stuck_session(state.last_session_id)
+                        orchestrator.handle_stuck_session(last_session_id)
                         return  # Don't start new session, wait for stuck one to complete
                 except Exception as e:
-                    print(f"❌ Error checking session {state.last_session_id}: {e}", file=sys.stderr)
+                    print(f"❌ Error checking session {last_session_id}: {e}", file=sys.stderr)
                     return
 
     # === START NEXT SESSION ===
