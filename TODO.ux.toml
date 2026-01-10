@@ -1,0 +1,98 @@
+# This is the tactical TODO list for the Curator and Forge personas.
+# It tracks actionable UX/UI improvements for the Egregora-generated MkDocs blog.
+
+[[tasks.high_priority]]
+id = "ux-missing-css-file"
+title = "Create missing custom CSS file to enable styling"
+description = """
+**WHY:** The `mkdocs.yml` references `stylesheets/extra.css`, but this file does not exist in the generated scaffold. This is a high-priority blocker because it prevents ANY custom styling or UX improvements from being applied.
+
+**WHAT:** Create the file `src/egregora/output_adapters/mkdocs/theme/stylesheets/extra.css`.
+
+**HOW:** The scaffolding process in `src/egregora/output_adapters/mkdocs/scaffolding.py` needs to be updated to copy this file.
+
+**VERIFY:** After running `egregora demo`, the file `demo/docs/stylesheets/extra.css` should exist.
+"""
+status = "pending"
+category = "baseline"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "ux-define-color-palette"
+title = "Define a professional and distinct color palette"
+description = """
+**WHY:** The current theme uses the default Material for MkDocs 'teal' and 'amber' colors, which looks generic. A custom palette will give the blog a unique brand identity that reflects Egregora's 'collective consciousness' theme.
+
+**WHAT:** Propose a new primary and accent color in `docs/ux-vision.md`. I will research colors associated with thought, connection, and clarity.
+
+**HOW:** I will update the `docs/ux-vision.md` with a color palette proposal. Forge will then implement it in the `mkdocs.yml.jinja` template.
+
+**VERIFY:** The generated `demo/.egregora/mkdocs.yml` should reflect the new color palette.
+"""
+status = "pending"
+category = "visual"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "ux-add-favicon"
+title = "Add a custom favicon for professional branding"
+description = """
+**WHY:** The site currently lacks a favicon, which makes it look unprofessional in browser tabs and bookmarks.
+
+**WHAT:** A custom favicon needs to be designed and added to the theme.
+
+**HOW:** I will design a simple, abstract icon representing 'Egregora'. Forge will then add the necessary files and configuration to `src/egregora/output_adapters/mkdocs/scaffolding.py` and the `mkdocs.yml.jinja` template.
+
+**VERIFY:** The generated site should display the custom favicon in the browser tab.
+"""
+status = "pending"
+category = "visual"
+assignee = "both"
+
+[[tasks.high_priority]]
+id = "ux-remove-analytics-placeholder"
+title = "Remove or properly configure Google Analytics"
+description = """
+**WHY:** The `mkdocs.yml` contains a placeholder `__GOOGLE_ANALYTICS_KEY__`. This is either a broken feature or a potential privacy concern if it's ever accidentally populated. Egregora should be privacy-first.
+
+**WHAT:** The analytics configuration should be removed from the default template.
+
+**HOW:** Forge should remove the `extra.analytics` section from the `mkdocs.yml.jinja` template in `src/egregora/output_adapters/mkdocs/scaffolding.py`.
+
+**VERIFY:** The generated `demo/.egregora/mkdocs.yml` should not contain the `extra.analytics` block.
+"""
+status = "pending"
+category = "baseline"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "ux-improve-empty-state"
+title = "Improve the 'empty state' message on the homepage"
+description = """
+**WHY:** The current homepage message 'No posts yet. Run `egregora write`' is functional but cold and technical. First impressions matter for new users.
+
+**WHAT:** The empty state message should be more welcoming and visually engaging.
+
+**HOW:** I will propose new copy in `docs/ux-vision.md`. Forge will update the template in `src/egregora/output_adapters/mkdocs/adapter.py` that generates the `index.md`.
+
+**VERIFY:** The `demo/docs/index.md` should contain the new, more engaging empty state content.
+"""
+status = "pending"
+category = "content"
+assignee = "both"
+
+[[tasks.medium_priority]]
+id = "ux-fix-social-card-images"
+title = "Fix 404 errors for social card images"
+description = """
+**WHY:** The build log shows 404 errors for the `og:image` URLs used for social media previews. This means when a link is shared on platforms like Twitter or Facebook, no preview image will appear.
+
+**WHAT:** The social plugin's image generation needs to be debugged.
+
+**HOW:** Forge needs to investigate the `mkdocs-social-plugin` configuration and the file generation process to ensure the social card images are created and referenced correctly.
+
+**VERIFY:** The `mkdocs build` command should complete without any 404 errors related to social card images.
+"""
+status = "pending"
+category = "baseline"
+assignee = "forge"
