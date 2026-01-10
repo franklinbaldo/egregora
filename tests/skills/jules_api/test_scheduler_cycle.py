@@ -165,8 +165,8 @@ class TestSchedulerCycleFallback:
         sys.path.insert(0, str(jules_path))
         try:
             import jules.scheduler_managers
-            import jules.scheduler_v2
             import jules.scheduler_state
+            import jules.scheduler_v2
         finally:
             sys.path.remove(str(jules_path))
 
@@ -178,21 +178,13 @@ class TestSchedulerCycleFallback:
         pr_manager = jules.scheduler_managers.PRManager()
 
         # Case 1: Mergeable is None (UNKNOWN)
-        pr_details_unknown = {
-            "number": 123,
-            "mergeable": None,
-            "statusCheckRollup": []
-        }
+        pr_details_unknown = {"number": 123, "mergeable": None, "statusCheckRollup": []}
         assert pr_manager.is_green(pr_details_unknown) is False
         captured = capsys.readouterr()
         assert "mergeability is UNKNOWN. Waiting..." in captured.out
 
         # Case 2: Mergeable is False (CONFLICT)
-        pr_details_conflict = {
-            "number": 124,
-            "mergeable": False,
-            "statusCheckRollup": []
-        }
+        pr_details_conflict = {"number": 124, "mergeable": False, "statusCheckRollup": []}
         assert pr_manager.is_green(pr_details_conflict) is False
         captured = capsys.readouterr()
         assert "is NOT mergeable (conflicts)" in captured.out
@@ -201,9 +193,7 @@ class TestSchedulerCycleFallback:
         pr_details_pending = {
             "number": 125,
             "mergeable": True,
-            "statusCheckRollup": [
-                {"context": "ci/test", "state": "PENDING"}
-            ]
+            "statusCheckRollup": [{"context": "ci/test", "state": "PENDING"}],
         }
         assert pr_manager.is_green(pr_details_pending) is False
         captured = capsys.readouterr()
@@ -213,9 +203,7 @@ class TestSchedulerCycleFallback:
         pr_details_success = {
             "number": 126,
             "mergeable": True,
-            "statusCheckRollup": [
-                {"context": "ci/test", "state": "SUCCESS"}
-            ]
+            "statusCheckRollup": [{"context": "ci/test", "state": "SUCCESS"}],
         }
         assert pr_manager.is_green(pr_details_success) is True
         captured = capsys.readouterr()
