@@ -91,8 +91,7 @@ def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Pat
     for stored_doc in (post, profile, journal, fallback_journal, enrichment, media):
         canonical_url = adapter.url_convention.canonical_url(stored_doc, adapter._ctx)  # type: ignore[arg-type]
         if stored_doc is fallback_journal:
-            # Fallback journals without metadata use unified output (posts/ directory)
-            assert canonical_url == "/posts/"
+            assert canonical_url.startswith("/posts/journal-")
         stored_path = adapter._index[stored_doc.document_id]
 
         # (1) Verify the file was persisted
@@ -107,16 +106,9 @@ def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Pat
             # Profiles with subject go to posts/profiles/{subject_uuid}/
             assert str(stored_relative).startswith("posts/profiles/")
         elif stored_doc.type == DocumentType.JOURNAL:
-            # Journals with metadata go to journal/ directory
-            # Fallback journals (empty metadata) use unified output (posts/)
-            is_fallback = stored_doc is fallback_journal
-            if is_fallback:
-                # Fallback journal with no metadata goes to posts/ per unified output convention
-                assert str(stored_relative).startswith("journal/") or str(stored_relative).startswith(
-                    "posts/"
-                )
-            else:
-                assert str(stored_relative).startswith("journal/")
+            # Journals now go to posts/ directory with journal- prefix
+            # Example: posts/journal-2025-03-02-0801-to-1258.md
+            assert str(stored_relative).startswith("posts/journal-")
         elif stored_doc.type == DocumentType.ENRICHMENT_URL:
             # Unified: enrichment URLs go to posts/
             assert str(stored_relative).startswith("posts/")
