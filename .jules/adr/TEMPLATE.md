@@ -20,4 +20,3 @@ State the decision clearly and concisely.
 - Positive:
 - Negative:
 - Follow-ups:
-
