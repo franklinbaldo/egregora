@@ -302,13 +302,12 @@ def _get_last_commit_author_login(commits: list[dict[str, Any]] | None) -> str |
         return None
 
     last_commit = commits[-1] or {}
-    
-    # Try 'author' dict (standard GitHub API)
     author = last_commit.get("author")
     if isinstance(author, dict):
         login = author.get("login")
         if login:
             return login
+
     authors = last_commit.get("authors")
     if isinstance(authors, list):
         for entry in authors:
