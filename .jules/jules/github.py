@@ -52,32 +52,6 @@ class GitHubClient:
         except httpx.HTTPError:
             return None
 
-    def get_pr_diff(self, owner: str, repo: str, pr_number: int) -> str | None:
-        """Get the diff/patch for a pull request.
-
-        Args:
-            owner: Repository owner
-            repo: Repository name
-            pr_number: Pull request number
-
-        Returns:
-            Unified diff as string, or None if unavailable
-        """
-        if not self.token:
-            return None
-
-        # Use GitHub's .diff endpoint to get unified diff
-        url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{pr_number}"
-        headers = self.headers.copy()
-        headers["Accept"] = "application/vnd.github.v3.diff"
-
-        try:
-            response = httpx.get(url, headers=headers, timeout=60.0)
-            response.raise_for_status()
-            return response.text
-        except httpx.HTTPError:
-            return None
-
 
 def get_open_prs(owner: str, repo: str) -> list[dict[str, Any]]:
     """Fetch open PRs using GitHub API."""

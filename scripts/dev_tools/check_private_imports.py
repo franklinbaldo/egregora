@@ -15,7 +15,7 @@ def check_all_for_private_names(file_path: Path) -> list[str]:
     """Check if __all__ contains any private (underscore-prefixed) names."""
     errors = []
     try:
-        tree = ast.parse(file_path.read_text(encoding="utf-8"))
+        tree = ast.parse(file_path.read_text())
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign):
                 for target in node.targets:
@@ -29,8 +29,6 @@ def check_all_for_private_names(file_path: Path) -> list[str]:
                                         )
     except SyntaxError:
         pass  # Skip files with syntax errors (will be caught by other tools)
-    except Exception:
-        pass # Skip files that can't be read or parsed
     return errors
 
 
@@ -38,7 +36,7 @@ def check_private_imports(file_path: Path) -> list[str]:
     """Check for imports of underscore-prefixed names from other modules."""
     errors = []
     try:
-        tree = ast.parse(file_path.read_text(encoding="utf-8"))
+        tree = ast.parse(file_path.read_text())
         for node in ast.walk(tree):
             # Check: from module import _private
             if isinstance(node, ast.ImportFrom):
@@ -52,8 +50,6 @@ def check_private_imports(file_path: Path) -> list[str]:
                     )
     except SyntaxError:
         pass  # Skip files with syntax errors
-    except Exception:
-        pass
     return errors
 
 

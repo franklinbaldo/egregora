@@ -67,11 +67,6 @@ def get_suggestion(filename: str) -> str:
     return "notes/ (if text) or artifacts/ (if generated data)"
 
 def main():
-    # Force UTF-8 for stdout/stderr to avoid UnicodeEncodeError on Windows
-    if sys.platform == "win32":
-        sys.stdout.reconfigure(encoding='utf-8')
-        sys.stderr.reconfigure(encoding='utf-8')
-
     root = Path(".")
     current_items = set(os.listdir(root))
 

@@ -16,6 +16,11 @@ class PersonaLoader:
     def __init__(self, personas_dir: Path, base_context: dict[str, Any]):
         """Initialize loader.
 
+        The loader uses Jinja2 to render persona prompts. It supports:
+        1.  Standard inheritance (extends 'base/persona.md.j2')
+        2.  Shared partials in .jules/templates/partials/
+        3.  Legacy variables for backward compatibility with older .md files.
+
         Args:
             personas_dir: Path to .jules/personas directory
             base_context: Base template context (repo info, etc.)
@@ -173,7 +178,7 @@ class PersonaLoader:
         full_context["collaboration_block"] = self._load_block("collaboration.md")
 
         # Sprint planning
-        from jules.scheduler import sprint_manager
+        from jules.scheduler import sprint_manager  # type: ignore
         full_context["sprint_planning_block"] = self._load_block("sprint_planning.md")
 
         # Calculate sprint context text (used by sprint_planning_block or legacy append)
@@ -181,7 +186,7 @@ class PersonaLoader:
         full_context["sprint_context_text"] = sprint_context
 
         # Legacy Support: If not using inheritance, we likely need to inject the old variables
-        # However, since we are migrating everything, we can rely on the partials existing in templates/
+        # however, since we are migrating everything, we can rely on the partials existing in templates/
         # and the new templates using {% include "partials/..." %}.
         #
         # BUT, if a template is NOT migrated yet (is just .md), it might still expect

@@ -1,4 +1,4 @@
-You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" - ', '') | default("a helpful persona.") }}
+{{ description | default('You are "' ~ id ~ '" ' ~ emoji ~ ' - a helpful persona.') }}
 
 {% block identity %}
 {% include "partials/identity_branding.md.j2" %}
@@ -14,6 +14,7 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 
 {% block planning %}
 {{ sprint_planning_block }}
+{{ sprint_context_text }}
 {% endblock %}
 
 {% block collaboration %}
