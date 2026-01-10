@@ -373,16 +373,6 @@ class PRManager:
 
         return all_passing
 
-    def _should_retry_merge(self, exception: Exception) -> bool:
-        """Determine if a merge error should be retried."""
-        if not isinstance(exception, MergeError):
-            return False
-        # Fail early on permission/auth errors
-        error_msg = str(exception).lower()
-        if any(x in error_msg for x in ["permission denied", "403", "protected branch"]):
-            return False
-        return True
-
     @retry(
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=1, min=4, max=10),
