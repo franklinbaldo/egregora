@@ -30,6 +30,9 @@ from jules.scheduler_managers import (
     SessionOrchestrator,
 )
 from jules.scheduler_models import SessionRequest
+from jules.scheduler_state import PersistentCycleState, commit_cycle_state
+
+CYCLE_STATE_PATH = Path(".jules/cycle_state.json")
 
 
 def handle_drift_reconciliation(
@@ -129,16 +132,26 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
     # === ENSURE JULES BRANCH ===
     branch_mgr.ensure_jules_branch_exists()
 
-    # === FIND LAST CYCLE SESSION ===
-    state = cycle_mgr.find_last_cycle_session(client, repo_info, open_prs)
-
-    print()
-    if state.last_session_id:
-        print(f"📍 Last cycle session: {state.last_session_id} ({state.last_persona_id})")
+    # === LOAD PERSISTENT STATE ===
+    persistent_state = PersistentCycleState.load(CYCLE_STATE_PATH)
+    
+    # Determine next persona from persistent state
+    if persistent_state.last_persona_id and persistent_state.last_persona_id in cycle_mgr.cycle_ids:
+        next_idx, should_increment = cycle_mgr.advance_cycle(persistent_state.last_persona_id)
+        next_persona_id = cycle_mgr.cycle_ids[next_idx]
+        print(f"\n📍 Last cycle: {persistent_state.last_persona_id} (from state file)")
     else:
-        print("📍 No previous cycle session found. Starting fresh.")
+        # Fallback to API-based detection
+        state = cycle_mgr.find_last_cycle_session(client, repo_info, open_prs)
+        next_idx = state.next_persona_index
+        next_persona_id = state.next_persona_id
+        should_increment = state.should_increment_sprint
+        if state.last_session_id:
+            print(f"\n📍 Last cycle: {state.last_persona_id} (from API)")
+        else:
+            print("\n📍 No previous cycle found. Starting fresh.")
 
-    print(f"➡️  Next persona: {state.next_persona_id}")
+    print(f"➡️  Next persona: {next_persona_id}")
     print()
 
     # === HANDLE PREVIOUS SESSION ===
@@ -279,15 +292,15 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                     return
 
     # === START NEXT SESSION ===
-    next_persona = personas[state.next_persona_index]
+    next_persona = personas[next_idx]
     print(f"🚀 Starting session for {next_persona.emoji} {next_persona.id}")
 
     # Create session branch
     session_branch = branch_mgr.create_session_branch(
         JULES_BRANCH,
         next_persona.id,
-        state.base_pr_number,
-        state.last_session_id,
+        str(persistent_state.last_pr_number or ""),
+        persistent_state.last_session_id,
     )
 
     # Create session request
@@ -306,6 +319,26 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
     # Create session
     session_id = orchestrator.create_session(request)
     print(f"✅ Created session: {session_id}")
+
+    # === SAVE PERSISTENT STATE ===
+    if not dry_run and session_id != "[DRY RUN]":
+        persistent_state.record_session(
+            persona_id=next_persona.id,
+            persona_index=next_idx,
+            session_id=session_id,
+        )
+        persistent_state.save(CYCLE_STATE_PATH)
+        commit_cycle_state(
+            CYCLE_STATE_PATH,
+            f"chore(jules): cycle state → {next_persona.id} (session {session_id[:12]})"
+        )
+
+    # Check if we should increment sprint
+    if should_increment:
+        old_sprint = sprint_manager.get_current_sprint()
+        new_sprint = sprint_manager.increment_sprint()
+        print(f"🎉 Cycle completed! Sprint: {old_sprint} → {new_sprint}")
+
     print()
     print("=" * 70)
 
