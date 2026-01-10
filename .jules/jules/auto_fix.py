@@ -37,6 +37,30 @@ def post_pr_comment(pr_number: int, comment: str, repo_path: str = ".") -> None:
         # Don't fail the whole operation if comment posting fails
 
 
+def _public_issues_block(details: dict[str, Any], logs_summary: str) -> str:
+    """Generate a public-safe summary of issues for PR comments.
+
+    Avoids leaking full CI logs into PR comments. Returns a concise, formatted block.
+    """
+    failed = details.get("failed_check_names") or []
+    has_conflicts = bool(details.get("has_conflicts"))
+
+    lines: list[str] = []
+    if has_conflicts:
+        lines.append("- ❌ **Tem conflitos de merge** (resolve antes de rodar CI).")
+    if failed:
+        lines.append("- ❌ **Checks falhando**: " + ", ".join(f"`{c}`" for c in failed))
+    if logs_summary:
+        # Keep comment short and avoid dumping full logs in PR
+        short = logs_summary[:3000]
+        suffix = "\n\n_(resumo truncado)_" if len(logs_summary) > 3000 else ""
+        lines.append(
+            "\n<details><summary>Resumo dos logs</summary>\n\n"
+            f"```text\n{short}\n```{suffix}\n</details>"
+        )
+    return "\n".join(lines) if lines else "- ✅ Nenhum problema detectado."
+
+
 def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
     # Use repo root as cwd for git/gh commands
     repo_root = "."
@@ -120,22 +144,19 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
             f"{feedback}"
             f"{autonomous_instruction}\n\n"
             f"## Your Task\n\n"
-            f"### Step 1: Fetch the PR Using GitHub's Special Refs\n"
-            f"Use this pattern to reliably fetch the PR:\n"
+            f"### Step 1: Fetch + checkout (one-liner)\n"
             f"```bash\n"
-            f"git fetch origin pull/{pr_number}/head:{details['branch']}\n"
-            f"git checkout {details['branch']}\n"
+            f"git fetch origin pull/{pr_number}/head:pr-{pr_number} && git switch pr-{pr_number}\n"
             f"```\n\n"
-            f"**Why this approach?**\n"
-            f"- Uses GitHub's special PR refs (`pull/{pr_number}/head`)\n"
-            f"- Reliable even if the branch was force-pushed or deleted\n"
-            f"- Creates proper local tracking\n\n"
-            f"### Step 2-5: Fix and Verify\n"
-            f"2. Investigate the failures and conflicts\n"
+            f"### Step 2-5: Fix, test, push\n"
+            f"2. Investigate failures/conflicts\n"
             f"3. Fix all issues\n"
             f"4. Run tests to verify fixes\n"
-            f"5. Push your updates: `git push origin {details['branch']}`\n\n"
-            f"Start by fetching the PR using the special refs pattern above."
+            f"5. Push updates back to the PR branch:\n"
+            f"```bash\n"
+            f"git push origin HEAD:{details['branch']}\n"
+            f"```\n\n"
+            f"Start by fetching the PR using the command above."
         )
 
         # Create new session
@@ -161,16 +182,19 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
                     "started a fresh session to avoid regressions.\n"
                 )
 
+            # Generate public-safe summary (avoid leaking full CI logs)
+            public_issues = _public_issues_block(details, logs_summary)
+
             comment = (
                 f"## 🤖 Auto-Fix: New Session Created\n\n"
                 f"✅ **Jules session created to fix this PR**\n\n"
                 f"- **Session ID**: `{new_session_id}`\n"
                 f"- **Branch**: `{details['branch']}`\n\n"
                 f"{reuse_note}"
-                f"### Issues to Fix:\n\n"
-                f"{feedback}\n\n"
+                f"### Issues to Fix (public summary):\n\n"
+                f"{public_issues}\n\n"
                 f"Jules will:\n"
-                f"1. Check out your branch\n"
+                f"1. Fetch the PR using GitHub's special refs\n"
                 f"2. Investigate the failures\n"
                 f"3. Fix the issues\n"
                 f"4. Push updates to this branch\n\n"
@@ -243,13 +267,16 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
         print(f"✅ Message sent successfully to session {session_id}")
 
         # Post success comment to PR
+        # Generate public-safe summary (avoid leaking full CI logs)
+        public_issues = _public_issues_block(details, logs_summary)
+
         comment = (
             f"## 🤖 Auto-Fix: Message Sent\n\n"
             f"✅ **Fix request sent to Jules**\n\n"
             f"- **Session ID**: `{session_id}`\n"
             f"- **Session State**: `{session_state}`\n\n"
-            f"### Message Sent:\n\n"
-            f"> {feedback}\n\n"
+            f"### Issues (public summary):\n\n"
+            f"{public_issues}\n\n"
             f"Jules will process this request and update the PR. "
             f"Check https://jules.google.com/session/{session_id} for progress."
         )
