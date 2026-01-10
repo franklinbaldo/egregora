@@ -4,6 +4,7 @@ Checks that the root directory only contains allowed files and directories.
 This ensures the repository root remains clean and focused on essential project files.
 """
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -66,6 +67,20 @@ def get_suggestion(filename: str) -> str:
     # Default fallback
     return "notes/ (if text) or artifacts/ (if generated data)"
 
+def _is_git_ignored(root: Path, item: str) -> bool:
+    """Return True if Git ignores the path."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "check-ignore", "-q", item],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError:
+        return False
+    return result.returncode == 0
+
+
 def main():
     # Force UTF-8 for stdout/stderr to avoid UnicodeEncodeError on Windows
     if sys.platform == "win32":
@@ -84,6 +99,8 @@ def main():
 
         # Ignore some common transient/IDE files/dirs if they happen to exist locally
         if item.startswith(".idea") or item.startswith(".vscode") or item.endswith(".egg-info") or item == ".DS_Store":
+            continue
+        if _is_git_ignored(root, item):
             continue
 
         unauthorized.append(item)

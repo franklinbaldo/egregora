@@ -22,7 +22,20 @@ class PersonaLoader:
         """
         self.personas_dir = personas_dir
         self.base_context = base_context
-        self.jinja_env = jinja2.Environment()
+
+        # Initialize Jinja environment with FileSystemLoader
+        # We need to point to the templates directory AND the root for relative lookups
+        templates_dir = personas_dir.parent / "templates"
+        self.jinja_env = jinja2.Environment(
+            loader=jinja2.FileSystemLoader([
+                str(templates_dir),
+                str(personas_dir),
+                ".",  # Allow loading relative to root if needed
+            ]),
+            undefined=jinja2.StrictUndefined,
+            trim_blocks=True,
+            lstrip_blocks=True,
+        )
 
     def load_personas(self, cycle_list: list[str]) -> list[PersonaConfig]:
         """Load all personas in cycle order.
@@ -43,10 +56,23 @@ class PersonaLoader:
             # Load specific personas in cycle order
             base_dir = self.personas_dir.parent
             for rel_path in cycle_list:
-                prompt_file = (base_dir / rel_path).resolve()
+                base_path = (base_dir / rel_path).resolve()
+                prompt_file = base_path
+
+                # Intelligent extension resolution
                 if not prompt_file.exists():
-                    print(f"Cycle prompt not found: {rel_path}", file=sys.stderr)
-                    continue
+                    # If passed .md but .md.j2 exists
+                    if base_path.suffix == ".md" and base_path.with_suffix(".md.j2").exists():
+                        prompt_file = base_path.with_suffix(".md.j2")
+                    # If passed .md but replaced with .j2 (renamed)
+                    elif base_path.suffix == ".md" and base_path.with_suffix(".j2").exists():
+                         prompt_file = base_path.with_suffix(".j2")
+                    # Append .j2 if missing
+                    elif base_path.with_suffix(base_path.suffix + ".j2").exists():
+                        prompt_file = base_path.with_suffix(base_path.suffix + ".j2")
+                    else:
+                        print(f"Cycle prompt not found: {rel_path} (checked {prompt_file})", file=sys.stderr)
+                        continue
 
                 try:
                     config = self.load_persona(prompt_file)
@@ -59,7 +85,19 @@ class PersonaLoader:
                 sys.exit(1)
         else:
             # Load all personas from directory
-            for prompt_file in sorted(self.personas_dir.glob("*/prompt.md")):
+            # Strategy: find all prompt.* files, prefer .j2 if duplicates exist
+            found_personas = {}
+
+            # Scan for .md.j2 and .md
+            candidates = sorted(list(self.personas_dir.glob("*/prompt.md.j2")) + list(self.personas_dir.glob("*/prompt.md")))
+
+            for p_file in candidates:
+                persona_name = p_file.parent.name
+                # If we haven't seen this persona, or if this is a .j2 file (preferred)
+                if persona_name not in found_personas or p_file.suffix == ".j2":
+                    found_personas[persona_name] = p_file
+
+            for prompt_file in sorted(found_personas.values()):
                 try:
                     config = self.load_persona(prompt_file)
                     configs.append(config)
@@ -72,7 +110,7 @@ class PersonaLoader:
         """Load a single persona configuration.
 
         Args:
-            prompt_file: Path to persona's prompt.md file
+            prompt_file: Path to persona's prompt file
 
         Returns:
             PersonaConfig with all fields populated
@@ -132,36 +170,48 @@ class PersonaLoader:
         # Load shared blocks
         full_context = {**context, **metadata}
         full_context["autonomy_block"] = self._load_block("autonomy.md")
+        full_context["collaboration_block"] = self._load_block("collaboration.md")
+
+        # Sprint planning
+        from jules.scheduler import sprint_manager
         full_context["sprint_planning_block"] = self._load_block("sprint_planning.md")
 
-        # Render standard blocks
-        from jules.scheduler import (
-            IDENTITY_BRANDING,
-            JOURNAL_MANAGEMENT,
-            CELEBRATION,
-            PRE_COMMIT_INSTRUCTIONS,
-            sprint_manager,
-        )
-
-        full_context["identity_branding"] = self.jinja_env.from_string(IDENTITY_BRANDING).render(
-            **full_context
-        )
-        full_context["journal_management"] = self.jinja_env.from_string(JOURNAL_MANAGEMENT).render(
-            **full_context
-        )
-        full_context["empty_queue_celebration"] = self.jinja_env.from_string(CELEBRATION).render(
-            **full_context
-        )
-        full_context["pre_commit_instructions"] = self.jinja_env.from_string(
-            PRE_COMMIT_INSTRUCTIONS
-        ).render(**full_context)
-
-        # Add sprint context
+        # Calculate sprint context text (used by sprint_planning_block or legacy append)
         sprint_context = sprint_manager.get_sprint_context(metadata.get("id", "unknown"))
-        body_with_sprint = body_template + sprint_context
+        full_context["sprint_context_text"] = sprint_context
+
+        # Legacy Support: If not using inheritance, we likely need to inject the old variables
+        # However, since we are migrating everything, we can rely on the partials existing in templates/
+        # and the new templates using {% include "partials/..." %}.
+        #
+        # BUT, if a template is NOT migrated yet (is just .md), it might still expect
+        # variables like {{ identity_branding }}.
+        # To support partial migration (or fallback), we can try to render the partials into variables
+        # IF they are requested in the template.
+
+        # Check if legacy variables are used
+        if "{{ identity_branding }}" in body_template:
+            t = self.jinja_env.get_template("partials/identity_branding.md.j2")
+            full_context["identity_branding"] = t.render(**full_context)
+
+        if "{{ journal_management }}" in body_template:
+            t = self.jinja_env.get_template("partials/journal_management.md.j2")
+            full_context["journal_management"] = t.render(**full_context)
+
+        if "{{ empty_queue_celebration }}" in body_template:
+             t = self.jinja_env.get_template("partials/celebration.md.j2")
+             full_context["empty_queue_celebration"] = t.render(**full_context)
+
+        if "{{ pre_commit_instructions }}" in body_template:
+             t = self.jinja_env.get_template("partials/pre_commit_instructions.md.j2")
+             full_context["pre_commit_instructions"] = t.render(**full_context)
+
+        # Legacy Support: Append sprint context if not using inheritance/blocks
+        if "{% extends" not in body_template and "{% block" not in body_template:
+            body_template += sprint_context
 
         # Render final body
-        return self.jinja_env.from_string(body_with_sprint).render(**full_context).strip()
+        return self.jinja_env.from_string(body_template).render(**full_context).strip()
 
     def _load_block(self, block_name: str) -> str:
         """Load a shared prompt block from .jules/blocks/.
