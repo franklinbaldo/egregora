@@ -85,47 +85,49 @@ class PersistentCycleState:
 
 
 def commit_cycle_state(state_path: Path, message: str = "chore: update cycle state") -> bool:
-    """Commit the cycle state file to git.
+    """Commit the cycle state file to git via GitHub API.
     
-    This ensures the state is persisted in the 'main' branch, which is the 
-    canonical source of truth. The 'jules' branch will receive this update 
-    during the sync_with_main() step at the start of each tick.
+    This updates the state in both 'main' and 'jules' branches to ensure 
+    consistency. Using the API is more reliable than 'git push' in CI.
     """
-    try:
-        # Configure git user (for CI)
-        print(f"[{datetime.now().isoformat()}] Preparing to persist slate to main...")
-        subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=False)
-        subprocess.run(["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"], check=False)
-        
-        # 1. Fetch latest main
-        subprocess.run(["git", "fetch", "origin", "main"], check=True, capture_output=True)
-        
-        # 2. Add the file
-        subprocess.run(["git", "add", str(state_path)], check=True, capture_output=True)
-        
-        # 3. Check for changes
-        status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
-        if not status.stdout.strip():
-            print("ℹ️ No changes to commit in cycle_state.json")
-            return True
-
-        # 4. Commit
-        subprocess.run(["git", "commit", "-m", message], check=True, capture_output=True)
-        
-        # 5. Push using explicit refspec to handle detached HEAD
-        print(f"Pushing cycle state to origin main (HEAD:main)...")
-        # Try pushing up to 3 times with rebase if needed
-        for attempt in range(3):
-            try:
-                subprocess.run(["git", "push", "origin", "HEAD:main"], check=True, capture_output=True, text=True)
-                print(f"✅ State persisted successfully: {message}")
-                return True
-            except subprocess.CalledProcessError as e:
-                print(f"⚠️ Push attempt {attempt+1} failed. Rebasin and retrying...")
-                subprocess.run(["git", "fetch", "origin", "main"], check=True)
-                subprocess.run(["git", "rebase", "origin/main"], check=False)
-        
+    from jules.github import GitHubClient
+    from jules.scheduler import JULES_BRANCH
+    
+    client = GitHubClient()
+    if not client.token:
+        print("⚠️ No GITHUB_TOKEN found, skipping remote state persistence.")
         return False
+
+    owner = "franklinbaldo"
+    repo = "egregora"
+    path = ".jules/cycle_state.json"
+    
+    try:
+        with open(state_path) as f:
+            content = f.read()
+            
+        success = True
+        # Update both main and jules
+        for branch in ["main", JULES_BRANCH]:
+            # Get current file info for SHA
+            file_info = client.get_file_contents(owner, repo, path, ref=branch)
+            sha = file_info.get("sha") if file_info else None
+            
+            if client.create_or_update_file(
+                owner=owner,
+                repo=repo,
+                path=path,
+                content=content,
+                message=message,
+                branch=branch,
+                sha=sha
+            ):
+                print(f"✅ Updated cycle state on branch '{branch}' via API")
+            else:
+                print(f"⚠️ Failed to update cycle state on branch '{branch}'")
+                success = False
+                
+        return success
     except Exception as e:
-        print(f"❌ Error persisting cycle state: {e}")
+        print(f"❌ Error persisting cycle state via API: {e}")
         return False
