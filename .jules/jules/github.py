@@ -272,7 +272,21 @@ def _get_last_commit_author_login(commits: list[dict[str, Any]] | None) -> str |
         login = author.get("login")
         if login:
             return login
-            
+
+    authors = last_commit.get("authors")
+    if isinstance(authors, list):
+        for entry in authors:
+            if not isinstance(entry, dict):
+                continue
+            login = entry.get("login")
+            if login:
+                return login
+            user = entry.get("user")
+            if isinstance(user, dict):
+                login = user.get("login")
+                if login:
+                    return login
+
     return None
 
 
