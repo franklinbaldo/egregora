@@ -465,8 +465,45 @@ This PR contains accumulated work from the Jules autonomous development cycle.
             # Extract PR number from URL (format: https://github.com/owner/repo/pull/123)
             pr_url = create_result.stdout.strip()
             pr_number = int(pr_url.split("/")[-1])
-            print(f"✅ Created integration PR #{pr_number}: {pr_url}")
+        print(f"✅ Created integration PR #{pr_number}: {pr_url}")
+        return pr_number
+
+    def merge_integration_pr(self, merge_method: str = "--merge") -> int | None:
+        """Merge the jules → main integration PR if it exists and is mergeable."""
+        import json
+
+        # Find existing PR
+        result = subprocess.run(
+            ["gh", "pr", "list", "--head", self.jules_branch, "--base", "main", "--json", "number", "mergeStateStatus"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        prs = json.loads(result.stdout) if result.stdout.strip() else []
+        if not prs:
+            print(f"ℹ️  No integration PR from '{self.jules_branch}' to 'main' found. Skipping merge.")
+            return None
+
+        pr_number = prs[0]["number"]
+        merge_state = prs[0].get("mergeStateStatus", "").upper()
+        if merge_state and merge_state not in {"CLEAN", "HAS_HOOKS", "UNSTABLE"}:
+            print(f"⚠️  Integration PR #{pr_number} not mergeable (state: {merge_state}). Skipping.")
+            return None
+
+        print(f"🔀 Merging integration PR #{pr_number} ({self.jules_branch} → main) using {merge_method}")
+        try:
+            subprocess.run(
+                ["gh", "pr", "merge", str(pr_number), merge_method, "--admin"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            print(f"✅ Merged integration PR #{pr_number}")
             return pr_number
+        except subprocess.CalledProcessError as e:
+            stderr = e.stderr or e.stdout or str(e)
+            print(f"❌ Failed to merge integration PR #{pr_number}: {stderr}")
+            return None
 
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
