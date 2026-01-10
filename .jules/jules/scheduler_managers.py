@@ -15,6 +15,7 @@ from jules.github import (
 )
 from jules.scheduler import sprint_manager, JULES_BRANCH, JULES_SCHEDULER_PREFIX
 from jules.scheduler_models import CycleState, PersonaConfig, PRStatus, SessionRequest
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 
 class BranchManager:
@@ -336,23 +337,74 @@ class PRManager:
             raise MergeError(f"Failed to mark PR #{pr_number} as ready: {stderr}") from e
 
     def is_green(self, pr_details: dict) -> bool:
-        """Check if all CI checks on a PR are passing.
+        """Check if all CI checks on a PR are passing and PR is mergeable.
 
         Args:
             pr_details: PR details from GitHub API
 
         Returns:
-            True if all checks pass (or no checks exist)
+            True only if:
+            - PR is mergeable (no conflicts)
+            - All checks exist and have passed
+            - No pending checks
         """
+        # 1. Check mergeable state
+        mergeable = pr_details.get("mergeable")
+        if mergeable is False:  # Explicitly False (None means unknown)
+            print(f"  ❌ PR has merge conflicts")
+            return False
+        elif mergeable is None:
+            print(f"  ⏳ Mergeable state unknown (GitHub still computing)")
+            return False
+
+        # 2. Get status checks
         status_checks = pr_details.get("statusCheckRollup", [])
         if not status_checks:
-            return True  # No checks = passing
+            print(f"  ⏳ No status checks found (CI may not have started)")
+            return False
 
+        # 3. Check each status
+        all_passed = True
         for check in status_checks:
-            status = (check.get("conclusion") or check.get("status") or "").upper()
-            if status not in ["SUCCESS", "NEUTRAL", "SKIPPED", "COMPLETED"]:
-                return False
-        return True
+            name = check.get("name", "unknown")
+            conclusion = (check.get("conclusion") or "").upper()
+            status = (check.get("status") or "").upper()
+
+            # Check conclusion first (if exists)
+            if conclusion:
+                if conclusion in ["SUCCESS", "NEUTRAL", "SKIPPED"]:
+                    print(f"  ✅ {name}: {conclusion}")
+                else:
+                    print(f"  ❌ {name}: {conclusion}")
+                    all_passed = False
+            # If no conclusion yet, check status
+            elif status:
+                if status == "COMPLETED":
+                    # Completed without conclusion means success
+                    print(f"  ✅ {name}: {status}")
+                else:
+                    print(f"  ⏳ {name}: {status}")
+                    all_passed = False
+            else:
+                print(f"  ❓ {name}: no status or conclusion")
+                all_passed = False
+
+        return all_passed
+
+    @retry(
+        retry=retry_if_exception_type(subprocess.CalledProcessError),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=2, min=2, max=10),
+        reraise=True
+    )
+    def _merge_with_retry(self, pr_number: int) -> None:
+        """Merge PR with retry logic for transient failures."""
+        subprocess.run(
+            ["gh", "pr", "merge", str(pr_number), "--merge"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
     def merge_into_jules(self, pr_number: int) -> None:
         """Merge a PR into the Jules branch using gh CLI.
@@ -375,16 +427,46 @@ class PRManager:
             )
             print(f"Retargeted PR #{pr_number} to '{self.jules_branch}'.")
 
-            # Merge the PR
-            subprocess.run(
-                ["gh", "pr", "merge", str(pr_number), "--merge", "--delete-branch"],
-                check=True,
-                capture_output=True,
-            )
-            print(f"Successfully merged PR #{pr_number} into '{self.jules_branch}'.") 
+            # Merge with retry
+            self._merge_with_retry(pr_number)
+            print(f"Successfully merged PR #{pr_number} into '{self.jules_branch}'.")
+
+            # Delete branch (best effort, non-fatal)
+            try:
+                head_ref = self._get_pr_head_ref(pr_number)
+                if head_ref:
+                    subprocess.run(
+                        ["git", "push", "origin", "--delete", head_ref],
+                        check=False,
+                        capture_output=True,
+                    )
+            except Exception:
+                pass  # Branch deletion is optional
+
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
-            raise MergeError(f"Failed to merge PR #{pr_number}: {stderr}") from e
+
+            # Check if it's a permission error (don't retry)
+            if "403" in stderr or "forbidden" in stderr.lower():
+                raise MergeError(
+                    f"Permission denied merging PR #{pr_number}. "
+                    f"Check branch protection rules for '{self.jules_branch}'. "
+                    f"Error: {stderr}"
+                ) from e
+
+            raise MergeError(f"Failed to merge PR #{pr_number} after retries: {stderr}") from e
+
+    def _get_pr_head_ref(self, pr_number: int) -> str | None:
+        try:
+            result = subprocess.run(
+                ["gh", "pr", "view", str(pr_number), "--json", "headRefName", "-q", ".headRefName"],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            return result.stdout.strip()
+        except Exception:
+            return None
 
     def find_by_session_id(
         self, open_prs: list[dict[str, Any]], session_id: str
@@ -467,12 +549,12 @@ class CycleStateManager:
                 continue
 
             # Check if this is a scheduler branch
-            base_branch = pr.get("baseRefName", "") or ""
-            if not base_branch.lower().startswith(f"{JULES_SCHEDULER_PREFIX}-"):
+            head_branch = pr.get("headRefName", "") or ""
+            if not head_branch.lower().startswith(f"{JULES_SCHEDULER_PREFIX}-"):
                 continue
 
-            # Extract persona from base branch
-            persona_id = self._match_persona_from_branch(base_branch)
+            # Extract persona from head branch
+            persona_id = self._match_persona_from_branch(head_branch)
             if persona_id:
                 # Found last cycle session!
                 next_idx, should_increment = self.advance_cycle(persona_id)
