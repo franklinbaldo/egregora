@@ -1465,7 +1465,7 @@ def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> in
 
     all_author_ids: set[str] = set()
     for md_file in posts_dir.rglob("*.md"):
-        all_author_ids.update(extract_authors_from_post(md_file))
+        all_author_ids.update(extract_authors_from_post(md_file, fast=True))
 
     if not all_author_ids:
         return 0
