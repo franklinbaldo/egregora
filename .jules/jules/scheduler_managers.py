@@ -16,6 +16,9 @@ from jules.github import (
 from jules.scheduler import sprint_manager, JULES_BRANCH, JULES_SCHEDULER_PREFIX
 from jules.scheduler_models import CycleState, PersonaConfig, PRStatus, SessionRequest
 
+# Timeout threshold for stuck sessions (in hours)
+SESSION_TIMEOUT_HOURS = 3.0
+
 
 class BranchManager:
     """Handles all git branch operations for the scheduler."""
@@ -663,23 +666,60 @@ class SessionOrchestrator:
         print(f"Created session {request.persona_id}: {session_id}")
         return session_id
 
-    def handle_stuck_session(self, session_id: str) -> None:
+    def handle_stuck_session(self, session_id: str, session_created_at: str | None = None) -> bool:
         """Handle a session that is stuck waiting for user input.
 
         Args:
             session_id: Session ID to check and potentially nudge
+            session_created_at: ISO timestamp when session was created (from cycle state)
+
+        Returns:
+            bool: True if session should be skipped, False if should keep waiting
         """
         if self.dry_run:
             print(f"[Dry Run] Would check/nudge session {session_id}")
-            return
+            return False
 
         try:
             session_details = self.client.get_session(session_id)
             state = session_details.get("state")
 
+            # Calculate elapsed time if we have creation timestamp
+            elapsed_hours = None
+            # Try to get creation time from passed parameter first
+            if session_created_at:
+                try:
+                    created = datetime.fromisoformat(session_created_at.replace("Z", "+00:00"))
+                    now = datetime.now(timezone.utc)
+                    elapsed = now - created
+                    elapsed_hours = elapsed.total_seconds() / 3600.0
+                except (ValueError, AttributeError):
+                    pass
+
+            # If not available, try to get it from session details API response
+            if elapsed_hours is None and "createTime" in session_details:
+                try:
+                    created = datetime.fromisoformat(session_details["createTime"].replace("Z", "+00:00"))
+                    now = datetime.now(timezone.utc)
+                    elapsed = now - created
+                    elapsed_hours = elapsed.total_seconds() / 3600.0
+                except (ValueError, AttributeError, KeyError):
+                    pass
+
+            # Check for timeout on IN_PROGRESS sessions
+            if state == "IN_PROGRESS" and elapsed_hours is not None:
+                if elapsed_hours > SESSION_TIMEOUT_HOURS:
+                    print(f"⏰ Session {session_id} stuck IN_PROGRESS for {elapsed_hours:.1f}h (>{SESSION_TIMEOUT_HOURS}h threshold)")
+                    print(f"   Marking session as timed out. Skipping to next persona...")
+                    return True  # Skip this session
+                else:
+                    print(f"Session {session_id} state: IN_PROGRESS ({elapsed_hours:.1f}h elapsed, waiting...)")
+                    return False
+
             if state == "AWAITING_PLAN_APPROVAL":
                 print(f"Session {session_id} is awaiting plan approval. Approving automatically...")
                 self.client.approve_plan(session_id)
+                return False
 
             elif state == "AWAITING_USER_FEEDBACK":
                 print(f"Session {session_id} is awaiting user feedback (stuck). Sending nudge...")
@@ -689,12 +729,16 @@ class SessionOrchestrator:
                 )
                 self.client.send_message(session_id, nudge_text)
                 print(f"Nudge sent to session {session_id}.")
+                return False
 
             else:
-                print(f"Session {session_id} state: {state}. Waiting.")
+                elapsed_str = f" ({elapsed_hours:.1f}h elapsed)" if elapsed_hours is not None else ""
+                print(f"Session {session_id} state: {state}{elapsed_str}. Waiting.")
+                return False
 
         except Exception as e:
             print(f"Error checking/approving session {session_id}: {e}", file=sys.stderr)
+            return False
 
 
 class ReconciliationManager:

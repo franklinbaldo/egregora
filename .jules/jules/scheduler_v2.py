@@ -194,8 +194,17 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                     elif session_state in ["AWAITING_PLAN_APPROVAL", "AWAITING_USER_FEEDBACK"]:
                         # Session is stuck - unstick it before waiting for completion
                         print(f"🔧 Session is stuck in state: {session_state}. Attempting to unstick...")
-                        orchestrator.handle_stuck_session(state.last_session_id)
-                        return  # Wait for unstick to take effect
+                        # Get created_at from persistent_state history
+                        created_at = None
+                        if persistent_state.history and persistent_state.history[0].get("session_id") == last_session_id:
+                            created_at = persistent_state.history[0].get("created_at")
+
+                        should_skip = orchestrator.handle_stuck_session(last_session_id, created_at)
+                        if should_skip:
+                            print(f"⏭️  Skipping timed-out session, advancing to {next_persona_id}")
+                            # Don't return - fall through to create next session
+                        else:
+                            return  # Wait for unstick to take effect
                     else:
                         print(f"⏳ Session state: {session_state}. Waiting for completion...")
                         return
@@ -315,8 +324,17 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                     else:
                         # Session is stuck - try to unstick
                         print(f"🔧 Session state: {session_state}. Attempting to unstick...")
-                        orchestrator.handle_stuck_session(last_session_id)
-                        return  # Don't start new session, wait for stuck one to complete
+                        # Get created_at from persistent_state history
+                        created_at = None
+                        if persistent_state.history and persistent_state.history[0].get("session_id") == last_session_id:
+                            created_at = persistent_state.history[0].get("created_at")
+
+                        should_skip = orchestrator.handle_stuck_session(last_session_id, created_at)
+                        if should_skip:
+                            print(f"⏭️  Skipping timed-out session, advancing to {next_persona_id}")
+                            # Don't return - fall through to create next session
+                        else:
+                            return  # Don't start new session, wait for stuck one to complete
                 except Exception as e:
                     print(f"❌ Error checking session {last_session_id}: {e}", file=sys.stderr)
                     return
