@@ -17,7 +17,7 @@ from jules.scheduler import sprint_manager, JULES_BRANCH, JULES_SCHEDULER_PREFIX
 from jules.scheduler_models import CycleState, PersonaConfig, PRStatus, SessionRequest
 
 # Timeout threshold for stuck sessions (in hours)
-SESSION_TIMEOUT_HOURS = 3.0
+SESSION_TIMEOUT_HOURS = 0.5  # 30 minutes
 
 
 class BranchManager:
