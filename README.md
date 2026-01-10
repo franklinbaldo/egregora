@@ -46,7 +46,7 @@ egregora init ./my-blog
 cd my-blog
 ```
 
-Egregora automatically bootstraps `.egregora` (mkdocs config, cache, RAG, and LanceDB directories) when you run `egregora init` or `egregora write`. Use `python scripts/bootstrap_site.py ./my-blog` (or `python ../scripts/bootstrap_site.py .` from inside the site) only if you need to regenerate the scaffolding manually.
+Egregora automatically bootstraps `.egregora` (mkdocs config, cache, RAG, and LanceDB directories) when you run `egregora init` or `egregora write`. The `egregora init` command is the recommended way to start a new project. Use `python scripts/bootstrap_site.py ./my-blog` (or `python ../scripts/bootstrap_site.py .` from inside the site) only if you need to regenerate the scaffolding manually.
 
 **2. Generate posts from your chat export:**
 
@@ -58,8 +58,11 @@ egregora write path/to/chat_export.zip --output=.
 
 ```bash
 # Preview your site
-uv tool run --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox mkdocs serve -f .egregora/mkdocs.yml
+uv tool run --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml
 ```
+
+> **Note:** For social media card generation, you may need to install optional imaging dependencies:
+> `uv pip install "mkdocs-material[imaging]"`
 
 *Visit <http://localhost:8000> to read your new blog.*
 
