@@ -4,39 +4,36 @@ Last updated: 2026-01-05
 
 ## Current Organizational State
 
-The codebase is a mix of `egregora` (v2) and `egregora` modules. The v2 structure has a `utils` directory that has been significantly cleaned up. There is some code duplication between the v2 and v3 modules, particularly in the RAG text processing logic.
+The codebase is generally well-structured, with a clear separation of concerns between domains like `llm`, `knowledge`, `orchestration`, and `output_adapters`. However, a significant amount of domain-specific logic still resides in the generic `src/egregora/utils` directory. This directory acts as a "junk drawer" for modules that haven't been assigned a proper home, making the code harder to navigate and understand.
+
+The testing structure largely mirrors the source structure, which is good. However, tests for misplaced modules are also misplaced, perpetuating the organizational issues.
 
 ## Identified Issues
 
-*No high-priority issues have been identified yet. The next step is to continue discovery.*
+1.  **Misplaced Filesystem Utilities**: The `src/egregora/utils/fs.py` module contains filesystem-related helper functions. These are likely used by output adapters or other components that interact with the filesystem. They should be moved closer to their primary consumers to improve cohesion.
+2.  **Misplaced Caching Logic**: The `src/egregora/utils/cache.py` module contains caching utilities. Caching strategies are often tied to specific domains (e.g., caching for LLM calls vs. caching for filesystem access). This module should be broken up and its parts moved to their respective domains.
+3.  **Vague `database/utils.py`**: The `src/egregora/database/utils.py` module may contain generic SQL utilities, but it could also hide domain-specific query logic that should be part of a specific repository or data access layer.
+4.  **Misplaced `text.py`**: The `src/egregora/utils/text.py` module contains a `sanitize_prompt_input` function, which is clearly LLM-related and should be moved to the `src/egregora/llm` module.
 
 ## Prioritized Improvements
 
-*No high-priority improvements have been identified yet. The next step is to continue discovery.*
-
-## Abandoned Improvements
-
-*   **Refactor `src/egregora/knowledge/profiles.py`**: **[ATTEMPTED - FAILED]** An attempt was made to refactor the `profiles.py` module by moving the author-syncing logic to a dedicated module in the `mkdocs` adapter. The refactoring failed due to a complex circular dependency that could not be easily resolved. All changes were reverted. This refactoring should be re-evaluated in the future with a more comprehensive understanding of the codebase's dependency graph.
-*No high-priority issues have been identified yet. The next step is to continue discovery.*
-
-## Prioritized Improvements
-
-*No high-priority improvements have been identified yet. The next step is to continue discovery.*
+1.  **`text.py` Refactoring (High Impact, Low Risk)**: Moving `sanitize_prompt_input` is a small, safe change that clearly improves the organization.
+2.  **`fs.py` Refactoring (Medium Impact, Low Risk)**: Moving these utilities will likely involve updating a few import sites, but it will significantly clarify the responsibilities of the modules that use them.
+3.  **`cache.py` Refactoring (High Impact, Medium Risk)**: This is a high-impact change because it will make the caching strategy much clearer. It's medium risk because it may require careful analysis to ensure the correct caching logic is moved to the correct domain.
+4.  **`database/utils.py` Refactoring (Medium Impact, Medium Risk)**: This could improve the data access layer, but requires careful analysis to avoid breaking database interactions.
 
 ## Completed Improvements
 
-*   **2026-01-05**: Removed the orphaned `src/egregora/infra` directory, which was an empty and unused package from a previous refactoring. This removes clutter from the codebase.
-*   **2026-01-05**: Moved `media.py` and `taxonomy.py` from the misplaced `src/egregora/orchestration/pipelines/modules` directory to `src/egregora/ops`. This co-locates domain-specific media and taxonomy logic in a more intuitive and discoverable `ops` module, improving the overall codebase structure.
-*   **2026-01-05**: Centralized the v2 exception hierarchy by creating a single `EgregoraError` base class in `src/egregora/exceptions.py` and refactoring all custom exceptions to inherit from it. This improves maintainability and enables consistent high-level error handling.
-*   **2026-01-04**: Refactored `slugify` from `utils/paths.py` to `utils/text.py`.
-*   **2026-01-04**: Moved API key utilities from `utils/env.py` to `llm/api_keys.py`.
-*   **2026-01-03**: Moved `GlobalRateLimiter` from `utils/rate_limit.py` to `llm/rate_limit.py`.
-*   **2026-01-03**: Removed legacy site scaffolding wrapper from `init/`.
-*   **2026-01-02**: Moved domain-specific datetime functions to `output_adapters/mkdocs/markdown_utils.py`.
-*   **2026-01-02**: Removed duplicated `run_async_safely` function.
-*   **2026-01-01**: Consolidated author management logic into `knowledge/profiles.py`.
-*   **2026-01-01**: Moved `UsageTracker` from `utils/metrics.py` to `llm/usage.py`.
+- **`estimate_tokens` moved to `llm/token_utils.py`**
+- **Author management moved to `knowledge/profiles.py`**
+- **`UsageTracker` moved to `llm/usage.py`**
+- **Async utility de-duplicated**
+- **Datetime utilities moved to `output_adapters/mkdocs/markdown_utils.py`**
+- **Site scaffolding refactored**
+- **Rate limiter moved to `llm/rate_limit.py`**
+- **`slugify` moved to `utils/text.py`**
+- **API key utilities moved to `llm/api_keys.py`**
 
 ## Organizational Strategy
 
-My primary strategy is to inspect the `src/egregora/utils` directory, as it has historically been a collection point for domain-specific logic that should be co-located with its primary users. Each module within `utils` will be evaluated by tracing its usage to determine if it's a true, cross-cutting concern or if it can be moved to a more specific domain. A secondary strategy is to identify and fix cross-cutting organizational issues like code duplication between the v2 and v3 modules.
+My strategy is to systematically dismantle the `src/egregora/utils` directory by moving its modules to their correct, domain-specific locations. I will follow a test-driven approach for each move, ensuring that a safety net of tests exists before any code is relocated. Each refactoring will be a single, cohesive change delivered in its own pull request. I will prioritize changes that offer the most significant improvement in clarity for the lowest risk and effort.

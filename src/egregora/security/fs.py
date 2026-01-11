@@ -1,0 +1,48 @@
+"""Filesystem security utilities for Egregora."""
+
+from pathlib import Path
+
+
+class SecurityError(Exception):
+    """Base exception for security-related utilities."""
+
+
+class PathTraversalError(SecurityError):
+    """Raised when a path would escape its intended directory."""
+
+
+def safe_path_join(base_dir: Path, *parts: str) -> Path:
+    r"""Safely join path parts and ensure result stays within base_dir.
+
+    Protects against path traversal attacks on all platforms by normalizing
+    path separators and validating that the resolved path is contained within
+    the base directory.
+
+    Args:
+        base_dir: Base directory that result must stay within
+        *parts: Path parts to join
+
+    Returns:
+        Resolved path guaranteed to be within base_dir
+
+    Raises:
+        PathTraversalError: If resulting path would escape base_dir
+
+    """
+    if any(Path(part).is_absolute() for part in parts):
+        absolute_part = next(part for part in parts if Path(part).is_absolute())
+        msg = f"Absolute paths not allowed: {absolute_part}"
+        raise PathTraversalError(msg)
+
+    base_resolved = base_dir.resolve()
+    candidate_path = base_resolved.joinpath(*parts)
+
+    # Resolve the path without strict=True, which is the default
+    candidate_resolved = candidate_path.resolve()
+
+    # Check if the resolved path is a subpath of the base directory
+    if base_resolved not in candidate_resolved.parents and base_resolved != candidate_resolved:
+        msg = f"Path traversal detected: joining {parts} to {base_dir} would escape base directory"
+        raise PathTraversalError(msg)
+
+    return candidate_resolved
