@@ -109,7 +109,7 @@ class RouteConfig:
     profiles_prefix: str = "profiles"
     # ADR-001: Media goes inside posts directory
     media_prefix: str = "posts/media"
-    journal_prefix: str = "journal"
+    journal_prefix: str = "posts"
     annotations_prefix: str = "posts/annotations"
     # Defines if dates should be part of the URL structure: /2025-01-01-slug/ vs /slug/
     date_in_url: bool = True
@@ -235,7 +235,7 @@ class StandardUrlConvention(UrlConvention):
         if window_label:
             try:
                 safe_label = slugify(window_label)
-                return self._join(ctx, self.routes.journal_prefix, safe_label)
+                return self._join(ctx, self.routes.journal_prefix, f"journal-{safe_label}")
             except InvalidInputError:
                 pass  # Fallback to slug_value
 
@@ -243,12 +243,13 @@ class StandardUrlConvention(UrlConvention):
         if slug_value:
             try:
                 safe_label = slugify(slug_value)
-                return self._join(ctx, self.routes.journal_prefix, safe_label)
+                return self._join(ctx, self.routes.journal_prefix, f"journal-{safe_label}")
             except InvalidInputError:
                 pass  # Fallback to posts_prefix
 
-        # Fallback: no window_label or slug, unified output goes to posts/
-        return self._join(ctx, self.routes.posts_prefix)
+        # Fallback: no window_label or slug, use document ID with journal- prefix
+        fallback_slug = f"journal-{document.document_id[:8]}"
+        return self._join(ctx, self.routes.posts_prefix, fallback_slug)
 
     def _format_url_enrichment_url(self, ctx: UrlContext, document: Document) -> str:
         if document.suggested_path:

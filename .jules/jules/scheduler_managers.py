@@ -6,6 +6,8 @@ import sys
 from datetime import datetime, timezone
 from typing import Any
 
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
+
 from jules.client import JulesClient
 from jules.exceptions import BranchError, MergeError
 from jules.github import (
@@ -13,8 +15,12 @@ from jules.github import (
     get_pr_by_session_id_any_state,
     get_pr_details_via_gh,
 )
+from jules.reconciliation_tracker import ReconciliationTracker
 from jules.scheduler import sprint_manager, JULES_BRANCH, JULES_SCHEDULER_PREFIX
 from jules.scheduler_models import CycleState, PersonaConfig, PRStatus, SessionRequest
+
+# Timeout threshold for stuck sessions (in hours)
+SESSION_TIMEOUT_HOURS = 0.5  # 30 minutes
 
 
 class BranchManager:
@@ -344,16 +350,38 @@ class PRManager:
         Returns:
             True if all checks pass (or no checks exist)
         """
+        mergeable = pr_details.get("mergeable")
+        if mergeable is None:
+            print(f"⏳ PR #{pr_details.get('number')} mergeability is UNKNOWN. Waiting...")
+            return False
+        if mergeable is False:
+            print(f"❌ PR #{pr_details.get('number')} is NOT mergeable (conflicts).")
+            return False
+
         status_checks = pr_details.get("statusCheckRollup", [])
         if not status_checks:
-            return True  # No checks = passing
+            print("✅ No status checks found.")
+            return True
 
+        all_passing = True
         for check in status_checks:
-            status = (check.get("conclusion") or check.get("status") or "").upper()
-            if status not in ["SUCCESS", "NEUTRAL", "SKIPPED", "COMPLETED"]:
-                return False
-        return True
+            name = check.get("context") or check.get("name") or "Unknown"
+            status = (check.get("conclusion") or check.get("status") or check.get("state") or "").upper()
 
+            if status in ["SUCCESS", "NEUTRAL", "SKIPPED", "COMPLETED"]:
+                print(f"✅ {name}: {status}")
+            else:
+                print(f"⏳ {name}: {status} (PENDING/FAILED)")
+                all_passing = False
+
+        return all_passing
+
+    @retry(
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception(lambda e: isinstance(e, MergeError) and "permission denied" not in str(e).lower() and "403" not in str(e).lower()),
+        reraise=True
+    )
     def merge_into_jules(self, pr_number: int) -> None:
         """Merge a PR into the Jules branch using gh CLI.
 
@@ -381,7 +409,7 @@ class PRManager:
                 check=True,
                 capture_output=True,
             )
-            print(f"Successfully merged PR #{pr_number} into '{self.jules_branch}'.") 
+            print(f"Successfully merged PR #{pr_number} into '{self.jules_branch}'.")
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
             raise MergeError(f"Failed to merge PR #{pr_number}: {stderr}") from e
@@ -430,8 +458,10 @@ class PRManager:
                 print(f"ℹ️  Branch '{self.jules_branch}' is in sync with main. No PR needed.")
                 return None
 
-            # Create PR: jules → main
+            # Create PR: jules → main using GitHub API (avoids GH Actions restrictions)
             print(f"📝 Creating integration PR: {self.jules_branch} → main ({commits_ahead} commits)")
+
+            from jules.github import GitHubClient
 
             pr_title = f"🤖 Integration: {self.jules_branch} → main"
             pr_body = f"""## Automated Integration PR
@@ -451,104 +481,24 @@ This PR contains accumulated work from the Jules autonomous development cycle.
 **Note**: This PR is automatically maintained by the Jules scheduler. New commits will be added as personas complete their work.
 """
 
-            create_result = subprocess.run(
-                ["gh", "pr", "create",
-                 "--head", self.jules_branch,
-                 "--base", "main",
-                 "--title", pr_title,
-                 "--body", pr_body],
-                capture_output=True,
-                text=True,
-                check=True,
+            github_client = GitHubClient()
+            pr_data = github_client.create_pull_request(
+                owner=repo_info["owner"],
+                repo=repo_info["repo"],
+                title=pr_title,
+                body=pr_body,
+                head=self.jules_branch,
+                base="main",
             )
 
-            # Extract PR number from URL (format: https://github.com/owner/repo/pull/123)
-            pr_url = create_result.stdout.strip()
-            pr_number = int(pr_url.split("/")[-1])
-        print(f"✅ Created integration PR #{pr_number}: {pr_url}")
-        return pr_number
-
-    def merge_integration_pr(self, merge_method: str = "--merge") -> int | None:
-        """Merge the jules → main integration PR if it exists and is mergeable."""
-        import json
-
-        # Find existing PR
-        result = subprocess.run(
-            ["gh", "pr", "list", "--head", self.jules_branch, "--base", "main", "--json", "number", "mergeStateStatus"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        prs = json.loads(result.stdout) if result.stdout.strip() else []
-        if not prs:
-            print(f"ℹ️  No integration PR from '{self.jules_branch}' to 'main' found. Skipping merge.")
-            return None
-
-        pr_number = prs[0]["number"]
-        merge_state = prs[0].get("mergeStateStatus", "").upper()
-        if merge_state and merge_state not in {"CLEAN", "HAS_HOOKS", "UNSTABLE"}:
-            print(f"⚠️  Integration PR #{pr_number} not mergeable (state: {merge_state}). Skipping.")
-            return None
-
-        print(f"🔀 Merging integration PR #{pr_number} ({self.jules_branch} → main) using {merge_method}")
-        try:
-            subprocess.run(
-                ["gh", "pr", "merge", str(pr_number), merge_method, "--admin"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            print(f"✅ Merged integration PR #{pr_number}")
-            return pr_number
-        except subprocess.CalledProcessError as e:
-            stderr = e.stderr or e.stdout or str(e)
-            print(f"❌ Failed to merge integration PR #{pr_number}: {stderr}")
-            return None
-
-    def merge_jules_into_main_direct(self) -> bool:
-        """Directly merge origin/jules into main without opening a PR."""
-        try:
-            subprocess.run(["git", "fetch", "origin", "main", self.jules_branch], check=True, capture_output=True)
-            ahead_result = subprocess.run(
-                ["git", "rev-list", "--count", f"origin/main..origin/{self.jules_branch}"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            commits_ahead = int(ahead_result.stdout.strip())
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Failed to prepare merge: {e.stderr or e.stdout or e}")
-            return False
-
-        if commits_ahead == 0:
-            print(f"ℹ️  '{self.jules_branch}' is not ahead of main. Nothing to merge.")
-            return True
-
-        print(f"🔀 Merging origin/{self.jules_branch} into main ({commits_ahead} commits ahead)")
-        try:
-            # Reset local main to origin/main
-            subprocess.run(["git", "checkout", "-B", "main", "origin/main"], check=True, capture_output=True, text=True)
-            # Merge jules into main
-            subprocess.run(
-                ["git", "merge", f"origin/{self.jules_branch}", "--no-ff", "-m", f"Merge {self.jules_branch} into main"],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            # Push updated main
-            subprocess.run(["git", "push", "origin", "main"], check=True, capture_output=True, text=True)
-            print("✅ Merged jules into main and pushed.")
-            return True
-        except subprocess.CalledProcessError as e:
-            stderr = e.stderr or e.stdout or str(e)
-            print(f"❌ Merge jules → main failed: {stderr}")
-            # Fallback: rotate drifted jules branch to avoid blocking
-            try:
-                print("⚠️  Attempting to rotate drifted jules branch for manual reconciliation...")
-                self._rotate_drifted_branch()
-            except Exception as rotate_err:  # pragma: no cover - best-effort
-                print(f"⚠️  Failed to rotate drifted branch: {rotate_err}")
-            return False
+            if pr_data:
+                pr_number = pr_data["number"]
+                pr_url = pr_data["html_url"]
+                print(f"✅ Created integration PR #{pr_number}: {pr_url}")
+                return pr_number
+            else:
+                print("⚠️  Failed to create integration PR via GitHub API")
+                return None
 
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
@@ -745,38 +695,89 @@ class SessionOrchestrator:
         print(f"Created session {request.persona_id}: {session_id}")
         return session_id
 
-    def handle_stuck_session(self, session_id: str) -> None:
+    def handle_stuck_session(self, session_id: str, session_created_at: str | None = None) -> bool:
         """Handle a session that is stuck waiting for user input.
 
         Args:
             session_id: Session ID to check and potentially nudge
+            session_created_at: ISO timestamp when session was created (from cycle state)
+
+        Returns:
+            bool: True if session should be skipped, False if should keep waiting
         """
         if self.dry_run:
             print(f"[Dry Run] Would check/nudge session {session_id}")
-            return
+            return False
 
         try:
             session_details = self.client.get_session(session_id)
             state = session_details.get("state")
 
+            # Calculate elapsed time if we have creation timestamp
+            elapsed_hours = None
+            # Try to get creation time from passed parameter first
+            if session_created_at:
+                try:
+                    created = datetime.fromisoformat(session_created_at.replace("Z", "+00:00"))
+                    now = datetime.now(timezone.utc)
+                    elapsed = now - created
+                    elapsed_hours = elapsed.total_seconds() / 3600.0
+                except (ValueError, AttributeError):
+                    pass
+
+            # If not available, try to get it from session details API response
+            if elapsed_hours is None and "createTime" in session_details:
+                try:
+                    created = datetime.fromisoformat(session_details["createTime"].replace("Z", "+00:00"))
+                    now = datetime.now(timezone.utc)
+                    elapsed = now - created
+                    elapsed_hours = elapsed.total_seconds() / 3600.0
+                except (ValueError, AttributeError, KeyError):
+                    pass
+
+            # Check for timeout on IN_PROGRESS sessions
+            if state == "IN_PROGRESS" and elapsed_hours is not None:
+                if elapsed_hours > SESSION_TIMEOUT_HOURS:
+                    print(f"⏰ Session {session_id} stuck IN_PROGRESS for {elapsed_hours:.1f}h (>{SESSION_TIMEOUT_HOURS}h threshold)")
+                    print(f"   Marking session as timed out. Skipping to next persona...")
+                    return True  # Skip this session
+                else:
+                    print(f"Session {session_id} state: IN_PROGRESS ({elapsed_hours:.1f}h elapsed, waiting...)")
+                    return False
+
+            # Check for timeout on COMPLETED/FAILED sessions without PR
+            if state in ["COMPLETED", "FAILED"] and elapsed_hours is not None:
+                if elapsed_hours > SESSION_TIMEOUT_HOURS:
+                    print(f"⏰ Session {session_id} stuck in {state} for {elapsed_hours:.1f}h without PR (>{SESSION_TIMEOUT_HOURS}h threshold)")
+                    print(f"   Marking session as timed out. Skipping to next persona...")
+                    return True  # Skip this session
+                else:
+                    print(f"Session {session_id} state: {state} ({elapsed_hours:.1f}h elapsed, no PR yet...)")
+                    return False
+
             if state == "AWAITING_PLAN_APPROVAL":
                 print(f"Session {session_id} is awaiting plan approval. Approving automatically...")
                 self.client.approve_plan(session_id)
+                return False
 
             elif state == "AWAITING_USER_FEEDBACK":
                 print(f"Session {session_id} is awaiting user feedback (stuck). Sending nudge...")
                 nudge_text = (
-                    "Por favor, tome a melhor decisão possível e prossiga autonomamente "
-                    "para completar a tarefa."
+                    "Please make the best decision possible and proceed autonomously "
+                    "to complete the task."
                 )
                 self.client.send_message(session_id, nudge_text)
                 print(f"Nudge sent to session {session_id}.")
+                return False
 
             else:
-                print(f"Session {session_id} state: {state}. Waiting.")
+                elapsed_str = f" ({elapsed_hours:.1f}h elapsed)" if elapsed_hours is not None else ""
+                print(f"Session {session_id} state: {state}{elapsed_str}. Waiting.")
+                return False
 
         except Exception as e:
             print(f"Error checking/approving session {session_id}: {e}", file=sys.stderr)
+            return False
 
 
 class ReconciliationManager:
@@ -813,6 +814,14 @@ class ReconciliationManager:
             Session ID of reconciliation session, or None if failed/dry-run
         """
         from jules.github import GitHubClient
+
+        tracker = ReconciliationTracker()
+        if not tracker.can_reconcile(sprint_number):
+            print(
+                f"⚠️  Reconciliation already attempted for sprint {sprint_number}. "
+                "Skipping to avoid loops."
+            )
+            return None
 
         print(f"\n🔄 Creating reconciliation session for drift PR #{drift_pr_number}...")
 
@@ -881,6 +890,7 @@ Your task is to reconcile the drifted changes with the current `main` branch.
 
             session_id = result.get("name", "").split("/")[-1]
             print(f"✅ Created reconciliation session: {session_id}")
+            tracker.mark_reconciled(sprint_number, session_id)
             return session_id
 
         except Exception as e:

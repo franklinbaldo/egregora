@@ -114,6 +114,47 @@ class GitHubClient:
             print(f"⚠️ GitHub API File Update Error: {e}")
             return False
 
+    def create_pull_request(
+        self,
+        owner: str,
+        repo: str,
+        title: str,
+        body: str,
+        head: str,
+        base: str = "main",
+    ) -> dict[str, Any] | None:
+        """Create a pull request using GitHub API.
+
+        Args:
+            owner: Repository owner
+            repo: Repository name
+            title: PR title
+            body: PR description
+            head: Branch containing changes
+            base: Target branch (default: main)
+
+        Returns:
+            PR data dict with number, url, etc. or None on failure
+        """
+        if not self.token:
+            return None
+
+        url = f"{self.base_url}/repos/{owner}/{repo}/pulls"
+        data = {
+            "title": title,
+            "body": body,
+            "head": head,
+            "base": base,
+        }
+
+        try:
+            response = httpx.post(url, headers=self.headers, json=data, timeout=30.0)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as e:
+            print(f"⚠️ GitHub API Create PR Error: {e}")
+            return None
+
 def get_open_prs(owner: str, repo: str) -> list[dict[str, Any]]:
     """Fetch open PRs using GitHub API."""
     client = GitHubClient()
