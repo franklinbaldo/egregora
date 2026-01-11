@@ -135,6 +135,8 @@ Claude: "I'll create a Jules session to review your authentication code.
 - Use this time for other work - don't wait synchronously
 - Jules will create a PR when done (AUTO_CREATE_PR mode)
 
+**IMPORTANT**: Always use `"automationMode": "AUTO_CREATE_PR"` when creating sessions. This ensures Jules automatically creates a PR when the work is complete, enabling automated workflows.
+
 ## Base Configuration
 
 **Base URL**: `https://jules.googleapis.com`
