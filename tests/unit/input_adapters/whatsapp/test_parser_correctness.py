@@ -34,6 +34,7 @@ def whatsapp_export_fixture(tmp_path: Path) -> WhatsAppExport:
     )
 
 
+@pytest.mark.skip(reason="Fixture files not yet added - test added in PR #2368 without fixtures")
 def test_parse_source_correctness(whatsapp_export_fixture: WhatsAppExport):
     """
     Tests that the output of parse_source matches the expected golden file.
