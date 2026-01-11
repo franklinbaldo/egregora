@@ -120,7 +120,7 @@ class LanceDBRAGBackend(VectorStore):
         # Create or open table using Pydantic schema
         # Use exist_ok=True to handle race conditions in parallel test execution
         try:
-            if table_name not in self._db.list_tables():
+            if table_name not in self._db.table_names():
                 logger.info("Creating new LanceDB table: %s", table_name)
                 # Use Pydantic schema for type-safe table creation
                 self._table = self._db.create_table(
