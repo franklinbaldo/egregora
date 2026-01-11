@@ -29,3 +29,16 @@ def test_get_uuid_from_profile_success_from_legacy_filename(tmp_path):
     # The function now expects a UUID to be found, so we assert it.
     # An empty file without a UUID in the name would raise ProfileParseError.
     assert profiles._get_uuid_from_profile(profile_path) == test_uuid
+
+
+def test_generate_fallback_avatar_url_is_deterministic():
+    """Should generate a deterministic avatar URL based on the UUID."""
+    test_uuid = "12345678-1234-5678-1234-567812345678"
+    expected_url = (
+        "https://avataaars.io/?accessoriesType=Prescription01&avatarStyle=Circle"
+        "&clotheType=Hoodie&eyeType=Default&eyebrowType=RaisedExcited"
+        "&facialHairType=Blank&hairColor=Black&mouthType=Default&skinColor=Tanned"
+        "&topType=ShortHairShortWaved"
+    )
+    generated_url = profiles.generate_fallback_avatar_url(test_uuid)
+    assert generated_url == expected_url
