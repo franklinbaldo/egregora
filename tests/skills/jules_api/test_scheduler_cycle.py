@@ -47,12 +47,28 @@ class TestSchedulerCycleFallback:
             "---\nid: builder\nemoji: 🏗️\ntitle: Builder Task\n---\n\nDo builder things.\n"
         )
 
-        # Mock on scheduler_legacy module where the functions are actually called
+        # Mock on both scheduler and scheduler_legacy modules
+        monkeypatch.setattr(scheduler, "ensure_jules_branch_exists", lambda: None)
         monkeypatch.setattr(scheduler_legacy, "ensure_jules_branch_exists", lambda: None)
+        monkeypatch.setattr(
+            scheduler,
+            "prepare_session_base_branch",
+            lambda *_args, **_kwargs: "jules-sched-builder-pr42",
+        )
         monkeypatch.setattr(
             scheduler_legacy,
             "prepare_session_base_branch",
             lambda *_args, **_kwargs: "jules-sched-builder-pr42",
+        )
+        monkeypatch.setattr(
+            scheduler,
+            "get_pr_by_session_id_any_state",
+            lambda *_args: {
+                "number": 42,
+                "mergedAt": "2026-01-05T03:30:00Z",
+                "headRefName": "jules-sched-curator-pr42-123456789012345",
+                "baseRefName": "jules-sched-curator-pr42",
+            },
         )
         monkeypatch.setattr(
             scheduler_legacy,
@@ -64,7 +80,9 @@ class TestSchedulerCycleFallback:
                 "baseRefName": "jules-sched-curator-pr42",
             },
         )
+        monkeypatch.setattr(scheduler, "get_open_prs", lambda *_args, **_kwargs: [])
         monkeypatch.setattr(scheduler_legacy, "get_open_prs", lambda *_args, **_kwargs: [])
+        monkeypatch.setattr(scheduler, "JulesClient", lambda: DummyClient())
         monkeypatch.setattr(scheduler_legacy, "JulesClient", lambda: DummyClient())
 
         repo_info = {"owner": "owner", "repo": "repo"}
@@ -158,3 +176,53 @@ class TestSchedulerCycleFallback:
 
         assert created_sessions == [], "Scheduler should not restart cycle when a scheduler session exists."
         assert seen_session_ids == ["999999999999999"]
+
+    def test_cycle_waits_for_unknown_mergeability(self, monkeypatch, tmp_path, capsys):
+        """Verify that the scheduler waits when PR mergeability is UNKNOWN."""
+        jules_path = Path(__file__).parents[3] / ".jules"
+        sys.path.insert(0, str(jules_path))
+        try:
+            import jules.scheduler_managers
+            import jules.scheduler_state
+            import jules.scheduler_v2
+        finally:
+            sys.path.remove(str(jules_path))
+
+        # We need to test execute_cycle_tick from scheduler_v2, or directly call PRManager
+        # Since the legacy scheduler.run_cycle_step doesn't use PRManager, we should test PRManager directly
+        # or test execute_cycle_tick. Given existing tests focus on scheduler_legacy (run_cycle_step),
+        # but I updated scheduler_managers.py, I should test PRManager directly here to verify my changes.
+
+        pr_manager = jules.scheduler_managers.PRManager()
+
+        # Case 1: Mergeable is None (UNKNOWN)
+        pr_details_unknown = {"number": 123, "mergeable": None, "statusCheckRollup": []}
+        assert pr_manager.is_green(pr_details_unknown) is False
+        captured = capsys.readouterr()
+        assert "mergeability is UNKNOWN. Waiting..." in captured.out
+
+        # Case 2: Mergeable is False (CONFLICT)
+        pr_details_conflict = {"number": 124, "mergeable": False, "statusCheckRollup": []}
+        assert pr_manager.is_green(pr_details_conflict) is False
+        captured = capsys.readouterr()
+        assert "is NOT mergeable (conflicts)" in captured.out
+
+        # Case 3: Mergeable is True, Check is Pending
+        pr_details_pending = {
+            "number": 125,
+            "mergeable": True,
+            "statusCheckRollup": [{"context": "ci/test", "state": "PENDING"}],
+        }
+        assert pr_manager.is_green(pr_details_pending) is False
+        captured = capsys.readouterr()
+        assert "ci/test: PENDING (PENDING/FAILED)" in captured.out
+
+        # Case 4: Mergeable is True, Check is Success
+        pr_details_success = {
+            "number": 126,
+            "mergeable": True,
+            "statusCheckRollup": [{"context": "ci/test", "state": "SUCCESS"}],
+        }
+        assert pr_manager.is_green(pr_details_success) is True
+        captured = capsys.readouterr()
+        assert "ci/test: SUCCESS" in captured.out

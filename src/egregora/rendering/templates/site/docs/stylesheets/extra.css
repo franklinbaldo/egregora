@@ -1,9 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
+  /* Official Palette */
+  --md-primary-fg-color:        #2c3e50;
+  --md-primary-fg-color--light: #34495e;
+  --md-primary-fg-color--dark:  #2c3e50;
+
   --md-text-font-size: 1.1rem;
-  --md-primary-fg-color: #008080;
-  --md-primary-fg-color--light: #00f2fe;
   --md-accent-fg-color: #f9d423;
   --portal-bg: #0a0a0a;
 }
@@ -148,14 +151,8 @@ body,
 
 .portal-hero p {
   font-size: 1.4rem !important;
-  max-width: 800px !important;
-  color: rgba(255, 255, 255, 0.8) !important;
-  font-weight: 300 !important;
-  line-height: 1.6 !important;
-}
-
-/* Footer Evolution */
-.md-footer {
+  max-width: 800px !importa...
+[omitted a few lines]
   background-color: transparent !important;
   border-top: 1px solid rgba(255, 255, 255, 0.03);
   padding: 40px 0;
