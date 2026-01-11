@@ -37,24 +37,12 @@ Simply mention "Jules" in your request, and Claude will automatically invoke thi
 
 Before using this skill, you need:
 
-1. **Google Cloud SDK** installed and authenticated:
+1. **Jules API Key** set as an environment variable:
    ```bash
-   # Install gcloud CLI
-   # https://cloud.google.com/sdk/docs/install
-
-   # Authenticate
-   gcloud auth login
-
-   # Set your project
-   gcloud config set project YOUR_PROJECT_ID
+   export JULES_API_KEY="your-api-key-here"
    ```
 
-2. **Jules API access** enabled for your Google Cloud project
-
-3. **Python 3.7+** with the `requests` library:
-   ```bash
-   pip install requests
-   ```
+2. **Python 3.7+** with the `httpx` library (installed automatically with egregora dependencies)
 
 ## Files in This Skill
 
