@@ -278,7 +278,7 @@ class BranchManager:
                 capture_output=True,
             )
             subprocess.run(
-                ["git", "merge", "origin/main", "--no-edit"],
+                ["git", "merge", "origin/main", "--no-edit", "--allow-unrelated-histories"],
                 check=True,
                 capture_output=True,
             )
@@ -421,17 +421,49 @@ class PRManager:
                 return pr_number
 
             # Check if jules is ahead of main
-            ahead_result = subprocess.run(
-                ["git", "rev-list", "--count", f"origin/main..origin/{self.jules_branch}"],
+            # First check if branches share common ancestry (avoids unrelated histories false positives)
+            merge_base_result = subprocess.run(
+                ["git", "merge-base", f"origin/main", f"origin/{self.jules_branch}"],
                 capture_output=True,
                 text=True,
-                check=True,
+                check=False,
             )
-            commits_ahead = int(ahead_result.stdout.strip())
 
-            if commits_ahead == 0:
-                print(f"ℹ️  Branch '{self.jules_branch}' is in sync with main. No PR needed.")
-                return None
+            if merge_base_result.returncode != 0:
+                # No common ancestor - unrelated histories
+                # Use diff to check if branches are actually different
+                diff_result = subprocess.run(
+                    ["git", "diff", "--quiet", f"origin/main", f"origin/{self.jules_branch}"],
+                    capture_output=True,
+                    check=False,
+                )
+                if diff_result.returncode == 0:
+                    print(f"ℹ️  Branch '{self.jules_branch}' has same content as main (unrelated histories). No PR needed.")
+                    return None
+                else:
+                    # Branches differ - use commit count from diff-tree for accurate count
+                    diff_tree_result = subprocess.run(
+                        ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", f"origin/main", f"origin/{self.jules_branch}"],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
+                    file_count = len([line for line in diff_tree_result.stdout.strip().split('\n') if line])
+                    commits_ahead = file_count  # Use file count as proxy when no merge-base
+                    print(f"ℹ️  Branches have unrelated histories. {file_count} files changed.")
+            else:
+                # Normal case - count commits
+                ahead_result = subprocess.run(
+                    ["git", "rev-list", "--count", f"origin/main..origin/{self.jules_branch}"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                commits_ahead = int(ahead_result.stdout.strip())
+
+                if commits_ahead == 0:
+                    print(f"ℹ️  Branch '{self.jules_branch}' is in sync with main. No PR needed.")
+                    return None
 
             # Create PR: jules → main using GitHub API (avoids GH Actions restrictions)
             print(f"📝 Creating integration PR: {self.jules_branch} → main ({commits_ahead} commits)")
