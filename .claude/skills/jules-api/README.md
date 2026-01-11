@@ -2,6 +2,18 @@
 
 A Claude Code skill for interacting with Google's Jules API to create and manage asynchronous coding sessions.
 
+**Version**: 2.0.0
+**Last Updated**: 2026-01-11
+
+## 🆕 What's New in v2.0
+
+- ✅ **Activities API Support**: Read and parse session activities to understand conversation history
+- ✅ **Stuck Session Debugging**: Comprehensive workflow for unsticking `AWAITING_USER_FEEDBACK` sessions
+- ✅ **Session ID Handling**: All methods accept both `"sessions/123"` and `"123"` formats
+- ✅ **CLI Improvements**: Better output formatting, `--json` flag, new `check` command
+- ✅ **Real-World Examples**: Case study from successfully unsticking session 14848423526856432295
+- ✅ **Helper Methods**: New `check_session_needs_attention()` method
+
 ## What This Skill Does
 
 This skill enables Claude Code to:
@@ -60,22 +72,45 @@ python .claude/skills/jules-api/jules_client.py create \
   "Add unit tests for the authentication module" \
   myusername \
   myrepo \
-  main
+  --branch main \
+  --require-plan-approval
 ```
 
 ### Example 2: Check Session Status
 
 ```bash
 python .claude/skills/jules-api/jules_client.py get <session-id>
+
+# Get raw JSON
+python .claude/skills/jules-api/jules_client.py get <session-id> --json
 ```
 
-### Example 3: List All Sessions
+### Example 3: Check if Session Needs Attention
+
+```bash
+python .claude/skills/jules-api/jules_client.py check <session-id>
+
+# Returns:
+# ⚠️ Session is waiting for user feedback
+# or
+# ✅ Session is active (IN_PROGRESS)
+```
+
+### Example 4: View Session Activities (NEW!)
+
+```bash
+python .claude/skills/jules-api/jules_client.py activities <session-id>
+
+# Shows last 10 activities with timestamps and messages
+```
+
+### Example 5: List All Sessions
 
 ```bash
 python .claude/skills/jules-api/jules_client.py list
 ```
 
-### Example 4: Send Message to Session
+### Example 6: Send Message to Session
 
 ```bash
 python .claude/skills/jules-api/jules_client.py message <session-id> \
@@ -127,8 +162,20 @@ if status['state'] == 'AWAITING_PLAN_APPROVAL':
     client.approve_plan(session['id'])
 
 # Get activities
-activities = client.get_activities(session['id'])
-print(f"Activities: {activities}")
+activities_data = client.get_activities(session['id'])
+activities = activities_data['activities']
+
+# Parse recent activities
+for activity in activities[-5:]:  # Last 5 activities
+    if activity['originator'] == 'agent':
+        print(f"Jules: {activity['agentMessaged']['agentMessage'][:100]}...")
+    elif activity['originator'] == 'user':
+        print(f"User: {activity['userMessaged']['userMessage'][:100]}...")
+
+# Check if session needs attention
+needs_attention, reason = client.check_session_needs_attention(session['id'])
+if needs_attention:
+    print(f"⚠️ {reason}")
 ```
 
 ## Session States
@@ -179,7 +226,17 @@ To improve this skill:
 2. Update `jules_client.py` to add new functionality
 3. Add examples to `examples.md`
 
-## Version
+## Changelog
 
-Current version: 1.0.0
-Last updated: 2025-10-24
+### v2.0.0 (2026-01-11)
+- Added comprehensive activities API support with parsing examples
+- Added stuck session debugging workflow with real case study
+- Improved session ID handling (accepts both formats)
+- Added `check` command to CLI
+- Added `--json` flag for programmatic usage
+- Added `check_session_needs_attention()` helper method
+- Improved CLI output formatting
+- Better error messages
+
+### v1.0.0 (2025-10-24)
+- Initial release

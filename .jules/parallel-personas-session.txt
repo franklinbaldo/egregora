@@ -1,0 +1,7 @@
+Session ID: 151282220707368107
+URL: https://jules.google.com/sessions/151282220707368107
+State: PLANNING
+Created: 2026-01-11T12:58:31.417587265Z
+
+Quick approve command:
+python3 -c 'import sys; sys.path.insert(0, ".jules"); from jules.client import JulesClient; JulesClient().approve_plan("151282220707368107")'

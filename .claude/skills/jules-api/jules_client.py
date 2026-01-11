@@ -4,6 +4,7 @@ A simple Python client for interacting with Google's Jules API.
 """
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -105,12 +106,16 @@ class JulesClient:
         """Get details of a specific session.
 
         Args:
-            session_id: The session ID
+            session_id: The session ID (with or without "sessions/" prefix)
 
         Returns:
             Session object
 
         """
+        # Handle both "sessions/123" and "123" formats
+        if session_id.startswith("sessions/"):
+            session_id = session_id.split("/")[-1]
+
         url = f"{self.base_url}/sessions/{session_id}"
         response = requests.get(url, headers=self._get_headers())
         response.raise_for_status()
@@ -132,13 +137,17 @@ class JulesClient:
         """Send a message to an active session.
 
         Args:
-            session_id: The session ID
+            session_id: The session ID (with or without "sessions/" prefix)
             message: Message content
 
         Returns:
             Updated session object
 
         """
+        # Handle both "sessions/123" and "123" formats
+        if session_id.startswith("sessions/"):
+            session_id = session_id.split("/")[-1]
+
         url = f"{self.base_url}/sessions/{session_id}:sendMessage"
         data = {"prompt": message}
         response = requests.post(url, headers=self._get_headers(), json=data)
@@ -149,12 +158,16 @@ class JulesClient:
         """Approve a plan for a session.
 
         Args:
-            session_id: The session ID
+            session_id: The session ID (with or without "sessions/" prefix)
 
         Returns:
             Updated session object
 
         """
+        # Handle both "sessions/123" and "123" formats
+        if session_id.startswith("sessions/"):
+            session_id = session_id.split("/")[-1]
+
         url = f"{self.base_url}/sessions/{session_id}:approvePlan"
         response = requests.post(url, headers=self._get_headers())
         response.raise_for_status()
@@ -164,16 +177,46 @@ class JulesClient:
         """Get activities for a session.
 
         Args:
-            session_id: The session ID
+            session_id: The session ID (with or without "sessions/" prefix)
 
         Returns:
-            List of activity objects
+            Dictionary with 'activities' list containing activity objects
 
         """
+        # Handle both "sessions/123" and "123" formats
+        if session_id.startswith("sessions/"):
+            session_id = session_id.split("/")[-1]
+
         url = f"{self.base_url}/sessions/{session_id}/activities"
         response = requests.get(url, headers=self._get_headers())
         response.raise_for_status()
         return response.json()
+
+    def check_session_needs_attention(self, session_id: str) -> tuple[bool, str]:
+        """Check if a session needs user attention.
+
+        Args:
+            session_id: The session ID (with or without "sessions/" prefix)
+
+        Returns:
+            Tuple of (needs_attention: bool, reason: str)
+
+        """
+        session = self.get_session(session_id)
+        state = session.get('state', 'UNKNOWN')
+
+        if state == 'AWAITING_USER_FEEDBACK':
+            return True, "Session is waiting for user feedback"
+        elif state == 'AWAITING_PLAN_APPROVAL':
+            return True, "Session plan needs approval"
+        elif state == 'FAILED':
+            return True, "Session failed"
+        elif state == 'COMPLETED':
+            return False, "Session completed successfully"
+        elif state in ['IN_PROGRESS', 'PLANNING', 'QUEUED']:
+            return False, f"Session is active ({state})"
+        else:
+            return False, f"Session state: {state}"
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -217,12 +260,19 @@ def main(argv: list[str] | None = None) -> None:
     activities_parser = subparsers.add_parser("activities", help="Get activities for a session")
     activities_parser.add_argument("session_id", help="The session ID")
 
+    # Check command
+    check_parser = subparsers.add_parser("check", help="Check if session needs attention")
+    check_parser.add_argument("session_id", help="The session ID")
+
+    # Add --json flag to parser
+    parser.add_argument("--json", action="store_true", help="Output as JSON")
+
     args = parser.parse_args(argv)
     client = JulesClient()
 
     try:
         if args.command == "create":
-            client.create_session(
+            result = client.create_session(
                 prompt=args.prompt,
                 owner=args.owner,
                 repo=args.repo,
@@ -231,21 +281,91 @@ def main(argv: list[str] | None = None) -> None:
                 require_plan_approval=args.require_plan_approval,
                 automation_mode=args.automation_mode,
             )
+            session_id = result['name'].split('/')[-1]
+            print(f"✅ Session created: {session_id}")
+            print(f"URL: https://jules.google.com/sessions/{session_id}")
+
         elif args.command == "get":
-            client.get_session(args.session_id)
+            result = client.get_session(args.session_id)
+
+            if args.json:
+                print(json.dumps(result, indent=2))
+            else:
+                session_id = result['name'].split('/')[-1]
+                print(f"Session: {session_id}")
+                print(f"State: {result.get('state', 'UNKNOWN')}")
+                print(f"Created: {result.get('createTime', 'N/A')}")
+                if result.get('title'):
+                    print(f"Title: {result['title']}")
+                print(f"\nURL: https://jules.google.com/sessions/{session_id}")
+
         elif args.command == "list":
-            client.list_sessions()
+            result = client.list_sessions()
+            sessions = result.get('sessions', [])
+            print(f"Found {len(sessions)} sessions:\n")
+            for session in sessions[:10]:  # Show first 10
+                session_id = session['name'].split('/')[-1]
+                state = session.get('state', 'UNKNOWN')
+                title = session.get('title', 'No title')[:50]
+                print(f"  {session_id} | {state:20} | {title}")
+
         elif args.command == "message":
-            client.send_message(args.session_id, " ".join(args.message))
+            message = " ".join(args.message)
+            result = client.send_message(args.session_id, message)
+            print(f"✅ Message sent to session {args.session_id}")
+
         elif args.command == "approve-plan":
-            client.approve_plan(args.session_id)
+            result = client.approve_plan(args.session_id)
+            print(f"✅ Plan approved for session {args.session_id}")
+
         elif args.command == "activities":
-            client.get_activities(args.session_id)
+            result = client.get_activities(args.session_id)
+            activities = result.get('activities', [])
+
+            if args.json:
+                print(json.dumps(result, indent=2))
+            else:
+                print(f"Total activities: {len(activities)}\n")
+
+                # Show last 10 activities
+                for activity in activities[-10:]:
+                    originator = activity.get('originator', 'unknown')
+                    create_time = activity.get('createTime', 'N/A')
+
+                    if originator == 'agent':
+                        msg = activity.get('agentMessaged', {}).get('agentMessage', '')
+                        print(f"[JULES at {create_time}]")
+                        print(msg[:200] + ('...' if len(msg) > 200 else ''))
+                        print()
+                    elif originator == 'user':
+                        msg = activity.get('userMessaged', {}).get('userMessage', '')
+                        print(f"[USER at {create_time}]")
+                        print(msg[:200] + ('...' if len(msg) > 200 else ''))
+                        print()
+
+        elif args.command == "check":
+            needs_attention, reason = client.check_session_needs_attention(args.session_id)
+
+            if args.json:
+                print(json.dumps({
+                    "needs_attention": needs_attention,
+                    "reason": reason,
+                    "session_id": args.session_id
+                }))
+            else:
+                icon = "⚠️" if needs_attention else "✅"
+                print(f"{icon} {reason}")
+
+                if needs_attention:
+                    print(f"\nTo investigate, run:")
+                    print(f"  {sys.argv[0]} activities {args.session_id}")
+
         else:
             parser.print_help()
             sys.exit(1)
 
-    except Exception:
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
 

@@ -165,6 +165,18 @@ python .claude/skills/jules-api/feed_feedback.py --author my-bot-name
 4. Sends a prompt to the session with error logs and feedback.
 5. Posts a comment on the PR to prevent spamming the same feedback.
 
+## Usage Philosophy
+
+**IMPORTANT**: This skill prioritizes **direct API usage** via HTTP calls (curl, httpx, requests) rather than relying on custom Python scripts. This ensures:
+- ✅ Language-agnostic (works with any language/environment)
+- ✅ Portable (no dependency on jules_client.py)
+- ✅ Transparent (clear what API calls are being made)
+- ✅ Maintainable (follows API documentation directly)
+
+**When using this skill**:
+1. **Primary**: Use direct HTTP calls (curl in bash, httpx/requests in Python)
+2. **Secondary**: Use jules_client.py only as a convenience for complex workflows
+
 ## Core Operations
 
 ### 1. Create a Session
@@ -278,15 +290,70 @@ curl -X POST https://jules.googleapis.com/v1alpha/sessions/abc123:approvePlan \
 
 ### 6. Get Session Activities
 
-Retrieve activity logs for a session.
+Retrieve activity logs for a session to understand the conversation history.
 
 **Endpoint**: `GET /v1alpha/sessions/{sessionId}/activities`
+
+**Response Structure**:
+```json
+{
+  "activities": [
+    {
+      "name": "sessions/123/activities/abc",
+      "createTime": "2026-01-11T12:00:00Z",
+      "originator": "agent",  // or "user"
+      "agentMessaged": {
+        "agentMessage": "Message from Jules..."
+      },
+      "id": "abc"
+    },
+    {
+      "originator": "user",
+      "userMessaged": {
+        "userMessage": "Response from user..."
+      }
+    }
+  ]
+}
+```
 
 **Example**:
 ```bash
 curl https://jules.googleapis.com/v1alpha/sessions/abc123/activities \
   -H "X-Goog-Api-Key: YOUR_API_KEY"
 ```
+
+**Key Usage Patterns**:
+
+1. **Debugging Stuck Sessions**: When a session is in `AWAITING_USER_FEEDBACK`, read activities to see what Jules is asking:
+   ```python
+   activities = client.get_activities(session_id)
+   for activity in activities['activities'][-5:]:  # Last 5 activities
+       if activity['originator'] == 'agent':
+           print(activity['agentMessaged']['agentMessage'])
+   ```
+
+2. **Understanding Context**: Activities show the full conversation, useful for providing targeted feedback:
+   ```python
+   # Find last question from Jules
+   for activity in reversed(activities['activities']):
+       if activity['originator'] == 'agent':
+           last_question = activity['agentMessaged']['agentMessage']
+           break
+   ```
+
+3. **Monitoring Progress**: Track what Jules is doing during implementation:
+   ```python
+   recent_activities = activities['activities'][-10:]
+   agent_messages = [a for a in recent_activities if a['originator'] == 'agent']
+   print(f"Jules sent {len(agent_messages)} messages in last 10 activities")
+   ```
+
+**Important Notes**:
+- Activities can be large (40+ activities in complex sessions)
+- Always check `originator` to distinguish agent vs user messages
+- Activities are ordered chronologically (oldest first)
+- Use slicing to get recent activities: `activities['activities'][-10:]`
 
 ## Authentication Setup
 
@@ -308,59 +375,125 @@ To use the Jules API, you need an API key:
 
 **Security Note**: Keep your API key secure. Don't share it or commit it to version control.
 
-## Python Example
+## Direct API Usage (Recommended)
+
+### Python with httpx (Recommended)
 
 ```python
 import os
-import requests
+import httpx
 
-# It's recommended to set the JULES_API_KEY environment variable
 API_KEY = os.environ.get("JULES_API_KEY")
 BASE_URL = "https://jules.googleapis.com/v1alpha"
 
-def create_jules_session(prompt, owner, repo, branch='main'):
-    url = f'{BASE_URL}/sessions'
-    headers = {
-        'X-Goog-Api-Key': API_KEY,
-        'Content-Type': 'application/json'
-    }
-    data = {
-        'prompt': prompt,
-        'sourceContext': {
-            'source': f'sources/github/{owner}/{repo}',
-            'githubRepoContext': {
-                'startingBranch': branch
-            }
-        }
-    }
-    response = requests.post(url, headers=headers, json=data)
-    response.raise_for_status()
-    return response.json()
+headers = {
+    "X-Goog-Api-Key": API_KEY,
+    "Content-Type": "application/json"
+}
 
-def get_session_status(session_id):
-    url = f'{BASE_URL}/sessions/{session_id}'
-    headers = {
-        'X-Goog-Api-Key': API_KEY
+# Create session
+response = httpx.post(
+    f"{BASE_URL}/sessions",
+    headers=headers,
+    json={
+        "prompt": "Add error handling to API endpoints",
+        "sourceContext": {
+            "source": "sources/github/myorg/myproject",
+            "githubRepoContext": {"startingBranch": "main"}
+        },
+        "requirePlanApproval": True,
+        "automationMode": "AUTO_CREATE_PR"
     }
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    return response.json()
+)
+session = response.json()
+session_id = session['name'].split('/')[-1]
+print(f"Created: {session_id}")
 
-# Usage
-if API_KEY:
-    session = create_jules_session(
-        prompt='Add error handling to API endpoints',
-        owner='myorg',
-        repo='myproject'
+# Get status
+response = httpx.get(f"{BASE_URL}/sessions/{session_id}", headers=headers)
+status = response.json()
+print(f"State: {status['state']}")
+
+# Get activities
+response = httpx.get(f"{BASE_URL}/sessions/{session_id}/activities", headers=headers)
+activities = response.json()['activities']
+
+# Send message
+if status['state'] == 'AWAITING_USER_FEEDBACK':
+    response = httpx.post(
+        f"{BASE_URL}/sessions/{session_id}:sendMessage",
+        headers=headers,
+        json={"prompt": "Proceed with the implementation"}
     )
-    print(f"Created session: {session['id']}")
 
-    # Check status
-    status = get_session_status(session['id'])
-    print(f"Status: {status['state']}")
-else:
-    print("Please set the JULES_API_KEY environment variable.")
+# Approve plan
+if status['state'] == 'AWAITING_PLAN_APPROVAL':
+    response = httpx.post(
+        f"{BASE_URL}/sessions/{session_id}:approvePlan",
+        headers=headers
+    )
 ```
+
+### Bash with curl
+
+```bash
+export JULES_API_KEY="your-api-key"
+export BASE_URL="https://jules.googleapis.com/v1alpha"
+
+# Create session
+curl -X POST "$BASE_URL/sessions" \
+  -H "X-Goog-Api-Key: $JULES_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Add error handling to API endpoints",
+    "sourceContext": {
+      "source": "sources/github/myorg/myproject",
+      "githubRepoContext": {"startingBranch": "main"}
+    },
+    "requirePlanApproval": true,
+    "automationMode": "AUTO_CREATE_PR"
+  }' | jq .
+
+# Get status
+curl "$BASE_URL/sessions/123456789" \
+  -H "X-Goog-Api-Key: $JULES_API_KEY" | jq .
+
+# Get activities
+curl "$BASE_URL/sessions/123456789/activities" \
+  -H "X-Goog-Api-Key: $JULES_API_KEY" | jq '.activities[-5:]'
+
+# Send message
+curl -X POST "$BASE_URL/sessions/123456789:sendMessage" \
+  -H "X-Goog-Api-Key: $JULES_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Proceed with implementation"}'
+
+# Approve plan
+curl -X POST "$BASE_URL/sessions/123456789:approvePlan" \
+  -H "X-Goog-Api-Key: $JULES_API_KEY"
+```
+
+## Alternative: Python Client Library
+
+For convenience in complex workflows, you can use the included `jules_client.py`:
+
+```python
+import sys
+sys.path.insert(0, '.claude/skills/jules-api')
+from jules_client import JulesClient
+
+client = JulesClient()
+
+# All the same operations as above
+session = client.create_session(
+    prompt='Add error handling to API endpoints',
+    owner='myorg',
+    repo='myproject',
+    require_plan_approval=True
+)
+```
+
+**Note**: The client library is a thin wrapper around the HTTP API. Prefer direct API calls for transparency.
 
 ## Best Practices
 
@@ -483,6 +616,98 @@ Claude: "Great! I can see the implementation looks solid. Would you like me to
          you continue working on other features."
 ```
 
+## Debugging Stuck Sessions
+
+When a Jules session is stuck in `AWAITING_USER_FEEDBACK` or `AWAITING_PLAN_APPROVAL`, follow this workflow:
+
+### Step 1: Check Session State
+```python
+session = client.get_session(session_id)
+print(f"State: {session['state']}")
+print(f"Created: {session['createTime']}")
+print(f"Updated: {session['updateTime']}")
+```
+
+### Step 2: Read Activities to Understand Context
+```python
+activities_data = client.get_activities(session_id)
+activities = activities_data['activities']
+
+print(f"Total activities: {len(activities)}")
+
+# Show last 10 activities
+for activity in activities[-10:]:
+    originator = activity['originator']
+    create_time = activity['createTime']
+
+    if originator == 'agent':
+        msg = activity.get('agentMessaged', {}).get('agentMessage', '')
+        print(f"\n[JULES at {create_time}]")
+        print(msg[:300] + ('...' if len(msg) > 300 else ''))
+    elif originator == 'user':
+        msg = activity.get('userMessaged', {}).get('userMessage', '')
+        print(f"\n[USER at {create_time}]")
+        print(msg[:300] + ('...' if len(msg) > 300 else ''))
+```
+
+### Step 3: Identify What Jules Is Asking
+Look for the most recent agent message to understand:
+- What question Jules is asking
+- What blocker Jules encountered
+- What decision Jules needs
+
+### Step 4: Provide Targeted Feedback
+```python
+# Craft a specific, actionable response
+feedback = """
+Based on your question about X:
+
+1. [Answer the specific question]
+2. [Provide context or clarification]
+3. [Give clear next steps]
+
+Proceed autonomously with this guidance.
+"""
+
+client.send_message(session_id, feedback)
+print("✅ Feedback sent - session should resume")
+```
+
+### Real Example: Unsticking Session 14848423526856432295
+
+**Situation**: Session stuck for 14+ hours in `AWAITING_USER_FEEDBACK`
+
+**Investigation**:
+```python
+# Read last 10 activities
+activities = client.get_activities('14848423526856432295')['activities'][-10:]
+
+# Found: Jules was stuck on test failures with Ibis schema issues
+# Last agent message showed: "The tests are still failing with empty inboxes"
+```
+
+**Solution**: Sent targeted message with:
+1. Schema fix (remove DuckDB duplication, use only Ibis)
+2. Array operation fix (use `isin()` instead of `contains()`)
+3. Priority guidance (ship working v1, iterate later)
+4. Clear next steps
+
+**Result**: Session changed from `AWAITING_USER_FEEDBACK` → `IN_PROGRESS` within minutes
+
+### Common Stuck Session Patterns
+
+1. **Implementation Blocker**: Jules hit a technical issue and needs guidance
+   - **Solution**: Read activities, identify the specific error, provide fix
+
+2. **Unclear Requirements**: Jules needs clarification on what to build
+   - **Solution**: Provide specific examples and acceptance criteria
+
+3. **Decision Paralysis**: Jules has multiple options and needs direction
+   - **Solution**: Pick one approach and explain the reasoning
+
+4. **Test Failures**: Jules can't get tests passing
+   - **Solution**: Debug the test failure, provide specific fix or workaround
+
 ## Error Handling
 
 Always check response status codes:
@@ -491,6 +716,12 @@ Always check response status codes:
 - `401 Unauthorized`: Authentication failed
 - `404 Not Found`: Session doesn't exist
 - `403 Forbidden`: Insufficient permissions
+
+**Handling Session ID Formats**:
+- API returns session name as `"sessions/123456789"`
+- Extract ID: `session_id = session['name'].split('/')[-1]`
+- Both formats work in API calls (with or without `sessions/` prefix)
+- Client library handles both formats automatically
 
 ## References
 
