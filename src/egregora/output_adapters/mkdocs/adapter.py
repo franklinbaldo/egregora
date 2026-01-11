@@ -983,12 +983,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 return profile_dir / f"{slug}.md"
 
             case DocumentType.JOURNAL:
-                # When url_path is just "journal" (root journal URL), return journal.md in docs root
-                # Otherwise, extract the slug and put it in journal_dir
+                # Journals now go into posts_dir with journal- prefix
                 slug = url_path.split("/")[-1]
                 if url_path == "journal":
                     return self.docs_dir / "journal.md"
-                return self.journal_dir / f"{slug}.md"
+                return self.posts_dir / f"{slug}.md"
             case DocumentType.ENRICHMENT_URL:
                 # url_path might be 'posts/media/urls/slug' -> we want 'slug.md' inside media_dir/urls
                 # ADR-0004: URL enrichments go to posts/media/urls/
@@ -1081,10 +1080,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         return metadata
 
     def _write_journal_doc(self, document: Document, path: Path) -> None:
-        metadata = self._ensure_hidden(dict(document.metadata or {}))
-
-        # Add type for categorization
+        metadata = dict(document.metadata or {})
         metadata["type"] = "journal"
+        metadata["publish"] = True
 
         # Add Journal category using helper (handles malformed data)
         metadata = self._ensure_category(metadata, "Journal")

@@ -182,9 +182,9 @@ class TestStandardUrlConventionFallbacks:
     def test_format_journal_url_fallback(self, convention, ctx):
         """Test _format_journal_url fallback when labels are missing."""
         doc = Document(type=DocumentType.JOURNAL, content="Test")
-        # Without window_label or slug, it should fall back to the posts prefix
+        # Without window_label or slug, it should fall back to posts/journal-{id}
         url = convention.canonical_url(doc, ctx)
-        assert f"/{convention.routes.posts_prefix}/" == url
+        assert f"/{convention.routes.posts_prefix}/journal-" in url
 
     def test_format_annotation_url_fallback(self, convention, ctx):
         """Test _format_annotation_url fallback when slug is None."""

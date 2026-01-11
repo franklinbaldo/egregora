@@ -134,7 +134,7 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
 
     # === LOAD PERSISTENT STATE ===
     persistent_state = PersistentCycleState.load(CYCLE_STATE_PATH)
-    
+
     # Determine next persona from persistent state
     if persistent_state.last_persona_id and persistent_state.last_persona_id in cycle_mgr.cycle_ids:
         next_idx, should_increment = cycle_mgr.advance_cycle(persistent_state.last_persona_id)
@@ -163,7 +163,7 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
             # Found open PR for last session
             pr_number = pr["number"]
             print(f"Found PR #{pr_number}: {pr['title']}")
-            
+
             # Update persistent state with PR number if missing
             if persistent_state.last_pr_number != pr_number:
                 persistent_state.update_pr_number(pr_number)
@@ -191,6 +191,20 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                         if pr_mgr.is_draft(pr_details):
                             print(f"⏳ PR still shows as draft after marking ready. Waiting for next tick...")
                             return
+                    elif session_state in ["AWAITING_PLAN_APPROVAL", "AWAITING_USER_FEEDBACK"]:
+                        # Session is stuck - unstick it before waiting for completion
+                        print(f"🔧 Session is stuck in state: {session_state}. Attempting to unstick...")
+                        # Get created_at from persistent_state history
+                        created_at = None
+                        if persistent_state.history and persistent_state.history[0].get("session_id") == last_session_id:
+                            created_at = persistent_state.history[0].get("created_at")
+
+                        should_skip = orchestrator.handle_stuck_session(last_session_id, created_at)
+                        if should_skip:
+                            print(f"⏭️  Skipping timed-out session, advancing to {next_persona_id}")
+                            # Don't return - fall through to create next session
+                        else:
+                            return  # Wait for unstick to take effect
                     else:
                         print(f"⏳ Session state: {session_state}. Waiting for completion...")
                         return
@@ -223,6 +237,10 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                         drift_info, client, repo_info, branch_mgr, pr_mgr, dry_run
                     )
                     return  # Stop here - reconciliation will continue on next tick
+
+                # Ensure integration PR exists for human review
+                print(f"\n📋 Ensuring integration PR exists...")
+                pr_mgr.ensure_integration_pr_exists(repo_info)
 
             # Check if we should increment sprint
             if should_increment:
@@ -260,6 +278,10 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                         )
                         return  # Stop here - reconciliation will continue on next tick
 
+                    # Ensure integration PR exists for human review
+                    print(f"\n📋 Ensuring integration PR exists...")
+                    pr_mgr.ensure_integration_pr_exists(repo_info)
+
                 if should_increment:
                     sprint_manager.increment_sprint()
                 print()
@@ -287,23 +309,47 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
                         print()
                         # Don't return - continue to create next session
                     elif session_state in ["COMPLETED", "FAILED"]:
-                        # Completed/failed but no PR - ask Jules to finalize
+                        # Completed/failed but no PR - ask Jules to finalize or skip if timed out
                         print(f"⚠️  Session {last_session_id} is in state '{session_state}' but no PR was created.")
-                        print("Sending message to request PR creation...")
-                        if not dry_run:
-                            finalize_message = (
-                                "A sessão está em estado terminal mas nenhuma PR foi criada. "
-                                "Por favor, finalize o trabalho criando uma Pull Request com as mudanças realizadas, "
-                                "ou se não há mudanças a fazer, finalize a sessão adequadamente."
-                            )
-                            client.send_message(last_session_id, finalize_message)
-                            print(f"Finalization message sent to session {last_session_id}.")
-                        return  # Wait for Jules to respond
+
+                        # Check if we should skip this session due to timeout
+                        created_at = None
+                        if persistent_state.history and persistent_state.history[0].get("session_id") == last_session_id:
+                            created_at = persistent_state.history[0].get("created_at")
+
+                        should_skip = orchestrator.handle_stuck_session(last_session_id, created_at)
+                        if should_skip:
+                            print(f"⏭️  Session stuck in {session_state} state without PR. Skipping to {next_persona_id}")
+                            if should_increment:
+                                sprint_manager.increment_sprint()
+                            print()
+                            # Don't return - fall through to create next session
+                        else:
+                            # Try one more time - send finalization message
+                            print("Sending message to request PR creation...")
+                            if not dry_run:
+                                finalize_message = (
+                                    "The session is in a terminal state but no PR was created. "
+                                    "Please finalize the work by creating a Pull Request with the changes made, "
+                                    "or if there are no changes to make, finalize the session appropriately."
+                                )
+                                client.send_message(last_session_id, finalize_message)
+                                print(f"Finalization message sent to session {last_session_id}.")
+                            return  # Wait for Jules to respond
                     else:
                         # Session is stuck - try to unstick
                         print(f"🔧 Session state: {session_state}. Attempting to unstick...")
-                        orchestrator.handle_stuck_session(last_session_id)
-                        return  # Don't start new session, wait for stuck one to complete
+                        # Get created_at from persistent_state history
+                        created_at = None
+                        if persistent_state.history and persistent_state.history[0].get("session_id") == last_session_id:
+                            created_at = persistent_state.history[0].get("created_at")
+
+                        should_skip = orchestrator.handle_stuck_session(last_session_id, created_at)
+                        if should_skip:
+                            print(f"⏭️  Skipping timed-out session, advancing to {next_persona_id}")
+                            # Don't return - fall through to create next session
+                        else:
+                            return  # Don't start new session, wait for stuck one to complete
                 except Exception as e:
                     print(f"❌ Error checking session {last_session_id}: {e}", file=sys.stderr)
                     return
@@ -312,15 +358,7 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
     next_persona = personas[next_idx]
     print(f"🚀 Starting session for {next_persona.emoji} {next_persona.id}")
 
-    # Create session branch
-    session_branch = branch_mgr.create_session_branch(
-        JULES_BRANCH,
-        next_persona.id,
-        str(persistent_state.last_pr_number or ""),
-        persistent_state.last_session_id,
-    )
-
-    # Create session request
+    # Create session request (using jules branch directly)
     title = f"{next_persona.emoji} {next_persona.id}: automated cycle task for {repo_info['repo']}"
     request = SessionRequest(
         persona_id=next_persona.id,

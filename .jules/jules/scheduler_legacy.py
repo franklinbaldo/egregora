@@ -448,7 +448,7 @@ def get_last_cycle_session(
 
         pr = get_pr_by_session_id(open_prs, session_id)
         if not pr:
-            pr = get_pr_by_session_id_any_state(repo_info["owner"], repo_info["repo"], session_id)
+            pr = _get_pr_by_session_id_any_state(repo_info["owner"], repo_info["repo"], session_id)
         if not pr:
             start_branch = (
                 session.get("sourceContext", {}).get("githubRepoContext", {}).get("startingBranch", "") or ""
@@ -467,6 +467,51 @@ def get_last_cycle_session(
             return session_id, persona_id
 
     return None, None
+
+
+def _get_pr_by_session_id_any_state(owner: str, repo: str, session_id: str) -> dict[str, Any] | None:
+    """Proxy to allow monkeypatching in the compatibility scheduler."""
+    scheduler_module = sys.modules.get("jules.scheduler")
+    if scheduler_module:
+        candidate = getattr(scheduler_module, "get_pr_by_session_id_any_state", None)
+        if callable(candidate):
+            return candidate(owner, repo, session_id)
+    return get_pr_by_session_id_any_state(owner, repo, session_id)
+
+
+def _ensure_jules_branch_exists() -> None:
+    """Proxy to allow monkeypatching in the compatibility scheduler."""
+    scheduler_module = sys.modules.get("jules.scheduler")
+    if scheduler_module:
+        candidate = getattr(scheduler_module, "ensure_jules_branch_exists", None)
+        if callable(candidate) and candidate is not _ensure_jules_branch_exists:
+            return candidate()
+    return ensure_jules_branch_exists()
+
+
+def _prepare_session_base_branch(
+    base_branch: str,
+    persona_id: str,
+    base_pr_number: str = "",
+    last_session_id: str | None = None,
+) -> str:
+    """Proxy to allow monkeypatching in the compatibility scheduler."""
+    scheduler_module = sys.modules.get("jules.scheduler")
+    if scheduler_module:
+        candidate = getattr(scheduler_module, "prepare_session_base_branch", None)
+        if callable(candidate) and candidate is not _prepare_session_base_branch:
+            return candidate(
+                base_branch,
+                persona_id,
+                base_pr_number=base_pr_number,
+                last_session_id=last_session_id,
+            )
+    return prepare_session_base_branch(
+        base_branch,
+        persona_id,
+        base_pr_number=base_pr_number,
+        last_session_id=last_session_id,
+    )
 
 
 def prepare_session_base_branch(
@@ -681,7 +726,7 @@ def run_cycle_step(
     """Run a single step of the cycle scheduler."""
     cycle_ids = [entry["id"] for entry in cycle_entries]
     print(f"Running in CYCLE mode with order: {cycle_ids}")
-    ensure_jules_branch_exists()
+    _ensure_jules_branch_exists()
     last_session_id, last_pid = get_last_cycle_session(client, cycle_entries, repo_info, open_prs)
     next_entry = cycle_entries[0]
     base_pr_number = ""
@@ -721,7 +766,7 @@ def run_cycle_step(
 
             print(f"Next persona: {next_entry['id']}. Starting from '{JULES_BRANCH}'.")
         else:
-            merged_pr = get_pr_by_session_id_any_state(repo_info["owner"], repo_info["repo"], last_session_id)
+            merged_pr = _get_pr_by_session_id_any_state(repo_info["owner"], repo_info["repo"], last_session_id)
             if merged_pr and merged_pr.get("mergedAt"):
                 base_pr_number = str(merged_pr.get("number", ""))
                 print(f"PR for session {last_session_id} already merged. Continuing.")
@@ -767,9 +812,9 @@ def run_cycle_step(
                         print("Sending message to request PR creation...")
                         if not dry_run:
                             finalize_message = (
-                                "A sessão está em estado terminal mas nenhuma PR foi criada. "
-                                "Por favor, finalize o trabalho criando uma Pull Request com as mudanças realizadas, "
-                                "ou se não há mudanças a fazer, finalize a sessão adequadamente."
+                                "The session is in a terminal state but no PR was created. "
+                                "Please finalize the work by creating a Pull Request with the changes made, "
+                                "or if there are no changes to make, finalize the session appropriately."
                             )
                             client.send_message(last_session_id, finalize_message)
                             print(f"Finalization message sent to session {last_session_id}.")
@@ -786,7 +831,7 @@ def run_cycle_step(
                             f"Session {last_session_id} is awaiting user feedback (stuck). Sending nudge..."
                         )
                         if not dry_run:
-                            nudge_text = "Por favor, tome a melhor decisão possível e prossiga autonomamente para completar a tarefa."
+                            nudge_text = "Please make the best decision possible and proceed autonomously to complete the task."
                             client.send_message(last_session_id, nudge_text)
                             print(f"Nudge sent to session {last_session_id}.")
                         return  # Wait for nudge to take effect
@@ -819,7 +864,7 @@ def run_cycle_step(
         config = parsed["config"]
         prompt_body = parsed["prompt"]
 
-        session_branch = prepare_session_base_branch(
+        session_branch = _prepare_session_base_branch(
             JULES_BRANCH,
             next_pid,
             base_pr_number,
