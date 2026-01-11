@@ -1,184 +1,161 @@
-"""CLI tool for Jules mail system.
-
-Usage:
-    python -m jules.mail_cli send --to curator --subject "..." --body "..."
-    python -m jules.mail_cli inbox --persona curator
-    python -m jules.mail_cli read <msg_id> --persona curator
-    python -m jules.mail_cli mark-read <msg_id> --persona curator
-
-Or via direct execution:
-    ./mail_cli.py inbox --persona curator
-"""
-
-from __future__ import annotations
-
-import sys
-from pathlib import Path
-from typing import Optional
-
 import typer
-from rich.console import Console
-from rich.table import Table
+from typing import List, Optional
+import os
+from jules.mail import send_message, list_inbox, get_message, mark_read
 
-# Add jules module to path
-sys.path.insert(0, str(Path(__file__).parent))
-
-from mail import get_inbox, get_message, mark_read, send_message
-
-app = typer.Typer(help="Jules Mail CLI - Inter-persona messaging system")
-console = Console()
-
+app = typer.Typer(
+    help="""
+    JULES MAIL CLI: A hybrid S3/Local communication system for AI Personas.
+    
+    This tool allows personas (AI agents) to send and receive internal 'mail' messages.
+    It supports both offline local storage (Maildir) and cloud-scale S3 buckets (Internet Archive).
+    
+    CONFIGURATION:
+    Configuration is primarily handled via environment variables:
+    - JULES_PERSONA: Your current identity (e.g., 'weaver@team', 'curator@team').
+    - JULES_MAIL_STORAGE: 's3' or 'local' (default).
+    - JULES_MAIL_BUCKET: The S3 bucket name/IA item (e.g., 'jules-mail-frank-2026').
+    
+    QUICK START & EXAMPLES:
+    
+    1. Send a message with all parameters:
+       jules-mail send --to curator@team --subject "Urgent: Data Sync" --body "Check the latest logs." --from weaver@team --attach "logs.txt" --attach "report.pdf"
+    
+    2. Check your inbox (unread only):
+       jules-mail inbox --persona weaver@team --unread
+    
+    3. Read a specific message and mark as read:
+       jules-mail read "be242fd7-0373-4530-aba2-e4d3f044290b" --persona weaver@team
+    
+    4. Switch to S3 for a single command:
+       JULES_MAIL_STORAGE=s3 jules-mail inbox
+    """
+)
 
 @app.command()
 def send(
-    to: str = typer.Option(..., "--to", "-t", help="Recipient persona ID"),
-    subject: str = typer.Option(..., "--subject", "-s", help="Message subject"),
-    body: str = typer.Option(..., "--body", "-b", help="Message body"),
-    from_persona: str = typer.Option("unknown", "--from", "-f", help="Sender persona ID"),
-    attach: Optional[list[str]] = typer.Option(None, "--attach", "-a", help="Attachment file paths"),
-) -> None:
-    """Send a message to another persona.
-
-    Example:
-        jules-mail send --to curator --from weaver \\
-            --subject "Conflict in PR #123" \\
-            --body "Your PR conflicts with refactor's changes"
+    to: str = typer.Option(
+        ..., "--to", 
+        help="Recipient Persona ID. This corresponds to the target folder or S3 prefix."
+    ),
+    subject: str = typer.Option(
+        ..., "--subject", 
+        help="A brief descriptive title for the message."
+    ),
+    body: str = typer.Option(
+        ..., "--body", 
+        help="The full content of the message. Use standard text formatting."
+    ),
+    from_persona: str = typer.Option(
+        None, "--from", "-f", 
+        help="Your Persona ID. If not provided, the JULES_PERSONA environment variable MUST be set.",
+        envvar="JULES_PERSONA"
+    ),
+    attach: Optional[List[str]] = typer.Option(
+        None, "--attach", 
+        help="Optional: List of file names or identifiers to associate with this message."
+    ),
+):
     """
-    attachments = []
-    if attach:
-        for file_path in attach:
-            path = Path(file_path)
-            if not path.exists():
-                console.print(f"[red]❌ Attachment not found: {file_path}[/red]")
-                raise typer.Exit(1)
-            content = path.read_bytes()
-            attachments.append((path.name, content))
-
+    Send a digital message to another persona.
+    
+    The message will be persisted to the configured backend (S3 or Local).
+    If using S3, it will be stored as an .eml file in the recipient's prefix.
+    
+    Example:
+        jules-mail send --to curator@team --subject "Data Update" --body "The latest sync is complete."
+    """
+    if not from_persona:
+        print("Error: --from or JULES_PERSONA env var required.")
+        raise typer.Exit(code=1)
+        
     try:
-        msg_id = send_message(
-            from_persona=from_persona,
-            to_persona=to,
-            subject=subject,
-            body=body,
-            attachments=attachments if attachments else None,
-        )
-        console.print(f"[green]✅ Message sent to {to}[/green]")
-        console.print(f"Message-ID: {msg_id}")
+        key = send_message(from_persona, to, subject, body, attach)
+        print(f"✅ Sent message to {to} (Key: {key})")
     except Exception as e:
-        console.print(f"[red]❌ Failed to send message: {e}[/red]")
-        raise typer.Exit(1)
-
+        print(f"❌ Error sending message: {e}")
+        raise typer.Exit(code=1)
 
 @app.command()
 def inbox(
-    persona: str = typer.Option(..., "--persona", "-p", help="Persona ID"),
-    unread: bool = typer.Option(False, "--unread", "-u", help="Show only unread messages"),
-) -> None:
-    """List messages in persona's inbox.
-
-    Example:
-        jules-mail inbox --persona curator --unread
+    persona: str = typer.Option(
+        None, "--persona", "-p", 
+        help="Which persona's inbox to check. Defaults to JULES_PERSONA.",
+        envvar="JULES_PERSONA"
+    ),
+    unread: bool = typer.Option(
+        False, "--unread", 
+        help="Filter results to show only messages that haven't been 'read' yet."
+    ),
+):
     """
+    List messages in your persona's inbox.
+    
+    Returns a list of messages with their unique Keys, Senders, and Subjects.
+    New/Unread messages are marked with [NEW].
+    
+    Example:
+        jules-mail inbox --persona weaver@team --unread
+    """
+    if not persona:
+        print("Error: --persona or JULES_PERSONA env var required.")
+        raise typer.Exit(code=1)
+        
     try:
-        messages = get_inbox(persona, unread_only=unread)
-
+        messages = list_inbox(persona, unread_only=unread)
         if not messages:
-            status = "unread" if unread else "total"
-            console.print(f"[yellow]📭 No {status} messages for {persona}[/yellow]")
+            print(f"📬 Inbox for {persona} is empty.")
             return
 
-        # Create table
-        table = Table(title=f"📬 {persona}'s Inbox ({len(messages)} messages)")
-        table.add_column("ID", style="cyan", no_wrap=True)
-        table.add_column("From", style="green")
-        table.add_column("Subject", style="white")
-        table.add_column("Date", style="blue")
-        table.add_column("Status", style="yellow")
-
+        print(f"📬 Inbox for {persona}:")
         for msg in messages:
-            # Truncate ID for display
-            msg_id_short = msg["id"][:20] + "..." if len(msg["id"]) > 20 else msg["id"]
-            status = "📖 Read" if msg["is_read"] else "✉️  New"
-
-            table.add_row(
-                msg_id_short,
-                msg["from"],
-                msg["subject"],
-                msg["date"][:20],  # Truncate date
-                status,
-            )
-
-        console.print(table)
-        console.print(f"\n💡 Read a message: [cyan]jules-mail read <msg_id> --persona {persona}[/cyan]")
-
+            status = "[NEW]" if not msg["read"] else "[   ]"
+            print(f"{status} {msg['key']} | From: {msg['from']} | Subject: {msg['subject']}")
     except Exception as e:
-        console.print(f"[red]❌ Failed to read inbox: {e}[/red]")
-        raise typer.Exit(1)
-
+        print(f"❌ Error reading inbox: {e}")
+        raise typer.Exit(code=1)
 
 @app.command()
 def read(
-    message_id: str = typer.Argument(..., help="Message ID from inbox"),
-    persona: str = typer.Option(..., "--persona", "-p", help="Persona ID"),
-    auto_mark_read: bool = typer.Option(True, "--mark-read/--no-mark-read", help="Auto mark as read"),
-) -> None:
-    """Read a message and display full content.
-
-    Example:
-        jules-mail read 1234567890.123.mbox --persona curator
+    key: str = typer.Argument(
+        ..., 
+        help="The unique Key/ID of the message to retrieve. Get this from the 'inbox' command."
+    ),
+    persona: str = typer.Option(
+        None, "--persona", "-p", 
+        help="Your Persona ID. Defaults to JULES_PERSONA.",
+        envvar="JULES_PERSONA"
+    ),
+):
     """
+    Open and display the full content of a specific message.
+    
+    IMPORTANT: Reading a message automatically marks it as 'Read' in the system.
+    
+    Example:
+        jules-mail read be242fd7-0373-4530-aba2-e4d3f044290b --persona weaver@team
+    """
+    if not persona:
+        print("Error: --persona or JULES_PERSONA env var required.")
+        raise typer.Exit(code=1)
+        
     try:
-        msg = get_message(persona, message_id)
-
-        if not msg:
-            console.print(f"[red]❌ Message not found: {message_id}[/red]")
-            raise typer.Exit(1)
-
-        # Display message
-        console.print(f"\n[bold cyan]From:[/bold cyan] {msg['from']}")
-        console.print(f"[bold cyan]Subject:[/bold cyan] {msg['subject']}")
-        console.print(f"[bold cyan]Date:[/bold cyan] {msg['date']}")
-        console.print(f"\n[bold white]Message:[/bold white]")
-        console.print(f"{msg['body']}\n")
-
-        # Display attachments
-        if msg["attachments"]:
-            console.print(f"[bold yellow]📎 Attachments ({len(msg['attachments'])}):[/bold yellow]")
-            for filename, content in msg["attachments"]:
-                size_kb = len(content) / 1024
-                console.print(f"  - {filename} ({size_kb:.1f} KB)")
-
+        msg = get_message(persona, key)
+        print(f"--- Message: {key} ---")
+        print(f"From:    {msg['from']}")
+        print(f"To:      {msg['to']}")
+        print(f"Subject: {msg['subject']}")
+        print(f"Date:    {msg['date']}")
+        print("-" * 20)
+        print(msg["body"])
+        print("-" * 20)
+        
         # Auto mark as read
-        if auto_mark_read:
-            mark_read(persona, message_id)
-            console.print(f"\n[green]✅ Message marked as read[/green]")
-
+        mark_read(persona, key)
+        print(f"✅ Marked as read.")
     except Exception as e:
-        console.print(f"[red]❌ Failed to read message: {e}[/red]")
-        raise typer.Exit(1)
-
-
-@app.command()
-def mark_as_read(
-    message_id: str = typer.Argument(..., help="Message ID from inbox"),
-    persona: str = typer.Option(..., "--persona", "-p", help="Persona ID"),
-) -> None:
-    """Mark a message as read.
-
-    Example:
-        jules-mail mark-read 1234567890.123.mbox --persona curator
-    """
-    try:
-        success = mark_read(persona, message_id)
-        if success:
-            console.print(f"[green]✅ Message marked as read[/green]")
-        else:
-            console.print(f"[red]❌ Message not found: {message_id}[/red]")
-            raise typer.Exit(1)
-    except Exception as e:
-        console.print(f"[red]❌ Failed to mark message: {e}[/red]")
-        raise typer.Exit(1)
-
+        print(f"❌ Error reading message: {e}")
+        raise typer.Exit(code=1)
 
 if __name__ == "__main__":
     app()

@@ -85,3 +85,4 @@ blog_generation.log
 demo/
 coverage.xml
 .github/tmp/
+.jules/mail/

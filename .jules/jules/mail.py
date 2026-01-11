@@ -1,275 +1,257 @@
-"""Mail system for persona coordination using Maildir format.
-
-This module provides async messaging between personas using the standard
-Maildir format (RFC 3501) and Python email library (RFC 822).
-
-Architecture:
-- Each persona has a mailbox: .jules/mail/{persona_id}/
-- Maildir structure: new/ (unread), cur/ (read), tmp/ (temp)
-- Messages use RFC 822 format (standard email)
-- Supports attachments (e.g., .patch files)
-
-Example:
-    >>> from jules.mail import send_message, get_inbox
-    >>> send_message(
-    ...     from_persona="weaver",
-    ...     to_persona="curator",
-    ...     subject="Conflict in PR #123",
-    ...     body="Your PR conflicts with refactor's changes..."
-    ... )
-    >>> inbox = get_inbox("curator", unread_only=True)
-    >>> print(f"You have {len(inbox)} unread messages")
-"""
-
-from __future__ import annotations
-
-import email
 import mailbox
-from datetime import datetime
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.utils import formatdate, make_msgid
+import os
+import uuid
+import boto3
+import email
+from email import policy
+from email.message import EmailMessage
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Protocol
+from abc import ABC, abstractmethod
+import requests
 
-__all__ = [
-    "send_message",
-    "get_inbox",
-    "get_message",
-    "mark_read",
-    "get_mail_root",
-]
+from botocore.config import Config
 
-# Mail storage root
-DEFAULT_MAIL_ROOT = Path(".jules/mail")
+# Default root for local mail storage
+MAIL_ROOT = Path(".jules/mail")
+# Default S3 config
+BUCKET_NAME = os.environ.get("JULES_MAIL_BUCKET", "jules-mail")
+S3_ENDPOINT = os.environ.get("AWS_S3_ENDPOINT_URL")
 
+class MailboxBackend(ABC):
+    @abstractmethod
+    def send_message(self, from_id: str, to_id: str, subject: str, body: str, attachments: Optional[List[str]] = None) -> str:
+        pass
 
-def get_mail_root() -> Path:
-    """Get the mail storage root directory."""
-    return DEFAULT_MAIL_ROOT
+    @abstractmethod
+    def list_inbox(self, persona_id: str, unread_only: bool = False) -> List[Dict[str, Any]]:
+        pass
 
+    @abstractmethod
+    def get_message(self, persona_id: str, key: str) -> Dict[str, Any]:
+        pass
 
-def _ensure_mailbox(persona_id: str) -> mailbox.Maildir:
-    """Ensure persona mailbox exists and return Maildir object."""
-    mailbox_path = get_mail_root() / persona_id
-    mailbox_path.mkdir(parents=True, exist_ok=True)
+    @abstractmethod
+    def mark_read(self, persona_id: str, key: str) -> None:
+        pass
 
-    # Create Maildir subdirectories (new, cur, tmp)
-    for subdir in ["new", "cur", "tmp"]:
-        (mailbox_path / subdir).mkdir(exist_ok=True)
+class LocalMaildirBackend(MailboxBackend):
+    def _get_maildir(self, persona_id: str) -> mailbox.Maildir:
+        path = MAIL_ROOT / persona_id
+        MAIL_ROOT.mkdir(parents=True, exist_ok=True)
+        return mailbox.Maildir(str(path), create=True)
 
-    return mailbox.Maildir(str(mailbox_path), factory=None, create=True)
+    def send_message(self, from_id: str, to_id: str, subject: str, body: str, attachments: Optional[List[str]] = None) -> str:
+        dest_maildir = self._get_maildir(to_id)
+        msg = mailbox.MaildirMessage()
+        msg["Subject"] = subject
+        msg["From"] = from_id
+        msg["To"] = to_id
+        content = body
+        if attachments:
+            content += "\n\nAttachments: " + ", ".join(attachments)
+        msg.set_payload(content)
+        return dest_maildir.add(msg)
 
+    def list_inbox(self, persona_id: str, unread_only: bool = False) -> List[Dict[str, Any]]:
+        maildir = self._get_maildir(persona_id)
+        results = []
+        for key in maildir.keys():
+            msg = maildir.get(key)
+            is_seen = "S" in msg.get_flags()
+            if unread_only and is_seen:
+                continue
+            results.append({
+                "key": key,
+                "subject": msg["Subject"],
+                "from": msg["From"],
+                "read": is_seen,
+                "date": msg["Date"]
+            })
+        return results
 
-def send_message(
-    from_persona: str,
-    to_persona: str,
-    subject: str,
-    body: str,
-    attachments: list[tuple[str, bytes]] | None = None,
-) -> str:
-    """Send a message from one persona to another.
+    def get_message(self, persona_id: str, key: str) -> Dict[str, Any]:
+        maildir = self._get_maildir(persona_id)
+        msg = maildir.get(key)
+        if msg is None: raise ValueError(f"Message not found: {key}")
+        payload = msg.get_payload(decode=True)
+        body = payload.decode("utf-8", errors="replace") if isinstance(payload, bytes) else str(payload)
+        return {
+            "key": key, "subject": msg["Subject"], "from": msg["From"],
+            "to": msg["To"], "body": body.strip(), "date": msg["Date"]
+        }
 
-    Args:
-        from_persona: Sender persona ID (e.g., "weaver")
-        to_persona: Recipient persona ID (e.g., "curator")
-        subject: Message subject
-        body: Message body (plain text)
-        attachments: Optional list of (filename, content) tuples
+    def mark_read(self, persona_id: str, key: str) -> None:
+        maildir = self._get_maildir(persona_id)
+        msg = maildir.get(key)
+        if msg:
+            msg.add_flag("S")
+            maildir[key] = msg
 
-    Returns:
-        Message ID (unique identifier)
-
-    Example:
-        >>> msg_id = send_message(
-        ...     "weaver", "curator",
-        ...     "Conflict in PR #123",
-        ...     "Your PR conflicts with...",
-        ...     attachments=[("pr-123.patch", patch_bytes)]
-        ... )
-    """
-    # Create multipart message
-    msg = MIMEMultipart()
-    msg["From"] = f"{from_persona}@jules.local"
-    msg["To"] = f"{to_persona}@jules.local"
-    msg["Subject"] = subject
-    msg["Date"] = formatdate(localtime=True)
-    msg["Message-ID"] = make_msgid(domain="jules.local")
-
-    # Add body
-    msg.attach(MIMEText(body, "plain"))
-
-    # Add attachments if provided
-    if attachments:
-        from email.mime.application import MIMEApplication
-
-        for filename, content in attachments:
-            attachment = MIMEApplication(content)
-            attachment.add_header("Content-Disposition", "attachment", filename=filename)
-            msg.attach(attachment)
-
-    # Get recipient mailbox and add message
-    mbox = _ensure_mailbox(to_persona)
-    mbox.add(msg)
-    mbox.close()
-
-    return msg["Message-ID"]
-
-
-def get_inbox(persona_id: str, unread_only: bool = False) -> list[dict[str, Any]]:
-    """Get messages from persona's inbox.
-
-    Args:
-        persona_id: Persona ID
-        unread_only: If True, return only unread messages (in 'new' folder)
-
-    Returns:
-        List of message dictionaries with keys:
-        - id: Message key (for mark_read)
-        - from: Sender persona
-        - subject: Subject line
-        - date: Date string
-        - body: Message body preview (first 500 chars)
-        - is_read: Whether message has been read
-
-    Example:
-        >>> inbox = get_inbox("curator", unread_only=True)
-        >>> for msg in inbox:
-        ...     print(f"{msg['from']}: {msg['subject']}")
-    """
-    mbox = _ensure_mailbox(persona_id)
-    messages = []
-
-    mailbox_path = get_mail_root() / persona_id
-
-    for key in mbox.keys():
-        msg = mbox[key]
-
-        # Check if message is in 'new' (unread) or 'cur' (read) directory
-        # Maildir keys are like "1234567890.M0P12345.hostname"
-        is_read = (mailbox_path / "cur" / key).exists()
-
-        # Skip read messages if unread_only
-        if unread_only and is_read:
-            continue
-
-        # Extract sender (strip @jules.local domain)
-        from_addr = msg.get("From", "unknown")
-        from_persona = from_addr.split("@")[0] if "@" in from_addr else from_addr
-
-        # Get body (first text/plain part)
-        body = ""
-        if msg.is_multipart():
-            for part in msg.walk():
-                if part.get_content_type() == "text/plain":
-                    body = part.get_payload(decode=True).decode("utf-8", errors="replace")
-                    break
-        else:
-            body = msg.get_payload(decode=True).decode("utf-8", errors="replace")
-
-        messages.append(
-            {
-                "id": key,
-                "from": from_persona,
-                "subject": msg.get("Subject", "(no subject)"),
-                "date": msg.get("Date", ""),
-                "body": body[:500] + ("..." if len(body) > 500 else ""),
-                "is_read": is_read,
-            }
+class S3MailboxBackend(MailboxBackend):
+    def _get_s3_client(self):
+        # Specific configuration for Internet Archive S3 compatibility
+        my_config = Config(
+            s3={'addressing_style': 'path', 'payload_signing_enabled': False},
+            retries={'max_attempts': 3}
         )
+        kwargs = {"config": my_config}
+        if S3_ENDPOINT: kwargs["endpoint_url"] = S3_ENDPOINT
+        return boto3.client("s3", **kwargs)
 
-    mbox.close()
-    return messages
+    def send_message(self, from_id: str, to_id: str, subject: str, body: str, attachments: Optional[List[str]] = None) -> str:
+        s3 = self._get_s3_client()
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = from_id
+        msg["To"] = to_id
+        content = body
+        if attachments: content += "\n\nAttachments: " + ", ".join(attachments)
+        msg.set_content(content)
+        message_id = str(uuid.uuid4())
+        key = f"{to_id}/{message_id}.eml"
+        
+        # Metadata is more widely supported than Tagging (e.g. Internet Archive)
+        metadata = {
+            "subject": subject[:100], 
+            "from-id": from_id,
+            "seen": "0"
+        }
+        
+        body_bytes = msg.as_bytes()
+        
+        # Internet Archive S3 is extremely picky about Content-Length and 100-continue.
+        # requests handles this more reliably than boto3's default behavior for some endpoints.
+        if S3_ENDPOINT and "archive.org" in S3_ENDPOINT:
+            import base64
+            auth = base64.b64encode(f"{s3._request_signer._credentials.access_key}:{s3._request_signer._credentials.secret_key}".encode()).decode()
+            headers = {
+                "Content-Length": str(len(body_bytes)),
+                "Authorization": f"Lowry {s3._request_signer._credentials.access_key}:{s3._request_signer._credentials.secret_key}", # IA specific auth style sometimes
+                "Content-Type": "message/rfc822"
+            }
+            # IA S3 also supports standard S3 auth via headers if we use the correct signer
+            # But let's try the most robust way: boto3 s3.put_object but force content-length
+            # Actually, let's try boto3 one more time with a very specific param:
+            try:
+                s3.put_object(
+                    Bucket=BUCKET_NAME, Key=key, Body=body_bytes,
+                    Metadata=metadata, ContentLength=len(body_bytes),
+                    ContentType="message/rfc822"
+                )
+            except Exception as e:
+                if "411" in str(e) or "403" in str(e):
+                    # Fallback to requests with IA-specific Lowry auth
+                    url = f"{S3_ENDPOINT}/{BUCKET_NAME}/{key}"
+                    creds = s3._request_signer._credentials
+                    headers = {
+                        "Content-Length": str(len(body_bytes)),
+                        "Authorization": f"Lowry {creds.access_key}:{creds.secret_key}",
+                        "Content-Type": "message/rfc822",
+                        "x-archive-meta-mediatype": "texts",
+                        "x-archive-meta-collection": "opensource",
+                        "x-amz-auto-make-bucket": "1"
+                    }
+                    # Add metadata as x-amz-meta-* headers for IA
+                    for k, v in metadata.items():
+                        headers[f"x-amz-meta-{k}"] = v
+                    
+                    resp = requests.put(url, data=body_bytes, headers=headers, timeout=30)
+                    resp.raise_for_status()
+                else:
+                    raise
+        else:
+            s3.put_object(
+                Bucket=BUCKET_NAME, Key=key, Body=body_bytes,
+                Metadata=metadata, ContentLength=len(body_bytes)
+            )
+        return message_id
 
+    def list_inbox(self, persona_id: str, unread_only: bool = False) -> List[Dict[str, Any]]:
+        s3 = self._get_s3_client()
+        results = []
+        try:
+            paginator = s3.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=BUCKET_NAME, Prefix=f"{persona_id}/"):
+                for obj in page.get("Contents", []):
+                    key = obj["Key"]
+                    if not key.endswith(".eml"): continue
+                    
+                    head = s3.head_object(Bucket=BUCKET_NAME, Key=key)
+                    meta = head.get("Metadata", {})
+                    
+                    # Try metadata first, fallback to Tagging
+                    is_seen = meta.get("seen") == "1"
+                    if "seen" not in meta:
+                        try:
+                            tagging = s3.get_object_tagging(Bucket=BUCKET_NAME, Key=key)
+                            tags = {t["Key"]: t["Value"] for t in tagging["TagSet"]}
+                            is_seen = tags.get("Seen") == "1"
+                        except Exception:
+                            is_seen = False
 
-def get_message(persona_id: str, message_id: str) -> dict[str, Any] | None:
-    """Get full message details including attachments.
+                    if unread_only and is_seen: continue
+                    
+                    results.append({
+                        "key": key.split("/")[-1].replace(".eml", ""),
+                        "subject": meta.get("subject", "No Subject"),
+                        "from": meta.get("from-id", "Unknown"),
+                        "read": is_seen,
+                        "date": obj["LastModified"].isoformat()
+                    })
+        except s3.exceptions.NoSuchBucket: return []
+        except Exception as e:
+            # For IA-like backends, bucket might need to be created or item might not exist
+            return []
+        return results
 
-    Args:
-        persona_id: Persona ID
-        message_id: Message key from get_inbox()
+    def get_message(self, persona_id: str, key: str) -> Dict[str, Any]:
+        s3 = self._get_s3_client()
+        full_key = f"{persona_id}/{key}.eml"
+        response = s3.get_object(Bucket=BUCKET_NAME, Key=full_key)
+        raw_bytes = response["Body"].read()
+        msg = email.message_from_bytes(raw_bytes, policy=policy.default)
+        body = msg.get_content().strip() if hasattr(msg, 'get_content') else ""
+        return {
+            "key": key, "subject": msg["Subject"], "from": msg["From"],
+            "to": msg["To"], "body": body, "date": msg["Date"]
+        }
 
-    Returns:
-        Dictionary with:
-        - from: Sender
-        - subject: Subject
-        - date: Date
-        - body: Full body
-        - attachments: List of (filename, bytes) tuples
-        Or None if message not found
+    def mark_read(self, persona_id: str, key: str) -> None:
+        s3 = self._get_s3_client()
+        full_key = f"{persona_id}/{key}.eml"
+        
+        # For S3, updating metadata requires a COPY of the object onto itself
+        # This is more compatible than Tagging for IA/MinIO
+        try:
+            head = s3.head_object(Bucket=BUCKET_NAME, Key=full_key)
+            metadata = head.get("Metadata", {})
+            metadata["seen"] = "1"
+            
+            s3.copy_object(
+                Bucket=BUCKET_NAME,
+                Key=full_key,
+                CopySource={'Bucket': BUCKET_NAME, 'Key': full_key},
+                Metadata=metadata,
+                MetadataDirective='REPLACE'
+            )
+        except Exception:
+            # Fallback to tagging if COPY fails or is not desired
+            try:
+                s3.put_object_tagging(
+                    Bucket=BUCKET_NAME, Key=full_key,
+                    Tagging={'TagSet': [{'Key': 'Seen', 'Value': '1'}]}
+                )
+            except Exception:
+                pass
 
-    Example:
-        >>> msg = get_message("curator", "1234567890.123.mbox")
-        >>> print(msg["body"])
-        >>> for filename, content in msg["attachments"]:
-        ...     print(f"Attachment: {filename}")
-    """
-    mbox = _ensure_mailbox(persona_id)
+def _get_backend() -> MailboxBackend:
+    storage_type = os.environ.get("JULES_MAIL_STORAGE", "local").lower()
+    if storage_type == "s3":
+        return S3MailboxBackend()
+    return LocalMaildirBackend()
 
-    try:
-        msg = mbox[message_id]
-    except KeyError:
-        mbox.close()
-        return None
-
-    # Extract sender
-    from_addr = msg.get("From", "unknown")
-    from_persona = from_addr.split("@")[0] if "@" in from_addr else from_addr
-
-    # Get body
-    body = ""
-    if msg.is_multipart():
-        for part in msg.walk():
-            if part.get_content_type() == "text/plain":
-                body = part.get_payload(decode=True).decode("utf-8", errors="replace")
-                break
-    else:
-        body = msg.get_payload(decode=True).decode("utf-8", errors="replace")
-
-    # Get attachments
-    attachments = []
-    if msg.is_multipart():
-        for part in msg.walk():
-            if part.get_content_disposition() == "attachment":
-                filename = part.get_filename() or "unnamed"
-                content = part.get_payload(decode=True)
-                attachments.append((filename, content))
-
-    mbox.close()
-
-    return {
-        "from": from_persona,
-        "subject": msg.get("Subject", "(no subject)"),
-        "date": msg.get("Date", ""),
-        "body": body,
-        "attachments": attachments,
-    }
-
-
-def mark_read(persona_id: str, message_id: str) -> bool:
-    """Mark a message as read (move from new/ to cur/).
-
-    Args:
-        persona_id: Persona ID
-        message_id: Message key
-
-    Returns:
-        True if successful, False if message not found
-
-    Example:
-        >>> mark_read("curator", "1234567890.123.mbox")
-    """
-    import os
-    import shutil
-
-    mailbox_path = get_mail_root() / persona_id
-    new_file = mailbox_path / "new" / message_id
-    cur_file = mailbox_path / "cur" / message_id
-
-    # Move from new/ to cur/ if exists in new/
-    if new_file.exists():
-        shutil.move(str(new_file), str(cur_file))
-        return True
-
-    # Already in cur/ or doesn't exist
-    return cur_file.exists()
+def send_message(*args, **kwargs): return _get_backend().send_message(*args, **kwargs)
+def list_inbox(*args, **kwargs): return _get_backend().list_inbox(*args, **kwargs)
+def get_message(*args, **kwargs): return _get_backend().get_message(*args, **kwargs)
+def mark_read(*args, **kwargs): return _get_backend().mark_read(*args, **kwargs)
