@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.ops.media import extract_urls, find_media_references
-from egregora.utils.datetime_utils import ensure_datetime
+from egregora.utils.datetime_utils import parse_datetime_flexible
 
 if TYPE_CHECKING:
     from ibis.backends.duckdb import Backend as DuckDBBackend
@@ -92,7 +92,7 @@ class MessageRepository:
         if not urls:
             return discovered_count
 
-        timestamp = ensure_datetime(row.get("ts")) if row.get("ts") else None
+        timestamp = parse_datetime_flexible(row.get("ts")) if row.get("ts") else None
         row_metadata = {
             "ts": timestamp,
             "event_id": self._uuid_to_str(row.get("event_id")),
@@ -164,7 +164,7 @@ class MessageRepository:
                 if not refs:
                     continue
 
-                timestamp = ensure_datetime(row.get("ts")) if row.get("ts") else None
+                timestamp = parse_datetime_flexible(row.get("ts")) if row.get("ts") else None
                 row_metadata = {
                     "ts": timestamp,
                     "event_id": self._uuid_to_str(row.get("event_id")),

@@ -7,8 +7,6 @@ from typing import TYPE_CHECKING, Any
 
 from dateutil import parser as dateutil_parser
 
-from egregora.exceptions import EgregoraError
-
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -32,8 +30,8 @@ def parse_datetime_flexible(
         A timezone-aware ``datetime`` object normalized to the ``default_timezone``.
 
     Raises:
-        InvalidDateTimeInputError: if the input is None or an empty string.
-        DateTimeParsingError: if parsing fails.
+        TypeError: If the input is ``None``, an empty string, or an invalid type.
+        ValueError: If parsing fails for a valid input type.
 
     """
     dt = _to_datetime(value, parser_kwargs=parser_kwargs)
@@ -43,7 +41,7 @@ def parse_datetime_flexible(
 def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) -> datetime:
     """Convert a value to a datetime object without timezone normalization."""
     if value is None:
-        raise InvalidDateTimeInputError("None", "Input value cannot be None")
+        raise TypeError("Input value cannot be None")
 
     if hasattr(value, "to_pydatetime"):
         value = value.to_pydatetime()
@@ -53,14 +51,13 @@ def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) 
     if isinstance(value, date):
         return datetime.combine(value, datetime.min.time())
 
+    # Integers are ambiguous and not supported.
     if isinstance(value, int):
-        raise DateTimeParsingError(str(value), ValueError("Integer input is not supported"))
+        raise ValueError("Integer input is not supported for datetime parsing")
 
     raw = str(value).strip()
     if not raw:
-        raise InvalidDateTimeInputError(
-            str(value), "Input value cannot be an empty or whitespace-only string"
-        )
+        raise TypeError("Input value cannot be an empty or whitespace-only string")
 
     # Fast-path for ISO 8601 format, which is much faster to parse
     try:
@@ -70,7 +67,7 @@ def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) 
         try:
             return dateutil_parser.parse(raw, **(parser_kwargs or {}))
         except (TypeError, ValueError, OverflowError) as e:
-            raise DateTimeParsingError(raw, e) from e
+            raise ValueError(f"Failed to parse datetime from '{raw}'") from e
 
 
 def normalize_timezone(dt: datetime, *, default_timezone: tzinfo = UTC) -> datetime:
@@ -92,56 +89,7 @@ def normalize_timezone(dt: datetime, *, default_timezone: tzinfo = UTC) -> datet
     return dt.astimezone(default_timezone)
 
 
-def ensure_datetime(value: datetime | str | Any) -> datetime:
-    """Parse a value into a timezone-aware datetime, raising TypeError on failure.
-
-    This serves as a strict version of ``parse_datetime_flexible``, suitable for
-    cases where a valid datetime is required.
-
-    Args:
-        value: The value to convert.
-
-    Returns:
-        A timezone-aware ``datetime`` object.
-
-    Raises:
-        TypeError: If the value cannot be converted to a ``datetime``.
-
-    """
-    try:
-        return parse_datetime_flexible(value, default_timezone=UTC)
-    except (DateTimeParsingError, InvalidDateTimeInputError) as e:
-        msg = f"Unsupported datetime type: {type(value)}"
-        raise TypeError(msg) from e
-
-
-class DateTimeError(EgregoraError):
-    """Base exception for datetime parsing and manipulation errors."""
-
-
-class InvalidDateTimeInputError(DateTimeError):
-    """Raised when the input value for a datetime operation is invalid (e.g., None, empty string)."""
-
-    def __init__(self, value: str, reason: str) -> None:
-        self.value = value
-        self.reason = reason
-        super().__init__(f"Invalid datetime input '{value}': {reason}")
-
-
-class DateTimeParsingError(DateTimeError):
-    """Raised when a string cannot be parsed into a datetime object."""
-
-    def __init__(self, value: str, original_exception: Exception) -> None:
-        self.value = value
-        self.original_exception = original_exception
-        super().__init__(f"Failed to parse datetime from '{value}': {original_exception}")
-
-
 __all__ = [
-    "DateTimeError",
-    "DateTimeParsingError",
-    "InvalidDateTimeInputError",
-    "ensure_datetime",
     "normalize_timezone",
     "parse_datetime_flexible",
 ]

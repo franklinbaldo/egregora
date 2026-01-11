@@ -19,11 +19,7 @@ from PIL import Image
 from pydantic_ai import Agent
 from ratelimit import limits, sleep_and_retry
 
-from egregora.agents.enricher import (
-    EnrichmentOutput,
-    ensure_datetime,
-    load_file_as_binary_content,
-)
+from egregora.agents.enricher import EnrichmentOutput, load_file_as_binary_content
 from egregora.exceptions import EgregoraError
 from egregora.input_adapters.whatsapp.commands import extract_commands
 from egregora.knowledge.profiles import remove_profile_avatar, update_profile_avatar
@@ -498,7 +494,17 @@ def process_avatar_commands(
         target = command["target"]
         if cmd_type in ("set", "unset") and target == "avatar":
             if cmd_type == "set":
-                timestamp_dt = ensure_datetime(timestamp_raw)
+                try:
+                    timestamp_dt = parse_datetime_flexible(timestamp_raw)
+                except (ValueError, TypeError):
+                    logger.warning(
+                        "Could not parse timestamp for avatar command for author %s: %s",
+                        author_uuid,
+                        timestamp_raw,
+                        exc_info=True,
+                    )
+                    continue  # Skip this command if timestamp is invalid
+
                 result = _process_set_avatar_command(
                     author_uuid=author_uuid,
                     timestamp=timestamp_dt,

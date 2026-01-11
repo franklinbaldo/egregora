@@ -5,11 +5,7 @@ from datetime import UTC, date, datetime
 import pytest
 from freezegun import freeze_time
 
-from egregora.utils.datetime_utils import (
-    DateTimeParsingError,
-    InvalidDateTimeInputError,
-    parse_datetime_flexible,
-)
+from egregora.utils.datetime_utils import parse_datetime_flexible
 
 # Define a set of valid inputs and their expected outputs
 VALID_INPUTS = {
@@ -26,11 +22,11 @@ VALID_INPUTS = {
 
 # Define a set of invalid inputs and the exceptions they should raise
 INVALID_INPUTS = {
-    "none": (None, InvalidDateTimeInputError),
-    "empty_string": ("", InvalidDateTimeInputError),
-    "whitespace": ("   ", InvalidDateTimeInputError),
-    "invalid_string": ("not a date", DateTimeParsingError),
-    "integer": (123, DateTimeParsingError),
+    "none": (None, TypeError),
+    "empty_string": ("", TypeError),
+    "whitespace": ("   ", TypeError),
+    "invalid_string": ("not a date", ValueError),
+    "integer": (123, ValueError),
 }
 
 

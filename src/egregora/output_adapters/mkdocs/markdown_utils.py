@@ -5,12 +5,7 @@ from __future__ import annotations
 import re
 from datetime import UTC, date, datetime
 
-from egregora.utils.datetime_utils import (
-    DateTimeError,
-    DateTimeParsingError,
-    InvalidDateTimeInputError,
-    parse_datetime_flexible,
-)
+from egregora.utils.datetime_utils import parse_datetime_flexible
 
 DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
@@ -33,7 +28,7 @@ def extract_clean_date(date_obj: str | date | datetime) -> str:
         # Use our robust parser on the *matched part* of the string.
         parsed_dt = parse_datetime_flexible(match.group(1))
         return parsed_dt.date().isoformat()
-    except (DateTimeParsingError, InvalidDateTimeInputError) as e:
+    except (ValueError, TypeError) as e:
         # The pattern was not a valid date (e.g., "2023-99-99"), so fallback.
         raise DateExtractionError(date_str, e) from e
 
@@ -43,13 +38,13 @@ def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
     try:
         dt = parse_datetime_flexible(raw_date, default_timezone=UTC)
         return dt.strftime("%Y-%m-%d %H:%M")
-    except (DateTimeParsingError, AttributeError, ValueError, InvalidDateTimeInputError) as e:
+    except (ValueError, TypeError) as e:
         # This will be raised if parse_datetime_flexible fails,
         # which covers all failure modes (None input, empty strings, bad data).
         raise FrontmatterDateFormattingError(str(raw_date), e) from e
 
 
-class FrontmatterDateFormattingError(DateTimeError):
+class FrontmatterDateFormattingError(ValueError):
     """Raised when a date string for frontmatter cannot be parsed."""
 
     def __init__(self, date_str: str, original_exception: Exception) -> None:
@@ -61,7 +56,7 @@ class FrontmatterDateFormattingError(DateTimeError):
         )
 
 
-class DateExtractionError(DateTimeError):
+class DateExtractionError(ValueError):
     """Raised when a date cannot be extracted from a string."""
 
     def __init__(self, date_str: str, original_exception: Exception | None = None) -> None:
