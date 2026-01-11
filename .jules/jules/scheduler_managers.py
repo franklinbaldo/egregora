@@ -6,6 +6,8 @@ import sys
 from datetime import datetime, timezone
 from typing import Any
 
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
+
 from jules.client import JulesClient
 from jules.exceptions import BranchError, MergeError
 from jules.github import (
@@ -13,6 +15,7 @@ from jules.github import (
     get_pr_by_session_id_any_state,
     get_pr_details_via_gh,
 )
+from jules.reconciliation_tracker import ReconciliationTracker
 from jules.scheduler import sprint_manager, JULES_BRANCH, JULES_SCHEDULER_PREFIX
 from jules.scheduler_models import CycleState, PersonaConfig, PRStatus, SessionRequest
 
@@ -347,16 +350,38 @@ class PRManager:
         Returns:
             True if all checks pass (or no checks exist)
         """
+        mergeable = pr_details.get("mergeable")
+        if mergeable is None:
+            print(f"⏳ PR #{pr_details.get('number')} mergeability is UNKNOWN. Waiting...")
+            return False
+        if mergeable is False:
+            print(f"❌ PR #{pr_details.get('number')} is NOT mergeable (conflicts).")
+            return False
+
         status_checks = pr_details.get("statusCheckRollup", [])
         if not status_checks:
-            return True  # No checks = passing
+            print("✅ No status checks found.")
+            return True
 
+        all_passing = True
         for check in status_checks:
-            status = (check.get("conclusion") or check.get("status") or "").upper()
-            if status not in ["SUCCESS", "NEUTRAL", "SKIPPED", "COMPLETED"]:
-                return False
-        return True
+            name = check.get("context") or check.get("name") or "Unknown"
+            status = (check.get("conclusion") or check.get("status") or check.get("state") or "").upper()
 
+            if status in ["SUCCESS", "NEUTRAL", "SKIPPED", "COMPLETED"]:
+                print(f"✅ {name}: {status}")
+            else:
+                print(f"⏳ {name}: {status} (PENDING/FAILED)")
+                all_passing = False
+
+        return all_passing
+
+    @retry(
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception(lambda e: isinstance(e, MergeError) and "permission denied" not in str(e).lower() and "403" not in str(e).lower()),
+        reraise=True
+    )
     def merge_into_jules(self, pr_number: int) -> None:
         """Merge a PR into the Jules branch using gh CLI.
 
@@ -384,7 +409,7 @@ class PRManager:
                 check=True,
                 capture_output=True,
             )
-            print(f"Successfully merged PR #{pr_number} into '{self.jules_branch}'.") 
+            print(f"Successfully merged PR #{pr_number} into '{self.jules_branch}'.")
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
             raise MergeError(f"Failed to merge PR #{pr_number}: {stderr}") from e
@@ -790,6 +815,14 @@ class ReconciliationManager:
         """
         from jules.github import GitHubClient
 
+        tracker = ReconciliationTracker()
+        if not tracker.can_reconcile(sprint_number):
+            print(
+                f"⚠️  Reconciliation already attempted for sprint {sprint_number}. "
+                "Skipping to avoid loops."
+            )
+            return None
+
         print(f"\n🔄 Creating reconciliation session for drift PR #{drift_pr_number}...")
 
         # Get the PR diff
@@ -857,6 +890,7 @@ Your task is to reconcile the drifted changes with the current `main` branch.
 
             session_id = result.get("name", "").split("/")[-1]
             print(f"✅ Created reconciliation session: {session_id}")
+            tracker.mark_reconciled(sprint_number, session_id)
             return session_id
 
         except Exception as e:
