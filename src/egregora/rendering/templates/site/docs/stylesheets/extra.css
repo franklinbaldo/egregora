@@ -151,14 +151,8 @@ body,
 
 .portal-hero p {
   font-size: 1.4rem !important;
-  max-width: 800px !important;
-  color: rgba(255, 255, 255, 0.8) !important;
-  font-weight: 300 !important;
-  line-height: 1.6 !important;
-}
-
-/* Footer Evolution */
-.md-footer {
+  max-width: 800px !importa...
+[omitted a few lines]
   background-color: transparent !important;
   border-top: 1px solid rgba(255, 255, 255, 0.03);
   padding: 40px 0;
