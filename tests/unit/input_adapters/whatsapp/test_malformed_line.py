@@ -1,13 +1,13 @@
-
 import zipfile
 from datetime import date
 from pathlib import Path
+
 import pytest
 
 from egregora.input_adapters.whatsapp.parsing import (
+    MalformedLineError,
     WhatsAppExport,
     parse_source,
-    MalformedLineError,
 )
 
 
