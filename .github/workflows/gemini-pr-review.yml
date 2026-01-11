@@ -359,12 +359,12 @@ jobs:
             }
 
             // Extract JSON from response
-            const jsonMatch = raw.match(/```json\s*([\s\S]*?)\s*```/i) || raw.match(/\{[\s\S]*\}/);
+            const jsonMatch = raw.match(/```json\s*([\s\S]*?)\s*```/i) || raw.match(/\{[\s\S]*\}/s);
             if (!jsonMatch) {
               throw new Error(`NO_JSON_FOUND: Response does not contain JSON. Preview: ${preview}`);
             }
 
-            const candidate = jsonMatch[1] || jsonMatch[0];
+            const candidate = (jsonMatch[1] || jsonMatch[0]).trim();
 
             const sanitizeJsonString = (input) => {
               let output = '';
@@ -379,7 +379,7 @@ jobs:
                     escape = false;
                     continue;
                   }
-                  if (char === '\\\\') {
+                  if (char === '\\') {
                     output += char;
                     escape = true;
                     continue;
@@ -394,11 +394,10 @@ jobs:
                     continue;
                   }
                   if (char === '\r') {
-                    output += '\\r';
                     continue;
                   }
                   if (char === '\t') {
-                    output += '\\t';
+                    output += '  ';
                     continue;
                   }
                 } else if (char === '"') {
