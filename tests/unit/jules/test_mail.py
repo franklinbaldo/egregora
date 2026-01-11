@@ -1,7 +1,14 @@
 import os
+import sys
+from pathlib import Path
+
 import pytest
 import boto3
 from moto import mock_aws
+
+# Add jules to path
+sys.path.insert(0, str(Path(__file__).parents[3] / ".jules"))
+
 from jules.mail import send_message, list_inbox, get_message, mark_read, MAIL_ROOT, BUCKET_NAME
 
 @pytest.fixture(params=["local", "s3"])
