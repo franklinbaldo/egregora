@@ -164,7 +164,7 @@ def get_open_prs(owner: str, repo: str) -> list[dict[str, Any]]:
     try:
         prs = client._get(
             f"repos/{owner}/{repo}/pulls",
-            params={"state": "open", "per_page": 50, "sort": "updated", "direction": "desc"},
+            params={"state": "open", "per_page": 100, "sort": "updated", "direction": "desc"},
         )
     except Exception:
         return []
@@ -279,6 +279,8 @@ def get_pr_details_via_gh(pr_number: int, repo_path: str = ".") -> dict[str, Any
         "has_conflicts": pr.get("mergeable_state") == "dirty", # Approximate mapping
         "passed_all_checks": all_passed,
         "failed_check_names": failed_check_names,
+        "mergeable": pr.get("mergeable"),
+        "mergeable_state": pr.get("mergeable_state"),
         "changed_files": [], # Would need another API call, skipping for perf unless critical
         "reviews": reviews_data,
         "latestReviews": reviews_data, # Simplification
