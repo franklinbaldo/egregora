@@ -70,112 +70,6 @@ PROFILE_DATE_REGEX = re.compile(r"(\d{4}-\d{2}-\d{2})")
 _AUTHORS_LIST_REGEX = re.compile(r"^authors:\s*\n((?:\s*-\s+.+\n?)+)", re.MULTILINE)
 _AUTHORS_SINGLE_REGEX = re.compile(r"^authors:\s*(.+)$", re.MULTILINE)
 
-# Avatar generation constants
-AVATAR_ACCESSORIES = ["Blank", "Kurt", "Prescription01", "Prescription02", "Round", "Sunglasses", "Wayfarers"]
-AVATAR_CLOTHES = [
-    "BlazerShirt",
-    "BlazerSweater",
-    "CollarSweater",
-    "GraphicShirt",
-    "Hoodie",
-    "Overall",
-    "ShirtCrewNeck",
-    "ShirtScoopNeck",
-    "ShirtVNeck",
-]
-AVATAR_EYES = [
-    "Close",
-    "Cry",
-    "Default",
-    "Dizzy",
-    "EyeRoll",
-    "Happy",
-    "Hearts",
-    "Side",
-    "Squint",
-    "Surprised",
-    "Wink",
-    "WinkWacky",
-]
-AVATAR_EYEBROWS = [
-    "Angry",
-    "AngryNatural",
-    "Default",
-    "DefaultNatural",
-    "FlatNatural",
-    "RaisedExcited",
-    "RaisedExcitedNatural",
-    "SadConcerned",
-    "SadConcernedNatural",
-    "UnibrowNatural",
-    "UpDown",
-    "UpDownNatural",
-]
-AVATAR_MOUTHS = [
-    "Concerned",
-    "Default",
-    "Disbelief",
-    "Eating",
-    "Grimace",
-    "Sad",
-    "ScreamOpen",
-    "Serious",
-    "Smile",
-    "Tongue",
-    "Twinkle",
-    "Vomit",
-]
-AVATAR_SKIN_COLORS = ["Tanned", "Yellow", "Pale", "Light", "Brown", "DarkBrown", "Black"]
-AVATAR_TOPS = [
-    "NoHair",
-    "Eyepatch",
-    "Hat",
-    "Hijab",
-    "Turban",
-    "WinterHat1",
-    "WinterHat2",
-    "WinterHat3",
-    "WinterHat4",
-    "LongHairBigHair",
-    "LongHairBob",
-    "LongHairBun",
-    "LongHairCurly",
-    "LongHairCurvy",
-    "LongHairDreads",
-    "LongHairFrida",
-    "LongHairFro",
-    "LongHairFroBand",
-    "LongHairNotTooLong",
-    "LongHairShavedSides",
-    "LongHairMiaWallace",
-    "LongHairStraight",
-    "LongHairStraight2",
-    "LongHairStraightStrand",
-    "ShortHairDreads01",
-    "ShortHairDreads02",
-    "ShortHairFrizzle",
-    "ShortHairShaggyMullet",
-    "ShortHairShortCurly",
-    "ShortHairShortFlat",
-    "ShortHairShortRound",
-    "ShortHairShortWaved",
-    "ShortHairSides",
-    "ShortHairTheCaesar",
-    "ShortHairTheCaesarSidePart",
-]
-AVATAR_HAIR_COLORS = [
-    "Auburn",
-    "Black",
-    "Blonde",
-    "BlondeGolden",
-    "Brown",
-    "BrownDark",
-    "PastelPink",
-    "Platinum",
-    "Red",
-    "SilverGray",
-]
-
 
 def _get_uuid_from_profile(profile_path: Path) -> str:
     """Extract UUID from profile frontmatter."""
@@ -371,6 +265,34 @@ def write_profile(
     return str(target_path)
 
 
+# Cache for avatar options to avoid repeated file I/O
+_AVATAR_OPTIONS_CACHE: dict[str, list[str]] | None = None
+
+
+def _load_avatar_options() -> dict[str, list[str]]:
+    """Load avatar options from YAML file."""
+    global _AVATAR_OPTIONS_CACHE
+    if _AVATAR_OPTIONS_CACHE is not None:
+        return _AVATAR_OPTIONS_CACHE
+
+    try:
+        # Use importlib.resources to access package data reliably
+        from importlib import resources
+
+        # The path should be relative to the 'egregora' package
+        # Assuming 'resources' is a subdirectory of 'egregora'
+        with resources.files("egregora").joinpath("resources/avatar_options.yml").open("r") as f:
+            options = yaml.safe_load(f)
+            if not isinstance(options, dict):
+                raise TypeError("Avatar options YAML must be a dictionary.")
+            _AVATAR_OPTIONS_CACHE = options
+            return options
+    except (ModuleNotFoundError, FileNotFoundError, yaml.YAMLError, TypeError) as e:
+        logger.exception("Failed to load avatar_options.yml, avatar generation may fail: %s", e)
+        # Return an empty dict on failure to prevent crashes
+        return {}
+
+
 def generate_fallback_avatar_url(author_uuid: str) -> str:
     """Generate a deterministic fallback avatar URL using avataaars.io.
 
@@ -381,26 +303,32 @@ def generate_fallback_avatar_url(author_uuid: str) -> str:
         A URL to a generated avatar image
 
     """
+    options = _load_avatar_options()
+    if not options:
+        return ""  # Return empty if options failed to load
+
     # Deterministically select options based on UUID hash
-    # We use different slices of the hash to pick different attributes
     h = hashlib.sha256(author_uuid.encode()).hexdigest()
 
     # Helper to pick from options
-    def pick(options: list[str], offset: int) -> str:
-        idx = int(h[offset : offset + 2], 16) % len(options)
-        return options[idx]
+    def pick(key: str, offset: int) -> str:
+        choices = options.get(key, [""])
+        if not choices:
+            return ""
+        idx = int(h[offset : offset + 2], 16) % len(choices)
+        return choices[idx]
 
     params = [
-        f"accessoriesType={pick(AVATAR_ACCESSORIES, 0)}",
+        f"accessoriesType={pick('accessories', 0)}",
         "avatarStyle=Circle",
-        f"clotheType={pick(AVATAR_CLOTHES, 2)}",
-        f"eyeType={pick(AVATAR_EYES, 4)}",
-        f"eyebrowType={pick(AVATAR_EYEBROWS, 6)}",
+        f"clotheType={pick('clothes', 2)}",
+        f"eyeType={pick('eyes', 4)}",
+        f"eyebrowType={pick('eyebrows', 6)}",
         "facialHairType=Blank",
-        f"hairColor={pick(AVATAR_HAIR_COLORS, 8)}",
-        f"mouthType={pick(AVATAR_MOUTHS, 10)}",
-        f"skinColor={pick(AVATAR_SKIN_COLORS, 12)}",
-        f"topType={pick(AVATAR_TOPS, 14)}",
+        f"hairColor={pick('hair_colors', 8)}",
+        f"mouthType={pick('mouths', 10)}",
+        f"skinColor={pick('skin_colors', 12)}",
+        f"topType={pick('tops', 14)}",
     ]
 
     return f"https://avataaars.io/?{'&'.join(params)}"
