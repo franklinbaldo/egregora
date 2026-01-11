@@ -43,6 +43,7 @@ if TYPE_CHECKING:
     from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
+# TODO: [Taskmaster][Refactor] Move magic constants to a dedicated configuration module.
 SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 MAX_AVATAR_SIZE_BYTES = 10 * 1024 * 1024
@@ -214,6 +215,7 @@ def _get_extension_from_mime_type(content_type: str, url: str) -> str:
         if content_type.startswith(mime):
             return ext
 
+    # TODO: [Taskmaster][Refactor] Refactor brittle fallback logic for MIME type detection.
     return _validate_image_format(url or ".jpg")
 
 
@@ -287,6 +289,7 @@ def _save_avatar_file(content: bytes, avatar_uuid: uuid.UUID, ext: str, media_di
 
 @sleep_and_retry
 @limits(calls=10, period=60)
+# TODO: [Taskmaster][Refactor] Decompose the `download_avatar_from_url` function to reduce its complexity.
 def download_avatar_from_url(
     url: str, media_dir: Path, timeout: float = DEFAULT_DOWNLOAD_TIMEOUT
 ) -> tuple[uuid.UUID, Path]:
@@ -365,6 +368,7 @@ class AvatarContext:
     cache: EnrichmentCache | None = None
 
 
+# TODO: [Taskmaster][Refactor] Refactor `_enrich_avatar` to separate caching, prompt rendering, and agent execution.
 def _enrich_avatar(
     avatar_path: Path,
     author_uuid: str,
@@ -447,6 +451,7 @@ def _enrich_avatar(
         if context.cache:
             context.cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
 
+    # TODO: [Taskmaster][Refactor] Refine exception handling to be more specific and avoid catching broad exceptions.
     except (httpx.HTTPError, OSError, ValueError, RuntimeError) as exc:
         # We catch all exceptions here because avatar enrichment is an optional enhancement.
         # If it fails (e.g., API error, model refusal, file I/O), we log a warning
