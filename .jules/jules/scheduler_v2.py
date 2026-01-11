@@ -358,7 +358,13 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
     next_persona = personas[next_idx]
     print(f"🚀 Starting session for {next_persona.emoji} {next_persona.id}")
 
-    # Create session request (using jules branch directly)
+    # Create short stable branch for session
+    session_branch = branch_mgr.create_session_branch(
+        base_branch=branch_mgr.jules_branch,
+        persona_id=next_persona.id,
+    )
+
+    # Create session request
     title = f"{next_persona.emoji} {next_persona.id}: automated cycle task for {repo_info['repo']}"
     request = SessionRequest(
         persona_id=next_persona.id,

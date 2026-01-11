@@ -182,6 +182,7 @@ def get_open_prs(owner: str, repo: str) -> list[dict[str, Any]]:
             "url": pr["html_url"],
             "author": {"login": pr["user"]["login"]},
             "isDraft": pr["draft"],
+            "body": pr["body"] or "",
         })
     return mapped_prs
 
@@ -202,7 +203,8 @@ def get_pr_by_session_id_any_state(owner: str, repo: str, session_id: str) -> di
 
     for pr in prs or []:
         head_ref = pr["head"]["ref"]
-        extracted_id = _extract_session_id(head_ref, "")
+        body = pr["body"] or ""
+        extracted_id = _extract_session_id(head_ref, body)
         if extracted_id == session_id:
             return {
                 "number": pr["number"],
@@ -455,11 +457,33 @@ def fetch_full_ci_logs(pr_number: int, branch: str, repo_full: str, cwd: str = "
 
 
 def get_repo_info() -> dict[str, str]:
-    """Get owner and repo from environment."""
+    """Get owner and repo from environment or git."""
+    owner = os.environ.get("GITHUB_REPOSITORY_OWNER")
+    repo_full = os.environ.get("GITHUB_REPOSITORY")
+    
+    if not owner or not repo_full:
+        import subprocess
+        try:
+            # Try to get from git remote
+            result = subprocess.run(
+                ["git", "remote", "get-url", "origin"],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            url = result.stdout.strip()
+            # Handle both HTTPS and SSH formats
+            # https://github.com/owner/repo.git or git@github.com:owner/repo.git
+            if "github.com" in url:
+                parts = url.replace(".git", "").replace(":", "/").split("/")
+                if len(parts) >= 2:
+                    owner = parts[-2]
+                    repo_full = f"{owner}/{parts[-1]}"
+        except Exception:
+            pass
+
     return {
-        "owner": os.environ.get("GITHUB_REPOSITORY_OWNER", "unknown"),
-        "repo": os.environ.get("GITHUB_REPOSITORY", "unknown").split("/")[-1]
-        if "/" in os.environ.get("GITHUB_REPOSITORY", "")
-        else "unknown",
-        "repo_full": os.environ.get("GITHUB_REPOSITORY", "unknown/unknown"),
+        "owner": owner or "unknown",
+        "repo": repo_full.split("/")[-1] if repo_full and "/" in repo_full else "unknown",
+        "repo_full": repo_full or "unknown/unknown",
     }
