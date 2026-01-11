@@ -27,11 +27,11 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
         Safe slug string suitable for filenames
 
     """
-    if text is None:
-        raise InvalidInputError("Input text cannot be None")
-
     # Normalize Unicode to ASCII using NFKD (preserves transliteration).
-    normalized = normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    try:
+        normalized = normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    except TypeError as e:
+        raise InvalidInputError("Input text cannot be None") from e
 
     # Choose the appropriate pre-configured slugifier.
     slugifier = slugify_lower if lowercase else slugify_case
