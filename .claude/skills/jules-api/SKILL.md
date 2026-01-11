@@ -65,12 +65,97 @@ Claude should **proactively suggest** creating Jules sessions for:
 - ✅ **Contextual**: "Review PR #123, focus on error handling"
 - ✅ **Actionable**: "Refactor parser.py to use Polars instead of Pandas"
 - ✅ **Scoped**: "Fix the timezone bug in commit abc123"
+- ✅ **Test-Driven**: "Use TDD approach with behavior-relevant tests"
 
 **Avoid vague prompts:**
 - ❌ "Improve the code"
 - ❌ "Make it better"
 - ❌ "Fix everything"
 - ❌ "Add features"
+
+### Test-Driven Development (TDD) Requirement
+
+**IMPORTANT**: Always instruct Jules to use Test-Driven Development (TDD) approach for better results.
+
+**Why TDD with Jules:**
+- ✅ Ensures code correctness before implementation
+- ✅ Creates behavior-relevant tests that validate actual requirements
+- ✅ Prevents regressions and edge case bugs
+- ✅ Provides clear acceptance criteria
+- ✅ Makes code more maintainable and documented
+
+**How to Request TDD:**
+
+Include this in every Jules prompt:
+```
+Use Test-Driven Development (TDD) approach:
+1. Write behavior-relevant tests first (cover expected behavior, edge cases, error conditions)
+2. Run tests to confirm they fail (red phase)
+3. Implement minimal code to make tests pass (green phase)
+4. Refactor while keeping tests passing (refactor phase)
+5. Ensure all tests have meaningful assertions that validate actual behavior
+```
+
+**Example Prompts with TDD:**
+
+**Good - With TDD**:
+```
+Add user authentication to the API.
+
+Use TDD approach:
+1. Write tests for: successful login, invalid credentials, token expiration, rate limiting
+2. Implement authentication logic to pass tests
+3. Refactor for security best practices
+
+Tests should validate actual behavior, not implementation details.
+```
+
+**Good - With TDD**:
+```
+Refactor the parser to use Polars instead of Pandas.
+
+Use TDD approach:
+1. Write behavior tests that validate current parser output
+2. Refactor to use Polars while keeping tests green
+3. Add performance benchmarks as tests
+
+Focus on behavior: input -> output validation, not internal implementation.
+```
+
+**Bad - Without TDD**:
+```
+Add user authentication to the API.
+```
+
+**What are "Behavior-Relevant" Tests:**
+- ✅ Test **what** the code does, not **how** it does it
+- ✅ Validate actual business requirements
+- ✅ Cover edge cases and error conditions
+- ✅ Test from user/caller perspective
+- ❌ Don't test implementation details
+- ❌ Don't test private methods directly
+- ❌ Don't create brittle tests that break on refactoring
+
+**Example of Behavior-Relevant Test:**
+```python
+# ✅ Good - Tests behavior
+def test_send_message_creates_event_in_log():
+    """When sending a message, it should be appended to the event log."""
+    send_message(from_persona="curator", to_persona="refactor", subject="Review", body="Check this")
+
+    events = read_event_log()
+    assert len(events) == 1
+    assert events[0]['event_type'] == 'send'
+    assert events[0]['from_persona'] == 'curator'
+    assert events[0]['to_persona'] == 'refactor'
+
+# ❌ Bad - Tests implementation
+def test_send_message_calls_append_event():
+    """Tests implementation detail, not behavior."""
+    with mock.patch('mail.append_event') as mock_append:
+        send_message(...)
+        assert mock_append.called  # Brittle, breaks on refactoring
+```
 
 ### 🔄 Jules Automatically Resumes From PR Comments
 
