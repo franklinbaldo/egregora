@@ -1,0 +1,42 @@
+name: Jules → Main Sync
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Jules Scheduler"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python (uv)
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: "3.12"
+          extras: "--all-extras"
+
+      - name: Merge jules → main if clean
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: .jules
+        run: |
+          set -euo pipefail
+          git fetch origin main jules
+          uv run python - <<'PY'
+          from jules.scheduler_managers import BranchManager
+          mgr = BranchManager()
+          mgr.merge_jules_into_main_direct()
+          PY
