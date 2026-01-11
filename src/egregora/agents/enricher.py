@@ -49,7 +49,7 @@ from egregora.orchestration.exceptions import CacheKeyNotFoundError
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.security.zip import validate_zip_contents
-from egregora.utils.datetime_utils import ensure_datetime
+from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.text import slugify
 
 if TYPE_CHECKING:
@@ -188,7 +188,7 @@ def _uuid_to_str(value: uuid.UUID | str | None) -> str | None:
 
 
 def _safe_timestamp_plus_one(timestamp: datetime | str | Any) -> datetime:
-    dt_value = ensure_datetime(timestamp)
+    dt_value = parse_datetime_flexible(timestamp)
     return dt_value + timedelta(seconds=1)
 
 
@@ -206,7 +206,7 @@ def _create_enrichment_row(
     if timestamp is None:
         return None
 
-    timestamp = ensure_datetime(timestamp)
+    timestamp = parse_datetime_flexible(timestamp)
     enrichment_timestamp = _safe_timestamp_plus_one(timestamp)
     enrichment_event_id = str(uuid.uuid4())
 
