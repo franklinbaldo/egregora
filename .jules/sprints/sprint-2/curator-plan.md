@@ -1,36 +1,35 @@
-# Plano: Curator - Sprint 2
+# Plan: Curator - Sprint 2
+**Persona:** Curator 🎭
+**Sprint:** 2
+**Created:** 2024-07-29 (during Sprint 1)
+**Priority:** High
 
-**Persona:** curator  
-**Sprint:** 2  
-**Criado em:** 2026-01-09 (durante sprint-1)
-**Prioridade:** Alta  
+## Goals
+The primary goal for Sprint 2 is to move beyond foundational fixes and begin establishing a distinct, high-quality user experience for the generated blogs. This involves implementing the initial design system and addressing key usability gaps.
 
-## Objetivos
+- [ ] **Verify Foundational Fixes:** Ensure all high-priority tasks from Sprint 1 (custom CSS, favicon, analytics removal, color palette) have been implemented correctly by Forge.
+- [ ] **Establish Typographic Hierarchy:** Create and document a clear, readable, and professional typography scale. Assign a task to Forge to implement it.
+- [ ] **Improve Navigation:** Address the broken "Media" link and reconsider the top-level navigation structure for better information architecture.
+- [ ] **Enhance "Empty State" UX:** Redesign the "No posts yet" message to be more welcoming and visually engaging.
+- [ ] **Begin A11y Audits:** Once the Lighthouse audit script is available (dependency on Forge), perform the first automated accessibility audit and create tasks for any identified issues.
 
-O `curator` tem como missão garantir uma excelente experiência de usuário (UX) para os blogs gerados pelo Egregora. Para o sprint-2, os objetivos são focar na implementação de melhorias de alto impacto que estabeleçam uma identidade visual única e profissional para o produto.
+## Dependencies
+- **Forge:** The majority of my work depends on Forge implementing the UX tasks I create. The Lighthouse audit script is a critical blocker.
 
-- [ ] **Verificar a implementação do novo esquema de cores:** Garantir que a paleta de cores personalizada (azul primário `#2c3e50`, verde de destaque `#27ae60`) foi corretamente aplicada aos templates.
-- [ ] **Verificar a adição do favicon:** Confirmar que um favicon customizado foi criado e está sendo corretamente exibido no site gerado.
-- [ ] **Verificar a remoção do Google Analytics:** Assegurar que o placeholder do Google Analytics foi completamente removido dos templates, alinhando o produto com sua proposta de "privacidade em primeiro lugar".
-- [ ] **Avaliar e criar tarefas para a tipografia:** Analisar a hierarquia tipográfica, o tamanho das fontes e o espaçamento para garantir a legibilidade e criar tarefas para a `forge`, se necessário.
+## Context
+Sprint 1 was focused on unblocking the curation cycle and fixing critical build issues. With a stable demo generation process, Sprint 2 can focus on the core user experience. The tasks are derived from the initial UX audit and aim to make the most impactful visual and navigational improvements first.
 
-## Dependências
+## Expected Deliverables
+1. **Verified Foundational UX:** Confirmation that the initial set of high-priority UX tasks are complete and correct.
+2. **Typography Spec:** A clear definition of the typographic scale in `docs/ux-vision.md`.
+3. **New UX Tasks:** A set of well-defined tasks in `.jules/tasks/todo/` for navigation, empty state, and any initial accessibility issues.
+4. **First Accessibility Report:** A summary of the initial Lighthouse audit findings, documented in a journal entry.
 
-- **forge:** A execução deste plano depende inteiramente do trabalho da `forge` para implementar as tarefas de UX criadas no sprint-1 (cores, favicon, analytics).
+## Risks and Mitigations
+| Risk | Probability | Impact | Mitigation |
+|---|---|---|---|
+| Forge is blocked or unable to complete tasks | Medium | High | I will create extremely detailed, atomic tasks with clear verification steps to minimize ambiguity and make implementation as straightforward as possible. |
+| Lighthouse script is not delivered | Medium | Medium | I will proceed with manual accessibility checks based on the UX Excellence Criteria, but this will be slower and less comprehensive. |
 
-## Contexto
-
-A auditoria de UX inicial realizada no sprint-1 revelou que, embora o blog gerado seja funcional, ele carece de uma identidade visual profissional. As tarefas criadas (`20260109-2027-ux-improve-color-palette.md`, `20260109-2027-ux-add-favicon.md`, `20260109-2028-ux-remove-analytics.md`) são a base para resolver essas questões. O Sprint 2 será dedicado a verificar a implementação dessas mudanças e aprofundar a análise em áreas secundárias, como a tipografia.
-
-## Entregáveis Esperados
-
-1.  **Validação das Tarefas de UX:** Confirmação de que as melhorias de design foram implementadas corretamente.
-2.  **Novas Tarefas (se necessário):** Criação de tarefas detalhadas para `forge` relacionadas a melhorias de tipografia.
-3.  **Atualização do `docs/ux-vision.md`:** Documentar as decisões de design tomadas (paleta de cores, etc.) na visão de UX do produto.
-
-## Riscos e Mitigações
-
-| Risco | Probabilidade | Impacto | Mitigação |
-|-------|---------------|---------|-----------|
-| `forge` não completa as tarefas a tempo | Média | Alto | Acompanhar o progresso das tarefas no início do sprint e comunicar a importância delas. |
-| As mudanças implementadas não correspondem à especificação | Baixa | Médio | As tarefas de UX possuem critérios de verificação claros para minimizar a ambiguidade. |
+## Proposed Collaborations
+- **With Visionary:** Discuss how the "Structured Data Sidecar" might be visualized or surfaced in the blog UI in future sprints. The goal is to ensure the front-end is prepared for richer data.
