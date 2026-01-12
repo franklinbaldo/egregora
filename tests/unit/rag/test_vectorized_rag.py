@@ -6,17 +6,20 @@ import pytest
 from egregora.config import EMBEDDING_DIM
 from egregora.rag.lancedb_backend import LanceDBRAGBackend
 
+# Initialize a random number generator for consistent, modern NumPy usage.
+rng = np.random.default_rng()
+
 
 class MockEmbeddingFn:
     def __call__(self, texts, task_type):
-        return [np.random.rand(EMBEDDING_DIM).tolist() for _ in texts]
+        return [rng.random(EMBEDDING_DIM).tolist() for _ in texts]
 
 
 class Document:
-    def __init__(self, document_id, text, document_type="POST"):
+    def __init__(self, document_id, content, document_type="POST"):
         self.document_id = document_id
-        self.text = text
-        self.document_type = document_type
+        self.content = content
+        self.type = document_type
         self.title = "Mock Title"
         self.author_slug = "mock-author"
         self.slug = f"mock-slug-{document_id}"
@@ -29,9 +32,9 @@ def sample_lancedb_backend(tmp_path):
     backend = LanceDBRAGBackend(db_dir, "test_table", MockEmbeddingFn())
 
     docs = [
-        Document("doc1", "This is the first chunk of doc1."),
-        Document("doc1", "This is the second chunk of doc1."),
-        Document("doc2", "This is the first chunk of doc2."),
+        Document("doc1", content="This is the first chunk of doc1."),
+        Document("doc1", content="This is the second chunk of doc1."),
+        Document("doc2", content="This is the first chunk of doc2."),
     ]
     backend.add(docs)
     return backend

@@ -1,6 +1,7 @@
 """Unit tests for the profile knowledge module."""
 
 import uuid
+
 import pytest
 
 from egregora.knowledge import profiles
@@ -35,11 +36,12 @@ def test_read_profile_reads_existing_profile(tmp_path):
     """Should correctly read an existing profile."""
     author_uuid = str(uuid.uuid4())
     profiles_dir = tmp_path / "profiles"
-    author_dir = profiles_dir / author_uuid
-    author_dir.mkdir()
-    profile_path = author_dir / "index.md"
+    profiles_dir.mkdir()
+    profile_path = profiles_dir / f"{author_uuid}.md"
     profile_content = f"---\nsubject: {author_uuid}\n---\n\nBio content."
     profile_path.write_text(profile_content, encoding="utf-8")
+    # For this test, we care about the content, not the metadata parsing.
+    # The function is expected to return the raw content of the profile file.
     assert profiles.read_profile(author_uuid, profiles_dir) == profile_content
 
 
