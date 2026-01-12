@@ -28,7 +28,8 @@ def mail_backend(request, tmp_path, monkeypatch):
             yield "s3"
 
 
-def test_send_and_receive(mail_backend):
+@pytest.mark.usefixtures("mail_backend")
+def test_send_and_receive():
     from_id = "curator@team"
     to_id = "refactor@team"
     subject = "Hybrid Test"
@@ -44,7 +45,8 @@ def test_send_and_receive(mail_backend):
     assert messages[0]["read"] is False
 
 
-def test_read_and_mark_seen(mail_backend):
+@pytest.mark.usefixtures("mail_backend")
+def test_read_and_mark_seen():
     persona = "reader@team"
     key = send_message("sender@team", persona, "Read Me", "Content")
 
@@ -56,7 +58,8 @@ def test_read_and_mark_seen(mail_backend):
     assert messages[0]["read"] is True
 
 
-def test_unread_filter(mail_backend):
+@pytest.mark.usefixtures("mail_backend")
+def test_unread_filter():
     persona = "filter@team"
     k1 = send_message("c@team", persona, "M1", "B1")
     k2 = send_message("c@team", persona, "M2", "B2")

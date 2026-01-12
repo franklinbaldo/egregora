@@ -53,4 +53,5 @@ def test_safe_path_join_with_empty_parts(tmp_path):
 def test_safe_path_join_raises_error_on_complex_traversal(tmp_path: Path) -> None:
     """Test a more complex path traversal attempt."""
     with pytest.raises(PathTraversalError):
-        safe_path_join(tmp_path, "a/b/c", "../../../d")
+        # This path resolves to <tmp_path>/../d, which is outside the base directory.
+        safe_path_join(tmp_path, "a/b/c", "../../../../d")
