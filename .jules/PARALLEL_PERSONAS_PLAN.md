@@ -69,138 +69,72 @@ Tick 3: Persona Fixes (if needed)
 - ❌ **Cannot do**: Complex `git pull`, `git rebase`, `git merge` operations (unreliable in sandbox)
 
 **Implementation**:
+
 - Personas create PRs as usual
 - Weaver downloads `.patch` files from GitHub (e.g., `https://github.com/owner/repo/pull/123.patch`)
 - Uses `git apply --check` to test applicability
 - Uses `git apply` to apply successful patches
 
-#### 2. **Append-Only Mail System** (Not Database)
+#### 2. **Hybrid S3/Maildir System** (The "Jules Mail" System)
 
-**Reasoning**: Align with egregora's append-only, event-sourcing philosophy.
+**Reasoning**: Robust, industry-standard storage that works both locally and in high-scale S3 environments (like Internet Archive).
 
 **Architecture**:
-```
-.jules/mail/events.jsonl  (append-only event log)
 
-Event types:
-- send: Persona sends a message
-- read: Persona reads a message
-- tag_add/tag_rm: Organize messages
-```
+- **Local**: Standard `Maildir` format in `.jules/mail/{persona_id}/`. Safe, atomic, and human-readable.
+- **S3**: `.eml` files stored in `s3://bucket/{persona_id}/{uuid}.eml`.
+- **Metadata**: Uses S3 Object Metadata (specifically `x-amz-meta-seen`) to track read status, avoiding the need for a separate database.
 
-**Why JSONL + Ibis**:
-- Consistent with egregora's data pipeline patterns
-- DuckDB + Ibis for efficient querying
-- No external dependencies (PostgreSQL, Redis, etc.)
-- Easy to inspect and debug (plain text)
-- Append-only = crash-safe
+**Why S3/Maildir**:
 
-#### 3. **Weaver as Integrator** (Not a New Persona)
+- **Compatibility**: Works across different execution environments.
+- **Atomic**: Maildir/S3 operations are naturally atomic, preventing corruption.
+- **Rich Context**: Supports standard email headers (Subject, From, To) for future external integration.
+- **Scale**: Can handle thousands of messages without performance indexing issues.
+
+#### 3. **Weaver as Integrator**
 
 **Reasoning**: Reuse existing "Integration & builds" persona.
 
-**Current Weaver Limitations**: Prompt is outdated and not designed for this workflow.
-
 **Required Changes**:
-- Rewrite `personas/weaver/prompt.md` to focus on patch integration
-- Remove old responsibilities (if any) that conflict with new role
-- Add tooling instructions (mail CLI, patch download)
 
-#### 4. **Mailbox-Per-Persona** (Not Global Queue)
-
-**Reasoning**: Isolate concerns and enable async communication.
-
-**Structure**:
-```
-.jules/mail/events.jsonl
-
-Each message has:
-- to: recipient persona ID
-- from: sender persona ID (or "weaver", "scheduler")
-- subject: Brief description
-- body: Full message content (conflict details, instructions, etc.)
-- attachments: URLs to patches, logs, etc.
-```
-
-**Projection**: Use Ibis queries to compute each persona's mailbox view:
-```python
-def get_inbox(persona_id: str) -> list[Message]:
-    # Latest events per message where to=persona_id and not deleted
-    ...
-```
+- Update `personas/weaver/prompt.md.j2` to focus on patch integration.
+- Add instructions for using the `jules-mail` CLI.
 
 ---
 
 ## Implementation Components
 
-### 1. Mail Backend (`jules/mail.py`)
+### 1. Mail Backend (`.jules/jules/mail.py`)
 
 **Purpose**: Core mail system for inter-persona communication.
 
 **Requirements**:
-- Append-only JSONL event log
-- Ibis schema for events (no DuckDB duplication)
-- Event types: `send`, `read`, `tag_add`, `tag_rm`, `trash`, `untrash`
-- Projections for: `inbox()`, `sent()`, `read_status()`, `tags()`
 
-**Key Functions**:
+- Supported backends: `LocalMaildirBackend`, `S3MailboxBackend`.
+- Environment-driven configuration via `JULES_MAIL_STORAGE`.
+- Unified interface for sending, listing, and marking messages as read.
+
+**Key Backend logic**:
+
 ```python
-def send_message(
-    from_persona: str,
-    to_persona: str,
-    subject: str,
-    body: str,
-    attachments: list[str] = [],
-) -> int:
-    """Append send event, return message_id."""
-
-def get_inbox(persona_id: str, unread_only: bool = False) -> list[Message]:
-    """Get messages addressed to this persona."""
-
-def mark_read(persona_id: str, message_id: int) -> None:
-    """Append read event."""
-```
-
-**Schema** (Ibis):
-```python
-EVENT_SCHEMA = ibis.schema({
-    "event_id": "string",
-    "ts": "string",  # ISO 8601 timestamp
-    "event_type": "string",
-    "message_id": "int64",
-    "actor": "string",  # persona performing action
-
-    # Message fields (only on 'send' events)
-    "from_persona": "string",
-    "to_persona": "string",
-    "subject": "string",
-    "body": "string",
-    "attachments": "array<string>",  # URLs
-
-    # Per-user fields (on read/tag events)
-    "read_at": "string",
-    "tag": "string",
-})
-```
-
-**Critical Fix**: For array operations, use:
-```python
-# ✅ Correct
-ibis.literal(persona_id).isin(_.to_persona)
-
-# ❌ Incorrect (doesn't work with DuckDB)
-_.to_persona.contains(persona_id)
+class MailboxBackend(ABC):
+    @abstractmethod
+    def send_message(self, from_id, to_id, subject, body, attachments=None): pass
+    @abstractmethod
+    def list_inbox(self, persona_id, unread_only=False): pass
+    @abstractmethod
+    def mark_read(self, persona_id, key): pass
 ```
 
 ---
 
-### 2. Mail CLI Tool (`jules/mail_cli.py`)
+### 2. Mail CLI Tool (`jules-mail`)
 
-**Purpose**: Command-line interface for personas to interact with mail system.
-
-**Why CLI**: Personas can invoke shell commands via their prompts. A CLI is the easiest interface.
+**Purpose**: Command-line interface for personas to interact with the Jules Mail system.
 
 **Commands**:
+
 ```bash
 # Send a message
 jules-mail send --to curator --subject "Conflict in PR #123" --body "..."
@@ -208,41 +142,12 @@ jules-mail send --to curator --subject "Conflict in PR #123" --body "..."
 # Read inbox
 jules-mail inbox --persona curator
 
-# Read specific message
+# Read specific message (interactive or via key)
 jules-mail read <message_id> --persona curator
-
-# Tag a message
-jules-mail tag add <message_id> needs-action --persona curator
 ```
 
 **Implementation**:
-```python
-# Use Typer for CLI
-import typer
-from jules.mail import send_message, get_inbox, mark_read
-
-app = typer.Typer()
-
-@app.command()
-def send(
-    to: str,
-    subject: str,
-    body: str,
-    from_persona: str = typer.Option(..., envvar="JULES_PERSONA"),
-    attach: list[str] = [],
-):
-    msg_id = send_message(from_persona, to, subject, body, attach)
-    print(f"✅ Sent message #{msg_id}")
-
-@app.command()
-def inbox(persona: str, unread: bool = False):
-    messages = get_inbox(persona, unread_only=unread)
-    for msg in messages:
-        flag = "*" if not msg.read_at else " "
-        print(f"{flag} #{msg.message_id} | {msg.from_persona} | {msg.subject}")
-```
-
-**Installation**: Add as CLI entry point in `pyproject.toml` or create standalone script.
+The `jules-mail` command is registered as an entry point in `pyproject.toml` and points to `jules.mail_cli:app`. It supports both S3 and Local backends seamlessly.
 
 ---
 
@@ -259,6 +164,7 @@ def inbox(persona: str, unread: bool = False):
 5. **Create Consolidated PR**: Single PR with all successfully applied patches
 
 **Prompt Template** (excerpt):
+
 ```markdown
 # Weaver: Integration Orchestrator
 
@@ -273,13 +179,17 @@ gh pr list --label jules-sprint-N --json number,author,title,headRefName
 ```
 
 ### 2. Download Patches
+
 For each PR, download the unified diff:
+
 ```bash
 curl -L https://github.com/{owner}/{repo}/pull/{pr_number}.patch -o /tmp/pr-{pr_number}.patch
 ```
 
 ### 3. Test Applicability
+
 Create a clean branch from main and test each patch:
+
 ```bash
 git checkout -b integration-test origin/main
 for patch in /tmp/pr-*.patch; do
@@ -292,6 +202,7 @@ done
 ```
 
 ### 4. Apply Clean Patches
+
 ```bash
 git checkout -b jules-sprint-N-integration origin/main
 for patch in /tmp/pr-*.patch; do
@@ -302,16 +213,20 @@ git commit -m "chore: integrate sprint N personas"
 ```
 
 ### 5. Report Conflicts
+
 For each failed patch, send mail to the original persona:
+
 ```bash
 jules-mail send \
     --to <persona_id> \
     --subject "Conflict in PR #<pr_number>" \
-    --body "Your PR has merge conflicts. Please rebase on latest main and resubmit.\n\nPatch URL: <url>\n\nConflict details:\n<git apply output>"
+    --body "Your PR has merge conflicts. Please rebase on latest main and resubmit.\n\nConflict details:\n<git apply output>"
 ```
 
 ### 6. Create Integration PR
+
 Push the integration branch and create a PR to merge into main:
+
 ```bash
 git push origin jules-sprint-N-integration
 gh pr create --title "Sprint N: Integrated Changes" --body "..."
@@ -330,9 +245,8 @@ gh pr create --title "Sprint N: Integrated Changes" --body "..."
 - Test patches on a clean branch from main (avoid contamination)
 - Be descriptive in conflict messages (help personas fix issues)
 - Auto-merge PRs that applied cleanly (use `gh pr merge`)
-```
 
----
+```
 
 ### 4. Scheduler Updates (`jules/scheduler_v2.py`)
 
@@ -377,18 +291,17 @@ def consolidate_mailboxes(
 
     Called at each tick to handle async feedback from weaver.
     """
-    from jules.mail import get_inbox
+    from jules.mail import list_inbox
 
     for persona_id in personas:
-        inbox = get_inbox(persona_id, unread_only=True)
+        inbox = list_inbox(persona_id, unread_only=True)
         if inbox:
             print(f"📬 {persona_id} has {len(inbox)} unread message(s)")
             # Create new session to handle messages
-            session_id = orchestrator.create_persona_session(
+            orchestrator.create_persona_session(
                 persona_id=persona_id,
                 context=f"You have {len(inbox)} messages. Read with: jules-mail inbox --persona {persona_id}",
             )
-            print(f"   Launched {persona_id}: {session_id}")
 ```
 
 #### C. Update Main Loop
@@ -445,12 +358,13 @@ jules-mail inbox --persona {persona_id}
 ```
 
 If you have messages:
-1. Read each message: `jules-mail read <message_id> --persona {persona_id}`
+
+1. Read each message: `jules-mail read <message_key> --persona {persona_id}`
 2. Address the feedback (e.g., fix conflicts, rebase, etc.)
-3. Mark as read: Messages are auto-marked read when you read them
-4. Proceed with your work
+3. Proceed with your work
 
 Common message types:
+
 - **Conflict Reports**: Your PR couldn't be merged due to conflicts
 - **Feedback**: Requested changes or improvements
 - **Coordination**: Other personas need your input
@@ -458,6 +372,7 @@ Common message types:
 ## Your Work
 
 [... existing persona-specific instructions ...]
+
 ```
 
 ---
@@ -483,6 +398,25 @@ Common message types:
 
 **Goal**: Enable weaver to integrate patches and report conflicts
 
+### Integration Code
+```python
+def integrate_patch(pr_number: int, patch_url: str) -> bool:
+    # 1. Download patch
+    # 2. git apply --check
+    # 3. git apply (if safe)
+    ...
+```
+
+### Integration Execution
+
+```bash
+# Example Weaver logic
+for pr in prs:
+    success = integrate_patch(pr.number, pr.patch_url)
+    if not success:
+        report_conflict(pr.author, pr.number)
+```
+
 1. ✅ Rewrite `personas/weaver/prompt.md` with new responsibilities
 2. ✅ Test weaver manually with sample PRs
 3. ✅ Verify patch download and `git apply` workflow
@@ -490,6 +424,7 @@ Common message types:
 5. ✅ Document weaver workflow
 
 **Success Criteria**:
+
 - Weaver can apply clean patches
 - Weaver detects conflicts correctly
 - Weaver sends mail with conflict details
@@ -505,6 +440,7 @@ Common message types:
 5. ✅ Test with dry-run mode
 
 **Success Criteria**:
+
 - Personas launch in parallel
 - Mailbox consolidation triggers re-runs
 - No regressions in sequential mode
@@ -519,6 +455,7 @@ Common message types:
 4. ✅ Document persona mailbox workflow
 
 **Success Criteria**:
+
 - All personas check mailboxes before work
 - Personas respond appropriately to messages
 
@@ -533,6 +470,7 @@ Common message types:
 5. ✅ Create runbook for monitoring and debugging
 
 **Success Criteria**:
+
 - Complete sprint in <5 ticks (vs 23+ ticks sequential)
 - Conflicts are detected and resolved
 - No data loss or corruption
@@ -544,10 +482,12 @@ Common message types:
 ### Dependencies
 
 **Existing (no changes needed)**:
+
 - `ibis-framework[duckdb]` - Already in use for egregora
 - `typer` - Need to add for CLI
 
 **New**:
+
 ```toml
 [tool.uv.dependencies]
 typer = "^0.9.0"  # For mail CLI
@@ -578,12 +518,14 @@ typer = "^0.9.0"  # For mail CLI
 ### GitHub API Requirements
 
 **Patch Download**: Use public GitHub URLs (no auth needed)
+
 ```bash
 # Works for public repos
 curl -L https://github.com/owner/repo/pull/123.patch
 ```
 
 **For Private Repos**: Use GitHub token
+
 ```bash
 curl -L -H "Authorization: Bearer $GITHUB_TOKEN" \
     https://github.com/owner/repo/pull/123.patch
@@ -592,6 +534,7 @@ curl -L -H "Authorization: Bearer $GITHUB_TOKEN" \
 ### Git Operations
 
 **Safe Operations** (Jules can do these):
+
 - `git apply --check <patch>` - Test patch applicability
 - `git apply <patch>` - Apply patch to working tree
 - `git checkout -b <branch>` - Create new branch
@@ -599,6 +542,7 @@ curl -L -H "Authorization: Bearer $GITHUB_TOKEN" \
 - `git commit -m "..."` - Create commit
 
 **Unsafe Operations** (Jules should avoid):
+
 - `git merge` - Complex, can fail in sandbox
 - `git rebase` - Interactive, not reliable
 - `git pull` - Network + merge, unpredictable
@@ -610,6 +554,7 @@ curl -L -H "Authorization: Bearer $GITHUB_TOKEN" \
 ### Stage 1: Feature Flag (Week 1-2)
 
 Enable parallel mode only on specific sprints:
+
 ```python
 # In scheduler config
 PARALLEL_BATCH_SPRINTS = [50, 55, 60]  # Test on these sprints
@@ -623,6 +568,7 @@ else:
 ### Stage 2: Gradual Rollout (Week 3-4)
 
 Increase frequency:
+
 ```python
 # Every 5th sprint
 if sprint_manager.current_sprint % 5 == 0:
@@ -632,6 +578,7 @@ if sprint_manager.current_sprint % 5 == 0:
 ### Stage 3: Default Mode (Week 4+)
 
 Make parallel the default, sequential the fallback:
+
 ```python
 # Always parallel, unless flagged otherwise
 if sprint_manager.current_sprint in SEQUENTIAL_ONLY_SPRINTS:
@@ -654,6 +601,7 @@ else:
 ### Debugging Tools
 
 **Mail Inspection**:
+
 ```bash
 # View raw events
 cat .jules/mail/events.jsonl | jq .
@@ -671,12 +619,14 @@ EOF
 ```
 
 **Weaver Logs**:
+
 ```bash
 # Check weaver session logs
 gh api repos/{owner}/{repo}/actions/runs?branch=weaver-session-* | jq .
 ```
 
 **Scheduler State**:
+
 ```bash
 # Check current sprint state
 cat .jules/cycle_state.json | jq .
@@ -685,29 +635,37 @@ cat .jules/cycle_state.json | jq .
 ### Common Issues
 
 #### Issue: Weaver Can't Download Patches
+
 **Symptom**: `curl` fails with 404 or auth errors
 **Solution**:
+
 - Verify PR number is correct
 - Check if repo is private (need `GITHUB_TOKEN`)
 - Ensure PR is still open
 
 #### Issue: `git apply` Fails Unexpectedly
+
 **Symptom**: Patch looks clean but apply fails
 **Solution**:
+
 - Check for CRLF issues (`git config core.autocrlf false`)
 - Verify working tree is clean (`git status`)
 - Try `git apply --3way` (three-way merge)
 
 #### Issue: Personas Ignore Mailbox
+
 **Symptom**: Messages sent but personas don't respond
 **Solution**:
+
 - Verify persona prompt includes mailbox check
 - Check if CLI is accessible (`which jules-mail`)
 - Manually test: `jules-mail inbox --persona <id>`
 
 #### Issue: Mail Events Corrupted
+
 **Symptom**: DuckDB errors when reading events
 **Solution**:
+
 - Validate JSONL format: `cat events.jsonl | jq empty`
 - Check for duplicate event_ids
 - Restore from backup if needed
@@ -742,37 +700,45 @@ cat .jules/cycle_state.json | jq .
 ## Risk Mitigation
 
 ### Risk: Conflict Storms
+
 **Description**: Many personas have conflicts, leading to cascading failures
 **Likelihood**: Medium
 **Impact**: High
 **Mitigation**:
+
 - Set max retries per persona (e.g., 3 attempts)
 - Skip personas that fail repeatedly
 - Manual intervention fallback
 
 ### Risk: Mail System Corruption
+
 **Description**: JSONL file becomes corrupted or unreadable
 **Likelihood**: Low
 **Impact**: High
 **Mitigation**:
+
 - Backup `events.jsonl` before each sprint
 - Add validation on append (JSON syntax check)
 - Recovery tool to rebuild from valid events
 
 ### Risk: Weaver Overwhelm
+
 **Description**: Weaver can't handle 20+ patches in one session
 **Likelihood**: Medium
 **Impact**: Medium
 **Mitigation**:
+
 - Process patches in batches (e.g., 10 at a time)
 - Increase weaver timeout to 90 minutes
 - Parallelize weaver if needed (multiple weaver sessions)
 
 ### Risk: Git Sandbox Limitations
+
 **Description**: `git apply` fails due to sandbox restrictions
 **Likelihood**: Low
 **Impact**: High
 **Mitigation**:
+
 - Extensive testing in sandbox environment
 - Fallback to GitHub API for patch application (slower but reliable)
 - Manual merge option for critical patches
@@ -782,16 +748,19 @@ cat .jules/cycle_state.json | jq .
 ## Future Enhancements
 
 ### Phase 6: Smart Batching
+
 - Group personas by dependency (e.g., docs personas together)
 - Avoid conflicts by scheduling dependent personas sequentially
 - Use ML to predict conflict probability
 
 ### Phase 7: Distributed Weaver
+
 - Split weaver into multiple parallel sessions
 - Each weaver handles a subset of patches
 - Final weaver consolidates all partial integrations
 
 ### Phase 8: Interactive Conflict Resolution
+
 - Weaver proposes conflict resolution strategies
 - Personas can negotiate patch order
 - AI-assisted merge conflict resolution
@@ -801,17 +770,20 @@ cat .jules/cycle_state.json | jq .
 ## References
 
 ### Code Files
+
 - `.jules/jules/scheduler_v2.py` - Main scheduler logic
 - `.jules/jules/scheduler_managers.py` - Session orchestration
 - `.jules/personas/weaver/prompt.md` - Weaver persona definition
 - `src/egregora/database/` - Ibis patterns and DuckDB usage
 
 ### Documentation
+
 - `CLAUDE.md` - Project coding standards
 - `.jules/README.md` - Jules personas overview
 - Original session: 14848423526856432295
 
 ### External Resources
+
 - [Ibis Documentation](https://ibis-project.org/)
 - [DuckDB JSON Support](https://duckdb.org/docs/data/json/overview)
 - [Git Apply Documentation](https://git-scm.com/docs/git-apply)
@@ -857,6 +829,7 @@ Sprint N complete (4 ticks vs 23 sequential)
 ## Appendix B: CLI Usage Examples
 
 ### Sending Messages
+
 ```bash
 # Simple message
 jules-mail send --to curator --subject "Question" --body "Can you review X?"
@@ -874,6 +847,7 @@ jules-mail send --to curator --subject "..." --body "..."
 ```
 
 ### Reading Inbox
+
 ```bash
 # List all messages
 jules-mail inbox --persona curator
@@ -889,6 +863,7 @@ jules-mail inbox --persona curator --json
 ```
 
 ### Tagging Messages
+
 ```bash
 # Add tag
 jules-mail tag add 42 needs-action --persona curator

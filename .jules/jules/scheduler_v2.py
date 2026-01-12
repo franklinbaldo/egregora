@@ -85,18 +85,12 @@ def handle_drift_reconciliation(
 
 
 def execute_cycle_tick(dry_run: bool = False) -> None:
-    """Execute one tick of the cycle scheduler.
+    """Execute the sequential persona cycle.
 
     In cycle mode, the scheduler:
-    1. Ensures the Jules integration branch exists
-    2. Finds the last cycle session (if any)
-    3. If last session has a green PR, merges it and advances
-    4. If last session is stuck, attempts to unstick it
-    5. Starts the next persona in the cycle
-
-    The cycle advances sequentially through all personas, merging PRs
-    before moving to the next. When a full cycle completes, the sprint
-    number increments.
+    1. Checks status of the last persona's session or PR.
+    2. Advances the cycle if work is integrated.
+    3. Starts the next persona.
 
     Args:
         dry_run: If True, prints actions without executing them
@@ -139,16 +133,18 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
     if persistent_state.last_persona_id and persistent_state.last_persona_id in cycle_mgr.cycle_ids:
         next_idx, should_increment = cycle_mgr.advance_cycle(persistent_state.last_persona_id)
         next_persona_id = cycle_mgr.cycle_ids[next_idx]
-        print(f"\n📍 Last cycle: {persistent_state.last_persona_id} (from state file)")
+        print(f"\n📍 Last cycle: {persistent_state.last_persona_id} (from state)")
     else:
-        # Fallback to API-based detection
-        state = cycle_mgr.find_last_cycle_session(client, repo_info, open_prs)
-        next_idx = state.next_persona_index
-        next_persona_id = state.next_persona_id
-        should_increment = state.should_increment_sprint
-        if state.last_session_id:
+        # Fallback to API if persistent state is missing or inconsistent
+        state = client.get_cycle_state(repo_info["owner"], repo_info["repo"])
+        if state and state.last_persona_id in cycle_mgr.cycle_ids:
+            next_idx, should_increment = cycle_mgr.advance_cycle(state.last_persona_id)
+            next_persona_id = cycle_mgr.cycle_ids[next_idx]
             print(f"\n📍 Last cycle: {state.last_persona_id} (from API)")
         else:
+            next_idx = 0
+            should_increment = False
+            next_persona_id = cycle_mgr.cycle_ids[0]
             print("\n📍 No previous cycle found. Starting fresh.")
 
     print(f"➡️  Next persona: {next_persona_id}")
@@ -156,232 +152,129 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
 
     # === HANDLE PREVIOUS SESSION ===
     last_session_id = persistent_state.last_session_id
+    persona_pr = None
+    is_direct = False
+
     if last_session_id:
-        pr = pr_mgr.find_by_session_id(open_prs, last_session_id)
+        # Per user request, we minimize intermediary branches. Cycle sessions are now direct.
+        is_direct = True
+        
+        # Check if an open PR exists (might be legacy or the integration PR itself)
+        persona_pr = pr_mgr.find_by_session_id(open_prs, last_session_id)
+        if persona_pr:
+            is_direct = False # Found a branch PR, treat as legacy/explicit branch session
 
-        if pr:
-            # Found open PR for last session
-            pr_number = pr["number"]
-            print(f"Found PR #{pr_number}: {pr['title']}")
+    if persona_pr:
+        # HANDLING BRANCH-BASED SESSION (Legacy or Explicit)
+        pr_number = persona_pr["number"]
+        print(f"Found PR #{pr_number}: {persona_pr['title']}")
 
-            # Update persistent state with PR number if missing
-            if persistent_state.last_pr_number != pr_number:
-                persistent_state.update_pr_number(pr_number)
-                persistent_state.save(CYCLE_STATE_PATH)
-                # Don't commit state yet, wait for session change or merge
+        # Ensure state is synced
+        if persistent_state.last_pr_number != pr_number:
+            persistent_state.last_pr_number = pr_number
 
-            pr_details = get_pr_details_via_gh(pr_number)
+        pr_details = get_pr_details_via_gh(pr_number)
 
-            # Check if PR is draft - auto-mark as ready if session is complete
-            if pr_mgr.is_draft(pr_details):
-                print(f"📝 PR #{pr_number} is a draft. Checking session status...")
-                try:
-                    session_details = client.get_session(last_session_id)
-                    session_state = session_details.get("state")
-
-                    if session_state == "COMPLETED":
-                        # Session done but PR still draft - mark as ready
-                        print(f"✅ Session completed. Auto-marking PR as ready for review...")
-                        if not dry_run:
-                            pr_mgr.mark_ready(pr_number)
-                        # Re-fetch PR details after marking ready
+        # 1. Automate Draft -> Ready
+        if pr_mgr.is_draft(pr_details):
+            print(f"📝 PR #{pr_number} is a draft. Checking session status...")
+            try:
+                session = client.get_session(last_session_id)
+                session_state = session.get("state")
+                if session_state == "COMPLETED":
+                    print(f"✅ Session completed! Auto-marking PR as ready...")
+                    if not dry_run:
+                        pr_mgr.mark_ready(pr_number)
                         pr_details = get_pr_details_via_gh(pr_number)
-
-                        # Verify PR is no longer draft (GitHub API might have delay)
-                        if pr_mgr.is_draft(pr_details):
-                            print(f"⏳ PR still shows as draft after marking ready. Waiting for next tick...")
-                            return
-                    elif session_state in ["AWAITING_PLAN_APPROVAL", "AWAITING_USER_FEEDBACK"]:
-                        # Session is stuck - unstick it before waiting for completion
-                        print(f"🔧 Session is stuck in state: {session_state}. Attempting to unstick...")
-                        # Get created_at from persistent_state history
-                        created_at = None
-                        if persistent_state.history and persistent_state.history[0].get("session_id") == last_session_id:
-                            created_at = persistent_state.history[0].get("created_at")
-
-                        should_skip = orchestrator.handle_stuck_session(last_session_id, created_at)
-                        if should_skip:
-                            print(f"⏭️  Skipping timed-out session, advancing to {next_persona_id}")
-                            # Don't return - fall through to create next session
-                        else:
-                            return  # Wait for unstick to take effect
+                    if pr_mgr.is_draft(pr_details):
+                        return # Waiting for API reflect
+                elif session_state in ["IN_PROGRESS", "PENDING", "AWAITING_PLAN_APPROVAL", "AWAITING_USER_FEEDBACK"]:
+                    # Try to unstick if needed
+                    created_at = None
+                    if persistent_state.history and persistent_state.history[0].get("session_id") == last_session_id:
+                        created_at = persistent_state.history[0].get("created_at")
+                    if orchestrator.handle_stuck_session(last_session_id, created_at):
+                        # Skip if timed out
+                        if should_increment: sprint_manager.increment_sprint()
                     else:
-                        print(f"⏳ Session state: {session_state}. Waiting for completion...")
                         return
-                except Exception as e:
-                    print(f"❌ Error checking session: {e}. Waiting for next tick.")
+                else:
+                    print(f"⏳ Session state: {session_state}. Waiting...")
                     return
-
-            # Check if PR is green
-            if not pr_mgr.is_green(pr_details):
-                print(f"❌ PR #{pr_number} is not green. Waiting for CI to pass.")
+            except Exception as e:
+                print(f"⚠️ Error checking session: {e}")
                 return
 
-            # Final safety check: ensure PR is not a draft before merging
-            if pr_mgr.is_draft(pr_details):
-                print(f"⚠️  PR #{pr_number} is still a draft. Cannot merge. Waiting...")
-                return
+        # 2. Check if green and merge
+        if not pr_mgr.is_green(pr_details):
+            print(f"❌ PR #{pr_number} is not green. Waiting for CI.")
+            return
 
-            # PR is ready - merge it!
-            print(f"✅ PR #{pr_number} is green! Merging into '{JULES_BRANCH}'...")
-            if not dry_run:
-                pr_mgr.merge_into_jules(pr_number)
+        print(f"✅ PR #{pr_number} is green! Merging into '{JULES_BRANCH}'...")
+        if not dry_run:
+            pr_mgr.merge_into_jules(pr_number)
+            branch_mgr.sync_with_main()
+            pr_mgr.ensure_integration_pr_exists(repo_info)
 
-                # Sync with main to capture external changes
-                print(f"📥 Syncing '{JULES_BRANCH}' with main...")
-                drift_info = branch_mgr.sync_with_main()
+        if should_increment:
+            sprint_manager.increment_sprint()
+        print(f"✨ Ready to start next persona: {next_persona_id}")
 
-                # Handle drift if it occurred
-                if drift_info:
-                    handle_drift_reconciliation(
-                        drift_info, client, repo_info, branch_mgr, pr_mgr, dry_run
-                    )
-                    return  # Stop here - reconciliation will continue on next tick
-
-                # Ensure integration PR exists for human review
-                print(f"\n📋 Ensuring integration PR exists...")
-                pr_mgr.ensure_integration_pr_exists(repo_info)
-
-            # Check if we should increment sprint
-            if should_increment:
-                old_sprint = sprint_manager.get_current_sprint()
-                new_sprint = sprint_manager.increment_sprint()
-                print(f"🎉 Cycle completed! Sprint: {old_sprint} → {new_sprint}")
-
-            print(f"✨ Ready to start next persona: {next_persona_id}")
-            print()
-
-        else:
-            # PR not found in open PRs - check if merged or stuck
-            print(f"PR for session {last_session_id} not found in open PRs.")
-            print("Checking if session is stuck or PR already merged...")
-
-            from jules.github import get_pr_by_session_id_any_state
-
-            pr_any_state = get_pr_by_session_id_any_state(
-                repo_info["owner"], repo_info["repo"], last_session_id
-            )
-
-            if pr_any_state and pr_any_state.get("mergedAt"):
-                # PR already merged - advance!
-                print(f"✅ PR already merged. Continuing to {next_persona_id}")
-
-                # Sync with main to ensure we have latest changes
-                if not dry_run:
-                    print(f"📥 Syncing '{JULES_BRANCH}' with main...")
-                    drift_info = branch_mgr.sync_with_main()
-
-                    # Handle drift if it occurred
-                    if drift_info:
-                        handle_drift_reconciliation(
-                            drift_info, client, repo_info, branch_mgr, pr_mgr, dry_run
-                        )
-                        return  # Stop here - reconciliation will continue on next tick
-
-                    # Ensure integration PR exists for human review
-                    print(f"\n📋 Ensuring integration PR exists...")
-                    pr_mgr.ensure_integration_pr_exists(repo_info)
-
+    elif last_session_id:
+        # HANDLING DIRECT-PUSH SESSION (New Standard)
+        print(f"🔍 Checking direct session {last_session_id[:12]}...")
+        try:
+            session = client.get_session(last_session_id)
+            session_state = session.get("state")
+            
+            if session_state == "COMPLETED":
+                print(f"✅ Direct session completed. Advancing cycle...")
                 if should_increment:
                     sprint_manager.increment_sprint()
-                print()
-
-            elif pr_any_state and (pr_any_state.get("state") or "").lower() == "closed":
-                # PR was closed without merging - skip it
-                print(f"⚠️  PR was closed without merging. Skipping to {next_persona_id}")
-                if should_increment:
-                    sprint_manager.increment_sprint()
-                print()
-
+                # Continue below to next persona
+            elif session_state in ["IN_PROGRESS", "PENDING", "AWAITING_PLAN_APPROVAL", "AWAITING_USER_FEEDBACK"]:
+                print(f"⏳ Session is {session_state}. Waiting...")
+                # Try to unstick if needed
+                created_at = None
+                if persistent_state.history and persistent_state.history[0].get("session_id") == last_session_id:
+                    created_at = persistent_state.history[0].get("created_at")
+                if orchestrator.handle_stuck_session(last_session_id, created_at):
+                    if should_increment: sprint_manager.increment_sprint()
+                else:
+                    return
             else:
-                # Session might be stuck - check state first
-                print("🔧 Checking session state...")
-                try:
-                    session_details = client.get_session(last_session_id)
-                    session_state = session_details.get("state")
-
-                    # Handle terminal states
-                    if session_state == "CANCELLED":
-                        # Intentionally cancelled - skip to next persona
-                        print(f"⚠️  Session {last_session_id} was cancelled. Advancing to next persona.")
-                        if should_increment:
-                            sprint_manager.increment_sprint()
-                        print()
-                        # Don't return - continue to create next session
-                    elif session_state in ["COMPLETED", "FAILED"]:
-                        # Completed/failed but no PR - ask Jules to finalize or skip if timed out
-                        print(f"⚠️  Session {last_session_id} is in state '{session_state}' but no PR was created.")
-
-                        # Check if we should skip this session due to timeout
-                        created_at = None
-                        if persistent_state.history and persistent_state.history[0].get("session_id") == last_session_id:
-                            created_at = persistent_state.history[0].get("created_at")
-
-                        should_skip = orchestrator.handle_stuck_session(last_session_id, created_at)
-                        if should_skip:
-                            print(f"⏭️  Session stuck in {session_state} state without PR. Skipping to {next_persona_id}")
-                            if should_increment:
-                                sprint_manager.increment_sprint()
-                            print()
-                            # Don't return - fall through to create next session
-                        else:
-                            # Try one more time - send finalization message
-                            print("Sending message to request PR creation...")
-                            if not dry_run:
-                                finalize_message = (
-                                    "The session is in a terminal state but no PR was created. "
-                                    "Please finalize the work by creating a Pull Request with the changes made, "
-                                    "or if there are no changes to make, finalize the session appropriately."
-                                )
-                                client.send_message(last_session_id, finalize_message)
-                                print(f"Finalization message sent to session {last_session_id}.")
-                            return  # Wait for Jules to respond
-                    else:
-                        # Session is stuck - try to unstick
-                        print(f"🔧 Session state: {session_state}. Attempting to unstick...")
-                        # Get created_at from persistent_state history
-                        created_at = None
-                        if persistent_state.history and persistent_state.history[0].get("session_id") == last_session_id:
-                            created_at = persistent_state.history[0].get("created_at")
-
-                        should_skip = orchestrator.handle_stuck_session(last_session_id, created_at)
-                        if should_skip:
-                            print(f"⏭️  Skipping timed-out session, advancing to {next_persona_id}")
-                            # Don't return - fall through to create next session
-                        else:
-                            return  # Don't start new session, wait for stuck one to complete
-                except Exception as e:
-                    print(f"❌ Error checking session {last_session_id}: {e}", file=sys.stderr)
-                    return
+                print(f"⚠️ Session state '{session_state}'. Advancing to avoid deadlock.")
+                if should_increment: sprint_manager.increment_sprint()
+        except Exception as e:
+            print(f"⚠️ Error checking session: {e}")
+            return
 
     # === START NEXT SESSION ===
     next_persona = personas[next_idx]
     print(f"🚀 Starting session for {next_persona.emoji} {next_persona.id}")
 
-    # Create short stable branch for session
+    # DIRECT INTEGRATION: Work directly on jules branch
     session_branch = branch_mgr.create_session_branch(
-        base_branch=branch_mgr.jules_branch,
+        base_branch=JULES_BRANCH,
         persona_id=next_persona.id,
+        direct=True  # No intermediary branch
     )
 
-    # Create session request
-    title = f"{next_persona.emoji} {next_persona.id}: automated cycle task for {repo_info['repo']}"
     request = SessionRequest(
         persona_id=next_persona.id,
-        title=title,
+        title=f"{next_persona.emoji} {next_persona.id}: cycle task",
         prompt=next_persona.prompt_body,
         branch=session_branch,
         owner=repo_info["owner"],
         repo=repo_info["repo"],
-        automation_mode="AUTO_CREATE_PR",
+        automation_mode="AUTO_CREATE_PR", 
         require_plan_approval=False,
     )
 
-    # Create session
     session_id = orchestrator.create_session(request)
     print(f"✅ Created session: {session_id}")
 
-    # === SAVE PERSISTENT STATE ===
+    # === SAVE STATE ===
     if not dry_run and session_id != "[DRY RUN]":
         persistent_state.record_session(
             persona_id=next_persona.id,
@@ -389,18 +282,8 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
             session_id=session_id,
         )
         persistent_state.save(CYCLE_STATE_PATH)
-        commit_cycle_state(
-            CYCLE_STATE_PATH,
-            f"chore(jules): cycle state → {next_persona.id} (session {session_id[:12]})"
-        )
+        commit_cycle_state(CYCLE_STATE_PATH, f"chore(jules): cycle state -> {next_persona.id}")
 
-    # Check if we should increment sprint
-    if should_increment:
-        old_sprint = sprint_manager.get_current_sprint()
-        new_sprint = sprint_manager.increment_sprint()
-        print(f"🎉 Cycle completed! Sprint: {old_sprint} → {new_sprint}")
-
-    print()
     print("=" * 70)
 
 
@@ -408,11 +291,6 @@ def execute_scheduled_tick(
     run_all: bool = False, prompt_id: str | None = None, dry_run: bool = False
 ) -> None:
     """Execute scheduled personas based on cron schedules.
-
-    In scheduled mode, the scheduler:
-    1. Loads all personas
-    2. Checks which ones should run (based on cron or flags)
-    3. Creates sessions for matching personas
 
     Args:
         run_all: If True, ignores schedules and runs all personas
@@ -431,13 +309,14 @@ def execute_scheduled_tick(
     # Load all personas
     base_context = {**repo_info, "open_prs": open_prs}
     loader = PersonaLoader(Path(".jules/personas"), base_context)
-    personas = loader.load_personas([])  # Empty list = load all
+    personas = loader.load_personas([])
 
     # Load schedules
     registry = load_schedule_registry(Path(".jules/schedules.toml"))
     schedules = registry.get("schedules", {})
 
     orchestrator = SessionOrchestrator(client, dry_run)
+    branch_mgr = BranchManager(JULES_BRANCH)
 
     print(f"Loaded {len(personas)} personas")
     print(f"Current time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
@@ -447,18 +326,17 @@ def execute_scheduled_tick(
     sessions_created = 0
 
     for persona in personas:
-        # Check if persona should run
         should_run = False
         reason = ""
 
-        if run_all:
+        if prompt_id:
+            if persona.id == prompt_id or persona.path == str(prompt_id):
+                should_run = True
+                reason = f"--prompt-id={prompt_id}"
+        elif run_all:
             should_run = True
             reason = "--all flag"
-        elif prompt_id and prompt_id in {persona.id, persona.path}:
-            should_run = True
-            reason = f"--prompt-id={prompt_id}"
         else:
-            # Check schedule
             schedule_str = schedules.get(persona.id, "")
             if schedule_str and check_schedule(schedule_str):
                 should_run = True
@@ -467,57 +345,56 @@ def execute_scheduled_tick(
         if not should_run:
             continue
 
-        # Run this persona
         print(f"▶️  {persona.emoji} {persona.id} ({reason})")
 
-        # Create session request
-        title = f"{persona.emoji} {persona.id}: scheduled task for {repo_info['repo']}"
+        # Scheduled mode STILL uses branches because it's parallel
+        session_branch = branch_mgr.create_session_branch(
+            base_branch=JULES_BRANCH,
+            persona_id=persona.id,
+            direct=False # Need intermediary for parallel safety
+        )
+
         request = SessionRequest(
             persona_id=persona.id,
-            title=title,
+            title=f"{persona.emoji} {persona.id}: scheduled task",
             prompt=persona.prompt_body,
-            branch="main",  # Scheduled mode uses main
+            branch=session_branch,
             owner=repo_info["owner"],
             repo=repo_info["repo"],
             automation_mode="AUTO_CREATE_PR",
             require_plan_approval=False,
         )
 
-        # Create session
         session_id = orchestrator.create_session(request)
         print(f"   ✅ Session: {session_id}")
-        print()
         sessions_created += 1
 
-    if sessions_created == 0:
-        print("No personas matched the criteria. Nothing to run.")
-    else:
-        print(f"✅ Created {sessions_created} session(s)")
-
+    print(f"✅ Created {sessions_created} session(s)")
     print("=" * 70)
 
 
 def run_scheduler(
     command: str, run_all: bool = False, dry_run: bool = False, prompt_id: str | None = None
 ) -> None:
-    """Main scheduler entry point.
-
-    Routes to either cycle or scheduled mode based on command and configuration.
-
-    Args:
-        command: Command to run ("tick", etc.)
-        run_all: Run all personas (scheduled mode only)
-        dry_run: Print actions without executing
-        prompt_id: Run specific persona (scheduled mode only)
-    """
-    # Load registry to check for cycle mode
+    """Main scheduler entry point."""
     registry = load_schedule_registry(Path(".jules/schedules.toml"))
     cycle_list = registry.get("cycle", [])
-
-    # Determine mode
     is_cycle_mode = command == "tick" and not run_all and not prompt_id and bool(cycle_list)
+
+    client = JulesClient()
+    repo_info = get_repo_info()
+    pr_mgr = PRManager(JULES_BRANCH)
 
     if is_cycle_mode:
         execute_cycle_tick(dry_run)
+        print("\nChecking for additional scheduled tasks...")
+        execute_scheduled_tick(run_all=False, prompt_id=None, dry_run=dry_run)
     else:
-        execute_scheduled_tick(run_all, prompt_id, dry_run)
+        if prompt_id or run_all:
+            execute_scheduled_tick(run_all, prompt_id, dry_run)
+        else:
+            execute_cycle_tick(dry_run)
+
+    # === GLOBAL RECONCILIATION ===
+    # Automate the lifecycle for ALL Jules PRs (parallel and cycle)
+    pr_mgr.reconcile_all_jules_prs(client, repo_info, dry_run)
