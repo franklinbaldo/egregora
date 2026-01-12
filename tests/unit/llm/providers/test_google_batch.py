@@ -1,6 +1,6 @@
 """Unit tests for the GoogleBatchModel LLM provider."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import httpx
 import pytest
@@ -184,3 +184,146 @@ class TestGoogleBatchModel:
 
             assert "Internal Server Error" in str(exc_info.value)
             assert exc_info.value.status_code == 500
+
+    def test_response_to_dict_conversion_happy_path(self, model: GoogleBatchModel):
+        """
+        GIVEN a standard mock SDK response object
+        WHEN _response_to_dict is called
+        THEN it should correctly convert the object to a dictionary.
+        """
+        mock_response = MagicMock()
+        mock_candidate = MagicMock()
+        mock_content = MagicMock()
+        mock_part = MagicMock()
+
+        mock_part.text = "This is a test."
+        mock_content.parts = [mock_part]
+        mock_content.role = "model"
+        mock_candidate.content = mock_content
+        mock_response.candidates = [mock_candidate]
+
+        expected_dict = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [{"text": "This is a test."}],
+                        "role": "model",
+                    }
+                }
+            ]
+        }
+        result_dict = model._response_to_dict(mock_response)
+        assert result_dict == expected_dict
+
+    def test_response_to_dict_empty_candidates(self, model: GoogleBatchModel):
+        """
+        GIVEN a mock response with an empty candidates list
+        WHEN _response_to_dict is called
+        THEN it should return a dictionary with an empty candidates list.
+        """
+        mock_response = MagicMock()
+        mock_response.candidates = []
+        expected_dict = {"candidates": []}
+        result_dict = model._response_to_dict(mock_response)
+        assert result_dict == expected_dict
+
+    def test_response_to_dict_no_content(self, model: GoogleBatchModel):
+        """
+        GIVEN a mock candidate with no content attribute
+        WHEN _response_to_dict is called
+        THEN it should produce a candidate with an empty content dict.
+        """
+        mock_response = MagicMock()
+        mock_candidate = MagicMock()
+        type(mock_candidate).content = PropertyMock(return_value=None)
+        mock_response.candidates = [mock_candidate]
+        expected_dict = {"candidates": [{"content": {}}]}
+        result_dict = model._response_to_dict(mock_response)
+        assert result_dict == expected_dict
+
+    def test_response_to_dict_no_parts(self, model: GoogleBatchModel):
+        """
+        GIVEN mock content with no parts attribute
+        WHEN _response_to_dict is called
+        THEN it should produce content with an empty parts list.
+        """
+        mock_response = MagicMock()
+        mock_candidate = MagicMock()
+        mock_content = MagicMock()
+        type(mock_content).parts = PropertyMock(return_value=None)
+        mock_content.role = "model"
+        mock_candidate.content = mock_content
+        mock_response.candidates = [mock_candidate]
+        expected_dict = {"candidates": [{"content": {"parts": [], "role": "model"}}]}
+        result_dict = model._response_to_dict(mock_response)
+        assert result_dict == expected_dict
+
+    def test_response_to_dict_part_no_text(self, model: GoogleBatchModel):
+        """
+        GIVEN a mock part with no text attribute
+        WHEN _response_to_dict is called
+        THEN it should be excluded from the parts list.
+        """
+        mock_response = MagicMock()
+        mock_candidate = MagicMock()
+        mock_content = MagicMock()
+        mock_part = MagicMock()
+        # This is tricky with MagicMock. We have to delete the attribute
+        # after it's been accessed and created. A better way is to use
+        # a spec or a real object, but for this we'll force it.
+        del mock_part.text
+
+        mock_content.parts = [mock_part]
+        mock_content.role = "model"
+        mock_candidate.content = mock_content
+        mock_response.candidates = [mock_candidate]
+        expected_dict = {"candidates": [{"content": {"parts": [], "role": "model"}}]}
+        result_dict = model._response_to_dict(mock_response)
+        assert result_dict == expected_dict
+
+    def test_response_to_dict_complex_structure(self, model: GoogleBatchModel):
+        """
+        GIVEN a complex response with multiple candidates and parts
+        WHEN _response_to_dict is called
+        THEN it should correctly parse the entire structure.
+        """
+        mock_response = MagicMock()
+
+        # Candidate 1: two parts, one valid, one not
+        mock_cand1 = MagicMock()
+        mock_cont1 = MagicMock()
+        mock_part1a = MagicMock()
+        mock_part1a.text = "First part."
+        mock_part1b = MagicMock()
+        del mock_part1b.text  # No text here
+        mock_cont1.parts = [mock_part1a, mock_part1b]
+        mock_cont1.role = "model"
+        mock_cand1.content = mock_cont1
+
+        # Candidate 2: no content
+        mock_cand2 = MagicMock()
+        type(mock_cand2).content = PropertyMock(return_value=None)
+
+        # Candidate 3: content, but no parts
+        mock_cand3 = MagicMock()
+        mock_cont3 = MagicMock()
+        type(mock_cont3).parts = PropertyMock(return_value=None)
+        mock_cont3.role = "model"
+        mock_cand3.content = mock_cont3
+
+        mock_response.candidates = [mock_cand1, mock_cand2, mock_cand3]
+
+        expected_dict = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [{"text": "First part."}],
+                        "role": "model",
+                    }
+                },
+                {"content": {}},
+                {"content": {"parts": [], "role": "model"}},
+            ]
+        }
+        result_dict = model._response_to_dict(mock_response)
+        assert result_dict == expected_dict

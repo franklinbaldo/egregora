@@ -86,6 +86,7 @@ class BranchManager:
         persona_id: str,
         base_pr_number: str = "",
         last_session_id: str | None = None,
+        direct: bool = False,
     ) -> str:
         """Create a short, stable base branch for a Jules session.
 
@@ -94,6 +95,7 @@ class BranchManager:
             persona_id: Persona identifier
             base_pr_number: Previous PR number (for naming)
             last_session_id: Previous session ID (unused but kept for compatibility)
+            direct: If True, returns base_branch instead of creating a new one.
 
         Returns:
             Name of the created branch
@@ -101,11 +103,12 @@ class BranchManager:
         Note:
             Falls back to base_branch if creation fails.
         """
-        if base_pr_number:
-            branch_name = f"{JULES_SCHEDULER_PREFIX}-{persona_id}-pr{base_pr_number}"
-        else:
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
-            branch_name = f"{JULES_SCHEDULER_PREFIX}-{persona_id}-main-{timestamp}"
+        if direct:
+            print(f"Using direct branch '{base_branch}' (no intermediary)")
+            return base_branch
+
+        # Clean naming: jules-{persona_id}
+        branch_name = f"jules-{persona_id}"
 
         try:
             # Fetch base branch
@@ -123,13 +126,13 @@ class BranchManager:
             base_sha = result.stdout.strip()
             print(f"Base branch '{base_branch}' is at SHA: {base_sha[:12]}")
 
-            # Push new branch
+            # Push new branch (force update to ensure it's fresh from base)
             subprocess.run(
-                ["git", "push", "origin", f"{base_sha}:refs/heads/{branch_name}"],
+                ["git", "push", "--force", "origin", f"{base_sha}:refs/heads/{branch_name}"],
                 check=True,
                 capture_output=True,
             )
-            print(f"Prepared base branch '{branch_name}' from {base_branch}")
+            print(f"Prepared clean branch '{branch_name}' from {base_branch}")
             return branch_name
 
         except subprocess.CalledProcessError as e:
@@ -559,6 +562,75 @@ This PR contains accumulated work from the Jules autonomous development cycle.
             if extracted_id == session_id:
                 return pr
         return None
+
+    def reconcile_all_jules_prs(self, client: JulesClient, repo_info: dict[str, Any], dry_run: bool = False) -> None:
+        """Overseer: Automatically mark ready and merge any Jules-initiated PRs.
+
+        This handles the lifecycle for parallel personas.
+
+        Args:
+            client: Jules API client
+            repo_info: Repository information
+            dry_run: If True, only log actions
+        """
+        print("\n🔍 Overseer: Checking for autonomous PRs to reconcile...")
+        import json
+        
+        try:
+            # Fetch all PRs starting with jules- (except the integration PR itself)
+            # Note: Integration PR is usually jules -> main. We want jules-* -> jules.
+            result = subprocess.run(
+                ["gh", "pr", "list", "--json", "number,title,isDraft,mergeable,headRefName,body"],
+                capture_output=True, text=True, check=True
+            )
+            prs = json.loads(result.stdout)
+            
+            jules_prs = [pr for pr in prs if pr["headRefName"].startswith("jules-") and pr["headRefName"] != self.jules_branch]
+            
+            if not jules_prs:
+                print("   No autonomous persona PRs found.")
+                return
+
+            print(f"   Found {len(jules_prs)} candidate PRs.")
+
+            for pr in jules_prs:
+                pr_number = pr["number"]
+                head = pr["headRefName"]
+                is_draft = pr["isDraft"]
+                
+                print(f"   --- PR #{pr_number} ({head}) ---")
+
+                # 1. Check if it's a draft and if session is complete
+                if is_draft:
+                    session_id = _extract_session_id(head, pr["body"])
+                    if session_id:
+                        try:
+                            session = client.get_session(session_id)
+                            if session.get("state") == "COMPLETED":
+                                print(f"      ✅ Session {session_id} is COMPLETED. Marking PR as ready...")
+                                if not dry_run:
+                                    self.mark_ready(pr_number)
+                                # Refresh status for merge check
+                                is_draft = False
+                        except Exception as e:
+                            print(f"      ⚠️ Failed to check session status: {e}")
+
+                # 2. If not a draft (or just marked ready), check if green and merge
+                if not is_draft:
+                    # We need full details for CI check
+                    details = get_pr_details_via_gh(pr_number)
+                    if self.is_green(details):
+                        print(f"      ✅ PR is green! Automatically merging into '{self.jules_branch}'...")
+                        if not dry_run:
+                            try:
+                                self.merge_into_jules(pr_number)
+                            except Exception as e:
+                                print(f"      ⚠️ Merge failed: {e}")
+                    else:
+                        print("      ⏳ PR is not green yet or has conflicts. Waiting...")
+
+        except Exception as e:
+            print(f"⚠️ Overseer Error: {e}")
 
 
 class CycleStateManager:

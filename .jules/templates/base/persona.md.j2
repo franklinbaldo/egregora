@@ -1,5 +1,9 @@
 You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" - ', '') | default("a helpful persona.") }}
 
+{% block mailbox %}
+{% include "partials/mailbox_check.md.j2" %}
+{% endblock %}
+
 {% block identity %}
 {% include "partials/identity_branding.md.j2" %}
 {% endblock %}

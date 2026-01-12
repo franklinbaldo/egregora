@@ -365,8 +365,20 @@ def check_schedule(schedule_str: str) -> bool:
     if len(parts) != 5:
         return False
 
-    _min_s, hour_s, _dom_s, _month_s, dow_s = parts
+    min_s, hour_s, _dom_s, _month_s, dow_s = parts
     now = datetime.now(UTC)
+
+    # Check Minute
+    # GitHub Action runs every 15 mins. If cron says "0", it should only run at :00.
+    # If cron says "*", it runs every time (e.g. every 15 mins).
+    if min_s != "*":
+        try:
+            if int(min_s) != now.minute:
+                # Allow a small buffer (e.g. 5 minutes) in case the GHA trigger is slightly late
+                if not (now.minute >= int(min_s) and now.minute < int(min_s) + 5):
+                    return False
+        except ValueError:
+            return False
 
     # Check Hour
     if hour_s != "*":
@@ -409,7 +421,7 @@ def get_pr_by_session_id(open_prs: list[dict[str, Any]], session_id: str) -> dic
 
 
 JULES_BRANCH = "jules"
-JULES_SCHEDULER_PREFIX = "jules-sched"
+JULES_SCHEDULER_PREFIX = "jules"
 
 
 def _is_scheduler_branch(branch_name: str) -> bool:

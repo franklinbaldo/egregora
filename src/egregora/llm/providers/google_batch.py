@@ -216,31 +216,31 @@ class GoogleBatchModel(Model):
 
         return results
 
-    # TODO: [Taskmaster] Refactor for clarity and conciseness
     def _response_to_dict(self, response: Any) -> dict[str, Any]:
-        """Convert SDK response object to dict format."""
+        """Convert SDK response object to a more stable dict format."""
         if isinstance(response, dict):
             return response
 
-        result: dict[str, Any] = {}
-        if hasattr(response, "candidates"):
-            candidates = []
-            for cand in response.candidates or []:
-                cand_dict: dict[str, Any] = {}
-                if hasattr(cand, "content") and cand.content:
-                    content_dict: dict[str, Any] = {}
-                    if hasattr(cand.content, "parts"):
-                        content_dict["parts"] = [
-                            {"text": part.text}
-                            for part in (cand.content.parts or [])
-                            if hasattr(part, "text")
-                        ]
-                    if hasattr(cand.content, "role"):
-                        content_dict["role"] = cand.content.role
-                    cand_dict["content"] = content_dict
-                candidates.append(cand_dict)
-            result["candidates"] = candidates
-        return result
+        candidates = []
+        for cand in getattr(response, "candidates", []) or []:
+            content = getattr(cand, "content", None)
+            if not content:
+                candidates.append({"content": {}})
+                continue
+
+            parts = [
+                {"text": part.text}
+                for part in getattr(content, "parts", []) or []
+                if getattr(part, "text", None) is not None
+            ]
+
+            content_dict = {"parts": parts}
+            if role := getattr(content, "role", None):
+                content_dict["role"] = role
+
+            candidates.append({"content": content_dict})
+
+        return {"candidates": candidates}
 
     def _poll_job(self, client: Any, job_name: str) -> Any:
         """Poll the batch job for completion using tenacity."""
