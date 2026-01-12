@@ -463,7 +463,9 @@ def _serialize_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
         "source": metadata.get("source"),
         "thread_id": _uuid_to_str(metadata.get("thread_id")),
         "author_uuid": _uuid_to_str(metadata.get("author_uuid")),
-        "created_at": (created_at.isoformat() if created_at and hasattr(created_at, "isoformat") else created_at),
+        "created_at": (
+            created_at.isoformat() if created_at and hasattr(created_at, "isoformat") else created_at
+        ),
         "created_by_run": _uuid_to_str(metadata.get("created_by_run")),
     }
 
