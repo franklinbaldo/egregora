@@ -161,13 +161,9 @@ def read_profile(
 
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
-    try:
-        profile_path = _find_profile_path(author_uuid, profiles_dir)
-        logger.info("Reading profile for %s from %s", author_uuid, profile_path)
-        return profile_path.read_text(encoding="utf-8")
-    except ProfileNotFoundError:
-        logger.info("No existing profile for %s", author_uuid)
-        return ""
+    profile_path = _find_profile_path(author_uuid, profiles_dir)
+    logger.info("Reading profile for %s from %s", author_uuid, profile_path)
+    return profile_path.read_text(encoding="utf-8")
 
 
 def write_profile(
@@ -589,9 +585,10 @@ def is_opted_out(
 
     """
     try:
-        profile = read_profile(author_uuid, profiles_dir)
-        return "Status: OPTED OUT" in profile
+        profile_content = read_profile(author_uuid, profiles_dir)
+        return "Status: OPTED OUT" in profile_content
     except ProfileNotFoundError:
+        # If a profile doesn't exist, the user cannot have opted out.
         return False
 
 
