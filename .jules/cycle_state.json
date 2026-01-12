@@ -1,6 +1,12 @@
 {
   "history": [
     {
+      "persona_id": "docs_curator",
+      "session_id": "17935896640921976270",
+      "pr_number": null,
+      "created_at": "2026-01-12T23:03:06.101663+00:00"
+    },
+    {
       "persona_id": "janitor",
       "session_id": "6871904012294294705",
       "pr_number": null,
