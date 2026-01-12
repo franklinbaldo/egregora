@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 from egregora.output_adapters.mkdocs.scaffolding import safe_yaml_load
 
 
@@ -15,6 +16,7 @@ def test_safe_yaml_load_prevents_arbitrary_code_execution():
     # expected, safe behavior.
     with pytest.raises(Exception):
         safe_yaml_load(malicious_payload)
+
 
 def test_safe_yaml_load_handles_regular_yaml():
     """Verify that safe_yaml_load still parses regular YAML correctly."""
