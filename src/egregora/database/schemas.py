@@ -232,6 +232,7 @@ def get_table_check_constraints(table_name: str) -> dict[str, str]:
         CHECK constraints for enum-like fields. Currently supports:
         - posts.status: Must be one of VALID_POST_STATUSES
         - tasks.status: Must be one of VALID_TASK_STATUSES
+        - documents.status: Must be one of VALID_DOCUMENT_STATUSES
 
     """
     if table_name == "posts":
@@ -240,6 +241,9 @@ def get_table_check_constraints(table_name: str) -> dict[str, str]:
     if table_name == "tasks":
         valid_values = ", ".join(f"'{status}'" for status in VALID_TASK_STATUSES)
         return {"chk_tasks_status": f"status IN ({valid_values})"}
+    if table_name == "documents":
+        valid_values = ", ".join(f"'{status}'" for status in VALID_DOCUMENT_STATUSES)
+        return {"chk_documents_status": f"status IN ({valid_values})"}
     return {}
 
 
@@ -271,6 +275,7 @@ def apply_table_constraints(conn: Any, table_name: str) -> None:
 # ============================================================================
 
 # Valid status values for business logic enforcement
+VALID_DOCUMENT_STATUSES = ("draft", "published", "archived", "note")
 VALID_POST_STATUSES = ("draft", "published", "archived")
 VALID_TASK_STATUSES = ("pending", "processing", "completed", "failed", "superseded")
 

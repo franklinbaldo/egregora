@@ -54,14 +54,20 @@ def initialize_database(backend: BaseBackend) -> None:
 
     # 1. Pure Unified Documents Table
     # This creates the table with the full schema if it's missing.
-    create_table_if_not_exists(conn, "documents", UNIFIED_SCHEMA)
+    from egregora.database.schemas import get_table_check_constraints
+
+    create_table_if_not_exists(
+        conn, "documents", UNIFIED_SCHEMA, check_constraints=get_table_check_constraints("documents")
+    )
 
     # 2. Run Pure schema migration to handle tables created with older schemas.
     # The migration script is idempotent and will do nothing if the schema is current.
     migrate_documents_table(conn)
 
     # 3. Tasks Table
-    create_table_if_not_exists(conn, "tasks", TASKS_SCHEMA)
+    create_table_if_not_exists(
+        conn, "tasks", TASKS_SCHEMA, check_constraints=get_table_check_constraints("tasks")
+    )
 
     # 4. Ingestion / Messages Table (Legacy/Ingestion Support)
     create_table_if_not_exists(conn, "messages", INGESTION_MESSAGE_SCHEMA)

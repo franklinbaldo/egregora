@@ -17,12 +17,20 @@ def _get_existing_columns(conn: duckdb.DuckDBPyConnection, table_name: str) -> s
 
 
 def _build_create_table_sql(table_name: str) -> str:
-    """Define the new schema with NOT NULL constraints."""
+    """Define the new schema with NOT NULL constraints and CHECK constraints."""
+    from egregora.database.schemas import get_table_check_constraints
+
     columns_sql = ", ".join(
         f'"{name}" {ibis_to_duckdb_type(dtype)}{" NOT NULL" if not dtype.nullable else ""}'
         for name, dtype in UNIFIED_SCHEMA.items()
     )
-    return f"CREATE TABLE {table_name} ({columns_sql});"
+
+    # Add CHECK constraints to the CREATE TABLE statement.
+    check_constraints = get_table_check_constraints("documents")
+    constraint_clauses = [f"CONSTRAINT {name} CHECK ({expr})" for name, expr in check_constraints.items()]
+
+    all_clauses = [columns_sql, *constraint_clauses]
+    return f"CREATE TABLE {table_name} ({', '.join(all_clauses)});"
 
 
 def _build_insert_select_sql(temp_table: str, existing_columns: set[str]) -> str:
