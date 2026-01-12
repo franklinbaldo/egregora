@@ -79,6 +79,7 @@ def test_get_open_prs(mock_env_token):
         {
             "number": 1,
             "title": "Test PR",
+            "body": "This is a test PR.",
             "head": {"ref": "feature/branch"},
             "base": {"ref": "main"},
             "html_url": "http://github.com/owner/repo/pull/1",
@@ -99,7 +100,7 @@ def test_get_open_prs(mock_env_token):
     assert route.called
     last_request = route.calls.last.request
     assert last_request.url.params["state"] == "open"
-    assert last_request.url.params["per_page"] == "50"
+    assert last_request.url.params["per_page"] == "100"
 
 
 @respx.mock
