@@ -1,6 +1,12 @@
 {
   "history": [
     {
+      "persona_id": "builder",
+      "session_id": "5625162428881117249",
+      "pr_number": null,
+      "created_at": "2026-01-12T20:23:52.622345+00:00"
+    },
+    {
       "persona_id": "sentinel",
       "session_id": "13608499210957801289",
       "pr_number": null,
