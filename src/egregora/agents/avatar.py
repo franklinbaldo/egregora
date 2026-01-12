@@ -88,6 +88,7 @@ def _get_avatar_directory(media_dir: Path) -> Path:
     return avatar_dir
 
 
+# TODO: [Taskmaster] Refactor: Move hardcoded UUID namespace to configuration
 def _generate_avatar_uuid(content: bytes) -> uuid.UUID:
     """Generate deterministic UUID for avatar based on content only.
 
@@ -285,6 +286,7 @@ def _save_avatar_file(content: bytes, avatar_uuid: uuid.UUID, ext: str, media_di
     return avatar_path
 
 
+# TODO: [Taskmaster] Refactor: Decompose `download_avatar_from_url` to simplify logic
 @sleep_and_retry
 @limits(calls=10, period=60)
 def download_avatar_from_url(
@@ -335,6 +337,7 @@ def download_avatar_from_url(
     except httpx.TooManyRedirects as e:
         msg = f"Too many redirects (>{MAX_REDIRECT_HOPS}) for URL: {url}"
         raise AvatarProcessingError(msg) from e
+    # TODO: [Taskmaster] Refactor: Simplify complex error handling block
     except httpx.HTTPError as e:
         # If the HTTP error was caused by our own validation, re-raise it directly
         # to preserve the specific security message.
@@ -365,6 +368,7 @@ class AvatarContext:
     cache: EnrichmentCache | None = None
 
 
+# TODO: [Taskmaster] Refactor: Decompose `_enrich_avatar` to separate concerns
 def _enrich_avatar(
     avatar_path: Path,
     author_uuid: str,
@@ -415,6 +419,7 @@ def _enrich_avatar(
         time=timestamp.strftime("%H:%M"),
     ).strip()
 
+    # TODO: [Taskmaster] Refactor: Use a factory or dependency injection for agent creation
     # Create local agent
     from pydantic_ai.models.google import GoogleModel
     from pydantic_ai.providers.google import GoogleProvider
