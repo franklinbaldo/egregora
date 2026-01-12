@@ -9,14 +9,15 @@ from egregora.rag.lancedb_backend import LanceDBRAGBackend
 
 class MockEmbeddingFn:
     def __call__(self, texts, task_type):
-        return [np.random.rand(EMBEDDING_DIM).tolist() for _ in texts]
+        rng = np.random.default_rng()
+        return [rng.random(EMBEDDING_DIM).tolist() for _ in texts]
 
 
 class Document:
     def __init__(self, document_id, text, document_type="POST"):
         self.document_id = document_id
-        self.text = text
-        self.document_type = document_type
+        self.content = text
+        self.type = document_type
         self.title = "Mock Title"
         self.author_slug = "mock-author"
         self.slug = f"mock-slug-{document_id}"

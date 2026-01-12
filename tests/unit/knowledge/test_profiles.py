@@ -1,6 +1,7 @@
 """Unit tests for the profile knowledge module."""
 
 import uuid
+
 import pytest
 
 from egregora.knowledge import profiles
@@ -35,6 +36,7 @@ def test_read_profile_reads_existing_profile(tmp_path):
     """Should correctly read an existing profile."""
     author_uuid = str(uuid.uuid4())
     profiles_dir = tmp_path / "profiles"
+    profiles_dir.mkdir()
     author_dir = profiles_dir / author_uuid
     author_dir.mkdir()
     profile_path = author_dir / "index.md"
