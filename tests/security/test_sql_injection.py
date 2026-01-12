@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.exceptions import TableNotFoundError
 
