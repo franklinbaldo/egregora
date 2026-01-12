@@ -18,7 +18,6 @@ from zoneinfo import ZoneInfo
 
 import ibis
 import ibis.expr.datatypes as dt
-from dateutil import parser as date_parser
 from pydantic import BaseModel
 
 from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
