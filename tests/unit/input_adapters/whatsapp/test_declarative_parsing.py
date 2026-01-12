@@ -51,7 +51,7 @@ def test_declarative_parser_matches_legacy(sample_whatsapp_export):
 
     # 3. Assert that the resulting Ibis tables are identical.
     # For robust comparison, we'll use pandas testing utilities.
-    import pandas as pd
+    import pandas as pd  # noqa: TID251
 
     # Ensure columns are in the same order
     declarative_df = declarative_df[legacy_df.columns]
