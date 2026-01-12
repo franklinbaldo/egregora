@@ -1,6 +1,7 @@
 """Manager classes for Jules scheduler operations."""
 
 import contextlib
+import logging
 import re
 import subprocess
 from datetime import UTC, datetime
@@ -17,6 +18,8 @@ from jules.github import (
 from jules.reconciliation_tracker import ReconciliationTracker
 from jules.scheduler import JULES_BRANCH, JULES_SCHEDULER_PREFIX, sprint_manager
 from jules.scheduler_models import CycleState, PersonaConfig, SessionRequest
+
+logger = logging.getLogger(__name__)
 
 # Timeout threshold for stuck sessions (in hours)
 SESSION_TIMEOUT_HOURS = 0.5  # 30 minutes
@@ -313,6 +316,7 @@ class BranchManager:
 
             if not has_conflicts:
                 if dry_run:
+                    logger.info("[Dry Run] Would merge '%s' into main.", self.jules_branch)
                     return True
 
                 subprocess.run(["git", "config", "user.name", "Jules Bot"], check=False)
@@ -333,6 +337,11 @@ class BranchManager:
                 return True
 
             if dry_run:
+                logger.info(
+                    "[Dry Run] Conflicts detected. Would backup '%s' to '%s', delete remote, create PR, and reset from main.",
+                    self.jules_branch,
+                    backup_branch,
+                )
                 return True
 
             # 1. Push current jules to backup branch
