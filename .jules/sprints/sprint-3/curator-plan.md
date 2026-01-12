@@ -1,37 +1,38 @@
-# Plano: Curator - Sprint 3
-
-**Persona:** curator
+# Plan: Curator - Sprint 3
+**Persona:** Curator 🎭
 **Sprint:** 3
-**Criado em:** 2026-01-09 (durante sprint-1)
-**Prioridade:** Média
+**Created:** 2024-07-29 (during Sprint 1)
+**Priority:** Medium
 
-## Objetivos
+## Goals
+Sprint 3 will build on the established design system, focusing on refining the reading experience and introducing more sophisticated, data-driven UI components. The goal is to make the blog not just usable, but delightful and insightful.
 
-Continuando o trabalho de aprimoramento da experiência do usuário, o sprint-3 se concentrará em refinar a arquitetura de informação do blog e melhorar a acessibilidade.
+- [ ] **Refine Visual Polish:** Audit the site for consistent spacing, rhythm, and alignment using an 8px grid system. Create tasks to address inconsistencies.
+- [ ] **Design Author Profiles:** Design a dedicated author profile page and a smaller author card component to be used on posts. This is a key step towards surfacing the "collective" aspect of the blog.
+- [ ] **Data-Driven UX Prototyping:** Collaborate with Visionary and Forge to prototype a "Topic Cloud" or similar visualization on the homepage, generated from the blog's content.
+- [ ] **Advanced Accessibility (A11y):** Conduct manual keyboard navigation and screen reader audits to identify issues that automated tools miss.
+- [ ] **Improve Social Sharing Cards:** The current social sharing cards are basic. Design a more visually appealing and informative template for social media previews.
 
-- [ ] **Melhorar a Mensagem de "Estado Vazio":** Refinar a mensagem na `index.md` quando ainda não há posts, tornando-a mais acolhedora e menos técnica.
-- [ ] **Revisar a Estrutura de Navegação:** Avaliar a hierarquia da navegação principal (e.g., a proeminência do link "Media") e propor uma estrutura mais intuitiva.
-- [ ] **Auditoria de Acessibilidade (A11y):** Realizar uma auditoria focada em acessibilidade, verificando o contraste das cores, a navegação pelo teclado e o uso de atributos ARIA. Criar tarefas para a `forge` para corrigir quaisquer problemas encontrados.
-- [ ] **Investigar e Planejar "Posts Relacionados":** Pesquisar maneiras de implementar uma seção de "posts relacionados" de forma autônoma e criar uma tarefa de design/implementação detalhada.
+## Dependencies
+- **Forge:** All design work will result in implementation tasks for Forge.
+- **Visionary:** Collaboration on data-driven UX features will require Visionary's input on what data is available and meaningful.
 
-## Dependências
+## Context
+With the foundational UX in place from Sprint 2, Sprint 3 is about adding layers of polish and intelligence. The focus shifts from "making it work" to "making it shine." The design of author profiles is the first major feature that directly addresses the "group reflection" aspect of Egregora.
 
-- **forge:** Será necessário para implementar as tarefas que surgirem da auditoria de acessibilidade e das outras iniciativas de UX.
+## Expected Deliverables
+1. **Visual Polish Tasks:** A set of specific tasks for Forge to improve spacing and alignment across the site.
+2. **Author Profile & Card Designs:** High-fidelity mockups or detailed descriptions for the author page and component, documented in `docs/ux-vision.md`.
+3. **Data-Driven UX Spec:** A clear specification for the "Topic Cloud" feature, created in collaboration with Visionary.
+4. **Manual A11y Report:** A journal entry documenting the findings from the manual accessibility audit.
+5. **Social Card Template:** A new design for social sharing cards.
 
-## Contexto
+## Risks and Mitigations
+| Risk | Probability | Impact | Mitigation |
+|---|---|---|---|
+| Data for UX features is not readily available | Medium | Medium | I will work closely with Visionary from the start to ensure that my design proposals are grounded in technical reality. We will start with a simple proof-of-concept. |
+| Design implementation is more complex than anticipated | Low | Medium | I will break down designs into small, manageable components and provide detailed implementation guidance to Forge. |
 
-Com as melhorias de branding de alto impacto implementadas no sprint-2, o sprint-3 pode se concentrar em aspectos mais sutis, mas igualmente importantes, da experiência do usuário. Melhorar a primeira impressão (estado vazio), a facilidade de encontrar informações (navegação) e garantir que o site seja utilizável por todos (acessibilidade) são os próximos passos lógicos na evolução do design do produto.
-
-## Entregáveis Esperados
-
-1.  **Tarefa para "Estado Vazio":** Uma tarefa de UX detalhada para a `forge` com o novo texto e possivelmente um conceito visual para a página inicial sem posts.
-2.  **Proposta de Navegação:** Um documento ou tarefa descrevendo a nova estrutura de navegação recomendada.
-3.  **Relatório de Acessibilidade e Tarefas:** Um resumo dos problemas de acessibilidade encontrados e as tarefas correspondentes criadas para a `forge`.
-4.  **Especificação de "Posts Relacionados":** Uma tarefa detalhada descrevendo como a funcionalidade de posts relacionados deve ser projetada e implementada.
-
-## Riscos e Mitigações
-
-| Risco | Probabilidade | Impacto | Mitigação |
-|-------|---------------|---------|-----------|
-| A auditoria de acessibilidade revela problemas complexos | Média | Alto | Priorizar as correções mais impactantes e fáceis de implementar primeiro. |
-| A implementação de "posts relacionados" é tecnicamente inviável de forma autônoma | Média | Médio | A tarefa inicial é de pesquisa e design, o que ajudará a identificar a viabilidade antes de qualquer trabalho de implementação. |
+## Proposed Collaborations
+- **With Forge:** Continuous collaboration on implementing the design specs.
+- **With Visionary:** A dedicated workshop to brainstorm and spec out the first data-driven UX feature.
