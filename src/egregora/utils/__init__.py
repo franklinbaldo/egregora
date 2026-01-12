@@ -12,10 +12,8 @@ from egregora.security.zip import (
     validate_zip_contents,
 )
 from egregora.utils.datetime_utils import parse_datetime_flexible
-from egregora.utils.fs import PathTraversalError, safe_path_join
 
 __all__ = [
-    "PathTraversalError",
     "SSRFValidationError",
     "ZipValidationError",
     "ZipValidationSettings",

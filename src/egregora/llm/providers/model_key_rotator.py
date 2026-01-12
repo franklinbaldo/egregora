@@ -165,24 +165,3 @@ class ModelKeyRotator:
             ) from last_exception
         msg = "All models and keys exhausted"
         raise AllModelsExhaustedError(msg)
-
-
-# TODO: [Taskmaster] Remove redundant `create_model_key_rotator` function
-# This factory function is a thin wrapper around the ModelKeyRotator constructor
-# and does not provide any additional value. It should be removed to simplify
-# the API. Direct instantiation of the class should be used instead.
-def create_model_key_rotator(
-    models: list[str] | None = None,
-    api_keys: list[str] | None = None,
-) -> ModelKeyRotator:
-    """Create a combined model+key rotator.
-
-    Args:
-        models: Models from config, or None to use defaults.
-        api_keys: API keys, or None to load from environment.
-
-    Returns:
-        Configured ModelKeyRotator instance.
-
-    """
-    return ModelKeyRotator(models=models, api_keys=api_keys)
