@@ -1,0 +1,454 @@
+"""Parsing and normalization logic for WhatsApp exports."""
+
+from __future__ import annotations
+
+import html
+import io
+import logging
+import re
+import unicodedata
+import uuid
+import zipfile
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime, time
+from functools import lru_cache
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+from zoneinfo import ZoneInfo
+
+import ibis
+import ibis.expr.datatypes as dt
+from dateutil import parser as date_parser
+from pydantic import BaseModel
+
+from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
+from egregora.input_adapters.whatsapp.exceptions import (
+    DateParsingError,
+    MalformedLineError,
+    NoMessagesFoundError,
+    TimeParsingError,
+)
+from egregora.input_adapters.whatsapp.utils import build_message_attrs
+from egregora.security.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from ibis.expr.types import Table
+
+    from egregora.config.settings import EgregoraConfig
+
+logger = logging.getLogger(__name__)
+
+
+# Basic PII patterns
+EMAIL_PATTERN = re.compile(r"[\w\.-]+@[\w\.-]+\.\w+")
+PHONE_PATTERN = re.compile(r"(\+\d{1,2}\s?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}")
+
+
+def scrub_pii(text: str, config: EgregoraConfig | None = None) -> str:
+    """Scrub PII from text."""
+    if config and not config.privacy.pii_detection_enabled:
+        return text
+
+    # Defaults if config is None or flags are true
+    # If config is provided, respect its flags. If not, default to True (safe default).
+    do_email = config.privacy.scrub_emails if config else True
+    do_phone = config.privacy.scrub_phones if config else True
+
+    if do_email:
+        text = EMAIL_PATTERN.sub("<EMAIL_REDACTED>", text)
+    if do_phone:
+        text = PHONE_PATTERN.sub("<PHONE_REDACTED>", text)
+    return text
+
+
+def anonymize_author(author_key: str, namespace: uuid.UUID) -> str:
+    """Generate a consistent UUID for an author name/key."""
+    return str(uuid.uuid5(namespace, author_key))
+
+
+class WhatsAppExport(BaseModel):
+    """Metadata for a WhatsApp ZIP export."""
+
+    zip_path: Path
+    group_name: str
+    group_slug: str
+    export_date: date
+    chat_file: str
+    media_files: list[str]
+
+
+# Keep the old brittle one as a fallback
+FALLBACK_PATTERN = re.compile(
+    r"^(\d{1,2}[/\.\-]\d{1,2}[/\.\-]\d{2,4})(?:,\s*|\s+)(\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?)\s*[—\-]\s*([^:]+):\s*(.*)$"
+)
+
+
+# Text normalization
+_INVISIBLE_MARKS = re.compile(r"[\u200e\u200f\u202a-\u202e]")
+
+# Define parsing strategies in order of preference
+_DATE_PARSING_STRATEGIES = [
+    lambda x: date_parser.isoparse(x),
+    lambda x: date_parser.parse(x, dayfirst=True),
+    lambda x: date_parser.parse(x, dayfirst=False),
+]
+
+TIME_STR_LEN = 5
+HOURS_IN_HALF_DAY = 12
+PARTS_IN_TIME_STR = 2
+
+
+def _normalize_text(value: str, config: EgregoraConfig | None = None) -> str:
+    """Normalize unicode text and sanitize HTML.
+
+    Performs:
+    1. Unicode NFKC normalization (if needed)
+    2. Removal of invisible control characters
+    3. PII scrubbing (if enabled)
+    4. HTML escaping of special characters (<, >, &) to prevent XSS
+       (quote=False to preserve readability of quotes in text)
+    """
+    if value.isascii():
+        return html.escape(value, quote=False)
+
+    normalized = unicodedata.normalize("NFKC", value)
+    # NFKC already converts \u202f (Narrow No-Break Space) to space, so explicit replace is redundant
+    cleaned = _INVISIBLE_MARKS.sub("", normalized)
+
+    # Scrub PII before HTML escaping
+    scrubbed = scrub_pii(cleaned, config)
+
+    return html.escape(scrubbed, quote=False)
+
+
+@lru_cache(maxsize=1024)
+def _parse_message_date(token: str) -> date:
+    """Parse date token into a date object using multiple parsing strategies.
+
+    Performance: Uses lru_cache since WhatsApp logs contain many repeated
+    date strings (messages from the same day).
+    """
+    normalized = token.strip()
+    if not normalized:
+        raise DateParsingError("Date string is empty.")
+
+    for strategy in _DATE_PARSING_STRATEGIES:
+        try:
+            parsed = strategy(normalized)
+            parsed = parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
+            return parsed.date()
+        except (TypeError, ValueError, OverflowError):
+            continue
+
+    msg = f"Failed to parse date string: '{token}'"
+    raise DateParsingError(msg)
+
+
+def _is_standard_hh_mm(token: str) -> bool:
+    """Check if token matches HH:MM exactly."""
+    return len(token) == TIME_STR_LEN and token[2] == ":" and token[0:2].isdigit() and token[3:5].isdigit()
+
+
+def _parse_ampm_time(token: str, upper_token: str) -> time | None:
+    """Parse AM/PM time formats."""
+    is_pm = upper_token.endswith("PM")
+    is_am = upper_token.endswith("AM")
+
+    if not (is_pm or is_am):
+        return None
+
+    try:
+        # Slice off "AM" or "PM" and strip remaining whitespace
+        main_part = token[:-2].strip()
+        if ":" in main_part:
+            h_str, m_str = main_part.split(":")
+            h, m = int(h_str), int(m_str)
+
+            if is_pm and h != HOURS_IN_HALF_DAY:
+                h += HOURS_IN_HALF_DAY
+            elif is_am and h == HOURS_IN_HALF_DAY:
+                h = 0
+            return time(h, m)
+    except ValueError:
+        pass
+    return None
+
+
+@lru_cache(maxsize=4096)
+def _parse_message_time(time_token: str) -> time:
+    """Parse time token into a time object (naive, for later localization)."""
+    token = time_token.strip()
+    if not token:
+        raise TimeParsingError("Time string is empty.")
+
+    # 1. Fast path for standard HH:MM
+    if _is_standard_hh_mm(token):
+        try:
+            return time(int(token[:2]), int(token[3:]))
+        except ValueError:
+            pass
+
+    # 2. Handle AM/PM formats
+    ampm_time = _parse_ampm_time(token, token.upper())
+    if ampm_time:
+        return ampm_time
+
+    # 3. Fallback for H:MM or HH:MM that failed fast path
+    try:
+        if ":" in token:
+            parts = token.split(":")
+            if len(parts) == PARTS_IN_TIME_STR:
+                return time(int(parts[0]), int(parts[1]))
+    except ValueError:
+        pass
+
+    msg = f"Failed to parse time string: '{time_token}'"
+    raise TimeParsingError(msg)
+
+
+def _resolve_timezone(timezone: str | ZoneInfo | None) -> ZoneInfo:
+    """Resolve timezone string or object to ZoneInfo."""
+    if timezone is None:
+        return UTC
+    if isinstance(timezone, ZoneInfo):
+        return timezone
+    return ZoneInfo(timezone)
+
+
+@dataclass
+class MessageBuilder:
+    """Encapsulates message construction state, hiding internal tracking columns."""
+
+    tenant_id: str
+    source_identifier: str
+    current_date: date
+    timezone: ZoneInfo
+    message_count: int = 0
+    _current_entry: dict[str, Any] | None = None
+    _rows: list[dict[str, Any]] = field(default_factory=list)
+    _author_uuid_cache: dict[str, str] = field(default_factory=dict)
+
+    def start_new_message(self, timestamp: datetime, author_raw: str, initial_text: str) -> None:
+        """Finalize pending message and start a new one."""
+        self.flush()
+        self.message_count += 1
+        self._current_entry = {
+            "timestamp": timestamp,
+            "date": self.current_date,
+            "author_raw": author_raw.strip(),
+            "_original_lines": [f"{timestamp} - {author_raw}: {initial_text}"],
+            "_continuation_lines": [initial_text],
+            "_import_order": self.message_count,
+        }
+
+    def append_line(self, line: str, text_part: str) -> None:
+        """Append a line to the current message."""
+        if self._current_entry:
+            self._current_entry["_original_lines"].append(line)
+            self._current_entry["_continuation_lines"].append(text_part)
+
+    def flush(self) -> None:
+        """Finalize and store the current message."""
+        if self._current_entry:
+            finalized = self._finalize_message(self._current_entry)
+            if finalized["text"]:
+                self._rows.append(finalized)
+            self._current_entry = None
+
+    def _finalize_message(self, msg: dict) -> dict:
+        """Transform internal builder state to public schema dict."""
+        message_text = "\n".join(msg["_continuation_lines"]).strip()
+        original_text = "\n".join(msg["_original_lines"]).strip()
+
+        author_raw = msg["author_raw"]
+        # Deterministic UUID generation: same author_raw always produces the same UUID
+        # Uses UUID5 (name-based) with OID namespace for consistent, reproducible author IDs
+        # Cache UUIDs for performance (avoid recomputing for the same author)
+        if author_raw not in self._author_uuid_cache:
+            author_key = f"{self.source_identifier}:{author_raw}"
+            author_uuid_str = anonymize_author(author_key, uuid.NAMESPACE_OID)
+            # Store string representation in cache
+            self._author_uuid_cache[author_raw] = author_uuid_str
+        else:
+            author_uuid_str = self._author_uuid_cache[author_raw]
+
+        # Compute hex representation directly from UUID string (hyphens removed)
+        author_uuid_hex = author_uuid_str.replace("-", "")
+
+        return {
+            "ts": msg["timestamp"],
+            "date": msg["date"],
+            "message_date": msg["date"].isoformat(),
+            "author": author_raw,
+            "author_raw": author_raw,
+            "author_uuid": author_uuid_str,
+            "_author_uuid_hex": author_uuid_hex,
+            "text": message_text,
+            "original_line": original_text or None,
+            "tagged_line": None,
+            "_import_order": msg.get("_import_order", 0),
+        }
+
+    def get_rows(self) -> list[dict[str, Any]]:
+        """Return the list of built message rows."""
+        return self._rows
+
+
+class ZipMessageSource:
+    """Iterates over lines from a WhatsApp chat export inside a ZIP file."""
+
+    def __init__(self, export: WhatsAppExport, config: EgregoraConfig | None = None) -> None:
+        self.export = export
+        self.config = config
+
+    def lines(self) -> Iterator[str]:
+        """Yield normalized lines from the source file."""
+        with zipfile.ZipFile(self.export.zip_path) as zf:
+            validate_zip_contents(zf)
+            ensure_safe_member_size(zf, self.export.chat_file)
+            try:
+                with zf.open(self.export.chat_file) as raw:
+                    text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
+                    for line in text_stream:
+                        yield _normalize_text(line.rstrip("\n"), self.config)
+            except UnicodeDecodeError as exc:
+                msg = f"Failed to decode chat file '{self.export.chat_file}': {exc}"
+                raise ZipValidationError(msg) from exc
+
+
+def _parse_whatsapp_lines(
+    source: ZipMessageSource,
+    export: WhatsAppExport,
+    timezone: str | ZoneInfo | None,
+) -> list[dict[str, Any]]:
+    """Pure Python parser for WhatsApp logs."""
+    line_pattern = FALLBACK_PATTERN
+
+    tz = _resolve_timezone(timezone)
+    builder = MessageBuilder(
+        tenant_id=str(export.group_slug),
+        source_identifier="whatsapp",
+        current_date=export.export_date,
+        timezone=tz,
+    )
+
+    for line in source.lines():
+        match = line_pattern.match(line)
+        if not match:
+            builder.append_line(line, line)
+            continue
+
+        date_str, time_str, author_raw, message_part = match.groups()
+
+        try:
+            msg_date = _parse_message_date(date_str)
+            msg_time = _parse_message_time(time_str)
+
+            builder.current_date = msg_date
+            timestamp = datetime.combine(msg_date, msg_time, tzinfo=tz).astimezone(UTC)
+
+            builder.start_new_message(timestamp, author_raw, message_part)
+
+        except (DateParsingError, TimeParsingError) as e:
+            # Re-raise with context about the malformed line
+            raise MalformedLineError(line=line, original_error=e) from e
+
+    builder.flush()
+    return builder.get_rows()
+
+
+def _add_message_ids(messages: Table) -> Table:
+    """Add deterministic message_id column based on milliseconds since group creation."""
+    min_ts = messages.ts.min()
+    delta_ms = ((messages.ts.epoch_seconds() - min_ts.epoch_seconds()) * 1000).round().cast("int64")
+
+    order_columns = [messages.ts]
+    if "_import_order" in messages.columns:
+        order_columns.append(messages["_import_order"])
+
+    if "author_raw" in messages.columns:
+        order_columns.append(messages.author_raw)
+    elif "author" in messages.columns:
+        order_columns.append(messages.author)
+
+    if "text" in messages.columns:
+        order_columns.append(messages.text)
+    elif "message" in messages.columns:
+        order_columns.append(messages.message)
+
+    row_number = ibis.row_number().over(order_by=order_columns)
+    return messages.mutate(message_id=delta_ms.cast("string") + "_" + row_number.cast("string"))
+
+
+def parse_source(
+    export: WhatsAppExport,
+    timezone: str | ZoneInfo | None = None,
+    *,
+    expose_raw_author: bool = False,
+    source_identifier: str = "whatsapp",
+    config: EgregoraConfig | None = None,
+) -> Table:
+    """Parse WhatsApp export using pure Ibis/DuckDB operations."""
+    source = ZipMessageSource(export, config)
+    rows = _parse_whatsapp_lines(source, export, timezone)
+
+    if not rows:
+        msg = f"No messages found in '{export.zip_path}'"
+        raise NoMessagesFoundError(msg)
+
+    messages = ibis.memtable(rows)
+    if "_import_order" in messages.columns:
+        messages = messages.order_by([messages.ts, messages["_import_order"]])
+    else:
+        messages = messages.order_by("ts")
+
+    if not expose_raw_author:
+        # Anonymize author names to prevent leakage of PII into downstream tables
+        # We replace the raw name with the UUID string
+        messages = messages.mutate(author_raw=messages.author_uuid)
+
+    messages = _add_message_ids(messages)
+
+    if not expose_raw_author:
+        # Redact raw author names if not explicitly exposed
+        # Replace author_raw with author_uuid to maintain a valid string
+        messages = messages.mutate(author_raw=messages.author_uuid)
+
+    if "_import_order" in messages.columns:
+        messages = messages.drop("_import_order")
+
+    helper_columns = ["_author_uuid_hex"]
+    columns_to_drop = [col for col in helper_columns if col in messages.columns]
+    if columns_to_drop:
+        messages = messages.drop(*columns_to_drop)
+
+    tenant_literal = ibis.literal(str(export.group_slug))
+    thread_literal = tenant_literal
+    source_literal = ibis.literal(source_identifier)
+    created_by_literal = ibis.literal("adapter:whatsapp")
+    string_null = ibis.literal(None, type=dt.string)
+    json_null = ibis.literal(None, type=dt.json)
+
+    attrs_column = build_message_attrs(
+        messages.original_line, messages.tagged_line, messages.message_date
+    ).cast(dt.json)
+
+    # Note: author_raw is inherited from messages table and should already be present
+    result_table = messages.mutate(
+        event_id=messages.message_id,
+        tenant_id=tenant_literal,
+        source=source_literal,
+        thread_id=thread_literal,
+        msg_id=messages.message_id,
+        ts=messages.ts.cast("timestamp('UTC')"),
+        media_url=string_null,
+        media_type=string_null,
+        attrs=attrs_column,
+        pii_flags=json_null,
+        created_at=messages.ts.cast("timestamp('UTC')"),
+        created_by_run=created_by_literal,
+    )
+
+    return result_table.select(*INGESTION_MESSAGE_SCHEMA.names)

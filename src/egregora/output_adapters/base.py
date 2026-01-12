@@ -20,7 +20,7 @@ from egregora.output_adapters.exceptions import (
     FrontmatterParsingError,
     RegistryNotProvidedError,
 )
-from egregora.utils import safe_path_join
+from egregora.security.fs import safe_path_join
 from egregora.utils.text import slugify
 
 if TYPE_CHECKING:
