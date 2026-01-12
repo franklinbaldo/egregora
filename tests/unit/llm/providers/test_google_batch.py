@@ -1,6 +1,6 @@
 """Unit tests for the GoogleBatchModel LLM provider."""
 
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import httpx
 import pytest
@@ -254,12 +254,9 @@ class TestGoogleBatchModel:
         mock_content.role = "model"
         mock_candidate.content = mock_content
         mock_response.candidates = [mock_candidate]
-        expected_dict = {
-            "candidates": [{"content": {"parts": [], "role": "model"}}]
-        }
+        expected_dict = {"candidates": [{"content": {"parts": [], "role": "model"}}]}
         result_dict = model._response_to_dict(mock_response)
         assert result_dict == expected_dict
-
 
     def test_response_to_dict_part_no_text(self, model: GoogleBatchModel):
         """
@@ -280,9 +277,7 @@ class TestGoogleBatchModel:
         mock_content.role = "model"
         mock_candidate.content = mock_content
         mock_response.candidates = [mock_candidate]
-        expected_dict = {
-            "candidates": [{"content": {"parts": [], "role": "model"}}]
-        }
+        expected_dict = {"candidates": [{"content": {"parts": [], "role": "model"}}]}
         result_dict = model._response_to_dict(mock_response)
         assert result_dict == expected_dict
 
@@ -300,7 +295,7 @@ class TestGoogleBatchModel:
         mock_part1a = MagicMock()
         mock_part1a.text = "First part."
         mock_part1b = MagicMock()
-        del mock_part1b.text # No text here
+        del mock_part1b.text  # No text here
         mock_cont1.parts = [mock_part1a, mock_part1b]
         mock_cont1.role = "model"
         mock_cand1.content = mock_cont1
@@ -308,7 +303,6 @@ class TestGoogleBatchModel:
         # Candidate 2: no content
         mock_cand2 = MagicMock()
         type(mock_cand2).content = PropertyMock(return_value=None)
-
 
         # Candidate 3: content, but no parts
         mock_cand3 = MagicMock()

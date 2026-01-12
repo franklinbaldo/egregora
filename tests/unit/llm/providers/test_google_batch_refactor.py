@@ -1,7 +1,11 @@
 """Unit tests for the GoogleBatchModel LLM provider."""
+
 from unittest.mock import MagicMock
+
 import pytest
+
 from egregora.llm.providers.google_batch import GoogleBatchModel
+
 
 class TestGoogleBatchModelRefactor:
     """Tests for the GoogleBatchModel."""
