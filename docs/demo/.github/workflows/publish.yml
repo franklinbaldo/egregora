@@ -41,7 +41,7 @@ jobs:
         run: |
           # Place your WhatsApp export ZIP in the repository as 'export.zip'
           # Or modify this command to point to your export location
-          uv run egregora write export.zip --output=${{ github.workspace }}
+          uv run egregora write export.zip --output-dir=${{ github.workspace }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

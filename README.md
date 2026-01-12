@@ -1,8 +1,3 @@
-# Egregora V2
->
-> ⚠️ **This is the legacy Egregora V2 repository.**
-> For the modern version with DuckDB, UUIDs, and Ibis-based pipelines, see [Egregora Pure](https://github.com/franklinbaldo/egregora-v3).
-
 *Turn your chaotic group chat into a structured, readable blog.*
 
 [![CI](https://github.com/franklinbaldo/egregora/actions/workflows/ci.yml/badge.svg)](https://github.com/franklinbaldo/egregora/actions/workflows/ci.yml)
@@ -46,12 +41,12 @@ egregora init ./my-blog
 cd my-blog
 ```
 
-Egregora automatically bootstraps `.egregora` (mkdocs config, cache, RAG, and LanceDB directories) when you run `egregora init` or `egregora write`. Use `python scripts/bootstrap_site.py ./my-blog` (or `python ../scripts/bootstrap_site.py .` from inside the site) only if you need to regenerate the scaffolding manually.
+Egregora automatically bootstraps `.egregora` (mkdocs config, cache, RAG, and LanceDB directories) when you run `egregora init` or `egregora write`.
 
 **2. Generate posts from your chat export:**
 
 ```bash
-egregora write path/to/chat_export.zip --output=.
+egregora write path/to/chat_export.zip --output-dir=.
 ```
 
 **3. Preview your site:**
@@ -72,25 +67,8 @@ Egregora is highly configurable via the `.egregora.toml` file generated in your 
 * **Models:** Switch between models (e.g., `google-gla:gemini-flash-latest`) or use OpenRouter.
 * **Pipeline:** Adjust how many days of chat form a single post (`step_size`, `step_unit`).
 
-### Multi-site configs & reusable sources
-
-Register inputs once and point multiple sites at them using `[sources.*]` and `[sites.<name>]` blocks:
-
-```toml
-[sources.whatsapp_export]
-type = "whatsapp"
-path = "exports/friends.zip"
-
-[sites.default]
-sources = ["whatsapp_export"]
-
-[sites.default.output]
-adapters = [{ type = "mkdocs", config_path = ".egregora/mkdocs.yml" }]
-```
-
-If you only define one site/source, Egregora selects it automatically. When multiple entries exist, use `--site`/`--source` (or `EGREGORA_SITE`/`EGREGORA_SOURCE`) to choose explicitly. Legacy single-site configs without `[sites.*]` continue to work and are treated as a single implicit site. See the [Configuration Guide](docs/getting-started/configuration.md#sites-and-sources-multi-site-configs) for detailed rules and migration steps.
-
 👉 **[Full Configuration Reference](docs/getting-started/configuration.md)**
+For advanced setups, see the guide on [Multi-site configs & reusable sources](docs/getting-started/configuration.md#sites-and-sources-multi-site-configs).
 
 ### Customizing the AI
 
@@ -147,7 +125,7 @@ You can extend Egregora to read from other sources (e.g., Slack, Telegram) by im
 
 We welcome contributions! Please check out:
 
-* **[Technical Reference](docs/v3/api-reference/):** Deep dive into CLI commands and architecture.
+* **[Technical Reference](docs/reference):** Deep dive into CLI commands and architecture.
 * **[Code of the Weaver](CLAUDE.md):** Guidelines for contributors and AI agents.
 
 To run tests:

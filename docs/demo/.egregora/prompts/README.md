@@ -32,7 +32,7 @@ cp src/egregora/prompts/writer.jinja .egregora/prompts/writer.jinja
 $EDITOR .egregora/prompts/writer.jinja
 
 # 4. Run Egregora – it will automatically pick up the override
-egregora write export.zip --output blog
+egregora write export.zip --output-dir blog
 ```
 
 ## Directory Structure
