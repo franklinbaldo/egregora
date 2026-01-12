@@ -10,15 +10,15 @@ The testing structure largely mirrors the source structure, which is good. Howev
 
 ## Identified Issues
 
-1.  **Misplaced Filesystem Utilities**: The `src/egregora/utils/fs.py` module contains filesystem-related helper functions. These are likely used by output adapters or other components that interact with the filesystem. They should be moved closer to their primary consumers to improve cohesion.
+1.  **Duplicated Security Code**: The `safe_path_join` function and `PathTraversalError` exception are duplicated in `src/egregora/utils/fs.py` and `src/egregora/security/fs.py`. This is a critical violation of the DRY principle, introduces maintenance overhead, and creates confusion about the source of truth. The canonical implementation should live in `src/egregora/security/fs.py`.
 2.  **Misplaced Caching Logic**: The `src/egregora/utils/cache.py` module contains caching utilities. Caching strategies are often tied to specific domains (e.g., caching for LLM calls vs. caching for filesystem access). This module should be broken up and its parts moved to their respective domains.
 3.  **Vague `database/utils.py`**: The `src/egregora/database/utils.py` module may contain generic SQL utilities, but it could also hide domain-specific query logic that should be part of a specific repository or data access layer.
 4.  **Misplaced `text.py`**: The `src/egregora/utils/text.py` module contains a `sanitize_prompt_input` function, which is clearly LLM-related and should be moved to the `src/egregora/llm` module.
 
 ## Prioritized Improvements
 
-1.  **`text.py` Refactoring (High Impact, Low Risk)**: Moving `sanitize_prompt_input` is a small, safe change that clearly improves the organization.
-2.  **`fs.py` Refactoring (Medium Impact, Low Risk)**: Moving these utilities will likely involve updating a few import sites, but it will significantly clarify the responsibilities of the modules that use them.
+1.  **Consolidate `safe_path_join` (Critical, Low Risk)**: Resolve the duplicated code by removing the implementation from `src/egregora/utils/fs.py` and updating all consumers to use the version from `src/egregora/security/fs.py`. This is a critical fix to maintain code health and is low-risk as it's a consolidation of identical logic.
+2.  **`text.py` Refactoring (High Impact, Low Risk)**: Moving `sanitize_prompt_input` is a small, safe change that clearly improves the organization.
 3.  **`cache.py` Refactoring (High Impact, Medium Risk)**: This is a high-impact change because it will make the caching strategy much clearer. It's medium risk because it may require careful analysis to ensure the correct caching logic is moved to the correct domain.
 4.  **`database/utils.py` Refactoring (Medium Impact, Medium Risk)**: This could improve the data access layer, but requires careful analysis to avoid breaking database interactions.
 
