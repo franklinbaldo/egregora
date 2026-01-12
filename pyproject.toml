@@ -86,7 +86,7 @@ test = [
     # Snapshot testing for Atom XML and prompt templates
     "syrupy>=4.9",
     "respx>=0.22.0",
-    "moto[s3]>=5.0",
+    "moto>=5.0",
 ]
 
 [build-system]
