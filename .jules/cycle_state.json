@@ -1,6 +1,12 @@
 {
   "history": [
     {
+      "persona_id": "shepherd",
+      "session_id": "1901712039043750650",
+      "pr_number": null,
+      "created_at": "2026-01-12T21:03:24.975793+00:00"
+    },
+    {
       "persona_id": "builder",
       "session_id": "5625162428881117249",
       "pr_number": null,
