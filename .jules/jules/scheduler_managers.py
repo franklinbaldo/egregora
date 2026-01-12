@@ -297,6 +297,133 @@ class BranchManager:
             print(f"⚠️  Sync failed: {stderr}. Treating as drift...")
             return self._rotate_drifted_branch()  # Creates jules-sprint-N and PR automatically
 
+    def merge_jules_into_main_direct(self, dry_run: bool = False) -> bool:
+        """Attempt to merge jules into main directly, or handle conflicts via backup PR.
+
+        1. Fetches origin.
+        2. Tries to merge origin/jules into main.
+        3. If successful (clean merge), pushes main.
+        4. If conflicting:
+           - Pushes jules to a backup branch (jules-backup-{timestamp}).
+           - Deletes remote jules branch.
+           - Creates a PR from backup branch to main.
+           - Recreates jules branch from main.
+
+        Args:
+            dry_run: If True, prints actions instead of executing them.
+
+        Returns:
+            True if operation completed successfully (either merge or backup),
+            False on error.
+        """
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        backup_branch = f"jules-backup-{timestamp}"
+
+        try:
+            print("Fetching origin...")
+            subprocess.run(["git", "fetch", "origin"], check=True, capture_output=True)
+
+            # Check for conflicts
+            print("Checking for merge conflicts...")
+            result = subprocess.run(
+                ["git", "merge-tree", "--write-tree", "origin/main", f"origin/{self.jules_branch}"],
+                capture_output=True,
+                text=True,
+            )
+
+            has_conflicts = result.returncode != 0
+
+            if not has_conflicts:
+                print(f"✅ No conflicts. Merging '{self.jules_branch}' into main...")
+                if dry_run:
+                    print("[Dry Run] Would checkout main, merge jules, and push.")
+                    return True
+
+                subprocess.run(["git", "config", "user.name", "Jules Bot"], check=False)
+                subprocess.run(["git", "config", "user.email", "jules-bot@google.com"], check=False)
+
+                # Checkout main and merge
+                subprocess.run(["git", "checkout", "-B", "main", "origin/main"], check=True, capture_output=True)
+                subprocess.run(["git", "merge", f"origin/{self.jules_branch}", "--no-edit"], check=True, capture_output=True)
+                subprocess.run(["git", "push", "origin", "main"], check=True, capture_output=True)
+                print("✅ Successfully merged jules into main.")
+                return True
+
+            else:
+                print(f"⚠️  Conflicts detected. Initiating backup protocol for '{self.jules_branch}'...")
+
+                if dry_run:
+                    print(f"[Dry Run] Would push {self.jules_branch} to {backup_branch}, delete {self.jules_branch}, create PR, and reset {self.jules_branch} from main.")
+                    return True
+
+                # 1. Push current jules to backup branch
+                print(f"Backing up '{self.jules_branch}' to '{backup_branch}'...")
+                subprocess.run(
+                    ["git", "push", "origin", f"origin/{self.jules_branch}:refs/heads/{backup_branch}"],
+                    check=True,
+                    capture_output=True
+                )
+
+                # 2. Delete remote jules branch
+                print(f"Deleting remote '{self.jules_branch}'...")
+                subprocess.run(
+                    ["git", "push", "origin", "--delete", self.jules_branch],
+                    check=True,
+                    capture_output=True
+                )
+
+                # 3. Create PR from backup to main
+                print(f"Creating PR from '{backup_branch}' to 'main'...")
+                pr_title = f"Conflict Backup: {backup_branch}"
+                pr_body = (
+                    f"Automatic backup of `{self.jules_branch}` due to merge conflicts with `main`.\n\n"
+                    f"**Backup Branch:** `{backup_branch}`\n"
+                    f"**Reason:** Direct merge failed due to conflicts.\n"
+                    f"**Action Required:** Manual resolution and merge."
+                )
+
+                try:
+                    subprocess.run(
+                        [
+                            "gh", "pr", "create",
+                            "--head", backup_branch,
+                            "--base", "main",
+                            "--title", pr_title,
+                            "--body", pr_body
+                        ],
+                        check=True,
+                        capture_output=True
+                    )
+                    print(f"✅ Created PR for backup branch '{backup_branch}'.")
+                except subprocess.CalledProcessError as e:
+                    print(f"⚠️ Failed to create PR: {e.stderr.decode() if e.stderr else str(e)}")
+                    # Continue anyway to restore jules branch
+
+                # 4. Recreate jules branch from main
+                print(f"Recreating '{self.jules_branch}' from 'main'...")
+                # Ensure we have latest main sha
+                sha_result = subprocess.run(
+                    ["git", "rev-parse", "origin/main"],
+                    check=True,
+                    capture_output=True,
+                    text=True
+                )
+                main_sha = sha_result.stdout.strip()
+
+                subprocess.run(
+                    ["git", "push", "origin", f"{main_sha}:refs/heads/{self.jules_branch}"],
+                    check=True,
+                    capture_output=True
+                )
+                print(f"✅ Successfully reset '{self.jules_branch}' to match 'main'.")
+
+                return True
+
+        except subprocess.CalledProcessError as e:
+            stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
+            print(f"❌ Operation failed: {stderr}", file=sys.stderr)
+            return False
+
 
 class PRManager:
     """Handles GitHub PR operations."""

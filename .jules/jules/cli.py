@@ -50,10 +50,11 @@ def feedback_loop(
 
 @sync_app.command("merge-main")
 def sync_merge_main(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Do not execute changes"),
 ) -> None:
     """Directly merge jules → main (no PR)."""
     mgr = BranchManager()
-    ok = mgr.merge_jules_into_main_direct()
+    ok = mgr.merge_jules_into_main_direct(dry_run=dry_run)
     print("Merge completed." if ok else "Merge not completed.")
 
 
