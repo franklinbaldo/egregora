@@ -22,7 +22,7 @@ The site will be available at `http://127.0.0.1:8000`.
 # Process a WhatsApp export
 egregora write \
   whatsapp-export.zip \
-  --output=. \
+  --output-dir=. \
   --gemini-key=YOUR_KEY
 ```
 
