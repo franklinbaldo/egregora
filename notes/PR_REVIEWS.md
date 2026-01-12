@@ -1,26 +1,12 @@
 # PR Reviews
 
-This file serves as an append-only audit log for the "Weaver" agent.
+## Run 2024-07-29 15:00:00 UTC
 
-## Run 2025-12-14 00:36:35 UTC
-
-### System Status
-- **Status:** `SYSTEM_ERROR`
-- **CI:** Unknown (Cannot fetch PRs)
+### PR #2393 — 🕸️ fix: Refactor Plan
+- **Status:** INFORMATIONAL_ONLY
+- **Author:** @jules-pro
+- **CI:** Pending
 - **Rationale:**
-  - Failed to fetch PRs from GitHub API (Bad Credentials).
+  - The CI status for this PR could not be determined from the GitHub API. The `mergeable_state` is "unknown" and the statuses URL returned an empty array.
 - **Recommended Actions:**
-  - Verify that `$GITHUB_TOKEN` is set correctly in the environment.
-  - Ensure the token has `repo` scope permissions.
-
-## Run 2025-12-14 01:00:00 UTC
-
-### PR #1208 — Refactor: Prune unused imports and variables in core
-- **Status:** `BLOCKED`
-- **Author:** @franklinbaldo
-- **CI:** Unknown (Merge failed locally)
-- **Rationale:**
-  - Massive merge conflicts detected (add/add in 30+ files).
-  - The PR branch appears to have an unrelated history to `main`.
-- **Recommended Actions:**
-  - The author needs to rebase `cleanup/unused-vars` onto the current `main` and resolve conflicts.
+  - No action will be taken until the CI status is resolved. The PR will be re-evaluated on the next run.

@@ -86,7 +86,7 @@ test = [
     # Snapshot testing for Atom XML and prompt templates
     "syrupy>=4.9",
     "respx>=0.22.0",
-    "moto[s3]>=5.0",
+    "moto>=5.0",
 ]
 
 [build-system]
@@ -337,6 +337,7 @@ dev = [
     "pytest-socket>=0.7.0",
     "pytest-benchmark>=4.0.0",
     "pip-audit>=2.10.0",
+    "moto>=5.1.19",
 ]
 
 [tool.vulture]

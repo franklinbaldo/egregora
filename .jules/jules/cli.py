@@ -17,8 +17,8 @@ app.add_typer(sync_app, name="sync")
 
 @schedule_app.command("tick")
 def schedule_tick(
-    all: bool = typer.Option(False, "--all", help="Run all enabled prompts regardless of schedule"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Do not create sessions"),
+    all: bool = typer.Option(False, "--all", help="Run all enabled prompts regardless of schedule"),  # noqa: FBT001, FBT003, A002
+    dry_run: bool = typer.Option(False, "--dry-run", help="Do not create sessions"),  # noqa: FBT001, FBT003
     prompt_id: str = typer.Option(None, "--prompt-id", help="Run only specific prompt ID or prompt path"),
 ) -> None:
     """Run the scheduler tick."""
@@ -39,7 +39,7 @@ app.add_typer(feedback_app, name="feedback")
 
 @feedback_app.command("loop")
 def feedback_loop(
-    dry_run: bool = typer.Option(False, "--dry-run", help="Do not create sessions"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Do not create sessions"),  # noqa: FBT001, FBT003
     author: str = typer.Option("app/google-labs-jules", "--author", help="Filter PRs by author"),
 ) -> None:
     """Run the feedback loop."""
@@ -50,11 +50,11 @@ def feedback_loop(
 
 @sync_app.command("merge-main")
 def sync_merge_main(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Do not execute changes"),  # noqa: FBT001, FBT003
 ) -> None:
     """Directly merge jules → main (no PR)."""
     mgr = BranchManager()
-    ok = mgr.merge_jules_into_main_direct()
-    print("Merge completed." if ok else "Merge not completed.")
+    mgr.merge_jules_into_main_direct(dry_run=dry_run)
 
 
 if __name__ == "__main__":

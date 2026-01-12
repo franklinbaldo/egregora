@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 
 import ibis
 import ibis.expr.datatypes as dt
+from dateutil import parser as date_parser
 from pydantic import BaseModel
 
 from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
@@ -78,15 +79,9 @@ class WhatsAppExport(BaseModel):
     media_files: list[str]
 
 
-# Regex for various date/time formats, including optional seconds and AM/PM
-# Supports date separators: / . -
-# Supports optional comma between date and time
-STRICT_LINE_PATTERN = re.compile(
-    r"^(?P<date>\d{1,2}[/\.\-]\d{1,2}[/\.\-]\d{2,4}),?\s+"
-    r"(?P<time>\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?)\s*-\s+"
-    r"(?P<author>[^:]+):\s+"
-    r"(?P<message>.*)$",
-    re.IGNORECASE,
+# Keep the old brittle one as a fallback
+FALLBACK_PATTERN = re.compile(
+    r"^(\d{1,2}[/\.\-]\d{1,2}[/\.\-]\d{2,4})(?:,\s*|\s+)(\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?)\s*[—\-]\s*([^:]+):\s*(.*)$"
 )
 
 
@@ -94,20 +89,10 @@ STRICT_LINE_PATTERN = re.compile(
 _INVISIBLE_MARKS = re.compile(r"[\u200e\u200f\u202a-\u202e]")
 
 # Define parsing strategies in order of preference
-_DATE_FORMATS = [
-    # Common US and international formats
-    "%d/%m/%y",
-    "%d/%m/%Y",
-    "%m/%d/%y",
-    "%m/%d/%Y",
-    # ISO-like formats
-    "%Y-%m-%d",
-    "%Y/%m/%d",
-    # Other separators
-    "%d.%m.%y",
-    "%d.%m.%Y",
-    "%m.%d.%y",
-    "%m.%d.%Y",
+_DATE_PARSING_STRATEGIES = [
+    lambda x: date_parser.isoparse(x),
+    lambda x: date_parser.parse(x, dayfirst=True),
+    lambda x: date_parser.parse(x, dayfirst=False),
 ]
 
 TIME_STR_LEN = 5
@@ -149,10 +134,12 @@ def _parse_message_date(token: str) -> date:
     if not normalized:
         raise DateParsingError("Date string is empty.")
 
-    for fmt in _DATE_FORMATS:
+    for strategy in _DATE_PARSING_STRATEGIES:
         try:
-            return datetime.strptime(normalized, fmt).date()
-        except ValueError:
+            parsed = strategy(normalized)
+            parsed = parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
+            return parsed.date()
+        except (TypeError, ValueError, OverflowError):
             continue
 
     msg = f"Failed to parse date string: '{token}'"
@@ -337,7 +324,7 @@ def _parse_whatsapp_lines(
     timezone: str | ZoneInfo | None,
 ) -> list[dict[str, Any]]:
     """Pure Python parser for WhatsApp logs."""
-    line_pattern = STRICT_LINE_PATTERN
+    line_pattern = FALLBACK_PATTERN
 
     tz = _resolve_timezone(timezone)
     builder = MessageBuilder(
@@ -348,18 +335,14 @@ def _parse_whatsapp_lines(
     )
 
     for line in source.lines():
+        match = line_pattern.match(line)
+        if not match:
+            builder.append_line(line, line)
+            continue
+
+        date_str, time_str, author_raw, message_part = match.groups()
+
         try:
-            match = line_pattern.match(line)
-            if not match:
-                builder.append_line(line, line)
-                continue
-
-            parts = match.groupdict()
-            date_str = parts["date"]
-            time_str = parts["time"]
-            author_raw = parts["author"]
-            message_part = parts["message"]
-
             msg_date = _parse_message_date(date_str)
             msg_time = _parse_message_time(time_str)
 
@@ -369,6 +352,7 @@ def _parse_whatsapp_lines(
             builder.start_new_message(timestamp, author_raw, message_part)
 
         except (DateParsingError, TimeParsingError) as e:
+            # Re-raise with context about the malformed line
             raise MalformedLineError(line=line, original_error=e) from e
 
     builder.flush()

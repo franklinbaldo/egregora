@@ -1,14 +1,165 @@
 {
-  "last_persona_id": "refactor",
-  "last_persona_index": 1,
-  "last_session_id": "16083346064242646476",
-  "last_pr_number": null,
-  "updated_at": "2026-01-12T01:16:07.823290+00:00",
   "history": [
+    {
+      "persona_id": "sentinel",
+      "session_id": "13608499210957801289",
+      "pr_number": null,
+      "created_at": "2026-01-12T14:54:54.104724+00:00"
+    },
+    {
+      "persona_id": "bolt",
+      "session_id": "5498498629230621897",
+      "pr_number": null,
+      "created_at": "2026-01-12T14:12:20.952432+00:00"
+    },
+    {
+      "persona_id": "visionary",
+      "session_id": "4071470286330070140",
+      "pr_number": 2409,
+      "created_at": "2026-01-12T13:58:59.716148+00:00"
+    },
+    {
+      "persona_id": "refactor",
+      "session_id": "10727561682085073723",
+      "pr_number": null,
+      "created_at": "2026-01-12T13:17:02.894658+00:00"
+    },
+    {
+      "persona_id": "curator",
+      "session_id": "5496469184695394925",
+      "pr_number": null,
+      "created_at": "2026-01-12T12:45:53.043838+00:00"
+    },
+    {
+      "persona_id": "steward",
+      "session_id": "7505833315952346752",
+      "pr_number": 2408,
+      "created_at": "2026-01-12T12:25:15.712902+00:00"
+    },
+    {
+      "persona_id": "maintainer",
+      "session_id": "6636654107785022723",
+      "pr_number": 2407,
+      "created_at": "2026-01-12T11:48:47.391525+00:00"
+    },
+    {
+      "persona_id": "sapper",
+      "session_id": "1873932704445403530",
+      "pr_number": null,
+      "created_at": "2026-01-12T11:22:40.588920+00:00"
+    },
+    {
+      "persona_id": "essentialist",
+      "session_id": "15637328048207065230",
+      "pr_number": 2403,
+      "created_at": "2026-01-12T10:53:03.521076+00:00"
+    },
+    {
+      "persona_id": "taskmaster",
+      "session_id": "8720662723623397237",
+      "pr_number": 2402,
+      "created_at": "2026-01-12T10:41:22.767148+00:00"
+    },
+    {
+      "persona_id": "organizer",
+      "session_id": "16271026462501816547",
+      "pr_number": 2401,
+      "created_at": "2026-01-12T10:23:28.653025+00:00"
+    },
+    {
+      "persona_id": "simplifier",
+      "session_id": "9920657645383013425",
+      "pr_number": 2400,
+      "created_at": "2026-01-12T10:04:54.650928+00:00"
+    },
+    {
+      "persona_id": "weaver",
+      "session_id": "3913071524302748930",
+      "pr_number": 2399,
+      "created_at": "2026-01-12T09:46:07.721978+00:00"
+    },
+    {
+      "persona_id": "streamliner",
+      "session_id": "5879884649844809576",
+      "pr_number": 2398,
+      "created_at": "2026-01-12T09:14:18.702778+00:00"
+    },
+    {
+      "persona_id": "sheriff",
+      "session_id": "2223714399893757668",
+      "pr_number": null,
+      "created_at": "2026-01-12T08:44:09.652171+00:00"
+    },
+    {
+      "persona_id": "forge",
+      "session_id": "7344493165087106794",
+      "pr_number": 2397,
+      "created_at": "2026-01-12T08:24:16.725378+00:00"
+    },
+    {
+      "persona_id": "scribe",
+      "session_id": "8529607535550816843",
+      "pr_number": 2396,
+      "created_at": "2026-01-12T08:04:48.091617+00:00"
+    },
+    {
+      "persona_id": "palette",
+      "session_id": "7243540910418377782",
+      "pr_number": 2395,
+      "created_at": "2026-01-12T07:39:00.566606+00:00"
+    },
+    {
+      "persona_id": "artisan",
+      "session_id": "16064990534970786572",
+      "pr_number": null,
+      "created_at": "2026-01-12T06:59:49.404014+00:00"
+    },
+    {
+      "persona_id": "docs_curator",
+      "session_id": "452992479769095120",
+      "pr_number": null,
+      "created_at": "2026-01-12T06:24:34.108362+00:00"
+    },
+    {
+      "persona_id": "janitor",
+      "session_id": "14704049378859518960",
+      "pr_number": null,
+      "created_at": "2026-01-12T05:41:39.372631+00:00"
+    },
+    {
+      "persona_id": "shepherd",
+      "session_id": "12202915666583525982",
+      "pr_number": null,
+      "created_at": "2026-01-12T05:10:26.793803+00:00"
+    },
+    {
+      "persona_id": "builder",
+      "session_id": "2716949273301068784",
+      "pr_number": 2392,
+      "created_at": "2026-01-12T04:46:12.832085+00:00"
+    },
+    {
+      "persona_id": "sentinel",
+      "session_id": "15714692759993884373",
+      "pr_number": null,
+      "created_at": "2026-01-12T03:52:35.429683+00:00"
+    },
+    {
+      "persona_id": "bolt",
+      "session_id": "81092769184919935",
+      "pr_number": null,
+      "created_at": "2026-01-12T03:01:56.919440+00:00"
+    },
+    {
+      "persona_id": "visionary",
+      "session_id": "1742586753787068606",
+      "pr_number": 2390,
+      "created_at": "2026-01-12T02:15:14.246051+00:00"
+    },
     {
       "persona_id": "refactor",
       "session_id": "16083346064242646476",
-      "pr_number": null,
+      "pr_number": 2389,
       "created_at": "2026-01-12T01:16:07.823274+00:00"
     },
     {
