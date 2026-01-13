@@ -67,10 +67,6 @@ class BaseOutputSink(OutputSink, ABC):
     def persist(self, document: Document) -> None:
         """Persist a document so it becomes available at its canonical path."""
 
-    def publish(self, document: Document) -> None:
-        """Backward-compatible alias for ``persist`` used by legacy callers."""
-        self.persist(document)
-
     @abstractmethod
     def get(self, doc_type: DocumentType, identifier: str) -> Document:
         """Retrieve a single document by its ``doc_type`` primary identifier."""
