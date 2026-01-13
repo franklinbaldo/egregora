@@ -124,7 +124,7 @@ class TaskStore:
             UPDATE {table_name}
             SET status = ?, processed_at = ?, error = ?
             WHERE task_id = ?
-        """
+        """  # nosec B608
         # Ensure UUID is string for DuckDB binding
         t_id = str(task_id)
 

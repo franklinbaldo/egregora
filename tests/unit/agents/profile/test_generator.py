@@ -14,7 +14,7 @@ def test_generate_profile_content_handles_oserror_on_get_author_profile():
     when get_author_profile fails.
     """
     ctx = MagicMock()
-    ctx.output_format.get_author_profile.side_effect = OSError("File not found")
+    ctx.output_sink.get_author_profile.side_effect = OSError("File not found")
     ctx.config.profile.history_window_size = 0
 
     # Mock the LLM call to return a non-significant result
@@ -24,7 +24,7 @@ def test_generate_profile_content_handles_oserror_on_get_author_profile():
         mock_llm.return_value = MagicMock(significant=False)
         result = _generate_profile_content(ctx, [{"text": "message"}], "author_name", "author_uuid")
         assert result is None
-        ctx.output_format.get_author_profile.assert_called_once_with("author_uuid")
+        ctx.output_sink.get_author_profile.assert_called_once_with("author_uuid")
 
 
 def test_generate_profile_content_handles_yamlerror_on_get_author_profile():
@@ -33,7 +33,7 @@ def test_generate_profile_content_handles_yamlerror_on_get_author_profile():
     when get_author_profile fails to parse a profile.
     """
     ctx = MagicMock()
-    ctx.output_format.get_author_profile.side_effect = yaml.YAMLError("YAML parse error")
+    ctx.output_sink.get_author_profile.side_effect = yaml.YAMLError("YAML parse error")
     ctx.config.profile.history_window_size = 0
 
     # Mock the LLM call to return a non-significant result
@@ -43,7 +43,7 @@ def test_generate_profile_content_handles_yamlerror_on_get_author_profile():
         mock_llm.return_value = MagicMock(significant=False)
         result = _generate_profile_content(ctx, [{"text": "message"}], "author_name", "author_uuid")
         assert result is None
-        ctx.output_format.get_author_profile.assert_called_once_with("author_uuid")
+        ctx.output_sink.get_author_profile.assert_called_once_with("author_uuid")
 
 
 def test_generate_profile_content_handles_importerror_on_history():
@@ -52,7 +52,7 @@ def test_generate_profile_content_handles_importerror_on_history():
     when get_profile_history_for_context is not available.
     """
     ctx = MagicMock()
-    ctx.output_format.get_author_profile.return_value = None
+    ctx.output_sink.get_author_profile.return_value = None
     ctx.config.profile.history_window_size = 5
 
     with (

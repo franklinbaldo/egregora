@@ -22,9 +22,9 @@ def test_pipeline_runner_init():
 
 def test_pipeline_runner_process_windows():
     context = MagicMock(spec=PipelineContext)
-    # Mock output_format (OutputSink)
+    # Mock output_sink (OutputSink)
     output_sink = MagicMock(spec=OutputSink)
-    context.output_format = output_sink
+    context.output_sink = output_sink
 
     # Mock config
     config = MagicMock()
@@ -48,8 +48,7 @@ def test_pipeline_runner_process_windows():
     # Note: _process_single_window returns a dict of results
     runner._process_single_window = MagicMock(return_value={"test_window": {"posts": ["post1"]}})
 
-    # Mock process_background_tasks to simply return (it is tested via its dependencies in other tests, or we should mock the workers if we want to test its logic, but here we test the loop)
-    # Actually, in the test I was trying to mock `_process_background_tasks` but I renamed it to `process_background_tasks`.
+    # Mock process_background_tasks to simply return
     runner.process_background_tasks = MagicMock()
 
     results, max_ts = runner.process_windows(windows_iterator)
@@ -75,7 +74,7 @@ def test_process_single_window_orchestration(
 ):
     # Arrange
     context = MagicMock(spec=PipelineContext)
-    context.output_format = MagicMock(spec=OutputSink)
+    context.output_sink = MagicMock(spec=OutputSink)
     context.url_context = None
     context.enable_enrichment = False
     context.config.pipeline.is_demo = False
@@ -115,7 +114,7 @@ def test_process_single_window_orchestration(
 
     mock_process_media.assert_called_once()
     # one for media, one for announcement, one for profile, one for journal
-    assert context.output_format.persist.call_count == 4
+    assert context.output_sink.persist.call_count == 4
 
     mock_extract_commands.assert_called_once()
     mock_command_to_announcement.assert_called_once()
@@ -172,10 +171,10 @@ def test_process_window_with_auto_split_raises_on_max_depth(monkeypatch):
 
 
 def test_process_single_window_raises_on_missing_output_sink():
-    """Verify _process_single_window raises OutputSinkError if output_format is missing."""
+    """Verify _process_single_window raises OutputSinkError if output_sink is missing."""
     # Arrange
     mock_context = Mock()
-    mock_context.output_format = None
+    mock_context.output_sink = None
     runner = PipelineRunner(context=mock_context)
 
     mock_window = MagicMock()
