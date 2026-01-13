@@ -423,7 +423,6 @@ print(f'Loaded: {personas[0].id} {personas[0].emoji}')
 
 - **Main README**: `/README.md` - Project overview
 - **Code of the Weaver**: `/CLAUDE.md` - Contribution guidelines
-- **Architecture**: `/ARCHITECTURE_CLARIFICATION.md` - System design
 - **Scheduler Diagnostic**: `/SCHEDULER_DIAGNOSTIC.md` - Debugging guide
 - **Refactoring Plan**: `/SCHEDULER_REFACTORING_PLAN.md` - V2 design rationale
 
