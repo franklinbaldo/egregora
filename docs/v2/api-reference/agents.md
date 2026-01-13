@@ -1,3 +1,0 @@
-# Agents Reference
-
-::: egregora.agents

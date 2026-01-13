@@ -11,7 +11,7 @@ This site was generated automatically by [Egregora](https://github.com/franklinb
 pip install "mkdocs-material[imaging]"
 
 # Serve the site
-mkdocs serve -f .egregora/mkdocs.yml
+uv tool run --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml
 ```
 
 The site will be available at `http://127.0.0.1:8000`.

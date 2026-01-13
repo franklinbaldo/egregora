@@ -1,7 +1,4 @@
-# Egregora V2
->
-> ⚠️ **This is the legacy Egregora V2 repository.**
-> For the modern version with DuckDB, UUIDs, and Ibis-based pipelines, see [Egregora Pure](https://github.com/franklinbaldo/egregora-v3).
+# Egregora
 
 *Turn your chaotic group chat into a structured, readable blog.*
 
@@ -57,6 +54,7 @@ egregora write path/to/chat_export.zip --output-dir=.
 **3. Preview your site:**
 
 ```bash
+# Preview your site
 # Preview your site
 uv tool run --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml
 ```
@@ -147,7 +145,7 @@ You can extend Egregora to read from other sources (e.g., Slack, Telegram) by im
 
 We welcome contributions! Please check out:
 
-* **[Technical Reference](docs/v3/api-reference/):** Deep dive into CLI commands and architecture.
+* **[Technical Reference](docs/reference/):** Deep dive into CLI commands and architecture.
 * **[Code of the Weaver](CLAUDE.md):** Guidelines for contributors and AI agents.
 
 To run tests:

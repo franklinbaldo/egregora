@@ -1,3 +1,0 @@
-# Transformations Reference
-
-::: egregora.transformations
