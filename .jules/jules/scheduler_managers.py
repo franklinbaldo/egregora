@@ -443,9 +443,10 @@ class PRManager:
             True if all checks pass (or no checks exist)
 
         """
-        # 1. Check basic mergeability string from gh JSON
-        mergeable = pr_details.get("mergeable", "UNKNOWN")
-        if mergeable != "MERGEABLE":
+        # 1. Check basic mergeability - handles both REST API (bool) and GraphQL (string)
+        mergeable = pr_details.get("mergeable", False)
+        # REST API returns True/False, GraphQL returns "MERGEABLE"/"CONFLICTING"/etc
+        if mergeable is False or mergeable == "CONFLICTING" or mergeable == "UNKNOWN":
             return False
 
         # 2. Check mergeStateStatus (GraphQL via gh) OR mergeable_state (REST API)
