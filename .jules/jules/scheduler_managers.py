@@ -448,31 +448,41 @@ class PRManager:
         if mergeable != "MERGEABLE":
             return False
 
-        # 2. Check mergeStateStatus (CLEAN or BEHIND are safe to merge)
-        # BLOCKED means CI failed or is still running
-        state_status = pr_details.get("mergeStateStatus", "")
-        if state_status == "BLOCKED":
+        # 2. Check mergeStateStatus (GraphQL via gh) OR mergeable_state (REST API)
+        # GraphQL: CLEAN, BEHIND, BLOCKED, etc.
+        # REST API: clean, behind, dirty, unstable, blocked, unknown
+        state_status = pr_details.get("mergeStateStatus", "") or pr_details.get("mergeable_state", "")
+        state_status_upper = state_status.upper() if state_status else ""
+        
+        if state_status_upper in ["BLOCKED", "DIRTY"]:
             return False
+        
+        # If state is CLEAN or equivalent, it's likely safe
+        if state_status_upper in ["CLEAN", "BEHIND"]:
+            return True
 
         # 3. Check individual status checks if present
         status_checks = pr_details.get("statusCheckRollup", [])
         if not status_checks:
-            # If no status checks but it's CLEAN, assume it's safe
-            return state_status in ["CLEAN", "BEHIND", "DRAFT"]
+            # If no status checks and mergeable, assume safe
+            return True
 
-        all_passing = True
+        # Check each status check
         for check in status_checks:
-            # Check conclusion first (exists for completed checks)
             conclusion = (check.get("conclusion") or "").upper()
             if conclusion == "FAILURE":
                 return False
+            
+            # Accept SUCCESS, NEUTRAL, SKIPPED as passing
+            if conclusion in ["SUCCESS", "NEUTRAL", "SKIPPED"]:
+                continue
+                
+            # If not completed yet, not green
+            status = (check.get("status") or "").upper()
+            if status not in ["COMPLETED"]:
+                return False
 
-            # Check overall status
-            status = (check.get("status") or check.get("state") or "").upper()
-            if status not in ["SUCCESS", "NEUTRAL", "SKIPPED", "COMPLETED"]:
-                all_passing = False
-
-        return all_passing
+        return True
 
     @retry(
         stop=stop_after_attempt(5),
