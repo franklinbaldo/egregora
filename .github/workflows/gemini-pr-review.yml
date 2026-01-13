@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
+      is_empty: ${{ steps.check_diff.outputs.is_empty }}
       review_outcome: ${{ steps.gemini_final.outputs.outcome }}
       review_comment: ${{ steps.parse_combined.outputs.review_comment }}
       merge_decision: ${{ steps.parse_combined.outputs.merge }}
@@ -98,7 +99,7 @@ jobs:
 
           # Get unified diff between base and head, excluding non-code assets
           # Use --unified=1 for smaller context (GitHub Actions env vars have ~256KB limit per value)
-          git diff --unified=1 "origin/${BASE_REF}" "${HEAD_SHA}" -- . ':!uv.lock' ':!.jules/' ':!docs/' ':!README.md' ':!pyproject.toml' ':!tests/v3/infra/sinks/fixtures/' > .github/tmp/diff.txt
+          git diff --unified=1 "origin/${BASE_REF}" "${HEAD_SHA}" -- . ':!uv.lock' ':!.jules/' ':!docs/' ':!README.md' ':!pyproject.toml' ':!tests/v3/infra/sinks/fixtures/' ':!.github/' > .github/tmp/diff.txt
 
           # Truncate diff if too large (very conservative limit for GITHUB_ENV heredoc stability)
           DIFF_SIZE=$(wc -c < .github/tmp/diff.txt)
@@ -121,8 +122,20 @@ jobs:
 
           echo "✓ Collected diff ($(wc -c < .github/tmp/diff.txt) bytes) and commits"
 
+      - name: Check if diff is empty
+        id: check_diff
+        run: |
+          if [ -s .github/tmp/diff.txt ]; then
+            echo "Diff is not empty."
+            echo "is_empty=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Diff is empty, skipping review."
+            echo "is_empty=true" >> "$GITHUB_OUTPUT"
+          fi
+
       # Setup Python environment for prompt construction
       - name: Setup Python environment
+        if: steps.check_diff.outputs.is_empty == 'false'
         uses: ./.github/actions/setup-python-uv
         with:
           python-version: "3.12"
@@ -130,6 +143,7 @@ jobs:
 
       # Construct the prompt using Python + Jinja2 (avoids "argument list too long" errors)
       - name: Construct Gemini Prompt
+        if: steps.check_diff.outputs.is_empty == 'false'
         id: construct_prompt
         env:
           REPOSITORY: ${{ github.repository }}
@@ -162,6 +176,7 @@ jobs:
           echo "✓ Prompt constructed ($PROMPT_SIZE bytes)"
 
       - name: Export Gemini Prompt
+        if: steps.check_diff.outputs.is_empty == 'false'
         id: export_prompt
         uses: actions/github-script@v8
         with:
@@ -194,6 +209,7 @@ jobs:
 
       - name: Run Gemini PR Review (3 Pro Preview)
         id: gemini_3_pro
+        if: steps.check_diff.outputs.is_empty == 'false'
         continue-on-error: true
         uses: google-github-actions/run-gemini-cli@v0
         with:
@@ -203,7 +219,7 @@ jobs:
 
       - name: Run Gemini PR Review (3 Flash Preview)
         id: gemini_3_flash
-        if: steps.gemini_3_pro.outcome == 'failure'
+        if: steps.check_diff.outputs.is_empty == 'false' && steps.gemini_3_pro.outcome == 'failure'
         continue-on-error: true
         uses: google-github-actions/run-gemini-cli@v0
         with:
@@ -213,7 +229,7 @@ jobs:
 
       - name: Run Gemini PR Review (2.5 Pro)
         id: gemini_25_pro
-        if: steps.gemini_3_pro.outcome == 'failure' && steps.gemini_3_flash.outcome == 'failure'
+        if: steps.check_diff.outputs.is_empty == 'false' && steps.gemini_3_pro.outcome == 'failure' && steps.gemini_3_flash.outcome == 'failure'
         continue-on-error: true
         uses: google-github-actions/run-gemini-cli@v0
         with:
@@ -223,7 +239,7 @@ jobs:
 
       - name: Run Gemini PR Review (2.5 Flash)
         id: gemini_25_flash
-        if: steps.gemini_3_pro.outcome == 'failure' && steps.gemini_3_flash.outcome == 'failure' && steps.gemini_25_pro.outcome == 'failure'
+        if: steps.check_diff.outputs.is_empty == 'false' && steps.gemini_3_pro.outcome == 'failure' && steps.gemini_3_flash.outcome == 'failure' && steps.gemini_25_pro.outcome == 'failure'
         continue-on-error: true
         uses: google-github-actions/run-gemini-cli@v0
         with:
@@ -233,7 +249,7 @@ jobs:
 
       - name: Run Gemini PR Review (2.5 Flash Lite)
         id: gemini_25_lite
-        if: steps.gemini_3_pro.outcome == 'failure' && steps.gemini_3_flash.outcome == 'failure' && steps.gemini_25_pro.outcome == 'failure' && steps.gemini_25_flash.outcome == 'failure'
+        if: steps.check_diff.outputs.is_empty == 'false' && steps.gemini_3_pro.outcome == 'failure' && steps.gemini_3_flash.outcome == 'failure' && steps.gemini_25_pro.outcome == 'failure' && steps.gemini_25_flash.outcome == 'failure'
         continue-on-error: true
         uses: google-github-actions/run-gemini-cli@v0
         with:
@@ -243,7 +259,7 @@ jobs:
 
       - name: Consolidate Gemini Results
         id: gemini_final
-        if: always()
+        if: always() && steps.check_diff.outputs.is_empty == 'false'
         uses: actions/github-script@v8
         env:
           OUTCOME_3_PRO: ${{ steps.gemini_3_pro.outcome }}
@@ -341,7 +357,7 @@ jobs:
 
       - name: Parse Combined Response
         id: parse_combined
-        if: always()
+        if: always() && steps.check_diff.outputs.is_empty == 'false'
         uses: actions/github-script@v8
         env:
           GEMINI_RESPONSE: ${{ steps.gemini_final.outputs.summary }}
@@ -442,7 +458,7 @@ jobs:
             console.log('Successfully parsed Gemini response');
 
       - name: Update PR Title/Description
-        if: steps.gemini_final.outputs.outcome == 'success' && (steps.parse_combined.outputs.pr_title != '' || steps.parse_combined.outputs.pr_body != '')
+        if: steps.check_diff.outputs.is_empty == 'false' && steps.gemini_final.outputs.outcome == 'success' && (steps.parse_combined.outputs.pr_title != '' || steps.parse_combined.outputs.pr_body != '')
         uses: actions/github-script@v8
         env:
           PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
@@ -481,7 +497,7 @@ jobs:
             console.log('Updated PR metadata:', update);
 
       - name: Check Gemini step result
-        if: always()
+        if: always() && steps.check_diff.outputs.is_empty == 'false'
         run: |
           echo "Gemini pipeline outcome: ${{ steps.gemini_final.outputs.outcome }}"
 
@@ -506,7 +522,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Post review as PR comment
-        if: always()
+        if: always() && steps.check_diff.outputs.is_empty == 'false'
         uses: actions/github-script@v8
         env:
           GEMINI_REVIEW: ${{ steps.parse_combined.outputs.review_comment || steps.gemini_final.outputs.summary }}
@@ -745,3 +761,14 @@ jobs:
           exit 0
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+  skip-review:
+    name: Skip Review (No Code Changes)
+    runs-on: ubuntu-latest
+    needs: [gemini-review]
+    if: always() && needs.gemini-review.outputs.is_empty == 'true'
+    steps:
+      - name: Log skip reason
+        run: |
+          echo "::notice::Gemini review was skipped because no code changes were detected in the PR."
+          echo "This is expected for documentation-only or configuration changes."
