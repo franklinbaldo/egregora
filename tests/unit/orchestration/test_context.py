@@ -78,3 +78,47 @@ class TestPipelineStateAdapterTyping:
         )
 
         assert state.adapter is None
+
+
+class TestPipelineStateLibraryTyping:
+    """Test that library field accepts ContentLibrary instances."""
+
+    def test_accepts_content_library_instance(self, tmp_path):
+        """Should accept ContentLibrary instance for library field."""
+        # Mocking ContentLibrary as it's a V3 component
+        mock_library = MagicMock(name="ContentLibrary")
+        mock_client = MagicMock()
+        mock_storage = MagicMock()
+        mock_cache = MagicMock()
+
+        state = PipelineState(
+            run_id=uuid4(),
+            start_time=datetime.now(UTC),
+            source_type="mock",
+            input_path=tmp_path / "input.txt",
+            client=mock_client,
+            storage=mock_storage,
+            cache=mock_cache,
+            library=mock_library,
+        )
+
+        assert state.library == mock_library
+
+    def test_accepts_none_for_library(self, tmp_path):
+        """Should accept None for library field (lazy initialization)."""
+        mock_client = MagicMock()
+        mock_storage = MagicMock()
+        mock_cache = MagicMock()
+
+        state = PipelineState(
+            run_id=uuid4(),
+            start_time=datetime.now(UTC),
+            source_type="mock",
+            input_path=tmp_path / "input.txt",
+            client=mock_client,
+            storage=mock_storage,
+            cache=mock_cache,
+            library=None,
+        )
+
+        assert state.library is None
