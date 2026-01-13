@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from datetime import datetime
@@ -11,7 +10,7 @@ from egregora.orchestration.runner import PipelineRunner
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from datetime import datetime
+
     from egregora.orchestration.context import PipelineContext
     from egregora.transformations.windowing import Window
 
@@ -55,7 +54,6 @@ def test_pipeline_runner_accepts_window_iterator(
     runner._process_window_with_auto_split = Mock(return_value={})
     runner.process_background_tasks = Mock()
     runner._fetch_processed_intervals = Mock(return_value=set())
-
 
     # The main call we are testing
     results, timestamp = runner.process_windows(mock_window_iterator)

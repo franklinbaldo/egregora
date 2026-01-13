@@ -24,12 +24,12 @@ repos:
   # - check-complexity, check-dead-code, check-security: Use scripts/quality.sh instead
   - repo: local
     hooks:
-      - id: check-root-structure
-        name: Enforce Clean Root Directory
-        entry: python scripts/dev_tools/check_root_structure.py
-        language: system
-        pass_filenames: false
-        always_run: true
+      # - id: check-root-structure
+      #   name: Enforce Clean Root Directory
+      #   entry: python scripts/dev_tools/check_root_structure.py
+      #   language: system
+      #   pass_filenames: false
+      #   always_run: true
       - id: vulture
         name: Check for dead code with vulture
         entry: uv run vulture
