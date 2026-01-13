@@ -12,6 +12,7 @@ from jules.scheduler_legacy import (
     update_jules_from_main,
     load_schedule_registry,
     load_prompt_entries,
+    check_schedule,
 )
 
 # Re-exporting for compatibility with legacy consumers (if any)
@@ -27,4 +28,5 @@ __all__ = [
     "update_jules_from_main",
     "load_schedule_registry",
     "load_prompt_entries",
+    "check_schedule",
 ]

@@ -14,6 +14,7 @@ from jules.exceptions import BranchError, MergeError
 from jules.github import (
     _extract_session_id,
     get_pr_by_session_id_any_state,
+    get_pr_details_via_gh,
 )
 from jules.reconciliation_tracker import ReconciliationTracker
 from jules.scheduler import JULES_BRANCH, JULES_SCHEDULER_PREFIX, sprint_manager
@@ -87,22 +88,56 @@ class BranchManager:
         persona_id: str,
         base_pr_number: str = "",
         last_session_id: str | None = None,
+        direct: bool = False,
     ) -> str:
-        """Get the base branch for a Jules session (always direct).
+        """Create a short, stable base branch for a Jules session.
 
         Args:
             base_branch: Source branch to branch from
-            persona_id: Persona identifier (unused but kept for API compatibility)
-            base_pr_number: Previous PR number (unused)
-            last_session_id: Previous session ID (unused)
+            persona_id: Persona identifier
+            base_pr_number: Previous PR number (for naming)
+            last_session_id: Previous session ID (unused but kept for compatibility)
+            direct: If True, returns base_branch instead of creating a new one.
 
         Returns:
-            The base branch name (always returns base_branch)
+            Name of the created branch
+
+        Note:
+            Falls back to base_branch if creation fails.
 
         """
-        # Always use direct branching per user requirement
-        print(f"Using direct branch '{base_branch}' (no intermediary)")
-        return base_branch
+        if direct:
+            print(f"Using direct branch '{base_branch}' (no intermediary)")
+            return base_branch
+
+        # Clean naming: jules-{persona_id}
+        branch_name = f"jules-{persona_id}"
+
+        try:
+            # Fetch base branch
+            subprocess.run(["git", "fetch", "origin", base_branch], check=True, capture_output=True)  # noqa: S603, S607
+
+            # Get SHA
+            result = subprocess.run(  # noqa: S603
+                ["git", "rev-parse", f"origin/{base_branch}"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            base_sha = result.stdout.strip()
+
+            # Push new branch (force update to ensure it's fresh from base)
+            subprocess.run(
+                ["git", "push", "--force", "origin", f"{base_sha}:refs/heads/{branch_name}"],
+                check=True,
+                capture_output=True,
+            )
+            print(f"Prepared clean branch '{branch_name}' from {base_branch}")
+            return branch_name
+
+        except subprocess.CalledProcessError as e:
+            e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
+            return base_branch
 
     def _is_drifted(self) -> bool:
         """Check if Jules branch has conflicts with main.

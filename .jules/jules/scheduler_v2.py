@@ -144,9 +144,12 @@ def execute_parallel_cycle_tick(dry_run: bool = False) -> None:
         print(f"   🚀 Starting: {next_p.emoji} {next_p.id}")
 
         # Direct Branching
+        # Use direct branch for default track to eliminate intermediary branches per user request
+        is_direct = (track_name == "default")
         session_branch = branch_mgr.create_session_branch(
             base_branch=JULES_BRANCH,
-            persona_id=next_p.id
+            persona_id=next_p.id,
+            direct=is_direct
         )
 
         request = SessionRequest(
