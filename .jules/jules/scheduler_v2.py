@@ -143,13 +143,10 @@ def execute_parallel_cycle_tick(dry_run: bool = False) -> None:
         next_p = track_persona_objs[next_idx]
         print(f"   🚀 Starting: {next_p.emoji} {next_p.id}")
 
-        # Direct Branching
-        # Use direct branch for default track to eliminate intermediary branches per user request
-        is_direct = (track_name == "default")
+        # Direct Branching (Always direct per user request)
         session_branch = branch_mgr.create_session_branch(
             base_branch=JULES_BRANCH,
-            persona_id=next_p.id,
-            direct=is_direct
+            persona_id=next_p.id
         )
 
         request = SessionRequest(
@@ -245,13 +242,10 @@ def execute_scheduled_tick(
 
         print(f"▶️  {persona.emoji} {persona.id} ({reason})")
 
-        # Use direct integration ONLY if we are running a single specific persona,
-        # otherwise use isolated branches to avoid clashing on 'jules' during parallel ticks.
-        is_direct = bool(prompt_id)
+        # Scheduled mode uses direct branching now per user request
         session_branch = branch_mgr.create_session_branch(
             base_branch=JULES_BRANCH,
             persona_id=persona.id,
-            direct=is_direct
         )
 
         request = SessionRequest(
