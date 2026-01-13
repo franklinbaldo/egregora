@@ -522,7 +522,11 @@ def run_weaver_integration(
     
     try:
         # Load Weaver persona
-        loader = PersonaLoader(Path(".jules/personas"))
+        base_context = {
+            "repo": repo_info,
+            "jules_branch": JULES_BRANCH,
+        }
+        loader = PersonaLoader(Path(".jules/personas"), base_context)
         weaver = loader.load_persona("weaver")
         
         if not weaver:
