@@ -231,7 +231,7 @@ class JournalEntryParams:
 
     intercalated_log: list[JournalEntry]
     window_label: str
-    output_format: OutputSink
+    output_sink: OutputSink
     posts_published: int
     profiles_updated: int
     window_start: datetime
@@ -296,7 +296,7 @@ def _save_journal_to_file(params: JournalEntryParams) -> str | None:
             },
             source_window=params.window_label,
         )
-        params.output_format.persist(doc)
+        params.output_sink.persist(doc)
         logger.info("Saved journal entry: %s", doc.document_id)
         return doc.document_id
     except (TemplateNotFound, TemplateError) as exc:
@@ -490,7 +490,7 @@ def write_posts_with_pydantic_agent(
         JournalEntryParams(
             intercalated_log=intercalated_log,
             window_label=context.window_label,
-            output_format=context.resources.output,
+            output_sink=context.resources.output,
             posts_published=len(saved_posts),
             profiles_updated=len(saved_profiles),
             window_start=context.window_start,

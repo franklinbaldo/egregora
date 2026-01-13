@@ -534,7 +534,7 @@ def perform_enrichment(
     """Execute enrichment for a window's table."""
     enrichment_context = EnrichmentRuntimeContext(
         cache=context.enrichment_cache,
-        output_format=context.output_format,
+        output_sink=context.output_sink,
         site_root=context.site_root,
         usage_tracker=context.usage_tracker,
         pii_prevention=None,
@@ -655,7 +655,7 @@ def get_pending_conversations(dataset: PreparedPipelineData) -> Iterator[Convers
             logger.warning("Window too small after split (%d messages), attempting anyway", window.size)
 
         # ETL Step 1: Media Processing
-        output_sink = ctx.output_format
+        output_sink = ctx.output_sink
         if output_sink is None:
             # Should not happen if dataset is prepared correctly
             raise ValueError("Output sink not initialized")
@@ -700,7 +700,7 @@ def get_pending_conversations(dataset: PreparedPipelineData) -> Iterator[Convers
 def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     """Execute the agent on an isolated conversation item."""
     ctx = conversation.context
-    output_sink = ctx.output_format
+    output_sink = ctx.output_sink
 
     # Extract commands (ETL/Processing boundary - commands are side effects)
     # We do this here or in generator? Generator does "data prep".
@@ -1149,17 +1149,17 @@ def _prepare_pipeline_data(
     vision_model = config.models.enricher_vision
     embedding_model = config.models.embedding
 
-    output_format = PipelineFactory.create_output_adapter(
+    output_sink = PipelineFactory.create_output_adapter(
         config,
         run_params.output_dir,
         site_root=ctx.site_root,
         registry=ctx.output_registry,
         url_context=ctx.url_context,
     )
-    ctx = ctx.with_output_format(output_format)
+    ctx = ctx.with_output_sink(output_sink)
 
     messages_table = _parse_and_validate_source(
-        adapter, run_params.input_path, timezone, output_adapter=output_format
+        adapter, run_params.input_path, timezone, output_adapter=output_sink
     )
     _setup_content_directories(ctx)
     messages_table = _process_commands_and_avatars(messages_table, ctx, vision_model)
@@ -1195,7 +1195,7 @@ def _prepare_pipeline_data(
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
             # Get existing documents from output format
-            existing_docs = list(output_format.documents())
+            existing_docs = list(output_sink.documents())
             if existing_docs:
                 index_documents(existing_docs)
                 logger.info("[green]✓ Indexed %d existing documents into RAG[/]", len(existing_docs))
@@ -1341,7 +1341,7 @@ def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
     if dataset.context.config.rag.enabled:
         logger.info("[bold cyan]🏷️  Generating Semantic Taxonomy...[/]")
         try:
-            tagged_count = generate_semantic_taxonomy(dataset.context.output_format, dataset.context.config)
+            tagged_count = generate_semantic_taxonomy(dataset.context.output_sink, dataset.context.config)
             if tagged_count > 0:
                 logger.info("[green]✓ Applied semantic tags to %d posts[/]", tagged_count)
         except (ValueError, TypeError, AttributeError) as e:
@@ -1406,10 +1406,10 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             process_background_tasks(dataset.context)
 
             # Regenerate tags page with word cloud visualization
-            if hasattr(dataset.context.output_format, "regenerate_tags_page"):
+            if hasattr(dataset.context.output_sink, "regenerate_tags_page"):
                 try:
                     logger.info("[bold cyan]🏷️  Regenerating tags page with word cloud...[/]")
-                    dataset.context.output_format.regenerate_tags_page()
+                    dataset.context.output_sink.regenerate_tags_page()
                 except (OSError, AttributeError, TypeError) as e:
                     logger.warning("Failed to regenerate tags page: %s", e)
 
