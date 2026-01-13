@@ -40,39 +40,34 @@ def create_table_if_not_exists(
                           Example: {"chk_status": "status IN ('draft', 'published')"}
 
     """
-    if hasattr(conn, "list_tables"):  # More reliable check for Ibis connection
-        if table_name not in conn.list_tables() or overwrite:
-            conn.create_table(table_name, schema=schema, overwrite=overwrite)
-            # Note: Ibis doesn't support CHECK constraints, so we add them manually after
-            if check_constraints:
-                for constraint_name, check_expr in check_constraints.items():
-                    add_check_constraint(conn.raw_sql, table_name, constraint_name, check_expr)
-    else:
-        # Raw duckdb connection
-        if overwrite:
-            conn.execute(f"DROP TABLE IF EXISTS {quote_identifier(table_name)}")
+    # DuckDB does not support ALTER TABLE ADD CONSTRAINT for CHECK constraints.
+    # Therefore, constraints must be included in the CREATE TABLE statement.
+    # This implementation builds the CREATE TABLE statement manually for both
+    # raw and Ibis connections to ensure constraints are always applied.
 
-        columns_sql = ", ".join(
-            f"{quote_identifier(name)} {ibis_to_duckdb_type(dtype)}" for name, dtype in schema.items()
-        )
+    if overwrite:
+        conn.execute(f"DROP TABLE IF EXISTS {quote_identifier(table_name)}")
 
-        # Add CHECK constraints to CREATE TABLE statement
-        constraint_clauses = []
-        if check_constraints:
-            for constraint_name, check_expr in check_constraints.items():
-                constraint_clauses.append(
-                    f"CONSTRAINT {quote_identifier(constraint_name)} CHECK ({check_expr})"
-                )
+    columns_sql = ", ".join(
+        f"{quote_identifier(name)} {ibis_to_duckdb_type(dtype)}" for name, dtype in schema.items()
+    )
 
-        all_clauses = [columns_sql]
-        if constraint_clauses:
-            all_clauses.extend(constraint_clauses)
+    constraint_clauses = []
+    if check_constraints:
+        for constraint_name, check_expr in check_constraints.items():
+            constraint_clauses.append(f"CONSTRAINT {quote_identifier(constraint_name)} CHECK ({check_expr})")
 
-        # If we dropped the table, we must use CREATE TABLE.
-        # Otherwise, CREATE TABLE IF NOT EXISTS is safe.
-        create_verb = "CREATE TABLE" if overwrite else "CREATE TABLE IF NOT EXISTS"
-        create_sql = f"{create_verb} {quote_identifier(table_name)} ({', '.join(all_clauses)})"
-        conn.execute(create_sql)
+    all_clauses = [columns_sql]
+    if constraint_clauses:
+        all_clauses.extend(constraint_clauses)
+
+    # Use "CREATE TABLE IF NOT EXISTS" unless overwrite is specified.
+    create_verb = "CREATE TABLE" if overwrite else "CREATE TABLE IF NOT EXISTS"
+    create_sql = f"{create_verb} {quote_identifier(table_name)} ({', '.join(all_clauses)})"
+
+    # Get the raw connection if it's an Ibis backend
+    raw_conn = conn.con if hasattr(conn, "con") else conn
+    raw_conn.execute(create_sql)
 
 
 def ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:

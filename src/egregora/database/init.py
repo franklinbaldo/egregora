@@ -21,6 +21,7 @@ from egregora.database.schemas import (
     INGESTION_MESSAGE_SCHEMA,
     TASKS_SCHEMA,
     UNIFIED_SCHEMA,
+    add_primary_key,
     create_table_if_not_exists,
 )
 
@@ -65,6 +66,8 @@ def initialize_database(backend: BaseBackend) -> None:
 
     # 4. Ingestion / Messages Table (Legacy/Ingestion Support)
     create_table_if_not_exists(conn, "messages", INGESTION_MESSAGE_SCHEMA)
+    add_primary_key(conn, "documents", "id")
+    add_primary_key(conn, "tasks", "task_id")
 
     # Indexes for messages table (Ingestion performance)
     _execute_sql(conn, "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_pk ON messages(event_id)")
@@ -83,15 +86,12 @@ def _execute_sql(conn: Any, sql: str) -> None:
         sql: SQL statement to execute
 
     """
-    if hasattr(conn, "raw_sql"):
-        # Ibis backend
-        conn.raw_sql(sql)
-    elif hasattr(conn, "execute"):
-        # Raw DuckDB connection
-        conn.execute(sql)
+    raw_conn = conn.con if hasattr(conn, "con") else conn
+    if hasattr(raw_conn, "execute"):
+        raw_conn.execute(sql)
     else:
         # Fallback for unexpected connection objects
-        msg = f"Connection object {type(conn)} does not support raw_sql or execute"
+        msg = f"Connection object {type(conn)} does not support execute"
         raise AttributeError(msg)
 
 
