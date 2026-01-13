@@ -553,12 +553,24 @@ class PRManager:
                 capture_output=True,
             )
 
-            # Merge the PR
+            # Try Rebase merge first (preferred for history)
+            try:
+                subprocess.run(  # noqa: S603
+                    ["gh", "pr", "merge", str(pr_number), "--rebase", "--delete-branch"],
+                    check=True,
+                    capture_output=True,
+                )
+                return
+            except subprocess.CalledProcessError:
+                print(f"      ⚠️ Rebase merge failed for PR #{pr_number}, falling back to standard merge...")
+
+            # Fallback: Standard Merge
             subprocess.run(  # noqa: S603
                 ["gh", "pr", "merge", str(pr_number), "--merge", "--delete-branch"],
                 check=True,
                 capture_output=True,
             )
+
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
             msg = f"Failed to merge PR #{pr_number}: {stderr}"
