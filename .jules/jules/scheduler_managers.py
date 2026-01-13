@@ -433,6 +433,32 @@ class PRManager:
             msg = f"Failed to mark PR #{pr_number} as ready: {stderr}"
             raise MergeError(msg) from e
 
+    def _pr_only_touches_jules(self, pr_number: int) -> bool:
+        """Check if a PR only modifies files inside .jules/ directory.
+        
+        Args:
+            pr_number: PR number to check
+            
+        Returns:
+            True if all changed files are in .jules/, False otherwise
+        """
+        import json
+        try:
+            result = subprocess.run(
+                ["gh", "pr", "view", str(pr_number), "--json", "files"],
+                capture_output=True, text=True, check=True
+            )
+            data = json.loads(result.stdout)
+            files = [f.get("path", "") for f in data.get("files", [])]
+            
+            # Check if ALL files are in .jules/
+            for f in files:
+                if not f.startswith(".jules/"):
+                    return False
+            return len(files) > 0  # At least one file, all in .jules/
+        except Exception:
+            return False  # If we can't check, assume it's not safe
+
     def is_green(self, pr_details: dict) -> bool:
         """Check if all CI checks on a PR are passing.
 
@@ -751,10 +777,27 @@ This PR contains accumulated work from the Jules autonomous development cycle.
                                 self.merge_into_jules(pr_number)
                                 print(f"      ✅ Successfully merged PR #{pr_number}")
                             except Exception as e:
-                                # Merge failed - likely conflict
-                                print(f"      ⚠️ Merge failed (conflict?): {e}")
-                                pr["merge_error"] = str(e)
-                                conflict_prs.append(pr)
+                                # Merge failed - check if PR only touches .jules/ files
+                                only_jules_files = self._pr_only_touches_jules(pr_number)
+                                
+                                if only_jules_files:
+                                    # Safe to force-accept new changes
+                                    print(f"      🔄 PR only touches .jules/ files - forcing merge...")
+                                    try:
+                                        subprocess.run(
+                                            ["gh", "pr", "merge", str(pr_number), "--squash", "--delete-branch"],
+                                            check=True, capture_output=True
+                                        )
+                                        print(f"      ✅ Force-merged PR #{pr_number} (squash)")
+                                    except Exception as e2:
+                                        print(f"      ⚠️ Force-merge also failed: {e2}")
+                                        pr["merge_error"] = str(e2)
+                                        conflict_prs.append(pr)
+                                else:
+                                    # Has files outside .jules/ - needs Weaver
+                                    print(f"      ⚠️ Merge failed (conflict?): {e}")
+                                    pr["merge_error"] = str(e)
+                                    conflict_prs.append(pr)
                     else:
                         status_summary = details.get("mergeStateStatus", "UNKNOWN")
                         print(f"      ⏳ PR status: {status_summary}. Waiting for green checks...")
