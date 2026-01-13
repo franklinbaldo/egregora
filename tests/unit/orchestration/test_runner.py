@@ -48,8 +48,7 @@ def test_pipeline_runner_process_windows():
     # Note: _process_single_window returns a dict of results
     runner._process_single_window = MagicMock(return_value={"test_window": {"posts": ["post1"]}})
 
-    # Mock process_background_tasks to simply return (it is tested via its dependencies in other tests, or we should mock the workers if we want to test its logic, but here we test the loop)
-    # Actually, in the test I was trying to mock `_process_background_tasks` but I renamed it to `process_background_tasks`.
+    # Mock process_background_tasks to simply return
     runner.process_background_tasks = MagicMock()
 
     results, max_ts = runner.process_windows(windows_iterator)
