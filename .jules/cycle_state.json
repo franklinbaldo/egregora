@@ -1,6 +1,13 @@
 {
   "history": [
     {
+      "persona_id": "streamliner",
+      "session_id": "8650443356599175787",
+      "pr_number": null,
+      "created_at": "2026-01-13T18:24:12.167442+00:00",
+      "track": "default"
+    },
+    {
       "persona_id": "sheriff",
       "session_id": "7867764504888459587",
       "pr_number": null,
@@ -438,10 +445,10 @@
   ],
   "tracks": {
     "default": {
-      "last_persona_id": "sheriff",
-      "last_session_id": "7867764504888459587",
+      "last_persona_id": "streamliner",
+      "last_session_id": "8650443356599175787",
       "last_pr_number": null,
-      "updated_at": "2026-01-13T17:41:20.718622+00:00"
+      "updated_at": "2026-01-13T18:24:12.167442+00:00"
     }
   }
 }
