@@ -186,14 +186,8 @@ class Document:
         if self.id:
             return self.id
 
-        # Fallback: calculate hash-based ID and take first 8 chars
-        # We manually calculate UUID to avoid recursion
-        if isinstance(self.content, bytes):
-            payload = self.content
-        else:
-            payload = self.content.encode("utf-8")
-        content_hash = hashlib.sha256(payload).hexdigest()
-        return str(uuid5(NAMESPACE_DOCUMENT, content_hash))[:8]
+        # Fallback: use the first 8 characters of the full document_id
+        return self.document_id[:8]
 
     def with_parent(self, parent: Document | str) -> Document:
         """Return new document with parent relationship."""

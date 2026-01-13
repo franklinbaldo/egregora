@@ -11,7 +11,6 @@ This document provides practical instructions for AI agents. For comprehensive c
 Before starting work, familiarize yourself with:
 - **[CLAUDE.md](CLAUDE.md)**: Authoritative coding standards, architecture patterns, and development practices
 - **[.jules/README.md](.jules/README.md)**: Jules persona definitions and scheduling
-- **[ARCHITECTURE_CLARIFICATION.md](ARCHITECTURE_CLARIFICATION.md)**: V2/Pure migration details
 - **[README.md](README.md)**: User-facing documentation and project overview
 
 ---
@@ -58,7 +57,6 @@ pytest tests/  # assumes global install
 - [ ] Docstrings for public APIs
 - [ ] Error handling uses custom exceptions
 - [ ] Pre-commit hooks pass
-- [ ] V2/Pure compatibility maintained (see [ARCHITECTURE_CLARIFICATION.md](ARCHITECTURE_CLARIFICATION.md))
 
 ---
 

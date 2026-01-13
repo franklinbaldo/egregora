@@ -270,5 +270,5 @@ egregora write export.zip \
 
 ## Next Steps
 
-- [Architecture Overview](../v3/architecture/index.md) - Understand the pipeline
-- [API Reference](../v3/api-reference/index.md) - Dive into the code
+- [Architecture Overview](../v3/architecture/overview.md) - Understand the pipeline
+- [API Reference](../reference/index.md) - Dive into the code

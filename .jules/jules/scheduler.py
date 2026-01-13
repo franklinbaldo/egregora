@@ -5,7 +5,7 @@ from jules.resources.templates import (
     IDENTITY_BRANDING,
     JOURNAL_MANAGEMENT,
     CELEBRATION,
-    PRE_COMMIT_INSTRUCTIONS
+    PRE_COMMIT_INSTRUCTIONS,
 )
 from jules.scheduler_legacy import (
     JULES_BRANCH,

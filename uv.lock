@@ -794,6 +794,15 @@ docs = [
     { name = "mkdocstrings", extra = ["python"] },
     { name = "pymdown-extensions" },
 ]
+mkdocs = [
+    { name = "mkdocs-blogging-plugin" },
+    { name = "mkdocs-git-revision-date-localized-plugin" },
+    { name = "mkdocs-glightbox" },
+    { name = "mkdocs-macros-plugin" },
+    { name = "mkdocs-material" },
+    { name = "mkdocs-minify-plugin" },
+    { name = "mkdocs-rss-plugin" },
+]
 rss = [
     { name = "mkdocs-rss-plugin" },
 ]
@@ -866,14 +875,21 @@ requires-dist = [
     { name = "mkdocs", specifier = ">=1.6" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6.1" },
     { name = "mkdocs-autorefs", marker = "extra == 'docs'", specifier = ">=1.4.3" },
+    { name = "mkdocs-blogging-plugin", marker = "extra == 'mkdocs'" },
     { name = "mkdocs-git-revision-date-localized-plugin", marker = "extra == 'docs'", specifier = ">=1.5.0" },
+    { name = "mkdocs-git-revision-date-localized-plugin", marker = "extra == 'mkdocs'" },
     { name = "mkdocs-glightbox", specifier = ">=0.5.2" },
+    { name = "mkdocs-glightbox", marker = "extra == 'mkdocs'" },
     { name = "mkdocs-macros-plugin", specifier = ">=1.5" },
     { name = "mkdocs-macros-plugin", marker = "extra == 'docs'", specifier = ">=1.5.0" },
+    { name = "mkdocs-macros-plugin", marker = "extra == 'mkdocs'" },
+    { name = "mkdocs-material", marker = "extra == 'mkdocs'" },
     { name = "mkdocs-material", extras = ["imaging"], specifier = ">=9.7" },
     { name = "mkdocs-material", extras = ["imaging"], marker = "extra == 'docs'", specifier = ">=9.7.0" },
     { name = "mkdocs-minify-plugin", marker = "extra == 'docs'", specifier = ">=0.8.0" },
+    { name = "mkdocs-minify-plugin", marker = "extra == 'mkdocs'" },
     { name = "mkdocs-rss-plugin", specifier = ">=1.17" },
+    { name = "mkdocs-rss-plugin", marker = "extra == 'mkdocs'" },
     { name = "mkdocs-rss-plugin", marker = "extra == 'rss'", specifier = ">=1.17.7" },
     { name = "mkdocs-static-i18n", marker = "extra == 'docs'", specifier = ">=1.3.0" },
     { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=1.0.0" },
@@ -902,7 +918,7 @@ requires-dist = [
     { name = "typer", specifier = ">=0.20" },
     { name = "urllib3", specifier = ">=2.6.3" },
 ]
-provides-extras = ["docs", "rss", "test"]
+provides-extras = ["mkdocs", "docs", "rss", "test"]
 
 [package.metadata.requires-dev]
 dev = [

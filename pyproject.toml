@@ -51,6 +51,15 @@ iperon-tjro = "egregora.input_adapters.iperon_tjro:IperonTJROAdapter"
 self = "egregora.input_adapters.self_reflection:SelfInputAdapter"
 
 [project.optional-dependencies]
+mkdocs = [
+    "mkdocs-material",
+    "mkdocs-blogging-plugin",
+    "mkdocs-macros-plugin",
+    "mkdocs-rss-plugin",
+    "mkdocs-glightbox",
+    "mkdocs-git-revision-date-localized-plugin",
+    "mkdocs-minify-plugin",
+]
 docs = [
     "codespell>=2.4.1",
     "mkdocs>=1.6.1",
