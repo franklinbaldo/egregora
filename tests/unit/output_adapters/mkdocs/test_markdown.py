@@ -8,8 +8,8 @@ from unittest.mock import patch
 import pytest
 import yaml
 
-from egregora.output_adapters.exceptions import MissingMetadataError
-from egregora.output_adapters.mkdocs.markdown import write_markdown_post
+from egregora.output_adapters.exceptions import MissingMetadataError, UniqueFilenameError
+from egregora.output_adapters.mkdocs.markdown import write_markdown_post, _resolve_filepath
 
 
 def test_write_markdown_post_creates_file_with_frontmatter(tmp_path: Path):
@@ -79,3 +79,74 @@ def test_write_markdown_post_raises_error_for_missing_metadata(tmp_path: Path):
 
     assert "slug" in str(excinfo.value)
     assert "date" in str(excinfo.value)
+
+def test_resolve_filepath_no_collision(tmp_path: Path):
+    """
+    Tests that _resolve_filepath returns the original path and slug when no file collision occurs.
+    """
+    output_dir = tmp_path
+    date_prefix = "2023-01-01"
+    base_slug = "my-first-post"
+
+    filepath, slug = _resolve_filepath(output_dir, date_prefix, base_slug)
+
+    expected_filename = "2023-01-01-my-first-post.md"
+    assert filepath == output_dir / expected_filename
+    assert slug == base_slug
+
+
+def test_resolve_filepath_single_collision(tmp_path: Path):
+    """
+    Tests that _resolve_filepath appends a numeric suffix to the slug on a single file collision.
+    """
+    output_dir = tmp_path
+    date_prefix = "2023-01-01"
+    base_slug = "my-post"
+
+    # Create the original file to cause a collision
+    (output_dir / "2023-01-01-my-post.md").touch()
+
+    filepath, slug = _resolve_filepath(output_dir, date_prefix, base_slug)
+
+    expected_filename = "2023-01-01-my-post-2.md"
+    assert filepath == output_dir / expected_filename
+    assert slug == "my-post-2"
+
+
+def test_resolve_filepath_multiple_collisions(tmp_path: Path):
+    """
+    Tests that _resolve_filepath finds the next available numeric suffix with multiple file collisions.
+    """
+    output_dir = tmp_path
+    date_prefix = "2023-01-01"
+    base_slug = "another-post"
+
+    # Create multiple files to cause collisions
+    (output_dir / "2023-01-01-another-post.md").touch()
+    (output_dir / "2023-01-01-another-post-2.md").touch()
+    (output_dir / "2023-01-01-another-post-3.md").touch()
+
+    filepath, slug = _resolve_filepath(output_dir, date_prefix, base_slug)
+
+    expected_filename = "2023-01-01-another-post-4.md"
+    assert filepath == output_dir / expected_filename
+    assert slug == "another-post-4"
+
+
+def test_resolve_filepath_raises_error_on_max_attempts(tmp_path: Path):
+    """
+    Tests that _resolve_filepath raises UniqueFilenameError when it cannot find a unique name.
+    """
+    output_dir = tmp_path
+    date_prefix = "2023-01-01"
+    base_slug = "full-post"
+    max_attempts = 3
+
+    # Create files to exhaust all attempts
+    (output_dir / "2023-01-01-full-post.md").touch()
+    (output_dir / "2023-01-01-full-post-2.md").touch()
+    (output_dir / "2023-01-01-full-post-3.md").touch()
+    (output_dir / "2023-01-01-full-post-4.md").touch()
+
+    with pytest.raises(UniqueFilenameError):
+        _resolve_filepath(output_dir, date_prefix, base_slug, max_attempts=max_attempts)
