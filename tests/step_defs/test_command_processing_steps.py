@@ -21,6 +21,10 @@ def context():
 def test_detect_valid_commands():
     pass
 
+@scenario('../features/command_processing.feature', 'Detect commands regardless of case')
+def test_detect_commands_case_insensitively():
+    pass
+
 @scenario('../features/command_processing.feature', 'Ignore regular messages')
 def test_ignore_regular_messages():
     pass
@@ -62,6 +66,10 @@ def test_generate_announcement_for_interests_update():
 @given("a message containing a valid command", target_fixture='context')
 def valid_command_message():
     return {"message": "/egregora avatar set https://example.com/avatar.jpg"}
+
+@given(parsers.parse('a message containing the command "{command_text}"'), target_fixture='context')
+def given_a_message_with_command_text(command_text):
+    return {"message": command_text}
 
 @given("a message that is not a command", target_fixture='context')
 def regular_message():
@@ -195,6 +203,15 @@ def check_announcement_document_created(context):
 @then(parsers.parse('the document\'s event type should be "{event_type}"'))
 def check_event_type(context, event_type):
     assert context["announcement"].metadata["event_type"] == event_type
+
+@then("the document should be authored by Egregora")
+def check_egregora_authorship(context):
+    assert context["announcement"].metadata["authors"][0]["uuid"] == EGREGORA_UUID
+    assert context["announcement"].metadata["authors"][0]["name"] == EGREGORA_NAME
+
+@then(parsers.parse('the document\'s actor should be "{actor_uuid}"'))
+def check_document_actor(context, actor_uuid):
+    assert context["announcement"].metadata["actor"] == actor_uuid
 
 @then("the document's content should mention the user and the avatar update")
 def check_avatar_announcement_content(context):
