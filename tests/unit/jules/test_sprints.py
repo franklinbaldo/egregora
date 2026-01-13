@@ -1,7 +1,6 @@
 import pytest
-from pathlib import Path
-from unittest.mock import patch, mock_open
 from jules.sprints import SprintManager
+
 
 class TestSprintManager:
     @pytest.fixture
@@ -9,7 +8,7 @@ class TestSprintManager:
         return tmp_path
 
     def test_init_creates_structure(self, mock_repo_path):
-        sprint_mgr = SprintManager(repo_path=mock_repo_path)
+        SprintManager(repo_path=mock_repo_path)
 
         sprints_dir = mock_repo_path / ".jules/sprints"
         current_file = sprints_dir / "current.txt"

@@ -1,15 +1,12 @@
 """Test the parallel scheduler logic (TDD)."""
 
-import pytest
-from pathlib import Path
-from dataclasses import asdict
-import json
 import tomllib
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-from jules.scheduler_models import CycleState
-from jules.scheduler_state import PersistentCycleState
+import pytest
 from jules.scheduler_managers import CycleStateManager
+from jules.scheduler_state import PersistentCycleState
+
 
 class TestParallelScheduler:
     @pytest.fixture
@@ -26,12 +23,12 @@ class TestParallelScheduler:
 
     @pytest.fixture
     def mock_cycle_state_json(self, tmp_path):
-        f = tmp_path / "cycle_state.json"
-        return f
+        return tmp_path / "cycle_state.json"
 
     def test_load_tracks_from_toml(self, mock_schedules_toml):
         """Verify we can parse [tracks] from TOML."""
-        with open(mock_schedules_toml, "rb") as f:
+        # Use Path.open() instead of open() to satisfy PTH123
+        with mock_schedules_toml.open("rb") as f:
             data = tomllib.load(f)
 
         tracks = data.get("tracks")
@@ -46,10 +43,7 @@ class TestParallelScheduler:
 
         # Record session on a track
         state.record_session(
-            persona_id="forge",
-            persona_index=1,
-            session_id="session-123",
-            track_name="product"
+            persona_id="forge", persona_index=1, session_id="session-123", track_name="product"
         )
 
         # Verify track state
@@ -68,13 +62,13 @@ class TestParallelScheduler:
         """Verify CycleStateManager can advance a specific track."""
         # Setup manager with a track
         track_personas = [Mock(id="p1"), Mock(id="p2"), Mock(id="p3")]
-        manager = CycleStateManager(cycle_personas=track_personas) # Legacy init
+        manager = CycleStateManager(cycle_personas=track_personas)  # Legacy init
 
         # Test advance logic (existing logic handles list index)
         next_idx, increment = manager.advance_cycle("p1")
-        assert next_idx == 1 # p2
+        assert next_idx == 1  # p2
         assert increment is False
 
         next_idx, increment = manager.advance_cycle("p3")
-        assert next_idx == 0 # p1
+        assert next_idx == 0  # p1
         assert increment is True

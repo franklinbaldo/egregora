@@ -1,12 +1,12 @@
-import pytest
-import httpx
 from unittest.mock import Mock, patch
+
+import httpx
+import pytest
 from jules.client import JulesClient, _request_with_retry
-from jules.exceptions import JulesClientError
 from tenacity import RetryError
 
-class TestJulesClientRefactor:
 
+class TestJulesClientRefactor:
     @pytest.fixture
     def client(self):
         return JulesClient(api_key="test-key")
@@ -35,7 +35,7 @@ class TestJulesClientRefactor:
         mock_get.side_effect = [
             httpx.ConnectTimeout("Timeout"),
             httpx.ReadTimeout("Timeout"),
-            success_response
+            success_response,
         ]
 
         headers = {"X-Goog-Api-Key": "test"}
@@ -72,4 +72,4 @@ class TestJulesClientRefactor:
 
     def test_jules_client_error_wrapping(self):
         """Ensure client methods wrap exceptions in JulesClientError (to be implemented)."""
-        pass # To be added after initial refactor
+        # To be added after initial refactor
