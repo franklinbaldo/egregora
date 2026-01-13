@@ -1,19 +1,19 @@
 """Jules API Client."""
 
 import os
-import time
 from typing import Any
 
 import httpx
 from pydantic import BaseModel, ConfigDict
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+from jules.exceptions import JulesClientError
 
 # Default timeout: 60s for read operations, 10s for connect
 DEFAULT_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 
 # Retry configuration
 MAX_RETRIES = 3
-RETRY_DELAY_BASE = 1.0  # seconds
-
 
 class JulesSession(BaseModel):
     """Jules Session Model."""
@@ -25,6 +25,12 @@ class JulesSession(BaseModel):
     createTime: str
 
 
+@retry(
+    stop=stop_after_attempt(MAX_RETRIES),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type((httpx.ReadTimeout, httpx.ConnectTimeout, httpx.RemoteProtocolError)),
+    reraise=True
+)
 def _request_with_retry(
     method: str,
     url: str,
@@ -32,26 +38,23 @@ def _request_with_retry(
     json: dict[str, Any] | None = None,
 ) -> httpx.Response:
     """Make an HTTP request with retry logic for transient failures."""
-    last_exception: Exception | None = None
+    if method == "GET":
+        response = httpx.get(url, headers=headers, timeout=DEFAULT_TIMEOUT)
+    else:
+        response = httpx.post(url, headers=headers, json=json, timeout=DEFAULT_TIMEOUT)
     
-    for attempt in range(MAX_RETRIES):
-        try:
-            if method == "GET":
-                response = httpx.get(url, headers=headers, timeout=DEFAULT_TIMEOUT)
-            else:
-                response = httpx.post(url, headers=headers, json=json, timeout=DEFAULT_TIMEOUT)
-            response.raise_for_status()
-            return response
-        except (httpx.ReadTimeout, httpx.ConnectTimeout) as e:
-            last_exception = e
-            if attempt < MAX_RETRIES - 1:
-                # Exponential backoff
-                delay = RETRY_DELAY_BASE * (2 ** attempt)
-                time.sleep(delay)
-            continue
-    
-    # Exhausted retries
-    raise last_exception  # type: ignore[misc]
+    # We might want to retry on 5xx errors too, but strictly following previous logic for now (timeouts)
+    # However, raise_for_status might raise HTTPStatusError which we might want to wrap.
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        # Wrap HTTP errors in JulesClientError for clearer domains
+        raise JulesClientError(f"Jules API Error: {e.response.status_code} - {e.response.text}") from e
+    except httpx.RequestError as e:
+         # Wrap Request errors (that aren't retried or exhausted retries)
+        raise JulesClientError(f"Jules Connection Error: {e}") from e
+
+    return response
 
 
 class JulesClient:

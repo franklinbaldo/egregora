@@ -8,28 +8,44 @@ from typing import Any
 
 
 @dataclass
+class TrackState:
+    """State for a single execution track."""
+    last_persona_id: str | None = None
+    last_session_id: str | None = None
+    last_pr_number: int | None = None
+    updated_at: str | None = None
+
+
+@dataclass
 class PersistentCycleState:
     """Persistent state for the cycle scheduler.
     
-    Simplified to only store history. Last session info is derived from history.
+    Supports both legacy single-cycle history and new multi-track state.
     """
 
     history: list[dict[str, Any]] = field(default_factory=list)
+    tracks: dict[str, TrackState] = field(default_factory=dict)
 
     @property
     def last_persona_id(self) -> str | None:
-        """Get the persona ID from the most recent session."""
+        """Get the persona ID from the most recent session (Legacy/Default)."""
         return self.history[0].get("persona_id") if self.history else None
 
     @property
     def last_session_id(self) -> str | None:
-        """Get the session ID from the most recent session."""
+        """Get the session ID from the most recent session (Legacy/Default)."""
         return self.history[0].get("session_id") if self.history else None
 
     @property
     def last_pr_number(self) -> int | None:
-        """Get the PR number from the most recent session."""
+        """Get the PR number from the most recent session (Legacy/Default)."""
         return self.history[0].get("pr_number") if self.history else None
+
+    def get_track(self, track_name: str) -> TrackState:
+        """Get state for a specific track, initializing if needed."""
+        if track_name not in self.tracks:
+            self.tracks[track_name] = TrackState()
+        return self.tracks[track_name]
 
     @classmethod
     def load(cls, path: Path) -> "PersistentCycleState":
@@ -41,20 +57,39 @@ class PersistentCycleState:
             with open(path) as f:
                 data = json.load(f)
             
-            # Handle legacy format if necessary
-            if isinstance(data, dict) and "history" in data:
-                return cls(history=data.get("history", []))
+            state = cls()
+
+            # Load history
+            if isinstance(data, dict):
+                state.history = data.get("history", [])
+
+                # Load tracks
+                tracks_data = data.get("tracks", {})
+                for name, t_data in tracks_data.items():
+                    state.tracks[name] = TrackState(**t_data)
             elif isinstance(data, list):
-                return cls(history=data)
-            else:
-                return cls()
-        except (json.JSONDecodeError, OSError):
+                state.history = data
+
+            return state
+        except (json.JSONDecodeError, OSError, TypeError):
             return cls()
 
     def save(self, path: Path) -> None:
-        """Save state to JSON file, keeping only the history key."""
+        """Save state to JSON file."""
+        data = {
+            "history": self.history,
+            "tracks": {
+                name: {
+                    "last_persona_id": t.last_persona_id,
+                    "last_session_id": t.last_session_id,
+                    "last_pr_number": t.last_pr_number,
+                    "updated_at": t.updated_at
+                }
+                for name, t in self.tracks.items()
+            }
+        }
         with open(path, "w") as f:
-            json.dump({"history": self.history}, f, indent=2)
+            json.dump(data, f, indent=2)
 
     def record_session(
         self,
@@ -62,29 +97,40 @@ class PersistentCycleState:
         persona_index: int,
         session_id: str,
         pr_number: int | None = None,
+        track_name: str | None = None,
     ) -> None:
         """Record a new session in state."""
-        # Add to history (keep full audit trail)
+        timestamp = datetime.now(timezone.utc).isoformat()
+
+        # Add to global audit history
         entry = {
             "persona_id": persona_id,
             "session_id": session_id,
             "pr_number": pr_number,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": timestamp,
+            "track": track_name
         }
         self.history.insert(0, entry)
 
-    def update_pr_number(self, pr_number: int) -> None:
+        # Update track specific state
+        if track_name:
+            track = self.get_track(track_name)
+            track.last_persona_id = persona_id
+            track.last_session_id = session_id
+            track.last_pr_number = pr_number
+            track.updated_at = timestamp
+
+    def update_pr_number(self, pr_number: int, track_name: str | None = None) -> None:
         """Update the PR number for the last session."""
         if self.history:
             self.history[0]["pr_number"] = pr_number
 
+        if track_name and track_name in self.tracks:
+            self.tracks[track_name].last_pr_number = pr_number
+
 
 def commit_cycle_state(state_path: Path, message: str = "chore: update cycle state") -> bool:
-    """Commit the cycle state file to git via GitHub API.
-
-    This updates the state ONLY in the 'jules' branch as requested.
-    Using the API is more reliable than 'git push' in CI.
-    """
+    """Commit the cycle state file to git via GitHub API."""
     from jules.github import GitHubClient
     from jules.scheduler import JULES_BRANCH
 
