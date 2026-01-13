@@ -1,36 +1,36 @@
-# Plano: Curator - Sprint 2
+# Plan: Curator - Sprint 2
+**Persona:** Curator 🎭
+**Sprint:** 2
+**Created:** 2024-07-29 (during Sprint 1)
+**Priority:** High
 
-**Persona:** curator  
-**Sprint:** 2  
-**Criado em:** 2026-01-09 (durante sprint-1)
-**Prioridade:** Alta  
+## Goals
+My primary goal for Sprint 2 is to establish a stable, measurable, and professional baseline for the blog's user experience. The previous sprints were plagued by foundational issues that blocked any meaningful curation. This sprint is about fixing those and setting the stage for future improvements.
 
-## Objetivos
+- [ ] **Establish UX Auditing:** Create a task for Forge to implement a repeatable, automated Lighthouse audit script. I cannot effectively curate what I cannot measure.
+- [ ] **Fix Critical Navigation:** Create tasks to fix the broken "Media" and "About" navigation links, which are critical usability failures.
+- [ ] **Define Core Visual Identity:** Develop the primary color palette, typography scale, and favicon. This work will be documented in `docs/ux-vision.md` and tasked out for implementation.
+- [ ] **Collaborate on Automation:** Work with the `refactor` persona on the `issues` module refactoring to ensure I can begin automating the creation and verification of UX tasks.
 
-O `curator` tem como missão garantir uma excelente experiência de usuário (UX) para os blogs gerados pelo Egregora. Para o sprint-2, os objetivos são focar na implementação de melhorias de alto impacto que estabeleçam uma identidade visual única e profissional para o produto.
+## Dependencies
+- **Forge:** The implementation of the Lighthouse script and the fixes for critical bugs are direct dependencies for my work.
+- **Refactor:** The refactoring of the `issues` module is a dependency for my goal of automating the curation cycle.
 
-- [ ] **Verificar a implementação do novo esquema de cores:** Garantir que a paleta de cores personalizada (azul primário `#2c3e50`, verde de destaque `#27ae60`) foi corretamente aplicada aos templates.
-- [ ] **Verificar a adição do favicon:** Confirmar que um favicon customizado foi criado e está sendo corretamente exibido no site gerado.
-- [ ] **Verificar a remoção do Google Analytics:** Assegurar que o placeholder do Google Analytics foi completamente removido dos templates, alinhando o produto com sua proposta de "privacidade em primeiro lugar".
-- [ ] **Avaliar e criar tarefas para a tipografia:** Analisar a hierarquia tipográfica, o tamanho das fontes e o espaçamento para garantir a legibilidade e criar tarefas para a `forge`, se necessário.
+## Context
+My initial audits have revealed a fragile foundation. The site has broken links, a default theme, and no way to programmatically measure UX quality. It is premature to work on advanced features until this baseline is solidified. By the end of this sprint, we should have a demo site that is stable, visually distinct, and has a clear process for quality measurement.
 
-## Dependências
+## Expected Deliverables
+1.  **Lighthouse Audit Script:** A script that can be run to generate a Lighthouse report for the demo site.
+2.  **Functional Navigation:** A demo site with no broken top-level navigation links.
+3.  **Updated UX Vision:** The `docs/ux-vision.md` document will contain the defined color palette, typography, and other core identity elements.
+4.  **Actionable Tasks:** A set of clear, actionable tasks in the backlog for Forge to implement the defined visual identity.
 
-- **forge:** A execução deste plano depende inteiramente do trabalho da `forge` para implementar as tarefas de UX criadas no sprint-1 (cores, favicon, analytics).
+## Risks and Mitigations
+| Risk | Probability | Impact | Mitigation |
+|---|---|---|---|
+| Infrastructure remains unstable | Medium | High | I will prioritize tasks that stabilize the demo generation process and create clear, specific bug reports for Forge. |
+| Lighthouse integration is complex | Low | Medium | The initial script can be simple; it doesn't need to be a full CI integration. A basic command-line tool is sufficient to start. |
 
-## Contexto
-
-A auditoria de UX inicial realizada no sprint-1 revelou que, embora o blog gerado seja funcional, ele carece de uma identidade visual profissional. As tarefas criadas (`20260109-2027-ux-improve-color-palette.md`, `20260109-2027-ux-add-favicon.md`, `20260109-2028-ux-remove-analytics.md`) são a base para resolver essas questões. O Sprint 2 será dedicado a verificar a implementação dessas mudanças e aprofundar a análise em áreas secundárias, como a tipografia.
-
-## Entregáveis Esperados
-
-1.  **Validação das Tarefas de UX:** Confirmação de que as melhorias de design foram implementadas corretamente.
-2.  **Novas Tarefas (se necessário):** Criação de tarefas detalhadas para `forge` relacionadas a melhorias de tipografia.
-3.  **Atualização do `docs/ux-vision.md`:** Documentar as decisões de design tomadas (paleta de cores, etc.) na visão de UX do produto.
-
-## Riscos e Mitigações
-
-| Risco | Probabilidade | Impacto | Mitigação |
-|-------|---------------|---------|-----------|
-| `forge` não completa as tarefas a tempo | Média | Alto | Acompanhar o progresso das tarefas no início do sprint e comunicar a importância delas. |
-| As mudanças implementadas não correspondem à especificação | Baixa | Médio | As tarefas de UX possuem critérios de verificação claros para minimizar a ambiguidade. |
+## Proposed Collaborations
+- **With Forge:** Close collaboration on fixing the foundational bugs and implementing the audit script.
+- **With Refactor:** Provide clear requirements for the `issues` module API to support my automation goals.

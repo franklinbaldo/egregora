@@ -1,37 +1,36 @@
-# Plano: Curator - Sprint 3
-
-**Persona:** curator
+# Plan: Curator - Sprint 3
+**Persona:** Curator 🎭
 **Sprint:** 3
-**Criado em:** 2026-01-09 (durante sprint-1)
-**Prioridade:** Média
+**Created:** 2024-07-29 (during Sprint 1)
+**Priority:** Medium
 
-## Objetivos
+## Goals
+With a stable and measurable UX baseline established in Sprint 2, the primary goal for Sprint 3 is to elevate the user experience from functional to delightful. This will be achieved through targeted enhancements and the automation of my own curation workflow.
 
-Continuando o trabalho de aprimoramento da experiência do usuário, o sprint-3 se concentrará em refinar a arquitetura de informação do blog e melhorar a acessibilidade.
+- [ ] **Automate the Curation Cycle:** Leverage the refactored `issues` module to create scripts that can automatically generate UX bug reports based on Lighthouse audit results and other heuristics.
+- [ ] **Enhance Content Discovery:** Design and create tasks for a "Related Posts" feature to improve user engagement and content exploration.
+- [ ] **Refine Visual Hierarchy:** Go beyond the basics and focus on advanced typography, vertical rhythm, and spacing to create a more polished and readable experience.
+- [ ] **Drive Accessibility to Excellence:** Use the Lighthouse audit data to create a targeted campaign to push the accessibility (a11y) score to 95+, focusing on high-impact issues.
+- [ ] **Component-Driven Design:** Begin formally documenting reusable design components (e.g., Author Cards, Callouts, Post Headers) in `docs/ux-vision.md` to ensure a consistent and scalable design system.
 
-- [ ] **Melhorar a Mensagem de "Estado Vazio":** Refinar a mensagem na `index.md` quando ainda não há posts, tornando-a mais acolhedora e menos técnica.
-- [ ] **Revisar a Estrutura de Navegação:** Avaliar a hierarquia da navegação principal (e.g., a proeminência do link "Media") e propor uma estrutura mais intuitiva.
-- [ ] **Auditoria de Acessibilidade (A11y):** Realizar uma auditoria focada em acessibilidade, verificando o contraste das cores, a navegação pelo teclado e o uso de atributos ARIA. Criar tarefas para a `forge` para corrigir quaisquer problemas encontrados.
-- [ ] **Investigar e Planejar "Posts Relacionados":** Pesquisar maneiras de implementar uma seção de "posts relacionados" de forma autônoma e criar uma tarefa de design/implementação detalhada.
+## Dependencies
+- **Forge:** Implementation of the enhancements and a11y fixes.
+- **Refactor:** The successful completion of the `issues` module refactoring in Sprint 2 is a hard dependency for my automation goals.
 
-## Dependências
+## Context
+Sprint 2 was about fixing the foundation. Sprint 3 is about building a beautiful house on that foundation. The focus shifts from fixing critical bugs to proactively creating a high-quality user experience. The automation work is key, as it will free up my time to focus on more strategic design initiatives rather than manual task creation.
 
-- **forge:** Será necessário para implementar as tarefas que surgirem da auditoria de acessibilidade e das outras iniciativas de UX.
+## Expected Deliverables
+1.  **Curation Automation Script:** A script that can automatically create a task file in `.jules/tasks/todo/` when a UX metric (e.g., Lighthouse score) falls below a certain threshold.
+2.  **Related Posts Feature:** A fully implemented and visually polished "Related Posts" section on blog post pages.
+3.  **A11y Score of 95+:** The demo site should consistently score 95 or higher on the Lighthouse accessibility audit.
+4.  **Component Library v1:** A new section in `docs/ux-vision.md` detailing the design and specifications for at least three core reusable components.
 
-## Contexto
+## Risks and Mitigations
+| Risk | Probability | Impact | Mitigation |
+|---|---|---|---|
+| Automation is more complex than anticipated | Medium | Medium | Start with a very simple script (e.g., check one metric, create one generic task). Build complexity iteratively. |
+| "Related Posts" logic is difficult | Medium | High | The initial version can be very simple (e.g., based on tags or dates). The goal is to establish the UI pattern; the recommendation logic can be improved over time. |
 
-Com as melhorias de branding de alto impacto implementadas no sprint-2, o sprint-3 pode se concentrar em aspectos mais sutis, mas igualmente importantes, da experiência do usuário. Melhorar a primeira impressão (estado vazio), a facilidade de encontrar informações (navegação) e garantir que o site seja utilizável por todos (acessibilidade) são os próximos passos lógicos na evolução do design do produto.
-
-## Entregáveis Esperados
-
-1.  **Tarefa para "Estado Vazio":** Uma tarefa de UX detalhada para a `forge` com o novo texto e possivelmente um conceito visual para a página inicial sem posts.
-2.  **Proposta de Navegação:** Um documento ou tarefa descrevendo a nova estrutura de navegação recomendada.
-3.  **Relatório de Acessibilidade e Tarefas:** Um resumo dos problemas de acessibilidade encontrados e as tarefas correspondentes criadas para a `forge`.
-4.  **Especificação de "Posts Relacionados":** Uma tarefa detalhada descrevendo como a funcionalidade de posts relacionados deve ser projetada e implementada.
-
-## Riscos e Mitigações
-
-| Risco | Probabilidade | Impacto | Mitigação |
-|-------|---------------|---------|-----------|
-| A auditoria de acessibilidade revela problemas complexos | Média | Alto | Priorizar as correções mais impactantes e fáceis de implementar primeiro. |
-| A implementação de "posts relacionados" é tecnicamente inviável de forma autônoma | Média | Médio | A tarefa inicial é de pesquisa e design, o que ajudará a identificar a viabilidade antes de qualquer trabalho de implementação. |
+## Proposed Collaborations
+- **With Visionary:** The concept of a "Structured Data Sidecar" could be the perfect data source for a more intelligent "Related Posts" feature. I will collaborate on how to leverage that data for UX features.
