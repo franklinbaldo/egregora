@@ -1,37 +1,44 @@
-# Plano: Curator - Sprint 3
+# Plan: Curator - Sprint 3
 
-**Persona:** curator
+**Persona:** Curator 🎭
 **Sprint:** 3
-**Criado em:** 2026-01-09 (durante sprint-1)
-**Prioridade:** Média
+**Created:** 2024-07-29 (during Sprint 1)
+**Priority:** Medium
 
-## Objetivos
+## Objectives
 
-Continuando o trabalho de aprimoramento da experiência do usuário, o sprint-3 se concentrará em refinar a arquitetura de informação do blog e melhorar a acessibilidade.
+Assuming the foundational UX issues are resolved in Sprint 2, Sprint 3 will focus on enhancing the content experience and information architecture.
 
-- [ ] **Melhorar a Mensagem de "Estado Vazio":** Refinar a mensagem na `index.md` quando ainda não há posts, tornando-a mais acolhedora e menos técnica.
-- [ ] **Revisar a Estrutura de Navegação:** Avaliar a hierarquia da navegação principal (e.g., a proeminência do link "Media") e propor uma estrutura mais intuitiva.
-- [ ] **Auditoria de Acessibilidade (A11y):** Realizar uma auditoria focada em acessibilidade, verificando o contraste das cores, a navegação pelo teclado e o uso de atributos ARIA. Criar tarefas para a `forge` para corrigir quaisquer problemas encontrados.
-- [ ] **Investigar e Planejar "Posts Relacionados":** Pesquisar maneiras de implementar uma seção de "posts relacionados" de forma autônoma e criar uma tarefa de design/implementação detalhada.
+- [ ] **Improve Content Readability:** Implement a custom typography scale and refine spacing to improve the reading experience.
+- [ ] **Enhance Navigation:** Restructure the site navigation based on user needs, potentially introducing breadcrumbs for better context.
+- [ ] **Develop "Related Content" Feature:** Work with Forge to design and implement a feature that suggests related posts, increasing user engagement.
+- [ ] **Audit Accessibility:** Conduct a formal accessibility audit using an automated tool (once available) and create tasks to address any violations.
 
-## Dependências
+## Dependencies
 
-- **forge:** Será necessário para implementar as tarefas que surgirem da auditoria de acessibilidade e das outras iniciativas de UX.
+- **Forge:** Will need Forge to implement the typography, navigation, and related content features.
+- **Sentinel:** An automated accessibility testing tool, which Sentinel may be involved in, would be highly beneficial.
 
-## Contexto
+## Context
 
-Com as melhorias de branding de alto impacto implementadas no sprint-2, o sprint-3 pode se concentrar em aspectos mais sutis, mas igualmente importantes, da experiência do usuário. Melhorar a primeira impressão (estado vazio), a facilidade de encontrar informações (navegação) e garantir que o site seja utilizável por todos (acessibilidade) são os próximos passos lógicos na evolução do design do produto.
+With the visual identity established in Sprint 2, Sprint 3 shifts focus to the core user journey: reading and discovering content. The goal is to make the experience as seamless and engaging as possible. This involves moving beyond the basics of the Material theme and implementing more sophisticated UX patterns.
 
-## Entregáveis Esperados
+## Expected Deliverables
 
-1.  **Tarefa para "Estado Vazio":** Uma tarefa de UX detalhada para a `forge` com o novo texto e possivelmente um conceito visual para a página inicial sem posts.
-2.  **Proposta de Navegação:** Um documento ou tarefa descrevendo a nova estrutura de navegação recomendada.
-3.  **Relatório de Acessibilidade e Tarefas:** Um resumo dos problemas de acessibilidade encontrados e as tarefas correspondentes criadas para a `forge`.
-4.  **Especificação de "Posts Relacionados":** Uma tarefa detalhada descrevendo como a funcionalidade de posts relacionados deve ser projetada e implementada.
+1.  **Improved Typography:** A clear and consistent typography system is implemented.
+2.  **Restructured Navigation:** The site navigation is more intuitive and user-friendly.
+3.  **Related Content MVP:** A functional "related content" feature is present on post pages.
+4.  **Accessibility Audit Report:** A report detailing the accessibility state of the site, with actionable tasks for any identified issues.
 
-## Riscos e Mitigações
+## Risks and Mitigations
 
-| Risco | Probabilidade | Impacto | Mitigação |
+| Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| A auditoria de acessibilidade revela problemas complexos | Média | Alto | Priorizar as correções mais impactantes e fáceis de implementar primeiro. |
-| A implementação de "posts relacionados" é tecnicamente inviável de forma autônoma | Média | Médio | A tarefa inicial é de pesquisa e design, o que ajudará a identificar a viabilidade antes de qualquer trabalho de implementação. |
+| "Related Content" logic is complex | Medium | Medium | I will work with Forge and Visionary to define a simple MVP for the related content feature, focusing on a basic but effective algorithm first. |
+| Accessibility audit reveals major issues | Medium | High | I will prioritize accessibility issues based on WCAG guidelines and work with Forge to create a realistic plan for addressing them over time. |
+
+## Proposed Collaborations
+
+- **With Forge:** Close collaboration on implementing the new features.
+- **With Visionary:** Brainstorming session on the logic for the "related content" feature.
+- **With Sentinel:** Collaboration on implementing and interpreting accessibility testing tools.

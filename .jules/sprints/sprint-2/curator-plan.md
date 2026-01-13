@@ -1,36 +1,44 @@
-# Plano: Curator - Sprint 2
+# Plan: Curator - Sprint 2
 
-**Persona:** curator  
-**Sprint:** 2  
-**Criado em:** 2026-01-09 (durante sprint-1)
-**Prioridade:** Alta  
+**Persona:** Curator 🎭
+**Sprint:** 2
+**Created:** 2024-07-29 (during Sprint 1)
+**Priority:** High
 
-## Objetivos
+## Objectives
 
-O `curator` tem como missão garantir uma excelente experiência de usuário (UX) para os blogs gerados pelo Egregora. Para o sprint-2, os objetivos são focar na implementação de melhorias de alto impacto que estabeleçam uma identidade visual única e profissional para o produto.
+My mission is to establish a baseline of UX excellence for the generated MkDocs blogs. For Sprint 2, the objectives are:
 
-- [ ] **Verificar a implementação do novo esquema de cores:** Garantir que a paleta de cores personalizada (azul primário `#2c3e50`, verde de destaque `#27ae60`) foi corretamente aplicada aos templates.
-- [ ] **Verificar a adição do favicon:** Confirmar que um favicon customizado foi criado e está sendo corretamente exibido no site gerado.
-- [ ] **Verificar a remoção do Google Analytics:** Assegurar que o placeholder do Google Analytics foi completamente removido dos templates, alinhando o produto com sua proposta de "privacidade em primeiro lugar".
-- [ ] **Avaliar e criar tarefas para a tipografia:** Analisar a hierarquia tipográfica, o tamanho das fontes e o espaçamento para garantir a legibilidade e criar tarefas para a `forge`, se necessário.
+- [ ] **Establish Visual Identity:** Work with Forge to implement a custom color palette and favicon, moving away from the generic Material theme defaults.
+- [ ] **Fix Critical Broken Elements:** Guide Forge to fix the missing CSS file and the 404 errors on social card images.
+- [ ] **Improve First Impressions:** Refine the "empty state" messaging and address the generic site name.
+- [ ] **Solidify UX Vision:** Continue to build out `docs/ux-vision.md` with the principles and decisions established in Sprint 1 and 2.
 
-## Dependências
+## Dependencies
 
-- **forge:** A execução deste plano depende inteiramente do trabalho da `forge` para implementar as tarefas de UX criadas no sprint-1 (cores, favicon, analytics).
+The following dependencies have been identified:
 
-## Contexto
+- **Forge:** All of my objectives for this sprint require Forge to implement the necessary code changes in the templates and scaffolding scripts. I will provide clear, actionable tasks.
 
-A auditoria de UX inicial realizada no sprint-1 revelou que, embora o blog gerado seja funcional, ele carece de uma identidade visual profissional. As tarefas criadas (`20260109-2027-ux-improve-color-palette.md`, `20260109-2027-ux-add-favicon.md`, `20260109-2028-ux-remove-analytics.md`) são a base para resolver essas questões. O Sprint 2 será dedicado a verificar a implementação dessas mudanças e aprofundar a análise em áreas secundárias, como a tipografia.
+## Context
 
-## Entregáveis Esperados
+Sprint 1 was focused on unblocking the Curation Cycle and conducting an initial UX audit. This audit revealed several high-priority issues that prevent the generated blogs from having a professional and unique identity. Sprint 2 is about addressing this foundational debt. By the end of this sprint, the generated sites should feel less like a generic template and more like a bespoke product.
 
-1.  **Validação das Tarefas de UX:** Confirmação de que as melhorias de design foram implementadas corretamente.
-2.  **Novas Tarefas (se necessário):** Criação de tarefas detalhadas para `forge` relacionadas a melhorias de tipografia.
-3.  **Atualização do `docs/ux-vision.md`:** Documentar as decisões de design tomadas (paleta de cores, etc.) na visão de UX do produto.
+## Expected Deliverables
 
-## Riscos e Mitigações
+1.  **New Color Palette:** The default Teal/Amber theme is replaced with a custom palette.
+2.  **Custom Favicon:** A unique favicon is present on all pages.
+3.  **Functional Social Sharing:** Social card images are generated correctly without 404 errors.
+4.  **Improved Empty State:** The initial homepage message is more welcoming and user-friendly.
+5.  **Updated UX Vision:** `docs/ux-vision.md` is updated with the new design decisions.
 
-| Risco | Probabilidade | Impacto | Mitigação |
+## Risks and Mitigations
+
+| Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| `forge` não completa as tarefas a tempo | Média | Alto | Acompanhar o progresso das tarefas no início do sprint e comunicar a importância delas. |
-| As mudanças implementadas não correspondem à especificação | Baixa | Médio | As tarefas de UX possuem critérios de verificação claros para minimizar a ambiguidade. |
+| Forge is blocked or unable to implement changes | Medium | High | I will write extremely detailed tasks with clear WHY/WHAT/HOW/WHERE to minimize ambiguity. I will also monitor the `.jules/tasks/` directory closely to provide feedback or clarification if needed. |
+| Design decisions are subjective | Low | Medium | I will ground all design decisions in the established UX Excellence Criteria and document the rationale in `docs/ux-vision.md`. |
+
+## Proposed Collaborations
+
+- **With Forge:** Continuous collaboration via the task management system in `.jules/tasks/`.
