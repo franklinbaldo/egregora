@@ -780,3 +780,14 @@ jobs:
         run: |
           echo "::notice::Gemini review was skipped because no code changes were detected in the PR."
           echo "This is expected for documentation-only or configuration changes."
+
+  skip-review:
+    name: Skip Review (No Code Changes)
+    runs-on: ubuntu-latest
+    needs: [gemini-review]
+    if: always() && needs.gemini-review.outputs.is_empty == 'true'
+    steps:
+      - name: Log skip reason
+        run: |
+          echo "::notice::Gemini review was skipped because no code changes were detected in the PR."
+          echo "This is expected for documentation-only or configuration changes."
