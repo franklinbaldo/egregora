@@ -545,13 +545,48 @@ def run_weaver_integration(
             persona_id="weaver"
         )
         
-        # Build PR list for context
-        pr_list = "\n".join([f"- PR #{pr['number']}: {pr['title']}" for pr in ready_prs])
+        # Build patch URLs list for Weaver
+        owner = repo_info["owner"]
+        repo = repo_info["repo"]
+
+        patch_instructions = []
+        for pr in ready_prs:
+            pr_num = pr['number']
+            pr_title = pr['title']
+            patch_url = f"https://github.com/{owner}/{repo}/pull/{pr_num}.patch"
+            patch_instructions.append(f"""
+### PR #{pr_num}: {pr_title}
+```bash
+curl -L "{patch_url}" -o pr_{pr_num}.patch
+git apply pr_{pr_num}.patch || git apply --3way pr_{pr_num}.patch
+```""")
+
+        patches_section = "\n".join(patch_instructions)
+
+        # Build commit message PR list
+        pr_numbers_str = ", ".join([f"#{pr['number']}" for pr in ready_prs])
+
+        weaver_prompt_with_patches = f"""{weaver.prompt_body}
+
+---
+
+## 🎯 YOUR TASK: Apply These Patches
+
+The following PRs are ready for integration into `jules`. Download and apply each patch in order:
+
+{patches_section}
+
+After applying all patches successfully, commit with:
+```bash
+git add -A
+git commit -m "🕸️ Weaver: Integrate PRs {pr_numbers_str}"
+```
+"""
         
         request = SessionRequest(
             persona_id="weaver",
             title="🕸️ weaver: integration session",
-            prompt=f"{weaver.prompt_body}\n\n## PRs Ready for Integration\n{pr_list}",
+            prompt=weaver_prompt_with_patches,
             branch=session_branch,
             owner=repo_info["owner"],
             repo=repo_info["repo"],
