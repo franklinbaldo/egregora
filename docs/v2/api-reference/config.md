@@ -1,3 +1,0 @@
-# Configuration Reference
-
-::: egregora.config

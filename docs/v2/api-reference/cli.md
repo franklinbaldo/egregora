@@ -1,3 +1,0 @@
-# CLI Reference
-
-::: egregora.cli
