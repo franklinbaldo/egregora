@@ -275,7 +275,7 @@ class PipelineRunner:
         window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
 
         # === Journal Check: Skip if already processed ===
-        output_sink = self.context.output_format
+        output_sink = self.context.output_sink
         if output_sink is None:
             raise OutputSinkError("Output adapter must be initialized before processing windows.")
 
@@ -461,7 +461,7 @@ class PipelineRunner:
         """Execute enrichment for a window's table."""
         enrichment_context = EnrichmentRuntimeContext(
             cache=self.context.enrichment_cache,
-            output_format=self.context.output_format,
+            output_sink=self.context.output_sink,
             site_root=self.context.site_root,
             usage_tracker=self.context.usage_tracker,
             pii_prevention=None,

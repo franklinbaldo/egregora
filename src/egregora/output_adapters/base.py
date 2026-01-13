@@ -338,7 +338,7 @@ def create_output_sink(
     if registry is None:
         raise RegistryNotProvidedError
 
-    output_format = registry.get_format(format_type)
-    output_format.initialize(site_root)
+    output_sink = registry.get_format(format_type)
+    output_sink.initialize(site_root)
 
-    return output_format
+    return output_sink

@@ -61,7 +61,7 @@ class BannerWorker(BaseWorker):
             task_id = result.task.task_id
 
             if result.success and result.document:
-                web_path = persist_banner_document(self.ctx.output_format, result.document)
+                web_path = persist_banner_document(self.ctx.output_sink, result.document)
                 logger.info("Banner generated for %s -> %s", task_id, web_path)
                 self.task_store.mark_completed(task_id)
             else:
