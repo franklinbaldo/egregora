@@ -81,8 +81,9 @@ class PersonaLoader:
                     print(f"Failed to load cycle prompt {rel_path}: {exc}", file=sys.stderr)
 
             if not configs:
-                print("Cycle list provided but no valid prompts were loaded.", file=sys.stderr)
-                sys.exit(1)
+                # If cycle list was provided but nothing loaded, return empty list instead of exit
+                # This allows callers to handle empty state gracefully
+                return []
         else:
             # Load all personas from directory
             # Strategy: find all prompt.* files, prefer .j2 if duplicates exist
@@ -191,20 +192,21 @@ class PersonaLoader:
 
         # Check if legacy variables are used
         if "{{ identity_branding }}" in body_template:
-            t = self.jinja_env.get_template("partials/identity_branding.md.j2")
-            full_context["identity_branding"] = t.render(**full_context)
+            # We construct these from jules/resources/templates.py now since we didn't migrate partials yet
+            from jules.resources.templates import IDENTITY_BRANDING, JOURNAL_MANAGEMENT, CELEBRATION, PRE_COMMIT_INSTRUCTIONS
+            full_context["identity_branding"] = jinja2.Environment().from_string(IDENTITY_BRANDING).render(**full_context)
 
         if "{{ journal_management }}" in body_template:
-            t = self.jinja_env.get_template("partials/journal_management.md.j2")
-            full_context["journal_management"] = t.render(**full_context)
+            from jules.resources.templates import JOURNAL_MANAGEMENT
+            full_context["journal_management"] = jinja2.Environment().from_string(JOURNAL_MANAGEMENT).render(**full_context)
 
         if "{{ empty_queue_celebration }}" in body_template:
-             t = self.jinja_env.get_template("partials/celebration.md.j2")
-             full_context["empty_queue_celebration"] = t.render(**full_context)
+             from jules.resources.templates import CELEBRATION
+             full_context["empty_queue_celebration"] = jinja2.Environment().from_string(CELEBRATION).render(**full_context)
 
         if "{{ pre_commit_instructions }}" in body_template:
-             t = self.jinja_env.get_template("partials/pre_commit_instructions.md.j2")
-             full_context["pre_commit_instructions"] = t.render(**full_context)
+             from jules.resources.templates import PRE_COMMIT_INSTRUCTIONS
+             full_context["pre_commit_instructions"] = jinja2.Environment().from_string(PRE_COMMIT_INSTRUCTIONS).render(**full_context)
 
         # Legacy Support: Append sprint context if not using inheritance/blocks
         if "{% extends" not in body_template and "{% block" not in body_template:

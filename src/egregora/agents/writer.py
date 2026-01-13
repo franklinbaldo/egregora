@@ -226,7 +226,7 @@ def _get_writer_loop() -> asyncio.AbstractEventLoop:
 
 
 @dataclass
-class JournalEntryParams:
+class WriterJournalEntryParams:
     """Parameters for saving a journal entry."""
 
     intercalated_log: list[JournalEntry]
@@ -239,7 +239,7 @@ class JournalEntryParams:
     total_tokens: int = 0
 
 
-def _save_journal_to_file(params: JournalEntryParams) -> str | None:
+def _save_journal_to_file(params: WriterJournalEntryParams) -> str | None:
     """Save journal entry to markdown file.
 
     Raises:
@@ -487,7 +487,7 @@ def write_posts_with_pydantic_agent(
                 )
             ]
     _save_journal_to_file(
-        JournalEntryParams(
+        WriterJournalEntryParams(
             intercalated_log=intercalated_log,
             window_label=context.window_label,
             output_sink=context.resources.output,

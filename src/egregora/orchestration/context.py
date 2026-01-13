@@ -12,7 +12,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 if TYPE_CHECKING:
@@ -120,7 +120,7 @@ class PipelineConfig:
         return self.config.rag.overfetch
 
 
-@dataclass(slots=True)
+@dataclass
 class PipelineState:
     """Mutable runtime state for the pipeline.
 
@@ -144,7 +144,7 @@ class PipelineState:
     task_store: TaskStore | None = None
 
     # Pure Content Library Facade
-    library: ContentLibrary | None = None
+    library: object = None  # Pure ContentLibrary (avoid V2→Pure import)
 
     # Output & Adapters (Initialized lazily or updated)
     output_sink: OutputSink | None = None  # ISP-compliant: Runtime data operations only
@@ -236,7 +236,7 @@ class PipelineContext:
         return self.state.task_store
 
     @property
-    def library(self) -> ContentLibrary | None:
+    def library(self) -> object:  # Pure ContentLibrary (avoid V2→Pure import)
         return self.state.library
 
     @property

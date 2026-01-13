@@ -22,8 +22,8 @@ class TestPersistentCycleState(unittest.TestCase):
     def tearDown(self):
         self.test_dir.cleanup()
 
-    def test_save_only_history(self):
-        """Test that save() only includes the 'history' key."""
+    def test_save_includes_history_and_tracks(self):
+        """Test that save() includes 'history' and 'tracks' keys."""
         state = PersistentCycleState()
         state.record_session("persona1", 0, "session1", 123)
         state.save(self.test_path)
@@ -31,7 +31,8 @@ class TestPersistentCycleState(unittest.TestCase):
         with self.test_path.open() as f:
             data = json.load(f)
 
-        self.assertEqual(list(data.keys()), ["history"])
+        self.assertIn("history", data)
+        self.assertIn("tracks", data)
         self.assertEqual(len(data["history"]), 1)
         self.assertEqual(data["history"][0]["persona_id"], "persona1")
 
