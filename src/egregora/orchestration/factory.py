@@ -126,7 +126,7 @@ class PipelineFactory:
 
         ctx = PipelineContext(config_obj, state)
         # Inject the already created adapter into the context
-        ctx.state.output_format = adapter
+        ctx.state.output_sink = adapter
 
         return ctx, pipeline_backend, runs_backend
 
@@ -267,7 +267,7 @@ class PipelineFactory:
     @staticmethod
     def create_writer_resources(ctx: PipelineContext) -> WriterResources:
         """Build WriterResources from the pipeline context."""
-        output = ctx.output_format
+        output = ctx.output_sink
         if output is None:
             msg = "Output adapter must be initialized before creating writer resources."
             raise RuntimeError(msg)

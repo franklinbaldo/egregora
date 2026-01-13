@@ -146,7 +146,7 @@ class PipelineState:
     library: Any = None  # Pure ContentLibrary (avoid V2→Pure import)
 
     # Output & Adapters (Initialized lazily or updated)
-    output_format: OutputSink | None = None  # ISP-compliant: Runtime data operations only
+    output_sink: OutputSink | None = None  # ISP-compliant: Runtime data operations only
     adapter: InputAdapter | None = None  # InputAdapter instance for source-specific parsing
     usage_tracker: UsageTracker | None = None
     output_registry: OutputSinkRegistry | None = None
@@ -239,9 +239,9 @@ class PipelineContext:
         return self.state.library
 
     @property
-    def output_format(self) -> OutputSink | None:
+    def output_sink(self) -> OutputSink | None:
         """Return the output sink for runtime document persistence."""
-        return self.state.output_format
+        return self.state.output_sink
 
     @property
     def output_registry(self) -> OutputSinkRegistry | None:
@@ -310,19 +310,19 @@ class PipelineContext:
         self.state.adapter = adapter
         return self
 
-    def with_output_format(
+    def with_output_sink(
         self,
-        output_format: OutputSink,
+        output_sink: OutputSink,
         url_context: UrlContext | None = None,
     ) -> PipelineContext:
-        """Update output format in state and url context in config.
+        """Update output sink in state and url context in config.
 
         Args:
-            output_format: OutputSink implementation for document persistence
+            output_sink: OutputSink implementation for document persistence
             url_context: Optional URL context for canonical URL generation
 
         """
-        self.state.output_format = output_format
+        self.state.output_sink = output_sink
         if url_context:
             # Create new config object since it's immutable
             new_config = replace(self.config_obj, url_context=url_context)

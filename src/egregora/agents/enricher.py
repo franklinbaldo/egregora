@@ -167,7 +167,7 @@ class EnrichmentRuntimeContext:
     """Runtime context for enrichment execution."""
 
     cache: EnrichmentCache
-    output_format: Any
+    output_sink: Any
     site_root: Path | None = None
     duckdb_connection: DuckDBBackend | None = None
     target_table: str | None = None
@@ -935,8 +935,8 @@ class EnrichmentWorker(BaseWorker):
                 # Main Architecture: Use ContentLibrary if available
                 if self.ctx.library:
                     self.ctx.library.save(doc)
-                elif self.ctx.output_format:
-                    self.ctx.output_format.persist(doc)
+                elif self.ctx.output_sink:
+                    self.ctx.output_sink.persist(doc)
 
                 metadata = payload["message_metadata"]
                 row = _create_enrichment_row(metadata, "URL", url, doc.document_id, media_identifier=url)
@@ -1441,8 +1441,8 @@ class EnrichmentWorker(BaseWorker):
             try:
                 if self.ctx.library:
                     self.ctx.library.save(media_doc)
-                elif self.ctx.output_format:
-                    self.ctx.output_format.persist(media_doc)
+                elif self.ctx.output_sink:
+                    self.ctx.output_sink.persist(media_doc)
                 logger.info("Persisted enriched media: %s -> %s", filename, media_doc.metadata["filename"])
             except Exception as exc:
                 logger.exception("Failed to persist media file %s", filename)
@@ -1478,8 +1478,8 @@ class EnrichmentWorker(BaseWorker):
 
             if self.ctx.library:
                 self.ctx.library.save(doc)
-            elif self.ctx.output_format:
-                self.ctx.output_format.persist(doc)
+            elif self.ctx.output_sink:
+                self.ctx.output_sink.persist(doc)
 
             metadata = payload["message_metadata"]
             row = _create_enrichment_row(

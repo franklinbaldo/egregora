@@ -15,7 +15,7 @@ def mock_pipeline_context():
     """Create a mock pipeline context."""
     ctx = MagicMock()
     ctx.config.rag.enabled = True
-    ctx.output_format.documents.return_value = []
+    ctx.output_sink.documents.return_value = []
     return ctx
 
 
@@ -57,14 +57,14 @@ def test_prepare_pipeline_data_handles_rag_connection_error(
 
         with patch("egregora.orchestration.pipelines.write.PipelineFactory") as mock_factory:
             # Setup factory to return our mock context's output format
-            mock_factory.create_output_adapter.return_value = mock_pipeline_context.output_format
+            mock_factory.create_output_adapter.return_value = mock_pipeline_context.output_sink
 
             # Setup context with output format
-            mock_pipeline_context.with_output_format.return_value = mock_pipeline_context
+            mock_pipeline_context.with_output_sink.return_value = mock_pipeline_context
             mock_pipeline_context.with_adapter.return_value = mock_pipeline_context
 
             # Setup documents to ensure indexing is attempted
-            mock_pipeline_context.output_format.documents.return_value = ["doc1"]
+            mock_pipeline_context.output_sink.documents.return_value = ["doc1"]
 
             # Mock other dependencies to avoid side effects
             with (
@@ -93,10 +93,10 @@ def test_prepare_pipeline_data_handles_rag_value_error(
         mock_index.side_effect = ValueError("Invalid vector dimension")
 
         with patch("egregora.orchestration.pipelines.write.PipelineFactory") as mock_factory:
-            mock_factory.create_output_adapter.return_value = mock_pipeline_context.output_format
-            mock_pipeline_context.with_output_format.return_value = mock_pipeline_context
+            mock_factory.create_output_adapter.return_value = mock_pipeline_context.output_sink
+            mock_pipeline_context.with_output_sink.return_value = mock_pipeline_context
             mock_pipeline_context.with_adapter.return_value = mock_pipeline_context
-            mock_pipeline_context.output_format.documents.return_value = ["doc1"]
+            mock_pipeline_context.output_sink.documents.return_value = ["doc1"]
 
             with (
                 patch("egregora.orchestration.pipelines.write._parse_and_validate_source"),
@@ -122,10 +122,10 @@ def test_prepare_pipeline_data_handles_rag_os_error(
         mock_index.side_effect = OSError("Read-only file system")
 
         with patch("egregora.orchestration.pipelines.write.PipelineFactory") as mock_factory:
-            mock_factory.create_output_adapter.return_value = mock_pipeline_context.output_format
-            mock_pipeline_context.with_output_format.return_value = mock_pipeline_context
+            mock_factory.create_output_adapter.return_value = mock_pipeline_context.output_sink
+            mock_pipeline_context.with_output_sink.return_value = mock_pipeline_context
             mock_pipeline_context.with_adapter.return_value = mock_pipeline_context
-            mock_pipeline_context.output_format.documents.return_value = ["doc1"]
+            mock_pipeline_context.output_sink.documents.return_value = ["doc1"]
 
             with (
                 patch("egregora.orchestration.pipelines.write._parse_and_validate_source"),

@@ -71,4 +71,4 @@ def test_create_context(mock_run_params):
         assert context.state is not None
         assert context.state.run_id == "test-run"
         # Assert that the output_format is correctly assigned
-        assert context.state.output_format is mock_adapter
+        assert context.state.output_sink is mock_adapter

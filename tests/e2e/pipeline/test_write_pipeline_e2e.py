@@ -63,8 +63,8 @@ def test_full_pipeline_smoke_test(pipeline_setup, tmp_path):
     site_root.mkdir()
 
     # Initialize site structure (required by pipeline)
-    output_format = MkDocsAdapter()
-    output_format.scaffold_site(site_root, site_name="Test E2E Site")
+    output_sink = MkDocsAdapter()
+    output_sink.scaffold_site(site_root, site_name="Test E2E Site")
 
     # Configure pipeline with minimal overrides (using defaults where possible)
     options = WhatsAppProcessOptions(
@@ -152,8 +152,8 @@ def test_pipeline_with_rag_enabled(pipeline_setup, tmp_path):
     site_root.mkdir()
 
     # Initialize site structure
-    output_format = MkDocsAdapter()
-    output_format.scaffold_site(site_root, site_name="Test RAG Site")
+    output_sink = MkDocsAdapter()
+    output_sink.scaffold_site(site_root, site_name="Test RAG Site")
 
     # Configure pipeline with RAG enabled
     options = WhatsAppProcessOptions(

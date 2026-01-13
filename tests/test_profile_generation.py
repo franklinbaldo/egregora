@@ -69,7 +69,7 @@ class TestProfileGeneration:
         ctx.config.models = Mock()
         ctx.config.models.writer = "gemini-2.0-flash"
         # Ensure get_author_profile returns a dict with 'interests' as iterable or None handling
-        ctx.output_format.get_author_profile.return_value = {"bio": "Test Bio", "interests": []}
+        ctx.output_sink.get_author_profile.return_value = {"bio": "Test Bio", "interests": []}
 
         # Mock messages from 2 authors
         messages = [
@@ -165,7 +165,7 @@ class TestProfileGeneration:
 
         ctx.state.storage.read_table.side_effect = read_table_side_effect
         # Mock existing profile response
-        ctx.output_format.get_author_profile.return_value = {"bio": "Old Bio", "interests": ["Old Interest"]}
+        ctx.output_sink.get_author_profile.return_value = {"bio": "Old Bio", "interests": ["Old Interest"]}
 
         author_messages = [
             {"text": "I'm interested in AI safety", "timestamp": "2025-03-01"},

@@ -34,20 +34,20 @@ summary: test summary
 def test_self_adapter_parses_existing_site(tmp_path: Path):
     adapter = SelfInputAdapter()
     registry = create_default_output_registry()
-    output_format = create_output_sink(tmp_path, format_type="mkdocs", registry=registry)
-    _mkdocs_path, created = output_format.scaffold_site(tmp_path, site_name="Self Test")
+    output_sink = create_output_sink(tmp_path, format_type="mkdocs", registry=registry)
+    _mkdocs_path, created = output_sink.scaffold_site(tmp_path, site_name="Self Test")
     assert created
 
     # Use the adapter's configured posts directory to match its expectations
     # (e.g., docs/posts/posts vs docs/posts)
-    posts_dir = getattr(output_format, "posts_dir", tmp_path / "docs" / "posts")
+    posts_dir = getattr(output_sink, "posts_dir", tmp_path / "docs" / "posts")
     post_one = posts_dir / "2025-01-01-sample.md"
     post_two = posts_dir / "2025-01-02-second.md"
     _write_markdown(post_one, "Sample", "sample-post", "Body text 1")
     _write_markdown(post_two, "Second", "second-post", "Body text 2")
 
     # Filter for posts to avoid counting scaffolded pages like about.md
-    table = adapter.parse(tmp_path, output_adapter=output_format, doc_type=DocumentType.POST)
+    table = adapter.parse(tmp_path, output_adapter=output_sink, doc_type=DocumentType.POST)
     dataframe = table.execute()
 
     assert set(dataframe.columns) == set(table.schema().names)

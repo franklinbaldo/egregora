@@ -18,7 +18,7 @@ def mock_context():
     ctx.config.enrichment.enabled = False  # Disable enrichment to simplify mocks
     ctx.site_root = None
     ctx.run_id = uuid4()
-    ctx.output_format = MagicMock()
+    ctx.output_sink = MagicMock()
     ctx.adapter = MagicMock()
     # Ensure enrichment property mirrors config
     ctx.enable_enrichment = False
@@ -55,9 +55,9 @@ class TestPipelineRunnerJournalIntegration:
 
         # Verify
         assert result == {}
-        mock_check.assert_called_once_with(mock_context.output_format, "existing-signature")
+        mock_check.assert_called_once_with(mock_context.output_sink, "existing-signature")
         # Ensure heavy operations were skipped
-        mock_context.output_format.persist.assert_not_called()
+        mock_context.output_sink.persist.assert_not_called()
 
     @patch("egregora.orchestration.runner.generate_window_signature")
     @patch("egregora.orchestration.runner.PromptManager")
@@ -115,14 +115,14 @@ class TestPipelineRunnerJournalIntegration:
 
         # Check persistence
         # persist is called for posts/profiles/announcements too, so we check if journal was passed
-        mock_context.output_format.persist.assert_any_call(mock_journal_doc)
+        mock_context.output_sink.persist.assert_any_call(mock_journal_doc)
 
     @patch("egregora.orchestration.runner.generate_window_signature")
     @patch("egregora.orchestration.runner.PromptManager")
     @patch("egregora.orchestration.runner.window_already_processed")
     def test_process_window_raises_sink_error(self, mock_check, mock_pm, mock_sig, mock_context, mock_window):
         runner = PipelineRunner(mock_context)
-        mock_context.output_format = None
+        mock_context.output_sink = None
 
         with pytest.raises(OutputSinkError):
             runner._process_single_window(mock_window)
@@ -168,7 +168,7 @@ class TestPipelineRunnerJournalIntegration:
             if doc == mock_journal_doc:
                 raise Exception("DB Error")
 
-        mock_context.output_format.persist.side_effect = persist_side_effect
+        mock_context.output_sink.persist.side_effect = persist_side_effect
 
         # Execute
         result = runner._process_single_window(mock_window)
@@ -177,4 +177,4 @@ class TestPipelineRunnerJournalIntegration:
         assert "post1" in result[next(iter(result.keys()))]["posts"]
 
         # Verify persist was attempted
-        mock_context.output_format.persist.assert_any_call(mock_journal_doc)
+        mock_context.output_sink.persist.assert_any_call(mock_journal_doc)

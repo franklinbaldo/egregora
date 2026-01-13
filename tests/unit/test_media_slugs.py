@@ -12,7 +12,7 @@ from egregora.data_primitives.document import DocumentType
 def mock_context():
     # EnrichmentWorker.__init__ expects self.ctx.input_path
     ctx = MagicMock(spec=EnrichmentRuntimeContext)
-    ctx.output_format = MagicMock()
+    ctx.output_sink = MagicMock()
     ctx.cache = MagicMock()
     ctx.library = None
     ctx.input_path = None  # Set to None to skip ZIP initialization in __init__
@@ -63,10 +63,10 @@ def test_persist_media_results_uses_slug_for_filename(worker, mock_context, mock
     worker._persist_media_results([res], task_map)
 
     # Verify persistence call
-    assert mock_context.output_format.persist.called
+    assert mock_context.output_sink.persist.called
 
     # Inspect the document passed to persist
-    persist_calls = mock_context.output_format.persist.call_args_list
+    persist_calls = mock_context.output_sink.persist.call_args_list
 
     # We expect two calls: one for the media file itself, one for the enrichment description
     assert len(persist_calls) >= 2

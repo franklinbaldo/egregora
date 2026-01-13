@@ -60,7 +60,7 @@ class TestWriterDecoupling:
         params = writer_module.JournalEntryParams(
             intercalated_log=[entry],
             window_label="test-window",
-            output_format=mock_output,
+            output_sink=mock_output,
             posts_published=0,
             profiles_updated=0,
             window_start=datetime.now(),
@@ -90,7 +90,7 @@ class TestWriterDecoupling:
         params = writer_module.JournalEntryParams(
             intercalated_log=[writer_module.JournalEntry("journal", "test", datetime.now())],
             window_label="test-window",
-            output_format=MagicMock(),
+            output_sink=MagicMock(),
             posts_published=0,
             profiles_updated=0,
             window_start=datetime.now(),
@@ -119,7 +119,7 @@ class TestWriterDecoupling:
         params = writer_module.JournalEntryParams(
             intercalated_log=[writer_module.JournalEntry("journal", "test", datetime.now())],
             window_label="test-window",
-            output_format=mock_output,
+            output_sink=mock_output,
             posts_published=0,
             profiles_updated=0,
             window_start=datetime.now(),

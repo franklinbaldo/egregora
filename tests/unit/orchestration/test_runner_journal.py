@@ -29,7 +29,7 @@ def test_process_windows_skips_existing():
     """Test that process_windows skips windows that match processed intervals."""
     context = MagicMock(spec=PipelineContext)
     # Mock OutputSink to avoid validation errors
-    context.output_format = MagicMock(spec=OutputSink)
+    context.output_sink = MagicMock(spec=OutputSink)
 
     # Mock config to avoid type error on max_windows
     config = MagicMock()

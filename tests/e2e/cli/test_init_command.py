@@ -36,8 +36,8 @@ def test_init_on_existing_site(tmp_path: Path):
 def test_init_creates_all_template_files(tmp_path: Path):
     """Verify that init creates all files defined in the templates directory."""
     # Create and scaffold MkDocs site using OutputAdapter
-    output_format = MkDocsAdapter()
-    _mkdocs_path, created = output_format.scaffold_site(tmp_path, site_name="Test Site")
+    output_sink = MkDocsAdapter()
+    _mkdocs_path, created = output_sink.scaffold_site(tmp_path, site_name="Test Site")
 
     # Verify site was created
     assert created
@@ -170,8 +170,8 @@ def test_prompts_readme_created(tmp_path: Path):
     """Test that .egregora/prompts/README.md is created."""
     # Create and scaffold MkDocs site using OutputAdapter
     registry = create_default_output_registry()
-    output_format = create_output_sink(tmp_path, format_type="mkdocs", registry=registry)
-    _mkdocs_path, created = output_format.scaffold_site(tmp_path, site_name="Test Site")
+    output_sink = create_output_sink(tmp_path, format_type="mkdocs", registry=registry)
+    _mkdocs_path, created = output_sink.scaffold_site(tmp_path, site_name="Test Site")
 
     # Verify site was created
     assert created

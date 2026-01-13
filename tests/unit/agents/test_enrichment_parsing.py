@@ -9,7 +9,7 @@ from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker
 @pytest.fixture
 def mock_context():
     ctx = MagicMock(spec=EnrichmentRuntimeContext)
-    ctx.output_format = MagicMock()
+    ctx.output_sink = MagicMock()
     ctx.cache = MagicMock()
     ctx.library = None
     ctx.input_path = None
