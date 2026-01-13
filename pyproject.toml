@@ -1,6 +1,6 @@
 [project]
 name = "egregora"
-version = "2.0.0"
+version = "3.0.1"
 description = "Ultra-simple pipeline to generate blog posts from WhatsApp exports."
 readme = "README.md"
 authors = [{ name = "Egregora" }]

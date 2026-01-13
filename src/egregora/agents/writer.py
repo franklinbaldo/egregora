@@ -227,7 +227,7 @@ def _get_writer_loop() -> asyncio.AbstractEventLoop:
 
 @dataclass
 class JournalEntryParams:
-    """Parameters for saving a journal entry. Includes output format."""
+    """Parameters for saving a journal entry. Includes output format (V3)."""
 
     intercalated_log: list[JournalEntry]
     window_label: str
