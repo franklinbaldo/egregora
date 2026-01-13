@@ -553,12 +553,24 @@ class PRManager:
                 capture_output=True,
             )
 
-            # Merge the PR
+            # Try Rebase merge first (preferred for history)
+            try:
+                subprocess.run(  # noqa: S603
+                    ["gh", "pr", "merge", str(pr_number), "--rebase", "--delete-branch"],
+                    check=True,
+                    capture_output=True,
+                )
+                return
+            except subprocess.CalledProcessError:
+                print(f"      ⚠️ Rebase merge failed for PR #{pr_number}, falling back to standard merge...")
+
+            # Fallback: Standard Merge
             subprocess.run(  # noqa: S603
                 ["gh", "pr", "merge", str(pr_number), "--merge", "--delete-branch"],
                 check=True,
                 capture_output=True,
             )
+
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
             msg = f"Failed to merge PR #{pr_number}: {stderr}"
@@ -792,18 +804,44 @@ This PR contains accumulated work from the Jules autonomous development cycle.
                                 only_jules_files = self._pr_only_touches_jules(pr_number)
                                 
                                 if only_jules_files:
-                                    # Safe to force-accept new changes
-                                    print(f"      🔄 PR only touches .jules/ files - forcing merge...")
+                                    # Safe to force-accept new changes, but preserve history!
+                                    print(f"      🔄 PR only touches .jules/ files - resolving conflict favoring PR...")
                                     try:
+                                        # 1. Checkout the PR branch
+                                        # Use gh pr checkout to ensure we get the right branch configs
                                         subprocess.run(
-                                            ["gh", "pr", "merge", str(pr_number), "--squash", "--delete-branch"],
+                                            ["gh", "pr", "checkout", str(pr_number)],
                                             check=True, capture_output=True
                                         )
-                                        print(f"      ✅ Force-merged PR #{pr_number} (squash)")
+                                        
+                                        # 2. Configure git user for resolution
+                                        subprocess.run(["git", "config", "user.name", "Jules Overseer"], check=False)
+                                        subprocess.run(["git", "config", "user.email", "overseer@jules.ai"], check=False)
+
+                                        # 3. Merge base (jules) into PR, preferring PR changes (ours)
+                                        # We are on PR branch, so 'ours' = PR content, 'theirs' = jules content
+                                        # This resolves conflict by accepting what's in the PR
+                                        subprocess.run(
+                                            ["git", "merge", f"origin/{self.jules_branch}", "-X", "ours", "--no-edit"],
+                                            check=True, capture_output=True
+                                        )
+
+                                        # 4. Push the resolved branch back to origin
+                                        subprocess.run(["git", "push"], check=True, capture_output=True)
+
+                                        # 5. Now perform a standard merge (preserves history)
+                                        subprocess.run(
+                                            ["gh", "pr", "merge", str(pr_number), "--merge", "--delete-branch"],
+                                            check=True, capture_output=True
+                                        )
+                                        print(f"      ✅ Resolved & Merged PR #{pr_number} (history preserved)")
+                                        
                                     except Exception as e2:
-                                        print(f"      ⚠️ Force-merge also failed: {e2}")
+                                        print(f"      ⚠️ History-preserving merge failed: {e2}")
                                         pr["merge_error"] = str(e2)
                                         conflict_prs.append(pr)
+                                        # Try to cleanup/reset to avoid detached states affecting next loop?
+                                        # Assuming next GH CLI/git commands will handle state or context manager clears it
                                 else:
                                     # Has files outside .jules/ - needs Weaver
                                     print(f"      ⚠️ Merge failed (conflict?): {e}")
