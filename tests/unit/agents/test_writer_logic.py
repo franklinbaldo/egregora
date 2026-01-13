@@ -60,7 +60,7 @@ class TestWriterDecoupling:
         params = writer_module.JournalEntryParams(
             intercalated_log=[entry],
             window_label="test-window",
-            output_format=mock_output,
+            output_sink=mock_output,
             posts_published=0,
             profiles_updated=0,
             window_start=datetime.now(),
@@ -72,8 +72,8 @@ class TestWriterDecoupling:
 
         # Assert
         # Check what was persisted
-        mock_output.persist.assert_called_once()
-        doc = mock_output.persist.call_args[0][0]
+        mock_output.publish.assert_called_once()
+        doc = mock_output.publish.call_args[0][0]
 
         # The content should PRESERVE "../media/" and NOT replace it with "/media/"
         assert "../media/image.jpg" in doc.content
@@ -90,7 +90,7 @@ class TestWriterDecoupling:
         params = writer_module.JournalEntryParams(
             intercalated_log=[writer_module.JournalEntry("journal", "test", datetime.now())],
             window_label="test-window",
-            output_format=MagicMock(),
+            output_sink=MagicMock(),
             posts_published=0,
             profiles_updated=0,
             window_start=datetime.now(),
@@ -114,12 +114,12 @@ class TestWriterDecoupling:
         mock_env_cls.return_value = mock_env
 
         mock_output = MagicMock()
-        mock_output.persist.side_effect = OSError("Disk full")
+        mock_output.publish.side_effect = OSError("Disk full")
 
         params = writer_module.JournalEntryParams(
             intercalated_log=[writer_module.JournalEntry("journal", "test", datetime.now())],
             window_label="test-window",
-            output_format=mock_output,
+            output_sink=mock_output,
             posts_published=0,
             profiles_updated=0,
             window_start=datetime.now(),

@@ -277,7 +277,7 @@ class PipelineRunner:
         # === Journal Check: Skip if already processed ===
         output_sink = self.context.output_sink
         if output_sink is None:
-            raise OutputSinkError("Output adapter must be initialized before processing windows.")
+            raise OutputSinkError("Output sink must be initialized before processing windows.")
 
         template_content = PromptManager.get_template_content("writer.jinja", site_dir=self.context.site_root)
         signature = generate_window_signature(
@@ -309,7 +309,7 @@ class PipelineRunner:
         if media_mapping and not self.context.enable_enrichment:
             for media_doc in media_mapping.values():
                 try:
-                    output_sink.persist(media_doc)
+                    output_sink.publish(media_doc)
                 except Exception as e:
                     logger.exception("Failed to write media file: %s", e)
 
@@ -367,7 +367,7 @@ class PipelineRunner:
             for cmd_msg in command_messages:
                 try:
                     announcement = command_to_announcement(cmd_msg)
-                    output_sink.persist(announcement)
+                    output_sink.publish(announcement)
                     announcements_generated += 1
                 except Exception as exc:
                     logger.exception("Failed to generate announcement: %s", exc)
@@ -397,7 +397,7 @@ class PipelineRunner:
             )
             for profile_doc in profile_docs:
                 try:
-                    output_sink.persist(profile_doc)
+                    output_sink.publish(profile_doc)
                     profiles.append(profile_doc.document_id)
                 except Exception as exc:
                     logger.exception("Failed to persist profile: %s", exc)
@@ -444,7 +444,7 @@ class PipelineRunner:
                 posts_generated=len(posts),
                 profiles_updated=len(profiles),
             )
-            output_sink.persist(journal)
+            output_sink.publish(journal)
             logger.debug("Persisted JOURNAL for window: %s", window_label)
         except Exception as e:  # noqa: BLE001
             # Non-fatal: Log warning but don't fail the pipeline
