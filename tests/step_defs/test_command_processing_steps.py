@@ -99,7 +99,7 @@ def mixed_message_list():
     return {"messages": messages}
 
 @given("a user command message for an avatar update", target_fixture='context')
-def user_command_avatar_update():
+def user_command_avatar_.update():
     return {
         "message": {
             "text": "/egregora avatar set https://example.com/avatar.jpg",
