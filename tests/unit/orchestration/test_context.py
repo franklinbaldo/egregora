@@ -122,3 +122,24 @@ class TestPipelineStateLibraryTyping:
         )
 
         assert state.library is None
+
+
+class TestPipelineStateInstantiation:
+    """Test basic instantiation of PipelineState."""
+
+    def test_instantiation(self, tmp_path):
+        """Should instantiate with minimal required fields."""
+        mock_client = MagicMock()
+        mock_storage = MagicMock()
+        mock_cache = MagicMock()
+
+        state = PipelineState(
+            run_id=uuid4(),
+            start_time=datetime.now(UTC),
+            source_type="mock",
+            input_path=tmp_path / "input.txt",
+            client=mock_client,
+            storage=mock_storage,
+            cache=mock_cache,
+        )
+        assert state is not None
