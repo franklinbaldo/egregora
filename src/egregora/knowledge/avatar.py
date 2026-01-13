@@ -2,12 +2,11 @@
 
 import hashlib
 import importlib.resources
-from functools import lru_cache
 import yaml
-
+from functools import lru_cache
 
 @lru_cache(maxsize=1)
-def _get_avatar_data() -> dict:
+def _get_avatar_data() -> dict[str, list[str]]:
     """Load avatar data from YAML, caching it for performance."""
     with importlib.resources.open_text("egregora.resources", "avatars.yml") as f:
         data = yaml.safe_load(f)
