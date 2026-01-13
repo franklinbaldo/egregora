@@ -23,6 +23,16 @@ def create_test_table(num_messages=100, start_time=None):
     data = []
     for i in range(num_messages):
         data.append({"ts": start_time + timedelta(minutes=i), "text": f"message {i}", "sender": "Alice"})
+
+    if not data:
+        schema = ibis.schema(
+            [
+                ("ts", "timestamp"),
+                ("text", "string"),
+                ("sender", "string"),
+            ]
+        )
+        return ibis.memtable(data, schema=schema)
     return ibis.memtable(data)
 
 
@@ -239,3 +249,49 @@ def test_window_by_count_max_window_warning(caplog):
         list(create_windows(table, config=config))
 
     assert "max_window_time constraint not enforced for message-based windowing" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "num_messages, step_size, overlap_ratio, expected_windows",
+    [
+        # Case 1: Exact multiple, no overlap
+        (100, 50, 0.0, [50, 50]),
+        # Case 2: Partial last window, no overlap
+        (120, 50, 0.0, [50, 50, 20]),
+        # Case 3: Single window (less than step_size)
+        (30, 50, 0.0, [30]),
+        # Case 4: Empty input
+        (0, 50, 0.0, []),
+        # Case 5: Exact multiple with overlap
+        (100, 50, 0.2, [60, 50]),
+        # Case 6: Partial last window with overlap
+        (120, 50, 0.2, [60, 60, 20]),
+        # Case 7: Single window with overlap (overlap has no effect)
+        (30, 50, 0.2, [30]),
+    ],
+    ids=[
+        "exact-multiple-no-overlap",
+        "partial-last-no-overlap",
+        "single-window-no-overlap",
+        "empty-input",
+        "exact-multiple-with-overlap",
+        "partial-last-with-overlap",
+        "single-window-with-overlap",
+    ],
+)
+def test_window_by_count_scenarios(
+    num_messages, step_size, overlap_ratio, expected_windows
+):
+    """Test various scenarios for message count-based windowing."""
+    table = create_test_table(num_messages)
+    config = WindowConfig(
+        step_size=step_size, step_unit="messages", overlap_ratio=overlap_ratio
+    )
+
+    windows = list(create_windows(table, config=config))
+    window_sizes = [w.size for w in windows]
+
+    assert window_sizes == expected_windows
+    assert len(windows) == len(expected_windows)
+    for i, window in enumerate(windows):
+        assert window.window_index == i
