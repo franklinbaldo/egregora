@@ -19,6 +19,8 @@ build/
 *.egg-info/
 *.egg
 bandit_report.json
+uv.lock
+uv.lock
 
 # Testing
 .pytest_cache/
