@@ -112,10 +112,6 @@ class GoogleBatchModel(Model):
         )
 
     # ------------------------------------------------------------------ #
-    # TODO: [Taskmaster] Remove duplicate comment block
-    # HTTP batch helpers
-    # ------------------------------------------------------------------ #
-    # ------------------------------------------------------------------ #
     # HTTP batch helpers
     # ------------------------------------------------------------------ #
     def run_batch(self, requests: list[dict[str, Any]]) -> list[BatchResult]:
