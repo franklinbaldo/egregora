@@ -265,6 +265,7 @@ def _window_by_count(
 
     Yields:
         Windows with overlapping message sets
+
     """
     total_count = table.count().execute()
     if total_count == 0:
@@ -272,9 +273,7 @@ def _window_by_count(
 
     # Add a row number to the table to allow for precise slicing.
     # The table is already sorted by timestamp from the calling function.
-    table_with_rn = table.mutate(
-        row_number=ibis.row_number().over(ibis.window(order_by=table.ts))
-    )
+    table_with_rn = table.mutate(row_number=ibis.row_number().over(ibis.window(order_by=table.ts)))
 
     # Calculate the total number of windows needed.
     num_windows = (total_count + step_size - 1) // step_size
@@ -285,8 +284,7 @@ def _window_by_count(
 
         # Filter the table to get the rows for the current window.
         window_table = table_with_rn.filter(
-            (table_with_rn.row_number >= offset)
-            & (table_with_rn.row_number < offset + chunk_size)
+            (table_with_rn.row_number >= offset) & (table_with_rn.row_number < offset + chunk_size)
         ).drop("row_number")
 
         # Get time bounds and size for the window.

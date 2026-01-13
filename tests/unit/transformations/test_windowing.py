@@ -252,7 +252,7 @@ def test_window_by_count_max_window_warning(caplog):
 
 
 @pytest.mark.parametrize(
-    "num_messages, step_size, overlap_ratio, expected_windows",
+    ("num_messages", "step_size", "overlap_ratio", "expected_windows"),
     [
         # Case 1: Exact multiple, no overlap
         (100, 50, 0.0, [50, 50]),
@@ -279,14 +279,10 @@ def test_window_by_count_max_window_warning(caplog):
         "single-window-with-overlap",
     ],
 )
-def test_window_by_count_scenarios(
-    num_messages, step_size, overlap_ratio, expected_windows
-):
+def test_window_by_count_scenarios(num_messages, step_size, overlap_ratio, expected_windows):
     """Test various scenarios for message count-based windowing."""
     table = create_test_table(num_messages)
-    config = WindowConfig(
-        step_size=step_size, step_unit="messages", overlap_ratio=overlap_ratio
-    )
+    config = WindowConfig(step_size=step_size, step_unit="messages", overlap_ratio=overlap_ratio)
 
     windows = list(create_windows(table, config=config))
     window_sizes = [w.size for w in windows]

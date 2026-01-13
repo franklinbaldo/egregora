@@ -273,6 +273,7 @@ def get_active_authors(
 
     Returns:
         List of unique author UUIDs (excluding 'system' and 'egregora').
+
     """
     # TODO: [Taskmaster] Refactor get_active_authors for clarity and efficiency
     system_authors = ["system", "egregora", ""]
@@ -456,8 +457,7 @@ def _apply_command_transformation(cmd_type: str, target: str, value: Any, ctx: C
     ctx.content = content
     content = _handle_simple_set_command(cmd_type, target, value, ctx)
     ctx.content = content
-    content = _handle_privacy_command(cmd_type, ctx.author_uuid, ctx.timestamp, ctx.content)
-    return content
+    return _handle_privacy_command(cmd_type, ctx.author_uuid, ctx.timestamp, ctx.content)
 
 
 def apply_command_to_profile(
