@@ -479,8 +479,9 @@ class PRManager:
         """
         # 1. Check basic mergeability - handles both REST API (bool) and GraphQL (string)
         mergeable = pr_details.get("mergeable", False)
-        # REST API returns True/False, GraphQL returns "MERGEABLE"/"CONFLICTING"/etc
-        if mergeable is False or mergeable == "CONFLICTING" or mergeable == "UNKNOWN":
+        # Only wait if GitHub is still computing mergeability (UNKNOWN/None)
+        # We ALLOW False/CONFLICTING because we want to attempt merge and handle conflicts
+        if mergeable == "UNKNOWN" or mergeable is None:
             return False
 
         # 2. Check mergeStateStatus (GraphQL via gh) OR mergeable_state (REST API)
