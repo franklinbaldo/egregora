@@ -742,9 +742,20 @@ This PR contains accumulated work from the Jules autonomous development cycle.
                     # We need full details for CI check
                     details = get_pr_details_via_gh(pr_number)
                     if self.is_green(details):
-                        if WEAVER_ENABLED:
-                            # Delegate to Weaver persona for integration
-                            print(f"      🕸️ PR is green! Delegating to Weaver for integration...")
+                        # Check if this is a Weaver PR (auto-merge it)
+                        is_weaver_pr = "weaver" in head.lower()
+                        
+                        if is_weaver_pr:
+                            # Auto-merge Weaver PRs - they contain aggregated work
+                            print(f"      🕸️ Weaver PR is green! Auto-merging aggregated work...")
+                            if not dry_run:
+                                try:
+                                    self.merge_into_jules(pr_number)
+                                except Exception as e:
+                                    print(f"      ⚠️ Merge failed: {e}")
+                        elif WEAVER_ENABLED:
+                            # Delegate other persona PRs to Weaver for aggregation
+                            print(f"      🕸️ PR is green! Waiting for Weaver to aggregate...")
                         else:
                             # Fallback: auto-merge when Weaver is disabled
                             print(f"      ✅ PR is green! Automatically merging into '{self.jules_branch}'...")
