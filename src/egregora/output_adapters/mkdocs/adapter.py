@@ -208,7 +208,7 @@ class MkDocsAdapter(BaseOutputSink):
         author_dir.mkdir(parents=True, exist_ok=True)
         return author_dir
 
-    def persist(self, document: Document) -> None:
+    def publish(self, document: Document) -> None:
         doc_id = document.document_id
         url = self._url_convention.canonical_url(document, self._ctx)
         path = self._url_to_path(url, document)

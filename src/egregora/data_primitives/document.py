@@ -366,7 +366,7 @@ class OutputSink(Protocol):
     def url_context(self) -> UrlContext:
         """Return the URL context for canonical URL generation."""
 
-    def persist(self, document: Document) -> None:
+    def publish(self, document: Document) -> None:
         """Persist ``document`` so that it becomes available at its canonical URL.
 
         This method is idempotent: writing the same document twice with the

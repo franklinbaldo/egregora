@@ -64,7 +64,7 @@ class BaseOutputSink(OutputSink, ABC):
     """
 
     @abstractmethod
-    def persist(self, document: Document) -> None:
+    def publish(self, document: Document) -> None:
         """Persist a document so it becomes available at its canonical path."""
 
     @abstractmethod

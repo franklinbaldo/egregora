@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 class OutputSink(Protocol):
     """A protocol for components that can persist documents."""
 
-    def persist(self, doc: "Document") -> None:
+    def publish(self, doc: "Document") -> None:
         """Persists a single document to the output destination."""
         ...
 

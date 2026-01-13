@@ -169,7 +169,7 @@ def write_post_impl(ctx: ToolContext, metadata: dict | str, content: str) -> Wri
     )
 
     try:
-        ctx.output_sink.persist(doc)
+        ctx.output_sink.publish(doc)
     except Exception as exc:
         msg = f"Failed to persist post document: {exc}"
         logger.exception(msg)

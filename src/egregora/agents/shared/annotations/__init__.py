@@ -299,7 +299,7 @@ class AnnotationStore:
 
         if self.output_sink:
             try:
-                self.output_sink.persist(annotation.to_document())
+                self.output_sink.publish(annotation.to_document())
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Failed to persist annotation %s: %s", annotation.id, exc)
 

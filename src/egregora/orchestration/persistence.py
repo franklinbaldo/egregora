@@ -49,7 +49,7 @@ def persist_banner_document(
         The canonical URL/path for the persisted banner
 
     """
-    output_sink.persist(document)
+    output_sink.publish(document)
 
     url_convention = output_sink.url_convention
     url_context = output_sink.url_context
@@ -92,6 +92,6 @@ def persist_profile_document(
     # Validate before persisting
     validate_profile_document(doc)
 
-    output_sink.persist(doc)
+    output_sink.publish(doc)
     logger.info("Saved profile for %s (doc_id: %s)", author_uuid, doc.document_id)
     return doc.document_id
