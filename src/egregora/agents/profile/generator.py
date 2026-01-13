@@ -230,9 +230,9 @@ async def _generate_profile_content_async(
     """
     # Fetch existing profile context
     existing_profile = None
-    if hasattr(ctx.output_format, "get_author_profile"):
+    if hasattr(ctx.output_sink, "get_author_profile"):
         try:
-            existing_profile = ctx.output_format.get_author_profile(author_uuid)
+            existing_profile = ctx.output_sink.get_author_profile(author_uuid)
         except (OSError, yaml.YAMLError) as e:
             logger.warning("Failed to fetch existing profile for %s: %s", author_uuid, e)
 

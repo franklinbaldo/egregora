@@ -47,7 +47,7 @@ class ProfileWorker(BaseWorker):
                 content = latest_task["_parsed_payload"]["content"]
 
                 persist_profile_document(
-                    self.ctx.output_format,
+                    self.ctx.output_sink,
                     author_uuid,
                     content,
                     source_window="async_worker",
