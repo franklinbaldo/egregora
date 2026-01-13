@@ -87,3 +87,4 @@ demo/
 coverage.xml
 .github/tmp/
 .jules/mail/
+uv.lock
