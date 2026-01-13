@@ -63,10 +63,10 @@ def test_persist_media_results_uses_slug_for_filename(worker, mock_context, mock
     worker._persist_media_results([res], task_map)
 
     # Verify persistence call
-    assert mock_context.output_sink.publish.called
+    assert mock_context.output_sink.persist.called
 
     # Inspect the document passed to persist
-    publish_calls = mock_context.output_sink.publish.call_args_list
+    publish_calls = mock_context.output_sink.persist.call_args_list
 
     # We expect two calls: one for the media file itself, one for the enrichment description
     assert len(publish_calls) >= 2
