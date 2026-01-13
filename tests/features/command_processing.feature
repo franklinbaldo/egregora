@@ -8,6 +8,17 @@ Feature: Egregora Command Processing
     When the system checks if it is a command
     Then it should be identified as a command
 
+  Scenario Outline: Detect commands regardless of case
+    Given a message containing the command "<command_text>"
+    When the system checks if it is a command
+    Then it should be identified as a command
+
+    Examples:
+      | command_text               |
+      | /egregora avatar set url   |
+      | /Egregora bio text         |
+      | /EGREGORA interests things |
+
   Scenario: Ignore regular messages
     Given a message that is not a command
     When the system checks if it is a command
@@ -47,6 +58,8 @@ Feature: Egregora Command Processing
     When the system generates an announcement from the command
     Then an ANNOUNCEMENT document should be created
     And the document's event type should be "avatar_update"
+    And the document should be authored by Egregora
+    And the document's actor should be "john-uuid"
     And the document's content should mention the user and the avatar update
 
   Scenario: Generate announcement for bio update
@@ -54,6 +67,8 @@ Feature: Egregora Command Processing
     When the system generates an announcement from the command
     Then an ANNOUNCEMENT document should be created
     And the document's event type should be "bio_update"
+    And the document should be authored by Egregora
+    And the document's actor should be "alice-uuid"
     And the document's content should contain the new bio text
 
   Scenario: Generate announcement for interests update
@@ -61,4 +76,6 @@ Feature: Egregora Command Processing
     When the system generates an announcement from the command
     Then an ANNOUNCEMENT document should be created
     And the document's event type should be "interests_update"
+    And the document should be authored by Egregora
+    And the document's actor should be "bob-uuid"
     And the document's content should contain the new interests
