@@ -20,11 +20,10 @@ import zipfile
 from typing import TYPE_CHECKING
 
 import ibis
-import ibis.expr.datatypes as dt
 import pytest
 
-from egregora.database.schemas import STAGING_MESSAGES_SCHEMA
 from egregora.data_primitives.document import Document, DocumentType, UrlContext, UrlConvention
+from egregora.database.schemas import STAGING_MESSAGES_SCHEMA
 from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 from egregora.input_adapters.whatsapp.commands import filter_egregora_messages
 from egregora.input_adapters.whatsapp.exceptions import MediaNotFoundError
