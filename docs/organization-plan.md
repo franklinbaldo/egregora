@@ -29,6 +29,7 @@ The testing structure largely mirrors the source structure, which is good.
 - **API key utilities moved to `llm/api_keys.py`**
 - **Removed dead code from `database/utils.py`**
 - **Removed dead compatibility shims from `utils` (`cache.py`, `authors.py`)**
+- **Removed dead compatibility shims from `utils` (`exceptions.py`)**
 
 
 ## Organizational Strategy
