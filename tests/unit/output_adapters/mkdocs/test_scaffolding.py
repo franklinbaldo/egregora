@@ -33,7 +33,12 @@ def test_scaffold_site_creates_expected_layout(tmp_path: Path, scaffolder: MkDoc
     assert mkdocs_path == tmp_path / ".egregora" / "mkdocs.yml"
     assert mkdocs_path.exists()
 
-    mkdocs_config = safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
+    # Read the content and remove the !include directive for testing
+    content = mkdocs_path.read_text(encoding="utf-8")
+    content_without_include = "\n".join(
+        line for line in content.splitlines() if not line.strip().startswith("!include")
+    )
+    mkdocs_config = safe_yaml_load(content_without_include)
     assert mkdocs_config.get("site_name") == "Test Site"
 
     docs_dir = tmp_path / "docs"
@@ -59,10 +64,12 @@ def test_resolve_paths_returns_site_configuration(tmp_path: Path, scaffolder: Mk
     site_config = scaffolder.resolve_paths(tmp_path)
 
     assert site_config.site_root == tmp_path.resolve()
-    assert site_config.site_name == "Resolved Site"
     assert site_config.docs_dir == tmp_path / "docs"
     assert site_config.posts_dir == site_config.docs_dir / "posts"
     assert site_config.config_file == tmp_path / ".egregora" / "mkdocs.yml"
+
+    # Verify that the site_name is resolved correctly from the mkdocs.yml
+    assert site_config.site_name == "Resolved Site"
 
 
 def test_overrides_are_in_site_root(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:

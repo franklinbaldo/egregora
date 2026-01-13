@@ -110,8 +110,5 @@ date: 2025-01-01
     if "not installed" in result.stderr:
         pytest.skip("mkdocs-material or blog plugin not installed")
 
-    # If it ran, check for warnings (not strict mode for this test)
-    # The goal is to verify the config is valid
-    assert result.returncode == 0 or "WARNING" in result.stderr, (
-        f"Build failed unexpectedly:\n{result.stderr}"
-    )
+    # The goal is to verify the config is valid, so a successful build is all we need
+    assert result.returncode == 0, f"Build failed unexpectedly:\n{result.stderr}"

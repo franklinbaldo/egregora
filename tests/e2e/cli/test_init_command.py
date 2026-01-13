@@ -158,11 +158,30 @@ def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):
     mkdocs_path = tmp_path / ".egregora" / "mkdocs.yml"
     assert mkdocs_path.exists()
 
+    base_yml_path = tmp_path / "docs" / "_base.yml"
+    assert base_yml_path.exists()
+
+    with base_yml_path.open() as f:
+        base_dict = safe_yaml_load(f.read())
+
     with mkdocs_path.open() as f:
-        mkdocs_dict = safe_yaml_load(f.read())
+        content = f.read()
+        # Remove the !include directive before loading the YAML
+        content_without_include = "\n".join(
+            line for line in content.splitlines() if not line.strip().startswith("!include")
+        )
+        mkdocs_dict = safe_yaml_load(content_without_include)
+
+    # Manual deep merge for keys that are dicts
+    merged_dict = base_dict.copy()
+    for key, value in mkdocs_dict.items():
+        if isinstance(value, dict) and isinstance(merged_dict.get(key), dict):
+            merged_dict[key].update(value)
+        else:
+            merged_dict[key] = value
 
     # Should NOT have extra.egregora
-    extra_section = mkdocs_dict.get("extra", {})
+    extra_section = merged_dict.get("extra", {})
     assert "egregora" not in extra_section, "mkdocs.yml should NOT contain extra.egregora"
 
 

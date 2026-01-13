@@ -1,5 +1,5 @@
 # Egregora Project Documentation Configuration
-# This file is aligned with the scaffolding template to ensure consistency.
+!include: docs/_base.yml
 
 site_name: Egregora Documentation
 site_description: Transform WhatsApp conversations into intelligent, privacy-first blogs powered by AI
@@ -12,64 +12,7 @@ copyright: |
   <small>Last generated: __BUILD_TIMESTAMP__</small>
 
 theme:
-  name: material
   custom_dir: docs/overrides
-  language: en
-  palette:
-    # Light mode
-    - media: '(prefers-color-scheme: light)'
-      scheme: default
-      primary: teal
-      accent: amber
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-    # Dark mode
-    - media: '(prefers-color-scheme: dark)'
-      scheme: slate
-      primary: teal
-      accent: amber
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
-  font:
-    text: Roboto
-    code: Roboto Mono
-  features:
-    # Navigation
-    - navigation.instant
-    - navigation.instant.prefetch
-    - navigation.instant.progress
-    - navigation.tracking
-    - navigation.tabs
-    - navigation.tabs.sticky
-    - navigation.sections
-    - navigation.expand
-    - navigation.path
-    - navigation.prune
-    - navigation.indexes
-    - navigation.top
-    # Search
-    - search.suggest
-    - search.highlight
-    - search.share
-    # Header
-    - header.autohide
-    # Content
-    - content.code.copy
-    - content.code.annotate
-    - content.code.select
-    - content.tabs.link
-    - content.tooltips
-    - content.action.edit
-    - content.action.view
-    # Table of contents
-    - toc.follow
-    - toc.integrate
-  icon:
-    repo: fontawesome/brands/github
-    edit: material/pencil
-    view: material/eye
 
 plugins:
   - social
@@ -105,58 +48,6 @@ plugins:
       htmlmin_opts:
         remove_comments: true
       cache_safe: true
-
-markdown_extensions:
-  # Code blocks and diagrams
-  - pymdownx.highlight:
-      anchor_linenums: true
-      linenums: true
-      line_spans: __span
-      pygments_lang_class: true
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
-
-  # Content enhancements
-  - abbr
-  - admonition
-  - def_list
-  - pymdownx.betterem:
-      smart_enable: all
-  - pymdownx.caret
-  - pymdownx.details
-  - footnotes
-  - pymdownx.tasklist:
-      custom_checkbox: true
-  - pymdownx.emoji:
-      emoji_index: !!python/name:material.extensions.emoji.twemoji
-      emoji_generator: !!python/name:material.extensions.emoji.to_svg
-  - pymdownx.smartsymbols
-  - pymdownx.snippets:
-      auto_append:
-        - includes/abbreviations.md
-
-  # Navigation and structure
-  - toc:
-      permalink: true
-      toc_depth: 3
-  - attr_list
-  - tables
-  - md_in_html
-
-  # Math rendering
-  - pymdownx.arithmatex:
-      generic: true
-
-  # Technical writing & formatting
-  - pymdownx.inlinehilite
-  - pymdownx.keys
-  - pymdownx.mark
-  - pymdownx.tilde
-  - pymdownx.tabbed:
-      alternate_style: true
 
 nav:
   - Home: index.md
