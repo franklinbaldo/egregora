@@ -524,11 +524,17 @@ def run_weaver_integration(
         # Load Weaver persona
         base_context = {**repo_info, "jules_branch": JULES_BRANCH}
         loader = PersonaLoader(Path(".jules/personas"), base_context)
-        weaver = loader.load_persona("weaver")
         
-        if not weaver:
+        # Find the weaver prompt file
+        weaver_prompt = Path(".jules/personas/weaver/prompt.md.j2")
+        if not weaver_prompt.exists():
+            weaver_prompt = Path(".jules/personas/weaver/prompt.md")
+        
+        if not weaver_prompt.exists():
             print("   ⚠️ Weaver persona not found!")
             return
+            
+        weaver = loader.load_persona(weaver_prompt)
         
         # Create session request
         orchestrator = SessionOrchestrator(client, dry_run=False)
