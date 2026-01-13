@@ -185,27 +185,27 @@ jobs:
       # ----------------------------------------------------------------------
       # Gemini Review Pipeline using Official GitHub Action
       # Fallback order:
-      # 1. Gemini 1.5 Pro (latest) - highest quality
-      # 2. Gemini 1.5 Flash (latest) - fastest fallback
+      # 1. Gemini 3 Pro Preview (highest quality)
+      # 2. Gemini 3 Flash Preview (fastest fallback)
       # ----------------------------------------------------------------------
 
-      - name: Run Gemini PR Review (1.5 Pro)
-        id: gemini_pro
+      - name: Run Gemini PR Review (3 Pro Preview)
+        id: gemini_3_pro
         continue-on-error: true
         uses: google-github-actions/run-gemini-cli@v0
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: "models/gemini-1.5-pro-latest"
+          gemini_model: "gemini-3-pro-preview"
           prompt: ${{ env.GEMINI_PROMPT }}
 
-      - name: Run Gemini PR Review (1.5 Flash)
-        id: gemini_flash
-        if: steps.gemini_pro.outcome == 'failure'
+      - name: Run Gemini PR Review (3 Flash Preview)
+        id: gemini_3_flash
+        if: steps.gemini_3_pro.outcome == 'failure'
         continue-on-error: true
         uses: google-github-actions/run-gemini-cli@v0
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: "models/gemini-1.5-flash-latest"
+          gemini_model: "gemini-3-flash-preview"
           prompt: ${{ env.GEMINI_PROMPT }}
 
       - name: Consolidate Gemini Results
@@ -213,27 +213,27 @@ jobs:
         if: always()
         uses: actions/github-script@v8
         env:
-          OUTCOME_PRO: ${{ steps.gemini_pro.outcome }}
-          SUMMARY_PRO: ${{ steps.gemini_pro.outputs.summary }}
-          CONCLUSION_PRO: ${{ steps.gemini_pro.conclusion }}
-          OUTCOME_FLASH: ${{ steps.gemini_flash.outcome }}
-          SUMMARY_FLASH: ${{ steps.gemini_flash.outputs.summary }}
-          CONCLUSION_FLASH: ${{ steps.gemini_flash.conclusion }}
+          OUTCOME_3_PRO: ${{ steps.gemini_3_pro.outcome }}
+          SUMMARY_3_PRO: ${{ steps.gemini_3_pro.outputs.summary }}
+          CONCLUSION_3_PRO: ${{ steps.gemini_3_pro.conclusion }}
+          OUTCOME_3_FLASH: ${{ steps.gemini_3_flash.outcome }}
+          SUMMARY_3_FLASH: ${{ steps.gemini_3_flash.outputs.summary }}
+          CONCLUSION_3_FLASH: ${{ steps.gemini_3_flash.conclusion }}
         with:
           script: |
             const outcomes = {
-              pro: process.env.OUTCOME_PRO,
-              flash: process.env.OUTCOME_FLASH,
+              threePro: process.env.OUTCOME_3_PRO,
+              threeFlash: process.env.OUTCOME_3_FLASH,
             };
 
             const summaries = {
-              pro: process.env.SUMMARY_PRO,
-              flash: process.env.SUMMARY_FLASH,
+              threePro: process.env.SUMMARY_3_PRO,
+              threeFlash: process.env.SUMMARY_3_FLASH,
             };
 
             const conclusions = {
-              pro: process.env.CONCLUSION_PRO,
-              flash: process.env.CONCLUSION_FLASH,
+              threePro: process.env.CONCLUSION_3_PRO,
+              threeFlash: process.env.CONCLUSION_3_FLASH,
             };
 
             let finalOutcome = 'failure';
@@ -243,8 +243,8 @@ jobs:
             // Build detailed error report
             const errorDetails = [];
             const modelNames = {
-              pro: 'models/gemini-1.5-pro-latest',
-              flash: 'models/gemini-1.5-flash-latest',
+              threePro: 'gemini-3-pro-preview',
+              threeFlash: 'gemini-3-flash-preview',
             };
 
             for (const [key, modelName] of Object.entries(modelNames)) {
@@ -435,8 +435,8 @@ jobs:
             echo "::warning::All Gemini CLI attempts failed or were skipped"
             echo "::group::Debugging Information"
             echo "Job status: ${{ job.status }}"
-            echo "1.5 Pro outcome: ${{ steps.gemini_pro.outcome }}"
-            echo "1.5 Flash outcome: ${{ steps.gemini_flash.outcome }}"
+            echo "3 Pro outcome: ${{ steps.gemini_3_pro.outcome }}"
+            echo "3 Flash outcome: ${{ steps.gemini_3_flash.outcome }}"
             echo "::endgroup::"
             # Check if API key is set (without exposing it or its length)
             if [ -z "${{ secrets.GEMINI_API_KEY }}" ]; then
@@ -464,8 +464,8 @@ jobs:
           STEP_COLLECT_OUTCOME: ${{ steps.collect.outcome }}
           STEP_CONSTRUCT_OUTCOME: ${{ steps.construct_prompt.outcome }}
           STEP_CONSTRUCT_CONCLUSION: ${{ steps.construct_prompt.conclusion }}
-          STEP_GEMINI_PRO_OUTCOME: ${{ steps.gemini_pro.outcome }}
-          STEP_GEMINI_FLASH_OUTCOME: ${{ steps.gemini_flash.outcome }}
+          STEP_GEMINI_3_PRO_OUTCOME: ${{ steps.gemini_3_pro.outcome }}
+          STEP_GEMINI_3_FLASH_OUTCOME: ${{ steps.gemini_3_flash.outcome }}
           STEP_PARSE_OUTCOME: ${{ steps.parse_combined.outcome }}
           STEP_PARSE_CONCLUSION: ${{ steps.parse_combined.conclusion }}
           RUN_ID: ${{ github.run_id }}
@@ -502,8 +502,8 @@ jobs:
               };
 
               const geminiSteps = {
-                'models/gemini-1.5-pro-latest': process.env.STEP_GEMINI_PRO_OUTCOME,
-                'models/gemini-1.5-flash-latest': process.env.STEP_GEMINI_FLASH_OUTCOME,
+                'gemini-3-pro-preview': process.env.STEP_GEMINI_3_PRO_OUTCOME,
+                'gemini-3-flash-preview': process.env.STEP_GEMINI_3_FLASH_OUTCOME,
               };
 
               // Determine failure type
