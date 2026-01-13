@@ -424,73 +424,39 @@ def run_scheduler(
 
     # === GLOBAL RECONCILIATION ===
     # Automate the lifecycle for ALL Jules PRs (parallel and cycle)
-    pr_mgr.reconcile_all_jules_prs(client, repo_info, dry_run)
+    # Returns list of PRs that failed to merge (conflicts)
+    conflict_prs = pr_mgr.reconcile_all_jules_prs(client, repo_info, dry_run)
 
     # === WEAVER INTEGRATION ===
-    # When enabled, trigger Weaver persona to handle merging
+    # Only trigger Weaver if there are conflict PRs that need resolution
     from jules.scheduler_managers import WEAVER_ENABLED
-    if WEAVER_ENABLED:
-        run_weaver_integration(client, repo_info, dry_run)
+    if WEAVER_ENABLED and conflict_prs:
+        run_weaver_for_conflicts(client, repo_info, conflict_prs, dry_run)
 
 
-def run_weaver_integration(
-    client: JulesClient, repo_info: dict[str, Any], dry_run: bool = False
+def run_weaver_for_conflicts(
+    client: JulesClient, repo_info: dict[str, Any], conflict_prs: list[dict], dry_run: bool = False
 ) -> None:
-    """Trigger Weaver persona to integrate pending PRs.
+    """Trigger Weaver to resolve merge conflicts.
     
-    The Weaver will:
-    1. Fetch all green PRs awaiting integration
-    2. Attempt local merge and test
-    3. Create wrapper PR or communicate via jules-mail if conflicts
+    Called by Overseer when PRs fail to auto-merge.
     
     Args:
         client: Jules API client
         repo_info: Repository information
+        conflict_prs: List of PRs that failed to merge
         dry_run: If True, only log actions
     """
     from jules.scheduler_managers import WEAVER_SESSION_TIMEOUT_MINUTES
-    import json
-    import subprocess
     
-    print("\n🕸️ Weaver: Checking for integration work...")
+    print(f"\n🕸️ Weaver: Resolving {len(conflict_prs)} conflict PR(s)...")
     
-    # 1. Check for green PRs targeting jules branch
-    try:
-        result = subprocess.run(
-            ["gh", "pr", "list", "--json", "number,title,headRefName,baseRefName,mergeable,mergeStateStatus,isDraft"],
-            capture_output=True, text=True, check=True
-        )
-        prs = json.loads(result.stdout)
-        
-        # Filter for green PRs targeting jules
-        ready_prs = [
-            pr for pr in prs
-            if pr.get("baseRefName") == JULES_BRANCH
-            and pr.get("mergeable") == "MERGEABLE"
-            and pr.get("mergeStateStatus") in ["CLEAN", "BEHIND"]
-            and not pr.get("isDraft", True)
-        ]
-        
-        if not ready_prs:
-            print("   No PRs ready for Weaver integration.")
-            return
-        
-        print(f"   Found {len(ready_prs)} PR(s) ready for integration.")
-        
-    except Exception as e:
-        print(f"   ⚠️ Failed to list PRs: {e}")
-        return
-    
-    # 2. Check for existing Weaver session
+    # Check for existing Weaver session
     try:
         sessions = client.list_sessions().get("sessions", [])
-        weaver_sessions = [
-            s for s in sessions
-            if "weaver" in s.get("title", "").lower()
-        ]
+        weaver_sessions = [s for s in sessions if "weaver" in s.get("title", "").lower()]
         
         if weaver_sessions:
-            # Sort by creation time, get most recent
             latest = sorted(weaver_sessions, key=lambda x: x.get("createTime", ""))[-1]
             state = latest.get("state", "UNKNOWN")
             session_id = latest.get("name", "").split("/")[-1]
@@ -500,43 +466,35 @@ def run_weaver_integration(
                 return
             
             if state == "COMPLETED":
-                # Check if recently completed (avoid spam)
-                from datetime import datetime, timedelta
+                from datetime import timedelta
                 create_time = latest.get("createTime", "")
                 if create_time:
                     try:
                         created = datetime.fromisoformat(create_time.replace("Z", "+00:00"))
                         if datetime.now(timezone.utc) - created < timedelta(minutes=WEAVER_SESSION_TIMEOUT_MINUTES):
-                            print(f"   ⏳ Weaver session recently completed. Waiting for next cycle...")
+                            print(f"   ⏳ Weaver recently completed. Waiting...")
                             return
                     except Exception:
                         pass
-        
     except Exception as e:
         print(f"   ⚠️ Failed to check Weaver sessions: {e}")
     
-    # 3. Create new Weaver session
     if dry_run:
-        print("   [DRY RUN] Would create Weaver integration session")
+        print("   [DRY RUN] Would create Weaver conflict resolution session")
         return
     
     try:
-        # Load Weaver persona
         base_context = {**repo_info, "jules_branch": JULES_BRANCH}
         loader = PersonaLoader(Path(".jules/personas"), base_context)
         
-        # Find the weaver prompt file
         weaver_prompt = Path(".jules/personas/weaver/prompt.md.j2")
         if not weaver_prompt.exists():
             weaver_prompt = Path(".jules/personas/weaver/prompt.md")
-        
         if not weaver_prompt.exists():
             print("   ⚠️ Weaver persona not found!")
             return
             
         weaver = loader.load_persona(weaver_prompt)
-        
-        # Create session request
         orchestrator = SessionOrchestrator(client, dry_run=False)
         branch_mgr = BranchManager(JULES_BRANCH)
         
@@ -545,48 +503,44 @@ def run_weaver_integration(
             persona_id="weaver"
         )
         
-        # Build patch URLs list for Weaver
+        # Build conflict-focused patch instructions
         owner = repo_info["owner"]
         repo = repo_info["repo"]
         
         patch_instructions = []
-        for pr in ready_prs:
+        for pr in conflict_prs:
             pr_num = pr['number']
             pr_title = pr['title']
+            merge_error = pr.get('merge_error', 'Conflict')
             patch_url = f"https://github.com/{owner}/{repo}/pull/{pr_num}.patch"
             patch_instructions.append(f"""
 ### PR #{pr_num}: {pr_title}
+**Error:** {merge_error}
 ```bash
 curl -L "{patch_url}" -o pr_{pr_num}.patch
-git apply pr_{pr_num}.patch || git apply --3way pr_{pr_num}.patch
+git apply --3way pr_{pr_num}.patch
 ```""")
         
         patches_section = "\n".join(patch_instructions)
+        pr_numbers_str = ", ".join([f"#{pr['number']}" for pr in conflict_prs])
         
-        # Build commit message PR list
-        pr_numbers_str = ", ".join([f"#{pr['number']}" for pr in ready_prs])
-        
-        weaver_prompt_with_patches = f"""{weaver.prompt_body}
+        prompt = f"""## 🕸️ CONFLICT RESOLUTION
 
----
-
-## 🎯 YOUR TASK: Apply These Patches
-
-The following PRs are ready for integration into `jules`. Download and apply each patch in order:
+The following PRs failed to auto-merge. Resolve their conflicts:
 
 {patches_section}
 
-After applying all patches successfully, commit with:
+After resolving, commit:
 ```bash
 git add -A
-git commit -m "🕸️ Weaver: Integrate PRs {pr_numbers_str}"
+git commit -m "🕸️ Weaver: Resolve conflicts for PRs {pr_numbers_str}"
 ```
 """
         
         request = SessionRequest(
             persona_id="weaver",
-            title="🕸️ weaver: integration session",
-            prompt=weaver_prompt_with_patches,
+            title="🕸️ weaver: conflict resolution",
+            prompt=prompt,
             branch=session_branch,
             owner=repo_info["owner"],
             repo=repo_info["repo"],

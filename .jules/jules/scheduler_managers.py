@@ -658,34 +658,39 @@ This PR contains accumulated work from the Jules autonomous development cycle.
                 return pr
         return None
 
-    def reconcile_all_jules_prs(self, client: JulesClient, repo_info: dict[str, Any], dry_run: bool = False) -> None:
-        """Overseer: Automatically mark ready and merge any Jules-initiated PRs.
-
-        This handles the lifecycle for parallel personas.
+    def reconcile_all_jules_prs(self, client: JulesClient, repo_info: dict[str, Any], dry_run: bool = False) -> list[dict]:
+        """Overseer: Auto-merge Jules PRs (oldest first), return conflicts for Weaver.
 
         Args:
             client: Jules API client
             repo_info: Repository information
             dry_run: If True, only log actions
+            
+        Returns:
+            List of PRs that failed to merge (conflicts for Weaver)
         """
         print("\n🔍 Overseer: Checking for autonomous PRs to reconcile...")
         import json
         
+        conflict_prs = []
+        
         try:
-            # Fetch all open PRs with author, body, and base
+            # Fetch all open PRs with author, body, base, and creation time
             result = subprocess.run(
-                ["gh", "pr", "list", "--json", "number,title,isDraft,mergeable,headRefName,baseRefName,body,author"],
+                ["gh", "pr", "list", "--json", "number,title,isDraft,mergeable,headRefName,baseRefName,body,author,createdAt"],
                 capture_output=True, text=True, check=True
             )
             prs = json.loads(result.stdout)
             
-            # Filter for Jules-initiated PRs:
-            # 1. Author is jules-bot
-            # 2. OR head starts with jules- (except integration branch)
-            # 3. OR body contains a Jules session ID
+            # Filter for Jules-initiated PRs targeting jules branch
             jules_prs = []
             for pr in prs:
                 head = pr.get("headRefName", "")
+                base = pr.get("baseRefName", "")
+                
+                # Skip if not targeting jules branch
+                if base != self.jules_branch:
+                    continue
                 if head == self.jules_branch:
                     continue
                 
@@ -698,14 +703,15 @@ This PR contains accumulated work from the Jules autonomous development cycle.
             
             if not jules_prs:
                 print("   No autonomous persona PRs found.")
-                return
+                return []
 
-            print(f"   Found {len(jules_prs)} candidate PRs.")
+            # Sort by creation date (oldest first)
+            jules_prs.sort(key=lambda p: p.get("createdAt", ""))
+            print(f"   Found {len(jules_prs)} candidate PRs (sorted oldest first).")
 
             for pr in jules_prs:
                 pr_number = pr["number"]
                 head = pr["headRefName"]
-                base = pr.get("baseRefName", "")
                 is_draft = pr["isDraft"]
                 
                 print(f"   --- PR #{pr_number} ({head}) ---")
@@ -720,56 +726,35 @@ This PR contains accumulated work from the Jules autonomous development cycle.
                                 print(f"      ✅ Session {session_id} is COMPLETED. Marking PR as ready...")
                                 if not dry_run:
                                     self.mark_ready(pr_number)
-                                # Refresh status for merge check
                                 is_draft = False
                         except Exception as e:
                             print(f"      ⚠️ Failed to check session status: {e}")
 
-                # 2. Ensure it targets the integration branch if it's a persona PR
-                if not is_draft and base != self.jules_branch:
-                    print(f"      🔄 Retargeting PR #{pr_number} to '{self.jules_branch}'...")
-                    if not dry_run:
-                        try:
-                            subprocess.run(
-                                ["gh", "pr", "edit", str(pr_number), "--base", self.jules_branch],
-                                check=True, capture_output=True
-                            )
-                        except Exception as e:
-                            print(f"      ⚠️ Retarget failed: {e}")
-
-                # 3. If not a draft, check if green and potentially merge
+                # 2. If not a draft, try to merge
                 if not is_draft:
-                    # We need full details for CI check
                     details = get_pr_details_via_gh(pr_number)
                     if self.is_green(details):
-                        # Check if this is a Weaver PR (auto-merge it)
-                        is_weaver_pr = "weaver" in head.lower()
-                        
-                        if is_weaver_pr:
-                            # Auto-merge Weaver PRs - they contain aggregated work
-                            print(f"      🕸️ Weaver PR is green! Auto-merging aggregated work...")
-                            if not dry_run:
-                                try:
-                                    self.merge_into_jules(pr_number)
-                                except Exception as e:
-                                    print(f"      ⚠️ Merge failed: {e}")
-                        elif WEAVER_ENABLED:
-                            # Delegate other persona PRs to Weaver for aggregation
-                            print(f"      🕸️ PR is green! Waiting for Weaver to aggregate...")
-                        else:
-                            # Fallback: auto-merge when Weaver is disabled
-                            print(f"      ✅ PR is green! Automatically merging into '{self.jules_branch}'...")
-                            if not dry_run:
-                                try:
-                                    self.merge_into_jules(pr_number)
-                                except Exception as e:
-                                    print(f"      ⚠️ Merge failed: {e}")
+                        print(f"      ✅ PR is green! Attempting auto-merge...")
+                        if not dry_run:
+                            try:
+                                self.merge_into_jules(pr_number)
+                                print(f"      ✅ Successfully merged PR #{pr_number}")
+                            except Exception as e:
+                                # Merge failed - likely conflict
+                                print(f"      ⚠️ Merge failed (conflict?): {e}")
+                                pr["merge_error"] = str(e)
+                                conflict_prs.append(pr)
                     else:
                         status_summary = details.get("mergeStateStatus", "UNKNOWN")
                         print(f"      ⏳ PR status: {status_summary}. Waiting for green checks...")
 
         except Exception as e:
             print(f"⚠️ Overseer Error: {e}")
+        
+        if conflict_prs:
+            print(f"\n   🕸️ {len(conflict_prs)} PR(s) have conflicts - will trigger Weaver")
+        
+        return conflict_prs
 
 
 class CycleStateManager:
