@@ -51,14 +51,14 @@ Egregora automatically bootstraps `.egregora` (mkdocs config, cache, RAG, and La
 **2. Generate posts from your chat export:**
 
 ```bash
-egregora write path/to/chat_export.zip --output=.
+egregora write path/to/chat_export.zip --output-dir=.
 ```
 
 **3. Preview your site:**
 
 ```bash
 # Preview your site
-uv tool run --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox mkdocs serve -f .egregora/mkdocs.yml
+uv tool run --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml
 ```
 
 *Visit <http://localhost:8000> to read your new blog.*
