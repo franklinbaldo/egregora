@@ -1,6 +1,13 @@
 {
   "history": [
     {
+      "persona_id": "forge",
+      "session_id": "4759128292763648514",
+      "pr_number": null,
+      "created_at": "2026-01-13T17:26:04.336512+00:00",
+      "track": "default"
+    },
+    {
       "persona_id": "scribe",
       "session_id": "1122225846355852589",
       "pr_number": null,
@@ -424,10 +431,10 @@
   ],
   "tracks": {
     "default": {
-      "last_persona_id": "scribe",
-      "last_session_id": "1122225846355852589",
+      "last_persona_id": "forge",
+      "last_session_id": "4759128292763648514",
       "last_pr_number": null,
-      "updated_at": "2026-01-13T16:57:54.363380+00:00"
+      "updated_at": "2026-01-13T17:26:04.336512+00:00"
     }
   }
 }
