@@ -28,7 +28,9 @@ and simple adapter discovery.
 """
 
 from egregora.input_adapters.base import InputAdapter
+from egregora.input_adapters.iperon_tjro import IperonTJROAdapter
 from egregora.input_adapters.registry import InputAdapterRegistry, get_global_registry
+from egregora.input_adapters.self_reflection import SelfInputAdapter
 from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 
 # Adapter class registry for stateful adapter instantiation
@@ -37,6 +39,8 @@ from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 # manual instantiation with custom configuration.
 ADAPTER_REGISTRY: dict[str, type] = {
     "whatsapp": WhatsAppAdapter,
+    "iperon-tjro": IperonTJROAdapter,
+    "self": SelfInputAdapter,
 }
 
 
@@ -61,6 +65,8 @@ __all__ = [
     "ADAPTER_REGISTRY",
     "InputAdapter",
     "InputAdapterRegistry",
+    "IperonTJROAdapter",
+    "SelfInputAdapter",
     "WhatsAppAdapter",
     "get_global_registry",
     "list_adapters",

@@ -10,27 +10,7 @@ import pytest
 from ibis.backends.duckdb import Backend as DuckDBBackend
 
 from egregora.database.message_repository import MessageRepository
-
-# Define V3 Ingestion Schema inline for tests
-INGESTION_SCHEMA = ibis.schema(
-    {
-        "event_id": dt.string,
-        "tenant_id": dt.string,
-        "source": dt.string,
-        "thread_id": dt.string,
-        "msg_id": dt.string,
-        "ts": dt.Timestamp(timezone="UTC"),
-        "author_raw": dt.string,
-        "author_uuid": dt.string,
-        "text": dt.String(nullable=True),
-        "media_url": dt.String(nullable=True),
-        "media_type": dt.String(nullable=True),
-        "attrs": dt.JSON(nullable=True),
-        "pii_flags": dt.JSON(nullable=True),
-        "created_at": dt.Timestamp(timezone="UTC"),
-        "created_by_run": dt.string,
-    }
-)
+from egregora.database.schemas import STAGING_MESSAGES_SCHEMA
 
 # A consistent timestamp for reproducible tests
 NOW = datetime.now(UTC)
@@ -45,7 +25,7 @@ def db_connection() -> DuckDBBackend:
 @pytest.fixture
 def messages_table(db_connection: DuckDBBackend) -> ibis.expr.types.Table:
     """Fixture to create and populate the messages table for testing."""
-    db_connection.create_table("messages", schema=INGESTION_SCHEMA, overwrite=True)
+    db_connection.create_table("messages", schema=STAGING_MESSAGES_SCHEMA, overwrite=True)
     table = db_connection.table("messages")
 
     test_data = [
@@ -96,7 +76,7 @@ def messages_table(db_connection: DuckDBBackend) -> ibis.expr.types.Table:
     df = pd.DataFrame(test_data)
 
     # Fill missing columns with None to match the full schema
-    for col in INGESTION_SCHEMA.names:
+    for col in STAGING_MESSAGES_SCHEMA.names:
         if col not in df.columns:
             df[col] = None
 
@@ -148,7 +128,7 @@ def test_get_url_enrichment_candidates_with_no_limit(db_connection, messages_tab
 
 def test_get_url_enrichment_candidates_empty_table(db_connection):
     """Verify that it returns an empty list for an empty table."""
-    db_connection.create_table("empty_messages", schema=INGESTION_SCHEMA, overwrite=True)
+    db_connection.create_table("empty_messages", schema=STAGING_MESSAGES_SCHEMA, overwrite=True)
     table = db_connection.table("empty_messages")
     repo = MessageRepository(db_connection)
 
@@ -158,7 +138,7 @@ def test_get_url_enrichment_candidates_empty_table(db_connection):
 
 def test_get_media_enrichment_candidates(db_connection):
     """Verify that the repository correctly extracts media enrichment candidates."""
-    db_connection.create_table("media_messages", schema=INGESTION_SCHEMA, overwrite=True)
+    db_connection.create_table("media_messages", schema=STAGING_MESSAGES_SCHEMA, overwrite=True)
 
     test_data = [
         {"event_id": "1", "ts": NOW, "text": "Here is an image: media.jpg", "author_raw": "Alice"},
@@ -180,7 +160,7 @@ def test_get_media_enrichment_candidates(db_connection):
 
     df = pd.DataFrame(test_data)
 
-    for col in INGESTION_SCHEMA.names:
+    for col in STAGING_MESSAGES_SCHEMA.names:
         if col not in df.columns:
             df[col] = None
 
@@ -203,7 +183,7 @@ def test_get_media_enrichment_candidates(db_connection):
 
 def test_get_media_enrichment_candidates_with_uuid(db_connection):
     """Verify that the repository correctly extracts media candidates referenced by UUID."""
-    db_connection.create_table("uuid_media_messages", schema=INGESTION_SCHEMA, overwrite=True)
+    db_connection.create_table("uuid_media_messages", schema=STAGING_MESSAGES_SCHEMA, overwrite=True)
 
     media_uuid = "a1b2c3d4-e5f6-a7b8-c9d0-e1f2a3b4c5d6.jpg"
     test_data = [
@@ -220,7 +200,7 @@ def test_get_media_enrichment_candidates_with_uuid(db_connection):
 
     df = pd.DataFrame(test_data)
 
-    for col in INGESTION_SCHEMA.names:
+    for col in STAGING_MESSAGES_SCHEMA.names:
         if col not in df.columns:
             df[col] = None
 
