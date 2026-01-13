@@ -257,7 +257,6 @@ def execute_cycle_tick(dry_run: bool = False) -> None:
     session_branch = branch_mgr.create_session_branch(
         base_branch=JULES_BRANCH,
         persona_id=next_persona.id,
-        direct=True  # No intermediary branch
     )
 
     request = SessionRequest(
@@ -347,11 +346,10 @@ def execute_scheduled_tick(
 
         print(f"▶️  {persona.emoji} {persona.id} ({reason})")
 
-        # Scheduled mode STILL uses branches because it's parallel
+        # Scheduled mode uses direct branching now
         session_branch = branch_mgr.create_session_branch(
             base_branch=JULES_BRANCH,
             persona_id=persona.id,
-            direct=False # Need intermediary for parallel safety
         )
 
         request = SessionRequest(
