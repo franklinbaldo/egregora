@@ -105,12 +105,12 @@ def test_exception_classes() -> bool | None:
         cache_utils_mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cache_utils_mod)
 
-        # Load authors_utils module
+        # Load knowledge_exceptions module
         spec = importlib.util.spec_from_file_location(
-            "egregora.utils.authors", "src/egregora/utils/authors.py"
+            "egregora.knowledge.exceptions", "src/egregora/knowledge/exceptions.py"
         )
-        authors_utils_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(authors_utils_mod)
+        knowledge_exceptions_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(knowledge_exceptions_mod)
 
         # Load datetime_utils module
         spec = importlib.util.spec_from_file_location(
@@ -125,7 +125,7 @@ def test_exception_classes() -> bool | None:
             return False
 
         # Test AuthorsFileLoadError
-        exc = authors_utils_mod.AuthorsFileLoadError("/path/to/file", OSError("test"))
+        exc = knowledge_exceptions_mod.AuthorsFileLoadError("/path/to/file", OSError("test"))
         if exc.path != "/path/to/file":
             return False
 

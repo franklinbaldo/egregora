@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from egregora.utils import authors as utils_authors
 from egregora.utils import cache as utils_cache
 from egregora.utils import exceptions as utils_exceptions
 
@@ -17,6 +16,3 @@ def test_cache_shim_exports() -> None:
     assert utils_cache.CacheTier.ENRICHMENT.value == "enrichment"
 
 
-def test_authors_shim_exports() -> None:
-    error = utils_authors.AuthorsFileLoadError("path", OSError("boom"))
-    assert error.path == "path"

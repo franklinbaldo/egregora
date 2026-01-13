@@ -4,23 +4,21 @@ Last updated: 2026-01-05
 
 ## Current Organizational State
 
-The codebase is generally well-structured, with a clear separation of concerns between domains like `llm`, `knowledge`, `orchestration`, and `output_adapters`. However, a significant amount of domain-specific logic still resides in the generic `src/egregora/utils` directory. This directory acts as a "junk drawer" for modules that haven't been assigned a proper home, making the code harder to navigate and understand.
+The codebase has undergone significant refactoring to improve modularity. Much of the logic previously located in the generic `src/egregora/utils` directory has been moved to appropriate domain-specific modules.
 
-The testing structure largely mirrors the source structure, which is good. However, tests for misplaced modules are also misplaced, perpetuating the organizational issues.
+However, a new organizational issue has emerged: the `src/egregora/utils` directory now contains several **compatibility shims**. These modules exist only to re-export code from other locations, creating unnecessary indirection and clutter. This makes the codebase harder to navigate, as it's not always clear where the source of truth for a given function or class is located.
 
 ## Identified Issues
 
-1.  **Duplicated Security Code**: The `safe_path_join` function and `PathTraversalError` exception are duplicated in `src/egregora/utils/fs.py` and `src/egregora/security/fs.py`. This is a critical violation of the DRY principle, introduces maintenance overhead, and creates confusion about the source of truth. The canonical implementation should live in `src/egregora/security/fs.py`.
-2.  **Misplaced Caching Logic**: The `src/egregora/utils/cache.py` module contains caching utilities. Caching strategies are often tied to specific domains (e.g., caching for LLM calls vs. caching for filesystem access). This module should be broken up and its parts moved to their respective domains.
-3.  **Vague `database/utils.py`**: The `src/egregora/database/utils.py` module may contain generic SQL utilities, but it could also hide domain-specific query logic that should be part of a specific repository or data access layer.
-4.  **Misplaced `text.py`**: The `src/egregora/utils/text.py` module contains a `sanitize_prompt_input` function, which is clearly LLM-related and should be moved to the `src/egregora/llm` module.
+1.  **Stale Organization Plan**: This plan was critically out of date, listing several issues that had already been resolved. This has been updated.
+2.  **Compatibility Shims in `utils`**: The `src/egregora/utils` directory contains multiple files that serve only to re-export code from other, more domain-specific locations. This creates indirection and makes the codebase harder to navigate.
+    -   `src/egregora/utils/authors.py`: Re-exports `AuthorsFileLoadError` from `egregora.knowledge.exceptions`.
+    -   `src/egregora/utils/cache.py`: Re-exports multiple caching components from `egregora.orchestration.cache`.
 
 ## Prioritized Improvements
 
-1.  **Consolidate `safe_path_join` (Critical, Low Risk)**: Resolve the duplicated code by removing the implementation from `src/egregora/utils/fs.py` and updating all consumers to use the version from `src/egregora/security/fs.py`. This is a critical fix to maintain code health and is low-risk as it's a consolidation of identical logic.
-2.  **`text.py` Refactoring (High Impact, Low Risk)**: Moving `sanitize_prompt_input` is a small, safe change that clearly improves the organization.
-3.  **`cache.py` Refactoring (High Impact, Medium Risk)**: This is a high-impact change because it will make the caching strategy much clearer. It's medium risk because it may require careful analysis to ensure the correct caching logic is moved to the correct domain.
-4.  **`database/utils.py` Refactoring (Medium Impact, Medium Risk)**: This could improve the data access layer, but requires careful analysis to avoid breaking database interactions.
+1.  **Remove `authors.py` Shim (High Impact, Low Risk)**: This shim is a single, straightforward re-export. Removing it and updating its consumers is a small, safe change that will immediately improve clarity. This is the focus of the current session.
+2.  **Remove `cache.py` Shim (High Impact, Low Risk)**: Similar to the `authors.py` shim, this module creates unnecessary indirection. Its removal will be a simple, high-impact improvement.
 
 ## Completed Improvements
 
@@ -33,7 +31,8 @@ The testing structure largely mirrors the source structure, which is good. Howev
 - **Rate limiter moved to `llm/rate_limit.py`**
 - **`slugify` moved to `utils/text.py`**
 - **API key utilities moved to `llm/api_keys.py`**
+- **Security code (`safe_path_join`) consolidated in `security/fs.py`**
 
 ## Organizational Strategy
 
-My strategy is to systematically dismantle the `src/egregora/utils` directory by moving its modules to their correct, domain-specific locations. I will follow a test-driven approach for each move, ensuring that a safety net of tests exists before any code is relocated. Each refactoring will be a single, cohesive change delivered in its own pull request. I will prioritize changes that offer the most significant improvement in clarity for the lowest risk and effort.
+My strategy is to eliminate compatibility shims and other forms of indirection from the codebase. I will systematically identify and remove these shims, updating all consumers to import directly from the canonical source. This will make the code easier to navigate and understand. I will continue to follow a test-driven approach for each refactoring, ensuring that all changes are safe and behavior-preserving.
