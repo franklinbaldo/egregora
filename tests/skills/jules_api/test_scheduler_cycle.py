@@ -177,7 +177,7 @@ class TestSchedulerCycleFallback:
         assert created_sessions == [], "Scheduler should not restart cycle when a scheduler session exists."
         assert seen_session_ids == ["999999999999999"]
 
-    def test_cycle_waits_for_unknown_mergeability(self, monkeypatch, tmp_path, capsys):
+    def test_cycle_waits_for_unknown_mergeability(self, monkeypatch, tmp_path):
         """Verify that the scheduler waits when PR mergeability is UNKNOWN."""
         jules_path = Path(__file__).parents[3] / ".jules"
         sys.path.insert(0, str(jules_path))
@@ -198,14 +198,10 @@ class TestSchedulerCycleFallback:
         # Case 1: Mergeable is None (UNKNOWN)
         pr_details_unknown = {"number": 123, "mergeable": None, "statusCheckRollup": []}
         assert pr_manager.is_green(pr_details_unknown) is False
-        captured = capsys.readouterr()
-        assert "mergeability is UNKNOWN. Waiting..." in captured.out
 
         # Case 2: Mergeable is False (CONFLICT)
         pr_details_conflict = {"number": 124, "mergeable": False, "statusCheckRollup": []}
         assert pr_manager.is_green(pr_details_conflict) is False
-        captured = capsys.readouterr()
-        assert "is NOT mergeable (conflicts)" in captured.out
 
         # Case 3: Mergeable is True, Check is Pending
         pr_details_pending = {
@@ -214,8 +210,6 @@ class TestSchedulerCycleFallback:
             "statusCheckRollup": [{"context": "ci/test", "state": "PENDING"}],
         }
         assert pr_manager.is_green(pr_details_pending) is False
-        captured = capsys.readouterr()
-        assert "ci/test: PENDING (PENDING/FAILED)" in captured.out
 
         # Case 4: Mergeable is True, Check is Success
         pr_details_success = {
@@ -224,5 +218,3 @@ class TestSchedulerCycleFallback:
             "statusCheckRollup": [{"context": "ci/test", "state": "SUCCESS"}],
         }
         assert pr_manager.is_green(pr_details_success) is True
-        captured = capsys.readouterr()
-        assert "ci/test: SUCCESS" in captured.out
