@@ -24,7 +24,6 @@ if TYPE_CHECKING:
     from egregora.agents.shared.cache import EnrichmentCache
     from egregora.config.settings import EgregoraConfig
     from egregora.data_primitives.document import OutputSink, UrlContext
-    from egregora.data_primitives.protocols import ContentLibrary
     from egregora.database.protocols import StorageProtocol
     from egregora.database.task_store import TaskStore
     from egregora.input_adapters.base import InputAdapter
@@ -125,7 +124,7 @@ class PipelineState:
     """Mutable runtime state for the pipeline.
 
     Contains resources, clients, and ephemeral state that may be updated
-    or re-initialized during execution.
+    or re-initialized during execution. Updated for V3 schema.
     """
 
     # Run Identity
