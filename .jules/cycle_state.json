@@ -1,6 +1,11 @@
 {
   "history": [
     {
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
+=======
+>>>>>>> theirs
       "persona_id": "sapper",
       "session_id": "2043411254128495515",
       "pr_number": null,
@@ -8,6 +13,11 @@
       "track": "default"
     },
     {
+<<<<<<< ours
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
       "persona_id": "essentialist",
       "session_id": "17899925607066210629",
       "pr_number": null,
@@ -15,6 +25,11 @@
       "track": "default"
     },
     {
+<<<<<<< ours
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
       "persona_id": "taskmaster",
       "session_id": "14153496863890087274",
       "pr_number": null,
@@ -487,10 +502,31 @@
   ],
   "tracks": {
     "default": {
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
       "last_persona_id": "sapper",
       "last_session_id": "2043411254128495515",
       "last_pr_number": null,
       "updated_at": "2026-01-13T19:56:21.711516+00:00"
+=======
+      "last_persona_id": "taskmaster",
+      "last_session_id": "14153496863890087274",
+      "last_pr_number": null,
+      "updated_at": "2026-01-13T19:34:32.504756+00:00"
+>>>>>>> theirs
+=======
+      "last_persona_id": "essentialist",
+      "last_session_id": "17899925607066210629",
+      "last_pr_number": null,
+      "updated_at": "2026-01-13T19:47:24.755778+00:00"
+>>>>>>> theirs
+=======
+      "last_persona_id": "sapper",
+      "last_session_id": "2043411254128495515",
+      "last_pr_number": null,
+      "updated_at": "2026-01-13T19:56:21.711516+00:00"
+>>>>>>> theirs
     }
   }
 }
