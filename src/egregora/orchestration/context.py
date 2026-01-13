@@ -12,12 +12,13 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from egregora_v3.core.library import ContentLibrary
     from google import genai
 
     from egregora.agents.shared.annotations import AnnotationStore
@@ -143,7 +144,7 @@ class PipelineState:
     task_store: TaskStore | None = None
 
     # Pure Content Library Facade
-    library: Any = None  # Pure ContentLibrary (avoid V2→Pure import)
+    library: ContentLibrary | None = None  # Pure ContentLibrary (avoid V2→Pure import)
 
     # Output & Adapters (Initialized lazily or updated)
     output_format: OutputSink | None = None  # ISP-compliant: Runtime data operations only
@@ -235,7 +236,7 @@ class PipelineContext:
         return self.state.task_store
 
     @property
-    def library(self) -> Any:  # Pure ContentLibrary (avoid V2→Pure import)
+    def library(self) -> ContentLibrary | None:  # Pure ContentLibrary (avoid V2→Pure import)
         return self.state.library
 
     @property
