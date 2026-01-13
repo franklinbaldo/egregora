@@ -65,6 +65,7 @@ logger = logging.getLogger(__name__)
 MAX_ALIAS_LENGTH = 40
 ASCII_CONTROL_CHARS_THRESHOLD = 32
 YAML_FRONTMATTER_PARTS_COUNT = 3  # YAML front matter splits into 3 parts: ["", content, rest]
+YAML_FRONTMATTER_DELIMITER_COUNT = 2  # Front matter delimiter occurrences in well-formed docs.
 PROFILE_DATE_REGEX = re.compile(r"(\d{4}-\d{2}-\d{2})")
 # Fast author extraction regex for performance-critical bulk operations
 _AUTHORS_LIST_REGEX = re.compile(r"^authors:\s*\n((?:\s*-\s+.+\n?)+)", re.MULTILINE)
@@ -269,22 +270,19 @@ def get_active_authors(
             return result["author_uuid"].tolist()
         return []
 
-    distinct_authors_query = query["author_uuid"].distinct()
-    try:
-        authors = distinct_authors_query.to_pyarrow().to_pylist()
-    except (AttributeError, ibis.common.exceptions.IbisError):
-        result = distinct_authors_query.execute()
-        # Handle various return types from ibis execute()
-        if hasattr(result, "to_list"):  # pandas Series
-            authors = result.to_list()
-        elif hasattr(result, "tolist"):  # numpy array
-            authors = result.tolist()
-        elif isinstance(result, list):
-            authors = result
-        elif hasattr(result, "iloc"):  # pandas DataFrame
-            authors = result.iloc[:, 0].tolist()
-        else:
-            authors = list(result)
+    distinct_authors_query = query.select("author_uuid").distinct()
+    result = distinct_authors_query.execute()
+    # Handle various return types from ibis execute()
+    if hasattr(result, "columns") and "author_uuid" in result.columns:  # pandas DataFrame
+        authors = result["author_uuid"].tolist()
+    elif hasattr(result, "to_list"):  # pandas Series
+        authors = result.to_list()
+    elif hasattr(result, "tolist"):  # numpy array
+        authors = result.tolist()
+    elif isinstance(result, list):
+        authors = result
+    else:
+        authors = list(result)
 
     return [author for author in authors if author is not None]
 
@@ -700,7 +698,11 @@ def update_profile_avatar(
     new_frontmatter = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
     # Reconstruct the file content, preserving the body
-    body_content = content.split("---", 2)[2] if content.count("---") >= 2 else content
+    body_content = (
+        content.split("---", YAML_FRONTMATTER_DELIMITER_COUNT)[2]
+        if content.count("---") >= YAML_FRONTMATTER_DELIMITER_COUNT
+        else content
+    )
     content = f"---\n{new_frontmatter}---\n{body_content}"
 
     logger.info("✅ Avatar set for %s: %s", author_uuid, avatar_url)
@@ -753,7 +755,11 @@ def remove_profile_avatar(
         new_frontmatter = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
         # Reconstruct the file content, preserving the body
-        body_content = content.split("---", 2)[2] if content.count("---") >= 2 else content
+        body_content = (
+            content.split("---", YAML_FRONTMATTER_DELIMITER_COUNT)[2]
+            if content.count("---") >= YAML_FRONTMATTER_DELIMITER_COUNT
+            else content
+        )
         content = f"---\n{new_frontmatter}---\n{body_content}"
 
         target_path = _determine_profile_path(author_uuid, metadata, profiles_dir, current_path=profile_path)

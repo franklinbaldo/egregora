@@ -480,8 +480,9 @@ class PRManager:
         # 1. Check basic mergeability - handles both REST API (bool) and GraphQL (string)
         mergeable = pr_details.get("mergeable", False)
         # Only wait if GitHub is still computing mergeability (UNKNOWN/None)
-        # We ALLOW False/CONFLICTING because we want to attempt merge and handle conflicts
         if mergeable == "UNKNOWN" or mergeable is None:
+            return False
+        if mergeable is False:
             return False
 
         # 2. Check mergeStateStatus (GraphQL via gh) OR mergeable_state (REST API)
@@ -514,6 +515,14 @@ class PRManager:
             # Accept SUCCESS, NEUTRAL, SKIPPED as passing
             if conclusion in ["SUCCESS", "NEUTRAL", "SKIPPED"]:
                 continue
+
+            legacy_state = (check.get("state") or "").upper()
+            if legacy_state == "FAILURE":
+                return False
+            if legacy_state == "SUCCESS":
+                continue
+            if legacy_state in ["PENDING", "QUEUED", "IN_PROGRESS"]:
+                return False
                 
             # If not completed yet, not green
             status = (check.get("status") or "").upper()
