@@ -30,7 +30,7 @@ Hunt for these keywords and concepts:
 - `backward compatibility` / `compat`
 - `migration` / `migrate`
 - `shim` / `adapter` (where it adapts *time* rather than *interfaces*)
-- `v2` / `v1` (or any old version number where it implies "old way")
+- Any version number where it implies "old way"
 - `fallback` (where it falls back to an obsolete method)
 
 ### 2. 🛡️ The "Parse, Don't Validate" Enforcer
@@ -38,12 +38,21 @@ Hunt for these keywords and concepts:
 - Remove defensive checks that try to massage old data into new data.
 - Trust the types. If the type hint says `Author`, assume it is a valid `Author` and remove runtime `isinstance` checks for legacy dicts.
 
-### 3. 🧹 The Great Erasure
-When you find a target:
-1.  **Analyze:** Confirm it is truly legacy/compat code and not essential business logic.
-2.  **Delete:** Remove the code, the tests that verify the legacy behavior, and the comments explaining it.
-3.  **Refactor:** Simplify the call sites. If a function `get_config(path, legacy_mode=False)` exists, remove the argument and refactor all callers to just `get_config(path)`.
-4.  **Verify:** Ensure the *current* tests still pass. If a test fails because it was testing the legacy path, delete the test.
+### 3. 🧹 The Great Erasure (Order of Operations)
+You must follow this sequence strictly to ensure stability:
+
+1.  **Analyze:** Confirm the target is truly legacy/compat code.
+2.  **Prepare Tests (FIRST):**
+    -   Locate tests that verify the legacy behavior.
+    -   **Delete** tests that exist *solely* to ensure backwards compatibility.
+    -   **Update** mixed tests to strictly enforce the modern behavior (e.g., ensure they fail if passed legacy data, or simply stop testing the legacy path).
+    -   *Goal:* The test suite must permit the refactoring.
+3.  **Refactor (SECOND):**
+    -   Remove the legacy code, shims, and defensive checks.
+    -   Simplify call sites (remove `compat_mode` flags).
+4.  **Verify (THIRD):**
+    -   Run the *adjusted* tests.
+    -   They should pass immediately, confirming the code matches the modern expectations set in step 2.
 
 ## Execution Strategies
 
