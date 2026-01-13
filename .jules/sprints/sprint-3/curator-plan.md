@@ -1,36 +1,43 @@
 # Plan: Curator - Sprint 3
+
 **Persona:** Curator 🎭
 **Sprint:** 3
-**Created:** 2024-07-29 (during Sprint 1)
+**Created:** 2026-01-10 (during Sprint 1)
 **Priority:** Medium
 
-## Goals
-With a stable and measurable UX baseline established in Sprint 2, the primary goal for Sprint 3 is to elevate the user experience from functional to delightful. This will be achieved through targeted enhancements and the automation of my own curation workflow.
+## Objectives
 
-- [ ] **Automate the Curation Cycle:** Leverage the refactored `issues` module to create scripts that can automatically generate UX bug reports based on Lighthouse audit results and other heuristics.
-- [ ] **Enhance Content Discovery:** Design and create tasks for a "Related Posts" feature to improve user engagement and content exploration.
-- [ ] **Refine Visual Hierarchy:** Go beyond the basics and focus on advanced typography, vertical rhythm, and spacing to create a more polished and readable experience.
-- [ ] **Drive Accessibility to Excellence:** Use the Lighthouse audit data to create a targeted campaign to push the accessibility (a11y) score to 95+, focusing on high-impact issues.
-- [ ] **Component-Driven Design:** Begin formally documenting reusable design components (e.g., Author Cards, Callouts, Post Headers) in `docs/ux-vision.md` to ensure a consistent and scalable design system.
+My primary objective for Sprint 3 will be to leverage the "Structured Data Sidecar" to create a more dynamic and personalized user experience. I will also continue to refine the design system and address any new UX issues that arise.
+
+- [ ] Design and create tasks for new UX patterns that leverage the "Structured Data Sidecar."
+- [ ] Conduct a new UX audit of the demo site to identify any regressions or new areas for improvement.
+- [ ] Expand the design system in `docs/ux-vision.md` with more detailed component specifications.
+- [ ] Create a task to implement a dark mode toggle for the site.
 
 ## Dependencies
-- **Forge:** Implementation of the enhancements and a11y fixes.
-- **Refactor:** The successful completion of the `issues` module refactoring in Sprint 2 is a hard dependency for my automation goals.
+
+- **Forge:** I will be dependent on the Forge persona to implement the new UX patterns and the dark mode toggle.
+- **Visionary:** My work on the new UX patterns will be dependent on the progress of the "Structured Data Sidecar" initiative.
 
 ## Context
-Sprint 2 was about fixing the foundation. Sprint 3 is about building a beautiful house on that foundation. The focus shifts from fixing critical bugs to proactively creating a high-quality user experience. The automation work is key, as it will free up my time to focus on more strategic design initiatives rather than manual task creation.
+
+By Sprint 3, I expect the initial UX improvements to be implemented and the "Structured Data Sidecar" to be taking shape. This will be the perfect time to start exploring how to use the new structured data to create a more engaging and personalized user experience. I will also continue to refine the design system to ensure that the site is visually consistent and easy to use.
 
 ## Expected Deliverables
-1.  **Curation Automation Script:** A script that can automatically create a task file in `.jules/tasks/todo/` when a UX metric (e.g., Lighthouse score) falls below a certain threshold.
-2.  **Related Posts Feature:** A fully implemented and visually polished "Related Posts" section on blog post pages.
-3.  **A11y Score of 95+:** The demo site should consistently score 95 or higher on the Lighthouse accessibility audit.
-4.  **Component Library v1:** A new section in `docs/ux-vision.md` detailing the design and specifications for at least three core reusable components.
+
+1.  **New UX Pattern Tasks:** A set of new tasks in `.jules/tasks/todo/` for implementing new UX patterns that leverage the "Structured Data Sidecar."
+2.  **UX Audit Report:** A new UX audit report that identifies any regressions or new areas for improvement.
+3.  **Design System V3:** An updated `docs/ux-vision.md` with more detailed component specifications.
+4.  **Dark Mode Task:** A new task in `.jules/tasks/todo/` for implementing a dark mode toggle.
 
 ## Risks and Mitigations
+
 | Risk | Probability | Impact | Mitigation |
-|---|---|---|---|
-| Automation is more complex than anticipated | Medium | Medium | Start with a very simple script (e.g., check one metric, create one generic task). Build complexity iteratively. |
-| "Related Posts" logic is difficult | Medium | High | The initial version can be very simple (e.g., based on tags or dates). The goal is to establish the UI pattern; the recommendation logic can be improved over time. |
+|-------|---------------|---------|-----------|
+| "Structured Data Sidecar" is not yet ready to be used | Medium | Medium | I will work with the Visionary to ensure that I have a clear understanding of the timeline for the "Structured Data Sidecar" and will adjust my plans accordingly. |
+| New UX patterns are too complex to implement | Low | Medium | I will work with the Forge persona to ensure that the new UX patterns are feasible to implement. |
 
 ## Proposed Collaborations
-- **With Visionary:** The concept of a "Structured Data Sidecar" could be the perfect data source for a more intelligent "Related Posts" feature. I will collaborate on how to leverage that data for UX features.
+
+- **With Forge:** I will work closely with the Forge persona to implement the new UX patterns and the dark mode toggle.
+- **With Visionary:** I will continue to collaborate with the Visionary on the "Structured Data Sidecar" initiative.

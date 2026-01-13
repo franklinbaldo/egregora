@@ -30,13 +30,26 @@ The key locations for these embedded templates are:
 This section will evolve over time to become a full design system.
 
 ### Color Palette
--   **Status:** Undefined.
--   **Next Action:** Define a primary and accent color that reflect the "collective consciousness" theme. The default Material for MkDocs "teal" and "amber" is not sufficient.
+-   **Status:** Defined.
+-   **Primary:** A deep, thoughtful blue (`#2c3e50`) to represent intellect and depth.
+-   **Accent:** A vibrant, energetic yellow (`#f9d423`) to represent emergence and growth.
+-   **Implementation:** The palette is implemented in `demo/docs/stylesheets/extra.css`, but the `mkdocs.yml` still contains the default `teal` and `amber` values. These should be updated to `custom` to match the CSS.
 
 ### Typography
--   **Status:** Undefined.
--   **Next Action:** Define a clear typography scale for headings (H1-H6) and body text to ensure a strong visual hierarchy.
+-   **Status:** Defined.
+-   **Fonts:** `Outfit` for headings and `Inter` for body text.
+-   **Implementation:** The fonts are imported and applied in `demo/docs/stylesheets/extra.css`.
 
 ### Favicon
 -   **Status:** Missing.
 -   **Next Action:** Design a favicon for the project.
+
+### Social Cards
+-   **Status:** Broken.
+-   **Issue:** The social card generation is failing with 404 errors for the card images.
+-   **Next Action:** The Forge persona needs to investigate and fix the root cause of the 404 errors.
+
+### Navigation
+-   **Status:** Implemented, but needs review.
+-   **Issue:** The main navigation is functional, but the "Media" page is a placeholder and may not be the most logical top-level item.
+-   **Next Action:** Review the information architecture and consider restructuring the navigation for better clarity.
