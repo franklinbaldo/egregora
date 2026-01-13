@@ -243,27 +243,6 @@ def get_table_check_constraints(table_name: str) -> dict[str, str]:
     return {}
 
 
-def apply_table_constraints(conn: Any, table_name: str) -> None:
-    """Apply business-logic CHECK constraints to a table based on its schema.
-
-    Args:
-        conn: DuckDB connection (raw, not Ibis)
-        table_name: Name of the table to apply constraints to
-
-    Note:
-        DEPRECATED: Use get_table_check_constraints() with create_table_if_not_exists()
-        instead. This function is kept for backward compatibility but won't work with
-        DuckDB as ALTER TABLE ADD CONSTRAINT CHECK is not supported.
-
-        This function enforces business rules at the database level by adding
-        CHECK constraints for enum-like fields. Currently supports:
-        - posts.status: Must be one of VALID_POST_STATUSES
-        - tasks.status: Must be one of VALID_TASK_STATUSES
-
-    """
-    constraints = get_table_check_constraints(table_name)
-    for constraint_name, check_expr in constraints.items():
-        add_check_constraint(conn, table_name, constraint_name, check_expr)
 
 
 # ============================================================================
@@ -384,37 +363,6 @@ CREATE OR REPLACE VIEW documents_view AS
 # Legacy / Ingestion Schemas (Moved from IR_SCHEMA)
 # ============================================================================
 
-# ----------------------------------------------------------------------------
-# Interchange Representation (IR) v1 Message Schema
-# ----------------------------------------------------------------------------
-
-INGESTION_MESSAGE_SCHEMA = ibis.schema(
-    {
-        # Identity
-        "event_id": dt.string,
-        # Multi-Tenant
-        "tenant_id": dt.string,
-        "source": dt.string,
-        # Threading
-        "thread_id": dt.string,
-        "msg_id": dt.string,
-        # Temporal
-        "ts": dt.Timestamp(timezone="UTC"),
-        # Authors (PRIVACY BOUNDARY)
-        "author_raw": dt.string,
-        "author_uuid": dt.string,
-        # Content
-        "text": dt.String(nullable=True),
-        "media_url": dt.String(nullable=True),
-        "media_type": dt.String(nullable=True),
-        # Metadata
-        "attrs": dt.JSON(nullable=True),
-        "pii_flags": dt.JSON(nullable=True),
-        # Lineage
-        "created_at": dt.Timestamp(timezone="UTC"),
-        "created_by_run": dt.string,
-    }
-)
 
 # ----------------------------------------------------------------------------
 # Annotations Schema

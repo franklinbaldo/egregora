@@ -45,7 +45,6 @@ from egregora.config.exceptions import (
     ConfigNotFoundError,
     ConfigValidationError,
     InvalidDateFormatError,
-    InvalidRetrievalModeError,
     InvalidTimezoneError,
     SiteNotFoundError,
 )
@@ -611,10 +610,6 @@ class ReaderSettings(BaseModel):
 class FeaturesSettings(BaseModel):
     """Feature flags for experimental or optional functionality."""
 
-    ranking_enabled: bool = Field(
-        default=False,
-        description="Enable Elo-based post ranking (deprecated: use reader.enabled instead)",
-    )
     annotations_enabled: bool = Field(
         default=True,
         description="Enable conversation annotations/threading",
@@ -757,10 +752,6 @@ class EgregoraConfig(BaseSettings):
                 "(overrides max_prompt_tokens setting)."
             )
 
-        # Check for deprecated feature flags
-        if self.features.ranking_enabled:
-            logger.warning("features.ranking_enabled is deprecated. Use reader.enabled instead.")
-
         return self
 
     @classmethod
@@ -801,7 +792,6 @@ class EgregoraConfig(BaseSettings):
 
         # Apply rag settings overrides
         rag_overrides = {}
-        # NOTE: retrieval_mode/nprobe/overfetch removed from CLI args as per Pure simplification
 
         # Apply model overrides
         model_overrides = {}
@@ -1104,26 +1094,6 @@ def validate_timezone(timezone_str: str) -> ZoneInfo:
         raise InvalidTimezoneError(timezone_str, e) from e
 
 
-def validate_retrieval_config(
-    retrieval_mode: str,
-    retrieval_nprobe: int | None = None,
-    retrieval_overfetch: int | None = None,
-) -> str:
-    """Validate and normalize retrieval mode configuration.
-
-    (Kept for compatibility with any remaining callers, though params are deprecated)
-    """
-    normalized_mode = (retrieval_mode or "ann").lower()
-    if normalized_mode not in {"ann", "exact"}:
-        raise InvalidRetrievalModeError(normalized_mode)
-
-    if retrieval_nprobe is not None and retrieval_nprobe <= 0:
-        raise ValueError("retrieval_nprobe must be positive")
-
-    if retrieval_overfetch is not None and retrieval_overfetch <= 0:
-        raise ValueError("retrieval_overfetch must be positive")
-
-    return normalized_mode
 
 
 # ============================================================================
@@ -1264,7 +1234,6 @@ __all__ = [
     "load_egregora_config",
     "parse_date_arg",
     "save_egregora_config",
-    "validate_retrieval_config",
     "validate_timezone",
 ]
 
