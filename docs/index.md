@@ -32,17 +32,11 @@ Egregora parses your raw data streams (WhatsApp, RSS, etc.), groups content into
 
     Install Egregora and generate your first site in minutes.
 
-- :material-creation: __[Main Architecture](v3/architecture/overview.md)__
+- :material-creation: __[Architecture](v3/architecture/overview.md)__
 
     ---
 
-    Explore the next-gen Atom-centric architecture.
-
-- :material-book-open-page-variant-outline: __[User Guide](v2/architecture.md)__
-
-    ---
-
-    Deep dive into the current V2 workflows.
+    Explore the Atom-centric architecture.
 
 </div>
 
