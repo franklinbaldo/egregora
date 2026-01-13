@@ -1,9 +1,13 @@
 """Enrichment-related functionalities for agents."""
+
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING
+
 import httpx
 from pydantic_ai import Agent
+
 from egregora.agents.enricher import (
     EnrichmentOutput,
     load_file_as_binary_content,
@@ -15,11 +19,15 @@ from egregora.ops.media import (
 from egregora.orchestration.cache import make_enrichment_cache_key
 from egregora.orchestration.exceptions import CacheKeyNotFoundError
 from egregora.resources.prompts import render_prompt
+
 if TYPE_CHECKING:
     from datetime import datetime
     from pathlib import Path
+
     from egregora.agents.avatar import AvatarContext
 logger = logging.getLogger(__name__)
+
+
 def enrich_avatar(
     avatar_path: Path,
     author_uuid: str,
@@ -67,6 +75,7 @@ def enrich_avatar(
 
     from pydantic_ai.models.google import GoogleModel
     from pydantic_ai.providers.google import GoogleProvider
+
     try:
         model_name = context.vision_model
         provider = GoogleProvider(api_key=get_google_api_key())
