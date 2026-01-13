@@ -20,7 +20,7 @@ import ibis
 import ibis.expr.datatypes as dt
 from pydantic import BaseModel
 
-from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
+from egregora.database.schemas import STAGING_MESSAGES_SCHEMA
 from egregora.input_adapters.whatsapp.exceptions import (
     DateParsingError,
     MalformedLineError,
@@ -467,4 +467,5 @@ def parse_source(
         created_by_run=created_by_literal,
     )
 
-    return result_table.select(*INGESTION_MESSAGE_SCHEMA.names)
+    # V3 Ingestion Schema Definition
+    return result_table.select(*STAGING_MESSAGES_SCHEMA.names)

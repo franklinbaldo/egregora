@@ -14,7 +14,7 @@ import ibis
 import yaml
 
 from egregora.data_primitives.document import DocumentType
-from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
+from egregora.database.schemas import STAGING_MESSAGES_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.output_adapters.exceptions import DocumentNotFoundError
 from egregora.utils.datetime_utils import parse_datetime_flexible
@@ -151,7 +151,7 @@ class SelfInputAdapter(InputAdapter):
                 }
             )
 
-        return ibis.memtable(records, schema=INGESTION_MESSAGE_SCHEMA)
+        return ibis.memtable(records, schema=STAGING_MESSAGES_SCHEMA)
 
     def get_metadata(self, _input_path: Path, **_kwargs: Any) -> dict[str, Any]:
         _, site_root = self._resolve_docs_dir(_input_path)

@@ -1,7 +1,6 @@
 """Enrichment agent logic for processing URLs and media.
 
-This module implements the enrichment workflow using Pydantic-AI agents, replacing the
-legacy batching runners. It provides:
+This module implements the enrichment workflow using Pydantic-AI agents. It provides:
 - UrlEnrichmentAgent & MediaEnrichmentAgent
 - Async orchestration via enrich_table
 """
@@ -621,12 +620,6 @@ class EnrichmentWorker(BaseWorker):
                 tools=[fetch_url_with_jina],  # Custom tools use regular tools param
             )
 
-            # Use run_sync to execute the async agent synchronously
-            # pydantic_ai Agent.run_sync is async internally but runs in loop?
-            # Actually, Agent.run_sync is deprecated or removed in newer versions in favor of
-            # just run() which is async, but we need sync here.
-            # If we are in a thread pool, we can use asyncio.run(agent.run(...))
-
             # Since this is running in a thread pool (via _execute_url_individual),
             # we can create a new event loop for this thread.
 
@@ -936,7 +929,7 @@ class EnrichmentWorker(BaseWorker):
                 if self.ctx.library:
                     self.ctx.library.save(doc)
                 elif self.ctx.output_sink:
-                    self.ctx.output_sink.publish(doc)
+                    self.ctx.output_sink.persist(doc)
 
                 metadata = payload["message_metadata"]
                 row = _create_enrichment_row(metadata, "URL", url, doc.document_id, media_identifier=url)
@@ -1387,7 +1380,7 @@ class EnrichmentWorker(BaseWorker):
             media_type = payload["media_type"]
             media_id = payload.get("media_id")
 
-            # Use staged path if available, or fall back to loading bytes (legacy/small files)
+            # Use staged path if available
             staged_path = task.get("_staged_path")
             source_path = None
 
@@ -1442,7 +1435,7 @@ class EnrichmentWorker(BaseWorker):
                 if self.ctx.library:
                     self.ctx.library.save(media_doc)
                 elif self.ctx.output_sink:
-                    self.ctx.output_sink.publish(media_doc)
+                    self.ctx.output_sink.persist(media_doc)
                 logger.info("Persisted enriched media: %s -> %s", filename, media_doc.metadata["filename"])
             except Exception as exc:
                 logger.exception("Failed to persist media file %s", filename)
@@ -1479,7 +1472,7 @@ class EnrichmentWorker(BaseWorker):
             if self.ctx.library:
                 self.ctx.library.save(doc)
             elif self.ctx.output_sink:
-                self.ctx.output_sink.publish(doc)
+                self.ctx.output_sink.persist(doc)
 
             metadata = payload["message_metadata"]
             row = _create_enrichment_row(
