@@ -25,6 +25,120 @@ from jules.scheduler_state import PersistentCycleState, commit_cycle_state
 
 CYCLE_STATE_PATH = Path(".jules/cycle_state.json")
 
+
+def get_sync_patch(persona_id: str) -> dict | None:
+    """Find persona's open PR and generate sync patch URL.
+    
+    Jules cannot do git rebase, so we provide a GitHub URL where Jules can
+    download a patch showing the difference between their PR and current jules.
+    
+    Args:
+        persona_id: The persona identifier to find PR for
+        
+    Returns:
+        Dict with patch_url and pr_number if persona has an open PR, None otherwise
+    """
+    import subprocess
+    import json
+    
+    try:
+        # 1. Find persona's open PR
+        result = subprocess.run(
+            ["gh", "pr", "list", "--author", "app/google-labs-jules", 
+             "--json", "number,headRefName,baseRefName,body"],
+            capture_output=True, text=True, check=True
+        )
+        prs = json.loads(result.stdout)
+        
+        # Find PR for this persona (check head branch name or body)
+        persona_pr = None
+        for pr in prs:
+            head = pr.get("headRefName", "").lower()
+            body = pr.get("body", "").lower()
+            if persona_id.lower() in head or persona_id.lower() in body:
+                persona_pr = pr
+                break
+        
+        if not persona_pr:
+            return None  # No existing PR, no sync needed
+        
+        # 2. Get repo info for URL construction
+        repo_result = subprocess.run(
+            ["gh", "repo", "view", "--json", "owner,name"],
+            capture_output=True, text=True, check=True
+        )
+        repo_info = json.loads(repo_result.stdout)
+        owner = repo_info["owner"]["login"]
+        repo = repo_info["name"]
+        
+        head_branch = persona_pr["headRefName"]
+        pr_number = persona_pr["number"]
+        
+        # 3. Construct patch URL
+        # This URL gives the diff of what's in jules but not in the PR branch
+        patch_url = f"https://github.com/{owner}/{repo}/compare/{head_branch}...{JULES_BRANCH}.patch"
+        
+        return {
+            "patch_url": patch_url,
+            "pr_number": pr_number,
+            "head_branch": head_branch,
+        }
+        
+    except Exception:
+        return None
+
+
+def build_session_prompt(persona_prompt: str, sync_info: dict | None, persona_id: str) -> str:
+    """Build prompt with optional sync patch URL prefix.
+    
+    Args:
+        persona_prompt: The persona's original prompt content
+        sync_info: Dict with patch_url and pr_number, or None
+        persona_id: The persona identifier
+        
+    Returns:
+        Complete prompt with sync instructions if needed
+    """
+    if not sync_info:
+        return persona_prompt
+    
+    patch_url = sync_info["patch_url"]
+    pr_number = sync_info["pr_number"]
+    head_branch = sync_info["head_branch"]
+    
+    sync_instruction = f"""
+## 🔄 SYNC REQUIRED - FIRST ACTION
+
+Before starting your main task, you MUST sync with the latest `jules` branch changes.
+
+**Your existing PR:** #{pr_number} (branch: `{head_branch}`)
+
+**Why?** The `jules` branch has been updated since your last session. To avoid conflicts:
+
+1. Download the sync patch:
+   ```bash
+   curl -L "{patch_url}" -o sync.patch
+   ```
+
+2. Apply the patch:
+   ```bash
+   git apply sync.patch
+   ```
+   
+3. If apply fails with conflicts, try:
+   ```bash
+   git apply --3way sync.patch
+   ```
+
+4. Then proceed with your normal task.
+
+**Important:** If the patch cannot be applied cleanly, document the conflicts and proceed with your task anyway. The Weaver will help resolve conflicts later.
+
+---
+
+"""
+    return sync_instruction + persona_prompt
+
 def execute_parallel_cycle_tick(dry_run: bool = False) -> None:
     """Execute concurrent persona tracks (Parallel Scheduler)."""
     print("=" * 70)
@@ -149,10 +263,18 @@ def execute_parallel_cycle_tick(dry_run: bool = False) -> None:
             persona_id=next_p.id
         )
 
+        # Calculate sync patch if persona has existing PR
+        sync_info = get_sync_patch(next_p.id)
+        if sync_info:
+            print(f"   🔄 Found existing PR #{sync_info['pr_number']} - will include sync instructions")
+        
+        # Build prompt with sync instructions if needed
+        session_prompt = build_session_prompt(next_p.prompt_body, sync_info, next_p.id)
+
         request = SessionRequest(
             persona_id=next_p.id,
             title=f"{next_p.emoji} {next_p.id}: {track_name} task",
-            prompt=next_p.prompt_body,
+            prompt=session_prompt,
             branch=session_branch,
             owner=repo_info["owner"],
             repo=repo_info["repo"],
@@ -248,10 +370,18 @@ def execute_scheduled_tick(
             persona_id=persona.id,
         )
 
+        # Calculate sync patch if persona has existing PR
+        sync_info = get_sync_patch(persona.id)
+        if sync_info:
+            print(f"   🔄 Found existing PR #{sync_info['pr_number']} - will include sync instructions")
+        
+        # Build prompt with sync instructions if needed
+        session_prompt = build_session_prompt(persona.prompt_body, sync_info, persona.id)
+
         request = SessionRequest(
             persona_id=persona.id,
             title=f"{persona.emoji} {persona.id}: scheduled task",
-            prompt=persona.prompt_body,
+            prompt=session_prompt,
             branch=session_branch,
             owner=repo_info["owner"],
             repo=repo_info["repo"],
