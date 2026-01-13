@@ -295,3 +295,135 @@ def run_scheduler(
     # === GLOBAL RECONCILIATION ===
     # Automate the lifecycle for ALL Jules PRs (parallel and cycle)
     pr_mgr.reconcile_all_jules_prs(client, repo_info, dry_run)
+
+    # === WEAVER INTEGRATION ===
+    # When enabled, trigger Weaver persona to handle merging
+    from jules.scheduler_managers import WEAVER_ENABLED
+    if WEAVER_ENABLED:
+        run_weaver_integration(client, repo_info, dry_run)
+
+
+def run_weaver_integration(
+    client: JulesClient, repo_info: dict[str, Any], dry_run: bool = False
+) -> None:
+    """Trigger Weaver persona to integrate pending PRs.
+    
+    The Weaver will:
+    1. Fetch all green PRs awaiting integration
+    2. Attempt local merge and test
+    3. Create wrapper PR or communicate via jules-mail if conflicts
+    
+    Args:
+        client: Jules API client
+        repo_info: Repository information
+        dry_run: If True, only log actions
+    """
+    from jules.scheduler_managers import WEAVER_SESSION_TIMEOUT_MINUTES
+    import json
+    import subprocess
+    
+    print("\n🕸️ Weaver: Checking for integration work...")
+    
+    # 1. Check for green PRs targeting jules branch
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "list", "--json", "number,title,headRefName,baseRefName,mergeable,mergeStateStatus,isDraft"],
+            capture_output=True, text=True, check=True
+        )
+        prs = json.loads(result.stdout)
+        
+        # Filter for green PRs targeting jules
+        ready_prs = [
+            pr for pr in prs
+            if pr.get("baseRefName") == JULES_BRANCH
+            and pr.get("mergeable") == "MERGEABLE"
+            and pr.get("mergeStateStatus") in ["CLEAN", "BEHIND"]
+            and not pr.get("isDraft", True)
+        ]
+        
+        if not ready_prs:
+            print("   No PRs ready for Weaver integration.")
+            return
+        
+        print(f"   Found {len(ready_prs)} PR(s) ready for integration.")
+        
+    except Exception as e:
+        print(f"   ⚠️ Failed to list PRs: {e}")
+        return
+    
+    # 2. Check for existing Weaver session
+    try:
+        sessions = client.list_sessions().get("sessions", [])
+        weaver_sessions = [
+            s for s in sessions
+            if "weaver" in s.get("title", "").lower()
+        ]
+        
+        if weaver_sessions:
+            # Sort by creation time, get most recent
+            latest = sorted(weaver_sessions, key=lambda x: x.get("createTime", ""))[-1]
+            state = latest.get("state", "UNKNOWN")
+            session_id = latest.get("name", "").split("/")[-1]
+            
+            if state == "IN_PROGRESS":
+                print(f"   ⏳ Weaver session {session_id} is already running. Waiting...")
+                return
+            
+            if state == "COMPLETED":
+                # Check if recently completed (avoid spam)
+                from datetime import datetime, timedelta
+                create_time = latest.get("createTime", "")
+                if create_time:
+                    try:
+                        created = datetime.fromisoformat(create_time.replace("Z", "+00:00"))
+                        if datetime.now(timezone.utc) - created < timedelta(minutes=WEAVER_SESSION_TIMEOUT_MINUTES):
+                            print(f"   ⏳ Weaver session recently completed. Waiting for next cycle...")
+                            return
+                    except Exception:
+                        pass
+        
+    except Exception as e:
+        print(f"   ⚠️ Failed to check Weaver sessions: {e}")
+    
+    # 3. Create new Weaver session
+    if dry_run:
+        print("   [DRY RUN] Would create Weaver integration session")
+        return
+    
+    try:
+        # Load Weaver persona
+        loader = PersonaLoader(Path(".jules/personas"))
+        weaver = loader.load_persona("weaver")
+        
+        if not weaver:
+            print("   ⚠️ Weaver persona not found!")
+            return
+        
+        # Create session request
+        orchestrator = SessionOrchestrator(client, dry_run=False)
+        branch_mgr = BranchManager(JULES_BRANCH)
+        
+        session_branch = branch_mgr.create_session_branch(
+            base_branch=JULES_BRANCH,
+            persona_id="weaver"
+        )
+        
+        # Build PR list for context
+        pr_list = "\n".join([f"- PR #{pr['number']}: {pr['title']}" for pr in ready_prs])
+        
+        request = SessionRequest(
+            persona_id="weaver",
+            title="🕸️ weaver: integration session",
+            prompt=f"{weaver.prompt_body}\n\n## PRs Ready for Integration\n{pr_list}",
+            branch=session_branch,
+            owner=repo_info["owner"],
+            repo=repo_info["repo"],
+            automation_mode="AUTO_CREATE_PR",
+            require_plan_approval=False,
+        )
+        
+        session_id = orchestrator.create_session(request)
+        print(f"   ✅ Created Weaver session: {session_id}")
+        
+    except Exception as e:
+        print(f"   ⚠️ Failed to create Weaver session: {e}")

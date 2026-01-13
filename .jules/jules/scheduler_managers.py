@@ -25,6 +25,11 @@ logger = logging.getLogger(__name__)
 # Timeout threshold for stuck sessions (in hours)
 SESSION_TIMEOUT_HOURS = 0.5  # 30 minutes
 
+# Weaver Integration Configuration
+WEAVER_ENABLED = True  # When True, Overseer delegates merging to Weaver persona
+WEAVER_SESSION_TIMEOUT_MINUTES = 30  # Wait this long before creating new Weaver session
+WEAVER_MAX_FAILURES = 3  # After this many consecutive failures, fallback to auto-merge
+
 
 class BranchManager:
     """Handles all git branch operations for the scheduler."""
@@ -438,24 +443,33 @@ class PRManager:
             True if all checks pass (or no checks exist)
 
         """
-        mergeable = pr_details.get("mergeable")
-        if mergeable is None:
-            return False
-        if mergeable is False:
+        # 1. Check basic mergeability string from gh JSON
+        mergeable = pr_details.get("mergeable", "UNKNOWN")
+        if mergeable != "MERGEABLE":
             return False
 
+        # 2. Check mergeStateStatus (CLEAN or BEHIND are safe to merge)
+        # BLOCKED means CI failed or is still running
+        state_status = pr_details.get("mergeStateStatus", "")
+        if state_status == "BLOCKED":
+            return False
+
+        # 3. Check individual status checks if present
         status_checks = pr_details.get("statusCheckRollup", [])
         if not status_checks:
-            return True
+            # If no status checks but it's CLEAN, assume it's safe
+            return state_status in ["CLEAN", "BEHIND", "DRAFT"]
 
         all_passing = True
         for check in status_checks:
-            check.get("context") or check.get("name") or "Unknown"
-            status = (check.get("conclusion") or check.get("status") or check.get("state") or "").upper()
+            # Check conclusion first (exists for completed checks)
+            conclusion = (check.get("conclusion") or "").upper()
+            if conclusion == "FAILURE":
+                return False
 
-            if status in ["SUCCESS", "NEUTRAL", "SKIPPED", "COMPLETED"]:
-                pass
-            else:
+            # Check overall status
+            status = (check.get("status") or check.get("state") or "").upper()
+            if status not in ["SUCCESS", "NEUTRAL", "SKIPPED", "COMPLETED"]:
                 all_passing = False
 
         return all_passing
@@ -658,15 +672,29 @@ This PR contains accumulated work from the Jules autonomous development cycle.
         import json
         
         try:
-            # Fetch all PRs starting with jules- (except the integration PR itself)
-            # Note: Integration PR is usually jules -> main. We want jules-* -> jules.
+            # Fetch all open PRs with author, body, and base
             result = subprocess.run(
-                ["gh", "pr", "list", "--json", "number,title,isDraft,mergeable,headRefName,body"],
+                ["gh", "pr", "list", "--json", "number,title,isDraft,mergeable,headRefName,baseRefName,body,author"],
                 capture_output=True, text=True, check=True
             )
             prs = json.loads(result.stdout)
             
-            jules_prs = [pr for pr in prs if pr["headRefName"].startswith("jules-") and pr["headRefName"] != self.jules_branch]
+            # Filter for Jules-initiated PRs:
+            # 1. Author is jules-bot
+            # 2. OR head starts with jules- (except integration branch)
+            # 3. OR body contains a Jules session ID
+            jules_prs = []
+            for pr in prs:
+                head = pr.get("headRefName", "")
+                if head == self.jules_branch:
+                    continue
+                
+                author = pr.get("author", {}).get("login", "")
+                body = pr.get("body", "") or ""
+                session_id = _extract_session_id(head, body)
+                
+                if author == "app/google-labs-jules" or head.startswith("jules-") or session_id:
+                    jules_prs.append(pr)
             
             if not jules_prs:
                 print("   No autonomous persona PRs found.")
@@ -677,6 +705,7 @@ This PR contains accumulated work from the Jules autonomous development cycle.
             for pr in jules_prs:
                 pr_number = pr["number"]
                 head = pr["headRefName"]
+                base = pr.get("baseRefName", "")
                 is_draft = pr["isDraft"]
                 
                 print(f"   --- PR #{pr_number} ({head}) ---")
@@ -696,19 +725,37 @@ This PR contains accumulated work from the Jules autonomous development cycle.
                         except Exception as e:
                             print(f"      ⚠️ Failed to check session status: {e}")
 
-                # 2. If not a draft (or just marked ready), check if green and merge
+                # 2. Ensure it targets the integration branch if it's a persona PR
+                if not is_draft and base != self.jules_branch:
+                    print(f"      🔄 Retargeting PR #{pr_number} to '{self.jules_branch}'...")
+                    if not dry_run:
+                        try:
+                            subprocess.run(
+                                ["gh", "pr", "edit", str(pr_number), "--base", self.jules_branch],
+                                check=True, capture_output=True
+                            )
+                        except Exception as e:
+                            print(f"      ⚠️ Retarget failed: {e}")
+
+                # 3. If not a draft, check if green and potentially merge
                 if not is_draft:
                     # We need full details for CI check
                     details = get_pr_details_via_gh(pr_number)
                     if self.is_green(details):
-                        print(f"      ✅ PR is green! Automatically merging into '{self.jules_branch}'...")
-                        if not dry_run:
-                            try:
-                                self.merge_into_jules(pr_number)
-                            except Exception as e:
-                                print(f"      ⚠️ Merge failed: {e}")
+                        if WEAVER_ENABLED:
+                            # Delegate to Weaver persona for integration
+                            print(f"      🕸️ PR is green! Delegating to Weaver for integration...")
+                        else:
+                            # Fallback: auto-merge when Weaver is disabled
+                            print(f"      ✅ PR is green! Automatically merging into '{self.jules_branch}'...")
+                            if not dry_run:
+                                try:
+                                    self.merge_into_jules(pr_number)
+                                except Exception as e:
+                                    print(f"      ⚠️ Merge failed: {e}")
                     else:
-                        print("      ⏳ PR is not green yet or has conflicts. Waiting...")
+                        status_summary = details.get("mergeStateStatus", "UNKNOWN")
+                        print(f"      ⏳ PR status: {status_summary}. Waiting for green checks...")
 
         except Exception as e:
             print(f"⚠️ Overseer Error: {e}")
