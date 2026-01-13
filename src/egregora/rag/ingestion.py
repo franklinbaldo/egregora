@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.text_processing.chunking import (
+from egregora.rag.chunking import (
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_MAX_CHARS,
     simple_chunk_text,
