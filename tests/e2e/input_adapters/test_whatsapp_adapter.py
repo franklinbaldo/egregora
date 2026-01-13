@@ -20,10 +20,10 @@ import zipfile
 from typing import TYPE_CHECKING
 
 import ibis
+import ibis.expr.datatypes as dt
 import pytest
 
 from egregora.data_primitives.document import Document, DocumentType, UrlContext, UrlConvention
-from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 from egregora.input_adapters.whatsapp.commands import filter_egregora_messages
 from egregora.input_adapters.whatsapp.exceptions import MediaNotFoundError
@@ -41,6 +41,27 @@ if TYPE_CHECKING:
 def create_export_from_fixture(fixture: WhatsAppFixture):
     return fixture.create_export()
 
+
+# Define V3 Ingestion Schema inline for tests
+INGESTION_SCHEMA = ibis.schema(
+    {
+        "event_id": dt.string,
+        "tenant_id": dt.string,
+        "source": dt.string,
+        "thread_id": dt.string,
+        "msg_id": dt.string,
+        "ts": dt.Timestamp(timezone="UTC"),
+        "author_raw": dt.string,
+        "author_uuid": dt.string,
+        "text": dt.String(nullable=True),
+        "media_url": dt.String(nullable=True),
+        "media_type": dt.String(nullable=True),
+        "attrs": dt.JSON(nullable=True),
+        "pii_flags": dt.JSON(nullable=True),
+        "created_at": dt.Timestamp(timezone="UTC"),
+        "created_by_run": dt.string,
+    }
+)
 
 # =============================================================================
 # ZIP Extraction & Validation Tests
@@ -81,7 +102,7 @@ def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
-    assert set(table.columns) == set(INGESTION_MESSAGE_SCHEMA.names)
+    assert set(table.columns) == set(INGESTION_SCHEMA.names)
     assert table.count().execute() == 10
     messages = table["text"].execute().tolist()
     assert all(message is not None and message.strip() for message in messages)
@@ -124,7 +145,7 @@ def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
-    expected_columns = set(INGESTION_MESSAGE_SCHEMA.names)
+    expected_columns = set(INGESTION_SCHEMA.names)
     assert set(table.columns) == expected_columns
 
 

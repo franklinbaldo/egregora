@@ -65,7 +65,7 @@ class Window:
     the database since changing windowing params would invalidate any stored
     window metadata.
 
-    The `table` field contains a filtered view of data (INGESTION_MESSAGE_SCHEMA).
+    The `table` field contains a filtered view of data (INGESTION_SCHEMA).
 
     Note: No window_id needed - use (start_time, end_time) for identification.
     """

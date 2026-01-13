@@ -243,29 +243,6 @@ def get_table_check_constraints(table_name: str) -> dict[str, str]:
     return {}
 
 
-def apply_table_constraints(conn: Any, table_name: str) -> None:
-    """Apply business-logic CHECK constraints to a table based on its schema.
-
-    Args:
-        conn: DuckDB connection (raw, not Ibis)
-        table_name: Name of the table to apply constraints to
-
-    Note:
-        DEPRECATED: Use get_table_check_constraints() with create_table_if_not_exists()
-        instead. This function is kept for backward compatibility but won't work with
-        DuckDB as ALTER TABLE ADD CONSTRAINT CHECK is not supported.
-
-        This function enforces business rules at the database level by adding
-        CHECK constraints for enum-like fields. Currently supports:
-        - posts.status: Must be one of VALID_POST_STATUSES
-        - tasks.status: Must be one of VALID_TASK_STATUSES
-
-    """
-    constraints = get_table_check_constraints(table_name)
-    for constraint_name, check_expr in constraints.items():
-        add_check_constraint(conn, table_name, constraint_name, check_expr)
-
-
 # ============================================================================
 # Core Tables (Append-Only)
 # ============================================================================
@@ -381,14 +358,14 @@ CREATE OR REPLACE VIEW documents_view AS
 """
 
 # ============================================================================
-# Legacy / Ingestion Schemas (Moved from IR_SCHEMA)
+# Ingestion Schemas
 # ============================================================================
 
 # ----------------------------------------------------------------------------
-# Interchange Representation (IR) v1 Message Schema
+# Ingestion Staging Schema (Was Ingestion Message Schema)
 # ----------------------------------------------------------------------------
 
-INGESTION_MESSAGE_SCHEMA = ibis.schema(
+STAGING_MESSAGES_SCHEMA = ibis.schema(
     {
         # Identity
         "event_id": dt.string,
@@ -415,6 +392,7 @@ INGESTION_MESSAGE_SCHEMA = ibis.schema(
         "created_by_run": dt.string,
     }
 )
+
 
 # ----------------------------------------------------------------------------
 # Annotations Schema

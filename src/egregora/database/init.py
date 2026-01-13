@@ -16,9 +16,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from egregora.database.migrations import migrate_documents_table
 from egregora.database.schemas import (
-    INGESTION_MESSAGE_SCHEMA,
+    STAGING_MESSAGES_SCHEMA,
     TASKS_SCHEMA,
     UNIFIED_SCHEMA,
     create_table_if_not_exists,
@@ -52,19 +51,15 @@ def initialize_database(backend: BaseBackend) -> None:
     else:
         conn = backend
 
-    # 1. Pure Unified Documents Table
+    # 1. Unified Documents Table
     # This creates the table with the full schema if it's missing.
     create_table_if_not_exists(conn, "documents", UNIFIED_SCHEMA)
 
-    # 2. Run Pure schema migration to handle tables created with older schemas.
-    # The migration script is idempotent and will do nothing if the schema is current.
-    migrate_documents_table(conn)
-
-    # 3. Tasks Table
+    # 2. Tasks Table
     create_table_if_not_exists(conn, "tasks", TASKS_SCHEMA)
 
-    # 4. Ingestion / Messages Table (Legacy/Ingestion Support)
-    create_table_if_not_exists(conn, "messages", INGESTION_MESSAGE_SCHEMA)
+    # 3. Ingestion Staging Table (Ingestion Buffer)
+    create_table_if_not_exists(conn, "messages", STAGING_MESSAGES_SCHEMA)
 
     # Indexes for messages table (Ingestion performance)
     _execute_sql(conn, "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_pk ON messages(event_id)")

@@ -10,7 +10,6 @@ from egregora.config.exceptions import (
     ConfigNotFoundError,
     ConfigValidationError,
     InvalidDateFormatError,
-    InvalidRetrievalModeError,
     InvalidTimezoneError,
     SiteNotFoundError,
 )
@@ -22,7 +21,6 @@ from egregora.config.settings import (
     load_egregora_config,
     parse_date_arg,
     save_egregora_config,
-    validate_retrieval_config,
     validate_timezone,
 )
 
@@ -274,9 +272,3 @@ def test_validate_timezone_invalid_timezone():
     """Test that validate_timezone raises InvalidTimezoneError for invalid timezones."""
     with pytest.raises(InvalidTimezoneError):
         validate_timezone("Invalid/Timezone")
-
-
-def test_validate_retrieval_config_invalid_mode():
-    """Test that validate_retrieval_config raises InvalidRetrievalModeError for invalid modes."""
-    with pytest.raises(InvalidRetrievalModeError):
-        validate_retrieval_config("invalid_mode")

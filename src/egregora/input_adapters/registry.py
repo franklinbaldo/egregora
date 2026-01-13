@@ -108,8 +108,6 @@ class InputAdapterRegistry:
         # for unused adapters. This is an intentional pattern for plugin-like systems.
         builtin_map = {
             "egregora.input_adapters.whatsapp.adapter": "WhatsAppAdapter",
-            "egregora.input_adapters.iperon_tjro": "IperonTJROAdapter",
-            "egregora.input_adapters.self_reflection": "SelfInputAdapter",
         }
 
         for module_name, class_name in builtin_map.items():
