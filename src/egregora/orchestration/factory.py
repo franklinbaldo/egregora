@@ -308,7 +308,6 @@ class PipelineFactory:
                 "attempts": 5,
                 "initial_delay": 2.0,
                 "max_delay": 15.0,
-                "multiplier": 2.0,
                 "http_status_codes": [429, 503],
             }
         }
