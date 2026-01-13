@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import math
 from collections import deque
+from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
 from egregora.agents.banner.worker import BannerWorker
@@ -37,6 +38,7 @@ if TYPE_CHECKING:
     import ibis.expr.types as ir
 
     from egregora.input_adapters.base import MediaMapping
+    from egregora.transformations.windowing import Window
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +56,7 @@ class PipelineRunner:
 
     def process_windows(
         self,
-        windows_iterator: Any,
+        windows_iterator: Iterator[Window],
     ) -> tuple[dict[str, dict[str, list[str]]], datetime | None]:
         """Process all windows with tracking and error handling.
 
@@ -160,7 +162,7 @@ class PipelineRunner:
 
         return config.pipeline.max_prompt_tokens
 
-    def _validate_window_size(self, window: Any, max_size: int) -> None:
+    def _validate_window_size(self, window: Window, max_size: int) -> None:
         """Validate window doesn't exceed LLM context limits."""
         if window.size > max_size:
             msg = (
@@ -226,12 +228,12 @@ class PipelineRunner:
             logger.info("Enriched %d items", enrichment_processed)
 
     def _process_window_with_auto_split(
-        self, window: Any, *, depth: int = 0, max_depth: int = 5
+        self, window: Window, *, depth: int = 0, max_depth: int = 5
     ) -> dict[str, dict[str, list[str]]]:
         """Process a window with automatic splitting if prompt exceeds model limit."""
         min_window_size = 5
         results: dict[str, dict[str, list[str]]] = {}
-        queue: deque[tuple[Any, int]] = deque([(window, depth)])
+        queue: deque[tuple[Window, int]] = deque([(window, depth)])
 
         while queue:
             current_window, current_depth = queue.popleft()
@@ -267,7 +269,7 @@ class PipelineRunner:
 
         return results
 
-    def _process_single_window(self, window: Any, *, depth: int = 0) -> dict[str, dict[str, list[str]]]:
+    def _process_single_window(self, window: Window, *, depth: int = 0) -> dict[str, dict[str, list[str]]]:
         # TODO: [Taskmaster] Refactor this method to reduce its complexity.
         # TODO: [Taskmaster] Decompose _process_single_window method
         """Process a single window with media extraction, enrichment, and post writing."""
@@ -540,11 +542,11 @@ class PipelineRunner:
 
     def _split_window_for_retry(
         self,
-        window: Any,
+        window: Window,
         error: PromptTooLargeError,
         depth: int,
         indent: str,
-    ) -> list[tuple[Any, int]]:
+    ) -> list[tuple[Window, int]]:
         estimated_tokens = getattr(error, "estimated_tokens", 0)
         effective_limit = getattr(error, "effective_limit", 1) or 1
 
