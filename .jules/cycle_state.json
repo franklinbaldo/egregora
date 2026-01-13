@@ -1,6 +1,13 @@
 {
   "history": [
     {
+      "persona_id": "curator",
+      "session_id": "10897012749068262322",
+      "pr_number": null,
+      "created_at": "2026-01-13T11:05:00.278017+00:00",
+      "track": "default"
+    },
+    {
       "persona_id": "palette",
       "session_id": "12574552918092040838",
       "pr_number": null,
@@ -330,5 +337,13 @@
       "pr_number": 2326,
       "created_at": "2026-01-10T00:42:19Z"
     }
-  ]
+  ],
+  "tracks": {
+    "default": {
+      "last_persona_id": "curator",
+      "last_session_id": "10897012749068262322",
+      "last_pr_number": null,
+      "updated_at": "2026-01-13T11:05:00.278017+00:00"
+    }
+  }
 }
