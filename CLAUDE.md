@@ -67,16 +67,6 @@ Vector knowledge base for contextual memory:
 - Retrieves related discussions when writing new posts
 - Provides depth and continuity to narratives
 
-### Migration: V2 → Pure
-
-The codebase is transitioning from V2 to Pure:
-- **V2 (legacy)**: `src/egregora/` - gradually being replaced
-- **Pure (active)**: `src/egregora/` - new Atom/RSS-compliant architecture
-
-**For new code**: Use Pure types from `egregora.core.types` when available.
-
-See [ARCHITECTURE_CLARIFICATION.md](ARCHITECTURE_CLARIFICATION.md) for details on the Document class migration.
-
 ---
 
 ## 🛠️ Development Setup
@@ -321,7 +311,6 @@ review_code_quality()
 - [ ] Docstrings for public APIs
 - [ ] Error handling with custom exceptions
 - [ ] Performance implications considered
-- [ ] V2/Pure compatibility maintained
 
 ---
 
@@ -452,7 +441,6 @@ def temp_db():
 ## 📚 Key Documents
 
 - [README.md](README.md): User-facing documentation
-- [ARCHITECTURE_CLARIFICATION.md](ARCHITECTURE_CLARIFICATION.md): V2/Pure migration details
 - [CHANGELOG.md](CHANGELOG.md): Version history
 - [.jules/README.md](.jules/README.md): AI agent personas
 - [docs/](docs/): Full documentation site
