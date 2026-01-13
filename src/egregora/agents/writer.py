@@ -296,7 +296,7 @@ def _save_journal_to_file(params: WriterJournalEntryParams) -> str | None:
             },
             source_window=params.window_label,
         )
-        params.output_sink.persist(doc)
+        params.output_sink.publish(doc)
         logger.info("Saved journal entry: %s", doc.document_id)
         return doc.document_id
     except (TemplateNotFound, TemplateError) as exc:
