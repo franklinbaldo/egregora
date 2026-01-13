@@ -434,27 +434,35 @@ class PRManager:
             raise MergeError(msg) from e
 
     def _pr_only_touches_jules(self, pr_number: int) -> bool:
-        """Check if a PR only modifies files inside .jules/ directory.
+        """Check if a PR's CONFLICTS are only in .jules/ directory.
+        
+        If conflicts are restricted to .jules/, we can force-accept the new changes.
         
         Args:
             pr_number: PR number to check
             
         Returns:
-            True if all changed files are in .jules/, False otherwise
+            True if all conflicting files are in .jules/, False otherwise
         """
         import json
         try:
+            # Get the list of files with conflicts from GitHub
+            # The 'files' field shows all changed files and their status
             result = subprocess.run(
                 ["gh", "pr", "view", str(pr_number), "--json", "files"],
                 capture_output=True, text=True, check=True
             )
             data = json.loads(result.stdout)
-            files = [f.get("path", "") for f in data.get("files", [])]
+            files = data.get("files", [])
             
-            # Check if ALL files are in .jules/
+            # If PR has any files outside .jules/, conflicts could affect real code
+            # So we need to be more conservative
             for f in files:
-                if not f.startswith(".jules/"):
+                path = f.get("path", "")
+                # If any file is outside .jules/, don't force-merge
+                if not path.startswith(".jules/"):
                     return False
+            
             return len(files) > 0  # At least one file, all in .jules/
         except Exception:
             return False  # If we can't check, assume it's not safe
@@ -481,11 +489,13 @@ class PRManager:
         state_status = pr_details.get("mergeStateStatus", "") or pr_details.get("mergeable_state", "")
         state_status_upper = state_status.upper() if state_status else ""
         
-        if state_status_upper in ["BLOCKED", "DIRTY"]:
+        # Only reject if CI is blocked (failing checks)
+        # Allow DIRTY (conflicts) to try merge - we handle conflicts downstream
+        if state_status_upper == "BLOCKED":
             return False
         
-        # If state is CLEAN or equivalent, it's likely safe
-        if state_status_upper in ["CLEAN", "BEHIND"]:
+        # If state is CLEAN, BEHIND, or even DIRTY - let it try
+        if state_status_upper in ["CLEAN", "BEHIND", "DIRTY"]:
             return True
 
         # 3. Check individual status checks if present
