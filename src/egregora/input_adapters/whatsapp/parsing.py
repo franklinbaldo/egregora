@@ -20,6 +20,7 @@ import ibis
 import ibis.expr.datatypes as dt
 from pydantic import BaseModel
 
+from egregora.database.schemas import STAGING_MESSAGES_SCHEMA
 from egregora.input_adapters.whatsapp.exceptions import (
     DateParsingError,
     MalformedLineError,
@@ -466,23 +467,5 @@ def parse_source(
         created_by_run=created_by_literal,
     )
 
-    # V3 Ingestion Schema Definition (inline)
-    expected_columns = [
-        "event_id",
-        "tenant_id",
-        "source",
-        "thread_id",
-        "msg_id",
-        "ts",
-        "author_raw",
-        "author_uuid",
-        "text",
-        "media_url",
-        "media_type",
-        "attrs",
-        "pii_flags",
-        "created_at",
-        "created_by_run",
-    ]
-
-    return result_table.select(*expected_columns)
+    # V3 Ingestion Schema Definition
+    return result_table.select(*STAGING_MESSAGES_SCHEMA.names)
