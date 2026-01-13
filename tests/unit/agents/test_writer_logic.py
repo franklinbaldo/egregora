@@ -57,7 +57,7 @@ class TestWriterDecoupling:
         # We need at least one entry for save to happen
         entry = writer_module.JournalEntry(entry_type="journal", content="test", timestamp=datetime.now())
 
-        params = writer_module.JournalEntryParams(
+        params = writer_module.WriterJournalEntryParams(
             intercalated_log=[entry],
             window_label="test-window",
             output_sink=mock_output,
@@ -72,8 +72,8 @@ class TestWriterDecoupling:
 
         # Assert
         # Check what was persisted
-        mock_output.persist.assert_called_once()
-        doc = mock_output.persist.call_args[0][0]
+        mock_output.publish.assert_called_once()
+        doc = mock_output.publish.call_args[0][0]
 
         # The content should PRESERVE "../media/" and NOT replace it with "/media/"
         assert "../media/image.jpg" in doc.content
@@ -87,7 +87,7 @@ class TestWriterDecoupling:
         mock_env.get_template.side_effect = TemplateNotFound("journal.md.jinja")
         mock_env_cls.return_value = mock_env
 
-        params = writer_module.JournalEntryParams(
+        params = writer_module.WriterJournalEntryParams(
             intercalated_log=[writer_module.JournalEntry("journal", "test", datetime.now())],
             window_label="test-window",
             output_sink=MagicMock(),
@@ -114,9 +114,9 @@ class TestWriterDecoupling:
         mock_env_cls.return_value = mock_env
 
         mock_output = MagicMock()
-        mock_output.persist.side_effect = OSError("Disk full")
+        mock_output.publish.side_effect = OSError("Disk full")
 
-        params = writer_module.JournalEntryParams(
+        params = writer_module.WriterJournalEntryParams(
             intercalated_log=[writer_module.JournalEntry("journal", "test", datetime.now())],
             window_label="test-window",
             output_sink=mock_output,

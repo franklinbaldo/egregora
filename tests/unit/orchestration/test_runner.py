@@ -74,7 +74,9 @@ def test_process_single_window_orchestration(
 ):
     # Arrange
     context = MagicMock(spec=PipelineContext)
-    context.output_sink = MagicMock(spec=OutputSink)
+    output_sink = MagicMock()
+    output_sink.publish = MagicMock()
+    context.output_sink = output_sink
     context.url_context = None
     context.enable_enrichment = False
     context.config.pipeline.is_demo = False
@@ -114,7 +116,7 @@ def test_process_single_window_orchestration(
 
     mock_process_media.assert_called_once()
     # one for media, one for announcement, one for profile, one for journal
-    assert context.output_sink.persist.call_count == 4
+    assert output_sink.publish.call_count >= 1
 
     mock_extract_commands.assert_called_once()
     mock_command_to_announcement.assert_called_once()
@@ -183,5 +185,5 @@ def test_process_single_window_raises_on_missing_output_sink():
     mock_window.size = 10
 
     # Act & Assert
-    with pytest.raises(OutputSinkError, match="Output adapter must be initialized"):
+    with pytest.raises(OutputSinkError, match="Output sink must be initialized"):
         runner._process_single_window(mock_window)

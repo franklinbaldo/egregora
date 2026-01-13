@@ -63,16 +63,16 @@ def test_persist_media_results_uses_slug_for_filename(worker, mock_context, mock
     worker._persist_media_results([res], task_map)
 
     # Verify persistence call
-    assert mock_context.output_sink.persist.called
+    assert mock_context.output_sink.publish.called
 
     # Inspect the document passed to persist
-    persist_calls = mock_context.output_sink.persist.call_args_list
+    publish_calls = mock_context.output_sink.publish.call_args_list
 
     # We expect two calls: one for the media file itself, one for the enrichment description
-    assert len(persist_calls) >= 2
+    assert len(publish_calls) >= 2
 
     # Find the media document (type MEDIA)
-    media_doc = next(call.args[0] for call in persist_calls if call.args[0].type == DocumentType.MEDIA)
+    media_doc = next(call.args[0] for call in publish_calls if call.args[0].type == DocumentType.MEDIA)
 
     # ASSERTIONS (This should fail initially on suggested_path and subdirectory logic)
     # 1. Filename in metadata should be slug-based
@@ -85,7 +85,7 @@ def test_persist_media_results_uses_slug_for_filename(worker, mock_context, mock
 
     # 3. Verify enrichment doc also has correct references
     enrich_doc = next(
-        call.args[0] for call in persist_calls if call.args[0].type == DocumentType.ENRICHMENT_IMAGE
+        call.args[0] for call in publish_calls if call.args[0].type == DocumentType.ENRICHMENT_IMAGE
     )
     assert enrich_doc.metadata["filename"] == "cool-new-slug.jpg"
 

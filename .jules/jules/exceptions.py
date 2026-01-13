@@ -19,3 +19,7 @@ class MergeError(SchedulerError):
 class GitHubError(JulesError):
     """Raised when GitHub API operations fail."""
     pass
+
+class JulesClientError(JulesError):
+    """Raised when Jules API operations fail."""
+    pass

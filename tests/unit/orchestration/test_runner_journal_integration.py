@@ -57,7 +57,7 @@ class TestPipelineRunnerJournalIntegration:
         assert result == {}
         mock_check.assert_called_once_with(mock_context.output_sink, "existing-signature")
         # Ensure heavy operations were skipped
-        mock_context.output_sink.persist.assert_not_called()
+        mock_context.output_sink.publish.assert_not_called()
 
     @patch("egregora.orchestration.runner.generate_window_signature")
     @patch("egregora.orchestration.runner.PromptManager")
@@ -114,8 +114,8 @@ class TestPipelineRunnerJournalIntegration:
         )
 
         # Check persistence
-        # persist is called for posts/profiles/announcements too, so we check if journal was passed
-        mock_context.output_sink.persist.assert_any_call(mock_journal_doc)
+        # publish is called for posts/profiles/announcements too, so we check if journal was passed
+        mock_context.output_sink.publish.assert_any_call(mock_journal_doc)
 
     @patch("egregora.orchestration.runner.generate_window_signature")
     @patch("egregora.orchestration.runner.PromptManager")
@@ -163,12 +163,12 @@ class TestPipelineRunnerJournalIntegration:
         mock_journal_doc = MagicMock()
         mock_create_journal.return_value = mock_journal_doc
 
-        # Configure output_sink.persist to raise error ONLY for journal
-        def persist_side_effect(doc):
+        # Configure output_sink.publish to raise error ONLY for journal
+        def publish_side_effect(doc):
             if doc == mock_journal_doc:
                 raise Exception("DB Error")
 
-        mock_context.output_sink.persist.side_effect = persist_side_effect
+        mock_context.output_sink.publish.side_effect = publish_side_effect
 
         # Execute
         result = runner._process_single_window(mock_window)
@@ -176,5 +176,5 @@ class TestPipelineRunnerJournalIntegration:
         # Verify pipeline succeeded (returned posts)
         assert "post1" in result[next(iter(result.keys()))]["posts"]
 
-        # Verify persist was attempted
-        mock_context.output_sink.persist.assert_any_call(mock_journal_doc)
+        # Verify publish was attempted
+        mock_context.output_sink.publish.assert_any_call(mock_journal_doc)
