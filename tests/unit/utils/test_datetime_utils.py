@@ -15,6 +15,7 @@ from egregora.utils.datetime_utils import (
 VALID_INPUTS = {
     "iso_date": ("2025-01-01", datetime(2025, 1, 1, tzinfo=UTC)),
     "iso_datetime": ("2025-01-01T12:00:00", datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)),
+    "iso_datetime_zulu": ("2025-01-01T12:00:00Z", datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)),
     "human_date": ("Jan 1, 2025", datetime(2025, 1, 1, tzinfo=UTC)),
     "datetime_obj": (datetime(2025, 1, 1, 12, 0, 0), datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)),
     "date_obj": (date(2025, 1, 1), datetime(2025, 1, 1, tzinfo=UTC)),
