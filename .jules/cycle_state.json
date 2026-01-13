@@ -1,6 +1,13 @@
 {
   "history": [
     {
+      "persona_id": "refactor",
+      "session_id": "3691909005770450087",
+      "pr_number": null,
+      "created_at": "2026-01-13T21:03:34.385427+00:00",
+      "track": "default"
+    },
+    {
       "persona_id": "curator",
       "session_id": "292526059709956079",
       "pr_number": null,
@@ -508,10 +515,10 @@
   ],
   "tracks": {
     "default": {
-      "last_persona_id": "curator",
-      "last_session_id": "292526059709956079",
+      "last_persona_id": "refactor",
+      "last_session_id": "3691909005770450087",
       "last_pr_number": null,
-      "updated_at": "2026-01-13T20:55:22.874802+00:00"
+      "updated_at": "2026-01-13T21:03:34.385427+00:00"
     }
   }
 }
