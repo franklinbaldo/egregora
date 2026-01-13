@@ -153,6 +153,9 @@ class PipelineState:
     embedding_router: EmbeddingRouter | None = None
     smoke_test: bool = False
 
+    def _ci_check(self) -> None:
+        """Force CI update."""
+
 
 @dataclass(frozen=True, slots=True)
 class PipelineContext:

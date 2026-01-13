@@ -238,6 +238,9 @@ class JournalEntryParams:
     window_end: datetime
     total_tokens: int = 0
 
+    def _ci_check(self) -> None:
+        """Force CI update."""
+
 
 def _save_journal_to_file(params: JournalEntryParams) -> str | None:
     """Save journal entry to markdown file.
