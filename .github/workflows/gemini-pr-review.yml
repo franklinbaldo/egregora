@@ -98,7 +98,7 @@ jobs:
 
           # Get unified diff between base and head, excluding non-code assets
           # Use --unified=1 for smaller context (GitHub Actions env vars have ~256KB limit per value)
-          git diff --unified=1 "origin/${BASE_REF}" "${HEAD_SHA}" -- . ':!uv.lock' ':!.jules/' ':!docs/' ':!README.md' ':!pyproject.toml' ':!tests/v3/infra/sinks/fixtures/' > .github/tmp/diff.txt
+          git diff --unified=1 "origin/${BASE_REF}" "${HEAD_SHA}" -- . ':!uv.lock' ':!.jules/' ':!docs/' ':!README.md' ':!pyproject.toml' ':!tests/v3/infra/sinks/fixtures/' ':!tests/features/' > .github/tmp/diff.txt
 
           # Truncate diff if too large (very conservative limit for GITHUB_ENV heredoc stability)
           DIFF_SIZE=$(wc -c < .github/tmp/diff.txt)
