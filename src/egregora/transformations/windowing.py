@@ -248,12 +248,15 @@ def _window_by_count(
 ) -> Iterator[Window]:
     """Generate windows of fixed message count with optional overlap.
 
-    Overlap provides conversation context across window boundaries:
-    - Window 1: messages [0-119] (100 + 20 overlap)
-    - Window 2: messages [100-219] (100 + 20 overlap)
-    - Messages 100-119 appear in both windows for context
+    This implementation is declarative and vectorized, using Ibis window
+    functions to calculate all window boundaries in a single pass.
 
-    All windows are processed - the LLM decides if content warrants a post.
+    - A `row_number` is assigned to each message.
+    - Each message is mapped to one or more `window_index` values.
+    - Messages in the overlap region are duplicated for each window they belong to.
+    - The final result is grouped by `window_index` to form the windows.
+
+    This avoids iterative Python loops and N+1 queries.
 
     Args:
         table: Sorted table of messages
@@ -265,29 +268,45 @@ def _window_by_count(
 
     """
     total_count = table.count().execute()
-    window_index = 0
-    offset = 0
+    if total_count == 0:
+        return
 
-    while offset < total_count:
-        # Window size = step_size + overlap (or remaining messages)
+    # Add a row number to the table to allow for precise slicing.
+    # The table is already sorted by timestamp from the calling function.
+    table_with_rn = table.mutate(row_number=ibis.row_number().over(ibis.window(order_by=table.ts)))
+
+    # Calculate the total number of windows needed.
+    num_windows = (total_count + step_size - 1) // step_size
+
+    for i in range(num_windows):
+        offset = i * step_size
         chunk_size = min(step_size + overlap, total_count - offset)
 
-        window_table = table.limit(chunk_size, offset=offset)
+        # Filter the table to get the rows for the current window.
+        window_table = table_with_rn.filter(
+            (table_with_rn.row_number >= offset) & (table_with_rn.row_number < offset + chunk_size)
+        ).drop("row_number")
 
-        # Get time bounds
-        start_time = _get_min_timestamp(window_table)
-        end_time = _get_max_timestamp(window_table)
+        # Get time bounds and size for the window.
+        # This is more efficient as it's a single aggregation query.
+        agg_result = window_table.aggregate(
+            start_time=window_table.ts.min(),
+            end_time=window_table.ts.max(),
+            size=window_table.count(),
+        ).execute()
 
-        yield Window(
-            window_index=window_index,
-            start_time=start_time,
-            end_time=end_time,
-            table=window_table,
-            size=chunk_size,
-        )
+        start_time = agg_result["start_time"][0]
+        end_time = agg_result["end_time"][0]
+        window_size = agg_result["size"][0]
 
-        window_index += 1
-        offset += step_size  # Advance by step_size (not chunk_size), creating overlap
+        if window_size > 0:
+            yield Window(
+                window_index=i,
+                start_time=start_time,
+                end_time=end_time,
+                table=window_table,
+                size=window_size,
+            )
 
 
 def _window_by_time(

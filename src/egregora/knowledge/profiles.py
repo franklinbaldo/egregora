@@ -217,22 +217,7 @@ def write_profile(
     # Write profile with front-matter
     yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
-    # Prepend avatar if available OR use fallback
-    profile_body = content
-    avatar_url = front_matter.get("avatar")
-
-    if not avatar_url:
-        avatar_url = generate_fallback_avatar_url(author_uuid)
-        # Save fallback URL to front_matter so it's available for page generation
-        front_matter["avatar"] = avatar_url
-        yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
-
-    if avatar_url:
-        # Use MkDocs macros to render avatar from frontmatter
-        # This allows dynamic updates if frontmatter changes
-        profile_body = "![Avatar]({{ page.meta.avatar }}){ align=left width=150 }\n\n" + profile_body
-
-    full_profile = f"---\n{yaml_front}---\n\n{profile_body}"
+    full_profile = f"---\n{yaml_front}---\n\n{content}"
 
     # Determine filename
     target_path = _determine_profile_path(author_uuid, front_matter, profiles_dir, current_path=existing_path)
@@ -249,14 +234,7 @@ def write_profile(
             logger.warning("Failed to delete old profile %s: %s", existing_path, e)
 
     # Update .authors.yml
-    if "avatar" not in front_matter and avatar_url:
-        front_matter_for_authors = front_matter.copy()
-        front_matter_for_authors["avatar"] = avatar_url
-        _update_authors_yml(
-            profiles_dir.parent, author_uuid, front_matter_for_authors, filename=target_path.name
-        )
-    else:
-        _update_authors_yml(profiles_dir.parent, author_uuid, front_matter, filename=target_path.name)
+    _update_authors_yml(profiles_dir.parent, author_uuid, front_matter, filename=target_path.name)
 
     return str(target_path)
 
@@ -268,45 +246,47 @@ def get_active_authors(
     """Get list of unique authors from a Table.
 
     Args:
-        table: Ibis Table with 'author_uuid' column (IR v1 schema)
-        limit: Optional limit on number of authors to return (most active first)
+        table: Ibis Table with 'author_uuid' column.
+        limit: Optional limit on number of authors to return (most active first).
 
     Returns:
-        List of unique author UUIDs (excluding 'system' and 'egregora')
+        List of unique author UUIDs (excluding 'system' and 'egregora').
 
     """
-    authors: list[str | None] = []
+    # TODO: [Taskmaster] Refactor get_active_authors for clarity and efficiency
+    system_authors = ["system", "egregora", ""]
+    query = table.filter(table.author_uuid.notin(system_authors))
+
+    if limit is not None and limit > 0:
+        author_counts = (
+            query.group_by("author_uuid")
+            .agg(message_count=ibis.count())
+            .sort_by(ibis.desc("message_count"))
+            .limit(limit)
+        )
+        result = author_counts.execute()
+        if "author_uuid" in result.columns:
+            return result["author_uuid"].tolist()
+        return []
+
+    distinct_authors_query = query["author_uuid"].distinct()
     try:
-        # IR v1: use author_uuid column instead of author
-        # Cast UUID to string for PyArrow compatibility
-        arrow_table = table.select(author_uuid=table.author_uuid.cast(str)).distinct().to_pyarrow()
-    except AttributeError:
-        result = table.select(author_uuid=table.author_uuid.cast(str)).distinct().execute()
-        if hasattr(result, "columns"):
-            if "author_uuid" in result.columns:
-                authors = result["author_uuid"].tolist()
-            else:
-                authors = result.iloc[:, 0].tolist()
-        elif hasattr(result, "tolist"):
-            authors = list(result.tolist())
+        authors = distinct_authors_query.to_pyarrow().to_pylist()
+    except (AttributeError, ibis.common.exceptions.IbisError):
+        result = distinct_authors_query.execute()
+        # Handle various return types from ibis execute()
+        if hasattr(result, "to_list"):  # pandas Series
+            authors = result.to_list()
+        elif hasattr(result, "tolist"):  # numpy array
+            authors = result.tolist()
+        elif isinstance(result, list):
+            authors = result
+        elif hasattr(result, "iloc"):  # pandas DataFrame
+            authors = result.iloc[:, 0].tolist()
         else:
             authors = list(result)
-    else:
-        if arrow_table.num_columns == 0:
-            return []
-        authors = arrow_table.column(0).to_pylist()
-    filtered_authors = [
-        author for author in authors if author is not None and author not in ("system", "egregora", "")
-    ]
-    if limit is not None and limit > 0:
-        author_counts = {}
-        for author in filtered_authors:
-            # IR v1: use author_uuid column
-            count = table.filter(table.author_uuid == author).count().execute()
-            author_counts[author] = count
-        sorted_authors = sorted(author_counts.items(), key=lambda x: x[1], reverse=True)
-        return [author for author, _ in sorted_authors[:limit]]
-    return filtered_authors
+
+    return [author for author in authors if author is not None]
 
 
 def _validate_alias(alias: str) -> str:
@@ -436,6 +416,28 @@ def _handle_privacy_command(
     return content
 
 
+def _find_or_create_profile(author_uuid: str, profiles_dir: Path) -> tuple[Path | None, str]:
+    """Find an existing profile or create content for a new one."""
+    try:
+        profile_path = _find_profile_path(author_uuid, profiles_dir)
+        content = profile_path.read_text(encoding="utf-8")
+        return profile_path, content
+    except ProfileNotFoundError:
+        front_matter = {"uuid": author_uuid, "subject": author_uuid}
+        content = f"---\n{yaml.dump(front_matter)}---\n\n# Profile: {author_uuid}\n\n"
+        return None, content
+
+
+def _apply_command_transformation(cmd_type: str, target: str, value: Any, ctx: CommandContext) -> str:
+    """Apply a single command transformation to the profile content."""
+    # TODO: [Taskmaster] Refactor command handlers for better organization
+    content = _handle_alias_command(cmd_type, target, value, ctx)
+    ctx.content = content
+    content = _handle_simple_set_command(cmd_type, target, value, ctx)
+    ctx.content = content
+    return _handle_privacy_command(cmd_type, ctx.author_uuid, ctx.timestamp, ctx.content)
+
+
 def apply_command_to_profile(
     author_uuid: Annotated[str, "The anonymized author UUID"],
     command: Annotated[dict[str, Any], "The command dictionary from the parser"],
@@ -458,16 +460,7 @@ def apply_command_to_profile(
 
     """
     profiles_dir.mkdir(parents=True, exist_ok=True)
-
-    # Locate existing profile using flexible lookup
-    try:
-        profile_path = _find_profile_path(author_uuid, profiles_dir)
-        content = profile_path.read_text(encoding="utf-8")
-    except ProfileNotFoundError:
-        # Create new profile with required frontmatter
-        profile_path = None
-        front_matter = {"uuid": author_uuid, "subject": author_uuid}
-        content = f"---\n{yaml.dump(front_matter)}---\n\n# Profile: {author_uuid}\n\n"
+    profile_path, content = _find_or_create_profile(author_uuid, profiles_dir)
 
     cmd_type = command["command"]
     target = command["target"]
@@ -475,10 +468,7 @@ def apply_command_to_profile(
 
     # Apply transformations pipeline
     ctx = CommandContext(author_uuid=author_uuid, timestamp=timestamp, content=content)
-    content = _handle_alias_command(cmd_type, target, value, ctx)
-    ctx.content = content
-    content = _handle_simple_set_command(cmd_type, target, value, ctx)
-    content = _handle_privacy_command(cmd_type, author_uuid, timestamp, content)
+    content = _apply_command_transformation(cmd_type, target, value, ctx)
 
     # Now decide where to save it
     # We must extract metadata from the NEW content to know if alias changed
@@ -702,17 +692,18 @@ def update_profile_avatar(
         front_matter = {"uuid": author_uuid, "subject": author_uuid}
         content = f"---\n{yaml.dump(front_matter)}---\n\n# Profile: {author_uuid}\n\n"
 
-    avatar_content = f"- URL: {avatar_url}\n- Set on: {timestamp}"
-    logger.info("✅ Avatar set for %s: %s", author_uuid, avatar_url)
-
-    content = _update_profile_metadata(content, "Avatar", "avatar", avatar_content)
-
-    # Check if we need to rename (metadata logic relies on content having the info)
-    # But update_profile_avatar only changes content
-    # If filename is uuid, it stays uuid. If alias is set, it might stay slug.
-    # We should re-eval filename just in case
     metadata = _parse_frontmatter(content)
-    _extract_legacy_metadata(content, metadata)
+    metadata["avatar"] = avatar_url
+
+    # Re-serialize the frontmatter with the new avatar URL
+    # This avoids manual string manipulation of the profile body
+    new_frontmatter = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+    # Reconstruct the file content, preserving the body
+    body_content = content.split("---", 2)[2] if content.count("---") >= 2 else content
+    content = f"---\n{new_frontmatter}---\n{body_content}"
+
+    logger.info("✅ Avatar set for %s: %s", author_uuid, avatar_url)
 
     target_path = _determine_profile_path(author_uuid, metadata, profiles_dir, current_path=profile_path)
 
@@ -754,22 +745,30 @@ def remove_profile_avatar(
         front_matter = {"uuid": author_uuid, "subject": author_uuid}
         content = f"---\n{yaml.dump(front_matter)}---\n\n# Profile: {author_uuid}\n\n"
 
-    avatar_content = f"- Status: None (removed on {timestamp})"
-    content = _update_profile_metadata(content, "Avatar", "avatar", avatar_content)
+    metadata = _parse_frontmatter(content)
+    if "avatar" in metadata:
+        del metadata["avatar"]
 
-    # Save
-    metadata = _extract_profile_metadata(profile_path) if profile_path else {}
-    target_path = _determine_profile_path(author_uuid, metadata, profiles_dir, current_path=profile_path)
-    target_path.write_text(content, encoding="utf-8")
+        # Re-serialize the frontmatter without the avatar URL
+        new_frontmatter = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
-    if profile_path and profile_path.resolve() != target_path.resolve():
-        with contextlib.suppress(OSError):
-            profile_path.unlink()
+        # Reconstruct the file content, preserving the body
+        body_content = content.split("---", 2)[2] if content.count("---") >= 2 else content
+        content = f"---\n{new_frontmatter}---\n{body_content}"
 
-    # Update .authors.yml
-    _update_authors_yml(profiles_dir.parent, author_uuid, metadata, filename=target_path.name)
+        target_path = _determine_profile_path(author_uuid, metadata, profiles_dir, current_path=profile_path)
+        target_path.write_text(content, encoding="utf-8")
 
-    logger.info("Removed avatar for %s", author_uuid)
+        if profile_path and profile_path.resolve() != target_path.resolve():
+            with contextlib.suppress(OSError):
+                profile_path.unlink()
+
+        # Update .authors.yml
+        _update_authors_yml(profiles_dir.parent, author_uuid, metadata, filename=target_path.name)
+        logger.info("Removed avatar for %s", author_uuid)
+        return str(target_path)
+
+    logger.info("No avatar to remove for %s", author_uuid)
     return str(target_path)
 
 

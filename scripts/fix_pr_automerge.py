@@ -71,7 +71,7 @@ def fix_pr(pr_number: int, token: str, owner: str = "franklinbaldo", repo: str =
         mutation($pullRequestId: ID!) {
             enablePullRequestAutoMerge(input: {
                 pullRequestId: $pullRequestId,
-                mergeMethod: SQUASH
+                mergeMethod: MERGE
             }) {
                 pullRequest {
                     autoMergeRequest {

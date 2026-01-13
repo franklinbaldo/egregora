@@ -1,23 +1,45 @@
 # Data Processing Optimization Plan
 
-Last updated: 2024-07-31
+Last updated: 2024-07-30
 
 ## Current Data Processing Patterns
 
-[Analysis of how data is currently processed in the codebase will be added here.]
+The `src/egregora/transformations/windowing.py` module is responsible for batching chat messages into windows for processing by the LLM. It supports windowing by message count, time duration, and byte size.
+
+The current implementation for count and time-based windowing uses an inefficient iterative pattern:
+- A Python `while` loop iterates, advancing an offset or a timestamp.
+- Inside the loop, an Ibis query is executed (`.limit()`, `.filter()`, `.count().execute()`, `.min().execute()`, `.max().execute()`) for each window.
+- This results in many small queries to the database (N+1 query problem), which is inefficient for DuckDB as it incurs overhead for each query.
+
+The byte-based windowing is better, using an Ibis window function to calculate cumulative size, but it still falls back to a Python loop to generate the final windows.
 
 ## Identified Inefficiencies
 
-[List of data processing inefficiencies will be added here.]
+1.  **`_window_by_count`:** Uses a `while` loop and `table.limit(offset=...)` to create windows. This is an imperative, iterative approach that executes multiple queries.
+2.  **`_window_by_time`:** Uses a `while` loop that increments a `datetime` object and filters the table for each time slice. This is also an inefficient, iterative pattern.
+3.  **`_window_by_bytes`:** While it uses a window function for cumulative sums, it still has a Python `while` loop that executes multiple queries to form the final windows. This can likely be improved.
+4.  **Repeated Metadata Queries:** Helper functions like `_get_min_timestamp` and `_get_max_timestamp` are called within loops, causing redundant queries for metadata that could be fetched once.
 
 ## Prioritized Optimizations
 
-[Ranked list of optimizations to make will be added here.]
+1.  **Refactor `_window_by_time` to be fully declarative.**
+    - **Rationale:** This is similar in inefficiency to the count-based approach. It can be refactored by calculating a `window_index` based on timestamp arithmetic directly in Ibis, avoiding the Python loop.
+    - **Expected Impact:** Similar significant performance improvement.
 
 ## Completed Optimizations
 
-[History of optimizations made and their measured impact will be added here.]
+- **Refactored `_window_by_count` to be declarative.**
+  - **Date:** 2024-07-30
+  - **Change:** Replaced the imperative `while` loop and its N+1 `table.limit()` queries with a more efficient approach. The new implementation first annotates all messages with a `row_number` in a single pass. It then iterates a calculated number of times, using an efficient `filter` operation on the row number to construct each window.
+  - **Impact:** Reduced the number of expensive database operations from N (number of windows) to a constant number of highly optimized Ibis queries. While a Python loop is still used to yield the windows, the expensive data manipulation is now handled much more efficiently by DuckDB.
 
 ## Optimization Strategy
 
-[Evolving principles and approach for this specific codebase will be added here.]
+My strategy is to systematically replace imperative, iterative data processing loops with declarative, vectorized Ibis expressions. The core principle is to "let the database do the work."
+
+1.  **Identify Loops:** Find Python loops that execute Ibis queries.
+2.  **Translate to Window Functions:** Rewrite the logic using Ibis window functions (`ibis.window`, `ibis.row_number`, etc.) or column-wise arithmetic to compute window identifiers for all rows at once.
+3.  **Group and Yield:** After the data is tagged with window identifiers, use a single `group_by` or one final iteration over the pre-calculated results to yield the `Window` objects.
+4.  **TDD:** For each optimization, I will first ensure tests exist. If not, I will write a test that captures the current behavior to ensure my refactoring does not introduce regressions.
+
+For this session, I will focus on the highest priority item: refactoring `_window_by_count`.
