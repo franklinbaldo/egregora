@@ -245,10 +245,13 @@ def execute_scheduled_tick(
 
         print(f"▶️  {persona.emoji} {persona.id} ({reason})")
 
-        # Scheduled mode uses direct branching now
+        # Use direct integration ONLY if we are running a single specific persona,
+        # otherwise use isolated branches to avoid clashing on 'jules' during parallel ticks.
+        is_direct = bool(prompt_id)
         session_branch = branch_mgr.create_session_branch(
             base_branch=JULES_BRANCH,
             persona_id=persona.id,
+            direct=is_direct
         )
 
         request = SessionRequest(
