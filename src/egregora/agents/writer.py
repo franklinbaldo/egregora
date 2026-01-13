@@ -227,7 +227,7 @@ def _get_writer_loop() -> asyncio.AbstractEventLoop:
 
 @dataclass
 class JournalEntryParams:
-    """Parameters for saving a journal entry."""
+    """Parameters for saving a journal entry. Includes output format."""
 
     intercalated_log: list[JournalEntry]
     window_label: str
@@ -959,4 +959,3 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     if author_counts.count().execute() == 0:
         return []
     return author_counts.author_uuid.cast("string").execute().tolist()
-# Force update for CI

@@ -124,7 +124,7 @@ class PipelineState:
     """Mutable runtime state for the pipeline.
 
     Contains resources, clients, and ephemeral state that may be updated
-    or re-initialized during execution.
+    or re-initialized during execution. Updated for V3 schema.
     """
 
     # Run Identity
@@ -328,4 +328,3 @@ class PipelineContext:
             new_config = replace(self.config_obj, url_context=url_context)
             return PipelineContext(new_config, self.state)
         return self
-# Force update for CI

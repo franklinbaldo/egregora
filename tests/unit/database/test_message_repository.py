@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import ibis
-import ibis.expr.datatypes as dt
 import pytest
 from ibis.backends.duckdb import Backend as DuckDBBackend
 
