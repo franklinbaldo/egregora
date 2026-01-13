@@ -1,112 +1,19 @@
 """Avatar generation tools."""
 
 import hashlib
+import importlib.resources
+from functools import lru_cache
+import yaml
 
-# Avatar generation constants
-AVATAR_ACCESSORIES = ["Blank", "Kurt", "Prescription01", "Prescription02", "Round", "Sunglasses", "Wayfarers"]
-AVATAR_CLOTHES = [
-    "BlazerShirt",
-    "BlazerSweater",
-    "CollarSweater",
-    "GraphicShirt",
-    "Hoodie",
-    "Overall",
-    "ShirtCrewNeck",
-    "ShirtScoopNeck",
-    "ShirtVNeck",
-]
-AVATAR_EYES = [
-    "Close",
-    "Cry",
-    "Default",
-    "Dizzy",
-    "EyeRoll",
-    "Happy",
-    "Hearts",
-    "Side",
-    "Squint",
-    "Surprised",
-    "Wink",
-    "WinkWacky",
-]
-AVATAR_EYEBROWS = [
-    "Angry",
-    "AngryNatural",
-    "Default",
-    "DefaultNatural",
-    "FlatNatural",
-    "RaisedExcited",
-    "RaisedExcitedNatural",
-    "SadConcerned",
-    "SadConcernedNatural",
-    "UnibrowNatural",
-    "UpDown",
-    "UpDownNatural",
-]
-AVATAR_MOUTHS = [
-    "Concerned",
-    "Default",
-    "Disbelief",
-    "Eating",
-    "Grimace",
-    "Sad",
-    "ScreamOpen",
-    "Serious",
-    "Smile",
-    "Tongue",
-    "Twinkle",
-    "Vomit",
-]
-AVATAR_SKIN_COLORS = ["Tanned", "Yellow", "Pale", "Light", "Brown", "DarkBrown", "Black"]
-AVATAR_TOPS = [
-    "NoHair",
-    "Eyepatch",
-    "Hat",
-    "Hijab",
-    "Turban",
-    "WinterHat1",
-    "WinterHat2",
-    "WinterHat3",
-    "WinterHat4",
-    "LongHairBigHair",
-    "LongHairBob",
-    "LongHairBun",
-    "LongHairCurly",
-    "LongHairCurvy",
-    "LongHairDreads",
-    "LongHairFrida",
-    "LongHairFro",
-    "LongHairFroBand",
-    "LongHairNotTooLong",
-    "LongHairShavedSides",
-    "LongHairMiaWallace",
-    "LongHairStraight",
-    "LongHairStraight2",
-    "LongHairStraightStrand",
-    "ShortHairDreads01",
-    "ShortHairDreads02",
-    "ShortHairFrizzle",
-    "ShortHairShaggyMullet",
-    "ShortHairShortCurly",
-    "ShortHairShortFlat",
-    "ShortHairShortRound",
-    "ShortHairShortWaved",
-    "ShortHairSides",
-    "ShortHairTheCaesar",
-    "ShortHairTheCaesarSidePart",
-]
-AVATAR_HAIR_COLORS = [
-    "Auburn",
-    "Black",
-    "Blonde",
-    "BlondeGolden",
-    "Brown",
-    "BrownDark",
-    "PastelPink",
-    "Platinum",
-    "Red",
-    "SilverGray",
-]
+
+@lru_cache(maxsize=1)
+def _get_avatar_data() -> dict:
+    """Load avatar data from YAML, caching it for performance."""
+    with importlib.resources.open_text("egregora.resources", "avatars.yml") as f:
+        data = yaml.safe_load(f)
+    if not isinstance(data, dict):
+        raise TypeError("Avatar data must be a dictionary.")
+    return data
 
 
 def generate_fallback_avatar_url(author_uuid: str) -> str:
@@ -118,26 +25,28 @@ def generate_fallback_avatar_url(author_uuid: str) -> str:
         A URL to a generated avatar image.
 
     """
+    avatar_data = _get_avatar_data()
+
     # Deterministically select options based on UUID hash
-    # We use different slices of the hash to pick different attributes
     h = hashlib.sha256(author_uuid.encode()).hexdigest()
 
     # Helper to pick from options
-    def pick(options: list[str], offset: int) -> str:
+    def pick(options_key: str, offset: int) -> str:
+        options = avatar_data[options_key]
         idx = int(h[offset : offset + 2], 16) % len(options)
         return options[idx]
 
     params = [
-        f"accessoriesType={pick(AVATAR_ACCESSORIES, 0)}",
+        f"accessoriesType={pick('accessories', 0)}",
         "avatarStyle=Circle",
-        f"clotheType={pick(AVATAR_CLOTHES, 2)}",
-        f"eyeType={pick(AVATAR_EYES, 4)}",
-        f"eyebrowType={pick(AVATAR_EYEBROWS, 6)}",
+        f"clotheType={pick('clothes', 2)}",
+        f"eyeType={pick('eyes', 4)}",
+        f"eyebrowType={pick('eyebrows', 6)}",
         "facialHairType=Blank",
-        f"hairColor={pick(AVATAR_HAIR_COLORS, 8)}",
-        f"mouthType={pick(AVATAR_MOUTHS, 10)}",
-        f"skinColor={pick(AVATAR_SKIN_COLORS, 12)}",
-        f"topType={pick(AVATAR_TOPS, 14)}",
+        f"hairColor={pick('hair_colors', 8)}",
+        f"mouthType={pick('mouths', 10)}",
+        f"skinColor={pick('skin_colors', 12)}",
+        f"topType={pick('tops', 14)}",
     ]
 
     return f"https://avataaars.io/?{'&'.join(params)}"
