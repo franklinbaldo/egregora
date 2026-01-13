@@ -12,19 +12,19 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from egregora_v3.core.library import ContentLibrary
     from google import genai
 
     from egregora.agents.shared.annotations import AnnotationStore
     from egregora.agents.shared.cache import EnrichmentCache
     from egregora.config.settings import EgregoraConfig
     from egregora.data_primitives.document import OutputSink, UrlContext
+    from egregora.data_primitives.protocols import ContentLibrary
     from egregora.database.protocols import StorageProtocol
     from egregora.database.task_store import TaskStore
     from egregora.input_adapters.base import InputAdapter
@@ -144,7 +144,7 @@ class PipelineState:
     task_store: TaskStore | None = None
 
     # Pure Content Library Facade
-    library: ContentLibrary | None = None  # Pure ContentLibrary (avoid V2→Pure import)
+    library: ContentLibrary | None = None
 
     # Output & Adapters (Initialized lazily or updated)
     output_format: OutputSink | None = None  # ISP-compliant: Runtime data operations only
@@ -236,7 +236,7 @@ class PipelineContext:
         return self.state.task_store
 
     @property
-    def library(self) -> ContentLibrary | None:  # Pure ContentLibrary (avoid V2→Pure import)
+    def library(self) -> ContentLibrary | None:
         return self.state.library
 
     @property
