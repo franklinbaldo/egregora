@@ -1,4 +1,3 @@
-# TODO: [Taskmaster] Remove commented-out legacy code
 """Write pipeline orchestration - executes the complete write workflow.
 
 This module orchestrates the high-level flow for the 'write' command, coordinating:
@@ -126,7 +125,6 @@ class WhatsAppProcessOptions:
     gemini_api_key: str | None = None
     model: str | None = None
     batch_threshold: int = 10
-    # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch removed (legacy DuckDB VSS settings)
     max_prompt_tokens: int = 100_000
     use_full_context_window: bool = False
     client: genai.Client | None = None
@@ -483,7 +481,6 @@ def process_whatsapp_export(
             ),
             "enrichment": base_config.enrichment.model_copy(update={"enabled": opts.enable_enrichment}),
             # RAG settings: no runtime overrides needed (uses config from .egregora/config.yml)
-            # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch were legacy DuckDB VSS settings
             "rag": base_config.rag,
             **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
         },
@@ -533,7 +530,7 @@ def perform_enrichment(
 ) -> ir.Table:
     """Execute enrichment for a window's table."""
     enrichment_context = EnrichmentRuntimeContext(
-        cache=context.enrichment_cache,
+        cache=context.cache.enrichment,
         output_sink=context.output_sink,
         site_root=context.site_root,
         usage_tracker=context.usage_tracker,
@@ -1102,7 +1099,7 @@ def _process_commands_and_avatars(
         media_dir=ctx.media_dir,
         profiles_dir=ctx.profiles_dir,
         vision_model=vision_model,
-        cache=ctx.enrichment_cache,
+        cache=ctx.cache.enrichment,
     )
     avatar_results = process_avatar_commands(
         messages_table=messages_table,
@@ -1212,7 +1209,6 @@ def _prepare_pipeline_data(
     return PreparedPipelineData(
         messages_table=messages_table,
         windows_iterator=windows_iterator,
-        checkpoint_path=Path("deprecated"),  # No longer used
         context=ctx,
         enable_enrichment=enable_enrichment,
         embedding_model=embedding_model,

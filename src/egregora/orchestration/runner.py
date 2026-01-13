@@ -460,7 +460,7 @@ class PipelineRunner:
     ) -> ir.Table:
         """Execute enrichment for a window's table."""
         enrichment_context = EnrichmentRuntimeContext(
-            cache=self.context.enrichment_cache,
+            cache=self.context.cache.enrichment,
             output_sink=self.context.output_sink,
             site_root=self.context.site_root,
             usage_tracker=self.context.usage_tracker,

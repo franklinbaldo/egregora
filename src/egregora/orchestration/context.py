@@ -159,7 +159,7 @@ class PipelineState:
 class PipelineContext:
     """Composite context combining config and state.
 
-    Maintains backward compatibility while splitting concerns.
+    Splits concerns into immutable config and mutable state.
     """
 
     config_obj: PipelineConfig
@@ -222,10 +222,6 @@ class PipelineContext:
     def cache(self) -> PipelineCache:
         return self.state.cache
 
-    @property
-    def enrichment_cache(self) -> EnrichmentCache:
-        """Backward compatibility shim for enrichment cache."""
-        return self.state.cache.enrichment
 
     @property
     def annotations_store(self) -> AnnotationStore | None:
