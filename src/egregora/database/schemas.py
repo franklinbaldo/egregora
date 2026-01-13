@@ -243,8 +243,6 @@ def get_table_check_constraints(table_name: str) -> dict[str, str]:
     return {}
 
 
-
-
 # ============================================================================
 # Core Tables (Append-Only)
 # ============================================================================
@@ -360,8 +358,40 @@ CREATE OR REPLACE VIEW documents_view AS
 """
 
 # ============================================================================
-# Legacy / Ingestion Schemas (Moved from IR_SCHEMA)
+# Ingestion Schemas
 # ============================================================================
+
+# ----------------------------------------------------------------------------
+# Ingestion Staging Schema (Was Ingestion Message Schema)
+# ----------------------------------------------------------------------------
+
+STAGING_MESSAGES_SCHEMA = ibis.schema(
+    {
+        # Identity
+        "event_id": dt.string,
+        # Multi-Tenant
+        "tenant_id": dt.string,
+        "source": dt.string,
+        # Threading
+        "thread_id": dt.string,
+        "msg_id": dt.string,
+        # Temporal
+        "ts": dt.Timestamp(timezone="UTC"),
+        # Authors (PRIVACY BOUNDARY)
+        "author_raw": dt.string,
+        "author_uuid": dt.string,
+        # Content
+        "text": dt.String(nullable=True),
+        "media_url": dt.String(nullable=True),
+        "media_type": dt.String(nullable=True),
+        # Metadata
+        "attrs": dt.JSON(nullable=True),
+        "pii_flags": dt.JSON(nullable=True),
+        # Lineage
+        "created_at": dt.Timestamp(timezone="UTC"),
+        "created_by_run": dt.string,
+    }
+)
 
 
 # ----------------------------------------------------------------------------

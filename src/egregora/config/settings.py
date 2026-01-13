@@ -1094,8 +1094,6 @@ def validate_timezone(timezone_str: str) -> ZoneInfo:
         raise InvalidTimezoneError(timezone_str, e) from e
 
 
-
-
 # ============================================================================
 # Runtime Configuration Dataclasses
 # ============================================================================

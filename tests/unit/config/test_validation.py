@@ -272,5 +272,3 @@ def test_validate_timezone_invalid_timezone():
     """Test that validate_timezone raises InvalidTimezoneError for invalid timezones."""
     with pytest.raises(InvalidTimezoneError):
         validate_timezone("Invalid/Timezone")
-
-

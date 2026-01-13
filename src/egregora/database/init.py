@@ -17,6 +17,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from egregora.database.schemas import (
+    STAGING_MESSAGES_SCHEMA,
     TASKS_SCHEMA,
     UNIFIED_SCHEMA,
     create_table_if_not_exists,
@@ -56,6 +57,9 @@ def initialize_database(backend: BaseBackend) -> None:
 
     # 2. Tasks Table
     create_table_if_not_exists(conn, "tasks", TASKS_SCHEMA)
+
+    # 3. Ingestion Staging Table (Ingestion Buffer)
+    create_table_if_not_exists(conn, "messages", STAGING_MESSAGES_SCHEMA)
 
     # Indexes for messages table (Ingestion performance)
     _execute_sql(conn, "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_pk ON messages(event_id)")
