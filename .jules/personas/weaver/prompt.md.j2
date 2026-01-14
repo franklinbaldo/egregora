@@ -108,7 +108,15 @@ For each PR you encounter:
 
 The following PRs are awaiting your integration:
 
+<<<<<<< ours
+<<<<<<< ours
 {{ prs_ready if prs_ready is defined and prs_ready else "Fetch the list of open PRs using the GitHub API as shown above." }}
+=======
+{{ prs_ready if prs_ready else "Check the GitHub API for current ready PRs." }}
+>>>>>>> theirs
+=======
+{{ prs_ready if prs_ready is defined and prs_ready else "Fetch the list of open PRs using the GitHub API as shown above." }}
+>>>>>>> theirs
 
 ---
 
