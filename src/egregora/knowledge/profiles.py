@@ -108,7 +108,6 @@ def _find_profile_path(
 
     msg = f"No profile found for author {author_uuid} at {index_path}"
     raise ProfileNotFoundError(msg, author_uuid=author_uuid)
-    return index_path
 
 
 def _determine_profile_path(
@@ -1145,7 +1144,8 @@ def find_authors_yml(output_dir: Path) -> Path:
     # This is the only valid location for the authors file.
     # If it's not here, we should not be looking elsewhere.
     logger.warning(
-        "Could not find 'docs' directory in ancestry of %s. Falling back to legacy path resolution.", output_dir
+        "Could not find 'docs' directory in ancestry of %s. Falling back to legacy path resolution.",
+        output_dir,
     )
     return output_dir.parent.parent / ".authors.yml"
 
