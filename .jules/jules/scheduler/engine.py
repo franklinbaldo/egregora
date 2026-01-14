@@ -194,7 +194,7 @@ def execute_parallel_cycle_tick(dry_run: bool = False) -> None:
         track_state = persistent_state.get_track(track_name)
 
         # Determine Next Persona
-        last_id = track_state.last_persona_id
+        last_id = track_state.persona_id
         if last_id and last_id in cycle_mgr.cycle_ids:
             next_idx, should_increment = cycle_mgr.advance_cycle(last_id)
             print(f"   📍 Last: {last_id}")
@@ -204,7 +204,7 @@ def execute_parallel_cycle_tick(dry_run: bool = False) -> None:
             print("   📍 Starting fresh")
 
         # Check Previous Session Status
-        last_session_id = track_state.last_session_id
+        last_session_id = track_state.session_id
         ready_to_advance = True
         
         if last_session_id:

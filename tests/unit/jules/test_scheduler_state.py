@@ -58,9 +58,9 @@ class TestPersistentCycleState(unittest.TestCase):
 
         state = PersistentCycleState.load(self.test_path)
 
-        self.assertEqual(state.last_persona_id, "persona1")
-        self.assertEqual(state.last_session_id, "session1")
-        self.assertEqual(state.last_pr_number, 123)
+        self.assertEqual(state.persona_id, "persona1")
+        self.assertEqual(state.session_id, "session1")
+        self.assertEqual(state.pr_number, 123)
         self.assertEqual(len(state.history), 2)
 
     def test_load_legacy_format(self):
@@ -87,8 +87,8 @@ class TestPersistentCycleState(unittest.TestCase):
 
         # reversed([newest, oldest]) -> [oldest, newest]
         # index 0 -> oldest, index 1 -> newest
-        # last_persona_id (highest index) -> newest
-        self.assertEqual(state.last_persona_id, "newest")
+        # persona_id (highest index) -> newest
+        self.assertEqual(state.persona_id, "newest")
         self.assertEqual(len(state.history), 2)
         self.assertEqual(state.history["1"]["persona_id"], "newest")
         self.assertEqual(state.history["0"]["persona_id"], "oldest")
@@ -101,7 +101,7 @@ class TestPersistentCycleState(unittest.TestCase):
 
         state.update_pr_number(456)
 
-        self.assertEqual(state.last_pr_number, 456)
+        self.assertEqual(state.pr_number, 456)
         self.assertEqual(state.history["1"]["pr_number"], 456)
 
     def test_sequential_keys(self):

@@ -10,9 +10,9 @@ from typing import Any
 @dataclass
 class TrackState:
     """State for a single execution track."""
-    last_persona_id: str | None = None
-    last_session_id: str | None = None
-    last_pr_number: int | None = None
+    persona_id: str | None = None
+    session_id: str | None = None
+    pr_number: int | None = None
     updated_at: str | None = None
 
 
@@ -32,19 +32,19 @@ class PersistentCycleState:
         return sorted(self.history.keys(), key=lambda x: int(x), reverse=True)
 
     @property
-    def last_persona_id(self) -> str | None:
+    def persona_id(self) -> str | None:
         """Get the persona ID from the most recent session (Legacy/Default)."""
         keys = self.sorted_history_keys
         return self.history[keys[0]].get("persona_id") if keys else None
 
     @property
-    def last_session_id(self) -> str | None:
+    def session_id(self) -> str | None:
         """Get the session ID from the most recent session (Legacy/Default)."""
         keys = self.sorted_history_keys
         return self.history[keys[0]].get("session_id") if keys else None
 
     @property
-    def last_pr_number(self) -> int | None:
+    def pr_number(self) -> int | None:
         """Get the PR number from the most recent session (Legacy/Default)."""
         keys = self.sorted_history_keys
         return self.history[keys[0]].get("pr_number") if keys else None
@@ -81,7 +81,12 @@ class PersistentCycleState:
                 # Load tracks
                 tracks_data = data.get("tracks", {})
                 for name, t_data in tracks_data.items():
-                    state.tracks[name] = TrackState(**t_data)
+                    # Handle legacy 'last_' prefix in saved JSON if necessary
+                    clean_data = {}
+                    for k, v in t_data.items():
+                        new_k = k.replace("last_", "")
+                        clean_data[new_k] = v
+                    state.tracks[name] = TrackState(**clean_data)
             elif isinstance(data, list):
                 # Convert legacy list-only format to dict
                 state.history = {str(i): entry for i, entry in enumerate(reversed(data))}
@@ -96,9 +101,9 @@ class PersistentCycleState:
             "history": self.history,
             "tracks": {
                 name: {
-                    "last_persona_id": t.last_persona_id,
-                    "last_session_id": t.last_session_id,
-                    "last_pr_number": t.last_pr_number,
+                    "persona_id": t.persona_id,
+                    "session_id": t.session_id,
+                    "pr_number": t.pr_number,
                     "updated_at": t.updated_at
                 }
                 for name, t in self.tracks.items()
@@ -138,9 +143,9 @@ class PersistentCycleState:
         # Update track specific state
         if track_name:
             track = self.get_track(track_name)
-            track.last_persona_id = persona_id
-            track.last_session_id = session_id
-            track.last_pr_number = pr_number
+            track.persona_id = persona_id
+            track.session_id = session_id
+            track.pr_number = pr_number
             track.updated_at = timestamp
 
     def update_pr_number(self, pr_number: int, track_name: str | None = None) -> None:
@@ -150,7 +155,7 @@ class PersistentCycleState:
             self.history[keys[0]]["pr_number"] = pr_number
 
         if track_name and track_name in self.tracks:
-            self.tracks[track_name].last_pr_number = pr_number
+            self.tracks[track_name].pr_number = pr_number
 
 
 def commit_cycle_state(state_path: Path, message: str = "chore: update cycle state") -> bool:
