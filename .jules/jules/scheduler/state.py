@@ -131,8 +131,8 @@ class PersistentCycleState:
 
 def commit_cycle_state(state_path: Path, message: str = "chore: update cycle state") -> bool:
     """Commit the cycle state file to git via GitHub API."""
-    from jules.github import GitHubClient
-    from jules.scheduler import JULES_BRANCH
+    from jules.core.github import GitHubClient
+    from jules.scheduler.legacy import JULES_BRANCH
 
     client = GitHubClient()
     if not client.token:

@@ -5,23 +5,23 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from jules.client import JulesClient
-from jules.github import get_open_prs, get_repo_info
-from jules.scheduler import (
+from jules.core.client import JulesClient
+from jules.core.github import get_open_prs, get_repo_info
+from jules.features.sprints import sprint_manager
+from jules.scheduler.legacy import (
     JULES_BRANCH,
     check_schedule,
     load_schedule_registry,
-    sprint_manager,
 )
-from jules.scheduler_loader import PersonaLoader
-from jules.scheduler_managers import (
+from jules.scheduler.loader import PersonaLoader
+from jules.scheduler.managers import (
     BranchManager,
     CycleStateManager,
     PRManager,
     SessionOrchestrator,
 )
-from jules.scheduler_models import SessionRequest
-from jules.scheduler_state import PersistentCycleState, commit_cycle_state
+from jules.scheduler.models import SessionRequest
+from jules.scheduler.state import PersistentCycleState, commit_cycle_state
 
 CYCLE_STATE_PATH = Path(".jules/cycle_state.json")
 
@@ -429,7 +429,7 @@ def run_scheduler(
 
     # === WEAVER INTEGRATION ===
     # Only trigger Weaver if there are conflict PRs that need resolution
-    from jules.scheduler_managers import WEAVER_ENABLED
+    from jules.scheduler.managers import WEAVER_ENABLED
     if WEAVER_ENABLED and conflict_prs:
         run_weaver_for_conflicts(client, repo_info, conflict_prs, dry_run)
 
@@ -447,7 +447,7 @@ def run_weaver_for_conflicts(
         conflict_prs: List of PRs that failed to merge
         dry_run: If True, only log actions
     """
-    from jules.scheduler_managers import WEAVER_SESSION_TIMEOUT_MINUTES
+    from jules.scheduler.managers import WEAVER_SESSION_TIMEOUT_MINUTES
     
     print(f"\n🕸️ Weaver: Resolving {len(conflict_prs)} conflict PR(s)...")
     

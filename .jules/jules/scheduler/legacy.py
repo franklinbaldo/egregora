@@ -12,22 +12,21 @@ import frontmatter
 import jinja2
 
 # Import from new package relative to execution or absolute
-from jules.client import JulesClient
-from jules.exceptions import BranchError, MergeError
-from jules.github import (
+from jules.core.client import JulesClient
+from jules.core.exceptions import BranchError, MergeError
+from jules.core.github import (
     _extract_session_id,
     get_open_prs,
     get_pr_by_session_id_any_state,
     get_pr_details_via_gh,
     get_repo_info,
 )
-from jules.resources.templates import (
-    CELEBRATION,
-    IDENTITY_BRANDING,
-    JOURNAL_MANAGEMENT,
-    PRE_COMMIT_INSTRUCTIONS,
-)
-from jules.sprints import SprintManager, sprint_manager
+# Legacy placeholders - templates moved to .md.j2
+IDENTITY_BRANDING = ""
+JOURNAL_MANAGEMENT = ""
+CELEBRATION = ""
+PRE_COMMIT_INSTRUCTIONS = ""
+from jules.features.sprints import SprintManager, sprint_manager
 
 
 def load_schedule_registry(registry_path: Path) -> dict:

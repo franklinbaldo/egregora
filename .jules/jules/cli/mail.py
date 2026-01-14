@@ -1,7 +1,7 @@
 import typer
 from typing import List, Optional
 import os
-from jules.mail import send_message, list_inbox, get_message, mark_read
+from jules.features.mail import send_message, list_inbox, get_message, mark_read
 
 app = typer.Typer(
     help="""

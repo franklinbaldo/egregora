@@ -9,16 +9,17 @@ from typing import Any
 
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
-from jules.client import JulesClient
-from jules.exceptions import BranchError, MergeError
-from jules.github import (
+from jules.core.client import JulesClient
+from jules.core.exceptions import BranchError, MergeError
+from jules.core.github import (
     _extract_session_id,
     get_pr_by_session_id_any_state,
     get_pr_details_via_gh,
 )
-from jules.reconciliation_tracker import ReconciliationTracker
-from jules.scheduler import JULES_BRANCH, JULES_SCHEDULER_PREFIX, sprint_manager
-from jules.scheduler_models import CycleState, PersonaConfig, SessionRequest
+from jules.features.sprints import sprint_manager
+from jules.features.reconciliation import ReconciliationTracker
+from jules.scheduler.legacy import JULES_BRANCH, JULES_SCHEDULER_PREFIX
+from jules.scheduler.models import CycleState, PersonaConfig, SessionRequest
 
 logger = logging.getLogger(__name__)
 
@@ -657,7 +658,7 @@ class PRManager:
 
             # Create PR: jules → main using GitHub API (avoids GH Actions restrictions)
 
-            from jules.github import GitHubClient
+            from jules.core.github import GitHubClient
 
             pr_title = f"🤖 Integration: {self.jules_branch} → main"
             pr_body = f"""## Automated Integration PR
@@ -1125,7 +1126,7 @@ class ReconciliationManager:
             Session ID of reconciliation session, or None if failed/dry-run
 
         """
-        from jules.github import GitHubClient
+        from jules.core.github import GitHubClient
 
         tracker = ReconciliationTracker()
         if not tracker.can_reconcile(sprint_number):

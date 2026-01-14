@@ -7,7 +7,7 @@ from typing import Any
 import frontmatter
 import jinja2
 
-from jules.scheduler_models import PersonaConfig
+from jules.scheduler.models import PersonaConfig
 
 
 class PersonaLoader:
@@ -173,7 +173,7 @@ class PersonaLoader:
         full_context = {**context, **metadata}
         
         # Sprint planning
-        from jules.scheduler import sprint_manager
+        from jules.features.sprints import sprint_manager
         
         # Calculate sprint context text (used by sprint_planning_block or legacy append)
         sprint_context = sprint_manager.get_sprint_context(metadata.get("id", "unknown"))

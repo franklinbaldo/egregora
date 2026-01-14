@@ -2,9 +2,9 @@
 
 import typer
 
-from jules.auto_fix import auto_reply_to_jules
-from jules.scheduler_managers import BranchManager
-from jules.scheduler_v2 import run_scheduler
+from jules.features.autofix import auto_reply_to_jules
+from jules.scheduler.managers import BranchManager
+from jules.scheduler.engine import run_scheduler
 
 app = typer.Typer()
 schedule_app = typer.Typer()
@@ -43,7 +43,7 @@ def feedback_loop(
     author: str = typer.Option("app/google-labs-jules", "--author", help="Filter PRs by author"),
 ) -> None:
     """Run the feedback loop."""
-    from jules.feedback import run_feedback_loop
+    from jules.features.feedback import run_feedback_loop
 
     run_feedback_loop(dry_run=dry_run, author_filter=author)
 

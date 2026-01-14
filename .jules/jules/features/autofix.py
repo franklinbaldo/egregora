@@ -7,8 +7,8 @@ from typing import Any
 
 import jinja2
 
-from jules.client import JulesClient
-from jules.github import (
+from jules.core.client import JulesClient
+from jules.core.github import (
     fetch_failed_logs_summary,
     fetch_full_ci_logs,
     get_base_sha,
