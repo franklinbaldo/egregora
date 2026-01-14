@@ -46,19 +46,11 @@ def test_datetime_utilities() -> bool | None:
         # Import directly to avoid __init__.py issues
         import importlib.util
 
-        # Load exceptions module
-        spec = importlib.util.spec_from_file_location(
-            "egregora.utils.exceptions", "src/egregora/utils/exceptions.py"
-        )
-        exceptions_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(exceptions_mod)
-
         # Load datetime_utils module
         spec = importlib.util.spec_from_file_location(
             "egregora.utils.datetime_utils", "src/egregora/utils/datetime_utils.py"
         )
         datetime_utils_mod = importlib.util.module_from_spec(spec)
-        sys.modules["egregora.utils.exceptions"] = exceptions_mod
         spec.loader.exec_module(datetime_utils_mod)
 
         from datetime import datetime
@@ -82,7 +74,7 @@ def test_datetime_utilities() -> bool | None:
         result = datetime_utils_mod.ensure_datetime("2023-01-01")
         return isinstance(result, datetime)
 
-    except (ImportError, AttributeError, exceptions_mod.DateTimeParsingError):
+    except (ImportError, AttributeError, datetime_utils_mod.DateTimeParsingError):
         import traceback
 
         traceback.print_exc()
@@ -93,12 +85,6 @@ def test_exception_classes() -> bool | None:
     """Test new exception classes from merged PRs."""
     try:
         import importlib.util
-
-        spec = importlib.util.spec_from_file_location(
-            "egregora.utils.exceptions", "src/egregora/utils/exceptions.py"
-        )
-        exceptions_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(exceptions_mod)
 
         # Load orchestration exceptions module
         spec = importlib.util.spec_from_file_location(
