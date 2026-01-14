@@ -18,6 +18,18 @@ class TrackState(BaseModel):
     pr_number: Optional[int] = None
     updated_at: Optional[datetime] = None
 
+    @property
+    def last_persona_id(self) -> Optional[str]:
+        return self.persona_id
+
+    @property
+    def last_session_id(self) -> Optional[str]:
+        return self.session_id
+
+    @property
+    def last_pr_number(self) -> Optional[int]:
+        return self.pr_number
+
 
 class PersistentCycleState(BaseModel):
     """Persistent state for the cycle scheduler.
