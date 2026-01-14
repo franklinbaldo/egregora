@@ -23,23 +23,31 @@ class PersistentCycleState:
     Supports both legacy single-cycle history and new multi-track state.
     """
 
-    history: list[dict[str, Any]] = field(default_factory=list)
+    history: dict[str, dict[str, Any]] = field(default_factory=dict)
     tracks: dict[str, TrackState] = field(default_factory=dict)
+
+    @property
+    def sorted_history_keys(self) -> list[str]:
+        """Get history keys sorted as integers in descending order."""
+        return sorted(self.history.keys(), key=lambda x: int(x), reverse=True)
 
     @property
     def last_persona_id(self) -> str | None:
         """Get the persona ID from the most recent session (Legacy/Default)."""
-        return self.history[0].get("persona_id") if self.history else None
+        keys = self.sorted_history_keys
+        return self.history[keys[0]].get("persona_id") if keys else None
 
     @property
     def last_session_id(self) -> str | None:
         """Get the session ID from the most recent session (Legacy/Default)."""
-        return self.history[0].get("session_id") if self.history else None
+        keys = self.sorted_history_keys
+        return self.history[keys[0]].get("session_id") if keys else None
 
     @property
     def last_pr_number(self) -> int | None:
         """Get the PR number from the most recent session (Legacy/Default)."""
-        return self.history[0].get("pr_number") if self.history else None
+        keys = self.sorted_history_keys
+        return self.history[keys[0]].get("pr_number") if keys else None
 
     def get_track(self, track_name: str) -> TrackState:
         """Get state for a specific track, initializing if needed."""
@@ -61,14 +69,22 @@ class PersistentCycleState:
 
             # Load history
             if isinstance(data, dict):
-                state.history = data.get("history", [])
+                history_data = data.get("history", {})
+                if isinstance(history_data, list):
+                    # Convert legacy list history to dict
+                    # In legacy list, history[0] was the latest.
+                    # We want history["0"] to be the oldest for sequential growth.
+                    state.history = {str(i): entry for i, entry in enumerate(reversed(history_data))}
+                else:
+                    state.history = history_data
 
                 # Load tracks
                 tracks_data = data.get("tracks", {})
                 for name, t_data in tracks_data.items():
                     state.tracks[name] = TrackState(**t_data)
             elif isinstance(data, list):
-                state.history = data
+                # Convert legacy list-only format to dict
+                state.history = {str(i): entry for i, entry in enumerate(reversed(data))}
 
             return state
         except (json.JSONDecodeError, OSError, TypeError):
@@ -102,7 +118,7 @@ class PersistentCycleState:
         """Record a new session in state."""
         timestamp = datetime.now(timezone.utc).isoformat()
 
-        # Add to global audit history
+        # Add to global audit history using sequential integer keys
         entry = {
             "persona_id": persona_id,
             "session_id": session_id,
@@ -110,7 +126,14 @@ class PersistentCycleState:
             "created_at": timestamp,
             "track": track_name
         }
-        self.history.insert(0, entry)
+        
+        # Find the next sequential index
+        if not self.history:
+            next_idx = 0
+        else:
+            next_idx = max(int(k) for k in self.history.keys()) + 1
+        
+        self.history[str(next_idx)] = entry
 
         # Update track specific state
         if track_name:
@@ -122,8 +145,9 @@ class PersistentCycleState:
 
     def update_pr_number(self, pr_number: int, track_name: str | None = None) -> None:
         """Update the PR number for the last session."""
-        if self.history:
-            self.history[0]["pr_number"] = pr_number
+        keys = self.sorted_history_keys
+        if keys:
+            self.history[keys[0]]["pr_number"] = pr_number
 
         if track_name and track_name in self.tracks:
             self.tracks[track_name].last_pr_number = pr_number
