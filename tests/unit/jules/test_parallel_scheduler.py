@@ -48,15 +48,15 @@ class TestParallelScheduler:
 
         # Verify track state
         track = state.get_track("product")
-        assert track.last_persona_id == "forge"
-        assert track.last_session_id == "session-123"
+        assert track.persona_id == "forge"
+        assert track.session_id == "session-123"
 
         # Save and Load
         state.save(mock_cycle_state_json)
         loaded_state = PersistentCycleState.load(mock_cycle_state_json)
 
         assert "product" in loaded_state.tracks
-        assert loaded_state.tracks["product"].last_persona_id == "forge"
+        assert loaded_state.tracks["product"].persona_id == "forge"
 
     def test_cycle_state_manager_advances_track(self):
         """Verify CycleStateManager can advance a specific track."""

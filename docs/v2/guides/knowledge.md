@@ -289,19 +289,7 @@ conn.execute('LOAD vss')
 
 ### Caching
 
-Embeddings are cached to avoid recomputation:
-
-```python
-from egregora.utils.cache import get_cache
-
-cache = get_cache(".egregora/cache/")
-
-# Cached by content hash
-embedding = cache.get("text_hash")
-if not embedding:
-    embedding = embed_text(text)
-    cache.set("text_hash", embedding)
-```
+Embeddings are cached to avoid recomputation. This is handled automatically by the orchestration layer.
 
 ## Quality Control
 

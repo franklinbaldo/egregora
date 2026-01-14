@@ -100,17 +100,19 @@ def test_exception_classes() -> bool | None:
         exceptions_mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(exceptions_mod)
 
-        # Load cache_utils module
-        spec = importlib.util.spec_from_file_location("egregora.utils.cache", "src/egregora/utils/cache.py")
-        cache_utils_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(cache_utils_mod)
-
-        # Load authors_utils module
+        # Load orchestration exceptions module
         spec = importlib.util.spec_from_file_location(
-            "egregora.utils.authors", "src/egregora/utils/authors.py"
+            "egregora.orchestration.exceptions", "src/egregora/orchestration/exceptions.py"
         )
-        authors_utils_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(authors_utils_mod)
+        orchestration_exceptions_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(orchestration_exceptions_mod)
+
+        # Load knowledge exceptions module
+        spec = importlib.util.spec_from_file_location(
+            "egregora.knowledge.exceptions", "src/egregora/knowledge/exceptions.py"
+        )
+        knowledge_exceptions_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(knowledge_exceptions_mod)
 
         # Load datetime_utils module
         spec = importlib.util.spec_from_file_location(
@@ -120,12 +122,12 @@ def test_exception_classes() -> bool | None:
         spec.loader.exec_module(datetime_utils_mod)
 
         # Test CacheKeyNotFoundError
-        exc = cache_utils_mod.CacheKeyNotFoundError("test_key")
+        exc = orchestration_exceptions_mod.CacheKeyNotFoundError("test_key")
         if exc.key != "test_key":
             return False
 
         # Test AuthorsFileLoadError
-        exc = authors_utils_mod.AuthorsFileLoadError("/path/to/file", OSError("test"))
+        exc = knowledge_exceptions_mod.AuthorsFileLoadError("/path/to/file", OSError("test"))
         if exc.path != "/path/to/file":
             return False
 
