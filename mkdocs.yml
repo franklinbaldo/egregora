@@ -162,6 +162,7 @@ nav:
   - Home: index.md
   - Quick Start: getting-started/quickstart.md
   - About: about.md
+  - V2 (Deprecated): v2_deprecation.md
   - ADR:
     - Index: adr/README.md
   - Getting Started:
