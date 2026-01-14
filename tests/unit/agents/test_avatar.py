@@ -6,14 +6,11 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
-
 from egregora.agents.avatar import (
     AvatarContext,
     _download_avatar_from_command,
     _process_set_avatar_command,
 )
-
-
 class AvatarProcessingTest(unittest.TestCase):
     """Test suite for avatar processing."""
 
@@ -62,7 +59,6 @@ class AvatarProcessingTest(unittest.TestCase):
         self.assertEqual(result, "✅ Avatar set for author1")
         mock_download_avatar.assert_called_once()
         mock_update_profile.assert_called_once()
-
 
 if __name__ == "__main__":
     unittest.main()

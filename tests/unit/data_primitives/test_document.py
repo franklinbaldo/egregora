@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import pytest
 
 from egregora.data_primitives.document import Document, DocumentType

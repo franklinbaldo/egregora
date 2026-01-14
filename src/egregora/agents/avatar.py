@@ -358,8 +358,6 @@ class AvatarContext:
     profiles_dir: Path
     vision_model: str
     cache: EnrichmentCache | None = None
-
-
 def _download_avatar_from_command(
     value: str | None,
     author_uuid: str,
