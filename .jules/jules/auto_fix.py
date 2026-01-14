@@ -331,7 +331,7 @@ def _render_feedback_prompt(
         undefined=jinja2.StrictUndefined,
     )
 
-    template_path = Path(__file__).parent / "templates" / "autofix_prompt.jinja"
+    template_path = Path(__file__).parent / "templates" / "autofix_prompt.md.j2"
     template = env.from_string(template_path.read_text())
 
     failed_check_names = details.get("failed_check_names") or []
