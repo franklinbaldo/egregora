@@ -1,4 +1,4 @@
-"""Compatibility exceptions for legacy utility imports."""
+"""Compatibility cache utilities for legacy imports."""
 
 from egregora.orchestration.exceptions import (
     CacheDeserializationError,
@@ -6,13 +6,10 @@ from egregora.orchestration.exceptions import (
     CacheKeyNotFoundError,
     CachePayloadTypeError,
 )
-from egregora.utils.datetime_utils import DateTimeParsingError, InvalidDateTimeInputError
 
 __all__ = [
     "CacheDeserializationError",
     "CacheError",
     "CacheKeyNotFoundError",
     "CachePayloadTypeError",
-    "DateTimeParsingError",
-    "InvalidDateTimeInputError",
 ]
