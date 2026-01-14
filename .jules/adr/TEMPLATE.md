@@ -1,22 +1,17 @@
----
-id: YYYYMMDD-HHMM-short-title
-status: proposed
-owners: [persona_id]
-created_at: YYYY-MM-DD HH:MM
-supersedes: []
-superseded_by: []
-related_sessions: []
----
+# {ADR Title}
 
-# Title
+- **Status**: {Proposed | Accepted | Deprecated | Superseded}
+- **Date**: {YYYY-MM-DD}
+- **Supersedes**: {ADR-ID} (If applicable)
 
 ## Context
-Explain the problem, constraints, and relevant history.
+
+{Describe the context and problem that this ADR addresses. This section should explain the forces at play, including technological, political, social, and project local.}
 
 ## Decision
-State the decision clearly and concisely.
+
+{Describe the decision that was made. This section should be a clear and concise statement of the decision.}
 
 ## Consequences
-- Positive:
-- Negative:
-- Follow-ups:
+
+{Describe the consequences of this decision. This section should explain the positive and negative consequences of the decision, and how the negative consequences will be mitigated.}
