@@ -4,17 +4,22 @@ Last updated: 2026-01-06
 
 ## Current Organizational State
 
-The codebase is generally well-structured, with a clear separation of concerns between domains like `llm`, `knowledge`, `orchestration`, and `output_adapters`. The generic `src/egregora/utils` directory, which previously served as a "junk drawer," has been significantly cleaned up, with most domain-specific logic moved to its proper home.
+The codebase has undergone significant refactoring to improve modularity. The generic `src/egregora/utils` directory has been largely cleaned up, with most domain-specific logic moved to its proper home. However, a few compatibility shims remain, adding unnecessary indirection when navigating the codebase.
 
 The testing structure largely mirrors the source structure, which is good.
 
 ## Identified Issues
 
 1.  **Vague `database/utils.py`**: The `src/egregora/database/utils.py` module may contain generic SQL utilities, but it could also hide domain-specific query logic that should be part of a specific repository or data access layer.
+2.  **Compatibility Shims in `utils`**: The `src/egregora/utils` directory contains files that re-export code from other, more domain-specific locations.
+    -   `src/egregora/utils/authors.py`: Re-exports `AuthorsFileLoadError` from `egregora.knowledge.exceptions`.
+    -   `src/egregora/utils/cache.py`: Re-exports caching components from `egregora.orchestration.cache`.
 
 ## Prioritized Improvements
 
-1.  **`database/utils.py` Refactoring (Medium Impact, Medium Risk)**: This could improve the data access layer, but requires careful analysis to avoid breaking database interactions.
+1.  **Remove `authors.py` Shim (High Impact, Low Risk)**: This shim is a straightforward re-export. Removing it and updating its consumers will immediately improve clarity.
+2.  **Remove `cache.py` Shim (High Impact, Low Risk)**: Similar to the `authors.py` shim, this module creates unnecessary indirection.
+3.  **`database/utils.py` Refactoring (Medium Impact, Medium Risk)**: Improve the data access layer with careful analysis to avoid breaking database interactions.
 
 ## Completed Improvements
 
@@ -30,7 +35,8 @@ The testing structure largely mirrors the source structure, which is good.
 - **Removed dead code from `database/utils.py`**
 - **Removed dead compatibility shims from `utils` (`cache.py`, `authors.py`)**
 - **Removed dead compatibility shims from `utils` (`exceptions.py`)**
+- **Security code (`safe_path_join`) consolidated in `security/fs.py`**
 
 ## Organizational Strategy
 
-My strategy is to systematically dismantle the `src/egregora/utils` directory by moving its modules to their correct, domain-specific locations. I will follow a test-driven approach for each move, ensuring that a safety net of tests exists before any code is relocated. Each refactoring will be a single, cohesive change delivered in its own pull request. I will prioritize changes that offer the most significant improvement in clarity for the lowest risk and effort. The next session should begin with a discovery phase to identify new refactoring opportunities.
+My strategy is to systematically dismantle the `src/egregora/utils` directory by moving its modules to their correct, domain-specific locations and eliminating compatibility shims. I will follow a test-driven approach for each move, ensuring that a safety net of tests exists before any code is relocated. Each refactoring will be a single, cohesive change delivered in its own pull request. I will prioritize changes that offer the most significant improvement in clarity for the lowest risk and effort.
