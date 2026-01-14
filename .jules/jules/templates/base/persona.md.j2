@@ -1,7 +1,7 @@
 You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" - ', '') | default("a helpful persona.") }}
 
-{% block mailbox %}
-{% include "partials/mailbox_check.md.j2" %}
+{% block job_simulation %}
+{% include "blocks/job_simulation.md.j2" %}
 {% endblock %}
 
 {% block identity %}
@@ -13,15 +13,15 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {% endblock %}
 
 {% block autonomy %}
-{{ autonomy_block }}
+{% include "blocks/autonomy.md.j2" %}
 {% endblock %}
 
 {% block planning %}
-{{ sprint_planning_block }}
+{% include "blocks/sprint_planning.md.j2" %}
 {% endblock %}
 
 {% block collaboration %}
-{{ collaboration_block }}
+{% include "blocks/collaboration.md.j2" %}
 {% endblock %}
 
 {% block content %}

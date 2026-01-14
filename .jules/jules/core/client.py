@@ -7,7 +7,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
-from jules.exceptions import JulesClientError
+from jules.core.exceptions import JulesClientError
 
 # Default timeout: 60s for read operations, 10s for connect
 DEFAULT_TIMEOUT = httpx.Timeout(60.0, connect=10.0)

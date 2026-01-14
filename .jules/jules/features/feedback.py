@@ -4,8 +4,8 @@ import subprocess
 import sys
 from typing import Any
 
-from jules.client import JulesClient
-from jules.github import get_open_prs, get_pr_details_via_gh, get_repo_info, JULES_BOT_LOGINS
+from jules.core.client import JulesClient
+from jules.core.github import get_open_prs, get_pr_details_via_gh, get_repo_info, JULES_BOT_LOGINS
 
 
 def should_trigger_feedback(pr_data: dict[str, Any]) -> bool:

@@ -12,7 +12,7 @@ JULES_PATH = REPO_ROOT / ".jules"
 if str(JULES_PATH) not in sys.path:
     sys.path.append(str(JULES_PATH))
 
-from jules.github import GitHubClient, get_base_sha, get_open_prs  # noqa: E402
+from jules.core.github import GitHubClient, get_base_sha, get_open_prs  # noqa: E402
 
 
 @pytest.fixture

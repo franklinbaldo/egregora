@@ -7,8 +7,8 @@ from typing import Any
 
 import jinja2
 
-from jules.client import JulesClient
-from jules.github import (
+from jules.core.client import JulesClient
+from jules.core.github import (
     fetch_failed_logs_summary,
     fetch_full_ci_logs,
     get_base_sha,
@@ -331,7 +331,7 @@ def _render_feedback_prompt(
         undefined=jinja2.StrictUndefined,
     )
 
-    template_path = Path(__file__).parent / "templates" / "autofix_prompt.jinja"
+    template_path = Path(__file__).parent / "templates" / "autofix_prompt.md.j2"
     template = env.from_string(template_path.read_text())
 
     failed_check_names = details.get("failed_check_names") or []

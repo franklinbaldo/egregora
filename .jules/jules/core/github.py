@@ -8,7 +8,7 @@ import zipfile
 from typing import Any
 
 import httpx
-from jules.exceptions import GitHubError
+from jules.core.exceptions import GitHubError
 
 JULES_BOT_LOGINS = {"google-labs-jules[bot]", "app/google-labs-jules", "google-labs-jules"}
 

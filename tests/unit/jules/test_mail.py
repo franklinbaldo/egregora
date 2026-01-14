@@ -8,7 +8,7 @@ from moto import mock_aws
 # Add jules to path
 sys.path.insert(0, str(Path(__file__).parents[3] / ".jules"))
 
-from jules.mail import BUCKET_NAME, get_message, list_inbox, mark_read, send_message
+from jules.features.mail import BUCKET_NAME, get_message, list_inbox, mark_read, send_message
 
 
 @pytest.fixture(params=["local", "s3"])
@@ -16,10 +16,13 @@ def mail_backend(request, tmp_path, monkeypatch):
     """Parametrized fixture to test both local and S3 backends."""
     backend_type = request.param
     monkeypatch.setenv("JULES_MAIL_STORAGE", backend_type)
+    monkeypatch.delenv("AWS_S3_ENDPOINT_URL", raising=False)
+    # Patch the module-level variable since it was already imported
+    monkeypatch.setattr("jules.features.mail.S3_ENDPOINT", None)
 
     if backend_type == "local":
-        mock_mail_root = tmp_path / "mail"
-        monkeypatch.setattr("jules.mail.MAIL_ROOT", mock_mail_root)
+        # Run in a temp directory so .jules/personas/... is isolated
+        monkeypatch.chdir(tmp_path)
         yield "local"
     else:
         with mock_aws():

@@ -1,5 +1,5 @@
 import pytest
-from jules.sprints import SprintManager
+from jules.features.sprints import SprintManager
 
 
 class TestSprintManager:
