@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from egregora.config.settings import DEFAULT_MODEL
-from egregora.diagnostics import HealthStatus, check_egregora_config
+from egregora.cli.diagnostics import HealthStatus, check_egregora_config
 
 
 def test_check_egregora_config_detects_toml(tmp_path: Path, monkeypatch):
