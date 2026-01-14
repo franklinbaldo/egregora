@@ -10,8 +10,8 @@ from unittest.mock import patch
 
 from typer.testing import CliRunner
 
-from egregora.cli.main import app
 from egregora.cli.diagnostics import DiagnosticResult, HealthStatus
+from egregora.cli.main import app
 
 # Create a CLI runner for testing
 runner = CliRunner()

@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from egregora.config.settings import DEFAULT_MODEL
 from egregora.cli.diagnostics import HealthStatus, check_egregora_config
+from egregora.config.settings import DEFAULT_MODEL
 
 
 def test_check_egregora_config_detects_toml(tmp_path: Path, monkeypatch):
