@@ -65,14 +65,10 @@ def _resolve_filepath(
         UniqueFilenameError: If a unique filename cannot be found after max_attempts.
 
     """
-    original_filename = f"{date_prefix}-{base_slug}.md"
-    original_filepath = safe_path_join(output_dir, original_filename)
-
-    if not original_filepath.exists():
-        return original_filepath, base_slug
-
-    for i in range(2, max_attempts + 2):
-        slug_candidate = f"{base_slug}-{i}"
+    for i in range(max_attempts + 1):
+        # The first attempt (i=0) uses the base slug.
+        # Subsequent attempts append a numeric suffix, starting from 2.
+        slug_candidate = base_slug if i == 0 else f"{base_slug}-{i + 1}"
         filename = f"{date_prefix}-{slug_candidate}.md"
         filepath = safe_path_join(output_dir, filename)
         if not filepath.exists():
