@@ -24,8 +24,6 @@ def test_get_uuid_from_profile_success_from_subject(tmp_path):
     assert profiles._get_uuid_from_profile(profile_path) == test_uuid
 
 
-
-
 def test_read_profile_should_raise_not_found_for_missing_profile(tmp_path):
     """Should raise ProfileNotFoundError for a missing profile (desired behavior)."""
     non_existent_uuid = str(uuid.uuid4())

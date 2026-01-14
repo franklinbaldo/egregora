@@ -1,6 +1,6 @@
 """Compatibility exceptions for legacy imports."""
 
-from egregora.utils.datetime_utils import (  # noqa: F401
+from egregora.utils.datetime_utils import (
     DateTimeError,
     DateTimeParsingError,
     InvalidDateTimeInputError,

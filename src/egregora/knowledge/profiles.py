@@ -764,8 +764,6 @@ def _parse_frontmatter(content: str) -> dict[str, Any]:
     return {}
 
 
-
-
 def _extract_profile_metadata(profile_path: Path) -> dict[str, Any]:
     """Extract metadata from an existing profile file.
 
@@ -782,9 +780,7 @@ def _extract_profile_metadata(profile_path: Path) -> dict[str, Any]:
         return {}
 
     content = profile_path.read_text(encoding="utf-8")
-    metadata = _parse_frontmatter(content)
-
-    return metadata
+    return _parse_frontmatter(content)
 
 
 def _update_authors_yml(
@@ -1044,7 +1040,6 @@ def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
     # Logic 1: nested dirs (posts/profiles/{uuid}/*.md) - handled by agents/profile/generator usually?
     # No, profiles.py deals with output/profiles/{slug}.md
 
-
     # Handle nested directories (new structure: {uuid}/index.md)
     # We iterate over directories in profiles_dir
     for author_dir in profiles_dir.iterdir():
@@ -1142,7 +1137,8 @@ def find_authors_yml(output_dir: Path) -> Path:
 
     # This is the only valid location for the authors file.
     # If it's not here, we should not be looking elsewhere.
-    raise AuthorsFileLoadError(f"Could not find 'docs' directory in ancestry of {output_dir}")
+    msg = f"Could not find 'docs' directory in ancestry of {output_dir}"
+    raise AuthorsFileLoadError(msg)
 
 
 def load_authors_yml(path: Path) -> dict:
