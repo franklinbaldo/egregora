@@ -14,6 +14,18 @@ Feature: Jules System Mail Interface
     Then the command should exit successfully
     And a mail file should exist in ".jules/personas/curator@team/mail/new"
 
+  Scenario: Sending a broadcast message
+    Given personas "alice", "bob" exist
+    When I run the mail command "send" with args:
+      | arg      | value              |
+      | --from   | boss@team          |
+      | --to     | all@team           |
+      | --subject| Announcement       |
+      | --body   | Everyone listen up |
+    Then the command should exit successfully
+    And a mail file should exist in ".jules/personas/alice/mail/new"
+    And a mail file should exist in ".jules/personas/bob/mail/new"
+
   Scenario: Checking inbox
     Given a message exists from "boss@team" to "worker@team" with subject "Work"
     When I run the mail command "inbox" with args:

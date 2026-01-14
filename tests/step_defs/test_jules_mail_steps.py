@@ -37,6 +37,16 @@ def create_message_subject(sender, recipient, subject):
 def create_message_body(sender, recipient, body):
     return send_message(sender, recipient, "Subject", body)
 
+@given(parsers.parse('personas "{names}" exist'))
+def create_personas(isolated_fs, names):
+    # names string like '"alice", "bob"' -> parse
+    # simplified parsing logic
+    import re
+    # extract words inside quotes or just split
+    clean_names = [n.strip().replace('"', '') for n in names.split(',')]
+    for name in clean_names:
+        (isolated_fs / f".jules/personas/{name}").mkdir(parents=True, exist_ok=True)
+
 @when(parsers.parse('I run the mail command "{command}" with args:'), target_fixture="last_command_result")
 def run_mail_command(runner, command, datatable):
     # Flatten datatable to list of args

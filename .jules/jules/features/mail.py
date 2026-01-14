@@ -266,7 +266,27 @@ def _get_backend() -> MailboxBackend:
         return S3MailboxBackend()
     return LocalMaildirBackend()
 
-def send_message(*args, **kwargs): return _get_backend().send_message(*args, **kwargs)
+def send_message(from_id: str, to_id: str, subject: str, body: str, attachments: Optional[List[str]] = None) -> str:
+    if to_id == "all@team":
+        # Broadcast to all personas
+        # We assume .jules/personas exists relative to execution or use MAIL_ROOT.parent
+        # MAIL_ROOT is .jules/mail, so parent is .jules.
+        personas_dir = MAIL_ROOT.parent / "personas"
+        if not personas_dir.exists():
+            return _get_backend().send_message(from_id, to_id, subject, body, attachments)
+        
+        sent_ids = []
+        for p in personas_dir.iterdir():
+            if p.is_dir():
+                # Send to each persona found
+                # Note: This sends multiple individual messages.
+                mid = _get_backend().send_message(from_id, p.name, subject, body, attachments)
+                sent_ids.append(mid)
+        return f"broadcast:{len(sent_ids)}-messages"
+    
+    return _get_backend().send_message(from_id, to_id, subject, body, attachments)
+
+
 def list_inbox(*args, **kwargs): return _get_backend().list_inbox(*args, **kwargs)
 def get_message(*args, **kwargs): return _get_backend().get_message(*args, **kwargs)
 def mark_read(*args, **kwargs): return _get_backend().mark_read(*args, **kwargs)

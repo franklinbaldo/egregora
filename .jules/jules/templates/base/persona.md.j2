@@ -1,7 +1,7 @@
 You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" - ', '') | default("a helpful persona.") }}
 
-{% block mailbox %}
-{% include "partials/mailbox_check.md.j2" %}
+{% block job_simulation %}
+{% include "blocks/job_simulation.md.j2" %}
 {% endblock %}
 
 {% block identity %}

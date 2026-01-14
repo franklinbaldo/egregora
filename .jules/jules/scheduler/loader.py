@@ -172,6 +172,11 @@ class PersonaLoader:
         # Load shared blocks
         full_context = {**context, **metadata}
         
+        # Inject Password
+        import uuid
+        if "id" in full_context:
+            full_context["password"] = str(uuid.uuid5(uuid.NAMESPACE_DNS, full_context["id"]))
+
         # Sprint planning
         from jules.features.sprints import sprint_manager
         
