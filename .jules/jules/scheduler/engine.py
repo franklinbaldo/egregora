@@ -5,6 +5,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import jinja2
+
+# Initialize Jinja2 environment for prompt templates
+TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
+JINJA_ENV = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(str(TEMPLATES_DIR)),
+    undefined=jinja2.StrictUndefined,
+    trim_blocks=True,
+    lstrip_blocks=True,
+)
+
 from jules.core.client import JulesClient
 from jules.core.github import get_open_prs, get_repo_info
 from jules.features.sprints import sprint_manager
@@ -102,41 +113,13 @@ def build_session_prompt(persona_prompt: str, sync_info: dict | None, persona_id
     if not sync_info:
         return persona_prompt
     
-    patch_url = sync_info["patch_url"]
-    pr_number = sync_info["pr_number"]
-    head_branch = sync_info["head_branch"]
-    
-    sync_instruction = f"""
-## 🔄 SYNC REQUIRED - FIRST ACTION
-
-Before starting your main task, you MUST sync with the latest `jules` branch changes.
-
-**Your existing PR:** #{pr_number} (branch: `{head_branch}`)
-
-**Why?** The `jules` branch has been updated since your last session. To avoid conflicts:
-
-1. Download the sync patch:
-   ```bash
-   curl -L "{patch_url}" -o sync.patch
-   ```
-
-2. Apply the patch:
-   ```bash
-   git apply sync.patch
-   ```
-   
-3. If apply fails with conflicts, try:
-   ```bash
-   git apply --3way sync.patch
-   ```
-
-4. Then proceed with your normal task.
-
-**Important:** If the patch cannot be applied cleanly, document the conflicts and proceed with your task anyway. The Weaver will help resolve conflicts later.
-
----
-
-"""
+    # Render sync instruction from template
+    template = JINJA_ENV.get_template("prompts/sync_instruction.md.j2")
+    sync_instruction = template.render(
+        patch_url=sync_info["patch_url"],
+        pr_number=sync_info["pr_number"],
+        head_branch=sync_info["head_branch"],
+    )
     return sync_instruction + persona_prompt
 
 def execute_parallel_cycle_tick(dry_run: bool = False) -> None:
@@ -503,41 +486,18 @@ def run_weaver_for_conflicts(
             persona_id="weaver"
         )
         
-        # Build conflict-focused patch instructions
-        owner = repo_info["owner"]
-        repo = repo_info["repo"]
-        
-        patch_instructions = []
-        for pr in conflict_prs:
-            pr_num = pr['number']
-            pr_title = pr['title']
-            merge_error = pr.get('merge_error', 'Conflict')
-            patch_url = f"https://github.com/{owner}/{repo}/pull/{pr_num}.patch"
-            patch_instructions.append(f"""
-### PR #{pr_num}: {pr_title}
-**Error:** {merge_error}
-```bash
-curl -L "{patch_url}" -o pr_{pr_num}.patch
-git apply --3way pr_{pr_num}.patch
-```""")
-        
-        patches_section = "\n".join(patch_instructions)
+        # Build conflict resolution prompt from template
+        template = JINJA_ENV.get_template("prompts/conflict_resolution.md.j2")
         pr_numbers_str = ", ".join([f"#{pr['number']}" for pr in conflict_prs])
         
-        prompt = f"""{weaver.prompt_body}
-
-## 🕸️ CONFLICT RESOLUTION TASK
-
-The following PRs failed to auto-merge. Resolve their conflicts:
-
-{patches_section}
-
-After resolving, commit:
-```bash
-git add -A
-git commit -m "🕸️ Weaver: Resolve conflicts for PRs {pr_numbers_str}"
-```
-"""
+        conflict_section = template.render(
+            conflict_prs=conflict_prs,
+            owner=repo_info["owner"],
+            repo=repo_info["repo"],
+            pr_numbers_str=pr_numbers_str,
+        )
+        
+        prompt = f"{weaver.prompt_body}\n\n{conflict_section}"
         
         request = SessionRequest(
             persona_id="weaver",
