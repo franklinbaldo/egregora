@@ -25,7 +25,8 @@ class PersonaLoader:
 
         # Initialize Jinja environment with FileSystemLoader
         # We need to point to the templates directory AND the root for relative lookups
-        templates_dir = personas_dir.parent / "templates"
+        # New location: .jules/jules/templates
+        templates_dir = personas_dir.parent / "jules" / "templates"
         self.jinja_env = jinja2.Environment(
             loader=jinja2.FileSystemLoader([
                 str(templates_dir),
@@ -170,43 +171,16 @@ class PersonaLoader:
         """
         # Load shared blocks
         full_context = {**context, **metadata}
-        full_context["autonomy_block"] = self._load_block("autonomy.md")
-        full_context["collaboration_block"] = self._load_block("collaboration.md")
+        full_context["autonomy_block"] = self._load_block("autonomy.md.j2")
+        full_context["collaboration_block"] = self._load_block("collaboration.md.j2")
 
         # Sprint planning
         from jules.scheduler import sprint_manager
-        full_context["sprint_planning_block"] = self._load_block("sprint_planning.md")
+        full_context["sprint_planning_block"] = self._load_block("sprint_planning.md.j2")
 
         # Calculate sprint context text (used by sprint_planning_block or legacy append)
         sprint_context = sprint_manager.get_sprint_context(metadata.get("id", "unknown"))
         full_context["sprint_context_text"] = sprint_context
-
-        # Legacy Support: If not using inheritance, we likely need to inject the old variables
-        # However, since we are migrating everything, we can rely on the partials existing in templates/
-        # and the new templates using {% include "partials/..." %}.
-        #
-        # BUT, if a template is NOT migrated yet (is just .md), it might still expect
-        # variables like {{ identity_branding }}.
-        # To support partial migration (or fallback), we can try to render the partials into variables
-        # IF they are requested in the template.
-
-        # Check if legacy variables are used
-        if "{{ identity_branding }}" in body_template:
-            # We construct these from jules/resources/templates.py now since we didn't migrate partials yet
-            from jules.resources.templates import IDENTITY_BRANDING, JOURNAL_MANAGEMENT, CELEBRATION, PRE_COMMIT_INSTRUCTIONS
-            full_context["identity_branding"] = jinja2.Environment().from_string(IDENTITY_BRANDING).render(**full_context)
-
-        if "{{ journal_management }}" in body_template:
-            from jules.resources.templates import JOURNAL_MANAGEMENT
-            full_context["journal_management"] = jinja2.Environment().from_string(JOURNAL_MANAGEMENT).render(**full_context)
-
-        if "{{ empty_queue_celebration }}" in body_template:
-             from jules.resources.templates import CELEBRATION
-             full_context["empty_queue_celebration"] = jinja2.Environment().from_string(CELEBRATION).render(**full_context)
-
-        if "{{ pre_commit_instructions }}" in body_template:
-             from jules.resources.templates import PRE_COMMIT_INSTRUCTIONS
-             full_context["pre_commit_instructions"] = jinja2.Environment().from_string(PRE_COMMIT_INSTRUCTIONS).render(**full_context)
 
         # Legacy Support: Append sprint context if not using inheritance/blocks
         if "{% extends" not in body_template and "{% block" not in body_template:
@@ -216,15 +190,15 @@ class PersonaLoader:
         return self.jinja_env.from_string(body_template).render(**full_context).strip()
 
     def _load_block(self, block_name: str) -> str:
-        """Load a shared prompt block from .jules/blocks/.
+        """Load a shared prompt block from .jules/jules/templates/blocks/.
 
         Args:
-            block_name: Block filename (e.g., "autonomy.md")
+            block_name: Block filename (e.g., "autonomy.md.j2")
 
         Returns:
             Block content or empty string if not found
         """
-        blocks_dir = self.personas_dir.parent / "blocks"
+        blocks_dir = self.personas_dir.parent / "jules" / "templates" / "blocks"
         block_path = blocks_dir / block_name
         if not block_path.exists():
             return ""
