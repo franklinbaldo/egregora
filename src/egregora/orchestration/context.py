@@ -219,6 +219,7 @@ class PipelineContext:
     @property
     def cache(self) -> PipelineCache:
         return self.state.cache
+
     @property
     def annotations_store(self) -> AnnotationStore | None:
         return self.state.annotations_store

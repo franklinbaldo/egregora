@@ -9,7 +9,7 @@ import pytest
 import yaml
 
 from egregora.output_adapters.exceptions import MissingMetadataError, UniqueFilenameError
-from egregora.output_adapters.mkdocs.markdown import write_markdown_post, _resolve_filepath
+from egregora.output_adapters.mkdocs.markdown import _resolve_filepath, write_markdown_post
 
 
 def test_write_markdown_post_creates_file_with_frontmatter(tmp_path: Path):
@@ -79,6 +79,7 @@ def test_write_markdown_post_raises_error_for_missing_metadata(tmp_path: Path):
 
     assert "slug" in str(excinfo.value)
     assert "date" in str(excinfo.value)
+
 
 def test_resolve_filepath_no_collision(tmp_path: Path):
     """

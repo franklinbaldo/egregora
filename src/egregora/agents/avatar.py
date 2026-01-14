@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 import httpx
 from PIL import Image
 from ratelimit import limits, sleep_and_retry
+
 from egregora.agents.enricher import ensure_datetime
 from egregora.agents.enrichment import enrich_avatar
 from egregora.exceptions import EgregoraError
@@ -357,6 +358,8 @@ class AvatarContext:
     profiles_dir: Path
     vision_model: str
     cache: EnrichmentCache | None = None
+
+
 def _download_avatar_from_command(
     value: str | None,
     author_uuid: str,
