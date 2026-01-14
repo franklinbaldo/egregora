@@ -184,6 +184,33 @@ class PersonaLoader:
         sprint_context = sprint_manager.get_sprint_context(metadata.get("id", "unknown"))
         full_context["sprint_context_text"] = sprint_context
 
+        # PRE-RENDER PARTIALS AND BLOCKS
+        # This allows using {{ identity_branding }} instead of {% include "partials/identity_branding.md.j2" %}
+        # We search in partials/ and blocks/
+        for template_name in self.jinja_env.list_templates():
+            if template_name.startswith(("partials/", "blocks/")) and template_name.endswith(".j2"):
+                # Use filename without extension as variable name
+                # e.g. "partials/identity_branding.md.j2" -> "identity_branding"
+                # e.g. "blocks/autonomy.md.j2" -> "autonomy_block"
+                name = Path(template_name).name.split('.')[0]
+                
+                if template_name.startswith("blocks/"):
+                    var_name = f"{name}_block"
+                else:
+                    var_name = name
+
+                try:
+                    # Render the partial with current context
+                    content = self.jinja_env.get_template(template_name).render(**full_context)
+                    full_context[var_name] = content
+                    
+                    # Aliases
+                    if var_name == "celebration":
+                        full_context["empty_queue_celebration"] = content
+                except Exception:
+                    # If rendering fails (e.g. missing vars required by partial), skip or log
+                    pass
+
         # Legacy Support: Append sprint context if not using inheritance/blocks
         if "{% extends" not in body_template and "{% block" not in body_template:
             body_template += sprint_context
