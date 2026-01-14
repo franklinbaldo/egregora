@@ -21,6 +21,7 @@ from ratelimit import limits, sleep_and_retry
 from egregora.agents.enricher import (
     ensure_datetime,
 )
+from egregora.agents.enrichment import enrich_avatar
 from egregora.exceptions import EgregoraError
 from egregora.input_adapters.whatsapp.commands import extract_commands
 from egregora.knowledge.profiles import remove_profile_avatar, update_profile_avatar
@@ -359,9 +360,6 @@ class AvatarContext:
     profiles_dir: Path
     vision_model: str
     cache: EnrichmentCache | None = None
-
-
-from egregora.agents.enrichment import enrich_avatar
 
 
 def _download_avatar_from_command(

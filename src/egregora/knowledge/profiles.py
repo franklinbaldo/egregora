@@ -700,7 +700,11 @@ def update_profile_avatar(
     new_frontmatter = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
     # Reconstruct the file content, preserving the body
-    body_content = content.split("---", 2)[2] if content.count("---") >= 2 else content
+    body_content = (
+        content.split("---", YAML_FRONTMATTER_PARTS_COUNT)[YAML_FRONTMATTER_PARTS_COUNT]
+        if content.count("---") >= YAML_FRONTMATTER_PARTS_COUNT
+        else content
+    )
     content = f"---\n{new_frontmatter}---\n{body_content}"
 
     logger.info("✅ Avatar set for %s: %s", author_uuid, avatar_url)
@@ -753,7 +757,11 @@ def remove_profile_avatar(
         new_frontmatter = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
         # Reconstruct the file content, preserving the body
-        body_content = content.split("---", 2)[2] if content.count("---") >= 2 else content
+        body_content = (
+            content.split("---", YAML_FRONTMATTER_PARTS_COUNT)[YAML_FRONTMATTER_PARTS_COUNT]
+            if content.count("---") >= YAML_FRONTMATTER_PARTS_COUNT
+            else content
+        )
         content = f"---\n{new_frontmatter}---\n{body_content}"
 
         target_path = _determine_profile_path(author_uuid, metadata, profiles_dir, current_path=profile_path)
