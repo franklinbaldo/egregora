@@ -410,6 +410,11 @@ def run_scheduler(
     # Returns list of PRs that failed to merge (conflicts)
     conflict_prs = pr_mgr.reconcile_all_jules_prs(client, repo_info, dry_run)
 
+    # === EMAIL POLLING ===
+    from jules.features.polling import EmailPoller
+    poller = EmailPoller(client)
+    poller.poll_and_deliver()
+
     # === WEAVER INTEGRATION ===
     # Only trigger Weaver if there are conflict PRs that need resolution
     from jules.scheduler.managers import WEAVER_ENABLED
