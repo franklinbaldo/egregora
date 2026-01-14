@@ -381,8 +381,8 @@ def test_remove_profile_avatar(tmp_path: Path):
     profile_path = Path(profile_path_str)
 
     content = profile_path.read_text()
-    assert "Status: None" in content
     assert avatar_url not in content
+    assert "avatar:" not in content
 
 
 def test_sync_all_profiles_mixed(tmp_path: Path):

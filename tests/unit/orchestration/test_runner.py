@@ -75,7 +75,7 @@ def test_process_single_window_orchestration(
     # Arrange
     context = MagicMock(spec=PipelineContext)
     output_sink = MagicMock()
-    output_sink.publish = MagicMock()
+    output_sink.persist = MagicMock()
     context.output_sink = output_sink
     context.url_context = None
     context.enable_enrichment = False
@@ -116,7 +116,7 @@ def test_process_single_window_orchestration(
 
     mock_process_media.assert_called_once()
     # one for media, one for announcement, one for profile, one for journal
-    assert output_sink.publish.call_count >= 1
+    assert output_sink.persist.call_count >= 1
 
     mock_extract_commands.assert_called_once()
     mock_command_to_announcement.assert_called_once()
