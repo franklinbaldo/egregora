@@ -115,6 +115,22 @@ class TestPersistentCycleState(unittest.TestCase):
         self.assertEqual(state.history["0"]["persona_id"], "p1")
         self.assertEqual(state.history["1"]["persona_id"], "p2")
 
+    def test_save_sorts_history_keys(self):
+        """Test that history keys are sorted as integers when saved."""
+        state = PersistentCycleState()
+        # Add out of order
+        state.history["10"] = {"persona_id": "p10"}
+        state.history["2"] = {"persona_id": "p2"}
+        state.history["1"] = {"persona_id": "p1"}
+        
+        state.save(self.test_path)
+        
+        with self.test_path.open() as f:
+            data = json.load(f)
+            
+        keys = list(data["history"].keys())
+        self.assertEqual(keys, ["1", "2", "10"])
+
 
 class TestCommitCycleState(unittest.TestCase):
     @patch("jules.core.github.GitHubClient")

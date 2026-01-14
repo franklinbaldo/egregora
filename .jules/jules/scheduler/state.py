@@ -97,8 +97,14 @@ class PersistentCycleState:
 
     def save(self, path: Path) -> None:
         """Save state to JSON file."""
+        # Sort history by keys as integers before saving
+        sorted_history = {
+            k: self.history[k] 
+            for k in sorted(self.history.keys(), key=lambda x: int(x))
+        }
+        
         data = {
-            "history": self.history,
+            "history": sorted_history,
             "tracks": {
                 name: {
                     "persona_id": t.persona_id,
