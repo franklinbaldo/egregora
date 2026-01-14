@@ -37,9 +37,24 @@ class MailboxBackend(ABC):
 
 class LocalMaildirBackend(MailboxBackend):
     def _get_maildir(self, persona_id: str) -> mailbox.Maildir:
-        path = MAIL_ROOT / persona_id
-        MAIL_ROOT.mkdir(parents=True, exist_ok=True)
-        return mailbox.Maildir(str(path), create=True)
+        # Resolve path to .jules/personas/<persona_id>/mail
+        # We assume .jules is in the current working directory or resolvable relative to it
+        persona_path = Path(".jules/personas") / persona_id
+        mail_path = persona_path / "mail"
+        
+        if not persona_path.exists():
+            persona_path.mkdir(parents=True, exist_ok=True)
+            
+        # Ensure mail directory exists
+        mail_path.mkdir(parents=True, exist_ok=True)
+        
+        # Explicitly create Maildir subdirectories to match mailbox requirements
+        # mailbox.Maildir(create=True) can sometimes be flaky if dir exists but subdirs don't
+        (mail_path / "tmp").mkdir(exist_ok=True)
+        (mail_path / "new").mkdir(exist_ok=True)
+        (mail_path / "cur").mkdir(exist_ok=True)
+
+        return mailbox.Maildir(str(mail_path), create=True)
 
     def send_message(self, from_id: str, to_id: str, subject: str, body: str, attachments: Optional[List[str]] = None) -> str:
         dest_maildir = self._get_maildir(to_id)
