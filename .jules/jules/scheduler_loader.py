@@ -171,13 +171,10 @@ class PersonaLoader:
         """
         # Load shared blocks
         full_context = {**context, **metadata}
-        full_context["autonomy_block"] = self._load_block("autonomy.md.j2")
-        full_context["collaboration_block"] = self._load_block("collaboration.md.j2")
-
+        
         # Sprint planning
         from jules.scheduler import sprint_manager
-        full_context["sprint_planning_block"] = self._load_block("sprint_planning.md.j2")
-
+        
         # Calculate sprint context text (used by sprint_planning_block or legacy append)
         sprint_context = sprint_manager.get_sprint_context(metadata.get("id", "unknown"))
         full_context["sprint_context_text"] = sprint_context
@@ -188,24 +185,6 @@ class PersonaLoader:
 
         # Render final body
         return self.jinja_env.from_string(body_template).render(**full_context).strip()
-
-    def _load_block(self, block_name: str) -> str:
-        """Load a shared prompt block from .jules/jules/templates/blocks/.
-
-        Args:
-            block_name: Block filename (e.g., "autonomy.md.j2")
-
-        Returns:
-            Block content or empty string if not found
-        """
-        blocks_dir = self.personas_dir.parent / "jules" / "templates" / "blocks"
-        block_path = blocks_dir / block_name
-        if not block_path.exists():
-            return ""
-        try:
-            return block_path.read_text().strip()
-        except OSError:
-            return ""
 
     def _ensure_journals_directory(self, persona_dir: Path) -> None:
         """Ensure journals/ subdirectory exists for a persona.
