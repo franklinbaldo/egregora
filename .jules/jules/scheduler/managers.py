@@ -1011,7 +1011,7 @@ class SessionOrchestrator:
         self.dry_run = dry_run
 
     def create_session(self, request: SessionRequest) -> str:
-        """Create a Jules session.
+        """Create a Jules session or reuse an existing active one.
 
         Args:
             request: Session creation parameters
@@ -1023,6 +1023,24 @@ class SessionOrchestrator:
         if self.dry_run:
             return "[DRY RUN]"
 
+        # 1. Look for existing active session for this persona/title
+        try:
+            sessions_resp = self.client.list_sessions()
+            sessions = sessions_resp.get("sessions", [])
+            for session in sessions:
+                state = session.get("state")
+                title = session.get("title", "")
+                
+                # Check if this session is for the same persona and is still active
+                # Titles look like: "⚡ absolutist: scheduled task"
+                if request.persona_id in title and state not in ["COMPLETED", "FAILED", "CANCELLED", "DELETED"]:
+                    session_id = session.get("name", "").split("/")[-1]
+                    print(f"   🔄 Reusing existing active session for {request.persona_id}: {session_id} ({state})")
+                    return session_id
+        except Exception as e:
+            print(f"   ⚠️ Warning: Failed to check for existing sessions: {e}")
+
+        # 2. No active session found, create new one
         result = self.client.create_session(
             prompt=request.prompt,
             owner=request.owner,

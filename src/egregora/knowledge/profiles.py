@@ -84,11 +84,6 @@ def _get_uuid_from_profile(profile_path: Path) -> str:
             if key in metadata:
                 return str(metadata[key])
 
-        # Fallback for legacy files where filename IS the uuid
-        stem = profile_path.stem
-        # Basic heuristic: UUID is 36 chars (with dashes) or 32 (hex)
-        if len(stem) in (32, 36) and all(c in "0123456789abcdefABCDEF-" for c in stem):
-            return stem
     except (OSError, UnicodeError, ValueError, TypeError) as e:
         msg = f"Failed to parse profile {profile_path}: {e}"
         raise ProfileParseError(msg, path=str(profile_path)) from e
@@ -101,33 +96,12 @@ def _find_profile_path(
     profiles_dir: Path,
 ) -> Path:
     """Find profile file for a given UUID, scanning directory if needed."""
-    # Fast path: check if {uuid}/index.md exists (new structure)
+    # The only valid path is {uuid}/index.md
     index_path = profiles_dir / author_uuid / "index.md"
-    if index_path.exists():
-        return index_path
-
-    # Check potential legacy flat file (by UUID)
-    legacy_path = profiles_dir / f"{author_uuid}.md"
-    if legacy_path.exists():
-        return legacy_path
-
-    # Scan directory for legacy slug-based files
-    if not profiles_dir.exists():
-        msg = f"Profiles directory not found for {author_uuid}"
+    if not index_path.exists():
+        msg = f"No profile found for author {author_uuid} at {index_path}"
         raise ProfileNotFoundError(msg, author_uuid=author_uuid)
-
-    for path in profiles_dir.glob("*.md"):
-        if path.name == "index.md":
-            continue
-        try:
-            if _get_uuid_from_profile(path) == author_uuid:
-                return path
-        except ProfileError:
-            # Ignore malformed profiles during search
-            continue
-
-    msg = f"No profile found for author {author_uuid}"
-    raise ProfileNotFoundError(msg, author_uuid=author_uuid)
+    return index_path
 
 
 def _determine_profile_path(
@@ -471,8 +445,6 @@ def apply_command_to_profile(
     # Now decide where to save it
     # We must extract metadata from the NEW content to know if alias changed
     metadata = _parse_frontmatter(content)
-    # Also parse legacy sections (like ## Display Preferences) to get alias
-    _extract_legacy_metadata(content, metadata)
 
     target_path = _determine_profile_path(author_uuid, metadata, profiles_dir, current_path=profile_path)
 
@@ -792,32 +764,6 @@ def _parse_frontmatter(content: str) -> dict[str, Any]:
     return {}
 
 
-def _extract_legacy_metadata(content: str, metadata: dict[str, Any]) -> None:
-    """Extract metadata from legacy profile sections."""
-    alias_match = re.search('Alias: "([^"]+)".*Public: true', content, re.DOTALL)
-    if alias_match and "alias" not in metadata:
-        metadata["alias"] = alias_match.group(1)
-        metadata["name"] = alias_match.group(1)
-
-    avatar_match = re.search("- URL:\\s*(.+)", content)
-    if avatar_match and "avatar" not in metadata:
-        metadata["avatar"] = avatar_match.group(1).strip()
-
-    bio_match = re.search('## User Bio\\s*\\n"([^"]+)"', content)
-    if bio_match and "bio" not in metadata:
-        metadata["bio"] = bio_match.group(1)
-
-    social = {}
-    twitter_match = re.search("- Twitter:\\s*(.+)", content)
-    if twitter_match:
-        social["twitter"] = twitter_match.group(1).strip()
-
-    website_match = re.search("- Website:\\s*(.+)", content)
-    if website_match:
-        social["website"] = website_match.group(1).strip()
-
-    if social and "social" not in metadata:
-        metadata["social"] = social
 
 
 def _extract_profile_metadata(profile_path: Path) -> dict[str, Any]:
@@ -837,7 +783,6 @@ def _extract_profile_metadata(profile_path: Path) -> dict[str, Any]:
 
     content = profile_path.read_text(encoding="utf-8")
     metadata = _parse_frontmatter(content)
-    _extract_legacy_metadata(content, metadata)
 
     return metadata
 
@@ -1099,19 +1044,6 @@ def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
     # Logic 1: nested dirs (posts/profiles/{uuid}/*.md) - handled by agents/profile/generator usually?
     # No, profiles.py deals with output/profiles/{slug}.md
 
-    # Handle direct files in profiles_dir
-    # Handle direct files in profiles_dir (legacy flat structure)
-    for profile_path in profiles_dir.glob("*.md"):
-        if profile_path.name == "index.md":
-            continue
-        try:
-            metadata = _extract_profile_metadata(profile_path)
-            author_uuid = str(metadata.get("uuid", profile_path.stem))
-            entry = _build_author_entry(profile_path, metadata, author_uuid=author_uuid)
-            authors[author_uuid] = entry
-            count += 1
-        except (OSError, yaml.YAMLError) as e:
-            logger.warning("Failed to sync profile %s: %s", profile_path, e)
 
     # Handle nested directories (new structure: {uuid}/index.md)
     # We iterate over directories in profiles_dir
@@ -1120,17 +1052,9 @@ def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
             continue
 
         index_path = author_dir / "index.md"
-        target_path = index_path
         if not index_path.exists():
-            # Fallback: look for ANY markdown file in the directory
-            md_files = [
-                p for p in author_dir.glob("*.md") if p.name != "index.md"
-            ]  # exclude index.md to be safe
-            if not md_files:
-                continue
-            # Pick the first one (arbitrary tie-break if multiple)
-            # Typically dynamic posts are named by slug.
-            target_path = md_files[0]
+            continue
+        target_path = index_path
 
         try:
             metadata = _extract_profile_metadata(target_path)
@@ -1216,12 +1140,9 @@ def find_authors_yml(output_dir: Path) -> Path:
         if parent.name == "docs":
             return parent / ".authors.yml"
 
-    logger.warning(
-        "Could not find 'docs' directory in ancestry of %s. "
-        "Falling back to legacy path resolution for .authors.yml.",
-        output_dir,
-    )
-    return output_dir.resolve().parent.parent / ".authors.yml"
+    # This is the only valid location for the authors file.
+    # If it's not here, we should not be looking elsewhere.
+    raise AuthorsFileLoadError(f"Could not find 'docs' directory in ancestry of {output_dir}")
 
 
 def load_authors_yml(path: Path) -> dict:
@@ -1241,7 +1162,7 @@ def register_new_authors(authors: dict, author_ids: list[str]) -> list[str]:
         if author_id and author_id not in authors:
             authors[author_id] = {
                 "name": author_id,
-                "url": f"profiles/{author_id}.md",
+                "url": f"profiles/{author_id}/",
             }
             new_ids.append(author_id)
     return new_ids

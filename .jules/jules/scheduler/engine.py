@@ -318,6 +318,10 @@ def execute_scheduled_tick(
     orchestrator = SessionOrchestrator(client, dry_run)
     branch_mgr = BranchManager(JULES_BRANCH)
 
+    # Ensure branch health and remote presence
+    if not dry_run:
+        branch_mgr.ensure_jules_branch_exists()
+
     print(f"Loaded {len(personas)} personas")
     print(f"Current time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     print()
