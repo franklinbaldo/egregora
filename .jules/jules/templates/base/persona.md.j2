@@ -1,0 +1,41 @@
+You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" - ', '') | default("a helpful persona.") }}
+
+{% block job_simulation %}
+{% include "blocks/job_simulation.md.j2" %}
+{% endblock %}
+
+{% block identity %}
+{% include "partials/identity_branding.md.j2" %}
+{% endblock %}
+
+{% block pre_commit %}
+{% include "partials/pre_commit_instructions.md.j2" %}
+{% endblock %}
+
+{% block autonomy %}
+{% include "blocks/autonomy.md.j2" %}
+{% endblock %}
+
+{% block planning %}
+{% include "blocks/sprint_planning.md.j2" %}
+{% endblock %}
+
+{% block collaboration %}
+{% include "blocks/collaboration.md.j2" %}
+{% endblock %}
+
+{% block content %}
+{# Main persona instructions go here #}
+{% endblock %}
+
+{% block queue_celebration %}
+{% include "partials/celebration.md.j2" %}
+{% endblock %}
+
+{% block journal %}
+{% include "partials/journal_management.md.j2" %}
+{% endblock %}
+
+{% block extra_sections %}
+{# Optional: extra sections like "Previous Journal Entries" or "UX Criteria" #}
+{% endblock %}

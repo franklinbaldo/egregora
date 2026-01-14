@@ -11,7 +11,7 @@ JULES_PATH = REPO_ROOT / ".jules"
 if str(JULES_PATH) not in sys.path:
     sys.path.append(str(JULES_PATH))
 
-from jules.scheduler import (  # type: ignore[import-not-found] # noqa: E402
+from jules.scheduler.legacy import (
     JULES_BRANCH,
     ensure_jules_branch_exists,
     update_jules_from_main,
@@ -47,7 +47,7 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
         # Push
         mock_run.assert_any_call(["git", "push", "origin", JULES_BRANCH], check=True, capture_output=True)
 
-    @patch("jules.scheduler_legacy.rotate_drifted_jules_branch")
+    @patch("jules.scheduler.legacy.rotate_drifted_jules_branch")
     @patch("subprocess.run")
     def test_update_jules_from_main_failure(self, mock_run: MagicMock, mock_rotate: MagicMock) -> None:
         """Test that update_jules_from_main fails gracefully and rotates on error."""
@@ -66,8 +66,8 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
         self.assertFalse(result)
         mock_rotate.assert_called_once()
 
-    @patch("jules.scheduler_legacy.update_jules_from_main")
-    @patch("jules.scheduler_legacy.is_jules_drifted")
+    @patch("jules.scheduler.legacy.update_jules_from_main")
+    @patch("jules.scheduler.legacy.is_jules_drifted")
     @patch("subprocess.run")
     def test_ensure_jules_branch_exists_calls_update(
         self, mock_run: MagicMock, mock_is_drifted: MagicMock, mock_update: MagicMock
@@ -88,8 +88,8 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
 
         mock_update.assert_called_once()
 
-    @patch("jules.scheduler_legacy.update_jules_from_main")
-    @patch("jules.scheduler_legacy.is_jules_drifted")
+    @patch("jules.scheduler.legacy.update_jules_from_main")
+    @patch("jules.scheduler.legacy.is_jules_drifted")
     @patch("subprocess.run")
     def test_ensure_jules_branch_exists_fallback_on_update_fail(
         self, mock_run: MagicMock, mock_is_drifted: MagicMock, mock_update: MagicMock

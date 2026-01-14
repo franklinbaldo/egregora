@@ -42,8 +42,10 @@ dependencies = [
 ]
 
 [project.scripts]
-egregora = "egregora.cli:main"
-jules-mail = "jules.mail_cli:app"
+egregora = "egregora.cli:app"
+jules = "jules.cli.main:app"
+mail = "jules.cli.mail:app"
+my-tools = "jules.cli.my_tools:app"
 
 [project.entry-points."egregora.adapters"]
 whatsapp = "egregora.input_adapters.whatsapp.adapter:WhatsAppAdapter"
@@ -367,7 +369,7 @@ source = ["src/egregora"]
 omit = ["*/tests/*", "*/__pycache__/*", "*/site-packages/*"]
 
 [tool.coverage.report]
-fail_under = 0
+fail_under = 55
 show_missing = true
 skip_covered = false
 precision = 2

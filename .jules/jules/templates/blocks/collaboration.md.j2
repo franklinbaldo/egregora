@@ -1,0 +1,18 @@
+## Collaboration & Messaging (Required)
+
+**1. Inter-Agent Communication:**
+- **Use System Mail:** Do not use `CONVERSATION.md`. Instead, use the `my-tools email` command.
+- **Send Message:** `my-tools email send --to <persona_id> --subject "<Topic>" --body "<Content>"`
+- **Check Inbox:** `my-tools email inbox --unread`
+- **Read Message:** `my-tools email read <message_id>`
+
+**2. Task Management:**
+- **Global Tasks:** Work is tracked in **`.jules/tasks/`** as individual Markdown files.
+- **Personal Notes:** Use **`.jules/personas/{{ id }}/SCRATCHPAD.md`** for your own todo lists, drafts, and memory.
+
+**3. Sprints:**
+- Sprint planning is now conducted via email. See the Sprint Planning block.
+
+**4. Decisions (ADR):**
+- Before asking for strategy or direction, check **`.jules/adr/`** for existing decisions.
+- If no ADR exists, send a mail to the Steward (`steward`) or raise a discussion via `my-tools email`.

@@ -2,7 +2,7 @@ from unittest.mock import Mock, patch
 
 import httpx
 import pytest
-from jules.client import JulesClient, _request_with_retry
+from jules.core.client import JulesClient, _request_with_retry
 from tenacity import RetryError
 
 
@@ -60,7 +60,7 @@ class TestJulesClientRefactor:
 
         assert mock_get.call_count >= 3
 
-    @patch("jules.client._request_with_retry")
+    @patch("jules.core.client._request_with_retry")
     def test_client_methods_use_retry(self, mock_request, client):
         mock_response = Mock()
         mock_response.json.return_value = {"name": "sessions/123"}

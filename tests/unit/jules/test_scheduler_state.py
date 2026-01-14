@@ -11,7 +11,7 @@ JULES_PATH = REPO_ROOT / ".jules"
 if str(JULES_PATH) not in sys.path:
     sys.path.append(str(JULES_PATH))
 
-from jules.scheduler_state import PersistentCycleState, commit_cycle_state  # noqa: E402
+from jules.scheduler.state import PersistentCycleState, commit_cycle_state  # noqa: E402
 
 
 class TestPersistentCycleState(unittest.TestCase):
@@ -100,7 +100,7 @@ class TestPersistentCycleState(unittest.TestCase):
 
 
 class TestCommitCycleState(unittest.TestCase):
-    @patch("jules.github.GitHubClient")
+    @patch("jules.core.github.GitHubClient")
     @patch("builtins.open", new_callable=MagicMock)
     def test_commit_cycle_state_only_jules_branch(self, mock_open_func, mock_client_class):
         """Test that commit_cycle_state only calls create_or_update_file for the jules branch."""
@@ -112,7 +112,7 @@ class TestCommitCycleState(unittest.TestCase):
         # Mock file reading
         mock_open_func.return_value.__enter__.return_value.read.return_value = '{"history": []}'
 
-        from jules.scheduler import JULES_BRANCH
+        from jules.scheduler.engine import JULES_BRANCH
 
         result = commit_cycle_state(Path("fake/path"), "fake message")
 

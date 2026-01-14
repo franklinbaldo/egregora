@@ -21,6 +21,7 @@ build/
 bandit_report.json
 uv.lock
 
+
 # Testing
 .pytest_cache/
 .benchmarks/

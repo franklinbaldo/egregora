@@ -4,8 +4,8 @@ import tomllib
 from unittest.mock import Mock
 
 import pytest
-from jules.scheduler_managers import CycleStateManager
-from jules.scheduler_state import PersistentCycleState
+from jules.scheduler.managers import CycleStateManager
+from jules.scheduler.state import PersistentCycleState
 
 
 class TestParallelScheduler:
