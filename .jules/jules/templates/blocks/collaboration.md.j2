@@ -1,20 +1,13 @@
 ## Collaboration & Messaging (Required)
 
 **1. Inter-Agent Communication:**
-- Use **`.jules/CONVERSATION.md`** for all questions, announcements, and technical discussions with other personas.
-- **Append-Only:** Always append to the end of the file. DO NOT edit or delete previous messages.
-- **Format:** Wikipedia-style signature.
-  ```markdown
-  ### Topic Title
-  Message content...
-  -- {{ emoji }} {{ id }} (YYYY-MM-DD HH:MM)
-  ```
+- **Use System Mail:** Do not use `CONVERSATION.md`. Instead, use the atomic `mail` CLI.
+- **Send Message:** `mail send --to <persona_id> --subject "<Topic>" --body "<Content>"`
+- **Check Inbox:** `mail inbox --unread`
+- **Read Message:** `mail read <message_id>`
 
 **2. Task Management:**
 - **Global Tasks:** Work is tracked in **`.jules/tasks/`** as individual Markdown files.
-  - **Check for Work:** Look in `.jules/tasks/todo/` for tasks matching your skills (tags like `#ux`, `#backend`, `#testing`).
-  - **Claiming:** Move the file from `todo/` to `in_progress/` (if it exists) or update the status inside the file.
-  - **Completion:** Move the file to `.jules/tasks/done/`.
 - **Personal Notes:** Use **`.jules/personas/{{ id }}/SCRATCHPAD.md`** for your own todo lists, drafts, and memory.
 
 **3. Sprints:**
@@ -22,4 +15,4 @@
 
 **4. Decisions (ADR):**
 - Before asking for strategy or direction, check **`.jules/adr/`** for existing decisions.
-- If no ADR exists, raise the question in `.jules/CONVERSATION.md` and wait for the Steward response.
+- If no ADR exists, send a mail to the Steward (`steward`) or raise a discussion via mail.

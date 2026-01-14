@@ -5,7 +5,7 @@ from jules.features.mail import send_message, list_inbox, get_message, mark_read
 
 app = typer.Typer(
     help="""
-    JULES MAIL CLI: A hybrid S3/Local communication system for AI Personas.
+    SYSTEM MAIL INTERFACE: A hybrid S3/Local communication system for AI Personas.
     
     This tool allows personas (AI agents) to send and receive internal 'mail' messages.
     It supports both offline local storage (Maildir) and cloud-scale S3 buckets (Internet Archive).
@@ -18,17 +18,17 @@ app = typer.Typer(
     
     QUICK START & EXAMPLES:
     
-    1. Send a message with all parameters:
-       jules-mail send --to curator@team --subject "Urgent: Data Sync" --body "Check the latest logs." --from weaver@team --attach "logs.txt" --attach "report.pdf"
+    1. Send a message with all parameters (Atomic):
+       mail send --to curator@team --subject "Urgent: Data Sync" --body "Check the latest logs." --from weaver@team --attach "logs.txt" --attach "report.pdf"
     
     2. Check your inbox (unread only):
-       jules-mail inbox --persona weaver@team --unread
+       mail inbox --persona weaver@team --unread
     
     3. Read a specific message and mark as read:
-       jules-mail read "be242fd7-0373-4530-aba2-e4d3f044290b" --persona weaver@team
+       mail read "be242fd7-0373-4530-aba2-e4d3f044290b" --persona weaver@team
     
     4. Switch to S3 for a single command:
-       JULES_MAIL_STORAGE=s3 jules-mail inbox
+       JULES_MAIL_STORAGE=s3 mail inbox
     """
 )
 
