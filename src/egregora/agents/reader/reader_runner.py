@@ -14,7 +14,7 @@ from egregora.agents.reader.models import EvaluationRequest, RankingResult
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
-from egregora.utils.text import slugify
+from egregora.common.text import slugify
 
 if TYPE_CHECKING:
     from egregora.config.settings import ReaderSettings
