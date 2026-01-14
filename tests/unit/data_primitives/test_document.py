@@ -34,3 +34,14 @@ def test_slug_uses_metadata_when_present():
         metadata={"slug": "my-custom-slug"},
     )
     assert doc.slug == "my-custom-slug"
+
+
+def test_slug_fallback_to_explicit_id():
+    """Verify slug falls back to explicit `id` if metadata slug is absent."""
+    doc = Document(
+        content="test content",
+        type=DocumentType.POST,
+        id="explicit-id-slug",
+        metadata={},  # No slug in metadata
+    )
+    assert doc.slug == "explicit-id-slug"
