@@ -2,42 +2,43 @@
 
 **Persona:** Curator 🎭
 **Sprint:** 2
-**Created:** 2026-01-10 (during Sprint 1)
+**Created:** 2024-07-29 (during Sprint 1)
 **Priority:** High
 
 ## Objectives
 
-My primary objective for Sprint 2 is to oversee the implementation of the comprehensive UX improvements I've tasked to the Forge persona. I will also begin collaborating with the Visionary on the "Structured Data Sidecar" initiative, as this will have a significant impact on the future of the user experience.
+My mission is to establish a baseline of UX excellence for the generated MkDocs blogs. For Sprint 2, the objectives are:
 
-- [ ] Verify the implementation of the UX improvements in the consolidated task.
-- [ ] Collaborate with the Visionary on the "Structured Data Sidecar" RFC, providing a UX perspective.
-- [ ] Begin developing a design system in `docs/ux-vision.md`, focusing on components and patterns.
-- [ ] Create a new task to design and implement a favicon for the site.
+- [ ] **Establish Visual Identity:** Work with Forge to implement a custom color palette and favicon, moving away from the generic Material theme defaults.
+- [ ] **Fix Critical Broken Elements:** Guide Forge to fix the missing CSS file and the 404 errors on social card images.
+- [ ] **Improve First Impressions:** Refine the "empty state" messaging and address the generic site name.
+- [ ] **Solidify UX Vision:** Continue to build out `docs/ux-vision.md` with the principles and decisions established in Sprint 1 and 2.
 
 ## Dependencies
 
-- **Forge:** I am dependent on the Forge persona to implement the UX improvements outlined in the consolidated task.
-- **Visionary:** I will be collaborating with the Visionary on the "Structured Data Sidecar" RFC.
+The following dependencies have been identified:
+
+- **Forge:** All of my objectives for this sprint require Forge to implement the necessary code changes in the templates and scaffolding scripts. I will provide clear, actionable tasks.
 
 ## Context
 
-In Sprint 1, I conducted a thorough UX audit of the generated MkDocs blog. I identified several key areas for improvement, including the color palette, social card images, analytics, and navigation. I consolidated these issues into a single, comprehensive task for the Forge persona. In Sprint 2, I will focus on verifying the implementation of these improvements and continuing to build out the UX vision for the project.
+Sprint 1 was focused on unblocking the Curation Cycle and conducting an initial UX audit. This audit revealed several high-priority issues that prevent the generated blogs from having a professional and unique identity. Sprint 2 is about addressing this foundational debt. By the end of this sprint, the generated sites should feel less like a generic template and more like a bespoke product.
 
 ## Expected Deliverables
 
-1.  **Verified UX Improvements:** A successful build of the demo site with all the UX improvements from the consolidated task implemented.
-2.  **"Structured Data Sidecar" RFC Feedback:** Comments and suggestions on the "Structured Data Sidecar" RFC from a UX perspective.
-3.  **Design System V2:** An updated `docs/ux-vision.md` with a more developed design system, including component and pattern definitions.
-4.  **Favicon Task:** A new task in `.jules/tasks/todo/` for designing and implementing a favicon.
+1.  **New Color Palette:** The default Teal/Amber theme is replaced with a custom palette.
+2.  **Custom Favicon:** A unique favicon is present on all pages.
+3.  **Functional Social Sharing:** Social card images are generated correctly without 404 errors.
+4.  **Improved Empty State:** The initial homepage message is more welcoming and user-friendly.
+5.  **Updated UX Vision:** `docs/ux-vision.md` is updated with the new design decisions.
 
 ## Risks and Mitigations
 
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Forge persona is blocked on implementing the UX improvements | Medium | High | I will be available to provide clarification and support to the Forge persona as needed. |
-| "Structured Data Sidecar" RFC does not consider the user experience | Low | Medium | I will proactively engage with the Visionary to ensure that the user experience is a key consideration in the RFC. |
+| Forge is blocked or unable to implement changes | Medium | High | I will write extremely detailed tasks with clear WHY/WHAT/HOW/WHERE to minimize ambiguity. I will also monitor the `.jules/tasks/` directory closely to provide feedback or clarification if needed. |
+| Design decisions are subjective | Low | Medium | I will ground all design decisions in the established UX Excellence Criteria and document the rationale in `docs/ux-vision.md`. |
 
 ## Proposed Collaborations
 
-- **With Forge:** I will work closely with the Forge persona to ensure the successful implementation of the UX improvements.
-- **With Visionary:** I will collaborate on the "Structured Data Sidecar" RFC to ensure it aligns with the UX vision.
+- **With Forge:** Continuous collaboration via the task management system in `.jules/tasks/`.

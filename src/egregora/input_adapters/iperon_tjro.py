@@ -12,7 +12,7 @@ from uuid import UUID, uuid5
 import httpx
 import ibis
 
-from egregora.database.schemas import INGESTION_MESSAGE_SCHEMA
+from egregora.database.schemas import STAGING_MESSAGES_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 
 if TYPE_CHECKING:
@@ -93,7 +93,7 @@ class IperonTJROAdapter(InputAdapter):
             logger.warning("No communications returned for %s", input_path)
 
         rows = [self._normalize_item(item, timezone) for item in items if isinstance(item, dict)]
-        return ibis.memtable(rows, schema=INGESTION_MESSAGE_SCHEMA)
+        return ibis.memtable(rows, schema=STAGING_MESSAGES_SCHEMA)
 
     # ------------------------------------------------------------------
     # Configuration helpers

@@ -524,7 +524,9 @@ git apply --3way pr_{pr_num}.patch
         patches_section = "\n".join(patch_instructions)
         pr_numbers_str = ", ".join([f"#{pr['number']}" for pr in conflict_prs])
         
-        prompt = f"""## 🕸️ CONFLICT RESOLUTION
+        prompt = f"""{weaver.prompt_body}
+
+## 🕸️ CONFLICT RESOLUTION TASK
 
 The following PRs failed to auto-merge. Resolve their conflicts:
 

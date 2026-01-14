@@ -20,7 +20,7 @@ build/
 *.egg
 bandit_report.json
 uv.lock
-uv.lock
+
 
 # Testing
 .pytest_cache/
@@ -89,3 +89,4 @@ demo/
 coverage.xml
 .github/tmp/
 .jules/mail/
+uv.lock

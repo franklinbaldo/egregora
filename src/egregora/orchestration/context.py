@@ -124,7 +124,7 @@ class PipelineState:
     """Mutable runtime state for the pipeline.
 
     Contains resources, clients, and ephemeral state that may be updated
-    or re-initialized during execution.
+    or re-initialized during execution. Updated for V3 schema.
     """
 
     # Run Identity
