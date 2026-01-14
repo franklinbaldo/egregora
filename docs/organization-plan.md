@@ -10,11 +10,11 @@ The testing structure largely mirrors the source structure, which is good.
 
 ## Identified Issues
 
-*No outstanding organizational issues have been identified at this time. The plan needs to be updated with a new discovery phase.*
+1.  **Vague `database/utils.py`**: The `src/egregora/database/utils.py` module may contain generic SQL utilities, but it could also hide domain-specific query logic that should be part of a specific repository or data access layer.
 
 ## Prioritized Improvements
 
-*Priorities will be re-evaluated after the next discovery phase.*
+1.  **`database/utils.py` Refactoring (Medium Impact, Medium Risk)**: This could improve the data access layer, but requires careful analysis to avoid breaking database interactions.
 
 ## Completed Improvements
 
@@ -30,7 +30,6 @@ The testing structure largely mirrors the source structure, which is good.
 - **Removed dead code from `database/utils.py`**
 - **Removed dead compatibility shims from `utils` (`cache.py`, `authors.py`)**
 - **Removed dead compatibility shims from `utils` (`exceptions.py`)**
-
 
 ## Organizational Strategy
 
