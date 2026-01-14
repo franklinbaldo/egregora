@@ -1,5 +1,5 @@
 Feature: Email Polling and Delivery
-  As a Jules System, 
+  As a Jules System,
   I want to poll session activities for new mail files,
   So that I can deliver messages to recipient's active sessions automatically.
 
@@ -20,8 +20,8 @@ Feature: Email Polling and Delivery
       +
       +I have finished the CI fix.
       """
-    And the email poller runs 
-    Then a message should be sent to session "sessions/recipient-456" 
+    And the email poller runs
+    Then a message should be sent to session "sessions/recipient-456"
     And the message content should contain "Task Update"
     And the message content should contain "weaver@team"
 
@@ -37,5 +37,5 @@ Feature: Email Polling and Delivery
        # Project
       +Update.
       """
-    And the email poller runs 
+    And the email poller runs
     Then no messages should be sent to any sessions

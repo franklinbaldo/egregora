@@ -21,7 +21,6 @@ if TYPE_CHECKING:
     from google import genai
 
     from egregora.agents.shared.annotations import AnnotationStore
-    from egregora.agents.shared.cache import EnrichmentCache
     from egregora.config.settings import EgregoraConfig
     from egregora.data_primitives.document import OutputSink, UrlContext
     from egregora.database.protocols import StorageProtocol
@@ -220,7 +219,6 @@ class PipelineContext:
     @property
     def cache(self) -> PipelineCache:
         return self.state.cache
-
 
     @property
     def annotations_store(self) -> AnnotationStore | None:

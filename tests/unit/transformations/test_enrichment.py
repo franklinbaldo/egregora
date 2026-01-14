@@ -1,30 +1,28 @@
 """Unit tests for enrichment transformations."""
+
 from __future__ import annotations
+
 from datetime import datetime
 
 import ibis
-import pandas as pd
 import pytest
-from ibis import _
 
 from egregora.transformations.enrichment import combine_with_enrichment_rows
 
 
 @pytest.fixture
-def sample_messages_df() -> pd.DataFrame:
-    """Return a sample DataFrame of messages."""
-    return pd.DataFrame(
-        [
-            {"id": "1", "ts": "2024-01-01T12:00:00", "text": "Hello"},
-            {"id": "2", "ts": "2024-01-01T13:00:00", "text": "World"},
-        ]
-    )
+def sample_messages_rows() -> list[dict[str, str]]:
+    """Return a sample list of message rows."""
+    return [
+        {"id": "1", "ts": "2024-01-01T12:00:00", "text": "Hello"},
+        {"id": "2", "ts": "2024-01-01T13:00:00", "text": "World"},
+    ]
 
 
 @pytest.fixture
-def sample_messages_table(sample_messages_df: pd.DataFrame) -> ibis.Table:
+def sample_messages_table(sample_messages_rows: list[dict[str, str]]) -> ibis.Table:
     """Return a sample Ibis table of messages."""
-    return ibis.memtable(sample_messages_df)
+    return ibis.memtable(sample_messages_rows)
 
 
 class TestCombineWithEnrichmentRows:
@@ -65,8 +63,8 @@ class TestCombineWithEnrichmentRows:
 
     def test_handles_timestamp_column_name(self):
         """Should handle schemas with 'timestamp' instead of 'ts'."""
-        df = pd.DataFrame([{"id": "1", "timestamp": "2024-01-01T12:00:00"}])
-        table = ibis.memtable(df)
+        rows = [{"id": "1", "timestamp": "2024-01-01T12:00:00"}]
+        table = ibis.memtable(rows)
         new_rows = [{"id": "2", "timestamp": datetime(2024, 1, 1, 11, 0, 0)}]
         schema = ibis.schema({"id": "string", "timestamp": "timestamp('UTC', 9)"})
 
@@ -77,19 +75,16 @@ class TestCombineWithEnrichmentRows:
 
     def test_ignores_extra_columns_in_new_rows(self, sample_messages_table: ibis.Table):
         """Should ignore columns in new_rows that are not in the schema."""
-        new_rows = [
-            {"id": "3", "ts": datetime(2024, 1, 1, 14, 0, 0), "extra": "data"}
-        ]
+        new_rows = [{"id": "3", "ts": datetime(2024, 1, 1, 14, 0, 0), "extra": "data"}]
         schema = ibis.schema({"id": "string", "ts": "timestamp('UTC')"})
-        result_table = combine_with_enrichment_rows(
-            sample_messages_table, new_rows, schema
-        )
+        result_table = combine_with_enrichment_rows(sample_messages_table, new_rows, schema)
         assert "extra" not in result_table.columns
         assert result_table.count().execute() == 3
 
     def test_handles_empty_initial_table(self):
         """Should work correctly when the initial messages table is empty."""
-        empty_table = ibis.memtable(pd.DataFrame({"id": [], "ts": [], "text": []}))
+        empty_schema = ibis.schema({"id": "string", "ts": "timestamp('UTC')", "text": "string"})
+        empty_table = ibis.memtable([], schema=empty_schema)
         new_rows = [{"id": "1", "ts": datetime(2024, 1, 1, 12, 0, 0), "text": "First"}]
         schema = ibis.schema({"id": "string", "ts": "timestamp('UTC')", "text": "string"})
 
