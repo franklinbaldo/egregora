@@ -98,9 +98,16 @@ def _find_profile_path(
     """Find profile file for a given UUID, scanning directory if needed."""
     # The only valid path is {uuid}/index.md
     index_path = profiles_dir / author_uuid / "index.md"
-    if not index_path.exists():
-        msg = f"No profile found for author {author_uuid} at {index_path}"
-        raise ProfileNotFoundError(msg, author_uuid=author_uuid)
+    if index_path.exists():
+        return index_path
+
+    # Check for legacy flat file
+    legacy_path = profiles_dir / f"{author_uuid}.md"
+    if legacy_path.exists():
+        return legacy_path
+
+    msg = f"No profile found for author {author_uuid} at {index_path}"
+    raise ProfileNotFoundError(msg, author_uuid=author_uuid)
     return index_path
 
 
@@ -764,8 +771,6 @@ def _parse_frontmatter(content: str) -> dict[str, Any]:
     return {}
 
 
-
-
 def _extract_profile_metadata(profile_path: Path) -> dict[str, Any]:
     """Extract metadata from an existing profile file.
 
@@ -782,9 +787,7 @@ def _extract_profile_metadata(profile_path: Path) -> dict[str, Any]:
         return {}
 
     content = profile_path.read_text(encoding="utf-8")
-    metadata = _parse_frontmatter(content)
-
-    return metadata
+    return _parse_frontmatter(content)
 
 
 def _update_authors_yml(
@@ -1044,7 +1047,6 @@ def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
     # Logic 1: nested dirs (posts/profiles/{uuid}/*.md) - handled by agents/profile/generator usually?
     # No, profiles.py deals with output/profiles/{slug}.md
 
-
     # Handle nested directories (new structure: {uuid}/index.md)
     # We iterate over directories in profiles_dir
     for author_dir in profiles_dir.iterdir():
@@ -1142,7 +1144,10 @@ def find_authors_yml(output_dir: Path) -> Path:
 
     # This is the only valid location for the authors file.
     # If it's not here, we should not be looking elsewhere.
-    raise AuthorsFileLoadError(f"Could not find 'docs' directory in ancestry of {output_dir}")
+    logger.warning(
+        "Could not find 'docs' directory in ancestry of %s. Falling back to legacy path resolution.", output_dir
+    )
+    return output_dir.parent.parent / ".authors.yml"
 
 
 def load_authors_yml(path: Path) -> dict:

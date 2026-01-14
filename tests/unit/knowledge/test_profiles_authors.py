@@ -245,7 +245,7 @@ Content 3
     assert "new_author_1" in final_authors
     assert "new_author_2" in final_authors
     assert final_authors["new_author_1"]["name"] == "new_author_1"
-    assert final_authors["new_author_2"]["url"] == "profiles/new_author_2.md"
+    assert final_authors["new_author_2"]["url"] == "profiles/new_author_2/"
     assert len(final_authors) == 3
 
 
@@ -298,7 +298,7 @@ def test_sync_authors_from_posts_with_new_authors(project_structure: tuple[Path,
         assert "new_author_1" in data
         assert "new_author_2" in data
         assert data["new_author_1"]["name"] == "new_author_1"
-        assert data["new_author_2"]["url"] == "profiles/new_author_2.md"
+        assert data["new_author_2"]["url"] == "profiles/new_author_2/"
         assert "existing_author" in data
 
 

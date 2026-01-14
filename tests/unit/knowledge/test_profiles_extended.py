@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import pytest
-import yaml
 
 from egregora.knowledge.exceptions import ProfileNotFoundError, ProfileParseError
 from egregora.knowledge.profiles import (
@@ -15,7 +14,6 @@ from egregora.knowledge.profiles import (
     is_opted_out,
     read_profile,
     remove_profile_avatar,
-    sync_all_profiles,
     update_profile_avatar,
     write_profile,
 )
@@ -34,8 +32,6 @@ Profile content."""
     assert uuid == "12345678-1234-5678-1234-567812345678"
 
     profile_path.unlink()
-
-
 
 
 def test_get_uuid_from_profile_no_uuid():
@@ -78,8 +74,6 @@ def test_find_profile_path_new_structure(tmp_path: Path):
 
     found_path = _find_profile_path(author_uuid, profiles_dir)
     assert found_path == profile_path
-
-
 
 
 def test_find_profile_path_not_found(tmp_path: Path):
@@ -344,5 +338,3 @@ def test_remove_profile_avatar(tmp_path: Path):
     content = profile_path.read_text()
     assert avatar_url not in content
     assert "avatar:" not in content
-
-
