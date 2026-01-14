@@ -3,7 +3,7 @@ from pathlib import Path
 from pytest_bdd import given, when, then, scenarios, parsers
 import pytest
 from typer.testing import CliRunner
-from jules.cli.job import app
+from jules.cli.my_tools import app
 from jules.features.session import SESSION_FILE
 
 # Load scenarios

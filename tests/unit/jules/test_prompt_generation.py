@@ -39,9 +39,9 @@ class TestPromptGeneration(unittest.TestCase):
             self.assertIn(expected_pass, rendered)
             
             # Verify Job Instructions
-            self.assertIn("jules-job login", rendered)
+            self.assertIn("my-tools login", rendered)
             self.assertIn("Execute assigned tasks", rendered)
-            self.assertIn("mail inbox --limit 5", rendered)
+            self.assertIn("my-tools email inbox", rendered)
 
 if __name__ == "__main__":
     unittest.main()

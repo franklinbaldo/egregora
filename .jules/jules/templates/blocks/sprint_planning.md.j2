@@ -3,6 +3,6 @@
 Do NOT create plan files directly in the sprints directory.
 
 1.  **Broadcast Plans**: Send your proposal for the next sprint to the entire team.
-    `mail send --to all@team --subject "Sprint {{ next_sprint }} Plan" --body "My goals are..."`
+    `my-tools email send --to all@team --subject "Sprint {{ next_sprint | default('N+1') }} Plan" --body "My goals are..."`
 
-2.  **Collaborate**: Read incoming proposals in your inbox (`mail inbox`) and reply with feedback.
+2.  **Collaborate**: Read incoming proposals in your inbox (`my-tools email inbox`) and reply with feedback.

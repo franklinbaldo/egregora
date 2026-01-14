@@ -45,7 +45,7 @@ dependencies = [
 egregora = "egregora.cli:app"
 jules = "jules.cli.main:app"
 mail = "jules.cli.mail:app"
-jules-job = "jules.cli.job:app"
+my-tools = "jules.cli.my_tools:app"
 
 [project.entry-points."egregora.adapters"]
 whatsapp = "egregora.input_adapters.whatsapp.adapter:WhatsAppAdapter"
