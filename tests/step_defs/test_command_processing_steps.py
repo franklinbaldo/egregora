@@ -116,8 +116,7 @@ def mixed_message_list():
     ]
     return {"messages": messages}
 
-
-@given("a user command message for an avatar update", target_fixture="context")
+@given("a user command message for an avatar update", target_fixture='context')
 def user_command_avatar_update():
     return {
         "message": {
