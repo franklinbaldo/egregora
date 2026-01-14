@@ -1,50 +1,52 @@
-"""Persistent cycle state management for Jules scheduler."""
-
 import json
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field, BeforeValidator
+from typing_extensions import Annotated
 
 
-@dataclass
-class TrackState:
+# Custom type for history keys to ensure they are strings of integers
+HistoryKey = Annotated[str, BeforeValidator(lambda x: str(int(x)))]
+
+
+class TrackState(BaseModel):
     """State for a single execution track."""
-    persona_id: str | None = None
-    session_id: str | None = None
-    pr_number: int | None = None
-    updated_at: str | None = None
+    persona_id: Optional[str] = None
+    session_id: Optional[str] = None
+    pr_number: Optional[int] = None
+    updated_at: Optional[datetime] = None
 
 
-@dataclass
-class PersistentCycleState:
+class PersistentCycleState(BaseModel):
     """Persistent state for the cycle scheduler.
     
     Supports both legacy single-cycle history and new multi-track state.
     """
 
-    history: dict[str, dict[str, Any]] = field(default_factory=dict)
-    tracks: dict[str, TrackState] = field(default_factory=dict)
+    history: Dict[HistoryKey, Dict[str, Any]] = Field(default_factory=dict)
+    tracks: Dict[str, TrackState] = Field(default_factory=dict)
 
     @property
-    def sorted_history_keys(self) -> list[str]:
+    def sorted_history_keys(self) -> List[str]:
         """Get history keys sorted as integers in descending order."""
         return sorted(self.history.keys(), key=lambda x: int(x), reverse=True)
 
     @property
-    def persona_id(self) -> str | None:
+    def persona_id(self) -> Optional[str]:
         """Get the persona ID from the most recent session (Legacy/Default)."""
         keys = self.sorted_history_keys
         return self.history[keys[0]].get("persona_id") if keys else None
 
     @property
-    def session_id(self) -> str | None:
+    def session_id(self) -> Optional[str]:
         """Get the session ID from the most recent session (Legacy/Default)."""
         keys = self.sorted_history_keys
         return self.history[keys[0]].get("session_id") if keys else None
 
     @property
-    def pr_number(self) -> int | None:
+    def pr_number(self) -> Optional[int]:
         """Get the PR number from the most recent session (Legacy/Default)."""
         keys = self.sorted_history_keys
         return self.history[keys[0]].get("pr_number") if keys else None
@@ -65,56 +67,43 @@ class PersistentCycleState:
             with open(path) as f:
                 data = json.load(f)
             
-            state = cls()
+            # Handle legacy list history format
+            if isinstance(data, dict) and isinstance(data.get("history"), list):
+                history_list = data.pop("history")
+                # Convert legacy list history to dict
+                # In legacy list, history[0] was the latest.
+                # We want history["0"] to be the oldest for sequential growth.
+                data["history"] = {str(i): entry for i, entry in enumerate(reversed(history_list))}
+            elif isinstance(data, list):
+                # Convert legacy list-only format to dict
+                data = {"history": {str(i): entry for i, entry in enumerate(reversed(data))}}
 
-            # Load history
-            if isinstance(data, dict):
-                history_data = data.get("history", {})
-                if isinstance(history_data, list):
-                    # Convert legacy list history to dict
-                    # In legacy list, history[0] was the latest.
-                    # We want history["0"] to be the oldest for sequential growth.
-                    state.history = {str(i): entry for i, entry in enumerate(reversed(history_data))}
-                else:
-                    state.history = history_data
-
-                # Load tracks
-                tracks_data = data.get("tracks", {})
-                for name, t_data in tracks_data.items():
-                    # Handle legacy 'last_' prefix in saved JSON if necessary
+            # Handle legacy \'last_\' prefix in track data if necessary
+            if isinstance(data, dict) and "tracks" in data:
+                new_tracks = {}
+                for name, t_data in data["tracks"].items():
                     clean_data = {}
                     for k, v in t_data.items():
                         new_k = k.replace("last_", "")
                         clean_data[new_k] = v
-                    state.tracks[name] = TrackState(**clean_data)
-            elif isinstance(data, list):
-                # Convert legacy list-only format to dict
-                state.history = {str(i): entry for i, entry in enumerate(reversed(data))}
+                    new_tracks[name] = clean_data
+                data["tracks"] = new_tracks
 
-            return state
-        except (json.JSONDecodeError, OSError, TypeError):
+            return cls.model_validate(data)
+        except Exception:
             return cls()
 
     def save(self, path: Path) -> None:
         """Save state to JSON file."""
-        # Sort history by keys as integers before saving
-        sorted_history = {
-            k: self.history[k] 
-            for k in sorted(self.history.keys(), key=lambda x: int(x))
+        data = self.model_dump(mode='json')
+        # Ensure history is sorted by keys as integers before saving
+        # The model_dump already converts datetimes to strings
+        sorted_history_json = {
+            k: data["history"][k]
+            for k in sorted(data["history"].keys(), key=lambda x: int(x))
         }
-        
-        data = {
-            "history": sorted_history,
-            "tracks": {
-                name: {
-                    "persona_id": t.persona_id,
-                    "session_id": t.session_id,
-                    "pr_number": t.pr_number,
-                    "updated_at": t.updated_at
-                }
-                for name, t in self.tracks.items()
-            }
-        }
+        data["history"] = sorted_history_json
+
         with open(path, "w") as f:
             json.dump(data, f, indent=2)
 
@@ -123,11 +112,11 @@ class PersistentCycleState:
         persona_id: str,
         persona_index: int,
         session_id: str,
-        pr_number: int | None = None,
-        track_name: str | None = None,
+        pr_number: Optional[int] = None,
+        track_name: Optional[str] = None,
     ) -> None:
         """Record a new session in state."""
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(timezone.utc)
 
         # Add to global audit history using sequential integer keys
         entry = {
@@ -154,7 +143,7 @@ class PersistentCycleState:
             track.pr_number = pr_number
             track.updated_at = timestamp
 
-    def update_pr_number(self, pr_number: int, track_name: str | None = None) -> None:
+    def update_pr_number(self, pr_number: int, track_name: Optional[str] = None) -> None:
         """Update the PR number for the last session."""
         keys = self.sorted_history_keys
         if keys:
@@ -198,10 +187,10 @@ def commit_cycle_state(state_path: Path, message: str = "chore: update cycle sta
             branch=branch,
             sha=sha
         ):
-            print(f"✅ Updated cycle state on branch '{branch}' via API")
+            print(f"✅ Updated cycle state on branch \'{branch}\' via API")
             return True
         else:
-            print(f"⚠️ Failed to update cycle state on branch '{branch}'")
+            print(f"⚠️ Failed to update cycle state on branch \'{branch}\'")
             return False
 
     except Exception as e:

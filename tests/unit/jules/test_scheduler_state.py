@@ -1,6 +1,7 @@
 import json
 import sys
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
@@ -11,7 +12,7 @@ JULES_PATH = REPO_ROOT / ".jules"
 if str(JULES_PATH) not in sys.path:
     sys.path.append(str(JULES_PATH))
 
-from jules.scheduler.state import PersistentCycleState, commit_cycle_state  # noqa: E402
+from jules.scheduler.state import PersistentCycleState, commit_cycle_state, TrackState  # noqa: E402
 
 
 class TestPersistentCycleState(unittest.TestCase):
@@ -130,6 +131,27 @@ class TestPersistentCycleState(unittest.TestCase):
             
         keys = list(data["history"].keys())
         self.assertEqual(keys, ["1", "2", "10"])
+
+    def test_load_with_track_state_legacy_prefix(self):
+        """Test loading with legacy 'last_' prefix in track state."""
+        legacy_track_data = {
+            "default": {
+                "last_persona_id": "old_persona",
+                "last_session_id": "old_session",
+                "last_pr_number": 99,
+                "updated_at": "2026-01-11T08:00:00Z"
+            }
+        }
+        with self.test_path.open("w") as f:
+            json.dump({"history": {}, "tracks": legacy_track_data}, f)
+
+        state = PersistentCycleState.load(self.test_path)
+        track = state.get_track("default")
+
+        self.assertEqual(track.persona_id, "old_persona")
+        self.assertEqual(track.session_id, "old_session")
+        self.assertEqual(track.pr_number, 99)
+        self.assertIsInstance(track.updated_at, datetime)
 
 
 class TestCommitCycleState(unittest.TestCase):
