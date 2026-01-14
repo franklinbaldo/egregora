@@ -10,12 +10,19 @@ O diretório `.jules/` é o centro de inteligência e automação do projeto. El
 
 | Caminho | Descrição |
 | :--- | :--- |
-| `.jules/jules/` | Contém o código Python que implementa o motor do Jules (Scheduler, Engine, Core). |
-| `.jules/personas/` | Definições de cada persona, incluindo prompts base e diários de bordo (`journals`). |
+| `.jules/jules/` | Código Python do Jules, organizado por CLI, Core, Features e Scheduler. |
+| `.jules/jules/cli/` | CLIs Typer (schedule, autofix, feedback, sync, job, my-tools). |
+| `.jules/jules/core/` | Cliente da API Jules, helpers GitHub e exceções. |
+| `.jules/jules/features/` | Auto-fix, feedback loop, mail (local/S3), polling e sessão. |
+| `.jules/jules/scheduler/` | Engine, compatibilidade legacy, managers e estado persistente. |
+| `.jules/jules/templates/` | Templates Jinja2 (base, blocks, partials, prompts). |
+| `.jules/personas/` | Personas e seus prompts (`prompt.md`/`prompt.md.j2`) e journals. |
 | `.jules/sprints/` | Planejamentos e feedbacks organizados por ciclos de sprint. |
-| `.jules/tasks/` | Gerenciamento de tarefas (todo, done, canceled) em formato Markdown. |
-| `.jules/cycle_state.json` | Arquivo de estado persistente que rastreia o histórico de execuções. |
-| `.jules/schedules.toml` | Configuração de agendamento (Cron) e definição da ordem do ciclo. |
+| `.jules/mail/` | Maildir local usado pelo sistema de mensagens. |
+| `.jules/state/` | Estado local de reconciliacao (ex: `reconciliation.json`). |
+| `.jules/tasks/` | Gerenciamento de tarefas (todo, done, canceled) em Markdown. |
+| `.jules/cycle_state.json` | Estado persistente do ciclo (multi-track). |
+| `.jules/schedules.toml` | Configuração de agendamento (Cron) e tracks do ciclo. |
 
 ## 3. Gerenciamento de Estado (`cycle_state.json`)
 
@@ -51,21 +58,21 @@ O histórico agora utiliza um **dicionário com chaves inteiras sequenciais** pa
 - **Ordenação**: Antes de salvar, o dicionário de histórico é ordenado numericamente pelas chaves.
 - **Nomenclatura**: Variáveis internas e propriedades do objeto de estado foram simplificadas, removendo o prefixo `last_` (ex: `persona_id` em vez de `last_persona_id`).
 - **Compatibilidade**: O carregador (`load`) converte automaticamente formatos antigos (listas) para a nova estrutura de dicionário.
+- **Multi-track**: O estado também mantém `tracks` com a ultima sessao por trilha.
 
 ## 4. Personas e Ciclos
 
-As personas são definidas em `.jules/personas/{id}/prompt.md.j2`. O Jules opera em dois modos principais definidos no `schedules.toml`:
+As personas são definidas em `.jules/personas/{id}/prompt.md` ou `.jules/personas/{id}/prompt.md.j2`. O Jules opera em dois modos principais definidos no `schedules.toml`:
 
-1.  **Modo Ciclo (Cycle Mode)**: Uma lista ordenada de personas que o Jules executa sequencialmente. Cada persona só inicia após a anterior completar sua tarefa (geralmente a criação de um PR).
+1.  **Modo Ciclo Paralelo (Parallel Cycle Mode)**: Tracks independentes; cada track executa personas sequencialmente e só avança após a sessao anterior encerrar.
 2.  **Modo Agendado (Scheduled Mode)**: Utiliza expressões Cron para disparar personas específicas em horários determinados.
 
 ## 5. Fluxo de Execução
 
-1.  O **Scheduler** carrega o `cycle_state.json`.
-2.  Identifica a próxima persona baseada no histórico do `track` atual.
-3.  Verifica se a sessão anterior foi concluída com sucesso.
-4.  Dispara uma nova sessão via API, criando um branch específico para a persona.
-5.  Atualiza o `cycle_state.json` com o novo `session_id` e persiste as mudanças no branch `jules`.
+1.  O **Scheduler** carrega o `cycle_state.json` (via `PersistentCycleState`).
+2.  Identifica a próxima persona por track e verifica o estado da sessao anterior.
+3.  Dispara uma nova sessao via API, criando um branch específico para a persona.
+4.  Atualiza o `cycle_state.json` e, quando configurado, persiste no branch `jules`.
 
 ## 6. Sprints e Tarefas
 

@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import unittest
+from importlib import import_module
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -11,11 +12,9 @@ JULES_PATH = REPO_ROOT / ".jules"
 if str(JULES_PATH) not in sys.path:
     sys.path.append(str(JULES_PATH))
 
-from jules.scheduler.legacy import (
-    JULES_BRANCH,
-    ensure_jules_branch_exists,
-    update_jules_from_main,
-)
+
+def _load_legacy_module():
+    return import_module("jules.scheduler.legacy")
 
 
 class TestJulesSchedulerUpdate(unittest.TestCase):
@@ -25,7 +24,8 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
         # Mock successful execution
         mock_run.return_value.returncode = 0
 
-        result = update_jules_from_main()
+        legacy = _load_legacy_module()
+        result = legacy.update_jules_from_main()
 
         self.assertTrue(result)
 
@@ -35,8 +35,9 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
         mock_run.assert_any_call(["git", "config", "user.email", "jules-bot@google.com"], check=False)
 
         # Checkout
+        jules_branch = legacy.JULES_BRANCH
         mock_run.assert_any_call(
-            ["git", "checkout", "-B", JULES_BRANCH, f"origin/{JULES_BRANCH}"], check=True, capture_output=True
+            ["git", "checkout", "-B", jules_branch, f"origin/{jules_branch}"], check=True, capture_output=True
         )
 
         # Merge
@@ -45,7 +46,7 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
         )
 
         # Push
-        mock_run.assert_any_call(["git", "push", "origin", JULES_BRANCH], check=True, capture_output=True)
+        mock_run.assert_any_call(["git", "push", "origin", jules_branch], check=True, capture_output=True)
 
     @patch("jules.scheduler.legacy.rotate_drifted_jules_branch")
     @patch("subprocess.run")
@@ -61,7 +62,8 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
 
         mock_run.side_effect = side_effect
 
-        result = update_jules_from_main()
+        legacy = _load_legacy_module()
+        result = legacy.update_jules_from_main()
 
         self.assertFalse(result)
         mock_rotate.assert_called_once()
@@ -84,7 +86,8 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
         # Mock update success
         mock_update.return_value = True
 
-        ensure_jules_branch_exists()
+        legacy = _load_legacy_module()
+        legacy.ensure_jules_branch_exists()
 
         mock_update.assert_called_once()
 
@@ -106,7 +109,8 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
             cmd = args[0]
             if cmd == ["git", "fetch", "origin"]:
                 return MagicMock(returncode=0)
-            if cmd == ["git", "ls-remote", "--heads", "origin", JULES_BRANCH]:
+            legacy = _load_legacy_module()
+            if cmd == ["git", "ls-remote", "--heads", "origin", legacy.JULES_BRANCH]:
                 return MagicMock(stdout="hash refs/heads/jules\n")
             if cmd == ["git", "rev-parse", "origin/main"]:
                 return MagicMock(stdout="main_sha\n")
@@ -122,7 +126,8 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
         # Mock update FAILURE
         mock_update.return_value = False
 
-        ensure_jules_branch_exists()
+        legacy = _load_legacy_module()
+        legacy.ensure_jules_branch_exists()
 
         mock_update.assert_called_once()
         # Verify it proceeded to recreate (calls git rev-parse origin/main)

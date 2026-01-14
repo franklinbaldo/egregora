@@ -1206,9 +1206,13 @@ def _prepare_pipeline_data(
         except (OSError, PermissionError) as exc:
             logger.warning("[yellow]⚠️ Cannot access RAG storage for indexing (non-critical): %s[/]", exc)
 
+    checkpoint_root = ctx.storage.checkpoint_dir or (ctx.output_dir / ".egregora" / "data")
+    checkpoint_path = checkpoint_root / f"{ctx.run_id}-pipeline.json"
+
     return PreparedPipelineData(
         messages_table=messages_table,
         windows_iterator=windows_iterator,
+        checkpoint_path=checkpoint_path,
         context=ctx,
         enable_enrichment=enable_enrichment,
         embedding_model=embedding_model,

@@ -1,7 +1,7 @@
 import json
 import sys
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
@@ -12,7 +12,7 @@ JULES_PATH = REPO_ROOT / ".jules"
 if str(JULES_PATH) not in sys.path:
     sys.path.append(str(JULES_PATH))
 
-from jules.scheduler.state import PersistentCycleState, commit_cycle_state, TrackState  # noqa: E402
+from jules.scheduler.state import PersistentCycleState, commit_cycle_state  # noqa: E402
 
 
 class TestPersistentCycleState(unittest.TestCase):
@@ -78,7 +78,7 @@ class TestPersistentCycleState(unittest.TestCase):
                     "persona_id": "oldest",
                     "session_id": "s1",
                     "created_at": "2026-01-12T09:00:00Z",
-                }
+                },
             ],
         }
         with self.test_path.open("w") as f:
@@ -110,7 +110,7 @@ class TestPersistentCycleState(unittest.TestCase):
         state = PersistentCycleState()
         state.record_session("p1", 0, "s1")
         state.record_session("p2", 1, "s2")
-        
+
         self.assertIn("0", state.history)
         self.assertIn("1", state.history)
         self.assertEqual(state.history["0"]["persona_id"], "p1")
@@ -123,12 +123,12 @@ class TestPersistentCycleState(unittest.TestCase):
         state.history["10"] = {"persona_id": "p10"}
         state.history["2"] = {"persona_id": "p2"}
         state.history["1"] = {"persona_id": "p1"}
-        
+
         state.save(self.test_path)
-        
+
         with self.test_path.open() as f:
             data = json.load(f)
-            
+
         keys = list(data["history"].keys())
         self.assertEqual(keys, ["1", "2", "10"])
 
@@ -139,7 +139,7 @@ class TestPersistentCycleState(unittest.TestCase):
                 "last_persona_id": "old_persona",
                 "last_session_id": "old_session",
                 "last_pr_number": 99,
-                "updated_at": "2026-01-11T08:00:00Z"
+                "updated_at": "2026-01-11T08:00:00Z",
             }
         }
         with self.test_path.open("w") as f:

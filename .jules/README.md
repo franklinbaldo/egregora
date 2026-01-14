@@ -7,15 +7,12 @@ This directory contains the Jules automation infrastructure for Egregora, includ
 ```
 .jules/
 ├── jules/              # Scheduler implementation
-│   ├── scheduler.py    # Legacy scheduler (being phased out)
-│   ├── scheduler_v2.py # Refactored scheduler (clean architecture)
-│   ├── scheduler_models.py    # Domain models (PersonaConfig, CycleState, etc.)
-│   ├── scheduler_loader.py    # Persona loading and prompt parsing
-│   ├── scheduler_managers.py  # Manager classes (Branch, PR, Cycle, Session)
-│   ├── client.py       # Jules API client
-│   ├── github.py       # GitHub API helpers
-│   ├── cli.py          # Command-line interface
-│   └── exceptions.py   # Custom exceptions
+│   ├── cli/            # Typer CLIs (main, mail, job, my-tools)
+│   ├── core/           # API clients + shared exceptions
+│   ├── features/       # Autofix, feedback, mail, polling, sessions, sprints
+│   ├── scheduler/      # Engine, legacy compatibility, managers, state
+│   ├── templates/      # Prompt templates, blocks, partials
+│   └── resources/      # Placeholder for scheduler resources (currently empty)
 │
 ├── personas/           # AI agent persona definitions
 │   ├── curator/        # 🎭 UX/UI evaluation
@@ -42,9 +39,8 @@ This directory contains the Jules automation infrastructure for Egregora, includ
 │   ├── maintainer/     # 🧭 Sprint planning & PM
 │   └── pruner/         # 🪓 Dead code elimination
 │
-├── blocks/             # Shared prompt blocks
-│   ├── autonomy.md     # Autonomous decision-making guidelines
-│   └── sprint_planning.md  # Sprint context and planning
+├── mail/               # Local mail storage (Maildir backend)
+├── state/              # Local reconciliation state
 │
 ├── sprints/            # Sprint planning and tracking
 │   ├── current.txt     # Current sprint number
@@ -112,11 +108,11 @@ description: "..."       # Role summary
 
 ## ⚙️ Scheduler
 
-The scheduler orchestrates persona execution in two modes: **Cycle** and **Scheduled**.
+The scheduler orchestrates persona execution in two modes: **Parallel Cycle** and **Scheduled**.
 
-### Cycle Mode
+### Parallel Cycle Mode
 
-Sequential execution with PR merging:
+Sequential execution per track, running multiple tracks in one tick:
 
 ```
 curator → refactor → visionary → bolt → sentinel → ...
@@ -126,12 +122,11 @@ curator → refactor → visionary → bolt → sentinel → ...
 ```
 
 **How it works:**
-1. Scheduler starts first persona (curator)
-2. Waits for PR to be created and pass CI
-3. Merges PR into `jules` branch
-4. Starts next persona (refactor)
-5. Repeats until all personas complete
-6. Increments sprint number and starts over
+1. Scheduler loads tracks from `schedules.toml` (or uses `cycle` as a default track).
+2. Each track runs personas sequentially; a track waits for the previous session to finish.
+3. Branching targets `jules` via `BranchManager`.
+4. Persistent state lives in `.jules/cycle_state.json` (multi-track).
+5. Reconciliation/merges are handled by `PRManager` after sessions complete.
 
 **Benefits:**
 - Sequential ensures no conflicts
@@ -153,8 +148,8 @@ curator = "0 0 * * *"          # Daily at midnight
 **How it works:**
 1. Scheduler checks current time
 2. Runs any persona matching its cron schedule
-3. Creates PR targeting `main` branch
-4. Personas run independently (no merging between them)
+3. Creates PRs targeting `main`
+4. Personas run independently (no inter-PR merging)
 
 ---
 
@@ -197,12 +192,10 @@ Every persona receives sprint context:
 ### schedules.toml
 
 ```toml
-# Cycle mode: Sequential execution
-cycle = [
-    "personas/curator/prompt.md",
-    "personas/refactor/prompt.md",
-    # ... all personas in order
-]
+# Parallel cycle mode: Tracks run sequentially per track
+[tracks]
+default = ["personas/curator/prompt.md", "personas/refactor/prompt.md"]
+ops = ["personas/sentinel/prompt.md.j2"]
 
 # Scheduled mode: Cron schedules
 [schedules]
@@ -218,9 +211,15 @@ curator = "0 0 * * *"         # Daily at midnight UTC
 ```bash
 # Required
 export JULES_API_KEY="your-jules-api-key"
-export GITHUB_TOKEN="your-github-token"
 
 # Optional
+export JULES_BASE_URL="https://jules.googleapis.com/v1alpha"
+export GITHUB_TOKEN="your-github-token"
+export GH_TOKEN="your-github-token"
+export JULES_MAIL_STORAGE="local"  # or "s3"
+export JULES_MAIL_BUCKET="jules-mail"
+export AWS_S3_ENDPOINT_URL="https://s3.your-provider.example"
+export JULES_PERSONA="weaver@team"
 export PYTHONPATH=".jules"  # For running locally
 ```
 
@@ -231,19 +230,39 @@ export PYTHONPATH=".jules"  # For running locally
 ### Running the Scheduler
 
 ```bash
-# Cycle mode (from CI or locally)
-uv run --no-project --with requests --with python-frontmatter \
-  --with jinja2 --with typer --with pydantic \
-  python -m jules.cli schedule tick
+# Parallel cycle mode (from CI or locally)
+uv run jules schedule tick
 
 # Run specific persona
-uv run ... python -m jules.cli schedule tick --prompt-id curator
+uv run jules schedule tick --prompt-id curator
 
 # Run all personas (ignore schedules)
-uv run ... python -m jules.cli schedule tick --all
+uv run jules schedule tick --all
 
 # Dry run (print without executing)
-uv run ... python -m jules.cli schedule tick --dry-run
+uv run jules schedule tick --dry-run
+```
+
+### Other CLI Commands
+
+```bash
+# Auto-fix PRs
+uv run jules autofix analyze 1234
+
+# Feedback loop
+uv run jules feedback loop --dry-run
+
+# Sync jules -> main directly (no PR)
+uv run jules sync merge-main
+
+# Mail CLI (local or S3 backend)
+uv run mail inbox --persona curator@team
+uv run mail send --to curator@team --subject "Status" --body "Done."
+
+# Session + mail toolkit
+uv run my-tools login --user weaver@team --password "<uuidv5>" --goals "Fix CI"
+uv run my-tools email inbox --persona weaver@team
+uv run my-tools journal --content "..." --password "<uuidv5>"
 ```
 
 ### CI Integration
@@ -266,32 +285,30 @@ See `.github/workflows/jules_scheduler.yml`
    mkdir -p .jules/personas/my_persona/journals
    ```
 
-2. **Create `prompt.md`:**
-   ```yaml
+2. **Create `prompt.md.j2`:**
+   ```jinja
    ---
    id: my_persona
    emoji: 🎯
    description: "You are My Persona - a specialist in X"
    ---
 
-   You are "My Persona" {{ emoji }} - [full role description]
+   {% extends "base/persona.md.j2" %}
 
-   {{ identity_branding }}
-   {{ pre_commit_instructions }}
-   {{ autonomy_block }}
-   {{ sprint_planning_block }}
-
+   {% block content %}
    ## Your Mission
 
    [Detailed instructions...]
+   {% endblock %}
    ```
 
 3. **Add to cycle or schedule:**
    ```toml
    # schedules.toml
-   cycle = [
+   [tracks]
+   default = [
        # ... existing personas
-       "personas/my_persona/prompt.md",
+       "personas/my_persona/prompt.md.j2",
    ]
 
    # OR
@@ -309,47 +326,55 @@ See `.github/workflows/jules_scheduler.yml`
 
 ### Variable Injection
 
-The scheduler automatically injects these variables into prompts:
+The scheduler injects these variables into prompts:
 
+- `{{ id }}`: Persona identifier
 - `{{ emoji }}`: The agent's brand emoji
-- `{{ identity_branding }}`: Standard header with naming conventions
-- `{{ pre_commit_instructions }}`: Required pre-commit instructions
-- `{{ journal_management }}`: Standard instructions for writing journals
-- `{{ empty_queue_celebration }}`: Standard logic for exiting when no work is found
+- `{{ description }}`: Persona description from frontmatter
 - `{{ journal_entries }}`: Aggregated content from `journals/*.md`
-- `{{ autonomy_block }}`: Autonomous decision-making guidelines
-- `{{ sprint_planning_block }}`: Sprint context and planning
+- `{{ password }}`: UUIDv5 derived from persona id (session auth)
+- `{{ sprint_context_text }}`: Rendered sprint context
+
+Templates can also include shared blocks and partials via:
+
+- `base/persona.md.j2`
+- `blocks/*.md.j2`
+- `partials/*.md.j2`
 
 ---
 
 ## 🏗️ Architecture
 
-### Scheduler V2 (Refactored)
+### Scheduler Layout
 
-The scheduler has been refactored for clarity and testability:
+The scheduler is organized by package:
 
 ```python
-# Domain Models (scheduler_models.py)
+# Domain Models (.jules/jules/scheduler/models.py)
 PersonaConfig    # Immutable persona data
-CycleState       # Current cycle position
+CycleState       # Current cycle position (per track)
 SessionRequest   # Session creation params
 PRStatus         # PR status with CI checks
 
-# Loading (scheduler_loader.py)
+# Loading (.jules/jules/scheduler/loader.py)
 PersonaLoader    # Load and parse personas
 
-# Managers (scheduler_managers.py)
+# State (.jules/jules/scheduler/state.py)
+PersistentCycleState  # JSON-backed state + tracks
+
+# Managers (.jules/jules/scheduler/managers.py)
 BranchManager         # Git operations
 PRManager             # GitHub PR operations
 CycleStateManager     # Cycle progression logic
 SessionOrchestrator   # Jules session creation
 
-# Entry Points (scheduler_v2.py)
-execute_cycle_tick()      # Clean cycle mode flow
-execute_scheduled_tick()  # Clean scheduled mode flow
+# Entry Points (.jules/jules/scheduler/engine.py)
+execute_parallel_cycle_tick()  # Parallel cycle flow
+execute_scheduled_tick()       # Scheduled mode flow
+run_scheduler()                # CLI entry point
 ```
 
-### Benefits of V2
+### Benefits
 
 - **Clear separation of concerns**: Each class has one job
 - **Type-safe**: Dataclasses ensure correctness
@@ -379,10 +404,10 @@ uv run pytest tests/unit/jules/test_scheduler.py
 ```bash
 # Test persona loading
 PYTHONPATH=.jules python -c "
-from jules.scheduler_loader import PersonaLoader
+from jules.scheduler.loader import PersonaLoader
 from pathlib import Path
 loader = PersonaLoader(Path('.jules/personas'), {})
-personas = loader.load_personas(['personas/curator/prompt.md'])
+personas = loader.load_personas(['personas/curator/prompt.md.j2'])
 print(f'Loaded: {personas[0].id} {personas[0].emoji}')
 "
 ```
