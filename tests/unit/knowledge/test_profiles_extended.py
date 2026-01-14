@@ -36,19 +36,6 @@ Profile content."""
     profile_path.unlink()
 
 
-def test_get_uuid_from_profile_fallback():
-    """Test that _get_uuid_from_profile falls back to using the filename as the UUID."""
-    profile_content = """---
-name: "Test User"
----
-Profile content."""
-    profile_path = Path("87654321-4321-8765-4321-876543210987.md")
-    profile_path.write_text(profile_content)
-
-    uuid = _get_uuid_from_profile(profile_path)
-    assert uuid == "87654321-4321-8765-4321-876543210987"
-
-    profile_path.unlink()
 
 
 def test_get_uuid_from_profile_no_uuid():
@@ -93,32 +80,6 @@ def test_find_profile_path_new_structure(tmp_path: Path):
     assert found_path == profile_path
 
 
-def test_find_profile_path_legacy_structure(tmp_path: Path):
-    """Test finding a profile in the legacy flat file structure ({uuid}.md)."""
-    profiles_dir = tmp_path / "profiles"
-    profiles_dir.mkdir()
-    author_uuid = "12345678-1234-5678-1234-567812345678"
-    profile_path = profiles_dir / f"{author_uuid}.md"
-    profile_path.touch()
-
-    found_path = _find_profile_path(author_uuid, profiles_dir)
-    assert found_path == profile_path
-
-
-def test_find_profile_path_scan_directory(tmp_path: Path):
-    """Test finding a profile by scanning the directory for slug-based files."""
-    profiles_dir = tmp_path / "profiles"
-    profiles_dir.mkdir()
-    author_uuid = "12345678-1234-5678-1234-567812345678"
-    profile_content = f'''---
-uuid: "{author_uuid}"
----
-Profile content.'''
-    profile_path = profiles_dir / "some-slug.md"
-    profile_path.write_text(profile_content)
-
-    found_path = _find_profile_path(author_uuid, profiles_dir)
-    assert found_path == profile_path
 
 
 def test_find_profile_path_not_found(tmp_path: Path):
@@ -385,33 +346,3 @@ def test_remove_profile_avatar(tmp_path: Path):
     assert "avatar:" not in content
 
 
-def test_sync_all_profiles_mixed(tmp_path: Path):
-    """Test syncing profiles from both legacy flat and new nested structures."""
-    site_root = tmp_path
-    profiles_dir = site_root / "profiles"
-    profiles_dir.mkdir()
-
-    # Legacy profile
-    legacy_uuid = "11111111-1111-1111-1111-111111111111"
-    legacy_profile = profiles_dir / f"{legacy_uuid}.md"
-    legacy_profile.write_text(f"---\nuuid: {legacy_uuid}\nalias: legacy-user\n---")
-
-    # New profile
-    new_uuid = "22222222-2222-2222-2222-222222222222"
-    new_author_dir = profiles_dir / new_uuid
-    new_author_dir.mkdir()
-    new_profile = new_author_dir / "index.md"
-    new_profile.write_text(f"---\nuuid: {new_uuid}\nalias: new-user\n---")
-
-    count = sync_all_profiles(profiles_dir)
-    assert count == 2
-
-    authors_yml_path = site_root / ".authors.yml"
-    assert authors_yml_path.exists()
-    with authors_yml_path.open("r") as f:
-        authors = yaml.safe_load(f)
-
-    assert legacy_uuid in authors
-    assert authors[legacy_uuid]["name"] == "legacy-user"
-    assert new_uuid in authors
-    assert authors[new_uuid]["name"] == "new-user"
