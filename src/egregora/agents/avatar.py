@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING
 import httpx
 from PIL import Image
 from ratelimit import limits, sleep_and_retry
-
 from egregora.agents.enricher import ensure_datetime
 from egregora.agents.enrichment import enrich_avatar
 from egregora.exceptions import EgregoraError
