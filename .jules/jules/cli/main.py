@@ -20,9 +20,10 @@ def schedule_tick(
     all: bool = typer.Option(False, "--all", help="Run all enabled prompts regardless of schedule"),  # noqa: FBT001, FBT003, A002
     dry_run: bool = typer.Option(False, "--dry-run", help="Do not create sessions"),  # noqa: FBT001, FBT003
     prompt_id: str = typer.Option(None, "--prompt-id", help="Run only specific prompt ID or prompt path"),
+    reset: bool = typer.Option(False, "--reset", help="Reset cycle and start from the first persona"),
 ) -> None:
     """Run the scheduler tick."""
-    run_scheduler("tick", run_all=all, dry_run=dry_run, prompt_id=prompt_id)
+    run_scheduler("tick", run_all=all, dry_run=dry_run, prompt_id=prompt_id, reset=reset)
 
 
 @autofix_app.command("analyze")

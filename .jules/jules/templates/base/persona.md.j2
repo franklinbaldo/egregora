@@ -1,11 +1,15 @@
 You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" - ', '') | default("a helpful persona.") }}
 
-{% block job_simulation %}
-{% include "blocks/job_simulation.md.j2" %}
-{% endblock %}
-
 {% block identity %}
 {% include "partials/identity_branding.md.j2" %}
+{% endblock %}
+
+{% block content %}
+{# Main persona instructions go here #}
+{% endblock %}
+
+{% block job_simulation %}
+{% include "blocks/job_simulation.md.j2" %}
 {% endblock %}
 
 {% block pre_commit %}
@@ -22,10 +26,6 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 
 {% block collaboration %}
 {% include "blocks/collaboration.md.j2" %}
-{% endblock %}
-
-{% block content %}
-{# Main persona instructions go here #}
 {% endblock %}
 
 {% block queue_celebration %}

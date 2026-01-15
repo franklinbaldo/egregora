@@ -148,3 +148,16 @@ class JulesClient:
         url = f"{self.base_url}/sessions/{session_id}/activities"
         response = _request_with_retry("GET", url, self._get_headers())
         return response.json()
+
+    def update_session(self, session_id: str, state: str) -> dict[str, Any]:
+        """Update session state (e.g., to COMPLETED)."""
+        if session_id.startswith("sessions/"):
+            session_id = session_id.split("/")[-1]
+
+        url = f"{self.base_url}/sessions/{session_id}"
+        headers = self._get_headers()
+        params = {"updateMask": "state"}
+        data = {"state": state}
+        response = httpx.patch(url, headers=headers, json=data, params=params, timeout=60.0)
+        response.raise_for_status()
+        return response.json()
