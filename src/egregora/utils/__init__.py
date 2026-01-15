@@ -3,6 +3,7 @@
 MODERN (Phase 3): Added consolidated date/time and filesystem utilities.
 """
 
+from egregora.security.fs import safe_path_join
 from egregora.security.ssrf import SSRFValidationError, validate_public_url
 from egregora.security.zip import (
     ZipValidationError,
