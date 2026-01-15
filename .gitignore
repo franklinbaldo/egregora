@@ -1,92 +1,11 @@
-# Python
-__pycache__/
+.jules/session.json
+.jules/personas/**/mail
+.jules/mail
+.jules/mail_mh
+.agents/**/mail
+*.eml
+.mh_sequences
+__pycache__
 *.pyc
-*.pyo
-*.pyd
-.Python
-*.so
-
-# Virtual environments
-.venv/
-.uv/
-venv/
-env/
-ENV/
-
-# Build artifacts
-dist/
-build/
-*.egg-info/
-*.egg
-bandit_report.json
-uv.lock
-
-
-# Testing
-.pytest_cache/
-.benchmarks/
-.coverage
-coverage.xml
-htmlcov/
-.tox/
-.mypy_cache/
-.ruff_cache/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*.swn
+.venv
 .DS_Store
-
-# Egregora-specific
-.egregora-cache/
-.demo-site/
-.egregora.toml
-# Ignore generated MkDocs sites, but not source templates
-/site/
-**/output/site/
-!src/egregora/rendering/templates/site/
-.cache/
-
-# Environment
-.env
-.env.local
-*.env
-
-# Temporary files
-*.tmp
-*.log
-*.bak
-
-# OS files
-Thumbs.db
-.Spotlight-V100
-.Trashes
-
-# Hypothesis test cache
-.hypothesis/
-# Test scaffolding artifacts (should not be in repo root)
-/.egregora/
-/about.md
-/index.md
-/media/
-/posts/
-/profiles/
-
-# Node.js (GitHub Actions scripts)
-node_modules/
-
-# Temporary debug files
-cleanup_batches.py
-debug_*.txt
-debug_*.py
-list_models.py
-reproduce_*.py
-blog_generation.log
-demo/
-coverage.xml
-.github/tmp/
-.jules/mail/
-uv.lock
