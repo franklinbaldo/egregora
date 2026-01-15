@@ -80,11 +80,6 @@ def _find_profile_path(
     if index_path.exists():
         return index_path
 
-    # Check for legacy flat file
-    legacy_path = profiles_dir / f"{author_uuid}.md"
-    if legacy_path.exists():
-        return legacy_path
-
     msg = f"No profile found for author {author_uuid} at {index_path}"
     raise ProfileNotFoundError(msg, author_uuid=author_uuid)
 
@@ -1103,11 +1098,8 @@ def find_authors_yml(output_dir: Path) -> Path:
 
     # This is the only valid location for the authors file.
     # If it's not here, we should not be looking elsewhere.
-    logger.warning(
-        "Could not find 'docs' directory in ancestry of %s. Falling back to legacy path resolution.",
-        output_dir,
-    )
-    return output_dir.parent.parent / ".authors.yml"
+    msg = f"Could not find 'docs' directory in ancestry of {output_dir}"
+    raise AuthorsFileLoadError(msg, str(output_dir))
 
 
 def load_authors_yml(path: Path) -> dict:

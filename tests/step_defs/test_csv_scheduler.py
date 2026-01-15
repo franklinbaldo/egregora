@@ -1,34 +1,38 @@
 """Step definitions for CSV-based persona scheduling."""
 
 import csv
-import tempfile
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock
 
 import pytest
 from pytest_bdd import given, parsers, scenario, then, when
+
 
 # Define scenarios
 @scenario("../features/csv_scheduler.feature", "Scheduler reads next persona from schedule.csv")
 def test_scheduler_reads_next():
     pass
 
+
 @scenario("../features/csv_scheduler.feature", "Scheduler skips completed sequences")
 def test_scheduler_skips_completed():
     pass
+
 
 @scenario("../features/csv_scheduler.feature", "Scheduler waits for active PR")
 def test_scheduler_waits_for_pr():
     pass
 
+
 @scenario("../features/csv_scheduler.feature", "Scheduler auto-extends when running low")
 def test_scheduler_auto_extends():
     pass
 
+
 @scenario("../features/csv_scheduler.feature", "Oracle session reuse within 24 hours")
 def test_oracle_session_reuse():
     pass
+
 
 @scenario("../features/csv_scheduler.feature", "Oracle session refresh after 24 hours")
 def test_oracle_session_refresh():
@@ -103,14 +107,14 @@ def schedule_with_rows(mock_schedule_path, context, datatable):
     header = datatable[0]
     rows = []
     for row_data in datatable[1:]:
-        rows.append(dict(zip(header, row_data)))
-    
+        rows.append(dict(zip(header, row_data, strict=False)))
+
     # Write to CSV
     with open(mock_schedule_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=header)
         writer.writeheader()
         writer.writerows(rows)
-    
+
     context["schedule_path"] = mock_schedule_path
     context["initial_rows"] = rows
     return rows
@@ -121,46 +125,46 @@ def schedule_with_few_empty(count, mock_schedule_path, context):
     rows = []
     # Add some completed rows
     for i in range(10):
-        rows.append({
-            "sequence": f"{i+1:03d}",
-            "persona": "absolutist",
-            "session_id": str(100000 + i),
-            "pr_number": str(200 + i),
-            "pr_status": "merged"
-        })
+        rows.append(
+            {
+                "sequence": f"{i + 1:03d}",
+                "persona": "absolutist",
+                "session_id": str(100000 + i),
+                "pr_number": str(200 + i),
+                "pr_status": "merged",
+            }
+        )
     # Add empty rows
     for i in range(count):
-        rows.append({
-            "sequence": f"{i+11:03d}",
-            "persona": "artisan",
-            "session_id": "",
-            "pr_number": "",
-            "pr_status": ""
-        })
-    
+        rows.append(
+            {
+                "sequence": f"{i + 11:03d}",
+                "persona": "artisan",
+                "session_id": "",
+                "pr_number": "",
+                "pr_status": "",
+            }
+        )
+
     with open(mock_schedule_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["sequence", "persona", "session_id", "pr_number", "pr_status"])
         writer.writeheader()
         writer.writerows(rows)
-    
+
     context["schedule_path"] = mock_schedule_path
     context["initial_row_count"] = len(rows)
 
 
 @given(parsers.parse("an Oracle session was created {hours:d} hours ago"))
 def oracle_session_age(hours, mock_oracle_schedule_path, context):
-    created_at = datetime.now(timezone.utc) - timedelta(hours=hours)
-    rows = [{
-        "session_id": "oracle_123",
-        "created_at": created_at.isoformat(),
-        "status": "active"
-    }]
-    
+    created_at = datetime.now(UTC) - timedelta(hours=hours)
+    rows = [{"session_id": "oracle_123", "created_at": created_at.isoformat(), "status": "active"}]
+
     with open(mock_oracle_schedule_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["session_id", "created_at", "status"])
         writer.writeheader()
         writer.writerows(rows)
-    
+
     context["oracle_schedule_path"] = mock_oracle_schedule_path
     context["initial_oracle_session"] = "oracle_123"
 
@@ -172,36 +176,39 @@ def run_sequential_tick(mock_jules_client, mock_branch_manager, mock_orchestrato
     mocker.patch("jules.scheduler.engine.get_repo_info", return_value={"owner": "test", "repo": "test"})
     mocker.patch("jules.scheduler.engine.get_open_prs", return_value=[])
     mocker.patch("jules.scheduler.engine.get_sync_patch", return_value=None)
-    
+
     # Mock PersonaLoader
     mock_persona = MagicMock()
     mock_persona.id = "absolutist"
     mock_persona.emoji = "⚡"
     mock_persona.prompt_body = "Test prompt"
-    
+
     mock_persona2 = MagicMock()
     mock_persona2.id = "artisan"
     mock_persona2.emoji = "🎨"
     mock_persona2.prompt_body = "Test prompt 2"
-    
+
     mock_loader = MagicMock()
     mock_loader.load_personas.return_value = [mock_persona, mock_persona2]
     mocker.patch("jules.scheduler.engine.PersonaLoader", return_value=mock_loader)
-    
+
     from jules.scheduler.engine import execute_sequential_tick
+
     execute_sequential_tick(dry_run=False)
-    
+
     context["orchestrator"] = mock_orchestrator
 
 
 @when("the Oracle facilitator needs to start")
 def oracle_needs_start(mock_jules_client, mocker, context):
     # Mock list_inbox to return pending questions
-    mocker.patch("jules.scheduler.engine.list_inbox", return_value=[
-        {"key": "test", "from": "refactor", "subject": "Help", "read": False}
-    ])
-    
+    mocker.patch(
+        "jules.scheduler.engine.list_inbox",
+        return_value=[{"key": "test", "from": "refactor", "subject": "Help", "read": False}],
+    )
+
     from jules.scheduler.schedule import get_active_oracle_session
+
     context["active_oracle"] = get_active_oracle_session()
 
 
