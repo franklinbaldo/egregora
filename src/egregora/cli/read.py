@@ -9,10 +9,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-try:
-    from egregora.agents.reader.reader_runner import run_reader_evaluation
-except ModuleNotFoundError:  # pragma: no cover - optional legacy path
-    run_reader_evaluation = None
+from egregora.agents.reader.reader_runner import run_reader_evaluation
 from egregora.config import load_egregora_config
 from egregora.output_adapters.mkdocs import MkDocsPaths
 
@@ -95,13 +92,6 @@ def main(
         console.print("Set reader.enabled = true in .egregora.toml to enable")
         raise typer.Exit(0)
 
-    if run_reader_evaluation is None:
-        console.print(
-            "[red]Reader evaluation is not available in this build.[/red]\n"
-            "The legacy reader runner was removed; update to the new reader workflow "
-            "or pull the latest tooling."
-        )
-        raise typer.Exit(1)
 
     # Get posts directory from config using standard resolution logic
     paths = MkDocsPaths(site_root, config=config)

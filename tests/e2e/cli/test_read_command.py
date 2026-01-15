@@ -56,31 +56,3 @@ def mock_site_root(tmp_path: Path, config_factory) -> Path:
     return site_root
 
 
-def test_read_command_missing_dependencies(mock_site_root: Path, monkeypatch):
-    """
-    Test that the 'read' command exits gracefully with an informative error
-    when the 'reader_runner' dependency is not found.
-
-    This test simulates the ModuleNotFoundError by patching the imported
-    symbol to be None.
-    """
-    # RED STATE: This test will cover the code path containing the E501 violation.
-    # It should pass before and after the refactoring.
-
-    # Simulate the ModuleNotFoundError by patching the symbol to None
-    monkeypatch.setattr("egregora.cli.read.run_reader_evaluation", None)
-
-    result = runner.invoke(app, ["read", str(mock_site_root)])
-
-    # The command should fail with exit code 1
-    assert result.exit_code == 1, f"Expected exit code 1, but got {result.exit_code}. Output: {result.stdout}"
-
-    # The output should contain the specific error message.
-    # We normalize whitespace because 'rich' can wrap the long line differently
-    # depending on the terminal width, which can break a direct string comparison.
-    normalized_stdout = " ".join(result.stdout.split())
-    expected_message = (
-        "Reader evaluation is not available in this build. "
-        "The legacy reader runner was removed; update to the new reader workflow or pull the latest tooling."
-    )
-    assert expected_message in normalized_stdout
