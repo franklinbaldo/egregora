@@ -2,9 +2,8 @@
 
 This module consolidates all MkDocs-specific logic that used to live across
 ``mkdocs.py``, ``mkdocs_output_adapter.py``, ``mkdocs_site.py`` and
-``mkdocs_storage.py``.  It exposes both the legacy registry-friendly
-``MkDocsOutputAdapter`` as well as the modern document-centric
-``MkDocsFilesystemAdapter`` alongside shared helpers for resolving site
+``mkdocs_storage.py``.  It exposes the ``MkDocsOutputAdapter``
+alongside shared helpers for resolving site
 configuration and working with MkDocs' filesystem layout.
 
 MODERN (2025-11-18): Imports site path resolution from
@@ -372,23 +371,8 @@ class MkDocsAdapter(BaseOutputSink):
                 post = frontmatter.loads(row["content"])
                 return Document(content=post.content, type=doc_type, metadata=post.metadata)
 
-        # Fallback to file-based reading for media and other types not yet in DB
-        path = self._resolve_document_path(doc_type, identifier)
-
-        if not path.exists():
-            raise DocumentNotFoundError(doc_type.value, identifier)
-
-        try:
-            if doc_type == DocumentType.MEDIA:
-                raw_bytes = path.read_bytes()
-                metadata = {"filename": path.name}
-                return Document(content=raw_bytes, type=doc_type, metadata=metadata)
-            post = frontmatter.load(str(path))
-            metadata, actual_content = post.metadata, post.content
-        except (OSError, yaml.YAMLError) as e:
-            raise DocumentParsingError(str(path), str(e)) from e
-
-        return Document(content=actual_content, type=doc_type, metadata=metadata)
+        # No fallback to file-based reading - database is the single source of truth
+        raise DocumentNotFoundError(doc_type.value, identifier)
 
     def validate_structure(self, site_root: Path) -> bool:
         """Check if the site root contains a mkdocs.yml file.
@@ -633,58 +617,33 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         """Return all MkDocs documents as Document instances (database-backed).
 
         Reads from cached database tables instead of filesystem for performance.
-        Falls back to filesystem scanning if database not available.
         """
-        if not hasattr(self, "_site_root") or self._site_root is None:
+        if not hasattr(self, "_site_root") or self._site_root is None or self._storage is None:
             return
 
-        # Use database cache if available (automatic self-adapter optimization!)
-        if self._storage is not None:
-            try:
-                # Read posts from database
-                if doc_type is None or doc_type == DocumentType.POST:
-                    posts_table = self._storage.read_table("posts")
-                    for _, row in posts_table.execute().iterrows():
-                        # Parse frontmatter from cached content
-                        post = frontmatter.loads(row["content"])
-                        yield Document(
-                            content=post.content,
-                            type=DocumentType.POST,
-                            metadata=post.metadata,
-                        )
+        # Read posts from database
+        if doc_type is None or doc_type == DocumentType.POST:
+            with suppress(OSError, KeyError, AttributeError):
+                posts_table = self._storage.read_table("posts")
+                for _, row in posts_table.execute().iterrows():
+                    post = frontmatter.loads(row["content"])
+                    yield Document(
+                        content=post.content,
+                        type=DocumentType.POST,
+                        metadata=post.metadata,
+                    )
 
-                # Read profiles from database
-                if doc_type is None or doc_type == DocumentType.PROFILE:
-                    profiles_table = self._storage.read_table("profiles")
-                    for _, row in profiles_table.execute().iterrows():
-                        # Parse frontmatter from cached content
-                        profile = frontmatter.loads(row["content"])
-                        yield Document(
-                            content=profile.content,
-                            type=DocumentType.PROFILE,
-                            metadata=profile.metadata,
-                        )
-
-                # Early return - database path complete
-                return
-
-            except (OSError, KeyError, AttributeError) as e:
-                logger.warning("Failed to read documents from database, falling back to filesystem: %s", e)
-                # Fall through to filesystem fallback
-
-        # Fallback: filesystem-based reading (legacy path)
-        # DRY: Use list() to scan directories, then get() to load content
-        # Note: list() returns metadata where identifier is a relative path (e.g., "posts/slug.md")
-        # but get() expects a simpler identifier for some types (e.g., "slug" for posts).
-        # To reliably load all listed documents, we bypass the identifier resolution logic
-        # and load directly from the known path found by list().
-        for meta in self.list(doc_type=doc_type):
-            if meta.doc_type and "path" in meta.metadata:
-                doc_path = Path(str(meta.metadata["path"]))
-                # Bypass identifier resolution by loading directly from path
-                doc = self._document_from_path(doc_path, meta.doc_type)
-                if doc:
-                    yield doc
+        # Read profiles from database
+        if doc_type is None or doc_type == DocumentType.PROFILE:
+            with suppress(OSError, KeyError, AttributeError):
+                profiles_table = self._storage.read_table("profiles")
+                for _, row in profiles_table.execute().iterrows():
+                    profile = frontmatter.loads(row["content"])
+                    yield Document(
+                        content=profile.content,
+                        type=DocumentType.PROFILE,
+                        metadata=profile.metadata,
+                    )
 
     def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
         """Iterate through available documents as lightweight DocumentMetadata.

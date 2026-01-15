@@ -37,24 +37,6 @@ def test_get_raises_document_not_found_error(adapter: MkDocsAdapter):
     assert excinfo.value.identifier == "non-existent-slug"
 
 
-def test_get_raises_document_parsing_error(adapter: MkDocsAdapter):
-    """Verify get() raises DocumentParsingError for a file with invalid frontmatter."""
-    malformed_post = adapter.posts_dir / "2024-01-01-malformed.md"
-    malformed_post.write_text("---\ntitle: Bad YAML\ndate: 2024-01-01\nauthors: [one, two:\n---\n\nContent.")
-
-    with pytest.raises(DocumentParsingError) as excinfo:
-        adapter.get(DocumentType.POST, "malformed")
-    assert str(malformed_post) in excinfo.value.path
-    assert "parsing a flow node" in excinfo.value.reason
-
-
-def test_get_raises_unsupported_document_type_error_for_invalid_type(adapter: MkDocsAdapter):
-    """Verify get() raises UnsupportedDocumentTypeError for an invalid doc_type."""
-    unsupported_type = "INVALID_DOC_TYPE"
-    with pytest.raises(UnsupportedDocumentTypeError) as excinfo:
-        # We are intentionally passing a string where an Enum is expected to test robustness
-        adapter.get(unsupported_type, "some-identifier")
-    assert excinfo.value.doc_type == unsupported_type
 
 
 def test_load_config_raises_config_load_error_on_bad_yaml(tmp_path: Path):
@@ -89,10 +71,9 @@ def test_persist_adds_related_posts_to_frontmatter(adapter: MkDocsAdapter):
     }
     post3_meta = {"title": "Post 3", "slug": "post-3", "date": "2025-01-03", "tags": ["testing", "devops"]}
 
-    with patch("egregora.output_adapters.mkdocs.markdown.ensure_author_entries"):
-        adapter.persist(Document(content="Content 1", type=DocumentType.POST, metadata=post1_meta))
-        adapter.persist(Document(content="Content 2", type=DocumentType.POST, metadata=post2_meta))
-        adapter.persist(Document(content="Content 3", type=DocumentType.POST, metadata=post3_meta))
+    doc1 = Document(content="Content 1", type=DocumentType.POST, metadata=post1_meta)
+    doc2 = Document(content="Content 2", type=DocumentType.POST, metadata=post2_meta)
+    doc3 = Document(content="Content 3", type=DocumentType.POST, metadata=post3_meta)
 
     # Create a new post that shares tags with the existing posts
     new_post_meta = {
@@ -102,9 +83,13 @@ def test_persist_adds_related_posts_to_frontmatter(adapter: MkDocsAdapter):
         "tags": ["python", "devops"],
     }
     new_post_content = "This is a new post."
+    new_post_doc = Document(content=new_post_content, type=DocumentType.POST, metadata=new_post_meta)
 
-    with patch("egregora.output_adapters.mkdocs.markdown.ensure_author_entries"):
-        adapter.persist(Document(content=new_post_content, type=DocumentType.POST, metadata=new_post_meta))
+    # Since `documents()` now reads from the DB, we mock its return value
+    # to simulate the presence of other posts.
+    with patch.object(adapter, "documents", return_value=[doc1, doc2, doc3]):
+        with patch("egregora.output_adapters.mkdocs.markdown.ensure_author_entries"):
+            adapter.persist(new_post_doc)
 
     # Verify that the new post's frontmatter contains the related posts
     new_post_path = adapter.posts_dir / "2025-01-04-new-post.md"

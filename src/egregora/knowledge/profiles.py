@@ -549,11 +549,10 @@ def get_opted_out_authors(
         Set of author UUIDs who have opted out
 
     """
-    # Use database cache if available
-    if storage is not None:
-        return get_opted_out_authors_from_db(storage)
-    logger.warning("No storage provided to get_opted_out_authors; cannot determine opt-out status.")
-    return set()
+    if storage is None:
+        logger.warning("No storage provided to get_opted_out_authors; cannot determine opt-out status.")
+        return set()
+    return get_opted_out_authors_from_db(storage)
 
 
 def filter_opted_out_authors(
@@ -974,10 +973,8 @@ def _build_author_entry(
 
 
 def _infer_docs_dir_from_profiles_dir(profiles_dir: Path) -> Path:
-    """Return docs_dir given either legacy or posts-centric profiles_dir."""
-    if profiles_dir.name == "profiles" and profiles_dir.parent.name == "posts":
-        return profiles_dir.parent.parent
-    return profiles_dir.parent
+    """Return docs_dir given the posts-centric profiles_dir."""
+    return profiles_dir.parent.parent
 
 
 def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
