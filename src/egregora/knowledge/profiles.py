@@ -1011,8 +1011,8 @@ def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
 
         try:
             metadata = _extract_profile_metadata(target_path)
-            # UUID should be the directory name or in metadata
-            author_uuid = str(metadata.get("uuid", author_dir.name))
+            # UUID must be in metadata. No fallback to directory name.
+            author_uuid = str(metadata["uuid"])
 
             # Determine base URL path relative to docs directory
             try:
