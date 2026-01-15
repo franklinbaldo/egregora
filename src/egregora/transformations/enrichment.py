@@ -30,7 +30,18 @@ def combine_with_enrichment_rows(
         Combined table with schema applied
 
     """
-    messages_table_filtered = messages_table.select(*schema.names)
+    # Add any missing columns from the schema as nulls
+    mutations = {
+        col_name: ibis.null().cast(col_type)
+        for col_name, col_type in schema.items()
+        if col_name not in messages_table.columns
+    }
+    if mutations:
+        messages_with_all_cols = messages_table.mutate(**mutations)
+    else:
+        messages_with_all_cols = messages_table
+
+    messages_table_filtered = messages_with_all_cols.select(*schema.names)
 
     # Ensure timestamps are UTC
     if "ts" in messages_table_filtered.columns:
@@ -45,7 +56,9 @@ def combine_with_enrichment_rows(
     messages_table_filtered = messages_table_filtered.cast(schema)
 
     if new_rows:
-        normalized_rows = [{column: row.get(column) for column in schema.names} for row in new_rows]
+        normalized_rows = [
+            {column: row.get(column) for column in schema.names} for row in new_rows
+        ]
         enrichment_table = ibis.memtable(normalized_rows).cast(schema)
         combined = messages_table_filtered.union(enrichment_table, distinct=False)
 
