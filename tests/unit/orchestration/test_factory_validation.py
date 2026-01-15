@@ -27,6 +27,7 @@ def test_create_database_backends_normalizes_duckdb_path(tmp_path):
     expected_path = (tmp_path / "data" / "pipeline.duckdb").resolve()
     # On Windows, we use duckdb:C:/path to avoid double drive letter issues in Ibis
     import os
+
     if os.name == "nt":
         assert runtime_uri == f"duckdb:{expected_path.as_posix()}"
     else:

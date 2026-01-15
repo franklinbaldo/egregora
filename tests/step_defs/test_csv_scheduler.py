@@ -171,7 +171,7 @@ def oracle_session_age(hours, mock_oracle_schedule_path, context):
 
 # When steps
 @when("the scheduler runs a sequential tick")
-def run_sequential_tick(mock_jules_client, mock_branch_manager, mock_orchestrator, mocker, context):
+def run_sequential_tick(mock_jules_client, mock_orchestrator, mocker, context):
     # Mock get_repo_info and get_open_prs
     mocker.patch("jules.scheduler.engine.get_repo_info", return_value={"owner": "test", "repo": "test"})
     mocker.patch("jules.scheduler.engine.get_open_prs", return_value=[])
@@ -230,7 +230,7 @@ def no_session_created(context):
 
 
 @then("the scheduler should report waiting for PR")
-def scheduler_reports_waiting(capsys):
+def scheduler_reports_waiting():
     # Check stdout contains waiting message
     # This is handled by the scheduler printing, not by our context
     pass  # Logging verification would require capturing stdout

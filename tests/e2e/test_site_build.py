@@ -33,7 +33,7 @@ def test_sync_authors_from_posts(tmp_path: Path):
         author_dir = profiles_dir / author_id
         author_dir.mkdir(parents=True, exist_ok=True)
         (author_dir / "index.md").write_text(
-            f"---\nname: {author_name}\n---\n# {author_name}", encoding="utf-8"
+            f"---\nuuid: {author_id}\nname: {author_name}\n---\n# {author_name}", encoding="utf-8"
         )
 
     # Sync authors from profiles directory

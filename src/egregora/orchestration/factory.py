@@ -192,7 +192,7 @@ class PipelineFactory:
                         fs_path = Path(path_value).resolve()
                     fs_path.parent.mkdir(parents=True, exist_ok=True)
                     if os.name == "nt":
-                        # Windows paths need to avoid the leading slash (duckdb:///C:/) 
+                        # Windows paths need to avoid the leading slash (duckdb:///C:/)
                         # to prevent Ibis from prepending the current drive (C:/C:/).
                         # Using duckdb:C:/... (one slash after scheme) works.
                         normalized_value = f"duckdb:{fs_path.as_posix()}"
