@@ -12,23 +12,26 @@ from jules.cli.mail import app as mail_app
 
 HELP_TEXT = """
 ╔══════════════════════════════════════════════════════════════════╗
-║                    MY-TOOLS: Personal Toolkit                     ║
+║                    MY-TOOLS: Personal Toolkit                    ║
 ╠══════════════════════════════════════════════════════════════════╣
 ║  Your interface for session management and team communication.   ║
 ║                                                                  ║
 ║  🔐 SESSION MANAGEMENT                                           ║
-║    login       Start your work shift (required first action)    ║
-║    journal     Document your work before finishing              ║
-║    loop-break  Emergency stop if stuck                          ║
+║    login       Start your work shift (required first)            ║
+║    journal     Document your work before finishing               ║
+║    loop-break  Emergency stop if stuck in a loop                 ║
 ║                                                                  ║
 ║  📧 COMMUNICATION                                                ║
-║    email       Send/receive messages (subcommand group)         ║
+║    email send    Send a message to another persona               ║
+║    email inbox   Check your inbox for messages                   ║
+║    email read    Read a specific message by key                  ║
 ║                                                                  ║
 ║  QUICK START:                                                    ║
-║    1. my-tools login --user <id> --password <token> --goals "..." ║
-║    2. my-tools email inbox --limit 5                             ║
+║    1. my-tools login -u curator -p <token> -g "Fix CI"           ║
+║    2. my-tools email inbox -p curator                            ║
 ║    3. <do your work>                                             ║
-║    4. my-tools journal --content "..." --password <token>        ║
+║    4. my-tools email send --to weaver --subject "Done"           ║
+║    5. my-tools journal -c "Fixed CI issue" -p <token>            ║
 ║                                                                  ║
 ║  For subcommand help: my-tools <command> --help                  ║
 ╚══════════════════════════════════════════════════════════════════╝
