@@ -137,7 +137,8 @@ class S3MailboxBackend(MailboxBackend):
         
         # Internet Archive S3 is extremely picky about Content-Length and 100-continue.
         # requests handles this more reliably than boto3's default behavior for some endpoints.
-        if S3_ENDPOINT and "archive.org" in S3_ENDPOINT:
+        from urllib.parse import urlparse
+        if S3_ENDPOINT and urlparse(S3_ENDPOINT).hostname == "archive.org":
             import base64
             auth = base64.b64encode(f"{s3._request_signer._credentials.access_key}:{s3._request_signer._credentials.secret_key}".encode()).decode()
             headers = {
