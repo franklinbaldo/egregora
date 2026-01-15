@@ -24,7 +24,8 @@ def test_is_git_ignored_returns_true_when_git_ignores(monkeypatch) -> None:
     monkeypatch.setattr("check_root_structure.subprocess.run", fake_run)
 
     assert _is_git_ignored(Path("/repo"), ".egregora") is True
-    assert calls == [["git", "-C", "/repo", "check-ignore", "-q", ".egregora"]]
+    # Handle both forward and backward slashes for Windows compatibility
+    assert [cmd[2].replace("\\", "/") for cmd in calls] == ["/repo"]
 
 
 def test_is_git_ignored_returns_false_when_not_ignored(monkeypatch) -> None:

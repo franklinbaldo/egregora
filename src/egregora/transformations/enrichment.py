@@ -56,9 +56,7 @@ def combine_with_enrichment_rows(
     messages_table_filtered = messages_table_filtered.cast(schema)
 
     if new_rows:
-        normalized_rows = [
-            {column: row.get(column) for column in schema.names} for row in new_rows
-        ]
+        normalized_rows = [{column: row.get(column) for column in schema.names} for row in new_rows]
         enrichment_table = ibis.memtable(normalized_rows).cast(schema)
         combined = messages_table_filtered.union(enrichment_table, distinct=False)
 

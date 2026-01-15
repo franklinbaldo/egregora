@@ -7,6 +7,7 @@ for the write pipeline, decluttering the orchestration logic.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
@@ -190,7 +191,13 @@ class PipelineFactory:
                     else:
                         fs_path = Path(path_value).resolve()
                     fs_path.parent.mkdir(parents=True, exist_ok=True)
-                    normalized_value = f"duckdb:///{fs_path}"
+                    if os.name == "nt":
+                        # Windows paths need to avoid the leading slash (duckdb:///C:/) 
+                        # to prevent Ibis from prepending the current drive (C:/C:/).
+                        # Using duckdb:C:/... (one slash after scheme) works.
+                        normalized_value = f"duckdb:{fs_path.as_posix()}"
+                    else:
+                        normalized_value = f"duckdb:///{fs_path}"
 
             return normalized_value, ibis.connect(normalized_value)
 

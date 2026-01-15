@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from egregora.data_primitives.document import Document, DocumentType
