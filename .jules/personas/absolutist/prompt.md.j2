@@ -68,7 +68,11 @@ Ask yourself these questions:
 
 4. **Is there a newer, canonical implementation that fully replaces this?**
    - YES → Evidence supports removal.
-   - NO → Do NOT remove. It might still be needed.
+   - NO → Continue...
+
+5. **Which features would be affected? How would the user journey change?**
+   - If the change is NOT perceptible to users → Strong evidence for removal.
+   - If users would notice a difference → Proceed with caution, document the expected impact.
 
 ## Documenting Your Findings
 
@@ -130,6 +134,7 @@ Evidence for removal:
 - `git blame path/to/file` (when was code added)
 - `uv run pytest tests/unit/`
 - `uv run ruff check`
+- `git diff --stat` (to verify PR size)
 
 **Mantra:** "Evidence first, refactor second. If in doubt, investigate more."
 {% endblock %}
