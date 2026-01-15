@@ -300,6 +300,12 @@ module = [
     "pydantic.fields",
     "google",
     "google.generativeai",
+    "httpx",
+    "google.api_core",
+    "pydantic_ai",
+    "ibis.backends.duckdb",
+    "pydantic_ai.models.google",
+    "pydantic_ai.providers.google",
 ]
 ignore_missing_imports = true
 
