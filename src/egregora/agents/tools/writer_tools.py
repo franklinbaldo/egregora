@@ -31,8 +31,6 @@ from egregora.rag import search
 from egregora.rag.models import RAGQueryRequest
 
 if TYPE_CHECKING:
-    import uuid
-
     from egregora.agents.shared.annotations import AnnotationStore
     from egregora.data_primitives.document import OutputSink
     from egregora.database.task_store import TaskStore
@@ -113,7 +111,6 @@ class ToolContext:
     output_sink: OutputSink
     window_label: str
     task_store: TaskStore | None = None
-    run_id: uuid.UUID | str | None = None
 
 
 @dataclass
@@ -129,7 +126,6 @@ class BannerContext:
 
     output_sink: OutputSink
     task_store: TaskStore | None = None
-    run_id: uuid.UUID | str | None = None
 
 
 # ==============================================================================
@@ -344,20 +340,18 @@ def generate_banner_impl(ctx: BannerContext, post_slug: str, title: str, summary
         BannerResult with generation status and path
 
     """
-    if ctx.task_store and ctx.run_id:
+    if ctx.task_store:
         logger.info("Scheduling background banner generation for %s", post_slug)
 
         payload = {
             "post_slug": post_slug,
             "title": title,
             "summary": summary,
-            "run_id": str(ctx.run_id),
         }
 
         task_id = ctx.task_store.enqueue(
             task_type="generate_banner",
             payload=payload,
-            run_id=ctx.run_id,
         )
         logger.info("Scheduled banner generation task: %s", task_id)
 

@@ -947,14 +947,10 @@ def _build_author_entry(
     profile_path: Path,
     metadata: dict,
     *,
-    author_uuid: str | None = None,
+    author_uuid: str,
     url: str | None = None,
 ) -> dict:
     """Build an author entry dict from profile metadata."""
-    # If author_uuid not passed, try to get from metadata or filename(deprecated)
-    if not author_uuid:
-        author_uuid = str(metadata.get("uuid", profile_path.stem))
-
     # Ensure we have a name (default to UUID if missing)
     name = metadata.get("name", metadata.get("alias", author_uuid))
 

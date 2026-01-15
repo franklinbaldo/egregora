@@ -371,7 +371,7 @@ def _enqueue_url_enrichments(
             "message_metadata": _serialize_metadata(metadata),
         }
         if context.task_store:
-            context.task_store.enqueue("enrich_url", payload, run_id)
+            context.task_store.enqueue("enrich_url", payload)
             scheduled += 1
     return scheduled
 
@@ -446,7 +446,7 @@ def _enqueue_media_enrichments(
             "message_metadata": _serialize_metadata(metadata),
         }
         if context.task_store:
-            context.task_store.enqueue("enrich_media", payload, run_id)
+            context.task_store.enqueue("enrich_media", payload)
             scheduled += 1
         if scheduled >= config.max_enrichments:
             break

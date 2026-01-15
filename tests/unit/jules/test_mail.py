@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parents[3] / ".jules"))
 
 from jules.features.mail import BUCKET_NAME, get_message, list_inbox, mark_read, send_message
 
-pytestmark = pytest.mark.skipif(os.name == 'nt', reason="Mail tests with colons fail on Windows")
+pytestmark = pytest.mark.skipif(os.name == "nt", reason="Mail tests with colons fail on Windows")
 
 
 @pytest.fixture(params=["local", "s3"])
@@ -64,7 +64,7 @@ def test_read_and_mark_seen():
     assert messages[0]["read"] is True
 
 
-@pytest.mark.skipif(os.name == 'nt', reason="Mail tests with colons fail on Windows")
+@pytest.mark.skipif(os.name == "nt", reason="Mail tests with colons fail on Windows")
 @pytest.mark.usefixtures("mail_backend")
 def test_unread_filter():
     persona = "filter@team"

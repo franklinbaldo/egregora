@@ -1,7 +1,6 @@
 import httpx
 import pytest
 import respx
-from tenacity import RetryError
 
 from egregora.rag.embeddings import (
     _get_timeout,
@@ -9,7 +8,7 @@ from egregora.rag.embeddings import (
     embed_texts_in_batch,
     is_rag_available,
 )
-from egregora.rag.exceptions import EmbeddingAPIError, RateLimitError
+from egregora.rag.exceptions import EmbeddingAPIError
 
 # Constants for mocking
 FAKE_API_KEY = "test-key"
@@ -73,9 +72,7 @@ def test_embed_text_rate_limit_and_retry():
 @pytest.mark.usefixtures("mock_google_api_key")
 def test_embed_text_api_error():
     """Test that a non-retriable API error raises an exception."""
-    respx.post(f"{GENAI_API_BASE}/{EMBEDDING_MODEL}:embedContent").mock(
-        return_value=httpx.Response(500)
-    )
+    respx.post(f"{GENAI_API_BASE}/{EMBEDDING_MODEL}:embedContent").mock(return_value=httpx.Response(500))
 
     # The tenacity decorator with reraise=True will raise the last exception
     # which is EmbeddingAPIError in this case.
