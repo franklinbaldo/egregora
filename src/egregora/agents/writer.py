@@ -430,6 +430,7 @@ def write_posts_with_pydantic_agent(
         try:
             return loop.run_until_complete(_run_async())
         finally:
+            loop.close()
             asyncio.set_event_loop(None)
 
     try:
