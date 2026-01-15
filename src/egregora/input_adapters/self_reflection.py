@@ -13,12 +13,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import ibis
 import yaml
 
+from egregora.common.datetime_utils import parse_datetime_flexible
+from egregora.common.text import slugify
 from egregora.data_primitives.document import DocumentType
 from egregora.database.schemas import STAGING_MESSAGES_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.output_adapters.exceptions import DocumentNotFoundError
-from egregora.common.datetime_utils import parse_datetime_flexible
-from egregora.common.text import slugify
 
 if TYPE_CHECKING:
     from egregora.data_primitives.protocols import OutputSink
