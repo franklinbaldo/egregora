@@ -20,6 +20,7 @@ GENAI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 def mock_google_api_key(monkeypatch):
     """Fixture to mock the Google API key."""
     monkeypatch.setenv("GOOGLE_API_KEY", FAKE_API_KEY)
+    return FAKE_API_KEY
 
 
 @pytest.mark.usefixtures("mock_google_api_key")

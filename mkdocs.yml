@@ -162,7 +162,6 @@ nav:
   - Home: index.md
   - Quick Start: getting-started/quickstart.md
   - About: about.md
-  - Architecture: v3/architecture/overview.md
   - ADR:
     - Index: adr/README.md
   - Getting Started:

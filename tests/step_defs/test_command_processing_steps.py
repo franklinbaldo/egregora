@@ -24,52 +24,52 @@ def test_detect_valid_commands():
     pass
 
 
-@scenario("../features/command_processing.feature", "Detect commands regardless of case")
+@scenario("../features/command_processing.feature", "Case-insensitive command detection")
 def test_detect_commands_case_insensitively():
     pass
 
 
-@scenario("../features/command_processing.feature", "Ignore regular messages")
+@scenario("../features/command_processing.feature", "Ignoring regular messages")
 def test_ignore_regular_messages():
     pass
 
 
-@scenario("../features/command_processing.feature", "Parse avatar command")
+@scenario("../features/command_processing.feature", "Parsing an avatar command")
 def test_parse_avatar_command():
     pass
 
 
-@scenario("../features/command_processing.feature", "Parse bio command")
+@scenario("../features/command_processing.feature", "Parsing a bio command")
 def test_parse_bio_command():
     pass
 
 
-@scenario("../features/command_processing.feature", "Parse interests command")
+@scenario("../features/command_processing.feature", "Parsing an interests command")
 def test_parse_interests_command():
     pass
 
 
-@scenario("../features/command_processing.feature", "Filter commands from message list")
+@scenario("../features/command_processing.feature", "Filtering commands from a message list")
 def test_filter_commands():
     pass
 
 
-@scenario("../features/command_processing.feature", "Extract commands from message list")
+@scenario("../features/command_processing.feature", "Extracting commands from a message list")
 def test_extract_commands():
     pass
 
 
-@scenario("../features/command_processing.feature", "Generate announcement for avatar update")
+@scenario("../features/command_processing.feature", "Generating an announcement for an avatar update")
 def test_generate_announcement_for_avatar_update():
     pass
 
 
-@scenario("../features/command_processing.feature", "Generate announcement for bio update")
+@scenario("../features/command_processing.feature", "Generating an announcement for a bio update")
 def test_generate_announcement_for_bio_update():
     pass
 
 
-@scenario("../features/command_processing.feature", "Generate announcement for interests update")
+@scenario("../features/command_processing.feature", "Generating an announcement for an interests command")
 def test_generate_announcement_for_interests_update():
     pass
 
