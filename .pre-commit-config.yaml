@@ -97,3 +97,9 @@ repos:
         types: [python]
         pass_filenames: false
         stages: [pre-push]
+      - id: fix-schedule-csv
+        name: Fix schedule.csv format
+        entry: uv run python -c "import sys; sys.path.insert(0, '.jules'); from jules.scheduler.schedule import load_schedule, validate_and_fix, save_schedule; rows = load_schedule(); fixed, issues = validate_and_fix(rows); save_schedule(fixed) if issues else None; print('Fixed:', len(issues), 'issues') if issues else None"
+        language: system
+        files: '\.jules/schedule\.csv$'
+        pass_filenames: false

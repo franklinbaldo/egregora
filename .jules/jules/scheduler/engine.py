@@ -116,16 +116,21 @@ def build_session_prompt(persona_prompt: str, sync_info: dict | None, persona_id
     return sync_instruction + persona_prompt
 
 def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> None:
-    """Execute next persona in sequential order based on API session history.
+    """Execute next persona in sequential order based on schedule.csv.
     
-    This simplified scheduler:
-    1. Loads personas alphabetically from .jules/personas/
-    2. Queries the Jules API for recent sessions
-    3. Determines the next persona based on round-robin from last completed
-    4. Skips if there's an active session in progress
+    This CSV-driven scheduler:
+    1. Loads schedule from .jules/schedule.csv
+    2. Finds the first row that needs work (not merged/closed)
+    3. Creates a session for that persona if needed
+    4. Updates the CSV with session_id
     """
+    from jules.scheduler.schedule import (
+        load_schedule, save_schedule, get_current_sequence, update_sequence,
+        count_remaining_empty, auto_extend, SCHEDULE_PATH
+    )
+    
     print("=" * 70)
-    print(f"SEQUENTIAL MODE: API-driven persona execution (Reset={reset})")
+    print(f"SEQUENTIAL MODE: CSV-driven persona execution (Reset={reset})")
     print("=" * 70)
 
     # === SETUP ===
@@ -133,104 +138,91 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> None:
     repo_info = get_repo_info()
     open_prs = get_open_prs(repo_info["owner"], repo_info["repo"])
 
-    # 1. Load all personas (sorted alphabetically for deterministic order)
+    # 1. Load schedule from CSV
+    rows = load_schedule()
+    if not rows:
+        print(f"❌ No schedule found at {SCHEDULE_PATH}")
+        return
+    
+    # Auto-extend if running low
+    remaining = count_remaining_empty(rows)
+    if remaining < 10:
+        print(f"📈 Auto-extending schedule (only {remaining} empty rows left)")
+        rows = auto_extend(rows, 50)
+        save_schedule(rows)
+    
+    print(f"📋 Schedule: {len(rows)} total rows, {count_remaining_empty(rows)} not started")
+
+    # 2. Find current sequence (first row not merged/closed)
+    current = get_current_sequence(rows)
+    if not current:
+        print("🎉 All scheduled work is complete!")
+        return
+    
+    seq = current["sequence"]
+    persona_id = current["persona"]
+    session_id = current.get("session_id", "").strip()
+    pr_status = current.get("pr_status", "").strip().lower()
+    
+    print(f"📍 Current sequence: [{seq}] {persona_id}")
+    
+    # 3. If reset requested, clear session_id to force re-run
+    if reset and session_id:
+        print("🔄 Reset requested - clearing current session to re-run")
+        rows = update_sequence(rows, seq, session_id="", pr_number="", pr_status="")
+        save_schedule(rows)
+        session_id = ""
+
+    # 4. Check if session already created
+    if session_id:
+        print(f"   Session already exists: {session_id}")
+        # Check if PR status needs updating (handled by feedback loop)
+        if pr_status in ["draft", "open"]:
+            print(f"   PR status: {pr_status} (waiting for merge/close)")
+        elif pr_status in ["merged", "closed"]:
+            print(f"   PR {pr_status} - moving to next sequence")
+            # This shouldn't happen as get_current_sequence skips these
+        else:
+            print("   Waiting for session to create a PR...")
+        return
+
+    # 5. Load persona for this sequence
     base_context = {**repo_info, "open_prs": open_prs}
     loader = PersonaLoader(Path(".jules/personas"), base_context)
-    # Filter out oracle - it runs via execute_facilitator_tick, not in the cycle
-    personas = sorted([p for p in loader.load_personas([]) if p.id != "oracle"], key=lambda p: p.id)
+    personas = {p.id: p for p in loader.load_personas([])}
     
-    if not personas:
-        print("❌ No personas found in .jules/personas/ (excluding oracle)")
+    if persona_id not in personas:
+        print(f"❌ Persona '{persona_id}' not found, skipping sequence [{seq}]")
+        rows = update_sequence(rows, seq, pr_status="closed")  # Mark as skipped
+        save_schedule(rows)
         return
     
-    persona_ids = [p.id for p in personas]
-    print(f"📋 Loaded {len(personas)} cycle personas: {', '.join(persona_ids)}")
-
-    # 2. Get recent sessions from API
-    try:
-        sessions_response = client.list_sessions()
-        sessions = sessions_response.get("sessions", [])
-        print(f"📊 Found {len(sessions)} sessions in API")
-    except Exception as e:
-        print(f"⚠️ Failed to fetch sessions from API: {e}")
-        sessions = []
-
-    # 3. Check for active sessions (don't start new one if busy)
-    active_states = ["IN_PROGRESS", "PENDING", "AWAITING_PLAN_APPROVAL", "AWAITING_USER_FEEDBACK"]
-    active_sessions = [s for s in sessions if s.get("state") in active_states]
-    
-    # Filter out Oracle sessions - they shouldn't block the cycle
-    active_sessions = [s for s in active_sessions if "oracle" not in s.get("title", "").lower()]
-
-    if active_sessions and not reset:
-        latest = active_sessions[0]
-        session_id = latest.get("name", "").split("/")[-1]
-        state = latest.get("state", "UNKNOWN")
-        print(f"⏳ Active cycle session exists: {session_id} ({state}). Waiting.")
-        return
-
-    # 4. Find last completed session's persona
-    completed_sessions = [s for s in sessions if s.get("state") == "COMPLETED"]
-    last_persona_id = None
-
-    if completed_sessions and not reset:
-        # Sort by createTime descending (most recent first)
-        completed_sessions.sort(key=lambda s: s.get("createTime", ""), reverse=True)
-
-        # Extract persona ID from session title (format: "emoji persona_id: task")
-        last_title = completed_sessions[0].get("title", "")
-        for pid in persona_ids:
-            if pid.lower() in last_title.lower():
-                last_persona_id = pid
-                break
-
-        if last_persona_id:
-            print(f"📍 Last completed persona: {last_persona_id}")
-        else:
-            print(f"📍 Could not determine last persona from title: {last_title}")
-    elif reset:
-        print("🔄 Reset requested - ignoring session history to start fresh loop")
-
-    # 5. Determine next persona (round-robin)
-    if last_persona_id and last_persona_id in persona_ids and not reset:
-        current_idx = persona_ids.index(last_persona_id)
-        next_idx = (current_idx + 1) % len(personas)
-    else:
-        next_idx = 0
-        print("📍 Starting from first persona (reset mode or first run)")
-
-    next_persona = personas[next_idx]
-    
-    # 6. Determine sequence number
-    # Count sessions that look like our scheduled tasks
-    task_sessions = [s for s in sessions if ": " in s.get("title", "") and ("sequential task" in s.get("title", "").lower() or "manual task" in s.get("title", "").lower())]
-    seq_no = len(task_sessions) + 1
-    
-    print(f"\n🚀 Next persona: {next_persona.emoji} {next_persona.id} [{seq_no:03d}]")
+    persona = personas[persona_id]
+    print(f"\n🚀 Starting: {persona.emoji} {persona.id} [{seq}]")
 
     if dry_run:
         print("[DRY RUN] Would create session for above persona")
         return
 
-    # 6. Create session for next persona
+    # 6. Create session for this persona
     branch_mgr = BranchManager(JULES_BRANCH)
     branch_mgr.ensure_jules_branch_exists()
 
     session_branch = branch_mgr.create_session_branch(
         base_branch=JULES_BRANCH,
-        persona_id=next_persona.id
+        persona_id=persona.id
     )
 
     # Check for sync patch if persona has existing PR
-    sync_info = get_sync_patch(next_persona.id)
+    sync_info = get_sync_patch(persona.id)
     if sync_info:
         print(f"🔄 Found existing PR #{sync_info['pr_number']} - will include sync instructions")
 
-    session_prompt = build_session_prompt(next_persona.prompt_body, sync_info, next_persona.id)
+    session_prompt = build_session_prompt(persona.prompt_body, sync_info, persona.id)
 
     request = SessionRequest(
-        persona_id=next_persona.id,
-        title=f"{next_persona.emoji} {next_persona.id} [{seq_no:03d}]: sequential task",
+        persona_id=persona.id,
+        title=f"{persona.emoji} {persona.id} [{seq}]: sequential task",
         prompt=session_prompt,
         branch=session_branch,
         owner=repo_info["owner"],
@@ -240,8 +232,13 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> None:
     )
 
     orchestrator = SessionOrchestrator(client, dry_run)
-    session_id = orchestrator.create_session(request)
-    print(f"✅ Created session: {session_id}")
+    new_session_id = orchestrator.create_session(request)
+    print(f"✅ Created session: {new_session_id}")
+    
+    # 7. Update CSV with session_id
+    rows = update_sequence(rows, seq, session_id=str(new_session_id))
+    save_schedule(rows)
+    print(f"📝 Updated schedule.csv: [{seq}] session_id={new_session_id}")
     print("=" * 70)
 
 
@@ -368,20 +365,169 @@ def execute_facilitator_tick(dry_run: bool = False) -> None:
             print(f"⚠️ Error delivering answers to {persona_id}: {e}")
 
     # 5. Ensure Oracle session is running if there are pending questions
-    # Or if Oracle is needed to facilitated.
-    oracle_sessions = [s for s in sessions if "oracle" in s.get("title", "").lower() and s.get("state") in ["IN_PROGRESS", "PENDING", "AWAITING_USER_FEEDBACK"]]
+    # Uses oracle_schedule.csv to track sessions with 24h refresh
+    from jules.scheduler.schedule import (
+        get_active_oracle_session, register_oracle_session, ORACLE_SESSION_MAX_AGE_HOURS
+    )
     
     oracle_inbox = list_inbox("oracle", unread_only=True)
-    if oracle_inbox and not oracle_sessions:
-        print("💡 Oracle has pending work but no active session. Starting Oracle.")
-        if not dry_run:
-            # Re-use execute_scheduled_tick for specific persona
-            execute_scheduled_tick(prompt_id="oracle", dry_run=dry_run)
-    elif oracle_sessions:
-        print("🔮 Oracle session is active.")
+    active_oracle = get_active_oracle_session()
+    
+    if oracle_inbox:
+        if active_oracle:
+            session_id = active_oracle["session_id"]
+            age_info = active_oracle.get("created_at", "unknown")
+            print(f"🔮 Oracle session {session_id} is active (created: {age_info})")
+        else:
+            print(f"💡 Oracle has pending work but no active session (or session >24h old). Starting new Oracle.")
+            if not dry_run:
+                # Create new Oracle session
+                execute_scheduled_tick(prompt_id="oracle", dry_run=dry_run)
+                # The session ID will be captured via the API if needed
+                # For now, we'll rely on the API to track it
+    elif active_oracle:
+        print(f"🔮 Oracle session {active_oracle['session_id']} is active (no pending questions)")
     else:
         print("💤 Oracle has no pending questions.")
 
+    print("=" * 70)
+
+
+def update_schedule_pr_status(dry_run: bool = False) -> None:
+    """Update schedule.csv with PR information from GitHub.
+    
+    This function:
+    1. Finds rows with session_id but missing or outdated pr_status
+    2. Looks up PRs by branch name (jules-sched-{persona})
+    3. Updates pr_number and pr_status in the CSV
+    """
+    from jules.scheduler.schedule import (
+        load_schedule, save_schedule, update_sequence
+    )
+    import subprocess
+    import json
+    
+    print("=" * 70)
+    print("📊 SCHEDULE PR TRACKER: Updating PR status in schedule.csv")
+    print("=" * 70)
+    
+    rows = load_schedule()
+    if not rows:
+        print("   No schedule found")
+        return
+    
+    # Find rows that need PR status updates
+    needs_update = []
+    for row in rows:
+        session_id = row.get("session_id", "").strip()
+        pr_status = row.get("pr_status", "").strip().lower()
+        
+        # Skip if no session or already completed
+        if not session_id or pr_status in ["merged", "closed"]:
+            continue
+        
+        needs_update.append(row)
+    
+    if not needs_update:
+        print("   No pending sequences to update")
+        print("=" * 70)
+        return
+    
+    print(f"   Checking {len(needs_update)} sequences for PR updates...")
+    
+    # Get all open PRs from GitHub
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "list", "--author", "app/google-labs-jules",
+             "--json", "number,headRefName,state,isDraft,mergedAt,closedAt"],
+            capture_output=True, text=True, check=True
+        )
+        prs = json.loads(result.stdout)
+    except Exception as e:
+        print(f"   ⚠️ Failed to fetch PRs: {e}")
+        print("=" * 70)
+        return
+    
+    # Create lookup by branch name
+    pr_by_branch = {}
+    for pr in prs:
+        branch = pr.get("headRefName", "")
+        pr_by_branch[branch] = pr
+    
+    # Also check merged/closed PRs
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "list", "--state", "merged", "--author", "app/google-labs-jules",
+             "--json", "number,headRefName,state,isDraft,mergedAt,closedAt", "-L", "50"],
+            capture_output=True, text=True, check=True
+        )
+        merged_prs = json.loads(result.stdout)
+        for pr in merged_prs:
+            branch = pr.get("headRefName", "")
+            if branch not in pr_by_branch:
+                pr_by_branch[branch] = pr
+    except Exception:
+        pass  # Ignore errors for merged PRs
+    
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "list", "--state", "closed", "--author", "app/google-labs-jules",
+             "--json", "number,headRefName,state,isDraft,mergedAt,closedAt", "-L", "50"],
+            capture_output=True, text=True, check=True
+        )
+        closed_prs = json.loads(result.stdout)
+        for pr in closed_prs:
+            branch = pr.get("headRefName", "")
+            if branch not in pr_by_branch:
+                pr_by_branch[branch] = pr
+    except Exception:
+        pass  # Ignore errors for closed PRs
+    
+    updated = 0
+    for row in needs_update:
+        seq = row["sequence"]
+        persona = row["persona"]
+        current_pr = row.get("pr_number", "").strip()
+        current_status = row.get("pr_status", "").strip().lower()
+        
+        # Look for PR by branch pattern (jules-sched-{persona})
+        matching_pr = None
+        for branch, pr in pr_by_branch.items():
+            if persona.lower() in branch.lower():
+                matching_pr = pr
+                break
+        
+        if not matching_pr:
+            continue
+        
+        pr_number = str(matching_pr["number"])
+        is_draft = matching_pr.get("isDraft", False)
+        merged_at = matching_pr.get("mergedAt")
+        closed_at = matching_pr.get("closedAt")
+        
+        # Determine status
+        if merged_at:
+            new_status = "merged"
+        elif closed_at:
+            new_status = "closed"
+        elif is_draft:
+            new_status = "draft"
+        else:
+            new_status = "open"
+        
+        # Update if changed
+        if pr_number != current_pr or new_status != current_status:
+            if not dry_run:
+                rows = update_sequence(rows, seq, pr_number=pr_number, pr_status=new_status)
+            print(f"   [{seq}] {persona}: PR #{pr_number} → {new_status}")
+            updated += 1
+    
+    if updated > 0 and not dry_run:
+        save_schedule(rows)
+        print(f"   📝 Updated {updated} rows in schedule.csv")
+    elif updated == 0:
+        print("   No changes detected")
+    
     print("=" * 70)
 
 
@@ -481,6 +627,13 @@ def execute_scheduled_tick(
     orchestrator = SessionOrchestrator(client, dry_run)
     session_id = orchestrator.create_session(request)
     print(f"✅ Created session: {session_id}")
+    
+    # Register Oracle sessions in oracle_schedule.csv
+    if target.id == "oracle":
+        from jules.scheduler.schedule import register_oracle_session
+        register_oracle_session(str(session_id))
+        print(f"📝 Registered Oracle session in oracle_schedule.csv")
+    
     print("=" * 70)
 
 
@@ -509,6 +662,10 @@ def run_scheduler(
     # === GLOBAL RECONCILIATION ===
     # Automate the lifecycle for ALL Jules PRs
     pr_mgr.reconcile_all_jules_prs(client, repo_info, dry_run)
+    
+    # === SCHEDULE PR STATUS UPDATE ===
+    # Update schedule.csv with PR information
+    update_schedule_pr_status(dry_run)
 
     # === EMAIL POLLING ===
     from jules.features.polling import EmailPoller
