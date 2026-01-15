@@ -11,8 +11,6 @@ from egregora.output_adapters.exceptions import (
     AdapterNotInitializedError,
     ConfigLoadError,
     DocumentNotFoundError,
-    DocumentParsingError,
-    UnsupportedDocumentTypeError,
 )
 from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 
@@ -35,8 +33,6 @@ def test_get_raises_document_not_found_error(adapter: MkDocsAdapter):
         adapter.get(DocumentType.POST, "non-existent-slug")
     assert excinfo.value.doc_type == DocumentType.POST.value
     assert excinfo.value.identifier == "non-existent-slug"
-
-
 
 
 def test_load_config_raises_config_load_error_on_bad_yaml(tmp_path: Path):
