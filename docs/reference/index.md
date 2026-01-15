@@ -13,7 +13,7 @@ Detailed documentation of all command-line arguments, environment variables, and
 *   `egregora write`: Pipeline execution flags and caching strategies.
 *   `egregora read`: Ranking and evaluation commands.
 
-### 2. [Architecture Overview](../v2/architecture.md)
+### 2. [Architecture Overview](../v3/architecture/overview.md)
 A high-level view of the system's design, including:
 *   The **Functional Pipeline** pattern (`Table -> Table` transformations).
 *   **Three-Layer Architecture** (Orchestration, Transformations, Primitives).
@@ -41,5 +41,5 @@ Documentation of the internal Ibis/DuckDB schemas used for:
 ## Developer Resources
 
 *   [Contributing Guide](https://github.com/franklinbaldo/egregora/blob/main/CONTRIBUTING.md): Coding standards and PR process.
-*   [Project Structure](../v2/architecture.md#code-structure): File organization and module responsibilities.
+*   [Project Structure](../v3/architecture/layers.md): File organization and module responsibilities.
 *   [Testing Strategy](https://github.com/franklinbaldo/egregora/blob/main/CONTRIBUTING.md#testing): How to run and write tests.
