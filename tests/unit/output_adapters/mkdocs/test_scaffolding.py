@@ -42,17 +42,6 @@ def test_scaffold_site_creates_expected_layout(tmp_path: Path, scaffolder: MkDoc
     assert (tmp_path / ".egregora.toml").exists()
 
 
-def test_scaffold_site_respects_existing_mkdocs(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:
-    existing_mkdocs = tmp_path / "mkdocs.yml"
-    existing_mkdocs.write_text("site_name: Preexisting\nextra: {foo: bar}\n", encoding="utf-8")
-
-    mkdocs_path, created = scaffolder.scaffold_site(tmp_path, site_name="Ignored")
-
-    assert created is False
-    assert mkdocs_path == existing_mkdocs
-    assert "Preexisting" in existing_mkdocs.read_text(encoding="utf-8")
-
-
 def test_resolve_paths_returns_site_configuration(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:
     scaffolder.scaffold_site(tmp_path, site_name="Resolved Site")
 

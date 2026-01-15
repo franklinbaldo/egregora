@@ -55,12 +55,6 @@ class MkDocsPaths:
             if adapter_config_path:
                 return (self.site_root / adapter_config_path).resolve()
 
-        # Fallback: prefer .egregora/mkdocs.yml, then root mkdocs.yml
-        preferred = (self.site_root / ".egregora" / "mkdocs.yml").resolve()
-        legacy = (self.site_root / "mkdocs.yml").resolve()
-
-        if legacy.exists() and not preferred.exists():
-            return legacy
         return self.mkdocs_config_path
 
     @property
