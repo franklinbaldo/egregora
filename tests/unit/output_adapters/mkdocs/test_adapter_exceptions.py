@@ -21,9 +21,10 @@ from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 def adapter(tmp_path: Path) -> MkDocsAdapter:
     """Provides an initialized MkDocsAdapter instance."""
     adapter = MkDocsAdapter()
+    (tmp_path / ".egregora").mkdir()
     (tmp_path / "docs").mkdir()
     (tmp_path / "docs" / "posts").mkdir()
-    (tmp_path / "mkdocs.yml").write_text("site_name: Test Site")
+    (tmp_path / ".egregora" / "mkdocs.yml").write_text("site_name: Test Site")
     adapter.initialize(tmp_path)
     return adapter
 
@@ -59,7 +60,8 @@ def test_get_raises_unsupported_document_type_error_for_invalid_type(adapter: Mk
 def test_load_config_raises_config_load_error_on_bad_yaml(tmp_path: Path):
     """Verify load_config() raises ConfigLoadError on YAMLError."""
     adapter = MkDocsAdapter()
-    bad_config = tmp_path / "mkdocs.yml"
+    (tmp_path / ".egregora").mkdir()
+    bad_config = tmp_path / ".egregora" / "mkdocs.yml"
     bad_config.write_text("site_name: Test\ninvalid_yaml: [one, two:")
 
     with pytest.raises(ConfigLoadError) as excinfo:

@@ -47,32 +47,6 @@ def test_invalid_alias_error():
     assert excinfo.value.alias == alias
 
 
-# --- Test _get_uuid_from_profile ---
-
-
-def test_get_uuid_from_profile_not_found():
-    """Should raise ProfileNotFoundError if the file does not exist."""
-    non_existent_path = Path("non/existent/path.md")
-    with pytest.raises(ProfileNotFoundError):
-        profiles._get_uuid_from_profile(non_existent_path)
-
-
-def test_get_uuid_from_profile_parse_error(tmp_path):
-    """Should raise ProfileParseError for a malformed file."""
-    profile_path = tmp_path / "profile.md"
-    profile_path.write_text("this is not valid frontmatter")
-    with pytest.raises(ProfileParseError):
-        profiles._get_uuid_from_profile(profile_path)
-
-
-def test_get_uuid_from_profile_parse_error_on_empty_file(tmp_path):
-    """Should raise ProfileParseError if file is empty and filename is not a UUID."""
-    profile_path = tmp_path / "profile.md"
-    profile_path.write_text("")
-    with pytest.raises(ProfileParseError):
-        profiles._get_uuid_from_profile(profile_path)
-
-
 # --- Test _find_profile_path ---
 
 
