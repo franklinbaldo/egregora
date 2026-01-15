@@ -56,9 +56,7 @@ from egregora.knowledge.exceptions import (
     AuthorsFileParseError,
     AuthorsFileSaveError,
     InvalidAliasError,
-    ProfileError,
     ProfileNotFoundError,
-    ProfileParseError,
 )
 
 logger = logging.getLogger(__name__)
@@ -72,25 +70,6 @@ _AUTHORS_LIST_REGEX = re.compile(r"^authors:\s*\n((?:\s*-\s+.+\n?)+)", re.MULTIL
 _AUTHORS_SINGLE_REGEX = re.compile(r"^authors:\s*(.+)$", re.MULTILINE)
 
 
-def _get_uuid_from_profile(profile_path: Path) -> str:
-    """Extract UUID from profile frontmatter."""
-    if not profile_path.exists():
-        msg = f"Profile not found at {profile_path}"
-        raise ProfileNotFoundError(msg, path=str(profile_path))
-    try:
-        content = profile_path.read_text(encoding="utf-8")
-        metadata = _parse_frontmatter(content)
-        for key in ("uuid", "subject", "author_uuid"):
-            if key in metadata:
-                return str(metadata[key])
-
-    except (OSError, UnicodeError, ValueError, TypeError) as e:
-        msg = f"Failed to parse profile {profile_path}: {e}"
-        raise ProfileParseError(msg, path=str(profile_path)) from e
-    msg = f"Could not extract UUID from {profile_path}"
-    raise ProfileParseError(msg, path=str(profile_path))
-
-
 def _find_profile_path(
     author_uuid: str,
     profiles_dir: Path,
@@ -100,11 +79,6 @@ def _find_profile_path(
     index_path = profiles_dir / author_uuid / "index.md"
     if index_path.exists():
         return index_path
-
-    # Check for legacy flat file
-    legacy_path = profiles_dir / f"{author_uuid}.md"
-    if legacy_path.exists():
-        return legacy_path
 
     msg = f"No profile found for author {author_uuid} at {index_path}"
     raise ProfileNotFoundError(msg, author_uuid=author_uuid)
@@ -575,29 +549,10 @@ def get_opted_out_authors(
         Set of author UUIDs who have opted out
 
     """
-    # Use database cache if available
-    if storage is not None:
-        try:
-            return get_opted_out_authors_from_db(storage)
-        except ibis.common.exceptions.IbisError as e:
-            logger.warning("Failed to read opted-out authors from DB, falling back to files: %s", e)
-            # Fall through to file-based scanning
-
-    # Fallback to file-based scanning
-    if not profiles_dir.exists():
+    if storage is None:
+        logger.warning("No storage provided to get_opted_out_authors; cannot determine opt-out status.")
         return set()
-    opted_out = set()
-    for profile_path in profiles_dir.rglob("*.md"):
-        if profile_path.name == "index.md" and profile_path.parent == profiles_dir:
-            continue
-        try:
-            author_uuid = _get_uuid_from_profile(profile_path)
-            if author_uuid and is_opted_out(author_uuid, profiles_dir):
-                opted_out.add(author_uuid)
-        except ProfileError as e:
-            logger.warning("Skipping malformed profile %s: %s", profile_path, e)
-            continue
-    return opted_out
+    return get_opted_out_authors_from_db(storage)
 
 
 def filter_opted_out_authors(
@@ -1018,10 +973,8 @@ def _build_author_entry(
 
 
 def _infer_docs_dir_from_profiles_dir(profiles_dir: Path) -> Path:
-    """Return docs_dir given either legacy or posts-centric profiles_dir."""
-    if profiles_dir.name == "profiles" and profiles_dir.parent.name == "posts":
-        return profiles_dir.parent.parent
-    return profiles_dir.parent
+    """Return docs_dir given the posts-centric profiles_dir."""
+    return profiles_dir.parent.parent
 
 
 def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
@@ -1142,11 +1095,8 @@ def find_authors_yml(output_dir: Path) -> Path:
 
     # This is the only valid location for the authors file.
     # If it's not here, we should not be looking elsewhere.
-    logger.warning(
-        "Could not find 'docs' directory in ancestry of %s. Falling back to legacy path resolution.",
-        output_dir,
-    )
-    return output_dir.parent.parent / ".authors.yml"
+    msg = f"Could not find 'docs' directory in ancestry of {output_dir}"
+    raise AuthorsFileLoadError(msg, str(output_dir))
 
 
 def load_authors_yml(path: Path) -> dict:

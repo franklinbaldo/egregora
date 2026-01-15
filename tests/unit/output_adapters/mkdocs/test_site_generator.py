@@ -2,12 +2,12 @@ import time
 from pathlib import Path
 
 import pytest
-import yaml
 
 from egregora.data_primitives.document import Document, DocumentType, UrlContext
 from egregora.output_adapters.conventions import StandardUrlConvention
 from egregora.output_adapters.exceptions import DocumentParsingError
 from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
+from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
 from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
 
 
@@ -17,10 +17,11 @@ def site_generator(tmp_path: Path) -> SiteGenerator:
 
     # The SiteGenerator needs an adapter to create the mock file structure
     # and to access its path configurations.
+    scaffolder = MkDocsSiteScaffolder()
+    scaffolder.scaffold_site(tmp_path, "Test Site")
     adapter = MkDocsAdapter()
+    adapter.initialize(site_root=tmp_path)
     url_context = UrlContext(base_url="https://example.com", site_prefix="", base_path=tmp_path)
-    (tmp_path / "mkdocs.yml").write_text(yaml.dump({"site_name": "Test Site"}))
-    adapter.initialize(site_root=tmp_path, url_context=url_context)
 
     # We need a real adapter to persist the test data
     def create_files(slug, title, date, authors, tags, summary, doc_type, content, metadata):
@@ -179,7 +180,9 @@ def test_regenerate_tags_page_no_tags(site_generator: SiteGenerator):
     )
     site_generator.regenerate_tags_page()
     tags_path = site_generator.posts_dir / "tags.md"
-    assert not tags_path.exists()
+    assert tags_path.exists()
+    content = tags_path.read_text(encoding="utf-8")
+    assert "no tags yet. tags will appear here once posts are generated." in content.lower()
 
 
 def test_scan_directory_raises_on_malformed_frontmatter(site_generator: SiteGenerator):
