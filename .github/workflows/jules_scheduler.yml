@@ -17,8 +17,13 @@ on:
         required: false
         type: boolean
         default: false
+      reset:
+        description: "Reset the persona cycle and start from the first persona"
+        required: false
+        type: boolean
+        default: false
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '*/5 * * * *'
   workflow_run:
     workflows: ["CI"]
     types:
@@ -63,6 +68,9 @@ jobs:
             fi
             if [ -n "${{ inputs.prompt_id }}" ]; then
               args+=(--prompt-id "${{ inputs.prompt_id }}")
+            fi
+            if [ "${{ inputs.reset }}" = "true" ]; then
+              args+=(--reset)
             fi
           fi
 
