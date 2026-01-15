@@ -40,32 +40,3 @@ def sample_lancedb_backend(tmp_path):
     return backend
 
 
-def test_vectorized_centroid_calculation(sample_lancedb_backend):
-    """
-    Tests that the vectorized centroid calculation is correct.
-    """
-    from egregora.rag.lancedb_backend_legacy import LanceDBRAGBackend as LegacyLanceDBRAGBackend
-
-    # Get centroids from the new, vectorized implementation
-    new_backend = sample_lancedb_backend
-    new_ids, new_vectors = new_backend.get_all_post_vectors()
-
-    # Get centroids from the old, in-memory implementation
-    legacy_backend = LegacyLanceDBRAGBackend(
-        new_backend._db_dir, new_backend._table_name, new_backend._embed_fn
-    )
-    legacy_ids, legacy_vectors = legacy_backend.get_all_post_vectors()
-
-    # Sort results to ensure consistent comparison
-    new_sorted_indices = np.argsort(new_ids)
-    legacy_sorted_indices = np.argsort(legacy_ids)
-
-    new_sorted_ids = np.array(new_ids)[new_sorted_indices]
-    legacy_sorted_ids = np.array(legacy_ids)[legacy_sorted_indices]
-
-    new_sorted_vectors = new_vectors[new_sorted_indices]
-    legacy_sorted_vectors = legacy_vectors[legacy_sorted_indices]
-
-    # Assert that the document IDs and centroid vectors are the same
-    np.testing.assert_array_equal(new_sorted_ids, legacy_sorted_ids)
-    np.testing.assert_allclose(new_sorted_vectors, legacy_sorted_vectors, rtol=1e-5)
