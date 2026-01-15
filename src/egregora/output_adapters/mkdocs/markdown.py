@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
+from egregora.common.text import slugify
 from egregora.knowledge.profiles import ensure_author_entries
 from egregora.output_adapters.exceptions import (
     DirectoryCreationError,
@@ -19,7 +20,6 @@ from egregora.output_adapters.mkdocs.markdown_utils import (
     format_frontmatter_datetime,
 )
 from egregora.security.fs import safe_path_join
-from egregora.common.text import slugify
 
 if TYPE_CHECKING:
     from pathlib import Path

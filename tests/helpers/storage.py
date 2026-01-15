@@ -23,8 +23,9 @@ Example Usage:
 
 import uuid as uuid_lib
 
-from egregora.data_primitives.document import DocumentType
 from egregora.utils.text import slugify
+
+from egregora.data_primitives.document import DocumentType
 
 
 class InMemoryPostStorage:
