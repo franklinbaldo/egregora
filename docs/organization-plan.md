@@ -1,37 +1,42 @@
 # Codebase Organization Plan
 
-Last updated: 2026-01-06
+Last updated: 2026-01-04
 
 ## Current Organizational State
 
-The codebase is generally well-structured, with a clear separation of concerns between domains like `llm`, `knowledge`, `orchestration`, and `output_adapters`. The generic `src/egregora/utils` directory, which previously served as a "junk drawer," has been significantly cleaned up, with most domain-specific logic moved to its proper home.
-
-The testing structure largely mirrors the source structure, which is good.
+The Egregora codebase is a modular Python application with a clear separation between core logic (`src/egregora`), tests (`tests/`), and documentation (`docs/`). The `src/egregora` directory is further subdivided into domain-specific modules such as `agents`, `database`, and `llm`. However, there is a `utils` directory that appears to contain a mix of generic and domain-specific logic. This is a common "code smell" where modules that are not clearly categorized are placed, leading to a breakdown in modularity over time.
 
 ## Identified Issues
 
-*No outstanding organizational issues have been identified at this time. The plan needs to be updated with a new discovery phase.*
+- **Misplaced Domain Logic:** The `src/egregora/utils` directory likely contains code that is specific to other domains within the application. For example, my past journal entries indicate that I've moved `llm`, `author`, `datetime`, and `metrics` related code out of `utils` and into more appropriate, domain-specific modules. It is highly probable that other such instances exist.
 
 ## Prioritized Improvements
 
-*Priorities will be re-evaluated after the next discovery phase.*
+1.  **Systematically Refactor `src/egregora/utils`:** The highest priority is to continue the work of dismantling the `utils` directory. Each module within it will be analyzed to determine if its contents are truly generic or if they belong to a specific domain. Domain-specific code will be moved to its rightful home, and the corresponding tests will be relocated and consolidated. This will be an ongoing effort, with each session focusing on a single, cohesive refactoring.
 
 ## Completed Improvements
 
-- **`estimate_tokens` moved to `llm/token_utils.py`**
-- **Author management moved to `knowledge/profiles.py`**
-- **`UsageTracker` moved to `llm/usage.py`**
-- **Async utility de-duplicated**
-- **Datetime utilities moved to `output_adapters/mkdocs/markdown_utils.py`**
-- **Site scaffolding refactored**
-- **Rate limiter moved to `llm/rate_limit.py`**
-- **`slugify` moved to `utils/text.py`**
-- **API key utilities moved to `llm/api_keys.py`**
-- **Removed dead code from `database/utils.py`**
-- **Removed dead compatibility shims from `utils` (`cache.py`, `authors.py`)**
-- **Removed dead compatibility shims from `utils` (`exceptions.py`)**
-
+- **`diagnostics.py` module:** Moved from `src/egregora/diagnostics.py` to `src/egregora/cli/diagnostics.py`.
+- **`estimate_tokens` function:** Moved from `src/egregora/utils/text.py` to `src/egregora/llm/token_utils.py`.
+- **Author management logic:** Moved from `src/egregora/utils/authors.py` to `src/egregora/knowledge/profiles.py`.
+- **`UsageTracker` class:** Moved from `src/egregora/utils/metrics.py` to `src/egregora/llm/usage.py`.
+- **Async utility:** Removed duplicated `run_async_safely` from `src/egregora/orchestration/pipelines/write.py`.
+- **Datetime utilities:** Moved from `src/egregora/utils/datetime_utils.py` to `src/egregora/output_adapters/mkdocs/markdown_utils.py`.
+- **Site scaffolding:** Replaced legacy `ensure_mkdocs_project` with `MkDocsSiteScaffolder`.
+- **Rate limiter:** Moved from `src/egregora/utils/rate_limit.py` to `src/egregora/llm/rate_limit.py`.
+- **`slugify` utility:** Moved from `src/egregora/utils/paths.py` to `src/egregora/utils/text.py`.
+- **API key utilities:** Moved from `src/egregora/utils/env.py` to `src/egregora/llm/api_keys.py`.
 
 ## Organizational Strategy
 
-My strategy is to systematically dismantle the `src/egregora/utils` directory by moving its modules to their correct, domain-specific locations. I will follow a test-driven approach for each move, ensuring that a safety net of tests exists before any code is relocated. Each refactoring will be a single, cohesive change delivered in its own pull request. I will prioritize changes that offer the most significant improvement in clarity for the lowest risk and effort. The next session should begin with a discovery phase to identify new refactoring opportunities.
+My strategy is to follow a systematic, Test-Driven Development (TDD) approach to refactoring. For each organizational improvement, I will:
+
+1.  **Identify:** Locate a piece of misplaced code.
+2.  **Test:** Ensure that the code is covered by tests. If not, I will write them.
+3.  **Move:** Relocate the code to a more appropriate, domain-specific module.
+4.  **Update:** Update all consumer imports to point to the new location.
+5.  **Verify:** Run the full test suite to ensure that no regressions have been introduced.
+6.  **Clean:** Remove any now-empty files or directories.
+7.  **Document:** Update this plan and my journal to reflect the changes.
+
+This iterative process will gradually improve the codebase's organization, making it easier to navigate, understand, and maintain.

@@ -1,6 +1,7 @@
 {
   "history": [
     {
+<<<<<<< ours
       "persona_id": "shepherd",
       "session_id": "16703756850166122037",
       "pr_number": null,
@@ -64,6 +65,14 @@
       "track": "default"
     },
     {
+=======
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
+=======
+>>>>>>> theirs
+>>>>>>> theirs
       "persona_id": "sapper",
       "session_id": "2043411254128495515",
       "pr_number": null,
@@ -71,6 +80,11 @@
       "track": "default"
     },
     {
+<<<<<<< ours
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
       "persona_id": "essentialist",
       "session_id": "17899925607066210629",
       "pr_number": null,
@@ -78,6 +92,11 @@
       "track": "default"
     },
     {
+<<<<<<< ours
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
       "persona_id": "taskmaster",
       "session_id": "14153496863890087274",
       "pr_number": null,
@@ -85,6 +104,11 @@
       "track": "default"
     },
     {
+<<<<<<< ours
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
       "persona_id": "organizer",
       "session_id": "11123706395406622937",
       "pr_number": null,
@@ -550,10 +574,45 @@
   ],
   "tracks": {
     "default": {
+<<<<<<< ours
       "last_persona_id": "shepherd",
       "last_session_id": "16703756850166122037",
       "last_pr_number": null,
       "updated_at": "2026-01-14T00:44:01.154210+00:00"
+=======
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
+      "last_persona_id": "sapper",
+      "last_session_id": "2043411254128495515",
+      "last_pr_number": null,
+      "updated_at": "2026-01-13T19:56:21.711516+00:00"
+=======
+      "last_persona_id": "organizer",
+      "last_session_id": "11123706395406622937",
+      "last_pr_number": null,
+      "updated_at": "2026-01-13T19:22:56.475435+00:00"
+>>>>>>> theirs
+=======
+      "last_persona_id": "taskmaster",
+      "last_session_id": "14153496863890087274",
+      "last_pr_number": null,
+      "updated_at": "2026-01-13T19:34:32.504756+00:00"
+>>>>>>> theirs
+=======
+      "last_persona_id": "essentialist",
+      "last_session_id": "17899925607066210629",
+      "last_pr_number": null,
+      "updated_at": "2026-01-13T19:47:24.755778+00:00"
+>>>>>>> theirs
+=======
+      "last_persona_id": "sapper",
+      "last_session_id": "2043411254128495515",
+      "last_pr_number": null,
+      "updated_at": "2026-01-13T19:56:21.711516+00:00"
+>>>>>>> theirs
+>>>>>>> theirs
     }
   }
 }

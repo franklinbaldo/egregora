@@ -25,6 +25,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from egregora.agents.avatar import AvatarContext
+
+
 logger = logging.getLogger(__name__)
 
 

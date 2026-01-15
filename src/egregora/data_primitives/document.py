@@ -16,7 +16,6 @@ import hashlib
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
-from functools import cached_property
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from uuid import UUID, uuid5
 
@@ -33,7 +32,7 @@ if TYPE_CHECKING:
 NAMESPACE_DOCUMENT = UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Author:
     """Represents a content author."""
 
@@ -41,7 +40,7 @@ class Author:
     name: str | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Category:
     """Represents a content category or tag."""
 
@@ -68,7 +67,7 @@ class DocumentType(Enum):
     ANNOTATION = "annotation"  # Conversation annotations captured during writing
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Document:
     r"""Content-addressed document produced by the pipeline.
 
@@ -135,20 +134,16 @@ class Document:
     # Hints for output formats (optional, not authoritative)
     suggested_path: str | None = None
 
-    @cached_property
-    def _content_uuid(self) -> str:
-        """Calculate the content-based UUIDv5."""
-        if isinstance(self.content, bytes):
-            payload = self.content
-        else:
-            payload = self.content.encode("utf-8")
-        content_hash = hashlib.sha256(payload).hexdigest()
-        return str(uuid5(NAMESPACE_DOCUMENT, content_hash))
+    def _clean_slug(self, value: Any) -> str | None:
+        """Clean and validate a slug value.
 
-    @cached_property
-    def _metadata_slug(self) -> str | None:
-        """Extract and clean the slug from metadata."""
-        value = self.metadata.get("slug")
+        Args:
+            value: Raw slug value from metadata (could be any type)
+
+        Returns:
+            Cleaned slug string if valid, None otherwise
+
+        """
         if isinstance(value, str) and (stripped := value.strip()):
             return _slugify(stripped, max_len=60)
         return None
@@ -162,23 +157,36 @@ class Document:
         2. Semantic Slug (for POST/MEDIA if present)
         3. Content-based UUIDv5 (Fallback)
         """
+        # 1. Explicit ID
         if self.id:
             return self.id
 
-        if self.type in (DocumentType.POST, DocumentType.MEDIA) and self._metadata_slug:
-            return self._metadata_slug
+        # 2. Semantic Identity (Slug)
+        # Only for Posts and Media, as per Pure spec
+        if self.type in (DocumentType.POST, DocumentType.MEDIA):
+            # Do NOT call self.slug property here to avoid recursion fallback loop
+            if cleaned_slug := self._clean_slug(self.metadata.get("slug")):
+                return cleaned_slug
 
-        return self._content_uuid
+        # 3. Fallback: Content-addressed UUIDv5
+        if isinstance(self.content, bytes):
+            payload = self.content
+        else:
+            payload = self.content.encode("utf-8")
+        content_hash = hashlib.sha256(payload).hexdigest()
+        return str(uuid5(NAMESPACE_DOCUMENT, content_hash))
 
     @property
     def slug(self) -> str:
         """Return a human-friendly identifier when available."""
-        if self._metadata_slug:
-            return self._metadata_slug
+        if cleaned_slug := self._clean_slug(self.metadata.get("slug")):
+            return cleaned_slug
 
+        # Fallback: if we have an explicit ID, use it (it might be a slug)
         if self.id:
             return self.id
 
+        # Fallback: use the first 8 characters of the full document_id
         return self.document_id[:8]
 
     def with_parent(self, parent: Document | str) -> Document:
@@ -242,7 +250,7 @@ class DocumentCollection:
         return iter(self.documents)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class MediaAsset(Document):
     r"""Specialized Document for binary media assets managed by the pipeline."""
 
@@ -252,7 +260,7 @@ class MediaAsset(Document):
             raise ValueError(msg)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class UrlContext:
     """Context information required when generating canonical URLs."""
 
@@ -262,7 +270,7 @@ class UrlContext:
     locale: str | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class DocumentMetadata:
     """Lightweight description of a document available in an output sink.
 
