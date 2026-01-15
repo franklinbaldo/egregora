@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from egregora.agents.writer_helpers import (
     _get_cached_rag_context,
     _run_rag_query,
