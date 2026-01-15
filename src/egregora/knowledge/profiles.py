@@ -742,7 +742,6 @@ def remove_profile_avatar(
 
         target_path = _determine_profile_path(author_uuid, metadata, profiles_dir, current_path=profile_path)
         target_path.write_text(content, encoding="utf-8")
-
         if profile_path and profile_path.resolve() != target_path.resolve():
             with contextlib.suppress(OSError):
                 profile_path.unlink()

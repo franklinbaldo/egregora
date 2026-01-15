@@ -7,7 +7,7 @@ All imports are lazy (inside functions) to allow diagnostics to run even
 when dependencies are missing - this is the whole point of diagnostics!
 
 Usage:
-    from egregora.diagnostics import run_diagnostics, DiagnosticResult
+    from egregora.cli.diagnostics import run_diagnostics, DiagnosticResult
 
     results = run_diagnostics()
     for result in results:

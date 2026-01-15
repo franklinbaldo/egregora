@@ -4,11 +4,12 @@ This document outlines the user experience and user interface (UX/UI) vision for
 
 ## Core Principles
 
-1.  **Content-First:** The design must prioritize readability and the clear presentation of the generated content. All other design elements are secondary.
-2.  **Autonomously Generated, Professionally Presented:** The blog is generated 100% autonomously, but it should not look like it. The final output must be polished, professional, and indistinguishable from a high-quality, human-curated site.
-3.  **Privacy-First by Default:** The user's privacy is paramount. Features that could compromise privacy (like analytics) must be opt-in, never on by default.
-4.  **Measurable Quality:** All UX decisions should be backed by data where possible. We will use tools like Lighthouse to measure and track our progress on accessibility, performance, and SEO.
-5.  **Accessible to All:** The final site must be usable by everyone, regardless of their abilities. We will adhere to WCAG AA standards as a minimum baseline.
+1.  **Immersive First:** The design must create an immersive, engaging "portal" experience that draws the reader into the collective consciousness. The UI should feel intentional, polished, and distinct.
+2.  **Content-First:** The design must prioritize readability and the clear presentation of the generated content. All other design elements are secondary.
+3.  **Autonomously Generated, Professionally Presented:** The blog is generated 100% autonomously, but it should not look like it. The final output must be polished, professional, and indistinguishable from a high-quality, human-curated site.
+4.  **Privacy-First by Default:** The user's privacy is paramount. Features that could compromise privacy (like analytics) must be opt-in, never on by default.
+5.  **Measurable Quality:** All UX decisions should be backed by data where possible. We will use tools like Lighthouse to measure and track our progress on accessibility, performance, and SEO.
+6.  **Accessible to All:** The final site must be usable by everyone, regardless of their abilities. We will adhere to WCAG AA standards as a minimum baseline.
 
 ## Technical & Architectural Discoveries
 
@@ -25,15 +26,16 @@ The key locations for these embedded templates are:
 -   `src/egregora/output_adapters/mkdocs/adapter.py`: Generates the individual Markdown pages for posts, profiles, etc.
 -   `src/egregora/output_adapters/mkdocs/site_generator.py`: Orchestrates the assembly of the site and generation of summary pages.
 
-## Design System (V1 - Inception)
+## Design System (V1 - "The Portal")
 
-This section will evolve over time to become a full design system.
+This section defines the "Portal" design system, which aims to create a dark, immersive, and premium experience.
 
 ### Color Palette
--   **Status:** Defined.
--   **Primary:** A deep, thoughtful blue (`#2c3e50`) to represent intellect and depth.
--   **Accent:** A vibrant, energetic yellow (`#f9d423`) to represent emergence and growth.
--   **Implementation:** The palette is implemented in `demo/docs/stylesheets/extra.css`, but the `mkdocs.yml` still contains the default `teal` and `amber` values. These should be updated to `custom` to match the CSS.
+-   **Status:** Inconsistent.
+-   **Primary:** A deep, thoughtful blue (`#2c3e50`) defined in `extra.css`.
+-   **Accent:** A vibrant, energetic yellow (`#f9d423`) defined in `extra.css`.
+-   **Conflict:** The `mkdocs.yml` is configured with the default `teal` and `amber` colors.
+-   **Next Action:** Create a task for Forge to update the `mkdocs.yml` theme palette to `custom` to ensure the colors in `extra.css` are correctly applied.
 
 ### Typography
 -   **Status:** Defined.
@@ -42,14 +44,19 @@ This section will evolve over time to become a full design system.
 
 ### Favicon
 -   **Status:** Missing.
--   **Next Action:** Design a favicon for the project.
+-   **Next Action:** Create a task to design and add a favicon to the site.
 
 ### Social Cards
 -   **Status:** Broken.
 -   **Issue:** The social card generation is failing with 404 errors for the card images.
--   **Next Action:** The Forge persona needs to investigate and fix the root cause of the 404 errors.
+-   **Next Action:** Create a high-priority task for Forge to investigate and fix the root cause of the 404 errors.
 
 ### Navigation
 -   **Status:** Implemented, but needs review.
--   **Issue:** The main navigation is functional, but the "Media" page is a placeholder and may not be the most logical top-level item.
--   **Next Action:** Review the information architecture and consider restructuring the navigation for better clarity.
+-   **Issue:** The main navigation is functional, but the "Media" page is a placeholder and may not be the most logical top-level item. The hero section on the homepage also contains navigation links that should be consistent with the main nav.
+-   **Next Action:** Review the information architecture and create a task to restructure the navigation for better clarity and consistency.
+
+### Analytics
+-   **Status:** Broken placeholder.
+-   **Issue:** The `mkdocs.yml` contains a placeholder for a Google Analytics key (`__GOOGLE_ANALYTICS_KEY__`).
+-   **Next Action:** Create a task to remove the analytics configuration entirely, in line with our "Privacy-First" principle. It can be re-added later as an explicit, opt-in feature if desired.

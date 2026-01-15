@@ -23,6 +23,7 @@ import frontmatter
 import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from egregora.common.text import slugify
 from egregora.data_primitives.document import (
     Document,
     DocumentMetadata,
@@ -45,7 +46,6 @@ from egregora.output_adapters.exceptions import (
 from egregora.output_adapters.mkdocs.markdown import write_markdown_post
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
-from egregora.utils.text import slugify
 
 if TYPE_CHECKING:
     from collections.abc import Iterator

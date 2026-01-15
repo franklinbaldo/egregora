@@ -1,40 +1,54 @@
 ---
 id: "20260110-1000-ux-comprehensive-improvements"
-title: "Comprehensive UX Improvements for MkDocs Blog"
+title: "Implement 'The Portal' UX Vision"
 status: "todo"
 author: "curator"
 priority: "high"
-tags: ["#ux", "#bug", "#design", "#frontend"]
+tags: ["#ux", "#bug", "#design", "#frontend", "#a11y"]
 created: "2026-01-10"
+updated: "2026-01-11"
 ---
 
-## 🎭 Curator's Report: Comprehensive UX Improvements
+## 🎭 Curator's Report: Implement "The Portal" UX Vision
 
-This task consolidates several outstanding UX issues into a single, actionable set of instructions for the Forge persona. Please address all of the following issues.
+This task consolidates the foundational technical fixes required to implement the "Portal" UX vision as defined in `docs/ux-vision.md`. The goal is to resolve the inconsistencies between the site's configuration and its custom styling, and to fix critical bugs that degrade the user experience.
 
 ### 🔴 RED: The Problems
 
-1.  **Broken Social Card Images:** The `mkdocs build` process is generating 404 errors for the social card preview images. This degrades the experience of sharing links to the blog on social media.
-2.  **Analytics Placeholder:** The `mkdocs.yml` file contains a placeholder for a Google Analytics key (`__GOOGLE_ANALYTICS_KEY__`). This is not a privacy-first approach and should be removed.
-3.  **Inconsistent Color Palette:** The `mkdocs.yml` file specifies the default `teal` and `amber` color palette, but the `extra.css` file overrides this with a custom blue and yellow palette. This inconsistency should be resolved.
-4.  **Missing Favicon:** The site is missing a favicon, which makes it look unprofessional in browser tabs and bookmarks.
+1.  **Inconsistent Color Palette:** The `mkdocs.yml` specifies the default `teal` and `amber` colors, which directly conflicts with the dark, immersive theme defined in `extra.css`. The site is not rendering as designed.
+2.  **Broken Social Card Images:** The `mkdocs build` process generates 404 errors for social card preview images, making social media sharing look broken.
+3.  **Missing Favicon:** The site lacks a favicon, which is a basic element of professional presentation.
+4.  **Placeholder Analytics:** The `mkdocs.yml` contains a non-functional placeholder for Google Analytics, which violates our "Privacy-First" principle.
 
 ### 🟢 GREEN: Definition of Done
 
-1.  **Social Cards:** The `mkdocs build` command runs without any 404 errors related to social card images.
-2.  **Analytics:** The `analytics` section is completely removed from the `mkdocs.yml` file.
-3.  **Color Palette:** The `palette` section in `mkdocs.yml` is updated to use `primary: custom` to match the custom palette defined in `extra.css`. The `accent` color should also be updated to `yellow`.
-4.  **Favicon:** A favicon is added to the site. A simple, placeholder favicon is acceptable for now.
+1.  **Color Palette:** The `palette` section in the generated `mkdocs.yml` is updated. The `primary` color is set to `custom` and the accent is removed, allowing `extra.css` to take full control of the color scheme.
+2.  **Social Cards:** The `mkdocs build` command completes without any 404 errors related to social card images.
+3.  **Favicon:** A placeholder favicon is created and correctly configured in the `mkdocs.yml` theme settings.
+4.  **Analytics:** The `extra.analytics` section is completely removed from the `mkdocs.yml` template.
 
 ### 🔵 REFACTOR: How to Implement
 
-1.  **Social Cards:** Investigate the `social` plugin configuration in `mkdocs.yml` and the build process to identify the root cause of the 404 errors. This may involve debugging the plugin or the way it's configured.
-2.  **Analytics:** In `src/egregora/output_adapters/mkdocs/scaffolding.py`, remove the `extra.analytics` section from the `MKDOCS_YML_TEMPLATE` string.
-3.  **Color Palette:** In `src/egregora/output_adapters/mkdocs/scaffolding.py`, modify the `theme.palette` section in the `MKDOCS_YML_TEMPLATE` string. Change `primary: teal` to `primary: custom` and `accent: amber` to `accent: yellow`.
-4.  **Favicon:** In `src/egregora/output_adapters/mkdocs/scaffolding.py`, add a `favicon` key to the `theme` section of the `MKDOCS_YML_TEMPLATE` string, pointing to a new favicon file (e.g., `assets/images/favicon.png`). You will need to create a placeholder favicon image and ensure it's copied to the correct location during the build process.
+All changes must be made to the source template in `src/egregora/output_adapters/mkdocs/scaffolding.py`. **Do not edit the `demo/` directory directly.**
+
+1.  **Color Palette:**
+    -   In the `MKDOCS_YML_TEMPLATE` string, locate the `theme.palette` section.
+    -   Change `primary: teal` to `primary: custom`.
+    -   Change `accent: amber` to `accent: yellow` for both light and dark schemes. This ensures consistency with the vision document.
+
+2.  **Analytics:**
+    -   In the `MKDOCS_YML_TEMPLATE` string, find and completely delete the `extra.analytics` section.
+
+3.  **Favicon:**
+    -   In the `MKDOCS_YML_TEMPLATE` string, add a `favicon` key under the `theme` section, pointing to `assets/images/favicon.png`.
+    -   You will need to create a simple placeholder PNG image for the favicon. A 128x128px solid color square is sufficient for now.
+    -   Ensure the scaffolding process copies this new favicon to the correct `assets/images` directory in the generated site.
+
+4.  **Social Cards:**
+    -   Investigate the `social` plugin configuration in `mkdocs.yml` and the build logs to identify the root cause of the 404 errors. This is a debugging task and may require inspecting the plugin's behavior or the file paths it expects.
 
 ### 📍 Where to Look
 
--   **Template Source:** `src/egregora/output_adapters/mkdocs/scaffolding.py`
--   **Configuration File:** `demo/.egregora/mkdocs.yml`
--   **Build Logs:** Output of `cd demo && uv run mkdocs build -f .egregora/mkdocs.yml`
+-   **Primary Target File:** `src/egregora/output_adapters/mkdocs/scaffolding.py`
+-   **Reference Vision:** `docs/ux-vision.md`
+-   **Build Command for Verification:** `cd demo && uv run mkdocs build -f .egregora/mkdocs.yml`

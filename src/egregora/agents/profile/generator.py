@@ -46,10 +46,10 @@ import yaml
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
+from egregora.common.text import slugify
 from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.orchestration.persistence import validate_profile_document
-from egregora.utils.text import slugify
 
 try:
     from egregora.agents.profile.history import get_profile_history_for_context

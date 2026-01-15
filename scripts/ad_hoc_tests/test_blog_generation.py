@@ -8,195 +8,94 @@ This test verifies that the core components we merged work together:
 - MkDocs adapter with new exception imports
 """
 
+import py_compile
 import sys
 import zipfile
+from datetime import datetime
 from pathlib import Path
+
+import pytest
 
 # Add src to path to import modules directly
 sys.path.insert(0, "src")
 
+# Imports for tests
+from egregora.common.datetime_utils import (
+    DateTimeParsingError,
+    InvalidDateTimeInputError,
+    ensure_datetime,
+    parse_datetime_flexible,
+)
+from egregora.knowledge.exceptions import AuthorsFileLoadError
+from egregora.orchestration.exceptions import CacheKeyNotFoundError
+
 EXPECTED_PARSED_YEAR = 2023
 
 
-def test_whatsapp_parsing() -> bool | None:
+def test_whatsapp_parsing() -> None:
     """Test WhatsApp ZIP parsing without full pipeline."""
     zip_path = Path("tests/fixtures/Conversa do WhatsApp com Teste.zip")
-
-    if not zip_path.exists():
-        return False
+    assert zip_path.exists(), "WhatsApp fixture ZIP not found"
 
     # Test ZIP can be opened and validated
     try:
         with zipfile.ZipFile(zip_path) as archive:
             members = archive.namelist()
             txt_files = [m for m in members if m.endswith(".txt")]
-            [m for m in members if m.endswith((".jpg", ".jpeg", ".png"))]
-
-            if txt_files:
-                pass
-
-            return True
-    except (zipfile.BadZipFile, OSError):
-        return False
+            assert txt_files, "No text files found in ZIP"
+    except (zipfile.BadZipFile, OSError) as e:
+        pytest.fail(f"Failed to process WhatsApp ZIP: {e}")
 
 
-def test_datetime_utilities() -> bool | None:
+def test_datetime_utilities() -> None:
     """Test the datetime utilities we merged."""
-    try:
-        # Import directly to avoid __init__.py issues
-        import importlib.util
+    # Test valid parsing
+    result = parse_datetime_flexible("2023-01-01T12:00:00")
+    assert result.year == EXPECTED_PARSED_YEAR
 
-        # Load exceptions module
-        spec = importlib.util.spec_from_file_location(
-            "egregora.utils.exceptions", "src/egregora/utils/exceptions.py"
-        )
-        exceptions_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(exceptions_mod)
+    # Test None raises exception
+    with pytest.raises(InvalidDateTimeInputError):
+        parse_datetime_flexible(None)
 
-        # Load datetime_utils module
-        spec = importlib.util.spec_from_file_location(
-            "egregora.utils.datetime_utils", "src/egregora/utils/datetime_utils.py"
-        )
-        datetime_utils_mod = importlib.util.module_from_spec(spec)
-        sys.modules["egregora.utils.exceptions"] = exceptions_mod
-        spec.loader.exec_module(datetime_utils_mod)
-
-        from datetime import datetime
-
-        # Test valid parsing
-        result = datetime_utils_mod.parse_datetime_flexible("2023-01-01T12:00:00")
-        if result.year != EXPECTED_PARSED_YEAR:
-            return False
-
-        # Test None raises exception
-        try:
-            datetime_utils_mod.parse_datetime_flexible(None)
-            return False
-        except (
-            datetime_utils_mod.DateTimeParsingError,
-            datetime_utils_mod.InvalidDateTimeInputError,
-        ):
-            pass
-
-        # Test ensure_datetime
-        result = datetime_utils_mod.ensure_datetime("2023-01-01")
-        return isinstance(result, datetime)
-
-    except (ImportError, AttributeError, exceptions_mod.DateTimeParsingError):
-        import traceback
-
-        traceback.print_exc()
-        return False
+    # Test ensure_datetime
+    result = ensure_datetime("2023-01-01")
+    assert isinstance(result, datetime)
 
 
-def test_exception_classes() -> bool | None:
+def test_exception_classes() -> None:
     """Test new exception classes from merged PRs."""
-    try:
-        import importlib.util
+    # Test CacheKeyNotFoundError
+    exc = CacheKeyNotFoundError("test_key")
+    assert exc.key == "test_key"
 
-        spec = importlib.util.spec_from_file_location(
-            "egregora.utils.exceptions", "src/egregora/utils/exceptions.py"
-        )
-        exceptions_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(exceptions_mod)
+    # Test AuthorsFileLoadError
+    exc = AuthorsFileLoadError("/path/to/file", OSError("test"))
+    assert exc.path == "/path/to/file"
 
-        # Load orchestration exceptions module
-        spec = importlib.util.spec_from_file_location(
-            "egregora.orchestration.exceptions", "src/egregora/orchestration/exceptions.py"
-        )
-        orchestration_exceptions_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(orchestration_exceptions_mod)
-
-        # Load knowledge exceptions module
-        spec = importlib.util.spec_from_file_location(
-            "egregora.knowledge.exceptions", "src/egregora/knowledge/exceptions.py"
-        )
-        knowledge_exceptions_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(knowledge_exceptions_mod)
-
-        # Load datetime_utils module
-        spec = importlib.util.spec_from_file_location(
-            "egregora.utils.datetime_utils", "src/egregora/utils/datetime_utils.py"
-        )
-        datetime_utils_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(datetime_utils_mod)
-
-        # Test CacheKeyNotFoundError
-        exc = orchestration_exceptions_mod.CacheKeyNotFoundError("test_key")
-        if exc.key != "test_key":
-            return False
-
-        # Test AuthorsFileLoadError
-        exc = knowledge_exceptions_mod.AuthorsFileLoadError("/path/to/file", OSError("test"))
-        if exc.path != "/path/to/file":
-            return False
-
-        # Test DateTimeParsingError
-        exc = datetime_utils_mod.DateTimeParsingError("invalid", ValueError("test"))
-        return exc.value == "invalid"
-
-    except (ImportError, AttributeError):
-        import traceback
-
-        traceback.print_exc()
-        return False
+    # Test DateTimeParsingError
+    exc = DateTimeParsingError("invalid", ValueError("test"))
+    assert exc.value == "invalid"
 
 
-def test_mkdocs_adapter_imports() -> bool | None:
+def test_mkdocs_adapter_imports() -> None:
     """Test that MkDocs adapter has all required exception imports."""
+    adapter_path = "src/egregora/output_adapters/mkdocs/adapter.py"
+
+    # Check the file compiles
     try:
-        # Check the file compiles
-        import py_compile
+        py_compile.compile(adapter_path, doraise=True)
+    except (py_compile.PyCompileError, FileNotFoundError) as e:
+        pytest.fail(f"Failed to compile MkDocs adapter: {e}")
 
-        py_compile.compile("src/egregora/output_adapters/mkdocs/adapter.py", doraise=True)
+    # Check it has the expected imports
+    with Path(adapter_path).open() as f:
+        content = f.read()
 
-        # Check it has the expected imports
-        with Path("src/egregora/output_adapters/mkdocs/adapter.py").open() as f:
-            content = f.read()
+    required_imports = [
+        "CollisionResolutionError",
+        "ConfigLoadError",
+        "DocumentNotFoundError",
+    ]
 
-        required_imports = [
-            "CollisionResolutionError",
-            "ConfigLoadError",
-            "DocumentNotFoundError",
-            "parse_datetime_flexible",
-        ]
-
-        for imp in required_imports:
-            if imp in content:
-                pass
-            else:
-                return False
-
-        return True
-
-    except (ImportError, py_compile.PyCompileError, FileNotFoundError):
-        import traceback
-
-        traceback.print_exc()
-        return False
-
-
-def main() -> bool:
-    """Run all integration tests."""
-    results = []
-
-    # Run tests
-    results.append(("WhatsApp Parsing", test_whatsapp_parsing()))
-    results.append(("DateTime Utilities", test_datetime_utilities()))
-    results.append(("Exception Classes", test_exception_classes()))
-    results.append(("MkDocs Adapter", test_mkdocs_adapter_imports()))
-
-    # Summary
-
-    sum(1 for _, result in results if result)
-    len(results)
-
-    for _name, _result in results:
-        pass
-
-    return all(result for _, result in results)
-
-
-if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    for imp in required_imports:
+        assert imp in content, f"Missing required import in MkDocs adapter: {imp}"

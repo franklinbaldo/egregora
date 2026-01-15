@@ -2,7 +2,7 @@
 
 import pytest
 
-from egregora.utils.text import InvalidInputError, slugify
+from egregora.common.text import InvalidInputError, slugify
 
 
 class TestSlugifyBasicBehavior:
