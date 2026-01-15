@@ -90,14 +90,3 @@ def test_get_profiles_data_generates_stats(adapter):
     assert p["word_count"] == 10
     assert "topic1" in p["topics"]
     assert p["topic_counts"][0] == ("topic1", 1)
-
-
-def test_mkdocs_adapter_scaffolding_passthrough(adapter, tmp_path):
-    """Test that scaffolding methods are passed through to the scaffolder."""
-
-    # validate_structure checks for mkdocs.yml
-    assert not adapter.validate_structure(tmp_path)
-
-    # scaffold a site
-    (tmp_path / "mkdocs.yml").touch()
-    assert adapter.validate_structure(tmp_path)

@@ -56,9 +56,7 @@ from egregora.knowledge.exceptions import (
     AuthorsFileParseError,
     AuthorsFileSaveError,
     InvalidAliasError,
-    ProfileError,
     ProfileNotFoundError,
-    ProfileParseError,
 )
 
 logger = logging.getLogger(__name__)
@@ -70,25 +68,6 @@ PROFILE_DATE_REGEX = re.compile(r"(\d{4}-\d{2}-\d{2})")
 # Fast author extraction regex for performance-critical bulk operations
 _AUTHORS_LIST_REGEX = re.compile(r"^authors:\s*\n((?:\s*-\s+.+\n?)+)", re.MULTILINE)
 _AUTHORS_SINGLE_REGEX = re.compile(r"^authors:\s*(.+)$", re.MULTILINE)
-
-
-def _get_uuid_from_profile(profile_path: Path) -> str:
-    """Extract UUID from profile frontmatter."""
-    if not profile_path.exists():
-        msg = f"Profile not found at {profile_path}"
-        raise ProfileNotFoundError(msg, path=str(profile_path))
-    try:
-        content = profile_path.read_text(encoding="utf-8")
-        metadata = _parse_frontmatter(content)
-        for key in ("uuid", "subject", "author_uuid"):
-            if key in metadata:
-                return str(metadata[key])
-
-    except (OSError, UnicodeError, ValueError, TypeError) as e:
-        msg = f"Failed to parse profile {profile_path}: {e}"
-        raise ProfileParseError(msg, path=str(profile_path)) from e
-    msg = f"Could not extract UUID from {profile_path}"
-    raise ProfileParseError(msg, path=str(profile_path))
 
 
 def _find_profile_path(
@@ -577,27 +556,9 @@ def get_opted_out_authors(
     """
     # Use database cache if available
     if storage is not None:
-        try:
-            return get_opted_out_authors_from_db(storage)
-        except ibis.common.exceptions.IbisError as e:
-            logger.warning("Failed to read opted-out authors from DB, falling back to files: %s", e)
-            # Fall through to file-based scanning
-
-    # Fallback to file-based scanning
-    if not profiles_dir.exists():
-        return set()
-    opted_out = set()
-    for profile_path in profiles_dir.rglob("*.md"):
-        if profile_path.name == "index.md" and profile_path.parent == profiles_dir:
-            continue
-        try:
-            author_uuid = _get_uuid_from_profile(profile_path)
-            if author_uuid and is_opted_out(author_uuid, profiles_dir):
-                opted_out.add(author_uuid)
-        except ProfileError as e:
-            logger.warning("Skipping malformed profile %s: %s", profile_path, e)
-            continue
-    return opted_out
+        return get_opted_out_authors_from_db(storage)
+    logger.warning("No storage provided to get_opted_out_authors; cannot determine opt-out status.")
+    return set()
 
 
 def filter_opted_out_authors(

@@ -60,11 +60,7 @@ class MkDocsSiteScaffolder:
             return False
 
         egregora_mkdocs = site_root / ".egregora" / "mkdocs.yml"
-        if egregora_mkdocs.exists():
-            return True
-
-        legacy_path = site_root / "mkdocs.yml"
-        return legacy_path.exists()
+        return egregora_mkdocs.exists()
 
     def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
         """Create the initial MkDocs site structure."""
@@ -83,11 +79,6 @@ class MkDocsSiteScaffolder:
         site_exists = False
         if mkdocs_path and mkdocs_path.exists():
             logger.info("MkDocs site already exists at %s (config: %s)", site_root, mkdocs_path)
-            site_exists = True
-
-        legacy_mkdocs = site_root / "mkdocs.yml"
-        if legacy_mkdocs.exists() and legacy_mkdocs != mkdocs_path:
-            logger.info("MkDocs site already exists at %s (config: %s)", site_root, legacy_mkdocs)
             site_exists = True
 
         try:

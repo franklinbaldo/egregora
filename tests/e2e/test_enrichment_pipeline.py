@@ -8,8 +8,9 @@ This test verifies that:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from pathlib import Path
+from typing import TYPE_CHECKING
+
 import ibis
 from ibis import schema
 
@@ -46,9 +47,7 @@ def test_enrichment_pipeline_with_mock_client(tmp_path: Path):
             "enriched_content": "string",
         }
     )
-    result = combine_with_enrichment_rows(
-        conn.table("messages"), enriched_rows, sch
-    )
+    result = combine_with_enrichment_rows(conn.table("messages"), enriched_rows, sch)
 
     # 4. Verify the results
     assert result.count().execute() == 4
@@ -60,6 +59,7 @@ def test_enrichment_pipeline_with_mock_client(tmp_path: Path):
         "This is a mock enrichment.",
         "This is another mock enrichment.",
     ]
+
 
 def test_enrichment_pipeline_with_no_new_rows(tmp_path: Path):
     """Test the enrichment pipeline when there are no new rows to add."""
@@ -85,15 +85,14 @@ def test_enrichment_pipeline_with_no_new_rows(tmp_path: Path):
             "enriched_content": "string",
         }
     )
-    result = combine_with_enrichment_rows(
-        conn.table("messages"), enriched_rows, sch
-    )
+    result = combine_with_enrichment_rows(conn.table("messages"), enriched_rows, sch)
 
     # 4. Verify the results
     assert result.count().execute() == 2
     assert "enriched_content" in result.columns
     enriched_data = result.filter(result.enriched_content.notnull()).execute()
     assert len(enriched_data) == 0
+
 
 def test_enrichment_pipeline_with_timestamp_column(tmp_path: Path):
     """Test the enrichment pipeline with a 'timestamp' column."""
@@ -118,9 +117,7 @@ def test_enrichment_pipeline_with_timestamp_column(tmp_path: Path):
             "message": "string",
         }
     )
-    result = combine_with_enrichment_rows(
-        conn.table("messages"), enriched_rows, sch
-    )
+    result = combine_with_enrichment_rows(conn.table("messages"), enriched_rows, sch)
 
     # 4. Verify the results
     assert result.count().execute() == 2

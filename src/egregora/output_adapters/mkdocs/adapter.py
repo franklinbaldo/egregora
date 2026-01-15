@@ -350,34 +350,27 @@ class MkDocsAdapter(BaseOutputSink):
         if self._storage is not None:
             from egregora.database.profile_cache import get_profile_from_db
 
-            try:
-                if doc_type == DocumentType.PROFILE:
-                    content = get_profile_from_db(self._storage, identifier)
-                    if not content:
-                        raise DocumentNotFoundError(doc_type.value, identifier)
+            if doc_type == DocumentType.PROFILE:
+                content = get_profile_from_db(self._storage, identifier)
+                if not content:
+                    raise DocumentNotFoundError(doc_type.value, identifier)
 
-                    # Parse frontmatter from content
-                    post = frontmatter.loads(content)
-                    return Document(content=post.content, type=doc_type, metadata=post.metadata)
+                # Parse frontmatter from content
+                post = frontmatter.loads(content)
+                return Document(content=post.content, type=doc_type, metadata=post.metadata)
 
-                if doc_type == DocumentType.POST:
-                    # Query posts table
-                    table = self._storage.read_table("posts")
-                    result = table.filter(table.slug == identifier).execute()
+            if doc_type == DocumentType.POST:
+                # Query posts table
+                table = self._storage.read_table("posts")
+                result = table.filter(table.slug == identifier).execute()
 
-                    if len(result) == 0:
-                        raise DocumentNotFoundError(doc_type.value, identifier)
+                if len(result) == 0:
+                    raise DocumentNotFoundError(doc_type.value, identifier)
 
-                    row = result.iloc[0]
-                    # Parse frontmatter from content
-                    post = frontmatter.loads(row["content"])
-                    return Document(content=post.content, type=doc_type, metadata=post.metadata)
-
-            except Exception as e:
-                if isinstance(e, DocumentNotFoundError):
-                    raise
-                logger.warning("Failed to read from database: %s", e)
-                # Don't fall back - database is canonical
+                row = result.iloc[0]
+                # Parse frontmatter from content
+                post = frontmatter.loads(row["content"])
+                return Document(content=post.content, type=doc_type, metadata=post.metadata)
 
         # Fallback to file-based reading for media and other types not yet in DB
         path = self._resolve_document_path(doc_type, identifier)
