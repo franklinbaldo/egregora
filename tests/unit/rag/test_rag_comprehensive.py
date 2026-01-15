@@ -603,6 +603,22 @@ def test_backend_query_with_filters(temp_db_dir: Path, mock_embed_fn):
 # ============================================================================
 
 
+def test_high_level_api_add_documents_empty():
+    """Test that calling add_documents with an empty list is a no-op."""
+    with patch("egregora.rag.get_backend") as mock_get_backend:
+        mock_backend = Mock()
+        mock_get_backend.return_value = mock_backend
+
+        # Reset global backend
+        egregora.rag.reset_backend()
+
+        # Use high-level API with empty list
+        add_documents([])
+
+        # Ensure backend.add was not called
+        mock_backend.add.assert_not_called()
+
+
 def test_high_level_api_index_and_search():
     """Test the high-level index_documents() and search() API."""
     with (

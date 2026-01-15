@@ -20,14 +20,6 @@
 
 Egregora transforms a WhatsApp export (ZIP) into a static website powered by [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/).
 
-### ⚠️ Important Upgrade Note (Mailbox)
-
-The mailbox storage backend has been updated from **Maildir** to **MH**.
-**Before running the new version:**
-1. Delete any existing mailbox directories (e.g., `.jules/personas/*/mail` or `.jules/mail`).
-2. The new system will create a shared mailbox at `.jules/mail` using the MH format.
-3. Old messages are **not** migrated automatically.
-
 ### 1. Installation
 
 Install Egregora using [uv](https://github.com/astral-sh/uv) (requires Python 3.12+):

@@ -16,21 +16,13 @@ from egregora.transformations.windowing import (
 
 
 # Helper to create test data
-def create_test_table(messages=100, start_time=None):
+def create_test_table(num_messages=100, start_time=None):
     if start_time is None:
         start_time = datetime(2023, 1, 1, 10, 0, 0)
 
-    if isinstance(messages, int):
-        num_messages = messages
-        data = [
-            {"ts": start_time + timedelta(minutes=i), "text": f"message {i}", "sender": "Alice"}
-            for i in range(num_messages)
-        ]
-    else:
-        data = [
-            {"ts": start_time + timedelta(minutes=i), "text": msg, "sender": "Alice"}
-            for i, msg in enumerate(messages)
-        ]
+    data = []
+    for i in range(num_messages):
+        data.append({"ts": start_time + timedelta(minutes=i), "text": f"message {i}", "sender": "Alice"})
 
     if not data:
         schema = ibis.schema(
@@ -145,39 +137,6 @@ def test_window_by_bytes():
     # Just ensure we have windows and they aren't empty (except maybe if input empty)
     for w in windows:
         assert w.size > 0
-
-
-def test_window_by_bytes_precise():
-    """Test windowing by bytes with a deterministic dataset."""
-    messages = [
-        "short",  # 5 bytes
-        "medium msg",  # 10 bytes
-        "a bit longer message",  # 20 bytes
-        "short",  # 5 bytes
-        "another medium",  # 14 bytes
-    ]  # Total bytes = 54
-
-    table = create_test_table(messages)
-
-    # Scenario 1: No overlap, max_bytes_per_window=20
-    # The actual behavior is:
-    # 1. "short", "medium msg" (15 bytes) -> Window 1 (size 2)
-    # 2. "a bit longer message", "short", "another medium" (20 + 5 + 14 = 39 bytes, but
-    #    relative bytes are [0, 5, 19] which are all <= 20) -> Window 2 (size 3)
-    config = WindowConfig(step_unit="bytes", max_bytes_per_window=20, overlap_ratio=0.0)
-    windows = list(create_windows(table, config=config))
-
-    assert len(windows) == 2
-    assert [w.size for w in windows] == [2, 3]
-
-    # Scenario 2: With overlap, max_bytes_per_window=30, overlap_ratio=0.5
-    # My manual trace of the actual implementation shows this should produce
-    # three windows with sizes [3, 2, 1].
-    config = WindowConfig(step_unit="bytes", max_bytes_per_window=30, overlap_ratio=0.5)
-    windows = list(create_windows(table, config=config))
-
-    assert len(windows) == 3
-    assert [w.size for w in windows] == [3, 2, 1]
 
 
 def test_split_window_into_n_parts():

@@ -1,14 +1,14 @@
 import typer
 from typing import List, Optional
 import os
-from jules.features.mail import send_message, list_inbox, get_message, mark_read, _get_backend
+from jules.features.mail import send_message, list_inbox, get_message, mark_read
 
 app = typer.Typer(
     help="""
     SYSTEM MAIL INTERFACE: A hybrid S3/Local communication system for AI Personas.
     
     This tool allows personas (AI agents) to send and receive internal 'mail' messages.
-    It supports both offline local storage (Maildir/MH) and cloud-scale S3 buckets (Internet Archive).
+    It supports both offline local storage (Maildir) and cloud-scale S3 buckets (Internet Archive).
     
     CONFIGURATION:
     Configuration is primarily handled via environment variables:
@@ -27,10 +27,7 @@ app = typer.Typer(
     3. Read a specific message and mark as read:
        mail read "be242fd7-0373-4530-aba2-e4d3f044290b" --persona weaver@team
 
-    4. Archive a message:
-       mail archive "key" --persona weaver@team
-
-    5. Switch to S3 for a single command:
+    4. Switch to S3 for a single command:
        JULES_MAIL_STORAGE=s3 mail inbox
     """
 )
@@ -158,109 +155,6 @@ def read(
         print(f"✅ Marked as read.")
     except Exception as e:
         print(f"❌ Error reading message: {e}")
-        raise typer.Exit(code=1)
-
-@app.command()
-def archive(
-    key: str = typer.Argument(
-        ..., help="The ID of the message to archive."
-    ),
-    persona: str = typer.Option(
-        None, "--persona", "-p", envvar="JULES_PERSONA"
-    ),
-):
-    """Move a message from Inbox to Archive."""
-    if not persona:
-        print("Error: --persona required.")
-        raise typer.Exit(code=1)
-
-    _get_backend().archive(persona, key)
-    print(f"✅ Message {key} archived.")
-
-@app.command()
-def unarchive(
-    key: str = typer.Argument(
-        ..., help="The ID of the message to unarchive."
-    ),
-    persona: str = typer.Option(
-        None, "--persona", "-p", envvar="JULES_PERSONA"
-    ),
-):
-    """Move a message from Archive to Inbox."""
-    if not persona:
-        print("Error: --persona required.")
-        raise typer.Exit(code=1)
-
-    _get_backend().unarchive(persona, key)
-    print(f"✅ Message {key} unarchived.")
-
-@app.command()
-def trash(
-    key: str = typer.Argument(
-        ..., help="The ID of the message to trash."
-    ),
-    persona: str = typer.Option(
-        None, "--persona", "-p", envvar="JULES_PERSONA"
-    ),
-):
-    """Move a message to Trash."""
-    if not persona:
-        print("Error: --persona required.")
-        raise typer.Exit(code=1)
-
-    _get_backend().trash(persona, key)
-    print(f"✅ Message {key} moved to trash.")
-
-@app.command()
-def restore(
-    key: str = typer.Argument(
-        ..., help="The ID of the message to restore."
-    ),
-    persona: str = typer.Option(
-        None, "--persona", "-p", envvar="JULES_PERSONA"
-    ),
-):
-    """Restore a message from Trash to Inbox."""
-    if not persona:
-        print("Error: --persona required.")
-        raise typer.Exit(code=1)
-
-    _get_backend().restore(persona, key)
-    print(f"✅ Message {key} restored.")
-
-@app.command()
-def tag(
-    action: str = typer.Argument(..., help="add, remove, or list"),
-    key: str = typer.Argument(..., help="Message ID"),
-    tag: Optional[str] = typer.Argument(None, help="Tag name (required for add/remove)"),
-    persona: str = typer.Option(
-        None, "--persona", "-p", envvar="JULES_PERSONA"
-    ),
-):
-    """Manage tags for a message."""
-    if not persona:
-        print("Error: --persona required.")
-        raise typer.Exit(code=1)
-
-    backend = _get_backend()
-
-    if action == "list":
-        tags = backend.list_tags(persona, key)
-        print(f"Tags for {key}: {', '.join(tags)}")
-    elif action == "add":
-        if not tag:
-            print("Error: Tag name required.")
-            raise typer.Exit(code=1)
-        backend.tag_add(persona, key, tag)
-        print(f"✅ Tag '{tag}' added to {key}.")
-    elif action == "remove":
-        if not tag:
-            print("Error: Tag name required.")
-            raise typer.Exit(code=1)
-        backend.tag_remove(persona, key, tag)
-        print(f"✅ Tag '{tag}' removed from {key}.")
-    else:
-        print(f"Unknown action: {action}")
         raise typer.Exit(code=1)
 
 if __name__ == "__main__":

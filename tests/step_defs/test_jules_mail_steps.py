@@ -88,40 +88,9 @@ def check_exit_success(last_command_result):
 
 @then(parsers.parse('a mail file should exist in "{path}"'))
 def check_file_exists(isolated_fs, path):
-    # This step was checking for explicit Maildir paths like .../mail/new
-    # With MH, we have a single .jules/mail directory and shared messages.
-    # We should interpret the path check as verifying *some* mail exists for the persona
-    # OR we need to update the Feature file to be less implementation specific.
-    # The feature file says: And a mail file should exist in ".jules/personas/curator@team/mail/new"
-
-    # We will relax this check to verify that the message is listed in the inbox via API
-    # instead of checking filesystem path.
-    # Extract persona from path if possible, or assume based on scenario.
-
-    # Actually, the Scenario explicitly lists a path. We should probably update the SCENARIO
-    # to be behavior driven, but the plan step says "Refactor Existing Integration Tests...
-    # Remove filesystem assertions... Replace with behavior checks".
-
-    # However, if I can't change the feature file easily (I can, it's in the repo),
-    # I should change the feature file steps to be behavior driven.
-    # "Then the message should be delivered to curator@team"
-
-    # But since I am here in step definitions, I can map the old step string to a new check.
-    # path string is like ".jules/personas/alice/mail/new"
-
-    parts = path.split("/")
-    # Try to find persona name. It's usually after 'personas'
-    try:
-        idx = parts.index("personas")
-        persona = parts[idx + 1]
-        # Verify inbox has messages
-        assert len(list_inbox(persona)) > 0
-    except ValueError:
-        # Fallback: check if the root mail dir has content
-        # MH stores files in .jules/mail
-        mail_root = isolated_fs / ".jules/mail"
-        assert mail_root.exists()
-        assert any(p.name.isdigit() for p in mail_root.iterdir())
+    target_dir = isolated_fs / path
+    assert target_dir.exists()
+    assert any(target_dir.iterdir())
 
 
 @then(parsers.parse('the output should contain "{text}"'))

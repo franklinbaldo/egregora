@@ -50,7 +50,7 @@ def mock_vector_store(monkeypatch):
     indexed_documents = []
 
     # Define mock functions that match the egress API of egregora.rag
-    def mock_index_documents(documents, **kwargs):
+    def mock_add_documents(documents, **kwargs):
         indexed_documents.extend(documents)
         return len(documents)
 
@@ -58,12 +58,12 @@ def mock_vector_store(monkeypatch):
         return SimpleNamespace(hits=[])
 
     # Patch the RAG module functions
-    monkeypatch.setattr("egregora.rag.index_documents", mock_index_documents)
+    monkeypatch.setattr("egregora.rag.add_documents", mock_add_documents)
     monkeypatch.setattr("egregora.rag.search", mock_search)
 
     # Also patch where it's imported in pipelines.write
     monkeypatch.setattr(
-        "egregora.orchestration.pipelines.write.index_documents", mock_index_documents, raising=False
+        "egregora.orchestration.pipelines.write.add_documents", mock_add_documents, raising=False
     )
 
     # Patch where search is used in writer_helpers
