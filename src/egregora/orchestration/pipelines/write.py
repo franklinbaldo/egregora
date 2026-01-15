@@ -62,7 +62,7 @@ from egregora.orchestration.factory import PipelineFactory
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
-from egregora.rag import index_documents, reset_backend
+from egregora.rag import add_documents, reset_backend
 from egregora.transformations import (
     Window,
     WindowConfig,
@@ -1194,7 +1194,7 @@ def _prepare_pipeline_data(
             # Get existing documents from output format
             existing_docs = list(output_sink.documents())
             if existing_docs:
-                index_documents(existing_docs)
+                add_documents(existing_docs)
                 logger.info("[green]✓ Indexed %d existing documents into RAG[/]", len(existing_docs))
                 reset_backend()
             else:

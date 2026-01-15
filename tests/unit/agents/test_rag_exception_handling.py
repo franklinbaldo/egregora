@@ -51,8 +51,8 @@ def test_prepare_pipeline_data_handles_rag_connection_error(
 ):
     """Test that connection errors during RAG indexing are caught and logged."""
 
-    # Mock index_documents to raise ConnectionError
-    with patch("egregora.orchestration.pipelines.write.index_documents") as mock_index:
+    # Mock add_documents to raise ConnectionError
+    with patch("egregora.orchestration.pipelines.write.add_documents") as mock_index:
         mock_index.side_effect = ConnectionError("Connection refused")
 
         with patch("egregora.orchestration.pipelines.write.PipelineFactory") as mock_factory:
@@ -88,8 +88,8 @@ def test_prepare_pipeline_data_handles_rag_value_error(
 ):
     """Test that value errors (invalid data) during RAG indexing are caught and logged."""
 
-    # Mock index_documents to raise ValueError
-    with patch("egregora.orchestration.pipelines.write.index_documents") as mock_index:
+    # Mock add_documents to raise ValueError
+    with patch("egregora.orchestration.pipelines.write.add_documents") as mock_index:
         mock_index.side_effect = ValueError("Invalid vector dimension")
 
         with patch("egregora.orchestration.pipelines.write.PipelineFactory") as mock_factory:
@@ -117,8 +117,8 @@ def test_prepare_pipeline_data_handles_rag_os_error(
 ):
     """Test that OS errors (permission/disk) during RAG indexing are caught and logged."""
 
-    # Mock index_documents to raise OSError
-    with patch("egregora.orchestration.pipelines.write.index_documents") as mock_index:
+    # Mock add_documents to raise OSError
+    with patch("egregora.orchestration.pipelines.write.add_documents") as mock_index:
         mock_index.side_effect = OSError("Read-only file system")
 
         with patch("egregora.orchestration.pipelines.write.PipelineFactory") as mock_factory:

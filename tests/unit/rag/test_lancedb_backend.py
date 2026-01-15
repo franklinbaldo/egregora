@@ -68,7 +68,7 @@ def test_lancedb_backend_index_documents(temp_db_dir: Path, mock_embed_fn):
     ]
 
     # Index documents (should not raise)
-    backend.index_documents(docs)
+    backend.add(docs)
 
 
 def test_lancedb_backend_query(temp_db_dir: Path, mock_embed_fn):
@@ -93,7 +93,7 @@ def test_lancedb_backend_query(temp_db_dir: Path, mock_embed_fn):
         ),
     ]
 
-    backend.index_documents(docs)
+    backend.add(docs)
 
     # Query for documents
     request = RAGQueryRequest(text="cats and dogs", top_k=2)
@@ -144,4 +144,4 @@ def test_lancedb_backend_index_binary_content(temp_db_dir: Path, mock_embed_fn):
     ]
 
     # Should not raise, but should skip the binary document
-    backend.index_documents(docs)
+    backend.add(docs)
