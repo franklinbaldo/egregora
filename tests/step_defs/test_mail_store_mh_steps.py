@@ -51,7 +51,9 @@ def check_not_sequence(mh_backend, context, sequence):
     mid = context["last_msg_id"]
     seq_name = mh_backend._get_seq_name(persona, sequence)
     seqs = mh_backend.mb.get_sequences()
-    assert int(mid) not in seqs.get(seq_name, []), f"Message {mid} found in sequence {seq_name} but should not be"
+    assert int(mid) not in seqs.get(seq_name, []), (
+        f"Message {mid} found in sequence {seq_name} but should not be"
+    )
 
 
 @then(parsers.parse('the message content should match "{text}"'))
