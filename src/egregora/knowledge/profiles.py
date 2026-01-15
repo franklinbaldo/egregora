@@ -108,7 +108,6 @@ def _find_profile_path(
 
     msg = f"No profile found for author {author_uuid} at {index_path}"
     raise ProfileNotFoundError(msg, author_uuid=author_uuid)
-    return index_path
 
 
 def _determine_profile_path(

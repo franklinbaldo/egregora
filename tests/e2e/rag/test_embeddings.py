@@ -22,7 +22,8 @@ def mock_google_api_key(monkeypatch):
     monkeypatch.setenv("GOOGLE_API_KEY", FAKE_API_KEY)
 
 
-def test_is_rag_available(mock_google_api_key):
+@pytest.mark.usefixtures("mock_google_api_key")
+def test_is_rag_available():
     """Test that RAG is available when the API key is set."""
     assert is_rag_available()
 
@@ -35,7 +36,8 @@ def test_is_rag_not_available(monkeypatch):
 
 
 @respx.mock
-def test_embed_text_success(mock_google_api_key):
+@pytest.mark.usefixtures("mock_google_api_key")
+def test_embed_text_success():
     """Test successful embedding of a single text."""
     mock_route = respx.post(f"{GENAI_API_BASE}/{EMBEDDING_MODEL}:embedContent").mock(
         return_value=httpx.Response(
@@ -50,7 +52,8 @@ def test_embed_text_success(mock_google_api_key):
 
 
 @respx.mock
-def test_embed_text_rate_limit_and_retry(mock_google_api_key):
+@pytest.mark.usefixtures("mock_google_api_key")
+def test_embed_text_rate_limit_and_retry():
     """Test that rate limits are handled with retries."""
     mock_route = respx.post(f"{GENAI_API_BASE}/{EMBEDDING_MODEL}:embedContent").mock(
         side_effect=[
@@ -65,7 +68,8 @@ def test_embed_text_rate_limit_and_retry(mock_google_api_key):
 
 
 @respx.mock
-def test_embed_text_api_error(mock_google_api_key):
+@pytest.mark.usefixtures("mock_google_api_key")
+def test_embed_text_api_error():
     """Test that a non-retriable API error raises an exception."""
     respx.post(f"{GENAI_API_BASE}/{EMBEDDING_MODEL}:embedContent").mock(return_value=httpx.Response(500))
 
@@ -78,7 +82,8 @@ def test_embed_text_api_error(mock_google_api_key):
 
 
 @respx.mock
-def test_embed_texts_in_batch_single_chunk(mock_google_api_key):
+@pytest.mark.usefixtures("mock_google_api_key")
+def test_embed_texts_in_batch_single_chunk():
     """Test batch embedding for a single chunk (<= 100 texts)."""
     mock_route = respx.post(f"{GENAI_API_BASE}/{EMBEDDING_MODEL}:batchEmbedContents").mock(
         return_value=httpx.Response(
@@ -99,7 +104,8 @@ def test_embed_texts_in_batch_single_chunk(mock_google_api_key):
 
 
 @respx.mock
-def test_embed_texts_in_batch_multiple_chunks(mock_google_api_key):
+@pytest.mark.usefixtures("mock_google_api_key")
+def test_embed_texts_in_batch_multiple_chunks():
     """Test batch embedding that requires multiple API calls."""
     texts = [f"Text {i}" for i in range(150)]
     mock_route = respx.post(f"{GENAI_API_BASE}/{EMBEDDING_MODEL}:batchEmbedContents").mock(
