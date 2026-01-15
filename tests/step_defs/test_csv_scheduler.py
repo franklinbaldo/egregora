@@ -110,7 +110,7 @@ def schedule_with_rows(mock_schedule_path, context, datatable):
         rows.append(dict(zip(header, row_data, strict=False)))
 
     # Write to CSV
-    with open(mock_schedule_path, "w", newline="") as f:
+    with mock_schedule_path.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=header)
         writer.writeheader()
         writer.writerows(rows)
@@ -146,7 +146,7 @@ def schedule_with_few_empty(count, mock_schedule_path, context):
             }
         )
 
-    with open(mock_schedule_path, "w", newline="") as f:
+    with mock_schedule_path.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["sequence", "persona", "session_id", "pr_number", "pr_status"])
         writer.writeheader()
         writer.writerows(rows)
@@ -160,7 +160,7 @@ def oracle_session_age(hours, mock_oracle_schedule_path, context):
     created_at = datetime.now(UTC) - timedelta(hours=hours)
     rows = [{"session_id": "oracle_123", "created_at": created_at.isoformat(), "status": "active"}]
 
-    with open(mock_oracle_schedule_path, "w", newline="") as f:
+    with mock_oracle_schedule_path.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["session_id", "created_at", "status"])
         writer.writeheader()
         writer.writerows(rows)
@@ -171,7 +171,7 @@ def oracle_session_age(hours, mock_oracle_schedule_path, context):
 
 # When steps
 @when("the scheduler runs a sequential tick")
-def run_sequential_tick(mock_jules_client, mock_branch_manager, mock_orchestrator, mocker, context):
+def run_sequential_tick(mock_jules_client, mock_orchestrator, mocker, context):
     # Mock get_repo_info and get_open_prs
     mocker.patch("jules.scheduler.engine.get_repo_info", return_value={"owner": "test", "repo": "test"})
     mocker.patch("jules.scheduler.engine.get_open_prs", return_value=[])
@@ -230,7 +230,7 @@ def no_session_created(context):
 
 
 @then("the scheduler should report waiting for PR")
-def scheduler_reports_waiting(capsys):
+def scheduler_reports_waiting():
     # Check stdout contains waiting message
     # This is handled by the scheduler printing, not by our context
     pass  # Logging verification would require capturing stdout
@@ -238,7 +238,7 @@ def scheduler_reports_waiting(capsys):
 
 @then(parsers.parse('the schedule.csv should be updated with the session_id for sequence "{seq}"'))
 def schedule_updated(seq, mock_schedule_path):
-    with open(mock_schedule_path, newline="") as f:
+    with mock_schedule_path.open(newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
             if row["sequence"] == seq:
@@ -249,7 +249,7 @@ def schedule_updated(seq, mock_schedule_path):
 
 @then(parsers.parse("the schedule.csv should contain at least {count:d} total rows"))
 def schedule_has_rows(count, mock_schedule_path):
-    with open(mock_schedule_path, newline="") as f:
+    with mock_schedule_path.open(newline="") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
     assert len(rows) >= count, f"Expected at least {count} rows, got {len(rows)}"
@@ -272,7 +272,7 @@ def new_oracle_created(context):
 
 @then("the old session should be marked as expired")
 def old_session_expired(mock_oracle_schedule_path):
-    with open(mock_oracle_schedule_path, newline="") as f:
+    with mock_oracle_schedule_path.open(newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
             if row["session_id"] == "oracle_123":

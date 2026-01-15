@@ -65,6 +65,7 @@ def test_construct_prompt_with_all_data(temp_files: dict[str, Path]) -> None:
     }
 
     import sys
+
     result = subprocess.run(
         [sys.executable, ".github/scripts/construct_gemini_prompt.py"],
         check=False,
@@ -112,6 +113,7 @@ def test_construct_prompt_without_optional_data(temp_files: dict[str, Path]) -> 
     }
 
     import sys
+
     result = subprocess.run(
         [sys.executable, ".github/scripts/construct_gemini_prompt.py"],
         check=False,
@@ -149,6 +151,7 @@ def test_construct_prompt_missing_template(temp_files: dict[str, Path]) -> None:
     }
 
     import sys
+
     result = subprocess.run(
         [sys.executable, ".github/scripts/construct_gemini_prompt.py"],
         check=False,
@@ -182,6 +185,7 @@ def test_construct_prompt_invalid_template_syntax(temp_files: dict[str, Path]) -
     }
 
     import sys
+
     result = subprocess.run(
         [sys.executable, ".github/scripts/construct_gemini_prompt.py"],
         check=False,
@@ -214,6 +218,7 @@ def test_construct_prompt_creates_output_directory(temp_files: dict[str, Path]) 
     }
 
     import sys
+
     result = subprocess.run(
         [sys.executable, ".github/scripts/construct_gemini_prompt.py"],
         check=False,
