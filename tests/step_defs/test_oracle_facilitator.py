@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
 from pytest_bdd import given, parsers, scenario, then, when
 
@@ -119,6 +121,3 @@ def message_sent_to_session(content, persona, mock_jules_client):
 @then(parsers.parse('the mail from "oracle" to "{persona}" should be marked as read'))
 def mail_marked_read(persona, mock_mail_features):
     mock_mail_features["read"].assert_called_with(persona, "msg_456")
-
-
-from unittest.mock import MagicMock, patch
