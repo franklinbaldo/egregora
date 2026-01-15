@@ -115,7 +115,15 @@ class LocalMhBackend(MailboxBackend):
         safe_tag = self._sanitize_name(tag)
         return self._get_seq_name(persona_id, f"tag__{safe_tag}")
 
-    def _update_sequences(self, updates: List[tuple[str, str, str]]):
+    def _to_int_key(self, key: str | int) -> int:
+        """Convert key to int as used internally by mailbox.MH."""
+        try:
+            return int(key)
+        except (ValueError, TypeError):
+            # If for some reason it's not convertible, return -1 or raise
+            raise ValueError(f"Invalid message key: {key}")
+
+    def _update_sequences(self, updates: List[tuple[str, str, int]]):
         """
         updates: list of (operation, seq_name, key)
         operation: 'add' or 'remove'
@@ -151,7 +159,7 @@ class LocalMhBackend(MailboxBackend):
         msg.set_payload(content)
 
         # Add to MH store
-        key = self.mb.add(msg)
+        key = self.mb.add(msg) # Returns int
 
         # Update sequences: inbox, unread
         inbox_seq = self._get_seq_name(to_id, "inbox")
@@ -162,7 +170,8 @@ class LocalMhBackend(MailboxBackend):
             ('add', unread_seq, key)
         ])
 
-        return key
+        # Ensure we return a string
+        return str(key)
 
     def list_inbox(self, persona_id: str, unread_only: bool = False) -> List[Dict[str, Any]]:
         inbox_seq = self._get_seq_name(persona_id, "inbox")
@@ -189,7 +198,7 @@ class LocalMhBackend(MailboxBackend):
             is_read = key not in unread_keys
 
             results.append({
-                "key": key,
+                "key": str(key),
                 "subject": msg["Subject"],
                 "from": msg["From"],
                 "read": is_read,
@@ -199,7 +208,8 @@ class LocalMhBackend(MailboxBackend):
 
     def get_message(self, persona_id: str, key: str) -> Dict[str, Any]:
         try:
-            msg = self.mb.get(key)
+            int_key = self._to_int_key(key)
+            msg = self.mb.get(int_key)
         except KeyError:
              raise ValueError(f"Message not found: {key}")
 
@@ -209,70 +219,75 @@ class LocalMhBackend(MailboxBackend):
         body = payload.decode("utf-8", errors="replace") if isinstance(payload, bytes) else str(payload)
 
         return {
-            "key": key, "subject": msg["Subject"], "from": msg["From"],
+            "key": str(key), "subject": msg["Subject"], "from": msg["From"],
             "to": msg["To"], "body": body.strip(), "date": msg["Date"]
         }
 
     def mark_read(self, persona_id: str, key: str) -> None:
         unread_seq = self._get_seq_name(persona_id, "unread")
-        self._update_sequences([('remove', unread_seq, key)])
+        self._update_sequences([('remove', unread_seq, self._to_int_key(key))])
 
     def mark_unread(self, persona_id: str, key: str) -> None:
         unread_seq = self._get_seq_name(persona_id, "unread")
-        self._update_sequences([('add', unread_seq, key)])
+        self._update_sequences([('add', unread_seq, self._to_int_key(key))])
 
     def archive(self, persona_id: str, key: str) -> None:
         inbox_seq = self._get_seq_name(persona_id, "inbox")
         archived_seq = self._get_seq_name(persona_id, "archived")
+        int_key = self._to_int_key(key)
         self._update_sequences([
-            ('remove', inbox_seq, key),
-            ('add', archived_seq, key)
+            ('remove', inbox_seq, int_key),
+            ('add', archived_seq, int_key)
         ])
 
     def unarchive(self, persona_id: str, key: str) -> None:
         inbox_seq = self._get_seq_name(persona_id, "inbox")
         archived_seq = self._get_seq_name(persona_id, "archived")
+        int_key = self._to_int_key(key)
         self._update_sequences([
-            ('remove', archived_seq, key),
-            ('add', inbox_seq, key)
+            ('remove', archived_seq, int_key),
+            ('add', inbox_seq, int_key)
         ])
 
     def trash(self, persona_id: str, key: str) -> None:
         inbox_seq = self._get_seq_name(persona_id, "inbox")
         archived_seq = self._get_seq_name(persona_id, "archived")
         trash_seq = self._get_seq_name(persona_id, "trash")
+        int_key = self._to_int_key(key)
         self._update_sequences([
-            ('remove', inbox_seq, key),
-            ('remove', archived_seq, key),
-            ('add', trash_seq, key)
+            ('remove', inbox_seq, int_key),
+            ('remove', archived_seq, int_key),
+            ('add', trash_seq, int_key)
         ])
 
     def restore(self, persona_id: str, key: str) -> None:
         inbox_seq = self._get_seq_name(persona_id, "inbox")
         trash_seq = self._get_seq_name(persona_id, "trash")
+        int_key = self._to_int_key(key)
         # Do not change unread status
         self._update_sequences([
-            ('remove', trash_seq, key),
-            ('add', inbox_seq, key)
+            ('remove', trash_seq, int_key),
+            ('add', inbox_seq, int_key)
         ])
 
     def tag_add(self, persona_id: str, key: str, tag: str) -> None:
         tag_seq = self._get_tag_seq(persona_id, tag)
-        self._update_sequences([('add', tag_seq, key)])
+        self._update_sequences([('add', tag_seq, self._to_int_key(key))])
 
     def tag_remove(self, persona_id: str, key: str, tag: str) -> None:
         tag_seq = self._get_tag_seq(persona_id, tag)
-        self._update_sequences([('remove', tag_seq, key)])
+        self._update_sequences([('remove', tag_seq, self._to_int_key(key))])
 
     def list_tags(self, persona_id: str, key: str) -> List[str]:
         seqs = self.mb.get_sequences()
+        int_key = self._to_int_key(key)
 
         # We need to find all sequences that start with p__{persona}__tag__ and contain key
         prefix = self._get_seq_name(persona_id, "tag__")
 
         found_tags = []
         for seq_name, keys in seqs.items():
-            if seq_name.startswith(prefix) and key in keys:
+            if seq_name.startswith(prefix) and int_key in keys:
                 # extract tag name
                 tag_encoded = seq_name[len(prefix):]
                 found_tags.append(tag_encoded)

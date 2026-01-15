@@ -41,7 +41,8 @@ def check_sequence(mh_backend, context, sequence):
     mid = context["last_msg_id"]
     seq_name = mh_backend._get_seq_name(persona, sequence)
     seqs = mh_backend.mb.get_sequences()
-    assert mid in seqs.get(seq_name, []), f"Message {mid} not found in sequence {seq_name}"
+    # mid is string, sequences hold ints
+    assert int(mid) in seqs.get(seq_name, []), f"Message {mid} not found in sequence {seq_name}"
 
 
 @then(parsers.parse('the message should not be in "{sequence}"'))
@@ -50,7 +51,7 @@ def check_not_sequence(mh_backend, context, sequence):
     mid = context["last_msg_id"]
     seq_name = mh_backend._get_seq_name(persona, sequence)
     seqs = mh_backend.mb.get_sequences()
-    assert mid not in seqs.get(seq_name, []), f"Message {mid} found in sequence {seq_name} but should not be"
+    assert int(mid) not in seqs.get(seq_name, []), f"Message {mid} found in sequence {seq_name} but should not be"
 
 
 @then(parsers.parse('the message content should match "{text}"'))
@@ -79,7 +80,7 @@ def ensure_message_in_sequence(mh_backend, context, sequence):
 
     # Verify it is there
     seq_name = mh_backend._get_seq_name(persona, sequence)
-    assert mid in mh_backend.mb.get_sequences().get(seq_name, [])
+    assert int(mid) in mh_backend.mb.get_sequences().get(seq_name, [])
 
 
 @given("a message exists")
