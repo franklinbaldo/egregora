@@ -15,7 +15,11 @@ import yaml
 
 from egregora.common.datetime_utils import parse_datetime_flexible
 from egregora.common.text import slugify
-from egregora.data_primitives.document import DocumentType
+import logging
+
+import frontmatter
+
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.schemas import STAGING_MESSAGES_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.output_adapters.exceptions import DocumentNotFoundError
@@ -27,6 +31,35 @@ logger = logging.getLogger(__name__)
 
 AUTHOR_NAMESPACE = UUID("52ef49ac-b9f7-48b9-8f37-8db2ca4c7f4f")
 EVENT_NAMESPACE = UUID("3d99325f-85e5-4c4b-9a85-4e80bc9a6d33")
+
+
+def _scan_and_parse_documents(output_adapter, doc_type):
+    """Scan filesystem for documents and parse them."""
+    documents = []
+    posts_dir = getattr(output_adapter, "posts_dir", None)
+    if not posts_dir or not posts_dir.exists():
+        return documents
+
+    for md_file in posts_dir.rglob("*.md"):
+        try:
+            # check if the file starts with a date
+            if not md_file.name[0].isdigit():
+                continue
+            if md_file.suffix != ".md":
+                continue
+            post = frontmatter.load(md_file)
+            # Add the source path to the metadata
+            metadata = post.metadata or {}
+            metadata["source_path"] = str(md_file)
+            doc = Document(
+                content=post.content,
+                type=doc_type,
+                metadata=metadata,
+            )
+            documents.append(doc)
+        except Exception as e:
+            logger.warning(f"Failed to parse {md_file}: {e}")
+    return documents
 
 
 class SelfInputAdapter(InputAdapter):
@@ -82,24 +115,7 @@ class SelfInputAdapter(InputAdapter):
             raise ValueError(msg)
 
         _docs_dir, site_root = self._resolve_docs_dir(input_path)
-        documents = []
-        for meta in output_adapter.list(doc_type=doc_type):
-            if not meta.doc_type:
-                continue
-            try:
-                # The identifier from `list` is a full path, but `get` expects a slug.
-                # We need to extract the slug from the path.
-                slug = Path(meta.identifier).stem.split("-", 3)[-1]
-                doc = output_adapter.get(meta.doc_type, slug)
-                if doc.metadata.get("slug") not in {"index", "tags"}:
-                    documents.append(doc)
-            except DocumentNotFoundError:
-                logger.warning(
-                    "Skipping self-reflection of missing document: type=%s, id=%s",
-                    meta.doc_type.value,
-                    meta.identifier,
-                )
-                continue
+        documents = _scan_and_parse_documents(output_adapter, doc_type)
 
         if not documents:
             msg = f"No posts published by {output_adapter.__class__.__name__}"
@@ -109,6 +125,8 @@ class SelfInputAdapter(InputAdapter):
         records: list[dict[str, Any]] = []
         for document in documents:
             metadata = document.metadata.copy()
+            if metadata.get("slug") in {"index", "tags"} or not metadata.get("date"):
+                continue
             source_path = metadata.get("source_path")
             path_obj = Path(source_path) if source_path else None
             slug = self._resolve_slug(metadata, path_obj)
