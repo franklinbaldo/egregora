@@ -97,24 +97,6 @@ def test_sync_authors_from_posts_standard_layout(tmp_path: Path) -> None:
     assert "author-two" in authors_data
 
 
-def test_sync_authors_from_posts_fallback_layout(tmp_path: Path) -> None:
-    """Verify it syncs authors using the fallback path resolution."""
-    # Arrange
-    posts_dir = tmp_path / "output" / "posts"
-    # The fallback path is output_dir.parent.parent / ".authors.yml"
-    authors_path = tmp_path / ".authors.yml"
-    _create_post(posts_dir / "post1.md", authors=["author-one"])
-
-    # Act
-    new_count = sync_authors_from_posts(posts_dir)
-
-    # Assert
-    assert new_count == 1
-    assert authors_path.exists()
-    authors_data = yaml.safe_load(authors_path.read_text())
-    assert "author-one" in authors_data
-
-
 def test_sync_authors_from_posts_no_authors(tmp_path: Path) -> None:
     """Verify it does nothing if posts have no authors."""
     # Arrange
@@ -157,22 +139,6 @@ def test_find_authors_yml_nested_layout(tmp_path: Path) -> None:
 
     # Act
     result = find_authors_yml(deep_dir)
-
-    # Assert
-    assert result == expected_path
-
-
-def test_find_authors_yml_fallback_behavior(tmp_path: Path) -> None:
-    """Verify it falls back to the legacy path if 'docs' is not found."""
-    # Arrange
-    output_dir = tmp_path / "output" / "posts"
-    output_dir.mkdir(parents=True)
-    # Fallback path is output_dir.parent.parent / ".authors.yml"
-    expected_path = tmp_path / ".authors.yml"
-    expected_path.touch()
-
-    # Act
-    result = find_authors_yml(output_dir)
 
     # Assert
     assert result == expected_path
@@ -331,20 +297,6 @@ def test_sync_authors_from_posts_no_authors_yml(project_structure: tuple[Path, P
     with authors_yml.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
         assert "author1" in data
-
-
-def test_find_authors_yml_fallback_logging(tmp_path: Path, caplog: LogCaptureFixture) -> None:
-    """Verify the fallback behavior in find_authors_yml logs a warning."""
-    # Arrange
-    output_dir = tmp_path / "output" / "posts"
-    output_dir.mkdir(parents=True)
-
-    # Act
-    find_authors_yml(output_dir)
-
-    # Assert
-    assert "Could not find 'docs' directory" in caplog.text
-    assert "Falling back to legacy path resolution" in caplog.text
 
 
 def test_load_authors_yml_os_error(tmp_path: Path) -> None:
