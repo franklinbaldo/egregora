@@ -28,6 +28,10 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {% include "blocks/collaboration.md.j2" %}
 {% endblock %}
 
+{% block rgccov %}
+{# RGCCOV workflow - personas can include with {% include "blocks/rgccov_workflow.md.j2" %} #}
+{% endblock %}
+
 {% block queue_celebration %}
 {% include "partials/celebration.md.j2" %}
 {% endblock %}
