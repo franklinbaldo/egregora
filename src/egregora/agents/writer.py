@@ -588,65 +588,56 @@ def _override_text_models(config: EgregoraConfig, model_name: str) -> EgregoraCo
 
 def _should_cycle(exc: Exception) -> bool:
     """Determine if the agent should cycle to the next model/key."""
-    if isinstance(exc, (UsageLimitExceeded, AgentError)):
+    if isinstance(exc, (UsageLimitExceeded, AgentError)) and "tool calls" in str(exc).lower():
+        return True
+    if isinstance(exc, UsageLimitExceeded):
         return True
 
     if isinstance(exc, ModelHTTPError):
-        # Always cycle on client/server errors
-        if exc.status_code >= 400:
+        if exc.status_code == HTTP_STATUS_TOO_MANY_REQUESTS:
+            return True
+        if exc.status_code == HTTP_STATUS_PAYMENT_REQUIRED:
+            return True
+        if exc.status_code in (HTTP_STATUS_BAD_REQUEST, HTTP_STATUS_NOT_FOUND):
+            msg = str(exc).lower()
+            if "not found" in msg or "not supported for generatecontent" in msg:
+                return True
+            if "not a valid model id" in msg:
+                return True
+            if (
+                "response modalities" in msg
+                or "accepts the following combination of response modalities" in msg
+            ):
+                return True
+            if "function calling is not enabled" in msg:
+                return True
+
+        # Always cycle on severe server errors
+        if exc.status_code >= 500:
             return True
 
-    if isinstance(exc, RuntimeError) and "event loop is closed" in str(exc).lower():
-        return True
+    if isinstance(exc, RuntimeError):
+        msg = str(exc).lower()
+        if "event loop is closed" in msg:
+            return True
 
-    # Default to not cycling for unknown errors
     return False
 
-    def _should_cycle(exc: Exception) -> bool:
-        if isinstance(exc, AgentError) and "tool calls" in str(exc).lower():
-            return True
-        if isinstance(exc, UsageLimitExceeded):
-            return True
-        if isinstance(exc, ModelHTTPError):
-            if exc.status_code == HTTP_STATUS_TOO_MANY_REQUESTS:
-                return True
-            if exc.status_code == HTTP_STATUS_PAYMENT_REQUIRED:
-                return True
-            if exc.status_code in (HTTP_STATUS_BAD_REQUEST, HTTP_STATUS_NOT_FOUND):
-                msg = str(exc).lower()
-                if "not found" in msg or "not supported for generatecontent" in msg:
-                    return True
-                if "not a valid model id" in msg:
-                    return True
-                if (
-                    "response modalities" in msg
-                    or "accepts the following combination of response modalities" in msg
-                ):
-                    return True
-                if "function calling is not enabled" in msg:
-                    return True
-        if isinstance(exc, RuntimeError):
-            msg = str(exc).lower()
-            if "event loop is closed" in msg:
-                return True
-        return False
 
-    def _get_openrouter_affordable_tokens(exc: ModelHTTPError) -> int | None:
-        if exc.status_code != HTTP_STATUS_PAYMENT_REQUIRED:
-            return None
-        message = ""
-        body = getattr(exc, "body", None)
-        if isinstance(body, dict):
-            message = str(body.get("message", ""))
-        if not message:
-            message = str(exc)
-        match = re.search(r"can only afford (\d+)", message)
-        if match:
-            return int(match.group(1))
+def _get_openrouter_affordable_tokens(exc: ModelHTTPError) -> int | None:
+    """Extract affordable token limit from OpenRouter error message."""
+    if exc.status_code != HTTP_STATUS_PAYMENT_REQUIRED:
         return None
 
-    message = str(getattr(exc, "body", {}).get("message", "") or exc)
-    if match := re.search(r"can only afford (\d+)", message):
+    message = ""
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        message = str(body.get("message", ""))
+    if not message:
+        message = str(exc)
+
+    match = re.search(r"can only afford (\d+)", message)
+    if match:
         return int(match.group(1))
     return None
 
