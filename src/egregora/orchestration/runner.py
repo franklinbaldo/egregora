@@ -20,6 +20,7 @@ from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.types import Message, PromptTooLargeError, WindowProcessingParams
 from egregora.agents.writer import write_posts_for_window
 from egregora.data_primitives.document import DocumentType, UrlContext
+from egregora.database.exceptions import DatabaseOperationError
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.exceptions import (
@@ -199,8 +200,10 @@ class PipelineRunner:
                 if j_start and j_end:
                     processed.add((str(j_start), str(j_end)))
 
+        except DatabaseOperationError as e:
+            logger.warning("Failed to fetch processed journals due to DB error: %s", e)
         except Exception as e:
-            logger.warning("Failed to fetch processed journals: %s", e)
+            logger.warning("Unexpected error fetching processed journals: %s", e)
 
         return processed
 
