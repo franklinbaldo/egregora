@@ -192,6 +192,9 @@ def run_sequential_tick(mock_jules_client, mock_orchestrator, mock_branch_manage
     if not context.get("existing_session_configured"):
         mock_jules_client.list_sessions.return_value = {"sessions": []}
 
+    # Store branch manager for potential verification in Then steps
+    context["branch_manager"] = mock_branch_manager
+
     # Mock PersonaLoader
     mock_persona = MagicMock()
     mock_persona.id = "absolutist"
