@@ -190,7 +190,7 @@ W293 [*] Blank line contains whitespace
     |
 593 |     if isinstance(exc, UsageLimitExceeded):
 594 |         return True
-595 |     
+595 |
     | ^^^^
 596 |     if isinstance(exc, ModelHTTPError):
 597 |         if exc.status_code == HTTP_STATUS_TOO_MANY_REQUESTS:
@@ -202,7 +202,7 @@ W293 [*] Blank line contains whitespace
     |
 612 |             if "function calling is not enabled" in msg:
 613 |                 return True
-614 |                 
+614 |
     | ^^^^^^^^^^^^^^^^
 615 |         # Always cycle on severe server errors
 616 |         if exc.status_code >= 500:
@@ -223,7 +223,7 @@ W293 [*] Blank line contains whitespace
     |
 621 |         if "event loop is closed" in msg:
 622 |             return True
-623 |             
+623 |
     | ^^^^^^^^^^^^
 624 |     return False
     |
@@ -234,7 +234,7 @@ W293 [*] Blank line contains whitespace
     |
 629 |     if exc.status_code != HTTP_STATUS_PAYMENT_REQUIRED:
 630 |         return None
-631 |         
+631 |
     | ^^^^^^^^
 632 |     message = ""
 633 |     body = getattr(exc, "body", None)
@@ -246,7 +246,7 @@ W293 [*] Blank line contains whitespace
     |
 636 |     if not message:
 637 |         message = str(exc)
-638 |         
+638 |
     | ^^^^^^^^
 639 |     match = re.search(r"can only afford (\d+)", message)
 640 |     if match:
