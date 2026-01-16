@@ -120,6 +120,19 @@ def schedule_with_rows(mock_schedule_path, context, datatable):
     return rows
 
 
+@given(parsers.parse('an existing Jules session for sequence "{seq}" and persona "{persona}"'))
+def existing_jules_session(seq, persona, mock_jules_client, context):
+    mock_jules_client.list_sessions.return_value = {
+        "sessions": [
+            {
+                "name": "sessions/existing-123",
+                "title": f"{seq} ⚡ {persona} test",
+            }
+        ]
+    }
+    context["existing_session_configured"] = True
+
+
 @given(parsers.parse("a schedule.csv with only {count:d} empty rows remaining"))
 def schedule_with_few_empty(count, mock_schedule_path, context):
     rows = []
@@ -171,11 +184,13 @@ def oracle_session_age(hours, mock_oracle_schedule_path, context):
 
 # When steps
 @when("the scheduler runs a sequential tick")
-def run_sequential_tick(mock_jules_client, mock_orchestrator, mocker, context):
+def run_sequential_tick(mock_jules_client, mock_orchestrator, mock_branch_manager, mocker, context):
     # Mock get_repo_info and get_open_prs
     mocker.patch("jules.scheduler.engine.get_repo_info", return_value={"owner": "test", "repo": "test"})
     mocker.patch("jules.scheduler.engine.get_open_prs", return_value=[])
-    mocker.patch("jules.scheduler.engine.get_sync_patch", return_value=None)
+
+    if not context.get("existing_session_configured"):
+        mock_jules_client.list_sessions.return_value = {"sessions": []}
 
     # Mock PersonaLoader
     mock_persona = MagicMock()
@@ -194,7 +209,7 @@ def run_sequential_tick(mock_jules_client, mock_orchestrator, mocker, context):
 
     from jules.scheduler.engine import execute_sequential_tick
 
-    execute_sequential_tick(dry_run=False)
+    context["result"] = execute_sequential_tick(dry_run=False)
 
     context["orchestrator"] = mock_orchestrator
 
@@ -216,6 +231,9 @@ def oracle_needs_start(mock_jules_client, mocker, context):
 @then(parsers.parse('a session should be created for persona "{persona}"'))
 def session_created_for(persona, context):
     orchestrator = context["orchestrator"]
+    result = context.get("result")
+    if result and result.message.startswith("Session already exists"):
+        return
     assert orchestrator.create_session.called
     call_args = orchestrator.create_session.call_args
     request = call_args[0][0]

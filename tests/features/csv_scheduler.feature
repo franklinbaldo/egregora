@@ -33,6 +33,16 @@ Feature: CSV-Based Persona Scheduling
     Then a session should be created for persona "artisan"
     And the schedule.csv should be updated with the session_id for sequence "002"
 
+  Scenario: Scheduler reuses an existing session for the current sequence
+    Given a schedule.csv with the following rows:
+      | sequence | persona     | session_id | pr_number | pr_status | base_commit |
+      | 001      | absolutist  |            |           |           |             |
+      | 002      | artisan     |            |           |           |             |
+    And an existing Jules session for sequence "001" and persona "absolutist"
+    When the scheduler runs a sequential tick
+    Then no new session should be created
+    And the schedule.csv should be updated with the session_id for sequence "001"
+
   Scenario: Scheduler auto-extends when running low
     Given a schedule.csv with only 5 empty rows remaining
     When the scheduler runs a sequential tick
