@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 import os
 
-from google import genai
+import google.generativeai as genai
 from google.api_core import exceptions as google_exceptions
 from pydantic import BaseModel, Field
 from tenacity import Retrying
@@ -71,7 +71,7 @@ def _build_image_prompt(input_data: BannerInput) -> str:
 
 
 def _generate_banner_image(
-    client: genai.Client,
+    client: genai.GenerativeModel,
     input_data: BannerInput,
     image_model: str,
     generation_request: ImageGenerationRequest,
@@ -143,10 +143,10 @@ def generate_banner(
             error_code="NOT_CONFIGURED",
         )
     # Client reads GOOGLE_API_KEY from environment automatically
-    client = genai.Client()
+    config = EgregoraConfig()
+    client = genai.GenerativeModel(config.models.banner)
 
     # Load configuration
-    config = EgregoraConfig()
     image_model = config.models.banner
 
     input_data = BannerInput(
