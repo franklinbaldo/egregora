@@ -25,9 +25,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
+import google.generativeai as genai
 import ibis
 import ibis.common.exceptions
-import google.generativeai as genai
 from rich.console import Console
 from rich.panel import Panel
 
