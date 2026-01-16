@@ -197,10 +197,7 @@ def _prepare_time_windows(
     effective_step_unit = step_unit
 
     if max_window_time:
-        if step_unit == "hours":
-            requested_delta = timedelta(hours=step_size)
-        else:
-            requested_delta = timedelta(days=step_size)
+        requested_delta = timedelta(hours=step_size) if step_unit == "hours" else timedelta(days=step_size)
 
         if requested_delta > max_window_time:
             max_with_overlap = max_window_time / (1 + overlap_ratio)
@@ -560,7 +557,8 @@ def generate_window_signature(
         xml_content = build_conversation_xml(window_table.to_pyarrow(), None)
         data_hash = hashlib.sha256(xml_content.encode()).hexdigest()
     else:
-        raise ValueError("Either xml_content or window_table must be provided")
+        msg = "Either xml_content or window_table must be provided"
+        raise ValueError(msg)
 
     # 2. Logic Hash
     # Combine template and user instructions

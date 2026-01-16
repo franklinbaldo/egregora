@@ -726,7 +726,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         """
         if not hasattr(self, "_site_root") or self._site_root is None:
-            raise AdapterNotInitializedError("MkDocsOutputAdapter not initialized - call initialize() first")
+            msg = "MkDocsOutputAdapter not initialized - call initialize() first"
+            raise AdapterNotInitializedError(msg)
 
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()
@@ -882,10 +883,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _url_to_path(self, url: str, document: Document) -> Path:
         base = self._ctx.base_url.rstrip("/")
-        if url.startswith(base):
-            url_path = url[len(base) :]
-        else:
-            url_path = url
+        url_path = url.removeprefix(base)
 
         url_path = url_path.strip("/")
 
@@ -1158,7 +1156,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _get_document_id_at_path(self, path: Path) -> str:
         if not path.exists():
-            raise DocumentNotFoundError("Unknown", str(path))
+            msg = "Unknown"
+            raise DocumentNotFoundError(msg, str(path))
 
         try:
             raw_content = path.read_text(encoding="utf-8")

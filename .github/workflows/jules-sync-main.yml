@@ -14,6 +14,9 @@ permissions:
   contents: write
   pull-requests: write
 
+env:
+  PYTHON_VERSION: "3.12"
+
 jobs:
   sync:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
@@ -27,13 +30,12 @@ jobs:
       - name: Setup Python (uv)
         uses: ./.github/actions/setup-python-uv
         with:
-          python-version: "3.12"
-          extras: "--all-extras"
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--extra jules"
 
       - name: Merge jules → main if clean
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONPATH: .jules
         run: |
           set -euo pipefail

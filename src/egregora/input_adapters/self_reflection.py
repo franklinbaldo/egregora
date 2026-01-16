@@ -218,10 +218,7 @@ class SelfInputAdapter(InputAdapter):
         ts = parse_datetime_flexible(value, default_timezone=target_timezone)
 
         if ts is None:
-            if path:
-                ts = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
-            else:
-                ts = datetime.now(UTC)
+            ts = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC) if path else datetime.now(UTC)
 
         return ts.astimezone(UTC)
 

@@ -231,20 +231,13 @@ class IperonTJROAdapter(InputAdapter):
         for value in candidates:
             if not value:
                 continue
-            if isinstance(value, datetime):
-                ts = value
-            else:
-                ts = self._parse_date_string(str(value))
+            ts = value if isinstance(value, datetime) else self._parse_date_string(str(value))
             if ts:
                 break
         else:
             ts = datetime.now(tz=UTC)
 
-        if tz_name:
-            ts = self._apply_timezone(ts, tz_name)
-        else:
-            ts = ts.astimezone(UTC)
-        return ts
+        return self._apply_timezone(ts, tz_name) if tz_name else ts.astimezone(UTC)
 
     def _apply_timezone(self, ts: datetime, tz_name: str) -> datetime:
         # Import moved to top-level/global scope is better but if optional...

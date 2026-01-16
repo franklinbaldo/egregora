@@ -903,12 +903,14 @@ def _normalize_sites_config(file_data: dict[str, Any], site: str | None = None) 
     if "sites" in file_data:
         sites_data = file_data["sites"]
         if not isinstance(sites_data, dict):
-            raise ValueError("Configuration section 'sites' must be a table mapping site names to configs.")
+            msg = "Configuration section 'sites' must be a table mapping site names to configs."
+            raise ValueError(msg)
     else:
         sites_data = {DEFAULT_SITE_NAME: file_data}
 
     if not sites_data:
-        raise ValueError("Configuration must define at least one site under [sites].")
+        msg = "Configuration must define at least one site under [sites]."
+        raise ValueError(msg)
 
     selected_site = site or (DEFAULT_SITE_NAME if DEFAULT_SITE_NAME in sites_data else next(iter(sites_data)))
     if selected_site not in sites_data:
@@ -1240,7 +1242,8 @@ def get_google_api_key() -> str:
     """Get Google API key from environment, checking both GEMINI and GOOGLE variables."""
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
-        raise ApiKeyNotFoundError("GEMINI_API_KEY or GOOGLE_API_KEY")
+        msg = "GEMINI_API_KEY or GOOGLE_API_KEY"
+        raise ApiKeyNotFoundError(msg)
     return api_key
 
 
@@ -1266,7 +1269,8 @@ def get_openrouter_api_key() -> str:
     """Get OpenRouter API key from environment."""
     keys = get_openrouter_api_keys()
     if not keys:
-        raise ApiKeyNotFoundError("OPENROUTER_API_KEY or OPENROUTER_API_KEYS")
+        msg = "OPENROUTER_API_KEY or OPENROUTER_API_KEYS"
+        raise ApiKeyNotFoundError(msg)
     return keys[0]
 
 

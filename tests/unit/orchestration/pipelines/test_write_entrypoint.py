@@ -98,7 +98,8 @@ def test_run_cli_flow_invalid_source_key_exits(
     except SystemExit:
         pass
     else:
-        raise AssertionError("run_cli_flow should exit when an unknown source key is provided")
+        msg = "run_cli_flow should exit when an unknown source key is provided"
+        raise AssertionError(msg)
 
     mock_run.assert_not_called()
 

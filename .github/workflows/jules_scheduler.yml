@@ -50,6 +50,9 @@ jobs:
         with:
           enable-cache: true  # Cache dependencies for faster runs
 
+      - name: Install Jules dependencies
+        run: uv sync --extra jules
+
       - name: Run Jules Scheduler
         if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
         env:
@@ -82,7 +85,6 @@ jobs:
         if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.prompt_id == '')
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONPATH: .jules
         run: |

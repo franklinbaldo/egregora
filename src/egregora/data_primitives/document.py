@@ -169,10 +169,7 @@ class Document:
                 return cleaned_slug
 
         # 3. Fallback: Content-addressed UUIDv5
-        if isinstance(self.content, bytes):
-            payload = self.content
-        else:
-            payload = self.content.encode("utf-8")
+        payload = self.content if isinstance(self.content, bytes) else self.content.encode("utf-8")
         content_hash = hashlib.sha256(payload).hexdigest()
         return str(uuid5(NAMESPACE_DOCUMENT, content_hash))
 

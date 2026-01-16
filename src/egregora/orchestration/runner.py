@@ -199,7 +199,7 @@ class PipelineRunner:
                 if j_start and j_end:
                     processed.add((str(j_start), str(j_end)))
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("Failed to fetch processed journals: %s", e)
 
         return processed
@@ -279,7 +279,8 @@ class PipelineRunner:
         # === Journal Check: Skip if already processed ===
         output_sink = self.context.output_sink
         if output_sink is None:
-            raise OutputSinkError("Output sink must be initialized before processing windows.")
+            msg = "Output sink must be initialized before processing windows."
+            raise OutputSinkError(msg)
 
         template_content = PromptManager.get_template_content("writer.jinja", site_dir=self.context.site_root)
         signature = generate_window_signature(
@@ -448,7 +449,7 @@ class PipelineRunner:
             )
             output_sink.persist(journal)
             logger.debug("Persisted JOURNAL for window: %s", window_label)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # Non-fatal: Log warning but don't fail the pipeline
             logger.warning("Failed to persist JOURNAL for window %s: %s", window_label, e)
 
@@ -554,6 +555,7 @@ class PipelineRunner:
         split_windows = split_window_into_n_parts(window, num_splits)
 
         if not split_windows:
-            raise RuntimeError("Cannot split window - all splits would be empty") from error
+            msg = "Cannot split window - all splits would be empty"
+            raise RuntimeError(msg) from error
 
         return [(split_window, depth + 1) for split_window in split_windows]

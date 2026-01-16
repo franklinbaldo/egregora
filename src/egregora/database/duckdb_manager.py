@@ -344,7 +344,8 @@ class DuckDBStorageManager:
 
         """
         if not by_keys:
-            raise InvalidOperationError("replace_rows requires at least one key for deletion safety")
+            msg = "replace_rows requires at least one key for deletion safety"
+            raise InvalidOperationError(msg)
 
         quoted_table = quote_identifier(table)
 
@@ -356,7 +357,7 @@ class DuckDBStorageManager:
             params.append(val)
 
         where_clause = " AND ".join(conditions)
-        sql = f"DELETE FROM {quoted_table} WHERE {where_clause}"  # nosec B608
+        sql = f"DELETE FROM {quoted_table} WHERE {where_clause}"
 
         self.execute_sql(sql, params)
         self.ibis_conn.insert(table, rows)
@@ -433,7 +434,7 @@ class DuckDBStorageManager:
                 path_str = str(parquet_path)
 
                 if mode == "replace":
-                    sql = f"CREATE OR REPLACE TABLE {quoted_name} AS SELECT * FROM read_parquet(?)"  # nosec B608
+                    sql = f"CREATE OR REPLACE TABLE {quoted_name} AS SELECT * FROM read_parquet(?)"
                     params = [path_str]
                 else:
                     # Append mode: ensure table exists (idempotent) then insert
@@ -441,9 +442,9 @@ class DuckDBStorageManager:
                     # CREATE TABLE IF NOT EXISTS ... AS SELECT * FROM ... WHERE 1=0;
                     # INSERT INTO ...
                     sql_create = (
-                        f"CREATE TABLE IF NOT EXISTS {quoted_name} AS SELECT * FROM read_parquet(?) WHERE 1=0"  # nosec B608
+                        f"CREATE TABLE IF NOT EXISTS {quoted_name} AS SELECT * FROM read_parquet(?) WHERE 1=0"
                     )
-                    sql_insert = f"INSERT INTO {quoted_name} SELECT * FROM read_parquet(?)"  # nosec B608
+                    sql_insert = f"INSERT INTO {quoted_name} SELECT * FROM read_parquet(?)"
                     self._conn.execute(sql_create, [path_str])
                     sql = sql_insert
                     params = [path_str]
@@ -460,7 +461,8 @@ class DuckDBStorageManager:
                 self._conn.register(name, dataframe)
                 logger.info("Table '%s' written without checkpoint (%s)", name, mode)
         else:
-            raise InvalidOperationError("Append mode requires checkpoint=True")
+            msg = "Append mode requires checkpoint=True"
+            raise InvalidOperationError(msg)
 
     def persist_atomic(self, table: Table, name: str, schema: ibis.Schema | None = None) -> None:
         """Persist an Ibis table to a DuckDB table atomically using a transaction.
@@ -478,7 +480,8 @@ class DuckDBStorageManager:
             raise InvalidTableNameError(name)
 
         if schema is None:
-            raise InvalidOperationError("Schema must be provided for persist_atomic")
+            msg = "Schema must be provided for persist_atomic"
+            raise InvalidOperationError(msg)
 
         target_schema = schema
         schemas.create_table_if_not_exists(self._conn, name, target_schema)
@@ -498,7 +501,7 @@ class DuckDBStorageManager:
             SELECT {quoted_columns}
             FROM {quoted_view};
             COMMIT;
-            """  # nosec B608
+            """
             self._conn.execute(sql)
         finally:
             with contextlib.suppress(Exception):
@@ -602,7 +605,7 @@ class DuckDBStorageManager:
 
         quoted_table = quote_identifier(table)
         quoted_column = quote_identifier(column)
-        max_row = self._conn.execute(f"SELECT MAX({quoted_column}) FROM {quoted_table}").fetchone()  # nosec B608
+        max_row = self._conn.execute(f"SELECT MAX({quoted_column}) FROM {quoted_table}").fetchone()
         if not max_row or max_row[0] is None:
             return
 
@@ -631,7 +634,8 @@ class DuckDBStorageManager:
         errors. Instead, we let DuckDB handle nextval() in auto-commit mode.
         """
         if count <= 0:
-            raise InvalidOperationError("count must be positive")
+            msg = "count must be positive"
+            raise InvalidOperationError(msg)
 
         with self._lock:
             # Fetch sequence values one at a time to avoid DuckDB internal errors
@@ -786,7 +790,7 @@ class DuckDBStorageManager:
         if not self.table_exists(table_name):
             return 0
         quoted = quote_identifier(table_name)
-        row = self._conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()  # nosec B608
+        row = self._conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()
         return int(row[0]) if row and row[0] is not None else 0
 
 

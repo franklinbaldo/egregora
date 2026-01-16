@@ -16,6 +16,9 @@ permissions:
   pull-requests: write  # Changed from 'read' to allow posting comments
   contents: read
 
+env:
+  PYTHON_VERSION: "3.12"
+
 jobs:
   auto-fix:
     runs-on: ubuntu-latest
@@ -28,8 +31,8 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
         with:
-          python-version: "3.12"
-          extras: "--all-extras"
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--extra jules"
 
       - name: Identify PR
         id: pr-info
@@ -130,8 +133,7 @@ jobs:
       - name: Trigger Jules Auto-Fix
         if: steps.pr-info.outputs.has_pr == 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # For gh CLI to post comments
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           PYTHONPATH: .jules
         run: |

@@ -265,8 +265,9 @@ class GoogleBatchModel(Model):
             raise BatchJobTimeoutError(msg, job_name=job_name) from e
 
         if job.state.name != "SUCCEEDED":
+            msg = "Batch job failed"
             raise BatchJobFailedError(
-                "Batch job failed",
+                msg,
                 job_name=job_name,
                 error_payload=job.error,
             )

@@ -187,7 +187,8 @@ def test_next_sequence_handles_invalidation(tmp_path):
             if "nextval" in sql.lower():
                 self.calls += 1
                 if self.calls == 1:
-                    raise duckdb.Error("database has been invalidated")
+                    msg = "database has been invalidated"
+                    raise duckdb.Error(msg)
             return self.conn.execute(sql, params)
 
         def __getattr__(self, name):

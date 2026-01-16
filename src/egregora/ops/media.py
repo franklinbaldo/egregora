@@ -93,7 +93,7 @@ def detect_media_type(
     """Detect media type from file extension."""
     # Optimization: os.path.splitext is significantly faster than Path.suffix for strings
     if isinstance(file_path, str):
-        _, ext = os.path.splitext(file_path)  # noqa: PTH122
+        _, ext = os.path.splitext(file_path)
     else:
         ext = file_path.suffix
     return MEDIA_EXTENSIONS.get(ext.lower())
@@ -353,22 +353,19 @@ def process_media_for_window(
 def _prepare_media_document(document: Document, media_ref: str) -> MediaAsset:
     """Return a MediaAsset with deterministic naming and metadata."""
     raw_content = document.content
-    if isinstance(raw_content, bytes):
-        payload = raw_content
-    else:
-        payload = str(raw_content).encode("utf-8")
+    payload = raw_content if isinstance(raw_content, bytes) else str(raw_content).encode("utf-8")
 
     metadata = document.metadata.copy()
     original_filename = metadata.get("original_filename") or media_ref
     extension_source = metadata.get("filename") or media_ref
 
     # Optimization: os.path.splitext is ~5x faster than Path.suffix
-    _, extension = os.path.splitext(extension_source)  # noqa: PTH122
+    _, extension = os.path.splitext(extension_source)
 
     media_type = metadata.get("media_type") or detect_media_type(extension_source)
 
     # media_ref is guaranteed to be a string here
-    _, ref_suffix = os.path.splitext(media_ref)  # noqa: PTH122
+    _, ref_suffix = os.path.splitext(media_ref)
     media_subdir = get_media_subfolder(extension or ref_suffix)
 
     filename = metadata.get("filename")

@@ -64,7 +64,7 @@ class RagChunkModel(LanceModel):
     chunk_id: str
     document_id: str
     text: str
-    vector: Vector(EMBEDDING_DIM)  # type: ignore[valid-type]
+    vector: Vector(EMBEDDING_DIM)
     metadata_json: str  # JSON-serialized metadata for flexibility
 
 
@@ -120,7 +120,7 @@ class LanceDBRAGBackend(VectorStore):
         # Create or open table using Pydantic schema
         # Use exist_ok=True to handle race conditions in parallel test execution
         try:
-            if table_name not in self._db.table_names():
+            if table_name not in self._db.list_tables():
                 logger.info("Creating new LanceDB table: %s", table_name)
                 # Use Pydantic schema for type-safe table creation
                 self._table = self._db.create_table(
@@ -132,7 +132,7 @@ class LanceDBRAGBackend(VectorStore):
             else:
                 logger.info("Opening existing LanceDB table: %s", table_name)
                 self._table = self._db.open_table(table_name)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # If table creation fails (e.g., race condition), try to open existing table
             logger.warning("Table creation failed, attempting to open existing table: %s", e)
             try:

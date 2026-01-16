@@ -147,7 +147,8 @@ def _parse_message_date(token: str) -> date:
     """
     normalized = token.strip()
     if not normalized:
-        raise DateParsingError("Date string is empty.")
+        msg = "Date string is empty."
+        raise DateParsingError(msg)
 
     for fmt in _DATE_FORMATS:
         try:
@@ -194,7 +195,8 @@ def _parse_message_time(time_token: str) -> time:
     """Parse time token into a time object (naive, for later localization)."""
     token = time_token.strip()
     if not token:
-        raise TimeParsingError("Time string is empty.")
+        msg = "Time string is empty."
+        raise TimeParsingError(msg)
 
     # 1. Fast path for standard HH:MM
     if _is_standard_hh_mm(token):

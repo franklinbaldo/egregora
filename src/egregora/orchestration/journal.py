@@ -39,7 +39,7 @@ def window_already_processed(output_sink: OutputSink, signature: str) -> bool:
                 logger.debug("Found existing JOURNAL for signature: %s", signature[:12])
                 return True
         return False
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("Error checking for existing JOURNAL: %s. Assuming not processed.", e)
         return False
 

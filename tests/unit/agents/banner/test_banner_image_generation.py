@@ -97,7 +97,8 @@ def test_generate_banner_image_handles_api_error(monkeypatch):
             pass
 
         def generate(self, request: ImageGenerationRequest) -> ImageGenerationResult:
-            raise google_exceptions.ResourceExhausted("Rate limit exceeded")
+            msg = "Rate limit exceeded"
+            raise google_exceptions.ResourceExhausted(msg)
 
     monkeypatch.setattr(agent, "GeminiImageGenerationProvider", FailingProvider)
 
@@ -124,7 +125,8 @@ def test_generate_banner_reraises_unexpected_errors(monkeypatch):
 
     # 1. Arrange
     def mock_generate_banner_image(*args, **kwargs):
-        raise ValueError("Something went wrong")
+        msg = "Something went wrong"
+        raise ValueError(msg)
 
     monkeypatch.setenv("EGREGORA_SKIP_API_KEY_VALIDATION", "1")
     monkeypatch.setattr(agent, "_generate_banner_image", mock_generate_banner_image)
@@ -160,7 +162,8 @@ def test_generate_banner_image_reraises_unexpected_errors(monkeypatch):
 
         def generate(self, request: ImageGenerationRequest) -> ImageGenerationResult:
             # This simulates a bug inside the provider, not a remote API error
-            raise TypeError("A bug in the provider")
+            msg = "A bug in the provider"
+            raise TypeError(msg)
 
     monkeypatch.setattr(agent, "GeminiImageGenerationProvider", FailingProvider)
 

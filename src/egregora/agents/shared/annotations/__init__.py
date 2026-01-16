@@ -193,7 +193,7 @@ class AnnotationStore:
 
     def __init__(
         self,
-        storage: StorageProtocol & SequenceStorageProtocol,  # type: ignore[misc]
+        storage: StorageProtocol & SequenceStorageProtocol,
         output_sink: OutputSink | None = None,
     ) -> None:
         """Initialize annotation store.
@@ -300,7 +300,7 @@ class AnnotationStore:
         if self.output_sink:
             try:
                 self.output_sink.persist(annotation.to_document())
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.warning("Failed to persist annotation %s: %s", annotation.id, exc)
 
         return annotation
@@ -312,7 +312,7 @@ class AnnotationStore:
     def list_annotations_for_message(self, msg_id: str) -> list[Annotation]:
         """Return annotations for ``msg_id`` ordered by creation time."""
         records = self._fetch_records(
-            f"\n            SELECT id, parent_id, parent_type, author_id as author, content as commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at ASC, id ASC\n            ",  # nosec B608 - ANNOTATIONS_TABLE is module constant
+            f"\n            SELECT id, parent_id, parent_type, author_id as author, content as commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at ASC, id ASC\n            ",
             [msg_id],
         )
         return [self._row_to_annotation(row) for row in records]
@@ -322,7 +322,7 @@ class AnnotationStore:
         # Use protocol method instead of accessing protected member
         with self.storage.connection() as conn:
             cursor = conn.execute(
-                f"\n            SELECT id FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at DESC, id DESC\n            LIMIT 1\n            ",  # nosec B608 - ANNOTATIONS_TABLE is module constant
+                f"\n            SELECT id FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at DESC, id DESC\n            LIMIT 1\n            ",
                 [msg_id],
             )
             row = cursor.fetchone()
@@ -331,7 +331,7 @@ class AnnotationStore:
     def iter_all_annotations(self) -> Iterable[Annotation]:
         """Yield all annotations sorted by insertion order."""
         records = self._fetch_records(
-            f"\n            SELECT id, parent_id, parent_type, author_id as author, content as commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            ORDER BY created_at ASC, id ASC\n            "  # nosec B608 - ANNOTATIONS_TABLE is module constant
+            f"\n            SELECT id, parent_id, parent_type, author_id as author, content as commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            ORDER BY created_at ASC, id ASC\n            "
         )
         for row in records:
             yield self._row_to_annotation(row)

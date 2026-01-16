@@ -35,7 +35,8 @@ class TestEmbeddingError:
     def test_can_be_raised_and_caught(self):
         """EmbeddingError can be raised and caught."""
         with pytest.raises(EmbeddingError) as exc_info:
-            raise EmbeddingError("Embedding failed")
+            msg = "Embedding failed"
+            raise EmbeddingError(msg)
         assert "Embedding failed" in str(exc_info.value)
 
 
@@ -98,7 +99,8 @@ class TestEmbeddingValidationError:
     def test_can_be_caught_as_embedding_error(self):
         """Validation errors can be caught as EmbeddingError."""
         with pytest.raises(EmbeddingError):
-            raise EmbeddingValidationError("Invalid response format")
+            msg = "Invalid response format"
+            raise EmbeddingValidationError(msg)
 
 
 class TestRateLimitError:

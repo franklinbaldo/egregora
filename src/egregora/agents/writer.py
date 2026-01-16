@@ -415,7 +415,7 @@ def write_posts_with_pydantic_agent(
     result = None
 
     # Use tenacity for retries
-    def _run_agent_sync() -> Any:
+    def _run_agent_sync(loop: asyncio.AbstractEventLoop) -> Any:
         async def _run_async() -> Any:
             return await agent.run(
                 "Analyze the conversation context provided and write posts/profiles as needed.",
@@ -423,7 +423,6 @@ def write_posts_with_pydantic_agent(
                 usage_limits=usage_limits,
             )
 
-        loop = _get_writer_loop()
         if loop.is_running():
             msg = "Writer loop already running; cannot run synchronously."
             raise RuntimeError(msg)
@@ -433,14 +432,17 @@ def write_posts_with_pydantic_agent(
         finally:
             asyncio.set_event_loop(None)
 
+    loop = _get_writer_loop()
     try:
         for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
             with attempt:
                 # Execute model directly without tools
-                result = _run_agent_sync()
+                result = _run_agent_sync(loop)
     except Exception as e:
         logger.exception("Error during agent run: %s", e)
         raise
+    finally:
+        loop.close()
 
     if not result:
         msg = "Agent failed to return a result"
@@ -464,7 +466,8 @@ def write_posts_with_pydantic_agent(
             isinstance(part, ToolCallPart) for message in messages for part in getattr(message, "parts", [])
         )
         if not has_tool_calls:
-            raise AgentError("Writer response did not include any tool calls.")
+            msg = "Writer response did not include any tool calls."
+            raise AgentError(msg)
     intercalated_log = _extract_intercalated_log(messages)
     # TODO: [Taskmaster] Refactor complex journal fallback logic
     if not intercalated_log:
@@ -599,9 +602,47 @@ def _should_cycle(exc: Exception) -> bool:
     # Default to not cycling for unknown errors
     return False
 
+    def _should_cycle(exc: Exception) -> bool:
+        if isinstance(exc, AgentError) and "tool calls" in str(exc).lower():
+            return True
+        if isinstance(exc, UsageLimitExceeded):
+            return True
+        if isinstance(exc, ModelHTTPError):
+            if exc.status_code == HTTP_STATUS_TOO_MANY_REQUESTS:
+                return True
+            if exc.status_code == HTTP_STATUS_PAYMENT_REQUIRED:
+                return True
+            if exc.status_code in (HTTP_STATUS_BAD_REQUEST, HTTP_STATUS_NOT_FOUND):
+                msg = str(exc).lower()
+                if "not found" in msg or "not supported for generatecontent" in msg:
+                    return True
+                if "not a valid model id" in msg:
+                    return True
+                if (
+                    "response modalities" in msg
+                    or "accepts the following combination of response modalities" in msg
+                ):
+                    return True
+                if "function calling is not enabled" in msg:
+                    return True
+        if isinstance(exc, RuntimeError):
+            msg = str(exc).lower()
+            if "event loop is closed" in msg:
+                return True
+        return False
 
-def _get_openrouter_affordable_tokens(exc: ModelHTTPError) -> int | None:
-    if exc.status_code != HTTP_STATUS_PAYMENT_REQUIRED:
+    def _get_openrouter_affordable_tokens(exc: ModelHTTPError) -> int | None:
+        if exc.status_code != HTTP_STATUS_PAYMENT_REQUIRED:
+            return None
+        message = ""
+        body = getattr(exc, "body", None)
+        if isinstance(body, dict):
+            message = str(body.get("message", ""))
+        if not message:
+            message = str(exc)
+        match = re.search(r"can only afford (\d+)", message)
+        if match:
+            return int(match.group(1))
         return None
     message = str(getattr(exc, "body", {}).get("message", "") or exc)
     if match := re.search(r"can only afford (\d+)", message):

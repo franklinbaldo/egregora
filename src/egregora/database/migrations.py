@@ -39,8 +39,8 @@ def _build_insert_select_sql(temp_table: str, existing_columns: set[str]) -> str
         else:
             select_expressions.append(f'NULL AS "{name}"')
 
-    select_sql = f"SELECT {', '.join(select_expressions)} FROM documents"  # nosec B608
-    return f"INSERT INTO {temp_table} ({', '.join(column_names)}) {select_sql};"  # nosec B608
+    select_sql = f"SELECT {', '.join(select_expressions)} FROM documents"
+    return f"INSERT INTO {temp_table} ({', '.join(column_names)}) {select_sql};"
 
 
 def migrate_documents_table(conn: duckdb.DuckDBPyConnection) -> None:

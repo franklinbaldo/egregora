@@ -155,7 +155,8 @@ class TestResolveHostIps:
         """Non-existent hostnames should raise SSRFValidationError."""
 
         def mock_getaddrinfo(host, *_args, **_kwargs):
-            raise socket.gaierror("Name or service not known")
+            msg = "Name or service not known"
+            raise socket.gaierror(msg)
 
         monkeypatch.setattr(socket, "getaddrinfo", mock_getaddrinfo)
 

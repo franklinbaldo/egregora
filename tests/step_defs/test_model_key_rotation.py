@@ -52,7 +52,8 @@ def fail_first_8(context):
         context["call_log"].append((model, api_key))
 
         if context["call_count"] <= 8:
-            raise Exception("429 Too Many Requests")
+            msg = "429 Too Many Requests"
+            raise Exception(msg)
 
         return f"Success with {model} and {api_key}"
 
@@ -62,7 +63,8 @@ def fail_first_8(context):
 @given("all API calls fail")
 def fail_all(context):
     def mock_api_call(model: str, api_key: str) -> str:
-        raise RuntimeError("429 Too Many Requests")
+        msg = "429 Too Many Requests"
+        raise RuntimeError(msg)
 
     context["operation"] = mock_api_call
 

@@ -298,7 +298,7 @@ class OutputSinkRegistry:
         # However, abstract OutputAdapter cannot be instantiated.
         # We assume concrete implementations are registered.
         # To fix type error, we cast format_class to Callable[[], OutputAdapter] implicitly
-        instance = format_class()  # type: ignore[abstract]
+        instance = format_class()
         self._formats[instance.format_type] = format_class
 
     def get_format(self, format_type: str) -> BaseOutputSink:
@@ -308,12 +308,12 @@ class OutputSinkRegistry:
             msg = f"Output format '{format_type}' not found. Available: {available}"
             raise KeyError(msg)
         # Instantiate the class. Assumes no-arg constructor for initial creation.
-        return self._formats[format_type]()  # type: ignore[abstract]
+        return self._formats[format_type]()
 
     def detect_format(self, site_root: Path) -> BaseOutputSink | None:
         """Auto-detect the appropriate output format for a given site."""
         for format_class in self._formats.values():
-            instance = format_class()  # type: ignore[abstract]
+            instance = format_class()
             if instance.supports_site(site_root):
                 return instance
         raise AdapterNotDetectedError(str(site_root))

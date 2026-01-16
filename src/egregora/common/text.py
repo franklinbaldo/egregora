@@ -28,7 +28,8 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
 
     """
     if text is None:
-        raise InvalidInputError("Input text cannot be None")
+        msg = "Input text cannot be None"
+        raise InvalidInputError(msg)
 
     # Normalize Unicode to ASCII using NFKD (preserves transliteration).
     normalized = normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
