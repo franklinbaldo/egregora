@@ -82,7 +82,6 @@ jobs:
         if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.prompt_id == '')
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONPATH: .jules
         run: |
