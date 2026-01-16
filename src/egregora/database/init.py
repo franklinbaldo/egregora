@@ -17,10 +17,13 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from egregora.database.schemas import (
+    ANNOTATIONS_SCHEMA,
+    MEDIA_SCHEMA,
     STAGING_MESSAGES_SCHEMA,
     TASKS_SCHEMA,
     UNIFIED_SCHEMA,
     create_table_if_not_exists,
+    get_table_check_constraints,
 )
 
 if TYPE_CHECKING:
@@ -53,10 +56,23 @@ def initialize_database(backend: BaseBackend) -> None:
     create_table_if_not_exists(conn, "documents", UNIFIED_SCHEMA)
 
     # 2. Tasks Table
-    create_table_if_not_exists(conn, "tasks", TASKS_SCHEMA)
+    create_table_if_not_exists(
+        conn, "tasks", TASKS_SCHEMA, check_constraints=get_table_check_constraints("tasks")
+    )
 
     # 3. Ingestion Staging Table (Ingestion Buffer)
     create_table_if_not_exists(conn, "messages", STAGING_MESSAGES_SCHEMA)
+
+    # 4. Media and Annotations Tables
+    create_table_if_not_exists(
+        conn, "media", MEDIA_SCHEMA, check_constraints=get_table_check_constraints("media")
+    )
+    create_table_if_not_exists(
+        conn,
+        "annotations",
+        ANNOTATIONS_SCHEMA,
+        check_constraints=get_table_check_constraints("annotations"),
+    )
 
     # Indexes for messages table (Ingestion performance)
     _execute_sql(conn, "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_pk ON messages(event_id)")
