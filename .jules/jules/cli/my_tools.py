@@ -9,6 +9,7 @@ Bundles all persona utilities:
 import typer
 from typing import List, Optional
 from jules.features.session import SessionManager
+from jules.features.voting import VoteManager
 from jules.cli.mail import app as mail_app
 from jules.cli.roster import app as roster_app
 
@@ -31,6 +32,9 @@ HELP_TEXT = """
 ║  👥 TEAM                                                         ║
 ║    roster list   See all personas in the team                    ║
 ║    roster view   Get details about a specific persona            ║
+║                                                                  ║
+║  ⚖️ VOTING                                                        ║
+║    vote          Influence the project schedule sequence         ║
 ║                                                                  ║
 ║  QUICK START:                                                    ║
 ║    1. my-tools login -u curator -p <token> -g "Fix CI"           ║
@@ -66,6 +70,7 @@ app.add_typer(
 )
 
 session_manager = SessionManager()
+vote_manager = VoteManager()
 
 @app.command()
 def login(
@@ -137,6 +142,47 @@ def loop_break(
     try:
         session_manager.loop_break(reason)
         print("🛑 Session STOPPED. Context captured in loop_break_context.json.")
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise typer.Exit(code=1)
+
+@app.command()
+def vote(
+    sequence: str = typer.Option(..., "--sequence", "-s", help="The sequence ID you want to influence (e.g. 025)"),
+    persona: str = typer.Option(..., "--persona", "-p", help="The persona ID you want to vote for"),
+    password: str = typer.Option(..., "--password", help="Identity verification (same as login)")
+):
+    """
+    ⚖️ Vote to influence the project schedule.
+    
+    Cast a democratic vote to decide which persona should occupy a future sequence.
+    Only sequences that haven't started yet can be voted on.
+    
+    Example:
+        my-tools vote --sequence 025 --persona simplifier --password <token>
+    """
+    try:
+        voter = session_manager.get_active_persona()
+        if not voter:
+            print("❌ No active session. Please login first.")
+            raise typer.Exit(code=1)
+            
+        if not session_manager.validate_password(voter, password):
+            print("❌ Auth failed: Invalid password.")
+            raise typer.Exit(code=1)
+            
+        vote_manager.cast_vote(sequence, voter, persona)
+        print(f"✅ Vote cast: {voter} voted for {persona} for sequence {sequence}")
+        
+        # Optionally apply votes immediately if we want real-time updates
+        # For now, we'll let the scheduler or a separate process handle tallying
+        # winner = vote_manager.apply_votes(sequence)
+        # if winner:
+        #     print(f"🏆 Sequence {sequence} updated to {winner} based on consensus.")
+            
+    except ValueError as e:
+        print(f"❌ Vote failed: {e}")
+        raise typer.Exit(code=1)
     except Exception as e:
         print(f"❌ Error: {e}")
         raise typer.Exit(code=1)

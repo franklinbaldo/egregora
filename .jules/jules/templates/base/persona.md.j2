@@ -35,6 +35,10 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {% include "blocks/communication.md.j2" %}
 {% endblock %}
 
+{% block voting %}
+{% include "blocks/voting.md.j2" %}
+{% endblock %}
+
 ## ⚠️ Constraints
 {% block constraints %}
 {# Rules, limitations, boundaries #}
