@@ -10,6 +10,7 @@ This document outlines the user experience and user interface (UX/UI) vision for
 4.  **Privacy-First by Default:** The user's privacy is paramount. Features that could compromise privacy (like analytics) must be opt-in, never on by default.
 5.  **Measurable Quality:** All UX decisions should be backed by data where possible. We will use tools like Lighthouse to measure and track our progress on accessibility, performance, and SEO.
 6.  **Accessible to All:** The final site must be usable by everyone, regardless of their abilities. We will adhere to WCAG AA standards as a minimum baseline.
+7.  **Graceful Degradation:** The site generation process must be resilient. If external dependencies like AI content generation fail, the process should still complete successfully, scaffolding a buildable "empty state" of the site. This allows for inspection and development of the core UX even when content is unavailable.
 
 ## Technical & Architectural Discoveries
 
@@ -26,16 +27,21 @@ The key locations for these embedded templates are:
 -   `src/egregora/output_adapters/mkdocs/adapter.py`: Generates the individual Markdown pages for posts, profiles, etc.
 -   `src/egregora/output_adapters/mkdocs/site_generator.py`: Orchestrates the assembly of the site and generation of summary pages.
 
+### Developer Experience
+-   **Status:** Broken.
+-   **Issue:** The `egregora demo` and `mkdocs build` commands fail due to numerous missing dependencies in `pyproject.toml`. This makes the project unusable in a clean environment.
+-   **Next Action:** A comprehensive task, `20260116-1400-ux-implement-portal-vision.md`, has been created for the `forge` persona to add all required dependencies to `pyproject.toml`.
+
 ## Design System (V1 - "The Portal")
 
 This section defines the "Portal" design system, which aims to create a dark, immersive, and premium experience.
 
 ### Color Palette
--   **Status:** Inconsistent.
+-   **Status:** Broken.
 -   **Primary:** A deep, thoughtful blue (`#2c3e50`) defined in `extra.css`.
 -   **Accent:** A vibrant, energetic yellow (`#f9d423`) defined in `extra.css`.
--   **Conflict:** The `mkdocs.yml` is configured with the default `teal` and `amber` colors.
--   **Next Action:** Create a task for Forge to update the `mkdocs.yml` theme palette to `custom` to ensure the colors in `extra.css` are correctly applied.
+-   **Conflict:** The generated `mkdocs.yml` incorrectly hardcodes `accent: yellow`, which overrides the custom accent color in `extra.css` and breaks the "Portal" theme.
+-   **Next Action:** The task `20260116-1400-ux-implement-portal-vision.md` instructs the `forge` persona to modify the `mkdocs.yml` template to use `accent: custom`.
 
 ### Typography
 -   **Status:** Defined.
@@ -44,12 +50,13 @@ This section defines the "Portal" design system, which aims to create a dark, im
 
 ### Favicon
 -   **Status:** Missing.
--   **Next Action:** Create a task to design and add a favicon to the site.
+-   **Issue:** The site is missing a favicon, which is referenced in the generated `mkdocs.yml` but not included in the scaffolded files.
+-   **Next Action:** The task `20260116-1400-ux-implement-portal-vision.md` instructs the `forge` persona to add a placeholder favicon and ensure it's copied during the scaffolding process.
 
 ### Social Cards
 -   **Status:** Broken.
--   **Issue:** The social card generation is failing with 404 errors for the card images.
--   **Next Action:** Create a high-priority task for Forge to investigate and fix the root cause of the 404 errors.
+-   **Issue:** The social card generation fails with 404 errors during the `mkdocs build` process.
+-   **Next Action:** The task `20260116-1400-ux-implement-portal-vision.md` instructs the `forge` persona to fix the social card generation.
 
 ### Navigation
 -   **Status:** Implemented, but needs review.
@@ -57,6 +64,6 @@ This section defines the "Portal" design system, which aims to create a dark, im
 -   **Next Action:** Review the information architecture and create a task to restructure the navigation for better clarity and consistency.
 
 ### Analytics
--   **Status:** Broken placeholder.
--   **Issue:** The `mkdocs.yml` contains a placeholder for a Google Analytics key (`__GOOGLE_ANALYTICS_KEY__`).
--   **Next Action:** Create a task to remove the analytics configuration entirely, in line with our "Privacy-First" principle. It can be re-added later as an explicit, opt-in feature if desired.
+-   **Status:** Removed.
+-   **Issue:** Previous versions of the generator included a placeholder for a Google Analytics key. As of the latest inspection, this has been removed from the default `mkdocs.yml` template.
+-   **Next Action:** None. This issue is resolved and aligns with our "Privacy-First" principle.

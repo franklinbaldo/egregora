@@ -25,9 +25,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
+import google.generativeai as genai
 import ibis
 import ibis.common.exceptions
-from google import genai
 from rich.console import Console
 from rich.panel import Panel
 
@@ -127,7 +127,7 @@ class WhatsAppProcessOptions:
     batch_threshold: int = 10
     max_prompt_tokens: int = 100_000
     use_full_context_window: bool = False
-    client: genai.Client | None = None
+    client: genai.GenerativeModel | None = None
     refresh: str | None = None
 
 
@@ -875,26 +875,16 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> Mk
     return MkDocsPaths(output_dir, config=config)
 
 
-def _create_gemini_client() -> genai.Client:
-    # TODO: [Taskmaster] Refactor hardcoded retry logic to be configurable
-    """Create a Gemini client with retry configuration.
-
-    The client reads the API key from GOOGLE_API_KEY environment variable automatically.
-
-    We disable retries for 429 (Resource Exhausted) to allow our application-level
-    Model/Key rotator to handle it immediately (Story 8).
-    We retry all common 5xx server errors (500, 502, 503, 504) with increased attempts.
-    """
-    http_options = genai.types.HttpOptions(
-        retry_options=genai.types.HttpRetryOptions(
-            attempts=5,  # Increased from 3 to 5 for better resilience
-            initial_delay=2.0,  # Increased from 1.0 to wait longer on first retry
-            max_delay=30.0,  # Increased from 10.0 to allow longer backoff
-            exp_base=2.0,
-            http_status_codes=[500, 502, 503, 504],  # All common 5xx server errors
-        )
-    )
-    return genai.Client(http_options=http_options)
+def _create_gemini_client(model_name: str) -> genai.GenerativeModel:
+    """Create a Gemini client with retry configuration."""
+    # Safety settings to avoid blocking content.
+    safety_settings = [
+        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+    ]
+    return genai.GenerativeModel(model_name, safety_settings=safety_settings)
 
 
 def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineContext, Any]:
@@ -911,7 +901,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
     initialize_database(pipeline_backend)
 
-    client_instance = run_params.client or _create_gemini_client()
+    client_instance = run_params.client or _create_gemini_client(run_params.config.models.writer)
     cache_path = Path(run_params.config.paths.cache_dir)
     cache_dir = cache_path if cache_path.is_absolute() else site_paths.site_root / cache_path
     cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)

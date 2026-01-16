@@ -231,6 +231,13 @@ class MkDocsSiteScaffolder:
         if carousel_js_src.exists() and not carousel_js_dest.exists():
             shutil.copy(carousel_js_src, carousel_js_dest)
 
+        assets_dir = docs_dir / "assets"
+        assets_dir.mkdir(parents=True, exist_ok=True)
+        assets_src = Path(env.loader.searchpath[0]) / "assets"
+        assets_dest = assets_dir
+        if assets_src.exists() and not assets_dest.exists():
+            shutil.copytree(assets_src, assets_dest)
+
         for target_path, template_name in templates_to_render:
             if not target_path.exists():
                 target_path.parent.mkdir(parents=True, exist_ok=True)
