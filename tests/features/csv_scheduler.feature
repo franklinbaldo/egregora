@@ -24,13 +24,14 @@ Feature: CSV-Based Persona Scheduling
     Then a session should be created for persona "artisan"
     And the schedule.csv should be updated with the session_id for sequence "002"
 
-  Scenario: Scheduler waits for active PR
+  Scenario: Scheduler advances past active PRs
     Given a schedule.csv with the following rows:
       | sequence | persona     | session_id | pr_number | pr_status |
       | 001      | absolutist  | 123456     | 100       | draft     |
+      | 002      | artisan     |            |           |           |
     When the scheduler runs a sequential tick
-    Then no new session should be created
-    And the scheduler should report waiting for PR
+    Then a session should be created for persona "artisan"
+    And the schedule.csv should be updated with the session_id for sequence "002"
 
   Scenario: Scheduler auto-extends when running low
     Given a schedule.csv with only 5 empty rows remaining
