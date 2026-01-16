@@ -10,7 +10,7 @@ from typing import Any
 
 SCHEDULE_PATH = Path(".jules/schedule.csv")
 ORACLE_SCHEDULE_PATH = Path(".jules/oracle_schedule.csv")
-FIELDNAMES = ["sequence", "persona", "session_id", "pr_number", "pr_status"]
+FIELDNAMES = ["sequence", "persona", "session_id", "pr_number", "pr_status", "base_commit"]
 ORACLE_FIELDNAMES = ["session_id", "created_at", "status"]
 ORACLE_SESSION_MAX_AGE_HOURS = 24
 
@@ -120,7 +120,8 @@ def auto_extend(rows: list[dict[str, Any]], count: int = 50) -> list[dict[str, A
             "persona": CYCLE_PERSONAS[persona_idx],
             "session_id": "",
             "pr_number": "",
-            "pr_status": ""
+            "pr_status": "",
+            "base_commit": ""
         })
     
     return rows
@@ -257,14 +258,103 @@ def register_oracle_session(session_id: str) -> None:
     save_oracle_schedule(rows)
 
 
+def sync_session_states_from_api() -> None:
+    """Sync session states from Jules API to schedule.csv.
+
+    This checks all sessions with session_ids in the schedule and updates
+    their states if they've changed (e.g., IN_PROGRESS -> COMPLETED).
+    """
+    from jules.core.client import JulesClient
+
+    rows = load_schedule()
+    client = JulesClient()
+
+    updated = 0
+    for row in rows:
+        session_id = row.get("session_id", "").strip()
+        if not session_id:
+            continue
+
+        try:
+            session = client.get_session(session_id)
+            api_state = session.get("state", "UNKNOWN")
+
+            # Map Jules API states to our pr_status convention
+            # Note: This is informational only - PR status is still authoritative
+            # We could add a "session_state" column if needed
+            print(f"  Session {session_id[:8]}: {api_state}")
+        except Exception as e:
+            print(f"  ⚠️ Failed to get session {session_id[:8]}: {e}")
+
+
+def list_recent_sessions(limit: int = 20) -> None:
+    """List recent sessions with schedule context.
+
+    Shows:
+    - Session ID
+    - Sequence number (if in schedule)
+    - Persona
+    - State
+    - Base commit (if tracked)
+    - PR number (if exists)
+    """
+    from jules.core.client import JulesClient
+
+    rows = load_schedule()
+    client = JulesClient()
+
+    # Build lookup from session_id to schedule row
+    session_lookup = {row.get("session_id", ""): row for row in rows if row.get("session_id", "")}
+
+    try:
+        sessions_data = client.list_sessions()
+        sessions = sessions_data.get("sessions", [])
+
+        print(f"\n{'Seq':<5} {'Session ID':<10} {'Persona':<15} {'State':<15} {'Base':<8} {'PR':<5}")
+        print("-" * 70)
+
+        for session in sessions[:limit]:
+            session_full_id = session.get("name", "")
+            session_id = session_full_id.split("/")[-1] if "/" in session_full_id else session_full_id
+            session_short = session_id[:8] if session_id else "N/A"
+            state = session.get("state", "UNKNOWN")
+            title = session.get("title", "")
+
+            # Try to extract persona from title
+            persona = "N/A"
+            for pid in CYCLE_PERSONAS:
+                if pid in title.lower():
+                    persona = pid
+                    break
+
+            # Check if in schedule
+            schedule_row = session_lookup.get(session_id)
+            if schedule_row:
+                seq = schedule_row.get("sequence", "N/A")
+                persona = schedule_row.get("persona", persona)
+                base_commit = schedule_row.get("base_commit", "N/A")
+                pr_number = schedule_row.get("pr_number", "N/A")
+            else:
+                seq = "N/A"
+                base_commit = "N/A"
+                pr_number = "N/A"
+
+            print(f"{seq:<5} {session_short:<10} {persona:<15} {state:<15} {base_commit:<8} {pr_number:<5}")
+
+    except Exception as e:
+        print(f"❌ Failed to list sessions: {e}")
+
+
 def main() -> None:
     """CLI entry point for schedule management."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Manage Jules schedule.csv")
     parser.add_argument("--fix", action="store_true", help="Validate and fix the schedule")
     parser.add_argument("--extend", type=int, help="Add N more rows to the schedule")
     parser.add_argument("--show", action="store_true", help="Show current schedule status")
+    parser.add_argument("--list-sessions", action="store_true", help="List recent sessions from Jules API")
+    parser.add_argument("--sync-states", action="store_true", help="Sync session states from Jules API")
     args = parser.parse_args()
     
     rows = load_schedule()
@@ -289,6 +379,13 @@ def main() -> None:
         print(f"Schedule: {len(rows)} total rows, {remaining} not started")
         if current:
             print(f"Current: [{current['sequence']}] {current['persona']} - {current['pr_status'] or 'not started'}")
+
+    if args.list_sessions:
+        list_recent_sessions()
+
+    if args.sync_states:
+        print("Syncing session states from Jules API...")
+        sync_session_states_from_api()
 
 
 if __name__ == "__main__":

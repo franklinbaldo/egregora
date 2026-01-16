@@ -210,6 +210,14 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> None:
     branch_mgr = BranchManager(JULES_BRANCH)
     branch_mgr.ensure_jules_branch_exists()
 
+    # Get current commit SHA from jules branch (base commit for this session)
+    import subprocess
+    base_commit_result = subprocess.run(
+        ["git", "rev-parse", JULES_BRANCH],
+        capture_output=True, text=True, check=False
+    )
+    base_commit = base_commit_result.stdout.strip() if base_commit_result.returncode == 0 else ""
+
     session_branch = branch_mgr.create_session_branch(
         base_branch=JULES_BRANCH,
         persona_id=persona.id
@@ -236,11 +244,11 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> None:
     orchestrator = SessionOrchestrator(client, dry_run)
     new_session_id = orchestrator.create_session(request)
     print(f"✅ Created session: {new_session_id}")
-    
-    # 7. Update CSV with session_id
-    rows = update_sequence(rows, seq, session_id=str(new_session_id))
+
+    # 7. Update CSV with session_id and base_commit
+    rows = update_sequence(rows, seq, session_id=str(new_session_id), base_commit=base_commit[:8])
     save_schedule(rows)
-    print(f"📝 Updated schedule.csv: [{seq}] session_id={new_session_id}")
+    print(f"📝 Updated schedule.csv: [{seq}] session_id={new_session_id}, base_commit={base_commit[:8]}")
     print("=" * 70)
 
 
