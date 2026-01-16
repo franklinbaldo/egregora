@@ -179,73 +179,45 @@ ignore = [
     "D203",    # one-blank-line-before-class (incompatible with D211)
     "D213",    # multi-line-summary-second-line (incompatible with D212)
 
-    # Pragmatic ignores - legitimate patterns
+    # Legitimate exceptions - well-documented reasons
     "S608",    # SQL injection (false positive with DuckDB/Ibis parameterized queries)
-    "ERA001",  # Commented code (sometimes intentional for documentation/examples)
-    "FIX002",  # TODO comments (active development)
-    "TD002",   # Missing TODO author
-    "TD003",   # Missing TODO link
     "ARG001",  # Unused function argument (needed for interface compatibility)
     "ARG002",  # Unused method argument (needed for interface compatibility)
     "ARG005",  # Unused lambda argument (needed for interface compatibility)
     "ANN401",  # Any type (sometimes necessary for flexibility)
-    "SIM102",  # Collapsible if (explicit can be clearer)
-    "SIM108",  # Ternary operator (not always clearer)
+    "PLC0415",  # Non-top-level imports (needed for optional dependencies)
+    "PLW0603",  # Global statement (rare but needed for module state)
+    "PLW2901",  # Redefined loop name (rare but needed for clarity)
+    "TC001",    # Type-checking-only imports (pydantic needs runtime access)
+    "TC002",    # Type-checking-only third-party imports (pydantic needs runtime access)
+    "TC003",    # Type-checking-only standard library imports (pydantic models need runtime)
+    "PD004",    # Pandas-vet false positive (Ibis uses .notnull())
+    "SLF001",   # Private member access (sometimes necessary for testing/integration)
 
-    # Complexity / refactor-safety - enforce gradually
+    # Complexity metrics - track but don't block (use radon/xenon in pre-commit)
     "C901",     # Function is too complex
     "PLR0911",  # Too many return statements
     "PLR0912",  # Too many branches
     "PLR0913",  # Too many arguments
     "PLR0915",  # Too many statements
 
-    # Pragmatic runtime patterns - common in optional-dep paths
-    "PLC0415",  # Non-top-level imports
-    "PLW0603",  # Global statement
-    "PLW2901",  # Redefined loop name
-    "TC001",    # Type-checking-only imports (runtime introspection needs them)
-    "TC002",    # Type-checking-only third-party imports (runtime introspection needs them)
-    "TC003",    # Type-checking-only standard library imports (runtime pydantic models need them)
+    # TODO management - enforce via FIX002 only
+    "TD002",   # Missing TODO author (not required)
+    "TD003",   # Missing TODO link (not required)
 
-    # Exception style - enable gradually
-    "TRY002",
-    "TRY003",
-    "TRY203",  # Remapped from deprecated TRY302
-    "TRY300",
-    "TRY301",
-    "TRY401",
-
-    # Logging/exception formatting - enable gradually
-    "G004",
-    "EM101",
-
-    # Pandas-vet false positives (Ibis uses .notnull())
-    "PD004",
-
-    # Style - enforce gradually
-    "E501",    # Line too long (refactor gradually, not blocking)
-    "SLF001",  # Private member access (sometimes necessary for testing/integration)
-    "G201",    # Logging exc_info (explicit is fine)
-
-    # Datetime timezone - add gradually as features touch code
-    "DTZ001",  # call-datetime-without-tzinfo
-    "DTZ005",  # call-datetime-now-without-tzinfo
-    "DTZ006",  # call-datetime-fromtimestamp
-    "DTZ007",  # call-datetime-strptime-without-zone
-    "DTZ011",  # call-date-today
-
-    # Docstrings - enforce for new code, not blocking for existing
-    "D101",    # Missing docstring in public class
-    "D102",    # Missing docstring in public method
-    "D105",    # Missing docstring in magic method
-    "D107",    # Missing docstring in __init__
-    "D401",    # First line should be imperative
-    "D417",    # Missing argument description in docstring
+    # Docstrings - enforce selectively
+    "D101",    # Missing docstring in public class (enforce for new code)
+    "D102",    # Missing docstring in public method (enforce for new code)
+    "D105",    # Missing docstring in magic method (not required)
+    "D107",    # Missing docstring in __init__ (not required)
+    "D401",    # First line should be imperative (not required)
+    "D417",    # Missing argument description in docstring (not required)
 ]
 
 [tool.ruff.lint.per-file-ignores]
 # Generated artifacts
 "artifacts/site/.egregora/__init__.py" = ["N999"]
+
 # Test files - allow testing patterns
 "tests/**/*.py" = [
     "S101",    # Assert statements (expected in tests)
@@ -268,6 +240,42 @@ ignore = [
 # CLI files - Typer requires Option() calls in function signatures
 "src/egregora/cli/*.py" = [
     "B008",    # Function call in argument defaults (required by Typer)
+]
+
+# Diagnostics - needs broad exception handling and subprocess calls for system checks
+"src/egregora/cli/diagnostics.py" = [
+    "BLE001",  # Blind except (intentional for fault-tolerant diagnostics)
+    "S603",    # Subprocess without shell=True (safe - controlled input)
+]
+
+# Fault-tolerant components - need broad exception handling
+"src/egregora/database/profile_cache.py" = [
+    "BLE001",  # Blind except (cache failures shouldn't crash pipeline)
+]
+"src/egregora/orchestration/journal.py" = [
+    "BLE001",  # Blind except (journal failures shouldn't crash pipeline)
+]
+"src/egregora/orchestration/runner.py" = [
+    "BLE001",  # Blind except (worker failures need graceful degradation)
+]
+"src/egregora/rag/__init__.py" = [
+    "BLE001",  # Blind except (RAG failures shouldn't crash pipeline)
+]
+"src/egregora/rag/embedding_router.py" = [
+    "BLE001",  # Blind except (embedding failures need fallback)
+]
+"src/egregora/rag/lancedb_backend.py" = [
+    "BLE001",  # Blind except (DB failures need graceful handling)
+]
+
+# YAML loading - safe usage with controlled input
+"src/egregora/output_adapters/mkdocs/scaffolding.py" = [
+    "S506",    # Unsafe YAML load (mkdocs config from trusted source)
+]
+
+# Media operations - intentional use of os.path for compatibility
+"src/egregora/ops/media.py" = [
+    "PTH122",  # os.path.splitext (needed for extension handling)
 ]
 
 [tool.ruff.lint.flake8-tidy-imports]

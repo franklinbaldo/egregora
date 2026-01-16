@@ -171,7 +171,7 @@ def get_profile_from_db(
             return ""
 
         return str(result.iloc[0]["content"])
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("Failed to read profile from DB for %s: %s", author_uuid, e)
         return ""
 
@@ -198,7 +198,7 @@ def get_all_profiles_from_db(
 
         logger.debug("Retrieved %d profiles from database", len(profiles))
         return profiles
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("Failed to read profiles from DB: %s", e)
         return {}
 
@@ -230,7 +230,7 @@ def get_opted_out_authors_from_db(
 
         logger.debug("Found %d opted-out authors in database", len(opted_out))
         return opted_out
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("Failed to read opted-out authors from DB: %s", e)
         return set()
 
@@ -386,7 +386,7 @@ def get_profile_posts_from_db(
 
         logger.debug("Retrieved %d profile posts for %s from database", len(posts), author_uuid)
         return posts
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("Failed to read profile posts from DB for %s: %s", author_uuid, e)
         return []
 

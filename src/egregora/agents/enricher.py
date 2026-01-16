@@ -745,7 +745,7 @@ class EnrichmentWorker(BaseWorker):
             try:
                 logger.info("[URLEnricher] Using single-call batch mode for %d URLs", total)
                 return self._execute_url_single_call(tasks_data)
-            except Exception as single_call_exc:  # noqa: BLE001
+            except Exception as single_call_exc:
                 logger.warning(
                     "[URLEnricher] Single-call batch failed (%s), falling back to individual",
                     single_call_exc,
@@ -1345,7 +1345,7 @@ class EnrichmentWorker(BaseWorker):
                 results.append(result)
                 logger.info("[MediaEnricher] Processed %s via individual call", tag)
 
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.warning("[MediaEnricher] Individual call failed for %s: %s", tag, exc)
                 result = type(
                     "BatchResult",
@@ -1513,7 +1513,7 @@ class EnrichmentWorker(BaseWorker):
                     # Update text column
                     # Note: This updates ALL messages containing this ref.
                     # Given filenames are usually unique (timestamps), this is safe.
-                    query = f"UPDATE messages SET text = replace(text, '{safe_original}', '{safe_new}') WHERE text LIKE '%{safe_original}%'"  # nosec B608
+                    query = f"UPDATE messages SET text = replace(text, '{safe_original}', '{safe_new}') WHERE text LIKE '%{safe_original}%'"
                     self.ctx.storage._conn.execute(query)
                 except duckdb.Error as exc:
                     logger.warning("Failed to update message references for %s: %s", original_ref, exc)

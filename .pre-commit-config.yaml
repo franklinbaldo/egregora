@@ -83,6 +83,12 @@ repos:
         language: system
         types: [python]
         files: ^src/
+      - id: check-lint-suppressions
+        name: "Check for lint suppression comments (noqa, type: ignore)"
+        entry: python scripts/dev_tools/check_lint_suppressions.py
+        language: system
+        types: [python]
+        files: ^src/
       - id: unit-tests
         name: Run unit tests
         entry: uv run pytest tests/unit/ -x -q --tb=line --ignore=tests/unit/jules

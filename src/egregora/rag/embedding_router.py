@@ -318,7 +318,7 @@ class EndpointQueue:
                     req.future.set_result(embeddings[offset : offset + count])
                     offset += count
 
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 # Propagate error to all waiting futures
                 for req in group_requests:
                     if not req.future.done():

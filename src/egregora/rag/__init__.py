@@ -68,7 +68,7 @@ def get_backend(db_dir: Path | str | None = None) -> VectorStore:
             try:
                 config = load_egregora_config()
                 lancedb_path = Path(config.paths.lancedb_dir)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.warning("Could not load RAG config, using defaults")
                 # Default fallback matching PathsSettings
                 lancedb_path = Path(".egregora/lancedb")
@@ -144,7 +144,7 @@ def embed_fn(
         try:
             config = load_egregora_config()
             model = config.models.embedding
-        except Exception:  # noqa: BLE001
+        except Exception:
             # Fallback if config fails
             model = "models/gemini-embedding-001"
 

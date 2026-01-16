@@ -356,7 +356,7 @@ class DuckDBStorageManager:
             params.append(val)
 
         where_clause = " AND ".join(conditions)
-        sql = f"DELETE FROM {quoted_table} WHERE {where_clause}"  # nosec B608
+        sql = f"DELETE FROM {quoted_table} WHERE {where_clause}"
 
         self.execute_sql(sql, params)
         self.ibis_conn.insert(table, rows)
@@ -433,7 +433,7 @@ class DuckDBStorageManager:
                 path_str = str(parquet_path)
 
                 if mode == "replace":
-                    sql = f"CREATE OR REPLACE TABLE {quoted_name} AS SELECT * FROM read_parquet(?)"  # nosec B608
+                    sql = f"CREATE OR REPLACE TABLE {quoted_name} AS SELECT * FROM read_parquet(?)"
                     params = [path_str]
                 else:
                     # Append mode: ensure table exists (idempotent) then insert
@@ -441,9 +441,9 @@ class DuckDBStorageManager:
                     # CREATE TABLE IF NOT EXISTS ... AS SELECT * FROM ... WHERE 1=0;
                     # INSERT INTO ...
                     sql_create = (
-                        f"CREATE TABLE IF NOT EXISTS {quoted_name} AS SELECT * FROM read_parquet(?) WHERE 1=0"  # nosec B608
+                        f"CREATE TABLE IF NOT EXISTS {quoted_name} AS SELECT * FROM read_parquet(?) WHERE 1=0"
                     )
-                    sql_insert = f"INSERT INTO {quoted_name} SELECT * FROM read_parquet(?)"  # nosec B608
+                    sql_insert = f"INSERT INTO {quoted_name} SELECT * FROM read_parquet(?)"
                     self._conn.execute(sql_create, [path_str])
                     sql = sql_insert
                     params = [path_str]
@@ -498,7 +498,7 @@ class DuckDBStorageManager:
             SELECT {quoted_columns}
             FROM {quoted_view};
             COMMIT;
-            """  # nosec B608
+            """
             self._conn.execute(sql)
         finally:
             with contextlib.suppress(Exception):
@@ -602,7 +602,7 @@ class DuckDBStorageManager:
 
         quoted_table = quote_identifier(table)
         quoted_column = quote_identifier(column)
-        max_row = self._conn.execute(f"SELECT MAX({quoted_column}) FROM {quoted_table}").fetchone()  # nosec B608
+        max_row = self._conn.execute(f"SELECT MAX({quoted_column}) FROM {quoted_table}").fetchone()
         if not max_row or max_row[0] is None:
             return
 
@@ -786,7 +786,7 @@ class DuckDBStorageManager:
         if not self.table_exists(table_name):
             return 0
         quoted = quote_identifier(table_name)
-        row = self._conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()  # nosec B608
+        row = self._conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()
         return int(row[0]) if row and row[0] is not None else 0
 
 

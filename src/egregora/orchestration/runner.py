@@ -199,7 +199,7 @@ class PipelineRunner:
                 if j_start and j_end:
                     processed.add((str(j_start), str(j_end)))
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("Failed to fetch processed journals: %s", e)
 
         return processed
@@ -448,7 +448,7 @@ class PipelineRunner:
             )
             output_sink.persist(journal)
             logger.debug("Persisted JOURNAL for window: %s", window_label)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # Non-fatal: Log warning but don't fail the pipeline
             logger.warning("Failed to persist JOURNAL for window %s: %s", window_label, e)
 
