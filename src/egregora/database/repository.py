@@ -32,72 +32,76 @@ class ContentRepository:
         row = {
             "id": str(doc.id) if doc.id else None,
             "content": doc.content,
-            "created_at": doc.updated,  # Using updated as created_at/insertion time
+            "created_at": doc.created_at,  # Using created_at/insertion time
             "source_checksum": doc.internal_metadata.get("checksum"),
         }
 
-        if doc.doc_type == DocumentType.POST:
-            # Post specific fields
-            row.update(
-                {
-                    "title": doc.title,
-                    "slug": doc.internal_metadata.get("slug"),
-                    "date": doc.internal_metadata.get("date"),
-                    "summary": doc.summary,
-                    # "authors": [str(a.id) for a in doc.authors],
-                    # "tags": [c.term for c in doc.categories],
-                    "status": doc.status,
-                }
-            )
-            self.db.ibis_conn.insert("posts", [row])
+        try:
+            if doc.type == DocumentType.POST:
+                # Post specific fields
+                row.update(
+                    {
+                        "title": doc.metadata.get("title"),
+                        "slug": doc.internal_metadata.get("slug"),
+                        "date": doc.internal_metadata.get("date"),
+                        "summary": doc.metadata.get("summary"),
+                        # "authors": [str(a.id) for a in doc.authors],
+                        # "tags": [c.term for c in doc.categories],
+                        "status": doc.metadata.get("status"),
+                    }
+                )
+                self.db.ibis_conn.insert("posts", [row])
 
-        elif doc.doc_type == DocumentType.PROFILE:
-            # Profile specific fields
-            row.update(
-                {
-                    "subject_uuid": doc.internal_metadata.get("subject_uuid"),
-                    "title": doc.title,  # Was 'name'
-                    "alias": doc.internal_metadata.get("alias"),
-                    "summary": doc.summary,  # Was 'bio'
-                    "avatar_url": doc.internal_metadata.get("avatar_url"),
-                    "interests": doc.internal_metadata.get("interests", []),
-                }
-            )
-            self.db.ibis_conn.insert("profiles", [row])
+            elif doc.type == DocumentType.PROFILE:
+                # Profile specific fields
+                row.update(
+                    {
+                        "subject_uuid": doc.internal_metadata.get("subject_uuid"),
+                        "title": doc.metadata.get("title"),  # Was 'name'
+                        "alias": doc.internal_metadata.get("alias"),
+                        "summary": doc.metadata.get("summary"),  # Was 'bio'
+                        "avatar_url": doc.internal_metadata.get("avatar_url"),
+                        "interests": doc.internal_metadata.get("interests", []),
+                    }
+                )
+                self.db.ibis_conn.insert("profiles", [row])
 
-        elif doc.doc_type == DocumentType.MEDIA:
-            row.update(
-                {
-                    "filename": doc.internal_metadata.get("filename"),
-                    "mime_type": doc.content_type,
-                    "media_type": doc.internal_metadata.get("media_type"),
-                    "phash": doc.internal_metadata.get("phash"),
-                }
-            )
-            self.db.ibis_conn.insert("media", [row])
+            elif doc.type == DocumentType.MEDIA:
+                row.update(
+                    {
+                        "filename": doc.internal_metadata.get("filename"),
+                        "mime_type": doc.metadata.get("content_type"),
+                        "media_type": doc.internal_metadata.get("media_type"),
+                        "phash": doc.internal_metadata.get("phash"),
+                    }
+                )
+                self.db.ibis_conn.insert("media", [row])
 
-        elif doc.doc_type == DocumentType.JOURNAL:
-            row.update(
-                {
-                    "title": doc.title,  # Was 'window_label'
-                    "window_start": doc.internal_metadata.get("window_start"),
-                    "window_end": doc.internal_metadata.get("window_end"),
-                }
-            )
-            self.db.ibis_conn.insert("journals", [row])
+            elif doc.type == DocumentType.JOURNAL:
+                row.update(
+                    {
+                        "title": doc.metadata.get("title"),  # Was 'window_label'
+                        "window_start": doc.internal_metadata.get("window_start"),
+                        "window_end": doc.internal_metadata.get("window_end"),
+                    }
+                )
+                self.db.ibis_conn.insert("journals", [row])
 
-        elif doc.doc_type == DocumentType.ANNOTATION:
-            row.update(
-                {
-                    "parent_id": doc.internal_metadata.get("parent_id"),
-                    "parent_type": doc.internal_metadata.get("parent_type"),
-                    "author_id": doc.internal_metadata.get("author_id"),
-                }
-            )
-            self.db.ibis_conn.insert("annotations", [row])
-        else:
-            # Fallback for unsupported types - perhaps log warning
-            pass
+            elif doc.type == DocumentType.ANNOTATION:
+                row.update(
+                    {
+                        "parent_id": doc.internal_metadata.get("parent_id"),
+                        "parent_type": doc.internal_metadata.get("parent_type"),
+                        "author_id": doc.internal_metadata.get("author_id"),
+                    }
+                )
+                self.db.ibis_conn.insert("annotations", [row])
+            else:
+                # Fallback for unsupported types - perhaps log warning
+                pass
+        except Exception as e:
+            msg = f"Failed to save document {doc.document_id} of type {doc.type.value}"
+            raise DatabaseOperationError(msg) from e
 
     def get_all(self) -> Iterator[dict]:
         """Stream all documents via the unified view."""
