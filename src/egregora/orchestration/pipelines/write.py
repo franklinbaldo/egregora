@@ -52,6 +52,7 @@ from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.llm.api_keys import get_google_api_keys, validate_gemini_api_key
+from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.llm.rate_limit import init_rate_limiter
 from egregora.llm.usage import UsageTracker
 from egregora.ops.media import process_media_for_window
@@ -432,6 +433,9 @@ def run_cli_flow(
             )
             run(run_params)
             console.print(f"[green]Processing completed successfully for source '{source_key}'.[/green]")
+        except AllModelsExhaustedError as e:
+            # Re-raise this specific error so the 'demo' command can catch it
+            raise e
         except Exception as e:
             console.print_exception(show_locals=False)
             console.print(f"[red]Pipeline failed for source '{source_key}': {e}[/]")
