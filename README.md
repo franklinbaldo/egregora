@@ -59,8 +59,15 @@ egregora write path/to/chat_export.zip --output-dir=.
 
 **3. Preview your site:**
 
+First, install the required MkDocs plugins:
+
 ```bash
-uv tool run --with "mkdocs-material[imaging]" --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml
+uv pip install "mkdocs-material[imaging]" mkdocs-blogging-plugin mkdocs-macros-plugin mkdocs-rss-plugin mkdocs-glightbox mkdocs-git-revision-date-localized-plugin mkdocs-minify-plugin
+```
+
+Then, start the local server:
+```bash
+mkdocs serve -f .egregora/mkdocs.yml
 ```
 
 *Visit <http://localhost:8000> to read your new blog.*
