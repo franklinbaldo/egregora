@@ -44,18 +44,30 @@ def save_schedule(rows: list[dict[str, Any]]) -> None:
 
 def get_current_sequence(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Find the first row that needs work.
-    
+
     Returns the first row where:
-    - pr_status is empty (not started), OR
-    - pr_status is 'draft' or 'open' (in progress)
-    
-    Skips rows with pr_status 'merged' or 'closed'.
+    - No session_id exists (not started)
+    - Has session_id but no pr_status (waiting for PR creation)
+
+    Skips rows with:
+    - pr_status 'merged' or 'closed' (completed)
+    - session_id exists AND pr_status is 'draft' or 'open' (in progress, waiting for merge)
     """
     for row in rows:
+        session_id = row.get("session_id", "").strip()
         status = row.get("pr_status", "").strip().lower()
+
+        # Skip completed rows
         if status in ["merged", "closed"]:
-            continue  # Skip completed rows
+            continue
+
+        # Skip rows that are already in progress (have session and open/draft PR)
+        if session_id and status in ["draft", "open"]:
+            continue
+
+        # This row needs work (no session, or has session but no PR yet)
         return row
+
     return None
 
 

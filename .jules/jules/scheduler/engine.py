@@ -173,15 +173,17 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> None:
         save_schedule(rows)
         session_id = ""
 
-    # 4. Check if session already created
+    # 4. Check if session already created but no PR yet
     if session_id:
         print(f"   Session already exists: {session_id}")
-        # Check if PR status needs updating (handled by feedback loop)
+        # At this point, the session exists but hasn't created a PR yet
+        # (get_current_sequence skips rows with open/draft PRs)
         if pr_status in ["draft", "open"]:
+            # This shouldn't happen now as get_current_sequence skips these
             print(f"   PR status: {pr_status} (waiting for merge/close)")
         elif pr_status in ["merged", "closed"]:
-            print(f"   PR {pr_status} - moving to next sequence")
             # This shouldn't happen as get_current_sequence skips these
+            print(f"   PR {pr_status} - should have been skipped")
         else:
             print("   Waiting for session to create a PR...")
         return
