@@ -20,7 +20,7 @@ from egregora.agents.types import Message, WriterDeps, WriterResources
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors
 from egregora.orchestration.cache import CacheTier
-from egregora.rag import index_documents, reset_backend
+from egregora.rag import add_documents, reset_backend
 from egregora.resources.prompts import PromptManager
 from egregora.transformations.windowing import generate_window_signature
 
@@ -302,7 +302,7 @@ def index_new_content_in_rag(
                         break
 
         if docs:
-            index_documents(docs)
+            add_documents(docs)
             logger.info("Indexed %d new posts in RAG", len(docs))
         else:
             logger.debug("No new documents to index in RAG")

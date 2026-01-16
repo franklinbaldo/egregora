@@ -89,14 +89,14 @@ def reset_backend() -> None:
     _backend = None
 
 
-def index_documents(documents: list["Document"]) -> int:
-    """Index a list of documents into the vector store.
+def add_documents(documents: list["Document"]) -> int:
+    """Add a list of documents to the vector store.
 
     Args:
-        documents: List of Document objects to index
+        documents: List of Document objects to add
 
     Returns:
-        Number of documents successfully indexed
+        Number of documents successfully added
 
     """
     if not documents:
