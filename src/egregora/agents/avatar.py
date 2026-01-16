@@ -278,6 +278,55 @@ def _save_avatar_file(content: bytes, avatar_uuid: uuid.UUID, ext: str, media_di
     return avatar_path
 
 
+def _validate_request_hook(request: httpx.Request) -> None:
+    """Event hook to validate the URL of every request just before it is sent."""
+    validation_url = str(request.url)
+    logger.debug("Validating request URL (pre-send): %s", validation_url)
+    _validate_avatar_url(validation_url)
+
+
+def _create_safe_client(timeout: float) -> httpx.Client:
+    """Create an HTTP client with security headers and hooks."""
+    return httpx.Client(
+        timeout=timeout,
+        follow_redirects=True,
+        max_redirects=MAX_REDIRECT_HOPS,
+        event_hooks={"request": [_validate_request_hook]},
+    )
+
+
+def _handle_download_error(e: httpx.HTTPError, url: str) -> None:
+    """Handle HTTP download errors, preserving security-related messages."""
+    # If the HTTP error was caused by our own validation, re-raise it directly
+    if isinstance(e.__cause__, AvatarProcessingError):
+        raise e.__cause__ from e
+    if isinstance(e.__context__, AvatarProcessingError):
+        raise e.__context__ from e
+
+    if isinstance(e, httpx.TooManyRedirects):
+        msg = f"Too many redirects (>{MAX_REDIRECT_HOPS}) for URL: {url}"
+        raise AvatarProcessingError(msg) from e
+
+    logger.debug("HTTP error details: %s", e)
+    msg = "Failed to download avatar. Please check the URL and try again."
+    raise AvatarProcessingError(msg) from e
+
+
+def _fetch_avatar_content(url: str, timeout: float) -> tuple[bytes, str, str]:
+    """Fetch avatar content from URL using a safe client."""
+    try:
+        with _create_safe_client(timeout) as client:
+            with client.stream("GET", url) as response:
+                response.raise_for_status()
+                content, content_type = _download_image_content(response)
+                # The URL might have changed due to redirects
+                final_url = str(response.url)
+                return content, content_type, final_url
+    except httpx.HTTPError as e:
+        _handle_download_error(e, url)
+        raise  # Should be unreachable as _handle_download_error raises
+
+
 # TODO: [Taskmaster] Refactor: Decompose `download_avatar_from_url` to simplify logic
 @sleep_and_retry
 @limits(calls=10, period=60)
@@ -300,47 +349,16 @@ def download_avatar_from_url(
     """
     logger.info("Downloading avatar from URL: %s", url)
 
-    def _validate_request(request: httpx.Request) -> None:
-        """Event hook to validate the URL of every request just before it is sent."""
-        validation_url = str(request.url)
-        logger.debug("Validating request URL (pre-send): %s", validation_url)
-        _validate_avatar_url(validation_url)
-
     try:
-        with (
-            httpx.Client(
-                timeout=timeout,
-                follow_redirects=True,
-                max_redirects=MAX_REDIRECT_HOPS,
-                event_hooks={"request": [_validate_request]},
-            ) as client,
-            client.stream("GET", url) as response,
-        ):
-            response.raise_for_status()
-            content, content_type = _download_image_content(response)
+        content, content_type, final_url = _fetch_avatar_content(url, timeout)
 
         _validate_image_content(content, content_type)
         _validate_image_dimensions(content)
 
-        ext = _get_extension_from_mime_type(content_type, url)
+        ext = _get_extension_from_mime_type(content_type, final_url)
         avatar_uuid = _generate_avatar_uuid(content)
         avatar_path = _save_avatar_file(content, avatar_uuid, ext, media_dir)
 
-    except httpx.TooManyRedirects as e:
-        msg = f"Too many redirects (>{MAX_REDIRECT_HOPS}) for URL: {url}"
-        raise AvatarProcessingError(msg) from e
-    # TODO: [Taskmaster] Refactor: Simplify complex error handling block
-    except httpx.HTTPError as e:
-        # If the HTTP error was caused by our own validation, re-raise it directly
-        # to preserve the specific security message.
-        # Check both __cause__ and __context__ to find AvatarProcessingError in the chain
-        if isinstance(e.__cause__, AvatarProcessingError):
-            raise e.__cause__ from e
-        if isinstance(e.__context__, AvatarProcessingError):
-            raise e.__context__ from e
-        logger.debug("HTTP error details: %s", e)
-        msg = "Failed to download avatar. Please check the URL and try again."
-        raise AvatarProcessingError(msg) from e
     except OSError as e:
         logger.debug("File system error details: %s", e)
         msg = "Failed to save avatar due to file system error."

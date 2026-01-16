@@ -5,12 +5,12 @@ import pytest
 
 from egregora.config.exceptions import ApiKeyNotFoundError
 from egregora.config.settings import (
+    _get_api_keys_from_env,
     get_google_api_key,
     get_google_api_keys,
     get_openrouter_api_key,
     get_openrouter_api_keys,
 )
-from egregora.config.settings import _get_api_keys_from_env
 
 
 def test_get_google_api_key_raises_error_when_missing():
