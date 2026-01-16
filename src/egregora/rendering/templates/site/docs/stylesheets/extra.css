@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
 
-:root {
+:root,
+[data-md-color-primary="custom"] {
   /* Official Palette */
   --md-primary-fg-color:        #2c3e50;
   --md-primary-fg-color--light: #34495e;
