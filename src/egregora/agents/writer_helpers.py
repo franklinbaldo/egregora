@@ -138,7 +138,6 @@ def register_writer_tools(
             output_sink=ctx.deps.output_sink,
             window_label=ctx.deps.window_label,
             task_store=ctx.deps.resources.task_store,
-            run_id=ctx.deps.resources.run_id,
         )
         return write_post_impl(tool_ctx, meta_dict, content)
 
@@ -148,7 +147,6 @@ def register_writer_tools(
             output_sink=ctx.deps.output_sink,
             window_label=ctx.deps.window_label,
             task_store=ctx.deps.resources.task_store,
-            run_id=ctx.deps.resources.run_id,
         )
         return read_profile_impl(tool_ctx, author_uuid)
 
@@ -158,7 +156,6 @@ def register_writer_tools(
             output_sink=ctx.deps.output_sink,
             window_label=ctx.deps.window_label,
             task_store=ctx.deps.resources.task_store,
-            run_id=ctx.deps.resources.run_id,
         )
         return write_profile_impl(tool_ctx, author_uuid, content)
 

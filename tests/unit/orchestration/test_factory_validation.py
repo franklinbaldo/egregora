@@ -25,7 +25,13 @@ def test_create_database_backends_normalizes_duckdb_path(tmp_path):
     runtime_uri, pipeline_backend, runs_backend = PipelineFactory.create_database_backends(tmp_path, config)
 
     expected_path = (tmp_path / "data" / "pipeline.duckdb").resolve()
-    assert runtime_uri == f"duckdb:///{expected_path}"
+    # On Windows, we use duckdb:C:/path to avoid double drive letter issues in Ibis
+    import os
+
+    if os.name == "nt":
+        assert runtime_uri == f"duckdb:{expected_path.as_posix()}"
+    else:
+        assert runtime_uri == f"duckdb:///{expected_path}"
     assert expected_path.exists()
 
     with contextlib.suppress(Exception):

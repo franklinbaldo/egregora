@@ -2,7 +2,6 @@
 
 import csv
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -20,8 +19,8 @@ def test_scheduler_skips_completed():
     pass
 
 
-@scenario("../features/csv_scheduler.feature", "Scheduler waits for active PR")
-def test_scheduler_waits_for_pr():
+@scenario("../features/csv_scheduler.feature", "Scheduler advances past active PRs")
+def test_scheduler_advances_past_active_prs():
     pass
 
 
@@ -111,7 +110,7 @@ def schedule_with_rows(mock_schedule_path, context, datatable):
         rows.append(dict(zip(header, row_data, strict=False)))
 
     # Write to CSV
-    with Path(mock_schedule_path).open("w", newline="") as f:
+    with mock_schedule_path.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=header)
         writer.writeheader()
         writer.writerows(rows)
@@ -147,7 +146,7 @@ def schedule_with_few_empty(count, mock_schedule_path, context):
             }
         )
 
-    with Path(mock_schedule_path).open("w", newline="") as f:
+    with mock_schedule_path.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["sequence", "persona", "session_id", "pr_number", "pr_status"])
         writer.writeheader()
         writer.writerows(rows)
@@ -161,7 +160,7 @@ def oracle_session_age(hours, mock_oracle_schedule_path, context):
     created_at = datetime.now(UTC) - timedelta(hours=hours)
     rows = [{"session_id": "oracle_123", "created_at": created_at.isoformat(), "status": "active"}]
 
-    with Path(mock_oracle_schedule_path).open("w", newline="") as f:
+    with mock_oracle_schedule_path.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["session_id", "created_at", "status"])
         writer.writeheader()
         writer.writerows(rows)
@@ -239,7 +238,7 @@ def scheduler_reports_waiting():
 
 @then(parsers.parse('the schedule.csv should be updated with the session_id for sequence "{seq}"'))
 def schedule_updated(seq, mock_schedule_path):
-    with Path(mock_schedule_path).open(newline="") as f:
+    with mock_schedule_path.open(newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
             if row["sequence"] == seq:
@@ -250,7 +249,7 @@ def schedule_updated(seq, mock_schedule_path):
 
 @then(parsers.parse("the schedule.csv should contain at least {count:d} total rows"))
 def schedule_has_rows(count, mock_schedule_path):
-    with Path(mock_schedule_path).open(newline="") as f:
+    with mock_schedule_path.open(newline="") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
     assert len(rows) >= count, f"Expected at least {count} rows, got {len(rows)}"
@@ -273,7 +272,7 @@ def new_oracle_created(context):
 
 @then("the old session should be marked as expired")
 def old_session_expired(mock_oracle_schedule_path):
-    with Path(mock_oracle_schedule_path).open(newline="") as f:
+    with mock_oracle_schedule_path.open(newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
             if row["session_id"] == "oracle_123":

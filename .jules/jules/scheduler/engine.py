@@ -173,15 +173,17 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> None:
         save_schedule(rows)
         session_id = ""
 
-    # 4. Check if session already created
+    # 4. Check if session already created but no PR yet
     if session_id:
         print(f"   Session already exists: {session_id}")
-        # Check if PR status needs updating (handled by feedback loop)
+        # At this point, the session exists but hasn't created a PR yet
+        # (get_current_sequence skips rows with open/draft PRs)
         if pr_status in ["draft", "open"]:
+            # This shouldn't happen now as get_current_sequence skips these
             print(f"   PR status: {pr_status} (waiting for merge/close)")
         elif pr_status in ["merged", "closed"]:
-            print(f"   PR {pr_status} - moving to next sequence")
             # This shouldn't happen as get_current_sequence skips these
+            print(f"   PR {pr_status} - should have been skipped")
         else:
             print("   Waiting for session to create a PR...")
         return
@@ -208,6 +210,14 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> None:
     branch_mgr = BranchManager(JULES_BRANCH)
     branch_mgr.ensure_jules_branch_exists()
 
+    # Get current commit SHA from jules branch (base commit for this session)
+    import subprocess
+    base_commit_result = subprocess.run(
+        ["git", "rev-parse", JULES_BRANCH],
+        capture_output=True, text=True, check=False
+    )
+    base_commit = base_commit_result.stdout.strip() if base_commit_result.returncode == 0 else ""
+
     session_branch = branch_mgr.create_session_branch(
         base_branch=JULES_BRANCH,
         persona_id=persona.id
@@ -222,7 +232,7 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> None:
 
     request = SessionRequest(
         persona_id=persona.id,
-        title=f"{persona.emoji} {persona.id} [{seq}]: sequential task",
+        title=f"{seq} {persona.emoji} {persona.id} {repo_info['repo']}",
         prompt=session_prompt,
         branch=session_branch,
         owner=repo_info["owner"],
@@ -234,11 +244,11 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> None:
     orchestrator = SessionOrchestrator(client, dry_run)
     new_session_id = orchestrator.create_session(request)
     print(f"✅ Created session: {new_session_id}")
-    
-    # 7. Update CSV with session_id
-    rows = update_sequence(rows, seq, session_id=str(new_session_id))
+
+    # 7. Update CSV with session_id and base_commit
+    rows = update_sequence(rows, seq, session_id=str(new_session_id), base_commit=base_commit[:8])
     save_schedule(rows)
-    print(f"📝 Updated schedule.csv: [{seq}] session_id={new_session_id}")
+    print(f"📝 Updated schedule.csv: [{seq}] session_id={new_session_id}, base_commit={base_commit[:8]}")
     print("=" * 70)
 
 
@@ -615,7 +625,7 @@ def execute_scheduled_tick(
 
     request = SessionRequest(
         persona_id=target.id,
-        title=f"{target.emoji} {target.id} [{seq_no:03d}]: manual task" if seq_no > 0 else f"{target.emoji} {target.id}: manual task",
+        title=f"{target.emoji} {target.id} {repo_info['repo']}",
         prompt=session_prompt,
         branch=session_branch,
         owner=repo_info["owner"],
@@ -765,7 +775,7 @@ def run_weaver_for_conflicts(
 
         request = SessionRequest(
             persona_id="weaver",
-            title="🕸️ weaver: conflict resolution",
+            title=f"🕸️ weaver {repo_info['repo']}",
             prompt=prompt,
             branch=session_branch,
             owner=repo_info["owner"],

@@ -85,6 +85,7 @@ HTTP_STATUS_TOO_MANY_REQUESTS = 429
 HTTP_STATUS_PAYMENT_REQUIRED = 402
 HTTP_STATUS_BAD_REQUEST = 400
 HTTP_STATUS_NOT_FOUND = 404
+HTTP_STATUS_INTERNAL_SERVER_ERROR = 500
 
 
 # Template names
@@ -525,91 +526,81 @@ def _render_writer_prompt(
     )
 
 
-def _execute_writer_with_error_handling(
-    prompt: str,
-    config: EgregoraConfig,
-    deps: WriterDeps,
-) -> tuple[list[str], list[str]]:
-    """Execute writer agent with proper error handling.
+def _get_openrouter_free_models() -> list[str]:
+    """Fetch free models from OpenRouter API as a final fallback."""
+    import httpx
 
-    Returns:
-        Tuple of (saved_posts, saved_profiles)
+    try:
+        response = httpx.get("https://openrouter.ai/api/v1/models", params={"free": "true"}, timeout=10.0)
+        if response.status_code == HTTP_STATUS_OK:
+            data = response.json()
+            models = [f"openrouter:{m['id']}" for m in data.get("data", [])]
+            if models:
+                logger.info("[WriterRotation] Fetched %d free models from OpenRouter", len(models))
+                return models
+    except httpx.HTTPError as exc:
+        logger.warning("[WriterRotation] Failed to fetch OpenRouter free models: %s", exc)
+    return []
 
-    Raises:
-        PromptTooLargeError: If prompt exceeds model context window (propagated unchanged)
-        RuntimeError: For other agent failures (wrapped with context)
 
-    """
+def _iter_writer_models(config: EgregoraConfig) -> list[str]:
+    """Iterate through prioritized models, preserving provider choice."""
+    model_name = config.models.writer
+    all_candidates = [model_name]
 
-    def _iter_writer_models() -> list[str]:
-        """Iterate through prioritized models, preserving provider choice (Google Studio vs OpenRouter)."""
-        model_name = config.models.writer
+    if model_name.startswith("google-gla:"):
+        all_candidates.extend([f"google-gla:{name}" for name in GEMINI_MODEL_PRIORITY])
+    elif model_name.startswith("openrouter:"):
+        all_candidates.extend([f"openrouter:google/{name}" for name in GEMINI_MODEL_PRIORITY])
 
-        # Start with the configured model
-        all_candidates = [model_name]
+    if model_name.startswith("openrouter:") or config.enrichment.model_rotation_enabled:
+        all_candidates.extend(_get_openrouter_free_models())
 
-        # Add primary Gemini rotation based on provider
-        if model_name.startswith("google-gla:"):
-            all_candidates.extend([f"google-gla:{name}" for name in GEMINI_MODEL_PRIORITY])
-        elif model_name.startswith("openrouter:"):
-            all_candidates.extend([f"openrouter:google/{name}" for name in GEMINI_MODEL_PRIORITY])
+    seen = set()
+    return [m for m in all_candidates if not (m in seen or seen.add(m))]
 
-        # Append OpenRouter free models as final fallback if enabled or if using OpenRouter
-        if model_name.startswith("openrouter:") or config.enrichment.model_rotation_enabled:
-            # Note: Fetching free models from OpenRouter provides ultimate resilience
-            free_models = _get_openrouter_free_models()
-            all_candidates.extend(free_models)
 
-        # Deduplicate while preserving order
-        seen = set()
-        final_list = []
-        for m in all_candidates:
-            if m not in seen:
-                final_list.append(m)
-                seen.add(m)
-        return final_list
+def _iter_provider_keys(model_name: str) -> list[str]:
+    if model_name.startswith("google-gla:"):
+        return get_google_api_keys()
+    if model_name.startswith("openrouter:"):
+        return get_openrouter_api_keys()
+    return [None]
 
-    def _get_openrouter_free_models() -> list[str]:
-        """Fetch free models from OpenRouter API as a final fallback."""
-        import httpx
 
-        try:
-            # Query OpenRouter for free models to ensure we have a working fallback even if keys/credits run out
-            # This is the implementation mentioned in the repo for "lista de modelos gratuitos"
-            response = httpx.get("https://openrouter.ai/api/v1/models", params={"free": "true"}, timeout=10.0)
-            if response.status_code == HTTP_STATUS_OK:
-                data = response.json()
-                models = [f"openrouter:{m['id']}" for m in data.get("data", [])]
-                if models:
-                    logger.info("[WriterRotation] Fetched %d free models from OpenRouter", len(models))
-                    return models
-        except httpx.HTTPError as exc:
-            logger.warning("[WriterRotation] Failed to fetch OpenRouter free models: %s", exc)
-        return []
+def _override_text_models(config: EgregoraConfig, model_name: str) -> EgregoraConfig:
+    return config.model_copy(
+        deep=True,
+        update={
+            "models": config.models.model_copy(
+                update={
+                    "writer": model_name,
+                    "enricher": model_name,
+                    "enricher_vision": model_name,
+                    "ranking": model_name,
+                    "editor": model_name,
+                    "reader": model_name,
+                }
+            )
+        },
+    )
 
-    def _iter_provider_keys(model_name: str) -> list[str]:
-        if model_name.startswith("google-gla:"):
-            return get_google_api_keys()
-        if model_name.startswith("openrouter:"):
-            return get_openrouter_api_keys()
-        return [None]  # No specific keys for other providers
 
-    def _override_text_models(model_name: str) -> EgregoraConfig:
-        return config.model_copy(
-            deep=True,
-            update={
-                "models": config.models.model_copy(
-                    update={
-                        "writer": model_name,
-                        "enricher": model_name,
-                        "enricher_vision": model_name,
-                        "ranking": model_name,
-                        "editor": model_name,
-                        "reader": model_name,
-                    }
-                )
-            },
-        )
+def _should_cycle(exc: Exception) -> bool:
+    """Determine if the agent should cycle to the next model/key."""
+    if isinstance(exc, (UsageLimitExceeded, AgentError)):
+        return True
+
+    if isinstance(exc, ModelHTTPError):
+        # Always cycle on client/server errors
+        if exc.status_code >= 400:
+            return True
+
+    if isinstance(exc, RuntimeError) and "event loop is closed" in str(exc).lower():
+        return True
+
+    # Default to not cycling for unknown errors
+    return False
 
     def _should_cycle(exc: Exception) -> bool:
         if isinstance(exc, AgentError) and "tool calls" in str(exc).lower():
@@ -653,103 +644,89 @@ def _execute_writer_with_error_handling(
         if match:
             return int(match.group(1))
         return None
+    message = str(getattr(exc, "body", {}).get("message", "") or exc)
+    if match := re.search(r"can only afford (\d+)", message):
+        return int(match.group(1))
+    return None
 
-    global _KEY_ROTATION_INDEX
+
+def _execute_writer_with_error_handling(
+    prompt: str,
+    config: EgregoraConfig,
+    deps: WriterDeps,
+) -> tuple[list[str], list[str]]:
+    global _KEY_ROTATION_INDEX, _WRITER_LOOP
     last_exc: Exception | None = None
     openrouter_max_tokens: int | None = None
-    model_names = list(_iter_writer_models())
+    model_names = _iter_writer_models(config)
 
-    for model_name in model_names:
+    for model_idx, model_name in enumerate(model_names):
+        # Create a new event loop for each persona to prevent state leakage
+        if _WRITER_LOOP is not None and not _WRITER_LOOP.is_closed():
+            _WRITER_LOOP.close()
+        _WRITER_LOOP = asyncio.new_event_loop()
+        asyncio.set_event_loop(_WRITER_LOOP)
+
         provider_keys = _iter_provider_keys(model_name)
         num_keys = len(provider_keys)
-
-        # Determine starting index for this provider's keys based on global rotation
-        start_idx = _KEY_ROTATION_INDEX % num_keys if num_keys > 0 else 0
-
-        # Create a rotated list: start from start_idx, then the rest, then wrap around
-        # This ensures we try ALL keys for the current model before moving to the next model
-        rotated_keys = []
-        if num_keys > 0:
-            rotated_keys.extend(provider_keys[(start_idx + i) % num_keys] for i in range(num_keys))
-        else:
-            rotated_keys = [None]  # Use default key if none configured
+        key_idx = _KEY_ROTATION_INDEX % num_keys if num_keys > 0 else 0
 
         logger.info(
-            "[WriterRotation] Trying model %s. start_key_idx=%d total_keys=%d",
+            "[WriterRotation] Trying model %s (%d/%d), starting key index %d",
             model_name,
-            start_idx,
-            num_keys,
+            model_idx + 1,
+            len(model_names),
+            key_idx,
         )
 
-        for attempt_idx, key in enumerate(rotated_keys):
+        for attempt in range(num_keys or 1):
+            current_key_idx = (key_idx + attempt) % num_keys if num_keys > 0 else 0
+            key = provider_keys[current_key_idx] if num_keys > 0 else None
             masked_key = (key[:8] + "...") if key else "default"
             logger.info(
                 "[WriterRotation] Attempt %d/%d: model=%s key=%s",
-                attempt_idx + 1,
-                len(rotated_keys),
+                attempt + 1,
+                num_keys or 1,
                 model_name,
                 masked_key,
             )
 
-            max_tokens_override = openrouter_max_tokens if model_name.startswith("openrouter:") else None
             try:
                 result = write_posts_with_pydantic_agent(
                     prompt=prompt,
-                    config=_override_text_models(model_name),
+                    config=_override_text_models(config, model_name),
                     context=deps,
-                    max_tokens_override=max_tokens_override,
+                    max_tokens_override=openrouter_max_tokens,
                     api_key_override=key,
                 )
-                # Success! Increment the rotation index for the NEXT call
-                _KEY_ROTATION_INDEX += 1
+                _KEY_ROTATION_INDEX = (current_key_idx + 1) % num_keys if num_keys > 0 else 0
                 return result
             except PromptTooLargeError:
                 raise
             except Exception as exc:
                 last_exc = exc
-                logger.warning("[WriterRotation] Attempt failed: %s", str(exc)[:200])
-
-                if isinstance(exc, ModelHTTPError) and model_name.startswith("openrouter:"):
-                    affordable = _get_openrouter_affordable_tokens(exc)
-                    if affordable and (openrouter_max_tokens is None or affordable < openrouter_max_tokens):
-                        openrouter_max_tokens = affordable
-                        logger.warning(
-                            "[WriterRotation] OpenRouter credits allow up to %s response tokens; retrying current key.",
-                            affordable,
-                        )
-                        try:
-                            result = write_posts_with_pydantic_agent(
-                                prompt=prompt,
-                                config=_override_text_models(model_name),
-                                context=deps,
-                                max_tokens_override=openrouter_max_tokens,
-                                api_key_override=key,
-                            )
-                            _KEY_ROTATION_INDEX += 1
-                            return result
-                        except (AgentError, ModelHTTPError, RuntimeError) as e2:
-                            exc = e2
-                            last_exc = e2
-                            logger.warning(
-                                "[WriterRotation] Retry with token limit also failed: %s", str(e2)[:200]
-                            )
-
+                logger.warning(
+                    "[WriterRotation] Attempt failed: model=%s, key=%s, error=%s",
+                    model_name,
+                    masked_key,
+                    str(exc)[:200],
+                )
                 if _should_cycle(exc):
-                    logger.warning(
-                        "[WriterRotation] Model %s failed with key %s; cycling to next key for this model.",
-                        model_name,
-                        masked_key,
-                    )
-                    continue  # Try next key IN THE ROTATED LIST for this model
+                    if isinstance(exc, ModelHTTPError) and "openrouter" in model_name:
+                        if affordable := _get_openrouter_affordable_tokens(exc):
+                            if openrouter_max_tokens is None or affordable < openrouter_max_tokens:
+                                openrouter_max_tokens = affordable
+                                logger.warning("[WriterRotation] Retrying with affordable token limit: %d", affordable)
+                                continue
+                    logger.warning("[WriterRotation] Cycling to next key/model.")
+                    continue
 
                 msg = f"Non-recoverable writer agent failure for {deps.window_label}"
-                logger.exception(msg)
                 raise RuntimeError(msg) from exc
+        _KEY_ROTATION_INDEX = 0
 
     msg = f"Writer agent exhausted ALL models and keys for {deps.window_label}"
-    if last_exc:
-        raise RuntimeError(msg) from last_exc
-    raise RuntimeError(msg)
+    raise RuntimeError(msg) from last_exc
 
 
 @dataclass

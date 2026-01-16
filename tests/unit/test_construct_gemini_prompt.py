@@ -64,8 +64,10 @@ def test_construct_prompt_with_all_data(temp_files: dict[str, Path]) -> None:
         "USER_INSTRUCTIONS": "Check security",
     }
 
+    import sys
+
     result = subprocess.run(
-        ["python3", ".github/scripts/construct_gemini_prompt.py"],
+        [sys.executable, ".github/scripts/construct_gemini_prompt.py"],
         check=False,
         env=env,
         capture_output=True,
@@ -110,8 +112,10 @@ def test_construct_prompt_without_optional_data(temp_files: dict[str, Path]) -> 
         "USER_INSTRUCTIONS": "",
     }
 
+    import sys
+
     result = subprocess.run(
-        ["python3", ".github/scripts/construct_gemini_prompt.py"],
+        [sys.executable, ".github/scripts/construct_gemini_prompt.py"],
         check=False,
         env=env,
         capture_output=True,
@@ -146,8 +150,10 @@ def test_construct_prompt_missing_template(temp_files: dict[str, Path]) -> None:
         "PR_AUTHOR": "alice",
     }
 
+    import sys
+
     result = subprocess.run(
-        ["python3", ".github/scripts/construct_gemini_prompt.py"],
+        [sys.executable, ".github/scripts/construct_gemini_prompt.py"],
         check=False,
         env=env,
         capture_output=True,
@@ -178,8 +184,10 @@ def test_construct_prompt_invalid_template_syntax(temp_files: dict[str, Path]) -
         "PR_AUTHOR": "alice",
     }
 
+    import sys
+
     result = subprocess.run(
-        ["python3", ".github/scripts/construct_gemini_prompt.py"],
+        [sys.executable, ".github/scripts/construct_gemini_prompt.py"],
         check=False,
         env=env,
         capture_output=True,
@@ -209,8 +217,10 @@ def test_construct_prompt_creates_output_directory(temp_files: dict[str, Path]) 
         "PR_AUTHOR": "alice",
     }
 
+    import sys
+
     result = subprocess.run(
-        ["python3", ".github/scripts/construct_gemini_prompt.py"],
+        [sys.executable, ".github/scripts/construct_gemini_prompt.py"],
         check=False,
         env=env,
         capture_output=True,

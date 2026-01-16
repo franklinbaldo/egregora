@@ -366,6 +366,22 @@ def _window_by_time(
         current_start += delta  # Advance by delta, creating overlap
 
 
+def _calculate_overlap_rows(window_table: Table, overlap_bytes: int) -> int:
+    """Calculates how many messages from the end of a window table fit within a byte limit."""
+    # This helper calculates the number of rows to keep for the overlap
+    # by summing message bytes from the end of the window backwards.
+    window_with_rev_cum_bytes = window_table.mutate(
+        reverse_cumulative_bytes=window_table.msg_bytes.sum().over(
+            ibis.window(order_by=window_table.ts.desc(), rows=(None, 0))
+        )
+    )
+
+    rows_in_overlap = window_with_rev_cum_bytes.filter(
+        window_with_rev_cum_bytes.reverse_cumulative_bytes <= overlap_bytes
+    )
+    return rows_in_overlap.count().execute()
+
+
 def _window_by_bytes(
     table: Table,
     max_bytes: int,
@@ -388,18 +404,16 @@ def _window_by_bytes(
         Windows packed to maximum byte capacity
 
     """
-    # Add row number and byte length columns (IR v1: use .ts and .text columns)
+    # Pre-computation: Add message byte lengths and a cumulative sum.
+    # This is done once over the entire table for efficiency.
     enriched = table.mutate(
-        row_num=ibis.row_number().over(ibis.window(order_by=[table.ts])),
         msg_bytes=table.text.length().cast("int64"),
     )
-
-    # Calculate cumulative bytes
     windowed = enriched.mutate(
         cumulative_bytes=enriched.msg_bytes.sum().over(ibis.window(order_by=[enriched.ts], rows=(None, 0)))
     )
 
-    # Materialize to avoid recomputation
+    # Materialize to avoid recomputing in the loop.
     materialized = windowed.cache()
     total_count = materialized.count().execute()
 
@@ -408,57 +422,45 @@ def _window_by_bytes(
 
     window_index = 0
     offset = 0
-
     while offset < total_count:
-        # Get chunk starting from offset
+        # Get the rest of the table from the current offset.
         chunk = materialized.limit(total_count - offset, offset=offset)
 
-        # Reset cumulative bytes relative to chunk start
-        chunk_with_relative = chunk.mutate(
+        # To find how many messages fit, we calculate bytes relative to the chunk's start.
+        chunk_with_relative_bytes = chunk.mutate(
             relative_bytes=chunk.cumulative_bytes - chunk.cumulative_bytes.min()
         )
-
-        # Find messages that fit within max_bytes
-        fitting = chunk_with_relative.filter(chunk_with_relative.relative_bytes <= max_bytes)
-        chunk_size = fitting.count().execute()
+        fitting_messages = chunk_with_relative_bytes.filter(
+            chunk_with_relative_bytes.relative_bytes <= max_bytes
+        )
+        chunk_size = fitting_messages.count().execute()
 
         if chunk_size == 0:
-            # Edge case: single message exceeds limit, take it anyway
+            # Edge case: A single message is larger than max_bytes. Include it to prevent an infinite loop.
             chunk_size = 1
 
-        # Create window from these messages
+        # Create the window from the messages that fit.
         window_table = materialized.limit(chunk_size, offset=offset)
 
-        # Get time bounds
-        start_time = _get_min_timestamp(window_table)
-        end_time = _get_max_timestamp(window_table)
+        # Get window metadata with a single query.
+        agg_result = window_table.aggregate(
+            start_time=window_table.ts.min(),
+            end_time=window_table.ts.max(),
+        ).execute()
 
         yield Window(
             window_index=window_index,
-            start_time=start_time,
-            end_time=end_time,
-            table=window_table.drop(["row_num", "msg_bytes", "cumulative_bytes"]),  # Clean up temp columns
+            start_time=agg_result["start_time"][0],
+            end_time=agg_result["end_time"][0],
+            table=window_table.drop(["msg_bytes", "cumulative_bytes"]),
             size=chunk_size,
         )
 
         window_index += 1
 
-        # Calculate overlap in messages (approximate from bytes)
+        # Calculate how many rows to advance for the next window based on overlap.
         if overlap_bytes > 0 and chunk_size > 1:
-            # Find how many messages from end fit in overlap_bytes (IR v1: use .text and .ts columns)
-            # window_table is already the correct chunk, no need for tail()
-            tail_with_bytes = window_table.mutate(msg_bytes_col=window_table.text.length())
-
-            # Cumulative bytes from end (reverse order using DESC)
-            tail_cumsum = tail_with_bytes.mutate(
-                reverse_cum=tail_with_bytes.msg_bytes_col.sum().over(
-                    ibis.window(order_by=[tail_with_bytes.ts.desc()], rows=(None, 0))
-                )
-            )
-
-            overlap_rows_table = tail_cumsum.filter(tail_cumsum.reverse_cum <= overlap_bytes)
-            overlap_rows = overlap_rows_table.count().execute()
-
+            overlap_rows = _calculate_overlap_rows(window_table, overlap_bytes)
             advance = max(1, chunk_size - overlap_rows)
         else:
             advance = chunk_size
