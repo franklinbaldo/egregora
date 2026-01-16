@@ -26,7 +26,7 @@ Egregora parses your raw data streams (WhatsApp, RSS, etc.), groups content into
 
     See a live example of a blog generated from chat data.
 
-- :material-rocket-launch-outline: __[Quick Start](getting-started/quickstart.md)__
+- :material-rocket-launch-outline: __[Quick Start](./getting-started/quickstart.md)__
 
     ---
 

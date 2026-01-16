@@ -480,7 +480,9 @@ def demo(
             )
         except AllModelsExhaustedError as e:
             console.print(f"[bold yellow]⚠️  Content generation failed: {e}[/bold yellow]")
-            console.print("[dim]The demo site scaffold has been created, but without AI-generated content.[/dim]")
+            console.print(
+                "[dim]The demo site scaffold has been created, but without AI-generated content.[/dim]"
+            )
             # Ensure the scaffold exists even if run_cli_flow failed mid-process
             scaffolder = MkDocsSiteScaffolder()
             scaffolder.scaffold_site(output_dir, site_name="Egregora Demo (Content Failed)")
