@@ -26,6 +26,11 @@ The key locations for these embedded templates are:
 -   `src/egregora/output_adapters/mkdocs/adapter.py`: Generates the individual Markdown pages for posts, profiles, etc.
 -   `src/egregora/output_adapters/mkdocs/site_generator.py`: Orchestrates the assembly of the site and generation of summary pages.
 
+### Developer Experience
+-   **Status:** Poor.
+-   **Issue:** The `egregora demo` command is brittle and fails repeatedly due to missing dependencies (`ibis`, `google-generativeai`, `pydantic-ai`, `ratelimit`, `lancedb`, `Pillow`, etc.). This creates a significant barrier for developers and other agents trying to evaluate or contribute to the project.
+-   **Next Action:** Create a high-priority task for Forge to identify all missing dependencies required to run the core commands and add them to the `pyproject.toml` file. This will ensure a smooth, out-of-the-box experience.
+
 ## Design System (V1 - "The Portal")
 
 This section defines the "Portal" design system, which aims to create a dark, immersive, and premium experience.
@@ -34,8 +39,8 @@ This section defines the "Portal" design system, which aims to create a dark, im
 -   **Status:** Inconsistent.
 -   **Primary:** A deep, thoughtful blue (`#2c3e50`) defined in `extra.css`.
 -   **Accent:** A vibrant, energetic yellow (`#f9d423`) defined in `extra.css`.
--   **Conflict:** The `mkdocs.yml` is configured with the default `teal` and `amber` colors.
--   **Next Action:** Create a task for Forge to update the `mkdocs.yml` theme palette to `custom` to ensure the colors in `extra.css` are correctly applied.
+-   **Conflict:** The generated `mkdocs.yml` correctly sets `primary: custom`, but incorrectly sets `accent: yellow`. This overrides the custom accent color defined in `extra.css`, breaking the "Portal" theme's consistency.
+-   **Next Action:** Create a task for Forge to modify the `mkdocs.yml` Jinja template in `src/egregora/output_adapters/mkdocs/scaffolding.py`. The template must be updated to set both `primary` and `accent` to `custom` to allow `extra.css` to take full control of the color scheme.
 
 ### Typography
 -   **Status:** Defined.
@@ -44,7 +49,8 @@ This section defines the "Portal" design system, which aims to create a dark, im
 
 ### Favicon
 -   **Status:** Missing.
--   **Next Action:** Create a task to design and add a favicon to the site.
+-   **Issue:** The generated `mkdocs.yml` correctly references a favicon at `assets/images/favicon.png`, but the file itself is not present in the generated `demo/docs/assets/images/` directory.
+-   **Next Action:** Create a task for Forge to add a placeholder favicon to the project and ensure it is copied to the correct location (`demo/docs/assets/images/favicon.png`) during the scaffolding process. A separate design task can be created later.
 
 ### Social Cards
 -   **Status:** Broken.
@@ -57,6 +63,6 @@ This section defines the "Portal" design system, which aims to create a dark, im
 -   **Next Action:** Review the information architecture and create a task to restructure the navigation for better clarity and consistency.
 
 ### Analytics
--   **Status:** Broken placeholder.
--   **Issue:** The `mkdocs.yml` contains a placeholder for a Google Analytics key (`__GOOGLE_ANALYTICS_KEY__`).
--   **Next Action:** Create a task to remove the analytics configuration entirely, in line with our "Privacy-First" principle. It can be re-added later as an explicit, opt-in feature if desired.
+-   **Status:** Removed.
+-   **Issue:** Previous versions of the generator included a placeholder for a Google Analytics key. As of the latest inspection, this has been removed from the default `mkdocs.yml` template.
+-   **Next Action:** None. This issue is resolved and aligns with our "Privacy-First" principle.

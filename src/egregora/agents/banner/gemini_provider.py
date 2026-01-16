@@ -2,16 +2,8 @@
 
 from __future__ import annotations
 
-import base64
-import json
 import logging
-import tempfile
-import time
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-import httpx
-import google.generativeai.types as types
+from typing import TYPE_CHECKING
 
 from egregora.agents.banner.image_generation import (
     ImageGenerationProvider,
