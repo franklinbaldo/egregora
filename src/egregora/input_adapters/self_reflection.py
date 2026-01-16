@@ -29,7 +29,7 @@ AUTHOR_NAMESPACE = UUID("52ef49ac-b9f7-48b9-8f37-8db2ca4c7f4f")
 EVENT_NAMESPACE = UUID("3d99325f-85e5-4c4b-9a85-4e80bc9a6d33")
 
 
-def _scan_and_parse_documents(output_adapter: Any, doc_type: DocumentType) -> list[Document]:
+def _scan_and_parse_documents(output_adapter: OutputSink, doc_type: DocumentType) -> list[Document]:
     """Scan filesystem for documents and parse them."""
     documents = []
     posts_dir = getattr(output_adapter, "posts_dir", None)
@@ -53,7 +53,7 @@ def _scan_and_parse_documents(output_adapter: Any, doc_type: DocumentType) -> li
                 metadata=metadata,
             )
             documents.append(doc)
-        except OSError as e:
+        except (OSError, yaml.YAMLError) as e:
             logger.warning(f"Failed to parse {md_file}: {e}")
     return documents
 

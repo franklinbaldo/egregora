@@ -19,8 +19,8 @@ def test_scheduler_skips_completed():
     pass
 
 
-@scenario("../features/csv_scheduler.feature", "Scheduler waits for active PR")
-def test_scheduler_waits_for_pr():
+@scenario("../features/csv_scheduler.feature", "Scheduler advances past active PRs")
+def test_scheduler_advances_past_active_prs():
     pass
 
 
