@@ -315,28 +315,41 @@ def get_base_sha(base_branch: str, repo_path: str = ".") -> str:
 
 
 def _extract_session_id(branch: str, body: str) -> str | None:
-    """Extract Jules session ID from branch name or PR body."""
+    """Extract Jules session ID from branch name or PR body.
+
+    Jules uses numeric session IDs (15-20 digits) embedded at the end of branch names.
+    Branch pattern: {category}/{description}-{sessionID}
+    Example: refactor/windowing-by-bytes-6277226227732204550
+    """
     session_id = None
+
+    # PRIMARY: Numeric session ID at end of branch (what Jules actually uses)
+    # Pattern: 15-20 digits at the end (e.g., -6277226227732204550)
+    match = re.search(r"-(\d{15,})$", branch)
+    if match:
+        return match.group(1)
+
+    # FALLBACK: UUID pattern (for future compatibility, not currently used by Jules)
     uuid_match = re.search(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$", branch)
     if uuid_match:
         return uuid_match.group(1)
 
-    match = re.search(r"-(\d{15,})$", branch)
-    if match:
-        session_id = match.group(1)
-
-    if not session_id and body:
+    # FALLBACK: Session ID in PR body
+    if body:
+        # Try jules.google.com URL (numeric ID)
         match = re.search(r"jules\.google\.com/task/(\d+)", body)
         if match:
-            session_id = match.group(1)
-        else:
-            match = re.search(r"/task/([a-zA-Z0-9-]+)", body)
-            if match:
-                session_id = match.group(1)
-            else:
-                match = re.search(r"/sessions/([a-zA-Z0-9-]+)", body)
-                if match:
-                    session_id = match.group(1)
+            return match.group(1)
+
+        # Try generic /task/ pattern (alphanumeric)
+        match = re.search(r"/task/([a-zA-Z0-9-]+)", body)
+        if match:
+            return match.group(1)
+
+        # Try /sessions/ pattern (alphanumeric)
+        match = re.search(r"/sessions/([a-zA-Z0-9-]+)", body)
+        if match:
+            return match.group(1)
 
     return session_id
 
