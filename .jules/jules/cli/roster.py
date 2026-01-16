@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich.markdown import Markdown
+from jules.scheduler.loader import PersonaLoader
 
 app = typer.Typer(
     name="roster",
@@ -53,10 +54,16 @@ def list_personas():
                 post = frontmatter.load(prompt_file)
                 persona_id = post.metadata.get("id", prompt_file.parent.name)
                 emoji = post.metadata.get("emoji", "🤖")
-                description = post.metadata.get("description", "")
-                # Truncate description for display
-                if len(description) > 50:
-                    description = description[:47] + "..."
+                description = post.metadata.get("description", "").strip()
+                
+                # Cleanup: remove surrounding quotes if they exist (sometimes YAML adds them)
+                if (description.startswith('"') and description.endswith('"')) or \
+                   (description.startswith("'") and description.endswith("'")):
+                    description = description[1:-1].strip()
+                
+                # Normalize whitespace
+                description = " ".join(description.split())
+                
                 personas.append((persona_id, emoji, description))
             except Exception:
                 continue
@@ -66,10 +73,16 @@ def list_personas():
             raise typer.Exit(code=1)
         
         # Create rich table
-        table = Table(title="👥 Team Roster", show_header=True, header_style="bold cyan")
+        table = Table(
+            title="👥 Team Roster", 
+            show_header=True, 
+            header_style="bold cyan",
+            box=None,
+            padding=(0, 1)
+        )
         table.add_column("", style="", width=3)  # Emoji
-        table.add_column("Persona", style="bold", width=15)
-        table.add_column("Description", style="dim")
+        table.add_column("Persona", style="bold cyan", width=15)
+        table.add_column("Description", style="white")
         
         for pid, emoji, desc in personas:
             table.add_row(emoji, pid, desc)
@@ -103,9 +116,6 @@ def view_persona(
             console.print(f"[red]❌ Persona '{persona_id}' not found[/red]")
             console.print("[dim]Try: my-tools roster list[/dim]")
             raise typer.Exit(code=1)
-        
-        # Use PersonaLoader to render the full prompt
-        from jules.scheduler.loader import PersonaLoader
         
         base_context = {
             "repo_owner": "team",

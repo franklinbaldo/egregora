@@ -51,7 +51,7 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 
 ## 📤 Output
 {% block output %}
-{# Expected deliverable format #}
+{% include "blocks/pr_format.md.j2" %}
 {% endblock %}
 
 {% block journal %}

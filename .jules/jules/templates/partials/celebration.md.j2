@@ -1,17 +1,8 @@
 
 **If you find no work to do:**
 - 🎉 **Celebrate!** The state is good.
-- Create a journal entry: `YYYY-MM-DD-HHMM-No_Work_Needed.md`
-- Content:
-  ```markdown
-  ---
-  title: "{{ emoji }} No Work Needed"
-  date: YYYY-MM-DD
-  author: "{{ id | title }}"
-  emoji: "{{ emoji }}"
-  type: journal
-  ---
-
-  ## {{ emoji }} No issues found / Queue empty.
+- Create a journal entry:
+  ```bash
+  PYTHONPATH=.jules uv run python .jules/jules/cli/my_tools.py journal --content "No issues found / Queue empty." --password {{ password }}
   ```
 - **Finish the session.**

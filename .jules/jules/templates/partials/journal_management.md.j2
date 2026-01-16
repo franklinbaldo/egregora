@@ -4,28 +4,16 @@
 **CRITICAL: You MUST create a journal entry before finishing your session. This is NOT optional.**
 
 **Steps:**
-1. If the directory `.jules/personas/{{ id }}/journals/` doesn't exist, create it first
-2. Create a NEW file with naming: `YYYY-MM-DD-HHMM-Descriptive_Title.md` (e.g., `2025-12-26-1430-Fixed_Broken_Links.md`)
-3. Use this EXACT format with YAML frontmatter:
-  ```markdown
-  ---
-  title: "{{ emoji }} Descriptive Title of What You Did"
-  date: YYYY-MM-DD
-  author: "{{ id | title }}"
-  emoji: "{{ emoji }}"
-  type: journal
-  ---
+1. Compose your journal content following this structure:
+   - **Observation:** [What did you notice?]
+   - **Action:** [What did you change?]
+   - **Reflection:** [What's next?]
+2. Run the atomic journaling command:
+   ```bash
+   PYTHONPATH=.jules uv run python .jules/jules/cli/my_tools.py journal --content "Your composed content" --password {{ password }}
+   ```
 
-  ## {{ emoji }} YYYY-MM-DD - Summary
-
-  **Observation:** [What did you notice in the codebase? What prompted this work?]
-
-  **Action:** [What specific changes did you make? List key modifications.]
-
-  **Reflection:** [What problems remain in your domain? What should be tackled next? This reflection is REQUIRED - it guides your next session.]
-  ```
-
-**Even if you found no work to do, create a journal entry saying so.** This helps track that the system is healthy.
+**Even if you found no work to do, run the journal command with "No work needed".** This helps track that the system is healthy.
 
 ## Previous Journal Entries
 
@@ -35,4 +23,4 @@ Below are your past journal entries. Use them to avoid repeating work or redisco
 {{ journal_entries }}
 ```
 
-**Remember: The journal entry is MANDATORY. Create it before finishing.**
+**Remember: The journal entry is MANDATORY. Run the command before finishing.**
