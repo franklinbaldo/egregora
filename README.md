@@ -132,7 +132,7 @@ You can extend Egregora to read from other sources (e.g., Slack, Telegram) by im
 We welcome contributions! Please check out:
 
 * **[Technical Reference](docs/reference/):** Deep dive into CLI commands and architecture.
-* **[Code of the Weaver](docs/CLAUDE.md):** Guidelines for contributors and AI agents.
+* **[Code of the Weaver](CLAUDE.md):** Guidelines for contributors and AI agents.
 
 To run tests:
 
