@@ -3,49 +3,65 @@ from unittest.mock import patch
 
 import pytest
 
-from egregora.config.exceptions import ApiKeyNotFoundError
-from egregora.config.settings import get_google_api_key, get_openrouter_api_key
+from egregora.config.settings import get_google_api_keys, get_openrouter_api_keys
 
 
-def test_get_google_api_key_raises_error_when_missing():
-    """Test that get_google_api_key raises ApiKeyNotFoundError when env vars are not set."""
+def test_get_google_api_keys_returns_empty_list_when_missing():
+    """Test that get_google_api_keys returns an empty list when the env var is not set."""
     with patch.dict(os.environ, {}, clear=True):
-        with pytest.raises(ApiKeyNotFoundError, match="GEMINI_API_KEY or GOOGLE_API_KEY"):
-            get_google_api_key()
+        assert get_google_api_keys() == []
 
 
-def test_get_google_api_key_returns_gemini_key():
-    """Test that get_google_api_key returns the GEMINI_API_KEY when set."""
-    with patch.dict(os.environ, {"GEMINI_API_KEY": "gemini_key"}, clear=True):
-        assert get_google_api_key() == "gemini_key"
+def test_get_google_api_keys_returns_single_key():
+    """Test that get_google_api_keys returns a single key from the new env var."""
+    with patch.dict(os.environ, {"EGREGORA_GOOGLE_API_KEYS": "key1"}, clear=True):
+        assert get_google_api_keys() == ["key1"]
 
 
-def test_get_google_api_key_returns_google_key():
-    """Test that get_google_api_key returns the GOOGLE_API_KEY when set."""
-    with patch.dict(os.environ, {"GOOGLE_API_KEY": "google_key"}, clear=True):
-        assert get_google_api_key() == "google_key"
+def test_get_google_api_keys_returns_multiple_keys():
+    """Test that get_google_api_keys returns multiple keys from the new env var."""
+    with patch.dict(os.environ, {"EGREGORA_GOOGLE_API_KEYS": "key1,key2"}, clear=True):
+        assert get_google_api_keys() == ["key1", "key2"]
 
 
-def test_get_google_api_key_prefers_gemini_key():
-    """Test that GEMINI_API_KEY is preferred when both are set."""
-    with patch.dict(os.environ, {"GEMINI_API_KEY": "gemini_key", "GOOGLE_API_KEY": "google_key"}, clear=True):
-        assert get_google_api_key() == "gemini_key"
+def test_get_google_api_keys_ignores_old_vars():
+    """Test that get_google_api_keys ignores old single-key environment variables."""
+    with patch.dict(
+        os.environ,
+        {"GEMINI_API_KEY": "gemini_key", "GOOGLE_API_KEY": "google_key"},
+        clear=True,
+    ):
+        assert get_google_api_keys() == []
 
 
-def test_get_openrouter_api_key_raises_error_when_missing():
-    """Test get_openrouter_api_key raises ApiKeyNotFoundError when the env var is not set."""
+def test_get_openrouter_api_keys_returns_empty_list_when_missing():
+    """Test get_openrouter_api_keys returns an empty list when the env var is not set."""
     with patch.dict(os.environ, {}, clear=True):
-        with pytest.raises(ApiKeyNotFoundError, match="OPENROUTER_API_KEY"):
-            get_openrouter_api_key()
+        assert get_openrouter_api_keys() == []
 
 
-def test_get_openrouter_api_key_returns_key():
-    """Test that get_openrouter_api_key returns the key when the env var is set."""
+def test_get_openrouter_api_keys_returns_single_key():
+    """Test that get_openrouter_api_keys returns a single key from the new env var."""
+    with patch.dict(os.environ, {"EGREGORA_OPENROUTER_API_KEYS": "key1"}, clear=True):
+        assert get_openrouter_api_keys() == ["key1"]
+
+
+def test_get_openrouter_api_keys_returns_multiple_keys():
+    """Test that get_openrouter_api_keys returns multiple keys from the new env var."""
+    with patch.dict(os.environ, {"EGREGORA_OPENROUTER_API_KEYS": "key1, key2, =key3 "}, clear=True):
+        assert get_openrouter_api_keys() == ["key1", "key2", "key3"]
+
+
+def test_get_openrouter_api_keys_ignores_old_var():
+    """Test that get_openrouter_api_keys ignores the old single-key environment variable."""
     with patch.dict(os.environ, {"OPENROUTER_API_KEY": "openrouter_key"}, clear=True):
-        assert get_openrouter_api_key() == "openrouter_key"
+        assert get_openrouter_api_keys() == []
 
 
-def test_get_openrouter_api_key_strips_value():
-    """Test that get_openrouter_api_key strips whitespace and equals signs."""
-    with patch.dict(os.environ, {"OPENROUTER_API_KEY": " = openrouter_key "}, clear=True):
-        assert get_openrouter_api_key() == "openrouter_key"
+def test_single_key_getters_are_removed():
+    """Test that the old single-key getter functions have been removed."""
+    with pytest.raises(ImportError):
+        from egregora.config.settings import get_google_api_key  # noqa: F401
+
+    with pytest.raises(ImportError):
+        from egregora.config.settings import get_openrouter_api_key  # noqa: F401

@@ -20,8 +20,7 @@ from egregora.agents.writer_helpers import (
     register_writer_tools,
     validate_prompt_fits,
 )
-from egregora.config.exceptions import ApiKeyNotFoundError
-from egregora.config.settings import get_google_api_key, get_openrouter_api_key
+from egregora.config.settings import get_google_api_keys, get_openrouter_api_keys
 
 if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig
@@ -39,38 +38,38 @@ def create_writer_model(
         return test_model
 
     model_name = config.models.writer
+    effective_key = api_key
+
     if model_name.startswith("google-gla:"):
-        effective_key = api_key
         if not effective_key:
-            try:
-                effective_key = get_google_api_key()
-            except ApiKeyNotFoundError as e:
+            google_keys = get_google_api_keys()
+            if not google_keys:
                 msg = (
                     "A Google model is configured, but no API key was found.\n"
-                    "Please set the GEMINI_API_key or GOOGLE_API_KEY environment variable.\n"
+                    "Please set the EGREGORA_GOOGLE_API_KEYS environment variable.\n"
                     "You can get a free key from Google AI Studio: https://aistudio.google.com/app/apikey"
                 )
-                raise ValueError(msg) from e
+                raise ValueError(msg)
+            effective_key = google_keys[0]
+
         model = infer_model(model_name)
-        # Some models in pydantic-ai might not accept api_key in infer_model directly for all providers
-        # but for Gemini it should be fine if we use the underlying client or if infer_model supports it.
-        # Actually, pydantic-ai.models.gemini.GeminiModel takes api_key.
-        if hasattr(model, "api_key") and effective_key:
+        if hasattr(model, "api_key"):
             model.api_key = effective_key
+
     elif model_name.startswith("openrouter:"):
-        effective_key = api_key
         if not effective_key:
-            try:
-                effective_key = get_openrouter_api_key()
-            except ApiKeyNotFoundError as e:
+            openrouter_keys = get_openrouter_api_keys()
+            if not openrouter_keys:
                 msg = (
                     "An OpenRouter model is configured, but no API key was found.\n"
-                    "Please set the OPENROUTER_API_KEY environment variable.\n"
+                    "Please set the EGREGORA_OPENROUTER_API_KEYS environment variable.\n"
                     "You can get a key from OpenRouter: https://openrouter.ai/keys"
                 )
-                raise ValueError(msg) from e
+                raise ValueError(msg)
+            effective_key = openrouter_keys[0]
+
         model = infer_model(model_name)
-        if hasattr(model, "api_key") and effective_key:
+        if hasattr(model, "api_key"):
             model.api_key = effective_key
     else:
         model = infer_model(model_name)

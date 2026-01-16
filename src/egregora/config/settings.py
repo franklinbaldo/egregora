@@ -40,7 +40,6 @@ from pydantic import BaseModel, Field, ValidationError, field_validator, model_v
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from egregora.config.exceptions import (
-    ApiKeyNotFoundError,
     ConfigError,
     ConfigNotFoundError,
     ConfigValidationError,
@@ -1227,9 +1226,7 @@ __all__ = [
     "WriterRuntimeConfig",
     "create_default_config",
     "find_egregora_config",
-    "get_google_api_key",
     "get_google_api_keys",
-    "get_openrouter_api_key",
     "get_openrouter_api_keys",
     "load_egregora_config",
     "parse_date_arg",
@@ -1238,56 +1235,17 @@ __all__ = [
 ]
 
 
-def get_google_api_key() -> str:
-    """Get Google API key from environment, checking both GEMINI and GOOGLE variables."""
-    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if not api_key:
-        msg = "GEMINI_API_KEY or GOOGLE_API_KEY"
-        raise ApiKeyNotFoundError(msg)
-    return api_key
-
-
 def get_google_api_keys() -> list[str]:
-    """Get list of Google API keys from environment."""
-    keys = []
-    # 1. Check GEMINI_API_KEYS (comma-separated list)
-    keys_str = os.environ.get("GEMINI_API_KEYS", "")
-    if keys_str:
-        for k in keys_str.split(","):
-            val = k.strip()
-            if val and val not in keys:
-                keys.append(val)
-    # 2. Check individual keys
-    for var in ["GEMINI_API_KEY", "GOOGLE_API_KEY"]:
-        key = os.environ.get(var)
-        if key and key.strip() and key.strip() not in keys:
-            keys.append(key.strip())
-    return keys
-
-
-def get_openrouter_api_key() -> str:
-    """Get OpenRouter API key from environment."""
-    keys = get_openrouter_api_keys()
-    if not keys:
-        msg = "OPENROUTER_API_KEY or OPENROUTER_API_KEYS"
-        raise ApiKeyNotFoundError(msg)
-    return keys[0]
+    """Get list of Google API keys from the EGREGORA_GOOGLE_API_KEYS environment variable."""
+    keys_str = os.environ.get("EGREGORA_GOOGLE_API_KEYS", "")
+    if not keys_str:
+        return []
+    return [key.strip() for key in keys_str.split(",") if key.strip()]
 
 
 def get_openrouter_api_keys() -> list[str]:
-    """Get list of OpenRouter API keys from environment."""
-    keys = []
-    # 1. Check OPENROUTER_API_KEYS (comma-separated list)
-    keys_str = os.environ.get("OPENROUTER_API_KEYS", "")
-    if keys_str:
-        for k in keys_str.split(","):
-            val = k.strip().lstrip("=").strip()
-            if val and val not in keys:
-                keys.append(val)
-    # 2. Check individual key
-    key = os.environ.get("OPENROUTER_API_KEY")
-    if key and key.strip():
-        val = key.strip().lstrip("=").strip()
-        if val and val not in keys:
-            keys.append(val)
-    return keys
+    """Get list of OpenRouter API keys from the EGREGORA_OPENROUTER_API_KEYS environment variable."""
+    keys_str = os.environ.get("EGREGORA_OPENROUTER_API_KEYS", "")
+    if not keys_str:
+        return []
+    return [key.strip().lstrip("=").strip() for key in keys_str.split(",") if key.strip()]
