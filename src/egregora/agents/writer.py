@@ -414,7 +414,7 @@ def write_posts_with_pydantic_agent(
     result = None
 
     # Use tenacity for retries
-    def _run_agent_sync() -> Any:
+    def _run_agent_sync(loop: asyncio.AbstractEventLoop) -> Any:
         async def _run_async() -> Any:
             return await agent.run(
                 "Analyze the conversation context provided and write posts/profiles as needed.",
@@ -422,7 +422,6 @@ def write_posts_with_pydantic_agent(
                 usage_limits=usage_limits,
             )
 
-        loop = _get_writer_loop()
         if loop.is_running():
             msg = "Writer loop already running; cannot run synchronously."
             raise RuntimeError(msg)
@@ -432,14 +431,17 @@ def write_posts_with_pydantic_agent(
         finally:
             asyncio.set_event_loop(None)
 
+    loop = _get_writer_loop()
     try:
         for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
             with attempt:
                 # Execute model directly without tools
-                result = _run_agent_sync()
+                result = _run_agent_sync(loop)
     except Exception as e:
         logger.exception("Error during agent run: %s", e)
         raise
+    finally:
+        loop.close()
 
     if not result:
         msg = "Agent failed to return a result"
