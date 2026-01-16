@@ -19,16 +19,30 @@ Systematically fix ruff linting warnings by refactoring code properly, ensuring 
 {% block context %}
 **Reference Documents:**
 - **Journal:** See "Previous Journal Entries" section below
-- **[ruff.toml](../../ruff.toml)** or **[pyproject.toml](../../pyproject.toml)** - Linting configuration (READ ONLY)
+- **[pyproject.toml](../../pyproject.toml)** - Linting configuration (READ ONLY)
 {% endblock %}
 
 {% block constraints %}
 - **NEVER use `# noqa` comments** to silence warnings
 - **NEVER add rules to ignore lists** in ruff config
 - **ALWAYS fix the root cause** through proper refactoring
-- **ALWAYS use BDD** - define expected behavior first, then fix
+- **ALWAYS use BDD** - specify expected behavior first
 - Every change must preserve existing functionality
 - No breaking changes
+{% endblock %}
+
+{% block guardrails %}
+**✅ Always:**
+- Use BDD cycle (Specify → Implement → Verify)
+- Fix root cause of linting warnings
+- Run full test suite after changes
+- Commit small, focused changes
+
+**🚫 Never:**
+- Add `# noqa` comments
+- Add rules to ruff ignore lists
+- Break existing functionality
+- Ship with failing tests
 {% endblock %}
 
 {% block output %}
@@ -46,68 +60,32 @@ uv run mypy src/           # Type check (if used)
 ```
 {% endblock %}
 
-{% block content %}
-## The Work Technique: Behavior-Driven Development (BDD)
+{% block workflow %}
+{% include "blocks/bdd_technique.md.j2" %}
 
-Every refactoring follows the BDD cycle using Given-When-Then:
+### The Refactoring Cycle
 
-### 1. 📝 SPECIFY - Define Expected Behavior
+#### 1. 🔍 IDENTIFY - Find Linting Issues
+```bash
+uv run ruff check .
+```
+Pick ONE issue to fix (start small, ship fast)
 
+#### 2. 📝 SPECIFY - Define Expected Behavior
 ```gherkin
 Given a function with linting warning [X]
 When I refactor following the ruff rule
 Then the warning should be eliminated
 And all existing tests should still pass
-And functionality should be preserved
 ```
 
-### 2. 🎯 IMPLEMENT - Make Specification True
-
+#### 3. 🎯 IMPLEMENT - Refactor Properly
 - Remove unused imports
 - Simplify complex functions
 - Fix type hints
-- Proper exception handling (no bare except)
+- Proper exception handling
 - Add missing docstrings
-- Follow naming conventions
 
-### 3. ✅ VERIFY - Run Specification
-
-Run the verification commands above to confirm behavior is preserved.
-
----
-
-## The Refactoring Cycle
-
-### 1. 🔍 IDENTIFY - Find Linting Issues
-- Run `uv run ruff check .`
-- Pick ONE issue to fix (start small, ship fast)
-
-### 2. 📝 UNDERSTAND - Analyze the Issue
-- Read the ruff error message
-- Understand WHY it's a problem
-- Check existing tests for the affected code
-
-### 3. 🎯 FIX - Refactor Properly
-- Fix the linting issue at its root cause
-- Run ruff to confirm warning is gone
-- Run test suite to confirm all pass
-
-### 4. 🔵 POLISH - Clean Up
-- Extract helper functions if needed
-- Improve variable names
-- Add type hints if missing
-
-## Guardrails
-
-### ✅ Always Do
-- Use BDD cycle (Given → When → Then → Verify)
-- Fix root cause of linting warnings
-- Run full test suite after changes
-- Commit small, focused changes
-
-### 🚫 Never Do
-- Add `# noqa` comments to silence warnings
-- Add rules to ruff ignore lists
-- Break existing functionality
-- Ship code with failing tests
+#### 4. ✅ VERIFY - Confirm Changes
+Run verification commands above.
 {% endblock %}

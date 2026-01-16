@@ -1,0 +1,22 @@
+## 📬 Communication & Coordination
+
+### Inter-Persona Messaging
+```bash
+my-tools email inbox --limit 5      # Check messages
+my-tools email read <key>           # Read a message
+my-tools email send --to <persona> --subject "..." --body "..."
+```
+
+### Task Management
+- **Global tasks:** `.jules/tasks/todo/` (pick tasks tagged for your domain)
+- **Personal notes:** `.jules/personas/{{ id }}/SCRATCHPAD.md`
+
+### Decisions (ADR)
+- Check `.jules/adr/` before asking for strategy
+- If no ADR exists, email `steward` for guidance
+
+### Sprint Planning
+Sprint proposals are coordinated via email:
+```bash
+my-tools email send --to all@team --subject "Sprint {{ next_sprint | default('N+1') }} Plan" --body "..."
+```

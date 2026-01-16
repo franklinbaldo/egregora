@@ -27,16 +27,12 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {% include "blocks/environment_awareness.md.j2" %}
 {% endblock %}
 
-{% block job_simulation %}
-{% include "blocks/job_simulation.md.j2" %}
+{% block session_protocol %}
+{% include "blocks/session_protocol.md.j2" %}
 {% endblock %}
 
-{% block planning %}
-{% include "blocks/sprint_planning.md.j2" %}
-{% endblock %}
-
-{% block collaboration %}
-{% include "blocks/collaboration.md.j2" %}
+{% block communication %}
+{% include "blocks/communication.md.j2" %}
 {% endblock %}
 
 ## ⚠️ Constraints
@@ -50,10 +46,10 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 
 ### Guardrails
 {% block guardrails %}
-{# ✅ Always do / � Never do #}
+{# ✅ Always do / 🚫 Never do #}
 {% endblock %}
 
-## �📤 Output
+## 📤 Output
 {% block output %}
 {# Expected deliverable format #}
 {% endblock %}
@@ -79,7 +75,8 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 
 ## 🔄 Workflow
 {% block workflow %}
-{# Step-by-step process, methodology (BDD, cycles) #}
+{# Include BDD technique: {% include "blocks/bdd_technique.md.j2" %} #}
+{# Add persona-specific process steps #}
 {% endblock %}
 
 {% block extra_sections %}
