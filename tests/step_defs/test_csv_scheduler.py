@@ -71,15 +71,6 @@ def mock_jules_client(mocker):
 
 
 @pytest.fixture
-def mock_branch_manager(mocker):
-    """Mock BranchManager."""
-    mock_mgr = MagicMock()
-    mock_mgr.create_session_branch.return_value = "jules-sched-test"
-    mocker.patch("jules.scheduler.engine.BranchManager", return_value=mock_mgr)
-    return mock_mgr
-
-
-@pytest.fixture
 def mock_orchestrator(mocker):
     """Mock SessionOrchestrator to return fake session ID."""
     mock_orch = MagicMock()
@@ -184,11 +175,11 @@ def oracle_session_age(hours, mock_oracle_schedule_path, context):
 
 # When steps
 @when("the scheduler runs a sequential tick")
-def run_sequential_tick(mock_jules_client, mock_orchestrator, mock_branch_manager, mocker, context):
+def run_sequential_tick(mock_jules_client, mock_orchestrator, mocker, context):
     # Mock get_repo_info and get_open_prs
     mocker.patch("jules.scheduler.engine.get_repo_info", return_value={"owner": "test", "repo": "test"})
     mocker.patch("jules.scheduler.engine.get_open_prs", return_value=[])
-    
+
     if not context.get("existing_session_configured"):
         mock_jules_client.list_sessions.return_value = {"sessions": []}
 
