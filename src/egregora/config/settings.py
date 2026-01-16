@@ -1247,22 +1247,25 @@ def get_google_api_key() -> str:
     return api_key
 
 
-def get_google_api_keys() -> list[str]:
-    """Get list of Google API keys from environment."""
-    keys = []
-    # 1. Check GEMINI_API_KEYS (comma-separated list)
-    keys_str = os.environ.get("GEMINI_API_KEYS", "")
-    if keys_str:
+def _get_api_keys_from_env(*env_vars: str) -> list[str]:
+    """Get a de-duplicated list of API keys from multiple environment variables."""
+    keys: list[str] = []
+    for var in env_vars:
+        keys_str = os.environ.get(var, "")
+        if not keys_str:
+            continue
         for k in keys_str.split(","):
-            val = k.strip()
+            val = k.strip().lstrip("=").strip()
             if val and val not in keys:
                 keys.append(val)
-    # 2. Check individual keys
-    for var in ["GEMINI_API_KEY", "GOOGLE_API_KEY"]:
-        key = os.environ.get(var)
-        if key and key.strip() and key.strip() not in keys:
-            keys.append(key.strip())
     return keys
+
+
+def get_google_api_keys() -> list[str]:
+    """Get list of Google API keys from environment."""
+    return _get_api_keys_from_env(
+        "GEMINI_API_KEYS", "GEMINI_API_KEY", "GOOGLE_API_KEY"
+    )
 
 
 def get_openrouter_api_key() -> str:
@@ -1276,18 +1279,4 @@ def get_openrouter_api_key() -> str:
 
 def get_openrouter_api_keys() -> list[str]:
     """Get list of OpenRouter API keys from environment."""
-    keys = []
-    # 1. Check OPENROUTER_API_KEYS (comma-separated list)
-    keys_str = os.environ.get("OPENROUTER_API_KEYS", "")
-    if keys_str:
-        for k in keys_str.split(","):
-            val = k.strip().lstrip("=").strip()
-            if val and val not in keys:
-                keys.append(val)
-    # 2. Check individual key
-    key = os.environ.get("OPENROUTER_API_KEY")
-    if key and key.strip():
-        val = key.strip().lstrip("=").strip()
-        if val and val not in keys:
-            keys.append(val)
-    return keys
+    return _get_api_keys_from_env("OPENROUTER_API_KEYS", "OPENROUTER_API_KEY")
