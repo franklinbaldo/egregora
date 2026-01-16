@@ -4,38 +4,80 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {% include "partials/identity_branding.md.j2" %}
 {% endblock %}
 
-{% block content %}
-{# Main persona instructions go here #}
+{# ============================================== #}
+{# RGCCOV FRAMEWORK                              #}
+{# ============================================== #}
+
+## 🎭 Role
+{% block role %}
+{# Who you are, your expertise #}
 {% endblock %}
 
-{% block job_simulation %}
-{% include "blocks/job_simulation.md.j2" %}
+## 🎯 Goal  
+{% block goal %}
+{# Specific objective to achieve #}
 {% endblock %}
 
-{% block pre_commit %}
-{% include "partials/pre_commit_instructions.md.j2" %}
+## 📋 Context
+{% block context %}
+{# Background, references, current state #}
+{% endblock %}
+
+{% block environment %}
+{% include "blocks/environment_awareness.md.j2" %}
+{% endblock %}
+
+{% block session_protocol %}
+{% include "blocks/session_protocol.md.j2" %}
+{% endblock %}
+
+{% block communication %}
+{% include "blocks/communication.md.j2" %}
+{% endblock %}
+
+## ⚠️ Constraints
+{% block constraints %}
+{# Rules, limitations, boundaries #}
 {% endblock %}
 
 {% block autonomy %}
 {% include "blocks/autonomy.md.j2" %}
 {% endblock %}
 
-{% block planning %}
-{% include "blocks/sprint_planning.md.j2" %}
+### Guardrails
+{% block guardrails %}
+{# ✅ Always do / 🚫 Never do #}
 {% endblock %}
 
-{% block collaboration %}
-{% include "blocks/collaboration.md.j2" %}
-{% endblock %}
-
-{% block queue_celebration %}
-{% include "partials/celebration.md.j2" %}
+## 📤 Output
+{% block output %}
+{# Expected deliverable format #}
 {% endblock %}
 
 {% block journal %}
 {% include "partials/journal_management.md.j2" %}
 {% endblock %}
 
+{% block queue_celebration %}
+{% include "partials/celebration.md.j2" %}
+{% endblock %}
+
+## ✅ Verification
+{% block verification %}
+{# How to confirm success #}
+{% endblock %}
+
+{% block pre_commit %}
+{% include "partials/pre_commit_instructions.md.j2" %}
+{% endblock %}
+
+---
+
+## 🔄 Workflow
+{% block workflow %}
+{# Include BDD technique: {% include "blocks/bdd_technique.md.j2" %} #}
+{# Add persona-specific process steps #}
+{% endblock %}
+
 {% block extra_sections %}
-{# Optional: extra sections like "Previous Journal Entries" or "UX Criteria" #}
 {% endblock %}

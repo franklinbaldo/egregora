@@ -4,11 +4,13 @@ MY-TOOLS: Your Personal Toolkit for the Jules Environment
 Bundles all persona utilities:
 - login/journal/loop-break for session management
 - email for inter-persona communication
+- roster for discovering fellow personas
 """
 import typer
 from typing import List, Optional
 from jules.features.session import SessionManager
 from jules.cli.mail import app as mail_app
+from jules.cli.roster import app as roster_app
 
 HELP_TEXT = """
 ╔══════════════════════════════════════════════════════════════════╗
@@ -26,12 +28,17 @@ HELP_TEXT = """
 ║    email inbox   Check your inbox for messages                   ║
 ║    email read    Read a specific message by key                  ║
 ║                                                                  ║
+║  👥 TEAM                                                         ║
+║    roster list   See all personas in the team                    ║
+║    roster view   Get details about a specific persona            ║
+║                                                                  ║
 ║  QUICK START:                                                    ║
 ║    1. my-tools login -u curator -p <token> -g "Fix CI"           ║
 ║    2. my-tools email inbox -p curator                            ║
-║    3. <do your work>                                             ║
-║    4. my-tools email send --to weaver --subject "Done"           ║
-║    5. my-tools journal -c "Fixed CI issue" -p <token>            ║
+║    3. my-tools roster list                                       ║
+║    4. <do your work>                                             ║
+║    5. my-tools email send --to weaver --subject "Done"           ║
+║    6. my-tools journal -c "Fixed CI issue" -p <token>            ║
 ║                                                                  ║
 ║  For subcommand help: my-tools <command> --help                  ║
 ╚══════════════════════════════════════════════════════════════════╝
@@ -49,6 +56,13 @@ app.add_typer(
     mail_app, 
     name="email", 
     help="📧 Email communication tools: send, inbox, read messages"
+)
+
+# Add roster CLI as a subcommand group "roster"
+app.add_typer(
+    roster_app,
+    name="roster",
+    help="👥 Team discovery: list all personas or view details"
 )
 
 session_manager = SessionManager()
