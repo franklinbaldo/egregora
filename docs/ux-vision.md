@@ -27,20 +27,20 @@ The key locations for these embedded templates are:
 -   `src/egregora/output_adapters/mkdocs/site_generator.py`: Orchestrates the assembly of the site and generation of summary pages.
 
 ### Developer Experience
--   **Status:** Poor.
--   **Issue:** The `egregora demo` command is brittle and fails repeatedly due to missing dependencies (`ibis`, `google-generativeai`, `pydantic-ai`, `ratelimit`, `lancedb`, `Pillow`, etc.). This creates a significant barrier for developers and other agents trying to evaluate or contribute to the project.
--   **Next Action:** Create a high-priority task for Forge to identify all missing dependencies required to run the core commands and add them to the `pyproject.toml` file. This will ensure a smooth, out-of-the-box experience.
+-   **Status:** Broken.
+-   **Issue:** The `egregora demo` and `mkdocs build` commands fail due to numerous missing dependencies in `pyproject.toml`. This makes the project unusable in a clean environment.
+-   **Next Action:** A comprehensive task, `20260116-1400-ux-implement-portal-vision.md`, has been created for the `forge` persona to add all required dependencies to `pyproject.toml`.
 
 ## Design System (V1 - "The Portal")
 
 This section defines the "Portal" design system, which aims to create a dark, immersive, and premium experience.
 
 ### Color Palette
--   **Status:** Inconsistent.
+-   **Status:** Broken.
 -   **Primary:** A deep, thoughtful blue (`#2c3e50`) defined in `extra.css`.
 -   **Accent:** A vibrant, energetic yellow (`#f9d423`) defined in `extra.css`.
--   **Conflict:** The generated `mkdocs.yml` correctly sets `primary: custom`, but incorrectly sets `accent: yellow`. This overrides the custom accent color defined in `extra.css`, breaking the "Portal" theme's consistency.
--   **Next Action:** Create a task for Forge to modify the `mkdocs.yml` Jinja template in `src/egregora/output_adapters/mkdocs/scaffolding.py`. The template must be updated to set both `primary` and `accent` to `custom` to allow `extra.css` to take full control of the color scheme.
+-   **Conflict:** The generated `mkdocs.yml` incorrectly hardcodes `accent: yellow`, which overrides the custom accent color in `extra.css` and breaks the "Portal" theme.
+-   **Next Action:** The task `20260116-1400-ux-implement-portal-vision.md` instructs the `forge` persona to modify the `mkdocs.yml` template to use `accent: custom`.
 
 ### Typography
 -   **Status:** Defined.
@@ -49,13 +49,13 @@ This section defines the "Portal" design system, which aims to create a dark, im
 
 ### Favicon
 -   **Status:** Missing.
--   **Issue:** The generated `mkdocs.yml` correctly references a favicon at `assets/images/favicon.png`, but the file itself is not present in the generated `demo/docs/assets/images/` directory.
--   **Next Action:** Create a task for Forge to add a placeholder favicon to the project and ensure it is copied to the correct location (`demo/docs/assets/images/favicon.png`) during the scaffolding process. A separate design task can be created later.
+-   **Issue:** The site is missing a favicon, which is referenced in the generated `mkdocs.yml` but not included in the scaffolded files.
+-   **Next Action:** The task `20260116-1400-ux-implement-portal-vision.md` instructs the `forge` persona to add a placeholder favicon and ensure it's copied during the scaffolding process.
 
 ### Social Cards
 -   **Status:** Broken.
--   **Issue:** The social card generation is failing with 404 errors for the card images.
--   **Next Action:** Create a high-priority task for Forge to investigate and fix the root cause of the 404 errors.
+-   **Issue:** The social card generation fails with 404 errors during the `mkdocs build` process.
+-   **Next Action:** The task `20260116-1400-ux-implement-portal-vision.md` instructs the `forge` persona to fix the social card generation.
 
 ### Navigation
 -   **Status:** Implemented, but needs review.
