@@ -19,7 +19,7 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 018,shepherd,2670342337293959056,2591,closed,
 019,sheriff,17825274764829581100,2592,closed,
 020,simplifier,15318338104703094261,,,
-021,specifier,,,,
+021,specifier,,,closed,
 022,steward,,,,
 023,streamliner,,,,
 024,taskmaster,,,,
