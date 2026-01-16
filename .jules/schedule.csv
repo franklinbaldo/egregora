@@ -4,7 +4,7 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 003,bolt,18025386321818118063,2552,merged,9c01047b
 004,builder,5948202684293208811,2557,closed,1482d3f6
 005,curator,17856005592249124361,2568,merged,
-006,docs_curator,6287832798612100834,,,
+006,docs_curator,2282035438381679366,2573,merged,
 007,essentialist,,,,
 008,forge,,,,
 009,janitor,,,,
