@@ -1,9 +1,10 @@
+from unittest.mock import MagicMock, patch
 
 import pytest
-from unittest.mock import patch, MagicMock
-from egregora.agents.writer import _execute_writer_with_error_handling
-from egregora.agents.exceptions import AgentError
 from pydantic_ai.exceptions import ModelHTTPError
+
+from egregora.agents.writer import _execute_writer_with_error_handling
+
 
 @pytest.fixture
 def mock_config():
@@ -12,19 +13,23 @@ def mock_config():
     config.enrichment.model_rotation_enabled = True
     return config
 
+
 @pytest.fixture
 def mock_deps():
     deps = MagicMock()
     deps.window_label = "test_window"
     return deps
 
+
 @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
 @patch("egregora.agents.writer.get_google_api_keys", return_value=["key1", "key2"])
 @patch("egregora.agents.writer._get_openrouter_free_models", return_value=[])
-def test_writer_rotates_keys_on_failure(mock_free_models, mock_google_keys, mock_write_posts, mock_config, mock_deps):
+def test_writer_rotates_keys_on_failure(
+    mock_free_models, mock_google_keys, mock_write_posts, mock_config, mock_deps
+):
     mock_write_posts.side_effect = [
         ModelHTTPError(body={"message": "Rate limit exceeded"}, status_code=429),
-        ("posts", "profiles")
+        ("posts", "profiles"),
     ]
 
     posts, profiles = _execute_writer_with_error_handling("prompt", mock_config, mock_deps)
@@ -36,13 +41,19 @@ def test_writer_rotates_keys_on_failure(mock_free_models, mock_google_keys, mock
     assert mock_write_posts.call_args_list[0][1]["api_key_override"] == "key1"
     assert mock_write_posts.call_args_list[1][1]["api_key_override"] == "key2"
 
+
 @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
 @patch("egregora.agents.writer.get_google_api_keys", return_value=["key1"])
-@patch("egregora.agents.writer._iter_writer_models", return_value=["google-gla:gemini-1.5-flash", "google-gla:gemini-1.0-pro"])
-def test_writer_rotates_models_on_persistent_failure(mock_iter_models, mock_google_keys, mock_write_posts, mock_config, mock_deps):
+@patch(
+    "egregora.agents.writer._iter_writer_models",
+    return_value=["google-gla:gemini-1.5-flash", "google-gla:gemini-1.0-pro"],
+)
+def test_writer_rotates_models_on_persistent_failure(
+    mock_iter_models, mock_google_keys, mock_write_posts, mock_config, mock_deps
+):
     mock_write_posts.side_effect = [
         ModelHTTPError(body={"message": "Internal Server Error"}, status_code=500),
-        ("posts", "profiles")
+        ("posts", "profiles"),
     ]
 
     posts, profiles = _execute_writer_with_error_handling("prompt", mock_config, mock_deps)
@@ -53,10 +64,13 @@ def test_writer_rotates_models_on_persistent_failure(mock_iter_models, mock_goog
     assert mock_write_posts.call_args_list[0][1]["config"].models.writer == "google-gla:gemini-1.5-flash"
     assert mock_write_posts.call_args_list[1][1]["config"].models.writer == "google-gla:gemini-1.0-pro"
 
+
 @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
 @patch("egregora.agents.writer.get_google_api_keys", return_value=["key1", "key2"])
 @patch("egregora.agents.writer._iter_writer_models", return_value=["google-gla:gemini-1.5-flash"])
-def test_writer_exhausts_all_retries_and_fails(mock_iter_models, mock_google_keys, mock_write_posts, mock_config, mock_deps):
+def test_writer_exhausts_all_retries_and_fails(
+    mock_iter_models, mock_google_keys, mock_write_posts, mock_config, mock_deps
+):
     mock_write_posts.side_effect = ModelHTTPError(body={"message": "Internal Server Error"}, status_code=500)
 
     with pytest.raises(RuntimeError, match="Writer agent exhausted ALL models and keys"):
@@ -64,10 +78,13 @@ def test_writer_exhausts_all_retries_and_fails(mock_iter_models, mock_google_key
 
     assert mock_write_posts.call_count == 2
 
+
 @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
 @patch("egregora.agents.writer.get_google_api_keys", return_value=["key1"])
 @patch("egregora.agents.writer._iter_writer_models", return_value=["google-gla:gemini-1.5-flash"])
-def test_writer_succeeds_on_first_try(mock_iter_models, mock_google_keys, mock_write_posts, mock_config, mock_deps):
+def test_writer_succeeds_on_first_try(
+    mock_iter_models, mock_google_keys, mock_write_posts, mock_config, mock_deps
+):
     mock_write_posts.return_value = ("posts", "profiles")
 
     posts, profiles = _execute_writer_with_error_handling("prompt", mock_config, mock_deps)

@@ -68,14 +68,13 @@ def create_table_if_not_exists(
         create_verb = "CREATE TABLE" if overwrite else "CREATE TABLE IF NOT EXISTS"
         create_sql = f"{create_verb} {quote_identifier(table_name)} ({', '.join(all_clauses)})"
         conn.execute(create_sql)
-    else:
-        # Assume Ibis connection for all other cases.
-        if table_name not in conn.list_tables() or overwrite:
-            conn.create_table(table_name, schema=schema, overwrite=overwrite)
-            # This path is problematic for DuckDB which doesn't support ALTER TABLE ADD CONSTRAINT.
-            if check_constraints:
-                for constraint_name, check_expr in check_constraints.items():
-                    add_check_constraint(conn.raw_sql, table_name, constraint_name, check_expr)
+    # Assume Ibis connection for all other cases.
+    elif table_name not in conn.list_tables() or overwrite:
+        conn.create_table(table_name, schema=schema, overwrite=overwrite)
+        # This path is problematic for DuckDB which doesn't support ALTER TABLE ADD CONSTRAINT.
+        if check_constraints:
+            for constraint_name, check_expr in check_constraints.items():
+                add_check_constraint(conn.raw_sql, table_name, constraint_name, check_expr)
 
 
 def ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:
