@@ -100,21 +100,22 @@ def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Pat
         # (2) For unified output, paths may not match URLs exactly since profiles/journal/enrichment
         # are redirected to posts/. Verify stored path is in an expected location instead.
         stored_relative = stored_path.relative_to(docs_dir)
+        stored_relative_posix = stored_relative.as_posix()
         if stored_doc.type == DocumentType.POST:
-            assert str(stored_relative).startswith("posts/")
+            assert stored_relative_posix.startswith("posts/")
         elif stored_doc.type == DocumentType.PROFILE:
             # Profiles with subject go to posts/profiles/{subject_uuid}/
-            assert str(stored_relative).startswith("posts/profiles/")
+            assert stored_relative_posix.startswith("posts/profiles/")
         elif stored_doc.type == DocumentType.JOURNAL:
             # Journals now go to posts/ directory with journal- prefix
             # Example: posts/journal-2025-03-02-0801-to-1258.md
-            assert str(stored_relative).startswith("posts/journal-")
+            assert stored_relative_posix.startswith("posts/journal-")
         elif stored_doc.type == DocumentType.ENRICHMENT_URL:
             # Unified: enrichment URLs go to posts/
-            assert str(stored_relative).startswith("posts/")
+            assert stored_relative_posix.startswith("posts/")
         elif stored_doc.type == DocumentType.MEDIA:
             # Unified: media now inside posts folder for simpler relative paths
-            assert str(stored_relative).startswith("posts/media/")
+            assert stored_relative_posix.startswith("posts/media/")
 
     # Ensure raw, unnormalized metadata slugs are not used for filenames.
     assert not (adapter.posts_dir / "Complex Slug.md").exists()

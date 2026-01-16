@@ -89,4 +89,5 @@ demo/
 coverage.xml
 .github/tmp/
 .jules/mail/
+.jules/session.json
 uv.lock
