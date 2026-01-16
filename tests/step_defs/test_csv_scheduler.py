@@ -176,7 +176,6 @@ def run_sequential_tick(mock_jules_client, mock_orchestrator, mocker, context):
     mocker.patch("jules.scheduler.engine.get_repo_info", return_value={"owner": "test", "repo": "test"})
     mocker.patch("jules.scheduler.engine.get_open_prs", return_value=[])
 
-
     # Mock PersonaLoader
     mock_persona = MagicMock()
     mock_persona.id = "absolutist"

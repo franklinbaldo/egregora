@@ -25,7 +25,7 @@ def mock_deps():
 @patch("egregora.agents.writer.get_google_api_keys", return_value=["key1", "key2"])
 @patch("egregora.agents.writer._get_openrouter_free_models", return_value=[])
 def test_writer_rotates_keys_on_failure(
-    mock_free_models, mock_google_keys, mock_write_posts, mock_config, mock_deps
+    _mock_free_models, _mock_google_keys, mock_write_posts, mock_config, mock_deps
 ):
     mock_write_posts.side_effect = [
         ModelHTTPError(status_code=429, model_name="test-model", body={"message": "Rate limit exceeded"}),
@@ -49,7 +49,7 @@ def test_writer_rotates_keys_on_failure(
     return_value=["google-gla:gemini-1.5-flash", "google-gla:gemini-1.0-pro"],
 )
 def test_writer_rotates_models_on_persistent_failure(
-    mock_iter_models, mock_google_keys, mock_write_posts, mock_config, mock_deps
+    _mock_iter_models, _mock_google_keys, mock_write_posts, mock_config, mock_deps
 ):
     mock_write_posts.side_effect = [
         ModelHTTPError(status_code=500, model_name="test-model", body={"message": "Internal Server Error"}),
@@ -72,9 +72,11 @@ def test_writer_rotates_models_on_persistent_failure(
 @patch("egregora.agents.writer.get_google_api_keys", return_value=["key1", "key2"])
 @patch("egregora.agents.writer._iter_writer_models", return_value=["google-gla:gemini-1.5-flash"])
 def test_writer_exhausts_all_retries_and_fails(
-    mock_iter_models, mock_google_keys, mock_write_posts, mock_config, mock_deps
+    _mock_iter_models, _mock_google_keys, mock_write_posts, mock_config, mock_deps
 ):
-    mock_write_posts.side_effect = ModelHTTPError(status_code=500, model_name="test-model", body={"message": "Internal Server Error"})
+    mock_write_posts.side_effect = ModelHTTPError(
+        status_code=500, model_name="test-model", body={"message": "Internal Server Error"}
+    )
 
     with pytest.raises(RuntimeError, match="Writer agent exhausted ALL models and keys"):
         _execute_writer_with_error_handling("prompt", mock_config, mock_deps)
@@ -86,7 +88,7 @@ def test_writer_exhausts_all_retries_and_fails(
 @patch("egregora.agents.writer.get_google_api_keys", return_value=["key1"])
 @patch("egregora.agents.writer._iter_writer_models", return_value=["google-gla:gemini-1.5-flash"])
 def test_writer_succeeds_on_first_try(
-    mock_iter_models, mock_google_keys, mock_write_posts, mock_config, mock_deps
+    _mock_iter_models, _mock_google_keys, mock_write_posts, mock_config, mock_deps
 ):
     mock_write_posts.return_value = ("posts", "profiles")
 
@@ -99,6 +101,6 @@ def test_writer_succeeds_on_first_try(
     # Verify config update logic
     call_args = mock_config.models.model_copy.call_args
     assert call_args.kwargs["update"]["writer"] == "google-gla:gemini-1.5-flash"
-    
+
     new_models = mock_config.models.model_copy.return_value
     mock_config.model_copy.assert_called_with(deep=True, update={"models": new_models})

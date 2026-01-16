@@ -1,7 +1,8 @@
 """Test configuration and helper utilities for E2E tests."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any
 
 from typer.testing import Result
 
@@ -9,6 +10,7 @@ from typer.testing import Result
 @dataclass
 class DateConfig:
     """Date configuration constants."""
+
     VALID_FROM: str = "2025-01-01"
     VALID_TO: str = "2025-01-31"
     INVALID_FORMAT_2: str = "2025/01/01"
@@ -17,6 +19,7 @@ class DateConfig:
 @dataclass
 class TimezoneConfig:
     """Timezone configuration constants."""
+
     VALID: str = "UTC"
     INVALID: str = "Invalid/Timezone"
 
@@ -24,6 +27,7 @@ class TimezoneConfig:
 @dataclass
 class TimeoutConfig:
     """Timeout configuration constants."""
+
     short: int = 5
     medium: int = 15
     long: int = 30
@@ -32,6 +36,7 @@ class TimeoutConfig:
 @dataclass
 class WindowConfig:
     """Windowing configuration constants."""
+
     step_size: int = 1
     step_unit: str = "days"
 
@@ -39,14 +44,13 @@ class WindowConfig:
 @dataclass
 class WriteCommandOptions:
     """Options for the write command builder."""
+
     from_date: str | None = None
     to_date: str | None = None
     timezone: str | None = None
 
 
-def build_write_command_args(
-    zip_path: Any, output_dir: Any, options: WriteCommandOptions
-) -> list[str]:
+def build_write_command_args(zip_path: Any, output_dir: Any, options: WriteCommandOptions) -> list[str]:
     """Build arguments for the write command."""
     args = ["write", str(zip_path), "--output-dir", str(output_dir)]
     if options.from_date:
