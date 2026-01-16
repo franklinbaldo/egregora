@@ -25,10 +25,10 @@ def mock_deps():
 @patch("egregora.agents.writer.get_google_api_keys", return_value=["key1", "key2"])
 @patch("egregora.agents.writer._get_openrouter_free_models", return_value=[])
 def test_writer_rotates_keys_on_failure(
-    mock_free_models, mock_google_keys, mock_write_posts, mock_config, mock_deps
+    _mock_free_models, _mock_google_keys, mock_write_posts, mock_config, mock_deps
 ):
     mock_write_posts.side_effect = [
-        ModelHTTPError(body={"message": "Rate limit exceeded"}, status_code=429),
+        ModelHTTPError(body={"message": "Rate limit exceeded"}, status_code=429, model_name="test_model"),
         ("posts", "profiles"),
     ]
 
@@ -49,10 +49,10 @@ def test_writer_rotates_keys_on_failure(
     return_value=["google-gla:gemini-1.5-flash", "google-gla:gemini-1.0-pro"],
 )
 def test_writer_rotates_models_on_persistent_failure(
-    mock_iter_models, mock_google_keys, mock_write_posts, mock_config, mock_deps
+    _mock_iter_models, _mock_google_keys, mock_write_posts, mock_config, mock_deps
 ):
     mock_write_posts.side_effect = [
-        ModelHTTPError(body={"message": "Internal Server Error"}, status_code=500),
+        ModelHTTPError(body={"message": "Internal Server Error"}, status_code=500, model_name="test_model"),
         ("posts", "profiles"),
     ]
 
@@ -61,17 +61,22 @@ def test_writer_rotates_models_on_persistent_failure(
     assert mock_write_posts.call_count == 2
     assert posts == "posts"
     assert profiles == "profiles"
-    assert mock_write_posts.call_args_list[0][1]["config"].models.writer == "google-gla:gemini-1.5-flash"
-    assert mock_write_posts.call_args_list[1][1]["config"].models.writer == "google-gla:gemini-1.0-pro"
+    # Verify model rotation calls
+    model_copy_calls = mock_config.models.model_copy.call_args_list
+    assert len(model_copy_calls) == 2
+    assert model_copy_calls[0][1]["update"]["writer"] == "google-gla:gemini-1.5-flash"
+    assert model_copy_calls[1][1]["update"]["writer"] == "google-gla:gemini-1.0-pro"
 
 
 @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
 @patch("egregora.agents.writer.get_google_api_keys", return_value=["key1", "key2"])
 @patch("egregora.agents.writer._iter_writer_models", return_value=["google-gla:gemini-1.5-flash"])
 def test_writer_exhausts_all_retries_and_fails(
-    mock_iter_models, mock_google_keys, mock_write_posts, mock_config, mock_deps
+    _mock_iter_models, _mock_google_keys, mock_write_posts, mock_config, mock_deps
 ):
-    mock_write_posts.side_effect = ModelHTTPError(body={"message": "Internal Server Error"}, status_code=500)
+    mock_write_posts.side_effect = ModelHTTPError(
+        body={"message": "Internal Server Error"}, status_code=500, model_name="test_model"
+    )
 
     with pytest.raises(RuntimeError, match="Writer agent exhausted ALL models and keys"):
         _execute_writer_with_error_handling("prompt", mock_config, mock_deps)
@@ -83,7 +88,7 @@ def test_writer_exhausts_all_retries_and_fails(
 @patch("egregora.agents.writer.get_google_api_keys", return_value=["key1"])
 @patch("egregora.agents.writer._iter_writer_models", return_value=["google-gla:gemini-1.5-flash"])
 def test_writer_succeeds_on_first_try(
-    mock_iter_models, mock_google_keys, mock_write_posts, mock_config, mock_deps
+    _mock_iter_models, _mock_google_keys, mock_write_posts, mock_config, mock_deps
 ):
     mock_write_posts.return_value = ("posts", "profiles")
 
@@ -93,4 +98,5 @@ def test_writer_succeeds_on_first_try(
     assert posts == "posts"
     assert profiles == "profiles"
     assert mock_write_posts.call_args_list[0][1]["api_key_override"] == "key1"
-    assert mock_config.model_copy.call_args[1]["update"]["models"].writer == "google-gla:gemini-1.5-flash"
+    # Verify that config.models.model_copy was called with the correct writer update
+    assert mock_config.models.model_copy.call_args[1]["update"]["writer"] == "google-gla:gemini-1.5-flash"

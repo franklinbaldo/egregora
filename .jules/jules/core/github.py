@@ -281,6 +281,7 @@ def get_pr_details_via_gh(pr_number: int, repo_path: str = ".") -> dict[str, Any
         "failed_check_names": failed_check_names,
         "mergeable": pr.get("mergeable"),
         "mergeable_state": pr.get("mergeable_state"),
+        "mergeStateStatus": (pr.get("mergeable_state") or "UNKNOWN").upper(),
         "changed_files": [], # Would need another API call, skipping for perf unless critical
         "reviews": reviews_data,
         "latestReviews": reviews_data, # Simplification
