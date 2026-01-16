@@ -235,8 +235,9 @@ class MkDocsSiteScaffolder:
         assets_dir.mkdir(parents=True, exist_ok=True)
         assets_src = Path(env.loader.searchpath[0]) / "assets"
         assets_dest = assets_dir
-        if assets_src.exists() and not assets_dest.exists():
-            shutil.copytree(assets_src, assets_dest)
+        if assets_src.exists():
+            # Ensure assets are always copied, even if the directory exists.
+            shutil.copytree(assets_src, assets_dest, dirs_exist_ok=True)
 
         for target_path, template_name in templates_to_render:
             if not target_path.exists():
