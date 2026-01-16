@@ -23,7 +23,7 @@ def schedule_tick(
     reset: bool = typer.Option(False, "--reset", help="Reset cycle and start from the first persona"),
 ) -> None:
     """Run the scheduler tick."""
-    run_scheduler("tick", run_all=all, dry_run=dry_run, prompt_id=prompt_id, reset=reset)
+    run_scheduler(dry_run=dry_run, persona_id=prompt_id, reset=reset)
 
 
 @autofix_app.command("analyze")
