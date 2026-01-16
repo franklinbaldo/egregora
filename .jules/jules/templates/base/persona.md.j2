@@ -10,17 +10,21 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 
 ## 🎭 Role
 {% block role %}
-{# Override: Who you are, your expertise #}
+{# Who you are, your expertise #}
 {% endblock %}
 
 ## 🎯 Goal  
 {% block goal %}
-{# Override: Specific objective to achieve #}
+{# Specific objective to achieve #}
 {% endblock %}
 
 ## 📋 Context
 {% block context %}
-{# Override: Background, references, current state #}
+{# Background, references, current state #}
+{% endblock %}
+
+{% block environment %}
+{% include "blocks/environment_awareness.md.j2" %}
 {% endblock %}
 
 {% block job_simulation %}
@@ -37,16 +41,21 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 
 ## ⚠️ Constraints
 {% block constraints %}
-{# Override: Rules, limitations, boundaries #}
+{# Rules, limitations, boundaries #}
 {% endblock %}
 
 {% block autonomy %}
 {% include "blocks/autonomy.md.j2" %}
 {% endblock %}
 
-## 📤 Output
+### Guardrails
+{% block guardrails %}
+{# ✅ Always do / � Never do #}
+{% endblock %}
+
+## �📤 Output
 {% block output %}
-{# Override: Expected deliverable format #}
+{# Expected deliverable format #}
 {% endblock %}
 
 {% block journal %}
@@ -59,7 +68,7 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 
 ## ✅ Verification
 {% block verification %}
-{# Override: How to confirm success #}
+{# How to confirm success #}
 {% endblock %}
 
 {% block pre_commit %}
@@ -68,8 +77,9 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 
 ---
 
-{% block content %}
-{# Additional workflows, techniques, guardrails #}
+## 🔄 Workflow
+{% block workflow %}
+{# Step-by-step process, methodology (BDD, cycles) #}
 {% endblock %}
 
 {% block extra_sections %}
