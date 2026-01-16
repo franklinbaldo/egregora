@@ -59,7 +59,12 @@ def assert_command_success(result, expected_codes: tuple[int, ...] = (0,)):
 
 def build_write_command_args(zip_path: Path, output_dir: Path, options: WriteCommandOptions) -> list[str]:
     """Helper to build CLI arguments for the write command."""
-    args = [str(zip_path), "--output-dir", str(output_dir)]
+    # Prepend "write" subcommand.
+    # IMPORTANT: Options must come BEFORE positional arguments in many contexts,
+    # or at least be clearly separated.
+    # Typer/Click usually handles options anywhere, but putting them before the positional
+    # `input_file` is safer and standard.
+    args = ["write", "--output-dir", str(output_dir)]
 
     if options.from_date:
         args.extend(["--from-date", str(options.from_date)])
@@ -69,5 +74,8 @@ def build_write_command_args(zip_path: Path, output_dir: Path, options: WriteCom
 
     if options.timezone:
         args.extend(["--timezone", str(options.timezone)])
+
+    # Positional argument last
+    args.append(str(zip_path))
 
     return args

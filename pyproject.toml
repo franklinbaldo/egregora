@@ -41,26 +41,22 @@ egregora = [
     # Data processing
     "diskcache>=5.6.3",
     "duckdb",
-    "ibis-framework[duckdb]>=11.0",
+    "ibis-framework[duckdb]==11.0.0",
     "python-dateutil>=2.9",
-
     # AI/ML
     "pydantic-ai>=1.25",
     "pydantic-evals>=1.25",
     "google-api-core",
     "google-genai>=0.8.6",
     "scikit-learn>=1.7",
-
     # Vector database
     "lancedb>=0.25",
-
     # Content generation
     "pillow>=11.3",
     "aiohttp>=3.13.3",
     "urllib3>=2.6.3",
     "lxml>=5.4",
     "ratelimit>=2.2",
-
     # Site generation
     "mkdocs>=1.6",
     "mkdocs-macros-plugin>=1.5",
@@ -69,6 +65,7 @@ egregora = [
     "mkdocs-rss-plugin>=1.17",
     "pymdown-extensions>=10.17",
     "tomli-w>=1.2.0",
+    "pandas<2.3.0",
 ]
 
 mkdocs = [
