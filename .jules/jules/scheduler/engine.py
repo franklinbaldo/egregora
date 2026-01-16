@@ -507,16 +507,10 @@ def update_schedule_pr_status(dry_run: bool = False) -> None:
         current_pr = row.get("pr_number", "").strip()
         current_status = row.get("pr_status", "").strip().lower()
 
-        # Look for PR by branch pattern (jules-sched-{persona})
         matching_pr = None
-        for branch, pr in pr_by_branch.items():
-            if persona.lower() in branch.lower():
-                matching_pr = pr
-                break
 
-        # Fallback: Look up PR by session ID using GitHub API
-        if not matching_pr and session_id:
-            print(f"   [{seq}] {persona}: No PR found by branch, trying session ID lookup...")
+        # PRIMARY: Look up PR by session ID using GitHub API (most reliable)
+        if session_id:
             pr_data = get_pr_by_session_id_any_state(owner, repo, session_id)
             if pr_data:
                 # Convert API data to match gh CLI format
@@ -528,7 +522,14 @@ def update_schedule_pr_status(dry_run: bool = False) -> None:
                     "closedAt": pr_data.get("closedAt"),
                     "state": pr_data.get("state", "OPEN")
                 }
-                print(f"   [{seq}] {persona}: Found PR #{pr_data['number']} via session ID")
+
+        # FALLBACK: Look for PR by branch pattern (for legacy PRs without session IDs)
+        if not matching_pr:
+            for branch, pr in pr_by_branch.items():
+                if persona.lower() in branch.lower():
+                    matching_pr = pr
+                    print(f"   [{seq}] {persona}: Found PR #{pr['number']} via branch name (legacy)")
+                    break
 
         if not matching_pr:
             continue
