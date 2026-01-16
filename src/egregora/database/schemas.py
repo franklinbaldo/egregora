@@ -40,15 +40,12 @@ def create_table_if_not_exists(
                           Example: {"chk_status": "status IN ('draft', 'published')"}
 
     """
-    if hasattr(conn, "list_tables"):  # More reliable check for Ibis connection
-        if table_name not in conn.list_tables() or overwrite:
-            conn.create_table(table_name, schema=schema, overwrite=overwrite)
-            # Note: Ibis doesn't support CHECK constraints, so we add them manually after
-            if check_constraints:
-                for constraint_name, check_expr in check_constraints.items():
-                    add_check_constraint(conn.raw_sql, table_name, constraint_name, check_expr)
-    else:
-        # Raw duckdb connection
+    # Explicitly check if the connection is a raw DuckDB connection.
+    # This is more reliable than duck-typing with hasattr.
+    is_raw_duckdb_connection = isinstance(conn, duckdb.DuckDBPyConnection)
+
+    if is_raw_duckdb_connection:
+        # Raw duckdb connection - build the CREATE TABLE statement with constraints.
         if overwrite:
             conn.execute(f"DROP TABLE IF EXISTS {quote_identifier(table_name)}")
 
@@ -68,11 +65,17 @@ def create_table_if_not_exists(
         if constraint_clauses:
             all_clauses.extend(constraint_clauses)
 
-        # If we dropped the table, we must use CREATE TABLE.
-        # Otherwise, CREATE TABLE IF NOT EXISTS is safe.
         create_verb = "CREATE TABLE" if overwrite else "CREATE TABLE IF NOT EXISTS"
         create_sql = f"{create_verb} {quote_identifier(table_name)} ({', '.join(all_clauses)})"
         conn.execute(create_sql)
+    else:
+        # Assume Ibis connection for all other cases.
+        if table_name not in conn.list_tables() or overwrite:
+            conn.create_table(table_name, schema=schema, overwrite=overwrite)
+            # This path is problematic for DuckDB which doesn't support ALTER TABLE ADD CONSTRAINT.
+            if check_constraints:
+                for constraint_name, check_expr in check_constraints.items():
+                    add_check_constraint(conn.raw_sql, table_name, constraint_name, check_expr)
 
 
 def ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:
@@ -238,8 +241,18 @@ def get_table_check_constraints(table_name: str) -> dict[str, str]:
         valid_values = ", ".join(f"'{status}'" for status in VALID_POST_STATUSES)
         return {"chk_posts_status": f"status IN ({valid_values})"}
     if table_name == "tasks":
-        valid_values = ", ".join(f"'{status}'" for status in VALID_TASK_STATUSES)
-        return {"chk_tasks_status": f"status IN ({valid_values})"}
+        constraints = {}
+        valid_statuses = ", ".join(f"'{status}'" for status in VALID_TASK_STATUSES)
+        constraints["chk_tasks_status"] = f"status IN ({valid_statuses})"
+        valid_task_types = ", ".join(f"'{task_type}'" for task_type in VALID_TASK_TYPES)
+        constraints["chk_tasks_task_type"] = f"task_type IN ({valid_task_types})"
+        return constraints
+    if table_name == "media":
+        valid_values = ", ".join(f"'{media_type}'" for media_type in VALID_MEDIA_TYPES)
+        return {"chk_media_media_type": f"media_type IN ({valid_values})"}
+    if table_name == "annotations":
+        valid_values = ", ".join(f"'{parent_type}'" for parent_type in VALID_ANNOTATION_PARENT_TYPES)
+        return {"chk_annotations_parent_type": f"parent_type IN ({valid_values})"}
     return {}
 
 
@@ -250,6 +263,9 @@ def get_table_check_constraints(table_name: str) -> dict[str, str]:
 # Valid status values for business logic enforcement
 VALID_POST_STATUSES = ("draft", "published", "archived")
 VALID_TASK_STATUSES = ("pending", "processing", "completed", "failed", "superseded")
+VALID_MEDIA_TYPES = ("image", "video", "audio")
+VALID_TASK_TYPES = ("generate_banner", "update_profile", "enrich_media")
+VALID_ANNOTATION_PARENT_TYPES = ("message", "post", "annotation")
 
 # Common columns for all types
 BASE_COLUMNS = {
