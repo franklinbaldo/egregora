@@ -32,6 +32,13 @@ dependencies = [
     # Site generation dependencies (for demo command)
     "mkdocs-material[imaging]>=9.7",
     "mkdocs-glightbox>=0.5.2",
+
+    # Tasks dependencies
+    "google-generativeai",
+    "pydantic-ai",
+    "ratelimit",
+    "lancedb",
+    "Pillow",
 ]
 
 [project.scripts]
