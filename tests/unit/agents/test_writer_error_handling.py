@@ -28,7 +28,7 @@ def test_writer_rotates_keys_on_failure(
     _mock_free_models, _mock_google_keys, mock_write_posts, mock_config, mock_deps
 ):
     mock_write_posts.side_effect = [
-        ModelHTTPError(body={"message": "Rate limit exceeded"}, status_code=429, model_name="test_model"),
+        ModelHTTPError(status_code=429, model_name="test-model", body={"message": "Rate limit exceeded"}),
         ("posts", "profiles"),
     ]
 
@@ -52,7 +52,7 @@ def test_writer_rotates_models_on_persistent_failure(
     _mock_iter_models, _mock_google_keys, mock_write_posts, mock_config, mock_deps
 ):
     mock_write_posts.side_effect = [
-        ModelHTTPError(body={"message": "Internal Server Error"}, status_code=500, model_name="test_model"),
+        ModelHTTPError(status_code=500, model_name="test-model", body={"message": "Internal Server Error"}),
         ("posts", "profiles"),
     ]
 
@@ -61,11 +61,11 @@ def test_writer_rotates_models_on_persistent_failure(
     assert mock_write_posts.call_count == 2
     assert posts == "posts"
     assert profiles == "profiles"
-    # Verify model rotation calls
-    model_copy_calls = mock_config.models.model_copy.call_args_list
-    assert len(model_copy_calls) == 2
-    assert model_copy_calls[0][1]["update"]["writer"] == "google-gla:gemini-1.5-flash"
-    assert model_copy_calls[1][1]["update"]["writer"] == "google-gla:gemini-1.0-pro"
+    # Verify model overrides
+    calls = mock_config.models.model_copy.call_args_list
+    assert len(calls) >= 2
+    assert calls[0].kwargs["update"]["writer"] == "google-gla:gemini-1.5-flash"
+    assert calls[1].kwargs["update"]["writer"] == "google-gla:gemini-1.0-pro"
 
 
 @patch("egregora.agents.writer.write_posts_with_pydantic_agent")
@@ -75,7 +75,7 @@ def test_writer_exhausts_all_retries_and_fails(
     _mock_iter_models, _mock_google_keys, mock_write_posts, mock_config, mock_deps
 ):
     mock_write_posts.side_effect = ModelHTTPError(
-        body={"message": "Internal Server Error"}, status_code=500, model_name="test_model"
+        status_code=500, model_name="test-model", body={"message": "Internal Server Error"}
     )
 
     with pytest.raises(RuntimeError, match="Writer agent exhausted ALL models and keys"):
@@ -98,5 +98,9 @@ def test_writer_succeeds_on_first_try(
     assert posts == "posts"
     assert profiles == "profiles"
     assert mock_write_posts.call_args_list[0][1]["api_key_override"] == "key1"
-    # Verify that config.models.model_copy was called with the correct writer update
-    assert mock_config.models.model_copy.call_args[1]["update"]["writer"] == "google-gla:gemini-1.5-flash"
+    # Verify config update logic
+    call_args = mock_config.models.model_copy.call_args
+    assert call_args.kwargs["update"]["writer"] == "google-gla:gemini-1.5-flash"
+
+    new_models = mock_config.models.model_copy.return_value
+    mock_config.model_copy.assert_called_with(deep=True, update={"models": new_models})
