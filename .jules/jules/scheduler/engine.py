@@ -405,46 +405,47 @@ def execute_facilitator_tick(dry_run: bool = False) -> None:
 
 def update_schedule_pr_status(dry_run: bool = False) -> None:
     """Update schedule.csv with PR information from GitHub.
-    
+
     This function:
     1. Finds rows with session_id but missing or outdated pr_status
-    2. Looks up PRs by branch name (jules-sched-{persona})
+    2. Looks up PRs by branch name (jules-sched-{persona}) OR by session ID
     3. Updates pr_number and pr_status in the CSV
     """
     from jules.scheduler.schedule import (
         load_schedule, save_schedule, update_sequence
     )
+    from jules.core.github import get_pr_by_session_id_any_state, get_repo_info
     import subprocess
     import json
-    
+
     print("=" * 70)
     print("📊 SCHEDULE PR TRACKER: Updating PR status in schedule.csv")
     print("=" * 70)
-    
+
     rows = load_schedule()
     if not rows:
         print("   No schedule found")
         return
-    
+
     # Find rows that need PR status updates
     needs_update = []
     for row in rows:
         session_id = row.get("session_id", "").strip()
         pr_status = row.get("pr_status", "").strip().lower()
-        
+
         # Skip if no session or already completed
         if not session_id or pr_status in ["merged", "closed"]:
             continue
-        
+
         needs_update.append(row)
-    
+
     if not needs_update:
         print("   No pending sequences to update")
         print("=" * 70)
         return
-    
+
     print(f"   Checking {len(needs_update)} sequences for PR updates...")
-    
+
     # Get all open PRs from GitHub
     try:
         result = subprocess.run(
@@ -457,13 +458,13 @@ def update_schedule_pr_status(dry_run: bool = False) -> None:
         print(f"   ⚠️ Failed to fetch PRs: {e}")
         print("=" * 70)
         return
-    
+
     # Create lookup by branch name
     pr_by_branch = {}
     for pr in prs:
         branch = pr.get("headRefName", "")
         pr_by_branch[branch] = pr
-    
+
     # Also check merged/closed PRs
     try:
         result = subprocess.run(
@@ -478,7 +479,7 @@ def update_schedule_pr_status(dry_run: bool = False) -> None:
                 pr_by_branch[branch] = pr
     except Exception:
         pass  # Ignore errors for merged PRs
-    
+
     try:
         result = subprocess.run(
             ["gh", "pr", "list", "--state", "closed", "--author", "app/google-labs-jules",
@@ -492,29 +493,52 @@ def update_schedule_pr_status(dry_run: bool = False) -> None:
                 pr_by_branch[branch] = pr
     except Exception:
         pass  # Ignore errors for closed PRs
-    
+
+    # Get repo info for session ID lookup
+    repo_info = get_repo_info()
+    owner = repo_info["owner"]
+    repo = repo_info["repo"]
+
     updated = 0
     for row in needs_update:
         seq = row["sequence"]
         persona = row["persona"]
+        session_id = row.get("session_id", "").strip()
         current_pr = row.get("pr_number", "").strip()
         current_status = row.get("pr_status", "").strip().lower()
-        
-        # Look for PR by branch pattern (jules-sched-{persona})
+
         matching_pr = None
-        for branch, pr in pr_by_branch.items():
-            if persona.lower() in branch.lower():
-                matching_pr = pr
-                break
-        
+
+        # PRIMARY: Look up PR by session ID using GitHub API (most reliable)
+        if session_id:
+            pr_data = get_pr_by_session_id_any_state(owner, repo, session_id)
+            if pr_data:
+                # Convert API data to match gh CLI format
+                matching_pr = {
+                    "number": pr_data["number"],
+                    "headRefName": pr_data["headRefName"],
+                    "isDraft": False,  # API doesn't return this for all states
+                    "mergedAt": pr_data.get("mergedAt"),
+                    "closedAt": pr_data.get("closedAt"),
+                    "state": pr_data.get("state", "OPEN")
+                }
+
+        # FALLBACK: Look for PR by branch pattern (for legacy PRs without session IDs)
+        if not matching_pr:
+            for branch, pr in pr_by_branch.items():
+                if persona.lower() in branch.lower():
+                    matching_pr = pr
+                    print(f"   [{seq}] {persona}: Found PR #{pr['number']} via branch name (legacy)")
+                    break
+
         if not matching_pr:
             continue
-        
+
         pr_number = str(matching_pr["number"])
         is_draft = matching_pr.get("isDraft", False)
         merged_at = matching_pr.get("mergedAt")
         closed_at = matching_pr.get("closedAt")
-        
+
         # Determine status
         if merged_at:
             new_status = "merged"
@@ -524,20 +548,20 @@ def update_schedule_pr_status(dry_run: bool = False) -> None:
             new_status = "draft"
         else:
             new_status = "open"
-        
+
         # Update if changed
         if pr_number != current_pr or new_status != current_status:
             if not dry_run:
                 rows = update_sequence(rows, seq, pr_number=pr_number, pr_status=new_status)
             print(f"   [{seq}] {persona}: PR #{pr_number} → {new_status}")
             updated += 1
-    
+
     if updated > 0 and not dry_run:
         save_schedule(rows)
         print(f"   📝 Updated {updated} rows in schedule.csv")
     elif updated == 0:
         print("   No changes detected")
-    
+
     print("=" * 70)
 
 
