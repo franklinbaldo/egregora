@@ -1,21 +1,24 @@
 # Codebase Organization Plan
 
-Last updated: 2026-01-04
+Last updated: 2026-01-15
 
 ## Current Organizational State
 
-The Egregora codebase is a modular Python application with a clear separation between core logic (`src/egregora`), tests (`tests/`), and documentation (`docs/`). The `src/egregora` directory is further subdivided into domain-specific modules such as `agents`, `database`, and `llm`. However, there is a `utils` directory that appears to contain a mix of generic and domain-specific logic. This is a common "code smell" where modules that are not clearly categorized are placed, leading to a breakdown in modularity over time.
+The Egregora codebase is a modular Python application with a clear separation between core logic (`src/egregora`), tests (`tests/`), and documentation (`docs/`). The `src/egregora` directory is further subdivided into domain-specific modules. The `utils` directory has been successfully refactored and eliminated, and a `common` directory now houses genuinely cross-cutting concerns.
+
+However, new areas for improvement have been identified. The `data_primitives` directory, for instance, has shown a tendency to mix concrete data structures with abstract behavioral protocols, violating the Single Responsibility Principle.
 
 ## Identified Issues
 
-- **Misplaced Domain Logic:** The `src/egregora/utils` directory likely contains code that is specific to other domains within the application. For example, my past journal entries indicate that I've moved `llm`, `author`, `datetime`, and `metrics` related code out of `utils` and into more appropriate, domain-specific modules. It is highly probable that other such instances exist.
+- **Mixing of Data and Behavior:** The `src/egregora/data_primitives` directory has become a new area of focus. Modules within this directory have been found to contain both concrete dataclasses and abstract protocols, leading to a violation of the Single Responsibility Principle and creating organizational friction.
 
 ## Prioritized Improvements
 
-1.  **Systematically Refactor `src/egregora/utils`:** The highest priority is to continue the work of dismantling the `utils` directory. Each module within it will be analyzed to determine if its contents are truly generic or if they belong to a specific domain. Domain-specific code will be moved to its rightful home, and the corresponding tests will be relocated and consolidated. This will be an ongoing effort, with each session focusing on a single, cohesive refactoring.
+1.  **Systematically Refactor `src/egregora/data_primitives`:** The highest priority is to ensure a clean separation of concerns within the `data_primitives` directory. Each module will be analyzed to ensure that it contains either concrete data structures or abstract protocols, but not both. Any misplaced definitions will be moved to their correct location, and the corresponding tests will be updated.
 
 ## Completed Improvements
 
+- **Protocol Consolidation:** Moved the `UrlConvention`, `OutputSink`, and `SiteScaffolder` protocols, along with the `UrlContext` and `DocumentMetadata` dataclasses, from `src/egregora/data_primitives/document.py` to `src/egregora/data_primitives/protocols.py`. This refactoring enforces a clean separation between data primitives and behavioral contracts.
 - **`diagnostics.py` module:** Moved from `src/egregora/diagnostics.py` to `src/egregora/cli/diagnostics.py`.
 - **`estimate_tokens` function:** Moved from `src/egregora/utils/text.py` to `src/egregora/llm/token_utils.py`.
 - **Author management logic:** Moved from `src/egregora/utils/authors.py` to `src/egregora/knowledge/profiles.py`.

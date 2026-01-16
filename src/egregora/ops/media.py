@@ -30,7 +30,7 @@ from egregora.data_primitives.document import Document, DocumentType, MediaAsset
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
-    from egregora.data_primitives.document import UrlContext, UrlConvention
+    from egregora.data_primitives.protocols import UrlContext, UrlConvention
     from egregora.input_adapters.base import InputAdapter, MediaMapping
 
 

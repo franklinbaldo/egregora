@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
     from egregora.agents.shared.annotations import AnnotationStore
     from egregora.config.settings import EgregoraConfig
-    from egregora.data_primitives.document import OutputSink, UrlContext
+    from egregora.data_primitives.protocols import OutputSink, UrlContext
     from egregora.database.protocols import StorageProtocol
     from egregora.database.task_store import TaskStore
     from egregora.input_adapters.base import InputAdapter

@@ -11,7 +11,7 @@ from egregora.data_primitives.document import Document, DocumentType
 if TYPE_CHECKING:
     from datetime import datetime
 
-    from egregora.data_primitives.document import OutputSink
+    from egregora.data_primitives.protocols import OutputSink
 
 logger = logging.getLogger(__name__)
 

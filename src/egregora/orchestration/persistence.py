@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import logging
 
-from egregora.data_primitives.document import Document, DocumentType, OutputSink
+from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import OutputSink
 
 logger = logging.getLogger(__name__)
 

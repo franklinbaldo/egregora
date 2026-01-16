@@ -4,7 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from egregora.data_primitives.document import Document, DocumentType, UrlContext
+from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import UrlContext
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.mkdocs import MkDocsAdapter
 

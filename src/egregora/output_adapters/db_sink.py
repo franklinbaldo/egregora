@@ -11,8 +11,10 @@ from typing import TYPE_CHECKING
 
 from egregora.data_primitives.document import (
     Document,
-    DocumentMetadata,
     DocumentType,
+)
+from egregora.data_primitives.protocols import (
+    DocumentMetadata,
     OutputSink,
     UrlContext,
     UrlConvention,

@@ -7,7 +7,8 @@ bridging the "Database Source of Truth" with the "Static Site Artifact".
 import logging
 from typing import TYPE_CHECKING
 
-from egregora.data_primitives.document import DocumentType, OutputSink
+from egregora.data_primitives.document import DocumentType
+from egregora.data_primitives.protocols import OutputSink
 from egregora.output_adapters.exceptions import DocumentNotFoundError
 
 if TYPE_CHECKING:

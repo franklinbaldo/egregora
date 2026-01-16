@@ -4,7 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from egregora.data_primitives.document import DocumentMetadata, DocumentType
+from egregora.data_primitives.document import DocumentType
+from egregora.data_primitives.protocols import DocumentMetadata
 from egregora.output_adapters.db_sink import DbOutputSink
 from egregora.output_adapters.exceptions import (
     DocumentIterationError,

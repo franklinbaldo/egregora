@@ -2,7 +2,8 @@ from datetime import UTC, datetime
 from unittest.mock import Mock
 from uuid import uuid4
 
-from egregora.data_primitives.document import Document, DocumentMetadata, DocumentType
+from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import DocumentMetadata
 from egregora.orchestration.journal import create_journal_document, window_already_processed
 
 

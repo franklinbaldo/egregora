@@ -32,7 +32,7 @@ from egregora.rag.models import RAGQueryRequest
 
 if TYPE_CHECKING:
     from egregora.agents.shared.annotations import AnnotationStore
-    from egregora.data_primitives.document import OutputSink
+    from egregora.data_primitives.protocols import OutputSink
     from egregora.database.task_store import TaskStore
 
 logger = logging.getLogger(__name__)

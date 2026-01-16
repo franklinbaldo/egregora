@@ -43,7 +43,7 @@ from egregora.agents.writer import WindowProcessingParams, write_posts_for_windo
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
 from egregora.constants import WindowUnit
-from egregora.data_primitives.document import OutputSink, UrlContext
+from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.task_store import TaskStore

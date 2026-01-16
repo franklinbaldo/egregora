@@ -25,8 +25,10 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from egregora.common.text import slugify
 from egregora.data_primitives.document import (
     Document,
-    DocumentMetadata,
     DocumentType,
+)
+from egregora.data_primitives.protocols import (
+    DocumentMetadata,
     UrlContext,
     UrlConvention,
 )

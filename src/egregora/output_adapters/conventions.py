@@ -35,10 +35,11 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from egregora.common.text import InvalidInputError, slugify
-from egregora.data_primitives.document import Document, DocumentType, UrlConvention
+from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import UrlConvention
 
 if TYPE_CHECKING:
-    from egregora.data_primitives.document import UrlContext
+    from egregora.data_primitives.protocols import UrlContext
 
 
 EXPECTED_PARTS_WITH_PATH = 2
