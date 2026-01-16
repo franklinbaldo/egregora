@@ -207,6 +207,9 @@ class LanceDBRAGBackend(VectorStore):
             msg = f"Failed to upsert chunks to LanceDB: {e}"
             raise RuntimeError(msg) from e
 
+    def add_documents(self, docs: Sequence["Document"]) -> None:
+        self.add(docs)
+
     def query(self, request: RAGQueryRequest) -> RAGQueryResponse:
         """Execute vector search in the knowledge base.
 

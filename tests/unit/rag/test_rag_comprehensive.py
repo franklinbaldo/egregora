@@ -28,7 +28,7 @@ import pytest
 
 import egregora.rag
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.rag import add_documents, get_backend, search
+from egregora.rag import get_backend, add_documents, search
 from egregora.rag.ingestion import DEFAULT_MAX_CHARS, chunks_from_document, chunks_from_documents
 from egregora.rag.lancedb_backend import LanceDBRAGBackend
 from egregora.rag.models import RAGQueryRequest
@@ -221,8 +221,8 @@ def test_chunking_word_boundary_splitting():
 # ============================================================================
 
 
-def test_backend_index_empty_documents(temp_db_dir: Path, mock_embed_fn):
-    """Test indexing with empty document list."""
+def test_backend_add_empty_documents(temp_db_dir: Path, mock_embed_fn):
+    """Test adding with empty document list."""
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
         table_name="test",
@@ -230,11 +230,11 @@ def test_backend_index_empty_documents(temp_db_dir: Path, mock_embed_fn):
     )
 
     # Should not raise
-    backend.add([])
+    backend.add_documents([])
 
 
-def test_backend_index_documents_idempotency(temp_db_dir: Path, mock_embed_fn):
-    """Test that indexing the same document twice is idempotent."""
+def test_backend_add_documents_idempotency(temp_db_dir: Path, mock_embed_fn):
+    """Test that adding the same document twice is idempotent."""
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
         table_name="test",
@@ -244,10 +244,10 @@ def test_backend_index_documents_idempotency(temp_db_dir: Path, mock_embed_fn):
     doc = Document(content="Test document", type=DocumentType.POST)
 
     # Index once
-    backend.add([doc])
+    backend.add_documents([doc])
 
     # Index again (should upsert, not duplicate)
-    backend.add([doc])
+    backend.add_documents([doc])
 
     # Query should return only one result
     request = RAGQueryRequest(text="Test document", top_k=10)
@@ -257,8 +257,8 @@ def test_backend_index_documents_idempotency(temp_db_dir: Path, mock_embed_fn):
     assert len(response.hits) == 1
 
 
-def test_backend_index_documents_with_custom_types(temp_db_dir: Path, mock_embed_fn):
-    """Test indexing with custom document types."""
+def test_backend_add_documents_with_custom_types(temp_db_dir: Path, mock_embed_fn):
+    """Test adding with custom document types."""
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
         table_name="test",
@@ -272,7 +272,7 @@ def test_backend_index_documents_with_custom_types(temp_db_dir: Path, mock_embed
         Document(content="Annotation content", type=DocumentType.ANNOTATION),
     ]
 
-    backend.add(docs)
+    backend.add_documents(docs)
 
     # Query - should only have POST and MEDIA indexed (ANNOTATION should be filtered out)
     request = RAGQueryRequest(text="content", top_k=10)
@@ -281,8 +281,8 @@ def test_backend_index_documents_with_custom_types(temp_db_dir: Path, mock_embed
     assert len(response.hits) == 2
 
 
-def test_backend_index_large_batch(temp_db_dir: Path, mock_embed_fn):
-    """Test indexing a large batch of documents."""
+def test_backend_add_large_batch(temp_db_dir: Path, mock_embed_fn):
+    """Test adding a large batch of documents."""
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
         table_name="test",
@@ -293,7 +293,7 @@ def test_backend_index_large_batch(temp_db_dir: Path, mock_embed_fn):
     docs = [Document(content=f"Document {i} with unique content", type=DocumentType.POST) for i in range(100)]
 
     # Should handle large batch
-    backend.add(docs)
+    backend.add_documents(docs)
 
     # Verify all indexed (top_k can now go up to 100)
     request = RAGQueryRequest(text="Document", top_k=50)
@@ -305,7 +305,7 @@ def test_backend_index_large_batch(temp_db_dir: Path, mock_embed_fn):
     # or check the table directly, but this at least confirms indexing succeeded
 
 
-def test_backend_index_embedding_failure(temp_db_dir: Path):
+def test_backend_add_embedding_failure(temp_db_dir: Path):
     """Test handling of embedding failures."""
 
     def failing_embed_fn(texts: list[str], task_type: str) -> list[list[float]]:
@@ -321,10 +321,10 @@ def test_backend_index_embedding_failure(temp_db_dir: Path):
     doc = Document(content="Test", type=DocumentType.POST)
 
     with pytest.raises(RuntimeError, match="Failed to compute embeddings"):
-        backend.add([doc])
+        backend.add_documents([doc])
 
 
-def test_backend_index_embedding_count_mismatch(temp_db_dir: Path):
+def test_backend_add_embedding_count_mismatch(temp_db_dir: Path):
     """Test handling of embedding count mismatch."""
 
     def bad_embed_fn(texts: list[str], task_type: str) -> list[list[float]]:
@@ -344,7 +344,7 @@ def test_backend_index_embedding_count_mismatch(temp_db_dir: Path):
     ]
 
     with pytest.raises(RuntimeError, match="Embedding count mismatch"):
-        backend.add(docs)
+        backend.add_documents(docs)
 
 
 # ============================================================================
@@ -366,7 +366,7 @@ def test_backend_query_basic(temp_db_dir: Path, mock_embed_fn_similar):
         Document(content="Deep learning with neural networks", type=DocumentType.POST),
     ]
 
-    backend.add(docs)
+    backend.add_documents(docs)
 
     # Query for machine learning
     request = RAGQueryRequest(text="machine learning", top_k=2)
@@ -391,7 +391,7 @@ def test_backend_query_top_k_limit(temp_db_dir: Path, mock_embed_fn):
 
     # Index 15 documents
     docs = [Document(content=f"Document {i}", type=DocumentType.POST) for i in range(15)]
-    backend.add(docs)
+    backend.add_documents(docs)
 
     # Query with top_k=5
     request = RAGQueryRequest(text="Document", top_k=5)
@@ -443,7 +443,7 @@ def test_backend_query_score_range(temp_db_dir: Path, mock_embed_fn):
     )
 
     docs = [Document(content=f"Document {i}", type=DocumentType.POST) for i in range(5)]
-    backend.add(docs)
+    backend.add_documents(docs)
 
     request = RAGQueryRequest(text="Document", top_k=5)
     response = backend.query(request)
@@ -475,7 +475,7 @@ def test_backend_query_metadata_preservation(temp_db_dir: Path, mock_embed_fn):
         metadata={"title": "Test", "author": "Alice", "tags": "test,sample"},
     )
 
-    backend.add([doc])
+    backend.add_documents([doc])
 
     request = RAGQueryRequest(text="Test", top_k=1)
     response = backend.query(request)
@@ -499,7 +499,7 @@ def test_backend_query_chunk_id_format(temp_db_dir: Path, mock_embed_fn):
     content = " ".join([f"Word{i}" for i in range(200)])  # Large document
     doc = Document(content=content, type=DocumentType.POST)
 
-    backend.add([doc])
+    backend.add_documents([doc])
 
     request = RAGQueryRequest(text="Word", top_k=10)
     response = backend.query(request)
@@ -539,7 +539,7 @@ def test_backend_asymmetric_embeddings(temp_db_dir: Path):
         Document(content="Document 1", type=DocumentType.POST),
         Document(content="Document 2", type=DocumentType.POST),
     ]
-    backend.add(docs)
+    backend.add_documents(docs)
 
     # Query (should use RETRIEVAL_QUERY)
     request = RAGQueryRequest(text="search query", top_k=5)
@@ -577,7 +577,7 @@ def test_backend_query_with_filters(temp_db_dir: Path, mock_embed_fn):
         Document(content="Post about cooking", type=DocumentType.POST, metadata={"category": "food"}),
     ]
 
-    backend.add(docs)
+    backend.add_documents(docs)
 
     # Test that basic query works without filters
     request = RAGQueryRequest(text="Post", top_k=10, filters=None)
@@ -603,8 +603,8 @@ def test_backend_query_with_filters(temp_db_dir: Path, mock_embed_fn):
 # ============================================================================
 
 
-def test_high_level_api_index_and_search():
-    """Test the high-level index_documents() and search() API."""
+def test_high_level_api_add_and_search():
+    """Test the high-level add_documents() and search() API."""
     with (
         tempfile.TemporaryDirectory(),
         patch("egregora.rag.get_backend") as mock_get_backend,
@@ -694,7 +694,7 @@ def test_backend_persistence_across_sessions(temp_db_dir: Path, mock_embed_fn):
     )
 
     doc = Document(content="Persistent test document", type=DocumentType.POST)
-    backend1.add([doc])
+    backend1.add_documents([doc])
 
     # Create new backend instance pointing to same directory
     backend2 = LanceDBRAGBackend(
@@ -726,8 +726,8 @@ def test_backend_multiple_tables(temp_db_dir: Path, mock_embed_fn):
     )
 
     # Index different documents in each table
-    backend1.add([Document(content="Table 1 content", type=DocumentType.POST)])
-    backend2.add([Document(content="Table 2 content", type=DocumentType.POST)])
+    backend1.add_documents([Document(content="Table 1 content", type=DocumentType.POST)])
+    backend2.add_documents([Document(content="Table 2 content", type=DocumentType.POST)])
 
     # Query each table - should return only its own documents
     response1 = backend1.query(RAGQueryRequest(text="Table", top_k=10))
@@ -777,7 +777,7 @@ def test_backend_concurrent_queries(temp_db_dir: Path, mock_embed_fn):
 
     # Index some documents
     docs = [Document(content=f"Document {i}", type=DocumentType.POST) for i in range(10)]
-    backend.add(docs)
+    backend.add_documents(docs)
 
     # Perform multiple queries
     responses = []
@@ -831,7 +831,7 @@ def test_end_to_end_workflow(temp_db_dir: Path, mock_embed_fn_similar):
     ]
 
     # 3. Index documents
-    backend.add(docs)
+    backend.add_documents(docs)
 
     # 4. Perform searches
     # Search for Python-related content

@@ -45,8 +45,8 @@ def test_lancedb_backend_initialization(temp_db_dir: Path, mock_embed_fn):
     assert backend._table_name == "test_embeddings"
 
 
-def test_lancedb_backend_index_documents(temp_db_dir: Path, mock_embed_fn):
-    """Test indexing documents into LanceDB."""
+def test_lancedb_backend_add_documents(temp_db_dir: Path, mock_embed_fn):
+    """Test adding documents into LanceDB."""
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
         table_name="test_embeddings",
@@ -68,7 +68,7 @@ def test_lancedb_backend_index_documents(temp_db_dir: Path, mock_embed_fn):
     ]
 
     # Index documents (should not raise)
-    backend.add(docs)
+    backend.add_documents(docs)
 
 
 def test_lancedb_backend_query(temp_db_dir: Path, mock_embed_fn):
@@ -93,7 +93,7 @@ def test_lancedb_backend_query(temp_db_dir: Path, mock_embed_fn):
         ),
     ]
 
-    backend.add(docs)
+    backend.add_documents(docs)
 
     # Query for documents
     request = RAGQueryRequest(text="cats and dogs", top_k=2)
@@ -144,4 +144,4 @@ def test_lancedb_backend_index_binary_content(temp_db_dir: Path, mock_embed_fn):
     ]
 
     # Should not raise, but should skip the binary document
-    backend.add(docs)
+    backend.add_documents(docs)
