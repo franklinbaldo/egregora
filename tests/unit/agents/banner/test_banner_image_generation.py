@@ -133,7 +133,7 @@ def test_generate_banner_reraises_unexpected_errors(monkeypatch):
     # Mock the genai.Client at the module level where it's imported
 
     # Patch the Client where it is used in the agent module
-    monkeypatch.setattr(agent.genai, "Client", lambda: object())
+    monkeypatch.setattr(agent.genai, "GenerativeModel", lambda model: object())
 
     # Mocking EgregoraConfig to return an object with a .models.banner attribute
     class MockModels:
