@@ -17,6 +17,17 @@ dependencies = [
     "rich>=13.9",
     "tenacity>=9.1",
     "typer>=0.20",
+
+    # Egregora core dependencies
+    "diskcache>=5.6.3",
+    "ibis-framework[duckdb]>=11.0",
+    "python-dateutil>=2.9",
+    "pydantic-ai>=1.25",
+    "google-generativeai>=0.8.6",
+    "scikit-learn>=1.7",
+    "lancedb>=0.25",
+    "pillow>=11.3",
+    "ratelimit>=2.2",
 ]
 
 [project.scripts]
@@ -38,28 +49,16 @@ jules = [
 
 # Egregora full dependencies (data processing, AI, blog generation)
 egregora = [
-    # Data processing
-    "diskcache>=5.6.3",
     "duckdb",
-    "ibis-framework[duckdb]>=11.0",
-    "python-dateutil>=2.9",
-
     # AI/ML
-    "pydantic-ai>=1.25",
     "pydantic-evals>=1.25",
     "google-api-core",
     "google-genai>=0.8.6",
-    "scikit-learn>=1.7",
-
-    # Vector database
-    "lancedb>=0.25",
 
     # Content generation
-    "pillow>=11.3",
     "aiohttp>=3.13.3",
     "urllib3>=2.6.3",
     "lxml>=5.4",
-    "ratelimit>=2.2",
 
     # Site generation
     "mkdocs>=1.6",
