@@ -63,7 +63,7 @@ Use `uv tool run` to start a local server without installing the packages global
 This command uses the `mkdocs` dependency group defined in `pyproject.toml`.
 
 ```bash
-uv tool run --with ".[mkdocs]" mkdocs serve -f .egregora/mkdocs.yml
+uv tool run --with "git+https://github.com/franklinbaldo/egregora[mkdocs]" mkdocs serve -f .egregora/mkdocs.yml
 ```
 
 *Visit <http://localhost:8000> to read your new blog.*
