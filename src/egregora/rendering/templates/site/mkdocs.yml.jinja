@@ -19,19 +19,20 @@ theme:
     # Light mode
     - media: '(prefers-color-scheme: light)'
       scheme: default
-      primary: teal
-      accent: amber
+      primary: custom
+      accent: yellow
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     # Dark mode
     - media: '(prefers-color-scheme: dark)'
       scheme: slate
-      primary: teal
-      accent: amber
+      primary: custom
+      accent: yellow
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
+  favicon: assets/images/favicon.png
   features:
     # Navigation
     - navigation.instant
@@ -58,6 +59,9 @@ theme:
     - content.code.select
     - content.tabs.link
     - content.tooltips
+    - cards
+    - cards.select
+    - cards.share
     - content.action.edit
     - content.action.view
     # Table of contents
@@ -199,23 +203,6 @@ nav:
 # Egregora configuration lives in .egregora.toml at the site root
 # (Separation allows supporting multiple rendering backends: MkDocs, Hugo, Astro, etc.)
 extra:
-  analytics:
-    provider: google
-    property: "__GOOGLE_ANALYTICS_KEY__"
-    feedback:
-      title: Was this page helpful?
-      ratings:
-        - icon: material/emoticon-happy-outline
-          name: This page was helpful
-          data: 1
-          note: >-
-            Thanks for your feedback!
-        - icon: material/emoticon-sad-outline
-          name: This page could be improved
-          data: 0
-          note: >-
-            Thanks for your feedback! Help us improve this page by
-            <a href="{{ repo_url }}/issues/new?title=[Docs]" target="_blank">opening an issue</a>.
   # Disable MkDocs generator notice
   generator: false
   # Add social links to the footer for a more professional look.
