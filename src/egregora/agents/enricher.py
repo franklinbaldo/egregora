@@ -1106,7 +1106,8 @@ class EnrichmentWorker(BaseWorker):
 
             api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
             if not api_key:
-                raise ValueError("API key required for file upload")
+                msg = "API key required for file upload"
+                raise ValueError(msg)
 
             client = genai.Client(api_key=api_key)
 

@@ -36,10 +36,7 @@ def combine_with_enrichment_rows(
         for col_name, col_type in schema.items()
         if col_name not in messages_table.columns
     }
-    if mutations:
-        messages_with_all_cols = messages_table.mutate(**mutations)
-    else:
-        messages_with_all_cols = messages_table
+    messages_with_all_cols = messages_table.mutate(**mutations) if mutations else messages_table
 
     messages_table_filtered = messages_with_all_cols.select(*schema.names)
 

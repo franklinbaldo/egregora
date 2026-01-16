@@ -46,10 +46,7 @@ def initialize_database(backend: BaseBackend) -> None:
     """
     logger.info("Initializing Pure database tables...")
 
-    if hasattr(backend, "con"):
-        conn = backend.con
-    else:
-        conn = backend
+    conn = backend.con if hasattr(backend, "con") else backend
 
     # 1. Unified Documents Table
     # This creates the table with the full schema if it's missing.

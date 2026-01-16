@@ -344,7 +344,8 @@ class DuckDBStorageManager:
 
         """
         if not by_keys:
-            raise InvalidOperationError("replace_rows requires at least one key for deletion safety")
+            msg = "replace_rows requires at least one key for deletion safety"
+            raise InvalidOperationError(msg)
 
         quoted_table = quote_identifier(table)
 
@@ -460,7 +461,8 @@ class DuckDBStorageManager:
                 self._conn.register(name, dataframe)
                 logger.info("Table '%s' written without checkpoint (%s)", name, mode)
         else:
-            raise InvalidOperationError("Append mode requires checkpoint=True")
+            msg = "Append mode requires checkpoint=True"
+            raise InvalidOperationError(msg)
 
     def persist_atomic(self, table: Table, name: str, schema: ibis.Schema | None = None) -> None:
         """Persist an Ibis table to a DuckDB table atomically using a transaction.
@@ -478,7 +480,8 @@ class DuckDBStorageManager:
             raise InvalidTableNameError(name)
 
         if schema is None:
-            raise InvalidOperationError("Schema must be provided for persist_atomic")
+            msg = "Schema must be provided for persist_atomic"
+            raise InvalidOperationError(msg)
 
         target_schema = schema
         schemas.create_table_if_not_exists(self._conn, name, target_schema)
@@ -631,7 +634,8 @@ class DuckDBStorageManager:
         errors. Instead, we let DuckDB handle nextval() in auto-commit mode.
         """
         if count <= 0:
-            raise InvalidOperationError("count must be positive")
+            msg = "count must be positive"
+            raise InvalidOperationError(msg)
 
         with self._lock:
             # Fetch sequence values one at a time to avoid DuckDB internal errors

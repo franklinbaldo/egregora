@@ -161,8 +161,7 @@ def _table_to_records(
         column_names = [str(name) for name in data.column_names]
         columns = {name: data.column(index).to_pylist() for index, name in enumerate(column_names)}
         records = [
-            {name: columns[name][row_index] for name in column_names}
-            for row_index in range(data.num_rows)
+            {name: columns[name][row_index] for name in column_names} for row_index in range(data.num_rows)
         ]
         return records, column_names
     if isinstance(data, Mapping):

@@ -590,10 +590,7 @@ def _calculate_max_window_size(config: EgregoraConfig) -> int:
     # Corresponds to a 1M token context window, expressed in characters
     full_context_window_size = 1_048_576
 
-    if use_full_window:
-        max_tokens = full_context_window_size
-    else:
-        max_tokens = config.pipeline.max_prompt_tokens
+    max_tokens = full_context_window_size if use_full_window else config.pipeline.max_prompt_tokens
 
     # TODO: [Taskmaster] Externalize hardcoded configuration values.
     avg_tokens_per_message = 5
@@ -655,7 +652,8 @@ def get_pending_conversations(dataset: PreparedPipelineData) -> Iterator[Convers
         output_sink = ctx.output_sink
         if output_sink is None:
             # Should not happen if dataset is prepared correctly
-            raise ValueError("Output sink not initialized")
+            msg = "Output sink not initialized"
+            raise ValueError(msg)
 
         url_context = ctx.url_context or UrlContext()
         window_table_processed, media_mapping = process_media_for_window(
@@ -915,10 +913,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
 
     client_instance = run_params.client or _create_gemini_client()
     cache_path = Path(run_params.config.paths.cache_dir)
-    if cache_path.is_absolute():
-        cache_dir = cache_path
-    else:
-        cache_dir = site_paths.site_root / cache_path
+    cache_dir = cache_path if cache_path.is_absolute() else site_paths.site_root / cache_path
     cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
     site_paths.egregora_dir.mkdir(parents=True, exist_ok=True)
 

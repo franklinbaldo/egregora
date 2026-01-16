@@ -166,7 +166,8 @@ class TestPipelineRunnerJournalIntegration:
         # Configure output_sink.persist to raise error ONLY for journal
         def persist_side_effect(doc):
             if doc == mock_journal_doc:
-                raise Exception("DB Error")
+                msg = "DB Error"
+                raise Exception(msg)
 
         mock_context.output_sink.persist.side_effect = persist_side_effect
 

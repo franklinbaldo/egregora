@@ -255,15 +255,18 @@ def _validate_alias(alias: str) -> str:
 
     """
     if not alias:
-        raise InvalidAliasError("Alias cannot be empty.", alias=alias)
+        msg = "Alias cannot be empty."
+        raise InvalidAliasError(msg, alias=alias)
     alias = alias.strip().strip("\"'")
     if not alias:
-        raise InvalidAliasError("Alias cannot be empty.", alias=alias)
+        msg = "Alias cannot be empty."
+        raise InvalidAliasError(msg, alias=alias)
     if not 1 <= len(alias) <= MAX_ALIAS_LENGTH:
         msg = f"Alias length invalid: {len(alias)} chars (must be 1-{MAX_ALIAS_LENGTH})"
         raise InvalidAliasError(msg, alias=alias)
     if any(ord(c) < ASCII_CONTROL_CHARS_THRESHOLD for c in alias):
-        raise InvalidAliasError("Alias contains control characters.", alias=alias)
+        msg = "Alias contains control characters."
+        raise InvalidAliasError(msg, alias=alias)
     alias = alias.replace("&", "&amp;")
     alias = alias.replace("<", "&lt;")
     alias = alias.replace(">", "&gt;")

@@ -353,10 +353,7 @@ def process_media_for_window(
 def _prepare_media_document(document: Document, media_ref: str) -> MediaAsset:
     """Return a MediaAsset with deterministic naming and metadata."""
     raw_content = document.content
-    if isinstance(raw_content, bytes):
-        payload = raw_content
-    else:
-        payload = str(raw_content).encode("utf-8")
+    payload = raw_content if isinstance(raw_content, bytes) else str(raw_content).encode("utf-8")
 
     metadata = document.metadata.copy()
     original_filename = metadata.get("original_filename") or media_ref

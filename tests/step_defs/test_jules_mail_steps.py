@@ -107,4 +107,5 @@ def check_message_read(message_key):
         if m["key"] == message_key:
             assert m["read"] is True
             return
-    raise AssertionError("Message not found")
+    msg = "Message not found"
+    raise AssertionError(msg)

@@ -43,7 +43,8 @@ def parse_datetime_flexible(
 def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) -> datetime:
     """Convert a value to a datetime object without timezone normalization."""
     if value is None:
-        raise InvalidDateTimeInputError("None", "Input value cannot be None")
+        msg = "None"
+        raise InvalidDateTimeInputError(msg, "Input value cannot be None")
 
     if hasattr(value, "to_pydatetime"):
         value = value.to_pydatetime()

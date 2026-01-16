@@ -45,7 +45,8 @@ def test_is_git_ignored_returns_false_on_oserror(monkeypatch) -> None:
     """Failures to execute git should return False."""
 
     def fake_run(cmd, check, stdout, stderr):
-        raise OSError("git missing")
+        msg = "git missing"
+        raise OSError(msg)
 
     monkeypatch.setattr("check_root_structure.subprocess.run", fake_run)
 

@@ -465,7 +465,8 @@ def write_posts_with_pydantic_agent(
             isinstance(part, ToolCallPart) for message in messages for part in getattr(message, "parts", [])
         )
         if not has_tool_calls:
-            raise AgentError("Writer response did not include any tool calls.")
+            msg = "Writer response did not include any tool calls."
+            raise AgentError(msg)
     intercalated_log = _extract_intercalated_log(messages)
     # TODO: [Taskmaster] Refactor complex journal fallback logic
     if not intercalated_log:
@@ -611,9 +612,8 @@ def _execute_writer_with_error_handling(
         )
 
     def _should_cycle(exc: Exception) -> bool:
-        if isinstance(exc, AgentError):
-            if "tool calls" in str(exc).lower():
-                return True
+        if isinstance(exc, AgentError) and "tool calls" in str(exc).lower():
+            return True
         if isinstance(exc, UsageLimitExceeded):
             return True
         if isinstance(exc, ModelHTTPError):
