@@ -8,12 +8,18 @@ Provides:
 from pathlib import Path
 import typer
 import frontmatter
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.markdown import Markdown
 
 app = typer.Typer(
     name="roster",
     help="👥 Discover your fellow personas: list all or view details",
     no_args_is_help=True,
 )
+
+console = Console()
 
 
 def get_personas_dir() -> Path:
@@ -33,7 +39,7 @@ def list_personas():
     """
     👥 List all personas in the team.
     
-    Shows each persona's ID, emoji, and description.
+    Shows each persona's ID, emoji, and description in a rich table.
     
     Example:
         my-tools roster list
@@ -56,20 +62,24 @@ def list_personas():
                 continue
         
         if not personas:
-            print("No personas found.")
+            console.print("[red]No personas found.[/red]")
             raise typer.Exit(code=1)
         
-        print("╔══════════════════════════════════════════════════════════════════╗")
-        print("║                         TEAM ROSTER                              ║")
-        print("╠══════════════════════════════════════════════════════════════════╣")
+        # Create rich table
+        table = Table(title="👥 Team Roster", show_header=True, header_style="bold cyan")
+        table.add_column("", style="", width=3)  # Emoji
+        table.add_column("Persona", style="bold", width=15)
+        table.add_column("Description", style="dim")
+        
         for pid, emoji, desc in personas:
-            print(f"║  {emoji} {pid:<15} {desc:<45}║")
-        print("╚══════════════════════════════════════════════════════════════════╝")
-        print(f"\nTotal: {len(personas)} personas")
-        print("Use 'my-tools roster view <persona_id>' for details")
+            table.add_row(emoji, pid, desc)
+        
+        console.print(table)
+        console.print(f"\n[dim]Total: {len(personas)} personas[/dim]")
+        console.print("[dim]Use 'my-tools roster view <persona_id>' for full details[/dim]")
         
     except FileNotFoundError as e:
-        print(f"❌ {e}")
+        console.print(f"[red]❌ {e}[/red]")
         raise typer.Exit(code=1)
 
 
@@ -90,8 +100,8 @@ def view_persona(
         prompt_file = personas_dir / persona_id / "prompt.md.j2"
         
         if not prompt_file.exists():
-            print(f"❌ Persona '{persona_id}' not found")
-            print(f"   Try: my-tools roster list")
+            console.print(f"[red]❌ Persona '{persona_id}' not found[/red]")
+            console.print("[dim]Try: my-tools roster list[/dim]")
             raise typer.Exit(code=1)
         
         # Use PersonaLoader to render the full prompt
@@ -106,19 +116,21 @@ def view_persona(
         loader = PersonaLoader(personas_dir, base_context)
         config = loader.load_persona(prompt_file)
         
-        # Print header
-        print(f"\n{'='*70}")
-        print(f"PERSONA: {config.emoji} {config.id}")
-        print(f"{'='*70}\n")
+        # Print with Rich
+        console.print(Panel(
+            f"[bold]{config.emoji} {config.id.upper()}[/bold]\n[dim]{config.description}[/dim]",
+            title="Persona Details",
+            border_style="cyan"
+        ))
         
-        # Print the rendered prompt
-        print(config.prompt_body)
+        console.print("\n[bold cyan]Full Rendered Prompt:[/bold cyan]\n")
+        console.print(Markdown(config.prompt_body))
         
     except FileNotFoundError as e:
-        print(f"❌ {e}")
+        console.print(f"[red]❌ {e}[/red]")
         raise typer.Exit(code=1)
     except Exception as e:
-        print(f"❌ Error rendering persona: {e}")
+        console.print(f"[red]❌ Error rendering persona: {e}[/red]")
         raise typer.Exit(code=1)
 
 
