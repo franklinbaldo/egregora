@@ -46,7 +46,7 @@ jobs:
         uses: ./.github/actions/setup-python-uv
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          extras: "--extra docs --extra rss"
+          extras: "--extra egregora --extra docs --extra rss"
 
       - name: Prepare Build Environment
         run: |

@@ -31,7 +31,7 @@ jobs:
         uses: ./.github/actions/setup-python-uv
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          extras: "--all-extras"
+          extras: "--extra jules"
 
       - name: Merge jules → main if clean
         env:
