@@ -4,20 +4,27 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {% include "partials/identity_branding.md.j2" %}
 {% endblock %}
 
-{% block content %}
-{# Main persona instructions go here #}
+{# ============================================== #}
+{# RGCCOV FRAMEWORK                              #}
+{# ============================================== #}
+
+## 🎭 Role
+{% block role %}
+{# Override: Who you are, your expertise #}
+{% endblock %}
+
+## 🎯 Goal  
+{% block goal %}
+{# Override: Specific objective to achieve #}
+{% endblock %}
+
+## 📋 Context
+{% block context %}
+{# Override: Background, references, current state #}
 {% endblock %}
 
 {% block job_simulation %}
 {% include "blocks/job_simulation.md.j2" %}
-{% endblock %}
-
-{% block pre_commit %}
-{% include "partials/pre_commit_instructions.md.j2" %}
-{% endblock %}
-
-{% block autonomy %}
-{% include "blocks/autonomy.md.j2" %}
 {% endblock %}
 
 {% block planning %}
@@ -28,18 +35,42 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {% include "blocks/collaboration.md.j2" %}
 {% endblock %}
 
-{% block rgccov %}
-{# RGCCOV workflow - personas can include with {% include "blocks/rgccov_workflow.md.j2" %} #}
+## ⚠️ Constraints
+{% block constraints %}
+{# Override: Rules, limitations, boundaries #}
 {% endblock %}
 
-{% block queue_celebration %}
-{% include "partials/celebration.md.j2" %}
+{% block autonomy %}
+{% include "blocks/autonomy.md.j2" %}
+{% endblock %}
+
+## 📤 Output
+{% block output %}
+{# Override: Expected deliverable format #}
 {% endblock %}
 
 {% block journal %}
 {% include "partials/journal_management.md.j2" %}
 {% endblock %}
 
+{% block queue_celebration %}
+{% include "partials/celebration.md.j2" %}
+{% endblock %}
+
+## ✅ Verification
+{% block verification %}
+{# Override: How to confirm success #}
+{% endblock %}
+
+{% block pre_commit %}
+{% include "partials/pre_commit_instructions.md.j2" %}
+{% endblock %}
+
+---
+
+{% block content %}
+{# Additional workflows, techniques, guardrails #}
+{% endblock %}
+
 {% block extra_sections %}
-{# Optional: extra sections like "Previous Journal Entries" or "UX Criteria" #}
 {% endblock %}
