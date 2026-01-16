@@ -46,12 +46,14 @@ def get_current_sequence(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Find the first row that needs work.
 
     Returns the first row where:
-    - No session_id exists (not started)
-    - Has session_id but no pr_status (waiting for PR creation)
+    - No session_id exists (not started yet)
 
     Skips rows with:
     - pr_status 'merged' or 'closed' (completed)
-    - session_id exists AND pr_status is 'draft' or 'open' (in progress, waiting for merge)
+    - session_id exists (in progress - wait for PR tracking to update status)
+
+    This prevents creating duplicate sessions for the same sequence when
+    the PR is created/merged faster than the PR tracker updates the CSV.
     """
     for row in rows:
         session_id = row.get("session_id", "").strip()
@@ -61,11 +63,12 @@ def get_current_sequence(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
         if status in ["merged", "closed"]:
             continue
 
-        # Skip rows that are already in progress (have session and open/draft PR)
-        if session_id and status in ["draft", "open"]:
+        # Skip rows that have a session (regardless of PR status)
+        # Once a session exists, wait for PR tracker to update the status
+        if session_id:
             continue
 
-        # This row needs work (no session, or has session but no PR yet)
+        # This row needs work (no session exists yet)
         return row
 
     return None
