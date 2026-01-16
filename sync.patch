@@ -1,0 +1,226 @@
+From 8f653a53b7a9ec919bad2609ec6c3e6c077e8738 Mon Sep 17 00:00:00 2001
+From: "github-actions[bot]" <github-actions[bot]@users.noreply.github.com>
+Date: Fri, 16 Jan 2026 19:52:44 +0000
+Subject: [PATCH 1/4] chore: update scheduler state [skip ci]
+
+---
+ .jules/schedule.csv | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/.jules/schedule.csv b/.jules/schedule.csv
+index 6cf0435d5..b8dfc475e 100644
+--- a/.jules/schedule.csv
++++ b/.jules/schedule.csv
+@@ -9,7 +9,7 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
+ 008,forge,17824147013337820495,2581,closed,
+ 009,janitor,13968893973858526285,,,
+ 010,maintainer,29803756968602368,2583,closed,
+-011,organizer,,,,
++011,organizer,5216217689898343676,2518,merged,
+ 012,palette,,,,
+ 013,pruner,,,,
+ 014,refactor,,,,
+
+From da0007f9e642ec3319d87d5585a5b39b76d66552 Mon Sep 17 00:00:00 2001
+From: "github-actions[bot]" <github-actions[bot]@users.noreply.github.com>
+Date: Fri, 16 Jan 2026 20:10:27 +0000
+Subject: [PATCH 2/4] chore: update scheduler state [skip ci]
+
+---
+ .jules/schedule.csv | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/.jules/schedule.csv b/.jules/schedule.csv
+index b8dfc475e..a9def8193 100644
+--- a/.jules/schedule.csv
++++ b/.jules/schedule.csv
+@@ -10,7 +10,7 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
+ 009,janitor,13968893973858526285,,,
+ 010,maintainer,29803756968602368,2583,closed,
+ 011,organizer,5216217689898343676,2518,merged,
+-012,palette,,,,
++012,palette,9158893631700526001,2584,closed,
+ 013,pruner,,,,
+ 014,refactor,,,,
+ 015,sapper,,,,
+
+From bc7895b30516fd715a9b2c39a0de6f14d9407fda Mon Sep 17 00:00:00 2001
+From: "github-actions[bot]" <github-actions[bot]@users.noreply.github.com>
+Date: Fri, 16 Jan 2026 20:35:38 +0000
+Subject: [PATCH 3/4] chore: update scheduler state [skip ci]
+
+---
+ .jules/schedule.csv | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/.jules/schedule.csv b/.jules/schedule.csv
+index a9def8193..62380d9d7 100644
+--- a/.jules/schedule.csv
++++ b/.jules/schedule.csv
+@@ -11,7 +11,7 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
+ 010,maintainer,29803756968602368,2583,closed,
+ 011,organizer,5216217689898343676,2518,merged,
+ 012,palette,9158893631700526001,2584,closed,
+-013,pruner,,,,
++013,pruner,16328922328961625587,,,
+ 014,refactor,,,,
+ 015,sapper,,,,
+ 016,scribe,,,,
+
+From 73c944dc4d4c7ce1e764d70630d4d06af2a1521a Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Fri, 16 Jan 2026 20:38:08 +0000
+Subject: [PATCH 4/4] =?UTF-8?q?=F0=9F=AA=93=20chore(tests):=20Remove=20unu?=
+ =?UTF-8?q?sed=20test=20fixture=20and=20add=20vulture=20check?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This commit removes the unused `mock_branch_manager` pytest fixture from `tests/step_defs/test_csv_scheduler.py`.
+
+Following a strict TDD methodology, this change also introduces a new test file, `tests/test_deadcode_vulture.py`, which runs `vulture` as a subprocess. This test serves as a regression check to prevent dead code from being reintroduced in the future.
+
+The process followed was:
+1.  **RED**: A failing test was created to confirm vulture's finding.
+2.  **GREEN**: The unused fixture was removed.
+3.  **VERIFY**: The test suite, including the new vulture check, now passes.
+---
+ .../journals/2026-01-16-2037-Journal.md       | 24 +++++++++++++++++
+ src/egregora/config/settings.py               |  4 +--
+ tests/step_defs/test_csv_scheduler.py         | 13 ++--------
+ tests/test_deadcode_vulture.py                | 26 +++++++++++++++++++
+ tests/unit/config/test_settings.py            |  2 +-
+ 5 files changed, 54 insertions(+), 15 deletions(-)
+ create mode 100644 .jules/personas/pruner/journals/2026-01-16-2037-Journal.md
+ create mode 100644 tests/test_deadcode_vulture.py
+
+diff --git a/.jules/personas/pruner/journals/2026-01-16-2037-Journal.md b/.jules/personas/pruner/journals/2026-01-16-2037-Journal.md
+new file mode 100644
+index 000000000..0b4917830
+--- /dev/null
++++ b/.jules/personas/pruner/journals/2026-01-16-2037-Journal.md
+@@ -0,0 +1,24 @@
++# Journal Entry: 2026-01-16-2037
++## Goals
++- Execute assigned tasks
++
++## Execution
++---
++title: "🪓 Remove Unused Test Fixture via TDD"
++date: 2026-01-16
++author: "Pruner"
++emoji: "🪓"
++type: journal
++---
++
++## 🪓 2026-01-16 - Summary
++
++**Observation:** The  dead code detector identified an unused pytest fixture, , in the test file .
++
++**Action:**
++1.  **RED:** Created a new regression test, , that runs  as a subprocess and asserts that it finds no dead code. This test failed as expected.
++2.  **GREEN:** Deleted the unused  fixture and its corresponding argument from the test function where it was being injected.
++3.  **VERIFY:** Reran  and confirmed that it now passes, ensuring the dead code was successfully removed.
++4.  Ran pre-commit hooks, staged the resulting auto-fixes, and prepared the change for submission.
++
++**Reflection:** The TDD process worked perfectly. By creating a failing test first, I ensured that my fix was both necessary and effective. This new regression test will prevent dead code from accumulating in the future. The next step is to continue running  and systematically eliminating any other dead code it finds.
+diff --git a/src/egregora/config/settings.py b/src/egregora/config/settings.py
+index 62e4c0ad2..a6cc6254a 100644
+--- a/src/egregora/config/settings.py
++++ b/src/egregora/config/settings.py
+@@ -1263,9 +1263,7 @@ def _get_api_keys_from_env(*env_vars: str) -> list[str]:
+
+ def get_google_api_keys() -> list[str]:
+     """Get list of Google API keys from environment."""
+-    return _get_api_keys_from_env(
+-        "GEMINI_API_KEYS", "GEMINI_API_KEY", "GOOGLE_API_KEY"
+-    )
++    return _get_api_keys_from_env("GEMINI_API_KEYS", "GEMINI_API_KEY", "GOOGLE_API_KEY")
+
+
+ def get_openrouter_api_key() -> str:
+diff --git a/tests/step_defs/test_csv_scheduler.py b/tests/step_defs/test_csv_scheduler.py
+index cd1b9b53b..d40af18c0 100644
+--- a/tests/step_defs/test_csv_scheduler.py
++++ b/tests/step_defs/test_csv_scheduler.py
+@@ -70,15 +70,6 @@ def mock_jules_client(mocker):
+     return mock_client
+
+
+-@pytest.fixture
+-def mock_branch_manager(mocker):
+-    """Mock BranchManager."""
+-    mock_mgr = MagicMock()
+-    mock_mgr.create_session_branch.return_value = "jules-sched-test"
+-    mocker.patch("jules.scheduler.engine.BranchManager", return_value=mock_mgr)
+-    return mock_mgr
+-
+-
+ @pytest.fixture
+ def mock_orchestrator(mocker):
+     """Mock SessionOrchestrator to return fake session ID."""
+@@ -184,11 +175,11 @@ def oracle_session_age(hours, mock_oracle_schedule_path, context):
+
+ # When steps
+ @when("the scheduler runs a sequential tick")
+-def run_sequential_tick(mock_jules_client, mock_orchestrator, mock_branch_manager, mocker, context):
++def run_sequential_tick(mock_jules_client, mock_orchestrator, mocker, context):
+     # Mock get_repo_info and get_open_prs
+     mocker.patch("jules.scheduler.engine.get_repo_info", return_value={"owner": "test", "repo": "test"})
+     mocker.patch("jules.scheduler.engine.get_open_prs", return_value=[])
+-
++
+     if not context.get("existing_session_configured"):
+         mock_jules_client.list_sessions.return_value = {"sessions": []}
+
+diff --git a/tests/test_deadcode_vulture.py b/tests/test_deadcode_vulture.py
+new file mode 100644
+index 000000000..8a121fbf9
+--- /dev/null
++++ b/tests/test_deadcode_vulture.py
+@@ -0,0 +1,26 @@
++import subprocess
++
++import pytest
++
++
++@pytest.mark.deadcode
++def test_vulture_finds_no_dead_code():
++    """
++    Runs vulture to ensure no dead code is found.
++    """
++    try:
++        result = subprocess.run(
++            ["uv", "run", "vulture", "src", "tests", "--min-confidence=80"],
++            check=False,  # Don't raise exception on non-zero exit
++            capture_output=True,
++            text=True,
++        )
++        if result.returncode != 0:
++            pytest.fail(
++                f"Vulture found dead code (exit code {result.returncode}):\n"
++                f"--- STDOUT ---\n{result.stdout}\n"
++                f"--- STDERR ---\n{result.stderr}",
++                pytrace=False,
++            )
++    except FileNotFoundError:
++        pytest.fail("vulture command not found. Is it installed in the uv environment?", pytrace=False)
+diff --git a/tests/unit/config/test_settings.py b/tests/unit/config/test_settings.py
+index 151e1abbc..1066f0e09 100644
+--- a/tests/unit/config/test_settings.py
++++ b/tests/unit/config/test_settings.py
+@@ -5,12 +5,12 @@
+
+ from egregora.config.exceptions import ApiKeyNotFoundError
+ from egregora.config.settings import (
++    _get_api_keys_from_env,
+     get_google_api_key,
+     get_google_api_keys,
+     get_openrouter_api_key,
+     get_openrouter_api_keys,
+ )
+-from egregora.config.settings import _get_api_keys_from_env
+
+
+ def test_get_google_api_key_raises_error_when_missing():
