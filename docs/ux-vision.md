@@ -10,6 +10,7 @@ This document outlines the user experience and user interface (UX/UI) vision for
 4.  **Privacy-First by Default:** The user's privacy is paramount. Features that could compromise privacy (like analytics) must be opt-in, never on by default.
 5.  **Measurable Quality:** All UX decisions should be backed by data where possible. We will use tools like Lighthouse to measure and track our progress on accessibility, performance, and SEO.
 6.  **Accessible to All:** The final site must be usable by everyone, regardless of their abilities. We will adhere to WCAG AA standards as a minimum baseline.
+7.  **Graceful Degradation:** The site generation process must be resilient. If external dependencies like AI content generation fail, the process should still complete successfully, scaffolding a buildable "empty state" of the site. This allows for inspection and development of the core UX even when content is unavailable.
 
 ## Technical & Architectural Discoveries
 
