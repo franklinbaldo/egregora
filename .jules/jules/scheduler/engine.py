@@ -161,44 +161,28 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> None:
     
     seq = current["sequence"]
     persona_id = current["persona"]
-    session_id = current.get("session_id", "").strip()
-    pr_status = current.get("pr_status", "").strip().lower()
-    
+
     print(f"📍 Current sequence: [{seq}] {persona_id}")
-    
-    # 3. If reset requested, clear session_id to force re-run
-    if reset and session_id:
-        print("🔄 Reset requested - clearing current session to re-run")
+
+    # 3. If reset requested, clear the sequence to force re-run
+    # Note: get_current_sequence() only returns rows without session_id,
+    # so this path requires manual CSV edit to add session_id first
+    if reset:
+        print("🔄 Reset requested - will recreate session for this sequence")
         rows = update_sequence(rows, seq, session_id="", pr_number="", pr_status="")
         save_schedule(rows)
-        session_id = ""
 
-    # 4. Check if session already created but no PR yet
-    if session_id:
-        print(f"   Session already exists: {session_id}")
-        # At this point, the session exists but hasn't created a PR yet
-        # (get_current_sequence skips rows with open/draft PRs)
-        if pr_status in ["draft", "open"]:
-            # This shouldn't happen now as get_current_sequence skips these
-            print(f"   PR status: {pr_status} (waiting for merge/close)")
-        elif pr_status in ["merged", "closed"]:
-            # This shouldn't happen as get_current_sequence skips these
-            print(f"   PR {pr_status} - should have been skipped")
-        else:
-            print("   Waiting for session to create a PR...")
-        return
-
-    # 5. Load persona for this sequence
+    # 4. Load persona for this sequence
     base_context = {**repo_info, "open_prs": open_prs}
     loader = PersonaLoader(Path(".jules/personas"), base_context)
     personas = {p.id: p for p in loader.load_personas([])}
-    
+
     if persona_id not in personas:
         print(f"❌ Persona '{persona_id}' not found, skipping sequence [{seq}]")
         rows = update_sequence(rows, seq, pr_status="closed")  # Mark as skipped
         save_schedule(rows)
         return
-    
+
     persona = personas[persona_id]
     print(f"\n🚀 Starting: {persona.emoji} {persona.id} [{seq}]")
 
@@ -206,7 +190,7 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> None:
         print("[DRY RUN] Would create session for above persona")
         return
 
-    # 6. Create session for this persona
+    # 5. Create session for this persona
     branch_mgr = BranchManager(JULES_BRANCH)
     branch_mgr.ensure_jules_branch_exists()
 
@@ -245,7 +229,7 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> None:
     new_session_id = orchestrator.create_session(request)
     print(f"✅ Created session: {new_session_id}")
 
-    # 7. Update CSV with session_id and base_commit
+    # 6. Update CSV with session_id and base_commit
     rows = update_sequence(rows, seq, session_id=str(new_session_id), base_commit=base_commit[:8])
     save_schedule(rows)
     print(f"📝 Updated schedule.csv: [{seq}] session_id={new_session_id}, base_commit={base_commit[:8]}")
