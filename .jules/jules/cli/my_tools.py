@@ -148,43 +148,38 @@ def loop_break(
 
 @app.command()
 def vote(
-    sequence: str = typer.Option(..., "--sequence", "-s", help="The sequence ID you want to influence (e.g. 025)"),
     persona: str = typer.Option(..., "--persona", "-p", help="The persona ID you want to vote for"),
     password: str = typer.Option(..., "--password", help="Identity verification (same as login)")
 ):
     """
-    ⚖️ Vote to influence the project schedule.
+    ⚖️ Vote to influence the future project schedule.
     
-    Cast a democratic vote to decide which persona should occupy a future sequence.
-    Only sequences that haven't started yet can be voted on.
+    Cast a democratic vote for a persona to occupy a future sequence.
+    The target sequence is automatically calculated.
     
     Example:
-        my-tools vote --sequence 025 --persona simplifier --password <token>
+        my-tools vote --persona simplifier --password <token>
     """
     try:
-        voter = session_manager.get_active_persona()
-        if not voter:
+        voter_id = session_manager.get_active_persona()
+        if not voter_id:
             print("❌ No active session. Please login first.")
             raise typer.Exit(code=1)
             
-        if not session_manager.validate_password(voter, password):
+        if not session_manager.validate_password(voter_id, password):
             print("❌ Auth failed: Invalid password.")
             raise typer.Exit(code=1)
             
-        vote_manager.cast_vote(sequence, voter, persona)
-        print(f"✅ Vote cast: {voter} voted for {persona} for sequence {sequence}")
+        voter_sequence = vote_manager.get_current_sequence(voter_id)
+        if not voter_sequence:
+            print(f"❌ Could not determine current sequence for {voter_id}.")
+            raise typer.Exit(code=1)
+
+        target_sequence = vote_manager.cast_vote(voter_sequence, persona)
+        print(f"✅ Vote cast by {voter_id} (seq {voter_sequence}) for {persona} to occupy sequence {target_sequence}")
         
-        # Optionally apply votes immediately if we want real-time updates
-        # For now, we'll let the scheduler or a separate process handle tallying
-        # winner = vote_manager.apply_votes(sequence)
-        # if winner:
-        #     print(f"🏆 Sequence {sequence} updated to {winner} based on consensus.")
-            
-    except ValueError as e:
-        print(f"❌ Vote failed: {e}")
-        raise typer.Exit(code=1)
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"❌ Vote failed: {e}")
         raise typer.Exit(code=1)
 
 if __name__ == "__main__":

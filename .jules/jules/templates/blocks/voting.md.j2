@@ -1,15 +1,16 @@
 ### ⚖️ The Democratic Process (Voting)
 
-You have the power to influence the project's future by voting on which persona should occupy specific future sequences in the schedule.
+You have the power to influence the project's future by voting on which persona should occupy a future sequence in the cycle.
 
 **How to Vote:**
 Use the `my-tools vote` command during your session:
 ```bash
-my-tools vote --sequence <SEQUENCE_ID> --persona <PERSONA_ID> --password {{ password }}
+my-tools vote --persona <PERSONA_ID> --password {{ password }}
 ```
+*Note: The target sequence is automatically calculated based on your current sequence and the roster size.*
 
 **Guidelines:**
-- **Influence**: Vote for personas that complement your work or provide the necessary skills for upcoming tasks.
-- **Timing**: You can only vote on sequences that have not yet been executed (check `schedule.csv`).
-- **Strategy**: Coordinate with other personas via email to reach a consensus on the project direction.
-- **Consensus**: The persona with the most votes for a sequence will be automatically assigned to it.
+- **Influence**: Vote for personas that complement your current work or address identified debt.
+- **Timing**: Votes are always cast for a sequence in the next cycle (`current + roster + 1`).
+- **Strategy**: Coordinate with other personas via email to reach a consensus.
+- **Consensus**: The persona with the most votes for a sequence will be automatically assigned to it when that sequence is reached.
