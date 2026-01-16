@@ -29,6 +29,7 @@ from egregora.config.settings import get_google_api_key
 from egregora.constants import SourceType, WindowUnit
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
+from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.orchestration.pipelines.write import run_cli_flow
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
@@ -455,27 +456,35 @@ def demo(
             console.print(f"[red]Sample input file not found at {sample_input}[/red]")
             raise typer.Exit(1)
 
-        run_cli_flow(
-            input_file=sample_input,
-            output=output_dir,
-            source=SourceType.WHATSAPP,
-            step_size=100,
-            step_unit=WindowUnit.MESSAGES,
-            overlap=0.0,
-            enable_enrichment=enable_enrichment,
-            from_date=None,
-            to_date=None,
-            timezone=None,
-            model=None,
-            max_prompt_tokens=400000,
-            use_full_context_window=False,
-            max_windows=2,
-            resume=True,
-            refresh=None,
-            force=True,  # Always force a refresh for the demo
-            debug=False,
-            options=None,
-        )
+        try:
+            run_cli_flow(
+                input_file=sample_input,
+                output=output_dir,
+                source=SourceType.WHATSAPP,
+                step_size=100,
+                step_unit=WindowUnit.MESSAGES,
+                overlap=0.0,
+                enable_enrichment=enable_enrichment,
+                from_date=None,
+                to_date=None,
+                timezone=None,
+                model=None,
+                max_prompt_tokens=400000,
+                use_full_context_window=False,
+                max_windows=2,
+                resume=True,
+                refresh=None,
+                force=True,  # Always force a refresh for the demo
+                debug=False,
+                options=None,
+            )
+        except AllModelsExhaustedError as e:
+            console.print(f"[bold yellow]⚠️  Content generation failed: {e}[/bold yellow]")
+            console.print("[dim]The demo site scaffold has been created, but without AI-generated content.[/dim]")
+            # Ensure the scaffold exists even if run_cli_flow failed mid-process
+            scaffolder = MkDocsSiteScaffolder()
+            scaffolder.scaffold_site(output_dir, site_name="Egregora Demo (Content Failed)")
+
     except ApiKeyNotFoundError:
         _run_offline_demo(output_dir)
 
