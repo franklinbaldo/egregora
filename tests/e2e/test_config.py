@@ -2,12 +2,13 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any
 
 
 @dataclass
 class DateConfig:
     """Date configuration constants."""
+
     VALID_FROM: str = "2024-01-01"
     VALID_TO: str = "2024-01-31"
     INVALID_FORMAT: str = "01-10-2025"
@@ -17,12 +18,14 @@ class DateConfig:
 @dataclass
 class TimeoutConfig:
     """Timeout configuration constants."""
+
     DEFAULT_TIMEOUT: int = 30
 
 
 @dataclass
 class TimezoneConfig:
     """Timezone configuration constants."""
+
     VALID: str = "America/Sao_Paulo"
     INVALID: str = "Invalid/Timezone"
 
@@ -30,20 +33,20 @@ class TimezoneConfig:
 @dataclass
 class WindowConfig:
     """Window configuration constants."""
-    pass
 
 
 @dataclass
 class WriteCommandOptions:
     """Options for write command builder."""
-    from_date: Optional[str] = None
-    to_date: Optional[str] = None
-    timezone: Optional[str] = None
+
+    from_date: str | None = None
+    to_date: str | None = None
+    timezone: str | None = None
 
 
 def build_write_command_args(
-    zip_file: Path, output_dir: Path, options: Optional[WriteCommandOptions] = None
-) -> List[str]:
+    zip_file: Path, output_dir: Path, options: WriteCommandOptions | None = None
+) -> list[str]:
     """Build command arguments list."""
     args = ["write", str(zip_file), "--output-dir", str(output_dir)]
     if options:
