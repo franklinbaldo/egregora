@@ -189,6 +189,48 @@ def extract_session_id(session_name: str) -> str:
     return session_name.split("/")[-1] if "/" in session_name else session_name
 
 
+def find_existing_session_id(
+    client: JulesClient,
+    sequence: str,
+    persona_id: str,
+    repo: str,
+) -> str | None:
+    """Find an existing session that matches the current sequence and persona.
+
+    Args:
+        client: Jules API client
+        sequence: Sequence number (e.g., "003")
+        persona_id: Persona identifier
+        repo: Repository name
+
+    Returns:
+        Session ID if found, None otherwise
+
+    """
+    try:
+        sessions = client.list_sessions().get("sessions", [])
+    except Exception:
+        return None
+
+    sequence_prefix = f"{sequence} ".lower()
+    persona_token = persona_id.lower()
+    repo_token = repo.lower()
+
+    for session in sessions:
+        title = session.get("title", "") or ""
+        title_lower = title.lower()
+        if not title_lower.startswith(sequence_prefix):
+            continue
+        if persona_token not in title_lower or repo_token not in title_lower:
+            continue
+
+        session_name = session.get("name", "")
+        if session_name:
+            return extract_session_id(session_name)
+
+    return None
+
+
 def find_persona_pr(persona_id: str) -> SyncInfo | None:
     """Find existing PR for a persona and generate sync patch URL.
 
@@ -411,6 +453,22 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> Sched
             )
 
         persona = personas[persona_id]
+
+        existing_session_id = find_existing_session_id(
+            client=client,
+            sequence=seq,
+            persona_id=persona.id,
+            repo=repo_info["repo"],
+        )
+        if existing_session_id:
+            rows = update_sequence(rows, seq, session_id=existing_session_id)
+            if not dry_run:
+                save_schedule(rows)
+            return SchedulerResult(
+                success=True,
+                message=f"Session already exists for {persona.id}",
+                session_id=existing_session_id,
+            )
 
         # Check for existing PR
         sync_info = find_persona_pr(persona.id)
