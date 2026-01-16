@@ -232,7 +232,7 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> None:
 
     request = SessionRequest(
         persona_id=persona.id,
-        title=f"{persona.emoji} {persona.id} [{seq}]: sequential task",
+        title=f"{seq} {persona.emoji} {persona.id} {repo_info['repo']}",
         prompt=session_prompt,
         branch=session_branch,
         owner=repo_info["owner"],
@@ -625,7 +625,7 @@ def execute_scheduled_tick(
 
     request = SessionRequest(
         persona_id=target.id,
-        title=f"{target.emoji} {target.id} [{seq_no:03d}]: manual task" if seq_no > 0 else f"{target.emoji} {target.id}: manual task",
+        title=f"{target.emoji} {target.id} {repo_info['repo']}",
         prompt=session_prompt,
         branch=session_branch,
         owner=repo_info["owner"],
@@ -775,7 +775,7 @@ def run_weaver_for_conflicts(
 
         request = SessionRequest(
             persona_id="weaver",
-            title="🕸️ weaver: conflict resolution",
+            title=f"🕸️ weaver {repo_info['repo']}",
             prompt=prompt,
             branch=session_branch,
             owner=repo_info["owner"],

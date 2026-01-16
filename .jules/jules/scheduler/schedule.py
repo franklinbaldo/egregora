@@ -287,12 +287,26 @@ def sync_session_states_from_api() -> None:
             print(f"  ⚠️ Failed to get session {session_id[:8]}: {e}")
 
 
+def extract_sequence_from_title(title: str) -> str | None:
+    """Extract sequence number from session title.
+
+    Matches pattern: "{seq} {emoji} {persona} {repo}"
+    Example: "002 🎨 artisan egregora"
+
+    Returns sequence as string (e.g., "002") or None if not found.
+    """
+    import re
+    # Match 3-digit sequence at the start of title
+    match = re.match(r'^(\d{3})\s', title)
+    return match.group(1) if match else None
+
+
 def list_recent_sessions(limit: int = 20) -> None:
     """List recent sessions with schedule context.
 
     Shows:
     - Session ID
-    - Sequence number (if in schedule)
+    - Sequence number (from schedule or parsed from title)
     - Persona
     - State
     - Base commit (if tracked)
@@ -335,7 +349,8 @@ def list_recent_sessions(limit: int = 20) -> None:
                 base_commit = schedule_row.get("base_commit", "N/A")
                 pr_number = schedule_row.get("pr_number", "N/A")
             else:
-                seq = "N/A"
+                # Not in schedule - try to parse sequence from title
+                seq = extract_sequence_from_title(title) or "N/A"
                 base_commit = "N/A"
                 pr_number = "N/A"
 
