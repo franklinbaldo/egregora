@@ -83,7 +83,7 @@ def execute_rotation(context):
     rotator = ModelKeyRotator(models=context["models"], api_keys=context["keys"])
     try:
         context["result"] = rotator.call_with_rotation(context["operation"])
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         context["exception"] = e
 
 

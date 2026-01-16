@@ -1,16 +1,17 @@
 """Tests for database schema constraints (NOT NULL, CHECK, UNIQUE, FOREIGN KEY)."""
 
 import uuid
+
 import duckdb
 import pytest
 
 from egregora.database.schemas import (
+    ANNOTATIONS_SCHEMA,
+    MEDIA_SCHEMA,
     POSTS_SCHEMA,
     TASKS_SCHEMA,
     create_table_if_not_exists,
     get_table_check_constraints,
-    MEDIA_SCHEMA,
-    ANNOTATIONS_SCHEMA,
 )
 
 
