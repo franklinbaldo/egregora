@@ -97,12 +97,28 @@ class ModelKeyRotator:
         self._exhausted_models.clear()
         self.key_rotator.reset()
 
+    def _advance_to_next_resource(self) -> bool:
+        """Advance to the next available key or model.
+
+        Returns:
+            True if a new resource (key or model) is available, False otherwise.
+
+        """
+        # Try next key for current model
+        if self.key_rotator.next_key():
+            return True
+
+        # Try next model
+        if self._next_model():
+            return True
+
+        return False
+
     def call_with_rotation(
         self,
         call_fn: Callable[[str, str], Any],
         is_rate_limit_error: Callable[[Exception], bool] | None = None,
     ) -> Any:
-        # TODO: [Taskmaster] Refactor for clarity and simplified logic
         """Call function trying all keys for each model before rotating models.
 
         Args:
@@ -119,43 +135,23 @@ class ModelKeyRotator:
         if is_rate_limit_error is None:
             is_rate_limit_error = default_rate_limit_check
 
-        # TODO: [Taskmaster] Refactor complex `call_with_rotation` method
-        # This method is too long and has a high cyclomatic complexity.
-        # It should be broken down into smaller, more manageable functions
-        # to improve readability and maintainability.
         self.reset()
         last_exception: Exception | None = None
 
         # Try all Gemini models + keys
         while True:
-            model = self.current_model
-            api_key = self.key_rotator.current_key
-
             try:
-                result = call_fn(model, api_key)
+                result = call_fn(self.current_model, self.key_rotator.current_key)
                 self.reset()
                 return result
             except Exception as exc:
                 last_exception = exc
-                if is_rate_limit_error(exc):
-                    # Try next key for same model
-                    next_key = self.key_rotator.next_key()
-                    if next_key:
-                        # Still have keys for this model
-                        continue
+                if not is_rate_limit_error(exc):
+                    raise
 
-                    # All keys exhausted for this model, try next model
-                    next_model = self._next_model()
-                    if next_model:
-                        # Moved to new model, keys are reset
-                        continue
-
-                    # All Gemini models+keys exhausted
+                if not self._advance_to_next_resource():
                     logger.warning("[ModelKeyRotator] All Gemini models and keys exhausted")
                     break
-
-                # Non-rate-limit error - propagate immediately
-                raise
 
         # All models+keys exhausted
         if last_exception:
