@@ -69,6 +69,14 @@ def verify_prompt_pattern(isolated_fs, path):
     assert "{% block role %}" in content
     assert "{% block goal %}" in content
     assert "{% block workflow %}" in content
+    assert "hired_by:" in content
+
+@then(parsers.parse('the prompt frontmatter for "{p_id}" should have "hired_by" set to "{hirer}"'))
+def verify_hirer_metadata(isolated_fs, p_id, hirer):
+    import frontmatter
+    prompt_path = isolated_fs / ".jules" / "personas" / p_id / "prompt.md.j2"
+    post = frontmatter.load(prompt_path)
+    assert post.metadata.get("hired_by") == hirer
 
 @then(parsers.parse('the persona "{p_id}" should appear in "my-tools roster list"'))
 def verify_roster(runner, isolated_fs, p_id):

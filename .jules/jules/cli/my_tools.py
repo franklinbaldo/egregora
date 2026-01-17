@@ -219,6 +219,7 @@ def hire(
             persona_id=id,
             emoji=emoji,
             description=description,
+            hired_by=voter_id,
             role=role,
             goal=goal,
             context=context,

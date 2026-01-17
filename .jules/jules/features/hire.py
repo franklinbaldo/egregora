@@ -9,6 +9,7 @@ HIRE_TEMPLATE = """---
 description: {description}
 emoji: {emoji}
 id: {id}
+hired_by: {hired_by}
 ---
 
 {{% extends "base/persona.md.j2" %}}
@@ -55,6 +56,7 @@ class HireManager:
         description: str,
         role: str,
         goal: str,
+        hired_by: str,
         context: str = "TBD",
         constraints: str = "- Follow project conventions",
         guardrails: str = "✅ Always follow BDD principles",
@@ -75,6 +77,7 @@ class HireManager:
             id=persona_id,
             emoji=emoji,
             description=description,
+            hired_by=hired_by,
             role=role,
             goal=goal,
             context=context,

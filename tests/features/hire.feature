@@ -11,6 +11,7 @@ Feature: Hire a New Persona
     When I hire a new persona with id "architect", name "Architect", emoji "🏛️", role "System Design", description "Expert", and mission "Architecture"
     Then a new persona directory ".jules/personas/architect" should exist
     And the prompt file ".jules/personas/architect/prompt.md.j2" should match the RGCCOV pattern
+    And the prompt frontmatter for "architect" should have "hired_by" set to "artisan"
     And the persona "architect" should appear in "my-tools roster list"
 
   Scenario: Attempting to hire a persona that already exists
