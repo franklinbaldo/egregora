@@ -22,9 +22,9 @@ The byte-based windowing is better, using an Ibis window function to calculate c
 
 ## Prioritized Optimizations
 
-1.  **Refactor `_window_by_time` to be fully declarative.**
-    - **Rationale:** This is similar in inefficiency to the count-based approach. It can be refactored by calculating a `window_index` based on timestamp arithmetic directly in Ibis, avoiding the Python loop.
-    - **Expected Impact:** Similar significant performance improvement.
+1.  **Refactor `_window_by_bytes` to be fully declarative.**
+    - **Rationale:** Similar to previous refactors, this uses a Python loop.
+    - **Strategy:** Can likely be improved by calculating break points in a vectorized manner, though cumulative sum based slicing is trickier to do purely vectorially if the window boundaries depend on the *previous* window's end (packing). However, `_window_by_bytes` already does a full table scan for cumulative bytes.
 
 ## Completed Optimizations
 
@@ -32,6 +32,15 @@ The byte-based windowing is better, using an Ibis window function to calculate c
   - **Date:** 2024-07-30
   - **Change:** Replaced the imperative `while` loop and its N+1 `table.limit()` queries with a more efficient approach. The new implementation first annotates all messages with a `row_number` in a single pass. It then iterates a calculated number of times, using an efficient `filter` operation on the row number to construct each window.
   - **Impact:** Reduced the number of expensive database operations from N (number of windows) to a constant number of highly optimized Ibis queries. While a Python loop is still used to yield the windows, the expensive data manipulation is now handled much more efficiently by DuckDB.
+
+- **Refactored `_window_by_time` to be declarative.**
+  - **Date:** 2026-01-XX (Today)
+  - **Change:** Replaced the iterative `while` loop that executed a count query per window with a vectorized "Union Strategy".
+    - Fetches global min/max timestamps in a single query.
+    - Calculates window assignments for all rows using timestamp arithmetic (epoch seconds).
+    - Handles overlap by assigning rows to both their primary and previous window indices using a set union.
+    - Aggregates statistics (size) for *all* windows in a single batch query.
+  - **Impact:** Reduced database queries from `2 + N` (Min/Max + 1 per window) to exactly `2` (Min/Max + Batch Stats). This eliminates the N+1 query problem for time-based windowing.
 
 ## Optimization Strategy
 
@@ -41,5 +50,3 @@ My strategy is to systematically replace imperative, iterative data processing l
 2.  **Translate to Window Functions:** Rewrite the logic using Ibis window functions (`ibis.window`, `ibis.row_number`, etc.) or column-wise arithmetic to compute window identifiers for all rows at once.
 3.  **Group and Yield:** After the data is tagged with window identifiers, use a single `group_by` or one final iteration over the pre-calculated results to yield the `Window` objects.
 4.  **TDD:** For each optimization, I will first ensure tests exist. If not, I will write a test that captures the current behavior to ensure my refactoring does not introduce regressions.
-
-For this session, I will focus on the highest priority item: refactoring `_window_by_count`.

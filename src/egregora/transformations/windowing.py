@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 import ibis
+from ibis import _
 from ibis.expr.types import Table
 
 from egregora.agents.formatting import build_conversation_xml
@@ -314,10 +315,13 @@ def _window_by_time(
 ) -> Iterator[Window]:
     """Generate windows of fixed time duration with optional overlap.
 
-    Time overlap ensures conversation threads spanning window boundaries
-    maintain context for the LLM.
-
-    All windows are processed - the LLM decides if content warrants a post.
+    Optimized implementation using vectorized batch statistics to avoid N+1 queries.
+    Calculates window statistics in a single pass using the "Union Strategy":
+    1. Compute global min/max timestamps (1 query).
+    2. Map rows to their primary window index based on timestamp.
+    3. Map overlapping rows to their previous window index.
+    4. Union these assignments and aggregate stats per window (1 query).
+    5. Iterate locally to yield Window objects.
 
     Args:
         table: Sorted table of messages
@@ -329,38 +333,89 @@ def _window_by_time(
         Windows with overlapping time ranges
 
     """
-    # Get overall time range
-    min_ts = _get_min_timestamp(table)
-    max_ts = _get_max_timestamp(table)
+    # 1. Fetch metadata in one query
+    bounds = table.aggregate(
+        min_ts=table.ts.min(),
+        max_ts=table.ts.max(),
+    ).execute()
 
-    # Calculate window duration
-    delta = timedelta(hours=step_size) if step_unit == "hours" else timedelta(days=step_size)
+    min_ts = bounds["min_ts"][0]
+    max_ts = bounds["max_ts"][0]
 
-    # Calculate overlap duration
-    overlap_delta = delta * overlap_ratio
+    if min_ts is None:
+        return
 
-    # Create windows
-    window_index = 0
+    # 2. Calculate window parameters
+    step_delta = timedelta(hours=step_size) if step_unit == "hours" else timedelta(days=step_size)
+    step_seconds = int(step_delta.total_seconds())
+    overlap_delta = step_delta * overlap_ratio
+    overlap_seconds = int(overlap_delta.total_seconds())
+
+    if step_seconds == 0:
+        return
+
+    total_duration = (max_ts - min_ts).total_seconds()
+    max_idx = int(total_duration // step_seconds)
+    num_windows = max_idx + 1
+
+    # 3. Batch Statistics Query
+    # Convert timestamps to epoch seconds relative to min_ts for easier arithmetic
+    ts_epoch = table.ts.epoch_seconds()
+    min_epoch = min_ts.timestamp()
+
+    # Primary assignment: Which window does this row belong to primarily?
+    primary = table.mutate(win_idx=((ts_epoch - min_epoch) / step_seconds).floor().cast("int64")).select(
+        "win_idx"
+    )
+
+    # Overlap assignment: Which previous window does this row also belong to?
+    relative_time = ts_epoch - min_epoch
+    overlap_rows = (
+        table.filter((relative_time % step_seconds) < overlap_seconds)
+        .mutate(curr_idx=(relative_time / step_seconds).floor().cast("int64"))
+        .filter(_.curr_idx > 0)
+        .mutate(win_idx=_.curr_idx - 1)
+        .select("win_idx")
+    )
+
+    # Combine both assignments
+    combined = primary.union(overlap_rows)
+
+    # Aggregate stats per window
+    stats_table = combined.group_by("win_idx").aggregate(size=combined.count())
+
+    # Execute the single batch query
+    stats_df = stats_table.execute()
+
+    # Create a lookup map: win_idx -> size
+    stats_map = dict(zip(stats_df["win_idx"], stats_df["size"], strict=False))
+
+    # 4. Yield Windows
     current_start = min_ts
 
-    while current_start <= max_ts:  # Use <= to handle single-timestamp datasets
-        current_end = current_start + delta + overlap_delta
+    for i in range(num_windows):
+        size = stats_map.get(i, 0)
+        current_end = current_start + step_delta + overlap_delta
 
-        # Filter messages in this window (IR v1: use .ts column)
+        # Only yield if window has content, mirroring original behavior
+        # (Though original behavior yielded empty windows if loop condition met,
+        # but stats_map.get(i, 0) handles 0 size.
+        # Wait, the original code yielded empty windows?
+        # Yes: "window_size = window_table.count().execute(); yield Window(..., size=window_size)"
+        # So we should yield even if size is 0.
+
+        # Construct the lazy filter for the consumer
         window_table = table.filter((table.ts >= current_start) & (table.ts < current_end))
 
-        window_size = window_table.count().execute()
-
         yield Window(
-            window_index=window_index,
+            window_index=i,
             start_time=current_start,
             end_time=current_end,
             table=window_table,
-            size=window_size,
+            size=size,
         )
 
-        window_index += 1
-        current_start += delta  # Advance by delta, creating overlap
+        current_start += step_delta
 
 
 def _calculate_overlap_rows(window_table: Table, overlap_bytes: int) -> int:
@@ -463,18 +518,6 @@ def _window_by_bytes(
             advance = chunk_size
 
         offset += advance
-
-
-def _get_min_timestamp(table: Table) -> datetime:
-    """Get minimum timestamp from table (IR v1: use .ts column)."""
-    result = table.aggregate(table.ts.min().name("min_ts")).execute()
-    return result["min_ts"][0]
-
-
-def _get_max_timestamp(table: Table) -> datetime:
-    """Get maximum timestamp from table (IR v1: use .ts column)."""
-    result = table.aggregate(table.ts.max().name("max_ts")).execute()
-    return result["max_ts"][0]
 
 
 def split_window_into_n_parts(window: Window, n: int) -> list[Window]:
