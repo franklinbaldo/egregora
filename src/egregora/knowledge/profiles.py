@@ -208,35 +208,42 @@ def get_active_authors(
         List of unique author UUIDs (excluding 'system' and 'egregora').
 
     """
-    # TODO: [Taskmaster] Refactor get_active_authors for clarity and efficiency
     system_authors = ["system", "egregora", ""]
     query = table.filter(table.author_uuid.notin(system_authors))
 
     if limit is not None and limit > 0:
         author_counts = (
             query.group_by("author_uuid")
-            .agg(message_count=ibis.count())
-            .sort_by(ibis.desc("message_count"))
+            .agg(message_count=lambda t: t.count())
+            .order_by(ibis.desc("message_count"))
             .limit(limit)
         )
-        result = author_counts.execute()
-        if "author_uuid" in result.columns:
-            return result["author_uuid"].tolist()
-        return []
+        try:
+            return author_counts.to_pyarrow()["author_uuid"].to_pylist()
+        except (AttributeError, ImportError):
+            # Fallback for backends without arrow support
+            result = author_counts.execute()
+            if hasattr(result, "columns") and "author_uuid" in result.columns:
+                return result["author_uuid"].tolist()
+            return []
 
     distinct_authors_query = query.select("author_uuid").distinct()
-    result = distinct_authors_query.execute()
-    # Handle various return types from ibis execute()
-    if hasattr(result, "columns") and "author_uuid" in result.columns:  # pandas DataFrame
-        authors = result["author_uuid"].tolist()
-    elif hasattr(result, "to_list"):  # pandas Series
-        authors = result.to_list()
-    elif hasattr(result, "tolist"):  # numpy array
-        authors = result.tolist()
-    elif isinstance(result, list):
-        authors = result
-    else:
-        authors = list(result)
+    try:
+        authors = distinct_authors_query.to_pyarrow()["author_uuid"].to_pylist()
+    except (AttributeError, ImportError):
+        # Fallback for backends without arrow support
+        result = distinct_authors_query.execute()
+        # Handle various return types from ibis execute()
+        if hasattr(result, "columns") and "author_uuid" in result.columns:  # pandas DataFrame
+            authors = result["author_uuid"].tolist()
+        elif hasattr(result, "to_list"):  # pandas Series
+            authors = result.to_list()
+        elif hasattr(result, "tolist"):  # numpy array
+            authors = result.tolist()
+        elif isinstance(result, list):
+            authors = result
+        else:
+            authors = list(result)
 
     return [author for author in authors if author is not None]
 
