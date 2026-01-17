@@ -28,7 +28,7 @@ class VoteManager:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             if not file_exists:
                 writer.writeheader()
-            
+
             for i, persona in enumerate(candidate_personas):
                 writer.writerow({
                     'voter_sequence': voter_sequence,
@@ -48,7 +48,7 @@ class VoteManager:
         """Check if a sequence in schedule.csv has a session_id or pr_status."""
         if not self.schedule_file.exists():
             return False
-            
+
         with open(self.schedule_file, mode='r', newline='') as f:
             reader = csv.DictReader(f)
             for row in reader:
@@ -60,7 +60,7 @@ class VoteManager:
         """Tally votes for a specific sequence from the CSV using Borda Count."""
         if not self.votes_file.exists():
             return {}
-            
+
         roster_size = self._get_roster_size()
         tally = {}
         with open(self.votes_file, mode='r', newline='') as f:
@@ -79,7 +79,7 @@ class VoteManager:
         tally = self.get_tally(sequence_id)
         if not tally:
             return None
-            
+
         winner = max(tally, key=tally.get)
         if self._update_schedule(sequence_id, winner):
             return winner
@@ -89,11 +89,11 @@ class VoteManager:
         """Update the persona for a specific sequence in schedule.csv."""
         if not self.schedule_file.exists():
             return False
-            
+
         updated = False
         rows = []
         headers = []
-        
+
         with open(self.schedule_file, mode='r', newline='') as f:
             reader = csv.DictReader(f)
             headers = reader.fieldnames
@@ -103,21 +103,21 @@ class VoteManager:
                         row['persona'] = persona_id
                         updated = True
                 rows.append(row)
-                
+
         if updated:
             with open(self.schedule_file, mode='w', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=headers)
                 writer.writeheader()
                 writer.writerows(rows)
-                
+
         return updated
 
     def get_current_sequence(self, persona_id: str) -> Optional[str]:
         """Find the most recent active or started sequence for a persona."""
         if not self.schedule_file.exists():
             return None
-            
-        # We look for the latest entry for this persona that has a session_id 
+
+        # We look for the latest entry for this persona that has a session_id
         # (meaning it's the current session)
         latest_seq = None
         with open(self.schedule_file, mode='r', newline='') as f:
