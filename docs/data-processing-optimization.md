@@ -22,11 +22,20 @@ The byte-based windowing is better, using an Ibis window function to calculate c
 
 ## Prioritized Optimizations
 
-1.  **Refactor `_window_by_time` to be fully declarative.**
-    - **Rationale:** This is similar in inefficiency to the count-based approach. It can be refactored by calculating a `window_index` based on timestamp arithmetic directly in Ibis, avoiding the Python loop.
-    - **Expected Impact:** Similar significant performance improvement.
+1.  **Refactor `_window_by_bytes` to be more declarative.**
+    - The current implementation iteratively limits and filters. It could potentially use a more advanced bucketing strategy or a recursive CTE if Ibis supports it, or at least minimize the query overhead per window.
 
 ## Completed Optimizations
+
+- **Refactored `_window_by_time` to be declarative.**
+  - **Date:** 2024-07-30
+  - **Change:** Replaced the imperative `while` loop with a declarative range-join approach.
+    1.  Generate window definitions (start, end) in Python (fast).
+    2.  Upload definitions to an Ibis memtable.
+    3.  Perform a `LEFT JOIN` (range join) between windows and messages to associate messages with windows (including overlaps).
+    4.  Aggregate to compute window sizes in a single query.
+    5.  Iterate the result to yield `Window` objects with lazy filter expressions.
+  - **Impact:** Reduced execution time for 720 windows from ~8.5s to ~1.1s (~7.7x speedup). Eliminated N+1 queries.
 
 - **Refactored `_window_by_count` to be declarative.**
   - **Date:** 2024-07-30
@@ -41,5 +50,3 @@ My strategy is to systematically replace imperative, iterative data processing l
 2.  **Translate to Window Functions:** Rewrite the logic using Ibis window functions (`ibis.window`, `ibis.row_number`, etc.) or column-wise arithmetic to compute window identifiers for all rows at once.
 3.  **Group and Yield:** After the data is tagged with window identifiers, use a single `group_by` or one final iteration over the pre-calculated results to yield the `Window` objects.
 4.  **TDD:** For each optimization, I will first ensure tests exist. If not, I will write a test that captures the current behavior to ensure my refactoring does not introduce regressions.
-
-For this session, I will focus on the highest priority item: refactoring `_window_by_count`.

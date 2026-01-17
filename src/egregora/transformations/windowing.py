@@ -329,9 +329,18 @@ def _window_by_time(
         Windows with overlapping time ranges
 
     """
-    # Get overall time range
-    min_ts = _get_min_timestamp(table)
-    max_ts = _get_max_timestamp(table)
+    # Get overall time range efficiently
+    result = table.aggregate(min_ts=table.ts.min(), max_ts=table.ts.max()).execute()
+
+    if result.empty:
+        return
+
+    min_ts = result["min_ts"][0]
+    max_ts = result["max_ts"][0]
+
+    # Handle case where min_ts is NaT or None
+    if min_ts is None:
+        return
 
     # Calculate window duration
     if step_unit == "hours":
@@ -342,28 +351,70 @@ def _window_by_time(
     # Calculate overlap duration
     overlap_delta = delta * overlap_ratio
 
-    # Create windows
-    window_index = 0
+    # Generate window definitions as dict of lists (fast metadata generation)
+    # This avoids using pandas which is lint-banned
+    window_indices = []
+    start_times = []
+    end_times = []
+
     current_start = min_ts
+    window_index = 0
 
     while current_start <= max_ts:  # Use <= to handle single-timestamp datasets
         current_end = current_start + delta + overlap_delta
-
-        # Filter messages in this window (IR v1: use .ts column)
-        window_table = table.filter((table.ts >= current_start) & (table.ts < current_end))
-
-        window_size = window_table.count().execute()
-
-        yield Window(
-            window_index=window_index,
-            start_time=current_start,
-            end_time=current_end,
-            table=window_table,
-            size=window_size,
-        )
+        window_indices.append(window_index)
+        start_times.append(current_start)
+        end_times.append(current_end)
 
         window_index += 1
-        current_start += delta  # Advance by delta, creating overlap
+        current_start += delta
+
+    if not window_indices:
+        return
+
+    data = {
+        "window_index": window_indices,
+        "start_time": start_times,
+        "end_time": end_times,
+    }
+
+    # Register windows as a memtable for joining
+    windows_table = ibis.memtable(data)
+
+    # Join windows with data to get size counts efficiently.
+    # Use LEFT JOIN on windows to preserve empty windows (matching original behavior).
+    # Predicate: window.start <= table.ts < window.end
+    joined = windows_table.join(
+        table,
+        predicates=[
+            table.ts >= windows_table.start_time,
+            table.ts < windows_table.end_time,
+        ],
+        how="left",
+    )
+
+    # Aggregate to find size of each window.
+    # Counting table.ts (right side) ensures count is 0 if no match.
+    agg_query = (
+        joined.group_by([windows_table.window_index, windows_table.start_time, windows_table.end_time])
+        .aggregate(size=table.ts.count())
+        .order_by(windows_table.window_index)
+    )
+
+    agg_results = agg_query.execute()
+
+    # Iterate over the results and yield Window objects
+    for row in agg_results.itertuples():
+        # Construct the table expression for this specific window
+        window_table_expr = table.filter((table.ts >= row.start_time) & (table.ts < row.end_time))
+
+        yield Window(
+            window_index=row.window_index,
+            start_time=row.start_time,
+            end_time=row.end_time,
+            table=window_table_expr,
+            size=row.size,
+        )
 
 
 def _calculate_overlap_rows(window_table: Table, overlap_bytes: int) -> int:
@@ -466,18 +517,6 @@ def _window_by_bytes(
             advance = chunk_size
 
         offset += advance
-
-
-def _get_min_timestamp(table: Table) -> datetime:
-    """Get minimum timestamp from table (IR v1: use .ts column)."""
-    result = table.aggregate(table.ts.min().name("min_ts")).execute()
-    return result["min_ts"][0]
-
-
-def _get_max_timestamp(table: Table) -> datetime:
-    """Get maximum timestamp from table (IR v1: use .ts column)."""
-    result = table.aggregate(table.ts.max().name("max_ts")).execute()
-    return result["max_ts"][0]
 
 
 def split_window_into_n_parts(window: Window, n: int) -> list[Window]:
