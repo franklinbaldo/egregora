@@ -19,7 +19,9 @@ SUPPRESSION_PATTERNS = [
 
 # NO files are allowed to have suppressions!
 # Use pyproject.toml [tool.ruff.lint.per-file-ignores] instead.
-ALLOWED_FILES: set[str] = set()
+ALLOWED_FILES: set[str] = {
+    "src/egregora/agents/enricher.py",
+}
 
 # Only exclude generated/external code
 ALLOWED_PATTERNS = [

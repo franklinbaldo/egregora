@@ -23,12 +23,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Protocol, Self, cast
 
 import duckdb
 import httpx
 from google.api_core import exceptions as google_exceptions
-from ibis.common.exceptions import IbisError
+from ibis.common.exceptions import IbisError  # type: ignore[import-untyped]
 from pydantic import BaseModel
 
 # UrlContextTool is the client-side fetcher (alias for WebFetchTool) suitable for pydantic-ai
@@ -41,6 +41,7 @@ from egregora.common.datetime_utils import ensure_datetime
 from egregora.common.text import slugify
 from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.message_repository import MessageRepository
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.llm.api_keys import get_google_api_key
@@ -55,12 +56,18 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from types import TracebackType
 
-    from ibis.backends.duckdb import Backend as DuckDBBackend
+    from ibis.backends.duckdb import Backend as DuckDBBackend  # type: ignore[import-untyped]
     from ibis.expr.types import Table
 
     from egregora.input_adapters.base import MediaMapping
     from egregora.llm.usage import UsageTracker
     from egregora.orchestration.context import PipelineContext
+
+    class ContentLibraryProtocol(Protocol):
+        """Protocol for content library operations."""
+
+        def save(self, doc: Document) -> None: ...
+
 
 logger = logging.getLogger(__name__)
 
@@ -475,7 +482,7 @@ class EnrichmentWorker(BaseWorker):
 
     def __init__(
         self,
-        ctx: PipelineContext | EnrichmentRuntimeContext,
+        ctx: PipelineContext,
         enrichment_config: EnrichmentSettings | None = None,
     ) -> None:
         super().__init__(ctx)
@@ -552,8 +559,12 @@ class EnrichmentWorker(BaseWorker):
         # Scale fetch limit by concurrency to allow parallel processing of multiple batches
         fetch_limit = base_batch_size * concurrency
 
-        tasks = self.task_store.fetch_pending(task_type="enrich_url", limit=fetch_limit)
-        media_tasks = self.task_store.fetch_pending(task_type="enrich_media", limit=fetch_limit)
+        tasks = cast(
+            "list[dict[str, Any]]", self.task_store.fetch_pending(task_type="enrich_url", limit=fetch_limit)
+        )
+        media_tasks = cast(
+            "list[dict[str, Any]]", self.task_store.fetch_pending(task_type="enrich_media", limit=fetch_limit)
+        )
 
         total_tasks = len(tasks) + len(media_tasks)
         if not total_tasks:
@@ -592,7 +603,9 @@ class EnrichmentWorker(BaseWorker):
         return self._persist_url_results(results)
 
     # TODO: [Taskmaster] Simplify complex async-in-sync wrapper
-    def _enrich_single_url(self, task_data: dict) -> tuple[dict, EnrichmentOutput | None, str | None]:
+    def _enrich_single_url(
+        self, task_data: dict[str, Any]
+    ) -> tuple[dict[str, Any], EnrichmentOutput | None, str | None]:
         """Enrich a single URL with fallback support (sync wrapper)."""
         from pydantic_ai.models.google import GoogleModel
         from pydantic_ai.providers.google import GoogleProvider
@@ -731,11 +744,11 @@ class EnrichmentWorker(BaseWorker):
             global_concurrency,
         )
 
-        return max_concurrent
+        return int(max_concurrent)
 
     def _execute_url_enrichments(
         self, tasks_data: list[dict[str, Any]], max_concurrent: int
-    ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
+    ) -> list[tuple[dict[str, Any], EnrichmentOutput | None, str | None]]:
         """Execute URL enrichments based on configured strategy."""
         strategy = getattr(self.enrichment_config, "strategy", "individual")
         total = len(tasks_data)
@@ -756,9 +769,9 @@ class EnrichmentWorker(BaseWorker):
 
     def _execute_url_individual(
         self, tasks_data: list[dict[str, Any]], max_concurrent: int
-    ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
+    ) -> list[tuple[dict[str, Any], EnrichmentOutput | None, str | None]]:
         """Execute URL enrichments individually with model rotation."""
-        results: list[tuple[dict, EnrichmentOutput | None, str | None]] = []
+        results: list[tuple[dict[str, Any], EnrichmentOutput | None, str | None]] = []
         total = len(tasks_data)
         last_log_time = time.time()
 
@@ -784,7 +797,7 @@ class EnrichmentWorker(BaseWorker):
     # TODO: [Taskmaster] Decompose complex batch execution method
     def _execute_url_single_call(
         self, tasks_data: list[dict[str, Any]]
-    ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
+    ) -> list[tuple[dict[str, Any], EnrichmentOutput | None, str | None]]:
         """Execute all URL enrichments in a single API call.
 
         Sends all URLs together with a combined prompt asking for JSON dict result.
@@ -829,9 +842,11 @@ class EnrichmentWorker(BaseWorker):
 
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 client = genai.Client(api_key=api_key)
+                # Cast contents to Any to satisfy complex union type in google-genai
+                contents = cast("Any", [{"parts": [{"text": combined_prompt}]}])
                 response = client.models.generate_content(
                     model=model,
-                    contents=[{"parts": [{"text": combined_prompt}]}],
+                    contents=contents,
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
                 return response.text or ""
@@ -842,9 +857,10 @@ class EnrichmentWorker(BaseWorker):
             model_name = self.ctx.config.models.enricher
             api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
             client = genai.Client(api_key=api_key)
+            contents = cast("Any", [{"parts": [{"text": combined_prompt}]}])
             response = client.models.generate_content(
                 model=model_name,
-                contents=[{"parts": [{"text": combined_prompt}]}],
+                contents=contents,
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
             response_text = response.text or ""
@@ -863,7 +879,7 @@ class EnrichmentWorker(BaseWorker):
             raise ValueError(msg) from e
 
         # Convert to result tuples
-        results: list[tuple[dict, EnrichmentOutput | None, str | None]] = []
+        results: list[tuple[dict[str, Any], EnrichmentOutput | None, str | None]] = []
         for td in tasks_data:
             task = td["task"]
             payload = task.get("_parsed_payload") or json.loads(task.get("payload", "{}"))
@@ -898,7 +914,9 @@ class EnrichmentWorker(BaseWorker):
         logger.info("[URLEnricher] Single-call batch complete: %d/%d", len(results), len(tasks_data))
         return results
 
-    def _persist_url_results(self, results: list[tuple[dict, EnrichmentOutput | None, str | None]]) -> int:
+    def _persist_url_results(
+        self, results: list[tuple[dict[str, Any], EnrichmentOutput | None, str | None]]
+    ) -> int:
         new_rows = []
         for task, output, error in results:
             if error:
@@ -927,7 +945,8 @@ class EnrichmentWorker(BaseWorker):
 
                 # Main Architecture: Use ContentLibrary if available
                 if self.ctx.library:
-                    self.ctx.library.save(doc)
+                    library = cast("ContentLibraryProtocol", self.ctx.library)
+                    library.save(doc)
                 elif self.ctx.output_sink:
                     self.ctx.output_sink.persist(doc)
 
@@ -943,7 +962,9 @@ class EnrichmentWorker(BaseWorker):
 
         if new_rows:
             try:
-                self.ctx.storage.ibis_conn.insert("messages", new_rows)
+                # Cast storage to access implementation-specific ibis_conn
+                storage = cast("DuckDBStorageManager", self.ctx.storage)
+                storage.ibis_conn.insert("messages", new_rows)
                 logger.info("Inserted %d enrichment rows", len(new_rows))
             except Exception:
                 logger.exception("Failed to insert enrichment rows")
@@ -962,8 +983,8 @@ class EnrichmentWorker(BaseWorker):
         if not response:
             return ""
         if "text" in response:
-            return response["text"]
-        texts = []
+            return cast("str", response["text"])
+        texts: list[str] = []
         for cand in response.get("candidates") or []:
             content = cand.get("content") or {}
             texts.extend(part["text"] for part in content.get("parts") or [] if "text" in part)
@@ -1113,7 +1134,7 @@ class EnrichmentWorker(BaseWorker):
 
             # Upload file
             # Note: client.files.upload returns a File object with 'uri'
-            uploaded_file = client.files.upload(path=str(file_path), config={"mime_type": mime_type})
+            uploaded_file = client.files.upload(file=str(file_path), config={"mime_type": mime_type})
             logger.info("Uploaded file %s to %s", file_path.name, uploaded_file.uri)
 
             return {"fileData": {"mimeType": mime_type, "fileUri": uploaded_file.uri}}
@@ -1229,9 +1250,10 @@ class EnrichmentWorker(BaseWorker):
 
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 client = genai.Client(api_key=api_key)
+                contents = cast("Any", [{"parts": request_parts}])
                 response = client.models.generate_content(
                     model=model,
-                    contents=[{"parts": request_parts}],
+                    contents=contents,
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
                 return response.text or ""
@@ -1239,9 +1261,10 @@ class EnrichmentWorker(BaseWorker):
             response_text = rotator.call_with_rotation(call_with_model_and_key)
         else:
             # No rotation - use configured model and API key
+            contents = cast("Any", [{"parts": request_parts}])
             response = client.models.generate_content(
                 model=model_name,
-                contents=[{"parts": request_parts}],
+                contents=contents,
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
             response_text = response.text if response.text else ""
@@ -1434,7 +1457,8 @@ class EnrichmentWorker(BaseWorker):
 
             try:
                 if self.ctx.library:
-                    self.ctx.library.save(media_doc)
+                    library = cast("ContentLibraryProtocol", self.ctx.library)
+                    library.save(media_doc)
                 elif self.ctx.output_sink:
                     self.ctx.output_sink.persist(media_doc)
                 logger.info("Persisted enriched media: %s -> %s", filename, media_doc.metadata["filename"])
@@ -1471,7 +1495,8 @@ class EnrichmentWorker(BaseWorker):
             )
 
             if self.ctx.library:
-                self.ctx.library.save(doc)
+                library = cast("ContentLibraryProtocol", self.ctx.library)
+                library.save(doc)
             elif self.ctx.output_sink:
                 self.ctx.output_sink.persist(doc)
 
@@ -1515,7 +1540,8 @@ class EnrichmentWorker(BaseWorker):
                     # Note: This updates ALL messages containing this ref.
                     # Given filenames are usually unique (timestamps), this is safe.
                     query = f"UPDATE messages SET text = replace(text, '{safe_original}', '{safe_new}') WHERE text LIKE '%{safe_original}%'"
-                    self.ctx.storage._conn.execute(query)
+                    storage = cast("DuckDBStorageManager", self.ctx.storage)
+                    storage._conn.execute(query)
                 except duckdb.Error as exc:
                     logger.warning("Failed to update message references for %s: %s", original_ref, exc)
 
@@ -1523,7 +1549,8 @@ class EnrichmentWorker(BaseWorker):
 
         if new_rows:
             try:
-                self.ctx.storage.ibis_conn.insert("messages", new_rows)
+                storage = cast("DuckDBStorageManager", self.ctx.storage)
+                storage.ibis_conn.insert("messages", new_rows)
                 logger.info("Inserted %d media enrichment rows", len(new_rows))
             except (IbisError, duckdb.Error):
                 logger.exception("Failed to insert media enrichment rows")
