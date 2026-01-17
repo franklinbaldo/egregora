@@ -252,6 +252,8 @@ def get_table_check_constraints(table_name: str) -> dict[str, str]:
     if table_name == "annotations":
         valid_values = ", ".join(f"'{parent_type}'" for parent_type in VALID_ANNOTATION_PARENT_TYPES)
         return {"chk_annotations_parent_type": f"parent_type IN ({valid_values})"}
+    if table_name == "journals":
+        return {"chk_journals_window_valid": "window_end >= window_start"}
     return {}
 
 
