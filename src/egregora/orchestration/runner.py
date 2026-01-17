@@ -183,8 +183,8 @@ class PipelineRunner:
             return processed
 
         try:
-            # Using list(DocumentType.JOURNAL) on library.journal (which is a DocumentRepository)
-            journals = self.context.library.journal.list(doc_type=DocumentType.JOURNAL)
+            # Using scan(DocumentType.JOURNAL) on library.journal (which is a DocumentRepository)
+            journals = self.context.library.journal.scan(doc_type=DocumentType.JOURNAL)
 
             for journal in journals:
                 # journal is DocumentMetadata (identifier, doc_type, metadata)

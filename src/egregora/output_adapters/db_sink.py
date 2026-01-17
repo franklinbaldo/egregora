@@ -55,15 +55,15 @@ class DbOutputSink(OutputSink):
             raise DocumentNotFoundError(doc_type.value, identifier)
         return document
 
-    def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
+    def scan(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
         """List documents from database as metadata."""
-        # ContentRepository.list returns dicts. We convert to DocumentMetadata.
-        for row in self.repository.list(doc_type):
+        # ContentRepository.scan returns dicts. We convert to DocumentMetadata.
+        for row in self.repository.scan(doc_type):
             # Identifier strategy: Use ID as storage identifier for DB
             identifier = str(row.get("id"))
 
             # Map doc_type string back to Enum if needed, or rely on caller filter
-            # repository.list(doc_type) ensures we get the right type.
+            # repository.scan(doc_type) ensures we get the right type.
             # If doc_type is None, we need to infer from view 'type' column.
             dtype = doc_type
             if dtype is None and "type" in row:
@@ -117,7 +117,7 @@ class DbOutputSink(OutputSink):
         # Use repository.get_all which streams from view
         # We assume get_all returns rows that allow us to fetch/reconstruct.
         # However, for robustness and since get_all returns generic view rows (subset of columns),
-        # we should iterate per-type via list() which returns metadata, then fetch full docs.
+        # we should iterate per-type via scan() which returns metadata, then fetch full docs.
         # This is slower but safer for materialization.
 
         # Iterate through all known types in the sink
@@ -130,7 +130,7 @@ class DbOutputSink(OutputSink):
         ]
 
         for dtype in known_types:
-            for meta in self.list(dtype):
+            for meta in self.scan(dtype):
                 try:
                     doc = self.read_document(dtype, meta.identifier)
                     yield doc

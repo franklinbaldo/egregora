@@ -20,7 +20,7 @@ def window_already_processed(output_sink: OutputSink, signature: str) -> bool:
     """Check if a window with the given signature has already been processed.
 
     Iterates through existing JOURNAL documents in the sink to find a match.
-    Reliability depends on the sink's list() implementation.
+    Reliability depends on the sink's scan() implementation.
 
     Args:
         output_sink: The output sink to query.
@@ -34,7 +34,7 @@ def window_already_processed(output_sink: OutputSink, signature: str) -> bool:
         # Optimization: Some sinks might support filtering by metadata in the future,
         # but for now we iterate the lightweight metadata list.
         # Ideally, we would ask the sink for just JOURNAL types.
-        for journal_meta in output_sink.list(DocumentType.JOURNAL):
+        for journal_meta in output_sink.scan(DocumentType.JOURNAL):
             if journal_meta.metadata.get("window_signature") == signature:
                 logger.debug("Found existing JOURNAL for signature: %s", signature[:12])
                 return True

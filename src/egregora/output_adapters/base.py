@@ -93,7 +93,11 @@ class BaseOutputSink(OutputSink, ABC):
     def get_format_instructions(self) -> str:
         """Generate format-specific instructions for the writer agent."""
 
-    def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
+    @abstractmethod
+    def documents(self) -> Iterator[Document]:
+        """Return all managed documents as Document objects (lazy iterator)."""
+
+    def scan(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
         """Iterate through available documents, optionally filtering by ``doc_type``."""
         docs_iter = self.documents()
         if doc_type:
@@ -112,15 +116,16 @@ class BaseOutputSink(OutputSink, ABC):
     def list_documents(self, doc_type: DocumentType | None = None) -> Table:
         """Compatibility shim returning an Ibis table of document metadata."""
         rows: list[dict[str, Any]] = []
-        for meta in self.list(doc_type):
+        for meta in self.scan(doc_type):
             mtime_ns = meta.metadata.get("mtime_ns") if isinstance(meta.metadata, dict) else None
             if mtime_ns is None:
                 try:
-                    path = (
-                        Path(meta.metadata.get("source_path", meta.identifier))
-                        if isinstance(meta.metadata, dict)
-                        else None
-                    )
+                    path: Path | None = None
+                    if isinstance(meta.metadata, dict):
+                        source_path = meta.metadata.get("source_path", meta.identifier)
+                        if isinstance(source_path, str):
+                            path = Path(source_path)
+
                     if path and path.exists():
                         mtime_ns = path.stat().st_mtime_ns
                 except OSError:

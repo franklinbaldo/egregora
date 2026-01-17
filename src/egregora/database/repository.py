@@ -129,7 +129,7 @@ class ContentRepository:
             msg = f"Failed to get document: {e}"
             raise DatabaseOperationError(msg) from e
 
-    def list(self, doc_type: DocumentType | None = None) -> Iterator[dict]:
+    def scan(self, doc_type: DocumentType | None = None) -> Iterator[dict]:
         """List documents metadata."""
         if doc_type:
             table_name = self._get_table_for_type(doc_type)
