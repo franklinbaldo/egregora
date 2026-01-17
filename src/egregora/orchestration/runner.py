@@ -324,16 +324,19 @@ class PipelineRunner:
         resources = PipelineFactory.create_writer_resources(self.context)
         adapter_summary, adapter_instructions = self._extract_adapter_info()
 
-        # TODO: [Taskmaster] Refactor data type conversion for consistency
-        # TODO: [Taskmaster] Improve brittle data conversion logic.
         # Convert table to list for command processing
-        try:
-            messages_list = enriched_table.execute().to_pylist()
-        except (AttributeError, TypeError):
+        messages_list: list[dict[str, Any]] = []
+        if isinstance(enriched_table, list):
+            messages_list = enriched_table
+        elif hasattr(enriched_table, "to_pylist"):
+            # Handle PyArrow Table directly
+            messages_list = enriched_table.to_pylist()
+        else:
             try:
-                messages_list = enriched_table.to_pylist()
-            except (AttributeError, TypeError):
-                messages_list = enriched_table if isinstance(enriched_table, list) else []
+                # Assume Ibis Table expression
+                messages_list = enriched_table.to_pyarrow().to_pylist()
+            except (AttributeError, TypeError) as e:
+                logger.warning("Failed to convert table to list: %s", e)
 
         # CONVERT TO DTOs for Writer
         # Ensure messages_list are dicts, convert to Message objects

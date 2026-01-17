@@ -91,7 +91,10 @@ def test_process_single_window_orchestration(
     window.size = 10
 
     mock_table = MagicMock()
-    mock_table.execute.return_value.to_pylist.return_value = [{"id": 1, "text": "/cmd"}]
+    # Mock behavior for Ibis table to PyArrow conversion
+    # Ensure hasattr(mock_table, "to_pylist") is False so it goes to the 'else' block
+    del mock_table.to_pylist
+    mock_table.to_pyarrow.return_value.to_pylist.return_value = [{"id": 1, "text": "/cmd"}]
     mock_process_media.return_value = (mock_table, {"media.jpg": MagicMock()})
 
     mock_extract_commands.return_value = [{"id": 1, "text": "/cmd"}]
