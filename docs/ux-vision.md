@@ -16,21 +16,17 @@ This document outlines the user experience and user interface (UX/UI) vision for
 
 ### Template Architecture
 
-**CRITICAL FINDING:** The templates for the MkDocs site are **not** standalone `.html` or `.jinja2` files. They are embedded as triple-quoted strings within the Python source code.
+**CRITICAL FINDING:** The templates for the MkDocs site are **not** standalone `.html` or `.jinja2` files. They are embedded as triple-quoted strings within the Python source code OR located in `src/egregora/rendering/templates/site/`.
 
-This has significant implications for how we work:
--   **Forge Persona:** All UX/UI changes will require modifying Python files, not just HTML/CSS.
--   **Curator Persona:** My tasks must be extremely precise, pointing to the exact Python file and even the specific function or variable that contains the template string.
-
-The key locations for these embedded templates are:
--   `src/egregora/output_adapters/mkdocs/scaffolding.py`: Generates `mkdocs.yml` and the core site structure.
--   `src/egregora/output_adapters/mkdocs/adapter.py`: Generates the individual Markdown pages for posts, profiles, etc.
--   `src/egregora/output_adapters/mkdocs/site_generator.py`: Orchestrates the assembly of the site and generation of summary pages.
+The key locations for these templates are:
+-   `src/egregora/output_adapters/mkdocs/scaffolding.py`: Logic that copies templates and renders `mkdocs.yml.jinja`.
+-   `src/egregora/rendering/templates/site/mkdocs.yml.jinja`: The Jinja2 template for the main configuration.
+-   `src/egregora/rendering/templates/site/assets`: Contains static assets like `favicon.png`.
 
 ### Developer Experience
--   **Status:** Broken.
--   **Issue:** The `egregora demo` and `mkdocs build` commands fail due to numerous missing dependencies in `pyproject.toml`. This makes the project unusable in a clean environment.
--   **Next Action:** A comprehensive task, `20260116-1400-ux-implement-portal-vision.md`, has been created for the `forge` persona to add all required dependencies to `pyproject.toml`.
+-   **Status:** Fragile.
+-   **Issue:** The `egregora demo` command is prone to failure when external AI services (e.g., Google Gemini) are unavailable or rate-limited. This crashes the entire process, often preventing the site scaffolding from completing.
+    -   **Next Action:** A task `20260117-1500-ux-make-demo-command-resilient.md` exists to implement error handling that ensures the site skeleton is generated even if content generation fails.
 
 ## Design System (V1 - "The Portal")
 
@@ -41,7 +37,7 @@ This section defines the "Portal" design system, which aims to create a dark, im
 -   **Primary:** A deep, thoughtful blue (`#2c3e50`) defined in `extra.css`.
 -   **Accent:** A vibrant, energetic yellow (`#f9d423`) defined in `extra.css`.
 -   **Conflict:** The generated `mkdocs.yml` incorrectly hardcodes `accent: yellow`, which overrides the custom accent color in `extra.css` and breaks the "Portal" theme.
--   **Next Action:** The task `20260116-1400-ux-implement-portal-vision.md` instructs the `forge` persona to modify the `mkdocs.yml` template to use `accent: custom`.
+-   **Next Action:** The task `20260116-1400-ux-implement-portal-vision.md` instructs the `forge` persona to modify the `mkdocs.yml.jinja` template to use `accent: custom`.
 
 ### Typography
 -   **Status:** Defined.
@@ -49,14 +45,14 @@ This section defines the "Portal" design system, which aims to create a dark, im
 -   **Implementation:** The fonts are imported and applied in `demo/docs/stylesheets/extra.css`.
 
 ### Favicon
--   **Status:** Missing.
--   **Issue:** The site is missing a favicon, which is referenced in the generated `mkdocs.yml` but not included in the scaffolded files.
--   **Next Action:** The task `20260116-1400-ux-implement-portal-vision.md` instructs the `forge` persona to add a placeholder favicon and ensure it's copied during the scaffolding process.
+-   **Status:** Needs Verification.
+-   **Issue:** A favicon exists at `demo/docs/assets/images/favicon.png`, but it may be the default MkDocs or a placeholder. We need to ensure a distinct, branded favicon is used.
+-   **Next Action:** The task `20260116-1400-ux-implement-portal-vision.md` covers verifying and ensuring the favicon is correct.
 
 ### Social Cards
--   **Status:** Broken.
--   **Issue:** The social card generation fails with 404 errors during the `mkdocs build` process.
--   **Next Action:** The task `20260116-1400-ux-implement-portal-vision.md` instructs the `forge` persona to fix the social card generation.
+-   **Status:** Broken / Disabled.
+-   **Issue:** The `social` plugin is commented out in `mkdocs.yml.jinja`, preventing social card generation. Additionally, previous builds showed 404 errors for social cards.
+-   **Next Action:** The task `20260116-1400-ux-implement-portal-vision.md` instructs the `forge` persona to uncomment the plugin and ensure dependencies (`mkdocs-material[imaging]`) are present.
 
 ### Navigation
 -   **Status:** Implemented, but needs review.
