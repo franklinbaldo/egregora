@@ -16,7 +16,6 @@ def mock_run_params(tmp_path):
     config = EgregoraConfig(
         database=DatabaseSettings(
             pipeline_db=f"duckdb:///{tmp_path}/test_pipeline.duckdb",
-            runs_db=f"duckdb:///{tmp_path}/test_runs.duckdb",
         )
     )
     return PipelineRunParams(
@@ -38,7 +37,7 @@ def test_create_context(mock_run_params):
         patch.object(
             PipelineFactory,
             "create_database_backends",
-            return_value=("mock_db_uri", MagicMock(), MagicMock()),
+            return_value=("mock_db_uri", MagicMock()),
         ) as mock_create_db,
         patch("egregora.orchestration.factory.initialize_database") as mock_init_db,
         patch.object(PipelineFactory, "create_gemini_client") as mock_create_client,
@@ -53,7 +52,7 @@ def test_create_context(mock_run_params):
         mock_create_adapter.return_value = mock_adapter
 
         # Call the method under test
-        context, _, _ = PipelineFactory.create_context(mock_run_params)
+        context, _ = PipelineFactory.create_context(mock_run_params)
 
         # Assertions
         assert isinstance(context, PipelineContext)

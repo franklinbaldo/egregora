@@ -70,7 +70,6 @@ DEFAULT_CONCURRENCY = 5  # Allow 5 concurrent requests
 # Default database connection strings
 # NOTE: These defaults are relative to site root.
 DEFAULT_PIPELINE_DB = "duckdb:///./.egregora/pipeline.duckdb"
-DEFAULT_RUNS_DB = "duckdb:///./.egregora/runs.duckdb"
 
 # Configuration validation warning thresholds
 RAG_TOP_K_WARNING_THRESHOLD = 20
@@ -569,14 +568,6 @@ class DatabaseSettings(BaseModel):
         description=(
             "Pipeline database connection URI (e.g. 'duckdb:///absolute/path.duckdb', "
             "'duckdb:///./.egregora/pipeline.duckdb' for a site-relative file, or "
-            "'postgres://user:pass@host:5432/dbname')."
-        ),
-    )
-    runs_db: str = Field(
-        default=DEFAULT_RUNS_DB,
-        description=(
-            "Run tracking database connection URI (e.g. 'duckdb:///absolute/runs.duckdb', "
-            "'duckdb:///./.egregora/runs.duckdb' for a site-relative file, or "
             "'postgres://user:pass@host:5432/dbname')."
         ),
     )
@@ -1203,7 +1194,6 @@ __all__ = [
     "DEFAULT_EMBEDDING_MODEL",
     "DEFAULT_MODEL",
     "DEFAULT_PIPELINE_DB",
-    "DEFAULT_RUNS_DB",
     "EMBEDDING_DIM",
     "EgregoraConfig",
     "EnrichmentRuntimeConfig",
@@ -1263,9 +1253,7 @@ def _get_api_keys_from_env(*env_vars: str) -> list[str]:
 
 def get_google_api_keys() -> list[str]:
     """Get list of Google API keys from environment."""
-    return _get_api_keys_from_env(
-        "GEMINI_API_KEYS", "GEMINI_API_KEY", "GOOGLE_API_KEY"
-    )
+    return _get_api_keys_from_env("GEMINI_API_KEYS", "GEMINI_API_KEY", "GOOGLE_API_KEY")
 
 
 def get_openrouter_api_key() -> str:
