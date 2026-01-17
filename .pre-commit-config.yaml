@@ -98,7 +98,7 @@ repos:
       - id: coverage
         name: Check test coverage
         entry: uv run pytest
-        args: ["tests/unit/", "--cov=src/egregora", "--cov-report=term-missing", "-q", "--ignore=tests/unit/team"]
+        args: ["tests/unit/", "--cov=src/egregora", "--cov-report=term-missing", "--cov-fail-under=56", "-q", "--ignore=tests/unit/team"]
         language: system
         types: [python]
         pass_filenames: false
