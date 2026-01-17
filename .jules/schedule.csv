@@ -62,7 +62,7 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 061,essentialist,7002195952785585079,2622,merged,
 062,forge,15419700192197070632,2601,merged,
 063,janitor,10135552933545357783,,,
-064,maintainer,,,,
+064,maintainer,5758431850289731998,2624,merged,
 065,organizer,,,,
 066,palette,,,,
 067,pruner,,,,
