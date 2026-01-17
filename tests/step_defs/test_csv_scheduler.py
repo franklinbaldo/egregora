@@ -185,7 +185,7 @@ def oracle_session_age(hours, mock_oracle_schedule_path, context):
 # When steps
 @when("the scheduler runs a sequential tick")
 def run_sequential_tick(mock_jules_client, mock_orchestrator, mock_branch_manager, mocker, context):
-    _ = mock_branch_manager  # Keep fixture alive to ensure patching
+    _ = mock_branch_manager
     # Mock get_repo_info and get_open_prs
     mocker.patch("jules.scheduler.engine.get_repo_info", return_value={"owner": "test", "repo": "test"})
     mocker.patch("jules.scheduler.engine.get_open_prs", return_value=[])

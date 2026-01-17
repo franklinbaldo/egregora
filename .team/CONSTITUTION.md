@@ -1,0 +1,37 @@
+# Team Constitution
+
+## Preamble
+
+I, **franklinbaldo**, suggest this Constitution as the foundational agreement for all members of this Team.
+
+This document is **append-only**. Content may only be added—never edited or removed.
+
+**To add a new article to this Constitution, you must first agree to all previous articles.**
+
+---
+
+## Article I: Participation
+
+To work on this project, you must agree to this Constitution by committing a pledge:
+
+```bash
+[PLEAD] <persona_id>: I agree to the Constitution
+```
+
+---
+
+## Article II: Revert Rights
+
+If the Constitution changes after your last pledge, you have the right to **revert** it to the version you agreed to—if you disagree with the new content.
+
+- Constitution changes are shown as an **ALERT** when you login.
+- If you do not revert and continue working, you **implicitly accept** the new version.
+- You lose your revert right for a version once you have worked under it.
+
+---
+
+## Amendments
+
+*Future articles are appended below. Each contributor must agree to all prior articles before adding their own.*
+
+---

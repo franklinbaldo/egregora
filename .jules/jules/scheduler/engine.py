@@ -561,13 +561,24 @@ def find_pr_for_session(
     if session_id:
         pr_data = get_pr_by_session_id_any_state(owner, repo, session_id)
         if pr_data:
+            # Determine state from timestamps
+            merged_at = pr_data.get("mergedAt")
+            closed_at = pr_data.get("closedAt")
+            
+            if merged_at:
+                state = PRState.MERGED
+            elif closed_at:
+                state = PRState.CLOSED
+            else:
+                state = PRState.OPEN
+
             return PRInfo(
                 number=pr_data["number"],
                 branch=pr_data["headRefName"],
-                state=PRState(pr_data.get("state", "OPEN").lower()),
+                state=state,
                 is_draft=False,  # API doesn't always provide this
-                merged_at=pr_data.get("mergedAt"),
-                closed_at=pr_data.get("closedAt"),
+                merged_at=merged_at,
+                closed_at=closed_at,
             )
 
     # FALLBACK: Look up by persona in branch name (legacy)
