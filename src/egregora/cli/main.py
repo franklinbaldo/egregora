@@ -20,6 +20,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from egregora.cli.diagnostics import HealthStatus, run_diagnostics
+from egregora.cli.persona import persona_app
 
 # from egregora.cli.db import db_app  # Removed - db.py no longer exists
 from egregora.cli.read import read_app
@@ -40,6 +41,7 @@ app = typer.Typer(
     add_completion=False,
 )
 app.add_typer(read_app)
+app.add_typer(persona_app)
 
 # Database subcommands
 # app.add_typer(db_app)  # Removed - db.py no longer exists
