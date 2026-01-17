@@ -54,6 +54,26 @@ Feature: Persona Voting for Schedule Sequencing
     And I should see a table of available candidates
     And I should see voting instructions
 
+  # Tiebreaker
+
+  Scenario: Draw is resolved by longest wait time
+    Given sequence "040" currently has "curator" in the schedule
+    And "artisan" was last scheduled at sequence "020"
+    And "refactor" was last scheduled at sequence "030"
+    And both "artisan" and "refactor" have 10 Borda points for "040"
+    When the voting results are applied to sequence "040"
+    Then sequence "040" should be assigned to "artisan"
+    Because "artisan" has waited longer since sequence "020"
+
+  Scenario: Never-scheduled persona wins tiebreaker
+    Given sequence "040" currently has "curator" in the schedule
+    And "artisan" was last scheduled at sequence "020"
+    And "newbie" has never been scheduled
+    And both "artisan" and "newbie" have 10 Borda points for "040"
+    When the voting results are applied to sequence "040"
+    Then sequence "040" should be assigned to "newbie"
+    Because "newbie" has the longest wait (never chosen)
+
   # Hire-Vote Validation
 
   Scenario: Hiring requires voting for new persona as top choice

@@ -93,15 +93,54 @@ class VoteManager:
         return tally
 
     def apply_votes(self, sequence_id: str) -> Optional[str]:
-        """Find the winner for a sequence and update schedule.csv."""
+        """
+        Find the winner for a sequence and update schedule.csv.
+        
+        Tiebreaker: If multiple personas have the same points, the winner is
+        the one who has NOT been chosen for the longest time (fairness priority).
+        """
         tally = self.get_tally(sequence_id)
         if not tally:
             return None
-            
-        winner = max(tally, key=tally.get)
+        
+        # Find max points
+        max_points = max(tally.values())
+        top_candidates = [p for p, pts in tally.items() if pts == max_points]
+        
+        if len(top_candidates) == 1:
+            winner = top_candidates[0]
+        else:
+            # Tiebreaker: persona who waited longest (smallest last_chosen sequence)
+            winner = min(
+                top_candidates,
+                key=lambda p: self._get_last_chosen_sequence(p, sequence_id)
+            )
+        
         if self._update_schedule(sequence_id, winner):
             return winner
         return None
+
+    def _get_last_chosen_sequence(self, persona_id: str, before_sequence: str) -> int:
+        """
+        Get the last sequence where this persona was scheduled.
+        Returns -1 if never scheduled (longest wait = highest priority).
+        """
+        if not self.schedule_file.exists():
+            return -1
+        
+        last_seq = -1
+        before_seq_int = int(before_sequence)
+        
+        with open(self.schedule_file, mode='r', newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                seq = int(row['sequence'])
+                if seq >= before_seq_int:
+                    continue  # Only look at past sequences
+                if row.get('persona') == persona_id:
+                    last_seq = max(last_seq, seq)
+        
+        return last_seq
 
     def _update_schedule(self, sequence_id: str, persona_id: str) -> bool:
         """Update the persona for a specific sequence in schedule.csv."""
