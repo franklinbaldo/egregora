@@ -79,6 +79,7 @@ import ibis
 
 from egregora.data_primitives.document import Document, DocumentType, OutputSink
 from egregora.database import schemas as database_schema
+from egregora.database.utils import quote_identifier
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -230,12 +231,14 @@ class AnnotationStore:
             self._backend, ANNOTATIONS_TABLE, database_schema.ANNOTATIONS_SCHEMA
         )
 
+        quoted_table = quote_identifier(ANNOTATIONS_TABLE)
+
         # Use protocol method instead of accessing protected member
         with self.storage.connection() as conn:
             database_schema.add_primary_key(conn, ANNOTATIONS_TABLE, "id")
 
         self._backend.raw_sql(
-            f"\n            CREATE INDEX IF NOT EXISTS idx_annotations_parent_created\n            ON {ANNOTATIONS_TABLE} (parent_id, parent_type, created_at)\n            "
+            f"\n            CREATE INDEX IF NOT EXISTS idx_annotations_parent_created\n            ON {quoted_table} (parent_id, parent_type, created_at)\n            "
         )
 
     # ========================================================================
@@ -311,18 +314,20 @@ class AnnotationStore:
 
     def list_annotations_for_message(self, msg_id: str) -> list[Annotation]:
         """Return annotations for ``msg_id`` ordered by creation time."""
+        quoted_table = quote_identifier(ANNOTATIONS_TABLE)
         records = self._fetch_records(
-            f"\n            SELECT id, parent_id, parent_type, author_id as author, content as commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at ASC, id ASC\n            ",
+            f"\n            SELECT id, parent_id, parent_type, author_id as author, content as commentary, created_at\n            FROM {quoted_table}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at ASC, id ASC\n            ",
             [msg_id],
         )
         return [self._row_to_annotation(row) for row in records]
 
     def get_last_annotation_id(self, msg_id: str) -> int | None:
         """Return the most recent annotation ID for ``msg_id`` if any exist."""
+        quoted_table = quote_identifier(ANNOTATIONS_TABLE)
         # Use protocol method instead of accessing protected member
         with self.storage.connection() as conn:
             cursor = conn.execute(
-                f"\n            SELECT id FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at DESC, id DESC\n            LIMIT 1\n            ",
+                f"\n            SELECT id FROM {quoted_table}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at DESC, id DESC\n            LIMIT 1\n            ",  # nosec B608 - Identifier quoted
                 [msg_id],
             )
             row = cursor.fetchone()
@@ -330,8 +335,9 @@ class AnnotationStore:
 
     def iter_all_annotations(self) -> Iterable[Annotation]:
         """Yield all annotations sorted by insertion order."""
+        quoted_table = quote_identifier(ANNOTATIONS_TABLE)
         records = self._fetch_records(
-            f"\n            SELECT id, parent_id, parent_type, author_id as author, content as commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            ORDER BY created_at ASC, id ASC\n            "
+            f"\n            SELECT id, parent_id, parent_type, author_id as author, content as commentary, created_at\n            FROM {quoted_table}\n            ORDER BY created_at ASC, id ASC\n            "
         )
         for row in records:
             yield self._row_to_annotation(row)
