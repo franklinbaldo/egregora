@@ -44,16 +44,16 @@ def hire_persona(runner, isolated_fs, id, name, emoji, role, description, missio
         "--goal", mission,
         "--password", "any"
     ]
-    
+
     with patch("jules.cli.my_tools.session_manager") as mock_session:
         mock_session.get_active_persona.return_value = "artisan"
         mock_session.validate_password.return_value = True
-        
+
         with patch("jules.cli.my_tools.hire_manager") as mock_hire_mgr:
             # We want to use a real HireManager but pointed to our isolated FS
             real_hire_mgr = HireManager(personas_root=isolated_fs / ".jules" / "personas")
             mock_hire_mgr.hire_persona.side_effect = real_hire_mgr.hire_persona
-            
+
             return runner.invoke(app, args)
 
 @then(parsers.parse('a new persona directory "{path}" should exist'))

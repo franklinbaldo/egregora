@@ -59,7 +59,7 @@ def test_generate_banner_success_with_debug_text():
     with (
         patch("egregora.agents.banner.agent.is_banner_generation_available", return_value=True),
         patch("egregora.agents.banner.agent.GeminiImageGenerationProvider") as mock_provider_cls,
-        patch("egregora.agents.banner.agent.genai.Client"),
+        patch("egregora.agents.banner.agent.genai.GenerativeModel"),
     ):
         mock_provider_instance = MagicMock()
         mock_provider_cls.return_value = mock_provider_instance
@@ -84,7 +84,7 @@ def test_generate_banner_failure_no_image_data():
     with (
         patch("egregora.agents.banner.agent.is_banner_generation_available", return_value=True),
         patch("egregora.agents.banner.agent.GeminiImageGenerationProvider") as mock_provider_cls,
-        patch("egregora.agents.banner.agent.genai.Client"),
+        patch("egregora.agents.banner.agent.genai.GenerativeModel"),
     ):
         mock_provider_instance = MagicMock()
         mock_provider_cls.return_value = mock_provider_instance
@@ -111,7 +111,7 @@ def test_generate_banner_handles_google_api_call_error():
     with (
         patch("egregora.agents.banner.agent.is_banner_generation_available", return_value=True),
         patch("egregora.agents.banner.agent.GeminiImageGenerationProvider") as mock_provider_cls,
-        patch("egregora.agents.banner.agent.genai.Client"),
+        patch("egregora.agents.banner.agent.genai.GenerativeModel"),
     ):
         mock_provider_instance = MagicMock()
         mock_provider_cls.return_value = mock_provider_instance
