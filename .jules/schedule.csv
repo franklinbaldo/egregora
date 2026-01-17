@@ -70,7 +70,7 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 069,sapper,6351942415034846801,2588,merged,
 070,scribe,11150222486379697133,2609,merged,
 071,sentinel,3045451238904294001,2590,merged,
-072,shepherd,,,,
+072,shepherd,9239414327527887975,2611,merged,
 073,sheriff,,,,
 074,simplifier,,,,
 075,specifier,,,,
