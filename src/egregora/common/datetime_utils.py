@@ -13,6 +13,19 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 
+# Common date formats to try before falling back to dateutil.
+# Ordered by expected frequency and specificity to minimize false positives.
+_COMMON_FORMATS = [
+    "%m/%d/%Y",  # US format: 01/01/2025 (matches dateutil default)
+    "%Y/%m/%d",  # ISO-like with slashes
+    "%d/%m/%Y",  # International: 13/01/2025
+    "%b %d, %Y",  # Jan 1, 2025
+    "%B %d, %Y",  # January 1, 2025
+    "%A, %B %d, %Y",  # Wednesday, January 1, 2025
+    "%A, %d %B %Y",  # Wednesday, 1 January 2025
+]
+
+
 def parse_datetime_flexible(
     value: datetime | date | str | Any | None,
     *,
@@ -67,11 +80,23 @@ def _to_datetime(value: Any, *, parser_kwargs: Mapping[str, Any] | None = None) 
     try:
         return datetime.fromisoformat(raw)
     except (TypeError, ValueError):
-        # Fallback to dateutil for more flexible parsing
-        try:
-            return dateutil_parser.parse(raw, **(parser_kwargs or {}))
-        except (TypeError, ValueError, OverflowError) as e:
-            raise DateTimeParsingError(raw, e) from e
+        pass
+
+    # Fast-path for common formats using strptime (much faster than dateutil)
+    # Only use fast path if no custom parser arguments are provided, as they might
+    # alter parsing behavior (e.g. dayfirst=True).
+    if not parser_kwargs:
+        for fmt in _COMMON_FORMATS:
+            try:
+                return datetime.strptime(raw, fmt)
+            except ValueError:
+                continue
+
+    # Fallback to dateutil for more flexible parsing
+    try:
+        return dateutil_parser.parse(raw, **(parser_kwargs or {}))
+    except (TypeError, ValueError, OverflowError) as e:
+        raise DateTimeParsingError(raw, e) from e
 
 
 def normalize_timezone(dt: datetime, *, default_timezone: tzinfo = UTC) -> datetime:

@@ -23,6 +23,10 @@ VALID_INPUTS = {
         "12:00:00",
         datetime.combine(date(2025, 1, 1), datetime.min.time().replace(hour=12), tzinfo=UTC),
     ),
+    "us_date_slashes": ("01/01/2025", datetime(2025, 1, 1, tzinfo=UTC)),
+    "ambiguous_us_date": ("01/02/2025", datetime(2025, 1, 2, tzinfo=UTC)),  # MDY preferred
+    "international_date": ("13/01/2025", datetime(2025, 1, 13, tzinfo=UTC)),
+    "long_date": ("Wednesday, January 1, 2025", datetime(2025, 1, 1, tzinfo=UTC)),
 }
 
 # Define a set of invalid inputs and the exceptions they should raise
@@ -47,3 +51,11 @@ def test_parse_datetime_flexible_exceptions(input_val, exception):
     """Verify that parse_datetime_flexible raises the correct exceptions for invalid inputs."""
     with pytest.raises(exception):
         parse_datetime_flexible(input_val)
+
+
+def test_parse_datetime_flexible_parser_kwargs():
+    """Verify that parser_kwargs are respected and bypass the fast path."""
+    # 01/02/2025 should be parsed as Feb 1st (DMY) when dayfirst=True
+    # The default/fast path would parse it as Jan 2nd (MDY)
+    result = parse_datetime_flexible("01/02/2025", parser_kwargs={"dayfirst": True})
+    assert result == datetime(2025, 2, 1, tzinfo=UTC)
