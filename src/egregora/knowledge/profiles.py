@@ -595,6 +595,7 @@ def filter_opted_out_authors(
     return (filtered_table, removed_count)
 
 
+# TODO: [Taskmaster] Refactor: Consolidate update_profile_avatar and remove_profile_avatar into a shared helper
 def update_profile_avatar(
     author_uuid: Annotated[str, "The anonymized author UUID"],
     avatar_url: Annotated[str, "The URL of the avatar image"],
@@ -715,6 +716,7 @@ def remove_profile_avatar(
 
 def _parse_frontmatter(content: str) -> dict[str, Any]:
     """Extract YAML front-matter from content."""
+    # TODO: [Taskmaster] Refactor: Use python-frontmatter library instead of manual string splitting
     if content.startswith("---"):
         try:
             parts = content.split("---", 2)
@@ -999,6 +1001,7 @@ def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
 
     # Handle nested directories (new structure: {uuid}/index.md)
     # We iterate over directories in profiles_dir
+    # TODO: [Taskmaster] Refactor: Extract single author sync logic into a helper function (e.g. _sync_single_author)
     for author_dir in profiles_dir.iterdir():
         if not author_dir.is_dir():
             continue
