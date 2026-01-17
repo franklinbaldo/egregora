@@ -1,9 +1,9 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
 from jules.cli.roster import app
 from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 # Load scenarios
 scenarios("../features/roster.feature")
@@ -85,7 +85,7 @@ def run_view_persona(runner, p_id):
     # Use a description that matches the feature file expectation for the Forge persona
     mock_config.description = "Senior frontend developer" if p_id == "forge" else "Test description"
     mock_config.prompt_body = f"# {p_id.upper()}\n\nThis is the prompt content."
-    
+
     # roster.py now has 'from jules.scheduler.loader import PersonaLoader' at top level
     with patch("jules.cli.roster.PersonaLoader") as mock_loader_class:
         mock_loader = MagicMock()
