@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from egregora.agents.enricher import EnrichmentWorker, _normalize_slug, load_file_as_binary_content
-from egregora.agents.exceptions import MediaStagingError
+from egregora.agents.exceptions import EnrichmentParsingError, MediaStagingError
 
 
 class TestEnrichmentWorkerStageFile(unittest.TestCase):
@@ -195,13 +195,10 @@ class TestParseMediaResult(unittest.TestCase):
         mock_res = MagicMock()
         mock_res.response = {"text": "{'bad-json':"}
 
-        result = self.worker._parse_media_result(mock_res, self.task)
+        with pytest.raises(EnrichmentParsingError, match="Parse error"):
+            self.worker._parse_media_result(mock_res, self.task)
 
-        self.assertIsNone(result)
-        self.worker.task_store.mark_failed.assert_called_once()
-        args, _ = self.worker.task_store.mark_failed.call_args
-        self.assertEqual(args[0], "media-task-1")
-        self.assertIn("Parse error", args[1])
+        self.worker.task_store.mark_failed.assert_not_called()
 
     def test_parse_media_result_missing_slug(self):
         """Test that a missing slug is handled correctly."""
@@ -209,10 +206,10 @@ class TestParseMediaResult(unittest.TestCase):
         mock_res = MagicMock()
         mock_res.response = {"text": response_text}
 
-        result = self.worker._parse_media_result(mock_res, self.task)
+        with pytest.raises(EnrichmentParsingError, match="Missing slug or markdown"):
+            self.worker._parse_media_result(mock_res, self.task)
 
-        self.assertIsNone(result)
-        self.worker.task_store.mark_failed.assert_called_once_with("media-task-1", "Missing slug or markdown")
+        self.worker.task_store.mark_failed.assert_not_called()
 
     def test_parse_media_result_missing_markdown_with_fallback(self):
         """Test fallback markdown construction when 'markdown' is missing."""
@@ -243,10 +240,10 @@ class TestParseMediaResult(unittest.TestCase):
         mock_res = MagicMock()
         mock_res.response = {"text": response_text}
 
-        result = self.worker._parse_media_result(mock_res, self.task)
+        with pytest.raises(EnrichmentParsingError, match="Missing slug or markdown"):
+            self.worker._parse_media_result(mock_res, self.task)
 
-        self.assertIsNone(result)
-        self.worker.task_store.mark_failed.assert_called_once_with("media-task-1", "Missing slug or markdown")
+        self.worker.task_store.mark_failed.assert_not_called()
 
 
 if __name__ == "__main__":

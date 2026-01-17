@@ -36,7 +36,7 @@ from pydantic_ai import Agent, RunContext, UrlContextTool
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import BinaryContent
 
-from egregora.agents.exceptions import MediaStagingError
+from egregora.agents.exceptions import EnrichmentParsingError, MediaStagingError
 from egregora.common.datetime_utils import ensure_datetime
 from egregora.common.text import slugify
 from egregora.config.settings import EnrichmentSettings
@@ -1372,8 +1372,14 @@ class EnrichmentWorker(BaseWorker):
                 self.task_store.mark_failed(task["task_id"], str(res.error))
                 continue
 
-            task_result = self._parse_media_result(res, task)
-            if task_result is None:
+            try:
+                task_result = self._parse_media_result(res, task)
+            except EnrichmentParsingError as exc:
+                self.task_store.mark_failed(task["task_id"], str(exc))
+                continue
+            except Exception as exc:  # Safety net for unexpected errors
+                logger.exception("Unexpected error parsing media result for task %s", task["task_id"])
+                self.task_store.mark_failed(task["task_id"], f"Unexpected error: {exc!s}")
                 continue
 
             payload, slug_value, markdown = task_result
@@ -1531,7 +1537,7 @@ class EnrichmentWorker(BaseWorker):
         return len(results)
 
     # TODO: [Taskmaster] Improve brittle JSON parsing from LLM output
-    def _parse_media_result(self, res: Any, task: dict[str, Any]) -> tuple[dict[str, Any], str, str] | None:
+    def _parse_media_result(self, res: Any, task: dict[str, Any]) -> tuple[dict[str, Any], str, str]:
         text = self._extract_text(res.response)
         try:
             clean_text = text.strip()
@@ -1571,11 +1577,13 @@ class EnrichmentWorker(BaseWorker):
                     logger.info("Constructed fallback markdown for %s -> %s", filename, final_filename)
 
             if not slug_value or not markdown:
-                self.task_store.mark_failed(task["task_id"], "Missing slug or markdown")
-                return None
+                raise EnrichmentParsingError(task["task_id"], "Missing slug or markdown")
         except Exception as exc:
+            # Check if it's already our domain exception to avoid wrapping it again
+            if isinstance(exc, EnrichmentParsingError):
+                raise
+
             logger.exception("Failed to parse media result %s", task["task_id"])
-            self.task_store.mark_failed(task["task_id"], f"Parse error: {exc!s}")
-            return None
+            raise EnrichmentParsingError(task["task_id"], f"Parse error: {exc!s}") from exc
         else:
             return payload, slug_value, markdown

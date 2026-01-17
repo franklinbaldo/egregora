@@ -35,3 +35,11 @@ class EnrichmentError(AgentError):
 
 class MediaStagingError(EnrichmentError):
     """Raised when a media file cannot be staged for enrichment."""
+
+
+class EnrichmentParsingError(EnrichmentError):
+    """Raised when the LLM response cannot be parsed or is invalid."""
+
+    def __init__(self, task_id: str, message: str) -> None:
+        self.task_id = task_id
+        super().__init__(f"Task {task_id}: {message}")
