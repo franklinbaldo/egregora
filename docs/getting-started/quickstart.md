@@ -37,7 +37,7 @@ my-blog/
     └── posts/          # Generated blog posts go here
 ```
 
-## Step 2: Export Your WhatsApp Chat
+## Step 3: Export Your WhatsApp Chat
 
 From your WhatsApp:
 
@@ -49,13 +49,13 @@ From your WhatsApp:
 !!! tip
     For privacy, we recommend exporting **without media**. Egregora can enrich URLs and media references using LLMs instead.
 
-## Step 3: Set Your API Key
+## Step 4: Set Your API Key
 
 ```bash
 export GOOGLE_API_KEY="your-api-key-here"
 ```
 
-## Step 4: Process the Export
+## Step 5: Process the Export
 
 ```bash
 egregora write whatsapp-export.zip --output-dir=. --timezone='America/New_York'
@@ -75,7 +75,7 @@ This will:
     - Embeds all messages for semantic search
     - Generates multiple blog posts
 
-## Step 5: Preview Your Blog
+## Step 6: Preview Your Blog
 
 Launch a local preview server:
 

@@ -7,9 +7,6 @@ This site was generated automatically by [Egregora](https://github.com/franklinb
 ### Serve the site locally
 
 ```bash
-# Install dependencies (if you have not already)
-pip install "mkdocs-material[imaging]"
-
 # Serve the site
 uv tool run --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml
 ```
