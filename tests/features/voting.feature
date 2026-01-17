@@ -8,18 +8,17 @@ Feature: Persona Voting for Schedule Sequencing
     Given the Jules environment is initialized
     And a schedule exists in ".jules/schedule.csv"
 
-  Scenario: Persona casts a valid vote
+  Scenario: Persona casts ranked votes
     Given a schedule exists where "artisan" is at sequence "002"
     And a logged in persona "artisan" with password "c28d7168-5435-512c-9154-8c887413a697"
-    When I vote for persona "refactor"
+    When I vote for personas "refactor" and "simplifier"
     Then a vote record should be created in ".jules/votes.csv"
-    And the vote should have voter "002" and target sequence "030"
-    And the vote should count for "refactor"
+    And the CSV should contain a "rank 1" vote for "refactor" from "002"
+    And the CSV should contain a "rank 2" vote for "simplifier" from "002"
 
-  Scenario: Tallying votes updates the schedule
+  Scenario: Tallying weighted Borda votes
     Given sequence "040" currently has "pruner" in the schedule
-    And sequence "012" voted for "simplifier" for sequence "040"
-    And sequence "002" voted for "simplifier" for sequence "040"
-    And sequence "003" voted for "maintainer" for sequence "040"
+    And sequence "012" ranked "simplifier" as #1 and "refactor" as #2 for "040"
+    And sequence "002" ranked "refactor" as #1 for "040"
     When the voting results are applied to sequence "040"
-    Then sequence "040" in "schedule.csv" should be changed to "simplifier"
+    Then sequence "040" in "schedule.csv" should be changed to "refactor"

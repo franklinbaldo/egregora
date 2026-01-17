@@ -12,32 +12,30 @@ class VoteManager:
         self.schedule_file = schedule_file
         self.votes_file = votes_file
 
-    def cast_vote(self, voter_sequence: str, candidate_persona: str):
+    def cast_vote(self, voter_sequence: str, candidate_personas: List[str]):
         """
-        Cast a vote for a persona to occupy a calculated future sequence.
-        [voter_sequence, sequence_cast, candidate_persona_choosed]
+        Cast ranked votes for personas to occupy a calculated future sequence.
+        [voter_sequence, sequence_cast, candidate_persona_choosed, rank]
         """
         roster_size = self._get_roster_size()
         voter_seq_int = int(voter_sequence)
         target_seq_int = voter_seq_int + roster_size + 1
         target_sequence = f"{target_seq_int:03}"
 
-        # Validate target sequence isn't already executed (though it should be far in the future)
-        if self._is_sequence_executed(target_sequence):
-             # For these look-ahead votes, it's unlikely to be executed, but safety first.
-             pass
-
         file_exists = self.votes_file.exists()
         with open(self.votes_file, mode='a', newline='') as f:
-            fieldnames = ['voter_sequence', 'sequence_cast', 'candidate_persona_choosed']
+            fieldnames = ['voter_sequence', 'sequence_cast', 'candidate_persona_choosed', 'rank']
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             if not file_exists:
                 writer.writeheader()
-            writer.writerow({
-                'voter_sequence': voter_sequence,
-                'sequence_cast': target_sequence,
-                'candidate_persona_choosed': candidate_persona
-            })
+            
+            for i, persona in enumerate(candidate_personas):
+                writer.writerow({
+                    'voter_sequence': voter_sequence,
+                    'sequence_cast': target_sequence,
+                    'candidate_persona_choosed': persona,
+                    'rank': i + 1  # 1-indexed rank
+                })
         return target_sequence
 
     def _get_roster_size(self) -> int:
@@ -59,17 +57,21 @@ class VoteManager:
         return False
 
     def get_tally(self, sequence_id: str) -> Dict[str, int]:
-        """Tally votes for a specific sequence from the CSV."""
+        """Tally votes for a specific sequence from the CSV using Borda Count."""
         if not self.votes_file.exists():
             return {}
             
+        roster_size = self._get_roster_size()
         tally = {}
         with open(self.votes_file, mode='r', newline='') as f:
             reader = csv.DictReader(f)
             for row in reader:
                 if row['sequence_cast'] == sequence_id:
                     persona = row['candidate_persona_choosed']
-                    tally[persona] = tally.get(persona, 0) + 1
+                    rank = int(row.get('rank', 1))
+                    # Borda points: Rank 1 gets roster_size, Rank 2 gets roster_size - 1, etc.
+                    points = max(0, roster_size - (rank - 1))
+                    tally[persona] = tally.get(persona, 0) + points
         return tally
 
     def apply_votes(self, sequence_id: str) -> Optional[str]:

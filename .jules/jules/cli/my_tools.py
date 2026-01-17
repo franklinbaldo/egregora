@@ -148,17 +148,18 @@ def loop_break(
 
 @app.command()
 def vote(
-    persona: str = typer.Option(..., "--persona", "-p", help="The persona ID you want to vote for"),
+    personas: List[str] = typer.Option(..., "--persona", "-p", help="Persona IDs in order of preference (multi-allowed)"),
     password: str = typer.Option(..., "--password", help="Identity verification (same as login)")
 ):
     """
-    ⚖️ Vote to influence the future project schedule.
+    ⚖️ Vote to influence the future project schedule (Borda Count).
     
-    Cast a democratic vote for a persona to occupy a future sequence.
+    Cast ranked votes for personas to occupy a future sequence. 
+    The first --persona is your 1st choice, the second is 2nd choice, etc.
     The target sequence is automatically calculated.
     
     Example:
-        my-tools vote --persona simplifier --password <token>
+        my-tools vote -p simplifier -p forge --password <token>
     """
     try:
         voter_id = session_manager.get_active_persona()
@@ -175,8 +176,9 @@ def vote(
             print(f"❌ Could not determine current sequence for {voter_id}.")
             raise typer.Exit(code=1)
 
-        target_sequence = vote_manager.cast_vote(voter_sequence, persona)
-        print(f"✅ Vote cast by {voter_id} (seq {voter_sequence}) for {persona} to occupy sequence {target_sequence}")
+        target_sequence = vote_manager.cast_vote(voter_sequence, personas)
+        persona_list = ", ".join(personas)
+        print(f"✅ Ranked votes cast by {voter_id} (seq {voter_sequence}) for [{persona_list}] for sequence {target_sequence}")
         
     except Exception as e:
         print(f"❌ Vote failed: {e}")
