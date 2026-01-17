@@ -10,6 +10,7 @@ import typer
 from typing import List, Optional
 from jules.features.session import SessionManager
 from jules.features.voting import VoteManager
+from jules.features.hire import HireManager
 from jules.cli.mail import app as mail_app
 from jules.cli.roster import app as roster_app
 
@@ -71,6 +72,7 @@ app.add_typer(
 
 session_manager = SessionManager()
 vote_manager = VoteManager()
+hire_manager = HireManager()
 
 @app.command()
 def login(
@@ -182,6 +184,53 @@ def vote(
         
     except Exception as e:
         print(f"❌ Vote failed: {e}")
+        raise typer.Exit(code=1)
+
+@app.command()
+def hire(
+    id: str = typer.Option(..., "--id", help="The unique ID for the new persona"),
+    emoji: str = typer.Option(..., "--emoji", help="Emoji representing the persona"),
+    description: str = typer.Option(..., "--description", help="Short description for frontmatter"),
+    role: str = typer.Option(..., "--role", help="The persona's primary role/expertise"),
+    goal: str = typer.Option(..., "--goal", help="The persona's core mission/goal"),
+    context: str = typer.Option("TBD", "--context", help="Initial context/focus areas"),
+    constraints: str = typer.Option("- Follow project conventions", "--constraints", help="Constraints for the persona"),
+    guardrails: str = typer.Option("✅ Always follow BDD principles", "--guardrails", help="Always/Never rules"),
+    verification: str = typer.Option("uv run pytest", "--verification", help="Verification steps"),
+    workflow: str = typer.Option("1. 🔍 OBSERVE\n2. 🎯 SELECT\n3. 🛠️ IMPLEMENT\n4. ✅ VERIFY", "--workflow", help="Daily process steps"),
+    password: str = typer.Option(..., "--password", help="Identity verification")
+):
+    """
+    🤝 Hire a new persona to join the team.
+    
+    This command creates a new persona directory and prompt following the RGCCOV pattern.
+    """
+    try:
+        voter_id = session_manager.get_active_persona()
+        if not voter_id:
+            print("❌ No active session. Please login first.")
+            raise typer.Exit(code=1)
+            
+        if not session_manager.validate_password(voter_id, password):
+            print("❌ Auth failed: Invalid password.")
+            raise typer.Exit(code=1)
+            
+        path = hire_manager.hire_persona(
+            persona_id=id,
+            emoji=emoji,
+            description=description,
+            role=role,
+            goal=goal,
+            context=context,
+            constraints=constraints,
+            guardrails=guardrails,
+            verification=verification,
+            workflow=workflow
+        )
+        print(f"✅ Persona '{id}' successfully hired! Prompt created at {path}")
+        
+    except Exception as e:
+        print(f"❌ Hire failed: {e}")
         raise typer.Exit(code=1)
 
 if __name__ == "__main__":
