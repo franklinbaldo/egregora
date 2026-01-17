@@ -334,10 +334,7 @@ def _window_by_time(
     max_ts = _get_max_timestamp(table)
 
     # Calculate window duration
-    if step_unit == "hours":
-        delta = timedelta(hours=step_size)
-    else:  # days
-        delta = timedelta(days=step_size)
+    delta = timedelta(hours=step_size) if step_unit == "hours" else timedelta(days=step_size)
 
     # Calculate overlap duration
     overlap_delta = delta * overlap_ratio

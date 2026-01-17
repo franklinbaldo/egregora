@@ -163,10 +163,12 @@ class Document:
 
         # 2. Semantic Identity (Slug)
         # Only for Posts and Media, as per Pure spec
-        if self.type in (DocumentType.POST, DocumentType.MEDIA):
+        if (
+            self.type in (DocumentType.POST, DocumentType.MEDIA)
             # Do NOT call self.slug property here to avoid recursion fallback loop
-            if cleaned_slug := self._clean_slug(self.metadata.get("slug")):
-                return cleaned_slug
+            and (cleaned_slug := self._clean_slug(self.metadata.get("slug")))
+        ):
+            return cleaned_slug
 
         # 3. Fallback: Content-addressed UUIDv5
         payload = self.content if isinstance(self.content, bytes) else self.content.encode("utf-8")
