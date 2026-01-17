@@ -162,6 +162,14 @@ nav:
   - Home: index.md
   - Quick Start: getting-started/quickstart.md
   - About: about.md
+  - Roadmap: v3/roadmap.md
+  - Architecture:
+    - Overview: v3/architecture/index.md
+    - Layers: v3/architecture/layers.md
+    - Data Model: v3/architecture/data-model.md
+    - Pipelines: v3/architecture/pipelines.md
+    - Agents: v3/architecture/agents.md
+    - Output Sinks: v3/architecture/output-sinks.md
   - ADR:
     - Index: adr/README.md
   - Getting Started:
