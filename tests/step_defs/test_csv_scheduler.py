@@ -188,7 +188,7 @@ def run_sequential_tick(mock_jules_client, mock_orchestrator, mock_branch_manage
     # Mock get_repo_info and get_open_prs
     mocker.patch("jules.scheduler.engine.get_repo_info", return_value={"owner": "test", "repo": "test"})
     mocker.patch("jules.scheduler.engine.get_open_prs", return_value=[])
-    
+
     if not context.get("existing_session_configured"):
         mock_jules_client.list_sessions.return_value = {"sessions": []}
 
@@ -212,6 +212,7 @@ def run_sequential_tick(mock_jules_client, mock_orchestrator, mock_branch_manage
     context["result"] = execute_sequential_tick(dry_run=False)
 
     context["orchestrator"] = mock_orchestrator
+    context["branch_manager"] = mock_branch_manager
 
 
 @when("the Oracle facilitator needs to start")
