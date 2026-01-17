@@ -233,11 +233,18 @@ class MkDocsSiteScaffolder:
 
         assets_dir = docs_dir / "assets"
         assets_dir.mkdir(parents=True, exist_ok=True)
-        assets_src = Path(env.loader.searchpath[0]) / "assets"
+
+        # Copy assets from templates (legacy location)
+        assets_src_legacy = Path(env.loader.searchpath[0]) / "assets"
         assets_dest = assets_dir
-        if assets_src.exists():
-            # Ensure assets are always copied, even if the directory exists.
-            shutil.copytree(assets_src, assets_dest, dirs_exist_ok=True)
+        if assets_src_legacy.exists():
+            shutil.copytree(assets_src_legacy, assets_dest, dirs_exist_ok=True)
+
+        # Copy assets from scaffold_files (new location)
+        # Resolved relative to this file: ./scaffold_files/assets
+        assets_src_new = Path(__file__).parent / "scaffold_files" / "assets"
+        if assets_src_new.exists():
+            shutil.copytree(assets_src_new, assets_dest, dirs_exist_ok=True)
 
         for target_path, template_name in templates_to_render:
             if not target_path.exists():
