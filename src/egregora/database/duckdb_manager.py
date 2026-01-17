@@ -605,7 +605,9 @@ class DuckDBStorageManager:
 
         quoted_table = quote_identifier(table)
         quoted_column = quote_identifier(column)
-        max_row = self._conn.execute(f"SELECT MAX({quoted_column}) FROM {quoted_table}").fetchone()
+        max_row = self._conn.execute(
+            f"SELECT MAX({quoted_column}) FROM {quoted_table}"  # nosec B608 - Identifier quoted
+        ).fetchone()
         if not max_row or max_row[0] is None:
             return
 
@@ -790,7 +792,9 @@ class DuckDBStorageManager:
         if not self.table_exists(table_name):
             return 0
         quoted = quote_identifier(table_name)
-        row = self._conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()
+        row = self._conn.execute(
+            f"SELECT COUNT(*) FROM {quoted}"  # nosec B608 - Identifier quoted
+        ).fetchone()
         return int(row[0]) if row and row[0] is not None else 0
 
 
