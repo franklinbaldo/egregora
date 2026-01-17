@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from egregora.data_primitives.document import Document, DocumentMetadata, DocumentType
 from egregora.output_adapters.base import (
     BaseOutputSink,
     OutputSinkRegistry,
@@ -43,7 +44,17 @@ class DummySink(BaseOutputSink):
         pass
 
     def documents(self):
-        return iter([])
+        doc1 = Document(
+            type=DocumentType.POST,
+            content="...",
+            metadata={"slug": "post-1", "storage_identifier": "post-1.md"}
+        )
+        doc2 = Document(
+            type=DocumentType.PROFILE,
+            content="...",
+            metadata={"storage_identifier": "profile-1.md"}
+        )
+        return iter([doc1, doc2])
 
 
 def test_generate_unique_filename_raises_error_after_max_attempts(tmp_path):
@@ -91,6 +102,32 @@ def test_finalize_window_runs_without_error():
         profiles_updated=["profile1"],
         metadata={},
     )
+
+
+def test_scan_returns_metadata_for_all_docs():
+    """
+    Given a DummySink with documents
+    When scan is called without arguments
+    Then it should return metadata for all documents.
+    """
+    sink = DummySink()
+    meta = list(sink.scan())
+    assert len(meta) == 2
+    assert meta[0].identifier == "post-1.md"
+    assert meta[1].identifier == "profile-1.md"
+
+
+def test_scan_filters_by_type():
+    """
+    Given a DummySink with documents
+    When scan is called with a document type
+    Then it should return metadata only for that type.
+    """
+    sink = DummySink()
+    meta = list(sink.scan(DocumentType.POST))
+    assert len(meta) == 1
+    assert meta[0].identifier == "post-1.md"
+    assert meta[0].doc_type == DocumentType.POST
 
 
 class TestOutputSinkRegistry:

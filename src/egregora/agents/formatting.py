@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 def load_journal_memory(output_sink: OutputSink) -> str:
     """Return the latest journal memo content (if any)."""
-    journals = list(output_sink.list(DocumentType.JOURNAL))
+    journals = list(output_sink.scan(DocumentType.JOURNAL))
     if not journals:
         return ""
 

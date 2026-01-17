@@ -272,7 +272,7 @@ class DocumentMetadata:
     """Lightweight description of a document available in an output sink.
 
     Used for efficient document enumeration without loading full content.
-    Returned by OutputSink.list() for memory-efficient iteration.
+    Returned by OutputSink.scan() for memory-efficient iteration.
     """
 
     identifier: str
@@ -385,7 +385,7 @@ class OutputSink(Protocol):
 
         """
 
-    def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
+    def scan(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
         """Iterate through available documents, optionally filtering by ``doc_type``.
 
         Returns lightweight DocumentMetadata objects for memory-efficient enumeration.
@@ -398,7 +398,7 @@ class OutputSink(Protocol):
             Iterator of DocumentMetadata (identifier, doc_type, metadata)
 
         Examples:
-            >>> for meta in sink.list(DocumentType.POST):
+            >>> for meta in sink.scan(DocumentType.POST):
             ...     print(f"Post: {meta.identifier}, Modified: {meta.metadata['mtime_ns']}")
 
         """
@@ -419,7 +419,7 @@ class OutputSink(Protocol):
 
         Note:
             This method is kept for RAG compatibility. For general enumeration,
-            prefer the lighter-weight list() method.
+            prefer the lighter-weight scan() method.
 
         """
 

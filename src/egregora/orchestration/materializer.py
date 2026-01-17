@@ -30,9 +30,9 @@ def materialize_site(source: OutputSink, destination: "MkDocsAdapter") -> None:
         DocumentType.ANNOTATION,
     ]:
         # We need a robust iterator that yields full Document objects
-        # DbOutputSink.list() yields metadata. We can use that to fetch docs.
+        # DbOutputSink.scan() yields metadata. We can use that to fetch docs.
 
-        for meta in source.list(doc_type):
+        for meta in source.scan(doc_type):
             try:
                 doc = source.read_document(doc_type, meta.identifier)
                 destination.persist(doc)

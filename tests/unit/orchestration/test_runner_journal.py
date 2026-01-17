@@ -9,14 +9,14 @@ from egregora.orchestration.runner import PipelineRunner
 def test_fetch_processed_intervals():
     """Test fetching processed intervals from journal documents."""
     context = MagicMock(spec=PipelineContext)
-    # Mock library.journal.list()
+    # Mock library.journal.scan()
     mock_journal1 = MagicMock()
     mock_journal1.metadata = {"window_start": "2023-01-01T10:00:00", "window_end": "2023-01-01T12:00:00"}
     mock_journal2 = MagicMock()
     # Missing metadata should be ignored
     mock_journal2.metadata = {}
 
-    context.library.journal.list.return_value = [mock_journal1, mock_journal2]
+    context.library.journal.scan.return_value = [mock_journal1, mock_journal2]
 
     runner = PipelineRunner(context)
     intervals = runner._fetch_processed_intervals()
@@ -39,7 +39,7 @@ def test_process_windows_skips_existing():
     # Mock processed intervals (via library)
     mock_journal = MagicMock()
     mock_journal.metadata = {"window_start": "2023-01-01T10:00:00", "window_end": "2023-01-01T12:00:00"}
-    context.library.journal.list.return_value = [mock_journal]
+    context.library.journal.scan.return_value = [mock_journal]
 
     runner = PipelineRunner(context)
     # Mock internal processing to avoid complex setup
