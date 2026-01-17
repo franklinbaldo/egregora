@@ -1,4 +1,5 @@
 import contextlib
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -26,8 +27,6 @@ def test_create_database_backends_normalizes_duckdb_path(tmp_path):
 
     expected_path = (tmp_path / "data" / "pipeline.duckdb").resolve()
     # On Windows, we use duckdb:C:/path to avoid double drive letter issues in Ibis
-    import os
-
     if os.name == "nt":
         assert runtime_uri == f"duckdb:{expected_path.as_posix()}"
     else:
@@ -35,6 +34,44 @@ def test_create_database_backends_normalizes_duckdb_path(tmp_path):
     assert expected_path.exists()
 
     with contextlib.suppress(Exception):
-        pipeline_backend.close()
+        # Ibis backends don't always have a close method, or it might fail on closed connections
+        if hasattr(pipeline_backend, "close"):
+            pipeline_backend.close()
     with contextlib.suppress(Exception):
-        runs_backend.close()
+        if hasattr(runs_backend, "close"):
+            runs_backend.close()
+
+
+def test_create_database_backends_validates_scheme(tmp_path):
+    config = make_config("invalid-uri", "duckdb:///:memory:")
+
+    with pytest.raises(
+        ValueError,
+        match=r"Database setting 'database\.pipeline_db' must be provided as an Ibis-compatible connection URI",
+    ):
+        PipelineFactory.create_database_backends(tmp_path, config)
+
+
+def test_create_database_backends_rejects_filesystem_paths(tmp_path):
+    # Windows path like C:/... is parsed as scheme='c'
+    config = make_config("C:/path/to/db", "duckdb:///:memory:")
+
+    with pytest.raises(
+        ValueError, match=r"Database setting 'database\.pipeline_db' looks like a filesystem path"
+    ):
+        PipelineFactory.create_database_backends(tmp_path, config)
+
+    # Unix paths have empty scheme
+    config = make_config("/path/to/db", "duckdb:///:memory:")
+    with pytest.raises(
+        ValueError,
+        match=r"Database setting 'database\.pipeline_db' must be provided as an Ibis-compatible connection URI",
+    ):
+        PipelineFactory.create_database_backends(tmp_path, config)
+
+
+def test_create_database_backends_memory_normalization(tmp_path):
+    config = make_config("duckdb:///:memory:", "duckdb:///:memory:")
+
+    runtime_uri, _, _ = PipelineFactory.create_database_backends(tmp_path, config)
+    assert runtime_uri == "duckdb://:memory:"
