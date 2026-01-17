@@ -47,15 +47,15 @@ class PipelineFactory:
     """Factory for creating pipeline resources and contexts."""
 
     @staticmethod
-    def create_context(run_params: PipelineRunParams) -> tuple[PipelineContext, any, any]:
+    def create_context(run_params: PipelineRunParams) -> tuple[PipelineContext, Any]:
         """Create pipeline context with all resources and configuration.
 
         Args:
             run_params: Aggregated pipeline run parameters
 
         Returns:
-            Tuple of (PipelineContext, pipeline_backend, runs_backend)
-            The backends are returned for cleanup by the context manager.
+            Tuple of (PipelineContext, pipeline_backend)
+            The backend is returned for cleanup by the context manager.
 
         """
         resolved_output = run_params.output_dir.expanduser().resolve()
@@ -63,7 +63,7 @@ class PipelineFactory:
         refresh_tiers = {r.strip().lower() for r in (run_params.refresh or "").split(",") if r.strip()}
         site_paths = PipelineFactory.resolve_site_paths_or_raise(resolved_output, run_params.config)
 
-        _runtime_db_uri, pipeline_backend, runs_backend = PipelineFactory.create_database_backends(
+        _runtime_db_uri, pipeline_backend = PipelineFactory.create_database_backends(
             site_paths.site_root, run_params.config
         )
 
@@ -129,14 +129,14 @@ class PipelineFactory:
         # Inject the already created adapter into the context
         ctx.state.output_sink = adapter
 
-        return ctx, pipeline_backend, runs_backend
+        return ctx, pipeline_backend
 
     @staticmethod
     def create_database_backends(
         site_root: Path,
         config: EgregoraConfig,
-    ) -> tuple[str, any, any]:
-        """Create database backends for pipeline and runs tracking.
+    ) -> tuple[str, Any]:
+        """Create database backends for pipeline.
 
         Uses Ibis for database abstraction, allowing future migration to
         other databases (Postgres, SQLite, etc.) via connection strings.
@@ -146,7 +146,7 @@ class PipelineFactory:
             config: Egregora configuration
 
         Returns:
-            Tuple of (runtime_db_uri, pipeline_backend, runs_backend).
+            Tuple of (runtime_db_uri, pipeline_backend).
 
         Notes:
             DuckDB file URIs with the pattern ``duckdb:///./relative/path.duckdb`` are
@@ -155,7 +155,7 @@ class PipelineFactory:
 
         """
 
-        def _validate_and_connect(value: str, setting_name: str) -> tuple[str, any]:
+        def _validate_and_connect(value: str, setting_name: str) -> tuple[str, Any]:
             if not value:
                 msg = f"Database setting '{setting_name}' must be a non-empty connection URI."
                 raise ValueError(msg)
@@ -204,9 +204,9 @@ class PipelineFactory:
         runtime_db_uri, pipeline_backend = _validate_and_connect(
             config.database.pipeline_db, "database.pipeline_db"
         )
-        _runs_db_uri, runs_backend = _validate_and_connect(config.database.runs_db, "database.runs_db")
+        # runs_db removed as part of Essentialist simplification
 
-        return runtime_db_uri, pipeline_backend, runs_backend
+        return runtime_db_uri, pipeline_backend
 
     @staticmethod
     def resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> MkDocsPaths:

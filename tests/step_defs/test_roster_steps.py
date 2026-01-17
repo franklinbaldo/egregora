@@ -1,9 +1,9 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
 from jules.cli.roster import app
 from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 # Load scenarios
 scenarios("../features/roster.feature")
