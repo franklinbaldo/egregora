@@ -33,7 +33,7 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 032,curator,6231079390084514924,2577,merged,
 033,docs_curator,6040162543645975641,2577,merged,
 034,essentialist,10664472810236572857,2579,merged,
-035,forge,,,,
+035,forge,5336925146669024498,2601,closed,
 036,janitor,,,,
 037,maintainer,,,,
 038,organizer,,,,
