@@ -25,7 +25,7 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 024,taskmaster,2737102702727540421,,,
 025,typeguard,18092242257388545136,2594,open,
 026,visionary,7886402048312556493,2595,closed,
-027,weaver,,,,
+027,weaver,,,closed,
 028,absolutist,,,,
 029,artisan,,,,
 030,bolt,,,,
