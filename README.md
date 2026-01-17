@@ -60,10 +60,9 @@ egregora write path/to/chat_export.zip --output-dir=.
 **3. Preview your site:**
 
 Use `uv tool run` to start a local server without installing the packages globally.
-This command uses the `mkdocs` dependency group defined in `pyproject.toml`.
 
 ```bash
-uv tool run --with ".[mkdocs]" mkdocs serve -f .egregora/mkdocs.yml
+uv tool run --with mkdocs-material --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml
 ```
 
 *Visit <http://localhost:8000> to read your new blog.*

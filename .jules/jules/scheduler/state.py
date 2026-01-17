@@ -33,7 +33,7 @@ class TrackState(BaseModel):
 
 class PersistentCycleState(BaseModel):
     """Persistent state for the cycle scheduler.
-    
+
     Supports both legacy single-cycle history and new multi-track state.
     """
 
@@ -78,7 +78,7 @@ class PersistentCycleState(BaseModel):
         try:
             with open(path) as f:
                 data = json.load(f)
-            
+
             # Handle legacy list history format
             if isinstance(data, dict) and isinstance(data.get("history"), list):
                 history_list = data.pop("history")
@@ -138,13 +138,13 @@ class PersistentCycleState(BaseModel):
             "created_at": timestamp,
             "track": track_name
         }
-        
+
         # Find the next sequential index
         if not self.history:
             next_idx = 0
         else:
             next_idx = max(int(k) for k in self.history.keys()) + 1
-        
+
         self.history[str(next_idx)] = entry
 
         # Update track specific state
@@ -185,7 +185,7 @@ def commit_cycle_state(state_path: Path, message: str = "chore: update cycle sta
 
         # Update ONLY the jules branch
         branch = JULES_BRANCH
-        
+
         # Get current file info for SHA
         file_info = client.get_file_contents(owner, repo, path, ref=branch)
         sha = file_info.get("sha") if file_info else None
