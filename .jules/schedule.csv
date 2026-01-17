@@ -69,7 +69,7 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 068,refactor,5417347654529605137,2618,merged,
 069,sapper,6351942415034846801,2588,merged,
 070,scribe,11150222486379697133,2609,merged,
-071,sentinel,,,,
+071,sentinel,3045451238904294001,2590,merged,
 072,shepherd,,,,
 073,sheriff,,,,
 074,simplifier,,,,
