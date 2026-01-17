@@ -478,7 +478,10 @@ def demo(
                 debug=False,
                 options=None,
             )
-        except AllModelsExhaustedError as e:
+        except (AllModelsExhaustedError, Exception, SystemExit) as e:
+            if isinstance(e, SystemExit) and e.code == 0:
+                raise  # Re-raise normal exit
+
             console.print(f"[bold yellow]⚠️  Content generation failed: {e}[/bold yellow]")
             console.print(
                 "[dim]The demo site scaffold has been created, but without AI-generated content.[/dim]"

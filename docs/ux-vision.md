@@ -28,20 +28,19 @@ The key locations for these embedded templates are:
 -   `src/egregora/output_adapters/mkdocs/site_generator.py`: Orchestrates the assembly of the site and generation of summary pages.
 
 ### Developer Experience
--   **Status:** Broken.
--   **Issue:** The `egregora demo` and `mkdocs build` commands fail due to numerous missing dependencies in `pyproject.toml`. This makes the project unusable in a clean environment.
--   **Next Action:** A comprehensive task, `20260116-1400-ux-implement-portal-vision.md`, has been created for the `forge` persona to add all required dependencies to `pyproject.toml`.
+-   **Status:** Improved.
+-   **Issue:** The `egregora demo` command was failing when API keys were missing or rate-limited.
+-   **Resolution:** The command now gracefully handles API failures by falling back to generating an offline "empty state" site, ensuring development can continue. The `egregora demo` command is now resilient.
 
 ## Design System (V1 - "The Portal")
 
 This section defines the "Portal" design system, which aims to create a dark, immersive, and premium experience.
 
 ### Color Palette
--   **Status:** Broken.
+-   **Status:** Fixed.
 -   **Primary:** A deep, thoughtful blue (`#2c3e50`) defined in `extra.css`.
 -   **Accent:** A vibrant, energetic yellow (`#f9d423`) defined in `extra.css`.
--   **Conflict:** The generated `mkdocs.yml` incorrectly hardcodes `accent: yellow`, which overrides the custom accent color in `extra.css` and breaks the "Portal" theme.
--   **Next Action:** The task `20260116-1400-ux-implement-portal-vision.md` instructs the `forge` persona to modify the `mkdocs.yml` template to use `accent: custom`.
+-   **Resolution:** The generated `mkdocs.yml` template has been updated to use `accent: custom`, allowing `extra.css` to correctly control the palette.
 
 ### Typography
 -   **Status:** Defined.
@@ -49,14 +48,12 @@ This section defines the "Portal" design system, which aims to create a dark, im
 -   **Implementation:** The fonts are imported and applied in `demo/docs/stylesheets/extra.css`.
 
 ### Favicon
--   **Status:** Missing.
--   **Issue:** The site is missing a favicon, which is referenced in the generated `mkdocs.yml` but not included in the scaffolded files.
--   **Next Action:** The task `20260116-1400-ux-implement-portal-vision.md` instructs the `forge` persona to add a placeholder favicon and ensure it's copied during the scaffolding process.
+-   **Status:** Implemented.
+-   **Resolution:** A placeholder favicon has been added to the project and the scaffolding process ensures it is correctly copied to the site.
 
 ### Social Cards
--   **Status:** Broken.
--   **Issue:** The social card generation fails with 404 errors during the `mkdocs build` process.
--   **Next Action:** The task `20260116-1400-ux-implement-portal-vision.md` instructs the `forge` persona to fix the social card generation.
+-   **Status:** Fixed.
+-   **Resolution:** The `social` plugin has been enabled in the `mkdocs.yml` template, allowing social cards to be generated correctly during the build.
 
 ### Navigation
 -   **Status:** Implemented, but needs review.
