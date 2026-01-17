@@ -59,10 +59,10 @@ class EmailPoller:
         # Look for the start of a new file diff in the personas mail directory
         # Format: +++ b/.jules/personas/<id>/mail/new/<filename>
         file_sep = re.compile(r"^\+\+\+ b/\.jules/personas/([^/]+)/mail/new/.*$", re.MULTILINE)
-        
+
         # Split patch into sections by file header
         sections = re.split(r"^(?=diff --git )", patch, flags=re.MULTILINE)
-        
+
         for section in sections:
             match = file_sep.search(section)
             if match:
@@ -73,11 +73,11 @@ class EmailPoller:
                 for line in section.splitlines():
                     if line.startswith("+") and not line.startswith("+++"):
                         lines.append(line[1:]) # Strip the leading +
-                
+
                 if lines:
                     email_content = "\n".join(lines)
                     results.append((recipient_id, email_content))
-        
+
         return results
 
     def _deliver_to_recipient(self, recipient_id: str, email_content: str):
@@ -93,15 +93,15 @@ class EmailPoller:
         # Find latest session where title contains recipient_id
         # We look for "IN_PROGRESS" sessions first
         recipient_sessions = [
-            s for s in sessions 
+            s for s in sessions
             if recipient_id.lower() in s.get("title", "").lower()
             and s.get("state") == "IN_PROGRESS"
         ]
-        
+
         if not recipient_sessions:
             # Fallback to any state if no in-progess session found?
             recipient_sessions = [
-                s for s in sessions 
+                s for s in sessions
                 if recipient_id.lower() in s.get("title", "").lower()
             ]
 

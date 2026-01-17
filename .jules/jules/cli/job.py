@@ -5,8 +5,8 @@ from jules.features.session import SessionManager
 app = typer.Typer(
     help="""
     JOB SIMULATION INTERFACE: Authenticate and track your work execution.
-    
-    This tool simulates a professional work environment. 
+
+    This tool simulates a professional work environment.
     You must LOGIN at the start of your session to receive your goals.
     You must write a JOURNAL entry before finishing your task.
     If you are STUCK, use loop-break.
