@@ -25,8 +25,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
-    from ibis.expr.types import Table
-
 # Well-known namespace for Egregora documents
 # Based on DNS namespace but specific to Egregora
 NAMESPACE_DOCUMENT = UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
@@ -400,26 +398,6 @@ class OutputSink(Protocol):
         Examples:
             >>> for meta in sink.list(DocumentType.POST):
             ...     print(f"Post: {meta.identifier}, Modified: {meta.metadata['mtime_ns']}")
-
-        """
-
-    def list_documents(self, doc_type: DocumentType | None = None) -> Table:
-        """Return all known documents as an Ibis table, optionally filtered by ``doc_type``.
-
-        Used by RAG indexing for incremental updates. Returns Ibis Table for
-        efficient querying and filtering.
-
-        Args:
-            doc_type: Optional filter by document type
-
-        Returns:
-            Ibis Table with columns:
-                - storage_identifier: string (format-specific identifier)
-                - mtime_ns: int64 (modification time in nanoseconds)
-
-        Note:
-            This method is kept for RAG compatibility. For general enumeration,
-            prefer the lighter-weight list() method.
 
         """
 
