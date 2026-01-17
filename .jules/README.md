@@ -1,457 +1,1611 @@
-# Jules Automation System
+# 🤖 Jules Automation System
 
-This directory contains the Jules automation infrastructure for Egregora, including AI agent personas, scheduler configuration, and sprint planning.
+> Autonomous AI agents working together to maintain, improve, and evolve the Egregora codebase
+
+## 📖 Table of Contents
+
+- [Overview](#-overview)
+- [Quick Start](#-quick-start)
+- [Directory Structure](#-directory-structure)
+- [Personas](#-personas)
+- [Scheduler Modes](#-scheduler-modes)
+- [Sprint System](#-sprint-system)
+- [Configuration](#-configuration)
+- [Usage Guide](#-usage-guide)
+- [Persona Development](#-persona-development)
+- [Architecture](#-architecture)
+- [Troubleshooting](#-troubleshooting)
+- [Resources](#-resources)
+
+---
+
+## 🎯 Overview
+
+The Jules automation system is a **multi-agent AI workforce** that maintains and improves the Egregora codebase autonomously. Each agent (persona) has a specialized role and works independently or collaboratively through a sophisticated scheduler.
+
+### Key Features
+
+- **28+ Specialized Personas** - Each with unique expertise (security, performance, UX, etc.)
+- **Autonomous Operation** - Agents create PRs, review code, and coordinate work
+- **Sprint-Based Planning** - Personas plan ahead and provide feedback to each other
+- **Multiple Execution Modes** - Parallel cycles, scheduled runs, and on-demand execution
+- **Mail System** - Async communication between personas for conflict resolution
+- **Journal System** - Each persona maintains work logs for continuity
+
+### How It Works
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  GitHub Actions (Every 15 min)                              │
+│  ↓                                                           │
+│  Scheduler Tick                                             │
+│  ↓                                                           │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
+│  │ Curator  │→ │ Refactor │→ │ Visionary│→ │   Bolt   │   │
+│  │    🎭    │  │    🔧    │  │    🔮    │  │    ⚡    │   │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘   │
+│       │             │             │             │           │
+│      PR #1         PR #2         PR #3         PR #4        │
+│       │             │             │             │           │
+│       ↓             ↓             ↓             ↓           │
+│  ┌────────────────────────────────────────────────────┐    │
+│  │         Auto-merge when CI passes                  │    │
+│  └────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+```bash
+# Required environment variables
+export JULES_API_KEY="your-jules-api-key"
+export GITHUB_TOKEN="your-github-token"
+export PYTHONPATH=".jules"  # For local development
+```
+
+### Run a Single Persona
+
+```bash
+# Run the curator persona
+uv run jules schedule tick --prompt-id curator
+
+# Dry run (see what would happen)
+uv run jules schedule tick --prompt-id curator --dry-run
+```
+
+### Run the Parallel Cycle
+
+```bash
+# Execute one tick of the parallel cycle
+uv run jules schedule tick
+
+# Run all personas (ignore schedules)
+uv run jules schedule tick --all
+```
+
+### Check Persona Mailbox
+
+```bash
+# View inbox
+uv run mail inbox --persona curator@team
+
+# Send a message
+uv run mail send --to curator@team --subject "Fix needed" --body "..."
+```
+
+---
 
 ## 📁 Directory Structure
 
 ```
 .jules/
-├── jules/              # Scheduler implementation
-│   ├── cli/            # Typer CLIs (main, mail, job, my-tools)
-│   ├── core/           # API clients + shared exceptions
-│   ├── features/       # Autofix, feedback, mail, polling, sessions, sprints
-│   ├── scheduler/      # Engine, legacy compatibility, managers, state
-│   ├── templates/      # Prompt templates, blocks, partials
-│   └── resources/      # Placeholder for scheduler resources (currently empty)
+├── jules/                      # Scheduler implementation
+│   ├── cli/                    # CLI tools (main, mail, my-tools)
+│   │   ├── main.py            # Primary CLI entry point
+│   │   ├── mail.py            # Mail system CLI
+│   │   └── my_tools.py        # Session + mail toolkit
+│   ├── core/                   # Core API clients
+│   │   ├── client.py          # Jules API client
+│   │   ├── github.py          # GitHub API wrapper
+│   │   └── exceptions.py      # Shared exceptions
+│   ├── features/               # Feature modules
+│   │   ├── autofix/           # Auto-fix failed PRs
+│   │   ├── feedback/          # Feedback loop system
+│   │   ├── mail/              # Mail backend (Maildir)
+│   │   ├── polling/           # Session polling
+│   │   ├── sessions/          # Session management
+│   │   └── sprints/           # Sprint planning
+│   ├── scheduler/              # Scheduler engine
+│   │   ├── engine.py          # Main scheduler logic
+│   │   ├── loader.py          # Persona loading
+│   │   ├── managers.py        # Branch, PR, State managers
+│   │   ├── models.py          # Data models
+│   │   └── state.py           # Persistent state
+│   └── templates/              # Jinja2 templates
+│       ├── base/              # Base templates
+│       ├── blocks/            # Reusable blocks
+│       └── partials/          # Partial templates
 │
-├── personas/           # AI agent persona definitions
-│   ├── curator/        # 🎭 UX/UI evaluation
-│   ├── refactor/       # 🔧 Code quality
-│   ├── visionary/      # 🔮 Strategic moonshots
-│   ├── bolt/           # ⚡ Performance optimization
-│   ├── sentinel/       # 🛡️ Security audits
-│   ├── builder/        # 🏗️ Data architecture
-│   ├── shepherd/       # 🧑‍🌾 Test coverage
-│   ├── janitor/        # 🧹 Code hygiene
-│   ├── docs_curator/   # 📚 Documentation gardening
-│   ├── artisan/        # 🔨 Code craftsmanship
-│   ├── palette/        # 🎨 Design system
-│   ├── scribe/         # ✍️ Technical writing
-│   ├── forge/          # ⚒️ Feature implementation
-│   ├── sheriff/        # 🤠 Test stability
-│   ├── streamliner/    # 🌊 Data processing optimization
-│   ├── weaver/         # 🕸️ Integration & builds
-│   ├── simplifier/     # 📉 Complexity reduction
-│   ├── organizer/      # 🗂️ Project organization
-│   ├── taskmaster/     # 📋 Task identification
-│   ├── essentialist/   # 💎 Pragmatic cuts
-│   ├── sapper/         # 💣 Exception structuring
-│   ├── maintainer/     # 🧭 Sprint planning & PM
-│   └── pruner/         # 🪓 Dead code elimination
+├── personas/                   # AI agent definitions (28 personas)
+│   ├── absolutist/            # 🎯 Strict rule enforcement
+│   ├── artisan/               # 🔨 Code craftsmanship
+│   ├── bdd_specialist/        # 🧪 BDD testing expert
+│   ├── bolt/                  # ⚡ Performance optimization
+│   ├── builder/               # 🏗️ Data architecture
+│   ├── curator/               # 🎭 UX/UI evaluation
+│   ├── docs_curator/          # 📚 Documentation gardening
+│   ├── essentialist/          # 💎 Pragmatic cuts
+│   ├── forge/                 # ⚒️ Feature implementation
+│   ├── janitor/               # 🧹 Code hygiene
+│   ├── maintainer/            # 🧭 Sprint planning & PM
+│   ├── oracle/                # 🔮 Predictive analysis
+│   ├── organizer/             # 🗂️ Project organization
+│   ├── palette/               # 🎨 Design system
+│   ├── pruner/                # 🪓 Dead code elimination
+│   ├── refactor/              # 🔧 Code quality
+│   ├── sapper/                # 💣 Exception structuring
+│   ├── scribe/                # ✍️ Technical writing
+│   ├── sentinel/              # 🛡️ Security audits
+│   ├── shepherd/              # 🧑‍🌾 Test coverage
+│   ├── sheriff/               # 🤠 Test stability
+│   ├── simplifier/            # 📉 Complexity reduction
+│   ├── steward/               # 🌳 Long-term maintenance
+│   ├── streamliner/           # 🌊 Data optimization
+│   ├── taskmaster/            # 📋 Task identification
+│   ├── typeguard/             # 🔍 Type safety
+│   └── visionary/             # 🔮 Strategic moonshots
 │
-├── mail/               # Local mail storage (Maildir backend)
-├── state/              # Local reconciliation state
+├── mail/                       # Mail system storage
+│   └── events.jsonl           # Mail event log
 │
-├── sprints/            # Sprint planning and tracking
-│   ├── current.txt     # Current sprint number
-│   ├── sprint-1/       # Sprint 1 plans and feedback
-│   ├── sprint-2/       # Sprint 2 plans and feedback
+├── state/                      # Scheduler state
+│   ├── cycle_state.json       # Current cycle position
+│   └── reconciliation/        # PR reconciliation data
+│
+├── sprints/                    # Sprint planning
+│   ├── current.txt            # Current sprint number
+│   ├── sprint-1/              # Sprint 1 plans
+│   ├── sprint-2/              # Sprint 2 plans
 │   └── ...
 │
-├── schedules.toml      # Scheduler configuration
-└── README.md           # This file
+├── schedules.toml             # Scheduler configuration
+├── README.md                  # This file
+├── PARALLEL_PERSONAS_*.md     # Parallel execution docs
+└── SESSION_ID_PATTERNS.md     # Session ID extraction logic
 ```
 
 ---
 
 ## 🤖 Personas
 
-Each persona is an AI agent with a specific role and expertise. Personas work autonomously, creating PRs and maintaining journal entries of their work.
+### What is a Persona?
+
+A **persona** is an autonomous AI agent with:
+- **Specialized expertise** (security, performance, UX, etc.)
+- **Clear responsibilities** defined in `prompt.md.j2`
+- **Work journal** documenting past actions
+- **Sprint planning** capability for coordination
+- **Mailbox** for async communication
 
 ### Persona Structure
 
-Each persona has:
-- **`prompt.md`**: Persona definition with frontmatter
-- **`journals/`**: Work logs (auto-created)
+Each persona directory contains:
 
-#### Persona Frontmatter
+```
+personas/curator/
+├── prompt.md.j2           # Persona definition (Jinja2 template)
+└── journals/              # Work logs
+    ├── archive.md         # Archived journal entries
+    ├── 2024-07-26-1400-Initial-Curation-Cycle.md
+    └── 2026-01-04-initial-ux-audit.md
+```
+
+#### Prompt Template Format
 
 ```yaml
 ---
 id: curator              # Unique identifier
 emoji: 🎭                # Visual identifier
-description: "..."       # Role summary
+description: "Opinionated UX/UI designer..."
+hired_by: franklin       # Who created this persona
 ---
+
+{% extends "base/persona.md.j2" %}
+
+{% block role %}
+Opinionated UX/UI designer who evaluates generated blogs.
+{% endblock %}
+
+{% block goal %}
+Evaluate generated blogs and create data-driven UX improvements.
+{% endblock %}
+
+{% block context %}
+- Reference: docs/ux-vision.md
+- Edit templates in src/egregora/output_adapters/mkdocs/
+- NEVER edit demo/ directly (generated output)
+{% endblock %}
+
+{% block constraints %}
+- 100% autonomous (no human placeholders)
+- Every feature must be data-driven
+{% endblock %}
+
+{% block guardrails %}
+✅ Always:
+- Create tasks with BDD acceptance criteria
+- Document discoveries in ux-vision.md
+
+🚫 Never:
+- Propose features requiring human input
+- Write code yourself (create tasks instead)
+{% endblock %}
 ```
 
-**Note**: Operational settings (branch, title, automation_mode) are controlled by the scheduler, not persona configs.
+### Complete Persona List
 
-### Active Personas
-
-| Emoji | Name | Role | Focus |
+| Emoji | Name | Role | Focus Area |
 | :---: | :--- | :--- | :--- |
-| 🎭 | **Curator** | UX Designer | Blog evaluation, user experience |
-| 🔧 | **Refactor** | Developer | Linting, TDD-based fixes |
-| 🔮 | **Visionary** | Strategist | Moonshots, RFCs, innovation |
+| 🎯 | **Absolutist** | Rule Enforcer | Strict standards enforcement |
+| 🔨 | **Artisan** | Craftsman | Code quality and refactoring |
+| 🧪 | **BDD Specialist** | Test Expert | Behavior-driven testing |
 | ⚡ | **Bolt** | Perf. Engineer | Performance optimization |
-| 🛡️ | **Sentinel** | Security | Vulnerability scanning |
-| 🏗️ | **Builder** | Architect | Data architecture, schema design |
-| 🧑‍🌾 | **Shepherd** | Test Engineer | Test coverage expansion |
-| 🧹 | **Janitor** | Hygienist | Code cleanup, technical debt |
+| 🏗️ | **Builder** | Architect | Data architecture, schemas |
+| 🎭 | **Curator** | UX Designer | User experience, blog evaluation |
 | 📚 | **Docs Curator** | Librarian | Documentation accuracy |
-| 🔨 | **Artisan** | Craftsman | Code quality, refactoring |
-| 🎨 | **Palette** | Design Sys | Accessibility, UI consistency |
-| ✍️ | **Scribe** | Writer | Technical writing, content |
-| ⚒️ | **Forge** | Builder | Feature implementation |
-| 🤠 | **Sheriff** | Build Cop | Test stability, flake fixes |
-| 🌊 | **Streamliner** | Optimizer | Data processing efficiency |
-| 🕸️ | **Weaver** | Integrator | PR merging, integration builds |
-| 📉 | **Simplifier** | Reducer | Complexity reduction |
-| 🗂️ | **Organizer** | Maintainer | Project structure |
-| 📋 | **Taskmaster** | Coordinator | Task identification |
 | 💎 | **Essentialist** | Pragmatist | Strategic cuts, focus |
-| 💣 | **Sapper** | Structurer | Exception handling patterns |
+| ⚒️ | **Forge** | Builder | Feature implementation |
+| 🧹 | **Janitor** | Hygienist | Code cleanup, technical debt |
 | 🧭 | **Maintainer** | PM | Sprint planning, coordination |
+| 🔮 | **Oracle** | Predictor | Predictive analysis |
+| 🗂️ | **Organizer** | Maintainer | Project structure |
+| 🎨 | **Palette** | Design Sys | UI consistency, accessibility |
 | 🪓 | **Pruner** | Eliminator | Dead code removal |
+| 🔧 | **Refactor** | Developer | Linting, TDD-based fixes |
+| 💣 | **Sapper** | Structurer | Exception handling patterns |
+| ✍️ | **Scribe** | Writer | Technical writing |
+| 🛡️ | **Sentinel** | Security | Vulnerability scanning |
+| 🧑‍🌾 | **Shepherd** | Test Engineer | Test coverage expansion |
+| 🤠 | **Sheriff** | Build Cop | Test stability, flake fixes |
+| 📉 | **Simplifier** | Reducer | Complexity reduction |
+| 🌳 | **Steward** | Maintainer | Long-term maintenance |
+| 🌊 | **Streamliner** | Optimizer | Data processing efficiency |
+| 📋 | **Taskmaster** | Coordinator | Task identification |
+| 🔍 | **Typeguard** | Type Checker | Type safety enforcement |
+| 🔮 | **Visionary** | Strategist | Moonshots, RFCs, innovation |
+| 🕸️ | **Weaver** | Integrator | PR merging, integration |
+
+### Persona Capabilities
+
+Each persona can:
+
+1. **📖 Read Context**
+   - Project documentation (`CLAUDE.md`, `README.md`)
+   - Other personas' journals
+   - Sprint plans and feedback
+   - Current codebase state
+
+2. **📝 Create Work**
+   - Pull requests with atomic changes
+   - Journal entries documenting decisions
+   - Sprint plans for future work
+   - Feedback on other personas' plans
+
+3. **💬 Communicate**
+   - Send/receive mail messages
+   - Coordinate with other personas
+   - Respond to conflict reports
+
+4. **🧪 Verify**
+   - Run tests before committing
+   - Check CI status
+   - Validate changes match goals
 
 ---
 
-## ⚙️ Scheduler
+## ⚙️ Scheduler Modes
 
-The scheduler orchestrates persona execution in two modes: **Parallel Cycle** and **Scheduled**.
+The scheduler supports two execution modes: **Parallel Cycle** and **Scheduled**.
 
-### Parallel Cycle Mode
+### 1. Parallel Cycle Mode
 
-Sequential execution per track, running multiple tracks in one tick:
+**Sequential execution within tracks, parallel across tracks**
 
 ```
-curator → refactor → visionary → bolt → sentinel → ...
-   ↓         ↓          ↓         ↓        ↓
-  PR1  →   PR2   →    PR3   →   PR4  →   PR5
-  merge    merge      merge     merge    merge
+Track 1:  curator → refactor → visionary → bolt
+            ↓         ↓          ↓         ↓
+          PR #1     PR #2      PR #3     PR #4
+
+Track 2:  sentinel → builder → shepherd
+            ↓          ↓         ↓
+          PR #5      PR #6     PR #7
 ```
 
 **How it works:**
-1. Scheduler loads tracks from `schedules.toml` (or uses `cycle` as a default track).
-2. Each track runs personas sequentially; a track waits for the previous session to finish.
-3. Branching targets `jules` via `BranchManager`.
-4. Persistent state lives in `.jules/cycle_state.json` (multi-track).
-5. Reconciliation/merges are handled by `PRManager` after sessions complete.
+
+1. Scheduler loads tracks from `schedules.toml`
+2. Each track runs personas sequentially
+3. A persona waits for the previous session to finish
+4. PRs target the `jules` branch
+5. State persists in `.jules/state/cycle_state.json`
+6. Auto-merge happens when CI passes
 
 **Benefits:**
-- Sequential ensures no conflicts
-- Each persona builds on previous work
-- Sprint-based organization
+- ✅ No merge conflicts (sequential within track)
+- ✅ Each persona builds on previous work
+- ✅ Sprint-based organization
+- ✅ Predictable execution order
 
-### Scheduled Mode
+**Configuration:**
 
-Cron-based independent execution:
+```toml
+# schedules.toml
+[tracks]
+default = [
+    "personas/curator/prompt.md.j2",
+    "personas/refactor/prompt.md.j2",
+    "personas/visionary/prompt.md.j2",
+]
+
+ops = [
+    "personas/sentinel/prompt.md.j2",
+    "personas/sheriff/prompt.md.j2",
+]
+```
+
+### 2. Scheduled Mode
+
+**Independent cron-based execution**
 
 ```toml
 # schedules.toml
 [schedules]
 simplifier = "0 */2 * * *"    # Every 2 hours
 organizer = "0 * * * *"        # Hourly
-curator = "0 0 * * *"          # Daily at midnight
+curator = "0 0 * * *"          # Daily at midnight UTC
 ```
 
 **How it works:**
-1. Scheduler checks current time
+
+1. Scheduler checks current time every tick
 2. Runs any persona matching its cron schedule
-3. Creates PRs targeting `main`
-4. Personas run independently (no inter-PR merging)
+3. Creates PRs targeting `main` directly
+4. Personas run independently (no coordination)
+
+**Cron Format:**
+```
+┌───────────── minute (0 - 59)
+│ ┌───────────── hour (0 - 23)
+│ │ ┌───────────── day of month (1 - 31)
+│ │ │ ┌───────────── month (1 - 12)
+│ │ │ │ ┌───────────── day of week (0 - 6) (Sunday to Saturday)
+│ │ │ │ │
+* * * * *
+```
+
+**Common Examples:**
+- `0 * * * *` - Every hour
+- `*/15 * * * *` - Every 15 minutes
+- `0 0 * * *` - Daily at midnight
+- `0 0 * * 1` - Every Monday at midnight
+- `0 9-17 * * 1-5` - Weekdays 9 AM - 5 PM
+
+**Benefits:**
+- ✅ Run personas at optimal times
+- ✅ Independent operation
+- ✅ Predictable resource usage
 
 ---
 
 ## 📅 Sprint System
 
-Sprints organize work into cycles, providing context and continuity.
+Sprints organize work into cycles, providing context and continuity across personas.
 
-### Structure
+### Sprint Structure
 
 ```
 .jules/sprints/
-├── current.txt           # Current sprint number
-├── sprint-1/
-│   ├── curator-plan.md      # Curator's plan for sprint 1
-│   ├── refactor-feedback.md # Refactor's feedback on plans
+├── current.txt              # Contains: "42"
+├── sprint-41/
+│   ├── curator-plan.md      # Curator's plan for sprint 41
+│   ├── refactor-plan.md     # Refactor's plan for sprint 41
+│   └── visionary-feedback.md # Visionary's feedback on others' plans
+├── sprint-42/               # Current sprint
+│   ├── curator-plan.md
+│   ├── refactor-plan.md
+│   ├── sentinel-plan.md
 │   └── ...
-├── sprint-2/
-│   └── ...
+└── sprint-43/               # Next sprint (planning ahead)
+    ├── curator-plan.md
+    └── ...
 ```
 
 ### Sprint Flow
 
-1. **Persona reads plans**: Each persona reads other personas' plans for upcoming sprints
-2. **Persona provides feedback**: Creates `{persona}-feedback.md` files
-3. **Persona creates plans**: Writes `{persona}-plan.md` for next 2 sprints
-4. **Sprint increments**: When cycle completes, sprint number increments
+```
+┌─────────────────────────────────────────────────────────┐
+│  Sprint N-1 (Past)                                      │
+│  └─ Completed work, archived journals                  │
+└─────────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────────┐
+│  Sprint N (Current)                                     │
+│  ├─ Active work                                         │
+│  ├─ Personas execute their plans                       │
+│  └─ Create PRs and journal entries                     │
+└─────────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────────┐
+│  Sprint N+1 (Next)                                      │
+│  ├─ Personas write plans                               │
+│  ├─ Personas review others' plans                      │
+│  └─ Personas provide feedback                          │
+└─────────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────────┐
+│  Sprint N+2 (Future)                                    │
+│  └─ Early planning and coordination                    │
+└─────────────────────────────────────────────────────────┘
+```
 
 ### Sprint Context in Prompts
 
-Every persona receives sprint context:
-- Current sprint number
-- Plans for next 2 sprints
-- Feedback from other personas
-- Templates for planning
+Every persona receives:
+
+```jinja
+## 📅 Sprint Context
+
+**Current Sprint:** {{ current_sprint }}
+**Your Plan:** See sprints/sprint-{{ current_sprint }}/{{ id }}-plan.md
+**Others' Plans:** See sprints/sprint-{{ current_sprint }}/*-plan.md
+**Feedback:** See sprints/sprint-{{ current_sprint }}/*-feedback.md
+
+### Your Responsibilities
+
+1. **Execute** your plan for sprint {{ current_sprint }}
+2. **Plan** your work for sprint {{ current_sprint + 1 }}
+3. **Review** other personas' plans and provide feedback
+4. **Coordinate** with personas working on related areas
+```
+
+### Plan Template
+
+```markdown
+# Sprint {{ sprint_number }} Plan - {{ persona_name }}
+
+## Goals
+- [ ] Goal 1: Brief description
+- [ ] Goal 2: Brief description
+- [ ] Goal 3: Brief description
+
+## Context
+Why these goals matter...
+
+## Dependencies
+- Depends on Refactor completing X
+- Blocks Palette from starting Y
+
+## Success Criteria
+- Specific, measurable outcomes
+- Test coverage targets
+- Performance benchmarks
+
+## Risks
+- Potential blockers
+- Mitigation strategies
+```
 
 ---
 
 ## 🔧 Configuration
 
-### schedules.toml
-
-```toml
-# Parallel cycle mode: Tracks run sequentially per track
-[tracks]
-default = ["personas/curator/prompt.md", "personas/refactor/prompt.md"]
-ops = ["personas/sentinel/prompt.md.j2"]
-
-# Scheduled mode: Cron schedules
-[schedules]
-simplifier = "0 */2 * * *"   # Every 2 hours
-organizer = "0 * * * *"       # Hourly
-curator = "0 0 * * *"         # Daily at midnight UTC
-```
-
-**Cron format:** `minute hour day month dayofweek`
-
 ### Environment Variables
 
 ```bash
-# Required
+# ===== Required =====
 export JULES_API_KEY="your-jules-api-key"
-
-# Optional
-export JULES_BASE_URL="https://jules.googleapis.com/v1alpha"
 export GITHUB_TOKEN="your-github-token"
-export GH_TOKEN="your-github-token"
+
+# ===== Optional =====
+export JULES_BASE_URL="https://jules.googleapis.com/v1alpha"
+export GH_TOKEN="your-github-token"  # Alias for GITHUB_TOKEN
+
+# Mail backend (local or S3)
 export JULES_MAIL_STORAGE="local"  # or "s3"
 export JULES_MAIL_BUCKET="jules-mail"
 export AWS_S3_ENDPOINT_URL="https://s3.your-provider.example"
+
+# Persona identity (for session toolkit)
 export JULES_PERSONA="weaver@team"
-export PYTHONPATH=".jules"  # For running locally
+
+# Local development
+export PYTHONPATH=".jules"
+```
+
+### schedules.toml
+
+Complete configuration example:
+
+```toml
+# ===== Parallel Cycle Mode =====
+[tracks]
+
+# Main development track
+default = [
+    "personas/curator/prompt.md.j2",
+    "personas/refactor/prompt.md.j2",
+    "personas/visionary/prompt.md.j2",
+    "personas/bolt/prompt.md.j2",
+    "personas/sentinel/prompt.md.j2",
+    "personas/builder/prompt.md.j2",
+    "personas/shepherd/prompt.md.j2",
+]
+
+# Operations track (runs in parallel with default)
+ops = [
+    "personas/janitor/prompt.md.j2",
+    "personas/sheriff/prompt.md.j2",
+]
+
+# Documentation track
+docs = [
+    "personas/scribe/prompt.md.j2",
+    "personas/docs_curator/prompt.md.j2",
+]
+
+# ===== Scheduled Mode =====
+[schedules]
+
+# Hourly maintenance
+organizer = "0 * * * *"
+pruner = "30 * * * *"
+
+# Every 2 hours
+simplifier = "0 */2 * * *"
+streamliner = "15 */2 * * *"
+
+# Daily at midnight UTC
+palette = "0 0 * * *"
+essentialist = "0 1 * * *"
+
+# Weekdays only
+taskmaster = "0 9 * * 1-5"  # 9 AM Mon-Fri
 ```
 
 ---
 
-## 🚀 Usage
+## 📚 Usage Guide
 
-### Running the Scheduler
+### Command Line Interface
+
+#### Scheduler Commands
 
 ```bash
-# Parallel cycle mode (from CI or locally)
+# ===== Parallel Cycle =====
+
+# Execute one tick (recommended for CI)
 uv run jules schedule tick
 
-# Run specific persona
+# Run specific persona only
 uv run jules schedule tick --prompt-id curator
 
 # Run all personas (ignore schedules)
 uv run jules schedule tick --all
 
-# Dry run (print without executing)
+# Dry run (show what would execute)
 uv run jules schedule tick --dry-run
-```
 
-### Other CLI Commands
+# Force specific mode
+uv run jules schedule tick --mode cycle    # Parallel cycle
+uv run jules schedule tick --mode scheduled  # Cron-based
 
-```bash
-# Auto-fix PRs
+# ===== Auto-Fix =====
+
+# Analyze a specific PR for auto-fix
 uv run jules autofix analyze 1234
 
-# Feedback loop
+# Run auto-fix for all failed PRs
+uv run jules autofix run
+
+# ===== Feedback Loop =====
+
+# Check for persona feedback needs
+uv run jules feedback loop
+
+# Dry run (no API calls)
 uv run jules feedback loop --dry-run
 
-# Sync jules -> main directly (no PR)
+# ===== Branch Sync =====
+
+# Sync jules -> main (no PR, direct merge)
 uv run jules sync merge-main
 
-# Mail CLI (local or S3 backend)
-uv run mail inbox --persona curator@team
-uv run mail send --to curator@team --subject "Status" --body "Done."
+# Rotate drifted jules branch
+uv run jules sync rotate-branch
+```
 
-# Session + mail toolkit
-uv run my-tools login --user weaver@team --password "<uuidv5>" --goals "Fix CI"
+#### Mail Commands
+
+```bash
+# ===== Inbox Management =====
+
+# View inbox for a persona
+uv run mail inbox --persona curator@team
+
+# View unread only
+uv run mail inbox --persona curator@team --unread
+
+# ===== Sending Messages =====
+
+# Send a message
+uv run mail send \
+  --to curator@team \
+  --subject "Conflict in PR #123" \
+  --body "Your PR conflicts with refactor's work. Please rebase."
+
+# Send with attachment
+uv run mail send \
+  --to curator@team \
+  --subject "Review needed" \
+  --body "See attached patch" \
+  --attachment /tmp/fix.patch
+
+# ===== Reading Messages =====
+
+# Read specific message
+uv run mail read <message-id> --persona curator@team
+
+# Mark message as read
+uv run mail mark-read <message-id> --persona curator@team
+```
+
+#### Session Toolkit (my-tools)
+
+```bash
+# ===== Authentication =====
+
+# Login as persona
+uv run my-tools login \
+  --user weaver@team \
+  --password "<uuidv5>" \
+  --goals "Fix failing CI"
+
+# ===== Email =====
+
+# Check inbox
 uv run my-tools email inbox --persona weaver@team
-uv run my-tools journal --content "..." --password "<uuidv5>"
+
+# Send email
+uv run my-tools email send \
+  --to curator@team \
+  --subject "Status Update" \
+  --body "Fixed the issue"
+
+# ===== Journal =====
+
+# Write journal entry
+uv run my-tools journal \
+  --content "Fixed CI by updating test fixtures" \
+  --password "<uuidv5>"
 ```
 
 ### CI Integration
 
-The scheduler runs automatically via GitHub Actions:
+#### GitHub Actions Workflow
 
-- **Every 15 minutes**: Checks schedules and runs cycle tick
-- **On CI success**: For `jules-sched-*` branches, triggers next cycle step
+The scheduler runs automatically via `.github/workflows/jules_scheduler.yml`:
 
-See `.github/workflows/jules_scheduler.yml`
+```yaml
+name: Jules Scheduler
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'  # Every 15 minutes
+  workflow_dispatch:  # Manual trigger
+
+  # Auto-trigger on CI success for jules-sched-* branches
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches:
+      - 'jules-sched-*'
+
+jobs:
+  schedule:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync
+
+      - name: Run scheduler tick
+        env:
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: .jules
+        run: |
+          uv run jules schedule tick
+```
+
+#### Monitoring
+
+Check scheduler status:
+
+```bash
+# View recent workflow runs
+gh run list --workflow=jules_scheduler.yml --limit 10
+
+# View specific run
+gh run view <run-id>
+
+# View logs
+gh run view <run-id> --log
+```
+
+### Local Development
+
+#### Testing Personas Locally
+
+```bash
+# 1. Set up environment
+export JULES_API_KEY="your-key"
+export GITHUB_TOKEN="your-token"
+export PYTHONPATH=".jules"
+
+# 2. Test persona loading
+python3 << 'PYTHON_EOF'
+from jules.scheduler.loader import PersonaLoader
+from pathlib import Path
+
+loader = PersonaLoader(Path('.jules/personas'), {})
+personas = loader.load_personas(['personas/curator/prompt.md.j2'])
+
+print(f"Loaded: {personas[0].id} {personas[0].emoji}")
+print(f"Description: {personas[0].description}")
+PYTHON_EOF
+
+# 3. Dry run scheduler
+uv run jules schedule tick --dry-run
+
+# 4. Run specific persona
+uv run jules schedule tick --prompt-id curator
+```
+
+#### Debugging
+
+```bash
+# Enable verbose logging
+export JULES_LOG_LEVEL=DEBUG
+uv run jules schedule tick
+
+# Test mail backend
+python3 << 'PYTHON_EOF'
+from jules.features.mail.backend import send_message, get_inbox
+
+# Send test message
+send_message(
+    from_persona="test@team",
+    to_persona="curator@team",
+    subject="Test",
+    body="Hello!"
+)
+
+# Read inbox
+messages = get_inbox("curator@team", unread_only=True)
+print(f"Unread: {len(messages)}")
+PYTHON_EOF
+```
 
 ---
 
-## 📝 Persona Development
+## 🛠️ Persona Development
 
 ### Creating a New Persona
 
-1. **Create directory:**
-   ```bash
-   mkdir -p .jules/personas/my_persona/journals
-   ```
+**Step 1: Create Directory Structure**
 
-2. **Create `prompt.md.j2`:**
-   ```jinja
-   ---
-   id: my_persona
-   emoji: 🎯
-   description: "You are My Persona - a specialist in X"
-   ---
+```bash
+mkdir -p .jules/personas/my_persona/journals
+touch .jules/personas/my_persona/prompt.md.j2
+```
 
-   {% extends "base/persona.md.j2" %}
+**Step 2: Write Persona Definition**
 
-   {% block content %}
-   ## Your Mission
+```jinja
+---
+id: my_persona
+emoji: 🎯
+description: "Brief description of persona role"
+hired_by: your_name
+---
 
-   [Detailed instructions...]
-   {% endblock %}
-   ```
+{% extends "base/persona.md.j2" %}
 
-3. **Add to cycle or schedule:**
-   ```toml
-   # schedules.toml
-   [tracks]
-   default = [
-       # ... existing personas
-       "personas/my_persona/prompt.md.j2",
-   ]
+{% block role %}
+Your clear, concise role description.
+{% endblock %}
 
-   # OR
-   [schedules]
-   my_persona = "0 6 * * *"  # Daily at 6 AM UTC
-   ```
+{% block goal %}
+What this persona aims to achieve.
+{% endblock %}
+
+{% block context %}
+**Key Resources:**
+- Reference documentation
+- Related code locations
+- Important patterns to follow
+
+**Coordination:**
+- Works with: Other relevant personas
+- Depends on: Prerequisites
+- Blocks: What depends on this persona
+{% endblock %}
+
+{% block constraints %}
+- Constraint 1
+- Constraint 2
+- Constraint 3
+{% endblock %}
+
+{% block guardrails %}
+**✅ Always:**
+- Do this
+- Do that
+- Check this
+
+**🚫 Never:**
+- Don't do this
+- Don't do that
+- Avoid this
+{% endblock %}
+
+{% block output %}
+{% include "blocks/pr_format.md.j2" %}
+{% endblock %}
+
+{% block verification %}
+- [ ] Tests pass
+- [ ] Linting passes
+- [ ] Documentation updated
+{% endblock %}
+```
+
+**Step 3: Add to Schedule**
+
+```toml
+# schedules.toml
+
+# Option A: Add to cycle track
+[tracks]
+default = [
+    # ... existing personas
+    "personas/my_persona/prompt.md.j2",
+]
+
+# Option B: Add cron schedule
+[schedules]
+my_persona = "0 6 * * *"  # Daily at 6 AM
+```
+
+**Step 4: Test Locally**
+
+```bash
+# Dry run
+uv run jules schedule tick --prompt-id my_persona --dry-run
+
+# Actual run
+uv run jules schedule tick --prompt-id my_persona
+```
 
 ### Persona Best Practices
 
-1. **Be specific**: Clear, actionable instructions
-2. **Use journals**: Reference past work to avoid duplication
-3. **Coordinate**: Read other personas' plans
-4. **Celebrate**: If nothing to do, say so (not a failure!)
-5. **Document**: Update journals after each session
+#### 1. Clear, Specific Instructions
 
-### Variable Injection
+```markdown
+❌ Bad:
+"Improve the code quality"
 
-The scheduler injects these variables into prompts:
+✅ Good:
+"Identify functions with cyclomatic complexity >10 and refactor them into
+smaller, testable units. Focus on src/egregora/agents/ first."
+```
 
-- `{{ id }}`: Persona identifier
-- `{{ emoji }}`: The agent's brand emoji
-- `{{ description }}`: Persona description from frontmatter
-- `{{ journal_entries }}`: Aggregated content from `journals/*.md`
-- `{{ password }}`: UUIDv5 derived from persona id (session auth)
-- `{{ sprint_context_text }}`: Rendered sprint context
+#### 2. Use Journal Context
 
-Templates can also include shared blocks and partials via:
+```jinja
+{% block context %}
+**Previous Work:**
+{{ journal_entries }}
 
-- `base/persona.md.j2`
-- `blocks/*.md.j2`
-- `partials/*.md.j2`
+**Avoid:**
+- Repeating work from previous sprints
+- Contradicting earlier decisions (document why if needed)
+{% endblock %}
+```
+
+#### 3. Coordinate with Other Personas
+
+```markdown
+## Coordination
+
+**Depends on:**
+- Refactor completing linting fixes
+- Sentinel finishing security audit
+
+**Blocks:**
+- Palette needs UX improvements before design work
+- Scribe waits for API docs
+
+**Collaborates with:**
+- Curator on UX vision
+- Janitor on code cleanup
+```
+
+#### 4. Define Success Clearly
+
+```markdown
+## Success Criteria
+
+✅ **This sprint succeeds when:**
+- [ ] Test coverage for agents/ reaches 80%
+- [ ] All security vulnerabilities (CVSS ≥7) are fixed
+- [ ] Performance regression tests added for slow queries
+
+🚫 **This sprint fails if:**
+- Breaking changes introduced
+- CI broken for >24 hours
+- Security issues ignored
+```
+
+#### 5. Celebrate "Nothing to Do"
+
+```markdown
+If there's genuinely nothing to do this sprint, that's SUCCESS! Document:
+
+1. What you checked
+2. Why there's no work
+3. What changed since last sprint
+4. When you'll check again
+
+Then create a PR updating your journal with this status.
+```
+
+### Template Inheritance
+
+Personas use Jinja2 template inheritance:
+
+```
+base/persona.md.j2               # Base template
+├── blocks/pr_format.md.j2       # PR format instructions
+├── blocks/testing.md.j2         # Testing guidelines
+└── partials/tools.md.j2         # Available tools
+
+personas/curator/prompt.md.j2    # Extends base, includes blocks
+```
+
+**Available Variables:**
+
+- `{{ id }}` - Persona identifier (e.g., "curator")
+- `{{ emoji }}` - Persona emoji (e.g., "🎭")
+- `{{ description }}` - Persona description
+- `{{ journal_entries }}` - Aggregated journal content
+- `{{ password }}` - UUIDv5 derived from persona ID
+- `{{ sprint_context_text }}` - Current sprint context
+- `{{ current_sprint }}` - Current sprint number
+
+**Custom Blocks:**
+
+```jinja
+{% block custom_section %}
+## My Custom Section
+
+Content here...
+{% endblock %}
+```
 
 ---
 
 ## 🏗️ Architecture
 
-### Scheduler Layout
+### Component Overview
 
-The scheduler is organized by package:
+```
+┌──────────────────────────────────────────────────────────┐
+│                    CLI Layer                             │
+│  ┌─────────┐  ┌─────────┐  ┌──────────┐                 │
+│  │  jules  │  │  mail   │  │ my-tools │                 │
+│  └────┬────┘  └────┬────┘  └────┬─────┘                 │
+└───────┼────────────┼────────────┼───────────────────────┘
+        │            │            │
+┌───────┼────────────┼────────────┼───────────────────────┐
+│       ↓            ↓            ↓         Feature Layer │
+│  ┌─────────┐  ┌────────┐  ┌──────────┐                 │
+│  │Scheduler│  │  Mail  │  │ Sessions │                 │
+│  └────┬────┘  └────┬───┘  └────┬─────┘                 │
+│  ┌─────────┐  ┌────────┐  ┌──────────┐                 │
+│  │ Autofix │  │Feedback│  │ Sprints  │                 │
+│  └────┬────┘  └────┬───┘  └────┬─────┘                 │
+└───────┼────────────┼────────────┼───────────────────────┘
+        │            │            │
+┌───────┼────────────┼────────────┼───────────────────────┐
+│       ↓            ↓            ↓           Core Layer  │
+│  ┌──────────────────────────────────────┐               │
+│  │         Jules API Client             │               │
+│  └──────────────────────────────────────┘               │
+│  ┌──────────────────────────────────────┐               │
+│  │        GitHub API Client             │               │
+│  └──────────────────────────────────────┘               │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Scheduler Architecture
 
 ```python
-# Domain Models (.jules/jules/scheduler/models.py)
-PersonaConfig    # Immutable persona data
-CycleState       # Current cycle position (per track)
-SessionRequest   # Session creation params
-PRStatus         # PR status with CI checks
+# ===== Domain Models (.jules/jules/scheduler/models.py) =====
+@dataclass
+class PersonaConfig:
+    """Immutable persona configuration"""
+    id: str
+    emoji: str
+    description: str
+    prompt_content: str
+    prompt_path: Path
 
-# Loading (.jules/jules/scheduler/loader.py)
-PersonaLoader    # Load and parse personas
+@dataclass
+class CycleState:
+    """Current position in cycle"""
+    track_name: str
+    current_index: int
+    session_id: str | None
+    last_pr_number: int | None
 
-# State (.jules/jules/scheduler/state.py)
-PersistentCycleState  # JSON-backed state + tracks
+@dataclass
+class SessionRequest:
+    """Session creation parameters"""
+    persona_config: PersonaConfig
+    branch: str
+    title: str
+    automation_mode: str
 
-# Managers (.jules/jules/scheduler/managers.py)
-BranchManager         # Git operations
-PRManager             # GitHub PR operations
-CycleStateManager     # Cycle progression logic
-SessionOrchestrator   # Jules session creation
+@dataclass
+class PRStatus:
+    """PR status with CI checks"""
+    number: int
+    state: str
+    mergeable: bool
+    ci_passing: bool
+    checks: list[dict]
 
-# Entry Points (.jules/jules/scheduler/engine.py)
-execute_parallel_cycle_tick()  # Parallel cycle flow
-execute_scheduled_tick()       # Scheduled mode flow
-run_scheduler()                # CLI entry point
+# ===== Loading (.jules/jules/scheduler/loader.py) =====
+class PersonaLoader:
+    """Load and parse persona definitions"""
+
+    def load_personas(self, paths: list[str]) -> list[PersonaConfig]:
+        """Load personas from prompt files"""
+        ...
+
+    def _render_template(self, path: Path) -> str:
+        """Render Jinja2 template with context"""
+        ...
+
+# ===== State (.jules/jules/scheduler/state.py) =====
+class PersistentCycleState:
+    """JSON-backed persistent state"""
+
+    def get_state(self, track: str) -> CycleState | None:
+        """Get current state for track"""
+        ...
+
+    def update_state(self, track: str, state: CycleState) -> None:
+        """Update state for track"""
+        ...
+
+    def save(self) -> None:
+        """Persist to disk"""
+        ...
+
+# ===== Managers (.jules/jules/scheduler/managers.py) =====
+class BranchManager:
+    """Git branch operations"""
+
+    def ensure_branch_exists(self, branch: str, base: str = "main") -> None:
+        """Create branch if needed"""
+        ...
+
+    def sync_branch(self, branch: str, base: str = "main") -> None:
+        """Sync branch with base"""
+        ...
+
+class PRManager:
+    """GitHub PR operations"""
+
+    def get_pr_status(self, number: int) -> PRStatus:
+        """Get PR status and CI checks"""
+        ...
+
+    def merge_if_ready(self, number: int) -> bool:
+        """Merge PR if CI passes"""
+        ...
+
+    def list_open_prs(self, head: str) -> list[dict]:
+        """List open PRs for branch"""
+        ...
+
+class CycleStateManager:
+    """Cycle progression logic"""
+
+    def should_advance(self, state: CycleState, pr_status: PRStatus) -> bool:
+        """Check if cycle should advance"""
+        ...
+
+    def advance(self, track: str, personas: list[PersonaConfig]) -> CycleState:
+        """Move to next persona in track"""
+        ...
+
+class SessionOrchestrator:
+    """Jules session creation"""
+
+    def create_session(self, request: SessionRequest) -> str:
+        """Create new Jules session"""
+        ...
+
+    def poll_session(self, session_id: str) -> dict:
+        """Check session status"""
+        ...
+
+# ===== Engine (.jules/jules/scheduler/engine.py) =====
+def execute_parallel_cycle_tick(
+    tracks: dict[str, list[str]],
+    dry_run: bool = False
+) -> None:
+    """Execute one tick of parallel cycle mode"""
+    loader = PersonaLoader(...)
+    state_manager = PersistentCycleState(...)
+    pr_manager = PRManager(...)
+    orchestrator = SessionOrchestrator(...)
+
+    for track_name, persona_paths in tracks.items():
+        # Load track state
+        state = state_manager.get_state(track_name)
+
+        # Load personas
+        personas = loader.load_personas(persona_paths)
+
+        # Check if should advance
+        if state and state.last_pr_number:
+            pr_status = pr_manager.get_pr_status(state.last_pr_number)
+            if pr_manager.merge_if_ready(state.last_pr_number):
+                state = cycle_manager.advance(track_name, personas)
+
+        # Create session for current persona
+        current_persona = personas[state.current_index]
+        session_id = orchestrator.create_session(...)
+
+        # Update state
+        state.session_id = session_id
+        state_manager.update_state(track_name, state)
+        state_manager.save()
+
+def execute_scheduled_tick(
+    schedules: dict[str, str],
+    dry_run: bool = False
+) -> None:
+    """Execute scheduled persona runs"""
+    loader = PersonaLoader(...)
+    orchestrator = SessionOrchestrator(...)
+
+    current_time = datetime.now(UTC)
+
+    for persona_id, cron_expr in schedules.items():
+        if should_run(cron_expr, current_time):
+            persona = loader.load_personas([f"personas/{persona_id}/prompt.md.j2"])[0]
+            orchestrator.create_session(...)
 ```
 
-### Benefits
+### Mail System Architecture
 
-- **Clear separation of concerns**: Each class has one job
-- **Type-safe**: Dataclasses ensure correctness
-- **Testable**: Easy to mock and unit test
-- **Readable**: Linear flow, no deep nesting
-- **Maintainable**: Modify one part without breaking others
+```python
+# ===== Backend (.jules/jules/features/mail/backend.py) =====
+@dataclass
+class Message:
+    """Mail message"""
+    id: str
+    from_persona: str
+    to_persona: str
+    subject: str
+    body: str
+    timestamp: datetime
+    read: bool
+    attachments: list[str]
 
----
+class MailBackend:
+    """Append-only JSONL mail storage"""
 
-## 🧪 Testing
+    def send(self, msg: Message) -> None:
+        """Append message to events.jsonl"""
+        ...
 
-### Running Scheduler Tests
+    def get_inbox(self, persona: str, unread_only: bool = False) -> list[Message]:
+        """Query inbox using Ibis + DuckDB"""
+        ...
 
-```bash
-# Unit tests
-uv run pytest tests/unit/jules/
+    def mark_read(self, persona: str, message_id: str) -> None:
+        """Mark message as read (append read event)"""
+        ...
 
-# Integration tests
-uv run pytest tests/skills/jules_api/
+# ===== Storage Backends =====
+class LocalMailBackend(MailBackend):
+    """Local filesystem storage"""
+    storage_path = Path(".jules/mail/events.jsonl")
 
-# Specific test
-uv run pytest tests/unit/jules/test_scheduler.py
+class S3MailBackend(MailBackend):
+    """S3-compatible storage"""
+    bucket = os.getenv("JULES_MAIL_BUCKET")
+    endpoint = os.getenv("AWS_S3_ENDPOINT_URL")
 ```
 
-### Manual Testing
+### Sprint System Architecture
 
-```bash
-# Test persona loading
-PYTHONPATH=.jules python -c "
-from jules.scheduler.loader import PersonaLoader
-from pathlib import Path
-loader = PersonaLoader(Path('.jules/personas'), {})
-personas = loader.load_personas(['personas/curator/prompt.md.j2'])
-print(f'Loaded: {personas[0].id} {personas[0].emoji}')
-"
+```python
+# ===== Sprint Manager (.jules/jules/features/sprints/manager.py) =====
+class SprintManager:
+    """Sprint planning and coordination"""
+
+    def get_current_sprint(self) -> int:
+        """Read current sprint number"""
+        return int(Path(".jules/sprints/current.txt").read_text())
+
+    def increment_sprint(self) -> int:
+        """Increment sprint and create directory"""
+        current = self.get_current_sprint()
+        next_sprint = current + 1
+        Path(f".jules/sprints/sprint-{next_sprint}").mkdir(exist_ok=True)
+        Path(".jules/sprints/current.txt").write_text(str(next_sprint))
+        return next_sprint
+
+    def get_sprint_context(self, persona_id: str) -> dict:
+        """Load sprint plans and feedback for persona"""
+        current = self.get_current_sprint()
+
+        return {
+            "current_sprint": current,
+            "my_plan": self._load_plan(persona_id, current),
+            "others_plans": self._load_all_plans(current),
+            "feedback": self._load_feedback(persona_id, current),
+        }
+
+    def save_plan(self, persona_id: str, sprint: int, content: str) -> None:
+        """Save persona's plan for sprint"""
+        plan_file = Path(f".jules/sprints/sprint-{sprint}/{persona_id}-plan.md")
+        plan_file.write_text(content)
+
+    def save_feedback(self, persona_id: str, sprint: int, content: str) -> None:
+        """Save persona's feedback on others' plans"""
+        feedback_file = Path(f".jules/sprints/sprint-{sprint}/{persona_id}-feedback.md")
+        feedback_file.write_text(content)
 ```
+
+### Design Principles
+
+1. **Separation of Concerns**
+   - Each class has a single, well-defined responsibility
+   - Managers handle specific domains (Git, GitHub, State)
+   - Clear boundaries between layers
+
+2. **Type Safety**
+   - Dataclasses for all domain models
+   - Type hints throughout
+   - MyPy strict mode enabled
+
+3. **Testability**
+   - Dependency injection for external services
+   - Protocol-based interfaces
+   - Easy to mock and unit test
+
+4. **Persistence**
+   - JSON for simple state (cycle_state.json)
+   - JSONL for append-only logs (mail events)
+   - Git for version control (journals, plans)
+
+5. **Error Handling**
+   - Custom exception hierarchy
+   - Graceful degradation
+   - Retry logic for transient failures
 
 ---
 
 ## 🐛 Troubleshooting
 
-### Scheduler Not Advancing
+### Common Issues
 
-**Symptom**: Curator persona repeats, never advances to refactor
+#### 1. Scheduler Not Advancing
 
-**Cause**: PRs not targeting correct base branch
+**Symptom:** Curator persona runs repeatedly, never advances to refactor
 
-**Fix**: Ensure personas don't override branch in frontmatter (fixed in recent commits)
+**Causes:**
+- PRs not merging (CI failures)
+- PRs targeting wrong base branch
+- State file corruption
 
-### Session Stuck
+**Solutions:**
 
-**Symptom**: Session awaiting feedback/approval
+```bash
+# Check PR status
+gh pr list --head jules
 
-**Solution**: Scheduler automatically approves plans and sends nudges
+# Check CI status
+gh pr checks <pr-number>
 
-### Branch Conflicts
+# Check state file
+cat .jules/state/cycle_state.json
 
-**Symptom**: Jules branch has conflicts with main
+# Reset state (DANGER: loses cycle position)
+rm .jules/state/cycle_state.json
 
-**Solution**: Scheduler automatically rotates drifted branch to `jules-sprint-N`
+# Force advance to next persona
+uv run jules schedule tick --prompt-id refactor
+```
 
-### Failed CI
+#### 2. Session Stuck
 
-**Symptom**: PR created but CI fails
+**Symptom:** Session shows "awaiting feedback" or "awaiting approval"
 
-**Solution**: Scheduler waits for green CI before merging. Fix failures in PR, or close and let scheduler continue.
+**Causes:**
+- Session requires human approval
+- Session hit timeout
+- Session waiting for input
+
+**Solutions:**
+
+```bash
+# Check session status via Jules API
+python3 << 'PYTHON_EOF'
+from jules.core.client import JulesClient
+client = JulesClient()
+session = client.get_session("<session-id>")
+print(f"Status: {session['status']}")
+print(f"State: {session['state']}")
+PYTHON_EOF
+
+# Send approval (if needed)
+# Note: Scheduler should auto-approve, but manual override:
+# Use Jules web UI to approve plan
+
+# Send nudge message
+uv run jules feedback send-nudge <session-id>
+
+# Cancel and restart
+# (Manual via Jules UI)
+```
+
+#### 3. Branch Conflicts
+
+**Symptom:** `jules` branch has conflicts with `main`
+
+**Causes:**
+- Drift between branches
+- Manual commits to `main`
+- Failed merge attempts
+
+**Solutions:**
+
+```bash
+# Check drift
+git log main..jules --oneline
+
+# Option 1: Rotate branch (preserves history)
+uv run jules sync rotate-branch
+
+# Option 2: Sync branch (rebases on main)
+uv run jules sync merge-main
+
+# Option 3: Manual resolution
+git checkout jules
+git pull origin main
+# Resolve conflicts
+git add .
+git commit
+git push
+```
+
+#### 4. Failed CI
+
+**Symptom:** PR created but CI fails
+
+**Causes:**
+- Test failures
+- Linting errors
+- Type errors
+- Security vulnerabilities
+
+**Solutions:**
+
+```bash
+# Check CI logs
+gh pr checks <pr-number>
+
+# Option 1: Let auto-fix handle it
+uv run jules autofix analyze <pr-number>
+
+# Option 2: Manual fix
+git checkout jules-sched-<sprint>-<persona>
+# Fix issues
+git commit -am "fix: address CI failures"
+git push
+
+# Option 3: Close PR and continue
+gh pr close <pr-number>
+uv run jules schedule tick  # Moves to next persona
+```
+
+#### 5. Mail System Issues
+
+**Symptom:** Personas not receiving messages
+
+**Causes:**
+- Mail backend not initialized
+- Incorrect persona ID format
+- Storage backend misconfigured
+
+**Solutions:**
+
+```bash
+# Check mail backend
+ls -la .jules/mail/
+
+# Test mail system
+python3 << 'PYTHON_EOF'
+from jules.features.mail.backend import send_message, get_inbox
+
+# Send test
+send_message(
+    from_persona="test@team",
+    to_persona="curator@team",
+    subject="Test",
+    body="Hello"
+)
+
+# Check inbox
+messages = get_inbox("curator@team")
+print(f"Messages: {len(messages)}")
+PYTHON_EOF
+
+# Verify persona ID format
+# Should be: <persona-id>@team
+# NOT: <persona-id> or <persona-id>@domain
+```
+
+#### 6. Template Rendering Errors
+
+**Symptom:** "Template not found" or Jinja2 errors
+
+**Causes:**
+- Missing base templates
+- Incorrect template syntax
+- Missing template variables
+
+**Solutions:**
+
+```bash
+# Check template exists
+ls -la .jules/jules/templates/base/persona.md.j2
+
+# Test template rendering
+python3 << 'PYTHON_EOF'
+from jinja2 import Environment, FileSystemLoader
+from pathlib import Path
+
+env = Environment(loader=FileSystemLoader([
+    '.jules/jules/templates',
+    '.jules/personas',
+]))
+
+template = env.get_template('curator/prompt.md.j2')
+rendered = template.render(
+    id='curator',
+    emoji='🎭',
+    description='Test',
+    journal_entries='',
+    password='test-uuid',
+    sprint_context_text='Sprint 1',
+    current_sprint=1,
+)
+print(rendered[:200])
+PYTHON_EOF
+```
+
+### Debug Mode
+
+Enable verbose logging:
+
+```bash
+# Set log level
+export JULES_LOG_LEVEL=DEBUG
+
+# Run with verbose output
+uv run jules schedule tick 2>&1 | tee scheduler.log
+
+# Check logs
+tail -f scheduler.log
+```
+
+### Health Checks
+
+```bash
+# Check scheduler health
+uv run jules schedule status
+
+# Check all open PRs
+gh pr list --head jules
+
+# Check recent workflow runs
+gh run list --workflow=jules_scheduler.yml --limit 5
+
+# Check mail system
+uv run mail inbox --persona system@team
+```
 
 ---
 
-## 📚 Additional Resources
+## 📚 Resources
 
-- **Main README**: `/README.md` - Project overview
-- **Code of the Weaver**: `/CLAUDE.md` - Contribution guidelines
-- **Scheduler Diagnostic**: `/SCHEDULER_DIAGNOSTIC.md` - Debugging guide
-- **Refactoring Plan**: `/SCHEDULER_REFACTORING_PLAN.md` - V2 design rationale
+### Internal Documentation
+
+- **[CLAUDE.md](../CLAUDE.md)** - Coding standards and contribution guidelines
+- **[README.md](../README.md)** - Project overview
+- **[PARALLEL_PERSONAS_README.md](./PARALLEL_PERSONAS_README.md)** - Parallel execution design
+- **[PARALLEL_PERSONAS_PROMPT.md](./PARALLEL_PERSONAS_PROMPT.md)** - Implementation prompt
+- **[SESSION_ID_PATTERNS.md](./SESSION_ID_PATTERNS.md)** - Session ID extraction logic
+- **[API_COMPLIANCE_REVIEW.md](./API_COMPLIANCE_REVIEW.md)** - API compliance notes
+
+### External Resources
+
+- **[Jules Documentation](https://developers.google.com/jules)** - Jules API reference
+- **[GitHub CLI](https://cli.github.com/)** - GitHub CLI documentation
+- **[Jinja2 Templates](https://jinja.palletsprojects.com/)** - Template syntax reference
+- **[Cron Expression](https://crontab.guru/)** - Cron expression tester
+
+### Getting Help
+
+- **GitHub Issues** - Report bugs or request features
+- **GitHub Discussions** - Ask questions or share ideas
+- **Persona Journals** - Review past work for context
 
 ---
 
-**Last Updated**: 2026-01-09
-**Maintained By**: Weaver persona 🕸️ and human contributors
+## 🔄 Changelog
+
+### 2026-01-17
+- Comprehensive README overhaul
+- Added visual diagrams and examples
+- Expanded troubleshooting section
+- Enhanced persona development guide
+- Added architecture deep dive
+
+### 2026-01-14
+- Updated persona count to 28
+- Added new personas (absolutist, bdd_specialist, oracle, etc.)
+- Improved scheduler architecture docs
+
+### 2026-01-09
+- Original README created
+- Basic scheduler and persona documentation
+- Initial usage guide
+
+---
+
+**Maintained by:** Weaver persona 🕸️ and human contributors
+**Last Updated:** 2026-01-17
+**Version:** 2.0
