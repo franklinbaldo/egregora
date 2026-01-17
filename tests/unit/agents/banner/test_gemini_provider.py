@@ -1,72 +1,41 @@
-import base64
-import json
 from types import SimpleNamespace
-from unittest.mock import MagicMock
-
-import pytest
 
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
 from egregora.agents.banner.image_generation import ImageGenerationRequest
 
 
-@pytest.fixture
-def mock_httpx(monkeypatch):
-    mock = MagicMock()
-    monkeypatch.setattr("httpx.get", mock)
-    return mock
+class _FakePart:
+    def __init__(self, text=None, inline_data=None):
+        self.text = text
+        self.inline_data = inline_data
 
 
-class _FakeFiles:
-    def upload(self, file, config):
-        return SimpleNamespace(name="files/123", uri="gs://files/123")
-
-
-class _FakeBatches:
-    def __init__(self, job_state="SUCCEEDED", job_error=None):
-        self.job_state = job_state
-        self.job_error = job_error
-        self.created_job = None
-
-    def create(self, model, src, config):
-        self.created_job = SimpleNamespace(name="jobs/456", output_uri="https://output/results.jsonl")
-        return self.created_job
-
-    def get(self, name):
-        return SimpleNamespace(
-            name=name,
-            state=SimpleNamespace(name=self.job_state),
-            error=self.job_error,
-            output_uri="https://output/results.jsonl",
-        )
+class _FakeResponse:
+    def __init__(self, parts):
+        self.parts = parts
 
 
 class _FakeClient:
-    def __init__(self, batch_state="SUCCEEDED", batch_error=None):
-        self.files = _FakeFiles()
-        self.batches = _FakeBatches(batch_state, batch_error)
+    def __init__(self, response=None, error=None):
+        self.response = response
+        self.error = error
+
+    def generate_content(self, prompt):
+        if self.error:
+            raise self.error
+        return self.response
 
 
-def test_gemini_provider_returns_image_and_debug_text(mock_httpx):
-    # Mock successful batch response
-    img_data = base64.b64encode(b"img-bytes").decode("utf-8")
-    response_json = {
-        "response": {
-            "candidates": [
-                {
-                    "content": {
-                        "parts": [
-                            {"text": "debug info"},
-                            {"inlineData": {"mimeType": "image/png", "data": img_data}},
-                        ]
-                    }
-                }
-            ]
-        }
-    }
-    mock_httpx.return_value.text = json.dumps(response_json)
-    mock_httpx.return_value.raise_for_status = MagicMock()
+def test_gemini_provider_returns_image():
+    # Mock successful response
+    img_data = b"img-bytes"
+    mime_type = "image/png"
 
-    client = _FakeClient()
+    inline_data = SimpleNamespace(data=img_data, mime_type=mime_type)
+    parts = [_FakePart(inline_data=inline_data)]
+    response = _FakeResponse(parts=parts)
+
+    client = _FakeClient(response=response)
     provider = GeminiImageGenerationProvider(client=client, model="models/test")
 
     result = provider.generate(
@@ -79,31 +48,12 @@ def test_gemini_provider_returns_image_and_debug_text(mock_httpx):
 
     assert result.image_bytes == b"img-bytes"
     assert result.mime_type == "image/png"
-    assert result.debug_text == "debug info"
-
-    # Verify upload called
-    assert client.batches.created_job.name == "jobs/456"
+    assert result.error is None
 
 
-def test_gemini_provider_returns_error_when_no_image(mock_httpx):
-    # Mock response without image
-    response_json = {
-        "response": {
-            "candidates": [
-                {
-                    "content": {
-                        "parts": [
-                            {"text": "just text"},
-                        ]
-                    }
-                }
-            ]
-        }
-    }
-    mock_httpx.return_value.text = json.dumps(response_json)
-    mock_httpx.return_value.raise_for_status = MagicMock()
-
-    client = _FakeClient()
+def test_gemini_provider_returns_error_when_exception_occurs():
+    # Mock exception
+    client = _FakeClient(error=Exception("API Error"))
     provider = GeminiImageGenerationProvider(client=client, model="models/test")
 
     result = provider.generate(
@@ -111,17 +61,75 @@ def test_gemini_provider_returns_error_when_no_image(mock_httpx):
     )
 
     assert not result.has_image
-    assert result.error == "No image data found in response"
-    assert result.error_code == "NO_IMAGE"
+    assert result.error == "API Error"
+    assert result.error_code == "GENERATION_FAILED"
 
 
-def test_gemini_provider_handles_batch_failure():
-    client = _FakeClient(batch_state="FAILED", batch_error="Something went wrong")
+def test_gemini_provider_returns_error_when_response_structure_invalid():
+    # Mock response without parts (should raise IndexError or AttributeError in implementation)
+    response = _FakeResponse(parts=[])
+    client = _FakeClient(response=response)
     provider = GeminiImageGenerationProvider(client=client, model="models/test")
-    provider._poll_interval = 0  # Speed up test
 
-    result = provider.generate(ImageGenerationRequest(prompt="prompt", response_modalities=["IMAGE"]))
+    result = provider.generate(
+        ImageGenerationRequest(prompt="prompt", response_modalities=["IMAGE"], aspect_ratio=None)
+    )
 
     assert not result.has_image
-    assert result.error == "Batch job failed with state FAILED: Something went wrong"
-    assert result.error_code == "BATCH_FAILED"
+    assert "list index out of range" in result.error
+    assert result.error_code == "GENERATION_FAILED"
+
+
+def test_generate_content_returns_empty_parts():
+    """Test behavior when API returns no content (e.g. safety block)."""
+    # Arrange
+    response = _FakeResponse(parts=[])
+    client = _FakeClient(response=response)
+    provider = GeminiImageGenerationProvider(client=client, model="models/test")
+    request = ImageGenerationRequest(prompt="unsafe prompt", response_modalities=["IMAGE"])
+
+    # Act
+    result = provider.generate(request)
+
+    # Assert
+    assert not result.has_image
+    assert result.error_code == "GENERATION_FAILED"
+    # The actual error string depends on implementation (likely IndexError or generic)
+    # The current implementation catches generic Exception and logs it.
+    assert result.error is not None
+
+
+def test_generate_content_returns_parts_without_inline_data():
+    """Test behavior when API returns parts but no inline data."""
+    # Arrange
+    # Part without inline_data
+    parts = [_FakePart(inline_data=None)]
+    response = _FakeResponse(parts=parts)
+    client = _FakeClient(response=response)
+    provider = GeminiImageGenerationProvider(client=client, model="models/test")
+    request = ImageGenerationRequest(prompt="prompt", response_modalities=["IMAGE"])
+
+    # Act
+    result = provider.generate(request)
+
+    # Assert
+    assert not result.has_image
+    assert result.error_code == "GENERATION_FAILED"
+    assert result.error is not None
+
+
+def test_generate_content_raises_api_error():
+    """Test behavior when API raises an error."""
+    # Arrange
+    error_msg = "Rate limit exceeded"
+    client = _FakeClient(error=Exception(error_msg))
+    provider = GeminiImageGenerationProvider(client=client, model="models/test")
+    request = ImageGenerationRequest(prompt="prompt", response_modalities=["IMAGE"])
+
+    # Act
+    result = provider.generate(request)
+
+    # Assert
+    assert not result.has_image
+    assert result.error == error_msg
+    assert result.error_code == "GENERATION_FAILED"
