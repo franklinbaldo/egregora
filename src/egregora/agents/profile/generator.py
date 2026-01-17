@@ -88,11 +88,8 @@ def _generate_meaningful_slug(title: str, window_date: str, author_uuid: str) ->
     """
     # Extract meaningful part from title (remove author name prefix if present)
     title_parts = title.split(":", 1)
-    if len(title_parts) > 1:
-        # Title like "John Doe: Technical Contributions" -> use "Technical Contributions"
-        aspect = title_parts[1].strip()
-    else:
-        aspect = title
+    # Title like "John Doe: Technical Contributions" -> use "Technical Contributions"
+    aspect = title_parts[1].strip() if len(title_parts) > 1 else title
 
     # Slugify the aspect
     aspect_slug = slugify(aspect)

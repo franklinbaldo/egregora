@@ -1263,7 +1263,9 @@ def _get_api_keys_from_env(*env_vars: str) -> list[str]:
 
 def get_google_api_keys() -> list[str]:
     """Get list of Google API keys from environment."""
-    return _get_api_keys_from_env("GEMINI_API_KEYS", "GEMINI_API_KEY", "GOOGLE_API_KEY")
+    return _get_api_keys_from_env(
+        "GEMINI_API_KEYS", "GEMINI_API_KEY", "GOOGLE_API_KEY"
+    )
 
 
 def get_openrouter_api_key() -> str:

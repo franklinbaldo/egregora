@@ -704,14 +704,17 @@ def _execute_writer_with_error_handling(
                     str(exc)[:200],
                 )
                 if _should_cycle(exc):
-                    if isinstance(exc, ModelHTTPError) and "openrouter" in model_name:
-                        if affordable := _get_openrouter_affordable_tokens(exc):
-                            if openrouter_max_tokens is None or affordable < openrouter_max_tokens:
-                                openrouter_max_tokens = affordable
-                                logger.warning(
-                                    "[WriterRotation] Retrying with affordable token limit: %d", affordable
-                                )
-                                continue
+                    if (
+                        isinstance(exc, ModelHTTPError)
+                        and "openrouter" in model_name
+                        and (affordable := _get_openrouter_affordable_tokens(exc))
+                        and (openrouter_max_tokens is None or affordable < openrouter_max_tokens)
+                    ):
+                        openrouter_max_tokens = affordable
+                        logger.warning(
+                            "[WriterRotation] Retrying with affordable token limit: %d", affordable
+                        )
+                        continue
                     logger.warning("[WriterRotation] Cycling to next key/model.")
                     continue
 
