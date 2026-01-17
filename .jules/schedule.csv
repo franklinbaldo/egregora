@@ -38,7 +38,7 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 037,maintainer,2584233121198723384,2583,merged,
 038,organizer,1351186797177046743,2587,merged,
 039,palette,8474177024497828784,2584,merged,
-040,pruner,,,,
+040,pruner,2291449969436598904,2605,merged,
 041,refactor,,,,
 042,sapper,,,,
 043,scribe,,,,
