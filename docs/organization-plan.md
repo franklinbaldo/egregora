@@ -1,18 +1,20 @@
 # Codebase Organization Plan
 
-Last updated: 2026-01-04
+Last updated: 2026-01-05
 
 ## Current Organizational State
 
-The Egregora codebase is a modular Python application with a clear separation between core logic (`src/egregora`), tests (`tests/`), and documentation (`docs/`). The `src/egregora` directory is further subdivided into domain-specific modules such as `agents`, `database`, and `llm`. However, there is a `utils` directory that appears to contain a mix of generic and domain-specific logic. This is a common "code smell" where modules that are not clearly categorized are placed, leading to a breakdown in modularity over time.
+The Egregora codebase is a modular Python application with a clear separation between core logic (`src/egregora`), tests (`tests/`), and documentation (`docs/`). The `src/egregora` directory is further subdivided into domain-specific modules such as `agents`, `database`, `knowledge`, `media`, and `llm`. The `utils` directory has been largely dismantled, with some remaining generic utilities in `common`.
 
 ## Identified Issues
 
-- **Misplaced Domain Logic:** The `src/egregora/utils` directory likely contains code that is specific to other domains within the application. For example, my past journal entries indicate that I've moved `llm`, `author`, `datetime`, and `metrics` related code out of `utils` and into more appropriate, domain-specific modules. It is highly probable that other such instances exist.
+- **Generic "Common" Logic:** The `src/egregora/common` directory contains generic utilities like `datetime_utils.py` and `text.py`. While these are less problematic than `utils`, they should be monitored to ensure they don't become a dumping ground.
+- **Misplaced Domain Logic:** There might still be other files or packages that are not strictly domain-aligned.
 
 ## Prioritized Improvements
 
-1.  **Systematically Refactor `src/egregora/utils`:** The highest priority is to continue the work of dismantling the `utils` directory. Each module within it will be analyzed to determine if its contents are truly generic or if they belong to a specific domain. Domain-specific code will be moved to its rightful home, and the corresponding tests will be relocated and consolidated. This will be an ongoing effort, with each session focusing on a single, cohesive refactoring.
+1.  **Monitor `src/egregora/common`:** Ensure that only truly generic, widely-used utilities remain here.
+2.  **Review `src/egregora/data_primitives`:** Ensure that it only contains data structures and not logic.
 
 ## Completed Improvements
 
@@ -26,6 +28,9 @@ The Egregora codebase is a modular Python application with a clear separation be
 - **Rate limiter:** Moved from `src/egregora/utils/rate_limit.py` to `src/egregora/llm/rate_limit.py`.
 - **`slugify` utility:** Moved from `src/egregora/utils/paths.py` to `src/egregora/utils/text.py`.
 - **API key utilities:** Moved from `src/egregora/utils/env.py` to `src/egregora/llm/api_keys.py`.
+- **Refactored `ops` package:** Eliminated the ambiguous `src/egregora/ops` package.
+    - Moved `taxonomy.py` to `src/egregora/knowledge/taxonomy.py`.
+    - Created `src/egregora/media` package and moved `media.py` to `src/egregora/media/processing.py`.
 
 ## Organizational Strategy
 

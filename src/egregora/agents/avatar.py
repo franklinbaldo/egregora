@@ -23,7 +23,7 @@ from egregora.agents.enrichment import enrich_avatar
 from egregora.exceptions import EgregoraError
 from egregora.input_adapters.whatsapp.commands import extract_commands
 from egregora.knowledge.profiles import remove_profile_avatar, update_profile_avatar
-from egregora.ops.media import (
+from egregora.media.processing import (
     extract_urls,
 )
 from egregora.orchestration.cache import EnrichmentCache

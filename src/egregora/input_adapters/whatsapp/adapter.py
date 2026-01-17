@@ -24,7 +24,7 @@ from egregora.input_adapters.whatsapp.exceptions import (
 )
 from egregora.input_adapters.whatsapp.parsing import WhatsAppExport, parse_source
 from egregora.input_adapters.whatsapp.utils import discover_chat_file
-from egregora.ops.media import detect_media_type
+from egregora.media.processing import detect_media_type
 from egregora.security.zip import validate_zip_contents
 
 if TYPE_CHECKING:

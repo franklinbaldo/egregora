@@ -1,4 +1,4 @@
-"""Tests for egregora.ops.media."""
+"""Tests for egregora.media.processing."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.ops.media import (
+from egregora.media.processing import (
     MediaReplacer,
     detect_media_type,
     find_media_references,

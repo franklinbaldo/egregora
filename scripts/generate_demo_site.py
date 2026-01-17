@@ -214,7 +214,7 @@ def _patch_pipeline_for_offline_demo() -> None:
             optional=True,
         ),
         PatchSpec(
-            "egregora.ops.taxonomy.generate_semantic_taxonomy", lambda *args, **kwargs: 0, optional=True
+            "egregora.knowledge.taxonomy.generate_semantic_taxonomy", lambda *args, **kwargs: 0, optional=True
         ),
         # RAG: avoid DB creation and searches.
         PatchSpec("egregora.rag.index_documents", _mock_index_documents),

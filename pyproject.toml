@@ -289,7 +289,7 @@ ignore = [
 ]
 
 # Media operations - intentional use of os.path for compatibility
-"src/egregora/ops/media.py" = [
+"src/egregora/media/processing.py" = [
     "PTH122",  # os.path.splitext (needed for extension handling)
 ]
 

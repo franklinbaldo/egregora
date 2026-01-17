@@ -55,8 +55,8 @@ from egregora.llm.api_keys import get_google_api_keys, validate_gemini_api_key
 from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.llm.rate_limit import init_rate_limiter
 from egregora.llm.usage import UsageTracker
-from egregora.ops.media import process_media_for_window
-from egregora.ops.taxonomy import generate_semantic_taxonomy
+from egregora.media.processing import process_media_for_window
+from egregora.knowledge.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.cache import PipelineCache
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory

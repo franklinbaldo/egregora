@@ -20,7 +20,7 @@ from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.types import Message, PromptTooLargeError, WindowProcessingParams
 from egregora.agents.writer import write_posts_for_window
 from egregora.data_primitives.document import DocumentType, UrlContext
-from egregora.ops.media import process_media_for_window
+from egregora.media.processing import process_media_for_window
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.exceptions import (
     OutputSinkError,

@@ -1398,7 +1398,7 @@ class EnrichmentWorker(BaseWorker):
                     continue
 
             # Determine subfolder based on media_type
-            from egregora.ops.media import get_media_subfolder
+            from egregora.media.processing import get_media_subfolder
 
             extension = Path(filename).suffix
             media_subdir = get_media_subfolder(extension)

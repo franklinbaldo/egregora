@@ -13,7 +13,7 @@ from egregora.agents.enricher import (
     load_file_as_binary_content,
 )
 from egregora.llm.api_keys import get_google_api_key
-from egregora.ops.media import (
+from egregora.media.processing import (
     detect_media_type,
 )
 from egregora.orchestration.cache import make_enrichment_cache_key
