@@ -37,7 +37,6 @@ from __future__ import annotations
 import contextlib
 import logging
 import re
-import tempfile
 import threading
 import uuid
 from dataclasses import dataclass
@@ -139,39 +138,6 @@ class DuckDBStorageManager:
             self.checkpoint_dir,
         )
         self._lock = threading.Lock()
-
-    @classmethod
-    def from_connection(cls, conn: duckdb.DuckDBPyConnection, checkpoint_dir: Path | None = None) -> Self:
-        """Create storage manager from an existing DuckDB connection.
-
-        This properly initializes both the raw connection and Ibis backend
-        from an existing connection, avoiding the mutation pattern that
-        breaks ibis_conn synchronization.
-
-        Args:
-            conn: Existing DuckDB connection
-            checkpoint_dir: Directory for parquet checkpoints
-
-        Returns:
-            Storage manager instance with properly initialized backends
-
-        """
-        instance = cls.__new__(cls)
-        instance.db_path = None  # Unknown for external connections
-        instance.checkpoint_dir = checkpoint_dir or Path(".egregora/data")
-        instance._conn = conn
-        db_list = conn.execute("PRAGMA database_list").fetchall()
-        # PRAGMA database_list returns rows as (oid, name, file)
-        db_path = db_list[0][2] if db_list else None
-        db_str = db_path or ":memory:"
-        # Note: ibis.connect(conn) is not supported in current version, so we create a separate connection.
-        # This might cause concurrency issues if not handled carefully.
-        # Ideally we would use the same connection, but for now we accept the limitation for from_connection.
-        instance.ibis_conn = ibis.duckdb.connect(database=db_str, read_only=False)
-        instance._table_info_cache = {}
-        instance._lock = threading.Lock()
-        logger.debug("DuckDBStorageManager created from existing connection")
-        return instance
 
     @classmethod
     def from_ibis_backend(cls, backend: ibis.BaseBackend, checkpoint_dir: Path | None = None) -> Self:
@@ -778,76 +744,8 @@ class DuckDBStorageManager:
         """Context manager exit - closes connection."""
         self.close()
 
-    # ==================================================================
-    # Vector backend helpers (Consolidated)
-    # ==================================================================
-
-    def drop_index(self, name: str) -> None:
-        quoted = quote_identifier(name)
-        self._conn.execute(f"DROP INDEX IF EXISTS {quoted}")
-
-    def row_count(self, table_name: str) -> int:
-        if not self.table_exists(table_name):
-            return 0
-        quoted = quote_identifier(table_name)
-        row = self._conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()
-        return int(row[0]) if row and row[0] is not None else 0
-
-
-def temp_storage() -> DuckDBStorageManager:
-    """Create temporary in-memory storage manager.
-
-    Returns:
-        DuckDBStorageManager with in-memory database
-
-    Example:
-        >>> with temp_storage() as storage:
-        ...     storage.write_table(my_table, "temp")
-        ...     result = storage.read_table("temp")
-
-    """
-    # Use standard temporary directory instead of hardcoded /tmp path
-    temp_dir = Path(tempfile.gettempdir()) / ".egregora-temp"
-    return DuckDBStorageManager(db_path=None, checkpoint_dir=temp_dir)
-
-
-@contextlib.contextmanager
-def duckdb_backend() -> ibis.BaseBackend:
-    """Context manager for temporary DuckDB backend.
-
-    MODERN (Phase 2.2): Moved from connection.py to storage.py for consolidation.
-
-    Sets up an in-memory DuckDB database as the default Ibis backend,
-    and properly cleans up connections on exit.
-
-    Yields:
-        Ibis backend connected to DuckDB
-
-    Example:
-        >>> with duckdb_backend():
-        ...     table = ibis.read_csv("data.csv")
-        ...     result = table.execute()
-
-    """
-    # In ibis 9.0+, use connect() with database path directly
-    # We don't need to create a raw duckdb connection first
-    backend = ibis.duckdb.connect(":memory:")
-    old_backend = getattr(ibis.options, "default_backend", None)
-    try:
-        ibis.options.default_backend = backend
-        logger.debug("DuckDB backend initialized")
-        yield backend
-    finally:
-        ibis.options.default_backend = old_backend
-        # Close backend to release resources
-        if hasattr(backend, "disconnect"):
-            backend.disconnect()
-        logger.debug("DuckDB backend closed")
-
 
 __all__ = [
     "DuckDBStorageManager",
-    "duckdb_backend",
     "quote_identifier",
-    "temp_storage",
 ]

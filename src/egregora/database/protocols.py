@@ -171,34 +171,6 @@ class StorageProtocol(Protocol):
         ...
 
 
-class VectorStorageProtocol(Protocol):
-    """Protocol for vector storage operations.
-
-    Defines operations specific to vector databases and similarity search.
-    """
-
-    def drop_index(self, name: str) -> None:
-        """Drop an index.
-
-        Args:
-            name: Index name
-
-        """
-        ...
-
-    def row_count(self, table_name: str) -> int:
-        """Get row count for a table.
-
-        Args:
-            table_name: Table name
-
-        Returns:
-            Number of rows
-
-        """
-        ...
-
-
 class SequenceStorageProtocol(Protocol):
     """Protocol for sequence operations.
 
@@ -244,5 +216,4 @@ class SequenceStorageProtocol(Protocol):
 __all__ = [
     "SequenceStorageProtocol",
     "StorageProtocol",
-    "VectorStorageProtocol",
 ]
