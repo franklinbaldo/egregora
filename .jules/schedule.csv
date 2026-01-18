@@ -82,7 +82,7 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 081,weaver,,,closed,
 082,absolutist,180677923756923948,2634,closed,
 083,artisan,3549565947421925485,2618,merged,
-084,bolt,,,,
+084,bolt,340137821983466680,2598,merged,
 085,builder,,,,
 086,curator,,,,
 087,docs_curator,,,,
