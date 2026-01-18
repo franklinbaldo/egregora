@@ -1,6 +1,7 @@
 """Jules CLI."""
 
 import typer
+import sys
 
 from repo.features.autofix import auto_reply_to_jules
 from repo.scheduler.managers import BranchManager
@@ -23,7 +24,17 @@ def schedule_tick(
     reset: bool = typer.Option(False, "--reset", help="Reset cycle and start from the first persona"),
 ) -> None:
     """Run the scheduler tick."""
-    run_scheduler(dry_run=dry_run, persona_id=prompt_id, reset=reset)
+    result = run_scheduler(dry_run=dry_run, persona_id=prompt_id, reset=reset)
+    print(f"DEBUG: Run scheduler finished with success={result.success}", flush=True)
+    if result.success:
+        print(f"✅ {result.message}", flush=True)
+        if result.session_id:
+            print(f"Session ID: {result.session_id}", flush=True)
+    else:
+        print(f"❌ {result.message}", file=sys.stderr, flush=True)
+        if result.error:
+            print(f"Error details: {result.error}", file=sys.stderr, flush=True)
+        raise typer.Exit(code=1)
 
 
 @autofix_app.command("analyze")
