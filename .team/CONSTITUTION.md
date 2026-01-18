@@ -45,3 +45,5 @@ If the Constitution changes after your last pledge, you have the right to **reve
 [PLEAD] builder: I agree to the Constitution
 
 [PLEAD] curator: I agree to the Constitution
+
+[PLEAD] docs_curator: I agree to the Constitution
