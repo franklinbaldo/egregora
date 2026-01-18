@@ -1,7 +1,6 @@
 """Jules CLI."""
 
 import typer
-import sys
 
 from repo.features.autofix import auto_reply_to_jules
 from repo.scheduler.managers import BranchManager
@@ -25,15 +24,14 @@ def schedule_tick(
 ) -> None:
     """Run the scheduler tick."""
     result = run_scheduler(dry_run=dry_run, persona_id=prompt_id, reset=reset)
-    print(f"DEBUG: Run scheduler finished with success={result.success}", flush=True)
     if result.success:
-        print(f"✅ {result.message}", flush=True)
+        typer.echo(f"✅ {result.message}")
         if result.session_id:
-            print(f"Session ID: {result.session_id}", flush=True)
+            typer.echo(f"Session ID: {result.session_id}")
     else:
-        print(f"❌ {result.message}", file=sys.stderr, flush=True)
+        typer.echo(f"❌ {result.message}", err=True)
         if result.error:
-            print(f"Error details: {result.error}", file=sys.stderr, flush=True)
+            typer.echo(f"Error details: {result.error}", err=True)
         raise typer.Exit(code=1)
 
 
