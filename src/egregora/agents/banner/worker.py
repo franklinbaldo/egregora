@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class BannerWorker(BaseWorker):
+class BannerWorker(BaseWorker["PipelineContext"]):
     """Worker that generates banner images using the banner batch processor."""
 
     def __init__(self, ctx: PipelineContext) -> None:

@@ -12,7 +12,7 @@ from egregora.orchestration.worker_base import BaseWorker
 logger = logging.getLogger(__name__)
 
 
-class ProfileWorker(BaseWorker):
+class ProfileWorker(BaseWorker["PipelineContext"]):
     """Worker that updates author profiles, with coalescing optimization."""
 
     def run(self) -> int:

@@ -3,20 +3,19 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TypeVar
 
-if TYPE_CHECKING:
-    from egregora.orchestration.context import PipelineContext
+ContextT = TypeVar("ContextT")
 
 
-class BaseWorker(ABC):
+class BaseWorker[ContextT](ABC):
     """Abstract base for background workers that consume TaskStore jobs."""
 
-    def __init__(self, ctx: PipelineContext) -> None:
+    def __init__(self, ctx: ContextT) -> None:
         self.ctx = ctx
         task_store = getattr(ctx, "task_store", None)
         if not task_store:
-            msg = "TaskStore not found in PipelineContext; it must be initialized and injected."
+            msg = "TaskStore not found in context; it must be initialized and injected."
             raise ValueError(msg)
         self.task_store = task_store
 

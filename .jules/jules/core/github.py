@@ -224,7 +224,7 @@ def get_pr_details_via_gh(pr_number: int, repo_path: str = ".") -> dict[str, Any
     repo_info = get_repo_info()
     owner = repo_info["owner"]
     repo = repo_info["repo"]
-    
+
     client = GitHubClient()
     if not client.token:
         raise GitHubError("No GitHub token provided")
@@ -237,10 +237,10 @@ def get_pr_details_via_gh(pr_number: int, repo_path: str = ".") -> dict[str, Any
 
         # 2. Get Commits (last 100)
         commits_data = client._get(f"repos/{owner}/{repo}/pulls/{pr_number}/commits", params={"per_page": 100}) or []
-        
+
         # 3. Get Reviews
         reviews_data = client._get(f"repos/{owner}/{repo}/pulls/{pr_number}/reviews") or []
-        
+
         # 4. Get Comments (Issue comments)
         comments_data = client._get(f"repos/{owner}/{repo}/issues/{pr_number}/comments") or []
 
@@ -255,7 +255,7 @@ def get_pr_details_via_gh(pr_number: int, repo_path: str = ".") -> dict[str, Any
     branch = pr["head"]["ref"]
     body = pr["body"] or ""
     session_id = _extract_session_id(branch, body)
-    
+
     mapped_commits = []
     for c in commits_data:
         mapped_commits.append({
@@ -299,7 +299,7 @@ def get_base_sha(base_branch: str, repo_path: str = ".") -> str:
     repo_info = get_repo_info()
     owner = repo_info["owner"]
     repo = repo_info["repo"]
-    
+
     client = GitHubClient()
     if not client.token:
         return "Unknown"
@@ -311,7 +311,7 @@ def get_base_sha(base_branch: str, repo_path: str = ".") -> str:
             return branch_data["commit"]["sha"]
     except Exception:
         pass
-        
+
     return "Unknown"
 
 
@@ -361,7 +361,7 @@ def _get_last_commit_author_login(commits: list[dict[str, Any]] | None) -> str |
         return None
 
     last_commit = commits[-1] or {}
-    
+
     # Try 'author' dict (standard GitHub API)
     author = last_commit.get("author")
     if isinstance(author, dict):
@@ -396,13 +396,13 @@ def _analyze_checks(checks_rollup: list[dict[str, Any]]) -> tuple[bool, list[str
     """Analyze status checks to determine pass/fail status."""
     all_passed = True
     failed_check_names = []
-    
+
     for check in checks_rollup:
         status = check.get("conclusion")
         if status in ["failure", "timed_out", "cancelled", "action_required"]:
             all_passed = False
             failed_check_names.append(check.get("name"))
-            
+
     return all_passed, failed_check_names
 
 
@@ -415,7 +415,7 @@ def fetch_full_ci_logs(pr_number: int, branch: str, repo_full: str, cwd: str = "
     """Fetch full CI logs for the latest failing workflow run on the branch."""
     if not branch or not repo_full:
         return ""
-        
+
     client = GitHubClient()
     if not client.token:
         return ""
@@ -443,12 +443,12 @@ def fetch_full_ci_logs(pr_number: int, branch: str, repo_full: str, cwd: str = "
         run_id = run.get("id")
         run_url = run.get("html_url")
         workflow_name = run.get("name") or "Workflow"
-        
+
         try:
             resp = client._get_raw(f"repos/{repo_full}/actions/runs/{run_id}/logs")
             if not resp:
                 continue
-                
+
             with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
                 log_files = [f for f in z.namelist() if f.endswith(".txt")]
                 combined_log = ""
@@ -458,14 +458,14 @@ def fetch_full_ci_logs(pr_number: int, branch: str, repo_full: str, cwd: str = "
                         if "failure" in content.lower() or "error" in content.lower():
                             combined_log += f"\n--- Log: {log_file} ---\n"
                             combined_log += content[-5000:]
-                            
+
                 if combined_log:
                     section = f"### {workflow_name} (Run ID: {run_id})\n"
                     if run_url:
                         section += f"**Full Log URL**: {run_url}\n\n"
                     section += f"```text\n{combined_log}\n```"
                     logs_sections.append(section)
-                    
+
         except Exception:
             continue
 
@@ -476,7 +476,7 @@ def get_repo_info() -> dict[str, str]:
     """Get owner and repo from environment or git."""
     owner = os.environ.get("GITHUB_REPOSITORY_OWNER")
     repo_full = os.environ.get("GITHUB_REPOSITORY")
-    
+
     if not owner or not repo_full:
         import subprocess
         try:
