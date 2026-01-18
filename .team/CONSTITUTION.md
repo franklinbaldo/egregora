@@ -51,3 +51,5 @@ If the Constitution changes after your last pledge, you have the right to **reve
 [PLEAD] essentialist: I agree to the Constitution
 
 [PLEAD] forge: I agree to the Constitution
+
+[PLEAD] janitor: I agree to the Constitution
