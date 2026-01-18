@@ -190,6 +190,22 @@ def run_sequential_tick(mock_jules_client, mock_orchestrator, mock_branch_manage
     mocker.patch("repo.scheduler.engine.get_repo_info", return_value={"owner": "test", "repo": "test"})
     mocker.patch("repo.scheduler.engine.get_open_prs", return_value=[])
 
+    # Mock GovernanceManager.is_persona_pleaded to return True
+    mock_gov = MagicMock()
+    mock_gov.is_persona_pleaded.return_value = True
+    mocker.patch("repo.features.governance.GovernanceManager", return_value=mock_gov)
+
+    # Mock VoteManager.apply_votes to return None (no vote changes)
+    mock_vote_mgr = MagicMock()
+    mock_vote_mgr.apply_votes.return_value = None
+    mocker.patch("repo.features.voting.VoteManager", return_value=mock_vote_mgr)
+
+    # Mock find_existing_session_id to return None (no existing session)
+    mocker.patch("repo.scheduler.engine.find_existing_session_id", return_value=None)
+
+    # Mock find_persona_pr to return None (no existing PR)
+    mocker.patch("repo.scheduler.engine.find_persona_pr", return_value=None)
+
     if not context.get("existing_session_configured"):
         mock_jules_client.list_sessions.return_value = {"sessions": []}
 

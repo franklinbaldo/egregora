@@ -49,6 +49,10 @@ def list_personas():
         loader = PersonaLoader(personas_dir, base_context)
         personas = loader.load_personas([])
 
+        if not personas:
+            console.print("[bold red]❌ Error:[/bold red] No personas found")
+            raise typer.Exit(code=1)
+
         for p in personas:
             table.add_row(
                 p.emoji or "👤",
@@ -61,8 +65,11 @@ def list_personas():
         console.print(f"\n[dim]Total personas: {len(personas)}[/dim]")
         console.print("[dim]Use 'my-tools roster view <persona_id>' for full details.[/dim]")
 
+    except typer.Exit:
+        raise
     except Exception as e:
         console.print(f"[bold red]❌ Error:[/bold red] {e}")
+        raise typer.Exit(code=1)
 
 
 @app.command(name="view")
@@ -105,6 +112,8 @@ def view_persona(
             rprint("\n[bold yellow]PROMPT TEMPLATE (RGCCOV Architecture):[/bold yellow]")
             rprint(Markdown(persona.prompt_body))
             
+    except typer.Exit:
+        raise
     except Exception as e:
         console.print(f"[bold red]❌ Error:[/bold red] {e}")
         raise typer.Exit(code=1)

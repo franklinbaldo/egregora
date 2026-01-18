@@ -23,7 +23,7 @@ def isolated_fs(tmp_path, monkeypatch):
 @given("the Team environment is initialized")
 def init_env(isolated_fs):
     dot_team = isolated_fs / ".team"
-    dot_repo.mkdir(parents=True, exist_ok=True)
+    dot_team.mkdir(parents=True, exist_ok=True)
     (dot_team / "personas").mkdir(parents=True, exist_ok=True)
 
 

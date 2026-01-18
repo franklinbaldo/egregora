@@ -7,7 +7,7 @@ from egregora.agents.banner.image_generation import ImageGenerationRequest
 
 
 @pytest.fixture
-def mock_httpx(monkeypatch):
+def _mock_httpx(monkeypatch):
     mock = MagicMock()
     monkeypatch.setattr("httpx.get", mock)
     return mock
@@ -29,24 +29,45 @@ class _FakePart:
         self.text = text
 
 
-class _FakeResponse:
-    """Mock response from generate_content."""
+class _FakeContent:
+    """Mock content attribute on candidate."""
 
     def __init__(self, parts: list[_FakePart]):
         self.parts = parts
 
 
-class _FakeClient:
-    """Mock GenerativeModel client that returns generate_content responses."""
+class _FakeCandidate:
+    """Mock candidate in a response."""
+
+    def __init__(self, content: _FakeContent):
+        self.content = content
+
+
+class _FakeResponse:
+    """Mock response from generate_content."""
+
+    def __init__(self, parts: list[_FakePart]):
+        self.candidates = [_FakeCandidate(content=_FakeContent(parts=parts))]
+
+
+class _FakeModels:
+    """Mock models attribute on client."""
 
     def __init__(self, response: _FakeResponse | None = None, error: Exception | None = None):
         self._response = response
         self._error = error
 
-    def generate_content(self, prompt: str):
+    def generate_content(self, *args, **kwargs):
         if self._error:
             raise self._error
         return self._response
+
+
+class _FakeClient:
+    """Mock genai.Client that returns generate_content responses."""
+
+    def __init__(self, response: _FakeResponse | None = None, error: Exception | None = None):
+        self.models = _FakeModels(response=response, error=error)
 
 
 def test_gemini_provider_returns_image_and_debug_text(_mock_httpx):
@@ -90,7 +111,7 @@ def test_gemini_provider_returns_error_when_no_image(_mock_httpx):
 
     assert not result.has_image
     # The error will be from AttributeError when accessing inline_data.data on None
-    assert result.error_code == "GENERATION_FAILED"
+    assert result.error_code == "NO_IMAGE_DATA"
 
 
 def test_gemini_provider_handles_batch_failure():

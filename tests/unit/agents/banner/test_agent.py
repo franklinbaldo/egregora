@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-from google.api_core import exceptions as google_exceptions
+from google.genai import errors as google_exceptions
 
 from egregora.agents.banner.agent import generate_banner, is_banner_generation_available
 from egregora.agents.banner.image_generation import ImageGenerationResult
@@ -59,7 +59,7 @@ def test_generate_banner_success_with_debug_text():
     with (
         patch("egregora.agents.banner.agent.is_banner_generation_available", return_value=True),
         patch("egregora.agents.banner.agent.GeminiImageGenerationProvider") as mock_provider_cls,
-        patch("egregora.agents.banner.agent.genai.GenerativeModel"),
+        patch("egregora.agents.banner.agent.genai.Client"),
     ):
         mock_provider_instance = MagicMock()
         mock_provider_cls.return_value = mock_provider_instance
@@ -84,7 +84,7 @@ def test_generate_banner_failure_no_image_data():
     with (
         patch("egregora.agents.banner.agent.is_banner_generation_available", return_value=True),
         patch("egregora.agents.banner.agent.GeminiImageGenerationProvider") as mock_provider_cls,
-        patch("egregora.agents.banner.agent.genai.GenerativeModel"),
+        patch("egregora.agents.banner.agent.genai.Client"),
     ):
         mock_provider_instance = MagicMock()
         mock_provider_cls.return_value = mock_provider_instance
@@ -111,15 +111,15 @@ def test_generate_banner_handles_google_api_call_error():
     with (
         patch("egregora.agents.banner.agent.is_banner_generation_available", return_value=True),
         patch("egregora.agents.banner.agent.GeminiImageGenerationProvider") as mock_provider_cls,
-        patch("egregora.agents.banner.agent.genai.GenerativeModel"),
+        patch("egregora.agents.banner.agent.genai.Client"),
     ):
         mock_provider_instance = MagicMock()
         mock_provider_cls.return_value = mock_provider_instance
-        mock_provider_instance.generate.side_effect = google_exceptions.GoogleAPICallError("API error")
+        mock_provider_instance.generate.side_effect = google_exceptions.APIError("API error", response_json={})
 
         result = generate_banner("A Title", "A summary")
 
     assert result.success is False
     assert result.document is None
-    assert result.error == "GoogleAPICallError"
+    assert result.error == "APIError"
     assert result.error_code == "GENERATION_EXCEPTION"

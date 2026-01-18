@@ -34,7 +34,7 @@ Feature: Team System Mail Interface
     Then the command should exit successfully
     And the output should contain "Work"
     And the output should contain "boss@team"
-    And the output should contain "[NEW]"
+    And the output should contain "[ NEW ]"
 
   Scenario: Reading a message
     Given a message exists from "friend@team" to "me@team" with body "Secret Code: 1234"

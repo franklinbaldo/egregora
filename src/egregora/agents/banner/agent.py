@@ -12,8 +12,8 @@ from __future__ import annotations
 import logging
 import os
 
-import google.generativeai as genai
-from google.api_core import exceptions as google_exceptions
+from google import genai
+from google.genai import errors as google_exceptions  # noqa: E402
 from pydantic import BaseModel, Field
 from tenacity import Retrying
 
@@ -71,7 +71,7 @@ def _build_image_prompt(input_data: BannerInput) -> str:
 
 
 def _generate_banner_image(
-    client: genai.GenerativeModel,
+    client: genai.Client,
     input_data: BannerInput,
     image_model: str,
     generation_request: ImageGenerationRequest,
@@ -105,7 +105,7 @@ def _generate_banner_image(
 
         return BannerOutput(document=document, debug_text=result.debug_text)
 
-    except google_exceptions.GoogleAPICallError as e:
+    except google_exceptions.APIError as e:
         logger.exception("Banner image generation failed for post '%s'", input_data.post_title)
         return BannerOutput(error=type(e).__name__, error_code="GENERATION_EXCEPTION")
 
@@ -144,7 +144,8 @@ def generate_banner(
         )
     # Client reads GOOGLE_API_KEY from environment automatically
     config = EgregoraConfig()
-    client = genai.GenerativeModel(config.models.banner)
+    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    client = genai.Client(api_key=api_key)
 
     # Load configuration
     image_model = config.models.banner
@@ -166,7 +167,7 @@ def generate_banner(
         for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
             with attempt:
                 return _generate_banner_image(client, input_data, image_model, generation_request)
-    except google_exceptions.GoogleAPICallError as e:
+    except google_exceptions.APIError as e:
         logger.exception("Banner generation failed after retries")
         return BannerOutput(error=type(e).__name__, error_code="GENERATION_FAILED")
 

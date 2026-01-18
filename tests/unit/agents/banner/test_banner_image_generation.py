@@ -17,7 +17,7 @@ else:  # pragma: no cover - exercised when Google SDKs are absent
     google_api_core.exceptions = google_exceptions
     sys.modules.setdefault("google.api_core", google_api_core)
 
-from google.api_core import exceptions as google_exceptions  # noqa: E402
+from google.genai import errors as google_exceptions  # noqa: E402
 
 from egregora.agents.banner import agent  # noqa: E402
 from egregora.agents.banner.agent import BannerInput, _generate_banner_image  # noqa: E402
@@ -90,7 +90,7 @@ def test_generate_banner_image_preserves_request_prompt(fake_provider):
 def test_generate_banner_image_handles_api_error(monkeypatch):
     """Test that API errors from the provider are caught and handled."""
     # 1. Arrange
-    from google.api_core import exceptions as google_exceptions
+    from google.genai import errors as google_exceptions
 
     class FailingProvider:
         def __init__(self, *args, **kwargs):
@@ -98,7 +98,7 @@ def test_generate_banner_image_handles_api_error(monkeypatch):
 
         def generate(self, request: ImageGenerationRequest) -> ImageGenerationResult:
             msg = "Rate limit exceeded"
-            raise google_exceptions.ResourceExhausted(msg)
+            raise google_exceptions.APIError(msg, response_json={})
 
     monkeypatch.setattr(agent, "GeminiImageGenerationProvider", FailingProvider)
 
@@ -116,7 +116,7 @@ def test_generate_banner_image_handles_api_error(monkeypatch):
     # 3. Assert
     assert not output.success
     assert output.document is None
-    assert output.error == "ResourceExhausted"
+    assert output.error == "APIError"
     assert output.error_code == "GENERATION_EXCEPTION"
 
 
@@ -133,7 +133,7 @@ def test_generate_banner_reraises_unexpected_errors(monkeypatch):
     # Mock the genai.Client at the module level where it's imported
 
     # Patch the Client where it is used in the agent module
-    monkeypatch.setattr(agent.genai, "GenerativeModel", lambda *a, **kw: object())
+    monkeypatch.setattr(agent.genai, "Client", lambda *a, **kw: object())
 
     # Mocking EgregoraConfig to return an object with a .models.banner attribute
     class MockModels:

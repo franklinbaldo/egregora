@@ -13,9 +13,7 @@
       "nomeClasse": "APELAÇÃO",
       "codigoClasse": "198",
       "meiocompleto": "Diário de Justiça Eletrônico",
-      "destinatarios": [
-        {"nome": "ESTADO DE RONDÔNIA", "polo": "P"}
-      ],
+      "destinatarios": [{ "nome": "ESTADO DE RONDÔNIA", "polo": "P" }],
       "destinatarioadvogados": [
         {
           "id": 1,

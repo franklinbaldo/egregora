@@ -33,7 +33,8 @@ repos:
       - id: vulture
         name: Check for dead code with vulture
         entry: uv run vulture
-        args: ["src", "tests", "tests/vulture_whitelist.py", "--min-confidence=80"]
+        args:
+          ["src", "tests", "tests/vulture_whitelist.py", "--min-confidence=80"]
         language: system
         types: [python]
         pass_filenames: false
@@ -54,14 +55,26 @@ repos:
       - id: xenon
         name: Enforce complexity thresholds with xenon
         entry: uvx xenon
-        args: ["src", "--max-absolute", "E", "--max-modules", "C", "--max-average", "B", "--exclude", "*/database/*.py"]
+        args:
+          [
+            "src",
+            "--max-absolute",
+            "E",
+            "--max-modules",
+            "C",
+            "--max-average",
+            "B",
+            "--exclude",
+            "*/database/*.py",
+          ]
         language: system
         types: [python]
         pass_filenames: false
       - id: bandit
         name: Check security issues with bandit
         entry: uvx bandit
-        args: ["-r", "src", "-f", "screen", "-c", "pyproject.toml", "-lll", "-ii"]
+        args:
+          ["-r", "src", "-f", "screen", "-c", "pyproject.toml", "-lll", "-ii"]
         language: system
         types: [python]
         pass_filenames: false
@@ -98,7 +111,14 @@ repos:
       - id: coverage
         name: Check test coverage
         entry: uv run pytest
-        args: ["tests/unit/", "--cov=src/egregora", "--cov-report=term-missing", "-q", "--ignore=tests/unit/team"]
+        args:
+          [
+            "tests/unit/",
+            "--cov=src/egregora",
+            "--cov-report=term-missing",
+            "-q",
+            "--ignore=tests/unit/team",
+          ]
         language: system
         types: [python]
         pass_filenames: false

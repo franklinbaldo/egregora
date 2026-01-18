@@ -60,7 +60,7 @@ pulse_manager = PulseManager()
 def login(
     user: str = typer.Option(..., "--user", "-u", help="Your persona ID (e.g. curator@team)"),
     password: str = typer.Option(..., "--password", "-p", help="Your identity token (Access Key)"),
-    goals: List[str] = typer.Option(None, "--goal", "-g", help="Session objectives")
+    goals: List[str] = typer.Option(None, "--goal", "--goals", "-g", help="Session objectives")
 ):
     """
     🔐 AUTHENTICATE SESSION.

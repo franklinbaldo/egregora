@@ -21,6 +21,13 @@ def isolated_fs(tmp_path, monkeypatch):
     return tmp_path
 
 
+@pytest.fixture
+def mock_httpx(monkeypatch):
+    mock = MagicMock()
+    monkeypatch.setattr("httpx.get", mock)
+    return mock
+
+
 @given("the Team environment is initialized")
 def init_env(isolated_fs):
     dot_team = isolated_fs / ".team"
@@ -160,8 +167,10 @@ def set_next_open_sequence(isolated_fs, seq_id):
 
 
 @given(parsers.parse("{count:d} personas have voted (roster size = {roster:d})"))
-def set_roster_size(_count, _roster):
+def set_roster_size(count, roster):
     """Just a descriptive step - roster is controlled by persona dirs."""
+    # These parameters are used by the BDD parser but not directly in the function body.
+    # They are kept to match the BDD step definition.
 
 
 @given(parsers.parse('sequence "{seq}" voted for "{persona}" as first choice'))
@@ -178,7 +187,7 @@ def add_voter_choice(isolated_fs, seq, persona):
 
 
 @given(parsers.parse("votes from the last {count:d} sequences result in a tie:"))
-def setup_tie_votes(isolated_fs, _count):
+def setup_tie_votes(isolated_fs, count):
     """Create votes that result in a tie from sequences before target.
 
     For target=040 and count=5, we use sequences 035-039.
@@ -199,10 +208,11 @@ def setup_tie_votes(isolated_fs, _count):
 
 
 @given(parsers.parse('votes result in a tie between "{p1}" ({pts1:d} pts) and "{p2}" ({pts2:d} pts)'))
-def setup_tie_between(isolated_fs, p1, _pts1, p2, _pts2):
+def setup_tie_between(isolated_fs, p1, pts1, p2, pts2):
     """Create balanced votes for tie."""
-    votes_file = isolated_fs / ".team" / "votes.csv"
-    with open(votes_file, "w", newline="") as f:
+    # These parameters are used by the BDD parser but not directly in the function body.
+    # They are kept to match the BDD step definition.
+    with open(isolated_fs / ".team" / "votes.csv", "w", newline="") as f:
         fieldnames = ["voter_sequence", "candidates"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
