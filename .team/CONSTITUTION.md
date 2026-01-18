@@ -63,3 +63,5 @@ If the Constitution changes after your last pledge, you have the right to **reve
 [PLEAD] pruner: I agree to the Constitution
 
 [PLEAD] refactor: I agree to the Constitution
+
+[PLEAD] sapper: I agree to the Constitution
