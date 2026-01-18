@@ -423,7 +423,9 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> Sched
 
         # Find current sequence
         current = get_current_sequence(rows)
+        print(f"DEBUG: get_current_sequence returned: {current}", flush=True)
         if not current:
+            print("DEBUG: All scheduled work complete, returning success.", flush=True)
             return SchedulerResult(
                 success=True,
                 message="All scheduled work complete"
