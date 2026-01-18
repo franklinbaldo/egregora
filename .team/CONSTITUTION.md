@@ -37,3 +37,5 @@ If the Constitution changes after your last pledge, you have the right to **reve
 ---
 
 [PLEAD] absolutist: I agree to the Constitution
+
+[PLEAD] artisan: I agree to the Constitution
