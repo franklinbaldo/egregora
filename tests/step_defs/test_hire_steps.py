@@ -40,15 +40,15 @@ def mock_login(p_id):
 
 @when(
     parsers.re(
-        r'I hire a new persona with id "(?P<id>[^"]+)", name "(?P<name>[^"]+)", emoji "(?P<emoji>[^"]+)", role "(?P<role>[^"]+)", description "(?P<description>[^"]+)", and mission "(?P<mission>[^"]+)"'
+        r'I hire a new persona with id "(?P<p_id>[^"]+)", name "(?P<name>[^"]+)", emoji "(?P<emoji>[^"]+)", role "(?P<role>[^"]+)", description "(?P<description>[^"]+)", and mission "(?P<mission>[^"]+)"'
     ),
     target_fixture="result",
 )
-def hire_persona(runner, isolated_fs, id, name, emoji, role, description, mission):
+def hire_persona(runner, isolated_fs, p_id, name, emoji, role, description, mission):
     args = [
         "hire",
         "--id",
-        id,
+        p_id,
         "--emoji",
         emoji,
         "--description",

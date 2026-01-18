@@ -35,20 +35,19 @@ class GeminiImageGenerationProvider(ImageGenerationProvider):
                     "response_modalities": request.response_modalities,
                 },
             )
-            
+
             # Extract image from response parts
             for part in response.candidates[0].content.parts:
                 if part.inline_data:
                     return ImageGenerationResult(
-                        image_bytes=part.inline_data.data,
-                        mime_type=part.inline_data.mime_type
+                        image_bytes=part.inline_data.data, mime_type=part.inline_data.mime_type
                     )
-            
+
             return ImageGenerationResult(
                 image_bytes=None,
                 mime_type=None,
                 error="No image data found in response",
-                error_code="NO_IMAGE_DATA"
+                error_code="NO_IMAGE_DATA",
             )
         except Exception as e:
             logger.error(f"Image generation failed: {e}")

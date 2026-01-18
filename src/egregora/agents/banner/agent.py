@@ -13,7 +13,7 @@ import logging
 import os
 
 from google import genai
-from google.genai import errors as google_exceptions  # noqa: E402
+from google.genai import errors as google_exceptions
 from pydantic import BaseModel, Field
 from tenacity import Retrying
 
