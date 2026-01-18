@@ -25,10 +25,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
-from google import genai
-from google.genai import types
 import ibis
 import ibis.common.exceptions
+from google import genai
+from google.genai import types
 from rich.console import Console
 from rich.panel import Panel
 

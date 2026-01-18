@@ -23,7 +23,7 @@ def handler(mock_gh_client, mock_backend):
 
 def test_sync_local_to_github(handler, mock_backend, mock_gh_client):
     # Setup: 1 unsynced message for franklin, 1 for the email
-    def mock_list_inbox(user_id, unread_only=False):
+    def mock_list_inbox(user_id, *args, **kwargs):
         if user_id == "franklin":
             return [{"key": "1", "subject": "Subj1", "from_id": "artisan", "body": "Body1", "date": "today"}]
         if user_id == "franklinbaldo@gmail.com":
@@ -45,7 +45,7 @@ def test_sync_local_to_github(handler, mock_backend, mock_gh_client):
 
 def test_sync_github_to_local(handler, mock_backend, mock_gh_client):
     # Setup: 1 synced message for franklin only
-    def mock_list_inbox(user_id, unread_only=False):
+    def mock_list_inbox(user_id, *args, **kwargs):
         if user_id == "franklin":
             return [
                 {
