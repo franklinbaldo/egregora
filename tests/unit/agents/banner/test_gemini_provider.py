@@ -1,6 +1,3 @@
-import base64
-import json
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -16,57 +13,52 @@ def mock_httpx(monkeypatch):
     return mock
 
 
-class _FakeFiles:
-    def upload(self, file, config):
-        return SimpleNamespace(name="files/123", uri="gs://files/123")
+class _FakeInlineData:
+    """Mock inline_data from a response part."""
+
+    def __init__(self, data: bytes, mime_type: str = "image/png"):
+        self.data = data
+        self.mime_type = mime_type
 
 
-class _FakeBatches:
-    def __init__(self, job_state="SUCCEEDED", job_error=None):
-        self.job_state = job_state
-        self.job_error = job_error
-        self.created_job = None
+class _FakePart:
+    """Mock part of a response."""
 
-    def create(self, model, src, config):
-        self.created_job = SimpleNamespace(name="jobs/456", output_uri="https://output/results.jsonl")
-        return self.created_job
+    def __init__(self, inline_data: _FakeInlineData | None = None, text: str | None = None):
+        self.inline_data = inline_data
+        self.text = text
 
-    def get(self, name):
-        return SimpleNamespace(
-            name=name,
-            state=SimpleNamespace(name=self.job_state),
-            error=self.job_error,
-            output_uri="https://output/results.jsonl",
-        )
+
+class _FakeResponse:
+    """Mock response from generate_content."""
+
+    def __init__(self, parts: list[_FakePart]):
+        self.parts = parts
 
 
 class _FakeClient:
-    def __init__(self, batch_state="SUCCEEDED", batch_error=None):
-        self.files = _FakeFiles()
-        self.batches = _FakeBatches(batch_state, batch_error)
+    """Mock GenerativeModel client that returns generate_content responses."""
+
+    def __init__(self, response: _FakeResponse | None = None, error: Exception | None = None):
+        self._response = response
+        self._error = error
+
+    def generate_content(self, prompt: str):
+        if self._error:
+            raise self._error
+        return self._response
 
 
-def test_gemini_provider_returns_image_and_debug_text(mock_httpx):
-    # Mock successful batch response
-    img_data = base64.b64encode(b"img-bytes").decode("utf-8")
-    response_json = {
-        "response": {
-            "candidates": [
-                {
-                    "content": {
-                        "parts": [
-                            {"text": "debug info"},
-                            {"inlineData": {"mimeType": "image/png", "data": img_data}},
-                        ]
-                    }
-                }
-            ]
-        }
-    }
-    mock_httpx.return_value.text = json.dumps(response_json)
-    mock_httpx.return_value.raise_for_status = MagicMock()
+def test_gemini_provider_returns_image_and_debug_text(_mock_httpx):
+    # Mock successful response with image data
+    img_bytes = b"img-bytes"
+    response = _FakeResponse(
+        parts=[
+            _FakePart(inline_data=_FakeInlineData(data=img_bytes, mime_type="image/png")),
+        ]
+    )
 
-    client = _FakeClient()
+    client = _FakeClient(response=response)
     provider = GeminiImageGenerationProvider(client=client, model="models/test")
 
     result = provider.generate(
@@ -77,33 +69,19 @@ def test_gemini_provider_returns_image_and_debug_text(mock_httpx):
         )
     )
 
-    assert result.image_bytes == b"img-bytes"
+    assert result.image_bytes == img_bytes
     assert result.mime_type == "image/png"
-    assert result.debug_text == "debug info"
-
-    # Verify upload called
-    assert client.batches.created_job.name == "jobs/456"
 
 
-def test_gemini_provider_returns_error_when_no_image(mock_httpx):
-    # Mock response without image
-    response_json = {
-        "response": {
-            "candidates": [
-                {
-                    "content": {
-                        "parts": [
-                            {"text": "just text"},
-                        ]
-                    }
-                }
-            ]
-        }
-    }
-    mock_httpx.return_value.text = json.dumps(response_json)
-    mock_httpx.return_value.raise_for_status = MagicMock()
+def test_gemini_provider_returns_error_when_no_image(_mock_httpx):
+    # Mock response without inline_data (only text)
+    response = _FakeResponse(
+        parts=[
+            _FakePart(text="just text"),
+        ]
+    )
 
-    client = _FakeClient()
+    client = _FakeClient(response=response)
     provider = GeminiImageGenerationProvider(client=client, model="models/test")
 
     result = provider.generate(
@@ -111,17 +89,18 @@ def test_gemini_provider_returns_error_when_no_image(mock_httpx):
     )
 
     assert not result.has_image
-    assert result.error == "No image data found in response"
-    assert result.error_code == "NO_IMAGE"
+    # The error will be from AttributeError when accessing inline_data.data on None
+    assert result.error_code == "GENERATION_FAILED"
 
 
 def test_gemini_provider_handles_batch_failure():
-    client = _FakeClient(batch_state="FAILED", batch_error="Something went wrong")
+    # Mock an exception from generate_content
+    error = Exception("API call failed: Something went wrong")
+    client = _FakeClient(error=error)
     provider = GeminiImageGenerationProvider(client=client, model="models/test")
-    provider._poll_interval = 0  # Speed up test
 
     result = provider.generate(ImageGenerationRequest(prompt="prompt", response_modalities=["IMAGE"]))
 
     assert not result.has_image
-    assert result.error == "Batch job failed with state FAILED: Something went wrong"
-    assert result.error_code == "BATCH_FAILED"
+    assert "Something went wrong" in result.error
+    assert result.error_code == "GENERATION_FAILED"

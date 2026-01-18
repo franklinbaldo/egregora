@@ -1,8 +1,8 @@
 import json
 
 import pytest
-from repo.cli.my_tools import app
 from pytest_bdd import given, parsers, scenarios, then, when
+from repo.cli.my_tools import app
 from typer.testing import CliRunner
 
 # Load scenarios

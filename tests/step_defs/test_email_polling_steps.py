@@ -1,9 +1,9 @@
 from unittest.mock import MagicMock
 
 import pytest
+from pytest_bdd import given, parsers, scenarios, then, when
 from repo.core.client import TeamClient
 from repo.features.polling import EmailPoller
-from pytest_bdd import given, parsers, scenarios, then, when
 
 # Load scenarios
 scenarios("../features/email_polling.feature")
