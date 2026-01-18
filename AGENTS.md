@@ -10,7 +10,7 @@ This document provides practical instructions for AI agents. For comprehensive c
 
 Before starting work, familiarize yourself with:
 - **[CLAUDE.md](CLAUDE.md)**: Authoritative coding standards, architecture patterns, and development practices
-- **[.jules/README.md](.jules/README.md)**: Jules persona definitions and scheduling
+- **[.team/README.md](.team/README.md)**: Jules persona definitions and scheduling
 - **[README.md](README.md)**: User-facing documentation and project overview
 
 ---
@@ -157,7 +157,7 @@ Jules personas are autonomous AI agents that perform maintenance tasks. Active p
 | 🎨 | **Palette** | Design Sys | Accessibility & UI |
 | 📉 | **Essentialist** | Reducer | Complexity Reduction |
 
-See [.jules/README.md](.jules/README.md) for full persona definitions.
+See [.team/README.md](.team/README.md) for full persona definitions.
 
 ### Scheduler Workflow
 
@@ -167,12 +167,12 @@ The scheduler (`.github/workflows/jules_scheduler.yml`) runs hourly or on dispat
 # Manual trigger
 uv run --with requests --with python-frontmatter --with jinja2 \
   --with typer --with pydantic \
-  python -m jules.cli schedule tick [--all] [--prompt-id <id>] [--dry-run]
+  python -m repo.cli schedule tick [--all] [--prompt-id <id>] [--dry-run]
 ```
 
 **How it works**:
-1. Scans `.jules/personas/*/prompt.md` for enabled personas
-2. Ensures `.jules/personas/<id>/journals/` exists
+1. Scans `.team/personas/*/prompt.md` for enabled personas
+2. Ensures `.team/personas/<id>/journals/` exists
 3. Renders each prompt with injected variables:
    - `{{ emoji }}`: Persona's brand emoji
    - `{{ identity_branding }}`: Standard naming conventions
@@ -189,7 +189,7 @@ The auto-fix workflow (`.github/workflows/jules-auto-fixer.yml`) triggers after 
 ```bash
 # Analyze PR and trigger fix
 uv run --with requests --with typer --with pydantic \
-  python -m jules.cli autofix analyze <pr_number>
+  python -m repo.cli autofix analyze <pr_number>
 ```
 
 **How it works**:
@@ -201,7 +201,7 @@ uv run --with requests --with typer --with pydantic \
 
 ### Persona Configuration
 
-Each `.jules/personas/<name>/prompt.md` supports frontmatter:
+Each `.team/personas/<name>/prompt.md` supports frontmatter:
 
 ```yaml
 ---
@@ -213,7 +213,7 @@ schedule: "0 */6 * * *"  # Optional cron expression
 ---
 ```
 
-**Journals**: Append-only memory stored in `.jules/personas/<persona>/journals/`
+**Journals**: Append-only memory stored in `.team/personas/<persona>/journals/`
 - Format: `YYYY-MM-DD-HHMM-Description.md`
 - Included in persona context during scheduling
 - Provides continuity across sessions
@@ -305,11 +305,11 @@ uv run ruff check .
 [What we're building and why]
 
 ## FILES TO CREATE
-1. `.jules/path/to/new_file.py` - [Purpose]
-2. `.jules/path/to/config.toml` - [Purpose]
+1. `.team/path/to/new_file.py` - [Purpose]
+2. `.team/path/to/config.toml` - [Purpose]
 
 ## FILES TO MODIFY
-1. `.jules/existing.py` - [Add X, modify Y]
+1. `.team/existing.py` - [Add X, modify Y]
 
 ## CODE PATTERNS
 [Examples of similar code to follow]

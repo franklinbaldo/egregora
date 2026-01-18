@@ -36,12 +36,12 @@ jobs:
       - name: Merge jules → main if clean
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYTHONPATH: .jules
+          PYTHONPATH: .team
         run: |
           set -euo pipefail
           git fetch origin main jules
           uv run python - <<'PY'
-          from jules.scheduler_managers import BranchManager
+          from repo.scheduler_managers import BranchManager
           mgr = BranchManager()
           mgr.merge_jules_into_main_direct()
           PY

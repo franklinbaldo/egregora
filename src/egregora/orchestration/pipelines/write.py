@@ -25,7 +25,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import ibis
 import ibis.common.exceptions
 from rich.console import Console
@@ -128,7 +129,7 @@ class WhatsAppProcessOptions:
     batch_threshold: int = 10
     max_prompt_tokens: int = 100_000
     use_full_context_window: bool = False
-    client: genai.GenerativeModel | None = None
+    client: genai.Client | None = None
     refresh: str | None = None
 
 
@@ -879,16 +880,19 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> Mk
     return MkDocsPaths(output_dir, config=config)
 
 
-def _create_gemini_client(model_name: str) -> genai.GenerativeModel:
-    """Create a Gemini client with retry configuration."""
-    # Safety settings to avoid blocking content.
-    safety_settings = [
-        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+def _create_gemini_client(api_key: str | None = None) -> genai.Client:
+    """Create a Gemini client."""
+    return genai.Client(api_key=api_key)
+
+
+def _get_safety_settings() -> list[types.SafetySetting]:
+    """Get standard safety settings to avoid blocking content."""
+    return [
+        types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
+        types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
+        types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
+        types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
     ]
-    return genai.GenerativeModel(model_name, safety_settings=safety_settings)
 
 
 def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineContext, Any]:
@@ -905,7 +909,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
     initialize_database(pipeline_backend)
 
-    client_instance = run_params.client or _create_gemini_client(run_params.config.models.writer)
+    client_instance = run_params.client or _create_gemini_client()
     cache_path = Path(run_params.config.paths.cache_dir)
     cache_dir = cache_path if cache_path.is_absolute() else site_paths.site_root / cache_path
     cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)

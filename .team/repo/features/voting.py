@@ -12,19 +12,18 @@ class VoteManager:
         self.schedule_file = schedule_file
         self.votes_file = votes_file
 
-    def cast_vote(self, voter_sequence: str, candidate_personas: List[str]) -> str:
+    def cast_vote(self, voter_sequence: str, candidate_personas: List[str]) -> None:
         """
-        Cast ranked votes for personas to occupy a calculated future sequence.
-        Stores candidates as comma-separated array in a single column.
-        Format: [voter_sequence, sequence_cast, candidates]
+        Cast ranked votes for personas.
+        
+        NEW MODEL: Votes are NOT cast for a specific sequence.
+        Instead, for any target sequence, we tally the last N votes
+        (where N = roster size) from the most recent voters.
+        
+        Format: [voter_sequence, candidates] (no sequence_cast column)
         
         If a vote already exists for this voter_sequence, it is OVERWRITTEN.
         """
-        roster_size = self._get_roster_size()
-        voter_seq_int = int(voter_sequence)
-        target_seq_int = voter_seq_int + roster_size + 1
-        target_sequence = f"{target_seq_int:03}"
-
         # Store candidates as comma-separated array
         candidates_array = ",".join(candidate_personas)
 
@@ -40,16 +39,14 @@ class VoteManager:
 
         # Write all votes back, with new vote added
         with open(self.votes_file, mode='w', newline='') as f:
-            fieldnames = ['voter_sequence', 'sequence_cast', 'candidates']
+            fieldnames = ['voter_sequence', 'candidates']
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(existing_votes)
             writer.writerow({
                 'voter_sequence': voter_sequence,
-                'sequence_cast': target_sequence,
                 'candidates': candidates_array
             })
-        return target_sequence
 
     def _get_roster_size(self) -> int:
         """Count active persona directories."""
@@ -69,27 +66,62 @@ class VoteManager:
                     return bool(row.get('session_id') or row.get('pr_status'))
         return False
 
-    def get_tally(self, sequence_id: str) -> Dict[str, int]:
-        """Tally votes for a specific sequence from the CSV using Borda Count."""
+    def get_next_open_sequence(self) -> Optional[str]:
+        """
+        Find the next sequence that has no session_id (not yet executed).
+        This is the sequence we should apply votes to.
+        """
+        if not self.schedule_file.exists():
+            return None
+            
+        with open(self.schedule_file, mode='r', newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if not row.get('session_id') and not row.get('pr_status'):
+                    return row['sequence']
+        return None
+
+    def get_tally(self, target_sequence: str) -> Dict[str, int]:
+        """
+        Tally votes for a target sequence using ROLLING WINDOW.
+        
+        NEW MODEL: We use the last N votes (where N = roster size) from
+        voters whose sequences are BEFORE the target sequence.
+        
+        Example: If roster_size=5 and target_sequence=010, we tally votes
+        from sequences 005, 006, 007, 008, 009 (the 5 most recent before 010).
+        
+        Uses Borda Count: 1st choice gets N points, 2nd gets N-1, etc.
+        """
         if not self.votes_file.exists():
             return {}
             
         roster_size = self._get_roster_size()
+        target_seq_int = int(target_sequence)
+        
+        # Determine which voter sequences are eligible (last N before target)
+        # E.g., if target=010 and roster=5, eligible = [005, 006, 007, 008, 009]
+        eligible_start = max(1, target_seq_int - roster_size)
+        eligible_sequences = set(f"{i:03}" for i in range(eligible_start, target_seq_int))
+        
         tally = {}
         with open(self.votes_file, mode='r', newline='') as f:
             reader = csv.DictReader(f)
             for row in reader:
-                if row['sequence_cast'] == sequence_id:
-                    # Parse candidates array (comma-separated)
-                    candidates_str = row.get('candidates', '')
-                    if not candidates_str:
-                        continue
-                    candidates = [c.strip() for c in candidates_str.split(',')]
+                voter_seq = row['voter_sequence']
+                if voter_seq not in eligible_sequences:
+                    continue
                     
-                    # Assign Borda points: Rank 1 gets roster_size, Rank 2 gets roster_size - 1, etc.
-                    for rank, persona in enumerate(candidates, start=1):
-                        points = max(0, roster_size - (rank - 1))
-                        tally[persona] = tally.get(persona, 0) + points
+                # Parse candidates array (comma-separated)
+                candidates_str = row.get('candidates', '')
+                if not candidates_str:
+                    continue
+                candidates = [c.strip() for c in candidates_str.split(',')]
+                
+                # Assign Borda points: Rank 1 gets roster_size, Rank 2 gets roster_size - 1, etc.
+                for rank, persona in enumerate(candidates, start=1):
+                    points = max(0, roster_size - (rank - 1))
+                    tally[persona] = tally.get(persona, 0) + points
         return tally
 
     def apply_votes(self, sequence_id: str) -> Optional[str]:

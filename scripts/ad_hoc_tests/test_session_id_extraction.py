@@ -7,9 +7,9 @@ import subprocess
 import sys
 from typing import Any
 
-# Import the extraction logic from jules module
-sys.path.insert(0, ".jules")
-import jules.github as jules_github
+# Import the extraction logic from repo module
+sys.path.insert(0, ".team")
+import repo.github as jules_github
 
 
 def fetch_jules_prs() -> list[dict[str, Any]]:

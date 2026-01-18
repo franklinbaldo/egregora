@@ -64,7 +64,7 @@ Personas help Jules:
 3. **Create the methodology** (step-by-step process)
 4. **Add examples** (good vs bad)
 5. **Set boundaries** (always/sometimes/never)
-6. **Save to `.jules/`** directory
+6. **Save to `.team/`** directory
 7. **Test with a real task**
 
 ### Example: Creating a "Janitor" Persona
@@ -87,11 +87,11 @@ Your mission is to clean up the codebase using dead code analysis and safe refac
 ### Where to Save Personas
 
 **Active personas** (with journals):
-- `.jules/{persona_name}.md`
+- `.team/{persona_name}.md`
 
 **Prompt templates**:
-- `.jules/personas/{persona_name}.md`
-- `.jules/personas/{persona_name}.md.jinja2` (with dynamic context)
+- `.team/personas/{persona_name}.md`
+- `.team/personas/{persona_name}.md.jinja2` (with dynamic context)
 
 ## Common Use Cases
 
@@ -131,7 +131,7 @@ Create a "Janitor" persona that removes dead code safely.
 
 - **SKILL.md**: Complete guide to persona creation
 - **examples.md**: Multiple ready-to-use persona templates
-- **Existing personas**: See `.jules/` directory for real examples
+- **Existing personas**: See `.team/` directory for real examples
 
 ## When to Use This Skill
 
@@ -145,11 +145,11 @@ Invoke this skill when:
 ## Examples in This Repository
 
 See these existing personas for inspiration:
-- `.jules/builder.md` - TDD-driven development (implied from user's example)
-- `.jules/sentinel.md` - Security vulnerability tracking
-- `.jules/scribe.md` - Documentation maintenance
-- `.jules/artisan.md` - UX polish and improvements
-- `.jules/bolt.md` - Performance optimization
+- `.team/builder.md` - TDD-driven development (implied from user's example)
+- `.team/sentinel.md` - Security vulnerability tracking
+- `.team/scribe.md` - Documentation maintenance
+- `.team/artisan.md` - UX polish and improvements
+- `.team/bolt.md` - Performance optimization
 
 ## Quick Reference
 
@@ -167,7 +167,7 @@ See these existing personas for inspiration:
 
 1. Read `SKILL.md` for comprehensive guidance
 2. Review `examples.md` for ready-to-use templates
-3. Study existing personas in `.jules/`
+3. Study existing personas in `.team/`
 4. Create your first persona using the template
 5. Test it with a real Jules session
 6. Iterate based on results

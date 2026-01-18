@@ -61,7 +61,7 @@ def main() -> None:
 
             # Setting PYTHONPATH for the email command
             env = os.environ.copy()
-            env["PYTHONPATH"] = ".jules"
+            env["PYTHONPATH"] = ".team"
 
             with contextlib.suppress(subprocess.CalledProcessError):
                 subprocess.run(email_command, check=True, capture_output=True, text=True, env=env)

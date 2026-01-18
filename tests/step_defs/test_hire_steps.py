@@ -1,9 +1,9 @@
 from unittest.mock import patch
 
 import pytest
-from jules.cli.my_tools import app
-from jules.features.hire import HireManager
 from pytest_bdd import given, parsers, scenarios, then, when
+from repo.cli.my_tools import app
+from repo.features.hire import HireManager
 from typer.testing import CliRunner
 
 scenarios("../features/hire.feature")
@@ -20,11 +20,11 @@ def isolated_fs(tmp_path, monkeypatch):
     return tmp_path
 
 
-@given("the Jules environment is initialized")
+@given("the Team environment is initialized")
 def init_env(isolated_fs):
-    dot_jules = isolated_fs / ".jules"
-    dot_jules.mkdir(parents=True, exist_ok=True)
-    (dot_jules / "personas").mkdir(parents=True, exist_ok=True)
+    dot_team = isolated_fs / ".team"
+    dot_team.mkdir(parents=True, exist_ok=True)
+    (dot_team / "personas").mkdir(parents=True, exist_ok=True)
 
 
 @given(parsers.parse('a persona directory "{path}" exists'))
@@ -40,15 +40,15 @@ def mock_login(p_id):
 
 @when(
     parsers.re(
-        r'I hire a new persona with id "(?P<persona_id>[^"]+)", name "(?P<name>[^"]+)", emoji "(?P<emoji>[^"]+)", role "(?P<role>[^"]+)", description "(?P<description>[^"]+)" and mission "(?P<mission>[^"]+)"'
+        r'I hire a new persona with id "(?P<id>[^"]+)", name "(?P<name>[^"]+)", emoji "(?P<emoji>[^"]+)", role "(?P<role>[^"]+)", description "(?P<description>[^"]+)", and mission "(?P<mission>[^"]+)"'
     ),
     target_fixture="result",
 )
-def hire_persona(runner, isolated_fs, persona_id, name, emoji, role, description, mission):
+def hire_persona(runner, isolated_fs, id, name, emoji, role, description, mission):
     args = [
         "hire",
         "--id",
-        persona_id,
+        id,
         "--emoji",
         emoji,
         "--description",
@@ -61,13 +61,13 @@ def hire_persona(runner, isolated_fs, persona_id, name, emoji, role, description
         "any",
     ]
 
-    with patch("jules.cli.my_tools.session_manager") as mock_session:
+    with patch("repo.cli.my_tools.session_manager") as mock_session:
         mock_session.get_active_persona.return_value = "artisan"
         mock_session.validate_password.return_value = True
 
-        with patch("jules.cli.my_tools.hire_manager") as mock_hire_mgr:
+        with patch("repo.cli.my_tools.hire_manager") as mock_hire_mgr:
             # We want to use a real HireManager but pointed to our isolated FS
-            real_hire_mgr = HireManager(personas_root=isolated_fs / ".jules" / "personas")
+            real_hire_mgr = HireManager(personas_root=isolated_fs / ".team" / "personas")
             mock_hire_mgr.hire_persona.side_effect = real_hire_mgr.hire_persona
 
             return runner.invoke(app, args)
@@ -94,7 +94,7 @@ def verify_prompt_pattern(isolated_fs, path):
 def verify_hirer_metadata(isolated_fs, p_id, hirer):
     import frontmatter
 
-    prompt_path = isolated_fs / ".jules" / "personas" / p_id / "prompt.md.j2"
+    prompt_path = isolated_fs / ".team" / "personas" / p_id / "prompt.md.j2"
     post = frontmatter.load(prompt_path)
     assert post.metadata.get("hired_by") == hirer
 
@@ -102,8 +102,8 @@ def verify_hirer_metadata(isolated_fs, p_id, hirer):
 @then(parsers.parse('the persona "{p_id}" should appear in "my-tools roster list"'))
 def verify_roster(runner, isolated_fs, p_id):
     # Roster list uses get_personas_dir()
-    with patch("jules.cli.roster.get_personas_dir") as mock_get_dir:
-        mock_get_dir.return_value = isolated_fs / ".jules" / "personas"
+    with patch("repo.cli.roster.get_personas_dir") as mock_get_dir:
+        mock_get_dir.return_value = isolated_fs / ".team" / "personas"
         result = runner.invoke(app, ["roster", "list"])
         assert p_id in result.stdout
 

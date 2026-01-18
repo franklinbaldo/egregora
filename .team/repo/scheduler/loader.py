@@ -24,9 +24,8 @@ class PersonaLoader:
         self.base_context = base_context or {}
 
         # Initialize Jinja environment with FileSystemLoader
-        # We need to point to the templates directory AND the root for relative lookups
-        # New location: .team/repo/templates
-        templates_dir = personas_dir.parent / "repo" / "templates"
+        # We point to the templates directory relative to this file
+        templates_dir = Path(__file__).parent.parent / "templates"
         self.jinja_env = jinja2.Environment(
             loader=jinja2.FileSystemLoader([
                 str(templates_dir),

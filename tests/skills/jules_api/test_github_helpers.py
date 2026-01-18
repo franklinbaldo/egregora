@@ -4,16 +4,16 @@ from pathlib import Path
 
 class TestGithubHelpers:
     def setup_method(self) -> None:
-        self.jules_path = Path(__file__).parents[3] / ".jules"
-        sys.path.insert(0, str(self.jules_path))
-        import jules.github
+        self.team_path = Path(__file__).parents[3] / ".team"
+        sys.path.insert(0, str(self.team_path))
+        import repo.github
 
-        self.github = jules.github
+        self.github = repo.github
 
     def teardown_method(self) -> None:
-        sys.path.remove(str(self.jules_path))
-        if "jules.github" in sys.modules:
-            del sys.modules["jules.github"]
+        sys.path.remove(str(self.team_path))
+        if "repo.github" in sys.modules:
+            del sys.modules["repo.github"]
 
     def test_last_commit_author_login_prefers_user_login(self) -> None:
         commits = [{"authors": [{"user": {"login": "google-labs-jules[bot]"}}]}]

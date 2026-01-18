@@ -1,8 +1,8 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from jules.cli.roster import app
 from pytest_bdd import given, parsers, scenarios, then, when
+from repo.cli.roster import app
 from typer.testing import CliRunner
 
 # Load scenarios
@@ -28,7 +28,7 @@ def isolate_filesystem(isolated_fs):
 
 @given("the following personas exist:")
 def create_multiple_personas(isolated_fs, datatable):
-    personas_dir = isolated_fs / ".jules" / "personas"
+    personas_dir = isolated_fs / ".team" / "personas"
     for row in datatable:
         if row[0] == "id":
             continue
@@ -46,7 +46,7 @@ Content
 
 @given(parsers.parse('a persona "{p_id}" exists with description "{desc}"'))
 def create_persona_with_desc(isolated_fs, p_id, desc):
-    p_dir = isolated_fs / ".jules" / "personas" / p_id
+    p_dir = isolated_fs / ".team" / "personas" / p_id
     p_dir.mkdir(parents=True, exist_ok=True)
     (p_dir / "prompt.md.j2").write_text(f"""---
 id: {p_id}
@@ -59,7 +59,7 @@ Content
 
 @given(parsers.parse('a persona "{p_id}" exists'))
 def create_simple_persona(isolated_fs, p_id):
-    p_dir = isolated_fs / ".jules" / "personas" / p_id
+    p_dir = isolated_fs / ".team" / "personas" / p_id
     p_dir.mkdir(parents=True, exist_ok=True)
     (p_dir / "prompt.md.j2").write_text(f"""---
 id: {p_id}
@@ -72,7 +72,7 @@ Content
 
 @given("no personas exist")
 def no_personas(isolated_fs):
-    personas_dir = isolated_fs / ".jules" / "personas"
+    personas_dir = isolated_fs / ".team" / "personas"
     personas_dir.mkdir(parents=True, exist_ok=True)
 
 
@@ -86,8 +86,8 @@ def run_view_persona(runner, p_id):
     mock_config.description = "Senior frontend developer" if p_id == "forge" else "Test description"
     mock_config.prompt_body = f"# {p_id.upper()}\n\nThis is the prompt content."
 
-    # roster.py now has 'from jules.scheduler.loader import PersonaLoader' at top level
-    with patch("jules.cli.roster.PersonaLoader") as mock_loader_class:
+    # roster.py now has 'from repo.scheduler.loader import PersonaLoader' at top level
+    with patch("repo.cli.roster.PersonaLoader") as mock_loader_class:
         mock_loader = MagicMock()
         mock_loader.load_persona.return_value = mock_config
         mock_loader_class.return_value = mock_loader

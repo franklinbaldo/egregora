@@ -1,5 +1,5 @@
 Feature: Email Polling and Delivery
-  As a Jules System,
+  As a Team System,
   I want to poll session activities for new mail files,
   So that I can deliver messages to recipient's active sessions automatically.
 
@@ -8,11 +8,11 @@ Feature: Email Polling and Delivery
     And an active session "sessions/recipient-456" exists for "curator@team"
     When a new activity appears in "sessions/sender-123" with a git patch:
       """
-      diff --git a/.jules/personas/curator@team/mail/new/msg-789 b/.jules/personas/curator@team/mail/new/msg-789
+      diff --git a/.team/personas/curator@team/mail/new/msg-789 b/.team/personas/curator@team/mail/new/msg-789
       new file mode 100644
       index 0000000..e69de29
       --- /dev/null
-      +++ b/.jules/personas/curator@team/mail/new/msg-789
+      +++ b/.team/personas/curator@team/mail/new/msg-789
       @@ -0,0 +1,5 @@
       +From: weaver@team
       +To: curator@team

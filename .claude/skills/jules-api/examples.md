@@ -5,7 +5,7 @@
 ### 1. Setup Authentication
 
 ```bash
-# Get your API key from https://jules.google.com/settings#api
+# Get your API key from https://repo.google.com/settings#api
 # Then export it as an environment variable
 export JULES_API_KEY="your-api-key-here"
 
@@ -17,7 +17,7 @@ echo $JULES_API_KEY
 
 **Using curl**:
 ```bash
-curl -X POST https://jules.googleapis.com/v1alpha/sessions \
+curl -X POST https://repo.googleapis.com/v1alpha/sessions \
   -H "X-Goog-Api-Key: $JULES_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -43,7 +43,7 @@ python .claude/skills/jules-api/jules_client.py create \
 
 **Using Python code**:
 ```python
-from jules_client import JulesClient
+from repo_client import JulesClient
 
 client = JulesClient()
 session = client.create_session(
@@ -61,7 +61,7 @@ print(f"Status: {session['state']}")
 ```bash
 # Using curl
 SESSION_ID="your-session-id"
-curl https://jules.googleapis.com/v1alpha/sessions/$SESSION_ID \
+curl https://repo.googleapis.com/v1alpha/sessions/$SESSION_ID \
   -H "X-Goog-Api-Key: $JULES_API_KEY"
 
 # Using Python client
@@ -75,7 +75,7 @@ python .claude/skills/jules-api/jules_client.py get $SESSION_ID
 Create a session and let Jules complete it automatically:
 
 ```python
-from jules_client import JulesClient
+from repo_client import JulesClient
 import time
 
 client = JulesClient()
@@ -115,7 +115,7 @@ while True:
 Review and approve Jules' plan before execution:
 
 ```python
-from jules_client import JulesClient
+from repo_client import JulesClient
 import time
 
 client = JulesClient()
@@ -169,7 +169,7 @@ while True:
 Provide feedback during execution:
 
 ```python
-from jules_client import JulesClient
+from repo_client import JulesClient
 import time
 
 client = JulesClient()
@@ -216,7 +216,7 @@ while True:
 View all your active and completed sessions:
 
 ```python
-from jules_client import JulesClient
+from repo_client import JulesClient
 
 client = JulesClient()
 sessions = client.list_sessions()
@@ -236,7 +236,7 @@ for session in sessions.get('sessions', []):
 
 ### Monitor Session Script
 
-Save as `monitor_jules.sh`:
+Save as `monitor_repo.sh`:
 
 ```bash
 #!/bin/bash
@@ -244,14 +244,14 @@ Save as `monitor_jules.sh`:
 SESSION_ID=$1
 
 if [ -z "$SESSION_ID" ]; then
-    echo "Usage: ./monitor_jules.sh <session_id>"
+    echo "Usage: ./monitor_repo.sh <session_id>"
     exit 1
 fi
 
 while true; do
     echo "Checking session status..."
 
-    RESPONSE=$(curl -s https://jules.googleapis.com/v1alpha/sessions/$SESSION_ID \
+    RESPONSE=$(curl -s https://repo.googleapis.com/v1alpha/sessions/$SESSION_ID \
         -H "X-Goog-Api-Key: $JULES_API_KEY")
 
     STATE=$(echo $RESPONSE | jq -r '.state')
@@ -288,7 +288,7 @@ declare -a TASKS=(
 for TASK in "${TASKS[@]}"; do
     echo "Creating session for: $TASK"
 
-    curl -X POST https://jules.googleapis.com/v1alpha/sessions \
+    curl -X POST https://repo.googleapis.com/v1alpha/sessions \
         -H "X-Goog-Api-Key: $JULES_API_KEY" \
         -H "Content-Type: application/json" \
         -d "{
@@ -311,7 +311,7 @@ done
 ### Robust Error Handling
 
 ```python
-from jules_client import JulesClient
+from repo_client import JulesClient
 import requests
 
 def create_session_with_retry(client, prompt, owner, repo, max_retries=3):
@@ -373,7 +373,7 @@ jobs:
 
       - name: Create Jules Review Session
         run: |
-          SESSION_ID=$(curl -X POST https://jules.googleapis.com/v1alpha/sessions \
+          SESSION_ID=$(curl -X POST https://repo.googleapis.com/v1alpha/sessions \
             -H "X-Goog-Api-Key: $JULES_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{

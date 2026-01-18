@@ -177,14 +177,14 @@ tick	Run Jules Scheduler	2026-01-05T03:57:59.6215449Z [36;1m  fi[0m
 tick	Run Jules Scheduler	2026-01-05T03:57:59.6215610Z [36;1mfi[0m
 tick	Run Jules Scheduler	2026-01-05T03:57:59.6215790Z [36;1m[0m
 tick	Run Jules Scheduler	2026-01-05T03:57:59.6215956Z [36;1m# Using new CLI[0m
-tick	Run Jules Scheduler	2026-01-05T03:57:59.6216475Z [36;1muv run --with requests --with python-frontmatter --with jinja2 --with typer --with pydantic python -m jules.cli schedule "${args[@]}"[0m
+tick	Run Jules Scheduler	2026-01-05T03:57:59.6216475Z [36;1muv run --with requests --with python-frontmatter --with jinja2 --with typer --with pydantic python -m repo.cli schedule "${args[@]}"[0m
 tick	Run Jules Scheduler	2026-01-05T03:57:59.6255993Z shell: /usr/bin/bash -e {0}
 tick	Run Jules Scheduler	2026-01-05T03:57:59.6256262Z env:
 tick	Run Jules Scheduler	2026-01-05T03:57:59.6256526Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
 tick	Run Jules Scheduler	2026-01-05T03:57:59.6257102Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
 tick	Run Jules Scheduler	2026-01-05T03:57:59.6257599Z   JULES_API_KEY: ***
 tick	Run Jules Scheduler	2026-01-05T03:57:59.6257920Z   GITHUB_TOKEN: ***
-tick	Run Jules Scheduler	2026-01-05T03:57:59.6258121Z   PYTHONPATH: .jules
+tick	Run Jules Scheduler	2026-01-05T03:57:59.6258121Z   PYTHONPATH: .team
 tick	Run Jules Scheduler	2026-01-05T03:57:59.6258327Z ##[endgroup]
 tick	Run Jules Scheduler	2026-01-05T03:57:59.6754624Z Using CPython 3.12.3 interpreter at: /usr/bin/python3.12
 tick	Run Jules Scheduler	2026-01-05T03:57:59.6755389Z Creating virtual environment at: .venv
@@ -271,7 +271,7 @@ tick	Run Jules Feedback Loop	2026-01-05T03:58:14.4416058Z [36;1m   args+=(--dry
 tick	Run Jules Feedback Loop	2026-01-05T03:58:14.4416270Z [36;1mfi[0m
 tick	Run Jules Feedback Loop	2026-01-05T03:58:14.4416433Z [36;1m[0m
 tick	Run Jules Feedback Loop	2026-01-05T03:58:14.4416613Z [36;1m# Run the feedback script[0m
-tick	Run Jules Feedback Loop	2026-01-05T03:58:14.4417251Z [36;1muv run --with requests --with typer --with pydantic python -m jules.cli feedback loop "${args[@]}"[0m
+tick	Run Jules Feedback Loop	2026-01-05T03:58:14.4417251Z [36;1muv run --with requests --with typer --with pydantic python -m repo.cli feedback loop "${args[@]}"[0m
 tick	Run Jules Feedback Loop	2026-01-05T03:58:14.4450214Z shell: /usr/bin/bash -e {0}
 tick	Run Jules Feedback Loop	2026-01-05T03:58:14.4450451Z env:
 tick	Run Jules Feedback Loop	2026-01-05T03:58:14.4450700Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
@@ -279,7 +279,7 @@ tick	Run Jules Feedback Loop	2026-01-05T03:58:14.4451045Z   UV_CACHE_DIR: /home/
 tick	Run Jules Feedback Loop	2026-01-05T03:58:14.4451521Z   JULES_API_KEY: ***
 tick	Run Jules Feedback Loop	2026-01-05T03:58:14.4451838Z   GITHUB_TOKEN: ***
 tick	Run Jules Feedback Loop	2026-01-05T03:58:14.4452096Z   GH_TOKEN: ***
-tick	Run Jules Feedback Loop	2026-01-05T03:58:14.4452280Z   PYTHONPATH: .jules
+tick	Run Jules Feedback Loop	2026-01-05T03:58:14.4452280Z   PYTHONPATH: .team
 tick	Run Jules Feedback Loop	2026-01-05T03:58:14.4452469Z ##[endgroup]
 tick	Post Run astral-sh/setup-uv@v7	﻿2026-01-05T03:58:18.4078177Z Post job cleanup.
 tick	Post Run astral-sh/setup-uv@v7	2026-01-05T03:58:18.5293045Z UV_CACHE_DIR is already set to /home/runner/work/_temp/setup-uv-cache

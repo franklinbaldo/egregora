@@ -18,14 +18,14 @@ This change removes the duplicated logic and reuses the `document_id` property, 
  src/egregora/data_primitives/document.py      | 10 +----
  tests/unit/data_primitives/test_document.py   | 39 +++++++++++++++++++
  3 files changed, 56 insertions(+), 8 deletions(-)
- create mode 100644 .jules/personas/simplifier/journals/2026-01-13-1905-Remove_Duplicated_Slug_Logic.md
+ create mode 100644 .team/personas/simplifier/journals/2026-01-13-1905-Remove_Duplicated_Slug_Logic.md
  create mode 100644 tests/unit/data_primitives/test_document.py
 
-diff --git a/.jules/personas/simplifier/journals/2026-01-13-1905-Remove_Duplicated_Slug_Logic.md b/.jules/personas/simplifier/journals/2026-01-13-1905-Remove_Duplicated_Slug_Logic.md
+diff --git a/.team/personas/simplifier/journals/2026-01-13-1905-Remove_Duplicated_Slug_Logic.md b/.team/personas/simplifier/journals/2026-01-13-1905-Remove_Duplicated_Slug_Logic.md
 new file mode 100644
 index 000000000..80e4c847b
 --- /dev/null
-+++ b/.jules/personas/simplifier/journals/2026-01-13-1905-Remove_Duplicated_Slug_Logic.md
++++ b/.team/personas/simplifier/journals/2026-01-13-1905-Remove_Duplicated_Slug_Logic.md
 @@ -0,0 +1,15 @@
 +---
 +title: "📉 Remove Duplicated Slug Logic"

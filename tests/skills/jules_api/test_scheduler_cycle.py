@@ -6,16 +6,16 @@ class TestSchedulerCycleFallback:
     """Tests for the scheduler cycle logic, including fallback mechanisms."""
 
     def test_cycle_uses_merged_pr_and_moves_to_next_persona(self, monkeypatch, tmp_path):
-        jules_path = Path(__file__).parents[3] / ".jules"
+        jules_path = Path(__file__).parents[3] / ".team"
         sys.path.insert(0, str(jules_path))
         try:
-            import jules.scheduler
-            import jules.scheduler_legacy
+            import repo.scheduler
+            import repo.scheduler_legacy
         finally:
             sys.path.remove(str(jules_path))
 
-        scheduler = jules.scheduler
-        scheduler_legacy = jules.scheduler_legacy
+        scheduler = repo.scheduler
+        scheduler_legacy = repo.scheduler_legacy
 
         created_sessions: list[dict] = []
 
@@ -105,14 +105,14 @@ class TestSchedulerCycleFallback:
         assert created_sessions[0]["branch"] == "jules-sched-builder-pr42"
 
     def test_cycle_uses_session_starting_branch_when_prs_unavailable(self, monkeypatch, tmp_path):
-        jules_path = Path(__file__).parents[3] / ".jules"
+        jules_path = Path(__file__).parents[3] / ".team"
         sys.path.insert(0, str(jules_path))
         try:
-            import jules.scheduler
+            import repo.scheduler
         finally:
             sys.path.remove(str(jules_path))
 
-        scheduler = jules.scheduler
+        scheduler = repo.scheduler
         created_sessions: list[dict] = []
         seen_session_ids: list[str] = []
 
@@ -179,12 +179,12 @@ class TestSchedulerCycleFallback:
 
     def test_cycle_waits_for_unknown_mergeability(self, monkeypatch, tmp_path):
         """Verify that the scheduler waits when PR mergeability is UNKNOWN."""
-        jules_path = Path(__file__).parents[3] / ".jules"
+        jules_path = Path(__file__).parents[3] / ".team"
         sys.path.insert(0, str(jules_path))
         try:
-            import jules.scheduler_managers
-            import jules.scheduler_state
-            import jules.scheduler_v2
+            import repo.scheduler_managers
+            import repo.scheduler_state
+            import repo.scheduler_v2
         finally:
             sys.path.remove(str(jules_path))
 
@@ -193,7 +193,7 @@ class TestSchedulerCycleFallback:
         # or test execute_cycle_tick. Given existing tests focus on scheduler_legacy (run_cycle_step),
         # but I updated scheduler_managers.py, I should test PRManager directly here to verify my changes.
 
-        pr_manager = jules.scheduler_managers.PRManager()
+        pr_manager = repo.scheduler_managers.PRManager()
 
         # Case 1: Mergeable is None (UNKNOWN)
         pr_details_unknown = {"number": 123, "mergeable": None, "statusCheckRollup": []}

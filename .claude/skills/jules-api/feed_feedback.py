@@ -17,13 +17,13 @@ from urllib.parse import urlparse
 # Import JulesClient from the same directory
 try:
     # If run as a script in the directory
-    from jules_client import JulesClient
+    from repo_client import JulesClient
 except ImportError:
     # If run from root via python .claude/skills/jules-api/feed_feedback.py
     # We need to make sure the directory is in path or we use relative import if it was a module
     sys.path.append(str(Path(__file__).parent))
     try:
-        from jules_client import JulesClient
+        from repo_client import JulesClient
     except ImportError:
         print("Error: Could not import JulesClient.", file=sys.stderr)
 

@@ -160,14 +160,14 @@ def check_session_needs_attention(session_id: str) -> tuple[bool, str]:
 1. **Use direct API calls** when possible:
    ```python
    # Old (still works)
-   from jules_client import JulesClient
+   from repo_client import JulesClient
    client = JulesClient()
    session = client.create_session(...)
 
    # New (recommended)
    import httpx
    response = httpx.post(
-       "https://jules.googleapis.com/v1alpha/sessions",
+       "https://repo.googleapis.com/v1alpha/sessions",
        headers={"X-Goog-Api-Key": API_KEY},
        json={...}
    )
@@ -253,7 +253,7 @@ Potential improvements for v3.0:
 
 - Original stuck session: 14848423526856432295
 - New parallel personas session: 151282220707368107
-- Jules API docs: https://developers.google.com/jules/api/reference/rest
+- Jules API docs: https://developers.google.com/repo/api/reference/rest
 - GitHub issue: N/A (internal improvement)
 
 ---

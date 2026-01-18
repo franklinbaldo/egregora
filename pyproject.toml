@@ -36,9 +36,9 @@ dependencies = [
 
 [project.scripts]
 egregora = "egregora.cli:app"
-jules = "jules.cli.main:app"
-mail = "jules.cli.mail:app"
-my-tools = "jules.cli.my_tools:app"
+jules = "repo.cli.main:app"
+mail = "repo.cli.mail:app"
+my-tools = "repo.cli.my_tools:app"
 
 [project.entry-points."egregora.adapters"]
 whatsapp = "egregora.input_adapters.whatsapp.adapter:WhatsAppAdapter"
@@ -131,7 +131,7 @@ requires = ["hatchling>=1.21.0"]
 build-backend = "hatchling.build"
 
 [tool.hatchling.build.targets.wheel]
-packages = ["src/egregora", ".jules/jules"]
+packages = ["src/egregora", ".team/repo"]
 
 [tool.hatchling.build.targets.wheel.force-include]
 "src/egregora/templates" = "egregora/templates"
@@ -153,7 +153,7 @@ line-length = 110  # Slightly more generous for strings/logs
 target-version = "py312"
 extend-exclude = [
     ".claude",
-    ".jules",
+    ".team",
     "prompt_tests",
     "scripts",
     "docs/demo/.egregora",
@@ -350,7 +350,7 @@ module = [
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-pythonpath = ["src", ".jules", "."]
+pythonpath = ["src", ".team", "."]
 markers = [
     "quality: code quality checks (vulture, radon, bandit)",
     "complexity: complexity checks with radon",

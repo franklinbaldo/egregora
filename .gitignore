@@ -88,6 +88,6 @@ blog_generation.log
 demo/
 coverage.xml
 .github/tmp/
-.jules/mail/
-.jules/session.json
+.team/mail/
+.team/session.json
 uv.lock

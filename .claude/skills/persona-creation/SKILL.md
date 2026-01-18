@@ -173,7 +173,7 @@ Include a learning journal for the persona to maintain:
 ```markdown
 ## {PERSONA_NAME}'S JOURNAL - CRITICAL LEARNINGS ONLY
 
-Before starting, read `.jules/{persona_name}.md` (create if missing).
+Before starting, read `.team/{persona_name}.md` (create if missing).
 
 **Format:**
 ```
@@ -193,7 +193,7 @@ Before starting, read `.jules/{persona_name}.md` (create if missing).
 ```
 
 **Best practices:**
-- ✅ Specify the exact file location (`.jules/{name}.md`)
+- ✅ Specify the exact file location (`.team/{name}.md`)
 - ✅ Provide a clear format template
 - ✅ Show a real example from the project
 - ✅ Emphasize "CRITICAL LEARNINGS ONLY"
@@ -467,7 +467,7 @@ Include project-specific guardrails:
 ### Step 9: Test the Persona
 
 Create a Jules session with the persona:
-1. Save persona to `.jules/{name}.md` or `.jules/personas/{name}.md`
+1. Save persona to `.team/{name}.md` or `.team/personas/{name}.md`
 2. Create a test session with a real task
 3. Observe how Jules interprets the persona
 4. Refine based on results
@@ -475,23 +475,23 @@ Create a Jules session with the persona:
 ### Step 10: Iterate and Document Learnings
 
 As Jules uses the persona:
-- Add journal entries to `.jules/{name}.md`
+- Add journal entries to `.team/{name}.md`
 - Note obstacles and solutions
 - Refine the persona based on learnings
 
 ## File Organization
 
-### Persona Files (`.jules/`)
+### Persona Files (`.team/`)
 
 **Active personas** (journals tracking learnings):
-- `.jules/builder.md` - Builder persona journal
-- `.jules/sentinel.md` - Sentinel persona journal
-- `.jules/scribe.md` - Scribe persona journal
+- `.team/builder.md` - Builder persona journal
+- `.team/sentinel.md` - Sentinel persona journal
+- `.team/scribe.md` - Scribe persona journal
 
-**Prompt templates** (`.jules/personas/`):
-- `.jules/personas/janitor.md` - Cleanup tasks
-- `.jules/personas/weaver.md` - Integration tasks
-- `.jules/personas/artisan.md` - UX polish tasks
+**Prompt templates** (`.team/personas/`):
+- `.team/personas/janitor.md` - Cleanup tasks
+- `.team/personas/weaver.md` - Integration tasks
+- `.team/personas/artisan.md` - UX polish tasks
 
 ### File Format
 
@@ -592,7 +592,7 @@ You are a builder who writes code.
 
 Create base personas and specialize them:
 
-**Base: `.jules/personas/base_tdd.md`**
+**Base: `.team/personas/base_tdd.md`**
 ```markdown
 You follow strict TDD:
 1. RED - Write failing test
@@ -600,7 +600,7 @@ You follow strict TDD:
 3. REFACTOR - Clean up
 ```
 
-**Specialized: `.jules/personas/api_builder.md`**
+**Specialized: `.team/personas/api_builder.md`**
 ```markdown
 {% include 'base_tdd.md' %}
 
@@ -742,7 +742,7 @@ Your mission is to process sensitive data while maintaining zero-knowledge priva
 
 ## GUARDIAN'S JOURNAL
 
-Read `.jules/guardian.md` for past privacy lessons.
+Read `.team/guardian.md` for past privacy lessons.
 ```
 
 ### Example 2: Performance Optimizer
@@ -799,7 +799,7 @@ Your mission is to make code 10x faster while maintaining correctness.
 
 ## BOLT'S JOURNAL
 
-Read `.jules/bolt.md` for optimization learnings.
+Read `.team/bolt.md` for optimization learnings.
 
 **Example Entry:**
 ```
@@ -894,7 +894,7 @@ Your mission is to {SPECIFIC_OBJECTIVE}, using {METHODOLOGY} to produce {DESIRED
 
 ## {NAME}'S JOURNAL - CRITICAL LEARNINGS ONLY
 
-Before starting, read `.jules/{name}.md` (create if missing).
+Before starting, read `.team/{name}.md` (create if missing).
 
 **Format:**
 ```

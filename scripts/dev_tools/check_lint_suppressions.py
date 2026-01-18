@@ -23,7 +23,7 @@ ALLOWED_FILES: set[str] = set()
 
 # Only exclude generated/external code
 ALLOWED_PATTERNS = [
-    r"^\.jules/",  # Jules code is excluded from our linting
+    r"^\.team/",  # Jules code is excluded from our linting
     r"^artifacts/",  # Generated artifacts
 ]
 

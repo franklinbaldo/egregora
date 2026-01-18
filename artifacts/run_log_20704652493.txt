@@ -177,14 +177,14 @@ tick	Run Jules Scheduler	2026-01-05T04:00:29.1618406Z [36;1m  fi[0m
 tick	Run Jules Scheduler	2026-01-05T04:00:29.1618575Z [36;1mfi[0m
 tick	Run Jules Scheduler	2026-01-05T04:00:29.1618758Z [36;1m[0m
 tick	Run Jules Scheduler	2026-01-05T04:00:29.1618931Z [36;1m# Using new CLI[0m
-tick	Run Jules Scheduler	2026-01-05T04:00:29.1619455Z [36;1muv run --with requests --with python-frontmatter --with jinja2 --with typer --with pydantic python -m jules.cli schedule "${args[@]}"[0m
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1619455Z [36;1muv run --with requests --with python-frontmatter --with jinja2 --with typer --with pydantic python -m repo.cli schedule "${args[@]}"[0m
 tick	Run Jules Scheduler	2026-01-05T04:00:29.1658204Z shell: /usr/bin/bash -e {0}
 tick	Run Jules Scheduler	2026-01-05T04:00:29.1658479Z env:
 tick	Run Jules Scheduler	2026-01-05T04:00:29.1658753Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
 tick	Run Jules Scheduler	2026-01-05T04:00:29.1659135Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
 tick	Run Jules Scheduler	2026-01-05T04:00:29.1659635Z   JULES_API_KEY: ***
 tick	Run Jules Scheduler	2026-01-05T04:00:29.1660065Z   GITHUB_TOKEN: ***
-tick	Run Jules Scheduler	2026-01-05T04:00:29.1660273Z   PYTHONPATH: .jules
+tick	Run Jules Scheduler	2026-01-05T04:00:29.1660273Z   PYTHONPATH: .team
 tick	Run Jules Scheduler	2026-01-05T04:00:29.1660481Z ##[endgroup]
 tick	Run Jules Scheduler	2026-01-05T04:00:29.2156330Z Using CPython 3.12.3 interpreter at: /usr/bin/python3.12
 tick	Run Jules Scheduler	2026-01-05T04:00:29.2157263Z Creating virtual environment at: .venv
@@ -279,7 +279,7 @@ tick	Run Jules Scheduler	2026-01-05T04:00:48.6419071Z Successfully merged PR #22
 tick	Run Jules Scheduler	2026-01-05T04:00:48.6419502Z Next persona: visionary. Starting from 'jules'.
 tick	Run Jules Scheduler	2026-01-05T04:00:48.6419977Z Starting session for visionary on branch 'jules'...
 tick	Run Jules Scheduler	2026-01-05T04:00:48.6420407Z Created session: 1618828474548067264
-tick	Run Jules Scheduler	2026-01-05T04:00:48.6421076Z 🔗 Jules Session URL: https://jules.google.com/sessions/1618828474548067264
+tick	Run Jules Scheduler	2026-01-05T04:00:48.6421076Z 🔗 Jules Session URL: https://repo.google.com/sessions/1618828474548067264
 tick	Run Jules Feedback Loop	﻿2026-01-05T04:00:48.7147216Z ##[group]Run args=()
 tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7147507Z [36;1margs=()[0m
 tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7147717Z [36;1mif [ "false" = "true" ]; then[0m
@@ -287,7 +287,7 @@ tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7148034Z [36;1m   args+=(--dry
 tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7148267Z [36;1mfi[0m
 tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7148444Z [36;1m[0m
 tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7148631Z [36;1m# Run the feedback script[0m
-tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7149086Z [36;1muv run --with requests --with typer --with pydantic python -m jules.cli feedback loop "${args[@]}"[0m
+tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7149086Z [36;1muv run --with requests --with typer --with pydantic python -m repo.cli feedback loop "${args[@]}"[0m
 tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7182950Z shell: /usr/bin/bash -e {0}
 tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7183196Z env:
 tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7183448Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
@@ -295,7 +295,7 @@ tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7183808Z   UV_CACHE_DIR: /home/
 tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7184289Z   JULES_API_KEY: ***
 tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7184615Z   GITHUB_TOKEN: ***
 tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7184880Z   GH_TOKEN: ***
-tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7185072Z   PYTHONPATH: .jules
+tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7185072Z   PYTHONPATH: .team
 tick	Run Jules Feedback Loop	2026-01-05T04:00:48.7185268Z ##[endgroup]
 tick	Post Run astral-sh/setup-uv@v7	﻿2026-01-05T04:00:52.5531407Z Post job cleanup.
 tick	Post Run astral-sh/setup-uv@v7	2026-01-05T04:00:52.6772879Z UV_CACHE_DIR is already set to /home/runner/work/_temp/setup-uv-cache

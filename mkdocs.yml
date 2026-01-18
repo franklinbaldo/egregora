@@ -17,7 +17,7 @@ theme:
   language: en
   palette:
     # Light mode
-    - media: '(prefers-color-scheme: light)'
+    - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: teal
       accent: amber
@@ -25,7 +25,7 @@ theme:
         icon: material/brightness-7
         name: Switch to dark mode
     # Dark mode
-    - media: '(prefers-color-scheme: dark)'
+    - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: teal
       accent: amber
@@ -117,9 +117,9 @@ markdown_extensions:
       custom_fences:
         - name: mermaid
           class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
+          format:
+            !!python/name:pymdownx.superfences.fence_code_format # Content enhancements
 
-  # Content enhancements
   - abbr
   - admonition
   - def_list
@@ -163,15 +163,15 @@ nav:
   - Quick Start: getting-started/quickstart.md
   - About: about.md
   - ADR:
-    - Index: adr/README.md
+      - Index: adr/README.md
   - Getting Started:
-    - Installation: getting-started/installation.md
-    - Configuration: getting-started/configuration.md
-    - Deployment: getting-started/deployment.md
+      - Installation: getting-started/installation.md
+      - Configuration: getting-started/configuration.md
+      - Deployment: getting-started/deployment.md
   - Reference:
-    - Technical Reference: reference/index.md
+      - Technical Reference: reference/index.md
   - Community:
-    - Contributing: community/contributing.md
+      - Contributing: community/contributing.md
   - Demo: https://franklinbaldo.github.io/egregora/demo/
 
 extra:

@@ -1,11 +1,11 @@
 site_name: site
 site_description: Collective consciousness journal - site
-site_url: https://example.com  # Update with your deployment URL (e.g., https://example.com)
+site_url: https://example.com # Update with your deployment URL (e.g., https://example.com)
 # When using multiple sites from a shared repo, give each site its own mkdocs.yml via sites.<name>.output.adapters[*].config_path
 # repo_url: https://github.com/your-user/your-repo  # Uncomment to enable 'Edit on GitHub'
 # repo_name: your-repo
 docs_dir: ../docs
-site_dir: site  # Set per-site to avoid build collisions in multi-site configs
+site_dir: site # Set per-site to avoid build collisions in multi-site configs
 
 theme:
   name: material
@@ -16,7 +16,7 @@ theme:
     code: Roboto Mono
   palette:
     # Light mode
-    - media: '(prefers-color-scheme: light)'
+    - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: teal
       accent: amber
@@ -24,7 +24,7 @@ theme:
         icon: material/brightness-7
         name: Switch to dark mode
     # Dark mode
-    - media: '(prefers-color-scheme: dark)'
+    - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: teal
       accent: amber
@@ -109,9 +109,9 @@ markdown_extensions:
       custom_fences:
         - name: mermaid
           class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
+          format:
+            !!python/name:pymdownx.superfences.fence_code_format # Content enhancements
 
-  # Content enhancements
   - admonition
   - pymdownx.details
   - footnotes
@@ -119,9 +119,9 @@ markdown_extensions:
       custom_checkbox: true
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
-      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      emoji_generator:
+        !!python/name:material.extensions.emoji.to_svg # Navigation and structure
 
-  # Navigation and structure
   - toc:
       permalink: true
   - attr_list
@@ -152,7 +152,6 @@ nav:
   - Media: posts/media/index.md
   - About: about.md
 
-
 # Egregora configuration lives in .egregora.toml at the site root
 # (Separation allows supporting multiple rendering backends: MkDocs, Hugo, Astro, etc.)
 extra:
@@ -161,7 +160,6 @@ extra:
   copyright: Copyright &copy; 2025 site
   # Add social links to the footer for a more professional look.
   # These will only appear if the corresponding variables are set in the user's config.
-
 
 # Custom CSS for improved UX
 extra_css:

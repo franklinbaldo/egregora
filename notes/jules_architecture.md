@@ -1,28 +1,28 @@
-# Arquitetura do Diretório `.jules/`
+# Arquitetura do Diretório `.team/`
 
-Este documento descreve a estrutura e o funcionamento do diretório `.jules/` no repositório **Egregora**, detalhando como o agente Jules é orquestrado, como seu estado é mantido e como as personas são configuradas.
+Este documento descreve a estrutura e o funcionamento do diretório `.team/` no repositório **Egregora**, detalhando como o agente Jules é orquestrado, como seu estado é mantido e como as personas são configuradas.
 
 ## 1. Visão Geral
 
-O diretório `.jules/` é o centro de inteligência e automação do projeto. Ele contém não apenas as definições das personas (agentes especializados), mas também toda a lógica de agendamento, gerenciamento de sprints e persistência de estado das execuções.
+O diretório `.team/` é o centro de inteligência e automação do projeto. Ele contém não apenas as definições das personas (agentes especializados), mas também toda a lógica de agendamento, gerenciamento de sprints e persistência de estado das execuções.
 
 ## 2. Estrutura de Diretórios
 
 | Caminho | Descrição |
 | :--- | :--- |
-| `.jules/jules/` | Código Python do Jules, organizado por CLI, Core, Features e Scheduler. |
-| `.jules/jules/cli/` | CLIs Typer (schedule, autofix, feedback, sync, job, my-tools). |
-| `.jules/jules/core/` | Cliente da API Jules, helpers GitHub e exceções. |
-| `.jules/jules/features/` | Auto-fix, feedback loop, mail (local/S3), polling e sessão. |
-| `.jules/jules/scheduler/` | Engine, compatibilidade legacy, managers e estado persistente. |
-| `.jules/jules/templates/` | Templates Jinja2 (base, blocks, partials, prompts). |
-| `.jules/personas/` | Personas e seus prompts (`prompt.md`/`prompt.md.j2`) e journals. |
-| `.jules/sprints/` | Planejamentos e feedbacks organizados por ciclos de sprint. |
-| `.jules/mail/` | Maildir local usado pelo sistema de mensagens. |
-| `.jules/state/` | Estado local de reconciliacao (ex: `reconciliation.json`). |
-| `.jules/tasks/` | Gerenciamento de tarefas (todo, done, canceled) em Markdown. |
-| `.jules/cycle_state.json` | Estado persistente do ciclo (multi-track). |
-| `.jules/schedules.toml` | Configuração de agendamento (Cron) e tracks do ciclo. |
+| `.team/repo/` | Código Python do Jules, organizado por CLI, Core, Features e Scheduler. |
+| `.team/repo/cli/` | CLIs Typer (schedule, autofix, feedback, sync, job, my-tools). |
+| `.team/repo/core/` | Cliente da API Jules, helpers GitHub e exceções. |
+| `.team/repo/features/` | Auto-fix, feedback loop, mail (local/S3), polling e sessão. |
+| `.team/repo/scheduler/` | Engine, compatibilidade legacy, managers e estado persistente. |
+| `.team/repo/templates/` | Templates Jinja2 (base, blocks, partials, prompts). |
+| `.team/personas/` | Personas e seus prompts (`prompt.md`/`prompt.md.j2`) e journals. |
+| `.team/sprints/` | Planejamentos e feedbacks organizados por ciclos de sprint. |
+| `.team/mail/` | Maildir local usado pelo sistema de mensagens. |
+| `.team/state/` | Estado local de reconciliacao (ex: `reconciliation.json`). |
+| `.team/tasks/` | Gerenciamento de tarefas (todo, done, canceled) em Markdown. |
+| `.team/cycle_state.json` | Estado persistente do ciclo (multi-track). |
+| `.team/schedules.toml` | Configuração de agendamento (Cron) e tracks do ciclo. |
 
 ## 3. Gerenciamento de Estado (`cycle_state.json`)
 
@@ -62,7 +62,7 @@ O histórico agora utiliza um **dicionário com chaves inteiras sequenciais** pa
 
 ## 4. Personas e Ciclos
 
-As personas são definidas em `.jules/personas/{id}/prompt.md` ou `.jules/personas/{id}/prompt.md.j2`. O Jules opera em dois modos principais definidos no `schedules.toml`:
+As personas são definidas em `.team/personas/{id}/prompt.md` ou `.team/personas/{id}/prompt.md.j2`. O Jules opera em dois modos principais definidos no `schedules.toml`:
 
 1.  **Modo Ciclo Paralelo (Parallel Cycle Mode)**: Tracks independentes; cada track executa personas sequencialmente e só avança após a sessao anterior encerrar.
 2.  **Modo Agendado (Scheduled Mode)**: Utiliza expressões Cron para disparar personas específicas em horários determinados.
@@ -76,4 +76,4 @@ As personas são definidas em `.jules/personas/{id}/prompt.md` ou `.jules/person
 
 ## 6. Sprints e Tarefas
 
-O sistema de sprints em `.jules/sprints/` organiza o trabalho em blocos temporais, onde cada persona contribui com planos e feedbacks. As tarefas em `.jules/tasks/` servem como a "memória de curto prazo" do que precisa ser feito, sendo consumidas pelas personas durante suas execuções.
+O sistema de sprints em `.team/sprints/` organiza o trabalho em blocos temporais, onde cada persona contribui com planos e feedbacks. As tarefas em `.team/tasks/` servem como a "memória de curto prazo" do que precisa ser feito, sendo consumidas pelas personas durante suas execuções.
