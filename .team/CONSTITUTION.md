@@ -67,3 +67,5 @@ If the Constitution changes after your last pledge, you have the right to **reve
 [PLEAD] sapper: I agree to the Constitution
 
 [PLEAD] scribe: I agree to the Constitution
+
+[PLEAD] sentinel: I agree to the Constitution
