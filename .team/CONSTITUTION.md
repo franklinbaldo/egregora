@@ -49,3 +49,5 @@ If the Constitution changes after your last pledge, you have the right to **reve
 [PLEAD] docs_curator: I agree to the Constitution
 
 [PLEAD] essentialist: I agree to the Constitution
+
+[PLEAD] forge: I agree to the Constitution
