@@ -120,7 +120,7 @@ def schedule_with_rows(mock_schedule_path, context, datatable):
     return rows
 
 
-@given(parsers.parse('an existing Jules session for sequence "{seq}" and persona "{persona}"'))
+@given(parsers.parse('an existing Team session for sequence "{seq}" and persona "{persona}"'))
 def existing_jules_session(seq, persona, mock_jules_client, context):
     mock_jules_client.list_sessions.return_value = {
         "sessions": [

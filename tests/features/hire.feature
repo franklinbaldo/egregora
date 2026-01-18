@@ -17,5 +17,5 @@ Feature: Hire a New Persona
   Scenario: Attempting to hire a persona that already exists
     Given a persona directory ".team/personas/artisan" exists
     And a logged in persona "artisan"
-    When I hire a new persona with id "artisan", name "Artisan", emoji "🎨", role "Redundant", description "Fail" and mission "Fail"
+    When I hire a new persona with id "artisan", name "Artisan", emoji "🎨", role "Redundant", description "Fail", and mission "Fail"
     Then the hire command should fail with "Persona 'artisan' already exists"
