@@ -66,13 +66,13 @@ class HireManager:
         """Create a new persona folder and prompt file."""
         persona_id = persona_id.lower().strip().replace(" ", "_")
         target_dir = self.personas_root / persona_id
-        
+
         if target_dir.exists():
             raise ValueError(f"Persona '{persona_id}' already exists")
-            
+
         target_dir.mkdir(parents=True)
         prompt_path = target_dir / "prompt.md.j2"
-        
+
         content = HIRE_TEMPLATE.format(
             id=persona_id,
             emoji=emoji,
@@ -86,8 +86,8 @@ class HireManager:
             workflow=workflow,
             verification=verification
         )
-        
+
         with open(prompt_path, "w") as f:
             f.write(content)
-            
+
         return prompt_path

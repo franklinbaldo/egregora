@@ -42,7 +42,7 @@ def _request_with_retry(
         response = httpx.get(url, headers=headers, timeout=DEFAULT_TIMEOUT)
     else:
         response = httpx.post(url, headers=headers, json=json, timeout=DEFAULT_TIMEOUT)
-    
+
     # We might want to retry on 5xx errors too, but strictly following previous logic for now (timeouts)
     # However, raise_for_status might raise HTTPStatusError which we might want to wrap.
     try:
@@ -71,7 +71,7 @@ class JulesClient:
         if not self.api_key:
             msg = "JULES_API_KEY not set."
             raise ValueError(msg)
-            
+
         headers["X-Goog-Api-Key"] = self.api_key
         return headers
 

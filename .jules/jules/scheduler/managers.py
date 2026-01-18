@@ -436,12 +436,12 @@ class PRManager:
 
     def _pr_only_touches_jules(self, pr_number: int) -> bool:
         """Check if a PR's CONFLICTS are only in .jules/ directory.
-        
+
         If conflicts are restricted to .jules/, we can force-accept the new changes.
-        
+
         Args:
             pr_number: PR number to check
-            
+
         Returns:
             True if all conflicting files are in .jules/, False otherwise
         """
@@ -455,7 +455,7 @@ class PRManager:
             )
             data = json.loads(result.stdout)
             files = data.get("files", [])
-            
+
             # If PR has any files outside .jules/, conflicts could affect real code
             # So we need to be more conservative
             for f in files:
@@ -463,7 +463,7 @@ class PRManager:
                 # If any file is outside .jules/, don't force-merge
                 if not path.startswith(".jules/"):
                     return False
-            
+
             return len(files) > 0  # At least one file, all in .jules/
         except Exception:
             return False  # If we can't check, assume it's not safe
@@ -491,12 +491,12 @@ class PRManager:
         # REST API: clean, behind, dirty, unstable, blocked, unknown
         state_status = pr_details.get("mergeStateStatus", "") or pr_details.get("mergeable_state", "")
         state_status_upper = state_status.upper() if state_status else ""
-        
+
         # Only reject if CI is blocked (failing checks)
         # Allow DIRTY (conflicts) to try merge - we handle conflicts downstream
         if state_status_upper == "BLOCKED":
             return False
-        
+
         # If state is CLEAN, BEHIND, or even DIRTY - let it try
         if state_status_upper in ["CLEAN", "BEHIND", "DIRTY"]:
             return True
@@ -512,7 +512,7 @@ class PRManager:
             conclusion = (check.get("conclusion") or "").upper()
             if conclusion == "FAILURE":
                 return False
-            
+
             # Accept SUCCESS, NEUTRAL, SKIPPED as passing
             if conclusion in ["SUCCESS", "NEUTRAL", "SKIPPED"]:
                 continue
@@ -524,7 +524,7 @@ class PRManager:
                 continue
             if legacy_state in ["PENDING", "QUEUED", "IN_PROGRESS"]:
                 return False
-                
+
             # If not completed yet, not green
             status = (check.get("status") or "").upper()
             if status not in ["COMPLETED"]:
@@ -735,15 +735,15 @@ This PR contains accumulated work from the Jules autonomous development cycle.
             client: Jules API client
             repo_info: Repository information
             dry_run: If True, only log actions
-            
+
         Returns:
             List of PRs that failed to merge (conflicts for Weaver)
         """
         print("\n🔍 Overseer: Checking for autonomous PRs to reconcile...")
         import json
-        
+
         conflict_prs = []
-        
+
         try:
             # Fetch all open PRs with author, body, base, and creation time
             result = subprocess.run(
@@ -751,26 +751,26 @@ This PR contains accumulated work from the Jules autonomous development cycle.
                 capture_output=True, text=True, check=True
             )
             prs = json.loads(result.stdout)
-            
+
             # Filter for Jules-initiated PRs targeting jules branch
             jules_prs = []
             for pr in prs:
                 head = pr.get("headRefName", "")
                 base = pr.get("baseRefName", "")
-                
+
                 # Skip if not targeting jules branch
                 if base != self.jules_branch:
                     continue
                 if head == self.jules_branch:
                     continue
-                
+
                 author = pr.get("author", {}).get("login", "")
                 body = pr.get("body", "") or ""
                 session_id = _extract_session_id(head, body)
-                
+
                 if author == "app/google-labs-jules" or head.startswith("jules-") or session_id:
                     jules_prs.append(pr)
-            
+
             if not jules_prs:
                 print("   No autonomous persona PRs found.")
                 return []
@@ -783,7 +783,7 @@ This PR contains accumulated work from the Jules autonomous development cycle.
                 pr_number = pr["number"]
                 head = pr["headRefName"]
                 is_draft = pr["isDraft"]
-                
+
                 print(f"   --- PR #{pr_number} ({head}) ---")
 
                 # 1. Check if it's a draft and if session is complete
@@ -812,7 +812,7 @@ This PR contains accumulated work from the Jules autonomous development cycle.
                             except Exception as e:
                                 # Merge failed - check if PR only touches .jules/ files
                                 only_jules_files = self._pr_only_touches_jules(pr_number)
-                                
+
                                 if only_jules_files:
                                     # Safe to force-accept new changes, but preserve history!
                                     print(f"      🔄 PR only touches .jules/ files - resolving conflict favoring PR...")
@@ -823,7 +823,7 @@ This PR contains accumulated work from the Jules autonomous development cycle.
                                             ["gh", "pr", "checkout", str(pr_number)],
                                             check=True, capture_output=True
                                         )
-                                        
+
                                         # 2. Configure git user for resolution
                                         subprocess.run(["git", "config", "user.name", "Jules Overseer"], check=False)
                                         subprocess.run(["git", "config", "user.email", "overseer@jules.ai"], check=False)
@@ -845,7 +845,7 @@ This PR contains accumulated work from the Jules autonomous development cycle.
                                             check=True, capture_output=True
                                         )
                                         print(f"      ✅ Resolved & Merged PR #{pr_number} (history preserved)")
-                                        
+
                                     except Exception as e2:
                                         print(f"      ⚠️ History-preserving merge failed: {e2}")
                                         pr["merge_error"] = str(e2)
@@ -863,10 +863,10 @@ This PR contains accumulated work from the Jules autonomous development cycle.
 
         except Exception as e:
             print(f"⚠️ Overseer Error: {e}")
-        
+
         if conflict_prs:
             print(f"\n   🕸️ {len(conflict_prs)} PR(s) have conflicts - will trigger Weaver")
-        
+
         return conflict_prs
 
 
@@ -1030,7 +1030,7 @@ class SessionOrchestrator:
             for session in sessions:
                 state = session.get("state")
                 title = session.get("title", "")
-                
+
                 # Check if this session is for the same persona and is still active
                 # Titles look like: "⚡ absolutist: scheduled task"
                 if request.persona_id in title and state not in ["COMPLETED", "FAILED", "CANCELLED", "DELETED"]:

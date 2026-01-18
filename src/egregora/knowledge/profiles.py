@@ -1134,11 +1134,11 @@ def save_authors_yml(path: Path, authors: dict, count: int) -> None:
         raise AuthorsFileSaveError(str(path), e) from e
 
 
-def extract_authors_from_post(md_file: Path, *, fast: bool = True) -> set[str]:
+def extract_authors_from_post(md_file: Path | str, *, fast: bool = True) -> set[str]:
     """Load a single post file and extract its author IDs.
 
     Args:
-        md_file: Path to markdown file with YAML frontmatter
+        md_file: Path or string path to markdown file with YAML frontmatter
         fast: Use regex-based extraction (faster but less robust). Default True.
 
     Returns:
@@ -1152,7 +1152,8 @@ def extract_authors_from_post(md_file: Path, *, fast: bool = True) -> set[str]:
     try:
         if fast:
             # Fast path: Use regex to extract authors without full YAML parsing
-            with md_file.open("r", encoding="utf-8") as f:
+            # Use standard open() which works with both Path and str
+            with open(md_file, encoding="utf-8") as f:
                 content = f.read(4096)  # Read first 4KB (frontmatter typically <1KB)
 
             # Try list format first: "authors:\n  - foo\n  - bar"
@@ -1199,8 +1200,15 @@ def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> in
     authors_path = find_authors_yml(posts_dir)
 
     all_author_ids: set[str] = set()
-    for md_file in posts_dir.rglob("*.md"):
-        all_author_ids.update(extract_authors_from_post(md_file))
+    # Use os.walk instead of pathlib.rglob for performance
+    # Avoids creating Path objects for every file
+    import os
+
+    for root, _, files in os.walk(posts_dir):
+        for file in files:
+            if file.endswith(".md"):
+                file_path = os.path.join(root, file)
+                all_author_ids.update(extract_authors_from_post(file_path))
 
     if not all_author_ids:
         return 0

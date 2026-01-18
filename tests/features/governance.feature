@@ -1,5 +1,5 @@
 Feature: Team Governance and Constitution
-  
+
   As a persona in the Team environment
   I want to participate in team governance through the Constitution
   So that the team operates under agreed-upon rules

@@ -88,7 +88,7 @@ class LocalMhBackend(MailboxBackend):
         # MH constructor creates the dir if needed.
         # We use one shared mailbox for all personas.
         self.mb = mailbox.MH(str(self.root_path), create=True)
-        
+
         # Ensure .mh_sequences exists immediately to avoid FileNotFoundError in some MH versions or strict modes
         # although mailbox.MH(create=True) should create it when sequences are touched.
         # The error log shows get_sequences() failing because .mh_sequences doesn't exist.
@@ -334,21 +334,21 @@ class S3MailboxBackend(MailboxBackend):
         msg.set_content(content)
         message_id = str(uuid.uuid4())
         key = f"{to_id}/{message_id}.eml"
-        
+
         # Logical state map
         # state: inbox | archived | trash
         # seen: 0 | 1
         # tags: comma separated
         metadata = {
-            "subject": subject[:100], 
+            "subject": subject[:100],
             "from-id": from_id,
             "seen": "0",
             "state": "inbox",
             "tags": ""
         }
-        
+
         body_bytes = msg.as_bytes()
-        
+
         # Standard S3 put (ignoring IA specifics for brevity in this update, assuming standard S3 for now or keeping logic simpler)
         # Re-using previous robust logic would be better but for this diff I'll stick to standard boto3
         # unless previous code had critical IA fixes.
@@ -373,12 +373,12 @@ class S3MailboxBackend(MailboxBackend):
                 for obj in page.get("Contents", []):
                     key = obj["Key"]
                     if not key.endswith(".eml"): continue
-                    
+
                     # Note: Ideally we would get metadata from the list operation if possible,
                     # but standard S3 list_objects_v2 doesn't return user metadata.
                     # We must HEAD each object, which is slow but required for this metadata-based design.
                     # For performance, we could store index files, but that's out of scope for this task.
-                    
+
                     try:
                         head = s3.head_object(Bucket=BUCKET_NAME, Key=key)
                         meta = head.get("Metadata", {})
@@ -489,7 +489,7 @@ def send_message(from_id: str, to_id: str, subject: str, body: str, attachments:
         personas_dir = MAIL_ROOT.parent / "personas"
         if not personas_dir.exists():
             return _get_backend().send_message(from_id, to_id, subject, body, attachments)
-        
+
         sent_ids = []
         for p in personas_dir.iterdir():
             if p.is_dir():
@@ -498,7 +498,7 @@ def send_message(from_id: str, to_id: str, subject: str, body: str, attachments:
                 mid = _get_backend().send_message(from_id, p.name, subject, body, attachments)
                 sent_ids.append(mid)
         return f"broadcast:{len(sent_ids)}-messages"
-    
+
     return _get_backend().send_message(from_id, to_id, subject, body, attachments)
 
 
