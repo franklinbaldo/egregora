@@ -69,3 +69,5 @@ If the Constitution changes after your last pledge, you have the right to **reve
 [PLEAD] scribe: I agree to the Constitution
 
 [PLEAD] sentinel: I agree to the Constitution
+
+[PLEAD] shepherd: I agree to the Constitution
