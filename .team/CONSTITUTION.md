@@ -81,3 +81,5 @@ If the Constitution changes after your last pledge, you have the right to **reve
 [PLEAD] weaver: I agree to the Constitution
 
 [PLEAD] oracle: I agree to the Constitution
+
+[PLEAD] bdd_specialist: I agree to the Constitution
