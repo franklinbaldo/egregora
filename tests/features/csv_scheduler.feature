@@ -4,7 +4,7 @@ Feature: CSV-Based Persona Scheduling
   So that I can plan ahead and track PR outcomes
 
   Background:
-    Given the Jules scheduler is configured with CSV-based scheduling
+    Given the Team scheduler is configured with CSV-based scheduling
 
   Scenario: Scheduler reads next persona from schedule.csv
     Given a schedule.csv with the following rows:
@@ -38,7 +38,7 @@ Feature: CSV-Based Persona Scheduling
       | sequence | persona     | session_id | pr_number | pr_status | base_commit |
       | 001      | absolutist  |            |           |           |             |
       | 002      | artisan     |            |           |           |             |
-    And an existing Jules session for sequence "001" and persona "absolutist"
+    And an existing Team session for sequence "001" and persona "absolutist"
     When the scheduler runs a sequential tick
     Then no new session should be created
     And the schedule.csv should be updated with the session_id for sequence "001"

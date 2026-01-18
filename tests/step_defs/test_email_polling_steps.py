@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 
 import pytest
-from repo.core.client import JulesClient
+from repo.core.client import TeamClient
 from repo.features.polling import EmailPoller
 from pytest_bdd import given, parsers, scenarios, then, when
 
@@ -11,7 +11,7 @@ scenarios("../features/email_polling.feature")
 
 @pytest.fixture
 def mock_client():
-    client = MagicMock(spec=JulesClient)
+    client = MagicMock(spec=TeamClient)
     # Default responses
     client.list_sessions.return_value = {"sessions": []}
     client.get_activities.return_value = {"activities": []}

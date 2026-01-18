@@ -20,6 +20,6 @@ class GitHubError(JulesError):
     """Raised when GitHub API operations fail."""
     pass
 
-class JulesClientError(JulesError):
+class TeamClientError(JulesError):
     """Raised when Jules API operations fail."""
     pass

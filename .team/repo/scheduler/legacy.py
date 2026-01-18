@@ -12,7 +12,7 @@ import frontmatter
 import jinja2
 
 # Import from new package relative to execution or absolute
-from repo.core.client import JulesClient
+from repo.core.client import TeamClient
 from repo.core.exceptions import BranchError, MergeError
 from repo.core.github import (
     _extract_session_id,
@@ -245,7 +245,7 @@ def _match_persona_from_branch(branch_name: str, cycle_entries: list[dict[str, A
 
 
 def get_last_cycle_session(
-    client: JulesClient,
+    client: TeamClient,
     cycle_entries: list[dict[str, Any]],
     repo_info: dict[str, Any],
     open_prs: list[dict[str, Any]],
@@ -294,14 +294,14 @@ def _get_pr_by_session_id_any_state(owner: str, repo: str, session_id: str) -> d
     return get_pr_by_session_id_any_state(owner, repo, session_id)
 
 
-def _ensure_jules_branch_exists() -> None:
+def _ensure_scheduled_branch_exists() -> None:
     """Proxy to allow monkeypatching in the compatibility scheduler."""
     scheduler_module = sys.modules.get("repo.scheduler")
     if scheduler_module:
-        candidate = getattr(scheduler_module, "ensure_jules_branch_exists", None)
-        if callable(candidate) and candidate is not _ensure_jules_branch_exists:
+        candidate = getattr(scheduler_module, "ensure_scheduled_branch_exists", None)
+        if callable(candidate) and candidate is not _ensure_scheduled_branch_exists:
             return candidate()
-    return ensure_jules_branch_exists()
+    return ensure_scheduled_branch_exists()
 
 
 def _prepare_session_base_branch(
@@ -362,7 +362,7 @@ def prepare_session_base_branch(
         return base_branch
 
 
-def is_jules_drifted() -> bool:
+def is_scheduled_drifted() -> bool:
     """Check if the 'jules' branch is drifted (unmergeable) with 'main'."""
     try:
         result = subprocess.run(
@@ -386,8 +386,8 @@ def is_jules_drifted() -> bool:
         return False
 
 
-def rotate_drifted_jules_branch() -> None:
-    """Rename drifted jules branch with sprint number."""
+def rotate_drifted_scheduled_branch() -> None:
+    """Rename drifted scheduled branch with sprint number."""
     current_sprint = sprint_manager.get_current_sprint()
     drift_branch = f"{JULES_BRANCH}-sprint-{current_sprint}"
 
@@ -434,14 +434,14 @@ def rotate_drifted_jules_branch() -> None:
 
     except subprocess.CalledProcessError as e:
         stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
-        print(f"Warning: Failed to rotate jules branch fully: {stderr}", file=sys.stderr)
+        print(f"Warning: Failed to rotate scheduled branch fully: {stderr}", file=sys.stderr)
 
 
-def update_jules_from_main() -> bool:
-    """Updates the jules branch with changes from main."""
+def update_scheduled_from_main() -> bool:
+    """Updates the scheduled branch with changes from main."""
     try:
-        subprocess.run(["git", "config", "user.name", "Jules Bot"], check=False)
-        subprocess.run(["git", "config", "user.email", "jules-bot@google.com"], check=False)
+        subprocess.run(["git", "config", "user.name", "Team Bot"], check=False)
+        subprocess.run(["git", "config", "user.email", "team-bot@egregora.com"], check=False)
         subprocess.run(
             ["git", "checkout", "-B", JULES_BRANCH, f"origin/{JULES_BRANCH}"], check=True, capture_output=True
         )
@@ -453,11 +453,11 @@ def update_jules_from_main() -> bool:
     except subprocess.CalledProcessError as e:
         stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
         print(f"Failed to update jules from main: {stderr}. Treating as drift...")
-        rotate_drifted_jules_branch()
+        rotate_drifted_scheduled_branch()
         return False
 
 
-def ensure_jules_branch_exists() -> None:
+def ensure_scheduled_branch_exists() -> None:
     """Ensure the 'jules' branch exists and is not drifted."""
     try:
         subprocess.run(["git", "fetch", "origin"], check=True, capture_output=True)
@@ -469,11 +469,11 @@ def ensure_jules_branch_exists() -> None:
         )
 
         if result.stdout.strip():
-            if is_jules_drifted():
-                rotate_drifted_jules_branch()
+            if is_scheduled_drifted():
+                rotate_drifted_scheduled_branch()
             else:
                 print(f"Branch '{JULES_BRANCH}' exists and is healthy. Updating from main...")
-                if update_jules_from_main():
+                if update_scheduled_from_main():
                     return
 
         print(f"Branch '{JULES_BRANCH}' needs recreation. Creating from main...")
@@ -490,11 +490,11 @@ def ensure_jules_branch_exists() -> None:
 
     except subprocess.CalledProcessError as e:
         stderr = e.stderr.decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
-        raise BranchError(f"Failed to ensure jules branch exists: {stderr}") from e
+        raise BranchError(f"Failed to ensure scheduled branch exists: {stderr}") from e
 
 
 def merge_pr_into_jules(pr_number: int) -> None:
-    """Merge a PR into the jules branch using gh CLI."""
+    """Merge a PR into the scheduled branch using gh CLI."""
     try:
         subprocess.run(
             ["gh", "pr", "merge", str(pr_number), "--merge", "--delete-branch"],
@@ -531,7 +531,7 @@ def is_pr_green(pr_details: dict) -> bool:
 
 
 def run_cycle_step(
-    client: JulesClient,
+    client: TeamClient,
     repo_info: dict,
     cycle_entries: list[dict[str, Any]],
     open_prs: list[dict[str, Any]],
@@ -541,7 +541,7 @@ def run_cycle_step(
     """Run a single step of the cycle scheduler."""
     cycle_ids = [entry["id"] for entry in cycle_entries]
     print(f"Running in CYCLE mode with order: {cycle_ids}")
-    _ensure_jules_branch_exists()
+    _ensure_scheduled_branch_exists()
     last_session_id, last_pid = get_last_cycle_session(client, cycle_entries, repo_info, open_prs)
     next_entry = cycle_entries[0]
     base_pr_number = ""
@@ -716,7 +716,7 @@ def run_cycle_step(
 def run_scheduler(
     command: str, run_all: bool = False, dry_run: bool = False, prompt_id: str | None = None
 ) -> None:
-    client = JulesClient()
+    client = TeamClient()
     repo_info = get_repo_info()
     prompts_dir = Path(".team/personas")
     registry_path = Path(".team/schedules.toml")

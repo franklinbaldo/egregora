@@ -7,7 +7,7 @@ from typing import Any
 
 import jinja2
 
-from repo.core.client import JulesClient
+from repo.core.client import TeamClient
 from repo.core.github import (
     fetch_failed_logs_summary,
     fetch_full_ci_logs,
@@ -88,7 +88,7 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
         full_ci_logs=full_ci_logs,
     )
 
-    client = JulesClient()
+    client = TeamClient()
     session_id = details.get("session_id")
     last_commit_author = details.get("last_commit_author_login")
     last_commit_by_jules = bool(details.get("last_commit_by_jules"))

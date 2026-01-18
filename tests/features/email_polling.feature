@@ -1,5 +1,5 @@
 Feature: Email Polling and Delivery
-  As a Jules System,
+  As a Team System,
   I want to poll session activities for new mail files,
   So that I can deliver messages to recipient's active sessions automatically.
 

@@ -8,31 +8,31 @@ from unittest.mock import MagicMock, patch
 # Add .team to path so we can import repo.scheduler
 # We use relative path from repo root
 REPO_ROOT = Path(__file__).parents[3]
-JULES_PATH = REPO_ROOT / ".team"
-if str(JULES_PATH) not in sys.path:
-    sys.path.append(str(JULES_PATH))
+TEAM_PATH = REPO_ROOT / ".team"
+if str(TEAM_PATH) not in sys.path:
+    sys.path.append(str(TEAM_PATH))
 
 
 def _load_legacy_module():
     return import_module("repo.scheduler.legacy")
 
 
-class TestJulesSchedulerUpdate(unittest.TestCase):
+class TestTeamSchedulerUpdate(unittest.TestCase):
     @patch("subprocess.run")
-    def test_update_jules_from_main_success(self, mock_run: MagicMock) -> None:
-        """Test that update_jules_from_main runs the correct git commands on success."""
+    def test_update_scheduled_from_main_success(self, mock_run: MagicMock) -> None:
+        """Test that update_scheduled_from_main runs the correct git commands on success."""
         # Mock successful execution
         mock_run.return_value.returncode = 0
 
         legacy = _load_legacy_module()
-        result = legacy.update_jules_from_main()
+        result = legacy.update_scheduled_from_main()
 
         self.assertTrue(result)
 
         # Verify calls
         # Config user
-        mock_run.assert_any_call(["git", "config", "user.name", "Jules Bot"], check=False)
-        mock_run.assert_any_call(["git", "config", "user.email", "jules-bot@google.com"], check=False)
+        mock_run.assert_any_call(["git", "config", "user.name", "Team Bot"], check=False)
+        mock_run.assert_any_call(["git", "config", "user.email", "team-bot@egregora.com"], check=False)
 
         # Checkout
         jules_branch = legacy.JULES_BRANCH
@@ -48,10 +48,10 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
         # Push
         mock_run.assert_any_call(["git", "push", "origin", jules_branch], check=True, capture_output=True)
 
-    @patch("repo.scheduler.legacy.rotate_drifted_jules_branch")
+    @patch("repo.scheduler.legacy.rotate_drifted_scheduled_branch")
     @patch("subprocess.run")
-    def test_update_jules_from_main_failure(self, mock_run: MagicMock, mock_rotate: MagicMock) -> None:
-        """Test that update_jules_from_main fails gracefully and rotates on error."""
+    def test_update_scheduled_from_main_failure(self, mock_run: MagicMock, mock_rotate: MagicMock) -> None:
+        """Test that update_scheduled_from_main fails gracefully and rotates on error."""
 
         # Mock failure during merge
         def side_effect(*args: object, **kwargs: object) -> MagicMock:
@@ -63,18 +63,18 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
         mock_run.side_effect = side_effect
 
         legacy = _load_legacy_module()
-        result = legacy.update_jules_from_main()
+        result = legacy.update_scheduled_from_main()
 
         self.assertFalse(result)
         mock_rotate.assert_called_once()
 
-    @patch("repo.scheduler.legacy.update_jules_from_main")
-    @patch("repo.scheduler.legacy.is_jules_drifted")
+    @patch("repo.scheduler.legacy.update_scheduled_from_main")
+    @patch("repo.scheduler.legacy.is_scheduled_drifted")
     @patch("subprocess.run")
-    def test_ensure_jules_branch_exists_calls_update(
+    def test_ensure_scheduled_branch_exists_calls_update(
         self, mock_run: MagicMock, mock_is_drifted: MagicMock, mock_update: MagicMock
     ) -> None:
-        """Test that ensure_jules_branch_exists calls update when branch is healthy."""
+        """Test that ensure_scheduled_branch_exists calls update when branch is healthy."""
         # Mock fetch success
         mock_run.return_value.returncode = 0
         # Mock branch exists
@@ -87,17 +87,17 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
         mock_update.return_value = True
 
         legacy = _load_legacy_module()
-        legacy.ensure_jules_branch_exists()
+        legacy.ensure_scheduled_branch_exists()
 
         mock_update.assert_called_once()
 
-    @patch("repo.scheduler.legacy.update_jules_from_main")
-    @patch("repo.scheduler.legacy.is_jules_drifted")
+    @patch("repo.scheduler.legacy.update_scheduled_from_main")
+    @patch("repo.scheduler.legacy.is_scheduled_drifted")
     @patch("subprocess.run")
-    def test_ensure_jules_branch_exists_fallback_on_update_fail(
+    def test_ensure_scheduled_branch_exists_fallback_on_update_fail(
         self, mock_run: MagicMock, mock_is_drifted: MagicMock, mock_update: MagicMock
     ) -> None:
-        """Test that ensure_jules_branch_exists recreates branch if update fails."""
+        """Test that ensure_scheduled_branch_exists recreates branch if update fails."""
         # Mock fetch success
         # We need to simulate the sequence of subprocess calls
         # 1. git fetch
@@ -127,7 +127,7 @@ class TestJulesSchedulerUpdate(unittest.TestCase):
         mock_update.return_value = False
 
         legacy = _load_legacy_module()
-        legacy.ensure_jules_branch_exists()
+        legacy.ensure_scheduled_branch_exists()
 
         mock_update.assert_called_once()
         # Verify it proceeded to recreate (calls git rev-parse origin/main)

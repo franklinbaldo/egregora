@@ -4,7 +4,7 @@ import subprocess
 import sys
 from typing import Any
 
-from repo.core.client import JulesClient
+from repo.core.client import TeamClient
 from repo.core.github import get_open_prs, get_pr_details_via_gh, get_repo_info, JULES_BOT_LOGINS
 
 
@@ -144,7 +144,7 @@ def run_feedback_loop(dry_run: bool = False, author_filter: str = "app/google-la
     client = None
     if not dry_run:
         try:
-            client = JulesClient()
+            client = TeamClient()
         except Exception:
             sys.exit(1)
 

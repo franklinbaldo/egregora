@@ -24,7 +24,7 @@ def isolated_fs(tmp_path, monkeypatch):
     return tmp_path
 
 
-@given("the Jules environment is initialized")
+@given("the Team environment is initialized")
 def init_env(isolated_fs):
     (isolated_fs / ".team").mkdir()
 

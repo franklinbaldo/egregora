@@ -17,9 +17,9 @@ def test_delivering_oracle_response():
 
 @pytest.fixture
 def mock_jules_client(mocker):
-    # Mock JulesClient in engine.py
+    # Mock TeamClient in engine.py
     mock_client = mocker.Mock()
-    mocker.patch("repo.scheduler.engine.JulesClient", return_value=mock_client)
+    mocker.patch("repo.scheduler.engine.TeamClient", return_value=mock_client)
     return mock_client
 
 

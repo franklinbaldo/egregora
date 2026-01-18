@@ -1,11 +1,11 @@
 Feature: Persona Voting for Schedule Sequencing (Rolling Window Model)
 
-  As a persona in the Jules environment
+  As a persona in the Team environment
   I want to cast ranked votes for future sequences
   So that the team can democratically influence the project direction
 
   Background:
-    Given the Jules environment is initialized
+    Given the Team environment is initialized
     And a schedule exists in ".team/schedule.csv"
 
   # Rolling Window Model

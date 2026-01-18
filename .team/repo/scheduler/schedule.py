@@ -277,10 +277,10 @@ def sync_session_states_from_api() -> None:
     This checks all sessions with session_ids in the schedule and updates
     their states if they've changed (e.g., IN_PROGRESS -> COMPLETED).
     """
-    from repo.core.client import JulesClient
+    from repo.core.client import TeamClient
 
     rows = load_schedule()
-    client = JulesClient()
+    client = TeamClient()
 
     updated = 0
     for row in rows:
@@ -325,10 +325,10 @@ def list_recent_sessions(limit: int = 20) -> None:
     - Base commit (if tracked)
     - PR number (if exists)
     """
-    from repo.core.client import JulesClient
+    from repo.core.client import TeamClient
 
     rows = load_schedule()
-    client = JulesClient()
+    client = TeamClient()
 
     # Build lookup from session_id to schedule row
     session_lookup = {row.get("session_id", ""): row for row in rows if row.get("session_id", "")}

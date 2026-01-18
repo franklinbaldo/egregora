@@ -1,11 +1,11 @@
 import re
 from typing import Any, Dict, List, Optional
-from repo.core.client import JulesClient
+from repo.core.client import TeamClient
 
 class EmailPoller:
     """Polls Jules session activities for new mail files and delivers them."""
 
-    def __init__(self, client: JulesClient):
+    def __init__(self, client: TeamClient):
         self.client = client
         # Keep track of processed activities to avoid duplicate delivery
         # In a real system, we'd use persistent state or a timestamp filter

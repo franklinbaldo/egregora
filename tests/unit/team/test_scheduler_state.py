@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, patch
 
 # Add .team to path
 REPO_ROOT = Path(__file__).parents[3]
-JULES_PATH = REPO_ROOT / ".team"
-if str(JULES_PATH) not in sys.path:
-    sys.path.append(str(JULES_PATH))
+TEAM_PATH = REPO_ROOT / ".team"
+if str(TEAM_PATH) not in sys.path:
+    sys.path.append(str(TEAM_PATH))
 
 from repo.scheduler.state import PersistentCycleState, commit_cycle_state  # noqa: E402
 
@@ -157,8 +157,8 @@ class TestPersistentCycleState(unittest.TestCase):
 class TestCommitCycleState(unittest.TestCase):
     @patch("repo.core.github.GitHubClient")
     @patch("builtins.open", new_callable=MagicMock)
-    def test_commit_cycle_state_only_jules_branch(self, mock_open_func, mock_client_class):
-        """Test that commit_cycle_state only calls create_or_update_file for the jules branch."""
+    def test_commit_cycle_state_only_scheduled_branch(self, mock_open_func, mock_client_class):
+        """Test that commit_cycle_state only calls create_or_update_file for the scheduled branch."""
         mock_client = mock_client_class.return_value
         mock_client.token = "fake-token"  # noqa: S105
         mock_client.get_file_contents.return_value = {"sha": "fake-sha"}

@@ -23,7 +23,7 @@ from typing import Any
 
 import jinja2
 
-from repo.core.client import JulesClient
+from repo.core.client import TeamClient
 from repo.core.github import get_open_prs, get_pr_by_session_id_any_state, get_repo_info
 from repo.features.mail import get_message, list_inbox, mark_read, send_message
 from repo.scheduler.legacy import JULES_BRANCH
@@ -190,7 +190,7 @@ def extract_session_id(session_name: str) -> str:
 
 
 def find_existing_session_id(
-    client: JulesClient,
+    client: TeamClient,
     sequence: str,
     persona_id: str,
     repo: str,
@@ -305,7 +305,7 @@ def build_session_prompt(base_prompt: str, sync_info: SyncInfo | None) -> str:
 
 
 def create_persona_session(
-    client: JulesClient,
+    client: TeamClient,
     persona: Any,
     sequence: str,
     sync_info: SyncInfo | None,
@@ -401,7 +401,7 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> Sched
     """
     try:
         # Setup
-        client = JulesClient()
+        client = TeamClient()
         repo_info = get_repo_info()
         open_prs = get_open_prs(repo_info["owner"], repo_info["repo"])
 
@@ -721,7 +721,7 @@ def execute_facilitator_tick(dry_run: bool = False) -> SchedulerResult:
 
     """
     try:
-        client = JulesClient()
+        client = TeamClient()
 
         # Load personas for identification
         dummy_context = {
@@ -831,7 +831,7 @@ def execute_single_persona(persona_id: str, dry_run: bool = False) -> SchedulerR
 
     """
     try:
-        client = JulesClient()
+        client = TeamClient()
         repo_info = get_repo_info()
         open_prs = get_open_prs(repo_info["owner"], repo_info["repo"])
 
@@ -901,7 +901,7 @@ def run_scheduler(
     """
     try:
         # Initialize dependencies
-        client = JulesClient()
+        client = TeamClient()
         repo_info = get_repo_info()
         pr_mgr = PRManager(JULES_BRANCH)
 
