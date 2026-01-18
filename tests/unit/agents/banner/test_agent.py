@@ -115,7 +115,9 @@ def test_generate_banner_handles_google_api_call_error():
     ):
         mock_provider_instance = MagicMock()
         mock_provider_cls.return_value = mock_provider_instance
-        mock_provider_instance.generate.side_effect = google_exceptions.APIError("API error", response_json={})
+        mock_provider_instance.generate.side_effect = google_exceptions.APIError(
+            "API error", response_json={}
+        )
 
         result = generate_banner("A Title", "A summary")
 

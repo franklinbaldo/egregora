@@ -42,7 +42,7 @@ def init_env(isolated_fs):
 def create_targeted_schedule(isolated_fs, p_id, seq_id):
     schedule_file = isolated_fs / ".team" / "schedule.csv"
     schedule_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(schedule_file, "w", newline="") as f:
+    with (schedule_file).open("w", newline="") as f:
         writer = csv.DictWriter(
             f, fieldnames=["sequence", "persona", "session_id", "pr_number", "pr_status", "base_commit"]
         )
@@ -61,7 +61,7 @@ def mock_login_with_pass(p_id, password):
 def create_schedule(isolated_fs, path):
     schedule_file = isolated_fs / path
     schedule_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(schedule_file, "w", newline="") as f:
+    with (schedule_file).open("w", newline="") as f:
         writer = csv.DictWriter(
             f, fieldnames=["sequence", "persona", "session_id", "pr_number", "pr_status", "base_commit"]
         )
@@ -98,7 +98,7 @@ def verify_vote_csv(isolated_fs):
 def verify_candidates_from_voter(isolated_fs, candidates, voter_seq):
     found = False
     actual_rows = []
-    with open(isolated_fs / ".team" / "votes.csv", newline="") as f:
+    with (isolated_fs / ".team" / "votes.csv").open(newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
             actual_rows.append(row)
@@ -114,7 +114,7 @@ def verify_initial_state(isolated_fs, seq_id, persona):
     rows = []
     found = False
     if schedule_file.exists():
-        with open(schedule_file, newline="") as f:
+        with (schedule_file).open(newline="") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 if row["sequence"] == seq_id:
@@ -123,7 +123,7 @@ def verify_initial_state(isolated_fs, seq_id, persona):
                 rows.append(row)
     if not found:
         rows.append({"sequence": seq_id, "persona": persona})
-    with open(schedule_file, "w", newline="") as f:
+    with (schedule_file).open("w", newline="") as f:
         writer = csv.DictWriter(
             f, fieldnames=["sequence", "persona", "session_id", "pr_number", "pr_status", "base_commit"]
         )
@@ -145,7 +145,7 @@ def manual_ranked_votes(isolated_fs, voter_seq, p1, r1, p2, r2, seq_id):
         candidates = f"{p1},{p2}"
     else:
         candidates = f"{p2},{p1}"
-    with open(votes_file, mode="a", newline="") as f:
+    with (votes_file).open(mode="a", newline="") as f:
         fieldnames = ["voter_sequence", "candidates"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         if not file_exists:
@@ -158,7 +158,7 @@ def set_next_open_sequence(isolated_fs, seq_id):
     """Create schedule with open sequence."""
     schedule_file = isolated_fs / ".team" / "schedule.csv"
     schedule_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(schedule_file, "w", newline="") as f:
+    with (schedule_file).open("w", newline="") as f:
         writer = csv.DictWriter(
             f, fieldnames=["sequence", "persona", "session_id", "pr_number", "pr_status", "base_commit"]
         )
@@ -167,7 +167,7 @@ def set_next_open_sequence(isolated_fs, seq_id):
 
 
 @given(parsers.parse("{count:d} personas have voted (roster size = {roster:d})"))
-def set_roster_size(count, roster):
+def set_roster_size(_count, _roster):
     """Just a descriptive step - roster is controlled by persona dirs."""
     # These parameters are used by the BDD parser but not directly in the function body.
     # They are kept to match the BDD step definition.
@@ -178,7 +178,7 @@ def add_voter_choice(isolated_fs, seq, persona):
     """Add a vote from a sequence for a persona."""
     votes_file = isolated_fs / ".team" / "votes.csv"
     file_exists = votes_file.exists()
-    with open(votes_file, mode="a", newline="") as f:
+    with (votes_file).open(mode="a", newline="") as f:
         fieldnames = ["voter_sequence", "candidates"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         if not file_exists:
@@ -195,7 +195,7 @@ def setup_tie_votes(isolated_fs, count):
     """
     votes_file = isolated_fs / ".team" / "votes.csv"
     votes_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(votes_file, "w", newline="") as f:
+    with (votes_file).open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["voter_sequence", "candidates"])
         writer.writeheader()
         # Create equal votes: artisan,refactor and refactor,artisan alternating
@@ -208,11 +208,11 @@ def setup_tie_votes(isolated_fs, count):
 
 
 @given(parsers.parse('votes result in a tie between "{p1}" ({pts1:d} pts) and "{p2}" ({pts2:d} pts)'))
-def setup_tie_between(isolated_fs, p1, pts1, p2, pts2):
+def setup_tie_between(isolated_fs, p1, _pts1, p2, _pts2):
     """Create balanced votes for tie."""
     # These parameters are used by the BDD parser but not directly in the function body.
     # They are kept to match the BDD step definition.
-    with open(isolated_fs / ".team" / "votes.csv", "w", newline="") as f:
+    with (isolated_fs / ".team" / "votes.csv").open("w", newline="") as f:
         fieldnames = ["voter_sequence", "candidates"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
@@ -226,7 +226,7 @@ def setup_favorable_votes(isolated_fs, persona):
     """Create votes that favor specified persona."""
     votes_file = isolated_fs / ".team" / "votes.csv"
     votes_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(votes_file, "w", newline="") as f:
+    with (votes_file).open("w", newline="") as f:
         fieldnames = ["voter_sequence", "candidates"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
@@ -247,11 +247,11 @@ def cast_vote_first_choice(isolated_fs, persona):
     votes_file.parent.mkdir(parents=True, exist_ok=True)
     rows = []
     if votes_file.exists():
-        with open(votes_file, newline="") as f:
+        with (votes_file).open(newline="") as f:
             reader = csv.DictReader(f)
             rows = list(reader)
     rows.append({"voter_sequence": "002", "candidates": persona})
-    with open(votes_file, "w", newline="") as f:
+    with (votes_file).open("w", newline="") as f:
         fieldnames = ["voter_sequence", "candidates"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
@@ -269,7 +269,7 @@ def cast_vote_first_choice(isolated_fs, persona):
 def verify_schedule_updated(isolated_fs, seq_id, persona):
     """Verify schedule was updated."""
     schedule_file = isolated_fs / ".team" / "schedule.csv"
-    with open(schedule_file, newline="") as f:
+    with (schedule_file).open(newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
             if row["sequence"] == seq_id:
@@ -290,7 +290,7 @@ def manual_single_ranked_vote(isolated_fs, voter_seq, p1, r1, seq_id):
     """Create single vote with one candidate (using new array format)."""
     votes_file = isolated_fs / ".team" / "votes.csv"
     file_exists = votes_file.exists()
-    with open(votes_file, mode="a", newline="") as f:
+    with (votes_file).open(mode="a", newline="") as f:
         fieldnames = ["voter_sequence", "candidates"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         if not file_exists:
@@ -316,7 +316,7 @@ def apply_results_to_seq(isolated_fs, seq_id):
 @then(parsers.parse('sequence "{seq_id}" in "schedule.csv" should be changed to "{persona}"'))
 def verify_schedule_update(isolated_fs, seq_id, persona):
     schedule_file = isolated_fs / ".team" / "schedule.csv"
-    with open(schedule_file, newline="") as f:
+    with (schedule_file).open(newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
             if row["sequence"] == seq_id:
@@ -333,7 +333,7 @@ def mock_login_at_sequence(isolated_fs, p_id, seq_id):
     """Create schedule with persona at given sequence."""
     schedule_file = isolated_fs / ".team" / "schedule.csv"
     schedule_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(schedule_file, "w", newline="") as f:
+    with (schedule_file).open("w", newline="") as f:
         writer = csv.DictWriter(
             f, fieldnames=["sequence", "persona", "session_id", "pr_number", "pr_status", "base_commit"]
         )
@@ -347,11 +347,11 @@ def persona_last_scheduled(isolated_fs, persona, seq_id):
     schedule_file = isolated_fs / ".team" / "schedule.csv"
     rows = []
     if schedule_file.exists():
-        with open(schedule_file, newline="") as f:
+        with (schedule_file).open(newline="") as f:
             reader = csv.DictReader(f)
             rows = list(reader)
     rows.append({"sequence": seq_id, "persona": persona, "session_id": "completed"})
-    with open(schedule_file, "w", newline="") as f:
+    with (schedule_file).open("w", newline="") as f:
         writer = csv.DictWriter(
             f, fieldnames=["sequence", "persona", "session_id", "pr_number", "pr_status", "base_commit"]
         )
@@ -368,7 +368,7 @@ def persona_never_scheduled(persona):
 def set_equal_points(isolated_fs, p1, p2, _points, seq_id):
     """Create votes so both personas have equal points."""
     votes_file = isolated_fs / ".team" / "votes.csv"
-    with open(votes_file, "w", newline="") as f:
+    with (votes_file).open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["voter_sequence", "candidates"])
         writer.writeheader()
         # Create votes that result in equal points
@@ -407,7 +407,7 @@ def vote_again(isolated_fs, p1, p2):
 def verify_single_vote(isolated_fs, voter_seq):
     votes_file = isolated_fs / ".team" / "votes.csv"
     count = 0
-    with open(votes_file, newline="") as f:
+    with (votes_file).open(newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
             if row["voter_sequence"] == voter_seq:
@@ -418,7 +418,7 @@ def verify_single_vote(isolated_fs, voter_seq):
 @then(parsers.parse('the vote should contain candidates "{candidates}"'))
 def verify_candidates(isolated_fs, candidates):
     votes_file = isolated_fs / ".team" / "votes.csv"
-    with open(votes_file, newline="") as f:
+    with (votes_file).open(newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
             if row["candidates"] == candidates:
@@ -431,11 +431,11 @@ def create_pending_schedule(isolated_fs, seq_id, persona):
     schedule_file = isolated_fs / ".team" / "schedule.csv"
     rows = []
     if schedule_file.exists():
-        with open(schedule_file, newline="") as f:
+        with (schedule_file).open(newline="") as f:
             reader = csv.DictReader(f)
             rows = list(reader)
     rows.append({"sequence": seq_id, "persona": persona, "session_id": ""})
-    with open(schedule_file, "w", newline="") as f:
+    with (schedule_file).open("w", newline="") as f:
         writer = csv.DictWriter(
             f, fieldnames=["sequence", "persona", "session_id", "pr_number", "pr_status", "base_commit"]
         )
@@ -447,7 +447,7 @@ def create_pending_schedule(isolated_fs, seq_id, persona):
 def vote_first_choice(isolated_fs, persona):
     votes_file = isolated_fs / ".team" / "votes.csv"
     votes_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(votes_file, "w", newline="") as f:
+    with (votes_file).open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["voter_sequence", "candidates"])
         writer.writeheader()
         writer.writerow({"voter_sequence": "002", "candidates": persona})
