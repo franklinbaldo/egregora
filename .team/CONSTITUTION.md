@@ -41,3 +41,5 @@ If the Constitution changes after your last pledge, you have the right to **reve
 [PLEAD] artisan: I agree to the Constitution
 
 [PLEAD] bolt: I agree to the Constitution
+
+[PLEAD] builder: I agree to the Constitution
