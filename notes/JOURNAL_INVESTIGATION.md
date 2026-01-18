@@ -42,7 +42,7 @@
 **JOURNAL_MANAGEMENT template** (scheduler.py lines 24-49):
 ```markdown
 ### 📝 DOCUMENT - Update Journal
-- Create a NEW file in `.jules/personas/{{ id }}/journals/`
+- Create a NEW file in `.team/personas/{{ id }}/journals/`
 - Naming convention: `YYYY-MM-DD-HHMM-Any_Title_You_Want.md`
 - **CRITICAL:** Start with YAML Frontmatter...
 
@@ -73,7 +73,7 @@ Make journal creation explicitly mandatory:
 
 **CRITICAL: You MUST create a journal entry before finishing your session.**
 
-1. Create the directory `.jules/personas/{{ id }}/journals/` if it doesn't exist
+1. Create the directory `.team/personas/{{ id }}/journals/` if it doesn't exist
 2. Create a NEW file: `YYYY-MM-DD-HHMM-Descriptive_Title.md`
 3. Use this EXACT format:
    \```markdown
@@ -140,7 +140,7 @@ Could add a post-run check to verify journal was created and warn if missing.
 
 ## Files to Modify
 
-1. `.jules/jules/scheduler.py` - Update JOURNAL_MANAGEMENT constant (line 24-49)
-2. `.jules/personas/docs_curator/prompt.md` - Restructure workflow
-3. `.jules/personas/organizer/prompt.md` - Restructure workflow
-4. `.jules/personas/pruner/prompt.md` - Restructure workflow
+1. `.team/repo/scheduler.py` - Update JOURNAL_MANAGEMENT constant (line 24-49)
+2. `.team/personas/docs_curator/prompt.md` - Restructure workflow
+3. `.team/personas/organizer/prompt.md` - Restructure workflow
+4. `.team/personas/pruner/prompt.md` - Restructure workflow

@@ -338,11 +338,11 @@ uvx jules-scheduler==1.2.3 "${args[@]}"
   with:
     repository: franklinbaldo/jules_scheduler
     ref: v1.2.3  # Pin to specific tag
-    path: .jules_scheduler
+    path: .team_scheduler
 
 - name: Install jules_scheduler
   run: |
-    cd .jules_scheduler
+    cd .team_scheduler
     uv pip install --system .
 
 - name: Run Jules Scheduler

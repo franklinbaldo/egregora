@@ -14,7 +14,7 @@ The evaluation correctly identified a blocking bug in `scheduler_managers.py`.
 *   **The Bug**: `find_last_cycle_session` checks `baseRefName` instead of `headRefName`.
 *   **Evidence**:
     ```python
-    # jules/scheduler_managers.py
+    # repo/scheduler_managers.py
     base_branch = pr.get("baseRefName", "") or ""
     if not base_branch.lower().startswith(f"{JULES_SCHEDULER_PREFIX}-"):
         continue
@@ -26,7 +26,7 @@ The evaluation correctly identified a blocking bug in `scheduler_managers.py`.
 The evaluation praises a function `run_gh_command` in `github.py` for having "good retry logic".
 
 *   **Reality**:
-    *   `run_gh_command` **does not exist** in `jules/github.py`.
+    *   `run_gh_command` **does not exist** in `repo/github.py`.
     *   It exists in `.claude/skills/jules-api/feed_feedback.py` (a helper script).
     *   It uses `subprocess.run` **without any retry logic**.
 *   **Risk**: Following the evaluation's implied advice to "keep doing this" would be misguided, as the "good code" doesn't exist.
@@ -34,7 +34,7 @@ The evaluation praises a function `run_gh_command` in `github.py` for having "go
 ### 3. ❌ HALLUCINATED: Missing Retries in `client.py`
 The evaluation claims `client.py` has no retry logic and fails on network glitches.
 
-*   **Reality**: `jules/client.py` explicitly implements retries:
+*   **Reality**: `repo/client.py` explicitly implements retries:
     ```python
     def _request_with_retry(...):
         for attempt in range(MAX_RETRIES):

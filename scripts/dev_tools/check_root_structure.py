@@ -24,7 +24,7 @@ ALLOWED_ITEMS = {
     ".pytest_cache",
     ".mypy_cache",
     ".uv",
-    ".jules",
+    ".team",
     ".agent",
     ".claude",
 

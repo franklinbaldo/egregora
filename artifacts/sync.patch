@@ -220,9 +220,9 @@ Removes all references to the legacy V2 architecture from the user-facing docume
  docs/index.md                                 | 10 ++----
  mkdocs.yml                                    | 31 +------------------
  5 files changed, 8 insertions(+), 67 deletions(-)
- create mode 100644 .jules/personas/docs_curator/journals/2026-01-13-1534-Reconciled_V2_V3_Documentation.md
+ create mode 100644 .team/personas/docs_curator/journals/2026-01-13-1534-Reconciled_V2_V3_Documentation.md
 
-diff --git a/.jules/personas/docs_curator/journals/2026-01-13-1534-Reconciled_V2_V3_Documentation.md b/.jules/personas/docs_curator/journals/2026-01-13-1534-Reconciled_V2_V3_Documentation.md
+diff --git a/.team/personas/docs_curator/journals/2026-01-13-1534-Reconciled_V2_V3_Documentation.md b/.team/personas/docs_curator/journals/2026-01-13-1534-Reconciled_V2_V3_Documentation.md
 new file mode 100644
 index 000000000..e69de29bb
 diff --git a/README.md b/README.md
@@ -384,14 +384,14 @@ Subject: [PATCH 08/28] Adds 'Journal' and 'Profiles' to the main navigation.
  .../rendering/templates/site/mkdocs.yml.jinja |    2 +
  sync.patch                                    | 2545 +++++++++++++++++
  4 files changed, 2569 insertions(+), 4 deletions(-)
- create mode 100644 .jules/personas/forge/journals/2026-01-13-1739-Fixed_Navigation_and_Media_Links.md
+ create mode 100644 .team/personas/forge/journals/2026-01-13-1739-Fixed_Navigation_and_Media_Links.md
  create mode 100644 sync.patch
 
-diff --git a/.jules/personas/forge/journals/2026-01-13-1739-Fixed_Navigation_and_Media_Links.md b/.jules/personas/forge/journals/2026-01-13-1739-Fixed_Navigation_and_Media_Links.md
+diff --git a/.team/personas/forge/journals/2026-01-13-1739-Fixed_Navigation_and_Media_Links.md b/.team/personas/forge/journals/2026-01-13-1739-Fixed_Navigation_and_Media_Links.md
 new file mode 100644
 index 000000000..7da8b53b0
 --- /dev/null
-+++ b/.jules/personas/forge/journals/2026-01-13-1739-Fixed_Navigation_and_Media_Links.md
++++ b/.team/personas/forge/journals/2026-01-13-1739-Fixed_Navigation_and_Media_Links.md
 @@ -0,0 +1,18 @@
 +---
 +title: "⚒️ Fixed Navigation and Media Links"
@@ -456,13 +456,13 @@ index 000000000..d46d7c366
 + branching for parallel mode
 +
 +---
-+ .jules/jules/scheduler_v2.py | 5 ++++-
++ .team/repo/scheduler_v2.py | 5 ++++-
 + 1 file changed, 4 insertions(+), 1 deletion(-)
 +
-+diff --git a/.jules/jules/scheduler_v2.py b/.jules/jules/scheduler_v2.py
++diff --git a/.team/repo/scheduler_v2.py b/.team/repo/scheduler_v2.py
 +index 59eaad108..0cc800028 100644
-+--- a/.jules/jules/scheduler_v2.py
-++++ b/.jules/jules/scheduler_v2.py
++--- a/.team/repo/scheduler_v2.py
+++++ b/.team/repo/scheduler_v2.py
 +@@ -245,10 +245,13 @@ def execute_scheduled_tick(
 +
 +         print(f"▶️  {persona.emoji} {persona.id} ({reason})")
@@ -536,22 +536,22 @@ index 000000000..d46d7c366
 +
 +This also includes the sprint planning and feedback files required by the Artisan's instructions.
 +---
-+ .jules/sprints/sprint-2/artisan-feedback.md   | 27 ++++++++
-+ .jules/sprints/sprint-2/artisan-plan.md       | 36 ++++++++++
-+ .jules/sprints/sprint-3/artisan-plan.md       | 36 ++++++++++
++ .team/sprints/sprint-2/artisan-feedback.md   | 27 ++++++++
++ .team/sprints/sprint-2/artisan-plan.md       | 36 ++++++++++
++ .team/sprints/sprint-3/artisan-plan.md       | 36 ++++++++++
 + src/egregora/orchestration/runner.py          | 16 +++--
 + tests/unit/orchestration/test_runner_types.py | 67 +++++++++++++++++++
 + 5 files changed, 175 insertions(+), 7 deletions(-)
-+ create mode 100644 .jules/sprints/sprint-2/artisan-feedback.md
-+ create mode 100644 .jules/sprints/sprint-2/artisan-plan.md
-+ create mode 100644 .jules/sprints/sprint-3/artisan-plan.md
++ create mode 100644 .team/sprints/sprint-2/artisan-feedback.md
++ create mode 100644 .team/sprints/sprint-2/artisan-plan.md
++ create mode 100644 .team/sprints/sprint-3/artisan-plan.md
 + create mode 100644 tests/unit/orchestration/test_runner_types.py
 +
-+diff --git a/.jules/sprints/sprint-2/artisan-feedback.md b/.jules/sprints/sprint-2/artisan-feedback.md
++diff --git a/.team/sprints/sprint-2/artisan-feedback.md b/.team/sprints/sprint-2/artisan-feedback.md
 +new file mode 100644
 +index 000000000..c2de8def2
 +--- /dev/null
-++++ b/.jules/sprints/sprint-2/artisan-feedback.md
+++++ b/.team/sprints/sprint-2/artisan-feedback.md
 +@@ -0,0 +1,27 @@
 ++# Feedback: Artisan on Sprint 2 Plans
 ++
@@ -580,11 +580,11 @@ index 000000000..d46d7c366
 ++### To: Sentinel 🛡️
 ++I'm thrilled to see a proactive focus on security. This is a non-negotiable aspect of a high-quality product.
 ++- **Alignment:** Your goal of building a security test suite is fantastic. I will ensure that any code I touch or refactor adheres to the security best practices you are establishing. Consider me an ally in building a secure-by-design codebase. Our work goes hand-in-hand.
-+diff --git a/.jules/sprints/sprint-2/artisan-plan.md b/.jules/sprints/sprint-2/artisan-plan.md
++diff --git a/.team/sprints/sprint-2/artisan-plan.md b/.team/sprints/sprint-2/artisan-plan.md
 +new file mode 100644
 +index 000000000..123e48ed5
 +--- /dev/null
-++++ b/.jules/sprints/sprint-2/artisan-plan.md
+++++ b/.team/sprints/sprint-2/artisan-plan.md
 +@@ -0,0 +1,36 @@
 ++# Plan: Artisan - Sprint 2
 ++
@@ -622,11 +622,11 @@ index 000000000..d46d7c366
 ++## Proposed Collaborations
 ++- **With Refactor:** I will share my plan to refactor `runner.py` to ensure we are not duplicating effort or creating conflicting changes.
 ++- **With Sentinel:** As I work on the configuration module, I will be mindful of any security implications (e.g., secret management) and will consult the Sentinel if needed.
-+diff --git a/.jules/sprints/sprint-3/artisan-plan.md b/.jules/sprints/sprint-3/artisan-plan.md
++diff --git a/.team/sprints/sprint-3/artisan-plan.md b/.team/sprints/sprint-3/artisan-plan.md
 +new file mode 100644
 +index 000000000..fd7c15a4e
 +--- /dev/null
-++++ b/.jules/sprints/sprint-3/artisan-plan.md
+++++ b/.team/sprints/sprint-3/artisan-plan.md
 +@@ -0,0 +1,36 @@
 ++# Plan: Artisan - Sprint 3
 ++
@@ -823,30 +823,30 @@ index 000000000..d46d7c366
 +As the Curator persona, this commit establishes the initial UX foundation.
 +
 +- **UX Vision:** Creates the initial `docs/ux-vision.md`, documenting the core UX principles and the critical discovery of the embedded Python template architecture.
-+- **Actionable Tasks:** Adds three high-priority tasks to `.jules/tasks/todo/` to address critical bugs found during the audit:
++- **Actionable Tasks:** Adds three high-priority tasks to `.team/tasks/todo/` to address critical bugs found during the audit:
 +  - Fix broken navigation links.
 +  - Resolve 404s for social media card images.
 +  - Remove the placeholder Google Analytics key.
 +- **Sprint Planning:** Populates sprint plans for Sprints 2 and 3 with a clear strategy, and provides feedback on other personas' plans.
 +- **Journaling:** Adds a detailed journal entry documenting the session's workaround for the `egregora demo` timeout and the pivot to build-log analysis.
 +---
-+ .jules/sprints/sprint-2/curator-feedback.md   | 21 ++++--
-+ .jules/sprints/sprint-2/curator-plan.md       | 72 +++++++++----------
-+ .jules/sprints/sprint-3/curator-plan.md       | 71 +++++++++---------
++ .team/sprints/sprint-2/curator-feedback.md   | 21 ++++--
++ .team/sprints/sprint-2/curator-plan.md       | 72 +++++++++----------
++ .team/sprints/sprint-3/curator-plan.md       | 71 +++++++++---------
 + .../todo/20240729-1500-ux-fix-navigation.md   | 33 +++++++++
 + .../todo/20240729-1501-ux-fix-social-cards.md | 29 ++++++++
 + ...40729-1502-ux-fix-analytics-placeholder.md | 28 ++++++++
 + docs/ux-vision.md                             | 42 +++++++++++
 + 7 files changed, 217 insertions(+), 79 deletions(-)
-+ create mode 100644 .jules/tasks/todo/20240729-1500-ux-fix-navigation.md
-+ create mode 100644 .jules/tasks/todo/20240729-1501-ux-fix-social-cards.md
-+ create mode 100644 .jules/tasks/todo/20240729-1502-ux-fix-analytics-placeholder.md
++ create mode 100644 .team/tasks/todo/20240729-1500-ux-fix-navigation.md
++ create mode 100644 .team/tasks/todo/20240729-1501-ux-fix-social-cards.md
++ create mode 100644 .team/tasks/todo/20240729-1502-ux-fix-analytics-placeholder.md
 + create mode 100644 docs/ux-vision.md
 +
-+diff --git a/.jules/sprints/sprint-2/curator-feedback.md b/.jules/sprints/sprint-2/curator-feedback.md
++diff --git a/.team/sprints/sprint-2/curator-feedback.md b/.team/sprints/sprint-2/curator-feedback.md
 +index 7237b5f2d..a747f166d 100644
-+--- a/.jules/sprints/sprint-2/curator-feedback.md
-++++ b/.jules/sprints/sprint-2/curator-feedback.md
++--- a/.team/sprints/sprint-2/curator-feedback.md
+++++ b/.team/sprints/sprint-2/curator-feedback.md
 +@@ -1,11 +1,18 @@
 +-# Feedback: Curator - Sprint 2
 +-
@@ -874,10 +874,10 @@ index 000000000..d46d7c366
 ++- **Plan:** `sprint-2/visionary-plan.md`
 ++- **Feedback:** The "Structured Data Sidecar" concept is compelling from a UX perspective. Turning unstructured conversations into structured data could unlock powerful features like automated timelines, knowledge graphs, or thematic content collections. I am very interested in collaborating on how this structured data could be visualized and surfaced to the end-user. Let's ensure the data model is designed with presentation needs in mind from the start.
 +\ No newline at end of file
-+diff --git a/.jules/sprints/sprint-2/curator-plan.md b/.jules/sprints/sprint-2/curator-plan.md
++diff --git a/.team/sprints/sprint-2/curator-plan.md b/.team/sprints/sprint-2/curator-plan.md
 +index 8f1120d5d..a931e3a61 100644
-+--- a/.jules/sprints/sprint-2/curator-plan.md
-++++ b/.jules/sprints/sprint-2/curator-plan.md
++--- a/.team/sprints/sprint-2/curator-plan.md
+++++ b/.team/sprints/sprint-2/curator-plan.md
 +@@ -1,36 +1,36 @@
 +-# Plano: Curator - Sprint 2
 +-
@@ -952,10 +952,10 @@ index 000000000..d46d7c366
 ++- **With Forge:** Close collaboration on fixing the foundational bugs and implementing the audit script.
 ++- **With Refactor:** Provide clear requirements for the `issues` module API to support my automation goals.
 +\ No newline at end of file
-+diff --git a/.jules/sprints/sprint-3/curator-plan.md b/.jules/sprints/sprint-3/curator-plan.md
++diff --git a/.team/sprints/sprint-3/curator-plan.md b/.team/sprints/sprint-3/curator-plan.md
 +index 700053310..3494c1ccd 100644
-+--- a/.jules/sprints/sprint-3/curator-plan.md
-++++ b/.jules/sprints/sprint-3/curator-plan.md
++--- a/.team/sprints/sprint-3/curator-plan.md
+++++ b/.team/sprints/sprint-3/curator-plan.md
 +@@ -1,37 +1,36 @@
 +-# Plano: Curator - Sprint 3
 +-
@@ -1016,7 +1016,7 @@ index 000000000..d46d7c366
 ++Sprint 2 was about fixing the foundation. Sprint 3 is about building a beautiful house on that foundation. The focus shifts from fixing critical bugs to proactively creating a high-quality user experience. The automation work is key, as it will free up my time to focus on more strategic design initiatives rather than manual task creation.
 ++
 ++## Expected Deliverables
-++1.  **Curation Automation Script:** A script that can automatically create a task file in `.jules/tasks/todo/` when a UX metric (e.g., Lighthouse score) falls below a certain threshold.
+++1.  **Curation Automation Script:** A script that can automatically create a task file in `.team/tasks/todo/` when a UX metric (e.g., Lighthouse score) falls below a certain threshold.
 ++2.  **Related Posts Feature:** A fully implemented and visually polished "Related Posts" section on blog post pages.
 ++3.  **A11y Score of 95+:** The demo site should consistently score 95 or higher on the Lighthouse accessibility audit.
 ++4.  **Component Library v1:** A new section in `docs/ux-vision.md` detailing the design and specifications for at least three core reusable components.
@@ -1030,11 +1030,11 @@ index 000000000..d46d7c366
 ++## Proposed Collaborations
 ++- **With Visionary:** The concept of a "Structured Data Sidecar" could be the perfect data source for a more intelligent "Related Posts" feature. I will collaborate on how to leverage that data for UX features.
 +\ No newline at end of file
-+diff --git a/.jules/tasks/todo/20240729-1500-ux-fix-navigation.md b/.jules/tasks/todo/20240729-1500-ux-fix-navigation.md
++diff --git a/.team/tasks/todo/20240729-1500-ux-fix-navigation.md b/.team/tasks/todo/20240729-1500-ux-fix-navigation.md
 +new file mode 100644
 +index 000000000..384b0b8dc
 +--- /dev/null
-++++ b/.jules/tasks/todo/20240729-1500-ux-fix-navigation.md
+++++ b/.team/tasks/todo/20240729-1500-ux-fix-navigation.md
 +@@ -0,0 +1,33 @@
 ++---
 ++id: "20240729-1500-ux-fix-navigation"
@@ -1070,11 +1070,11 @@ index 000000000..d46d7c366
 ++- **Content File:** `demo/docs/posts/media/index.md`
 ++- **Template Source (if needed):** The `mkdocs.yml` is generated from a template in `src/egregora/output_adapters/mkdocs/scaffolding.py`. The root cause may be in the Jinja template that generates the `nav` section. Please investigate and fix the source.
 +\ No newline at end of file
-+diff --git a/.jules/tasks/todo/20240729-1501-ux-fix-social-cards.md b/.jules/tasks/todo/20240729-1501-ux-fix-social-cards.md
++diff --git a/.team/tasks/todo/20240729-1501-ux-fix-social-cards.md b/.team/tasks/todo/20240729-1501-ux-fix-social-cards.md
 +new file mode 100644
 +index 000000000..04ffc7f94
 +--- /dev/null
-++++ b/.jules/tasks/todo/20240729-1501-ux-fix-social-cards.md
+++++ b/.team/tasks/todo/20240729-1501-ux-fix-social-cards.md
 +@@ -0,0 +1,29 @@
 ++---
 ++id: "20240729-1501-ux-fix-social-cards"
@@ -1106,11 +1106,11 @@ index 000000000..d46d7c366
 ++- **Configuration File:** `demo/.egregora/mkdocs.yml`
 ++- **Template Source:** `src/egregora/output_adapters/mkdocs/scaffolding.py` (This is the most important place to fix the `site_url`).
 +\ No newline at end of file
-+diff --git a/.jules/tasks/todo/20240729-1502-ux-fix-analytics-placeholder.md b/.jules/tasks/todo/20240729-1502-ux-fix-analytics-placeholder.md
++diff --git a/.team/tasks/todo/20240729-1502-ux-fix-analytics-placeholder.md b/.team/tasks/todo/20240729-1502-ux-fix-analytics-placeholder.md
 +new file mode 100644
 +index 000000000..5cd8d5158
 +--- /dev/null
-++++ b/.jules/tasks/todo/20240729-1502-ux-fix-analytics-placeholder.md
+++++ b/.team/tasks/todo/20240729-1502-ux-fix-analytics-placeholder.md
 +@@ -0,0 +1,28 @@
 ++---
 ++id: "20240729-1502-ux-fix-analytics-placeholder"
@@ -1198,13 +1198,13 @@ index 000000000..d46d7c366
 +Subject: [PATCH 05/30] chore(jules): update parallel cycle state
 +
 +---
-+ .jules/cycle_state.json | 13 ++++++++++---
++ .team/cycle_state.json | 13 ++++++++++---
 + 1 file changed, 10 insertions(+), 3 deletions(-)
 +
-+diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
++diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 +index f54c99488..97ec36378 100644
-+--- a/.jules/cycle_state.json
-++++ b/.jules/cycle_state.json
++--- a/.team/cycle_state.json
+++++ b/.team/cycle_state.json
 +@@ -1,5 +1,12 @@
 + {
 +   "history": [
@@ -1248,7 +1248,7 @@ index 000000000..d46d7c366
 +
 +This change enforces the principle that there is no past, only the current, unified architecture. The history of migration is irrelevant and has been purged from the project's documentation to prevent confusion and eliminate historical artifacts. There is only the Code.
 +---
-+ .jules/README.md                              |   1 -
++ .team/README.md                              |   1 -
 + .../templates/autofix_prompt_improved.jinja   |   1 -
 + AGENTS.md                                     |   2 -
 + CLAUDE.md                                     |  12 --
@@ -1257,10 +1257,10 @@ index 000000000..d46d7c366
 + 6 files changed, 1 insertion(+), 138 deletions(-)
 + delete mode 100644 notes/ARCHITECTURE_CLARIFICATION.md
 +
-+diff --git a/.jules/README.md b/.jules/README.md
++diff --git a/.team/README.md b/.team/README.md
 +index 2ba4e7d4a..0c172a62c 100644
-+--- a/.jules/README.md
-++++ b/.jules/README.md
++--- a/.team/README.md
+++++ b/.team/README.md
 +@@ -423,7 +423,6 @@ print(f'Loaded: {personas[0].id} {personas[0].emoji}')
 +
 + - **Main README**: `/README.md` - Project overview
@@ -1269,10 +1269,10 @@ index 000000000..d46d7c366
 + - **Scheduler Diagnostic**: `/SCHEDULER_DIAGNOSTIC.md` - Debugging guide
 + - **Refactoring Plan**: `/SCHEDULER_REFACTORING_PLAN.md` - V2 design rationale
 +
-+diff --git a/.jules/jules/templates/autofix_prompt_improved.jinja b/.jules/jules/templates/autofix_prompt_improved.jinja
++diff --git a/.team/repo/templates/autofix_prompt_improved.jinja b/.team/repo/templates/autofix_prompt_improved.jinja
 +index 263c4f085..5a80e0ac1 100644
-+--- a/.jules/jules/templates/autofix_prompt_improved.jinja
-++++ b/.jules/jules/templates/autofix_prompt_improved.jinja
++--- a/.team/repo/templates/autofix_prompt_improved.jinja
+++++ b/.team/repo/templates/autofix_prompt_improved.jinja
 +@@ -435,7 +435,6 @@ Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 + ## 📚 Additional Resources
 +
@@ -1288,7 +1288,7 @@ index 000000000..d46d7c366
 +@@ -11,7 +11,6 @@ This document provides practical instructions for AI agents. For comprehensive c
 + Before starting work, familiarize yourself with:
 + - **[CLAUDE.md](CLAUDE.md)**: Authoritative coding standards, architecture patterns, and development practices
-+ - **[.jules/README.md](.jules/README.md)**: Jules persona definitions and scheduling
++ - **[.team/README.md](.team/README.md)**: Jules persona definitions and scheduling
 +-- **[ARCHITECTURE_CLARIFICATION.md](ARCHITECTURE_CLARIFICATION.md)**: V2/Pure migration details
 + - **[README.md](README.md)**: User-facing documentation and project overview
 +
@@ -1336,7 +1336,7 @@ index 000000000..d46d7c366
 + - [README.md](README.md): User-facing documentation
 +-- [ARCHITECTURE_CLARIFICATION.md](ARCHITECTURE_CLARIFICATION.md): V2/Pure migration details
 + - [CHANGELOG.md](CHANGELOG.md): Version history
-+ - [.jules/README.md](.jules/README.md): AI agent personas
++ - [.team/README.md](.team/README.md): AI agent personas
 + - [docs/](docs/): Full documentation site
 +diff --git a/artifacts/FINAL_TEST_REPORT.md b/artifacts/FINAL_TEST_REPORT.md
 +index ad1996a5c..491e2093b 100644
@@ -1546,13 +1546,13 @@ index 000000000..d46d7c366
 +Subject: [PATCH 08/30] chore(jules): update parallel cycle state
 +
 +---
-+ .jules/cycle_state.json | 13 ++++++++++---
++ .team/cycle_state.json | 13 ++++++++++---
 + 1 file changed, 10 insertions(+), 3 deletions(-)
 +
-+diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
++diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 +index 97ec36378..c2fe97233 100644
-+--- a/.jules/cycle_state.json
-++++ b/.jules/cycle_state.json
++--- a/.team/cycle_state.json
+++++ b/.team/cycle_state.json
 +@@ -1,5 +1,12 @@
 + {
 +   "history": [
@@ -1589,14 +1589,14 @@ index 000000000..d46d7c366
 + sessions, removing isolation logic
 +
 +---
-+ .jules/jules/scheduler_managers.py | 50 ++++++------------------------
-+ .jules/jules/scheduler_v2.py       | 12 ++-----
++ .team/repo/scheduler_managers.py | 50 ++++++------------------------
++ .team/repo/scheduler_v2.py       | 12 ++-----
 + 2 files changed, 12 insertions(+), 50 deletions(-)
 +
-+diff --git a/.jules/jules/scheduler_managers.py b/.jules/jules/scheduler_managers.py
++diff --git a/.team/repo/scheduler_managers.py b/.team/repo/scheduler_managers.py
 +index 379faf180..9a9bd33be 100644
-+--- a/.jules/jules/scheduler_managers.py
-++++ b/.jules/jules/scheduler_managers.py
++--- a/.team/repo/scheduler_managers.py
+++++ b/.team/repo/scheduler_managers.py
 +@@ -90,54 +90,22 @@ def create_session_branch(
 +         last_session_id: str | None = None,
 +         direct: bool = False,
@@ -1661,10 +1661,10 @@ index 000000000..d46d7c366
 +
 +     def _is_drifted(self) -> bool:
 +         """Check if Jules branch has conflicts with main.
-+diff --git a/.jules/jules/scheduler_v2.py b/.jules/jules/scheduler_v2.py
++diff --git a/.team/repo/scheduler_v2.py b/.team/repo/scheduler_v2.py
 +index 0cc800028..708b3dcdb 100644
-+--- a/.jules/jules/scheduler_v2.py
-++++ b/.jules/jules/scheduler_v2.py
++--- a/.team/repo/scheduler_v2.py
+++++ b/.team/repo/scheduler_v2.py
 +@@ -143,13 +143,10 @@ def execute_parallel_cycle_tick(dry_run: bool = False) -> None:
 +         next_p = track_persona_objs[next_idx]
 +         print(f"   🚀 Starting: {next_p.emoji} {next_p.id}")
@@ -1713,15 +1713,15 @@ index 000000000..d46d7c366
 + docs/rfcs/020-the-decision-ledger.md          | 24 +++++++++++++++
 + .../021-decision-extraction-enrichment.md     | 29 +++++++++++++++++++
 + 3 files changed, 71 insertions(+)
-+ create mode 100644 .jules/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
++ create mode 100644 .team/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
 + create mode 100644 docs/rfcs/020-the-decision-ledger.md
 + create mode 100644 docs/rfcs/021-decision-extraction-enrichment.md
 +
-+diff --git a/.jules/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md b/.jules/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
++diff --git a/.team/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md b/.team/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
 +new file mode 100644
 +index 000000000..199c344ca
 +--- /dev/null
-++++ b/.jules/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
+++++ b/.team/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
 +@@ -0,0 +1,18 @@
 ++---
 ++title: "🔮 Moonshot + Quick Win: The Decision Ledger & Decision Extraction Enrichment"
@@ -1814,13 +1814,13 @@ index 000000000..d46d7c366
 +Subject: [PATCH 11/30] chore(jules): update parallel cycle state
 +
 +---
-+ .jules/cycle_state.json | 13 ++++++++++---
++ .team/cycle_state.json | 13 ++++++++++---
 + 1 file changed, 10 insertions(+), 3 deletions(-)
 +
-+diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
++diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 +index c2fe97233..777ec2e68 100644
-+--- a/.jules/cycle_state.json
-++++ b/.jules/cycle_state.json
++--- a/.team/cycle_state.json
+++++ b/.team/cycle_state.json
 +@@ -1,5 +1,12 @@
 + {
 +   "history": [
@@ -1856,13 +1856,13 @@ index 000000000..d46d7c366
 +Subject: [PATCH 12/30] chore(jules): update parallel cycle state
 +
 +---
-+ .jules/cycle_state.json | 13 ++++++++++---
++ .team/cycle_state.json | 13 ++++++++++---
 + 1 file changed, 10 insertions(+), 3 deletions(-)
 +
-+diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
++diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 +index 777ec2e68..95df63dd5 100644
-+--- a/.jules/cycle_state.json
-++++ b/.jules/cycle_state.json
++--- a/.team/cycle_state.json
+++++ b/.team/cycle_state.json
 +@@ -1,5 +1,12 @@
 + {
 +   "history": [
@@ -1899,14 +1899,14 @@ index 000000000..d46d7c366
 + with session reuse
 +
 +---
-+ .jules/jules/scheduler_managers.py |  89 ++++++++++++++-----
-+ .jules/jules/scheduler_v2.py       | 132 +++++++++++++++++++++++++++++
++ .team/repo/scheduler_managers.py |  89 ++++++++++++++-----
++ .team/repo/scheduler_v2.py       | 132 +++++++++++++++++++++++++++++
 + 2 files changed, 200 insertions(+), 21 deletions(-)
 +
-+diff --git a/.jules/jules/scheduler_managers.py b/.jules/jules/scheduler_managers.py
++diff --git a/.team/repo/scheduler_managers.py b/.team/repo/scheduler_managers.py
 +index 9a9bd33be..e67cbe503 100644
-+--- a/.jules/jules/scheduler_managers.py
-++++ b/.jules/jules/scheduler_managers.py
++--- a/.team/repo/scheduler_managers.py
+++++ b/.team/repo/scheduler_managers.py
 +@@ -25,6 +25,11 @@
 + # Timeout threshold for stuck sessions (in hours)
 + SESSION_TIMEOUT_HOURS = 0.5  # 30 minutes
@@ -1967,7 +1967,7 @@ index 000000000..d46d7c366
 +
 +         try:
 +-            # Fetch all PRs starting with jules- (except the integration PR itself)
-+-            # Note: Integration PR is usually jules -> main. We want jules-* -> jules.
++-            # Note: Integration PR is usually jules -> main. We want jules-* -> repo.
 ++            # Fetch all open PRs with author, body, and base
 +             result = subprocess.run(
 +-                ["gh", "pr", "list", "--json", "number,title,isDraft,mergeable,headRefName,body"],
@@ -1976,7 +1976,7 @@ index 000000000..d46d7c366
 +             )
 +             prs = json.loads(result.stdout)
 +
-+-            jules_prs = [pr for pr in prs if pr["headRefName"].startswith("jules-") and pr["headRefName"] != self.jules_branch]
++-            jules_prs = [pr for pr in prs if pr["headRefName"].startswith("jules-") and pr["headRefName"] != self.team_branch]
 ++            # Filter for Jules-initiated PRs:
 ++            # 1. Author is jules-bot
 ++            # 2. OR head starts with jules- (except integration branch)
@@ -1984,7 +1984,7 @@ index 000000000..d46d7c366
 ++            jules_prs = []
 ++            for pr in prs:
 ++                head = pr.get("headRefName", "")
-++                if head == self.jules_branch:
+++                if head == self.team_branch:
 ++                    continue
 ++
 ++                author = pr.get("author", {}).get("login", "")
@@ -2010,12 +2010,12 @@ index 000000000..d46d7c366
 +
 +-                # 2. If not a draft (or just marked ready), check if green and merge
 ++                # 2. Ensure it targets the integration branch if it's a persona PR
-++                if not is_draft and base != self.jules_branch:
-++                    print(f"      🔄 Retargeting PR #{pr_number} to '{self.jules_branch}'...")
+++                if not is_draft and base != self.team_branch:
+++                    print(f"      🔄 Retargeting PR #{pr_number} to '{self.team_branch}'...")
 ++                    if not dry_run:
 ++                        try:
 ++                            subprocess.run(
-++                                ["gh", "pr", "edit", str(pr_number), "--base", self.jules_branch],
+++                                ["gh", "pr", "edit", str(pr_number), "--base", self.team_branch],
 ++                                check=True, capture_output=True
 ++                            )
 ++                        except Exception as e:
@@ -2026,7 +2026,7 @@ index 000000000..d46d7c366
 +                     # We need full details for CI check
 +                     details = get_pr_details_via_gh(pr_number)
 +                     if self.is_green(details):
-+-                        print(f"      ✅ PR is green! Automatically merging into '{self.jules_branch}'...")
++-                        print(f"      ✅ PR is green! Automatically merging into '{self.team_branch}'...")
 +-                        if not dry_run:
 +-                            try:
 +-                                self.merge_into_jules(pr_number)
@@ -2037,7 +2037,7 @@ index 000000000..d46d7c366
 ++                            print(f"      🕸️ PR is green! Delegating to Weaver for integration...")
 ++                        else:
 ++                            # Fallback: auto-merge when Weaver is disabled
-++                            print(f"      ✅ PR is green! Automatically merging into '{self.jules_branch}'...")
+++                            print(f"      ✅ PR is green! Automatically merging into '{self.team_branch}'...")
 ++                            if not dry_run:
 ++                                try:
 ++                                    self.merge_into_jules(pr_number)
@@ -2050,10 +2050,10 @@ index 000000000..d46d7c366
 +
 +         except Exception as e:
 +             print(f"⚠️ Overseer Error: {e}")
-+diff --git a/.jules/jules/scheduler_v2.py b/.jules/jules/scheduler_v2.py
++diff --git a/.team/repo/scheduler_v2.py b/.team/repo/scheduler_v2.py
 +index 708b3dcdb..d43cdd1df 100644
-+--- a/.jules/jules/scheduler_v2.py
-++++ b/.jules/jules/scheduler_v2.py
++--- a/.team/repo/scheduler_v2.py
+++++ b/.team/repo/scheduler_v2.py
 +@@ -295,3 +295,135 @@ def run_scheduler(
 +     # === GLOBAL RECONCILIATION ===
 +     # Automate the lifecycle for ALL Jules PRs (parallel and cycle)
@@ -2061,7 +2061,7 @@ index 000000000..d46d7c366
 ++
 ++    # === WEAVER INTEGRATION ===
 ++    # When enabled, trigger Weaver persona to handle merging
-++    from jules.scheduler_managers import WEAVER_ENABLED
+++    from repo.scheduler_managers import WEAVER_ENABLED
 ++    if WEAVER_ENABLED:
 ++        run_weaver_integration(client, repo_info, dry_run)
 ++
@@ -2081,7 +2081,7 @@ index 000000000..d46d7c366
 ++        repo_info: Repository information
 ++        dry_run: If True, only log actions
 ++    """
-++    from jules.scheduler_managers import WEAVER_SESSION_TIMEOUT_MINUTES
+++    from repo.scheduler_managers import WEAVER_SESSION_TIMEOUT_MINUTES
 ++    import json
 ++    import subprocess
 ++
@@ -2155,7 +2155,7 @@ index 000000000..d46d7c366
 ++
 ++    try:
 ++        # Load Weaver persona
-++        loader = PersonaLoader(Path(".jules/personas"))
+++        loader = PersonaLoader(Path(".team/personas"))
 ++        weaver = loader.load_persona("weaver")
 ++
 ++        if not weaver:
@@ -2208,10 +2208,10 @@ index 000000000..d46d7c366
 + .../journals/2026-01-13-1141-Decision_Ledger_Moonshot.md        | 2 +-
 + 1 file changed, 1 insertion(+), 1 deletion(-)
 +
-+diff --git a/.jules/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md b/.jules/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
++diff --git a/.team/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md b/.team/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
 +index 199c344ca..e968957c2 100644
-+--- a/.jules/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
-++++ b/.jules/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
++--- a/.team/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
+++++ b/.team/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
 +@@ -15,4 +15,4 @@ type: journal
 + **Selected Moonshot:** [The Decision Ledger](../../../../docs/rfcs/020-the-decision-ledger.md)
 + **Selected Quick Win:** [Decision Extraction Enrichment](../../../../docs/rfcs/021-decision-extraction-enrichment.md)
@@ -2227,23 +2227,23 @@ index 000000000..d46d7c366
 + instead of embedding patch
 +
 +---
-+ .jules/jules/scheduler_v2.py | 134 ++++++++++++++++++++++++++++++++++-
++ .team/repo/scheduler_v2.py | 134 ++++++++++++++++++++++++++++++++++-
 + 1 file changed, 132 insertions(+), 2 deletions(-)
 +
-+diff --git a/.jules/jules/scheduler_v2.py b/.jules/jules/scheduler_v2.py
++diff --git a/.team/repo/scheduler_v2.py b/.team/repo/scheduler_v2.py
 +index d43cdd1df..3d73f448f 100644
-+--- a/.jules/jules/scheduler_v2.py
-++++ b/.jules/jules/scheduler_v2.py
++--- a/.team/repo/scheduler_v2.py
+++++ b/.team/repo/scheduler_v2.py
 +@@ -25,6 +25,120 @@
 +
-+ CYCLE_STATE_PATH = Path(".jules/cycle_state.json")
++ CYCLE_STATE_PATH = Path(".team/cycle_state.json")
 +
 ++
 ++def get_sync_patch(persona_id: str) -> dict | None:
 ++    """Find persona's open PR and generate sync patch URL.
 ++
 ++    Jules cannot do git rebase, so we provide a GitHub URL where Jules can
-++    download a patch showing the difference between their PR and current jules.
+++    download a patch showing the difference between their PR and current repo.
 ++
 ++    Args:
 ++        persona_id: The persona identifier to find PR for
@@ -2403,13 +2403,13 @@ index 000000000..d46d7c366
 +Subject: [PATCH 16/30] chore(jules): update parallel cycle state
 +
 +---
-+ .jules/cycle_state.json | 13 ++++++++++---
++ .team/cycle_state.json | 13 ++++++++++---
 + 1 file changed, 10 insertions(+), 3 deletions(-)
 +
-+diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
++diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 +index 95df63dd5..34bf1ef33 100644
-+--- a/.jules/cycle_state.json
-++++ b/.jules/cycle_state.json
++--- a/.team/cycle_state.json
+++++ b/.team/cycle_state.json
 +@@ -1,5 +1,12 @@
 + {
 +   "history": [
@@ -2446,23 +2446,23 @@ index 000000000..d46d7c366
 + integration
 +
 +---
-+ .jules/jules/scheduler_v2.py | 6 +++++-
++ .team/repo/scheduler_v2.py | 6 +++++-
 + 1 file changed, 5 insertions(+), 1 deletion(-)
 +
-+diff --git a/.jules/jules/scheduler_v2.py b/.jules/jules/scheduler_v2.py
++diff --git a/.team/repo/scheduler_v2.py b/.team/repo/scheduler_v2.py
 +index 3d73f448f..73df3d996 100644
-+--- a/.jules/jules/scheduler_v2.py
-++++ b/.jules/jules/scheduler_v2.py
++--- a/.team/repo/scheduler_v2.py
+++++ b/.team/repo/scheduler_v2.py
 +@@ -522,7 +522,11 @@ def run_weaver_integration(
 +
 +     try:
 +         # Load Weaver persona
-+-        loader = PersonaLoader(Path(".jules/personas"))
++-        loader = PersonaLoader(Path(".team/personas"))
 ++        base_context = {
 ++            "repo": repo_info,
 ++            "jules_branch": JULES_BRANCH,
 ++        }
-++        loader = PersonaLoader(Path(".jules/personas"), base_context)
+++        loader = PersonaLoader(Path(".team/personas"), base_context)
 +         weaver = loader.load_persona("weaver")
 +
 +         if not weaver:
@@ -2474,13 +2474,13 @@ index 000000000..d46d7c366
 + PersonaLoader
 +
 +---
-+ .jules/jules/scheduler_v2.py | 5 +----
++ .team/repo/scheduler_v2.py | 5 +----
 + 1 file changed, 1 insertion(+), 4 deletions(-)
 +
-+diff --git a/.jules/jules/scheduler_v2.py b/.jules/jules/scheduler_v2.py
++diff --git a/.team/repo/scheduler_v2.py b/.team/repo/scheduler_v2.py
 +index 73df3d996..b754d2849 100644
-+--- a/.jules/jules/scheduler_v2.py
-++++ b/.jules/jules/scheduler_v2.py
++--- a/.team/repo/scheduler_v2.py
+++++ b/.team/repo/scheduler_v2.py
 +@@ -522,10 +522,7 @@ def run_weaver_integration(
 +
 +     try:
@@ -2490,7 +2490,7 @@ index 000000000..d46d7c366
 +-            "jules_branch": JULES_BRANCH,
 +-        }
 ++        base_context = {**repo_info, "jules_branch": JULES_BRANCH}
-+         loader = PersonaLoader(Path(".jules/personas"), base_context)
++         loader = PersonaLoader(Path(".team/personas"), base_context)
 +         weaver = loader.load_persona("weaver")
 +
 +
@@ -2501,24 +2501,24 @@ index 000000000..d46d7c366
 + string
 +
 +---
-+ .jules/jules/scheduler_v2.py | 10 ++++++++--
++ .team/repo/scheduler_v2.py | 10 ++++++++--
 + 1 file changed, 8 insertions(+), 2 deletions(-)
 +
-+diff --git a/.jules/jules/scheduler_v2.py b/.jules/jules/scheduler_v2.py
++diff --git a/.team/repo/scheduler_v2.py b/.team/repo/scheduler_v2.py
 +index b754d2849..a6cf410fa 100644
-+--- a/.jules/jules/scheduler_v2.py
-++++ b/.jules/jules/scheduler_v2.py
++--- a/.team/repo/scheduler_v2.py
+++++ b/.team/repo/scheduler_v2.py
 +@@ -524,11 +524,17 @@ def run_weaver_integration(
 +         # Load Weaver persona
 +         base_context = {**repo_info, "jules_branch": JULES_BRANCH}
-+         loader = PersonaLoader(Path(".jules/personas"), base_context)
++         loader = PersonaLoader(Path(".team/personas"), base_context)
 +-        weaver = loader.load_persona("weaver")
 +
 +-        if not weaver:
 ++        # Find the weaver prompt file
-++        weaver_prompt = Path(".jules/personas/weaver/prompt.md.j2")
+++        weaver_prompt = Path(".team/personas/weaver/prompt.md.j2")
 ++        if not weaver_prompt.exists():
-++            weaver_prompt = Path(".jules/personas/weaver/prompt.md")
+++            weaver_prompt = Path(".team/personas/weaver/prompt.md")
 ++
 ++        if not weaver_prompt.exists():
 +             print("   ⚠️ Weaver persona not found!")
@@ -2618,13 +2618,13 @@ index 000000000..d46d7c366
 +Subject: [PATCH 22/30] chore(jules): update parallel cycle state
 +
 +---
-+ .jules/cycle_state.json | 13 ++++++++++---
++ .team/cycle_state.json | 13 ++++++++++---
 + 1 file changed, 10 insertions(+), 3 deletions(-)
 +
-+diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
++diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 +index 34bf1ef33..3e49bd751 100644
-+--- a/.jules/cycle_state.json
-++++ b/.jules/cycle_state.json
++--- a/.team/cycle_state.json
+++++ b/.team/cycle_state.json
 +@@ -1,5 +1,12 @@
 + {
 +   "history": [
@@ -2670,13 +2670,13 @@ index 000000000..d46d7c366
 +---
 + .../2026-01-13-1319-Erased_Legacy_Docs.md         | 15 +++++++++++++++
 + 1 file changed, 15 insertions(+)
-+ create mode 100644 .jules/personas/absolutist/journals/2026-01-13-1319-Erased_Legacy_Docs.md
++ create mode 100644 .team/personas/absolutist/journals/2026-01-13-1319-Erased_Legacy_Docs.md
 +
-+diff --git a/.jules/personas/absolutist/journals/2026-01-13-1319-Erased_Legacy_Docs.md b/.jules/personas/absolutist/journals/2026-01-13-1319-Erased_Legacy_Docs.md
++diff --git a/.team/personas/absolutist/journals/2026-01-13-1319-Erased_Legacy_Docs.md b/.team/personas/absolutist/journals/2026-01-13-1319-Erased_Legacy_Docs.md
 +new file mode 100644
 +index 000000000..324ba913d
 +--- /dev/null
-++++ b/.jules/personas/absolutist/journals/2026-01-13-1319-Erased_Legacy_Docs.md
+++++ b/.team/personas/absolutist/journals/2026-01-13-1319-Erased_Legacy_Docs.md
 +@@ -0,0 +1,15 @@
 ++---
 ++title: "⚡ Erased Legacy Architecture Documentation"
@@ -2701,13 +2701,13 @@ index 000000000..d46d7c366
 +Subject: [PATCH 24/30] chore(jules): update parallel cycle state
 +
 +---
-+ .jules/cycle_state.json | 13 ++++++++++---
++ .team/cycle_state.json | 13 ++++++++++---
 + 1 file changed, 10 insertions(+), 3 deletions(-)
 +
-+diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
++diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 +index 3e49bd751..e94a29b9b 100644
-+--- a/.jules/cycle_state.json
-++++ b/.jules/cycle_state.json
++--- a/.team/cycle_state.json
+++++ b/.team/cycle_state.json
 +@@ -1,5 +1,12 @@
 + {
 +   "history": [
@@ -2744,13 +2744,13 @@ index 000000000..d46d7c366
 +Subject: [PATCH 25/30] chore(jules): update parallel cycle state
 +
 +---
-+ .jules/cycle_state.json | 13 ++++++++++---
++ .team/cycle_state.json | 13 ++++++++++---
 + 1 file changed, 10 insertions(+), 3 deletions(-)
 +
-+diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
++diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 +index e94a29b9b..60cc7bd1a 100644
-+--- a/.jules/cycle_state.json
-++++ b/.jules/cycle_state.json
++--- a/.team/cycle_state.json
+++++ b/.team/cycle_state.json
 +@@ -1,5 +1,12 @@
 + {
 +   "history": [
@@ -2787,13 +2787,13 @@ index 000000000..d46d7c366
 +Subject: [PATCH 26/30] chore(jules): update parallel cycle state
 +
 +---
-+ .jules/cycle_state.json | 13 ++++++++++---
++ .team/cycle_state.json | 13 ++++++++++---
 + 1 file changed, 10 insertions(+), 3 deletions(-)
 +
-+diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
++diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 +index 60cc7bd1a..08c99f4a0 100644
-+--- a/.jules/cycle_state.json
-++++ b/.jules/cycle_state.json
++--- a/.team/cycle_state.json
+++++ b/.team/cycle_state.json
 +@@ -1,5 +1,12 @@
 + {
 +   "history": [
@@ -2830,13 +2830,13 @@ index 000000000..d46d7c366
 +Subject: [PATCH 27/30] chore(jules): update parallel cycle state
 +
 +---
-+ .jules/cycle_state.json | 13 ++++++++++---
++ .team/cycle_state.json | 13 ++++++++++---
 + 1 file changed, 10 insertions(+), 3 deletions(-)
 +
-+diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
++diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 +index 08c99f4a0..866b2595c 100644
-+--- a/.jules/cycle_state.json
-++++ b/.jules/cycle_state.json
++--- a/.team/cycle_state.json
+++++ b/.team/cycle_state.json
 +@@ -1,5 +1,12 @@
 + {
 +   "history": [
@@ -2873,13 +2873,13 @@ index 000000000..d46d7c366
 +Subject: [PATCH 28/30] chore(jules): update parallel cycle state
 +
 +---
-+ .jules/cycle_state.json | 13 ++++++++++---
++ .team/cycle_state.json | 13 ++++++++++---
 + 1 file changed, 10 insertions(+), 3 deletions(-)
 +
-+diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
++diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 +index 866b2595c..430794078 100644
-+--- a/.jules/cycle_state.json
-++++ b/.jules/cycle_state.json
++--- a/.team/cycle_state.json
+++++ b/.team/cycle_state.json
 +@@ -1,5 +1,12 @@
 + {
 +   "history": [
@@ -2916,13 +2916,13 @@ index 000000000..d46d7c366
 +Subject: [PATCH 29/30] chore(jules): update parallel cycle state
 +
 +---
-+ .jules/cycle_state.json | 13 ++++++++++---
++ .team/cycle_state.json | 13 ++++++++++---
 + 1 file changed, 10 insertions(+), 3 deletions(-)
 +
-+diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
++diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 +index 430794078..02d95ea65 100644
-+--- a/.jules/cycle_state.json
-++++ b/.jules/cycle_state.json
++--- a/.team/cycle_state.json
+++++ b/.team/cycle_state.json
 +@@ -1,5 +1,12 @@
 + {
 +   "history": [
@@ -2959,13 +2959,13 @@ index 000000000..d46d7c366
 +Subject: [PATCH 30/30] chore(jules): update parallel cycle state
 +
 +---
-+ .jules/cycle_state.json | 13 ++++++++++---
++ .team/cycle_state.json | 13 ++++++++++---
 + 1 file changed, 10 insertions(+), 3 deletions(-)
 +
-+diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
++diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 +index 02d95ea65..392a51638 100644
-+--- a/.jules/cycle_state.json
-++++ b/.jules/cycle_state.json
++--- a/.team/cycle_state.json
+++++ b/.team/cycle_state.json
 +@@ -1,5 +1,12 @@
 + {
 +   "history": [
@@ -3510,14 +3510,14 @@ This change removes the duplicated logic and reuses the `document_id` property, 
  src/egregora/data_primitives/document.py      | 10 +----
  tests/unit/data_primitives/test_document.py   | 39 +++++++++++++++++++
  3 files changed, 56 insertions(+), 8 deletions(-)
- create mode 100644 .jules/personas/simplifier/journals/2026-01-13-1905-Remove_Duplicated_Slug_Logic.md
+ create mode 100644 .team/personas/simplifier/journals/2026-01-13-1905-Remove_Duplicated_Slug_Logic.md
  create mode 100644 tests/unit/data_primitives/test_document.py
 
-diff --git a/.jules/personas/simplifier/journals/2026-01-13-1905-Remove_Duplicated_Slug_Logic.md b/.jules/personas/simplifier/journals/2026-01-13-1905-Remove_Duplicated_Slug_Logic.md
+diff --git a/.team/personas/simplifier/journals/2026-01-13-1905-Remove_Duplicated_Slug_Logic.md b/.team/personas/simplifier/journals/2026-01-13-1905-Remove_Duplicated_Slug_Logic.md
 new file mode 100644
 index 000000000..80e4c847b
 --- /dev/null
-+++ b/.jules/personas/simplifier/journals/2026-01-13-1905-Remove_Duplicated_Slug_Logic.md
++++ b/.team/personas/simplifier/journals/2026-01-13-1905-Remove_Duplicated_Slug_Logic.md
 @@ -0,0 +1,15 @@
 +---
 +title: "📉 Remove Duplicated Slug Logic"
@@ -3879,7 +3879,7 @@ index 98369e7b4..000000000
 -
 -          # Get unified diff between base and head, excluding non-code assets
 -          # Use --unified=1 for smaller context (GitHub Actions env vars have ~256KB limit per value)
--          git diff --unified=1 "origin/${BASE_REF}" "${HEAD_SHA}" -- . ':!uv.lock' ':!.jules/' ':!docs/' ':!README.md' ':!pyproject.toml' ':!tests/v3/infra/sinks/fixtures/' > .github/tmp/diff.txt
+-          git diff --unified=1 "origin/${BASE_REF}" "${HEAD_SHA}" -- . ':!uv.lock' ':!.team/' ':!docs/' ':!README.md' ':!pyproject.toml' ':!tests/v3/infra/sinks/fixtures/' > .github/tmp/diff.txt
 -
 -          # Truncate diff if too large (very conservative limit for GITHUB_ENV heredoc stability)
 -          DIFF_SIZE=$(wc -c < .github/tmp/diff.txt)
@@ -4564,22 +4564,22 @@ Subject: [PATCH 15/28] feat(planning): create sprint plans and feedback for
 As the Steward persona, I have created the necessary planning and feedback documents for sprints 2 and 3. I also created a journal entry to document my work for this session.
 ---
  .../2024-07-29-1200-Sprint-Planning.md        | 15 +++++++
- .jules/sprints/sprint-2/steward-feedback.md   | 18 ++++++++
- .jules/sprints/sprint-2/steward-plan.md       | 45 +++++++++++++++++++
- .jules/sprints/sprint-3/steward-feedback.md   | 18 ++++++++
- .jules/sprints/sprint-3/steward-plan.md       | 45 +++++++++++++++++++
+ .team/sprints/sprint-2/steward-feedback.md   | 18 ++++++++
+ .team/sprints/sprint-2/steward-plan.md       | 45 +++++++++++++++++++
+ .team/sprints/sprint-3/steward-feedback.md   | 18 ++++++++
+ .team/sprints/sprint-3/steward-plan.md       | 45 +++++++++++++++++++
  5 files changed, 141 insertions(+)
- create mode 100644 .jules/personas/steward/journals/2024-07-29-1200-Sprint-Planning.md
- create mode 100644 .jules/sprints/sprint-2/steward-feedback.md
- create mode 100644 .jules/sprints/sprint-2/steward-plan.md
- create mode 100644 .jules/sprints/sprint-3/steward-feedback.md
- create mode 100644 .jules/sprints/sprint-3/steward-plan.md
+ create mode 100644 .team/personas/steward/journals/2024-07-29-1200-Sprint-Planning.md
+ create mode 100644 .team/sprints/sprint-2/steward-feedback.md
+ create mode 100644 .team/sprints/sprint-2/steward-plan.md
+ create mode 100644 .team/sprints/sprint-3/steward-feedback.md
+ create mode 100644 .team/sprints/sprint-3/steward-plan.md
 
-diff --git a/.jules/personas/steward/journals/2024-07-29-1200-Sprint-Planning.md b/.jules/personas/steward/journals/2024-07-29-1200-Sprint-Planning.md
+diff --git a/.team/personas/steward/journals/2024-07-29-1200-Sprint-Planning.md b/.team/personas/steward/journals/2024-07-29-1200-Sprint-Planning.md
 new file mode 100644
 index 000000000..d38c9a8d4
 --- /dev/null
-+++ b/.jules/personas/steward/journals/2024-07-29-1200-Sprint-Planning.md
++++ b/.team/personas/steward/journals/2024-07-29-1200-Sprint-Planning.md
 @@ -0,0 +1,15 @@
 +---
 +title: "🧠 Completed Sprint Planning for Sprints 2 and 3"
@@ -4596,11 +4596,11 @@ index 000000000..d38c9a8d4
 +**Action:** I created the sprint plans and feedback files for Sprints 2 and 3. The plans focus on my core responsibilities: overseeing the project, making architectural decisions, and facilitating communication. The feedback files provide general guidance on communication and goal alignment.
 +
 +**Reflection:** Now that the planning is complete, my next step will be to review the plans of the other personas as they become available. I will also be watching for any architectural questions or concerns that may arise, and I am prepared to create ADRs as needed.
-diff --git a/.jules/sprints/sprint-2/steward-feedback.md b/.jules/sprints/sprint-2/steward-feedback.md
+diff --git a/.team/sprints/sprint-2/steward-feedback.md b/.team/sprints/sprint-2/steward-feedback.md
 new file mode 100644
 index 000000000..c1ce63612
 --- /dev/null
-+++ b/.jules/sprints/sprint-2/steward-feedback.md
++++ b/.team/sprints/sprint-2/steward-feedback.md
 @@ -0,0 +1,18 @@
 +# Feedback: Steward - Sprint 2
 +
@@ -4620,11 +4620,11 @@ index 000000000..c1ce63612
 +Second, I want to remind everyone of the importance of staying focused on our goals. We have a lot of work to do, and it is easy to get sidetracked. By keeping our goals in mind, we can ensure that we are making the best use of our time and resources.
 +
 +I am confident that we can achieve our goals for this sprint, but it will require a concerted effort from everyone. I am here to help in any way that I can, so please do not hesitate to reach out to me if you have any questions or concerns.
-diff --git a/.jules/sprints/sprint-2/steward-plan.md b/.jules/sprints/sprint-2/steward-plan.md
+diff --git a/.team/sprints/sprint-2/steward-plan.md b/.team/sprints/sprint-2/steward-plan.md
 new file mode 100644
 index 000000000..839f8e659
 --- /dev/null
-+++ b/.jules/sprints/sprint-2/steward-plan.md
++++ b/.team/sprints/sprint-2/steward-plan.md
 @@ -0,0 +1,45 @@
 +# Plan: Steward - Sprint 2
 +
@@ -4671,11 +4671,11 @@ index 000000000..839f8e659
 +## Additional Notes
 +
 +None.
-diff --git a/.jules/sprints/sprint-3/steward-feedback.md b/.jules/sprints/sprint-3/steward-feedback.md
+diff --git a/.team/sprints/sprint-3/steward-feedback.md b/.team/sprints/sprint-3/steward-feedback.md
 new file mode 100644
 index 000000000..3ba33c00f
 --- /dev/null
-+++ b/.jules/sprints/sprint-3/steward-feedback.md
++++ b/.team/sprints/sprint-3/steward-feedback.md
 @@ -0,0 +1,18 @@
 +# Feedback: Steward - Sprint 3
 +
@@ -4695,11 +4695,11 @@ index 000000000..3ba33c00f
 +Second, I want to remind everyone of the importance of staying focused on our goals. We have a lot of work to do, and it is easy to get sidetracked. By keeping our goals in mind, we can ensure that we are making the best use of our time and resources.
 +
 +I am confident that we can achieve our goals for this sprint, but it will require a concerted effort from everyone. I am here to help in any way that I can, so please do not hesitate to reach out to me if you have any questions or concerns.
-diff --git a/.jules/sprints/sprint-3/steward-plan.md b/.jules/sprints/sprint-3/steward-plan.md
+diff --git a/.team/sprints/sprint-3/steward-plan.md b/.team/sprints/sprint-3/steward-plan.md
 new file mode 100644
 index 000000000..e8ca8b9d0
 --- /dev/null
-+++ b/.jules/sprints/sprint-3/steward-plan.md
++++ b/.team/sprints/sprint-3/steward-plan.md
 @@ -0,0 +1,45 @@
 +# Plan: Steward - Sprint 3
 +
@@ -4785,14 +4785,14 @@ Subject: [PATCH 17/28] feat(overseer): auto-merge oldest PRs first, delegate
 - Collects failed merges (conflicts) and passes to Weaver
 - Weaver only triggered when there are actual conflicts
 ---
- .jules/jules/scheduler_managers.py |  85 ++++++++++--------------
- .jules/jules/scheduler_v2.py       | 102 ++++++++---------------------
+ .team/repo/scheduler_managers.py |  85 ++++++++++--------------
+ .team/repo/scheduler_v2.py       | 102 ++++++++---------------------
  2 files changed, 63 insertions(+), 124 deletions(-)
 
-diff --git a/.jules/jules/scheduler_managers.py b/.jules/jules/scheduler_managers.py
+diff --git a/.team/repo/scheduler_managers.py b/.team/repo/scheduler_managers.py
 index 6498e33df..8e1a96312 100644
---- a/.jules/jules/scheduler_managers.py
-+++ b/.jules/jules/scheduler_managers.py
+--- a/.team/repo/scheduler_managers.py
++++ b/.team/repo/scheduler_managers.py
 @@ -658,34 +658,39 @@ def find_by_session_id(self, open_prs: list[dict[str, Any]], session_id: str) ->
                  return pr
          return None
@@ -4838,9 +4838,9 @@ index 6498e33df..8e1a96312 100644
 +                base = pr.get("baseRefName", "")
 +
 +                # Skip if not targeting jules branch
-+                if base != self.jules_branch:
++                if base != self.team_branch:
 +                    continue
-                 if head == self.jules_branch:
+                 if head == self.team_branch:
                      continue
 
 @@ -698,14 +703,15 @@ def reconcile_all_jules_prs(self, client: JulesClient, repo_info: dict[str, Any]
@@ -4872,12 +4872,12 @@ index 6498e33df..8e1a96312 100644
                              print(f"      ⚠️ Failed to check session status: {e}")
 
 -                # 2. Ensure it targets the integration branch if it's a persona PR
--                if not is_draft and base != self.jules_branch:
--                    print(f"      🔄 Retargeting PR #{pr_number} to '{self.jules_branch}'...")
+-                if not is_draft and base != self.team_branch:
+-                    print(f"      🔄 Retargeting PR #{pr_number} to '{self.team_branch}'...")
 -                    if not dry_run:
 -                        try:
 -                            subprocess.run(
--                                ["gh", "pr", "edit", str(pr_number), "--base", self.jules_branch],
+-                                ["gh", "pr", "edit", str(pr_number), "--base", self.team_branch],
 -                                check=True, capture_output=True
 -                            )
 -                        except Exception as e:
@@ -4905,7 +4905,7 @@ index 6498e33df..8e1a96312 100644
 -                            print(f"      🕸️ PR is green! Waiting for Weaver to aggregate...")
 -                        else:
 -                            # Fallback: auto-merge when Weaver is disabled
--                            print(f"      ✅ PR is green! Automatically merging into '{self.jules_branch}'...")
+-                            print(f"      ✅ PR is green! Automatically merging into '{self.team_branch}'...")
 -                            if not dry_run:
 -                                try:
 -                                    self.merge_into_jules(pr_number)
@@ -4935,10 +4935,10 @@ index 6498e33df..8e1a96312 100644
 
 
  class CycleStateManager:
-diff --git a/.jules/jules/scheduler_v2.py b/.jules/jules/scheduler_v2.py
+diff --git a/.team/repo/scheduler_v2.py b/.team/repo/scheduler_v2.py
 index 37d45f055..3dbf9c86f 100644
---- a/.jules/jules/scheduler_v2.py
-+++ b/.jules/jules/scheduler_v2.py
+--- a/.team/repo/scheduler_v2.py
++++ b/.team/repo/scheduler_v2.py
 @@ -424,73 +424,39 @@ def run_scheduler(
 
      # === GLOBAL RECONCILIATION ===
@@ -4950,7 +4950,7 @@ index 37d45f055..3dbf9c86f 100644
      # === WEAVER INTEGRATION ===
 -    # When enabled, trigger Weaver persona to handle merging
 +    # Only trigger Weaver if there are conflict PRs that need resolution
-     from jules.scheduler_managers import WEAVER_ENABLED
+     from repo.scheduler_managers import WEAVER_ENABLED
 -    if WEAVER_ENABLED:
 -        run_weaver_integration(client, repo_info, dry_run)
 +    if WEAVER_ENABLED and conflict_prs:
@@ -4977,7 +4977,7 @@ index 37d45f055..3dbf9c86f 100644
 +        conflict_prs: List of PRs that failed to merge
          dry_run: If True, only log actions
      """
-     from jules.scheduler_managers import WEAVER_SESSION_TIMEOUT_MINUTES
+     from repo.scheduler_managers import WEAVER_SESSION_TIMEOUT_MINUTES
 -    import json
 -    import subprocess
 -
@@ -5056,12 +5056,12 @@ index 37d45f055..3dbf9c86f 100644
      try:
 -        # Load Weaver persona
          base_context = {**repo_info, "jules_branch": JULES_BRANCH}
-         loader = PersonaLoader(Path(".jules/personas"), base_context)
+         loader = PersonaLoader(Path(".team/personas"), base_context)
 
 -        # Find the weaver prompt file
-         weaver_prompt = Path(".jules/personas/weaver/prompt.md.j2")
+         weaver_prompt = Path(".team/personas/weaver/prompt.md.j2")
          if not weaver_prompt.exists():
-             weaver_prompt = Path(".jules/personas/weaver/prompt.md")
+             weaver_prompt = Path(".team/personas/weaver/prompt.md")
 -
          if not weaver_prompt.exists():
              print("   ⚠️ Weaver persona not found!")
@@ -5142,13 +5142,13 @@ Subject: [PATCH 18/28] fix(overseer): check both mergeStateStatus and
  mergeable_state for API compat
 
 ---
- .jules/jules/scheduler_managers.py | 38 +++++++++++++++++++-----------
+ .team/repo/scheduler_managers.py | 38 +++++++++++++++++++-----------
  1 file changed, 24 insertions(+), 14 deletions(-)
 
-diff --git a/.jules/jules/scheduler_managers.py b/.jules/jules/scheduler_managers.py
+diff --git a/.team/repo/scheduler_managers.py b/.team/repo/scheduler_managers.py
 index 8e1a96312..826b3f56b 100644
---- a/.jules/jules/scheduler_managers.py
-+++ b/.jules/jules/scheduler_managers.py
+--- a/.team/repo/scheduler_managers.py
++++ b/.team/repo/scheduler_managers.py
 @@ -448,31 +448,41 @@ def is_green(self, pr_details: dict) -> bool:
          if mergeable != "MERGEABLE":
              return False
@@ -5212,13 +5212,13 @@ Date: Tue, 13 Jan 2026 16:27:31 -0400
 Subject: [PATCH 19/28] fix(overseer): handle boolean mergeable from REST API
 
 ---
- .jules/jules/scheduler_managers.py | 7 ++++---
+ .team/repo/scheduler_managers.py | 7 ++++---
  1 file changed, 4 insertions(+), 3 deletions(-)
 
-diff --git a/.jules/jules/scheduler_managers.py b/.jules/jules/scheduler_managers.py
+diff --git a/.team/repo/scheduler_managers.py b/.team/repo/scheduler_managers.py
 index 826b3f56b..3e8c597be 100644
---- a/.jules/jules/scheduler_managers.py
-+++ b/.jules/jules/scheduler_managers.py
+--- a/.team/repo/scheduler_managers.py
++++ b/.team/repo/scheduler_managers.py
 @@ -443,9 +443,10 @@ def is_green(self, pr_details: dict) -> bool:
              True if all checks pass (or no checks exist)
 
@@ -5241,13 +5241,13 @@ Date: Tue, 13 Jan 2026 20:28:10 +0000
 Subject: [PATCH 20/28] chore(jules): update parallel cycle state
 
 ---
- .jules/cycle_state.json | 13 ++++++++++---
+ .team/cycle_state.json | 13 ++++++++++---
  1 file changed, 10 insertions(+), 3 deletions(-)
 
-diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
+diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 index 6f92e600f..d8735e282 100644
---- a/.jules/cycle_state.json
-+++ b/.jules/cycle_state.json
+--- a/.team/cycle_state.json
++++ b/.team/cycle_state.json
 @@ -1,5 +1,12 @@
  {
    "history": [
@@ -5292,24 +5292,24 @@ This change introduces the final, consolidated plan for Sprint 2.
 As the Maintainer, I have reviewed all individual persona plans and synthesized them into a single `SPRINT_STATE.md` document.
 
 Key actions in this change:
-- Created `.jules/sprints/sprint-2/SPRINT_STATE.md` to define goals, commitments, dependencies, and risks.
+- Created `.team/sprints/sprint-2/SPRINT_STATE.md` to define goals, commitments, dependencies, and risks.
 - Explicitly deferred tasks that depend on inactive personas (`Forge`, `Architect`, `Builder`) to ensure the sprint is achievable.
 - Prioritized the collaboration between `Refactor` and `Curator` on the `issues` module.
 - Created a journal entry documenting the planning process and decisions.
 ---
  .../2024-07-30-Finalized_Sprint_2_Plan.md     | 15 +++++++
- .jules/sprints/sprint-2/SPRINT_STATE.md       | 45 +++++++++++++++++++
+ .team/sprints/sprint-2/SPRINT_STATE.md       | 45 +++++++++++++++++++
  docs/ux-vision.md                             |  2 +-
  tests/unit/orchestration/test_runner_types.py |  4 +-
  4 files changed, 62 insertions(+), 4 deletions(-)
- create mode 100644 .jules/personas/maintainer/journals/2024-07-30-Finalized_Sprint_2_Plan.md
- create mode 100644 .jules/sprints/sprint-2/SPRINT_STATE.md
+ create mode 100644 .team/personas/maintainer/journals/2024-07-30-Finalized_Sprint_2_Plan.md
+ create mode 100644 .team/sprints/sprint-2/SPRINT_STATE.md
 
-diff --git a/.jules/personas/maintainer/journals/2024-07-30-Finalized_Sprint_2_Plan.md b/.jules/personas/maintainer/journals/2024-07-30-Finalized_Sprint_2_Plan.md
+diff --git a/.team/personas/maintainer/journals/2024-07-30-Finalized_Sprint_2_Plan.md b/.team/personas/maintainer/journals/2024-07-30-Finalized_Sprint_2_Plan.md
 new file mode 100644
 index 000000000..5f19adc61
 --- /dev/null
-+++ b/.jules/personas/maintainer/journals/2024-07-30-Finalized_Sprint_2_Plan.md
++++ b/.team/personas/maintainer/journals/2024-07-30-Finalized_Sprint_2_Plan.md
 @@ -0,0 +1,15 @@
 +---
 +title: "🧭 Finalized Sprint 2 Plan and State"
@@ -5326,11 +5326,11 @@ index 000000000..5f19adc61
 +**Action:** My primary action was to synthesize these individual plans into a single, conflict-free `SPRINT_STATE.md` for Sprint 2. To de-risk the sprint, I made the decision to explicitly defer all tasks that had a hard dependency on the inactive personas. I prioritized the collaborative work between `Refactor` and `Curator` on the `issues` module, as this was a key enabler for the Curator's long-term goals. The final plan locks in achievable commitments for all active personas while acknowledging the current staffing constraints.
 +
 +**Reflection:** The process highlighted a potential bottleneck in our sprint planning and persona scheduling. While the specialized personas are generating good plans, we lack the implementation capacity in this sprint to execute on all of them. For Sprint 3, it is critical to ensure that personas like `Forge` and `Builder` are active to consume the plans and specifications produced by `Curator` and `Visionary`. If this imbalance continues, I may need to propose adjustments to the persona roster or the scheduling process to ensure a smoother flow of work from planning to implementation.
-diff --git a/.jules/sprints/sprint-2/SPRINT_STATE.md b/.jules/sprints/sprint-2/SPRINT_STATE.md
+diff --git a/.team/sprints/sprint-2/SPRINT_STATE.md b/.team/sprints/sprint-2/SPRINT_STATE.md
 new file mode 100644
 index 000000000..843a158b7
 --- /dev/null
-+++ b/.jules/sprints/sprint-2/SPRINT_STATE.md
++++ b/.team/sprints/sprint-2/SPRINT_STATE.md
 @@ -0,0 +1,45 @@
 +# Sprint 2 - Final State
 +
@@ -5422,13 +5422,13 @@ Date: Tue, 13 Jan 2026 20:38:52 +0000
 Subject: [PATCH 22/28] chore(jules): update parallel cycle state
 
 ---
- .jules/cycle_state.json | 13 ++++++++++---
+ .team/cycle_state.json | 13 ++++++++++---
  1 file changed, 10 insertions(+), 3 deletions(-)
 
-diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
+diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 index d8735e282..0f7a59ca3 100644
---- a/.jules/cycle_state.json
-+++ b/.jules/cycle_state.json
+--- a/.team/cycle_state.json
++++ b/.team/cycle_state.json
 @@ -1,5 +1,12 @@
  {
    "history": [
@@ -5461,31 +5461,31 @@ index d8735e282..0f7a59ca3 100644
 From 7893477d7b04188b34671018a67079fb7fa36664 Mon Sep 17 00:00:00 2001
 From: Jules Bot <jules-bot@google.com>
 Date: Tue, 13 Jan 2026 16:49:10 -0400
-Subject: [PATCH 23/28] feat(overseer): auto-accept PRs that only touch .jules/
+Subject: [PATCH 23/28] feat(overseer): auto-accept PRs that only touch .team/
  files
 
-When merge fails due to conflict, check if PR only modifies .jules/ files.
+When merge fails due to conflict, check if PR only modifies .team/ files.
 If so, force-merge with squash (accept new changes). Otherwise delegate to Weaver.
 ---
- .jules/jules/scheduler_managers.py | 51 +++++++++++++++++++++++++++---
+ .team/repo/scheduler_managers.py | 51 +++++++++++++++++++++++++++---
  1 file changed, 47 insertions(+), 4 deletions(-)
 
-diff --git a/.jules/jules/scheduler_managers.py b/.jules/jules/scheduler_managers.py
+diff --git a/.team/repo/scheduler_managers.py b/.team/repo/scheduler_managers.py
 index 3e8c597be..0bce68623 100644
---- a/.jules/jules/scheduler_managers.py
-+++ b/.jules/jules/scheduler_managers.py
+--- a/.team/repo/scheduler_managers.py
++++ b/.team/repo/scheduler_managers.py
 @@ -433,6 +433,32 @@ def mark_ready(self, pr_number: int) -> None:
              msg = f"Failed to mark PR #{pr_number} as ready: {stderr}"
              raise MergeError(msg) from e
 
 +    def _pr_only_touches_jules(self, pr_number: int) -> bool:
-+        """Check if a PR only modifies files inside .jules/ directory.
++        """Check if a PR only modifies files inside .team/ directory.
 +
 +        Args:
 +            pr_number: PR number to check
 +
 +        Returns:
-+            True if all changed files are in .jules/, False otherwise
++            True if all changed files are in .team/, False otherwise
 +        """
 +        import json
 +        try:
@@ -5496,11 +5496,11 @@ index 3e8c597be..0bce68623 100644
 +            data = json.loads(result.stdout)
 +            files = [f.get("path", "") for f in data.get("files", [])]
 +
-+            # Check if ALL files are in .jules/
++            # Check if ALL files are in .team/
 +            for f in files:
-+                if not f.startswith(".jules/"):
++                if not f.startswith(".team/"):
 +                    return False
-+            return len(files) > 0  # At least one file, all in .jules/
++            return len(files) > 0  # At least one file, all in .team/
 +        except Exception:
 +            return False  # If we can't check, assume it's not safe
 +
@@ -5515,12 +5515,12 @@ index 3e8c597be..0bce68623 100644
 -                                print(f"      ⚠️ Merge failed (conflict?): {e}")
 -                                pr["merge_error"] = str(e)
 -                                conflict_prs.append(pr)
-+                                # Merge failed - check if PR only touches .jules/ files
++                                # Merge failed - check if PR only touches .team/ files
 +                                only_jules_files = self._pr_only_touches_jules(pr_number)
 +
 +                                if only_jules_files:
 +                                    # Safe to force-accept new changes
-+                                    print(f"      🔄 PR only touches .jules/ files - forcing merge...")
++                                    print(f"      🔄 PR only touches .team/ files - forcing merge...")
 +                                    try:
 +                                        subprocess.run(
 +                                            ["gh", "pr", "merge", str(pr_number), "--squash", "--delete-branch"],
@@ -5532,7 +5532,7 @@ index 3e8c597be..0bce68623 100644
 +                                        pr["merge_error"] = str(e2)
 +                                        conflict_prs.append(pr)
 +                                else:
-+                                    # Has files outside .jules/ - needs Weaver
++                                    # Has files outside .team/ - needs Weaver
 +                                    print(f"      ⚠️ Merge failed (conflict?): {e}")
 +                                    pr["merge_error"] = str(e)
 +                                    conflict_prs.append(pr)
@@ -5559,14 +5559,14 @@ This commit intentionally does not include the sync changes, as they could not b
  ...-2042-Synced_And_Reviewed_Project_State.md |   15 +
  sync.patch                                    | 2545 -----------------
  2 files changed, 15 insertions(+), 2545 deletions(-)
- create mode 100644 .jules/personas/steward/journals/2026-01-13-2042-Synced_And_Reviewed_Project_State.md
+ create mode 100644 .team/personas/steward/journals/2026-01-13-2042-Synced_And_Reviewed_Project_State.md
  delete mode 100644 sync.patch
 
-diff --git a/.jules/personas/steward/journals/2026-01-13-2042-Synced_And_Reviewed_Project_State.md b/.jules/personas/steward/journals/2026-01-13-2042-Synced_And_Reviewed_Project_State.md
+diff --git a/.team/personas/steward/journals/2026-01-13-2042-Synced_And_Reviewed_Project_State.md b/.team/personas/steward/journals/2026-01-13-2042-Synced_And_Reviewed_Project_State.md
 new file mode 100644
 index 000000000..50fdb8e41
 --- /dev/null
-+++ b/.jules/personas/steward/journals/2026-01-13-2042-Synced_And_Reviewed_Project_State.md
++++ b/.team/personas/steward/journals/2026-01-13-2042-Synced_And_Reviewed_Project_State.md
 @@ -0,0 +1,15 @@
 +---
 +title: "🧠 Synced Branch and Reviewed Project State"
@@ -5596,13 +5596,13 @@ index d46d7c366..000000000
 - branching for parallel mode
 -
 ----
-- .jules/jules/scheduler_v2.py | 5 ++++-
+- .team/repo/scheduler_v2.py | 5 ++++-
 - 1 file changed, 4 insertions(+), 1 deletion(-)
 -
--diff --git a/.jules/jules/scheduler_v2.py b/.jules/jules/scheduler_v2.py
+-diff --git a/.team/repo/scheduler_v2.py b/.team/repo/scheduler_v2.py
 -index 59eaad108..0cc800028 100644
----- a/.jules/jules/scheduler_v2.py
--+++ b/.jules/jules/scheduler_v2.py
+---- a/.team/repo/scheduler_v2.py
+-+++ b/.team/repo/scheduler_v2.py
 -@@ -245,10 +245,13 @@ def execute_scheduled_tick(
 -
 -         print(f"▶️  {persona.emoji} {persona.id} ({reason})")
@@ -5676,22 +5676,22 @@ index d46d7c366..000000000
 -
 -This also includes the sprint planning and feedback files required by the Artisan's instructions.
 ----
-- .jules/sprints/sprint-2/artisan-feedback.md   | 27 ++++++++
-- .jules/sprints/sprint-2/artisan-plan.md       | 36 ++++++++++
-- .jules/sprints/sprint-3/artisan-plan.md       | 36 ++++++++++
+- .team/sprints/sprint-2/artisan-feedback.md   | 27 ++++++++
+- .team/sprints/sprint-2/artisan-plan.md       | 36 ++++++++++
+- .team/sprints/sprint-3/artisan-plan.md       | 36 ++++++++++
 - src/egregora/orchestration/runner.py          | 16 +++--
 - tests/unit/orchestration/test_runner_types.py | 67 +++++++++++++++++++
 - 5 files changed, 175 insertions(+), 7 deletions(-)
-- create mode 100644 .jules/sprints/sprint-2/artisan-feedback.md
-- create mode 100644 .jules/sprints/sprint-2/artisan-plan.md
-- create mode 100644 .jules/sprints/sprint-3/artisan-plan.md
+- create mode 100644 .team/sprints/sprint-2/artisan-feedback.md
+- create mode 100644 .team/sprints/sprint-2/artisan-plan.md
+- create mode 100644 .team/sprints/sprint-3/artisan-plan.md
 - create mode 100644 tests/unit/orchestration/test_runner_types.py
 -
--diff --git a/.jules/sprints/sprint-2/artisan-feedback.md b/.jules/sprints/sprint-2/artisan-feedback.md
+-diff --git a/.team/sprints/sprint-2/artisan-feedback.md b/.team/sprints/sprint-2/artisan-feedback.md
 -new file mode 100644
 -index 000000000..c2de8def2
 ---- /dev/null
--+++ b/.jules/sprints/sprint-2/artisan-feedback.md
+-+++ b/.team/sprints/sprint-2/artisan-feedback.md
 -@@ -0,0 +1,27 @@
 -+# Feedback: Artisan on Sprint 2 Plans
 -+
@@ -5720,11 +5720,11 @@ index d46d7c366..000000000
 -+### To: Sentinel 🛡️
 -+I'm thrilled to see a proactive focus on security. This is a non-negotiable aspect of a high-quality product.
 -+- **Alignment:** Your goal of building a security test suite is fantastic. I will ensure that any code I touch or refactor adheres to the security best practices you are establishing. Consider me an ally in building a secure-by-design codebase. Our work goes hand-in-hand.
--diff --git a/.jules/sprints/sprint-2/artisan-plan.md b/.jules/sprints/sprint-2/artisan-plan.md
+-diff --git a/.team/sprints/sprint-2/artisan-plan.md b/.team/sprints/sprint-2/artisan-plan.md
 -new file mode 100644
 -index 000000000..123e48ed5
 ---- /dev/null
--+++ b/.jules/sprints/sprint-2/artisan-plan.md
+-+++ b/.team/sprints/sprint-2/artisan-plan.md
 -@@ -0,0 +1,36 @@
 -+# Plan: Artisan - Sprint 2
 -+
@@ -5762,11 +5762,11 @@ index d46d7c366..000000000
 -+## Proposed Collaborations
 -+- **With Refactor:** I will share my plan to refactor `runner.py` to ensure we are not duplicating effort or creating conflicting changes.
 -+- **With Sentinel:** As I work on the configuration module, I will be mindful of any security implications (e.g., secret management) and will consult the Sentinel if needed.
--diff --git a/.jules/sprints/sprint-3/artisan-plan.md b/.jules/sprints/sprint-3/artisan-plan.md
+-diff --git a/.team/sprints/sprint-3/artisan-plan.md b/.team/sprints/sprint-3/artisan-plan.md
 -new file mode 100644
 -index 000000000..fd7c15a4e
 ---- /dev/null
--+++ b/.jules/sprints/sprint-3/artisan-plan.md
+-+++ b/.team/sprints/sprint-3/artisan-plan.md
 -@@ -0,0 +1,36 @@
 -+# Plan: Artisan - Sprint 3
 -+
@@ -5963,30 +5963,30 @@ index d46d7c366..000000000
 -As the Curator persona, this commit establishes the initial UX foundation.
 -
 -- **UX Vision:** Creates the initial `docs/ux-vision.md`, documenting the core UX principles and the critical discovery of the embedded Python template architecture.
--- **Actionable Tasks:** Adds three high-priority tasks to `.jules/tasks/todo/` to address critical bugs found during the audit:
+-- **Actionable Tasks:** Adds three high-priority tasks to `.team/tasks/todo/` to address critical bugs found during the audit:
 -  - Fix broken navigation links.
 -  - Resolve 404s for social media card images.
 -  - Remove the placeholder Google Analytics key.
 -- **Sprint Planning:** Populates sprint plans for Sprints 2 and 3 with a clear strategy, and provides feedback on other personas' plans.
 -- **Journaling:** Adds a detailed journal entry documenting the session's workaround for the `egregora demo` timeout and the pivot to build-log analysis.
 ----
-- .jules/sprints/sprint-2/curator-feedback.md   | 21 ++++--
-- .jules/sprints/sprint-2/curator-plan.md       | 72 +++++++++----------
-- .jules/sprints/sprint-3/curator-plan.md       | 71 +++++++++---------
+- .team/sprints/sprint-2/curator-feedback.md   | 21 ++++--
+- .team/sprints/sprint-2/curator-plan.md       | 72 +++++++++----------
+- .team/sprints/sprint-3/curator-plan.md       | 71 +++++++++---------
 - .../todo/20240729-1500-ux-fix-navigation.md   | 33 +++++++++
 - .../todo/20240729-1501-ux-fix-social-cards.md | 29 ++++++++
 - ...40729-1502-ux-fix-analytics-placeholder.md | 28 ++++++++
 - docs/ux-vision.md                             | 42 +++++++++++
 - 7 files changed, 217 insertions(+), 79 deletions(-)
-- create mode 100644 .jules/tasks/todo/20240729-1500-ux-fix-navigation.md
-- create mode 100644 .jules/tasks/todo/20240729-1501-ux-fix-social-cards.md
-- create mode 100644 .jules/tasks/todo/20240729-1502-ux-fix-analytics-placeholder.md
+- create mode 100644 .team/tasks/todo/20240729-1500-ux-fix-navigation.md
+- create mode 100644 .team/tasks/todo/20240729-1501-ux-fix-social-cards.md
+- create mode 100644 .team/tasks/todo/20240729-1502-ux-fix-analytics-placeholder.md
 - create mode 100644 docs/ux-vision.md
 -
--diff --git a/.jules/sprints/sprint-2/curator-feedback.md b/.jules/sprints/sprint-2/curator-feedback.md
+-diff --git a/.team/sprints/sprint-2/curator-feedback.md b/.team/sprints/sprint-2/curator-feedback.md
 -index 7237b5f2d..a747f166d 100644
----- a/.jules/sprints/sprint-2/curator-feedback.md
--+++ b/.jules/sprints/sprint-2/curator-feedback.md
+---- a/.team/sprints/sprint-2/curator-feedback.md
+-+++ b/.team/sprints/sprint-2/curator-feedback.md
 -@@ -1,11 +1,18 @@
 --# Feedback: Curator - Sprint 2
 --
@@ -6014,10 +6014,10 @@ index d46d7c366..000000000
 -+- **Plan:** `sprint-2/visionary-plan.md`
 -+- **Feedback:** The "Structured Data Sidecar" concept is compelling from a UX perspective. Turning unstructured conversations into structured data could unlock powerful features like automated timelines, knowledge graphs, or thematic content collections. I am very interested in collaborating on how this structured data could be visualized and surfaced to the end-user. Let's ensure the data model is designed with presentation needs in mind from the start.
 -\ No newline at end of file
--diff --git a/.jules/sprints/sprint-2/curator-plan.md b/.jules/sprints/sprint-2/curator-plan.md
+-diff --git a/.team/sprints/sprint-2/curator-plan.md b/.team/sprints/sprint-2/curator-plan.md
 -index 8f1120d5d..a931e3a61 100644
----- a/.jules/sprints/sprint-2/curator-plan.md
--+++ b/.jules/sprints/sprint-2/curator-plan.md
+---- a/.team/sprints/sprint-2/curator-plan.md
+-+++ b/.team/sprints/sprint-2/curator-plan.md
 -@@ -1,36 +1,36 @@
 --# Plano: Curator - Sprint 2
 --
@@ -6092,10 +6092,10 @@ index d46d7c366..000000000
 -+- **With Forge:** Close collaboration on fixing the foundational bugs and implementing the audit script.
 -+- **With Refactor:** Provide clear requirements for the `issues` module API to support my automation goals.
 -\ No newline at end of file
--diff --git a/.jules/sprints/sprint-3/curator-plan.md b/.jules/sprints/sprint-3/curator-plan.md
+-diff --git a/.team/sprints/sprint-3/curator-plan.md b/.team/sprints/sprint-3/curator-plan.md
 -index 700053310..3494c1ccd 100644
----- a/.jules/sprints/sprint-3/curator-plan.md
--+++ b/.jules/sprints/sprint-3/curator-plan.md
+---- a/.team/sprints/sprint-3/curator-plan.md
+-+++ b/.team/sprints/sprint-3/curator-plan.md
 -@@ -1,37 +1,36 @@
 --# Plano: Curator - Sprint 3
 --
@@ -6156,7 +6156,7 @@ index d46d7c366..000000000
 -+Sprint 2 was about fixing the foundation. Sprint 3 is about building a beautiful house on that foundation. The focus shifts from fixing critical bugs to proactively creating a high-quality user experience. The automation work is key, as it will free up my time to focus on more strategic design initiatives rather than manual task creation.
 -+
 -+## Expected Deliverables
--+1.  **Curation Automation Script:** A script that can automatically create a task file in `.jules/tasks/todo/` when a UX metric (e.g., Lighthouse score) falls below a certain threshold.
+-+1.  **Curation Automation Script:** A script that can automatically create a task file in `.team/tasks/todo/` when a UX metric (e.g., Lighthouse score) falls below a certain threshold.
 -+2.  **Related Posts Feature:** A fully implemented and visually polished "Related Posts" section on blog post pages.
 -+3.  **A11y Score of 95+:** The demo site should consistently score 95 or higher on the Lighthouse accessibility audit.
 -+4.  **Component Library v1:** A new section in `docs/ux-vision.md` detailing the design and specifications for at least three core reusable components.
@@ -6170,11 +6170,11 @@ index d46d7c366..000000000
 -+## Proposed Collaborations
 -+- **With Visionary:** The concept of a "Structured Data Sidecar" could be the perfect data source for a more intelligent "Related Posts" feature. I will collaborate on how to leverage that data for UX features.
 -\ No newline at end of file
--diff --git a/.jules/tasks/todo/20240729-1500-ux-fix-navigation.md b/.jules/tasks/todo/20240729-1500-ux-fix-navigation.md
+-diff --git a/.team/tasks/todo/20240729-1500-ux-fix-navigation.md b/.team/tasks/todo/20240729-1500-ux-fix-navigation.md
 -new file mode 100644
 -index 000000000..384b0b8dc
 ---- /dev/null
--+++ b/.jules/tasks/todo/20240729-1500-ux-fix-navigation.md
+-+++ b/.team/tasks/todo/20240729-1500-ux-fix-navigation.md
 -@@ -0,0 +1,33 @@
 -+---
 -+id: "20240729-1500-ux-fix-navigation"
@@ -6210,11 +6210,11 @@ index d46d7c366..000000000
 -+- **Content File:** `demo/docs/posts/media/index.md`
 -+- **Template Source (if needed):** The `mkdocs.yml` is generated from a template in `src/egregora/output_adapters/mkdocs/scaffolding.py`. The root cause may be in the Jinja template that generates the `nav` section. Please investigate and fix the source.
 -\ No newline at end of file
--diff --git a/.jules/tasks/todo/20240729-1501-ux-fix-social-cards.md b/.jules/tasks/todo/20240729-1501-ux-fix-social-cards.md
+-diff --git a/.team/tasks/todo/20240729-1501-ux-fix-social-cards.md b/.team/tasks/todo/20240729-1501-ux-fix-social-cards.md
 -new file mode 100644
 -index 000000000..04ffc7f94
 ---- /dev/null
--+++ b/.jules/tasks/todo/20240729-1501-ux-fix-social-cards.md
+-+++ b/.team/tasks/todo/20240729-1501-ux-fix-social-cards.md
 -@@ -0,0 +1,29 @@
 -+---
 -+id: "20240729-1501-ux-fix-social-cards"
@@ -6246,11 +6246,11 @@ index d46d7c366..000000000
 -+- **Configuration File:** `demo/.egregora/mkdocs.yml`
 -+- **Template Source:** `src/egregora/output_adapters/mkdocs/scaffolding.py` (This is the most important place to fix the `site_url`).
 -\ No newline at end of file
--diff --git a/.jules/tasks/todo/20240729-1502-ux-fix-analytics-placeholder.md b/.jules/tasks/todo/20240729-1502-ux-fix-analytics-placeholder.md
+-diff --git a/.team/tasks/todo/20240729-1502-ux-fix-analytics-placeholder.md b/.team/tasks/todo/20240729-1502-ux-fix-analytics-placeholder.md
 -new file mode 100644
 -index 000000000..5cd8d5158
 ---- /dev/null
--+++ b/.jules/tasks/todo/20240729-1502-ux-fix-analytics-placeholder.md
+-+++ b/.team/tasks/todo/20240729-1502-ux-fix-analytics-placeholder.md
 -@@ -0,0 +1,28 @@
 -+---
 -+id: "20240729-1502-ux-fix-analytics-placeholder"
@@ -6338,13 +6338,13 @@ index d46d7c366..000000000
 -Subject: [PATCH 05/30] chore(jules): update parallel cycle state
 -
 ----
-- .jules/cycle_state.json | 13 ++++++++++---
+- .team/cycle_state.json | 13 ++++++++++---
 - 1 file changed, 10 insertions(+), 3 deletions(-)
 -
--diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
+-diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 -index f54c99488..97ec36378 100644
----- a/.jules/cycle_state.json
--+++ b/.jules/cycle_state.json
+---- a/.team/cycle_state.json
+-+++ b/.team/cycle_state.json
 -@@ -1,5 +1,12 @@
 - {
 -   "history": [
@@ -6388,7 +6388,7 @@ index d46d7c366..000000000
 -
 -This change enforces the principle that there is no past, only the current, unified architecture. The history of migration is irrelevant and has been purged from the project's documentation to prevent confusion and eliminate historical artifacts. There is only the Code.
 ----
-- .jules/README.md                              |   1 -
+- .team/README.md                              |   1 -
 - .../templates/autofix_prompt_improved.jinja   |   1 -
 - AGENTS.md                                     |   2 -
 - CLAUDE.md                                     |  12 --
@@ -6397,10 +6397,10 @@ index d46d7c366..000000000
 - 6 files changed, 1 insertion(+), 138 deletions(-)
 - delete mode 100644 notes/ARCHITECTURE_CLARIFICATION.md
 -
--diff --git a/.jules/README.md b/.jules/README.md
+-diff --git a/.team/README.md b/.team/README.md
 -index 2ba4e7d4a..0c172a62c 100644
----- a/.jules/README.md
--+++ b/.jules/README.md
+---- a/.team/README.md
+-+++ b/.team/README.md
 -@@ -423,7 +423,6 @@ print(f'Loaded: {personas[0].id} {personas[0].emoji}')
 -
 - - **Main README**: `/README.md` - Project overview
@@ -6409,10 +6409,10 @@ index d46d7c366..000000000
 - - **Scheduler Diagnostic**: `/SCHEDULER_DIAGNOSTIC.md` - Debugging guide
 - - **Refactoring Plan**: `/SCHEDULER_REFACTORING_PLAN.md` - V2 design rationale
 -
--diff --git a/.jules/jules/templates/autofix_prompt_improved.jinja b/.jules/jules/templates/autofix_prompt_improved.jinja
+-diff --git a/.team/repo/templates/autofix_prompt_improved.jinja b/.team/repo/templates/autofix_prompt_improved.jinja
 -index 263c4f085..5a80e0ac1 100644
----- a/.jules/jules/templates/autofix_prompt_improved.jinja
--+++ b/.jules/jules/templates/autofix_prompt_improved.jinja
+---- a/.team/repo/templates/autofix_prompt_improved.jinja
+-+++ b/.team/repo/templates/autofix_prompt_improved.jinja
 -@@ -435,7 +435,6 @@ Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 - ## 📚 Additional Resources
 -
@@ -6428,7 +6428,7 @@ index d46d7c366..000000000
 -@@ -11,7 +11,6 @@ This document provides practical instructions for AI agents. For comprehensive c
 - Before starting work, familiarize yourself with:
 - - **[CLAUDE.md](CLAUDE.md)**: Authoritative coding standards, architecture patterns, and development practices
-- - **[.jules/README.md](.jules/README.md)**: Jules persona definitions and scheduling
+- - **[.team/README.md](.team/README.md)**: Jules persona definitions and scheduling
 --- **[ARCHITECTURE_CLARIFICATION.md](ARCHITECTURE_CLARIFICATION.md)**: V2/Pure migration details
 - - **[README.md](README.md)**: User-facing documentation and project overview
 -
@@ -6476,7 +6476,7 @@ index d46d7c366..000000000
 - - [README.md](README.md): User-facing documentation
 --- [ARCHITECTURE_CLARIFICATION.md](ARCHITECTURE_CLARIFICATION.md): V2/Pure migration details
 - - [CHANGELOG.md](CHANGELOG.md): Version history
-- - [.jules/README.md](.jules/README.md): AI agent personas
+- - [.team/README.md](.team/README.md): AI agent personas
 - - [docs/](docs/): Full documentation site
 -diff --git a/artifacts/FINAL_TEST_REPORT.md b/artifacts/FINAL_TEST_REPORT.md
 -index ad1996a5c..491e2093b 100644
@@ -6686,13 +6686,13 @@ index d46d7c366..000000000
 -Subject: [PATCH 08/30] chore(jules): update parallel cycle state
 -
 ----
-- .jules/cycle_state.json | 13 ++++++++++---
+- .team/cycle_state.json | 13 ++++++++++---
 - 1 file changed, 10 insertions(+), 3 deletions(-)
 -
--diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
+-diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 -index 97ec36378..c2fe97233 100644
----- a/.jules/cycle_state.json
--+++ b/.jules/cycle_state.json
+---- a/.team/cycle_state.json
+-+++ b/.team/cycle_state.json
 -@@ -1,5 +1,12 @@
 - {
 -   "history": [
@@ -6729,14 +6729,14 @@ index d46d7c366..000000000
 - sessions, removing isolation logic
 -
 ----
-- .jules/jules/scheduler_managers.py | 50 ++++++------------------------
-- .jules/jules/scheduler_v2.py       | 12 ++-----
+- .team/repo/scheduler_managers.py | 50 ++++++------------------------
+- .team/repo/scheduler_v2.py       | 12 ++-----
 - 2 files changed, 12 insertions(+), 50 deletions(-)
 -
--diff --git a/.jules/jules/scheduler_managers.py b/.jules/jules/scheduler_managers.py
+-diff --git a/.team/repo/scheduler_managers.py b/.team/repo/scheduler_managers.py
 -index 379faf180..9a9bd33be 100644
----- a/.jules/jules/scheduler_managers.py
--+++ b/.jules/jules/scheduler_managers.py
+---- a/.team/repo/scheduler_managers.py
+-+++ b/.team/repo/scheduler_managers.py
 -@@ -90,54 +90,22 @@ def create_session_branch(
 -         last_session_id: str | None = None,
 -         direct: bool = False,
@@ -6801,10 +6801,10 @@ index d46d7c366..000000000
 -
 -     def _is_drifted(self) -> bool:
 -         """Check if Jules branch has conflicts with main.
--diff --git a/.jules/jules/scheduler_v2.py b/.jules/jules/scheduler_v2.py
+-diff --git a/.team/repo/scheduler_v2.py b/.team/repo/scheduler_v2.py
 -index 0cc800028..708b3dcdb 100644
----- a/.jules/jules/scheduler_v2.py
--+++ b/.jules/jules/scheduler_v2.py
+---- a/.team/repo/scheduler_v2.py
+-+++ b/.team/repo/scheduler_v2.py
 -@@ -143,13 +143,10 @@ def execute_parallel_cycle_tick(dry_run: bool = False) -> None:
 -         next_p = track_persona_objs[next_idx]
 -         print(f"   🚀 Starting: {next_p.emoji} {next_p.id}")
@@ -6853,15 +6853,15 @@ index d46d7c366..000000000
 - docs/rfcs/020-the-decision-ledger.md          | 24 +++++++++++++++
 - .../021-decision-extraction-enrichment.md     | 29 +++++++++++++++++++
 - 3 files changed, 71 insertions(+)
-- create mode 100644 .jules/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
+- create mode 100644 .team/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
 - create mode 100644 docs/rfcs/020-the-decision-ledger.md
 - create mode 100644 docs/rfcs/021-decision-extraction-enrichment.md
 -
--diff --git a/.jules/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md b/.jules/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
+-diff --git a/.team/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md b/.team/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
 -new file mode 100644
 -index 000000000..199c344ca
 ---- /dev/null
--+++ b/.jules/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
+-+++ b/.team/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
 -@@ -0,0 +1,18 @@
 -+---
 -+title: "🔮 Moonshot + Quick Win: The Decision Ledger & Decision Extraction Enrichment"
@@ -6954,13 +6954,13 @@ index d46d7c366..000000000
 -Subject: [PATCH 11/30] chore(jules): update parallel cycle state
 -
 ----
-- .jules/cycle_state.json | 13 ++++++++++---
+- .team/cycle_state.json | 13 ++++++++++---
 - 1 file changed, 10 insertions(+), 3 deletions(-)
 -
--diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
+-diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 -index c2fe97233..777ec2e68 100644
----- a/.jules/cycle_state.json
--+++ b/.jules/cycle_state.json
+---- a/.team/cycle_state.json
+-+++ b/.team/cycle_state.json
 -@@ -1,5 +1,12 @@
 - {
 -   "history": [
@@ -6996,13 +6996,13 @@ index d46d7c366..000000000
 -Subject: [PATCH 12/30] chore(jules): update parallel cycle state
 -
 ----
-- .jules/cycle_state.json | 13 ++++++++++---
+- .team/cycle_state.json | 13 ++++++++++---
 - 1 file changed, 10 insertions(+), 3 deletions(-)
 -
--diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
+-diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 -index 777ec2e68..95df63dd5 100644
----- a/.jules/cycle_state.json
--+++ b/.jules/cycle_state.json
+---- a/.team/cycle_state.json
+-+++ b/.team/cycle_state.json
 -@@ -1,5 +1,12 @@
 - {
 -   "history": [
@@ -7039,14 +7039,14 @@ index d46d7c366..000000000
 - with session reuse
 -
 ----
-- .jules/jules/scheduler_managers.py |  89 ++++++++++++++-----
-- .jules/jules/scheduler_v2.py       | 132 +++++++++++++++++++++++++++++
+- .team/repo/scheduler_managers.py |  89 ++++++++++++++-----
+- .team/repo/scheduler_v2.py       | 132 +++++++++++++++++++++++++++++
 - 2 files changed, 200 insertions(+), 21 deletions(-)
 -
--diff --git a/.jules/jules/scheduler_managers.py b/.jules/jules/scheduler_managers.py
+-diff --git a/.team/repo/scheduler_managers.py b/.team/repo/scheduler_managers.py
 -index 9a9bd33be..e67cbe503 100644
----- a/.jules/jules/scheduler_managers.py
--+++ b/.jules/jules/scheduler_managers.py
+---- a/.team/repo/scheduler_managers.py
+-+++ b/.team/repo/scheduler_managers.py
 -@@ -25,6 +25,11 @@
 - # Timeout threshold for stuck sessions (in hours)
 - SESSION_TIMEOUT_HOURS = 0.5  # 30 minutes
@@ -7107,7 +7107,7 @@ index d46d7c366..000000000
 -
 -         try:
 --            # Fetch all PRs starting with jules- (except the integration PR itself)
---            # Note: Integration PR is usually jules -> main. We want jules-* -> jules.
+--            # Note: Integration PR is usually jules -> main. We want jules-* -> repo.
 -+            # Fetch all open PRs with author, body, and base
 -             result = subprocess.run(
 --                ["gh", "pr", "list", "--json", "number,title,isDraft,mergeable,headRefName,body"],
@@ -7116,7 +7116,7 @@ index d46d7c366..000000000
 -             )
 -             prs = json.loads(result.stdout)
 -
---            jules_prs = [pr for pr in prs if pr["headRefName"].startswith("jules-") and pr["headRefName"] != self.jules_branch]
+--            jules_prs = [pr for pr in prs if pr["headRefName"].startswith("jules-") and pr["headRefName"] != self.team_branch]
 -+            # Filter for Jules-initiated PRs:
 -+            # 1. Author is jules-bot
 -+            # 2. OR head starts with jules- (except integration branch)
@@ -7124,7 +7124,7 @@ index d46d7c366..000000000
 -+            jules_prs = []
 -+            for pr in prs:
 -+                head = pr.get("headRefName", "")
--+                if head == self.jules_branch:
+-+                if head == self.team_branch:
 -+                    continue
 -+
 -+                author = pr.get("author", {}).get("login", "")
@@ -7150,12 +7150,12 @@ index d46d7c366..000000000
 -
 --                # 2. If not a draft (or just marked ready), check if green and merge
 -+                # 2. Ensure it targets the integration branch if it's a persona PR
--+                if not is_draft and base != self.jules_branch:
--+                    print(f"      🔄 Retargeting PR #{pr_number} to '{self.jules_branch}'...")
+-+                if not is_draft and base != self.team_branch:
+-+                    print(f"      🔄 Retargeting PR #{pr_number} to '{self.team_branch}'...")
 -+                    if not dry_run:
 -+                        try:
 -+                            subprocess.run(
--+                                ["gh", "pr", "edit", str(pr_number), "--base", self.jules_branch],
+-+                                ["gh", "pr", "edit", str(pr_number), "--base", self.team_branch],
 -+                                check=True, capture_output=True
 -+                            )
 -+                        except Exception as e:
@@ -7166,7 +7166,7 @@ index d46d7c366..000000000
 -                     # We need full details for CI check
 -                     details = get_pr_details_via_gh(pr_number)
 -                     if self.is_green(details):
---                        print(f"      ✅ PR is green! Automatically merging into '{self.jules_branch}'...")
+--                        print(f"      ✅ PR is green! Automatically merging into '{self.team_branch}'...")
 --                        if not dry_run:
 --                            try:
 --                                self.merge_into_jules(pr_number)
@@ -7177,7 +7177,7 @@ index d46d7c366..000000000
 -+                            print(f"      🕸️ PR is green! Delegating to Weaver for integration...")
 -+                        else:
 -+                            # Fallback: auto-merge when Weaver is disabled
--+                            print(f"      ✅ PR is green! Automatically merging into '{self.jules_branch}'...")
+-+                            print(f"      ✅ PR is green! Automatically merging into '{self.team_branch}'...")
 -+                            if not dry_run:
 -+                                try:
 -+                                    self.merge_into_jules(pr_number)
@@ -7190,10 +7190,10 @@ index d46d7c366..000000000
 -
 -         except Exception as e:
 -             print(f"⚠️ Overseer Error: {e}")
--diff --git a/.jules/jules/scheduler_v2.py b/.jules/jules/scheduler_v2.py
+-diff --git a/.team/repo/scheduler_v2.py b/.team/repo/scheduler_v2.py
 -index 708b3dcdb..d43cdd1df 100644
----- a/.jules/jules/scheduler_v2.py
--+++ b/.jules/jules/scheduler_v2.py
+---- a/.team/repo/scheduler_v2.py
+-+++ b/.team/repo/scheduler_v2.py
 -@@ -295,3 +295,135 @@ def run_scheduler(
 -     # === GLOBAL RECONCILIATION ===
 -     # Automate the lifecycle for ALL Jules PRs (parallel and cycle)
@@ -7201,7 +7201,7 @@ index d46d7c366..000000000
 -+
 -+    # === WEAVER INTEGRATION ===
 -+    # When enabled, trigger Weaver persona to handle merging
--+    from jules.scheduler_managers import WEAVER_ENABLED
+-+    from repo.scheduler_managers import WEAVER_ENABLED
 -+    if WEAVER_ENABLED:
 -+        run_weaver_integration(client, repo_info, dry_run)
 -+
@@ -7221,7 +7221,7 @@ index d46d7c366..000000000
 -+        repo_info: Repository information
 -+        dry_run: If True, only log actions
 -+    """
--+    from jules.scheduler_managers import WEAVER_SESSION_TIMEOUT_MINUTES
+-+    from repo.scheduler_managers import WEAVER_SESSION_TIMEOUT_MINUTES
 -+    import json
 -+    import subprocess
 -+
@@ -7295,7 +7295,7 @@ index d46d7c366..000000000
 -+
 -+    try:
 -+        # Load Weaver persona
--+        loader = PersonaLoader(Path(".jules/personas"))
+-+        loader = PersonaLoader(Path(".team/personas"))
 -+        weaver = loader.load_persona("weaver")
 -+
 -+        if not weaver:
@@ -7348,10 +7348,10 @@ index d46d7c366..000000000
 - .../journals/2026-01-13-1141-Decision_Ledger_Moonshot.md        | 2 +-
 - 1 file changed, 1 insertion(+), 1 deletion(-)
 -
--diff --git a/.jules/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md b/.jules/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
+-diff --git a/.team/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md b/.team/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
 -index 199c344ca..e968957c2 100644
----- a/.jules/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
--+++ b/.jules/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
+---- a/.team/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
+-+++ b/.team/personas/visionary/journals/2026-01-13-1141-Decision_Ledger_Moonshot.md
 -@@ -15,4 +15,4 @@ type: journal
 - **Selected Moonshot:** [The Decision Ledger](../../../../docs/rfcs/020-the-decision-ledger.md)
 - **Selected Quick Win:** [Decision Extraction Enrichment](../../../../docs/rfcs/021-decision-extraction-enrichment.md)
@@ -7367,23 +7367,23 @@ index d46d7c366..000000000
 - instead of embedding patch
 -
 ----
-- .jules/jules/scheduler_v2.py | 134 ++++++++++++++++++++++++++++++++++-
+- .team/repo/scheduler_v2.py | 134 ++++++++++++++++++++++++++++++++++-
 - 1 file changed, 132 insertions(+), 2 deletions(-)
 -
--diff --git a/.jules/jules/scheduler_v2.py b/.jules/jules/scheduler_v2.py
+-diff --git a/.team/repo/scheduler_v2.py b/.team/repo/scheduler_v2.py
 -index d43cdd1df..3d73f448f 100644
----- a/.jules/jules/scheduler_v2.py
--+++ b/.jules/jules/scheduler_v2.py
+---- a/.team/repo/scheduler_v2.py
+-+++ b/.team/repo/scheduler_v2.py
 -@@ -25,6 +25,120 @@
 -
-- CYCLE_STATE_PATH = Path(".jules/cycle_state.json")
+- CYCLE_STATE_PATH = Path(".team/cycle_state.json")
 -
 -+
 -+def get_sync_patch(persona_id: str) -> dict | None:
 -+    """Find persona's open PR and generate sync patch URL.
 -+
 -+    Jules cannot do git rebase, so we provide a GitHub URL where Jules can
--+    download a patch showing the difference between their PR and current jules.
+-+    download a patch showing the difference between their PR and current repo.
 -+
 -+    Args:
 -+        persona_id: The persona identifier to find PR for
@@ -7543,13 +7543,13 @@ index d46d7c366..000000000
 -Subject: [PATCH 16/30] chore(jules): update parallel cycle state
 -
 ----
-- .jules/cycle_state.json | 13 ++++++++++---
+- .team/cycle_state.json | 13 ++++++++++---
 - 1 file changed, 10 insertions(+), 3 deletions(-)
 -
--diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
+-diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 -index 95df63dd5..34bf1ef33 100644
----- a/.jules/cycle_state.json
--+++ b/.jules/cycle_state.json
+---- a/.team/cycle_state.json
+-+++ b/.team/cycle_state.json
 -@@ -1,5 +1,12 @@
 - {
 -   "history": [
@@ -7586,23 +7586,23 @@ index d46d7c366..000000000
 - integration
 -
 ----
-- .jules/jules/scheduler_v2.py | 6 +++++-
+- .team/repo/scheduler_v2.py | 6 +++++-
 - 1 file changed, 5 insertions(+), 1 deletion(-)
 -
--diff --git a/.jules/jules/scheduler_v2.py b/.jules/jules/scheduler_v2.py
+-diff --git a/.team/repo/scheduler_v2.py b/.team/repo/scheduler_v2.py
 -index 3d73f448f..73df3d996 100644
----- a/.jules/jules/scheduler_v2.py
--+++ b/.jules/jules/scheduler_v2.py
+---- a/.team/repo/scheduler_v2.py
+-+++ b/.team/repo/scheduler_v2.py
 -@@ -522,7 +522,11 @@ def run_weaver_integration(
 -
 -     try:
 -         # Load Weaver persona
---        loader = PersonaLoader(Path(".jules/personas"))
+--        loader = PersonaLoader(Path(".team/personas"))
 -+        base_context = {
 -+            "repo": repo_info,
 -+            "jules_branch": JULES_BRANCH,
 -+        }
--+        loader = PersonaLoader(Path(".jules/personas"), base_context)
+-+        loader = PersonaLoader(Path(".team/personas"), base_context)
 -         weaver = loader.load_persona("weaver")
 -
 -         if not weaver:
@@ -7614,13 +7614,13 @@ index d46d7c366..000000000
 - PersonaLoader
 -
 ----
-- .jules/jules/scheduler_v2.py | 5 +----
+- .team/repo/scheduler_v2.py | 5 +----
 - 1 file changed, 1 insertion(+), 4 deletions(-)
 -
--diff --git a/.jules/jules/scheduler_v2.py b/.jules/jules/scheduler_v2.py
+-diff --git a/.team/repo/scheduler_v2.py b/.team/repo/scheduler_v2.py
 -index 73df3d996..b754d2849 100644
----- a/.jules/jules/scheduler_v2.py
--+++ b/.jules/jules/scheduler_v2.py
+---- a/.team/repo/scheduler_v2.py
+-+++ b/.team/repo/scheduler_v2.py
 -@@ -522,10 +522,7 @@ def run_weaver_integration(
 -
 -     try:
@@ -7630,7 +7630,7 @@ index d46d7c366..000000000
 --            "jules_branch": JULES_BRANCH,
 --        }
 -+        base_context = {**repo_info, "jules_branch": JULES_BRANCH}
--         loader = PersonaLoader(Path(".jules/personas"), base_context)
+-         loader = PersonaLoader(Path(".team/personas"), base_context)
 -         weaver = loader.load_persona("weaver")
 -
 -
@@ -7641,24 +7641,24 @@ index d46d7c366..000000000
 - string
 -
 ----
-- .jules/jules/scheduler_v2.py | 10 ++++++++--
+- .team/repo/scheduler_v2.py | 10 ++++++++--
 - 1 file changed, 8 insertions(+), 2 deletions(-)
 -
--diff --git a/.jules/jules/scheduler_v2.py b/.jules/jules/scheduler_v2.py
+-diff --git a/.team/repo/scheduler_v2.py b/.team/repo/scheduler_v2.py
 -index b754d2849..a6cf410fa 100644
----- a/.jules/jules/scheduler_v2.py
--+++ b/.jules/jules/scheduler_v2.py
+---- a/.team/repo/scheduler_v2.py
+-+++ b/.team/repo/scheduler_v2.py
 -@@ -524,11 +524,17 @@ def run_weaver_integration(
 -         # Load Weaver persona
 -         base_context = {**repo_info, "jules_branch": JULES_BRANCH}
--         loader = PersonaLoader(Path(".jules/personas"), base_context)
+-         loader = PersonaLoader(Path(".team/personas"), base_context)
 --        weaver = loader.load_persona("weaver")
 -
 --        if not weaver:
 -+        # Find the weaver prompt file
--+        weaver_prompt = Path(".jules/personas/weaver/prompt.md.j2")
+-+        weaver_prompt = Path(".team/personas/weaver/prompt.md.j2")
 -+        if not weaver_prompt.exists():
--+            weaver_prompt = Path(".jules/personas/weaver/prompt.md")
+-+            weaver_prompt = Path(".team/personas/weaver/prompt.md")
 -+
 -+        if not weaver_prompt.exists():
 -             print("   ⚠️ Weaver persona not found!")
@@ -7758,13 +7758,13 @@ index d46d7c366..000000000
 -Subject: [PATCH 22/30] chore(jules): update parallel cycle state
 -
 ----
-- .jules/cycle_state.json | 13 ++++++++++---
+- .team/cycle_state.json | 13 ++++++++++---
 - 1 file changed, 10 insertions(+), 3 deletions(-)
 -
--diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
+-diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 -index 34bf1ef33..3e49bd751 100644
----- a/.jules/cycle_state.json
--+++ b/.jules/cycle_state.json
+---- a/.team/cycle_state.json
+-+++ b/.team/cycle_state.json
 -@@ -1,5 +1,12 @@
 - {
 -   "history": [
@@ -7810,13 +7810,13 @@ index d46d7c366..000000000
 ----
 - .../2026-01-13-1319-Erased_Legacy_Docs.md         | 15 +++++++++++++++
 - 1 file changed, 15 insertions(+)
-- create mode 100644 .jules/personas/absolutist/journals/2026-01-13-1319-Erased_Legacy_Docs.md
+- create mode 100644 .team/personas/absolutist/journals/2026-01-13-1319-Erased_Legacy_Docs.md
 -
--diff --git a/.jules/personas/absolutist/journals/2026-01-13-1319-Erased_Legacy_Docs.md b/.jules/personas/absolutist/journals/2026-01-13-1319-Erased_Legacy_Docs.md
+-diff --git a/.team/personas/absolutist/journals/2026-01-13-1319-Erased_Legacy_Docs.md b/.team/personas/absolutist/journals/2026-01-13-1319-Erased_Legacy_Docs.md
 -new file mode 100644
 -index 000000000..324ba913d
 ---- /dev/null
--+++ b/.jules/personas/absolutist/journals/2026-01-13-1319-Erased_Legacy_Docs.md
+-+++ b/.team/personas/absolutist/journals/2026-01-13-1319-Erased_Legacy_Docs.md
 -@@ -0,0 +1,15 @@
 -+---
 -+title: "⚡ Erased Legacy Architecture Documentation"
@@ -7841,13 +7841,13 @@ index d46d7c366..000000000
 -Subject: [PATCH 24/30] chore(jules): update parallel cycle state
 -
 ----
-- .jules/cycle_state.json | 13 ++++++++++---
+- .team/cycle_state.json | 13 ++++++++++---
 - 1 file changed, 10 insertions(+), 3 deletions(-)
 -
--diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
+-diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 -index 3e49bd751..e94a29b9b 100644
----- a/.jules/cycle_state.json
--+++ b/.jules/cycle_state.json
+---- a/.team/cycle_state.json
+-+++ b/.team/cycle_state.json
 -@@ -1,5 +1,12 @@
 - {
 -   "history": [
@@ -7884,13 +7884,13 @@ index d46d7c366..000000000
 -Subject: [PATCH 25/30] chore(jules): update parallel cycle state
 -
 ----
-- .jules/cycle_state.json | 13 ++++++++++---
+- .team/cycle_state.json | 13 ++++++++++---
 - 1 file changed, 10 insertions(+), 3 deletions(-)
 -
--diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
+-diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 -index e94a29b9b..60cc7bd1a 100644
----- a/.jules/cycle_state.json
--+++ b/.jules/cycle_state.json
+---- a/.team/cycle_state.json
+-+++ b/.team/cycle_state.json
 -@@ -1,5 +1,12 @@
 - {
 -   "history": [
@@ -7927,13 +7927,13 @@ index d46d7c366..000000000
 -Subject: [PATCH 26/30] chore(jules): update parallel cycle state
 -
 ----
-- .jules/cycle_state.json | 13 ++++++++++---
+- .team/cycle_state.json | 13 ++++++++++---
 - 1 file changed, 10 insertions(+), 3 deletions(-)
 -
--diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
+-diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 -index 60cc7bd1a..08c99f4a0 100644
----- a/.jules/cycle_state.json
--+++ b/.jules/cycle_state.json
+---- a/.team/cycle_state.json
+-+++ b/.team/cycle_state.json
 -@@ -1,5 +1,12 @@
 - {
 -   "history": [
@@ -7970,13 +7970,13 @@ index d46d7c366..000000000
 -Subject: [PATCH 27/30] chore(jules): update parallel cycle state
 -
 ----
-- .jules/cycle_state.json | 13 ++++++++++---
+- .team/cycle_state.json | 13 ++++++++++---
 - 1 file changed, 10 insertions(+), 3 deletions(-)
 -
--diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
+-diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 -index 08c99f4a0..866b2595c 100644
----- a/.jules/cycle_state.json
--+++ b/.jules/cycle_state.json
+---- a/.team/cycle_state.json
+-+++ b/.team/cycle_state.json
 -@@ -1,5 +1,12 @@
 - {
 -   "history": [
@@ -8013,13 +8013,13 @@ index d46d7c366..000000000
 -Subject: [PATCH 28/30] chore(jules): update parallel cycle state
 -
 ----
-- .jules/cycle_state.json | 13 ++++++++++---
+- .team/cycle_state.json | 13 ++++++++++---
 - 1 file changed, 10 insertions(+), 3 deletions(-)
 -
--diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
+-diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 -index 866b2595c..430794078 100644
----- a/.jules/cycle_state.json
--+++ b/.jules/cycle_state.json
+---- a/.team/cycle_state.json
+-+++ b/.team/cycle_state.json
 -@@ -1,5 +1,12 @@
 - {
 -   "history": [
@@ -8056,13 +8056,13 @@ index d46d7c366..000000000
 -Subject: [PATCH 29/30] chore(jules): update parallel cycle state
 -
 ----
-- .jules/cycle_state.json | 13 ++++++++++---
+- .team/cycle_state.json | 13 ++++++++++---
 - 1 file changed, 10 insertions(+), 3 deletions(-)
 -
--diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
+-diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 -index 430794078..02d95ea65 100644
----- a/.jules/cycle_state.json
--+++ b/.jules/cycle_state.json
+---- a/.team/cycle_state.json
+-+++ b/.team/cycle_state.json
 -@@ -1,5 +1,12 @@
 - {
 -   "history": [
@@ -8099,13 +8099,13 @@ index d46d7c366..000000000
 -Subject: [PATCH 30/30] chore(jules): update parallel cycle state
 -
 ----
-- .jules/cycle_state.json | 13 ++++++++++---
+- .team/cycle_state.json | 13 ++++++++++---
 - 1 file changed, 10 insertions(+), 3 deletions(-)
 -
--diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
+-diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 -index 02d95ea65..392a51638 100644
----- a/.jules/cycle_state.json
--+++ b/.jules/cycle_state.json
+---- a/.team/cycle_state.json
+-+++ b/.team/cycle_state.json
 -@@ -1,5 +1,12 @@
 - {
 -   "history": [
@@ -8139,34 +8139,34 @@ From ebcf3ffe504e86165f162a934540d556989177dc Mon Sep 17 00:00:00 2001
 From: Jules Bot <jules-bot@google.com>
 Date: Tue, 13 Jan 2026 16:54:42 -0400
 Subject: [PATCH 25/28] feat(overseer): allow DIRTY PRs to attempt merge,
- force-accept .jules/-only PRs
+ force-accept .team/-only PRs
 
 - is_green now allows DIRTY (conflict) status to try merge
 - Only BLOCKED (CI failing) is rejected upfront
-- When merge fails for .jules/-only PRs, force squash merge
+- When merge fails for .team/-only PRs, force squash merge
 ---
- .jules/jules/scheduler_managers.py | 26 ++++++++++++++++++--------
+ .team/repo/scheduler_managers.py | 26 ++++++++++++++++++--------
  1 file changed, 18 insertions(+), 8 deletions(-)
 
-diff --git a/.jules/jules/scheduler_managers.py b/.jules/jules/scheduler_managers.py
+diff --git a/.team/repo/scheduler_managers.py b/.team/repo/scheduler_managers.py
 index 0bce68623..591c71c04 100644
---- a/.jules/jules/scheduler_managers.py
-+++ b/.jules/jules/scheduler_managers.py
+--- a/.team/repo/scheduler_managers.py
++++ b/.team/repo/scheduler_managers.py
 @@ -434,27 +434,35 @@ def mark_ready(self, pr_number: int) -> None:
              raise MergeError(msg) from e
 
      def _pr_only_touches_jules(self, pr_number: int) -> bool:
--        """Check if a PR only modifies files inside .jules/ directory.
-+        """Check if a PR's CONFLICTS are only in .jules/ directory.
+-        """Check if a PR only modifies files inside .team/ directory.
++        """Check if a PR's CONFLICTS are only in .team/ directory.
 +
-+        If conflicts are restricted to .jules/, we can force-accept the new changes.
++        If conflicts are restricted to .team/, we can force-accept the new changes.
 
          Args:
              pr_number: PR number to check
 
          Returns:
--            True if all changed files are in .jules/, False otherwise
-+            True if all conflicting files are in .jules/, False otherwise
+-            True if all changed files are in .team/, False otherwise
++            True if all conflicting files are in .team/, False otherwise
          """
          import json
          try:
@@ -8180,17 +8180,17 @@ index 0bce68623..591c71c04 100644
 -            files = [f.get("path", "") for f in data.get("files", [])]
 +            files = data.get("files", [])
 
--            # Check if ALL files are in .jules/
-+            # If PR has any files outside .jules/, conflicts could affect real code
+-            # Check if ALL files are in .team/
++            # If PR has any files outside .team/, conflicts could affect real code
 +            # So we need to be more conservative
              for f in files:
--                if not f.startswith(".jules/"):
+-                if not f.startswith(".team/"):
 +                path = f.get("path", "")
-+                # If any file is outside .jules/, don't force-merge
-+                if not path.startswith(".jules/"):
++                # If any file is outside .team/, don't force-merge
++                if not path.startswith(".team/"):
                      return False
 +
-             return len(files) > 0  # At least one file, all in .jules/
+             return len(files) > 0  # At least one file, all in .team/
          except Exception:
              return False  # If we can't check, assume it's not safe
 @@ -481,11 +489,13 @@ def is_green(self, pr_details: dict) -> bool:
@@ -8218,13 +8218,13 @@ Date: Tue, 13 Jan 2026 20:55:23 +0000
 Subject: [PATCH 26/28] chore(jules): update parallel cycle state
 
 ---
- .jules/cycle_state.json | 13 ++++++++++---
+ .team/cycle_state.json | 13 ++++++++++---
  1 file changed, 10 insertions(+), 3 deletions(-)
 
-diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
+diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 index 0f7a59ca3..aa7b37428 100644
---- a/.jules/cycle_state.json
-+++ b/.jules/cycle_state.json
+--- a/.team/cycle_state.json
++++ b/.team/cycle_state.json
 @@ -1,5 +1,12 @@
  {
    "history": [
@@ -8262,16 +8262,16 @@ Subject: [PATCH 27/28] fix(overseer): fix is_green to allow CONFLICTING PRs to
 
 This ensures that PRs with conflicts are not stuck in 'Waiting' state, but proceed to:
 1. Attempt merge (fails)
-2. Check if .jules/-only (force merge if true)
+2. Check if .team/-only (force merge if true)
 3. Or delegate to Weaver (if real code conflict)
 ---
- .jules/jules/scheduler_managers.py | 5 +++--
+ .team/repo/scheduler_managers.py | 5 +++--
  1 file changed, 3 insertions(+), 2 deletions(-)
 
-diff --git a/.jules/jules/scheduler_managers.py b/.jules/jules/scheduler_managers.py
+diff --git a/.team/repo/scheduler_managers.py b/.team/repo/scheduler_managers.py
 index 591c71c04..ce06d310c 100644
---- a/.jules/jules/scheduler_managers.py
-+++ b/.jules/jules/scheduler_managers.py
+--- a/.team/repo/scheduler_managers.py
++++ b/.team/repo/scheduler_managers.py
 @@ -479,8 +479,9 @@ def is_green(self, pr_details: dict) -> bool:
          """
          # 1. Check basic mergeability - handles both REST API (bool) and GraphQL (string)
@@ -8292,13 +8292,13 @@ Date: Tue, 13 Jan 2026 21:03:34 +0000
 Subject: [PATCH 28/28] chore(jules): update parallel cycle state
 
 ---
- .jules/cycle_state.json | 13 ++++++++++---
+ .team/cycle_state.json | 13 ++++++++++---
  1 file changed, 10 insertions(+), 3 deletions(-)
 
-diff --git a/.jules/cycle_state.json b/.jules/cycle_state.json
+diff --git a/.team/cycle_state.json b/.team/cycle_state.json
 index aa7b37428..edb0e181b 100644
---- a/.jules/cycle_state.json
-+++ b/.jules/cycle_state.json
+--- a/.team/cycle_state.json
++++ b/.team/cycle_state.json
 @@ -1,5 +1,12 @@
  {
    "history": [

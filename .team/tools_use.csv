@@ -1,0 +1,12 @@
+timestamp,persona,sequence,command,args
+2026-01-17T08:15:28.863069,typeguard,025,login,"{'user': 'typeguard', 'password': '***', 'goals': ['First Login']}"
+2026-01-17T08:16:12.167248,typeguard,025,roster list-personas,{}
+2026-01-17T08:16:37.907254,typeguard,025,login,"{'user': 'typeguard', 'password': '***', 'goals': ['Second Login']}"
+2026-01-17T08:53:32.894706,typeguard,025,skills list-skills,{}
+2026-01-17T09:44:01.685020,typeguard,025,roster list-personas,{}
+2026-01-17T10:16:06.456148,typeguard,025,roster list-personas,{}
+2026-01-17T10:30:44.719314,typeguard,025,roster list-personas,{}
+2026-01-17T10:38:57.697404,typeguard,025,roster list-personas,{}
+2026-01-17T10:41:01.254566,typeguard,025,roster list-personas,{}
+2026-01-17T15:31:51.151908,typeguard,025,vote,"{'personas': None, 'password': '***'}"
+2026-01-17T15:35:53.896256,typeguard,025,vote,"{'personas': None, 'password': '***'}"

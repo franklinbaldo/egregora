@@ -4,8 +4,8 @@ from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-from jules.cli.my_tools import app
-from jules.features.hire import HireManager
+from repo.cli.my_tools import app
+from repo.features.hire import HireManager
 
 scenarios("../features/hire.feature")
 
@@ -20,8 +20,8 @@ def isolated_fs(tmp_path, monkeypatch):
 
 @given("the Jules environment is initialized")
 def init_env(isolated_fs):
-    dot_jules = isolated_fs / ".jules"
-    dot_jules.mkdir(parents=True, exist_ok=True)
+    dot_jules = isolated_fs / ".team"
+    dot_repo.mkdir(parents=True, exist_ok=True)
     (dot_jules / "personas").mkdir(parents=True, exist_ok=True)
 
 @given(parsers.parse('a persona directory "{path}" exists'))
@@ -45,13 +45,13 @@ def hire_persona(runner, isolated_fs, id, name, emoji, role, description, missio
         "--password", "any"
     ]
     
-    with patch("jules.cli.my_tools.session_manager") as mock_session:
+    with patch("repo.cli.my_tools.session_manager") as mock_session:
         mock_session.get_active_persona.return_value = "artisan"
         mock_session.validate_password.return_value = True
         
-        with patch("jules.cli.my_tools.hire_manager") as mock_hire_mgr:
+        with patch("repo.cli.my_tools.hire_manager") as mock_hire_mgr:
             # We want to use a real HireManager but pointed to our isolated FS
-            real_hire_mgr = HireManager(personas_root=isolated_fs / ".jules" / "personas")
+            real_hire_mgr = HireManager(personas_root=isolated_fs / ".team" / "personas")
             mock_hire_mgr.hire_persona.side_effect = real_hire_mgr.hire_persona
             
             return runner.invoke(app, args)
@@ -74,15 +74,15 @@ def verify_prompt_pattern(isolated_fs, path):
 @then(parsers.parse('the prompt frontmatter for "{p_id}" should have "hired_by" set to "{hirer}"'))
 def verify_hirer_metadata(isolated_fs, p_id, hirer):
     import frontmatter
-    prompt_path = isolated_fs / ".jules" / "personas" / p_id / "prompt.md.j2"
+    prompt_path = isolated_fs / ".team" / "personas" / p_id / "prompt.md.j2"
     post = frontmatter.load(prompt_path)
     assert post.metadata.get("hired_by") == hirer
 
 @then(parsers.parse('the persona "{p_id}" should appear in "my-tools roster list"'))
 def verify_roster(runner, isolated_fs, p_id):
     # Roster list uses get_personas_dir()
-    with patch("jules.cli.roster.get_personas_dir") as mock_get_dir:
-        mock_get_dir.return_value = isolated_fs / ".jules" / "personas"
+    with patch("repo.cli.roster.get_personas_dir") as mock_get_dir:
+        mock_get_dir.return_value = isolated_fs / ".team" / "personas"
         result = runner.invoke(app, ["roster", "list"])
         assert p_id in result.stdout
 

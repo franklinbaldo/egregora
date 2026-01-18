@@ -1,7 +1,7 @@
 # Egregora UX/UI Task List
 # Maintained by Curator persona
 # Format: TOML with structured tasks
-# Validation: python .jules/scripts/validate_todo.py
+# Validation: python .team/scripts/validate_todo.py
 
 # ============================================================================
 # HIGH PRIORITY - Critical UX Issues

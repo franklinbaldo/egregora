@@ -26,7 +26,7 @@ PERSONAS = {
 }
 
 def fix_frontmatter():
-    base_dir = Path(".jules/personas")
+    base_dir = Path(".team/personas")
 
     for persona_dir in base_dir.iterdir():
         if not persona_dir.is_dir():

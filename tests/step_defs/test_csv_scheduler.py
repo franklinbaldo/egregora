@@ -49,7 +49,7 @@ def temp_schedule_dir(tmp_path):
 def mock_schedule_path(temp_schedule_dir, mocker):
     """Mock the SCHEDULE_PATH to use temp directory."""
     schedule_path = temp_schedule_dir / "schedule.csv"
-    mocker.patch("jules.scheduler.schedule.SCHEDULE_PATH", schedule_path)
+    mocker.patch("repo.scheduler.schedule.SCHEDULE_PATH", schedule_path)
     return schedule_path
 
 
@@ -57,7 +57,7 @@ def mock_schedule_path(temp_schedule_dir, mocker):
 def mock_oracle_schedule_path(temp_schedule_dir, mocker):
     """Mock the ORACLE_SCHEDULE_PATH to use temp directory."""
     oracle_path = temp_schedule_dir / "oracle_schedule.csv"
-    mocker.patch("jules.scheduler.schedule.ORACLE_SCHEDULE_PATH", oracle_path)
+    mocker.patch("repo.scheduler.schedule.ORACLE_SCHEDULE_PATH", oracle_path)
     return oracle_path
 
 
@@ -66,7 +66,7 @@ def mock_jules_client(mocker):
     """Mock JulesClient."""
     mock_client = MagicMock()
     mock_client.list_sessions.return_value = {"sessions": []}
-    mocker.patch("jules.scheduler.engine.JulesClient", return_value=mock_client)
+    mocker.patch("repo.scheduler.engine.JulesClient", return_value=mock_client)
     return mock_client
 
 
@@ -75,7 +75,7 @@ def mock_branch_manager(mocker):
     """Mock BranchManager."""
     mock_mgr = MagicMock()
     mock_mgr.create_session_branch.return_value = "jules-sched-test"
-    mocker.patch("jules.scheduler.engine.BranchManager", return_value=mock_mgr)
+    mocker.patch("repo.scheduler.engine.BranchManager", return_value=mock_mgr)
     return mock_mgr
 
 
@@ -84,7 +84,7 @@ def mock_orchestrator(mocker):
     """Mock SessionOrchestrator to return fake session ID."""
     mock_orch = MagicMock()
     mock_orch.create_session.return_value = "999888777"
-    mocker.patch("jules.scheduler.engine.SessionOrchestrator", return_value=mock_orch)
+    mocker.patch("repo.scheduler.engine.SessionOrchestrator", return_value=mock_orch)
     return mock_orch
 
 
@@ -187,8 +187,8 @@ def oracle_session_age(hours, mock_oracle_schedule_path, context):
 def run_sequential_tick(mock_jules_client, mock_orchestrator, mock_branch_manager, mocker, context):
     _ = mock_branch_manager
     # Mock get_repo_info and get_open_prs
-    mocker.patch("jules.scheduler.engine.get_repo_info", return_value={"owner": "test", "repo": "test"})
-    mocker.patch("jules.scheduler.engine.get_open_prs", return_value=[])
+    mocker.patch("repo.scheduler.engine.get_repo_info", return_value={"owner": "test", "repo": "test"})
+    mocker.patch("repo.scheduler.engine.get_open_prs", return_value=[])
     
     if not context.get("existing_session_configured"):
         mock_jules_client.list_sessions.return_value = {"sessions": []}
@@ -206,9 +206,9 @@ def run_sequential_tick(mock_jules_client, mock_orchestrator, mock_branch_manage
 
     mock_loader = MagicMock()
     mock_loader.load_personas.return_value = [mock_persona, mock_persona2]
-    mocker.patch("jules.scheduler.engine.PersonaLoader", return_value=mock_loader)
+    mocker.patch("repo.scheduler.engine.PersonaLoader", return_value=mock_loader)
 
-    from jules.scheduler.engine import execute_sequential_tick
+    from repo.scheduler.engine import execute_sequential_tick
 
     context["result"] = execute_sequential_tick(dry_run=False)
 
@@ -219,11 +219,11 @@ def run_sequential_tick(mock_jules_client, mock_orchestrator, mock_branch_manage
 def oracle_needs_start(mock_jules_client, mocker, context):
     # Mock list_inbox to return pending questions
     mocker.patch(
-        "jules.scheduler.engine.list_inbox",
+        "repo.scheduler.engine.list_inbox",
         return_value=[{"key": "test", "from": "refactor", "subject": "Help", "read": False}],
     )
 
-    from jules.scheduler.schedule import get_active_oracle_session
+    from repo.scheduler.schedule import get_active_oracle_session
 
     context["active_oracle"] = get_active_oracle_session()
 

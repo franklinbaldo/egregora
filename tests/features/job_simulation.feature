@@ -31,7 +31,7 @@ Feature: Job Simulation and Session Management
       | --content  | Completed CI fix.                    |
       | --password | 6576881f-5946-5420-b2d3-de1e1d4f45d9 |
     Then the command should exit successfully
-    And a journal file should be created in ".jules/personas/weaver@team/journals/"
+    And a journal file should be created in ".team/personas/weaver@team/journals/"
     And the journal content should describe goals "Fix CI, Update Docs"
 
   Scenario: Triggering Loop Break

@@ -121,7 +121,7 @@ Claude will automatically invoke this skill and use the appropriate Jules API en
 You can also use the `JulesClient` class directly in your Python code:
 
 ```python
-from jules_client import JulesClient
+from repo_client import JulesClient
 
 # Initialize client
 client = JulesClient()
@@ -184,7 +184,7 @@ Jules sessions progress through these states:
 For complete API documentation, see:
 - [SKILL.md](./SKILL.md) - Full API reference
 - [examples.md](./examples.md) - Practical examples
-- [Official Jules API Docs](https://developers.google.com/jules/api/reference/rest)
+- [Official Jules API Docs](https://developers.google.com/repo/api/reference/rest)
 
 ## Troubleshooting
 

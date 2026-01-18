@@ -8,10 +8,10 @@ import subprocess
 import sys
 from typing import Any
 
-# Import the extraction logic from jules module
-sys.path.insert(0, ".jules")
+# Import the extraction logic from repo module
+sys.path.insert(0, ".team")
 
-import jules.github as jules_github
+import repo.github as jules_github
 
 SessionIdPatterns = dict[str, list[tuple[int | None, str, str | None] | tuple[int | None, str]]]
 
@@ -70,7 +70,7 @@ def analyze_session_id_patterns() -> SessionIdPatterns | None:
     patterns = {
         "numeric_15plus": [],  # -(\d{15,})$
         "uuid": [],  # -UUID$
-        "from_body_jules_url": [],  # jules.google.com/task/(\d+)
+        "from_body_jules_url": [],  # repo.google.com/task/(\d+)
         "from_body_task": [],  # /task/ID
         "from_body_sessions": [],  # /sessions/ID
         "not_found": [],
@@ -93,7 +93,7 @@ def analyze_session_id_patterns() -> SessionIdPatterns | None:
             patterns["uuid"].append((pr_number, branch, session_id))
         elif re.search(r"-(\d{15,})$", branch):
             patterns["numeric_15plus"].append((pr_number, branch, session_id))
-        elif "jules.google.com/task/" in body:
+        elif "repo.google.com/task/" in body:
             patterns["from_body_jules_url"].append((pr_number, branch, session_id))
         elif "/task/" in body:
             patterns["from_body_task"].append((pr_number, branch, session_id))

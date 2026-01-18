@@ -192,20 +192,20 @@ def execute_scheduled_tick(run_all: bool, prompt_id: str | None) -> None:
 
 ### Phase 1: Extract Models
 - [ ] Create domain models (PersonaConfig, CycleState, SessionRequest)
-- [ ] Create new file: `.jules/jules/scheduler_models.py`
+- [ ] Create new file: `.team/repo/scheduler_models.py`
 
 ### Phase 2: Extract Loader
 - [ ] Create PersonaLoader class
 - [ ] Move prompt parsing logic
 - [ ] Move journal collection
-- [ ] Create new file: `.jules/jules/scheduler_loader.py`
+- [ ] Create new file: `.team/repo/scheduler_loader.py`
 
 ### Phase 3: Extract Managers
 - [ ] Create BranchManager class
 - [ ] Create PRManager class
 - [ ] Create CycleStateManager class
 - [ ] Create SessionOrchestrator class
-- [ ] Create new file: `.jules/jules/scheduler_managers.py`
+- [ ] Create new file: `.team/repo/scheduler_managers.py`
 
 ### Phase 4: Refactor Main Functions
 - [ ] Rewrite `run_cycle_step` as `execute_cycle_tick`

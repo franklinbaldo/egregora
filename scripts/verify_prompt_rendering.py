@@ -4,14 +4,14 @@
 import sys
 from pathlib import Path
 
-# Add .jules to path
-sys.path.insert(0, str(Path.cwd() / ".jules"))
+# Add .team to path
+sys.path.insert(0, str(Path.cwd() / ".team"))
 
-from jules.scheduler import parse_prompt_file, collect_journals
+from repo.scheduler import parse_prompt_file, collect_journals
 
 def test_persona_prompt(persona_id: str):
     """Test if a persona's prompt renders with journal instructions."""
-    persona_dir = Path(f".jules/personas/{persona_id}")
+    persona_dir = Path(f".team/personas/{persona_id}")
     prompt_file = persona_dir / "prompt.md"
 
     if not prompt_file.exists():
@@ -36,7 +36,7 @@ def test_persona_prompt(persona_id: str):
 
     # Check if journal instructions are in the rendered prompt
     has_journal_section = "DOCUMENT - Update Journal" in prompt
-    has_journal_path = f".jules/personas/{persona_id}/journals/" in prompt
+    has_journal_path = f".team/personas/{persona_id}/journals/" in prompt
     has_frontmatter_example = "YAML Frontmatter" in prompt
     has_previous_entries_section = "Previous Journal Entries" in prompt
 

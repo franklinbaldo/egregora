@@ -1,6 +1,6 @@
 import pytest
-from jules.cli.mail import app
-from jules.features.mail import list_inbox, send_message
+from repo.cli.mail import app
+from repo.features.mail import list_inbox, send_message
 from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
@@ -54,7 +54,7 @@ def create_personas(isolated_fs, names):
     # extract words inside quotes or just split
     clean_names = [n.strip().replace('"', "") for n in names.split(",")]
     for name in clean_names:
-        (isolated_fs / f".jules/personas/{name}").mkdir(parents=True, exist_ok=True)
+        (isolated_fs / f".team/personas/{name}").mkdir(parents=True, exist_ok=True)
 
 
 @when(parsers.parse('I run the mail command "{command}" with args:'), target_fixture="last_command_result")
@@ -89,10 +89,10 @@ def check_exit_success(last_command_result):
 @then(parsers.parse('a mail file should exist in "{path}"'))
 def check_file_exists(isolated_fs, path):
     # This step was checking for explicit Maildir paths like .../mail/new
-    # With MH, we have a single .jules/mail directory and shared messages.
+    # With MH, we have a single .team/mail directory and shared messages.
     # We should interpret the path check as verifying *some* mail exists for the persona
     # OR we need to update the Feature file to be less implementation specific.
-    # The feature file says: And a mail file should exist in ".jules/personas/curator@team/mail/new"
+    # The feature file says: And a mail file should exist in ".team/personas/curator@team/mail/new"
 
     # We will relax this check to verify that the message is listed in the inbox via API
     # instead of checking filesystem path.
@@ -107,7 +107,7 @@ def check_file_exists(isolated_fs, path):
     # "Then the message should be delivered to curator@team"
 
     # But since I am here in step definitions, I can map the old step string to a new check.
-    # path string is like ".jules/personas/alice/mail/new"
+    # path string is like ".team/personas/alice/mail/new"
 
     parts = path.split("/")
     # Try to find persona name. It's usually after 'personas'
@@ -118,8 +118,8 @@ def check_file_exists(isolated_fs, path):
         assert len(list_inbox(persona)) > 0
     except ValueError:
         # Fallback: check if the root mail dir has content
-        # MH stores files in .jules/mail
-        mail_root = isolated_fs / ".jules/mail"
+        # MH stores files in .team/mail
+        mail_root = isolated_fs / ".team/mail"
         assert mail_root.exists()
         assert any(p.name.isdigit() for p in mail_root.iterdir())
 

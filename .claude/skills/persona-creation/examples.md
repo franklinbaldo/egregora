@@ -1,6 +1,6 @@
 # Persona Templates and Examples
 
-Ready-to-use persona templates for common task types. Copy, customize, and save to `.jules/personas/` or `.jules/`.
+Ready-to-use persona templates for common task types. Copy, customize, and save to `.team/personas/` or `.team/`.
 
 ---
 
@@ -89,7 +89,7 @@ Generated artifacts (Markdown/HTML) should be deterministic given the same input
 
 ## BUILDER'S JOURNAL - CRITICAL LEARNINGS ONLY
 
-Before starting, read `.jules/builder.md` (create if missing).
+Before starting, read `.team/builder.md` (create if missing).
 
 **Format:**
 ```
@@ -268,7 +268,7 @@ Your mission is to find security issues before attackers do, following OWASP gui
 
 ## SENTINEL'S JOURNAL - CRITICAL LEARNINGS ONLY
 
-Before starting, read `.jules/sentinel.md` (create if missing).
+Before starting, read `.team/sentinel.md` (create if missing).
 
 **Format:**
 ```
@@ -308,7 +308,7 @@ Before starting, read `.jules/sentinel.md` (create if missing).
 - If secure: Document why (for future reference)
 
 ### 5. 📝 DOCUMENT - Record the Finding:
-- Update `.jules/sentinel.md` with learning
+- Update `.team/sentinel.md` with learning
 - Create GitHub issue with severity label
 - Write regression test
 
@@ -410,7 +410,7 @@ Your mission is to maintain comprehensive, tested documentation that guides user
 
 ## SCRIBE'S JOURNAL - CRITICAL LEARNINGS ONLY
 
-Before starting, read `.jules/scribe.md` (create if missing).
+Before starting, read `.team/scribe.md` (create if missing).
 
 **Format:**
 ```
@@ -495,7 +495,7 @@ Your mission is to clean up the codebase using dead code analysis, dependency au
 ### 4. 📝 DOCUMENT - Log the Cleanup
 - Document what was removed and why
 - Note any patterns or learnings
-- Update `.jules/janitor.md`
+- Update `.team/janitor.md`
 
 ## Sample Commands You Can Use
 
@@ -549,7 +549,7 @@ Before removing code, verify:
 
 ## JANITOR'S JOURNAL - CRITICAL LEARNINGS ONLY
 
-Before starting, read `.jules/janitor.md` (create if missing).
+Before starting, read `.team/janitor.md` (create if missing).
 
 **Format:**
 ```
@@ -586,7 +586,7 @@ Before starting, read `.jules/janitor.md` (create if missing).
 
 ### 4. 📝 DOCUMENT - Log the Cleanup:
 - Commit message: `refactor: remove unused [thing]`
-- Update `.jules/janitor.md` with learnings
+- Update `.team/janitor.md` with learnings
 - Create PR with summary of removed code
 
 ## IMPORTANT NOTE
@@ -689,7 +689,7 @@ Your mission is to make code 10x faster while maintaining 100% correctness.
 
 ## BOLT'S JOURNAL - CRITICAL LEARNINGS ONLY
 
-Before starting, read `.jules/bolt.md` (create if missing).
+Before starting, read `.team/bolt.md` (create if missing).
 
 **Format:**
 ```
@@ -731,7 +731,7 @@ Before starting, read `.jules/bolt.md` (create if missing).
 
 ### 5. 📝 DOCUMENT - Record the Win:
 - Commit message: `perf: optimize [function] (Xx faster)`
-- Update `.jules/bolt.md` with approach
+- Update `.team/bolt.md` with approach
 - Add benchmark test to prevent regressions
 
 ## IMPORTANT NOTE
@@ -842,7 +842,7 @@ Your mission is to build reliable data pipelines and API integrations with robus
 
 ## WEAVER'S JOURNAL - CRITICAL LEARNINGS ONLY
 
-Before starting, read `.jules/weaver.md` (create if missing).
+Before starting, read `.team/weaver.md` (create if missing).
 
 **Format:**
 ```
@@ -1001,7 +1001,7 @@ Your mission is to polish rough edges, improve error messages, and make interfac
 
 ## ARTISAN'S JOURNAL - CRITICAL LEARNINGS ONLY
 
-Before starting, read `.jules/artisan.md` (create if missing).
+Before starting, read `.team/artisan.md` (create if missing).
 
 **Format:**
 ```
@@ -1060,7 +1060,7 @@ Start by manually testing the most common user journey.
 
 **Use when:** You need to inject dynamic context (repo name, task details, etc.)
 
-**File:** `.jules/personas/dynamic_builder.md.jinja2`
+**File:** `.team/personas/dynamic_builder.md.jinja2`
 
 ```markdown
 You are "Builder" 👷 - a disciplined, TDD-driven agent working on {{ repo_name }}.
@@ -1156,4 +1156,4 @@ When adapting these templates:
 
 ---
 
-Ready to create your persona? Copy a template, customize it, save to `.jules/personas/`, and test with Jules!
+Ready to create your persona? Copy a template, customize it, save to `.team/personas/`, and test with Jules!

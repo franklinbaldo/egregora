@@ -5,7 +5,7 @@ import jinja2
 
 JOURNAL_MANAGEMENT = """
 ### 📝 DOCUMENT - Update Journal
-- Create a NEW file in `.jules/personas/{{ id }}/journals/`
+- Create a NEW file in `.team/personas/{{ id }}/journals/`
 - Naming convention: `YYYY-MM-DD-HHMM-Any_Title_You_Want.md`
 
 ## Previous Journal Entries
@@ -68,7 +68,7 @@ Good luck!
 
     # Check if the instructions are present
     has_instructions = "📝 DOCUMENT - Update Journal" in final_prompt
-    has_path = ".jules/personas/docs_curator/journals/" in final_prompt
+    has_path = ".team/personas/docs_curator/journals/" in final_prompt
     has_entries = "Some previous entries" in final_prompt
 
     print("\n" + "="*60)
