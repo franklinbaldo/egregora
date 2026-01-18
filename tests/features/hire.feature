@@ -1,10 +1,10 @@
 Feature: Hire a New Persona
-  As a persona in the Jules environment
+  As a persona in the Team environment
   I want to hire a new persona to join the team
   So that we can expand our capabilities and address specific project needs
 
   Background:
-    Given the Jules environment is initialized
+    Given the Team environment is initialized
 
   Scenario: Successfully hiring a new persona
     Given a logged in persona "artisan"

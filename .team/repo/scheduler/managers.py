@@ -9,7 +9,7 @@ from typing import Any
 
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
-from repo.core.client import JulesClient
+from repo.core.client import TeamClient
 from repo.core.exceptions import BranchError, MergeError
 from repo.core.github import (
     _extract_session_id,
@@ -728,7 +728,7 @@ This PR contains accumulated work from the Jules autonomous development cycle.
                 return pr
         return None
 
-    def reconcile_all_jules_prs(self, client: JulesClient, repo_info: dict[str, Any], dry_run: bool = False) -> list[dict]:
+    def reconcile_all_jules_prs(self, client: TeamClient, repo_info: dict[str, Any], dry_run: bool = False) -> list[dict]:
         """Overseer: Auto-merge Jules PRs (oldest first), return conflicts for Weaver.
 
         Args:
@@ -885,7 +885,7 @@ class CycleStateManager:
 
     def find_last_cycle_session(
         self,
-        client: JulesClient,
+        client: TeamClient,
         repo_info: dict[str, Any],
         open_prs: list[dict[str, Any]],
     ) -> CycleState:
@@ -999,7 +999,7 @@ class CycleStateManager:
 class SessionOrchestrator:
     """Coordinates Jules session creation."""
 
-    def __init__(self, client: JulesClient, dry_run: bool = False) -> None:  # noqa: FBT001, FBT002
+    def __init__(self, client: TeamClient, dry_run: bool = False) -> None:  # noqa: FBT001, FBT002
         """Initialize session orchestrator.
 
         Args:
@@ -1123,7 +1123,7 @@ class ReconciliationManager:
 
     def __init__(
         self,
-        client: JulesClient,
+        client: TeamClient,
         repo_info: dict[str, Any],
         jules_branch: str = JULES_BRANCH,
         dry_run: bool = False,  # noqa: FBT001, FBT002

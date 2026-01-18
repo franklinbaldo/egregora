@@ -1,4 +1,4 @@
-Feature: Jules System Mail Interface
+Feature: Team System Mail Interface
 
   Background:
     Given the mail backend is set to "local"

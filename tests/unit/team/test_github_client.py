@@ -8,9 +8,9 @@ import respx
 
 # Add .team to path so we can import repo.github
 REPO_ROOT = Path(__file__).parents[3]
-JULES_PATH = REPO_ROOT / ".team"
-if str(JULES_PATH) not in sys.path:
-    sys.path.append(str(JULES_PATH))
+TEAM_PATH = REPO_ROOT / ".team"
+if str(TEAM_PATH) not in sys.path:
+    sys.path.append(str(TEAM_PATH))
 
 from repo.core.github import GitHubClient, get_base_sha, get_open_prs  # noqa: E402
 

@@ -6,7 +6,7 @@ import boto3
 import pytest
 from moto import mock_aws
 
-# Add jules to path
+# Add team to path
 sys.path.insert(0, str(Path(__file__).parents[3] / ".team"))
 
 from repo.features.mail import BUCKET_NAME, get_message, list_inbox, mark_read, send_message

@@ -1,7 +1,7 @@
 Feature: Job Simulation and Session Management
 
   Background:
-    Given the Jules environment is initialized
+    Given the Team environment is initialized
     And the current time is "2026-05-20T10:00:00"
 
   Scenario: Successful Login and Session Start

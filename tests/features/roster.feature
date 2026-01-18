@@ -1,5 +1,5 @@
 Feature: Persona Discovery (Roster)
-  As a Jules team member
+  As a Team member
   I want to list and view available personas
   So that I can understand the team capabilities
 

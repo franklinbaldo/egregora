@@ -63,10 +63,10 @@ def mock_oracle_schedule_path(temp_schedule_dir, mocker):
 
 @pytest.fixture
 def mock_jules_client(mocker):
-    """Mock JulesClient."""
+    """Mock TeamClient."""
     mock_client = MagicMock()
     mock_client.list_sessions.return_value = {"sessions": []}
-    mocker.patch("repo.scheduler.engine.JulesClient", return_value=mock_client)
+    mocker.patch("repo.scheduler.engine.TeamClient", return_value=mock_client)
     return mock_client
 
 
@@ -95,7 +95,7 @@ def context():
 
 
 # Background
-@given("the Jules scheduler is configured with CSV-based scheduling")
+@given("the Team scheduler is configured with CSV-based scheduling")
 def scheduler_configured():
     pass  # CSV-based scheduling is now the default
 

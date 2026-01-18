@@ -19,11 +19,11 @@ def isolated_fs(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     return tmp_path
 
-@given("the Jules environment is initialized")
+@given("the Team environment is initialized")
 def init_env(isolated_fs):
-    dot_jules = isolated_fs / ".team"
-    dot_jules.mkdir(parents=True, exist_ok=True)
-    personas_dir = dot_jules / "personas"
+    dot_team = isolated_fs / ".team"
+    dot_team.mkdir(parents=True, exist_ok=True)
+    personas_dir = dot_team / "personas"
     personas_dir.mkdir(parents=True, exist_ok=True)
     for i in range(27):
         (personas_dir / f"persona_{i}").mkdir(parents=True, exist_ok=True)

@@ -7,7 +7,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
-from repo.core.exceptions import JulesClientError
+from repo.core.exceptions import TeamClientError
 
 # Default timeout: 60s for read operations, 10s for connect
 DEFAULT_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
@@ -48,16 +48,16 @@ def _request_with_retry(
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError as e:
-        # Wrap HTTP errors in JulesClientError for clearer domains
-        raise JulesClientError(f"Jules API Error: {e.response.status_code} - {e.response.text}") from e
+        # Wrap HTTP errors in TeamClientError for clearer domains
+        raise TeamClientError(f"Jules API Error: {e.response.status_code} - {e.response.text}") from e
     except httpx.RequestError as e:
          # Wrap Request errors (that aren't retried or exhausted retries)
-        raise JulesClientError(f"Jules Connection Error: {e}") from e
+        raise TeamClientError(f"Jules Connection Error: {e}") from e
 
     return response
 
 
-class JulesClient:
+class TeamClient:
     """Client for Google Jules API."""
 
     def __init__(self, api_key: str | None = None, base_url: str | None = None) -> None:

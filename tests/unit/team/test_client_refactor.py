@@ -2,14 +2,14 @@ from unittest.mock import Mock, patch
 
 import httpx
 import pytest
-from repo.core.client import JulesClient, _request_with_retry
+from repo.core.client import TeamClient, _request_with_retry
 from tenacity import RetryError
 
 
-class TestJulesClientRefactor:
+class TestTeamClientRefactor:
     @pytest.fixture
     def client(self):
-        return JulesClient(api_key="test-key")
+        return TeamClient(api_key="test-key")
 
     @patch("httpx.get")
     def test_request_with_retry_success(self, mock_get):
@@ -55,7 +55,7 @@ class TestJulesClientRefactor:
         with pytest.raises((RetryError, httpx.ConnectTimeout)):
             # Tenacity raises RetryError wrapping the original exception
             # Or allows the exception to bubble up depending on config.
-            # We want it to bubble up or wrap in JulesClientError eventually.
+            # We want it to bubble up or wrap in TeamClientError eventually.
             _request_with_retry("GET", "http://test.com", headers)
 
         assert mock_get.call_count >= 3
@@ -70,6 +70,6 @@ class TestJulesClientRefactor:
 
         assert mock_request.called
 
-    def test_jules_client_error_wrapping(self):
-        """Ensure client methods wrap exceptions in JulesClientError (to be implemented)."""
+    def test_team_client_error_wrapping(self):
+        """Ensure client methods wrap exceptions in TeamClientError (to be implemented)."""
         # To be added after initial refactor
