@@ -290,33 +290,35 @@ def vote(
             print(f"❌ Could not determine current sequence for {voter_id}.")
             raise typer.Exit(code=1)
 
-        target_sequence = vote_manager.cast_vote(voter_sequence, personas)
+        vote_manager.cast_vote(voter_sequence, personas)
         persona_list = ", ".join(personas)
-        print(f"✅ Ranked votes cast by {voter_id} (seq {voter_sequence}) for [{persona_list}] for sequence {target_sequence}")
+        print(f"✅ Ranked votes cast by {voter_id} (seq {voter_sequence}) for [{persona_list}]")
         
-        # Apply votes immediately to update the schedule
-        winner = vote_manager.apply_votes(target_sequence)
-        if winner:
-            print(f"📋 Schedule updated: Sequence {target_sequence} now assigned to {winner}")
+        # In rolling model, we apply votes to the NEXT unassigned sequence
+        next_sequence = vote_manager.get_next_open_sequence()
+        if next_sequence:
+            winner = vote_manager.apply_votes(next_sequence)
+            if winner:
+                print(f"📋 Schedule updated: Sequence {next_sequence} now assigned to {winner}")
         
-        # Display current sequence leaders briefing
-        upcoming = vote_manager.get_upcoming_winners(target_sequence, count=5)
-        if upcoming:
-            table = Table(title="📊 Current Sequence Leaders", header_style="bold cyan")
-            table.add_column("Seq", style="cyan", justify="center")
-            table.add_column("Leader", style="green")
-            table.add_column("Points", justify="right")
-            table.add_column("Status", style="dim")
-            
-            for entry in upcoming:
-                status = "📋 scheduled" if entry.get("scheduled") else f"🗳️ {entry['total_votes']} votes"
-                table.add_row(
-                    entry["sequence"],
-                    entry["winner"],
-                    str(entry["points"]),
-                    status
-                )
-            rprint(table)
+            # Display current sequence leaders briefing
+            upcoming = vote_manager.get_upcoming_winners(next_sequence, count=5)
+            if upcoming:
+                table = Table(title="📊 Current Sequence Leaders", header_style="bold cyan")
+                table.add_column("Seq", style="cyan", justify="center")
+                table.add_column("Leader", style="green")
+                table.add_column("Points", justify="right")
+                table.add_column("Status", style="dim")
+                
+                for entry in upcoming:
+                    status = "📋 scheduled" if entry.get("scheduled") else f"🗳️ {entry['total_votes']} votes"
+                    table.add_row(
+                        entry["sequence"],
+                        entry["winner"],
+                        str(entry["points"]),
+                        status
+                    )
+                rprint(table)
         
     except Exception as e:
         print(f"❌ Vote failed: {e}")

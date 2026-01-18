@@ -4,16 +4,16 @@ from pathlib import Path
 
 class TestAutoFixPrompt:
     def setup_method(self) -> None:
-        self.jules_path = Path(__file__).parents[3] / ".jules"
-        sys.path.insert(0, str(self.jules_path))
-        import jules.auto_fix
+        self.team_path = Path(__file__).parents[3] / ".team"
+        sys.path.insert(0, str(self.team_path))
+        import repo.auto_fix
 
-        self.auto_fix = jules.auto_fix
+        self.auto_fix = repo.auto_fix
 
     def teardown_method(self) -> None:
-        sys.path.remove(str(self.jules_path))
-        if "jules.auto_fix" in sys.modules:
-            del sys.modules["jules.auto_fix"]
+        sys.path.remove(str(self.team_path))
+        if "repo.auto_fix" in sys.modules:
+            del sys.modules["repo.auto_fix"]
 
     def test_render_feedback_prompt_includes_ci_logs(self) -> None:
         details = {

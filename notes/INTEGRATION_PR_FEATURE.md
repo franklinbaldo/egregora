@@ -21,7 +21,7 @@ A branch `jules` acumula trabalho de múltiplas personas, mas **não havia PR au
 
 ### Nova Função: `PRManager.ensure_integration_pr_exists()`
 
-**Localização**: `.jules/jules/scheduler_managers.py:389`
+**Localização**: `.team/repo/scheduler_managers.py:389`
 
 **O que faz**:
 1. **Verifica** se já existe PR aberta: `jules` → `main`
@@ -147,7 +147,7 @@ jules is 0 commits ahead
 
 ### Comando
 ```bash
-PYTHONPATH=.jules uv run python -m jules.cli schedule tick --dry-run
+PYTHONPATH=.team uv run python -m repo.cli schedule tick --dry-run
 ```
 
 ### Saída esperada
@@ -175,11 +175,11 @@ CYCLE MODE: Sequential persona execution
 
 ```python
 def ensure_integration_pr_exists(self, repo_info: dict[str, Any]) -> int | None:
-    """Ensure a PR exists from jules branch to main for human review."""
+    """Ensure a PR exists from repo branch to main for human review."""
 
     # 1. Check existing PRs
     result = subprocess.run(
-        ["gh", "pr", "list", "--head", self.jules_branch, "--base", "main",
+        ["gh", "pr", "list", "--head", self.team_branch, "--base", "main",
          "--json", "number"],
         capture_output=True, text=True, check=True,
     )
@@ -191,7 +191,7 @@ def ensure_integration_pr_exists(self, repo_info: dict[str, Any]) -> int | None:
 
     # 2. Check if ahead of main
     ahead_result = subprocess.run(
-        ["git", "rev-list", "--count", f"origin/main..origin/{self.jules_branch}"],
+        ["git", "rev-list", "--count", f"origin/main..origin/{self.team_branch}"],
         capture_output=True, text=True, check=True,
     )
     commits_ahead = int(ahead_result.stdout.strip())
@@ -203,7 +203,7 @@ def ensure_integration_pr_exists(self, repo_info: dict[str, Any]) -> int | None:
     # 3. Create PR
     subprocess.run(
         ["gh", "pr", "create",
-         "--head", self.jules_branch,
+         "--head", self.team_branch,
          "--base", "main",
          "--title", pr_title,
          "--body", pr_body],
@@ -281,11 +281,11 @@ pr_body += f"- Lines removed: -{stats.deletions}\n"
 
 ## 🔗 Arquivos Modificados
 
-### `.jules/jules/scheduler_managers.py`
+### `.team/repo/scheduler_managers.py`
 - **Adicionado**: `ensure_integration_pr_exists()` (linhas 389-484)
 - **Função**: Verificar/criar PR jules → main
 
-### `.jules/jules/scheduler_v2.py`
+### `.team/repo/scheduler_v2.py`
 - **Linha 229**: Chama após merge normal
 - **Linha 269**: Chama após detectar PR já merged
 

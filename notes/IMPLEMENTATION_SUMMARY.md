@@ -41,7 +41,7 @@ request = SessionRequest(
 ## ✅ Teste Executado
 
 ```bash
-$ PYTHONPATH=.jules uv run python -m jules.cli schedule tick --dry-run
+$ PYTHONPATH=.team uv run python -m repo.cli schedule tick --dry-run
 
 ======================================================================
 CYCLE MODE: Sequential persona execution
@@ -242,8 +242,8 @@ git revert f2245f0  # Reverte este commit
 - `JULES_SPRINT_EVALUATION.md` - Avaliação inicial (SUPERSEDED)
 
 **Código**:
-- `.jules/jules/scheduler_v2.py` - Arquivo modificado
-- `.jules/jules/scheduler_managers.py` - Contém create_session_branch (agora não usada)
+- `.team/repo/scheduler_v2.py` - Arquivo modificado
+- `.team/repo/scheduler_managers.py` - Contém create_session_branch (agora não usada)
 
 ---
 
@@ -262,7 +262,7 @@ Uma linha: `branch=JULES_BRANCH` em vez de `branch=session_branch`
 ### Como Validar
 ```bash
 # 1. Dry-run
-PYTHONPATH=.jules uv run python -m jules.cli schedule tick --dry-run
+PYTHONPATH=.team uv run python -m repo.cli schedule tick --dry-run
 
 # 2. Check que não menciona criar branch
 # Deve mostrar: "Next persona: X"

@@ -1,4 +1,4 @@
-# Persona Prompt Improvements for .jules/
+# Persona Prompt Improvements for .team/
 
 ## Executive Summary
 
@@ -349,7 +349,7 @@ Coverage threshold: {{ coverage_threshold | default('No decrease') }}
 
 ### 6.1 Weaver (PROMPT.md)
 
-**Issue:** Lives in `.jules/jules/PROMPT.md` instead of `.jules/personas/weaver/prompt.md`
+**Issue:** Lives in `.team/repo/PROMPT.md` instead of `.team/personas/weaver/prompt.md`
 
 **Impact:** Inconsistent with other personas, harder to discover
 

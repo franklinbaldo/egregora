@@ -8,7 +8,7 @@ This document analyzes improvements to the Jules Auto-Fix workflow prompt, apply
 
 ## Current State Analysis
 
-### Current Prompt (`.jules/jules/templates/autofix_prompt.jinja`)
+### Current Prompt (`.team/repo/templates/autofix_prompt.jinja`)
 
 **Strengths:**
 - ✅ Minimal and focused on immediate issues
@@ -423,4 +423,4 @@ The improved Jules autofix prompt applies the same comprehensive, context-rich a
 **Related Documents**:
 - `GEMINI_PROMPT_IMPROVEMENT_ANALYSIS.md`
 - `CLAUDE.md`
-- `.jules/jules/templates/autofix_prompt_improved.jinja`
+- `.team/repo/templates/autofix_prompt_improved.jinja`

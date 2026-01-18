@@ -19,7 +19,7 @@ def test_delivering_oracle_response():
 def mock_jules_client(mocker):
     # Mock JulesClient in engine.py
     mock_client = mocker.Mock()
-    mocker.patch("jules.scheduler.engine.JulesClient", return_value=mock_client)
+    mocker.patch("repo.scheduler.engine.JulesClient", return_value=mock_client)
     return mock_client
 
 
@@ -27,10 +27,10 @@ def mock_jules_client(mocker):
 def mock_mail_features(mocker):
     # Mock mail features in engine.py
     return {
-        "send": mocker.patch("jules.scheduler.engine.send_message"),
-        "inbox": mocker.patch("jules.scheduler.engine.list_inbox"),
-        "get": mocker.patch("jules.scheduler.engine.get_message"),
-        "read": mocker.patch("jules.scheduler.engine.mark_read"),
+        "send": mocker.patch("repo.scheduler.engine.send_message"),
+        "inbox": mocker.patch("repo.scheduler.engine.list_inbox"),
+        "get": mocker.patch("repo.scheduler.engine.get_message"),
+        "read": mocker.patch("repo.scheduler.engine.mark_read"),
     }
 
 
@@ -81,10 +81,10 @@ def run_facilitator_tick(mock_mail_features):
     ):
         mock_mail_features["inbox"].return_value = []
 
-    from jules.scheduler.engine import execute_facilitator_tick
+    from repo.scheduler.engine import execute_facilitator_tick
 
     # We also need to mock create_session if it triggers Oracle
-    with patch("jules.scheduler.engine.execute_scheduled_tick"):
+    with patch("repo.scheduler.engine.execute_scheduled_tick"):
         execute_facilitator_tick(dry_run=False)
 
 

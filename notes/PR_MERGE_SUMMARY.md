@@ -17,11 +17,11 @@ Reviewed all 6 open PRs and merged 2 critical fixes into `claude/merge-open-prs-
   - Fixed SQL injection vulnerability in `DuckDBStorageManager.get_table_columns()`
   - Fixed SQL injection vulnerability in `SimpleDuckDBStorage.get_table_columns()`
   - Changed from unsafe `f"PRAGMA table_info('{table_name}')"` to safe `f"PRAGMA table_info({quote_identifier(table_name)})"`
-  - Added security documentation to `.jules/sentinel.md`
+  - Added security documentation to `.team/sentinel.md`
 - **Files Modified**:
   - `src/egregora/database/duckdb_manager.py`
   - `src/egregora/database/utils.py`
-  - `.jules/sentinel.md`
+  - `.team/sentinel.md`
 - **Why Merged**: Critical security vulnerability allowing SQL injection attacks. Main branch still has vulnerable code.
 
 ### PR #1385 - ⚡ Optimize Media Regex Matching (7.8x speedup)
@@ -35,7 +35,7 @@ Reviewed all 6 open PRs and merged 2 critical fixes into `claude/merge-open-prs-
   - Benchmark: ~7.8x speedup on 8,000 message processing
 - **Files Modified**:
   - `src/egregora/ops/media.py`
-  - `.jules/bolt.md`
+  - `.team/bolt.md`
 - **Why Merged**: Significant performance improvement with no functional changes. Main branch still uses slower loop-based approach.
 
 ### PR #1382 - Fix RecursionError in sqlglot during blog generation
@@ -49,7 +49,7 @@ Reviewed all 6 open PRs and merged 2 critical fixes into `claude/merge-open-prs-
 
 ### PR #1380 - Rename prompts directory and migrate schedule to workflow
 - **Status**: ✅ MERGED (Already in Main)
-- **Branch**: `jules/rename-prompts-to-personas-18379321455174470981`
+- **Branch**: `repo/rename-prompts-to-personas-18379321455174470981`
 - **Changes**:
   - Resolved workflow conflict by keeping main's local script approach
 - **Files Modified**:

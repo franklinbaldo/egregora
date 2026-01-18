@@ -12,7 +12,7 @@ Feature: Jules System Mail Interface
       | --subject| Updates            |
       | --body   | Progress is good   |
     Then the command should exit successfully
-    And a mail file should exist in ".jules/personas/curator@team/mail/new"
+    And a mail file should exist in ".team/personas/curator@team/mail/new"
 
   Scenario: Sending a broadcast message
     Given personas "alice", "bob" exist
@@ -23,8 +23,8 @@ Feature: Jules System Mail Interface
       | --subject| Announcement       |
       | --body   | Everyone listen up |
     Then the command should exit successfully
-    And a mail file should exist in ".jules/personas/alice/mail/new"
-    And a mail file should exist in ".jules/personas/bob/mail/new"
+    And a mail file should exist in ".team/personas/alice/mail/new"
+    And a mail file should exist in ".team/personas/bob/mail/new"
 
   Scenario: Checking inbox
     Given a message exists from "boss@team" to "worker@team" with subject "Work"

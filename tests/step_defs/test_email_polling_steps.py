@@ -1,8 +1,8 @@
 from unittest.mock import MagicMock
 
 import pytest
-from jules.core.client import JulesClient
-from jules.features.polling import EmailPoller
+from repo.core.client import JulesClient
+from repo.features.polling import EmailPoller
 from pytest_bdd import given, parsers, scenarios, then, when
 
 # Load scenarios

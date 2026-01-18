@@ -218,7 +218,7 @@ This repository uses autonomous AI agents (Jules personas) for maintenance tasks
 - **Palette**: UI/UX consistency
 - **Essentialist**: Complexity reduction
 
-See [.jules/README.md](.jules/README.md) for persona definitions.
+See [.team/README.md](.team/README.md) for persona definitions.
 
 ### Collaborating with Gemini
 
@@ -442,7 +442,7 @@ def temp_db():
 
 - [README.md](README.md): User-facing documentation
 - [CHANGELOG.md](CHANGELOG.md): Version history
-- [.jules/README.md](.jules/README.md): AI agent personas
+- [.team/README.md](.team/README.md): AI agent personas
 - [docs/](docs/): Full documentation site
 
 ---

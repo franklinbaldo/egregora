@@ -139,7 +139,7 @@ jobs:
           import subprocess
           import json
           import sys
-          from jules_client import JulesClient
+          from repo_client import JulesClient
 
           def get_pr_data(pr_number):
               cmd = ["gh", "pr", "view", str(pr_number), "--json", "body,headRefName,title,comments"]

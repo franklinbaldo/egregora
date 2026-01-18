@@ -1,5 +1,5 @@
 import pytest
-from jules.features.mail import LocalMhBackend
+from repo.features.mail import LocalMhBackend
 from pytest_bdd import given, parsers, scenarios, then, when
 
 scenarios("../features/mail_store_mh.feature")

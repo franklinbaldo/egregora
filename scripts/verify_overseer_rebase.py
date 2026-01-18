@@ -2,11 +2,11 @@ import sys
 import os
 from pathlib import Path
 
-# Add .jules to path
-sys.path.append(os.path.abspath(".jules"))
+# Add .team to path
+sys.path.append(os.path.abspath(".team"))
 
-from jules.scheduler_managers import PRManager
-from jules.github import get_repo_info
+from repo.scheduler_managers import PRManager
+from repo.github import get_repo_info
 
 def verify_rebase():
     print("🚀 Starting Overseer Rebase Verification...")

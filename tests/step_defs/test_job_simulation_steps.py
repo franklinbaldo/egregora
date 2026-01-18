@@ -1,7 +1,7 @@
 import json
 
 import pytest
-from jules.cli.my_tools import app
+from repo.cli.my_tools import app
 from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
@@ -19,14 +19,14 @@ def isolated_fs(tmp_path, monkeypatch):
     """Isolate file system for tests."""
     monkeypatch.chdir(tmp_path)
     # Monkeypatch session file paths to temp dir
-    monkeypatch.setattr("jules.features.session.SESSION_FILE", tmp_path / ".jules/session.json")
-    monkeypatch.setattr("jules.features.session.PERSONAS_ROOT", tmp_path / ".jules/personas")
+    monkeypatch.setattr("repo.features.session.SESSION_FILE", tmp_path / ".team/session.json")
+    monkeypatch.setattr("repo.features.session.PERSONAS_ROOT", tmp_path / ".team/personas")
     return tmp_path
 
 
 @given("the Jules environment is initialized")
 def init_env(isolated_fs):
-    (isolated_fs / ".jules").mkdir()
+    (isolated_fs / ".team").mkdir()
 
 
 @given(parsers.parse('the current time is "{timestamp}"'))
@@ -94,12 +94,12 @@ def check_output(last_result, text):
 
 @then("a session config file should exist")
 def check_session_file(isolated_fs):
-    assert (isolated_fs / ".jules/session.json").exists()
+    assert (isolated_fs / ".team/session.json").exists()
 
 
 @then(parsers.parse('the session should have active goals "{goals_str}"'))
 def check_session_goals(isolated_fs, goals_str):
-    data = json.loads((isolated_fs / ".jules/session.json").read_text())
+    data = json.loads((isolated_fs / ".team/session.json").read_text())
     expected_goals = [g.strip() for g in goals_str.split(",")]
     assert data["goals"] == expected_goals
 
@@ -115,7 +115,7 @@ def check_journal_path(isolated_fs, path):
 def check_journal_content(isolated_fs, goals_str):
     # Find the journal file
     # We assume 'weaver@team' context from scenario
-    journals_dir = isolated_fs / ".jules/personas/weaver@team/journals"
+    journals_dir = isolated_fs / ".team/personas/weaver@team/journals"
     journal_file = next(journals_dir.iterdir())
     content = journal_file.read_text()
     expected_goals = [g.strip() for g in goals_str.split(",")]
@@ -125,10 +125,10 @@ def check_journal_content(isolated_fs, goals_str):
 
 @then(parsers.parse('the session should be marked as "{status}"'))
 def check_session_status(isolated_fs, status):
-    data = json.loads((isolated_fs / ".jules/session.json").read_text())
+    data = json.loads((isolated_fs / ".team/session.json").read_text())
     assert data["status"] == status
 
 
 @then(parsers.parse('an artifact "{filename}" should be created'))
 def check_artifact(isolated_fs, filename):
-    assert (isolated_fs / ".jules" / filename).exists()
+    assert (isolated_fs / ".team" / filename).exists()

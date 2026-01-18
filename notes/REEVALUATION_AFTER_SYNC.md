@@ -10,7 +10,7 @@
 
 ### 1. ✅ **Bug Crítico CORRIGIDO** (Prioridade 0)
 
-**Arquivo**: `.jules/jules/scheduler_managers.py:560`
+**Arquivo**: `.team/repo/scheduler_managers.py:560`
 
 **Antes** (Bug):
 ```python
@@ -42,7 +42,7 @@ if not head_branch.lower().startswith(f"{JULES_SCHEDULER_PREFIX}-"):
 
 **Estrutura criada**:
 ```
-.jules/templates/
+.team/templates/
 ├── base/
 │   └── persona.md.j2          # Base template
 └── partials/
@@ -66,7 +66,7 @@ if not head_branch.lower().startswith(f"{JULES_SCHEDULER_PREFIX}-"):
 
 ### 3. 🆕 **Persistent Cycle State** (Nova Feature)
 
-**Arquivo**: `.jules/cycle_state.json`
+**Arquivo**: `.team/cycle_state.json`
 
 **Conteúdo atual**:
 ```json
@@ -79,7 +79,7 @@ if not head_branch.lower().startswith(f"{JULES_SCHEDULER_PREFIX}-"):
 }
 ```
 
-**Implementação**: `.jules/jules/scheduler_state.py`
+**Implementação**: `.team/repo/scheduler_state.py`
 
 **Benefícios**:
 - ✅ State persiste entre ticks
@@ -163,7 +163,7 @@ pr_mgr.ensure_integration_pr_exists(repo_info)
 
 ### 1. ⚠️ **Código Morto: session_branch não usado**
 
-**Localização**: `.jules/jules/scheduler_v2.py:329-334`
+**Localização**: `.team/repo/scheduler_v2.py:329-334`
 
 ```python
 # Create session branch
@@ -207,11 +207,11 @@ session_branch = branch_mgr.create_session_branch(
 **Verificação necessária**:
 ```bash
 # Testar que loader carrega templates corretamente
-PYTHONPATH=.jules uv run python -c "
+PYTHONPATH=.team uv run python -c "
 from pathlib import Path
-from jules.scheduler_loader import PersonaLoader
+from repo.scheduler_loader import PersonaLoader
 
-loader = PersonaLoader(Path('.jules/personas'), {})
+loader = PersonaLoader(Path('.team/personas'), {})
 personas = loader.load_personas([])
 print(f'Loaded {len(personas)} personas')
 for p in personas[:3]:
@@ -296,7 +296,7 @@ Projeção: 60-80% utilização (60-80 sessões/dia)
 ### Prioridade 2: Validar Loader Jinja2 (10 min)
 ```bash
 # Test que templates carregam
-uv run python -m jules.cli schedule tick --dry-run
+uv run python -m repo.cli schedule tick --dry-run
 ```
 
 **Se funciona**: ✅ Nada a fazer
@@ -315,7 +315,7 @@ uv run python -m jules.cli schedule tick --dry-run
 **Como verificar**:
 ```bash
 # 1. Check cycle progression
-cat .jules/cycle_state.json
+cat .team/cycle_state.json
 
 # 2. Check if personas advance
 git log --oneline --grep "cycle state" | head -10
@@ -373,7 +373,7 @@ git checkout claude/evaluate-jules-sprints-SqvSG
 git pull origin claude/evaluate-jules-sprints-SqvSG
 
 # Test
-PYTHONPATH=.jules uv run python -m jules.cli schedule tick --dry-run
+PYTHONPATH=.team uv run python -m repo.cli schedule tick --dry-run
 ```
 
 ### Checklist de Validação
