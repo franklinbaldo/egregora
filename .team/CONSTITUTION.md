@@ -35,3 +35,5 @@ If the Constitution changes after your last pledge, you have the right to **reve
 *Future articles are appended below. Each contributor must agree to all prior articles before adding their own.*
 
 ---
+
+[PLEAD] absolutist: I agree to the Constitution
