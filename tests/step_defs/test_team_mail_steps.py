@@ -1,11 +1,11 @@
 import pytest
+from pytest_bdd import given, parsers, scenarios, then, when
 from repo.cli.mail import app
 from repo.features.mail import list_inbox, send_message
-from pytest_bdd import given, parsers, scenarios, then, when
 from typer.testing import CliRunner
 
 # Load scenarios
-scenarios("../features/jules_mail.feature")
+scenarios("../features/team_mail.feature")
 
 
 @pytest.fixture
