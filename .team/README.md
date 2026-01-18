@@ -185,6 +185,7 @@ uv run mail send --to curator@team --subject "Fix needed" --body "..."
 ### What is a Persona?
 
 A **persona** is an autonomous AI agent with:
+
 - **Specialized expertise** (security, performance, UX, etc.)
 - **Clear responsibilities** defined in `prompt.md.j2`
 - **Work journal** documenting past actions
@@ -335,6 +336,7 @@ Track 2:  sentinel → builder → shepherd
 6. Auto-merge happens when CI passes
 
 **Benefits:**
+
 - ✅ No merge conflicts (sequential within track)
 - ✅ Each persona builds on previous work
 - ✅ Sprint-based organization
@@ -377,6 +379,7 @@ curator = "0 0 * * *"          # Daily at midnight UTC
 4. Personas run independently (no coordination)
 
 **Cron Format:**
+
 ```
 ┌───────────── minute (0 - 59)
 │ ┌───────────── hour (0 - 23)
@@ -388,6 +391,7 @@ curator = "0 0 * * *"          # Daily at midnight UTC
 ```
 
 **Common Examples:**
+
 - `0 * * * *` - Every hour
 - `*/15 * * * *` - Every 15 minutes
 - `0 0 * * *` - Daily at midnight
@@ -395,6 +399,7 @@ curator = "0 0 * * *"          # Daily at midnight UTC
 - `0 9-17 * * 1-5` - Weekdays 9 AM - 5 PM
 
 **Benefits:**
+
 - ✅ Run personas at optimal times
 - ✅ Independent operation
 - ✅ Predictable resource usage
@@ -511,7 +516,7 @@ export JULES_API_KEY="your-jules-api-key"
 export GITHUB_TOKEN="your-github-token"
 
 # ===== Optional =====
-export JULES_BASE_URL="https://repo.googleapis.com/v1alpha"
+export JULES_BASE_URL="https://jules.googleapis.com/v1alpha"
 export GH_TOKEN="your-github-token"  # Alias for GITHUB_TOKEN
 
 # Mail backend (local or S3)
@@ -1335,6 +1340,7 @@ class SprintManager:
 **Symptom:** Curator persona runs repeatedly, never advances to refactor
 
 **Causes:**
+
 - PRs not merging (CI failures)
 - PRs targeting wrong base branch
 - State file corruption
@@ -1363,6 +1369,7 @@ uv run jules schedule tick --prompt-id refactor
 **Symptom:** Session shows "awaiting feedback" or "awaiting approval"
 
 **Causes:**
+
 - Session requires human approval
 - Session hit timeout
 - Session waiting for input
@@ -1395,6 +1402,7 @@ uv run jules feedback send-nudge <session-id>
 **Symptom:** `jules` branch has conflicts with `main`
 
 **Causes:**
+
 - Drift between branches
 - Manual commits to `main`
 - Failed merge attempts
@@ -1425,6 +1433,7 @@ git push
 **Symptom:** PR created but CI fails
 
 **Causes:**
+
 - Test failures
 - Linting errors
 - Type errors
@@ -1455,6 +1464,7 @@ uv run jules schedule tick  # Moves to next persona
 **Symptom:** Personas not receiving messages
 
 **Causes:**
+
 - Mail backend not initialized
 - Incorrect persona ID format
 - Storage backend misconfigured
@@ -1492,6 +1502,7 @@ PYTHON_EOF
 **Symptom:** "Template not found" or Jinja2 errors
 
 **Causes:**
+
 - Missing base templates
 - Incorrect template syntax
 - Missing template variables
@@ -1588,6 +1599,7 @@ uv run mail inbox --persona system@team
 ## 🔄 Changelog
 
 ### 2026-01-17
+
 - Comprehensive README overhaul
 - Added visual diagrams and examples
 - Expanded troubleshooting section
@@ -1595,11 +1607,13 @@ uv run mail inbox --persona system@team
 - Added architecture deep dive
 
 ### 2026-01-14
+
 - Updated persona count to 28
 - Added new personas (absolutist, bdd_specialist, oracle, etc.)
 - Improved scheduler architecture docs
 
 ### 2026-01-09
+
 - Original README created
 - Basic scheduler and persona documentation
 - Initial usage guide

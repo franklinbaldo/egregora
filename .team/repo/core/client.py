@@ -63,7 +63,7 @@ class TeamClient:
     def __init__(self, api_key: str | None = None, base_url: str | None = None) -> None:
         """Initialize the Jules client."""
         self.api_key = api_key or os.environ.get("JULES_API_KEY")
-        self.base_url = base_url or os.environ.get("JULES_BASE_URL", "https://repo.googleapis.com/v1alpha")
+        self.base_url = base_url or os.environ.get("JULES_BASE_URL", "https://jules.googleapis.com/v1alpha")
 
     def _get_headers(self) -> dict[str, str]:
         """Get request headers with authentication."""
