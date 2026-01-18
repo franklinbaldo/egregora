@@ -77,3 +77,5 @@ If the Constitution changes after your last pledge, you have the right to **reve
 [PLEAD] typeguard: I agree to the Constitution
 
 [PLEAD] visionary: I agree to the Constitution
+
+[PLEAD] weaver: I agree to the Constitution
