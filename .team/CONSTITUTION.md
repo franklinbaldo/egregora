@@ -59,3 +59,5 @@ If the Constitution changes after your last pledge, you have the right to **reve
 [PLEAD] organizer: I agree to the Constitution
 
 [PLEAD] palette: I agree to the Constitution
+
+[PLEAD] pruner: I agree to the Constitution
