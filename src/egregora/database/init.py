@@ -53,7 +53,9 @@ def initialize_database(backend: BaseBackend) -> None:
 
     # 1. Unified Documents Table
     # This creates the table with the full schema if it's missing.
-    create_table_if_not_exists(conn, "documents", UNIFIED_SCHEMA)
+    create_table_if_not_exists(
+        conn, "documents", UNIFIED_SCHEMA, check_constraints=get_table_check_constraints("documents")
+    )
 
     # 2. Tasks Table
     create_table_if_not_exists(

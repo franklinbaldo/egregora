@@ -252,6 +252,17 @@ def get_table_check_constraints(table_name: str) -> dict[str, str]:
     if table_name == "annotations":
         valid_values = ", ".join(f"'{parent_type}'" for parent_type in VALID_ANNOTATION_PARENT_TYPES)
         return {"chk_annotations_parent_type": f"parent_type IN ({valid_values})"}
+
+    if table_name == "documents":
+        valid_post_statuses = ", ".join(f"'{status}'" for status in VALID_POST_STATUSES)
+        return {
+            "chk_doc_post_req": "(doc_type != 'post') OR (title IS NOT NULL AND slug IS NOT NULL AND status IS NOT NULL)",
+            "chk_doc_post_status": f"(doc_type != 'post') OR (status IN ({valid_post_statuses}))",
+            "chk_doc_profile_req": "(doc_type != 'profile') OR (title IS NOT NULL AND subject_uuid IS NOT NULL)",
+            "chk_doc_journal_req": "(doc_type != 'journal') OR (title IS NOT NULL AND window_start IS NOT NULL AND window_end IS NOT NULL)",
+            "chk_doc_media_req": "(doc_type != 'media') OR (filename IS NOT NULL)",
+        }
+
     return {}
 
 
