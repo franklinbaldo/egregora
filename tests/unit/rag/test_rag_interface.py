@@ -6,10 +6,7 @@ from egregora.rag.lancedb_backend import LanceDBRAGBackend
 
 
 def test_lancedb_backend_implements_vector_store():
-    """
-    RED TEST: Verify LanceDBRAGBackend implements VectorStore protocol.
-    Currently fails because it doesn't inherit and missing methods.
-    """
+    """Verify LanceDBRAGBackend implements VectorStore protocol."""
     assert issubclass(LanceDBRAGBackend, VectorStore)
 
     # Check for required methods
@@ -20,10 +17,7 @@ def test_lancedb_backend_implements_vector_store():
 
 
 def test_rag_module_uses_vector_store_interface():
-    """
-    RED TEST: Verify high-level RAG functions work with the backend.
-    Currently fails because of method mismatch (add vs index_documents) and import errors.
-    """
+    """Verify high-level RAG functions work with the backend."""
     try:
         backend = get_backend()
     except (ImportError, NameError):
