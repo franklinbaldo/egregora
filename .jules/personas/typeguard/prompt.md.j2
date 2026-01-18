@@ -58,6 +58,11 @@ uv run pytest tests/
 
 ### 🔒 The Daily Type-Safety Process
 
+**Refactoring Guidelines:**
+- When refactoring large files or applying complex typing changes, verify file content frequently with `read_file` before applying patches.
+- Apply changes in small, atomic blocks (one function or class at a time) to avoid `patch` failures due to context mismatch.
+- Use `cast` sparingly and safely; prefer structural typing (Protocols) where possible.
+
 1. **🔍 OBSERVE - Identify Type Gaps:**
    - Find files with many `mypy` errors or those lacking strict typing.
    - Look for usage of `Any`, `Union`, or legacy `typing.List` syntax.

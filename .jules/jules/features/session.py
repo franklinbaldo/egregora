@@ -31,7 +31,7 @@ class SessionManager:
     def login(self, persona: str, password: str, goals: List[str]):
         if not self.validate_password(persona, password):
             raise ValueError("Invalid password")
-        
+
         self.session_data = {
             "persona": persona,
             "goals": goals,
@@ -39,7 +39,7 @@ class SessionManager:
             "status": "active"
         }
         self._save_session()
-        
+
         # Ensure persona directories exist
         (PERSONAS_ROOT / persona / "journals").mkdir(parents=True, exist_ok=True)
         (PERSONAS_ROOT / persona / "mail").mkdir(parents=True, exist_ok=True)
@@ -53,17 +53,17 @@ class SessionManager:
         persona = self.get_active_persona()
         if not persona:
             raise RuntimeError("No active session. Please login first.")
-        
+
         if not self.validate_password(persona, password):
             raise ValueError("Invalid password")
-            
+
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H%M")
         filename = f"{timestamp}-Journal.md"
         path = PERSONAS_ROOT / persona / "journals" / filename
-        
+
         goals = self.session_data.get("goals", [])
         goal_text = "\n".join([f"- {g}" for g in goals])
-        
+
         full_content = f"""# Journal Entry: {timestamp}
 ## Goals
 {goal_text}
@@ -79,11 +79,11 @@ class SessionManager:
         persona = self.get_active_persona()
         if not persona:
             raise RuntimeError("No active session.")
-            
+
         self.session_data["status"] = "stopped"
         self.session_data["stop_reason"] = reason
         self._save_session()
-        
+
         # Create artifact
         artifact_path = Path(".jules/loop_break_context.json")
         artifact_path.write_text(json.dumps({
@@ -92,7 +92,6 @@ class SessionManager:
             "timestamp": datetime.datetime.now().isoformat(),
             "context": self.session_data
         }, indent=2))
-        
+
         # Create STOP file
         (PERSONAS_ROOT / persona / "STOP").touch()
-

@@ -564,7 +564,7 @@ def find_pr_for_session(
             # Determine state from timestamps
             merged_at = pr_data.get("mergedAt")
             closed_at = pr_data.get("closedAt")
-            
+
             if merged_at:
                 state = PRState.MERGED
             elif closed_at:

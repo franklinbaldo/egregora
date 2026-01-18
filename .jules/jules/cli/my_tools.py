@@ -58,8 +58,8 @@ app = typer.Typer(
 
 # Add mail CLI as a subcommand group "email"
 app.add_typer(
-    mail_app, 
-    name="email", 
+    mail_app,
+    name="email",
     help="📧 Email communication tools: send, inbox, read messages"
 )
 
@@ -82,10 +82,10 @@ def login(
 ):
     """
     🔐 Clock in for work.
-    
+
     This MUST be your first action when starting a session.
     It configures your environment, sets your goals, and enables journaling.
-    
+
     Example:
         my-tools login --user weaver@team --password abc123-... --goals "Fix CI" --goals "Update docs"
     """
@@ -108,10 +108,10 @@ def journal(
 ):
     """
     📝 File a journal entry.
-    
+
     You MUST call this before finishing your shift (before commits or stopping).
     It documents your work execution against your session goals.
-    
+
     Example:
         my-tools journal --content "Fixed CI by updating Python version. Docs updated for new API." --password abc123-...
     """
@@ -134,10 +134,10 @@ def loop_break(
 ):
     """
     🛑 EMERGENCY STOP.
-    
+
     Use this if you are stuck in a loop or cannot proceed.
     Captures current context and signals end of session.
-    
+
     Example:
         my-tools loop-break --reason "Infinite loop in CI retry logic"
     """
@@ -155,11 +155,11 @@ def vote(
 ):
     """
     ⚖️ Vote to influence the future project schedule (Borda Count).
-    
-    Cast ranked votes for personas to occupy a future sequence. 
+
+    Cast ranked votes for personas to occupy a future sequence.
     The first --persona is your 1st choice, the second is 2nd choice, etc.
     The target sequence is automatically calculated.
-    
+
     Example:
         my-tools vote -p simplifier -p forge --password <token>
     """
@@ -168,11 +168,11 @@ def vote(
         if not voter_id:
             print("❌ No active session. Please login first.")
             raise typer.Exit(code=1)
-            
+
         if not session_manager.validate_password(voter_id, password):
             print("❌ Auth failed: Invalid password.")
             raise typer.Exit(code=1)
-            
+
         voter_sequence = vote_manager.get_current_sequence(voter_id)
         if not voter_sequence:
             print(f"❌ Could not determine current sequence for {voter_id}.")
@@ -181,7 +181,7 @@ def vote(
         target_sequence = vote_manager.cast_vote(voter_sequence, personas)
         persona_list = ", ".join(personas)
         print(f"✅ Ranked votes cast by {voter_id} (seq {voter_sequence}) for [{persona_list}] for sequence {target_sequence}")
-        
+
     except Exception as e:
         print(f"❌ Vote failed: {e}")
         raise typer.Exit(code=1)
@@ -202,7 +202,7 @@ def hire(
 ):
     """
     🤝 Hire a new persona to join the team.
-    
+
     This command creates a new persona directory and prompt following the RGCCOV pattern.
     """
     try:
@@ -210,11 +210,11 @@ def hire(
         if not voter_id:
             print("❌ No active session. Please login first.")
             raise typer.Exit(code=1)
-            
+
         if not session_manager.validate_password(voter_id, password):
             print("❌ Auth failed: Invalid password.")
             raise typer.Exit(code=1)
-            
+
         path = hire_manager.hire_persona(
             persona_id=id,
             emoji=emoji,
@@ -229,7 +229,7 @@ def hire(
             workflow=workflow
         )
         print(f"✅ Persona '{id}' successfully hired! Prompt created at {path}")
-        
+
     except Exception as e:
         print(f"❌ Hire failed: {e}")
         raise typer.Exit(code=1)

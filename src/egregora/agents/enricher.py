@@ -23,7 +23,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Protocol, Self, cast, runtime_checkable
 
 import duckdb
 import httpx
@@ -61,6 +61,37 @@ if TYPE_CHECKING:
     from egregora.input_adapters.base import MediaMapping
     from egregora.llm.usage import UsageTracker
     from egregora.orchestration.context import PipelineContext
+
+    @runtime_checkable
+    class TaskStore(Protocol):
+        def enqueue(self, task_type: str, payload: dict[str, Any]) -> None: ...
+        def fetch_pending(self, task_type: str, limit: int = 10) -> list[dict[str, Any]]: ...
+        def mark_completed(self, task_id: Any) -> None: ...
+        def mark_failed(self, task_id: Any, error: str) -> None: ...
+
+    @runtime_checkable
+    class OutputSink(Protocol):
+        def persist(self, doc: Document) -> None: ...
+
+    @runtime_checkable
+    class ContentLibrary(Protocol):
+        def save(self, doc: Document) -> None: ...
+
+    class EnricherStorage(Protocol):
+        ibis_conn: Any
+        _conn: Any
+
+    class EnricherContext(Protocol):
+        """Protocol for context used in EnrichmentWorker."""
+
+        task_store: TaskStore | None
+        storage: EnricherStorage
+        config: Any
+        site_root: Path | None
+        output_sink: OutputSink | None
+        library: ContentLibrary | None
+        input_path: Path | None
+
 
 logger = logging.getLogger(__name__)
 
@@ -166,13 +197,17 @@ class EnrichmentRuntimeContext:
     """Runtime context for enrichment execution."""
 
     cache: EnrichmentCache
-    output_sink: Any
+    output_sink: OutputSink | Any
     site_root: Path | None = None
     duckdb_connection: DuckDBBackend | None = None
     target_table: str | None = None
     usage_tracker: UsageTracker | None = None
     pii_prevention: dict[str, Any] | None = None  # LLM-native PII prevention settings
-    task_store: Any | None = None  # Added for job queue scheduling
+    task_store: TaskStore | Any | None = None  # Added for job queue scheduling
+    storage: Any | None = None
+    input_path: Path | None = None
+    library: Any | None = None
+    config: Any | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -470,7 +505,7 @@ def _serialize_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
 
 
 # TODO: [Taskmaster] Decompose monolithic EnrichmentWorker class
-class EnrichmentWorker(BaseWorker):
+class EnrichmentWorker(BaseWorker["PipelineContext | EnrichmentRuntimeContext"]):
     """Worker for media enrichment (e.g. image description)."""
 
     def __init__(
@@ -831,7 +866,7 @@ class EnrichmentWorker(BaseWorker):
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
                     model=model,
-                    contents=[{"parts": [{"text": combined_prompt}]}],
+                    contents=cast("Any", [{"parts": [{"text": combined_prompt}]}]),
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
                 return response.text or ""
@@ -844,7 +879,7 @@ class EnrichmentWorker(BaseWorker):
             client = genai.Client(api_key=api_key)
             response = client.models.generate_content(
                 model=model_name,
-                contents=[{"parts": [{"text": combined_prompt}]}],
+                contents=cast("Any", [{"parts": [{"text": combined_prompt}]}]),
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
             response_text = response.text or ""
@@ -943,7 +978,8 @@ class EnrichmentWorker(BaseWorker):
 
         if new_rows:
             try:
-                self.ctx.storage.ibis_conn.insert("messages", new_rows)
+                storage = cast("EnricherStorage", self.ctx.storage)
+                storage.ibis_conn.insert("messages", new_rows)
                 logger.info("Inserted %d enrichment rows", len(new_rows))
             except Exception:
                 logger.exception("Failed to insert enrichment rows")
@@ -1113,7 +1149,7 @@ class EnrichmentWorker(BaseWorker):
 
             # Upload file
             # Note: client.files.upload returns a File object with 'uri'
-            uploaded_file = client.files.upload(path=str(file_path), config={"mime_type": mime_type})
+            uploaded_file = client.files.upload(file=str(file_path), config={"mime_type": mime_type})
             logger.info("Uploaded file %s to %s", file_path.name, uploaded_file.uri)
 
             return {"fileData": {"mimeType": mime_type, "fileUri": uploaded_file.uri}}
@@ -1231,7 +1267,7 @@ class EnrichmentWorker(BaseWorker):
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
                     model=model,
-                    contents=[{"parts": request_parts}],
+                    contents=cast("Any", [{"parts": request_parts}]),
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
                 return response.text or ""
@@ -1241,7 +1277,7 @@ class EnrichmentWorker(BaseWorker):
             # No rotation - use configured model and API key
             response = client.models.generate_content(
                 model=model_name,
-                contents=[{"parts": request_parts}],
+                contents=cast("Any", [{"parts": request_parts}]),
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
             response_text = response.text if response.text else ""
@@ -1515,7 +1551,8 @@ class EnrichmentWorker(BaseWorker):
                     # Note: This updates ALL messages containing this ref.
                     # Given filenames are usually unique (timestamps), this is safe.
                     query = f"UPDATE messages SET text = replace(text, '{safe_original}', '{safe_new}') WHERE text LIKE '%{safe_original}%'"
-                    self.ctx.storage._conn.execute(query)
+                    storage = cast("EnricherStorage", self.ctx.storage)
+                    storage._conn.execute(query)
                 except duckdb.Error as exc:
                     logger.warning("Failed to update message references for %s: %s", original_ref, exc)
 
@@ -1523,7 +1560,8 @@ class EnrichmentWorker(BaseWorker):
 
         if new_rows:
             try:
-                self.ctx.storage.ibis_conn.insert("messages", new_rows)
+                storage = cast("EnricherStorage", self.ctx.storage)
+                storage.ibis_conn.insert("messages", new_rows)
                 logger.info("Inserted %d media enrichment rows", len(new_rows))
             except (IbisError, duckdb.Error):
                 logger.exception("Failed to insert media enrichment rows")
