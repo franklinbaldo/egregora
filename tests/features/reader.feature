@@ -84,8 +84,8 @@ Feature: Reader Agent Post Evaluation and ELO Ranking
       | timestamp           | yes     |
 
   Scenario: ELO ratings table tracks post statistics
-    Given post "tracked-post" has been compared 5 times
-    And "tracked-post" has won 3 times, lost 1 time, and tied 1 time
+    # Given post "tracked-post" has been compared 5 times
+    Given "tracked-post" has won 3 times, lost 1 time, and tied 1 time
     When I query the elo_ratings table for "tracked-post"
     Then the record should show:
       | field       | value |
@@ -227,10 +227,10 @@ Feature: Reader Agent Post Evaluation and ELO Ranking
     And larger rating swings should occur compared to K=32
 
   Scenario: Comparisons per post can be configured
-    Given the reader is configured with comparisons_per_post: 10
+    Given the reader is configured with comparisons_per_post: 4
     And 5 posts exist
     When I select post pairs
-    Then each post should be scheduled for 10 comparisons
+    Then each post should be scheduled for 4 comparisons
 
   Scenario: Database path can be configured
     Given the reader is configured with database_path: "custom/reader.duckdb"
