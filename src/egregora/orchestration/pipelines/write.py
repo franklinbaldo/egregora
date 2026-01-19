@@ -23,6 +23,7 @@ from datetime import date as date_type
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import ibis
@@ -835,7 +836,41 @@ def process_background_tasks(ctx: PipelineContext) -> None:
         enrichment_worker.run()
 
 
-# TODO: [Taskmaster] Simplify database backend creation
+def _validate_and_connect(value: str | None, setting_name: str, site_root: Path) -> tuple[str, Any]:
+    """Validate database URI and connect to the backend.
+
+    Args:
+        value: Database URI string
+        setting_name: Name of the setting for error messages
+        site_root: Site root directory for resolving relative paths
+
+    Returns:
+        Tuple of (resolved_uri, backend_connection)
+
+    """
+    if not value:
+        msg = f"Database setting '{setting_name}' must be a non-empty connection URI."
+        raise ValueError(msg)
+
+    parsed = urlparse(value)
+    if not parsed.scheme:
+        msg = (
+            f"Database setting '{setting_name}' must be provided as an Ibis-compatible connection "
+            "URI (e.g. 'duckdb:///absolute/path/to/file.duckdb' or 'postgres://user:pass@host/db')."
+        )
+        raise ValueError(msg)
+
+    if len(parsed.scheme) == 1 and value[1:3] in {":/", ":\\"}:
+        msg = (
+            f"Database setting '{setting_name}' looks like a filesystem path. Provide a full connection "
+            "URI instead (see the database settings documentation)."
+        )
+        raise ValueError(msg)
+
+    normalized_value = resolve_db_uri(value, site_root)
+    return normalized_value, ibis.connect(normalized_value)
+
+
 def _create_database_backend(
     site_root: Path,
     config: EgregoraConfig,
@@ -844,13 +879,7 @@ def _create_database_backend(
 
     Returns a tuple of the resolved database URI and the Ibis backend connection.
     """
-    db_uri = config.database.pipeline_db
-    if not db_uri:
-        msg = "Database setting 'database.pipeline_db' must be a non-empty connection URI."
-        raise ValueError(msg)
-
-    resolved_uri = resolve_db_uri(db_uri, site_root)
-    return resolved_uri, ibis.connect(resolved_uri)
+    return _validate_and_connect(config.database.pipeline_db, "database.pipeline_db", site_root)
 
 
 def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> MkDocsPaths:
