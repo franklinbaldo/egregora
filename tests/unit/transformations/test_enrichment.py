@@ -23,12 +23,12 @@ def test_combine_basic_functionality():
     result = combine_with_enrichment_rows(table, new_rows, schema)
 
     # Then
-    res_df = result.to_pandas()
-    assert len(res_df) == 2
+    res = result.to_pyarrow().to_pylist()
+    assert len(res) == 2
     # Sort order is not guaranteed by default unless function sorts it.
     # The function sorts by "ts".
-    assert res_df.iloc[0]["id"] == 1
-    assert res_df.iloc[1]["id"] == 2
+    assert res[0]["id"] == 1
+    assert res[1]["id"] == 2
 
 
 def test_missing_columns_adaptation():
@@ -46,12 +46,12 @@ def test_missing_columns_adaptation():
     result = combine_with_enrichment_rows(table, new_rows, target_schema)
 
     # Then
-    res_df = result.to_pandas()
-    assert "extra" in res_df.columns
-    # First row (from table) should be None/NaN
-    assert pd.isna(res_df.iloc[0]["extra"])
+    res = result.to_pyarrow().to_pylist()
+    assert "extra" in res[0]
+    # First row (from table) should be None
+    assert res[0]["extra"] is None
     # Second row (from new_rows) should be "foo"
-    assert res_df.iloc[1]["extra"] == "foo"
+    assert res[1]["extra"] == "foo"
 
 
 def test_timestamp_normalization_ts():
@@ -69,8 +69,8 @@ def test_timestamp_normalization_ts():
 
     # Then
     # Execute to verify no errors in casting
-    res_df = result.to_pandas()
-    assert len(res_df) == 1
+    res = result.to_pyarrow().to_pylist()
+    assert len(res) == 1
 
 
 def test_empty_new_rows():
@@ -103,9 +103,9 @@ def test_ordering():
     result = combine_with_enrichment_rows(table, new_rows, schema)
 
     # Then
-    res_df = result.to_pandas()
-    assert res_df.iloc[0]["id"] == 1  # Should be first due to earlier timestamp
-    assert res_df.iloc[1]["id"] == 2
+    res = result.to_pyarrow().to_pylist()
+    assert res[0]["id"] == 1  # Should be first due to earlier timestamp
+    assert res[1]["id"] == 2
 
 
 def test_supports_alternate_timestamp_column():
@@ -121,9 +121,9 @@ def test_supports_alternate_timestamp_column():
     result = combine_with_enrichment_rows(table, new_rows, schema)
 
     # Then
-    res_df = result.to_pandas()
-    assert len(res_df) == 2
-    assert res_df.iloc[1]["id"] == 2
+    res = result.to_pyarrow().to_pylist()
+    assert len(res) == 2
+    assert res[1]["id"] == 2
 
 
 def test_no_timestamp_column():
