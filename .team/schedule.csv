@@ -90,7 +90,7 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 089,forge,6738496798984334813,2643,merged,
 090,janitor,12638977454857581229,2644,merged,
 091,maintainer,11809541297087632022,2624,merged,
-092,organizer,,,,
+092,organizer,3619206339277445365,2604,merged,
 093,palette,,,,
 094,pruner,,,,
 095,refactor,,,,
