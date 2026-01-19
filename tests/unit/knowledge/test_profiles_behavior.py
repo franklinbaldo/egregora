@@ -1,16 +1,12 @@
 """Behavioral tests for knowledge profiles."""
 
 import uuid
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
-import yaml
+from unittest.mock import MagicMock
 
 from egregora.knowledge import profiles
-from egregora.knowledge.exceptions import ProfileNotFoundError, InvalidAliasError
 
 # --- Write/Read Profile ---
+
 
 def test_write_and_read_profile(tmp_path):
     """Verify writing a profile and reading it back."""
@@ -27,6 +23,7 @@ def test_write_and_read_profile(tmp_path):
     assert "User bio here." in read_content
     assert f"uuid: {author_uuid}" in read_content
     assert (profiles_dir / author_uuid / "index.md").exists()
+
 
 def test_write_profile_preserves_metadata(tmp_path):
     """Verify updating a profile preserves existing metadata."""
@@ -50,7 +47,9 @@ def test_write_profile_preserves_metadata(tmp_path):
     assert "alias: OldAlias" in read_content
     assert "New content." in read_content
 
+
 # --- Command Processing ---
+
 
 def test_apply_alias_command(tmp_path):
     """Verify 'set alias' command updates profile."""
@@ -68,6 +67,7 @@ def test_apply_alias_command(tmp_path):
     # The current implementation updates the markdown body, not the frontmatter
     assert 'Alias: "NewAlias"' in content
 
+
 def test_apply_invalid_alias_command(tmp_path):
     """Verify invalid alias is rejected."""
     # Given
@@ -76,7 +76,7 @@ def test_apply_invalid_alias_command(tmp_path):
     # Create profile first
     profiles.write_profile(author_uuid, "Content", profiles_dir)
 
-    command = {"command": "set", "target": "alias", "value": ""} # Empty alias
+    command = {"command": "set", "target": "alias", "value": ""}  # Empty alias
     timestamp = "2023-01-01"
 
     # When
@@ -87,6 +87,7 @@ def test_apply_invalid_alias_command(tmp_path):
     assert "alias:" not in content or "alias: null" in content or "alias: " not in content
     # Check that it wasn't added if it didn't exist, or wasn't changed if it did
     # Since we created it fresh, it has no alias.
+
 
 def test_apply_bio_command(tmp_path):
     """Verify 'set bio' command updates profile."""
@@ -102,6 +103,7 @@ def test_apply_bio_command(tmp_path):
     # Then
     content = profiles.read_profile(author_uuid, profiles_dir)
     assert '"New Bio"' in content
+
 
 def test_apply_privacy_opt_out(tmp_path):
     """Verify 'opt-out' command updates profile."""
@@ -119,7 +121,9 @@ def test_apply_privacy_opt_out(tmp_path):
     assert "Status: OPTED OUT" in content
     assert profiles.is_opted_out(author_uuid, profiles_dir)
 
+
 # --- Author Extraction ---
+
 
 def test_extract_authors_fast_regex(tmp_path):
     """Verify fast regex extraction of authors."""
@@ -143,6 +147,7 @@ Content
     assert "author2" in authors
     assert len(authors) == 2
 
+
 def test_extract_authors_fast_single(tmp_path):
     """Verify fast regex extraction of single author."""
     # Given
@@ -161,6 +166,7 @@ Content
     # Then
     assert "author1" in authors
     assert len(authors) == 1
+
 
 def test_extract_authors_slow_yaml(tmp_path):
     """Verify robust YAML extraction of authors."""
@@ -182,7 +188,9 @@ Content
     assert "author1" in authors
     assert "author2" in authors
 
+
 # --- Active Authors ---
+
 
 def test_get_active_authors_from_table():
     """Verify getting active authors from Ibis table."""
@@ -198,7 +206,8 @@ def test_get_active_authors_from_table():
     # Then
     assert "author1" in result
     assert "author2" in result
-    assert "system" not in result # Filter logic handles this but here we mock return
+    assert "system" not in result  # Filter logic handles this but here we mock return
+
 
 def test_get_active_authors_with_limit():
     """Verify getting active authors with limit."""

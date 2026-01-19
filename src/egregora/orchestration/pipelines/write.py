@@ -23,7 +23,6 @@ from datetime import date as date_type
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import ibis
@@ -49,7 +48,6 @@ from egregora.data_primitives.document import OutputSink, UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.task_store import TaskStore
-from egregora.database.utils import resolve_db_uri
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
@@ -836,52 +834,6 @@ def process_background_tasks(ctx: PipelineContext) -> None:
         enrichment_worker.run()
 
 
-def _validate_and_connect(value: str | None, setting_name: str, site_root: Path) -> tuple[str, Any]:
-    """Validate database URI and connect to the backend.
-
-    Args:
-        value: Database URI string
-        setting_name: Name of the setting for error messages
-        site_root: Site root directory for resolving relative paths
-
-    Returns:
-        Tuple of (resolved_uri, backend_connection)
-
-    """
-    if not value:
-        msg = f"Database setting '{setting_name}' must be a non-empty connection URI."
-        raise ValueError(msg)
-
-    parsed = urlparse(value)
-    if not parsed.scheme:
-        msg = (
-            f"Database setting '{setting_name}' must be provided as an Ibis-compatible connection "
-            "URI (e.g. 'duckdb:///absolute/path/to/file.duckdb' or 'postgres://user:pass@host/db')."
-        )
-        raise ValueError(msg)
-
-    if len(parsed.scheme) == 1 and value[1:3] in {":/", ":\\"}:
-        msg = (
-            f"Database setting '{setting_name}' looks like a filesystem path. Provide a full connection "
-            "URI instead (see the database settings documentation)."
-        )
-        raise ValueError(msg)
-
-    normalized_value = resolve_db_uri(value, site_root)
-    return normalized_value, ibis.connect(normalized_value)
-
-
-def _create_database_backend(
-    site_root: Path,
-    config: EgregoraConfig,
-) -> tuple[str, Any]:
-    """Create the main database backend for the pipeline.
-
-    Returns a tuple of the resolved database URI and the Ibis backend connection.
-    """
-    return _validate_and_connect(config.database.pipeline_db, "database.pipeline_db", site_root)
-
-
 def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> MkDocsPaths:
     """Resolve site paths for the configured output format and validate structure."""
     site_paths = _resolve_pipeline_site_paths(output_dir, config)
@@ -933,7 +885,9 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
 
     refresh_tiers = {r.strip().lower() for r in (run_params.refresh or "").split(",") if r.strip()}
     site_paths = _resolve_site_paths_or_raise(resolved_output, run_params.config)
-    _runtime_db_uri, pipeline_backend = _create_database_backend(site_paths.site_root, run_params.config)
+    _runtime_db_uri, pipeline_backend = PipelineFactory.create_database_backends(
+        site_paths.site_root, run_params.config
+    )
 
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
     initialize_database(pipeline_backend)
