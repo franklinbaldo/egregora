@@ -190,7 +190,6 @@ def register_writer_tools(
             banner_ctx = BannerContext(
                 output_sink=ctx.deps.resources.output,
                 task_store=ctx.deps.resources.task_store,
-                run_id=ctx.deps.resources.run_id,
             )
             return generate_banner_impl(banner_ctx, post_slug, title, summary)
 
