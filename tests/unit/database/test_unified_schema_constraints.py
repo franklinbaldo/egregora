@@ -1,13 +1,15 @@
 """Tests for constraints on the unified 'documents' table."""
 
-import pytest
 import duckdb
+import pytest
+
+from egregora.database.migrations import migrate_documents_table
 from egregora.database.schemas import (
     UNIFIED_SCHEMA,
     create_table_if_not_exists,
     get_table_check_constraints,
 )
-from egregora.database.migrations import migrate_documents_table
+
 
 @pytest.fixture
 def duckdb_conn():
