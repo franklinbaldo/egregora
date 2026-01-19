@@ -41,6 +41,10 @@ def extract_clean_date(date_obj: str | date | datetime) -> str:
 def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
     """Normalize a metadata date into the RSS-friendly ``YYYY-MM-DD HH:MM`` string."""
     try:
+        # Pre-process string inputs to handle ranges like "2025-01-01 10:00 to 11:00"
+        if isinstance(raw_date, str) and " to " in raw_date:
+            raw_date = raw_date.split(" to ")[0].strip()
+
         dt = parse_datetime_flexible(raw_date, default_timezone=UTC)
         return dt.strftime("%Y-%m-%d %H:%M")
     except (DateTimeParsingError, AttributeError, ValueError, InvalidDateTimeInputError) as e:
