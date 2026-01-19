@@ -79,8 +79,7 @@ Feature: Reader Agent Post Evaluation and ELO Ranking
       | rating_a_after      | yes     |
       | rating_b_before     | yes     |
       | rating_b_after      | yes     |
-      | feedback_a          | yes     |
-      | feedback_b          | yes     |
+      | reader_feedback     | yes     |
       | timestamp           | yes     |
 
   Scenario: ELO ratings table tracks post statistics

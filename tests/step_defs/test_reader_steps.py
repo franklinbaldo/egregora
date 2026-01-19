@@ -238,17 +238,14 @@ def set_post_rating(elo_store, slug, rating):
 def set_comparison_count(elo_store, slug, count):
     """Set comparison count for a post."""
     for i in range(count):
-        elo_store.update_ratings(
+        params = create_update_params(
             post_a_slug=slug,
             post_b_slug=f"opponent-{i}",
             winner="tie",
-            rating_a_before=DEFAULT_ELO,
-            rating_a_after=DEFAULT_ELO,
-            rating_b_before=DEFAULT_ELO,
-            rating_b_after=DEFAULT_ELO,
-            feedback_a={},
-            feedback_b={},
+            rating_a_new=DEFAULT_ELO,
+            rating_b_new=DEFAULT_ELO,
         )
+        elo_store.update_ratings(params)
 
 
 @given(parsers.parse('"{slug}" has won {wins:d} times, lost {losses:d} time, and tied {ties:d} time'))
@@ -258,61 +255,49 @@ def set_post_record(elo_store, test_posts_dir, slug, wins, losses, ties):
 
     # Create wins
     for i in range(wins):
-        elo_store.update_ratings(
+        params = create_update_params(
             post_a_slug=slug,
             post_b_slug=f"loser-{i}",
             winner="a",
-            rating_a_before=DEFAULT_ELO,
-            rating_a_after=DEFAULT_ELO + 16,
-            rating_b_before=DEFAULT_ELO,
-            rating_b_after=DEFAULT_ELO - 16,
-            feedback_a={},
-            feedback_b={},
+            rating_a_new=DEFAULT_ELO + 16,
+            rating_b_new=DEFAULT_ELO - 16,
         )
+        elo_store.update_ratings(params)
 
     # Create losses
     for i in range(losses):
-        elo_store.update_ratings(
+        params = create_update_params(
             post_a_slug=slug,
             post_b_slug=f"winner-{i}",
             winner="b",
-            rating_a_before=DEFAULT_ELO,
-            rating_a_after=DEFAULT_ELO - 16,
-            rating_b_before=DEFAULT_ELO,
-            rating_b_after=DEFAULT_ELO + 16,
-            feedback_a={},
-            feedback_b={},
+            rating_a_new=DEFAULT_ELO - 16,
+            rating_b_new=DEFAULT_ELO + 16,
         )
+        elo_store.update_ratings(params)
 
     # Create ties
     for i in range(ties):
-        elo_store.update_ratings(
+        params = create_update_params(
             post_a_slug=slug,
             post_b_slug=f"tie-{i}",
             winner="tie",
-            rating_a_before=DEFAULT_ELO,
-            rating_a_after=DEFAULT_ELO,
-            rating_b_before=DEFAULT_ELO,
-            rating_b_after=DEFAULT_ELO,
-            feedback_a={},
-            feedback_b={},
+            rating_a_new=DEFAULT_ELO,
+            rating_b_new=DEFAULT_ELO,
         )
+        elo_store.update_ratings(params)
 
 
 @given(parsers.parse('post "{slug}" was recently compared against "{opponent}"'))
 def create_recent_comparison(elo_store, slug, opponent):
     """Create a recent comparison between two posts."""
-    elo_store.update_ratings(
+    params = create_update_params(
         post_a_slug=slug,
         post_b_slug=opponent,
         winner="tie",
-        rating_a_before=DEFAULT_ELO,
-        rating_a_after=DEFAULT_ELO,
-        rating_b_before=DEFAULT_ELO,
-        rating_b_after=DEFAULT_ELO,
-        feedback_a={},
-        feedback_b={},
+        rating_a_new=DEFAULT_ELO,
+        rating_b_new=DEFAULT_ELO,
     )
+    elo_store.update_ratings(params)
 
 
 @given("multiple posts with different ELO ratings:")
@@ -438,17 +423,14 @@ def posts_evaluated(test_posts_dir, elo_store, mock_compare_posts):
     # Create a few posts and simulate evaluation
     for i in range(3):
         create_minimal_post(test_posts_dir, f"post-{i}")
-        elo_store.update_ratings(
+        params = create_update_params(
             post_a_slug=f"post-{i}",
             post_b_slug=f"post-{(i + 1) % 3}",
             winner="a",
-            rating_a_before=DEFAULT_ELO,
-            rating_a_after=DEFAULT_ELO + 16,
-            rating_b_before=DEFAULT_ELO,
-            rating_b_after=DEFAULT_ELO - 16,
-            feedback_a={},
-            feedback_b={},
+            rating_a_new=DEFAULT_ELO + 16,
+            rating_b_new=DEFAULT_ELO - 16,
         )
+        elo_store.update_ratings(params)
 
 
 # When Steps (Actions)
@@ -502,17 +484,14 @@ def simulate_comparison_win(elo_store, winner, loser):
         k_factor=DEFAULT_K_FACTOR,
     )
 
-    elo_store.update_ratings(
+    params = create_update_params(
         post_a_slug=winner,
         post_b_slug=loser,
         winner="a",
-        rating_a_before=rating_a,
-        rating_a_after=new_a,
-        rating_b_before=rating_b,
-        rating_b_after=new_b,
-        feedback_a={},
-        feedback_b={},
+        rating_a_new=new_a,
+        rating_b_new=new_b,
     )
+    elo_store.update_ratings(params)
 
 
 @when(parsers.parse('"{underdog}" defeats "{favorite}" (upset victory)'))
@@ -524,17 +503,14 @@ def simulate_upset(elo_store, reader_config, underdog, favorite):
 @when("the comparison results in a tie")
 def simulate_tie(elo_store):
     """Simulate a tie comparison."""
-    elo_store.update_ratings(
+    params = create_update_params(
         post_a_slug="post-x",
         post_b_slug="post-y",
         winner="tie",
-        rating_a_before=1550.0,
-        rating_a_after=1550.0,
-        rating_b_before=1550.0,
-        rating_b_after=1550.0,
-        feedback_a={},
-        feedback_b={},
+        rating_a_new=1550.0,
+        rating_b_new=1550.0,
     )
+    elo_store.update_ratings(params)
 
 
 @when("I generate rankings", target_fixture="rankings")
