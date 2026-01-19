@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
@@ -33,23 +34,8 @@ class RateLimitedModel(Model):
         """Make a rate-limited request."""
         limiter = get_rate_limiter()
 
-        # Acquire slot (blocks if needed)
-        # Note: limiter.acquire() is blocking (sync).
-        # TODO: [Taskmaster] Clarify async execution comments
-        # The comments below are confusing and outdated. They discuss a move
-        # to synchronous execution that may or may not be complete.
-        # The documentation should be updated to reflect the current state
-        # of the execution model and remove any ambiguity.
-
-        # If running via agent.run_sync(), we are in a dedicated thread/loop.
-        # Blocking here is fine.
-
-        # TODO: [Taskmaster] Refactor to safely handle blocking call in async method
-        # TODO: [Taskmaster] Refactor to use a try...finally block for consistency
-        # The current implementation is inconsistent with `request_stream`.
-        # It should acquire the limiter and then use a `try...finally`
-        # block to ensure the limiter is always released.
-        limiter.acquire()
+        # Acquire slot in a separate thread to avoid blocking the event loop
+        await asyncio.to_thread(limiter.acquire)
         try:
             return await self.wrapped_model.request(messages, model_settings, model_request_parameters)
         finally:
@@ -64,7 +50,9 @@ class RateLimitedModel(Model):
     ) -> AsyncIterator[ModelResponse]:
         """Make a rate-limited stream request."""
         limiter = get_rate_limiter()
-        limiter.acquire()
+
+        # Acquire slot in a separate thread to avoid blocking the event loop
+        await asyncio.to_thread(limiter.acquire)
         try:
             async with self.wrapped_model.request_stream(
                 messages, model_settings, model_request_parameters

@@ -75,7 +75,7 @@ if TYPE_CHECKING:
     from ibis.expr.types import Table
 
     from egregora.config.settings import EgregoraConfig
-    from egregora.data_primitives.protocols import OutputSink
+    from egregora.data_primitives.document import OutputSink
 
 logger = logging.getLogger(__name__)
 
