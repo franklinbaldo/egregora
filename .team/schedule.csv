@@ -85,7 +85,7 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 084,bolt,340137821983466680,2636,merged,
 085,builder,17991285186437982984,2599,merged,
 086,curator,13029375524788487383,2620,merged,
-087,docs_curator,,,,
+087,docs_curator,12382839682461468303,2641,open,
 088,essentialist,,,,
 089,forge,,,,
 090,janitor,,,,
