@@ -88,3 +88,4 @@ If the Constitution changes after your last pledge, you have the right to **reve
 [PLEAD] simplifier: I agree to the Constitution
 [PLEAD] specifier: I agree to the Constitution
 [PLEAD] steward: I agree to the Constitution
+[PLEAD] streamliner: I agree to the Constitution
