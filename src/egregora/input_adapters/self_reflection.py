@@ -14,14 +14,14 @@ import frontmatter
 import ibis
 import yaml
 
-from egregora.common.datetime_utils import parse_datetime_flexible
-from egregora.common.text import slugify
+from egregora.data_primitives.datetime_utils import parse_datetime_flexible
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.text import slugify
 from egregora.database.schemas import STAGING_MESSAGES_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 
 if TYPE_CHECKING:
-    from egregora.data_primitives.protocols import OutputSink
+    from egregora.data_primitives.document import OutputSink
 
 logger = logging.getLogger(__name__)
 

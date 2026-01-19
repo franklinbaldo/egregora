@@ -2,7 +2,7 @@
 
 import pytest
 
-from egregora.common.datetime_utils import parse_datetime_flexible
+from egregora.data_primitives.datetime_utils import parse_datetime_flexible
 
 # A variety of date formats to test against
 DATE_FORMATS = [
