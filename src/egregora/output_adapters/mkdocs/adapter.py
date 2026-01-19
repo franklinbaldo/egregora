@@ -22,7 +22,6 @@ import frontmatter
 import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from egregora.common.text import slugify
 from egregora.data_primitives.document import (
     Document,
     DocumentMetadata,
@@ -30,6 +29,7 @@ from egregora.data_primitives.document import (
     UrlContext,
     UrlConvention,
 )
+from egregora.data_primitives.text import slugify
 from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention

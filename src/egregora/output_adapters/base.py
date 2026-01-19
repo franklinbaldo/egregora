@@ -13,8 +13,8 @@ import ibis
 import ibis.expr.datatypes as dt
 import yaml
 
-from egregora.common.text import slugify
 from egregora.data_primitives import DocumentMetadata, OutputSink, UrlConvention
+from egregora.data_primitives.text import slugify
 from egregora.output_adapters.exceptions import (
     AdapterNotDetectedError,
     FilenameGenerationError,

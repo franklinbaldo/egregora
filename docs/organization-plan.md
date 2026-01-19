@@ -1,10 +1,10 @@
 # Codebase Organization Plan
 
-Last updated: 2026-01-04
+Last updated: 2026-01-05
 
 ## Current Organizational State
 
-The Egregora codebase is a modular Python application with a clear separation between core logic (`src/egregora`), tests (`tests/`), and documentation (`docs/`). The `src/egregora` directory is further subdivided into domain-specific modules such as `agents`, `database`, and `llm`. However, there is a `utils` directory that appears to contain a mix of generic and domain-specific logic. This is a common "code smell" where modules that are not clearly categorized are placed, leading to a breakdown in modularity over time.
+The Egregora codebase is a modular Python application with a clear separation between core logic (`src/egregora`), tests (`tests/`), and documentation (`docs/`). The `src/egregora` directory is further subdivided into domain-specific modules such as `agents`, `database`, and `llm`. The legacy `utils` and `common` directories have been successfully eliminated, with their contents moved to domain-specific locations or `data_primitives`.
 
 ## Identified Issues
 
@@ -26,6 +26,8 @@ The Egregora codebase is a modular Python application with a clear separation be
 - **Rate limiter:** Moved from `src/egregora/utils/rate_limit.py` to `src/egregora/llm/rate_limit.py`.
 - **`slugify` utility:** Moved from `src/egregora/utils/paths.py` to `src/egregora/utils/text.py`.
 - **API key utilities:** Moved from `src/egregora/utils/env.py` to `src/egregora/llm/api_keys.py`.
+- **`common` directory elimination:** Moved `src/egregora/common/text.py` and `datetime_utils.py` to `src/egregora/data_primitives/`.
+- **`protocols.py` elimination:** Removed redundant `src/egregora/data_primitives/protocols.py` and unified usage under `src/egregora/data_primitives/document.py`.
 
 ## Organizational Strategy
 

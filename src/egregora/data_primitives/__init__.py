@@ -1,13 +1,19 @@
 """Data primitives for Egregora."""
 
+from egregora.data_primitives.document import (
+    Document,
+    DocumentMetadata,
+    DocumentType,
+    MediaAsset,
+    OutputSink,
+    UrlConvention,
+)
 
-class DocumentMetadata:
-    """Placeholder for DocumentMetadata."""
-
-
-class OutputSink:
-    """Placeholder for OutputSink."""
-
-
-class UrlConvention:
-    """Placeholder for UrlConvention."""
+__all__ = [
+    "Document",
+    "DocumentMetadata",
+    "DocumentType",
+    "MediaAsset",
+    "OutputSink",
+    "UrlConvention",
+]
