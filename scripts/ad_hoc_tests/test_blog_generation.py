@@ -20,7 +20,7 @@ import pytest
 sys.path.insert(0, "src")
 
 # Imports for tests
-from egregora.common.datetime_utils import (
+from egregora.data_primitives.datetime_utils import (
     DateTimeParsingError,
     InvalidDateTimeInputError,
     ensure_datetime,

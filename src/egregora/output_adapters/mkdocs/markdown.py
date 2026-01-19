@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
-from egregora.common.text import slugify
+from egregora.data_primitives.text import slugify
 from egregora.knowledge.profiles import ensure_author_entries
 from egregora.output_adapters.exceptions import (
     DirectoryCreationError,
