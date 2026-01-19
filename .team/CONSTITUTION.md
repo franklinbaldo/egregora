@@ -85,3 +85,4 @@ If the Constitution changes after your last pledge, you have the right to **reve
 [PLEAD] bdd_specialist: I agree to the Constitution
 
 [PLEAD] lore: I agree to the Constitution
+[PLEAD] simplifier: I agree to the Constitution
