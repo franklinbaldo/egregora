@@ -116,7 +116,7 @@ def init(
                 f"📝 Docs directory: {docs_dir}\n\n"
                 f"[bold]Next steps:[/bold]\n"
                 f"1. Generate content:\n   [cyan]egregora write path/to/chat_export.zip --output-dir {output_dir}[/cyan]\n"
-                f"2. Preview the site:\n   [cyan]cd {output_dir}[/cyan]\n   [cyan]uv tool run --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml[/cyan]",
+                f"2. Preview the site:\n   [cyan]cd {output_dir}[/cyan]\n   [cyan]uv tool run --with \"mkdocs-material[imaging]\" --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml[/cyan]",
                 title="🛠️ Initialization Complete",
                 border_style="green",
             )
@@ -495,7 +495,7 @@ def demo(
         Panel(
             "[bold green]✅ Demo site generated successfully![/bold green]\n\n"
             "To view the site, run:\n"
-            "[cyan]cd demo && uv tool run --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml[/cyan]",
+            "[cyan]cd demo && uv tool run --with \"mkdocs-material[imaging]\" --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml[/cyan]",
             title="🚀 Demo Complete",
             border_style="green",
         )

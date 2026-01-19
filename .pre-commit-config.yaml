@@ -116,6 +116,8 @@ repos:
             "tests/unit/",
             "--cov=src/egregora",
             "--cov-report=term-missing",
+            "--cov-branch",
+            "--cov-fail-under=57",
             "-q",
             "--ignore=tests/unit/team",
           ]
