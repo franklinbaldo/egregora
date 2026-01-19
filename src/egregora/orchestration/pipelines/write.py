@@ -435,7 +435,7 @@ def run_cli_flow(
             )
             run(run_params)
             console.print(f"[green]Processing completed successfully for source '{source_key}'.[/green]")
-        except AllModelsExhaustedError as e:
+        except (AllModelsExhaustedError, RuntimeError) as e:
             # Re-raise this specific error so the 'demo' command can catch it
             raise e
         except Exception as e:
