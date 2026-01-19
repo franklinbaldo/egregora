@@ -9,7 +9,7 @@ import logging
 import math
 from collections import deque
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from egregora.agents.banner.worker import BannerWorker
 from egregora.agents.commands import command_to_announcement, filter_commands
@@ -19,7 +19,7 @@ from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.types import Message, PromptTooLargeError, WindowProcessingParams
 from egregora.agents.writer import write_posts_for_window
-from egregora.data_primitives.document import DocumentType, UrlContext
+from egregora.data_primitives.document import Document, DocumentType, UrlContext
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.exceptions import (
@@ -391,13 +391,19 @@ class PipelineRunner:
             messages=messages_dtos,  # Inject DTOs
         )
 
-        posts, profiles = write_posts_for_window(params)
+        writer_results = write_posts_for_window(params)
+        posts = writer_results.get("posts", [])
+        profiles = writer_results.get("profiles", [])
 
         window_date = window.start_time.strftime("%Y-%m-%d")
         try:
-            profile_docs = generate_profile_posts(
+            profile_docs_or_awaitable = generate_profile_posts(
                 ctx=self.context, messages=clean_messages_list, window_date=window_date
             )
+            # Since we are in a sync context without a running loop (presumably),
+            # generate_profile_posts should return a list.
+            profile_docs = cast(list[Document], profile_docs_or_awaitable)
+
             for profile_doc in profile_docs:
                 try:
                     output_sink.persist(profile_doc)
