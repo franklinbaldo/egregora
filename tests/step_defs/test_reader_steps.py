@@ -519,7 +519,12 @@ def generate_rankings(elo_store):
     table = elo_store.get_top_posts(limit=None)
     # Convert Ibis Table to list of EloRating objects
     rows = table.execute().to_dict("records")
-    return [elo_store.get_rating(row["post_slug"]) for row in rows]
+    # Filter out dummy/test posts used for setup
+    return [
+        elo_store.get_rating(row["post_slug"])
+        for row in rows
+        if not row["post_slug"].startswith(("dummy", "opponent-", "loser-", "winner-", "tie-"))
+    ]
 
 
 @when(parsers.parse("I request the top {n:d} posts"), target_fixture="top_posts")
@@ -825,7 +830,7 @@ def verify_ranking_order(rankings, datatable):
     """Verify posts are ranked in correct order."""
     rows = parse_datatable(datatable)
     expected_order = [row["slug"] for row in rows]
-    actual_order = [r.slug for r in rankings]
+    actual_order = [r.post_slug for r in rankings]
 
     for i, expected_slug in enumerate(expected_order):
         assert actual_order[i] == expected_slug, (
@@ -836,7 +841,7 @@ def verify_ranking_order(rankings, datatable):
 @then(parsers.parse('"{slug}" should have a win_rate of {expected_rate:f}'))
 def verify_win_rate(rankings, slug, expected_rate):
     """Verify win rate for a post."""
-    post_ranking = next((r for r in rankings if r.slug == slug), None)
+    post_ranking = next((r for r in rankings if r.post_slug == slug), None)
     assert post_ranking is not None
     assert abs(post_ranking.win_rate - expected_rate) < 0.01  # Allow small floating point difference
 
