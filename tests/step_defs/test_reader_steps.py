@@ -270,7 +270,7 @@ def create_default_posts(test_posts_dir, count):
         create_minimal_post(test_posts_dir, f"post-{i}")
 
 
-@given(parsers.parse('a site with {count:d} blog posts in the posts directory'))
+@given(parsers.parse("a site with {count:d} blog posts in the posts directory"))
 def create_site_with_posts(test_posts_dir, count):
     """Create a site directory with blog posts."""
     for i in range(count):
@@ -321,19 +321,19 @@ def set_k_factor(reader_config, k_factor):
     reader_config.k_factor = k_factor
 
 
-@given(parsers.parse('the reader is configured with enabled: {enabled}'))
+@given(parsers.parse("the reader is configured with enabled: {enabled}"))
 def set_reader_enabled(reader_config, enabled):
     """Set reader enabled/disabled."""
     reader_config.enabled = enabled.lower() == "true"
 
 
-@given(parsers.parse('the reader is configured with k_factor: {k_factor:d}'))
+@given(parsers.parse("the reader is configured with k_factor: {k_factor:d}"))
 def configure_k_factor(reader_config, k_factor):
     """Configure K-factor."""
     reader_config.k_factor = k_factor
 
 
-@given(parsers.parse('the reader is configured with comparisons_per_post: {count:d}'))
+@given(parsers.parse("the reader is configured with comparisons_per_post: {count:d}"))
 def configure_comparisons(reader_config, count):
     """Configure comparisons per post."""
     reader_config.comparisons_per_post = count
@@ -367,7 +367,7 @@ def posts_evaluated(test_posts_dir, elo_store, mock_compare_posts):
         create_minimal_post(test_posts_dir, f"post-{i}")
         elo_store.update_ratings(
             post_a_slug=f"post-{i}",
-            post_b_slug=f"post-{(i+1)%3}",
+            post_b_slug=f"post-{(i + 1) % 3}",
             winner="a",
             rating_a_before=DEFAULT_ELO,
             rating_a_after=DEFAULT_ELO + 16,
@@ -631,7 +631,11 @@ def verify_feedback(comparison_result):
 def verify_post_feedback(evaluation_result, slug, datatable):
     """Verify post receives specific feedback."""
     # Get the appropriate feedback based on slug
-    feedback = evaluation_result.feedback_a if slug.endswith("a") or "engaging" in slug else evaluation_result.feedback_b
+    feedback = (
+        evaluation_result.feedback_a
+        if slug.endswith("a") or "engaging" in slug
+        else evaluation_result.feedback_b
+    )
 
     for row in datatable:
         field = row["field"]
@@ -748,7 +752,9 @@ def verify_ranking_order(rankings, datatable):
     actual_order = [r.slug for r in rankings]
 
     for i, expected_slug in enumerate(expected_order):
-        assert actual_order[i] == expected_slug, f"Expected {expected_slug} at rank {i+1}, got {actual_order[i]}"
+        assert actual_order[i] == expected_slug, (
+            f"Expected {expected_slug} at rank {i + 1}, got {actual_order[i]}"
+        )
 
 
 @then(parsers.parse('"{slug}" should have a win_rate of {expected_rate:f}'))
@@ -782,7 +788,7 @@ def verify_pairing_count(selected_pairs, count):
         post_counts[post_a] = post_counts.get(post_a, 0) + 1
         post_counts[post_b] = post_counts.get(post_b, 0) + 1
 
-    for post, pair_count in post_counts.items():
+    for pair_count in post_counts.values():
         assert pair_count == count
 
 

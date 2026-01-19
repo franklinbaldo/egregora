@@ -18,6 +18,7 @@ def duckdb_conn():
     yield conn
     conn.close()
 
+
 class TestDocumentsSchemaConstraints:
     """Test constraints for the unified documents table."""
 
@@ -92,7 +93,7 @@ class TestDocumentsSchemaConstraints:
 
         # Now constraints should be enforced
         with pytest.raises(duckdb.ConstraintException, match="CHECK constraint"):
-             duckdb_conn.execute(
+            duckdb_conn.execute(
                 """
                 INSERT INTO documents (id, doc_type, content, status, title, slug)
                 VALUES ('new', 'post', 'content', 'published', NULL, 'slug')
