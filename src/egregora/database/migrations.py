@@ -5,7 +5,7 @@ import logging
 import duckdb
 
 # Import the target schema and the type conversion utility
-from egregora.database.schemas import UNIFIED_SCHEMA, ibis_to_duckdb_type, get_table_check_constraints
+from egregora.database.schemas import UNIFIED_SCHEMA, get_table_check_constraints, ibis_to_duckdb_type
 from egregora.database.utils import quote_identifier
 
 logger = logging.getLogger(__name__)

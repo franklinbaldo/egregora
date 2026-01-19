@@ -1,30 +1,23 @@
 """Step definitions for Reader Agent BDD features."""
 
-import json
-from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
-from egregora.agents.reader.agent import compare_posts
 from egregora.agents.reader.elo import (
     DEFAULT_ELO,
     DEFAULT_K_FACTOR,
     calculate_elo_update,
 )
 from egregora.agents.reader.models import (
-    EvaluationRequest,
     PostComparison,
     ReaderFeedback,
 )
 from egregora.agents.reader.reader_runner import (
-    run_reader_evaluation,
     select_post_pairs,
 )
-from egregora.config.settings import EgregoraConfig, ReaderSettings
-from egregora.data_primitives.document import Document, DocumentType
+from egregora.config.settings import ReaderSettings
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
 
@@ -364,7 +357,6 @@ def verify_system_prompt():
     """Verify system prompt exists."""
     # The system prompt is loaded from the prompts directory
     # This is a verification step
-    pass
 
 
 @given("posts have been evaluated")
@@ -686,7 +678,6 @@ def verify_zero_sum(elo_store):
     """Verify rating changes sum to zero."""
     # In ELO system, rating changes should be zero-sum
     # This is inherently true in the implementation
-    pass
 
 
 @then(parsers.parse('"{underdog}" should gain more points than if it defeated an equal opponent'))
@@ -716,7 +707,6 @@ def verify_rating_unchanged(elo_store, slug, expected):
 def verify_comparison_record(elo_store):
     """Verify comparison record exists."""
     # Check that comparison history exists
-    pass
 
 
 @then("the record should include:")
@@ -835,7 +825,6 @@ def verify_comparisons_performed(cli_result):
 def verify_ratings_updated(elo_store):
     """Verify ratings were updated."""
     # Check that ratings exist in database
-    pass
 
 
 @then("rankings should be displayed in a table")
