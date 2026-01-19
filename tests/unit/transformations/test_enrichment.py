@@ -1,10 +1,11 @@
 """Behavioral tests for enrichment transformations."""
 
-import ibis
-import pytest
-import pandas as pd
 from datetime import datetime
+
+import ibis
+
 from egregora.transformations.enrichment import combine_with_enrichment_rows
+
 
 def test_combine_basic_functionality():
     """Verify basic union of existing table and new rows."""
@@ -16,9 +17,7 @@ def test_combine_basic_functionality():
     ]
     table = ibis.memtable(data, schema=schema)
 
-    new_rows = [
-        {"id": 2, "val": "b", "ts": datetime(2023, 1, 1, 11, 0, 0)}
-    ]
+    new_rows = [{"id": 2, "val": "b", "ts": datetime(2023, 1, 1, 11, 0, 0)}]
 
     # When
     result = combine_with_enrichment_rows(table, new_rows, schema)
@@ -30,6 +29,7 @@ def test_combine_basic_functionality():
     # The function sorts by "ts".
     assert res_df.iloc[0]["id"] == 1
     assert res_df.iloc[1]["id"] == 2
+
 
 def test_missing_columns_adaptation():
     """Verify that columns in schema but missing from input table are added as nulls."""
@@ -53,6 +53,7 @@ def test_missing_columns_adaptation():
     # Second row (from new_rows) should be "foo"
     assert res_df.iloc[1]["extra"] == "foo"
 
+
 def test_timestamp_normalization_ts():
     """Verify timestamp normalization when column is named 'ts'."""
     # Given
@@ -71,6 +72,7 @@ def test_timestamp_normalization_ts():
     res_df = result.to_pandas()
     assert len(res_df) == 1
 
+
 def test_empty_new_rows():
     """Verify behavior when no new rows are provided."""
     # Given
@@ -83,6 +85,7 @@ def test_empty_new_rows():
 
     # Then
     assert result.count().execute() == 1
+
 
 def test_ordering():
     """Verify that the result is ordered by timestamp."""
@@ -104,6 +107,7 @@ def test_ordering():
     assert res_df.iloc[0]["id"] == 1  # Should be first due to earlier timestamp
     assert res_df.iloc[1]["id"] == 2
 
+
 def test_supports_alternate_timestamp_column():
     """Verify support for 'timestamp' column name instead of 'ts'."""
     # Given: Schema using "timestamp" instead of "ts"
@@ -120,6 +124,7 @@ def test_supports_alternate_timestamp_column():
     res_df = result.to_pandas()
     assert len(res_df) == 2
     assert res_df.iloc[1]["id"] == 2
+
 
 def test_no_timestamp_column():
     """Verify behavior when neither 'ts' nor 'timestamp' column is present."""

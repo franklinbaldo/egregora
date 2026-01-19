@@ -450,9 +450,9 @@ def compare_two_posts(mock_compare_posts, sample_document_a, sample_document_b):
             engagement_level="high",
         ),
         feedback_b=ReaderFeedback(
-            comment="Good but needs improvement",
-            star_rating=3,
-            engagement_level="medium",
+            comment="Needs significant improvement",
+            star_rating=2,
+            engagement_level="low",
         ),
     )
     mock_compare_posts.return_value = mock_result
