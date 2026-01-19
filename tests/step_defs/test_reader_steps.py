@@ -516,13 +516,19 @@ def simulate_tie(elo_store):
 @when("I generate rankings", target_fixture="rankings")
 def generate_rankings(elo_store):
     """Generate rankings from ELO store."""
-    return elo_store.get_top_posts(limit=None)
+    table = elo_store.get_top_posts(limit=None)
+    # Convert Ibis Table to list of EloRating objects
+    rows = table.execute().to_dict("records")
+    return [elo_store.get_rating(row["post_slug"]) for row in rows]
 
 
 @when(parsers.parse("I request the top {n:d} posts"), target_fixture="top_posts")
 def request_top_posts(elo_store, n):
     """Request top N posts."""
-    return elo_store.get_top_posts(limit=n)
+    table = elo_store.get_top_posts(limit=n)
+    # Convert Ibis Table to list of EloRating objects
+    rows = table.execute().to_dict("records")
+    return [elo_store.get_rating(row["post_slug"]) for row in rows]
 
 
 @when(parsers.parse('I request the comparison history for "{slug}"'), target_fixture="history")
@@ -642,7 +648,8 @@ def run_evaluation(test_posts_dir, reader_config, isolated_fs):
 def query_ratings_table(elo_store, slug):
     """Query ELO ratings table."""
     rating = elo_store.get_rating(slug)
-    history = elo_store.get_comparison_history(slug)
+    history_table = elo_store.get_comparison_history(slug)
+    history = history_table.execute().to_dict("records") if history_table is not None else []
 
     wins = sum(1 for h in history if h.get("winner") == "a" and h.get("post_a_slug") == slug)
     losses = sum(1 for h in history if h.get("winner") == "b" and h.get("post_a_slug") == slug)
