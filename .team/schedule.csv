@@ -87,7 +87,7 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 086,curator,13029375524788487383,2620,merged,
 087,docs_curator,12382839682461468303,2641,open,
 088,essentialist,1852465287552740205,2642,merged,
-089,forge,,,,
+089,forge,6738496798984334813,2643,merged,
 090,janitor,,,,
 091,maintainer,,,,
 092,organizer,,,,
