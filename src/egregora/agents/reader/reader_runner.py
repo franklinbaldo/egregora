@@ -41,16 +41,11 @@ def select_post_pairs(
     ratings.sort(key=lambda item: item[1], reverse=True)
 
     pairs: list[tuple[str, str]] = []
-    total_needed = max(1, (len(post_slugs) * comparisons_per_post) // 2)
     for i in range(len(ratings)):
         for offset in range(1, min(comparisons_per_post + 1, len(ratings))):
             j = (i + offset) % len(ratings)
             if i < j:
                 pairs.append((ratings[i][0], ratings[j][0]))
-                if len(pairs) >= total_needed:
-                    break
-        if len(pairs) >= total_needed:
-            break
 
     logger.info(
         "Selected %d post pairs from %d posts (target %d comparisons/post)",
