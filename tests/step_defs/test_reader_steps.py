@@ -747,20 +747,26 @@ def verify_zero_sum(elo_store):
 @then(parsers.parse('"{underdog}" should gain more points than if it defeated an equal opponent'))
 def verify_upset_bonus(elo_store, underdog):
     """Verify upset victory gives more points."""
-    # An upset victory yields more rating points
-    # This is verified by the ELO calculation
+    # In the scenario: weak (1400) defeats strong (1600)
+    # Expected gain from upset: ~24 points (1400 -> 1424)
+    # Expected gain from equal opponent: 16 points (K/2)
+    # So final rating should be > 1400 + 16 = 1416
     rating = elo_store.get_rating(underdog).rating
-    assert rating > DEFAULT_ELO
+    assert rating > 1416.0, f"Expected {underdog} to gain >16 points, got rating {rating}"
 
 
 @then(parsers.parse('"{favorite}" should lose more points than if it lost to an equal opponent'))
 def verify_upset_penalty(elo_store, favorite):
     """Verify upset loss loses more points."""
+    # In the scenario: strong (1600) loses to weak (1400)
+    # Expected loss from upset: ~24 points (1600 -> 1576)
+    # Expected loss from equal opponent: 16 points (K/2)
+    # So final rating should be < 1600 - 16 = 1584
     rating = elo_store.get_rating(favorite).rating
-    assert rating < DEFAULT_ELO
+    assert rating < 1584.0, f"Expected {favorite} to lose >16 points, got rating {rating}"
 
 
-@then(parsers.parse('"{slug}" rating should remain {expected:f}'))
+@then(parsers.parse('"{slug}" rating should remain {expected:g}'))
 def verify_rating_unchanged(elo_store, slug, expected):
     """Verify rating remains unchanged."""
     rating = elo_store.get_rating(slug).rating
