@@ -82,10 +82,10 @@ Feature: Reader Agent Post Evaluation and ELO Ranking
       | reader_feedback     | yes     |
       | timestamp           | yes     |
 
-  Scenario: ELO ratings table tracks post statistics
-    Given post "tracked-post" has been compared 5 times
-    And "tracked-post" has won 3 times, lost 1 time, and tied 1 time
-    When I query the elo_ratings table for "tracked-post"
+  Scenario: ELO ratings table stores post statistics
+    Given post "stats-post" has been compared 5 times
+    And "stats-post" has won 3 times, lost 1 time, and tied 1 time
+    When I query the elo_ratings table for "stats-post"
     Then the record should show:
       | field       | value |
       | comparisons | 5     |
