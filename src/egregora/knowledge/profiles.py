@@ -215,7 +215,8 @@ def get_active_authors(
     if limit is not None and limit > 0:
         author_counts = (
             query.group_by("author_uuid")
-            .agg(message_count=ibis.count())
+            .count()
+            .rename(message_count="count")
             .sort_by(ibis.desc("message_count"))
             .limit(limit)
         )
