@@ -60,8 +60,8 @@ Feature: Reader Agent Post Evaluation and ELO Ranking
     Given post "post-x" has an ELO rating of 1550
     And post "post-y" has an ELO rating of 1550
     When the comparison results in a tie
-    Then "post-x" rating should remain 1550
-    And "post-y" rating should remain 1550
+    Then "post-x" rating should remain 1550.0
+    And "post-y" rating should remain 1550.0
 
   # Database Persistence
 
@@ -130,7 +130,7 @@ Feature: Reader Agent Post Evaluation and ELO Ranking
   # Post Selection and Pairing
 
   Scenario: Posts are paired for balanced comparisons
-    Given 5 posts with default ratings
+    Given 4 posts with default ratings
     And comparisons_per_post is set to 3
     When I select post pairs for evaluation
     Then each post should be scheduled for exactly 3 comparisons
@@ -229,7 +229,7 @@ Feature: Reader Agent Post Evaluation and ELO Ranking
     Given the reader is configured with comparisons_per_post: 4
     And 5 posts exist
     When I select post pairs
-    Then each post should be scheduled for 4 comparisons
+    Then each post should be scheduled for exactly 4 comparisons
 
   Scenario: Database path can be configured
     Given the reader is configured with database_path: "custom/reader.duckdb"

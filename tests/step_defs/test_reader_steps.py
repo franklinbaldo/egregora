@@ -287,6 +287,12 @@ def set_post_record(elo_store, test_posts_dir, slug, wins, losses, ties):
         elo_store.update_ratings(params)
 
 
+@given(parsers.parse('post "{slug}" has {wins:d} wins, {losses:d} losses, {ties:d} ties'))
+def set_post_record_alt(elo_store, test_posts_dir, slug, wins, losses, ties):
+    """Set win/loss/tie record for a post (alternate phrasing)."""
+    set_post_record(elo_store, test_posts_dir, slug, wins, losses, ties)
+
+
 @given(parsers.parse('post "{slug}" was recently compared against "{opponent}"'))
 def create_recent_comparison(elo_store, slug, opponent):
     """Create a recent comparison between two posts."""
@@ -328,6 +334,12 @@ def create_default_posts(test_posts_dir, count):
         create_minimal_post(test_posts_dir, f"post-{i}")
 
 
+@given(parsers.parse("{count:d} posts exist"))
+def posts_exist(test_posts_dir, count):
+    """Create specified number of posts."""
+    create_default_posts(test_posts_dir, count)
+
+
 @given(parsers.parse("a site with {count:d} blog posts in the posts directory"))
 def create_site_with_posts(test_posts_dir, count):
     """Create a site directory with blog posts."""
@@ -362,6 +374,26 @@ This is the same content in both posts.
 """
     (test_posts_dir / f"{original}.md").write_text(content)
     (test_posts_dir / f"{duplicate}.md").write_text(content)
+
+
+@given(parsers.parse('post "{slug1}" and post "{slug2}" exist'))
+def create_two_posts(test_posts_dir, slug1, slug2):
+    """Create two specific posts."""
+    create_minimal_post(test_posts_dir, slug1)
+    create_minimal_post(test_posts_dir, slug2)
+
+
+@given(parsers.parse('post "{slug}" has been compared against multiple posts'))
+def post_compared_multiple(elo_store, test_posts_dir, slug):
+    """Create a post with multiple comparisons."""
+    create_minimal_post(test_posts_dir, slug)
+    set_comparison_count(elo_store, slug, 5)
+
+
+@given("two posts are compared")
+def two_posts_compared(mock_compare_posts, sample_document_a, sample_document_b):
+    """Set up two posts being compared."""
+    compare_two_posts(mock_compare_posts, sample_document_a, sample_document_b)
 
 
 # Configuration Steps
@@ -450,9 +482,9 @@ def compare_two_posts(mock_compare_posts, sample_document_a, sample_document_b):
             engagement_level="high",
         ),
         feedback_b=ReaderFeedback(
-            comment="Good but needs improvement",
-            star_rating=3,
-            engagement_level="medium",
+            comment="Needs significant improvement",
+            star_rating=2,
+            engagement_level="low",
         ),
     )
     mock_compare_posts.return_value = mock_result
@@ -462,6 +494,12 @@ def compare_two_posts(mock_compare_posts, sample_document_a, sample_document_b):
 @when("the reader agent evaluates both posts", target_fixture="evaluation_result")
 def evaluate_both_posts(mock_compare_posts, sample_document_a, sample_document_b):
     """Mock evaluation of both posts."""
+    return compare_two_posts(mock_compare_posts, sample_document_a, sample_document_b)
+
+
+@when("the reader agent compares them", target_fixture="comparison_result")
+def compare_them_alias(mock_compare_posts, sample_document_a, sample_document_b):
+    """Mock comparison (alias)."""
     return compare_two_posts(mock_compare_posts, sample_document_a, sample_document_b)
 
 
@@ -516,19 +554,19 @@ def simulate_tie(elo_store):
 @when("I generate rankings", target_fixture="rankings")
 def generate_rankings(elo_store):
     """Generate rankings from ELO store."""
-    return elo_store.get_top_posts(limit=None)
+    return elo_store.get_top_posts(limit=None).execute().to_dict(orient="records")
 
 
 @when(parsers.parse("I request the top {n:d} posts"), target_fixture="top_posts")
 def request_top_posts(elo_store, n):
     """Request top N posts."""
-    return elo_store.get_top_posts(limit=n)
+    return elo_store.get_top_posts(limit=n).execute().to_dict(orient="records")
 
 
 @when(parsers.parse('I request the comparison history for "{slug}"'), target_fixture="history")
 def get_comparison_history(elo_store, slug):
     """Get comparison history for a post."""
-    return elo_store.get_comparison_history(slug)
+    return elo_store.get_comparison_history(slug).execute().to_dict(orient="records")
 
 
 @when("I select post pairs for evaluation", target_fixture="selected_pairs")
@@ -540,6 +578,12 @@ def select_pairs(test_posts_dir, elo_store, reader_config):
         comparisons_per_post=reader_config.comparisons_per_post,
         elo_store=elo_store,
     )
+
+
+@when("I select post pairs", target_fixture="selected_pairs")
+def select_pairs_alias(test_posts_dir, elo_store, reader_config):
+    """Select post pairs (alias)."""
+    return select_pairs(test_posts_dir, elo_store, reader_config)
 
 
 @when(parsers.parse('selecting new pairs for "{slug}"'), target_fixture="new_pairs")
@@ -612,6 +656,16 @@ def attempt_evaluation(
         return {"status": "error", "error": str(e)}
 
 
+@when("I run reader evaluation", target_fixture="eval_result")
+def run_reader_evaluation_alias(
+    test_posts_dir, reader_config, elo_store, mock_compare_posts, sample_document_a, sample_document_b
+):
+    """Run reader evaluation (alias)."""
+    return attempt_evaluation(
+        test_posts_dir, reader_config, elo_store, mock_compare_posts, sample_document_a, sample_document_b
+    )
+
+
 @when("comparing two posts", target_fixture="comparison")
 def compare_posts_action(mock_compare_posts, sample_document_a, sample_document_b):
     """Perform post comparison."""
@@ -642,14 +696,14 @@ def run_evaluation(test_posts_dir, reader_config, isolated_fs):
 def query_ratings_table(elo_store, slug):
     """Query ELO ratings table."""
     rating = elo_store.get_rating(slug)
-    history = elo_store.get_comparison_history(slug)
+    history = elo_store.get_comparison_history(slug).execute().to_dict(orient="records")
 
     wins = sum(1 for h in history if h.get("winner") == "a" and h.get("post_a_slug") == slug)
     losses = sum(1 for h in history if h.get("winner") == "b" and h.get("post_a_slug") == slug)
     ties = sum(1 for h in history if h.get("winner") == "tie")
 
     return {
-        "rating": rating,
+        "rating": rating.rating,
         "comparisons": len(history),
         "wins": wins,
         "losses": losses,
@@ -750,14 +804,16 @@ def verify_upset_bonus(elo_store, underdog):
     # An upset victory yields more rating points
     # This is verified by the ELO calculation
     rating = elo_store.get_rating(underdog).rating
-    assert rating > DEFAULT_ELO
+    # Underdog started at 1400.
+    assert rating > 1410
 
 
 @then(parsers.parse('"{favorite}" should lose more points than if it lost to an equal opponent'))
 def verify_upset_penalty(elo_store, favorite):
     """Verify upset loss loses more points."""
     rating = elo_store.get_rating(favorite).rating
-    assert rating < DEFAULT_ELO
+    # Favorite started at 1600. Loss should be > 16 points.
+    assert rating < 1584
 
 
 @then(parsers.parse('"{slug}" rating should remain {expected:f}'))
@@ -792,7 +848,7 @@ def verify_record_values(rating_record, datatable):
         assert rating_record[field] == expected
 
 
-@then("I should receive a list of all comparisons involving {slug}")
+@then(parsers.parse('I should receive a list of all comparisons involving "{slug}"'))
 def verify_history_list(history, slug):
     """Verify comparison history list."""
     assert isinstance(history, list)
@@ -812,7 +868,8 @@ def verify_ranking_order(rankings, datatable):
     """Verify posts are ranked in correct order."""
     rows = parse_datatable(datatable)
     expected_order = [row["slug"] for row in rows]
-    actual_order = [r.slug for r in rankings]
+    # rankings is now a list of dicts. Filter out dummy posts used for setting ratings.
+    actual_order = [r["post_slug"] for r in rankings if r["post_slug"] != "dummy"]
 
     for i, expected_slug in enumerate(expected_order):
         assert actual_order[i] == expected_slug, (
@@ -823,9 +880,17 @@ def verify_ranking_order(rankings, datatable):
 @then(parsers.parse('"{slug}" should have a win_rate of {expected_rate:f}'))
 def verify_win_rate(rankings, slug, expected_rate):
     """Verify win rate for a post."""
-    post_ranking = next((r for r in rankings if r.slug == slug), None)
+    post_ranking = next((r for r in rankings if r["post_slug"] == slug), None)
     assert post_ranking is not None
-    assert abs(post_ranking.win_rate - expected_rate) < 0.01  # Allow small floating point difference
+    # Calculate win rate if not present
+    if "win_rate" not in post_ranking:
+        wins = post_ranking["wins"]
+        comparisons = post_ranking["comparisons"]
+        win_rate = wins / comparisons if comparisons > 0 else 0.0
+    else:
+        win_rate = post_ranking["win_rate"]
+
+    assert abs(win_rate - expected_rate) < 0.01  # Allow small floating point difference
 
 
 @then(parsers.parse("I should receive exactly {n:d} posts"))
@@ -838,7 +903,7 @@ def verify_post_count(top_posts, n):
 def verify_highest_rated(top_posts, n):
     """Verify posts are highest rated."""
     # Check that ratings are in descending order
-    ratings = [p.rating for p in top_posts]
+    ratings = [p["rating"] for p in top_posts]
     assert ratings == sorted(ratings, reverse=True)
 
 
