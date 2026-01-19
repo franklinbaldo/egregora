@@ -70,7 +70,7 @@ def analyze_session_id_patterns() -> SessionIdPatterns | None:
     patterns = {
         "numeric_15plus": [],  # -(\d{15,})$
         "uuid": [],  # -UUID$
-        "from_body_jules_url": [],  # repo.google.com/task/(\d+)
+        "from_body_jules_url": [],  # jules.google.com/task/(\d+)
         "from_body_task": [],  # /task/ID
         "from_body_sessions": [],  # /sessions/ID
         "not_found": [],
@@ -93,7 +93,7 @@ def analyze_session_id_patterns() -> SessionIdPatterns | None:
             patterns["uuid"].append((pr_number, branch, session_id))
         elif re.search(r"-(\d{15,})$", branch):
             patterns["numeric_15plus"].append((pr_number, branch, session_id))
-        elif "repo.google.com/task/" in body:
+        elif "jules.google.com/task/" in body:
             patterns["from_body_jules_url"].append((pr_number, branch, session_id))
         elif "/task/" in body:
             patterns["from_body_task"].append((pr_number, branch, session_id))
