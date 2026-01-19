@@ -1,5 +1,7 @@
 """Step definitions for Reader Agent BDD features."""
 
+import uuid
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -18,8 +20,9 @@ from egregora.agents.reader.reader_runner import (
     select_post_pairs,
 )
 from egregora.config.settings import ReaderSettings
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.database.elo_store import EloStore
+from egregora.database.elo_store import EloRating, EloStore
 
 # Load all scenarios from the reader.feature file
 scenarios("../features/reader.feature")
@@ -149,17 +152,18 @@ def create_unevaluated_post(test_posts_dir, slug):
 @given(parsers.parse('post "{slug}" has an ELO rating of {rating:d}'))
 def set_post_rating(elo_store, slug, rating):
     """Set a specific ELO rating for a post."""
-    elo_store.update_ratings(
-        post_a_slug=slug,
-        post_b_slug="dummy",
-        winner="tie",
-        rating_a_before=float(rating),
-        rating_a_after=float(rating),
-        rating_b_before=DEFAULT_ELO,
-        rating_b_after=DEFAULT_ELO,
-        feedback_a={},
-        feedback_b={},
+    now = datetime.now(UTC)
+    rating_data = EloRating(
+        post_slug=slug,
+        rating=float(rating),
+        comparisons=0,
+        wins=0,
+        losses=0,
+        ties=0,
+        last_updated=now,
+        created_at=now,
     )
+    elo_store._upsert_rating(rating_data)
 
 
 @given(parsers.parse('post "{slug}" has been compared {count:d} times'))
@@ -167,18 +171,19 @@ def set_comparison_count(elo_store, slug, count):
     """Set comparison count for a post."""
     for i in range(count):
         elo_store.update_ratings(
-            post_a_slug=slug,
-            post_b_slug=f"opponent-{i}",
-            winner="tie",
-            rating_a_before=DEFAULT_ELO,
-            rating_a_after=DEFAULT_ELO,
-            rating_b_before=DEFAULT_ELO,
-            rating_b_after=DEFAULT_ELO,
-            feedback_a={},
-            feedback_b={},
+            EloStore.UpdateParams(
+                post_a_slug=slug,
+                post_b_slug=f"opponent-{i}",
+                winner="tie",
+                rating_a_new=DEFAULT_ELO,
+                rating_b_new=DEFAULT_ELO,
+                comparison_id=str(uuid.uuid4()),
+                reader_feedback="{}",
+            )
         )
 
 
+@given(parsers.parse('post "{slug}" has {wins:d} wins, {losses:d} losses, {ties:d} ties'))
 @given(parsers.parse('"{slug}" has won {wins:d} times, lost {losses:d} time, and tied {ties:d} time'))
 def set_post_record(elo_store, test_posts_dir, slug, wins, losses, ties):
     """Set win/loss/tie record for a post."""
@@ -187,59 +192,65 @@ def set_post_record(elo_store, test_posts_dir, slug, wins, losses, ties):
     # Create wins
     for i in range(wins):
         elo_store.update_ratings(
-            post_a_slug=slug,
-            post_b_slug=f"loser-{i}",
-            winner="a",
-            rating_a_before=DEFAULT_ELO,
-            rating_a_after=DEFAULT_ELO + 16,
-            rating_b_before=DEFAULT_ELO,
-            rating_b_after=DEFAULT_ELO - 16,
-            feedback_a={},
-            feedback_b={},
+            EloStore.UpdateParams(
+                post_a_slug=slug,
+                post_b_slug=f"loser-{i}",
+                winner="a",
+                rating_a_new=DEFAULT_ELO + 16,
+                rating_b_new=DEFAULT_ELO - 16,
+                comparison_id=str(uuid.uuid4()),
+                reader_feedback="{}",
+            )
         )
 
     # Create losses
     for i in range(losses):
         elo_store.update_ratings(
-            post_a_slug=slug,
-            post_b_slug=f"winner-{i}",
-            winner="b",
-            rating_a_before=DEFAULT_ELO,
-            rating_a_after=DEFAULT_ELO - 16,
-            rating_b_before=DEFAULT_ELO,
-            rating_b_after=DEFAULT_ELO + 16,
-            feedback_a={},
-            feedback_b={},
+            EloStore.UpdateParams(
+                post_a_slug=slug,
+                post_b_slug=f"winner-{i}",
+                winner="b",
+                rating_a_new=DEFAULT_ELO - 16,
+                rating_b_new=DEFAULT_ELO + 16,
+                comparison_id=str(uuid.uuid4()),
+                reader_feedback="{}",
+            )
         )
 
     # Create ties
     for i in range(ties):
         elo_store.update_ratings(
-            post_a_slug=slug,
-            post_b_slug=f"tie-{i}",
-            winner="tie",
-            rating_a_before=DEFAULT_ELO,
-            rating_a_after=DEFAULT_ELO,
-            rating_b_before=DEFAULT_ELO,
-            rating_b_after=DEFAULT_ELO,
-            feedback_a={},
-            feedback_b={},
+            EloStore.UpdateParams(
+                post_a_slug=slug,
+                post_b_slug=f"tie-{i}",
+                winner="tie",
+                rating_a_new=DEFAULT_ELO,
+                rating_b_new=DEFAULT_ELO,
+                comparison_id=str(uuid.uuid4()),
+                reader_feedback="{}",
+            )
         )
+
+
+@given(parsers.parse('post "{slug}" has been compared against multiple posts'))
+def set_multiple_comparisons(elo_store, slug):
+    """Set multiple comparisons for a post."""
+    set_comparison_count(elo_store, slug, 5)
 
 
 @given(parsers.parse('post "{slug}" was recently compared against "{opponent}"'))
 def create_recent_comparison(elo_store, slug, opponent):
     """Create a recent comparison between two posts."""
     elo_store.update_ratings(
-        post_a_slug=slug,
-        post_b_slug=opponent,
-        winner="tie",
-        rating_a_before=DEFAULT_ELO,
-        rating_a_after=DEFAULT_ELO,
-        rating_b_before=DEFAULT_ELO,
-        rating_b_after=DEFAULT_ELO,
-        feedback_a={},
-        feedback_b={},
+        EloStore.UpdateParams(
+            post_a_slug=slug,
+            post_b_slug=opponent,
+            winner="tie",
+            rating_a_new=DEFAULT_ELO,
+            rating_b_new=DEFAULT_ELO,
+            comparison_id=str(uuid.uuid4()),
+            reader_feedback="{}",
+        )
     )
 
 
@@ -247,8 +258,16 @@ def create_recent_comparison(elo_store, slug, opponent):
 def create_rated_posts(test_posts_dir, elo_store, datatable):
     """Create multiple posts with specific ratings."""
     for row in datatable:
-        slug = row["slug"]
-        rating = float(row["rating"])
+        if isinstance(row, (list, tuple)):
+            if row[0] == "slug":
+                continue
+            slug = row[0]
+            rating = row[1]
+        else:
+            slug = row["slug"]
+            rating = row["rating"]
+
+        rating = float(rating)
         create_minimal_post(test_posts_dir, slug)
         set_post_rating(elo_store, slug, int(rating))
 
@@ -263,6 +282,7 @@ def create_multiple_posts(test_posts_dir, elo_store, count):
         set_post_rating(elo_store, slug, int(rating))
 
 
+@given(parsers.parse("{count:d} posts exist"))
 @given(parsers.parse("{count:d} posts with default ratings"))
 def create_default_posts(test_posts_dir, count):
     """Create posts with default ratings."""
@@ -359,6 +379,12 @@ def verify_system_prompt():
     # This is a verification step
 
 
+@given("two posts are compared")
+def given_posts_compared(mock_compare_posts):
+    """Ensure two posts are compared."""
+    compare_two_posts(mock_compare_posts)
+
+
 @given("posts have been evaluated")
 def posts_evaluated(test_posts_dir, elo_store, mock_compare_posts):
     """Ensure posts have been evaluated."""
@@ -366,25 +392,40 @@ def posts_evaluated(test_posts_dir, elo_store, mock_compare_posts):
     for i in range(3):
         create_minimal_post(test_posts_dir, f"post-{i}")
         elo_store.update_ratings(
-            post_a_slug=f"post-{i}",
-            post_b_slug=f"post-{(i + 1) % 3}",
-            winner="a",
-            rating_a_before=DEFAULT_ELO,
-            rating_a_after=DEFAULT_ELO + 16,
-            rating_b_before=DEFAULT_ELO,
-            rating_b_after=DEFAULT_ELO - 16,
-            feedback_a={},
-            feedback_b={},
+            EloStore.UpdateParams(
+                post_a_slug=f"post-{i}",
+                post_b_slug=f"post-{(i + 1) % 3}",
+                winner="a",
+                rating_a_new=DEFAULT_ELO + 16,
+                rating_b_new=DEFAULT_ELO - 16,
+                comparison_id=str(uuid.uuid4()),
+                reader_feedback="{}",
+            )
         )
 
 
 # When Steps (Actions)
 
 
+@when("the reader agent compares them", target_fixture="comparison_result")
 @when("the reader agent compares the two posts", target_fixture="comparison_result")
 def compare_two_posts(mock_compare_posts):
     """Mock comparison of two posts."""
+    post_a = Document(
+        content="Post A Content",
+        type=DocumentType.POST,
+        metadata={"slug": "post-a"},
+        id="post-a",
+    )
+    post_b = Document(
+        content="Post B Content",
+        type=DocumentType.POST,
+        metadata={"slug": "post-b"},
+        id="post-b",
+    )
     mock_result = PostComparison(
+        post_a=post_a,
+        post_b=post_b,
         winner="a",
         reasoning="Post A has better structure and clarity",
         feedback_a=ReaderFeedback(
@@ -428,15 +469,15 @@ def simulate_comparison_win(elo_store, winner, loser):
     )
 
     elo_store.update_ratings(
-        post_a_slug=winner,
-        post_b_slug=loser,
-        winner="a",
-        rating_a_before=rating_a,
-        rating_a_after=new_a,
-        rating_b_before=rating_b,
-        rating_b_after=new_b,
-        feedback_a={},
-        feedback_b={},
+        EloStore.UpdateParams(
+            post_a_slug=winner,
+            post_b_slug=loser,
+            winner="a",
+            rating_a_new=new_a,
+            rating_b_new=new_b,
+            comparison_id=str(uuid.uuid4()),
+            reader_feedback="{}",
+        )
     )
 
 
@@ -450,15 +491,15 @@ def simulate_upset(elo_store, reader_config, underdog, favorite):
 def simulate_tie(elo_store):
     """Simulate a tie comparison."""
     elo_store.update_ratings(
-        post_a_slug="post-x",
-        post_b_slug="post-y",
-        winner="tie",
-        rating_a_before=1550.0,
-        rating_a_after=1550.0,
-        rating_b_before=1550.0,
-        rating_b_after=1550.0,
-        feedback_a={},
-        feedback_b={},
+        EloStore.UpdateParams(
+            post_a_slug="post-x",
+            post_b_slug="post-y",
+            winner="tie",
+            rating_a_new=1550.0,
+            rating_b_new=1550.0,
+            comparison_id=str(uuid.uuid4()),
+            reader_feedback="{}",
+        )
     )
 
 
@@ -480,6 +521,7 @@ def get_comparison_history(elo_store, slug):
     return elo_store.get_comparison_history(slug)
 
 
+@when("I select post pairs", target_fixture="selected_pairs")
 @when("I select post pairs for evaluation", target_fixture="selected_pairs")
 def select_pairs(test_posts_dir, elo_store, reader_config):
     """Select post pairs for evaluation."""
@@ -506,7 +548,11 @@ def select_new_pairs(test_posts_dir, elo_store, reader_config, slug):
 def run_reader_cli(test_posts_dir, reader_config, mock_compare_posts):
     """Run reader evaluation via CLI."""
     # Mock successful comparisons
+    post_a = Document(content="Post A", type=DocumentType.POST, metadata={"slug": "post-a"}, id="post-a")
+    post_b = Document(content="Post B", type=DocumentType.POST, metadata={"slug": "post-b"}, id="post-b")
     mock_compare_posts.return_value = PostComparison(
+        post_a=post_a,
+        post_b=post_b,
         winner="a",
         reasoning="Post A is better",
         feedback_a=ReaderFeedback(comment="Good", star_rating=4, engagement_level="high"),
@@ -520,7 +566,11 @@ def run_reader_cli(test_posts_dir, reader_config, mock_compare_posts):
 @when(parsers.parse('I run "egregora read <site_root> --model {model}"'), target_fixture="cli_model_result")
 def run_reader_with_model(test_posts_dir, model, mock_compare_posts):
     """Run reader with specific model."""
+    post_a = Document(content="Post A", type=DocumentType.POST, metadata={"slug": "post-a"}, id="post-a")
+    post_b = Document(content="Post B", type=DocumentType.POST, metadata={"slug": "post-b"}, id="post-b")
     mock_compare_posts.return_value = PostComparison(
+        post_a=post_a,
+        post_b=post_b,
         winner="a",
         reasoning="Good",
         feedback_a=ReaderFeedback(comment="Good", star_rating=4, engagement_level="high"),
@@ -529,6 +579,7 @@ def run_reader_with_model(test_posts_dir, model, mock_compare_posts):
     return {"model_used": model, "status": "success"}
 
 
+@when("I run reader evaluation", target_fixture="eval_result")
 @when("I attempt to run reader evaluation", target_fixture="eval_result")
 def attempt_evaluation(test_posts_dir, reader_config, elo_store, mock_compare_posts):
     """Attempt to run reader evaluation."""
@@ -541,7 +592,11 @@ def attempt_evaluation(test_posts_dir, reader_config, elo_store, mock_compare_po
             return {"status": "insufficient_posts", "count": len(post_files)}
 
         # Mock comparison result
+        post_a = Document(content="Post A", type=DocumentType.POST, metadata={"slug": "post-a"}, id="post-a")
+        post_b = Document(content="Post B", type=DocumentType.POST, metadata={"slug": "post-b"}, id="post-b")
         mock_compare_posts.return_value = PostComparison(
+            post_a=post_a,
+            post_b=post_b,
             winner="a",
             reasoning="Post A is better",
             feedback_a=ReaderFeedback(comment="Good", star_rating=4, engagement_level="high"),
@@ -583,7 +638,8 @@ def run_evaluation(test_posts_dir, reader_config, isolated_fs):
 def query_ratings_table(elo_store, slug):
     """Query ELO ratings table."""
     rating = elo_store.get_rating(slug)
-    history = elo_store.get_comparison_history(slug)
+    history_table = elo_store.get_comparison_history(slug)
+    history = history_table.execute().to_dict("records")
 
     wins = sum(1 for h in history if h.get("winner") == "a" and h.get("post_a_slug") == slug)
     losses = sum(1 for h in history if h.get("winner") == "b" and h.get("post_a_slug") == slug)
@@ -610,6 +666,7 @@ def verify_comparison_result(comparison_result):
 @then(parsers.parse('the result should include a winner ("{winners}")'))
 def verify_winner(comparison_result, winners):
     """Verify result includes a winner."""
+    _ = winners
     assert comparison_result.winner in ["a", "b", "tie"]
 
 
@@ -748,8 +805,21 @@ def verify_history_details(history):
 @then("the posts should be ranked in order:")
 def verify_ranking_order(rankings, datatable):
     """Verify posts are ranked in correct order."""
-    expected_order = [row["slug"] for row in datatable]
-    actual_order = [r.slug for r in rankings]
+    expected_order = []
+    for row in datatable:
+        if isinstance(row, (list, tuple)):
+            if row[0] == "rank":
+                continue
+            expected_order.append(row[1])
+        else:
+            expected_order.append(row["slug"])
+
+    if hasattr(rankings, "execute"):
+        # Ibis table
+        actual_order = [r.post_slug for r in rankings.execute().itertuples()]
+    else:
+        # Assuming list of EloRating or similar
+        actual_order = [r.slug for r in rankings]
 
     for i, expected_slug in enumerate(expected_order):
         assert actual_order[i] == expected_slug, (
@@ -768,7 +838,11 @@ def verify_win_rate(rankings, slug, expected_rate):
 @then(parsers.parse("I should receive exactly {n:d} posts"))
 def verify_post_count(top_posts, n):
     """Verify correct number of posts returned."""
-    assert len(top_posts) == n
+    if hasattr(top_posts, "execute"):
+        results = top_posts.execute()
+        assert len(results) == n
+    else:
+        assert len(top_posts) == n
 
 
 @then(parsers.parse("they should be the {n:d} highest-rated posts"))
@@ -779,6 +853,7 @@ def verify_highest_rated(top_posts, n):
     assert ratings == sorted(ratings, reverse=True)
 
 
+@then(parsers.parse("each post should be scheduled for {count:d} comparisons"))
 @then(parsers.parse("each post should be scheduled for exactly {count:d} comparisons"))
 def verify_pairing_count(selected_pairs, count):
     """Verify each post gets correct number of comparisons."""
@@ -842,7 +917,15 @@ def verify_rankings_displayed(cli_result):
 @then("the output should display a table with columns:")
 def verify_table_columns(cli_result, datatable):
     """Verify table has correct columns."""
-    expected_columns = [row["column"] for row in datatable]
+    expected_columns = []
+    for row in datatable:
+        if isinstance(row, (list, tuple)):
+            if row[0] == "column":
+                continue
+            expected_columns.append(row[0])
+        else:
+            expected_columns.append(row["column"])
+
     # This would check CLI output format
     assert len(expected_columns) > 0
 
@@ -909,7 +992,20 @@ def verify_similarity_noted(comparison_result):
 @then("the evaluation should consider:")
 def verify_criteria_considered(datatable):
     """Verify evaluation considers all criteria."""
-    criteria = [row["criterion"] for row in datatable]
+    criteria = []
+    for row in datatable:
+        if isinstance(row, dict):
+            criteria.append(row["criterion"])
+        elif isinstance(row, (list, tuple)):
+            if row[0] == "criterion":
+                continue  # Skip header
+            criteria.append(row[0])
+        else:
+            try:
+                criteria.append(row["criterion"])
+            except (TypeError, KeyError, IndexError):
+                criteria.append(str(row))
+
     # System prompt includes these criteria
     expected_criteria = ["Clarity", "Engagement", "Insight", "Structure", "Authenticity"]
     for criterion in criteria:
