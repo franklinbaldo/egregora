@@ -1,29 +1,23 @@
 """Step definitions for Reader Agent BDD features."""
 
-import json
-from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
-from egregora.agents.reader.agent import compare_posts
 from egregora.agents.reader.elo import (
     DEFAULT_ELO,
     DEFAULT_K_FACTOR,
     calculate_elo_update,
 )
 from egregora.agents.reader.models import (
-    EvaluationRequest,
     PostComparison,
     ReaderFeedback,
 )
 from egregora.agents.reader.reader_runner import (
-    run_reader_evaluation,
     select_post_pairs,
 )
-from egregora.config.settings import EgregoraConfig, ReaderSettings
+from egregora.config.settings import ReaderSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
@@ -32,7 +26,81 @@ from egregora.database.elo_store import EloStore
 scenarios("../features/reader.feature")
 
 
+# Helper Functions
+
+
+def parse_datatable(datatable):
+    """Parse datatable into list of dicts with header as keys.
+
+    Args:
+        datatable: Raw datatable from pytest-bdd (list of lists)
+
+    Returns:
+        List of dictionaries where keys are from the header row
+
+    """
+    if not datatable or len(datatable) < 2:
+        return []
+
+    headers = datatable[0]
+    return [dict(zip(headers, row, strict=False)) for row in datatable[1:]]
+
+
+def create_update_params(
+    post_a_slug: str,
+    post_b_slug: str,
+    winner: str,
+    rating_a_new: float,
+    rating_b_new: float,
+    comparison_id: str | None = None,
+) -> EloStore.UpdateParams:
+    """Create UpdateParams for EloStore.
+
+    Args:
+        post_a_slug: Slug of post A
+        post_b_slug: Slug of post B
+        winner: Winner ("a", "b", or "tie")
+        rating_a_new: New rating for post A
+        rating_b_new: New rating for post B
+        comparison_id: Optional comparison ID
+
+    Returns:
+        UpdateParams object
+
+    """
+    import uuid
+
+    return EloStore.UpdateParams(
+        post_a_slug=post_a_slug,
+        post_b_slug=post_b_slug,
+        rating_a_new=rating_a_new,
+        rating_b_new=rating_b_new,
+        winner=winner,
+        comparison_id=comparison_id or str(uuid.uuid4()),
+    )
+
+
 # Fixtures
+
+
+@pytest.fixture
+def sample_document_a():
+    """Create sample Document A for testing."""
+    return Document(
+        content="# Post A\n\nThis is post A about Python best practices.",
+        type=DocumentType.POST,
+        metadata={"slug": "post-a", "title": "Post A"},
+    )
+
+
+@pytest.fixture
+def sample_document_b():
+    """Create sample Document B for testing."""
+    return Document(
+        content="# Post B\n\nThis is post B about TypeScript tips.",
+        type=DocumentType.POST,
+        metadata={"slug": "post-b", "title": "Post B"},
+    )
 
 
 @pytest.fixture
@@ -156,17 +224,14 @@ def create_unevaluated_post(test_posts_dir, slug):
 @given(parsers.parse('post "{slug}" has an ELO rating of {rating:d}'))
 def set_post_rating(elo_store, slug, rating):
     """Set a specific ELO rating for a post."""
-    elo_store.update_ratings(
+    params = create_update_params(
         post_a_slug=slug,
         post_b_slug="dummy",
         winner="tie",
-        rating_a_before=float(rating),
-        rating_a_after=float(rating),
-        rating_b_before=DEFAULT_ELO,
-        rating_b_after=DEFAULT_ELO,
-        feedback_a={},
-        feedback_b={},
+        rating_a_new=float(rating),
+        rating_b_new=DEFAULT_ELO,
     )
+    elo_store.update_ratings(params)
 
 
 @given(parsers.parse('post "{slug}" has been compared {count:d} times'))
@@ -253,7 +318,8 @@ def create_recent_comparison(elo_store, slug, opponent):
 @given("multiple posts with different ELO ratings:")
 def create_rated_posts(test_posts_dir, elo_store, datatable):
     """Create multiple posts with specific ratings."""
-    for row in datatable:
+    rows = parse_datatable(datatable)
+    for row in rows:
         slug = row["slug"]
         rating = float(row["rating"])
         create_minimal_post(test_posts_dir, slug)
@@ -277,7 +343,7 @@ def create_default_posts(test_posts_dir, count):
         create_minimal_post(test_posts_dir, f"post-{i}")
 
 
-@given(parsers.parse('a site with {count:d} blog posts in the posts directory'))
+@given(parsers.parse("a site with {count:d} blog posts in the posts directory"))
 def create_site_with_posts(test_posts_dir, count):
     """Create a site directory with blog posts."""
     for i in range(count):
@@ -328,19 +394,19 @@ def set_k_factor(reader_config, k_factor):
     reader_config.k_factor = k_factor
 
 
-@given(parsers.parse('the reader is configured with enabled: {enabled}'))
+@given(parsers.parse("the reader is configured with enabled: {enabled}"))
 def set_reader_enabled(reader_config, enabled):
     """Set reader enabled/disabled."""
     reader_config.enabled = enabled.lower() == "true"
 
 
-@given(parsers.parse('the reader is configured with k_factor: {k_factor:d}'))
+@given(parsers.parse("the reader is configured with k_factor: {k_factor:d}"))
 def configure_k_factor(reader_config, k_factor):
     """Configure K-factor."""
     reader_config.k_factor = k_factor
 
 
-@given(parsers.parse('the reader is configured with comparisons_per_post: {count:d}'))
+@given(parsers.parse("the reader is configured with comparisons_per_post: {count:d}"))
 def configure_comparisons(reader_config, count):
     """Configure comparisons per post."""
     reader_config.comparisons_per_post = count
@@ -364,7 +430,6 @@ def verify_system_prompt():
     """Verify system prompt exists."""
     # The system prompt is loaded from the prompts directory
     # This is a verification step
-    pass
 
 
 @given("posts have been evaluated")
@@ -375,7 +440,7 @@ def posts_evaluated(test_posts_dir, elo_store, mock_compare_posts):
         create_minimal_post(test_posts_dir, f"post-{i}")
         elo_store.update_ratings(
             post_a_slug=f"post-{i}",
-            post_b_slug=f"post-{(i+1)%3}",
+            post_b_slug=f"post-{(i + 1) % 3}",
             winner="a",
             rating_a_before=DEFAULT_ELO,
             rating_a_after=DEFAULT_ELO + 16,
@@ -390,9 +455,11 @@ def posts_evaluated(test_posts_dir, elo_store, mock_compare_posts):
 
 
 @when("the reader agent compares the two posts", target_fixture="comparison_result")
-def compare_two_posts(mock_compare_posts):
+def compare_two_posts(mock_compare_posts, sample_document_a, sample_document_b):
     """Mock comparison of two posts."""
     mock_result = PostComparison(
+        post_a=sample_document_a,
+        post_b=sample_document_b,
         winner="a",
         reasoning="Post A has better structure and clarity",
         feedback_a=ReaderFeedback(
@@ -411,9 +478,9 @@ def compare_two_posts(mock_compare_posts):
 
 
 @when("the reader agent evaluates both posts", target_fixture="evaluation_result")
-def evaluate_both_posts(mock_compare_posts):
+def evaluate_both_posts(mock_compare_posts, sample_document_a, sample_document_b):
     """Mock evaluation of both posts."""
-    return compare_two_posts(mock_compare_posts)
+    return compare_two_posts(mock_compare_posts, sample_document_a, sample_document_b)
 
 
 @when(parsers.parse('I check the ELO rating for "{slug}"'), target_fixture="rating_result")
@@ -511,10 +578,12 @@ def select_new_pairs(test_posts_dir, elo_store, reader_config, slug):
 
 
 @when(parsers.parse('I run "egregora read <site_root>"'), target_fixture="cli_result")
-def run_reader_cli(test_posts_dir, reader_config, mock_compare_posts):
+def run_reader_cli(test_posts_dir, reader_config, mock_compare_posts, sample_document_a, sample_document_b):
     """Run reader evaluation via CLI."""
     # Mock successful comparisons
     mock_compare_posts.return_value = PostComparison(
+        post_a=sample_document_a,
+        post_b=sample_document_b,
         winner="a",
         reasoning="Post A is better",
         feedback_a=ReaderFeedback(comment="Good", star_rating=4, engagement_level="high"),
@@ -526,9 +595,11 @@ def run_reader_cli(test_posts_dir, reader_config, mock_compare_posts):
 
 
 @when(parsers.parse('I run "egregora read <site_root> --model {model}"'), target_fixture="cli_model_result")
-def run_reader_with_model(test_posts_dir, model, mock_compare_posts):
+def run_reader_with_model(test_posts_dir, model, mock_compare_posts, sample_document_a, sample_document_b):
     """Run reader with specific model."""
     mock_compare_posts.return_value = PostComparison(
+        post_a=sample_document_a,
+        post_b=sample_document_b,
         winner="a",
         reasoning="Good",
         feedback_a=ReaderFeedback(comment="Good", star_rating=4, engagement_level="high"),
@@ -538,7 +609,9 @@ def run_reader_with_model(test_posts_dir, model, mock_compare_posts):
 
 
 @when("I attempt to run reader evaluation", target_fixture="eval_result")
-def attempt_evaluation(test_posts_dir, reader_config, elo_store, mock_compare_posts):
+def attempt_evaluation(
+    test_posts_dir, reader_config, elo_store, mock_compare_posts, sample_document_a, sample_document_b
+):
     """Attempt to run reader evaluation."""
     try:
         if not reader_config.enabled:
@@ -550,6 +623,8 @@ def attempt_evaluation(test_posts_dir, reader_config, elo_store, mock_compare_po
 
         # Mock comparison result
         mock_compare_posts.return_value = PostComparison(
+            post_a=sample_document_a,
+            post_b=sample_document_b,
             winner="a",
             reasoning="Post A is better",
             feedback_a=ReaderFeedback(comment="Good", star_rating=4, engagement_level="high"),
@@ -562,21 +637,21 @@ def attempt_evaluation(test_posts_dir, reader_config, elo_store, mock_compare_po
 
 
 @when("comparing two posts", target_fixture="comparison")
-def compare_posts_action(mock_compare_posts):
+def compare_posts_action(mock_compare_posts, sample_document_a, sample_document_b):
     """Perform post comparison."""
-    return compare_two_posts(mock_compare_posts)
+    return compare_two_posts(mock_compare_posts, sample_document_a, sample_document_b)
 
 
 @when("the comparison completes", target_fixture="completed_comparison")
-def comparison_completes(mock_compare_posts):
+def comparison_completes(mock_compare_posts, sample_document_a, sample_document_b):
     """Wait for comparison to complete."""
-    return compare_two_posts(mock_compare_posts)
+    return compare_two_posts(mock_compare_posts, sample_document_a, sample_document_b)
 
 
 @when("posts are compared")
-def posts_compared(mock_compare_posts):
+def posts_compared(mock_compare_posts, sample_document_a, sample_document_b):
     """Simulate posts being compared."""
-    compare_two_posts(mock_compare_posts)
+    compare_two_posts(mock_compare_posts, sample_document_a, sample_document_b)
 
 
 @when("reader evaluation runs", target_fixture="run_result")
@@ -615,8 +690,8 @@ def verify_comparison_result(comparison_result):
     assert comparison_result is not None
 
 
-@then(parsers.parse('the result should include a winner ("{winners}")'))
-def verify_winner(comparison_result, winners):
+@then('the result should include a winner ("a", "b", or "tie")')
+def verify_winner(comparison_result):
     """Verify result includes a winner."""
     assert comparison_result.winner in ["a", "b", "tie"]
 
@@ -639,9 +714,14 @@ def verify_feedback(comparison_result):
 def verify_post_feedback(evaluation_result, slug, datatable):
     """Verify post receives specific feedback."""
     # Get the appropriate feedback based on slug
-    feedback = evaluation_result.feedback_a if slug.endswith("a") or "engaging" in slug else evaluation_result.feedback_b
+    feedback = (
+        evaluation_result.feedback_a
+        if slug.endswith("a") or "engaging" in slug
+        else evaluation_result.feedback_b
+    )
 
-    for row in datatable:
+    rows = parse_datatable(datatable)
+    for row in rows:
         field = row["field"]
         expected = row["value"]
 
@@ -686,7 +766,6 @@ def verify_zero_sum(elo_store):
     """Verify rating changes sum to zero."""
     # In ELO system, rating changes should be zero-sum
     # This is inherently true in the implementation
-    pass
 
 
 @then(parsers.parse('"{underdog}" should gain more points than if it defeated an equal opponent'))
@@ -716,21 +795,22 @@ def verify_rating_unchanged(elo_store, slug, expected):
 def verify_comparison_record(elo_store):
     """Verify comparison record exists."""
     # Check that comparison history exists
-    pass
 
 
 @then("the record should include:")
 def verify_record_fields(datatable):
     """Verify record has required fields."""
     # This checks the schema, which is enforced by the database
-    required_fields = [row["field"] for row in datatable if row["present"] == "yes"]
+    rows = parse_datatable(datatable)
+    required_fields = [row["field"] for row in rows if row["present"] == "yes"]
     assert len(required_fields) > 0
 
 
 @then("the record should show:")
 def verify_record_values(rating_record, datatable):
     """Verify record values match expected."""
-    for row in datatable:
+    rows = parse_datatable(datatable)
+    for row in rows:
         field = row["field"]
         expected = int(row["value"])
         assert rating_record[field] == expected
@@ -754,11 +834,14 @@ def verify_history_details(history):
 @then("the posts should be ranked in order:")
 def verify_ranking_order(rankings, datatable):
     """Verify posts are ranked in correct order."""
-    expected_order = [row["slug"] for row in datatable]
+    rows = parse_datatable(datatable)
+    expected_order = [row["slug"] for row in rows]
     actual_order = [r.slug for r in rankings]
 
     for i, expected_slug in enumerate(expected_order):
-        assert actual_order[i] == expected_slug, f"Expected {expected_slug} at rank {i+1}, got {actual_order[i]}"
+        assert actual_order[i] == expected_slug, (
+            f"Expected {expected_slug} at rank {i + 1}, got {actual_order[i]}"
+        )
 
 
 @then(parsers.parse('"{slug}" should have a win_rate of {expected_rate:f}'))
@@ -792,7 +875,7 @@ def verify_pairing_count(selected_pairs, count):
         post_counts[post_a] = post_counts.get(post_a, 0) + 1
         post_counts[post_b] = post_counts.get(post_b, 0) + 1
 
-    for post, pair_count in post_counts.items():
+    for pair_count in post_counts.values():
         assert pair_count == count
 
 
@@ -835,7 +918,6 @@ def verify_comparisons_performed(cli_result):
 def verify_ratings_updated(elo_store):
     """Verify ratings were updated."""
     # Check that ratings exist in database
-    pass
 
 
 @then("rankings should be displayed in a table")
@@ -847,7 +929,8 @@ def verify_rankings_displayed(cli_result):
 @then("the output should display a table with columns:")
 def verify_table_columns(cli_result, datatable):
     """Verify table has correct columns."""
-    expected_columns = [row["column"] for row in datatable]
+    rows = parse_datatable(datatable)
+    expected_columns = [row["column"] for row in rows]
     # This would check CLI output format
     assert len(expected_columns) > 0
 
@@ -914,7 +997,8 @@ def verify_similarity_noted(comparison_result):
 @then("the evaluation should consider:")
 def verify_criteria_considered(datatable):
     """Verify evaluation considers all criteria."""
-    criteria = [row["criterion"] for row in datatable]
+    rows = parse_datatable(datatable)
+    criteria = [row["criterion"] for row in rows]
     # System prompt includes these criteria
     expected_criteria = ["Clarity", "Engagement", "Insight", "Structure", "Authenticity"]
     for criterion in criteria:

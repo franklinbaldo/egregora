@@ -1,13 +1,15 @@
 """Tests for constraints on the unified 'documents' table."""
 
-import pytest
 import duckdb
+import pytest
+
+from egregora.database.migrations import migrate_documents_table
 from egregora.database.schemas import (
     UNIFIED_SCHEMA,
     create_table_if_not_exists,
     get_table_check_constraints,
 )
-from egregora.database.migrations import migrate_documents_table
+
 
 @pytest.fixture
 def duckdb_conn():
@@ -15,6 +17,7 @@ def duckdb_conn():
     conn = duckdb.connect(":memory:")
     yield conn
     conn.close()
+
 
 class TestDocumentsSchemaConstraints:
     """Test constraints for the unified documents table."""
@@ -90,7 +93,7 @@ class TestDocumentsSchemaConstraints:
 
         # Now constraints should be enforced
         with pytest.raises(duckdb.ConstraintException, match="CHECK constraint"):
-             duckdb_conn.execute(
+            duckdb_conn.execute(
                 """
                 INSERT INTO documents (id, doc_type, content, status, title, slug)
                 VALUES ('new', 'post', 'content', 'published', NULL, 'slug')
