@@ -1,15 +1,11 @@
 """Behavioral tests for MkDocsAdapter."""
 
-import shutil
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
 import pytest
-import yaml
 
-from egregora.data_primitives.document import Document, DocumentType, UrlContext
-from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.output_adapters.exceptions import AdapterNotInitializedError
+from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
+
 
 @pytest.fixture
 def site_root(tmp_path):
@@ -20,11 +16,13 @@ def site_root(tmp_path):
     (root / "docs").mkdir()
     return root
 
+
 @pytest.fixture
 def adapter(site_root):
     adapter = MkDocsAdapter()
     adapter.initialize(site_root)
     return adapter
+
 
 def test_initialize_sets_up_directories(site_root):
     """Verify initialization creates necessary directories."""
@@ -41,13 +39,14 @@ def test_initialize_sets_up_directories(site_root):
     assert (site_root / "docs" / "posts" / "profiles").exists()
     assert adapter._initialized
 
+
 def test_persist_post(adapter, site_root):
     """Verify persisting a POST document."""
     # Given
     doc = Document(
         content="Post content",
         type=DocumentType.POST,
-        metadata={"slug": "test-post", "date": "2023-01-01", "title": "Test Post"}
+        metadata={"slug": "test-post", "date": "2023-01-01", "title": "Test Post"},
     )
 
     # When
@@ -61,6 +60,7 @@ def test_persist_post(adapter, site_root):
     assert "Post content" in content
     assert "title: Test Post" in content
 
+
 def test_persist_profile(adapter, site_root):
     """Verify persisting a PROFILE document routes to author directory."""
     # Given
@@ -68,7 +68,7 @@ def test_persist_profile(adapter, site_root):
     doc = Document(
         content="Profile content",
         type=DocumentType.PROFILE,
-        metadata={"slug": "my-profile", "subject": author_uuid, "uuid": author_uuid}
+        metadata={"slug": "my-profile", "subject": author_uuid, "uuid": author_uuid},
     )
 
     # When
@@ -83,14 +83,11 @@ def test_persist_profile(adapter, site_root):
     # Verify frontmatter has type: profile
     assert "type: profile" in content
 
+
 def test_persist_journal(adapter, site_root):
     """Verify persisting a JOURNAL document."""
     # Given
-    doc = Document(
-        content="Journal content",
-        type=DocumentType.JOURNAL,
-        metadata={"slug": "entry-1"}
-    )
+    doc = Document(content="Journal content", type=DocumentType.JOURNAL, metadata={"slug": "entry-1"})
 
     # When
     adapter.persist(doc)
@@ -102,6 +99,7 @@ def test_persist_journal(adapter, site_root):
     content = journal_path.read_text()
     assert "type: journal" in content
     assert "Journal content" in content
+
 
 def test_list_documents(adapter, site_root):
     """Verify listing documents from filesystem."""
@@ -118,6 +116,7 @@ def test_list_documents(adapter, site_root):
     # Adapter uses: str(path.relative_to(self._site_root))
     assert "docs/posts/p1.md" in identifiers
 
+
 def test_load_config(adapter, site_root):
     """Verify loading mkdocs config."""
     # Given
@@ -132,6 +131,7 @@ def test_load_config(adapter, site_root):
     # Then
     assert config["site_name"] == "Test Site"
 
+
 def test_get_markdown_extensions_default(adapter):
     """Verify default markdown extensions."""
     # When
@@ -140,6 +140,7 @@ def test_get_markdown_extensions_default(adapter):
     # Then
     assert "admonition" in exts
     assert "pymdownx.superfences" in exts
+
 
 def test_resolve_document_path(adapter, site_root):
     """Verify resolving document path."""
@@ -152,6 +153,7 @@ def test_resolve_document_path(adapter, site_root):
     # Then
     assert abs_path == site_root / rel_path
 
+
 def test_resolve_document_path_uninitialized():
     """Verify error when not initialized."""
     # Given
@@ -160,6 +162,7 @@ def test_resolve_document_path_uninitialized():
     # When/Then
     with pytest.raises(AdapterNotInitializedError):
         adapter.resolve_document_path("foo")
+
 
 def test_scaffold_site(adapter, site_root):
     """Verify site scaffolding."""

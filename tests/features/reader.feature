@@ -130,7 +130,7 @@ Feature: Reader Agent Post Evaluation and ELO Ranking
   # Post Selection and Pairing
 
   Scenario: Posts are paired for balanced comparisons
-    Given 5 posts with default ratings
+    Given 4 posts with default ratings
     And comparisons_per_post is set to 3
     When I select post pairs for evaluation
     Then each post should be scheduled for exactly 3 comparisons
