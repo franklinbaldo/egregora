@@ -93,7 +93,7 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 092,organizer,3619206339277445365,2604,merged,
 093,palette,589505046772247398,2648,open,
 094,pruner,9018160340917912228,2605,merged,
-095,refactor,,,,
+095,refactor,5533596875334478767,2650,open,
 096,sapper,,,,
 097,scribe,,,,
 098,sentinel,,,,
