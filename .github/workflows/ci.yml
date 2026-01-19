@@ -123,7 +123,7 @@ jobs:
         env:
           GEMINI_API_KEY: "test-key"
           CI: "true"
-        run: uv run pytest tests/e2e/ -n auto -v --cov=src/egregora --cov-branch --cov-report=xml --cov-report=term
+        run: uv run pytest tests/e2e/ -n auto -v --cov=src/egregora --cov-branch --cov-report=xml --cov-report=term --cov-fail-under=45
 
       - name: Upload coverage to Codecov
         # Only upload if CODECOV_TOKEN is available (will be set in main repo)
