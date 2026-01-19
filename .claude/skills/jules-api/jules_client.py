@@ -28,7 +28,7 @@ class JulesClient:
 
         """
         self.api_key = api_key or os.environ.get("JULES_API_KEY")
-        self.base_url = base_url or os.environ.get("JULES_BASE_URL", "https://repo.googleapis.com/v1alpha")
+        self.base_url = base_url or os.environ.get("JULES_BASE_URL", "https://jules.googleapis.com/v1alpha")
         self.access_token = None
         self.using_oauth = False  # Track if we're using OAuth vs API key
 
@@ -283,7 +283,7 @@ def main(argv: list[str] | None = None) -> None:
             )
             session_id = result['name'].split('/')[-1]
             print(f"✅ Session created: {session_id}")
-            print(f"URL: https://repo.google.com/sessions/{session_id}")
+            print(f"URL: https://jules.google.com/sessions/{session_id}")
 
         elif args.command == "get":
             result = client.get_session(args.session_id)
@@ -297,7 +297,7 @@ def main(argv: list[str] | None = None) -> None:
                 print(f"Created: {result.get('createTime', 'N/A')}")
                 if result.get('title'):
                     print(f"Title: {result['title']}")
-                print(f"\nURL: https://repo.google.com/sessions/{session_id}")
+                print(f"\nURL: https://jules.google.com/sessions/{session_id}")
 
         elif args.command == "list":
             result = client.list_sessions()

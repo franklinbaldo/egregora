@@ -167,7 +167,7 @@ def check_session_needs_attention(session_id: str) -> tuple[bool, str]:
    # New (recommended)
    import httpx
    response = httpx.post(
-       "https://repo.googleapis.com/v1alpha/sessions",
+       "https://jules.googleapis.com/v1alpha/sessions",
        headers={"X-Goog-Api-Key": API_KEY},
        json={...}
    )

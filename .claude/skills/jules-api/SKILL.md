@@ -207,7 +207,7 @@ Claude: "I'll create a Jules session to review your authentication code.
          Jules works asynchronously and will create a PR with feedback.
 
          Session ID: 123456789
-         URL: https://repo.google.com/sessions/123456789
+         URL: https://jules.google.com/sessions/123456789
 
          ⏱️  Jules typically completes tasks in ~10 minutes.
          You can continue other work while Jules reviews. I can check
@@ -224,7 +224,7 @@ Claude: "I'll create a Jules session to review your authentication code.
 
 ## Base Configuration
 
-**Base URL**: `https://repo.googleapis.com`
+**Base URL**: `https://jules.googleapis.com`
 **API Version**: v1alpha
 **Authentication**: API Key via `X-Goog-Api-Key` header
 
@@ -290,7 +290,7 @@ Create a new coding session with a prompt and repository context.
 
 **Example using curl**:
 ```bash
-curl -X POST https://repo.googleapis.com/v1alpha/sessions \
+curl -X POST https://jules.googleapis.com/v1alpha/sessions \
   -H "X-Goog-Api-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -315,7 +315,7 @@ Retrieve details about a specific session.
 
 **Example**:
 ```bash
-curl https://repo.googleapis.com/v1alpha/sessions/abc123 \
+curl https://jules.googleapis.com/v1alpha/sessions/abc123 \
   -H "X-Goog-Api-Key: YOUR_API_KEY"
 ```
 
@@ -337,7 +337,7 @@ Retrieve all sessions.
 
 **Example**:
 ```bash
-curl https://repo.googleapis.com/v1alpha/sessions \
+curl https://jules.googleapis.com/v1alpha/sessions \
   -H "X-Goog-Api-Key: YOUR_API_KEY"
 ```
 
@@ -356,7 +356,7 @@ Send user feedback or additional instructions to an active session.
 
 **Example**:
 ```bash
-curl -X POST https://repo.googleapis.com/v1alpha/sessions/abc123:sendMessage \
+curl -X POST https://jules.googleapis.com/v1alpha/sessions/abc123:sendMessage \
   -H "X-Goog-Api-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"prompt": "Please add more test coverage for edge cases"}'
@@ -370,7 +370,7 @@ Approve a generated plan (when requirePlanApproval is true).
 
 **Example**:
 ```bash
-curl -X POST https://repo.googleapis.com/v1alpha/sessions/abc123:approvePlan \
+curl -X POST https://jules.googleapis.com/v1alpha/sessions/abc123:approvePlan \
   -H "X-Goog-Api-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json"
 ```
@@ -406,7 +406,7 @@ Retrieve activity logs for a session to understand the conversation history.
 
 **Example**:
 ```bash
-curl https://repo.googleapis.com/v1alpha/sessions/abc123/activities \
+curl https://jules.googleapis.com/v1alpha/sessions/abc123/activities \
   -H "X-Goog-Api-Key: YOUR_API_KEY"
 ```
 
@@ -447,7 +447,7 @@ curl https://repo.googleapis.com/v1alpha/sessions/abc123/activities \
 To use the Jules API, you need an API key:
 
 1. **Get your API key**:
-   - Visit https://repo.google.com/settings#api
+   - Visit https://jules.google.com/settings#api
    - Create a new API key (max 3 keys allowed)
    - Copy the API key
 
@@ -471,7 +471,7 @@ import os
 import httpx
 
 API_KEY = os.environ.get("JULES_API_KEY")
-BASE_URL = "https://repo.googleapis.com/v1alpha"
+BASE_URL = "https://jules.googleapis.com/v1alpha"
 
 headers = {
     "X-Goog-Api-Key": API_KEY,
@@ -525,7 +525,7 @@ if status['state'] == 'AWAITING_PLAN_APPROVAL':
 
 ```bash
 export JULES_API_KEY="your-api-key"
-export BASE_URL="https://repo.googleapis.com/v1alpha"
+export BASE_URL="https://jules.googleapis.com/v1alpha"
 
 # Create session
 curl -X POST "$BASE_URL/sessions" \

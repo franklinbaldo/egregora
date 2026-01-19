@@ -30,7 +30,7 @@ The extraction logic (`_extract_session_id()` in `.team/repo/github.py`) support
 
 **Pattern:** `jules\.google\.com/task/(\d+)`
 **Location:** PR body/description
-**Example:** `View task at https://repo.google.com/task/123456789`
+**Example:** `View task at https://jules.google.com/task/123456789`
 **Extracted ID:** `123456789`
 
 **Usage:** 0 PRs currently rely on this (all have IDs in branch names).
