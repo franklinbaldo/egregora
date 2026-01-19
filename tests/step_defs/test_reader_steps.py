@@ -363,6 +363,12 @@ def create_default_posts(test_posts_dir, count):
         create_minimal_post(test_posts_dir, f"post-{i}")
 
 
+@given(parsers.parse("{count:d} posts exist"))
+def posts_exist(test_posts_dir, count):
+    """Create specified number of posts."""
+    create_default_posts(test_posts_dir, count)
+
+
 @given(parsers.parse("a site with {count:d} blog posts in the posts directory"))
 def create_site_with_posts(test_posts_dir, count):
     """Create a site directory with blog posts."""
@@ -420,6 +426,26 @@ This is the same content in both posts.
 """
     (test_posts_dir / f"{original}.md").write_text(content)
     (test_posts_dir / f"{duplicate}.md").write_text(content)
+
+
+@given(parsers.parse('post "{slug1}" and post "{slug2}" exist'))
+def create_two_posts(test_posts_dir, slug1, slug2):
+    """Create two specific posts."""
+    create_minimal_post(test_posts_dir, slug1)
+    create_minimal_post(test_posts_dir, slug2)
+
+
+@given(parsers.parse('post "{slug}" has been compared against multiple posts'))
+def post_compared_multiple(elo_store, test_posts_dir, slug):
+    """Create a post with multiple comparisons."""
+    create_minimal_post(test_posts_dir, slug)
+    set_comparison_count(elo_store, slug, 5)
+
+
+@given("two posts are compared")
+def two_posts_compared(mock_compare_posts, sample_document_a, sample_document_b):
+    """Set up two posts being compared."""
+    compare_two_posts(mock_compare_posts, sample_document_a, sample_document_b)
 
 
 # Configuration Steps
@@ -667,6 +693,7 @@ def run_reader_evaluation(test_posts_dir, reader_config, elo_store, mock_compare
     return {"status": "success", "count": len(post_slugs), "posts_evaluated": len(post_slugs)}
 
 
+
 @when(parsers.parse('selecting new pairs for "{slug}"'), target_fixture="new_pairs")
 def select_new_pairs(test_posts_dir, elo_store, reader_config, slug):
     """Select new pairs for a specific post."""
@@ -737,6 +764,16 @@ def attempt_evaluation(
         return {"status": "error", "error": str(e)}
 
 
+@when("I run reader evaluation", target_fixture="eval_result")
+def run_reader_evaluation_alias(
+    test_posts_dir, reader_config, elo_store, mock_compare_posts, sample_document_a, sample_document_b
+):
+    """Run reader evaluation (alias)."""
+    return attempt_evaluation(
+        test_posts_dir, reader_config, elo_store, mock_compare_posts, sample_document_a, sample_document_b
+    )
+
+
 @when("comparing two posts", target_fixture="comparison")
 def compare_posts_action(mock_compare_posts, sample_document_a, sample_document_b):
     """Perform post comparison."""
@@ -775,7 +812,7 @@ def query_ratings_table(elo_store, slug):
     ties = sum(1 for h in history if h.get("winner") == "tie")
 
     return {
-        "rating": rating,
+        "rating": rating.rating,
         "comparisons": len(history),
         "wins": wins,
         "losses": losses,
@@ -984,7 +1021,7 @@ def verify_post_count(top_posts, n):
 def verify_highest_rated(top_posts, n):
     """Verify posts are highest rated."""
     # Check that ratings are in descending order
-    ratings = [p.rating for p in top_posts]
+    ratings = [p["rating"] for p in top_posts]
     assert ratings == sorted(ratings, reverse=True)
 
 
