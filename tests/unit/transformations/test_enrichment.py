@@ -3,6 +3,7 @@
 from datetime import datetime
 
 import ibis
+import pandas as pd  # noqa: TID251
 
 from egregora.transformations.enrichment import combine_with_enrichment_rows
 
