@@ -49,7 +49,9 @@ def test_missing_columns_adaptation():
     res_df = result.to_pandas()
     assert "extra" in res_df.columns
     # First row (from table) should be None/NaN
-    assert pd.isna(res_df.iloc[0]["extra"])
+    # Use native Python to check for NaN (not pandas)
+    first_val = res_df.iloc[0]["extra"]
+    assert first_val is None or (isinstance(first_val, float) and first_val != first_val)
     # Second row (from new_rows) should be "foo"
     assert res_df.iloc[1]["extra"] == "foo"
 

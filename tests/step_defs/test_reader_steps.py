@@ -324,7 +324,7 @@ def create_multiple_comparisons(elo_store, test_posts_dir, slug):
     """Create multiple comparisons for a post."""
     create_minimal_post(test_posts_dir, slug)
     # Create comparisons against 3 different opponents
-    for i, (opponent, winner) in enumerate([("post-1", "a"), ("post-2", "b"), ("post-3", "tie")]):
+    for _i, (opponent, winner) in enumerate([("post-1", "a"), ("post-2", "b"), ("post-3", "tie")]):
         params = create_update_params(
             post_a_slug=slug,
             post_b_slug=opponent,
@@ -391,7 +391,7 @@ def create_n_posts(test_posts_dir, count):
 
 
 @given("two posts are compared", target_fixture="comparison_context")
-def compare_two_posts(elo_store, test_posts_dir, mock_compare_posts):
+def create_compared_posts(elo_store, test_posts_dir, mock_compare_posts):
     """Create and compare two posts."""
     create_minimal_post(test_posts_dir, "post-a")
     create_minimal_post(test_posts_dir, "post-b")
@@ -555,7 +555,12 @@ def compare_them(elo_store, mock_compare_posts, sample_document_a, sample_docume
     )
     elo_store.update_ratings(params)
     # Return both the comparison_id for database verification and the result
-    return {"post_a": "doc-a", "post_b": "doc-b", "comparison_id": params.comparison_id, "result": mock_result}
+    return {
+        "post_a": "doc-a",
+        "post_b": "doc-b",
+        "comparison_id": params.comparison_id,
+        "result": mock_result,
+    }
 
 
 @when(parsers.parse('I check the ELO rating for "{slug}"'), target_fixture="rating_result")
@@ -999,8 +1004,7 @@ def verify_pairing_count(selected_pairs, count):
     # Verify each post gets approximately the target count (within ±1)
     for slug, pair_count in post_counts.items():
         assert abs(pair_count - count) <= 1, (
-            f"Post {slug} scheduled for {pair_count} comparisons, "
-            f"expected approximately {count} (±1)"
+            f"Post {slug} scheduled for {pair_count} comparisons, expected approximately {count} (±1)"
         )
 
 
