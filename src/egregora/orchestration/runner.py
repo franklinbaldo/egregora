@@ -9,7 +9,7 @@ import logging
 import math
 from collections import deque
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from egregora.agents.banner.worker import BannerWorker
 from egregora.agents.commands import command_to_announcement, filter_commands
@@ -37,8 +37,20 @@ if TYPE_CHECKING:
 
     import ibis.expr.types as ir
 
+    from egregora.data_primitives.document import Document, DocumentMetadata
     from egregora.input_adapters.base import MediaMapping
     from egregora.transformations.windowing import Window
+
+    class DocumentRepository(Protocol):
+        """Protocol for document repository access."""
+
+        def list(self, doc_type: DocumentType) -> list[DocumentMetadata]: ...
+
+    class ContentLibrary(Protocol):
+        """Protocol for content library access."""
+
+        journal: DocumentRepository
+
 
 logger = logging.getLogger(__name__)
 
@@ -178,13 +190,14 @@ class PipelineRunner:
             Set of (start_iso, end_iso) tuples.
 
         """
-        processed = set()
+        processed: set[tuple[str, str]] = set()
         if not self.context.library:
             return processed
 
         try:
+            library = cast("ContentLibrary", self.context.library)
             # Using list(DocumentType.JOURNAL) on library.journal (which is a DocumentRepository)
-            journals = self.context.library.journal.list(doc_type=DocumentType.JOURNAL)
+            journals = library.journal.list(doc_type=DocumentType.JOURNAL)
 
             for journal in journals:
                 # journal is DocumentMetadata (identifier, doc_type, metadata)
@@ -391,12 +404,19 @@ class PipelineRunner:
             messages=messages_dtos,  # Inject DTOs
         )
 
-        posts, profiles = write_posts_for_window(params)
+        # Fix: write_posts_for_window returns a dict, not a tuple
+        result_dict = write_posts_for_window(params)
+        posts = cast("list[str]", result_dict.get("posts", []))
+        profiles = cast("list[str]", result_dict.get("profiles", []))
 
         window_date = window.start_time.strftime("%Y-%m-%d")
         try:
-            profile_docs = generate_profile_posts(
-                ctx=self.context, messages=clean_messages_list, window_date=window_date
+            # Fix: generate_profile_posts result might be awaitable but here we expect sync list[Document]
+            profile_docs = cast(
+                "list[Document]",
+                generate_profile_posts(
+                    ctx=self.context, messages=clean_messages_list, window_date=window_date
+                ),
             )
             for profile_doc in profile_docs:
                 try:
