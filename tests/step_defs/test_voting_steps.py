@@ -167,10 +167,12 @@ def set_next_open_sequence(isolated_fs, seq_id):
 
 
 @given(parsers.parse("{count:d} personas have voted (roster size = {roster:d})"))
-def set_roster_size(_count, _roster):
+def set_roster_size(count, roster):
     """Just a descriptive step - roster is controlled by persona dirs."""
     # These parameters are used by the BDD parser but not directly in the function body.
     # They are kept to match the BDD step definition.
+    _ = count
+    _ = roster
 
 
 @given(parsers.parse('sequence "{seq}" voted for "{persona}" as first choice'))
@@ -208,10 +210,12 @@ def setup_tie_votes(isolated_fs, count):
 
 
 @given(parsers.parse('votes result in a tie between "{p1}" ({pts1:d} pts) and "{p2}" ({pts2:d} pts)'))
-def setup_tie_between(isolated_fs, p1, _pts1, p2, _pts2):
+def setup_tie_between(isolated_fs, p1, pts1, p2, pts2):
     """Create balanced votes for tie."""
     # These parameters are used by the BDD parser but not directly in the function body.
     # They are kept to match the BDD step definition.
+    _ = pts1
+    _ = pts2
     with (isolated_fs / ".team" / "votes.csv").open("w", newline="") as f:
         fieldnames = ["voter_sequence", "candidates"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -365,8 +369,9 @@ def persona_never_scheduled(persona):
 
 
 @given(parsers.parse('both "{p1}" and "{p2}" have {points:d} Borda points for "{seq_id}"'))
-def set_equal_points(isolated_fs, p1, p2, _points, seq_id):
+def set_equal_points(isolated_fs, p1, p2, points, seq_id):
     """Create votes so both personas have equal points."""
+    _ = points
     votes_file = isolated_fs / ".team" / "votes.csv"
     with (votes_file).open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["voter_sequence", "candidates"])

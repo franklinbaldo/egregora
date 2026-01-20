@@ -420,32 +420,6 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> Sched
             if not dry_run:
                 save_schedule(rows)
 
-        # Check if any active sessions have completed PRs and mark them
-        # This allows advancing to the next persona immediately
-        pr_by_branch = build_pr_lookup()
-        updated_any = False
-        for row in rows:
-            session_id = row.get("session_id", "").strip()
-            status = row.get("pr_status", "").strip().lower()
-
-            # Skip if no session or already marked as complete
-            if not session_id or status in ["merged", "closed"]:
-                continue
-
-            # Check PR status
-            pr_info = find_pr_for_session(
-                session_id, row["persona"], pr_by_branch,
-                repo_info["owner"], repo_info["repo"]
-            )
-
-            if pr_info and pr_info.state in [PRState.MERGED, PRState.CLOSED]:
-                # Mark as complete so get_current_sequence() will skip it
-                row["pr_status"] = pr_info.state
-                row["pr_number"] = str(pr_info.number)
-                updated_any = True
-
-        if updated_any and not dry_run:
-            save_schedule(rows)
 
         # Find current sequence
         current = get_current_sequence(rows)
