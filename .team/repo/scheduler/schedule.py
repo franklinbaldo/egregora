@@ -100,8 +100,13 @@ def save_schedule(rows: list[dict[str, Any]]) -> None:
         writer.writerows(rows)
 
 
-def get_current_sequence(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+def get_current_sequence(rows: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, bool]:
     """Find the first row that needs work.
+
+    Returns:
+        Tuple of (current_row, schedule_modified)
+        - current_row: First row that needs work, or None if all done
+        - schedule_modified: True if rows were modified (invalid personas marked closed)
 
     Returns the first row where:
     - No session_id exists (not started yet)
@@ -113,6 +118,8 @@ def get_current_sequence(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
     This prevents creating duplicate sessions for the same sequence when
     the PR is created/merged faster than the PR tracker updates the CSV.
     """
+    modified = False
+
     for row in rows:
         session_id = row.get("session_id", "").strip()
         status = row.get("pr_status", "").strip().lower()
@@ -135,12 +142,13 @@ def get_current_sequence(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
         if not validate_persona_exists(persona):
             print(f"⚠️  Persona '{persona}' not found, marking sequence {row['sequence']} as closed")
             row['pr_status'] = 'closed'
+            modified = True
             continue
 
         # This row needs work (no session exists yet)
-        return row
+        return row, modified
 
-    return None
+    return None, modified
 
 
 def get_next_sequence(rows: list[dict[str, Any]], current: dict[str, Any]) -> dict[str, Any] | None:
@@ -566,7 +574,7 @@ def main() -> None:
         print(f"Extended schedule by {args.extend} rows (now {len(rows)} total)")
     
     if args.show:
-        current = get_current_sequence(rows)
+        current, _ = get_current_sequence(rows)
         remaining = count_remaining_empty(rows)
         print(f"Schedule: {len(rows)} total rows, {remaining} not started")
         if current:
