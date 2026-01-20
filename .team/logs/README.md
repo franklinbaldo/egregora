@@ -62,6 +62,24 @@ The legacy single-file log (`.team/tools_use.csv`) is deprecated but still suppo
 1. New per-session logs in `.team/logs/tools_use/`
 2. Legacy log file `.team/tools_use.csv` (if exists)
 
+## Authentication Requirement
+
+**All my-tools commands require login** (except `login` itself):
+
+```bash
+# ❌ Will fail with AuthenticationError
+my-tools email inbox
+
+# ✅ Must login first
+my-tools login --user maya@team --password <token>
+my-tools email inbox  # Now works
+```
+
+The `@log_tool_command` decorator enforces this requirement:
+- Commands fail fast with a clear error message if not logged in
+- Only the `login` command itself bypasses this check (`require_login=False`)
+- Prevents logging to "unknown" persona/sequence files
+
 ## API Usage
 
 ### Logging Tool Usage

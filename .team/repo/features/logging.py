@@ -44,8 +44,18 @@ class LogManager:
         Logs a command execution to a per-session CSV log file.
 
         Each session (persona + sequence) gets its own log file to avoid merge conflicts.
+
+        Args:
+            persona: Persona ID from active session (None only for login command)
+            sequence: Sequence number from active session (None only for login command)
+            command_path: Full command path (e.g., "login", "email inbox")
+            args: Command arguments (sensitive data should be redacted by caller)
+
+        Note:
+            persona/sequence are None ONLY for the "login" command (before session is created).
+            All other commands are protected by @log_tool_command(require_login=True).
         """
-        # Use "unknown" for missing persona/sequence
+        # Use "unknown" for missing persona/sequence (only happens during login)
         persona = persona or "unknown"
         sequence = sequence or "unknown"
 
@@ -78,10 +88,17 @@ class LogManager:
         except Exception as e:
             print(f"⚠️ Warning: Could not write to log file: {e}")
 
-def log_tool_command(prefix: str = ""):
-    """Decorator to log my-tools command usage."""
+def log_tool_command(prefix: str = "", require_login: bool = True):
+    """Decorator to log my-tools command usage.
+
+    Args:
+        prefix: Command prefix (e.g., "email" for subcommands)
+        require_login: If True, require active session before executing command.
+                      Set to False only for the "login" command itself.
+    """
     import functools
     from repo.features.session import SessionManager
+    from repo.core.exceptions import AuthenticationError
 
     def decorator(func):
         @functools.wraps(func)
@@ -89,11 +106,18 @@ def log_tool_command(prefix: str = ""):
             sm = SessionManager()
             persona = sm.get_active_persona()
             sequence = sm.get_active_sequence()
-            
+
             # Clean up command name (replace underscores with dashes for CLI feel)
             cmd_name = func.__name__.replace("_", "-")
             full_path = f"{prefix} {cmd_name}".strip()
-            
+
+            # Check authentication requirement
+            if require_login and (persona is None or sequence is None):
+                raise AuthenticationError(
+                    f"Authentication required to use '{full_path}'. "
+                    f"Please run 'my-tools login' first."
+                )
+
             log_manager.log_use(persona, sequence, full_path, kwargs)
             return func(*args, **kwargs)
         return wrapper
