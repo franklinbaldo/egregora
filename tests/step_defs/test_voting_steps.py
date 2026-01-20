@@ -167,10 +167,11 @@ def set_next_open_sequence(isolated_fs, seq_id):
 
 
 @given(parsers.parse("{count:d} personas have voted (roster size = {roster:d})"))
-def set_roster_size(_count, _roster):
+def set_roster_size(count, roster):
     """Just a descriptive step - roster is controlled by persona dirs."""
     # These parameters are used by the BDD parser but not directly in the function body.
     # They are kept to match the BDD step definition.
+    _ = (count, roster)  # Mark as intentionally unused
 
 
 @given(parsers.parse('sequence "{seq}" voted for "{persona}" as first choice'))
@@ -208,10 +209,11 @@ def setup_tie_votes(isolated_fs, count):
 
 
 @given(parsers.parse('votes result in a tie between "{p1}" ({pts1:d} pts) and "{p2}" ({pts2:d} pts)'))
-def setup_tie_between(isolated_fs, p1, _pts1, p2, _pts2):
+def setup_tie_between(isolated_fs, p1, pts1, p2, pts2):
     """Create balanced votes for tie."""
     # These parameters are used by the BDD parser but not directly in the function body.
     # They are kept to match the BDD step definition.
+    _ = (pts1, pts2)  # Mark as intentionally unused
     with (isolated_fs / ".team" / "votes.csv").open("w", newline="") as f:
         fieldnames = ["voter_sequence", "candidates"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)

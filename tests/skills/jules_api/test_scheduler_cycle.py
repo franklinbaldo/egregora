@@ -48,8 +48,8 @@ class TestSchedulerCycleFallback:
         )
 
         # Mock on both scheduler and scheduler_legacy modules
-        monkeypatch.setattr(scheduler, "ensure_jules_branch_exists", lambda: None)
-        monkeypatch.setattr(scheduler_legacy, "ensure_jules_branch_exists", lambda: None)
+        monkeypatch.setattr(scheduler, "ensure_scheduled_branch_exists", lambda: None)
+        monkeypatch.setattr(scheduler_legacy, "ensure_scheduled_branch_exists", lambda: None)
         monkeypatch.setattr(
             scheduler,
             "prepare_session_base_branch",
@@ -82,8 +82,8 @@ class TestSchedulerCycleFallback:
         )
         monkeypatch.setattr(scheduler, "get_open_prs", lambda *_args, **_kwargs: [])
         monkeypatch.setattr(scheduler_legacy, "get_open_prs", lambda *_args, **_kwargs: [])
-        monkeypatch.setattr(scheduler, "JulesClient", lambda: DummyClient())
-        monkeypatch.setattr(scheduler_legacy, "JulesClient", lambda: DummyClient())
+        monkeypatch.setattr(scheduler, "TeamClient", lambda: DummyClient())
+        monkeypatch.setattr(scheduler_legacy, "TeamClient", lambda: DummyClient())
 
         repo_info = {"owner": "owner", "repo": "repo"}
         cycle_entries = [
@@ -153,10 +153,10 @@ class TestSchedulerCycleFallback:
             "---\nid: curator\nemoji: 🎭\ntitle: Curator Task\n---\n\nDo curator things.\n"
         )
 
-        monkeypatch.setattr(scheduler, "ensure_jules_branch_exists", lambda: None)
+        monkeypatch.setattr(scheduler, "ensure_scheduled_branch_exists", lambda: None)
         monkeypatch.setattr(scheduler, "get_pr_by_session_id_any_state", lambda *_args: None)
         monkeypatch.setattr(scheduler, "get_open_prs", lambda *_args, **_kwargs: [])
-        monkeypatch.setattr(scheduler, "JulesClient", lambda: DummyClient())
+        monkeypatch.setattr(scheduler, "TeamClient", lambda: DummyClient())
 
         repo_info = {"owner": "owner", "repo": "repo"}
         cycle_entries = [
