@@ -12,11 +12,11 @@ import dataclasses
 import json
 import logging
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import ibis
 import ibis.common.exceptions  # type: ignore[import-untyped] # ibis missing stubs
@@ -216,12 +216,9 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
         elif isinstance(message, ModelRequest):
             # Help mypy with type narrowing in generator
             tool_parts: list[ToolCallPart] = [
-                cast(ToolCallPart, p) for p in message.parts if isinstance(p, ToolCallPart)
+                cast("ToolCallPart", p) for p in message.parts if isinstance(p, ToolCallPart)
             ]
-            entries.extend(
-                _create_tool_call_entry(part, timestamp)
-                for part in tool_parts
-            )
+            entries.extend(_create_tool_call_entry(part, timestamp) for part in tool_parts)
 
     return entries
 
@@ -356,11 +353,9 @@ def _extract_from_message(
             if isinstance(part, ToolReturnPart):
                 _process_single_tool_result(part.content, part.tool_name, saved_posts, saved_profiles)
     # Fallback for potentially older message structures or other types if Union expands
-    elif hasattr(message, "kind") and getattr(message, "kind") == "tool-return":
+    elif hasattr(message, "kind") and message.kind == "tool-return":
         tool_name = getattr(message, "tool_name", None)
-        _process_single_tool_result(
-            getattr(message, "content", None), tool_name, saved_posts, saved_profiles
-        )
+        _process_single_tool_result(getattr(message, "content", None), tool_name, saved_posts, saved_profiles)
 
 
 def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str]]:
@@ -384,8 +379,8 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
 
 # Type safe decorators for ratelimit
 F = TypeVar("F", bound=Callable[..., Any])
-_limits = cast(Callable[..., Callable[[F], F]], limits)
-_sleep_and_retry = cast(Callable[[F], F], sleep_and_retry)
+_limits = cast("Callable[..., Callable[[F], F]]", limits)
+_sleep_and_retry = cast("Callable[[F], F]", sleep_and_retry)
 
 
 @_sleep_and_retry
@@ -957,4 +952,4 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     )
     if author_counts.count().execute() == 0:
         return []
-    return cast(list[str], author_counts.author_uuid.cast("string").execute().tolist())
+    return cast("list[str]", author_counts.author_uuid.cast("string").execute().tolist())
