@@ -1,10 +1,43 @@
-Feature: Content Evaluation and Ranking
+Feature: Content Discovery and Ranking
   As a user with multiple generated blog posts
-  I want to identify the best quality content
-  So that I can highlight or prioritize the most valuable posts
+  I want to automatically discover my best memories and conversations
+  So that I can easily find and share the most meaningful moments
 
   Background:
     Given I have a blog with 30 generated posts
+
+  Scenario: Automatic ranking with zero configuration
+    Given I have never configured ranking settings
+    When I transform my chat history
+    Then posts should be automatically ranked in the background
+    And I should not need to enable or configure ranking
+    And the system should identify the best posts without my input
+
+  Scenario: Discover best memories with simple command
+    Given I have 150 blog posts from 3 years of conversations
+    And I want to find the most meaningful moments
+    When I run the command to show top posts
+    Then I should see the 10 highest-quality posts
+    And the results should feel emotionally right
+    And I can easily share these with others
+    And I did not need to configure anything
+
+  Scenario: Top posts section appears automatically in site
+    Given posts have been generated and ranked
+    When I view my blog site
+    Then a "Top Posts" or "Highlights" section should be visible
+    And this feature should work without explicit enablement
+    And the section should showcase the best content
+    And navigation to top posts should be intuitive
+
+  Scenario: Maya finds her family's treasures
+    Given Maya has transformed her family WhatsApp group
+    And the chat contains everyday chatter mixed with meaningful moments
+    When she uses the discovery feature
+    Then she should see highlights like "The Baby Announcement" and "Dad's Birthday Surprise"
+    And mundane conversations should rank lower
+    And she should think "These ARE our best memories!"
+    And she can confidently share these with family members
 
   Scenario: Evaluate post quality
     When I run the evaluation process
@@ -99,13 +132,6 @@ Feature: Content Evaluation and Ranking
     Then all evaluation comments should be shown
     And both strengths and weaknesses should be identified
     And the feedback should be actionable
-
-  Scenario: Compare ranking algorithms
-    Given posts have been evaluated
-    When I switch between ranking algorithms
-    Then rankings may change based on the algorithm
-    And I should be able to compare different ranking approaches
-    And algorithm documentation should explain differences
 
   Scenario: Export ranking results
     Given posts have been ranked

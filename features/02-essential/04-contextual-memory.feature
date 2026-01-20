@@ -1,11 +1,46 @@
 Feature: Contextual Memory (RAG)
   As a user generating blog posts from conversations
   I want the AI to remember and reference previous discussions
-  So that posts have depth, continuity, and avoid repetition
+  So that posts feel connected like a continuing story, not isolated summaries
 
   Background:
-    Given I have a blog project with contextual memory enabled
+    Given I have a blog project
     And the blog contains conversation history
+
+  Scenario: Automatic contextual awareness with zero configuration
+    Given I have never configured contextual memory settings
+    And I have transformed chat history with recurring topics
+    When I read the generated posts
+    Then posts should automatically reference previous discussions
+    And I should not need to enable or configure anything
+    And the contextual awareness should be invisible but impactful
+    And posts should feel connected, not isolated
+
+  Scenario: Posts feel like a continuing story
+    Given my chat discussed vacation planning in March
+    And the same topic came up again in July
+    When I read the July post about vacation
+    Then it should reference the March discussion
+    And it should say things like "Remember when we were torn between beach vs mountains?"
+    And it should feel like a continuing narrative
+    And I should think "Wow, it remembered our earlier conversation!"
+
+  Scenario: Maya notices posts have memory
+    Given Maya has transformed her family WhatsApp
+    And the family discussed a topic multiple times over months
+    When she reads posts in chronological order
+    Then later posts should build on earlier ones
+    And she should notice the AI "remembers" what was said before
+    And it should not feel repetitive
+    And she should think "This feels like our real conversation flow!"
+
+  Scenario: Automatic indexing happens in background
+    Given I am transforming a chat for the first time
+    When posts are being generated
+    Then conversation history should be indexed automatically
+    And indexing should happen in the background
+    And I should not need to manually trigger indexing
+    And the index should be ready when needed
 
   Scenario: Index conversation history
     Given I have processed 20 conversations into posts
@@ -88,13 +123,6 @@ Feature: Contextual Memory (RAG)
     And retrieval should reflect current content
     And obsolete contexts should be removed
 
-  Scenario: Disable contextual memory
-    Given I disable contextual memory
-    When posts are generated
-    Then no context retrieval should occur
-    And posts should be generated independently
-    And the index should not be used
-
   Scenario: Export contextual memory index
     Given the index contains embedded conversation history
     When I export the index
@@ -130,13 +158,6 @@ Feature: Contextual Memory (RAG)
     And the author's key contributions should be found
     And the profile should benefit from historical context
 
-  Scenario: Index multiple languages
-    Given conversations include English, Spanish, and French
-    When content is indexed
-    Then all languages should be indexed
-    And cross-language retrieval should work
-    And language should not prevent relevant matches
-
   Scenario: Optimize index storage
     Given the index grows over time
     When storage optimization runs
@@ -150,3 +171,11 @@ Feature: Contextual Memory (RAG)
     Then context sources should be traceable
     And I should be able to identify where context came from
     And references should be verifiable
+
+  Scenario: Optionally disable for specific use cases
+    Given I am a power user with specific requirements
+    When I explicitly disable contextual memory in configuration
+    Then no context retrieval should occur
+    And posts should be generated independently
+    And the index should not be used
+    And this should be an opt-out, not default behavior

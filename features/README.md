@@ -2,6 +2,19 @@
 
 This directory contains Behavior-Driven Development (BDD) features for Egregora, written in Gherkin syntax. These features describe the behavior of the application from a user's perspective, independent of implementation details.
 
+## Product Philosophy: "Invisible Intelligence, Visible Magic"
+
+Egregora's magic comes from features that work automatically without configuration:
+- **Contextual Memory (RAG)**: Posts reference previous discussions, creating connected narratives
+- **Content Discovery (Ranking)**: Automatically identifies your best memories and conversations
+- **Author Profiling**: Generates loving portraits of people from their messages
+
+These features should:
+- ✅ **Work by default** - No configuration required for 95% of users
+- ✅ **Be invisible** - Users don't see "RAG" or "ranking algorithms"
+- ✅ **Create magic** - Users think "Wow, how did it know?!"
+- ✅ **Elevate quality** - Transform good output into great output
+
 ## Feature Hierarchy
 
 Features are organized hierarchically by importance to the overall project:
@@ -13,23 +26,23 @@ The fundamental behaviors that define Egregora's core value proposition:
 - **Static Site Output**: Generating browsable websites
 
 ### 02-essential/ - Important Features
-Essential capabilities for the application to function effectively:
-- **Input Parsing**: Reading and understanding various chat export formats
+Essential capabilities that make Egregora magical, not just functional:
+- **Input Parsing**: Reading and understanding chat export formats (WhatsApp primary)
 - **Media Management**: Handling images, videos, and other media files
 - **Site Initialization**: Setting up new blog projects
+- **Contextual Memory (RAG)**: Making posts feel connected like a continuing story
+- **Content Discovery (Ranking)**: Helping users find their best memories automatically
+- **Author Profiling**: Creating emotional portraits of participants from their messages
+- **Privacy Controls**: Anonymization and privacy protection
 
 ### 03-advanced/ - Value-Add Features
-Advanced capabilities that enhance the quality and value of generated content:
-- **Content Evaluation**: Ranking and comparing generated posts
+Advanced capabilities that enhance specific use cases:
 - **Content Enrichment**: Enhancing posts with URL previews and media descriptions
-- **Author Profiling**: Generating insights about chat participants
-- **Contextual Memory**: Using conversation history to improve content generation
 
 ### 04-specialized/ - Specialized Features
 Features that address specific use cases and requirements:
-- **Privacy Controls**: Anonymization and opt-out capabilities
-- **Command System**: In-chat commands for user control
-- **Configuration Management**: Customizing behavior and output
+- **Command System**: In-chat commands for user control (experimental)
+- **Configuration Management**: Customizing behavior and output (for power users)
 - **Resume & Checkpoint**: Continuing interrupted processing
 
 ### 05-utility/ - Supporting Features

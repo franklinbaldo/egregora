@@ -1,11 +1,46 @@
 Feature: Author Profiling
   As a user transforming group chat history
-  I want AI-generated profiles analyzing individual participants
-  So that I can understand each person's contributions and interests
+  I want AI-generated portraits of people I care about
+  So that I can preserve and celebrate their unique personalities and voices
 
   Background:
     Given I have a blog project with chat history from multiple participants
     And the chat contains messages from 5 different authors
+
+  Scenario: Automatic profile generation with zero configuration
+    Given I have never configured profiling settings
+    When I transform my chat history
+    Then profiles should be automatically generated for each participant
+    And I should not need to enable or configure profiling
+    And each profile should capture that person's personality
+    And profiles should feel personal and emotionally resonant
+
+  Scenario: Maya discovers Dad's profile
+    Given Maya has transformed her family WhatsApp
+    When she finds the automatically generated profile for her dad
+    Then the profile should capture her dad's personality perfectly
+    And it should mention his quirks like "terrible jokes" and "history buff"
+    And it should include memorable moments from his messages
+    And she should feel emotional reading it
+    And she should think "This IS my dad!"
+    And she should want to share it with family
+
+  Scenario: Profiles focus on storytelling, not analytics
+    Given an author profile is generated
+    When I read the profile
+    Then it should read like a story about that person
+    And it should NOT be a statistical report
+    And it should capture their voice and personality
+    And it should include specific memorable examples
+    And it should feel like a loving portrait, not data analysis
+
+  Scenario: Profiles appear automatically in dedicated section
+    Given multiple participants are in the chat
+    When I view my blog site
+    Then a "People" or "Profiles" section should exist automatically
+    And each participant should have their own profile page
+    And I should not have needed to create this section manually
+    And navigation should make profiles easy to discover
 
   Scenario: Generate profile for a single author
     Given I select one author for profiling
@@ -64,12 +99,12 @@ Feature: Author Profiling
     And the focus area should guide analysis
     And non-technical content should be de-emphasized
 
-  Scenario: Include statistics in author profiles
+  Scenario: Include light statistics as context, not focus
     When an author profile is generated
-    Then the profile should include message count
-    And posting frequency should be shown
-    And engagement metrics should be included
-    And statistics should provide context
+    Then light statistics may provide context
+    But the focus should be on personality and stories
+    And statistics should enhance the narrative
+    And the profile should not feel like a data report
 
   Scenario: Identify collaboration patterns
     Given an author frequently engages with specific other participants
