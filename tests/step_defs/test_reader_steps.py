@@ -428,13 +428,6 @@ This is the same content in both posts.
     (test_posts_dir / f"{duplicate}.md").write_text(content)
 
 
-@given(parsers.parse('post "{slug1}" and post "{slug2}" exist'))
-def create_two_posts(test_posts_dir, slug1, slug2):
-    """Create two specific posts."""
-    create_minimal_post(test_posts_dir, slug1)
-    create_minimal_post(test_posts_dir, slug2)
-
-
 @given(parsers.parse('post "{slug}" has been compared against multiple posts'))
 def post_compared_multiple(elo_store, test_posts_dir, slug):
     """Create a post with multiple comparisons."""
@@ -691,7 +684,6 @@ def run_reader_evaluation(test_posts_dir, reader_config, elo_store, mock_compare
     if not post_slugs:
         return {"status": "insufficient_posts", "count": 0, "posts_evaluated": 0}
     return {"status": "success", "count": len(post_slugs), "posts_evaluated": len(post_slugs)}
-
 
 
 @when(parsers.parse('selecting new pairs for "{slug}"'), target_fixture="new_pairs")
