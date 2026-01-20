@@ -97,12 +97,13 @@ def log_tool_command(prefix: str = "", require_login: bool = True):
                       Set to False only for the "login" command itself.
     """
     import functools
-    from repo.features.session import SessionManager
     from repo.core.exceptions import AuthenticationError
 
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            from repo.features.session import SessionManager
+
             sm = SessionManager()
             persona = sm.get_active_persona()
             sequence = sm.get_active_sequence()
