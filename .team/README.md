@@ -156,12 +156,6 @@ uv run mail send --to curator@team --subject "Fix needed" --body "..."
 │   ├── visionary/             # 🔭 Strategic RFCs
 │   └── _archived/             # Eliminated personas
 │
-├── logs/                       # Per-session logs (gitignored)
-│   ├── tools_use/             # Tool usage logs per session
-│   │   ├── {persona}_{seq}_{timestamp}.csv
-│   │   └── ...
-│   └── README.md              # Logging system documentation
-│
 ├── mail/                       # Mail system storage
 │   └── events.jsonl           # Mail event log
 │

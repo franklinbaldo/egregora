@@ -23,8 +23,3 @@ class GitHubError(JulesError):
 class TeamClientError(JulesError):
     """Raised when Jules API operations fail."""
     pass
-
-
-class AuthenticationError(JulesError):
-    """Raised when authentication is required but not provided."""
-    pass
