@@ -1,5 +1,5 @@
 NEW Session ID: 8915465850319800148
-URL: https://repo.google.com/sessions/8915465850319800148
+URL: https://jules.google.com/sessions/8915465850319800148
 Created: N/A
 Automation: AUTO_CREATE_PR
 Plan Approval: Required

@@ -8,17 +8,29 @@ This document serves as the authoritative reference for coding standards, archit
 
 ## 🎯 Project Overview
 
-**Egregora** transforms chaotic group chats into structured, readable blogs using AI. It:
-- Reads chat history from WhatsApp exports (and other sources)
-- Uses AI agents to filter noise and synthesize conversations
-- Generates engaging blog posts with rich media support
-- Creates static websites powered by Material for MkDocs
+**Egregora** transforms your chat history into stories that remember. It doesn't just convert chats to text—it creates connected narratives with contextual memory, automatically discovers your best memories, and generates loving portraits of the people in your conversations.
 
-### Core Philosophy
+### What Makes Egregora Special
+
+Three "magical" features work automatically to differentiate Egregora from simple chat-to-text tools:
+
+1. **🧠 Contextual Memory (RAG)**: Posts reference previous discussions, creating connected narratives that feel like a continuing story
+2. **🏆 Content Discovery (Ranking)**: Automatically identifies and surfaces your most meaningful conversations
+3. **💝 Author Profiles**: Creates emotional portraits of participants—storytelling that captures personality, not statistical analysis
+
+**These three features are THE PRODUCT, not optional extras.** They must be:
+- ✅ **Enabled by default** for all users
+- ✅ **Zero configuration** for 95% of users
+- ✅ **Invisible to users** (they see value, not technology)
+- ✅ **The differentiating factor** that makes Egregora magical
+
+### Core Philosophy: "Invisible Intelligence, Visible Magic"
+
 - **Privacy-first**: Runs locally by default, keeping your data private
 - **Performance-first**: Uses DuckDB and Ibis for efficient data processing
 - **Type-safe AI**: Built with Pydantic-AI for structured, validated outputs
 - **Functional patterns**: Data flows through pure functions (`Table -> Table`)
+- **Magic by default**: RAG, ranking, and profiling work automatically without configuration
 
 ---
 
@@ -56,16 +68,21 @@ Input and output adapters implement protocols for extensibility:
 
 #### 3. **Agent-Based AI**
 AI agents are implemented using Pydantic-AI with structured outputs:
-- `WriterAgent`: Generates blog posts from conversations
-- `ReaderAgent`: Ranks posts using ELO ratings
+- `WriterAgent`: Generates blog posts with contextual memory (uses RAG automatically)
+- `ReaderAgent`: Ranks posts using ELO ratings (enables content discovery)
+- `ProfileAgent`: Creates emotional portraits of participants (author profiling)
 - `BannerAgent`: Creates cover images
 - `EnricherAgent`: Analyzes media for context
 
-#### 4. **RAG with LanceDB**
-Vector knowledge base for contextual memory:
+**⭐ CRITICAL:** The Writer, Reader, and Profile agents implement the three magical features. They must be enabled by default and work without user configuration.
+
+#### 4. **RAG with LanceDB** ⭐ MAGICAL FEATURE
+Vector knowledge base for contextual memory (one of the three magical features):
 - Stores conversation history as embeddings
 - Retrieves related discussions when writing new posts
 - Provides depth and continuity to narratives
+- **Must be enabled by default** and work transparently
+- Users experience: posts that reference "Remember when we discussed..."
 
 ---
 

@@ -5,7 +5,7 @@
 ### 1. Setup Authentication
 
 ```bash
-# Get your API key from https://repo.google.com/settings#api
+# Get your API key from https://jules.google.com/settings#api
 # Then export it as an environment variable
 export JULES_API_KEY="your-api-key-here"
 
@@ -17,7 +17,7 @@ echo $JULES_API_KEY
 
 **Using curl**:
 ```bash
-curl -X POST https://repo.googleapis.com/v1alpha/sessions \
+curl -X POST https://jules.googleapis.com/v1alpha/sessions \
   -H "X-Goog-Api-Key: $JULES_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -61,7 +61,7 @@ print(f"Status: {session['state']}")
 ```bash
 # Using curl
 SESSION_ID="your-session-id"
-curl https://repo.googleapis.com/v1alpha/sessions/$SESSION_ID \
+curl https://jules.googleapis.com/v1alpha/sessions/$SESSION_ID \
   -H "X-Goog-Api-Key: $JULES_API_KEY"
 
 # Using Python client
@@ -251,7 +251,7 @@ fi
 while true; do
     echo "Checking session status..."
 
-    RESPONSE=$(curl -s https://repo.googleapis.com/v1alpha/sessions/$SESSION_ID \
+    RESPONSE=$(curl -s https://jules.googleapis.com/v1alpha/sessions/$SESSION_ID \
         -H "X-Goog-Api-Key: $JULES_API_KEY")
 
     STATE=$(echo $RESPONSE | jq -r '.state')
@@ -288,7 +288,7 @@ declare -a TASKS=(
 for TASK in "${TASKS[@]}"; do
     echo "Creating session for: $TASK"
 
-    curl -X POST https://repo.googleapis.com/v1alpha/sessions \
+    curl -X POST https://jules.googleapis.com/v1alpha/sessions \
         -H "X-Goog-Api-Key: $JULES_API_KEY" \
         -H "Content-Type: application/json" \
         -d "{
@@ -373,7 +373,7 @@ jobs:
 
       - name: Create Jules Review Session
         run: |
-          SESSION_ID=$(curl -X POST https://repo.googleapis.com/v1alpha/sessions \
+          SESSION_ID=$(curl -X POST https://jules.googleapis.com/v1alpha/sessions \
             -H "X-Goog-Api-Key: $JULES_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{

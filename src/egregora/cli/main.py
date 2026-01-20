@@ -478,7 +478,7 @@ def demo(
                 debug=False,
                 options=None,
             )
-        except AllModelsExhaustedError as e:
+        except (AllModelsExhaustedError, RuntimeError) as e:
             console.print(f"[bold yellow]⚠️  Content generation failed: {e}[/bold yellow]")
             console.print(
                 "[dim]The demo site scaffold has been created, but without AI-generated content.[/dim]"

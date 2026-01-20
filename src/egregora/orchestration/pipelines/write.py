@@ -435,7 +435,7 @@ def run_cli_flow(
             )
             run(run_params)
             console.print(f"[green]Processing completed successfully for source '{source_key}'.[/green]")
-        except AllModelsExhaustedError as e:
+        except (AllModelsExhaustedError, RuntimeError) as e:
             # Re-raise this specific error so the 'demo' command can catch it
             raise e
         except Exception as e:
@@ -1186,7 +1186,6 @@ def _prepare_pipeline_data(
     filter_options = FilterOptions(
         from_date=from_date,
         to_date=to_date,
-        checkpoint_enabled=config.pipeline.checkpoint_enabled,
     )
     messages_table = _apply_filters(
         messages_table,
@@ -1241,31 +1240,8 @@ def _prepare_pipeline_data(
     )
 
 
-def _index_media_into_rag(
-    *,
-    enable_enrichment: bool,
-    results: dict,
-    ctx: PipelineContext,
-    embedding_model: str,
-) -> None:
-    """Index media enrichments into RAG after window processing.
-
-    Args:
-        enable_enrichment: Whether enrichment is enabled
-        results: Window processing results
-        ctx: Pipeline context
-        embedding_model: Embedding model identifier
-
-    """
-    if not (enable_enrichment and results):
-        return
-
-    # Media RAG indexing removed - will be reimplemented with egregora.rag
-    # logger.info("[bold cyan]📚 Indexing media into RAG...[/]")
-    # ... (removed for now)
 
 
-# _save_checkpoint removed - replaced by Journal-based execution log
 
 
 def _apply_date_filters(
@@ -1295,26 +1271,12 @@ def _apply_date_filters(
     return messages_table
 
 
-def _apply_checkpoint_filter(messages_table: ir.Table, *, checkpoint_enabled: bool) -> ir.Table:
-    """Apply checkpoint-based resume logic.
-
-    DEPRECATED: We now rely on window skipping in runner.py based on JOURNAL entries.
-    However, for massive datasets, filtering at the source is still more efficient.
-
-    TODO: [Refactor] Implement source-level filtering based on Max(window_end) from Journals.
-    For now, we let runner.py skip windows individually.
-    """
-    # Just return full table - runner will skip processed windows
-    return messages_table
-
-
 @dataclass
 class FilterOptions:
     """Options for filtering messages."""
 
     from_date: date_type | None = None
     to_date: date_type | None = None
-    checkpoint_enabled: bool = False
 
 
 def _apply_filters(
@@ -1347,7 +1309,7 @@ def _apply_filters(
     messages_table = _apply_date_filters(messages_table, options.from_date, options.to_date)
 
     # Checkpoint-based resume logic (Delegated to Runner / Journal check)
-    return _apply_checkpoint_filter(messages_table, checkpoint_enabled=options.checkpoint_enabled)
+    return messages_table
 
 
 def _init_global_rate_limiter(quota_config: Any) -> None:
@@ -1413,16 +1375,8 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
                 if max_processed_timestamp is None or conversation.window.end_time > max_processed_timestamp:
                     max_processed_timestamp = conversation.window.end_time
 
-            _index_media_into_rag(
-                enable_enrichment=dataset.enable_enrichment,
-                results=results,
-                ctx=dataset.context,
-                embedding_model=dataset.embedding_model,
-            )
-
             _generate_taxonomy(dataset)
 
-            # Checkpoint saving removed - Journals are saved atomically during processing
 
             # Final pass for any lingering background tasks
             process_background_tasks(dataset.context)

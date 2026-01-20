@@ -389,7 +389,7 @@ def _extract_session_id(branch: str, body: str) -> str | None:
 
     # FALLBACK: Session ID in PR body
     if body:
-        # Try repo.google.com URL (numeric ID)
+        # Try jules.google.com URL (numeric ID)
         match = re.search(r"jules\.google\.com/task/(\d+)", body)
         if match:
             return match.group(1)

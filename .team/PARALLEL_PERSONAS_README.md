@@ -150,7 +150,7 @@ session = client.create_session(
 )
 
 print(f"Created session: {session['id']}")
-print(f"URL: https://repo.google.com/sessions/{session['id']}")
+print(f"URL: https://jules.google.com/sessions/{session['id']}")
 PYTHON_EOF
 ```
 
@@ -277,7 +277,7 @@ python .team/repo/scheduler_v2.py --dry-run --mode cycle
 - **Status**: IN_PROGRESS (unstuck as of 2026-01-11 12:48 UTC)
 - **Focus**: Implementing mail backend and CLI
 - **Current Work**: Fixing Ibis schema issues in mail system
-- **URL**: https://repo.google.com/sessions/14848423526856432295
+- **URL**: https://jules.google.com/sessions/14848423526856432295
 
 **Note**: This session received guidance on 2026-01-11 and should complete the mail backend implementation. You can either:
 - Wait for it to finish (check status with Jules API)

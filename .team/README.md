@@ -25,7 +25,7 @@ The Jules automation system is a **multi-agent AI workforce** that maintains and
 
 ### Key Features
 
-- **28+ Specialized Personas** - Each with unique expertise (security, performance, UX, etc.)
+- **23 Specialized Personas** - Each with unique expertise (security, performance, UX, etc.)
 - **Autonomous Operation** - Agents create PRs, review code, and coordinate work
 - **Sprint-Based Planning** - Personas plan ahead and provide feedback to each other
 - **Multiple Execution Modes** - Parallel cycles, scheduled runs, and on-demand execution
@@ -130,34 +130,37 @@ uv run mail send --to curator@team --subject "Fix needed" --body "..."
 │       ├── blocks/            # Reusable blocks
 │       └── partials/          # Partial templates
 │
-├── personas/                   # AI agent definitions (28 personas)
+├── personas/                   # AI agent definitions (23 personas)
 │   ├── absolutist/            # 🎯 Strict rule enforcement
 │   ├── artisan/               # 🔨 Code craftsmanship
 │   ├── bdd_specialist/        # 🧪 BDD testing expert
 │   ├── bolt/                  # ⚡ Performance optimization
 │   ├── builder/               # 🏗️ Data architecture
 │   ├── curator/               # 🎭 UX/UI evaluation
-│   ├── docs_curator/          # 📚 Documentation gardening
 │   ├── essentialist/          # 💎 Pragmatic cuts
 │   ├── forge/                 # ⚒️ Feature implementation
 │   ├── janitor/               # 🧹 Code hygiene
-│   ├── maintainer/            # 🧭 Sprint planning & PM
-│   ├── oracle/                # 🔮 Predictive analysis
+│   ├── lore/                  # 📚 System historian
+│   ├── maya/                  # 💝 User advocate
+│   ├── oracle/                # 🔮 Support agent
 │   ├── organizer/             # 🗂️ Project organization
-│   ├── palette/               # 🎨 Design system
-│   ├── pruner/                # 🪓 Dead code elimination
 │   ├── refactor/              # 🔧 Code quality
 │   ├── sapper/                # 💣 Exception structuring
-│   ├── scribe/                # ✍️ Technical writing
+│   ├── scribe/                # ✍️ Documentation
 │   ├── sentinel/              # 🛡️ Security audits
 │   ├── shepherd/              # 🧑‍🌾 Test coverage
 │   ├── sheriff/               # 🤠 Test stability
 │   ├── simplifier/            # 📉 Complexity reduction
-│   ├── steward/               # 🌳 Long-term maintenance
 │   ├── streamliner/           # 🌊 Data optimization
-│   ├── taskmaster/            # 📋 Task identification
 │   ├── typeguard/             # 🔍 Type safety
-│   └── visionary/             # 🔮 Strategic moonshots
+│   ├── visionary/             # 🔭 Strategic RFCs
+│   └── _archived/             # Eliminated personas
+│
+├── logs/                       # Per-session logs (gitignored)
+│   ├── tools_use/             # Tool usage logs per session
+│   │   ├── {persona}_{seq}_{timestamp}.csv
+│   │   └── ...
+│   └── README.md              # Logging system documentation
 │
 ├── mail/                       # Mail system storage
 │   └── events.jsonl           # Mail event log
@@ -257,28 +260,23 @@ Evaluate generated blogs and create data-driven UX improvements.
 | ⚡ | **Bolt** | Perf. Engineer | Performance optimization |
 | 🏗️ | **Builder** | Architect | Data architecture, schemas |
 | 🎭 | **Curator** | UX Designer | User experience, blog evaluation |
-| 📚 | **Docs Curator** | Librarian | Documentation accuracy |
 | 💎 | **Essentialist** | Pragmatist | Strategic cuts, focus |
 | ⚒️ | **Forge** | Builder | Feature implementation |
 | 🧹 | **Janitor** | Hygienist | Code cleanup, technical debt |
-| 🧭 | **Maintainer** | PM | Sprint planning, coordination |
-| 🔮 | **Oracle** | Predictor | Predictive analysis |
+| 📚 | **Lore** | Historian | System history, ADRs, git forensics |
+| 🔮 | **Oracle** | Support Agent | Unblock personas with technical guidance |
 | 🗂️ | **Organizer** | Maintainer | Project structure |
-| 🎨 | **Palette** | Design Sys | UI consistency, accessibility |
-| 🪓 | **Pruner** | Eliminator | Dead code removal |
 | 🔧 | **Refactor** | Developer | Linting, TDD-based fixes |
 | 💣 | **Sapper** | Structurer | Exception handling patterns |
-| ✍️ | **Scribe** | Writer | Technical writing |
+| ✍️ | **Scribe** | Writer | Documentation creation & maintenance |
 | 🛡️ | **Sentinel** | Security | Vulnerability scanning |
 | 🧑‍🌾 | **Shepherd** | Test Engineer | Test coverage expansion |
 | 🤠 | **Sheriff** | Build Cop | Test stability, flake fixes |
 | 📉 | **Simplifier** | Reducer | Complexity reduction |
-| 🌳 | **Steward** | Maintainer | Long-term maintenance |
 | 🌊 | **Streamliner** | Optimizer | Data processing efficiency |
-| 📋 | **Taskmaster** | Coordinator | Task identification |
 | 🔍 | **Typeguard** | Type Checker | Type safety enforcement |
-| 🔮 | **Visionary** | Strategist | Moonshots, RFCs, innovation |
-| 🕸️ | **Weaver** | Integrator | PR merging, integration |
+| 🔭 | **Visionary** | Strategist | Strategic RFCs with BDD criteria |
+| 💝 | **Maya** | User Advocate | Non-technical user feedback, doc clarity |
 
 ### Persona Capabilities
 
@@ -1598,6 +1596,15 @@ uv run mail inbox --persona system@team
 
 ## 🔄 Changelog
 
+### 2026-01-20
+
+- **Persona consolidation**: Reduced from 28 to 23 personas
+- **Eliminated**: Steward, Maintainer, Taskmaster, Pruner, Palette, Docs Curator (redundant roles)
+- **Rewrote Oracle**: Now a support agent who unblocks personas with technical guidance
+- **Rewrote Visionary**: Added mandatory 5-step inspiration process + BDD acceptance criteria in RFCs
+- **Improved Scribe**: Absorbed docs_curator, now handles both creation and maintenance
+- **Archived eliminated personas** to `.team/personas/_archived/`
+
 ### 2026-01-17
 
 - Comprehensive README overhaul
@@ -1621,5 +1628,5 @@ uv run mail inbox --persona system@team
 ---
 
 **Maintained by:** Weaver persona 🕸️ and human contributors
-**Last Updated:** 2026-01-17
-**Version:** 2.0
+**Last Updated:** 2026-01-20
+**Version:** 2.1

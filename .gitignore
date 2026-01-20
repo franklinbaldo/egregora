@@ -90,4 +90,6 @@ coverage.xml
 .github/tmp/
 .team/mail/
 .team/session.json
+.team/tools_use.csv
+.team/logs/
 uv.lock

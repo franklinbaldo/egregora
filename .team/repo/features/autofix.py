@@ -198,7 +198,7 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
                 f"2. Investigate the failures\n"
                 f"3. Fix the issues\n"
                 f"4. Push updates to this branch\n\n"
-                f"Track progress at: https://repo.google.com/session/{new_session_id}"
+                f"Track progress at: https://jules.google.com/session/{new_session_id}"
             )
             post_pr_comment(pr_number, comment)
 
@@ -285,7 +285,7 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
             f"### Issues (public summary):\n\n"
             f"{public_issues}\n\n"
             f"Jules will process this request and update the PR. "
-            f"Check https://repo.google.com/session/{session_id} for progress."
+            f"Check https://jules.google.com/session/{session_id} for progress."
         )
         post_pr_comment(pr_number, comment)
 

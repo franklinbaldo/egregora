@@ -88,4 +88,11 @@ def test_format_frontmatter_datetime_raises_on_none():
     assert "Failed to parse date string for frontmatter: 'None'" in str(excinfo.value)
 
 
+def test_format_frontmatter_datetime_handles_ranges():
+    """Verify that format_frontmatter_datetime handles date ranges by using the start time."""
+    input_date = "2025-10-28 14:10 to 14:15"
+    expected = "2025-10-28 14:10"
+    assert format_frontmatter_datetime(input_date) == expected
+
+
 # endregion

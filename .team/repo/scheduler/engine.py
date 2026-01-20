@@ -422,7 +422,12 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> Sched
 
 
         # Find current sequence
-        current = get_current_sequence(rows)
+        current, schedule_modified = get_current_sequence(rows)
+
+        # Save schedule if invalid personas were marked as closed
+        if schedule_modified and not dry_run:
+            save_schedule(rows)
+
         if not current:
             return SchedulerResult(
                 success=True,
@@ -441,7 +446,7 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> Sched
             persona_id = voted_winner
             # Reload schedule to get updated persona
             rows = load_schedule()
-            current = get_current_sequence(rows)
+            current, _ = get_current_sequence(rows)
             if current:
                 persona_id = current["persona"]
 
@@ -474,22 +479,6 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> Sched
             return SchedulerResult(
                 success=False,
                 message=f"Persona '{persona_id}' is not pleaded to the latest Team Constitution."
-            )
-
-        existing_session_id = find_existing_session_id(
-            client=client,
-            sequence=seq,
-            persona_id=persona.id,
-            repo=repo_info["repo"],
-        )
-        if existing_session_id:
-            rows = update_sequence(rows, seq, session_id=existing_session_id)
-            if not dry_run:
-                save_schedule(rows)
-            return SchedulerResult(
-                success=True,
-                message=f"Session already exists for {persona.id}",
-                session_id=existing_session_id,
             )
 
         # Check for existing PR
