@@ -1013,7 +1013,7 @@ def verify_post_count(top_posts, n):
 def verify_highest_rated(top_posts, n):
     """Verify posts are highest rated."""
     # Check that ratings are in descending order
-    ratings = [p["rating"] for p in top_posts]
+    ratings = [p.rating for p in top_posts]
     assert ratings == sorted(ratings, reverse=True)
 
 

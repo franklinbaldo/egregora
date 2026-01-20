@@ -6,12 +6,43 @@ This document provides practical instructions for AI agents. For comprehensive c
 
 ---
 
+## ⭐ Product Philosophy: "Invisible Intelligence, Visible Magic"
+
+**CRITICAL:** Before implementing ANY feature, understand this:
+
+Egregora is NOT a simple chat-to-text converter. Three features make it magical:
+
+1. **🧠 Contextual Memory (RAG)** - Posts reference previous discussions, creating connected narratives
+2. **🏆 Content Discovery (Ranking)** - Automatically surfaces best memories
+3. **💝 Author Profiles** - Creates loving portraits of people from their messages
+
+**These three features are THE PRODUCT, not optional extras.**
+
+### Implementation Requirements
+
+When implementing or modifying these features:
+
+✅ **MUST be enabled by default** for all users
+✅ **MUST work with zero configuration** for 95% of users
+✅ **MUST be invisible** to users (they see value, not technology)
+✅ **MUST focus on user value** (storytelling, memories, emotional impact)
+
+❌ **DO NOT** make these opt-in or "advanced" features
+❌ **DO NOT** require configuration to work
+❌ **DO NOT** expose implementation details to users
+❌ **DO NOT** deprioritize vs other features
+
+**When in doubt:** These three features are always P0. Everything else supports them.
+
+---
+
 ## 📖 Essential Reading
 
 Before starting work, familiarize yourself with:
 - **[CLAUDE.md](CLAUDE.md)**: Authoritative coding standards, architecture patterns, and development practices
 - **[.team/README.md](.team/README.md)**: Jules persona definitions and scheduling
 - **[README.md](README.md)**: User-facing documentation and project overview
+- **[docs/user-personas.md](docs/user-personas.md)**: Understand who you're building for (Maya, Tim, Rachel)
 
 ---
 
@@ -156,6 +187,7 @@ Jules personas are autonomous AI agents that perform maintenance tasks. Active p
 | 🔨 | **Artisan** | Craftsman | Code Quality, Refactoring |
 | 🎨 | **Palette** | Design Sys | Accessibility & UI |
 | 📉 | **Essentialist** | Reducer | Complexity Reduction |
+| 💝 | **Maya** | User Advocate | Non-technical user feedback (on-demand) |
 
 See [.team/README.md](.team/README.md) for full persona definitions.
 

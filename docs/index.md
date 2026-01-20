@@ -8,15 +8,15 @@ hide:
 
 <div class="md-hero" style="text-align: center; padding: 2rem 0;">
   <h1>Egregora</h1>
-  <p style="font-size: 1.5rem; font-weight: 300;">The LLM-Era Yahoo Pipes<br>Composable AI Agents for Personal Knowledge Feeds</p>
+  <p style="font-size: 1.5rem; font-weight: 300;">Turn your conversations into stories that remember<br>AI-Powered Narrative Generation with Contextual Memory</p>
   <div style="margin-top: 1rem;">
-    <span class="md-tag" style="font-size: 0.9rem; padding: 4px 8px; border: 1px solid currentColor; border-radius: 4px;">RSS / Atom</span>
-    <span class="md-tag" style="font-size: 0.9rem; padding: 4px 8px; border: 1px solid currentColor; border-radius: 4px; margin-left: 8px;">LLM Pipelines</span>
-    <span class="md-tag" style="font-size: 0.9rem; padding: 4px 8px; border: 1px solid currentColor; border-radius: 4px; margin-left: 8px;">Privacy Optional</span>
+    <span class="md-tag" style="font-size: 0.9rem; padding: 4px 8px; border: 1px solid currentColor; border-radius: 4px;">Contextual Memory</span>
+    <span class="md-tag" style="font-size: 0.9rem; padding: 4px 8px; border: 1px solid currentColor; border-radius: 4px; margin-left: 8px;">Content Discovery</span>
+    <span class="md-tag" style="font-size: 0.9rem; padding: 4px 8px; border: 1px solid currentColor; border-radius: 4px; margin-left: 8px;">Privacy First</span>
   </div>
 </div>
 
-Egregora parses your raw data streams (WhatsApp, RSS, etc.), groups content into meaningful stories, and uses composable LLM agents to generate high-quality knowledge feeds.
+Egregora transforms your chat history into beautiful, connected narratives. Unlike simple chat-to-text tools, it uses AI to understand context, discover your best memories, and create loving portraits of the people in your conversations. All three magical features work automatically with zero configuration.
 
 <div class="grid cards" markdown>
 
@@ -40,33 +40,63 @@ Egregora parses your raw data streams (WhatsApp, RSS, etc.), groups content into
 
 </div>
 
-## Key Features
+## What Makes Egregora Magical
 
 <div class="grid cards" markdown>
 
-- __Atom Protocol Centric__
+- __🧠 Contextual Memory (RAG)__
 
     ---
 
-    Built on the open web. Everything is an Entry in a Feed, ensuring interoperability with the entire RSS ecosystem.
+    Posts aren't isolated summaries—they reference previous discussions, creating connected narratives that feel like a continuing story.
 
-- __Composable AI Agents__
-
-    ---
-
-    Assemble pipelines of specialized agents (Writer, Editor, Enricher) to transform raw noise into signal.
-
-- __Privacy Optional__
+- __🏆 Content Discovery__
 
     ---
 
-    Designed for privacy-first local operation, but flexible enough to leverage powerful cloud LLMs when needed.
+    Automatically identifies and ranks your most meaningful conversations, surfacing the best memories in a "Top Posts" section.
 
-- __Feed-to-Feed Transformations__
+- __💝 Author Profiles__
 
     ---
 
-    Like Yahoo Pipes for the AI age. Ingest feeds, transform them with LLMs, and publish new feeds.
+    Creates emotional portraits of each person from their messages—storytelling that captures personality, not statistical analysis.
+
+- __🔒 Privacy First__
+
+    ---
+
+    Runs entirely on your local machine by default. Your conversations never leave your computer unless you choose to publish.
+
+</div>
+
+## Additional Features
+
+<div class="grid cards" markdown>
+
+- __Rich Media__
+
+    ---
+
+    Images and videos are automatically extracted, optimized, and embedded with AI-generated descriptions.
+
+- __Beautiful Design__
+
+    ---
+
+    AI-generated cover images and Material for MkDocs templates create a polished, professional blog.
+
+- __Highly Customizable__
+
+    ---
+
+    Power users can customize models, prompts, and pipelines—but sensible defaults work for 95% of users.
+
+- __Open & Interoperable__
+
+    ---
+
+    Built on Atom/RSS standards. Everything is a feed entry, ensuring ecosystem compatibility.
 
 </div>
 
