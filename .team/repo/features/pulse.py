@@ -6,7 +6,8 @@ from repo.features.mail import list_inbox
 
 SCHEDULE_FILE = Path(".team/schedule.csv")
 TASKS_TODO_DIR = Path(".team/tasks/todo")
-LOG_FILE = Path(".team/tools_use.csv")
+LOG_FILE = Path(".team/tools_use.csv")  # Legacy
+LOGS_DIR = Path(".team/logs/tools_use")  # New per-session logs
 
 class PulseManager:
     def get_sitrep(self, persona_id: str, current_sequence: Optional[str]) -> Dict[str, Any]:
@@ -68,22 +69,50 @@ class PulseManager:
             return []
 
     def _get_last_tool_used(self, persona_id: str) -> str:
-        if not LOG_FILE.exists():
-            return "none"
+        """
+        Get the last tool used by a persona, scanning per-session log files.
 
+        Checks both new per-session logs (.team/logs/tools_use/{persona}_*.csv)
+        and legacy single log file (.team/tools_use.csv).
+        """
+        all_rows = []
+
+        # Read from new per-session logs
+        if LOGS_DIR.exists():
+            try:
+                # Find all log files for this persona
+                pattern = f"{persona_id}_*.csv"
+                for log_file in LOGS_DIR.glob(pattern):
+                    try:
+                        with open(log_file, mode='r', newline='') as f:
+                            reader = csv.DictReader(f)
+                            all_rows.extend(list(reader))
+                    except Exception:
+                        continue  # Skip corrupted files
+            except Exception:
+                pass
+
+        # Fallback to legacy log file if exists
+        if LOG_FILE.exists():
+            try:
+                with open(LOG_FILE, mode='r', newline='') as f:
+                    reader = csv.DictReader(f)
+                    rows = [row for row in reader if row.get('persona') == persona_id]
+                    all_rows.extend(rows)
+            except Exception:
+                pass
+
+        # Sort by timestamp (most recent first) and find last non-login command
         try:
-            with open(LOG_FILE, mode='r', newline='') as f:
-                reader = csv.DictReader(f)
-                # Read all and find the last one for this persona that isn't login
-                rows = list(reader)
-                for row in reversed(rows):
-                    if row['persona'] == persona_id:
-                        cmd = row['command']
-                        if "login" in cmd.lower():
-                            continue
-                        return cmd
+            all_rows.sort(key=lambda r: r.get('timestamp', ''), reverse=True)
+            for row in all_rows:
+                cmd = row.get('command', '')
+                if "login" in cmd.lower():
+                    continue
+                return cmd
         except Exception:
             pass
+
         return "none"
 
     def format_sitrep(self, sitrep: Dict[str, Any]) -> str:

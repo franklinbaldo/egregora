@@ -3,26 +3,65 @@ import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+# Legacy log file (deprecated, kept for reference)
 LOG_FILE = Path(".team/tools_use.csv")
 
+# New per-session log directory
+LOGS_DIR = Path(".team/logs/tools_use")
+
 class LogManager:
-    def __init__(self, log_file: Path = LOG_FILE):
-        self.log_file = log_file
+    def __init__(self, log_dir: Path = LOGS_DIR):
+        self.log_dir = log_dir
+        self._current_session_file: Optional[Path] = None
+        self._session_persona: Optional[str] = None
+        self._session_sequence: Optional[str] = None
+        self._session_start: Optional[datetime.datetime] = None
+
+    def _get_session_log_file(self, persona: str, sequence: str) -> Path:
+        """
+        Get or create the log file for the current session.
+
+        Format: {persona}_{sequence}_{YYYYMMDDTHHmmss}.csv
+        """
+        # Check if we need to create a new session file
+        if (self._current_session_file is None or
+            self._session_persona != persona or
+            self._session_sequence != sequence):
+
+            # Start new session
+            self._session_persona = persona
+            self._session_sequence = sequence
+            self._session_start = datetime.datetime.now()
+
+            timestamp = self._session_start.strftime("%Y%m%dT%H%M%S")
+            filename = f"{persona}_{sequence}_{timestamp}.csv"
+            self._current_session_file = self.log_dir / filename
+
+        return self._current_session_file
 
     def log_use(self, persona: Optional[str], sequence: Optional[str], command_path: str, args: Dict[str, Any]):
         """
-        Logs a command execution to the CSV log file.
+        Logs a command execution to a per-session CSV log file.
+
+        Each session (persona + sequence) gets its own log file to avoid merge conflicts.
         """
+        # Use "unknown" for missing persona/sequence
+        persona = persona or "unknown"
+        sequence = sequence or "unknown"
+
         # Redact sensitive info
         safe_args = args.copy()
         if 'password' in safe_args:
             safe_args['password'] = '***'
 
-        file_exists = self.log_file.exists()
-        self.log_file.parent.mkdir(parents=True, exist_ok=True)
+        # Get session-specific log file
+        log_file = self._get_session_log_file(persona, sequence)
+
+        file_exists = log_file.exists()
+        log_file.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            with open(self.log_file, mode='a', newline='', encoding='utf-8') as f:
+            with open(log_file, mode='a', newline='', encoding='utf-8') as f:
                 fieldnames = ['timestamp', 'persona', 'sequence', 'command', 'args']
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
 
@@ -31,8 +70,8 @@ class LogManager:
 
                 writer.writerow({
                     'timestamp': datetime.datetime.now().isoformat(),
-                    'persona': persona or "unknown",
-                    'sequence': sequence or "unknown",
+                    'persona': persona,
+                    'sequence': sequence,
                     'command': command_path,
                     'args': str(safe_args)
                 })
@@ -61,3 +100,41 @@ def log_tool_command(prefix: str = ""):
     return decorator
 
 log_manager = LogManager()
+
+
+def read_all_logs(persona: Optional[str] = None, log_dir: Path = LOGS_DIR) -> list[Dict[str, str]]:
+    """
+    Read all tool usage logs, optionally filtered by persona.
+
+    Args:
+        persona: Filter logs for specific persona (None = all personas)
+        log_dir: Directory containing log files
+
+    Returns:
+        List of log entries sorted by timestamp (most recent first)
+    """
+    all_rows = []
+
+    if not log_dir.exists():
+        return all_rows
+
+    try:
+        # Determine pattern
+        pattern = f"{persona}_*.csv" if persona else "*.csv"
+
+        # Read all matching log files
+        for log_file in log_dir.glob(pattern):
+            try:
+                with open(log_file, mode='r', newline='') as f:
+                    reader = csv.DictReader(f)
+                    all_rows.extend(list(reader))
+            except Exception:
+                continue  # Skip corrupted files
+
+        # Sort by timestamp (most recent first)
+        all_rows.sort(key=lambda r: r.get('timestamp', ''), reverse=True)
+
+    except Exception as e:
+        print(f"⚠️ Warning: Could not read log files: {e}")
+
+    return all_rows
