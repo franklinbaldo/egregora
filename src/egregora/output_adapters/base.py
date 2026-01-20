@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import builtins
 import datetime
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import ibis
 import ibis.expr.datatypes as dt
@@ -86,7 +87,7 @@ class BaseOutputSink(OutputSink, ABC):
         """Return True if this adapter can manage the given site root."""
 
     @abstractmethod
-    def get_markdown_extensions(self) -> list[str]:
+    def get_markdown_extensions(self) -> builtins.list[str]:
         """Get list of supported markdown extensions for this format."""
 
     @abstractmethod
@@ -107,22 +108,28 @@ class BaseOutputSink(OutputSink, ABC):
             if not identifier:
                 continue
 
-            yield DocumentMetadata(identifier=identifier, doc_type=document.type, metadata=document.metadata)
+            yield DocumentMetadata(
+                identifier=str(identifier), doc_type=document.type, metadata=document.metadata
+            )
 
     def list_documents(self, doc_type: DocumentType | None = None) -> Table:
         """Compatibility shim returning an Ibis table of document metadata."""
-        rows: list[dict[str, Any]] = []
+        rows: builtins.list[dict[str, Any]] = []
         for meta in self.list(doc_type):
             mtime_ns = meta.metadata.get("mtime_ns") if isinstance(meta.metadata, dict) else None
             if mtime_ns is None:
                 try:
-                    path = (
-                        Path(meta.metadata.get("source_path", meta.identifier))
+                    # Fix for Path argument type error
+                    source_path = (
+                        meta.metadata.get("source_path", meta.identifier)
                         if isinstance(meta.metadata, dict)
-                        else None
+                        else meta.identifier
                     )
-                    if path and path.exists():
-                        mtime_ns = path.stat().st_mtime_ns
+
+                    if source_path:
+                        path = Path(str(source_path))
+                        if path.exists():
+                            mtime_ns = path.stat().st_mtime_ns
                 except OSError:
                     mtime_ns = None
 
@@ -148,7 +155,7 @@ class BaseOutputSink(OutputSink, ABC):
         *,
         recursive: bool = False,
         exclude_names: set[str] | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> builtins.list[dict[str, Any]]:
         """Scan a directory for documents and return metadata."""
         if not directory.exists():
             return []
@@ -176,7 +183,7 @@ class BaseOutputSink(OutputSink, ABC):
         """Return an empty Ibis table with the document listing schema."""
         return ibis.memtable([], schema=ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"}))
 
-    def _documents_to_table(self, documents: list[dict[str, Any]]) -> Table:
+    def _documents_to_table(self, documents: builtins.list[dict[str, Any]]) -> Table:
         """Convert list of document dicts to Ibis table."""
         schema = ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"})
         return ibis.memtable(documents, schema=schema)
@@ -265,7 +272,7 @@ class BaseOutputSink(OutputSink, ABC):
         except yaml.YAMLError as e:
             raise FrontmatterParsingError(str(e)) from e
 
-        return metadata, body
+        return cast("tuple[dict, str]", (metadata, body))
 
     def prepare_window(
         self, window_label: str, _window_data: dict[str, Any] | None = None
@@ -277,8 +284,8 @@ class BaseOutputSink(OutputSink, ABC):
     def finalize_window(
         self,
         window_label: str,
-        _posts_created: list[str],
-        profiles_updated: list[str],
+        _posts_created: builtins.list[str],
+        profiles_updated: builtins.list[str],
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Post-processing hook called after writer agent completes a window."""
@@ -298,6 +305,9 @@ class OutputSinkRegistry:
         # However, abstract OutputAdapter cannot be instantiated.
         # We assume concrete implementations are registered.
         # To fix type error, we cast format_class to Callable[[], OutputAdapter] implicitly
+        # This part was tricky in original code too.
+        # Ideally we should inspect the class property without instantiation, but it's an abstract property.
+        # For now, let's trust the logic or silence if needed, but the errors reported were not about this.
         instance = format_class()
         self._formats[instance.format_type] = format_class
 
@@ -318,7 +328,7 @@ class OutputSinkRegistry:
                 return instance
         raise AdapterNotDetectedError(str(site_root))
 
-    def list_formats(self) -> list[str]:
+    def list_formats(self) -> builtins.list[str]:
         """List all registered output format types."""
         return list(self._formats.keys())
 
