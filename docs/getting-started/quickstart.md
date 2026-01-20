@@ -61,19 +61,26 @@ export GOOGLE_API_KEY="your-api-key-here"
 egregora write whatsapp-export.zip --output-dir=. --timezone='America/New_York'
 ```
 
-This will:
+This single command automatically creates the magic:
 
-1. Parse the WhatsApp export
-2. Anonymize all names (real names never reach the AI)
-3. Create conversation windows (default: 1 day per window)
-4. Generate blog posts using Gemini
+1. **Parses** your WhatsApp export
+2. **Anonymizes** all names (real names never reach the AI)
+3. **Groups** messages into meaningful conversation windows
+4. **Generates** blog posts using Gemini
+5. ✨ **Builds contextual memory** - Posts will reference previous discussions
+6. 🏆 **Ranks content** - Your best memories are automatically identified
+7. 💝 **Creates profiles** - Loving portraits of each person in the chat
 
-!!! info
+!!! info "What's happening behind the scenes?"
     The first run may take a few minutes as it:
 
-    - Builds the LanceDB vector index (for RAG retrieval)
+    - Builds the LanceDB vector index for contextual memory (RAG)
     - Embeds all messages for semantic search
-    - Generates multiple blog posts
+    - Generates multiple blog posts with interconnected narratives
+    - Evaluates and ranks posts to surface the best content
+    - Creates author profiles capturing each person's personality
+
+    All three magical features (Contextual Memory, Content Discovery, Author Profiles) work automatically with **zero configuration**.
 
 ## Step 5: Preview Your Blog
 

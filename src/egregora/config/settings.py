@@ -179,13 +179,17 @@ class ImageGenerationSettings(BaseModel):
 class RAGSettings(BaseModel):
     """Retrieval-Augmented Generation (RAG) configuration.
 
+    ⭐ MAGICAL FEATURE: Contextual Memory
+    This is one of the three features that make Egregora special.
+    Posts reference previous discussions, creating connected narratives.
+
     Uses LanceDB for vector storage and similarity search.
     Embedding API uses dual-queue router for optimal throughput.
     """
 
     enabled: bool = Field(
-        default=True,
-        description="Enable RAG for writer agent",
+        default=True,  # ⭐ Magical feature - should always be True by default!
+        description="Enable RAG for writer agent (Contextual Memory)",
     )
     top_k: int = Field(
         default=5,
@@ -574,11 +578,16 @@ class DatabaseSettings(BaseModel):
 
 
 class ReaderSettings(BaseModel):
-    """Reader agent configuration for post evaluation and ranking."""
+    """Reader agent configuration for post evaluation and ranking.
+
+    ⭐ MAGICAL FEATURE: Content Discovery
+    This is one of the three features that make Egregora special.
+    It should be enabled by default for 95% of users.
+    """
 
     enabled: bool = Field(
-        default=False,
-        description="Enable reader agent for post quality evaluation",
+        default=True,  # ⭐ Changed from False - this is a magical feature!
+        description="Enable reader agent for post quality evaluation (Content Discovery)",
     )
     comparisons_per_post: int = Field(
         default=5,
@@ -629,7 +638,13 @@ class QuotaSettings(BaseModel):
 
 
 class ProfileSettings(BaseModel):
-    """Configuration for profile generation agent."""
+    """Configuration for profile generation agent.
+
+    ⭐ MAGICAL FEATURE: Author Profiles
+    This is one of the three features that make Egregora special.
+    Creates loving portraits of people from their messages - storytelling, not analytics.
+    Always enabled (no opt-out flag).
+    """
 
     history_window_size: int = Field(
         default=5,

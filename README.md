@@ -1,6 +1,6 @@
 # Egregora
 
-*Turn your chaotic group chat into a structured, readable blog.*
+*Turn your conversations into stories that remember.*
 
 [![CI](https://github.com/franklinbaldo/egregora/actions/workflows/ci.yml/badge.svg)](https://github.com/franklinbaldo/egregora/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/franklinbaldo/egregora/actions/workflows/codeql.yml/badge.svg)](https://github.com/franklinbaldo/egregora/actions/workflows/codeql.yml)
@@ -12,7 +12,22 @@
 [![Pydantic-AI](https://img.shields.io/badge/Pydantic--AI-type--safe-00D9FF.svg)](https://ai.pydantic.dev/)
 [![Docs](https://img.shields.io/badge/docs-live-green.svg)](https://franklinbaldo.github.io/egregora/)
 
-**Egregora** is a tool that reads your chat history and writes a blog. It uses AI to filter noise, synthesize conversations, and generate engaging posts. It is designed to run locally, keeping your data private by default, while using modern LLMs (like Gemini or OpenRouter) to do the heavy lifting of writing and formatting.
+**Egregora** transforms your chat history into a beautiful blog that tells the story of your conversations. Unlike simple chat-to-text tools, Egregora uses AI to understand context, discover your best memories, and create loving portraits of the people in your chats. It runs locally by default, keeping your data private while using modern LLMs (like Gemini or OpenRouter) to create something magical.
+
+## ✨ What Makes Egregora Special
+
+Egregora doesn't just convert chats to text—it understands your conversations and creates connected narratives. Three features work automatically to make this magic happen:
+
+### 🧠 **Contextual Memory** - Posts That Remember
+Your blog posts aren't isolated summaries. They reference previous discussions, building on earlier points and creating a continuing narrative. The AI "remembers" what was said before, so reading your blog feels like reliving the natural flow of your conversations.
+
+### 🏆 **Content Discovery** - Find Your Treasures
+Egregora automatically identifies your most meaningful conversations and surfaces them in a "Top Posts" section. No more scrolling through hundreds of posts to find the gems—your best memories are always easy to find and share.
+
+### 💝 **Author Profiles** - Loving Portraits
+The AI creates beautiful profiles of each person in your chats, capturing their personality, quirks, and unique voice. These aren't statistical reports—they're emotional storytelling that makes you think "This IS them!"
+
+**All three features work automatically with zero configuration.** That's the magic.
 
 ---
 
@@ -44,6 +59,8 @@ export GOOGLE_API_KEY="your-api-key"
 
 ### 2. The Workflow
 
+It's this simple:
+
 **1. Initialize a new site:**
 
 ```bash
@@ -57,6 +74,13 @@ cd my-blog
 egregora write path/to/chat_export.zip --output-dir=.
 ```
 
+That's it! Egregora will automatically:
+- ✨ Create posts that reference previous discussions (Contextual Memory)
+- 🏆 Identify and rank your best memories (Content Discovery)
+- 💝 Generate profiles of each person in the chat (Author Profiles)
+- 🖼️ Extract and optimize images/videos
+- 🎨 Create cover images for posts
+
 **3. Preview your site:**
 
 Use `uv tool run` to start a local server without installing the packages globally.
@@ -65,7 +89,7 @@ Use `uv tool run` to start a local server without installing the packages global
 uv tool run --from "git+https://github.com/franklinbaldo/egregora[mkdocs]" mkdocs serve -f .egregora/mkdocs.yml
 ```
 
-*Visit <http://localhost:8000> to read your new blog.*
+*Visit <http://localhost:8000> to experience the magic.*
 
 ---
 
@@ -85,23 +109,27 @@ Egregora is highly configurable via the `.egregora.toml` file generated in your 
 
 ---
 
-## ✨ Features
+## 🎯 More Features
 
-### 🧠 Context & Memory (RAG)
+Beyond the three magical features above, Egregora includes:
 
-Egregora uses **LanceDB** to build a vector knowledge base of your conversations. When writing a new post, the AI "remembers" related discussions from the past, adding depth and continuity to the narrative.
+### 🖼️ **Rich Media Handling**
+Images and videos are automatically extracted from your chat exports, optimized for the web, and embedded in posts. Media descriptions are generated for accessibility and context.
 
-### 🖼️ Rich Media
+### 🎨 **Beautiful Cover Images**
+Each post gets a unique AI-generated cover image based on its content, giving your blog a polished, professional look.
 
-Images and videos shared in the chat are automatically extracted, optimized, and embedded in the posts. An "Enricher" agent analyzes images to provide descriptions for the Writer agent.
+### 🔒 **Privacy Controls**
+Anonymize author names, strip EXIF data from images, and control exactly what information appears in your blog. Privacy is built in, not bolted on.
 
-### 🎨 Visuals
+### 📱 **Works Offline**
+Generate your blog entirely on your local machine. Your conversations never leave your computer unless you choose to publish them.
 
-A dedicated **Banner Agent** generates unique cover images for each post based on its content, giving your blog a polished look.
+### 🌍 **Multilingual**
+Write posts in any language—Spanish, French, Portuguese, or any language your AI model supports.
 
-### 📊 Ranking & Quality
-
-The **Reader Agent** uses an ELO rating system to evaluate and rank posts, helping you surface the best content from your archives.
+### ⚙️ **Highly Customizable**
+Power users can customize everything: AI models, prompts, windowing parameters, enrichment settings, and more. But you don't need to touch any of this—sensible defaults work for 95% of users.
 
 ---
 

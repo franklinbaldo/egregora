@@ -141,6 +141,7 @@ uv run mail send --to curator@team --subject "Fix needed" --body "..."
 │   ├── forge/                 # ⚒️ Feature implementation
 │   ├── janitor/               # 🧹 Code hygiene
 │   ├── lore/                  # 📚 System historian
+│   ├── maya/                  # 💝 User advocate
 │   ├── oracle/                # 🔮 Support agent
 │   ├── organizer/             # 🗂️ Project organization
 │   ├── refactor/              # 🔧 Code quality
@@ -269,6 +270,7 @@ Evaluate generated blogs and create data-driven UX improvements.
 | 🌊 | **Streamliner** | Optimizer | Data processing efficiency |
 | 🔍 | **Typeguard** | Type Checker | Type safety enforcement |
 | 🔭 | **Visionary** | Strategist | Strategic RFCs with BDD criteria |
+| 💝 | **Maya** | User Advocate | Non-technical user feedback, doc clarity |
 
 ### Persona Capabilities
 
