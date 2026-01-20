@@ -6,8 +6,7 @@ tables in DuckDB.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.exceptions import (
@@ -17,6 +16,8 @@ from egregora.database.exceptions import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from egregora.database.duckdb_manager import DuckDBStorageManager
 
 
@@ -29,64 +30,64 @@ class ContentRepository:
     def save(self, doc: Document) -> None:
         """Route document to correct table based on type."""
         # Common fields mapping from Document to Schema
-        row = {
+        row: dict[str, Any] = {
             "id": str(doc.id) if doc.id else None,
             "content": doc.content,
-            "created_at": doc.updated,  # Using updated as created_at/insertion time
+            "created_at": doc.created_at,  # Using created_at as insertion time
             "source_checksum": doc.internal_metadata.get("checksum"),
         }
 
-        if doc.doc_type == DocumentType.POST:
+        if doc.type == DocumentType.POST:
             # Post specific fields
             row.update(
                 {
-                    "title": doc.title,
+                    "title": doc.metadata.get("title"),
                     "slug": doc.internal_metadata.get("slug"),
                     "date": doc.internal_metadata.get("date"),
-                    "summary": doc.summary,
+                    "summary": doc.metadata.get("summary"),
                     # "authors": [str(a.id) for a in doc.authors],
                     # "tags": [c.term for c in doc.categories],
-                    "status": doc.status,
+                    "status": doc.metadata.get("status"),
                 }
             )
             self.db.ibis_conn.insert("posts", [row])
 
-        elif doc.doc_type == DocumentType.PROFILE:
+        elif doc.type == DocumentType.PROFILE:
             # Profile specific fields
             row.update(
                 {
                     "subject_uuid": doc.internal_metadata.get("subject_uuid"),
-                    "title": doc.title,  # Was 'name'
+                    "title": doc.metadata.get("title"),  # Was 'name'
                     "alias": doc.internal_metadata.get("alias"),
-                    "summary": doc.summary,  # Was 'bio'
+                    "summary": doc.metadata.get("summary"),  # Was 'bio'
                     "avatar_url": doc.internal_metadata.get("avatar_url"),
                     "interests": doc.internal_metadata.get("interests", []),
                 }
             )
             self.db.ibis_conn.insert("profiles", [row])
 
-        elif doc.doc_type == DocumentType.MEDIA:
+        elif doc.type == DocumentType.MEDIA:
             row.update(
                 {
                     "filename": doc.internal_metadata.get("filename"),
-                    "mime_type": doc.content_type,
+                    "mime_type": doc.metadata.get("mime_type") or doc.metadata.get("content_type"),
                     "media_type": doc.internal_metadata.get("media_type"),
                     "phash": doc.internal_metadata.get("phash"),
                 }
             )
             self.db.ibis_conn.insert("media", [row])
 
-        elif doc.doc_type == DocumentType.JOURNAL:
+        elif doc.type == DocumentType.JOURNAL:
             row.update(
                 {
-                    "title": doc.title,  # Was 'window_label'
+                    "title": doc.metadata.get("title"),  # Was 'window_label'
                     "window_start": doc.internal_metadata.get("window_start"),
                     "window_end": doc.internal_metadata.get("window_end"),
                 }
             )
             self.db.ibis_conn.insert("journals", [row])
 
-        elif doc.doc_type == DocumentType.ANNOTATION:
+        elif doc.type == DocumentType.ANNOTATION:
             row.update(
                 {
                     "parent_id": doc.internal_metadata.get("parent_id"),
@@ -99,7 +100,7 @@ class ContentRepository:
             # Fallback for unsupported types - perhaps log warning
             pass
 
-    def get_all(self) -> Iterator[dict]:
+    def get_all(self) -> list[tuple]:
         """Stream all documents via the unified view."""
         return self.db.execute("SELECT * FROM documents_view").fetchall()
 
@@ -129,7 +130,7 @@ class ContentRepository:
             msg = f"Failed to get document: {e}"
             raise DatabaseOperationError(msg) from e
 
-    def list(self, doc_type: DocumentType | None = None) -> Iterator[dict]:
+    def list(self, doc_type: DocumentType | None = None) -> Iterator[dict[str, Any]]:
         """List documents metadata."""
         if doc_type:
             table_name = self._get_table_for_type(doc_type)
@@ -166,7 +167,7 @@ class ContentRepository:
             raise UnsupportedDocumentTypeError(str(doc_type))
         return table
 
-    def _row_to_document(self, row: dict, doc_type: DocumentType) -> Document:
+    def _row_to_document(self, row: dict[str, Any], doc_type: DocumentType) -> Document:
         """Convert a DB row to a Document object."""
         # Reconstruct Document
         # internal_metadata needs to be populated from specific columns
@@ -184,14 +185,24 @@ class ContentRepository:
         # if row.get("tags"):
         #     categories = [Category(term=tag) for tag in row["tags"]]
 
+        # Populate metadata with fields that were extracted
+        metadata = {}
+        if "title" in row:
+            metadata["title"] = row["title"]
+        if "summary" in row:
+            metadata["summary"] = row["summary"]
+        if "status" in row:
+            metadata["status"] = row["status"]
+        if "mime_type" in row:
+            metadata["mime_type"] = row["mime_type"]
+
         return Document(
             id=row.get("id"),
-            title=row.get("title"),
             content=row.get("content"),
-            updated=row.get("created_at"),  # Map created_at back to updated?
-            summary=row.get("summary"),
+            created_at=row.get("created_at"),
             # authors=authors,
             # categories=categories,
-            doc_type=doc_type,
+            type=doc_type,
+            metadata=metadata,
             internal_metadata=internal_metadata,
         )
