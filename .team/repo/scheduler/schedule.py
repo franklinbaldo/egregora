@@ -19,8 +19,8 @@ CYCLE_PERSONAS = [
     "absolutist", "artisan", "bolt", "builder", "curator", "docs_curator",
     "essentialist", "forge", "janitor", "lore", "maintainer", "organizer", "palette",
     "pruner", "refactor", "sapper", "scribe", "sentinel", "shepherd", "sheriff",
-    "simplifier", "specifier", "steward", "streamliner", "taskmaster", "typeguard",
-    "visionary", "weaver"
+    "simplifier", "steward", "streamliner", "taskmaster", "typeguard",
+    "visionary"
 ]
 
 # Personas that are blocked from automatic scheduling
