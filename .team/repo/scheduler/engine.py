@@ -422,7 +422,12 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> Sched
 
 
         # Find current sequence
-        current = get_current_sequence(rows)
+        current, schedule_modified = get_current_sequence(rows)
+
+        # Save schedule if invalid personas were marked as closed
+        if schedule_modified and not dry_run:
+            save_schedule(rows)
+
         if not current:
             return SchedulerResult(
                 success=True,
@@ -441,7 +446,7 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> Sched
             persona_id = voted_winner
             # Reload schedule to get updated persona
             rows = load_schedule()
-            current = get_current_sequence(rows)
+            current, _ = get_current_sequence(rows)
             if current:
                 persona_id = current["persona"]
 
