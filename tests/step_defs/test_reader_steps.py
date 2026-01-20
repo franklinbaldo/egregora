@@ -693,7 +693,6 @@ def run_reader_evaluation(test_posts_dir, reader_config, elo_store, mock_compare
     return {"status": "success", "count": len(post_slugs), "posts_evaluated": len(post_slugs)}
 
 
-
 @when(parsers.parse('selecting new pairs for "{slug}"'), target_fixture="new_pairs")
 def select_new_pairs(test_posts_dir, elo_store, reader_config, slug):
     """Select new pairs for a specific post."""
@@ -1021,7 +1020,7 @@ def verify_post_count(top_posts, n):
 def verify_highest_rated(top_posts, n):
     """Verify posts are highest rated."""
     # Check that ratings are in descending order
-    ratings = [p["rating"] for p in top_posts]
+    ratings = [p.rating for p in top_posts]
     assert ratings == sorted(ratings, reverse=True)
 
 
