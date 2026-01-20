@@ -476,22 +476,6 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> Sched
                 message=f"Persona '{persona_id}' is not pleaded to the latest Team Constitution."
             )
 
-        existing_session_id = find_existing_session_id(
-            client=client,
-            sequence=seq,
-            persona_id=persona.id,
-            repo=repo_info["repo"],
-        )
-        if existing_session_id:
-            rows = update_sequence(rows, seq, session_id=existing_session_id)
-            if not dry_run:
-                save_schedule(rows)
-            return SchedulerResult(
-                success=True,
-                message=f"Session already exists for {persona.id}",
-                session_id=existing_session_id,
-            )
-
         # Check for existing PR
         sync_info = find_persona_pr(persona.id)
         if sync_info:
