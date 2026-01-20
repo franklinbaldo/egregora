@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import datetime
 import re
 from abc import ABC, abstractmethod
@@ -86,7 +87,7 @@ class BaseOutputSink(OutputSink, ABC):
         """Return True if this adapter can manage the given site root."""
 
     @abstractmethod
-    def get_markdown_extensions(self) -> list[str]:
+    def get_markdown_extensions(self) -> builtins.list[str]:
         """Get list of supported markdown extensions for this format."""
 
     @abstractmethod
@@ -111,16 +112,20 @@ class BaseOutputSink(OutputSink, ABC):
 
     def list_documents(self, doc_type: DocumentType | None = None) -> Table:
         """Compatibility shim returning an Ibis table of document metadata."""
-        rows: list[dict[str, Any]] = []
+        rows: builtins.list[dict[str, Any]] = []
         for meta in self.list(doc_type):
             mtime_ns = meta.metadata.get("mtime_ns") if isinstance(meta.metadata, dict) else None
             if mtime_ns is None:
                 try:
-                    path = (
-                        Path(meta.metadata.get("source_path", meta.identifier))
+                    raw_path = (
+                        meta.metadata.get("source_path", meta.identifier)
                         if isinstance(meta.metadata, dict)
                         else None
                     )
+                    path: Path | None = None
+                    if isinstance(raw_path, (str, Path)):
+                        path = Path(raw_path)
+
                     if path and path.exists():
                         mtime_ns = path.stat().st_mtime_ns
                 except OSError:
@@ -148,7 +153,7 @@ class BaseOutputSink(OutputSink, ABC):
         *,
         recursive: bool = False,
         exclude_names: set[str] | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> builtins.list[dict[str, Any]]:
         """Scan a directory for documents and return metadata."""
         if not directory.exists():
             return []
@@ -176,7 +181,7 @@ class BaseOutputSink(OutputSink, ABC):
         """Return an empty Ibis table with the document listing schema."""
         return ibis.memtable([], schema=ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"}))
 
-    def _documents_to_table(self, documents: list[dict[str, Any]]) -> Table:
+    def _documents_to_table(self, documents: builtins.list[dict[str, Any]]) -> Table:
         """Convert list of document dicts to Ibis table."""
         schema = ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"})
         return ibis.memtable(documents, schema=schema)
@@ -246,7 +251,7 @@ class BaseOutputSink(OutputSink, ABC):
 
         raise FilenameGenerationError(filename_pattern, max_attempts)
 
-    def parse_frontmatter(self, content: str) -> tuple[dict, str]:
+    def parse_frontmatter(self, content: str) -> tuple[dict[str, Any], str]:
         """Parse frontmatter from markdown content."""
         if not content.startswith("---\n"):
             return {}, content
@@ -277,8 +282,8 @@ class BaseOutputSink(OutputSink, ABC):
     def finalize_window(
         self,
         window_label: str,
-        _posts_created: list[str],
-        profiles_updated: list[str],
+        _posts_created: builtins.list[str],
+        profiles_updated: builtins.list[str],
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Post-processing hook called after writer agent completes a window."""
