@@ -429,7 +429,7 @@ This is the same content in both posts.
 
 
 @given(parsers.parse('post "{slug1}" and post "{slug2}" exist'))
-def create_two_posts(test_posts_dir, slug1, slug2):
+def create_two_specific_posts(test_posts_dir, slug1, slug2):
     """Create two specific posts."""
     create_minimal_post(test_posts_dir, slug1)
     create_minimal_post(test_posts_dir, slug2)
@@ -691,7 +691,6 @@ def run_reader_evaluation(test_posts_dir, reader_config, elo_store, mock_compare
     if not post_slugs:
         return {"status": "insufficient_posts", "count": 0, "posts_evaluated": 0}
     return {"status": "success", "count": len(post_slugs), "posts_evaluated": len(post_slugs)}
-
 
 
 @when(parsers.parse('selecting new pairs for "{slug}"'), target_fixture="new_pairs")
@@ -1021,7 +1020,7 @@ def verify_post_count(top_posts, n):
 def verify_highest_rated(top_posts, n):
     """Verify posts are highest rated."""
     # Check that ratings are in descending order
-    ratings = [p["rating"] for p in top_posts]
+    ratings = [p.rating for p in top_posts]
     assert ratings == sorted(ratings, reverse=True)
 
 
