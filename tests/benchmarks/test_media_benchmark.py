@@ -1,8 +1,9 @@
-
-import pytest
-import pandas as pd
 import ibis
+import pandas as pd
+import pytest
+
 from egregora.ops.media import extract_media_references
+
 
 @pytest.fixture
 def message_table():
@@ -16,11 +17,13 @@ def message_table():
             "Another image <attached: image2.png>",
             "Complex line with IMG-20210101-WA0001.jpg and other text",
             "Link to [doc](document.docx)",
-        ] * 1000  # 7000 rows
+        ]
+        * 1000  # 7000 rows
     }
     df = pd.DataFrame(data)
     con = ibis.duckdb.connect()
     return con.create_table("messages", df)
+
 
 def test_extract_media_references_benchmark(benchmark, message_table):
     benchmark(extract_media_references, message_table)

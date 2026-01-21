@@ -83,7 +83,9 @@ def init_rate_limiter(requests_per_second: float, max_concurrency: int) -> None:
     """Initialize the global rate limiter with specific config."""
     global _limiter
     with _limiter_lock:
-        _limiter = AsyncGlobalRateLimiter(requests_per_second=requests_per_second, max_concurrency=max_concurrency)
+        _limiter = AsyncGlobalRateLimiter(
+            requests_per_second=requests_per_second, max_concurrency=max_concurrency
+        )
     logger.info(
         "Initialized global async rate limiter: %s req/s, %s concurrent",
         requests_per_second,
