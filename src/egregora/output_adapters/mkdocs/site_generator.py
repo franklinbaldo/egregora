@@ -156,75 +156,6 @@ class SiteGenerator:
                 raise DocumentParsingError(str(path), str(e)) from e
         return media_items
 
-    def get_recent_posts(self, limit: int = 6) -> list[dict[str, Any]]:
-        """Get recent published posts for homepage."""
-        posts = []
-        if not self.posts_dir.exists():
-            return posts
-
-        # Get all post markdown files, excluding index
-        post_files = [p for p in self.posts_dir.rglob("*.md") if p.name != "index.md"]
-
-        # Sort by modification time (most recent first)
-        post_files = sorted(post_files, key=lambda p: p.stat().st_mtime, reverse=True)[:limit]
-
-        for path in post_files:
-            try:
-                post = frontmatter.load(str(path))
-                metadata = post.metadata
-
-                # Build post URL from date and slug
-                post_date = metadata.get("date")
-                post_slug = metadata.get("slug", path.stem)
-
-                if post_date:
-                    # Format: posts/YYYY/MM/DD/slug
-                    if isinstance(post_date, str):
-                        # Parse date string
-                        from datetime import datetime as dt
-
-                        post_date = dt.fromisoformat(post_date.replace("Z", "+00:00")).date()
-                    post_url = f"posts/{post_date.year:04d}/{post_date.month:02d}/{post_date.day:02d}/{post_slug}/"
-                else:
-                    post_url = f"posts/{post_slug}/"
-
-                # Get authors with avatars
-                authors = []
-                for author_uuid in metadata.get("authors", []):
-                    author_dir = self.profiles_dir / author_uuid
-                    if author_dir.exists():
-                        candidates = [p for p in author_dir.glob("*.md") if p.name != "index.md"]
-                        if candidates:
-                            profile_path = max(candidates, key=lambda p: p.stat().st_mtime_ns)
-                            profile = frontmatter.load(str(profile_path))
-                            authors.append(
-                                {
-                                    "uuid": author_uuid,
-                                    "name": profile.metadata.get("name", author_uuid[:8]),
-                                    "avatar": profile.metadata.get(
-                                        "avatar", generate_fallback_avatar_url(author_uuid)
-                                    ),
-                                }
-                            )
-
-                posts.append(
-                    {
-                        "title": metadata.get("title", "Untitled"),
-                        "url": post_url,
-                        "date": metadata.get("date"),
-                        "summary": metadata.get("summary", ""),
-                        "authors": authors,
-                        "tags": metadata.get("tags", []),
-                        "reading_time": metadata.get("reading_time", 5),
-                        "banner": metadata.get("banner") or metadata.get("image"),
-                    }
-                )
-            except (OSError, yaml.YAMLError) as e:
-                logger.warning("Could not parse post %s: %s", path, e)
-                continue
-
-        return posts
-
     def regenerate_tags_page(self) -> None:
         """Regenerate the tags.md page."""
         all_posts = self._scan_directory(self.posts_dir, DocumentType.POST)
@@ -244,18 +175,8 @@ class SiteGenerator:
 
     def regenerate_main_index(self) -> None:
         """Regenerates the main index.md from a template."""
-        import os
-
-        # Calculate relative paths for template links
-        blog_relative = Path(os.path.relpath(self.posts_dir, self.docs_dir)).as_posix()
-        media_relative = Path(os.path.relpath(self.media_dir, self.docs_dir)).as_posix()
-
         context = {
-            "site_name": self.site_root.name or "Egregora Archive",
-            "blog_dir": blog_relative,
-            "media_dir": media_relative,
             "stats": self.get_site_stats(),
-            "posts": self.get_recent_posts(limit=6),
             "recent_media": self.get_recent_media(limit=5),
             "profiles": self.get_profiles_data(),
             "generated_date": datetime.now(UTC).strftime("%Y-%m-%d"),
