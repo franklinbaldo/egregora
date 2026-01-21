@@ -1381,7 +1381,9 @@ class EnrichmentWorker(BaseWorker):
             if task_result is None:
                 continue
 
-            payload, slug_value, markdown = task_result
+            payload, output = task_result
+            slug_value = output.slug
+            markdown = output.markdown
             filename = payload["filename"]
             media_type = payload["media_type"]
             media_id = payload.get("media_id")
@@ -1539,7 +1541,9 @@ class EnrichmentWorker(BaseWorker):
         return len(results)
 
     # TODO: [Taskmaster] Improve brittle JSON parsing from LLM output
-    def _parse_media_result(self, res: Any, task: dict[str, Any]) -> tuple[dict[str, Any], str, str] | None:
+    def _parse_media_result(
+        self, res: Any, task: dict[str, Any]
+    ) -> tuple[dict[str, Any], EnrichmentOutput] | None:
         text = self._extract_text(res.response)
         try:
             clean_text = text.strip()
@@ -1550,6 +1554,8 @@ class EnrichmentWorker(BaseWorker):
             data = json.loads(clean_text.strip())
             slug = data.get("slug")
             markdown = data.get("markdown")
+            title = data.get("title")
+            tags = data.get("tags", [])
 
             payload = task["_parsed_payload"]
             filename = payload.get("filename", "")
@@ -1581,9 +1587,11 @@ class EnrichmentWorker(BaseWorker):
             if not slug_value or not markdown:
                 self.task_store.mark_failed(task["task_id"], "Missing slug or markdown")
                 return None
+
+            output = EnrichmentOutput(slug=slug_value, markdown=markdown, title=title, tags=tags)
+            return payload, output
+
         except Exception as exc:
             logger.exception("Failed to parse media result %s", task["task_id"])
             self.task_store.mark_failed(task["task_id"], f"Parse error: {exc!s}")
             return None
-        else:
-            return payload, slug_value, markdown

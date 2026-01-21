@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker
+from egregora.agents.enricher import EnrichmentOutput, EnrichmentRuntimeContext, EnrichmentWorker
 from egregora.data_primitives.document import DocumentType
 
 
@@ -40,7 +40,8 @@ def test_persist_media_results_uses_slug_for_filename(worker, mock_context, mock
     markdown = "# Enriched Content"
 
     # Mock _parse_media_result to return our test data
-    mocker.patch.object(worker, "_parse_media_result", return_value=(payload, slug_value, markdown))
+    output = EnrichmentOutput(slug=slug_value, markdown=markdown)
+    mocker.patch.object(worker, "_parse_media_result", return_value=(payload, output))
     # Mock _stage_file to avoid real IO
     mocker.patch.object(worker, "_stage_file", return_value=Path("/tmp/fake.jpg"))
     # Mock task_store
