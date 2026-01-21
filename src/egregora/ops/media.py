@@ -151,22 +151,48 @@ def extract_media_references(table: Table) -> set[str]:
     """Extract all media references (markdown and raw) from message column."""
     references = set()
     # IR v1: use "text" column
-    messages = table.select("text").execute()
-    for row in messages.itertuples(index=False):
-        message = row.text
-        if not message:
+    try:
+        df = table.select("text").execute()
+    except (AttributeError, Exception):
+        # Fallback if backend interaction fails
+        return references
+
+    if hasattr(df, "text"):
+        # pandas DataFrame
+        messages = df["text"].dropna().tolist()
+    elif hasattr(df, "to_pylist"):
+        # pyarrow Table
+        messages = [r["text"] for r in df.to_pylist()]
+    else:
+        # Fallback for unexpected type
+        return references
+
+    # Pre-bind regex methods for optimization
+    md_img_find = MARKDOWN_IMAGE_PATTERN.findall
+    md_link_find = MARKDOWN_LINK_PATTERN.findall
+    att_find = ATTACHMENT_MARKERS_PATTERN.findall
+    wa_find = WA_MEDIA_PATTERN.findall
+    uni_find = UNICODE_MEDIA_PATTERN.findall
+
+    for message in messages:
+        if not message or not isinstance(message, str):
             continue
+
         # 1. Markdown references
-        for match in MARKDOWN_IMAGE_PATTERN.finditer(message):
-            references.add(match.group(2))
-        for match in MARKDOWN_LINK_PATTERN.finditer(message):
-            ref = match.group(2)
+        # Pattern: !\[([^\]]*)\]\(([^)]+)\) -> Group 2 is match[1]
+        for match in md_img_find(message):
+            references.add(match[1])
+
+        # Pattern: (?<!!)\[([^\]]+)\]\(([^)]+)\) -> Group 2 is match[1]
+        for match in md_link_find(message):
+            ref = match[1]
             if not ref.startswith(("http://", "https://")):
                 references.add(ref)
 
-        # 2. Raw references
-        raw_refs = find_media_references(message)
-        references.update(raw_refs)
+        # 2. Raw references (inlined find_media_references logic for speed)
+        references.update(att_find(message))
+        references.update(wa_find(message))
+        references.update(uni_find(message))
 
     return references
 
