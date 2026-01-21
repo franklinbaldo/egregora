@@ -960,6 +960,132 @@
   font-weight: 400;
 }
 
+/* ============================================================================
+   DARK MODE REFINEMENTS
+   ============================================================================ */
+
+/* Dark mode color scheme optimizations */
+[data-md-color-scheme="slate"] {
+  /* --- ELO Badge - Darker gold for better contrast --- */
+  .elo-badge {
+    background: linear-gradient(135deg, #B8860B 0%, #CD853F 100%);
+    color: #1a1a1a;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+
+  /* --- Enhanced shadows for better depth perception --- */
+  .top-post-card {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .top-post-card:hover {
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  }
+
+  .featured-post {
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .featured-post:hover {
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  }
+
+  .post-card-modern {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .post-card-modern:hover {
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  }
+
+  .nav-card {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .nav-card:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .related-post-card {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .related-post-card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+
+  /* --- Homepage hero - Darker shadows for text readability --- */
+  .hero-title {
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  }
+
+  .stat-number {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  }
+
+  .homepage-hero {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+
+  /* --- Stat badges - Better contrast --- */
+  .stat-badge {
+    background: color-mix(in srgb, var(--md-accent-fg-color) 25%, transparent);
+  }
+
+  /* --- Card borders - More visible in dark mode --- */
+  .top-post-card,
+  .post-card-modern,
+  .nav-card,
+  .featured-post {
+    border-color: color-mix(in srgb, var(--md-default-fg-color) 15%, transparent);
+  }
+
+  /* --- Media gallery cards --- */
+  .media-card {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    border-color: color-mix(in srgb, var(--md-default-fg-color) 15%, transparent);
+  }
+
+  .media-card:hover {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+
+  /* --- Tag pills - Slightly higher contrast --- */
+  .tag-pill,
+  .tag-pill-small,
+  .tag-pill-post {
+    background: color-mix(in srgb, var(--md-primary-fg-color) 15%, transparent);
+  }
+
+  .tag-pill:hover,
+  .tag-pill-post:hover {
+    background: var(--md-primary-fg-color);
+    color: #1a1a1a;
+  }
+
+  /* --- Related posts section --- */
+  .related-posts {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  /* --- Post banner overlay for better text visibility --- */
+  .post-banner::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.2) 100%);
+    pointer-events: none;
+  }
+
+  /* --- Empty state styling --- */
+  .empty-state-homepage {
+    background: color-mix(in srgb, var(--md-default-fg-color) 5%, transparent);
+  }
+}
+
 /* --- Responsive Post Page --- */
 @media (max-width: 768px) {
   .post-header h1 {
