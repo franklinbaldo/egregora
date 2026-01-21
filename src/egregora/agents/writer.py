@@ -885,6 +885,16 @@ def _regenerate_site_indices(adapter: OutputSink) -> None:
         logger.warning("Site root is not set, skipping site generation.")
         return
 
+    # Load config to get reader database path
+    from egregora.config import load_egregora_config
+
+    try:
+        config = load_egregora_config(adapter.site_root)
+        db_path = adapter.site_root / config.reader.database_path
+    except Exception as e:
+        logger.debug("Could not load reader database path: %s", e)
+        db_path = None
+
     site_generator = SiteGenerator(
         site_root=adapter.site_root,
         docs_dir=adapter.docs_dir,
@@ -894,11 +904,13 @@ def _regenerate_site_indices(adapter: OutputSink) -> None:
         journal_dir=adapter.journal_dir,
         url_convention=adapter.url_convention,
         url_context=adapter.url_context,
+        db_path=db_path,
     )
     site_generator.regenerate_main_index()
     site_generator.regenerate_profiles_index()
     site_generator.regenerate_media_index()
     site_generator.regenerate_tags_page()
+    site_generator.regenerate_feeds_page()
     logger.info("Successfully regenerated site indices.")
 
 

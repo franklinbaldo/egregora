@@ -2,6 +2,7 @@
   <div class="hero-content">
     <h1 class="hero-title">{{ site_name }}</h1>
     <p class="hero-subtitle">Your conversations, transformed into connected stories</p>
+    {% if stats %}
     <div class="hero-stats">
       <div class="stat-item">
         <span class="stat-number">{{ stats.post_count }}</span>
@@ -16,6 +17,7 @@
         <span class="stat-label">Media</span>
       </div>
     </div>
+    {% endif %}
   </div>
 </div>
 
@@ -109,6 +111,64 @@
 </div>
 {% endif %}
 
+<!-- Top Rated Posts by ELO -->
+{% if top_posts %}
+<div class="homepage-section">
+  <div class="section-header">
+    <h2>🏆 Top Rated Posts</h2>
+    <p class="section-subtitle">Reader favorites based on quality comparisons</p>
+  </div>
+  <div class="top-posts-grid">
+    {% for post in top_posts %}
+    <article class="top-post-card">
+      {% if post.banner %}
+      <div class="top-post-image">
+        <a href="{{ post.url }}">
+          <img src="{{ post.banner }}" alt="{{ post.title }}" loading="lazy">
+        </a>
+        <div class="elo-badge">
+          <span class="elo-value">{{ post.elo_rating | round(0) | int }}</span>
+          <span class="elo-label">ELO</span>
+        </div>
+      </div>
+      {% endif %}
+      <div class="top-post-content">
+        <div class="top-post-meta">
+          {% if post.authors %}
+          <div class="post-authors-small">
+            {% for author in post.authors[:2] %}
+            <img src="{{ author.avatar }}" alt="{{ author.name }}" class="author-avatar-tiny" title="{{ author.name }}">
+            {% endfor %}
+          </div>
+          {% endif %}
+          <div class="top-post-stats">
+            <span class="stat-badge" title="Number of comparisons">⚖️ {{ post.comparisons }}</span>
+            {% if post.win_rate %}
+            <span class="stat-badge" title="Win rate">📊 {{ (post.win_rate * 100) | round(1) }}%</span>
+            {% endif %}
+          </div>
+        </div>
+        <h3 class="top-post-title">
+          <a href="{{ post.url }}">{{ post.title }}</a>
+        </h3>
+        <p class="top-post-summary">{{ post.summary | truncate(100) }}</p>
+        <div class="top-post-footer">
+          <span class="reading-time-small">📖 {{ post.reading_time }} min</span>
+          {% if post.tags %}
+          <div class="tags-compact">
+            {% for tag in post.tags[:2] %}
+            <span class="tag-pill-small">{{ tag }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 <!-- Quick Navigation -->
 <div class="homepage-navigation">
   <a href="{{ blog_dir }}/profiles/" class="nav-card">
@@ -130,6 +190,13 @@
     <div class="nav-content">
       <h3>About</h3>
       <p>Learn how Egregora works</p>
+    </div>
+  </a>
+  <a href="feeds/" class="nav-card">
+    <span class="nav-icon">📡</span>
+    <div class="nav-content">
+      <h3>RSS Feeds</h3>
+      <p>Subscribe to updates</p>
     </div>
   </a>
 </div>
