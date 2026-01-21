@@ -262,13 +262,36 @@ def _run_rag_query(query_text: str, top_k: int) -> Any | None:
 
 def _format_rag_hits(hits: list[Any]) -> str:
     parts = [
-        "\n\n## Similar Posts (for context and inspiration):\n",
-        "These are similar posts from previous conversations that might provide useful context:\n\n",
+        "\n\n## Similar Posts (Reference When Relevant):\n",
+        "These previous posts share themes with your current conversation. ",
+        "Reference them naturally when they add context or build on ideas.\n\n",
     ]
     for idx, hit in enumerate(hits, 1):
         similarity_pct = int(hit.score * 100)
-        parts.append(f"### Similar Post {idx} (similarity: {similarity_pct}%)\n")
-        parts.append(f"{hit.text[:500]}...\n\n")
+
+        # Extract metadata for creating proper references
+        title = hit.metadata.get("title", "Untitled Post")
+        slug = hit.metadata.get("slug", "unknown")
+        date = hit.metadata.get("date")
+
+        # Build relative URL (MkDocs format: posts/YYYY/MM/DD/slug/)
+        # Try to extract date for proper URL structure
+        url = f"posts/{slug}/"
+        if date:
+            try:
+                # Handle various date formats (string or datetime object)
+                if isinstance(date, str):
+                    from datetime import datetime
+                    date_obj = datetime.fromisoformat(date.replace("Z", "+00:00"))
+                else:
+                    date_obj = date
+                url = f"posts/{date_obj.year:04d}/{date_obj.month:02d}/{date_obj.day:02d}/{slug}/"
+            except (ValueError, AttributeError):
+                # Fallback to simple format if date parsing fails
+                pass
+
+        parts.append(f"### {idx}. [{title}]({url}) (similarity: {similarity_pct}%)\n")
+        parts.append(f"{hit.text[:400]}...\n\n")
     return "".join(parts)
 
 
