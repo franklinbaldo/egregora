@@ -56,18 +56,23 @@ def create_mock_post_for_generator(
     authors: list[str],
     tags: list[str],
     summary: str,
+    banner: str | None = None,
 ):
+    metadata = {
+        "slug": slug,
+        "title": title,
+        "date": date,
+        "authors": authors,
+        "tags": tags,
+        "summary": summary,
+    }
+    if banner:
+        metadata["banner"] = banner
+
     post_doc = Document(
         type=DocumentType.POST,
         content=f"Content for {title}",
-        metadata={
-            "slug": slug,
-            "title": title,
-            "date": date,
-            "authors": authors,
-            "tags": tags,
-            "summary": summary,
-        },
+        metadata=metadata,
     )
     generator._adapter.persist(post_doc)
 
@@ -136,7 +141,14 @@ def test_get_recent_media(site_generator: SiteGenerator):
 
 def test_regenerate_indices_fixes_bug(site_generator: SiteGenerator):
     create_mock_post_for_generator(
-        site_generator, "post-1", "Post 1", "2025-01-01", ["uuid-1"], ["tag1"], "Summary 1"
+        site_generator,
+        "post-1",
+        "Post 1",
+        "2025-01-01",
+        ["uuid-1"],
+        ["tag1"],
+        "Summary 1",
+        banner="https://example.com/banner.jpg",
     )
     create_mock_profile_for_generator(site_generator, "uuid-1", "Author 1", "Bio 1")
 

@@ -79,7 +79,17 @@ plugins:
       lang: en
       separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
   - macros
-  - glightbox
+  - glightbox:
+      touchNavigation: true
+      loop: false
+      effect: zoom
+      slide_effect: slide
+      width: 100%
+      height: auto
+      zoomable: true
+      draggable: true
+      auto_caption: false
+      caption_position: bottom
   - blog:
       blog_dir: {{ blog_dir }}
       post_dir: .
@@ -119,8 +129,18 @@ plugins:
       categories:
         - categories
         - tags
+      feeds_filenames:
+        rss_created: feed_rss_created.xml
+        rss_updated: feed_rss_updated.xml
+        json_created: feed_json_created.json
+        json_updated: feed_json_updated.json
+      use_git: false
+      use_material_social_cards: true
       comments_path: "#__comments"
       use_material_blog: false
+      pretty_print: true
+      abstract_chars_count: 300
+      abstract_delimiter: "<!-- more -->"
   - git-revision-date-localized:
       enable_creation_date: true
       type: timeago
