@@ -21,7 +21,7 @@ import uuid
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
@@ -130,6 +130,8 @@ class EnrichmentOutput(BaseModel):
 
     slug: str
     markdown: str
+    title: str | None = None
+    tags: list[str] = []
 
 
 # ---------------------------------------------------------------------------
@@ -919,6 +921,9 @@ class EnrichmentWorker(BaseWorker):
                     metadata={
                         "url": url,
                         "slug": slug_value,
+                        "title": output.title or slug_value.replace("-", " ").title(),
+                        "tags": output.tags or [],
+                        "date": datetime.now(UTC).isoformat(),
                         "nav_exclude": True,
                         "hide": ["navigation"],
                     },
@@ -1450,6 +1455,9 @@ class EnrichmentWorker(BaseWorker):
                 "media_type": media_type,
                 "parent_path": suggested_path,
                 "slug": slug_value,
+                "title": output.title if output else slug_value.replace("-", " ").title(),
+                "tags": output.tags if output else [],
+                "date": datetime.now(UTC).isoformat(),
                 "nav_exclude": True,
                 "hide": ["navigation"],
             }

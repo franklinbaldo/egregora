@@ -1093,7 +1093,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _write_enrichment_doc(self, document: Document, path: Path) -> None:
         metadata = self._ensure_hidden(document.metadata.copy())
-        metadata.setdefault("document_type", document.type.value)
         metadata.setdefault("slug", document.slug)
         if document.parent_id:
             metadata.setdefault("parent_id", document.parent_id)
