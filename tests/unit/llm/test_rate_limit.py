@@ -47,7 +47,7 @@ async def test_global_rate_limiter_concurrency():
     # Wait for task
     try:
         await asyncio.wait_for(task, timeout=0.1)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         pytest.fail("Worker task did not complete in time")
 
     assert acquired_event.is_set()
@@ -83,7 +83,7 @@ async def test_global_rate_limiter_rate_limiting():
 @pytest.mark.asyncio
 async def test_global_rate_limiter_cancellation_safety():
     """Verify that cancelling acquire does not leak semaphore."""
-    limiter = AsyncGlobalRateLimiter(requests_per_second=0.1, max_concurrency=1) # slow rate
+    limiter = AsyncGlobalRateLimiter(requests_per_second=0.1, max_concurrency=1)  # slow rate
 
     # Make a first request to set the last request time
     await limiter.acquire()
@@ -92,7 +92,7 @@ async def test_global_rate_limiter_cancellation_safety():
     # Try to acquire again - this should sleep because of rate limit
     task = asyncio.create_task(limiter.acquire())
 
-    await asyncio.sleep(0.1) # Let it enter sleep
+    await asyncio.sleep(0.1)  # Let it enter sleep
     task.cancel()
 
     try:

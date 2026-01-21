@@ -81,6 +81,18 @@ UNICODE_MEDIA_PATTERN = re.compile(r"\u200e((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\
 MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
 MARKDOWN_LINK_PATTERN = re.compile(r"(?<!!)\[([^\]]+)\]\(([^)]+)\)")
 
+# Combined Pattern for single-pass extraction
+COMBINED_MEDIA_PATTERN = re.compile(
+    rf"""
+    !\[(?P<img_alt>[^\]]*)\]\((?P<img_url>[^)]+)\) |              # Markdown Image
+    (?<!!)\[(?P<link_text>[^\]]+)\]\((?P<link_url>[^)]+)\) |      # Markdown Link
+    (?i:(?P<att_file>[\w\-\.]+\.\w+)\s*(?:{_MARKERS_REGEX})) |    # Attachment
+    \b(?P<wa_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b |     # WhatsApp
+    (?i:\u200e(?P<uni_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)) # Unicode
+    """,
+    re.VERBOSE,
+)
+
 
 # ----------------------------------------------------------------------------
 # Detection & Classification
@@ -168,31 +180,25 @@ def extract_media_references(table: Table) -> set[str]:
         return references
 
     # Pre-bind regex methods for optimization
-    md_img_find = MARKDOWN_IMAGE_PATTERN.findall
-    md_link_find = MARKDOWN_LINK_PATTERN.findall
-    att_find = ATTACHMENT_MARKERS_PATTERN.findall
-    wa_find = WA_MEDIA_PATTERN.findall
-    uni_find = UNICODE_MEDIA_PATTERN.findall
+    combined_find = COMBINED_MEDIA_PATTERN.finditer
 
     for message in messages:
         if not message or not isinstance(message, str):
             continue
 
-        # 1. Markdown references
-        # Pattern: !\[([^\]]*)\]\(([^)]+)\) -> Group 2 is match[1]
-        for match in md_img_find(message):
-            references.add(match[1])
-
-        # Pattern: (?<!!)\[([^\]]+)\]\(([^)]+)\) -> Group 2 is match[1]
-        for match in md_link_find(message):
-            ref = match[1]
-            if not ref.startswith(("http://", "https://")):
-                references.add(ref)
-
-        # 2. Raw references (inlined find_media_references logic for speed)
-        references.update(att_find(message))
-        references.update(wa_find(message))
-        references.update(uni_find(message))
+        for match in combined_find(message):
+            # Check which group matched (named groups from COMBINED_MEDIA_PATTERN)
+            if img_url := match.group("img_url"):
+                references.add(img_url)
+            elif link_url := match.group("link_url"):
+                if not link_url.startswith(("http://", "https://")):
+                    references.add(link_url)
+            elif att_file := match.group("att_file"):
+                references.add(att_file)
+            elif wa_file := match.group("wa_file"):
+                references.add(wa_file)
+            elif uni_file := match.group("uni_file"):
+                references.add(uni_file)
 
     return references
 
