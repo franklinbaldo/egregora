@@ -66,8 +66,9 @@ YAML_FRONTMATTER_PARTS_COUNT = 3  # YAML front matter splits into 3 parts: ["", 
 YAML_FRONTMATTER_DELIMITER_COUNT = 2  # Front matter delimiter occurrences in well-formed docs.
 PROFILE_DATE_REGEX = re.compile(r"(\d{4}-\d{2}-\d{2})")
 # Fast author extraction regex for performance-critical bulk operations
-_AUTHORS_LIST_REGEX = re.compile(r"^authors:\s*\n((?:\s*-\s+.+\n?)+)", re.MULTILINE)
-_AUTHORS_SINGLE_REGEX = re.compile(r"^authors:\s*(.+)$", re.MULTILINE)
+_AUTHORS_COMBINED_REGEX = re.compile(
+    r"^authors:[ \t]*(?:\n(?P<list>(?:\s*-\s+.+\n?)+)|(?P<single>.+))$", re.MULTILINE
+)
 
 
 def _find_profile_path(
@@ -1156,27 +1157,25 @@ def extract_authors_from_post(md_file: Path, *, fast: bool = True) -> set[str]:
             with md_file.open("r", encoding="utf-8") as f:
                 content = f.read(4096)  # Read first 4KB (frontmatter typically <1KB)
 
-            # Try list format first: "authors:\n  - foo\n  - bar"
-            list_match = _AUTHORS_LIST_REGEX.search(content)
-            if list_match:
-                authors_block = list_match.group(1)
-                # Extract author IDs from "  - author_id" lines
-                authors = set()
-                for line in authors_block.split("\n"):
-                    stripped = line.strip()
-                    if stripped.startswith("-"):
-                        # Remove the leading "- " and any surrounding whitespace/quotes
-                        author = stripped[1:].strip().strip("'\"")
-                        if author:
-                            authors.add(author)
-                return authors if authors else set()
+            match = _AUTHORS_COMBINED_REGEX.search(content)
+            if match:
+                if match.group("list"):
+                    authors_block = match.group("list")
+                    # Extract author IDs from "  - author_id" lines
+                    authors = set()
+                    for line in authors_block.split("\n"):
+                        stripped = line.strip()
+                        if stripped.startswith("-"):
+                            # Remove the leading "- " and any surrounding whitespace/quotes
+                            author = stripped[1:].strip().strip("'\"")
+                            if author:
+                                authors.add(author)
+                    return authors if authors else set()
 
-            # Try single value format: "authors: foo"
-            single_match = _AUTHORS_SINGLE_REGEX.search(content)
-            if single_match:
-                author = single_match.group(1).strip()
-                if author and not author.startswith("["):  # Not a JSON array
-                    return {author}
+                if match.group("single"):
+                    author = match.group("single").strip()
+                    if author and not author.startswith("["):  # Not a JSON array
+                        return {author}
 
             return set()
         # Slow path: Full YAML parsing (more robust, handles edge cases)
