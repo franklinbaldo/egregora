@@ -77,21 +77,19 @@ _MARKERS_REGEX = "|".join(re.escape(m) for m in ATTACHMENT_MARKERS)
 ATTACHMENT_MARKERS_PATTERN = re.compile(rf"([\w\-\.]+\.\w+)\s*(?:{_MARKERS_REGEX})", re.IGNORECASE)
 UNICODE_MEDIA_PATTERN = re.compile(r"\u200e((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)", re.IGNORECASE)
 
-# Patterns for Markdown processing
-MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
-MARKDOWN_LINK_PATTERN = re.compile(r"(?<!!)\[([^\]]+)\]\(([^)]+)\)")
-
-# Combined Pattern for single-pass extraction
-COMBINED_MEDIA_PATTERN = re.compile(
-    rf"""
+# Split Patterns for optimized extraction
+FAST_MEDIA_PATTERN = re.compile(
+    r"""
     !\[(?P<img_alt>[^\]]*)\]\((?P<img_url>[^)]+)\) |              # Markdown Image
     (?<!!)\[(?P<link_text>[^\]]+)\]\((?P<link_url>[^)]+)\) |      # Markdown Link
-    (?i:(?P<att_file>[\w\-\.]+\.\w+)\s*(?:{_MARKERS_REGEX})) |    # Attachment
     \b(?P<wa_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b |     # WhatsApp
     (?i:\u200e(?P<uni_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)) # Unicode
     """,
     re.VERBOSE,
 )
+
+MARKER_PATTERN = re.compile(rf"(?:{_MARKERS_REGEX})", re.IGNORECASE)
+FILENAME_LOOKBEHIND_PATTERN = re.compile(r"([\w\-\.]+\.\w+)\s*$", re.IGNORECASE)
 
 
 # ----------------------------------------------------------------------------
@@ -180,25 +178,36 @@ def extract_media_references(table: Table) -> set[str]:
         return references
 
     # Pre-bind regex methods for optimization
-    combined_find = COMBINED_MEDIA_PATTERN.finditer
+    fast_find = FAST_MEDIA_PATTERN.finditer
+    marker_find = MARKER_PATTERN.finditer
+    filename_search = FILENAME_LOOKBEHIND_PATTERN.search
 
     for message in messages:
         if not message or not isinstance(message, str):
             continue
 
-        for match in combined_find(message):
-            # Check which group matched (named groups from COMBINED_MEDIA_PATTERN)
+        # Pass 1: Fast patterns (Images, Links, WhatsApp, Unicode)
+        for match in fast_find(message):
             if img_url := match.group("img_url"):
                 references.add(img_url)
             elif link_url := match.group("link_url"):
                 if not link_url.startswith(("http://", "https://")):
                     references.add(link_url)
-            elif att_file := match.group("att_file"):
-                references.add(att_file)
             elif wa_file := match.group("wa_file"):
                 references.add(wa_file)
             elif uni_file := match.group("uni_file"):
                 references.add(uni_file)
+
+        # Pass 2: Attachments via markers (optimized to avoid greedy filename scanning)
+        for match in marker_find(message):
+            start_pos = match.start()
+            lookback_slice = message[:start_pos]
+            if not lookback_slice:
+                continue
+
+            # Look for filename at the end of the preceding text
+            if fm := filename_search(lookback_slice):
+                references.add(fm.group(1))
 
     return references
 
