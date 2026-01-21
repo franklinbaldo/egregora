@@ -54,27 +54,29 @@ def test_parse_media_result_constructs_markdown_with_slug_filename(worker):
     )
 
     # Executing the method under test
-    # Note: _parse_media_result signature: (res, task) -> (payload, slug_value, markdown)
+    # Note: _parse_media_result signature: (res, task) -> (payload, output)
     result = worker._parse_media_result(res, task)
 
     assert result is not None
-    _payload, slug, markdown = result
+    _payload, output = result
 
     # Assertions
-    assert slug == "cool-slug-name"
+    assert output.slug == "cool-slug-name"
 
     # The critical check: does the markdown use the NEW filename?
     # Expected filename: cool-slug-name.jpg (assuming .jpg from original)
     expected_filename = "cool-slug-name.jpg"
 
-    assert f"({expected_filename})" in markdown, (
-        f"Markdown should contain link to '{expected_filename}', but got:\n{markdown}"
+    assert f"({expected_filename})" in output.markdown, (
+        f"Markdown should contain link to '{expected_filename}', but got:\n{output.markdown}"
     )
 
-    assert f"({original_filename})" not in markdown, "Markdown should NOT contain link to original filename"
+    assert f"({original_filename})" not in output.markdown, (
+        "Markdown should NOT contain link to original filename"
+    )
 
     # Verify Tags section exists (per user request)
-    assert "## Tags" in markdown
+    assert "## Tags" in output.markdown
 
 
 def test_parse_media_result_handles_missing_slug(worker):

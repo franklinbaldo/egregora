@@ -1240,10 +1240,6 @@ def _prepare_pipeline_data(
     )
 
 
-
-
-
-
 def _apply_date_filters(
     messages_table: ir.Table, from_date: date_type | None, to_date: date_type | None
 ) -> ir.Table:
@@ -1306,10 +1302,9 @@ def _apply_filters(
         logger.warning("⚠️  %s messages removed from opted-out users", removed_count)
 
     # Date range filtering
-    messages_table = _apply_date_filters(messages_table, options.from_date, options.to_date)
+    return _apply_date_filters(messages_table, options.from_date, options.to_date)
 
     # Checkpoint-based resume logic (Delegated to Runner / Journal check)
-    return messages_table
 
 
 def _init_global_rate_limiter(quota_config: Any) -> None:
@@ -1376,7 +1371,6 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
                     max_processed_timestamp = conversation.window.end_time
 
             _generate_taxonomy(dataset)
-
 
             # Final pass for any lingering background tasks
             process_background_tasks(dataset.context)
