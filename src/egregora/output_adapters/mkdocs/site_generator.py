@@ -157,7 +157,10 @@ class SiteGenerator:
         return media_items
 
     def get_recent_posts(self, limit: int = 6) -> list[dict[str, Any]]:
-        """Get recent published posts for homepage."""
+        """Get recent published posts for homepage.
+
+        Only returns posts with banner images. Posts without banners are filtered out.
+        """
         posts = []
         if not self.posts_dir.exists():
             return posts
@@ -166,9 +169,13 @@ class SiteGenerator:
         post_files = [p for p in self.posts_dir.rglob("*.md") if p.name != "index.md"]
 
         # Sort by modification time (most recent first)
-        post_files = sorted(post_files, key=lambda p: p.stat().st_mtime, reverse=True)[:limit]
+        # Get more candidates to account for filtering posts without banners
+        post_files = sorted(post_files, key=lambda p: p.stat().st_mtime, reverse=True)
 
         for path in post_files:
+            # Stop once we have enough posts with banners
+            if len(posts) >= limit:
+                break
             try:
                 post = frontmatter.load(str(path))
                 metadata = post.metadata
@@ -207,6 +214,14 @@ class SiteGenerator:
                                 }
                             )
 
+                # Get banner - required for homepage display
+                banner = metadata.get("banner") or metadata.get("image")
+
+                # Skip posts without banners - they won't display well in the grid
+                if not banner:
+                    logger.debug("Skipping post without banner: %s", path.name)
+                    continue
+
                 posts.append(
                     {
                         "title": metadata.get("title", "Untitled"),
@@ -216,7 +231,7 @@ class SiteGenerator:
                         "authors": authors,
                         "tags": metadata.get("tags", []),
                         "reading_time": metadata.get("reading_time", 5),
-                        "banner": metadata.get("banner") or metadata.get("image"),
+                        "banner": banner,
                     }
                 )
             except (OSError, yaml.YAMLError) as e:

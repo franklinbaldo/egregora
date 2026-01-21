@@ -398,7 +398,7 @@
 .tag-pill {
   display: inline-block;
   padding: 0.5rem 1rem;
-  background: rgba(var(--md-primary-fg-color), 0.1);
+  background: color-mix(in srgb, var(--md-primary-fg-color) 10%, transparent);
   color: var(--md-primary-fg-color);
   border-radius: 20px;
   font-size: 0.875rem;
@@ -536,7 +536,7 @@
 .tag-pill-small {
   display: inline-block;
   padding: 0.35rem 0.75rem;
-  background: rgba(var(--md-primary-fg-color), 0.08);
+  background: color-mix(in srgb, var(--md-primary-fg-color) 8%, transparent);
   color: var(--md-primary-fg-color);
   border-radius: 12px;
   font-size: 0.8rem;
@@ -560,7 +560,7 @@
 }
 
 .empty-state-homepage code {
-  background: rgba(var(--md-primary-fg-color), 0.1);
+  background: color-mix(in srgb, var(--md-primary-fg-color) 10%, transparent);
   padding: 0.2rem 0.5rem;
   border-radius: 4px;
   font-weight: 600;
@@ -704,7 +704,7 @@
 .tag-pill-post {
   display: inline-block;
   padding: 0.5rem 1rem;
-  background: rgba(var(--md-primary-fg-color), 0.1);
+  background: color-mix(in srgb, var(--md-primary-fg-color) 10%, transparent);
   color: var(--md-primary-fg-color);
   border-radius: 20px;
   font-size: 0.875rem;
@@ -769,7 +769,7 @@
 }
 
 .author:hover {
-  background: rgba(var(--md-primary-fg-color), 0.1);
+  background: color-mix(in srgb, var(--md-primary-fg-color) 10%, transparent);
   transform: translateY(-2px);
 }
 
@@ -795,7 +795,11 @@
 }
 
 .tldr {
-  background: linear-gradient(135deg, rgba(var(--md-primary-fg-color), 0.08) 0%, rgba(var(--md-accent-fg-color), 0.08) 100%);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--md-primary-fg-color) 8%, transparent) 0%,
+    color-mix(in srgb, var(--md-accent-fg-color) 8%, transparent) 100%
+  );
   padding: 1.5rem 2rem;
   border-left: 4px solid var(--md-primary-fg-color);
   border-radius: 0 8px 8px 0;
