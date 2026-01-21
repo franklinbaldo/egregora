@@ -49,6 +49,23 @@
 
   {{ page.content }}
 
+  <!-- Related Posts Section -->
+  {% if page.meta.related_posts %}
+  <section class="related-posts">
+    <h2>Continue the Conversation</h2>
+    <p class="related-posts-subtitle">These posts share similar themes and topics</p>
+    <div class="related-posts-grid">
+      {% for post in page.meta.related_posts[:3] %}
+      <a href="{{ post.url }}" class="related-post-card">
+        <h3>{{ post.title }}</h3>
+        <div class="related-post-meta">
+          <span class="reading-time">📖 {{ post.reading_time }} min read</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
 
 </article>
 {% endblock %}

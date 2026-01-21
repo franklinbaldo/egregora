@@ -1,20 +1,49 @@
-# Media
+# 🖼️ Media Gallery
 
-This directory contains media files extracted from WhatsApp conversations and organized by type.
+Discover links, articles, and resources shared in your conversations. Each item has been enriched with AI-generated context and summaries.
 
-## Media Types
+---
 
-- **Images** - Photos and image files
-- **Videos** - Video files
-- **Audio** - Voice messages and audio files
-- **Documents** - PDF files and other documents
+{% if media_items %}
+<div class="media-gallery">
+{% for item in media_items %}
+  <div class="media-card">
+    <div class="media-card-header">
+      <a href="{{ item.url }}" target="_blank" rel="noopener noreferrer" class="media-link">
+        <span class="link-icon">🔗</span>
+        <span class="media-url">{{ item.url | truncate(50) }}</span>
+      </a>
+    </div>
+    <div class="media-card-body">
+      <h3 class="media-title">
+        <a href="urls/{{ item.slug }}.md">{{ item.title }}</a>
+      </h3>
+      {% if item.summary %}
+      <p class="media-summary">{{ item.summary | truncate(150) }}</p>
+      {% else %}
+      <p class="media-summary media-summary-placeholder">Click to view AI-generated analysis and context</p>
+      {% endif %}
+    </div>
+    <div class="media-card-footer">
+      <a href="urls/{{ item.slug }}.md" class="media-details-link">View enrichment →</a>
+    </div>
+  </div>
+{% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <p>No media items found yet. Media enrichments will appear here as they are processed.</p>
+</div>
+{% endif %}
 
-## Enrichments
+---
 
-Media files in this directory may have associated enrichment files (`.md`) created by LLM analysis. These enrichment files contain AI-generated descriptions and context for the media content.
+## About Media Enrichments
 
-To view the enrichment for a media file, change the file extension from the media type (e.g., `.jpg`) to `.md`.
+Media files in this gallery have been analyzed using AI to provide:
 
-**Example:**
-- Media file: `images/photo-uuid.jpg`
-- Enrichment: `images/photo-uuid.md`
+- **Context** - When and why the link was shared
+- **Summary** - Key points from the content
+- **Relevance** - Connection to your conversations
+
+Each enrichment combines the shared URL with AI-generated insights to help you rediscover and understand the resources that mattered to you.
