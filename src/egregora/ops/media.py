@@ -171,10 +171,11 @@ def extract_media_references(table: Table) -> set[str]:
 
     if hasattr(df, "text"):
         # pandas DataFrame
-        messages = df["text"].dropna().tolist()
+        # Optimization: distinct messages to avoid redundant regex processing
+        messages = df["text"].dropna().unique().tolist()
     elif hasattr(df, "to_pylist"):
         # pyarrow Table
-        messages = [r["text"] for r in df.to_pylist()]
+        messages = list({r["text"] for r in df.to_pylist() if r["text"]})
     else:
         # Fallback for unexpected type
         return references
@@ -187,18 +188,15 @@ def extract_media_references(table: Table) -> set[str]:
             continue
 
         for match in combined_find(message):
-            # Check which group matched (named groups from COMBINED_MEDIA_PATTERN)
-            if img_url := match.group("img_url"):
-                references.add(img_url)
-            elif link_url := match.group("link_url"):
-                if not link_url.startswith(("http://", "https://")):
-                    references.add(link_url)
-            elif att_file := match.group("att_file"):
-                references.add(att_file)
-            elif wa_file := match.group("wa_file"):
-                references.add(wa_file)
-            elif uni_file := match.group("uni_file"):
-                references.add(uni_file)
+            # Optimization: Use lastgroup to avoid checking all groups
+            group_name = match.lastgroup
+            val = match.group(group_name)
+
+            # Specific validation for markdown links
+            if group_name == "link_url" and val.startswith(("http://", "https://")):
+                continue
+
+            references.add(val)
 
     return references
 

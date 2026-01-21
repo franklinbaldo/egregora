@@ -1,5 +1,5 @@
 import ibis
-import pandas as pd
+import pandas as pd  # noqa: TID251
 import pytest
 
 from egregora.ops.media import extract_media_references

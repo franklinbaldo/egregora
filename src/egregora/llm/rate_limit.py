@@ -6,6 +6,7 @@ import asyncio
 import logging
 import threading
 import time
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ class AsyncGlobalRateLimiter:
         self._semaphore.release()
 
     @asynccontextmanager
-    async def throttle(self):
+    async def throttle(self) -> AsyncIterator[None]:
         """Context manager for rate limiting."""
         await self.acquire()
         try:
