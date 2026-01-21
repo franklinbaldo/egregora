@@ -169,10 +169,13 @@ def extract_media_references(table: Table) -> set[str]:
 
     if hasattr(df, "text"):
         # pandas DataFrame
-        messages = df["text"].dropna().tolist()
+        # Optimization: distinct messages to avoid redundant regex processing
+        messages = df["text"].dropna().unique().tolist()
     elif hasattr(df, "to_pylist"):
         # pyarrow Table
-        messages = [r["text"] for r in df.to_pylist()]
+        # Optimization: distinct messages to avoid redundant regex processing
+        # Use column iterator to avoid full table conversion
+        messages = list({x for x in df["text"].to_pylist() if x})
     else:
         # Fallback for unexpected type
         return references
@@ -188,15 +191,19 @@ def extract_media_references(table: Table) -> set[str]:
 
         # Pass 1: Fast patterns (Images, Links, WhatsApp, Unicode)
         for match in fast_find(message):
-            if img_url := match.group("img_url"):
-                references.add(img_url)
-            elif link_url := match.group("link_url"):
-                if not link_url.startswith(("http://", "https://")):
-                    references.add(link_url)
-            elif wa_file := match.group("wa_file"):
-                references.add(wa_file)
-            elif uni_file := match.group("uni_file"):
-                references.add(uni_file)
+            # Optimization: Use lastgroup to avoid checking all groups
+            group_name = match.lastgroup
+            val = match.group(group_name)
+
+            if group_name == "img_url":
+                references.add(val)
+            elif group_name == "link_url":
+                if not val.startswith(("http://", "https://")):
+                    references.add(val)
+            elif group_name == "wa_file":
+                references.add(val)
+            elif group_name == "uni_file":
+                references.add(val)
 
         # Pass 2: Attachments via markers (optimized to avoid greedy filename scanning)
         for match in marker_find(message):
