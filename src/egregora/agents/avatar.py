@@ -63,6 +63,23 @@ def _validate_avatar_url(url: str) -> None:
         raise AvatarProcessingError(str(exc)) from exc
 
 
+def _validate_request(request: httpx.Request) -> None:
+    """Event hook to validate the URL of every request just before it is sent."""
+    validation_url = str(request.url)
+    logger.debug("Validating request URL (pre-send): %s", validation_url)
+    _validate_avatar_url(validation_url)
+
+
+def _create_secure_client(timeout: float = DEFAULT_DOWNLOAD_TIMEOUT) -> httpx.Client:
+    """Create a configured httpx.Client with security controls."""
+    return httpx.Client(
+        timeout=timeout,
+        follow_redirects=True,
+        max_redirects=MAX_REDIRECT_HOPS,
+        event_hooks={"request": [_validate_request]},
+    )
+
+
 def _get_avatar_directory(media_dir: Path) -> Path:
     """Get or create the images directory for avatars.
 
@@ -306,44 +323,11 @@ def _save_avatar_file(content: bytes | bytearray, avatar_uuid: uuid.UUID, ext: s
     return avatar_path
 
 
-# TODO: [Taskmaster] Refactor: Decompose `download_avatar_from_url` to simplify logic
-@sleep_and_retry
-@limits(calls=10, period=60)
-def download_avatar_from_url(
-    url: str, media_dir: Path, timeout: float = DEFAULT_DOWNLOAD_TIMEOUT
-) -> tuple[uuid.UUID, Path]:
-    """Download avatar from URL and save to avatars directory.
-
-    Args:
-        url: URL of the avatar image
-        media_dir: Root media directory (e.g., site_root/media)
-        timeout: HTTP timeout in seconds
-
-    Returns:
-        Tuple of (avatar_uuid, avatar_path)
-
-    Raises:
-        AvatarProcessingError: If download fails or image is invalid
-
-    """
+def _download_avatar_with_client(client: httpx.Client, url: str, media_dir: Path) -> tuple[uuid.UUID, Path]:
+    """Internal function to download avatar using an existing client."""
     logger.info("Downloading avatar from URL: %s", url)
-
-    def _validate_request(request: httpx.Request) -> None:
-        """Event hook to validate the URL of every request just before it is sent."""
-        validation_url = str(request.url)
-        logger.debug("Validating request URL (pre-send): %s", validation_url)
-        _validate_avatar_url(validation_url)
-
     try:
-        with (
-            httpx.Client(
-                timeout=timeout,
-                follow_redirects=True,
-                max_redirects=MAX_REDIRECT_HOPS,
-                event_hooks={"request": [_validate_request]},
-            ) as client,
-            client.stream("GET", url) as response,
-        ):
+        with client.stream("GET", url) as response:
             response.raise_for_status()
             content, content_type = _download_image_content(response)
 
@@ -357,11 +341,8 @@ def download_avatar_from_url(
     except httpx.TooManyRedirects as e:
         msg = f"Too many redirects (>{MAX_REDIRECT_HOPS}) for URL: {url}"
         raise AvatarProcessingError(msg) from e
-    # TODO: [Taskmaster] Refactor: Simplify complex error handling block
     except httpx.HTTPError as e:
         # If the HTTP error was caused by our own validation, re-raise it directly
-        # to preserve the specific security message.
-        # Check both __cause__ and __context__ to find AvatarProcessingError in the chain
         if isinstance(e.__cause__, AvatarProcessingError):
             raise e.__cause__ from e
         if isinstance(e.__context__, AvatarProcessingError):
@@ -375,6 +356,37 @@ def download_avatar_from_url(
         raise AvatarProcessingError(msg) from e
 
     return avatar_uuid, avatar_path
+
+
+# TODO: [Taskmaster] Refactor: Decompose `download_avatar_from_url` to simplify logic
+@sleep_and_retry
+@limits(calls=10, period=60)
+def download_avatar_from_url(
+    url: str,
+    media_dir: Path,
+    timeout: float = DEFAULT_DOWNLOAD_TIMEOUT,
+    client: httpx.Client | None = None,
+) -> tuple[uuid.UUID, Path]:
+    """Download avatar from URL and save to avatars directory.
+
+    Args:
+        url: URL of the avatar image
+        media_dir: Root media directory (e.g., site_root/media)
+        timeout: HTTP timeout in seconds
+        client: Optional httpx.Client to reuse
+
+    Returns:
+        Tuple of (avatar_uuid, avatar_path)
+
+    Raises:
+        AvatarProcessingError: If download fails or image is invalid
+
+    """
+    if client:
+        return _download_avatar_with_client(client, url, media_dir)
+
+    with _create_secure_client(timeout) as new_client:
+        return _download_avatar_with_client(new_client, url, media_dir)
 
 
 @dataclass
@@ -393,6 +405,7 @@ def _download_avatar_from_command(
     author_uuid: str,
     timestamp: datetime,
     context: AvatarContext,
+    client: httpx.Client | None = None,
 ) -> str:
     """Download avatar from URL in command value and enrich it."""
     if not value:
@@ -405,7 +418,7 @@ def _download_avatar_from_command(
         raise AvatarProcessingError(msg)
 
     url = urls[0]
-    _avatar_uuid, avatar_path = download_avatar_from_url(url=url, media_dir=context.media_dir)
+    _avatar_uuid, avatar_path = download_avatar_from_url(url=url, media_dir=context.media_dir, client=client)
     enrich_avatar(avatar_path, author_uuid, timestamp, context)
     return url
 
@@ -424,29 +437,32 @@ def process_avatar_commands(
 
     logger.info("Found %s avatar command(s)", len(avatar_commands))
     results: dict[str, str] = {}
-    for cmd_entry in avatar_commands:
-        author_uuid = cmd_entry["author"]
-        timestamp_raw = cmd_entry["timestamp"]
-        command = cmd_entry["command"]
-        cmd_type = command["command"]
-        target = command["target"]
-        if cmd_type in ("set", "unset") and target == "avatar":
-            if cmd_type == "set":
-                timestamp_dt = ensure_datetime(timestamp_raw)
-                result = _process_set_avatar_command(
-                    author_uuid=author_uuid,
-                    timestamp=timestamp_dt,
-                    context=context,
-                    value=command.get("value"),
-                )
-                results[author_uuid] = result
-            elif cmd_type == "unset":
-                result = _process_unset_avatar_command(
-                    author_uuid=author_uuid,
-                    timestamp=str(timestamp_raw),
-                    profiles_dir=context.profiles_dir,
-                )
-                results[author_uuid] = result
+
+    with _create_secure_client() as client:
+        for cmd_entry in avatar_commands:
+            author_uuid = cmd_entry["author"]
+            timestamp_raw = cmd_entry["timestamp"]
+            command = cmd_entry["command"]
+            cmd_type = command["command"]
+            target = command["target"]
+            if cmd_type in ("set", "unset") and target == "avatar":
+                if cmd_type == "set":
+                    timestamp_dt = ensure_datetime(timestamp_raw)
+                    result = _process_set_avatar_command(
+                        author_uuid=author_uuid,
+                        timestamp=timestamp_dt,
+                        context=context,
+                        value=command.get("value"),
+                        client=client,
+                    )
+                    results[author_uuid] = result
+                elif cmd_type == "unset":
+                    result = _process_unset_avatar_command(
+                        author_uuid=author_uuid,
+                        timestamp=str(timestamp_raw),
+                        profiles_dir=context.profiles_dir,
+                    )
+                    results[author_uuid] = result
     return results
 
 
@@ -455,11 +471,12 @@ def _process_set_avatar_command(
     timestamp: datetime,
     context: AvatarContext,
     value: str | None = None,
+    client: httpx.Client | None = None,
 ) -> str:
     """Process a 'set avatar' command with enrichment."""
     logger.info("Processing 'set avatar' command for %s", author_uuid)
     try:
-        avatar_url = _download_avatar_from_command(value, author_uuid, timestamp, context)
+        avatar_url = _download_avatar_from_command(value, author_uuid, timestamp, context, client=client)
         update_profile_avatar(
             author_uuid=author_uuid,
             avatar_url=avatar_url,
