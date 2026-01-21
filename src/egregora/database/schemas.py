@@ -274,7 +274,7 @@ def get_table_check_constraints(table_name: str) -> dict[str, str]:
 VALID_POST_STATUSES = ("draft", "published", "archived")
 VALID_TASK_STATUSES = ("pending", "processing", "completed", "failed", "superseded")
 VALID_MEDIA_TYPES = ("image", "video", "audio")
-VALID_TASK_TYPES = ("generate_banner", "update_profile", "enrich_media")
+VALID_TASK_TYPES = ("generate_banner", "update_profile", "enrich_media", "enrich_url")
 VALID_ANNOTATION_PARENT_TYPES = ("message", "post", "annotation")
 
 # Common columns for all types
