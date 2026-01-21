@@ -7,11 +7,13 @@
 
   <!-- Post Header -->
   <header class="post-header">
-    <div class="post-tags">
+    {% if page.meta.tags %}
+    <div class="post-tags-header">
       {% for tag in page.meta.tags %}
-      <a href="{{ 'posts/tags.md' | url }}#{{ tag | slugify }}" class="tag">{{ tag }}</a>
+      <a href="{{ 'posts/tags.md' | url }}#{{ tag | slugify }}" class="tag-pill-post">{{ tag }}</a>
       {% endfor %}
     </div>
+    {% endif %}
 
     {% if page.meta.banner %}
     <div class="post-banner">

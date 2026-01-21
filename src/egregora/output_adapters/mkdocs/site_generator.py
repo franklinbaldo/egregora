@@ -44,6 +44,7 @@ class SiteGenerator:
         journal_dir: Path,
         url_convention: UrlConvention,
         url_context: UrlContext,
+        db_path: Path | None = None,
     ) -> None:
         self.site_root = site_root
         self.docs_dir = docs_dir
@@ -54,6 +55,7 @@ class SiteGenerator:
         self.urls_dir = self.media_dir / "urls"
         self._url_convention = url_convention
         self._ctx = url_context
+        self.db_path = db_path
 
         templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
         self._template_env = Environment(
@@ -156,6 +158,218 @@ class SiteGenerator:
                 raise DocumentParsingError(str(path), str(e)) from e
         return media_items
 
+    def get_recent_posts(self, limit: int = 6) -> list[dict[str, Any]]:
+        """Get recent published posts for homepage.
+
+        Only returns posts with banner images. Posts without banners are filtered out.
+        """
+        posts = []
+        if not self.posts_dir.exists():
+            return posts
+
+        # Get all post markdown files, excluding index
+        post_files = [p for p in self.posts_dir.rglob("*.md") if p.name != "index.md"]
+
+        # Sort by modification time (most recent first)
+        # Get more candidates to account for filtering posts without banners
+        post_files = sorted(post_files, key=lambda p: p.stat().st_mtime, reverse=True)
+
+        for path in post_files:
+            # Stop once we have enough posts with banners
+            if len(posts) >= limit:
+                break
+            try:
+                post = frontmatter.load(str(path))
+                metadata = post.metadata
+
+                # Build post URL from date and slug
+                post_date = metadata.get("date")
+                post_slug = metadata.get("slug", path.stem)
+
+                if post_date:
+                    # Format: posts/YYYY/MM/DD/slug
+                    if isinstance(post_date, str):
+                        # Parse date string
+                        from datetime import datetime as dt
+
+                        post_date = dt.fromisoformat(post_date.replace("Z", "+00:00")).date()
+                    post_url = f"posts/{post_date.year:04d}/{post_date.month:02d}/{post_date.day:02d}/{post_slug}/"
+                else:
+                    post_url = f"posts/{post_slug}/"
+
+                # Get authors with avatars
+                authors = []
+                for author_uuid in metadata.get("authors", []):
+                    author_dir = self.profiles_dir / author_uuid
+                    if author_dir.exists():
+                        candidates = [p for p in author_dir.glob("*.md") if p.name != "index.md"]
+                        if candidates:
+                            profile_path = max(candidates, key=lambda p: p.stat().st_mtime_ns)
+                            profile = frontmatter.load(str(profile_path))
+                            authors.append(
+                                {
+                                    "uuid": author_uuid,
+                                    "name": profile.metadata.get("name", author_uuid[:8]),
+                                    "avatar": profile.metadata.get(
+                                        "avatar", generate_fallback_avatar_url(author_uuid)
+                                    ),
+                                }
+                            )
+
+                # Get banner - required for homepage display
+                banner = metadata.get("banner") or metadata.get("image")
+
+                # Skip posts without banners - they won't display well in the grid
+                if not banner:
+                    logger.debug("Skipping post without banner: %s", path.name)
+                    continue
+
+                posts.append(
+                    {
+                        "title": metadata.get("title", "Untitled"),
+                        "url": post_url,
+                        "date": metadata.get("date"),
+                        "summary": metadata.get("summary", ""),
+                        "authors": authors,
+                        "tags": metadata.get("tags", []),
+                        "reading_time": metadata.get("reading_time", 5),
+                        "banner": banner,
+                    }
+                )
+            except (OSError, yaml.YAMLError) as e:
+                logger.warning("Could not parse post %s: %s", path, e)
+                continue
+
+        return posts
+
+    def get_top_posts_by_elo(self, limit: int = 5) -> list[dict[str, Any]]:
+        """Get top-rated posts by ELO ranking.
+
+        Only returns posts with banner images and valid ELO ratings.
+        Requires reader database to exist at self.db_path.
+
+        Args:
+            limit: Maximum number of top posts to return (default: 5)
+
+        Returns:
+            List of post dictionaries with metadata, sorted by ELO rating (highest first)
+        """
+        posts = []
+
+        # Check if database exists
+        if not self.db_path or not self.db_path.exists():
+            logger.debug("Reader database not found at %s, skipping top posts", self.db_path)
+            return posts
+
+        try:
+            from egregora.agents.reader.elo_store import EloStore
+            from egregora.database.duckdb_manager import DuckDBStorageManager
+
+            # Get top rated posts from database
+            with DuckDBStorageManager(self.db_path) as storage:
+                elo_store = EloStore(storage)
+                top_rated = elo_store.get_top_posts(limit=limit * 2).execute()  # Get extra to account for filtering
+
+            if top_rated.empty:
+                logger.debug("No ELO ratings found in database")
+                return posts
+
+            # Map post_id to ELO data
+            elo_map = {
+                row.post_id: {
+                    "elo_rating": row.elo_global,
+                    "comparisons": row.num_comparisons,
+                    "win_rate": row.win_rate if hasattr(row, "win_rate") else None,
+                }
+                for row in top_rated.itertuples(index=False)
+            }
+
+            # Load post metadata from markdown files
+            if not self.posts_dir.exists():
+                return posts
+
+            post_files = list(self.posts_dir.rglob("*.md"))
+            post_files = [p for p in post_files if p.name != "index.md"]
+
+            for path in post_files:
+                if len(posts) >= limit:
+                    break
+
+                try:
+                    post = frontmatter.load(str(path))
+                    metadata = post.metadata
+                    post_slug = metadata.get("slug", path.stem)
+
+                    # Skip if not in top rated list
+                    if post_slug not in elo_map:
+                        continue
+
+                    # Build post URL
+                    post_date = metadata.get("date")
+                    if post_date:
+                        from datetime import datetime as dt
+
+                        if isinstance(post_date, str):
+                            post_date = dt.fromisoformat(post_date.replace("Z", "+00:00")).date()
+                        post_url = f"posts/{post_date.year:04d}/{post_date.month:02d}/{post_date.day:02d}/{post_slug}/"
+                    else:
+                        post_url = f"posts/{post_slug}/"
+
+                    # Get authors with avatars
+                    authors = []
+                    for author_uuid in metadata.get("authors", []):
+                        author_dir = self.profiles_dir / author_uuid
+                        if author_dir.exists():
+                            candidates = [p for p in author_dir.glob("*.md") if p.name != "index.md"]
+                            if candidates:
+                                profile_path = max(candidates, key=lambda p: p.stat().st_mtime_ns)
+                                profile = frontmatter.load(str(profile_path))
+                                authors.append(
+                                    {
+                                        "uuid": author_uuid,
+                                        "name": profile.metadata.get("name", author_uuid[:8]),
+                                        "avatar": profile.metadata.get(
+                                            "avatar", generate_fallback_avatar_url(author_uuid)
+                                        ),
+                                    }
+                                )
+
+                    # Get banner - required for display
+                    banner = metadata.get("banner") or metadata.get("image")
+                    if not banner:
+                        logger.debug("Skipping top post without banner: %s", post_slug)
+                        continue
+
+                    # Add ELO data to post
+                    elo_data = elo_map[post_slug]
+                    posts.append(
+                        {
+                            "title": metadata.get("title", "Untitled"),
+                            "url": post_url,
+                            "date": metadata.get("date"),
+                            "summary": metadata.get("summary", ""),
+                            "authors": authors,
+                            "tags": metadata.get("tags", []),
+                            "reading_time": metadata.get("reading_time", 5),
+                            "banner": banner,
+                            "elo_rating": elo_data["elo_rating"],
+                            "comparisons": elo_data["comparisons"],
+                            "win_rate": elo_data["win_rate"],
+                        }
+                    )
+                except (OSError, yaml.YAMLError) as e:
+                    logger.warning("Could not parse post %s: %s", path, e)
+                    continue
+
+            # Sort by ELO rating (highest first)
+            posts.sort(key=lambda x: x["elo_rating"], reverse=True)
+
+        except Exception as e:
+            logger.warning("Failed to get top posts by ELO: %s", e)
+            return []
+
+        return posts[:limit]
+
     def regenerate_tags_page(self) -> None:
         """Regenerate the tags.md page."""
         all_posts = self._scan_directory(self.posts_dir, DocumentType.POST)
@@ -173,10 +387,37 @@ class SiteGenerator:
         content = template.render(tags=sorted(tags_data, key=lambda x: x["count"], reverse=True))
         (self.posts_dir / "tags.md").write_text(content, encoding="utf-8")
 
+    def regenerate_feeds_page(self) -> None:
+        """Regenerate the feeds.md page listing all available RSS feeds."""
+        # Collect categories/tags from all posts
+        all_posts = self._scan_directory(self.posts_dir, DocumentType.POST)
+        tag_counts = Counter(tag for post in all_posts for tag in post.metadata.get("tags", []))
+
+        if not tag_counts:
+            categories = []
+        else:
+            categories = [{"name": tag, "slug": slugify(tag), "count": count} for tag, count in tag_counts.items()]
+            categories.sort(key=lambda x: x["count"], reverse=True)
+
+        template = self._template_env.get_template("docs/feeds.md.jinja")
+        content = template.render(categories=categories)
+        (self.docs_dir / "feeds.md").write_text(content, encoding="utf-8")
+
     def regenerate_main_index(self) -> None:
         """Regenerates the main index.md from a template."""
+        import os
+
+        # Calculate relative paths for template links
+        blog_relative = Path(os.path.relpath(self.posts_dir, self.docs_dir)).as_posix()
+        media_relative = Path(os.path.relpath(self.media_dir, self.docs_dir)).as_posix()
+
         context = {
+            "site_name": self.site_root.name or "Egregora Archive",
+            "blog_dir": blog_relative,
+            "media_dir": media_relative,
             "stats": self.get_site_stats(),
+            "posts": self.get_recent_posts(limit=6),
+            "top_posts": self.get_top_posts_by_elo(limit=5),
             "recent_media": self.get_recent_media(limit=5),
             "profiles": self.get_profiles_data(),
             "generated_date": datetime.now(UTC).strftime("%Y-%m-%d"),
