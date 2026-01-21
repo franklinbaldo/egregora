@@ -192,8 +192,10 @@ class SiteGenerator:
                         # Parse date string
                         from datetime import datetime as dt
 
-                        post_date = dt.fromisoformat(post_date.replace("Z", "+00:00")).date()
-                    post_url = f"posts/{post_date.year:04d}/{post_date.month:02d}/{post_date.day:02d}/{post_slug}/"
+                        post_date = dt.fromisoformat(post_date).date()
+                    post_url = (
+                        f"posts/{post_date.year:04d}/{post_date.month:02d}/{post_date.day:02d}/{post_slug}/"
+                    )
                 else:
                     post_url = f"posts/{post_slug}/"
 
@@ -253,6 +255,7 @@ class SiteGenerator:
 
         Returns:
             List of post dictionaries with metadata, sorted by ELO rating (highest first)
+
         """
         posts = []
 
@@ -268,7 +271,9 @@ class SiteGenerator:
             # Get top rated posts from database
             with DuckDBStorageManager(self.db_path) as storage:
                 elo_store = EloStore(storage)
-                top_rated = elo_store.get_top_posts(limit=limit * 2).execute()  # Get extra to account for filtering
+                top_rated = elo_store.get_top_posts(
+                    limit=limit * 2
+                ).execute()  # Get extra to account for filtering
 
             if top_rated.empty:
                 logger.debug("No ELO ratings found in database")
@@ -310,7 +315,7 @@ class SiteGenerator:
                         from datetime import datetime as dt
 
                         if isinstance(post_date, str):
-                            post_date = dt.fromisoformat(post_date.replace("Z", "+00:00")).date()
+                            post_date = dt.fromisoformat(post_date).date()
                         post_url = f"posts/{post_date.year:04d}/{post_date.month:02d}/{post_date.day:02d}/{post_slug}/"
                     else:
                         post_url = f"posts/{post_slug}/"
@@ -396,7 +401,9 @@ class SiteGenerator:
         if not tag_counts:
             categories = []
         else:
-            categories = [{"name": tag, "slug": slugify(tag), "count": count} for tag, count in tag_counts.items()]
+            categories = [
+                {"name": tag, "slug": slugify(tag), "count": count} for tag, count in tag_counts.items()
+            ]
             categories.sort(key=lambda x: x["count"], reverse=True)
 
         template = self._template_env.get_template("docs/feeds.md.jinja")

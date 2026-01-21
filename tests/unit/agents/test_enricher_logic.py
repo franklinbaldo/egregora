@@ -185,9 +185,9 @@ class TestParseMediaResult(unittest.TestCase):
         result = self.worker._parse_media_result(mock_res, self.task)
 
         self.assertIsNotNone(result)
-        _payload, slug_value, markdown = result
-        self.assertEqual(slug_value, "a-great-image")
-        self.assertEqual(markdown, "This is a great image.")
+        _payload, output = result
+        self.assertEqual(output.slug, "a-great-image")
+        self.assertEqual(output.markdown, "This is a great image.")
         self.worker.task_store.mark_failed.assert_not_called()
 
     def test_parse_media_result_malformed_json(self):
@@ -231,10 +231,10 @@ class TestParseMediaResult(unittest.TestCase):
         result = self.worker._parse_media_result(mock_res, self.task)
 
         self.assertIsNotNone(result)
-        _payload, slug_value, markdown = result
-        self.assertEqual(slug_value, "fallback-slug")
-        self.assertIn("A fallback description.", markdown)
-        self.assertIn("![Fallback alt text.](fallback-slug.png)", markdown)
+        _payload, output = result
+        self.assertEqual(output.slug, "fallback-slug")
+        self.assertIn("A fallback description.", output.markdown)
+        self.assertIn("![Fallback alt text.](fallback-slug.png)", output.markdown)
         self.worker.task_store.mark_failed.assert_not_called()
 
     def test_parse_media_result_missing_markdown_and_fallback(self):

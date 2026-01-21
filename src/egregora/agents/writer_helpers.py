@@ -282,7 +282,8 @@ def _format_rag_hits(hits: list[Any]) -> str:
                 # Handle various date formats (string or datetime object)
                 if isinstance(date, str):
                     from datetime import datetime
-                    date_obj = datetime.fromisoformat(date.replace("Z", "+00:00"))
+
+                    date_obj = datetime.fromisoformat(date)
                 else:
                     date_obj = date
                 url = f"posts/{date_obj.year:04d}/{date_obj.month:02d}/{date_obj.day:02d}/{slug}/"
