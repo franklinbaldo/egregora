@@ -1,66 +1,107 @@
 from __future__ import annotations
 
-import threading
+import asyncio
 import time
 from unittest.mock import patch
 
+import pytest
+
 from egregora.llm.rate_limit import (
-    GlobalRateLimiter,
+    AsyncGlobalRateLimiter,
     get_rate_limiter,
     init_rate_limiter,
 )
 
 
-def test_global_rate_limiter_acquire_release():
+@pytest.mark.asyncio
+async def test_global_rate_limiter_acquire_release():
     """Verify basic acquire and release functionality."""
-    limiter = GlobalRateLimiter(requests_per_second=10, max_concurrency=1)
-    limiter.acquire()
+    limiter = AsyncGlobalRateLimiter(requests_per_second=10, max_concurrency=1)
+    await limiter.acquire()
     limiter.release()
 
 
-def test_global_rate_limiter_concurrency():
+@pytest.mark.asyncio
+async def test_global_rate_limiter_concurrency():
     """Verify that max_concurrency is respected."""
-    limiter = GlobalRateLimiter(requests_per_second=10, max_concurrency=1)
-    lock_acquired = threading.Event()
-    thread_finished = threading.Event()
+    limiter = AsyncGlobalRateLimiter(requests_per_second=10, max_concurrency=1)
 
-    def target():
-        limiter.acquire()
-        lock_acquired.set()
-        time.sleep(0.1)
+    # Acquire the only available slot
+    await limiter.acquire()
+
+    acquired_event = asyncio.Event()
+
+    async def worker():
+        await limiter.acquire()
+        acquired_event.set()
         limiter.release()
-        thread_finished.set()
 
-    limiter.acquire()  # Acquire the only available slot in the main thread
+    task = asyncio.create_task(worker())
 
-    thread = threading.Thread(target=target)
-    thread.start()
+    # Give the task a chance to run and block
+    await asyncio.sleep(0.01)
+    assert not acquired_event.is_set()
 
-    # The thread should be blocked trying to acquire the semaphore
-    assert not lock_acquired.is_set()
+    limiter.release()  # Release, allowing task to proceed
 
-    limiter.release()  # Release the lock, allowing the thread to proceed
-    time.sleep(0.01)  # Give the thread time to acquire the lock
+    # Wait for task
+    try:
+        await asyncio.wait_for(task, timeout=0.1)
+    except asyncio.TimeoutError:
+        pytest.fail("Worker task did not complete in time")
 
-    assert lock_acquired.is_set()
-    thread.join(timeout=1)
-    assert thread_finished.is_set()
+    assert acquired_event.is_set()
 
 
-@patch("ratelimit.decorators.time.sleep")
-def test_global_rate_limiter_rate_limiting(mock_sleep):
+@pytest.mark.asyncio
+async def test_global_rate_limiter_rate_limiting():
     """Verify that the rate limit is enforced."""
-    limiter = GlobalRateLimiter(requests_per_second=1, max_concurrency=5)
+    # 2 requests per second = 0.5s interval
+    limiter = AsyncGlobalRateLimiter(requests_per_second=2, max_concurrency=5)
 
-    # The first call should not sleep
-    limiter.acquire()
-    limiter.release()
-    mock_sleep.assert_not_called()
+    start = time.monotonic()
 
-    # The second call within the same period should sleep
-    limiter.acquire()
+    # First call - should be immediate
+    await limiter.acquire()
     limiter.release()
-    mock_sleep.assert_called()
+
+    # Second call - should also be immediate (token bucket usually allows burst, or if implementation is strict)
+    # Our implementation checks time since last request.
+    # If first request set _last_request_time, second request will check diff.
+    # Initial _last_request_time is 0.
+    # Call 1: time_since_last = now - 0 > 0.5. sleep=0. last=now.
+    # Call 2: time_since_last = now - last < 0.5. sleep=0.5 - diff. last=now+sleep.
+
+    await limiter.acquire()
+    limiter.release()
+
+    duration = time.monotonic() - start
+    # The second acquire should have slept for roughly 0.5s
+    assert duration >= 0.45  # allowing some buffer
+
+
+@pytest.mark.asyncio
+async def test_global_rate_limiter_cancellation_safety():
+    """Verify that cancelling acquire does not leak semaphore."""
+    limiter = AsyncGlobalRateLimiter(requests_per_second=0.1, max_concurrency=1) # slow rate
+
+    # Make a first request to set the last request time
+    await limiter.acquire()
+    limiter.release()
+
+    # Try to acquire again - this should sleep because of rate limit
+    task = asyncio.create_task(limiter.acquire())
+
+    await asyncio.sleep(0.1) # Let it enter sleep
+    task.cancel()
+
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+    # Verify semaphore is released (value should be 1, so locked() should be False)
+    assert not limiter._semaphore.locked(), "Semaphore leaked (remained locked) after cancellation!"
 
 
 def test_get_rate_limiter_singleton():
