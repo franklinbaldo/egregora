@@ -81,7 +81,7 @@ def _get_avatar_directory(media_dir: Path) -> Path:
 
 
 # TODO: [Taskmaster] Refactor: Move hardcoded UUID namespace to configuration
-def _generate_avatar_uuid(content: bytes) -> uuid.UUID:
+def _generate_avatar_uuid(content: bytes | bytearray) -> uuid.UUID:
     """Generate deterministic UUID for avatar based on content only.
 
     Same content = same UUID, regardless of which group/chat uses it.
@@ -106,22 +106,33 @@ def _validate_image_format(filename: str) -> str:
     return ext
 
 
-def _validate_image_content(content: bytes, expected_mime: str) -> None:
+def _validate_image_content(content: bytes | bytearray, expected_mime: str) -> None:
     """Validate that image content matches expected MIME type using magic bytes.
 
     This prevents attacks where executable code is disguised with an image MIME type header.
+    Can operate on partial content (first chunk) as long as it covers the header size.
 
     Args:
-        content: The image file content
+        content: The image file content (or start of it)
         expected_mime: The expected MIME type from Content-Type header
 
     Raises:
         AvatarProcessingError: If content doesn't match expected type
 
     """
+    # Ensure we have enough bytes for the largest check
+    if len(content) < WEBP_HEADER_SIZE:
+        # If content is smaller than header size but it's the full file, we will fail anyway.
+        # But if it's a chunk, we might need more.
+        # However, DOWNLOAD_CHUNK_SIZE is 8192, which is > 12. So we assume chunks are large enough.
+        pass
+
     for magic, mime_type in MAGIC_BYTES.items():
         if content.startswith(magic):
-            if magic == b"RIFF" and len(content) >= WEBP_HEADER_SIZE:
+            if magic == b"RIFF":
+                if len(content) < WEBP_HEADER_SIZE:
+                    msg = "File too small to be valid WEBP"
+                    raise AvatarProcessingError(msg)
                 if content[8:12] == b"WEBP":
                     if expected_mime != "image/webp":
                         msg = f"Image content is WEBP but declared as {expected_mime}"
@@ -153,7 +164,7 @@ def _check_dimensions(width: int, height: int) -> None:
         raise AvatarProcessingError(msg)
 
 
-def _validate_image_dimensions(content: bytes) -> None:
+def _validate_image_dimensions(content: bytes | bytearray) -> None:
     """Validate image dimensions to prevent memory exhaustion attacks.
 
     Extremely large dimensions could cause memory issues during image processing
@@ -210,14 +221,18 @@ def _get_extension_from_mime_type(content_type: str, url: str) -> str:
     return _validate_image_format(url or ".jpg")
 
 
-def _download_image_content(response: httpx.Response) -> tuple[bytes, str]:
+def _download_image_content(response: httpx.Response) -> tuple[bytearray, str]:
     """Download and validate image content from HTTP response.
+
+    Optimized to:
+    1. Validate magic bytes on first chunk (early rejection).
+    2. Return bytearray to avoid memory copy.
 
     Args:
         response: HTTP response object
 
     Returns:
-        Tuple of (content bytes, mime type)
+        Tuple of (content bytearray, mime type)
 
     Raises:
         AvatarProcessingError: If content is invalid or too large
@@ -239,16 +254,29 @@ def _download_image_content(response: httpx.Response) -> tuple[bytes, str]:
             logger.warning("Invalid Content-Length header: %s", content_length_str)
 
     content = bytearray()
-    for chunk in response.iter_bytes(chunk_size=DOWNLOAD_CHUNK_SIZE):
+    iterator = response.iter_bytes(chunk_size=DOWNLOAD_CHUNK_SIZE)
+
+    # Process first chunk for early validation
+    try:
+        first_chunk = next(iterator)
+        content.extend(first_chunk)
+    except StopIteration:
+        # Empty response
+        pass
+
+    # Validate magic bytes immediately (on first chunk or empty content)
+    _validate_image_content(content, content_type)
+
+    for chunk in iterator:
         content.extend(chunk)
         if len(content) > MAX_AVATAR_SIZE_BYTES:
             msg = f"Avatar image too large: exceeded {MAX_AVATAR_SIZE_BYTES} bytes during download"
             raise AvatarProcessingError(msg)
 
-    return bytes(content), content_type
+    return content, content_type
 
 
-def _save_avatar_file(content: bytes, avatar_uuid: uuid.UUID, ext: str, media_dir: Path) -> Path:
+def _save_avatar_file(content: bytes | bytearray, avatar_uuid: uuid.UUID, ext: str, media_dir: Path) -> Path:
     """Save avatar content to file.
 
     Args:
@@ -319,7 +347,7 @@ def download_avatar_from_url(
             response.raise_for_status()
             content, content_type = _download_image_content(response)
 
-        _validate_image_content(content, content_type)
+        # _validate_image_content is already called inside _download_image_content for early rejection
         _validate_image_dimensions(content)
 
         ext = _get_extension_from_mime_type(content_type, url)
