@@ -78,8 +78,30 @@ ATTACHMENT_MARKERS_PATTERN = re.compile(rf"([\w\-\.]+\.\w+)\s*(?:{_MARKERS_REGEX
 UNICODE_MEDIA_PATTERN = re.compile(r"\u200e((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)", re.IGNORECASE)
 
 # Patterns for Markdown processing
+# Kept for backward compatibility
 MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
 MARKDOWN_LINK_PATTERN = re.compile(r"(?<!!)\[([^\]]+)\]\(([^)]+)\)")
+
+COMBINED_MD_PATTERN = re.compile(
+    r"""
+    (?P<img_url>!\[[^\]]*\]\((?P<url1>[^)]+)\)) |
+    (?P<link_url>(?<!!)\[[^\]]+\]\((?P<url2>[^)]+)\))
+    """,
+    re.VERBOSE,
+)
+
+# Note: _MARKERS_REGEX contains escaped strings (via re.escape), so spaces are escaped (e.g. '\ ').
+# This is safe to use within re.VERBOSE where unescaped spaces are ignored.
+COMBINED_RAW_PATTERN = re.compile(
+    r"""
+    (?P<att>(?i:(?P<att_file>[\w\-\.]+\.\w+)\s*(?:"""
+    + _MARKERS_REGEX
+    + r"""))) |
+    (?P<wa>\b(?P<wa_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b) |
+    (?P<uni>(?i:\u200e(?P<uni_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)))
+    """,
+    re.VERBOSE,
+)
 
 
 # ----------------------------------------------------------------------------
@@ -167,32 +189,31 @@ def extract_media_references(table: Table) -> set[str]:
         # Fallback for unexpected type
         return references
 
-    # Pre-bind regex methods for optimization
-    md_img_find = MARKDOWN_IMAGE_PATTERN.findall
-    md_link_find = MARKDOWN_LINK_PATTERN.findall
-    att_find = ATTACHMENT_MARKERS_PATTERN.findall
-    wa_find = WA_MEDIA_PATTERN.findall
-    uni_find = UNICODE_MEDIA_PATTERN.findall
+    # Pre-bind method for optimization
+    md_find_iter = COMBINED_MD_PATTERN.finditer
+    raw_find_iter = COMBINED_RAW_PATTERN.finditer
 
     for message in messages:
         if not message or not isinstance(message, str):
             continue
 
         # 1. Markdown references
-        # Pattern: !\[([^\]]*)\]\(([^)]+)\) -> Group 2 is match[1]
-        for match in md_img_find(message):
-            references.add(match[1])
+        for match in md_find_iter(message):
+            if match.group("url1"):
+                references.add(match.group("url1"))
+            elif match.group("url2"):
+                ref = match.group("url2")
+                if not ref.startswith(("http://", "https://")):
+                    references.add(ref)
 
-        # Pattern: (?<!!)\[([^\]]+)\]\(([^)]+)\) -> Group 2 is match[1]
-        for match in md_link_find(message):
-            ref = match[1]
-            if not ref.startswith(("http://", "https://")):
-                references.add(ref)
-
-        # 2. Raw references (inlined find_media_references logic for speed)
-        references.update(att_find(message))
-        references.update(wa_find(message))
-        references.update(uni_find(message))
+        # 2. Raw references
+        for match in raw_find_iter(message):
+            if match.group("att_file"):
+                references.add(match.group("att_file"))
+            elif match.group("wa_file"):
+                references.add(match.group("wa_file"))
+            elif match.group("uni_file"):
+                references.add(match.group("uni_file"))
 
     return references
 

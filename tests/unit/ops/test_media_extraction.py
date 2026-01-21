@@ -1,8 +1,9 @@
-
-import pytest
 import ibis
 import pandas as pd
+import pytest
+
 from egregora.ops.media import extract_media_references
+
 
 @pytest.fixture
 def mock_table():
@@ -24,6 +25,7 @@ def mock_table():
     con = ibis.duckdb.connect()
     return con.create_table("messages", pd.DataFrame(data))
 
+
 def test_extract_media_references_logic(mock_table):
     refs = extract_media_references(mock_table)
 
@@ -34,10 +36,11 @@ def test_extract_media_references_logic(mock_table):
         "IMG-20210101-WA0001.jpg",
         "1.jpg",
         "2.png",
-        "/local/path"  # This is captured by design (relative link)
+        "/local/path",  # This is captured by design (relative link)
     }
 
     assert refs == expected
+
 
 def test_extract_media_references_empty():
     con = ibis.duckdb.connect()
