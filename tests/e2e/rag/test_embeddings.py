@@ -16,6 +16,12 @@ EMBEDDING_MODEL = "models/text-embedding-004"
 GENAI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
 
+@pytest.fixture(autouse=True)
+def mock_sleep(monkeypatch):
+    """Mock time.sleep to avoid waiting in retry loops during tests."""
+    monkeypatch.setattr("time.sleep", lambda x: None)
+
+
 @pytest.fixture
 def mock_google_api_key(monkeypatch):
     """Fixture to mock the Google API key."""
