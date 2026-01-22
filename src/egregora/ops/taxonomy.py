@@ -68,10 +68,14 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
         k = config.taxonomy.num_clusters
     else:
         # k = n^exponent (default exponent=0.5 gives sqrt(n))
-        k = max(2, int(n_docs ** config.taxonomy.cluster_exponent))
+        k = max(2, int(n_docs**config.taxonomy.cluster_exponent))
 
-    logger.info("Clustering %d posts into %d semantic topics (exponent=%.2f)...",
-                n_docs, k, config.taxonomy.cluster_exponent)
+    logger.info(
+        "Clustering %d posts into %d semantic topics (exponent=%.2f)...",
+        n_docs,
+        k,
+        config.taxonomy.cluster_exponent,
+    )
 
     kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
     labels = kmeans.fit_predict(vectors)
