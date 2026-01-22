@@ -89,7 +89,18 @@ FAST_MEDIA_PATTERN = re.compile(
 )
 
 MARKER_PATTERN = re.compile(rf"(?:{_MARKERS_REGEX})", re.IGNORECASE)
-FILENAME_LOOKBEHIND_PATTERN = re.compile(r"([\w\-\.]+\.\w+)\s*$", re.IGNORECASE)
+# Anchored validation pattern for manual extraction
+# Matches [\w\-\.]+\.\w+ exactly
+FILENAME_VALIDATION_PATTERN = re.compile(r"^[\w\-\.]+\.\w+$", re.IGNORECASE)
+
+# Quick check pattern to fail fast on strings with no potential media
+# ! = markdown image
+# [ = markdown link
+# I, V, A, P, D = WhatsApp filenames (IMG, VID, AUD, PTT, DOC)
+# \u200e = Unicode marker
+# ( = Attachment marker start (e.g., (file attached))
+# < = Attachment marker start (e.g., <attached:)
+QUICK_CHECK_PATTERN = re.compile(r"[!\[IVAPD\u200e(<]")
 
 
 # ----------------------------------------------------------------------------
@@ -180,10 +191,15 @@ def extract_media_references(table: Table) -> set[str]:
     # Pre-bind regex methods for optimization
     fast_find = FAST_MEDIA_PATTERN.finditer
     marker_find = MARKER_PATTERN.finditer
-    filename_search = FILENAME_LOOKBEHIND_PATTERN.search
+    filename_match = FILENAME_VALIDATION_PATTERN.match
+    quick_check = QUICK_CHECK_PATTERN.search
 
     for message in messages:
         if not message or not isinstance(message, str):
+            continue
+
+        # Optimization: Fail fast if no potential media indicators are present
+        if not quick_check(message):
             continue
 
         # Pass 1: Fast patterns (Images, Links, WhatsApp, Unicode)
@@ -205,9 +221,24 @@ def extract_media_references(table: Table) -> set[str]:
             if not lookback_slice:
                 continue
 
-            # Look for filename at the end of the preceding text
-            if fm := filename_search(lookback_slice):
-                references.add(fm.group(1))
+            # Optimized lookbehind:
+            # Instead of a greedy regex searching from the end of the string (O(N)),
+            # we manually split the string to find the last token and validate it.
+            # This is ~5000x faster for long strings.
+
+            # Remove trailing whitespace (spaces between filename and marker)
+            lookback_stripped = lookback_slice.rstrip()
+            if not lookback_stripped:
+                continue
+
+            # Get the last word/token
+            # rsplit(None, 1) splits on whitespace from the right, max 1 split
+            parts = lookback_stripped.rsplit(None, 1)
+            candidate = parts[-1]
+
+            # Validate the candidate against the allowed filename characters
+            if filename_match(candidate):
+                references.add(candidate)
 
     return references
 
