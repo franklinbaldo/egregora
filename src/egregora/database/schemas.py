@@ -399,18 +399,7 @@ UNIFIED_SCHEMA = ibis.schema(
 # Views
 # ============================================================================
 
-DOCUMENTS_VIEW_SQL = """
-CREATE OR REPLACE VIEW documents_view AS
-    SELECT id, 'post' as type, content, created_at, title, slug, NULL as subject_uuid FROM posts
-    UNION ALL
-    SELECT id, 'profile' as type, content, created_at, title, NULL as slug, subject_uuid FROM profiles
-    UNION ALL
-    SELECT id, 'journal' as type, content, created_at, title, NULL as slug, NULL as subject_uuid FROM journals
-    UNION ALL
-    SELECT id, 'media' as type, content, created_at, NULL as title, NULL as slug, NULL as subject_uuid FROM media
-    UNION ALL
-    SELECT id, 'annotation' as type, content, created_at, NULL as title, NULL as slug, NULL as subject_uuid FROM annotations
-"""
+DOCUMENTS_VIEW_SQL = None  # Deprecated in V3 Pure
 
 # ============================================================================
 # Ingestion Schemas
