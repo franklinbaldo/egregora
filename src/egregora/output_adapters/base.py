@@ -8,7 +8,7 @@ import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import ibis
 import ibis.expr.datatypes as dt
@@ -108,9 +108,7 @@ class BaseOutputSink(OutputSink, ABC):
             if not identifier:
                 continue
 
-            yield DocumentMetadata(
-                identifier=str(identifier), doc_type=document.type, metadata=document.metadata
-            )
+            yield DocumentMetadata(identifier=identifier, doc_type=document.type, metadata=document.metadata)
 
     def list_documents(self, doc_type: DocumentType | None = None) -> Table:
         """Compatibility shim returning an Ibis table of document metadata."""
@@ -119,17 +117,17 @@ class BaseOutputSink(OutputSink, ABC):
             mtime_ns = meta.metadata.get("mtime_ns") if isinstance(meta.metadata, dict) else None
             if mtime_ns is None:
                 try:
-                    # Fix for Path argument type error
-                    source_path = (
+                    raw_path = (
                         meta.metadata.get("source_path", meta.identifier)
                         if isinstance(meta.metadata, dict)
-                        else meta.identifier
+                        else None
                     )
+                    path: Path | None = None
+                    if isinstance(raw_path, (str, Path)):
+                        path = Path(raw_path)
 
-                    if source_path:
-                        path = Path(str(source_path))
-                        if path.exists():
-                            mtime_ns = path.stat().st_mtime_ns
+                    if path and path.exists():
+                        mtime_ns = path.stat().st_mtime_ns
                 except OSError:
                     mtime_ns = None
 
@@ -253,7 +251,7 @@ class BaseOutputSink(OutputSink, ABC):
 
         raise FilenameGenerationError(filename_pattern, max_attempts)
 
-    def parse_frontmatter(self, content: str) -> tuple[dict, str]:
+    def parse_frontmatter(self, content: str) -> tuple[dict[str, Any], str]:
         """Parse frontmatter from markdown content."""
         if not content.startswith("---\n"):
             return {}, content
@@ -272,7 +270,7 @@ class BaseOutputSink(OutputSink, ABC):
         except yaml.YAMLError as e:
             raise FrontmatterParsingError(str(e)) from e
 
-        return cast("tuple[dict, str]", (metadata, body))
+        return metadata, body
 
     def prepare_window(
         self, window_label: str, _window_data: dict[str, Any] | None = None
@@ -305,9 +303,6 @@ class OutputSinkRegistry:
         # However, abstract OutputAdapter cannot be instantiated.
         # We assume concrete implementations are registered.
         # To fix type error, we cast format_class to Callable[[], OutputAdapter] implicitly
-        # This part was tricky in original code too.
-        # Ideally we should inspect the class property without instantiation, but it's an abstract property.
-        # For now, let's trust the logic or silence if needed, but the errors reported were not about this.
         instance = format_class()
         self._formats[instance.format_type] = format_class
 
@@ -328,7 +323,7 @@ class OutputSinkRegistry:
                 return instance
         raise AdapterNotDetectedError(str(site_root))
 
-    def list_formats(self) -> builtins.list[str]:
+    def list_formats(self) -> list[str]:
         """List all registered output format types."""
         return list(self._formats.keys())
 

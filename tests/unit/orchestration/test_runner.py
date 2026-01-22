@@ -99,7 +99,7 @@ def test_process_single_window_orchestration(
     mock_filter_commands.return_value = [{"id": 2, "text": "not a command"}]
 
     # Mock the two async calls
-    mock_write_posts_for_window.return_value = (["post1"], [])
+    mock_write_posts_for_window.return_value = {"posts": ["post1"], "profiles": []}
     mock_generate_profile_posts.return_value = [MagicMock()]
 
     runner._extract_adapter_info = MagicMock(return_value=("summary", "instructions"))
