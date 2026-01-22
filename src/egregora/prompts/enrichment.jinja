@@ -242,8 +242,10 @@ Output ONLY the markdown. No preamble. No code fences. Raw markdown that can be 
 You are analyzing {{ image_count }} media files (images or videos) in a single batch. For EACH file, provide:
 
 1. A short descriptive slug (lowercase, hyphens only, e.g., "sunset-beach-scene")
-2. A 2-3 sentence description of the content
-3. Alt text or short summary for accessibility
+2. A human-readable title for the content
+3. A 2-3 sentence description of the content
+4. Alt text or short summary for accessibility
+5. Relevant tags for categorization (3-5 lowercase keywords)
 
 {% if pii_prevention and pii_prevention.enabled %}
 ⚠️ **CRITICAL: PII Check** - If any file contains identifiable faces, license plates, IDs, or personal documents:
@@ -258,14 +260,16 @@ The following {{ image_count }} files are attached to this request (in order):
 ## Output Format
 Return ONLY a valid JSON object where keys are the **exact original filenames** and values contain:
 - `slug`: short descriptive slug (lowercase, hyphens)
+- `title`: human-readable title for the content
 - `description`: 2-3 sentence description
 - `alt_text`: accessibility description (or video summary)
+- `tags`: list of 3-5 relevant lowercase keywords
 
 Example format:
 ```json
 {
-  "IMG-20250101.jpg": {"slug": "sunset-beach-view", "description": "A beautiful sunset over a sandy beach with waves.", "alt_text": "Orange sunset over ocean beach with gentle waves"},
-  "video_002.mp4": {"slug": "cat-jumping", "description": "A video of a cat jumping onto a table.", "alt_text": "Cat jumping onto table"}
+  "IMG-20250101.jpg": {"slug": "sunset-beach-view", "title": "Sunset Beach View", "description": "A beautiful sunset over a sandy beach with waves.", "alt_text": "Orange sunset over ocean beach with gentle waves", "tags": ["nature", "sunset", "beach"]},
+  "video_002.mp4": {"slug": "cat-jumping", "title": "Cat Jumping on Table", "description": "A video of a cat jumping onto a table.", "alt_text": "Cat jumping onto table", "tags": ["animals", "cats", "funny"]}
 }
 ```
 
@@ -275,8 +279,10 @@ Example format:
 You are analyzing {{ url_count }} URLs in a single batch. For EACH URL, provide:
 
 1. A short descriptive slug (lowercase, hyphens only, e.g., "alignment-forum-mesa-optimizers")
-2. A 2-3 sentence summary of the URL content
-3. Key takeaways (3-5 bullet points as a list)
+2. A human-readable title for the content
+3. A 2-3 sentence summary of the URL content
+4. Key takeaways (3-5 bullet points as a list)
+5. Relevant tags for categorization (3-5 lowercase keywords)
 
 {% if pii_prevention and pii_prevention.enabled %}
 ⚠️ **Privacy Notice** - Do not include any personally identifiable information from the URLs.
@@ -289,16 +295,20 @@ The following {{ url_count }} URLs need enrichment:
 ## Output Format
 Return ONLY a valid JSON object where keys are the **exact original URLs** and values contain:
 - `slug`: short descriptive slug (lowercase, hyphens)
+- `title`: human-readable title for the content
 - `summary`: 2-3 sentence description of the content
 - `key_takeaways`: list of 3-5 key points
+- `tags`: list of 3-5 relevant lowercase keywords
 
 Example format:
 ```json
 {
   "https://example.com/article": {
     "slug": "example-article-topic",
+    "title": "Example Article About Topic",
     "summary": "This article discusses...",
-    "key_takeaways": ["Point 1", "Point 2", "Point 3"]
+    "key_takeaways": ["Point 1", "Point 2", "Point 3"],
+    "tags": ["technology", "ai", "research"]
   }
 }
 ```

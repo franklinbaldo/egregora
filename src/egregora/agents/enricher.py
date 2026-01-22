@@ -875,6 +875,8 @@ class EnrichmentWorker(BaseWorker):
             if enrichment:
                 # Build EnrichmentOutput from result
                 slug = enrichment.get("slug", "")
+                title = enrichment.get("title") or slug.replace("-", " ").title()
+                tags = enrichment.get("tags", [])
                 summary = enrichment.get("summary", "")
                 takeaways = enrichment.get("key_takeaways", [])
 
@@ -891,7 +893,7 @@ class EnrichmentWorker(BaseWorker):
 ---
 *Source: [{url}]({url})*
 """
-                output = EnrichmentOutput(slug=slug, markdown=markdown)
+                output = EnrichmentOutput(slug=slug, markdown=markdown, title=title, tags=tags)
                 results.append((task, output, None))
                 logger.info("[URLEnricher] Processed %s via single-call batch", url)
             else:
