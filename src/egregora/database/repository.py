@@ -1,19 +1,17 @@
 """Data access layer for content (Posts, Profiles, Media, Journals).
 
-This repository handles routing document operations to the correct type-specific
-tables in DuckDB.
+This repository handles routing document operations to the unified documents table in DuckDB.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.exceptions import (
     DatabaseOperationError,
     DocumentNotFoundError,
-    UnsupportedDocumentTypeError,
 )
 
 if TYPE_CHECKING:
@@ -27,171 +25,177 @@ class ContentRepository:
         self.db = db
 
     def save(self, doc: Document) -> None:
-        """Route document to correct table based on type."""
-        # Common fields mapping from Document to Schema
-        row = {
-            "id": str(doc.id) if doc.id else None,
-            "content": doc.content,
-            "created_at": doc.updated,  # Using updated as created_at/insertion time
+        """Save document to the unified documents table."""
+        # 1. Base mapping (Common to all types)
+        row: dict[str, Any] = {
+            "id": doc.document_id,  # Use stable ID property
+            "content": doc.content
+            if isinstance(doc.content, str)
+            else doc.content.decode("utf-8", errors="ignore"),
+            "created_at": doc.created_at,
             "source_checksum": doc.internal_metadata.get("checksum"),
+            "doc_type": doc.type.value,
+            "status": doc.metadata.get("status", "published"),  # Default status if not provided
+            "extensions": None,
         }
 
-        if doc.doc_type == DocumentType.POST:
-            # Post specific fields
+        # 2. Type-specific mapping
+        if doc.type == DocumentType.POST:
             row.update(
                 {
-                    "title": doc.title,
-                    "slug": doc.internal_metadata.get("slug"),
+                    "title": doc.metadata.get("title"),
+                    "slug": doc.slug,  # Use property that handles fallback
                     "date": doc.internal_metadata.get("date"),
-                    "summary": doc.summary,
-                    # "authors": [str(a.id) for a in doc.authors],
-                    # "tags": [c.term for c in doc.categories],
-                    "status": doc.status,
+                    "summary": doc.metadata.get("summary"),
+                    "authors": doc.metadata.get("authors", []),
+                    "tags": doc.metadata.get("tags", []),
+                    "status": doc.metadata.get("status"),
                 }
             )
-            self.db.ibis_conn.insert("posts", [row])
 
-        elif doc.doc_type == DocumentType.PROFILE:
-            # Profile specific fields
+        elif doc.type == DocumentType.PROFILE:
             row.update(
                 {
-                    "subject_uuid": doc.internal_metadata.get("subject_uuid"),
-                    "title": doc.title,  # Was 'name'
+                    "subject_uuid": doc.internal_metadata.get("subject_uuid")
+                    or doc.document_id,  # Fallback to ID if needed
+                    "title": doc.metadata.get("title") or doc.metadata.get("name"),
                     "alias": doc.internal_metadata.get("alias"),
-                    "summary": doc.summary,  # Was 'bio'
-                    "avatar_url": doc.internal_metadata.get("avatar_url"),
-                    "interests": doc.internal_metadata.get("interests", []),
+                    "summary": doc.metadata.get("summary") or doc.metadata.get("bio"),
+                    "avatar_url": doc.metadata.get("avatar_url"),
+                    "interests": doc.metadata.get("interests", []),
                 }
             )
-            self.db.ibis_conn.insert("profiles", [row])
 
-        elif doc.doc_type == DocumentType.MEDIA:
+        elif doc.type == DocumentType.MEDIA:
             row.update(
                 {
                     "filename": doc.internal_metadata.get("filename"),
-                    "mime_type": doc.content_type,
+                    "mime_type": doc.internal_metadata.get("mime_type"),  # Was mime_type in schema
                     "media_type": doc.internal_metadata.get("media_type"),
                     "phash": doc.internal_metadata.get("phash"),
                 }
             )
-            self.db.ibis_conn.insert("media", [row])
 
-        elif doc.doc_type == DocumentType.JOURNAL:
+        elif doc.type == DocumentType.JOURNAL:
             row.update(
                 {
-                    "title": doc.title,  # Was 'window_label'
+                    "title": doc.metadata.get("title") or doc.metadata.get("window_label"),
                     "window_start": doc.internal_metadata.get("window_start"),
                     "window_end": doc.internal_metadata.get("window_end"),
                 }
             )
-            self.db.ibis_conn.insert("journals", [row])
 
-        elif doc.doc_type == DocumentType.ANNOTATION:
-            row.update(
-                {
-                    "parent_id": doc.internal_metadata.get("parent_id"),
-                    "parent_type": doc.internal_metadata.get("parent_type"),
-                    "author_id": doc.internal_metadata.get("author_id"),
-                }
-            )
-            self.db.ibis_conn.insert("annotations", [row])
-        else:
-            # Fallback for unsupported types - perhaps log warning
+        elif doc.type == DocumentType.ANNOTATION:
             pass
 
-    def get_all(self) -> Iterator[dict]:
-        """Stream all documents via the unified view."""
-        return self.db.execute("SELECT * FROM documents_view").fetchall()
+        try:
+            self.db.replace_rows("documents", [row], by_keys={"id": row["id"]})
+        except Exception as e:
+            msg = f"Failed to save document {row['id']}: {e}"
+            raise DatabaseOperationError(msg) from e
+
+    def get_all(self) -> Iterator[Document]:
+        """Stream all documents from the unified table."""
+        try:
+            t = self.db.read_table("documents")
+            # Return Document objects, not dicts
+            for row in t.execute().to_dict(orient="records"):
+                yield self._row_to_document(row)
+        except Exception as e:
+            msg = f"Failed to get all documents: {e}"
+            raise DatabaseOperationError(msg) from e
 
     def get(self, doc_type: DocumentType, identifier: str) -> Document:
         """Retrieve a single document by type and identifier."""
-        table_name = self._get_table_for_type(doc_type)
-
-        from ibis.common.exceptions import IbisError
-
         try:
-            t = self.db.read_table(table_name)
-            # Filter based on document type's potential identifiers
+            t = self.db.read_table("documents")
+
+            # Filter by ID and Type
+            # Also support slug lookup for Posts?
+
             if doc_type == DocumentType.POST:
-                res = t.filter((t.id == identifier) | (t.slug == identifier)).limit(1).execute()
-            elif doc_type == DocumentType.PROFILE:
-                res = t.filter((t.id == identifier) | (t.subject_uuid == identifier)).limit(1).execute()
+                # Try ID match first
+                res = t.filter((t.doc_type == doc_type.value) & (t.id == identifier)).limit(1).execute()
+                if res.empty:
+                    # Try Slug match
+                    res = t.filter((t.doc_type == doc_type.value) & (t.slug == identifier)).limit(1).execute()
             else:
-                res = t.filter(t.id == identifier).limit(1).execute()
+                res = t.filter((t.doc_type == doc_type.value) & (t.id == identifier)).limit(1).execute()
 
             if res.empty:
                 raise DocumentNotFoundError(doc_type.value, identifier)
 
             data = res.to_dict(orient="records")[0]
-            return self._row_to_document(data, doc_type)
-
-        except IbisError as e:
+            return self._row_to_document(data)
+        except DocumentNotFoundError:
+            raise
+        except Exception as e:
+            # Catch IbisError and others
             msg = f"Failed to get document: {e}"
             raise DatabaseOperationError(msg) from e
 
     def list(self, doc_type: DocumentType | None = None) -> Iterator[dict]:
         """List documents metadata."""
-        if doc_type:
-            table_name = self._get_table_for_type(doc_type)
-            t = self.db.read_table(table_name)
-            # Select relevant columns for metadata
-            # We need to return iterator of dicts
+        try:
+            t = self.db.read_table("documents")
+            if doc_type:
+                t = t.filter(t.doc_type == doc_type.value)
+
             yield from t.execute().to_dict(orient="records")
-        else:
-            # Use Ibis to read the view as a table for consistent dict output
-            from ibis.common.exceptions import IbisError
+        except Exception as e:
+            # Fallback or error?
+            # Old code had fallback. New code assumes 'documents' exists.
+            # If 'documents' table missing, it will raise TableNotFoundError which is fine.
+            msg = f"Failed to list documents: {e}"
+            raise DatabaseOperationError(msg) from e
 
-            try:
-                t = self.db.read_table("documents_view")
-                yield from t.execute().to_dict(orient="records")
-            except IbisError:
-                # Fallback if view not registered in ibis cache or other issue
-                # Manually map columns for robustness
-                rows = self.db.execute("SELECT * FROM documents_view").fetchall()
-                # columns: id, type, content, created_at, title, slug, subject_uuid
-                cols = ["id", "type", "content", "created_at", "title", "slug", "subject_uuid"]
-                for row in rows:
-                    yield dict(zip(cols, row, strict=False))
-
-    def _get_table_for_type(self, doc_type: DocumentType) -> str:
-        mapping = {
-            DocumentType.POST: "posts",
-            DocumentType.PROFILE: "profiles",
-            DocumentType.MEDIA: "media",
-            DocumentType.JOURNAL: "journals",
-            DocumentType.ANNOTATION: "annotations",
-        }
-        table = mapping.get(doc_type)
-        if not table:
-            raise UnsupportedDocumentTypeError(str(doc_type))
-        return table
-
-    def _row_to_document(self, row: dict, doc_type: DocumentType) -> Document:
+    def _row_to_document(self, row: dict) -> Document:
         """Convert a DB row to a Document object."""
-        # Reconstruct Document
-        # internal_metadata needs to be populated from specific columns
-        internal_metadata = {
-            k: v
-            for k, v in row.items()
-            if k not in ["content", "id", "created_at", "updated", "title", "summary"]
+        doc_type_str = row.get("doc_type")
+        try:
+            doc_type = DocumentType(doc_type_str)
+        except ValueError:
+            # Fallback or error?
+            doc_type = DocumentType.POST  # Default? Or raise
+
+        # Reconstruct metadata
+        metadata = {
+            "title": row.get("title"),
+            "summary": row.get("summary"),
+            "status": row.get("status"),
+            "slug": row.get("slug"),
+            "date": row.get("date"),
+            "authors": row.get("authors"),
+            "tags": row.get("tags"),
+            "name": row.get("title"),  # Alias for Profile
+            "bio": row.get("summary"),  # Alias for Profile
+            "avatar_url": row.get("avatar_url"),
+            "interests": row.get("interests"),
+            "window_label": row.get("title"),  # Alias for Journal
         }
 
-        # Authors list reconstruction
-        # if row.get("authors"):
-        #     # Assuming row['authors'] is list of strings (UUIDs)
-        #     authors = [Author(id=uid, name="") for uid in row["authors"]]
+        # Filter None values to clean up metadata
+        metadata = {k: v for k, v in metadata.items() if v is not None}
 
-        # if row.get("tags"):
-        #     categories = [Category(term=tag) for tag in row["tags"]]
+        internal_metadata = {
+            "checksum": row.get("source_checksum"),
+            "subject_uuid": row.get("subject_uuid"),
+            "alias": row.get("alias"),
+            "filename": row.get("filename"),
+            "mime_type": row.get("mime_type"),
+            "media_type": row.get("media_type"),
+            "phash": row.get("phash"),
+            "window_start": row.get("window_start"),
+            "window_end": row.get("window_end"),
+        }
+        # Filter None values
+        internal_metadata = {k: v for k, v in internal_metadata.items() if v is not None}
 
         return Document(
             id=row.get("id"),
-            title=row.get("title"),
-            content=row.get("content"),
-            updated=row.get("created_at"),  # Map created_at back to updated?
-            summary=row.get("summary"),
-            # authors=authors,
-            # categories=categories,
-            doc_type=doc_type,
+            content=row.get("content", ""),
+            type=doc_type,
+            metadata=metadata,
             internal_metadata=internal_metadata,
+            created_at=row.get("created_at"),
         )

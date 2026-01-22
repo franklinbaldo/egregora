@@ -27,6 +27,7 @@ import ibis
 import ibis.common.exceptions
 import yaml
 
+from egregora.data_primitives.document import DocumentType
 from egregora.database import schemas
 
 if TYPE_CHECKING:
@@ -86,13 +87,17 @@ def scan_and_cache_profiles(
         Number of profiles cached
 
     """
-    # Ensure profiles table exists, even if directory doesn't yet
-    schemas.create_table_if_not_exists(
-        storage._conn,
-        "profiles",
-        schemas.PROFILES_SCHEMA,
-        overwrite=False,
-    )
+    # Unified Documents table is created by init.py, so we assume it exists.
+    # If not, create it with UNIFIED_SCHEMA
+    if not storage.table_exists("documents"):
+        schemas.create_table_if_not_exists(
+            storage._conn,
+            "documents",
+            schemas.UNIFIED_SCHEMA,
+            check_constraints=schemas.get_table_check_constraints("documents"),
+            primary_key="id",
+        )
+
     if not profiles_dir.exists():
         logger.info("Profiles directory does not exist, skipping scan: %s", profiles_dir)
         return 0
@@ -116,23 +121,42 @@ def scan_and_cache_profiles(
             # Parse frontmatter
             metadata = _parse_frontmatter(content)
 
-            # Build row for profiles table
+            # Build row for documents table (Unified)
             row = {
                 "id": author_uuid,  # Use UUID as ID
                 "content": content,
                 "created_at": datetime.now(UTC),
                 "source_checksum": _calculate_checksum(content),
+                "doc_type": DocumentType.PROFILE.value,
+                "status": "published",  # Default
                 "subject_uuid": author_uuid,
                 "title": metadata.get("alias", metadata.get("name", author_uuid)),
                 "alias": metadata.get("alias", ""),
                 "summary": metadata.get("bio", ""),
                 "avatar_url": metadata.get("avatar", ""),
                 "interests": metadata.get("interests", []),
+                # Null out other fields for safety or let Ibis handle defaults/nulls
+                "slug": None,
+                "date": None,
+                "authors": None,
+                "tags": None,
+                "filename": None,
+                "mime_type": None,
+                "media_type": None,
+                "phash": None,
+                "window_start": None,
+                "window_end": None,
+                "extensions": None,
             }
+
+            # Clean up row: remove None values if Ibis insert requires exact schema match
+            # But Ibis insert expects all columns in schema usually.
+            # DuckDB insert allows missing columns if they are nullable.
+            # Let's try inserting with full schema.
 
             # Upsert into database (delete + insert)
             storage.replace_rows(
-                "profiles",
+                "documents",
                 ibis.memtable([row]),
                 by_keys={"id": author_uuid},
             )
@@ -163,8 +187,11 @@ def get_profile_from_db(
 
     """
     try:
-        table = storage.read_table("profiles")
-        result = table.filter(table.subject_uuid == author_uuid).execute()
+        table = storage.read_table("documents")
+        # Filter for profiles specifically to avoid ID collision (though UUIDs should be unique)
+        result = table.filter(
+            (table.doc_type == DocumentType.PROFILE.value) & (table.subject_uuid == author_uuid)
+        ).execute()
 
         if len(result) == 0:
             logger.debug("No profile found in DB for %s", author_uuid)
@@ -189,8 +216,8 @@ def get_all_profiles_from_db(
 
     """
     try:
-        table = storage.read_table("profiles")
-        result = table.execute()
+        table = storage.read_table("documents")
+        result = table.filter(table.doc_type == DocumentType.PROFILE.value).execute()
 
         profiles = {}
         for _, row in result.iterrows():
@@ -218,8 +245,8 @@ def get_opted_out_authors_from_db(
 
     """
     try:
-        table = storage.read_table("profiles")
-        result = table.execute()
+        table = storage.read_table("documents")
+        result = table.filter(table.doc_type == DocumentType.PROFILE.value).execute()
 
         opted_out = set()
         for _, row in result.iterrows():
@@ -282,13 +309,16 @@ def scan_and_cache_posts(
         Number of posts cached
 
     """
-    # Ensure posts table exists, even if directory doesn't yet
-    schemas.create_table_if_not_exists(
-        storage._conn,
-        "posts",
-        schemas.POSTS_SCHEMA,
-        overwrite=False,
-    )
+    # Ensure documents table exists
+    if not storage.table_exists("documents"):
+        schemas.create_table_if_not_exists(
+            storage._conn,
+            "documents",
+            schemas.UNIFIED_SCHEMA,
+            check_constraints=schemas.get_table_check_constraints("documents"),
+            primary_key="id",
+        )
+
     if not posts_dir.exists():
         logger.info("Posts directory does not exist, skipping scan: %s", posts_dir)
         return 0
@@ -318,24 +348,37 @@ def scan_and_cache_posts(
             if not authors and "authors" in metadata:
                 authors = metadata.get("authors", [])
 
-            # Build row for posts table
+            # Build row for documents table
             row = {
                 "id": slug,  # Use slug as ID
                 "content": content,
                 "created_at": datetime.now(UTC),
                 "source_checksum": _calculate_checksum(content),
+                "doc_type": DocumentType.POST.value,
+                "status": metadata.get("status", "published"),
                 "title": metadata.get("title", ""),
                 "slug": slug,
                 "date": metadata.get("date"),
                 "summary": metadata.get("description", ""),
                 "authors": authors,
                 "tags": metadata.get("tags", []),
-                "status": metadata.get("status", "published"),
+                # Null out other fields
+                "subject_uuid": None,
+                "alias": None,
+                "avatar_url": None,
+                "interests": None,
+                "filename": None,
+                "mime_type": None,
+                "media_type": None,
+                "phash": None,
+                "window_start": None,
+                "window_end": None,
+                "extensions": None,
             }
 
             # Upsert into database (delete + insert)
             storage.replace_rows(
-                "posts",
+                "documents",
                 ibis.memtable([row]),
                 by_keys={"id": slug},
             )
@@ -366,11 +409,13 @@ def get_profile_posts_from_db(
 
     """
     try:
-        table = storage.read_table("posts")
+        table = storage.read_table("documents")
 
         # Filter for posts where this author is in the authors array
         # Using contains for array filtering
-        result = table.filter(table.authors.contains(author_uuid)).execute()
+        result = table.filter(
+            (table.doc_type == DocumentType.POST.value) & (table.authors.contains(author_uuid))
+        ).execute()
 
         posts = []
         for _, row in result.iterrows():
