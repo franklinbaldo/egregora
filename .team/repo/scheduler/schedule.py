@@ -443,7 +443,7 @@ def extract_persona_from_title(title: str) -> str | None:
     return None
 
 
-def get_last_sequence_from_api(repo_name: str | None = None) -> tuple[int, str | None]:
+def get_last_sequence_from_api(repo_name: str | None = None) -> tuple[int | None, str | None]:
     """Query Jules API to find the last sequence number created.
 
     This is the source of truth for determining what sequence to run next.
@@ -453,7 +453,8 @@ def get_last_sequence_from_api(repo_name: str | None = None) -> tuple[int, str |
 
     Returns:
         Tuple of (last_sequence_number, last_persona)
-        Returns (0, None) if no sessions found or API error
+        Returns (None, None) if API error (signals to use CSV fallback)
+        Returns (0, None) if no sessions found in API
     """
     from repo.core.client import TeamClient
 
@@ -486,7 +487,8 @@ def get_last_sequence_from_api(repo_name: str | None = None) -> tuple[int, str |
 
     except Exception as e:
         print(f"⚠️  Failed to query Jules API for last sequence: {e}")
-        return 0, None
+        # Return None to signal that we should fall back to CSV-based approach
+        return None, None
 
 
 def get_current_sequence_from_api(
@@ -498,6 +500,8 @@ def get_current_sequence_from_api(
     This queries the Jules API to find the highest sequence number that has
     been created, then returns the next sequence from the schedule.
 
+    Falls back to CSV-based approach if API is unavailable.
+
     Args:
         rows: Schedule rows
         repo_name: Optional repo name to filter sessions
@@ -508,6 +512,11 @@ def get_current_sequence_from_api(
         - schedule_modified: True if rows were modified (invalid personas marked closed)
     """
     last_seq, _ = get_last_sequence_from_api(repo_name)
+
+    # If API failed (returned None), fall back to CSV-based approach
+    if last_seq is None:
+        print("📋 Falling back to CSV-based sequence detection")
+        return get_current_sequence(rows)
 
     modified = False
 

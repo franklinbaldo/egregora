@@ -427,7 +427,10 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> Sched
 
         # Query Jules API to find the last sequence created (source of truth)
         last_api_seq, last_api_persona = get_last_sequence_from_api(repo_info["repo"])
-        print(f"📡 Jules API: Last sequence = {last_api_seq} ({last_api_persona or 'unknown'})")
+        if last_api_seq is not None:
+            print(f"📡 Jules API: Last sequence = {last_api_seq} ({last_api_persona or 'unknown'})")
+        else:
+            print("📋 Jules API unavailable, using CSV-based approach")
 
         # Find current sequence using API as source of truth
         current, schedule_modified = get_current_sequence_from_api(rows, repo_info["repo"])
