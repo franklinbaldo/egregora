@@ -46,7 +46,7 @@ body,
 }
 
 /* Landing Page Specific Overrides */
-[data-md-color-scheme="slate"] .md-main__inner {
+[data-md-color-scheme="slate"] .md-main__inner:has(.homepage-hero) {
   max-width: 100% !important;
 }
 
