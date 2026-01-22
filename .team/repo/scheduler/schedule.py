@@ -25,12 +25,13 @@ EXCLUDED_PERSONAS = [
 
 # Fallback list if filesystem discovery fails
 # This should match the actual personas in .team/personas/ (excluding EXCLUDED_PERSONAS)
+# Updated 2026-01-22: Removed archived personas (docs_curator, maintainer, palette,
+# pruner, specifier, steward, taskmaster, weaver)
 FALLBACK_CYCLE_PERSONAS = [
-    "absolutist", "artisan", "bolt", "builder", "curator", "docs_curator",
-    "essentialist", "forge", "janitor", "lore", "maintainer", "organizer", "palette",
-    "pruner", "refactor", "sapper", "scribe", "sentinel", "shepherd", "sheriff",
-    "simplifier", "steward", "streamliner", "taskmaster", "typeguard",
-    "visionary"
+    "absolutist", "artisan", "bolt", "builder", "curator",
+    "essentialist", "forge", "janitor", "lore", "organizer",
+    "refactor", "sapper", "scribe", "sentinel", "shepherd", "sheriff",
+    "simplifier", "streamliner", "typeguard", "visionary"
 ]
 
 
@@ -234,8 +235,9 @@ def validate_and_fix(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], 
     """Validate and fix schedule rows, returning fixed rows and list of issues found."""
     issues: list[str] = []
     fixed_rows: list[dict[str, Any]] = []
-    
+
     seen_sequences = set()
+    seen_session_ids: set[str] = set()
     
     for i, row in enumerate(rows):
         # Ensure all required fields exist
@@ -256,6 +258,18 @@ def validate_and_fix(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], 
             issues.append(f"Row {i+1}: Duplicate sequence {fixed_row['sequence']}, skipping")
             continue
         seen_sequences.add(fixed_row["sequence"])
+
+        # Detect duplicate session_ids (indicates scheduler bug)
+        session_id = fixed_row.get("session_id", "").strip()
+        if session_id:
+            if session_id in seen_session_ids:
+                issues.append(
+                    f"Row {i+1}: Duplicate session_id {session_id[:16]}... "
+                    f"(seq {fixed_row['sequence']}), marking as closed"
+                )
+                fixed_row["pr_status"] = "closed"
+            else:
+                seen_session_ids.add(session_id)
         
         # Validate persona
         persona = fixed_row["persona"].strip().lower()

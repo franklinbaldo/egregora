@@ -492,6 +492,17 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> Sched
         )
 
         if result.success and result.session_id:
+            # Check for duplicate session_id before saving (prevent scheduler bug)
+            existing_ids = {
+                r.get("session_id", "").strip()
+                for r in rows
+                if r.get("session_id", "").strip()
+            }
+            if result.session_id in existing_ids:
+                return SchedulerResult(
+                    success=False,
+                    message=f"Duplicate session_id {result.session_id[:16]}... detected, aborting"
+                )
 
             # Update CSV
             rows = update_sequence(rows, seq, session_id=result.session_id)
