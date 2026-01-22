@@ -45,22 +45,12 @@ body,
   -webkit-font-smoothing: antialiased;
 }
 
-/* Landing Page Specific Overrides */
-[data-md-color-scheme="slate"] .md-main__inner {
-  max-width: 100% !important;
-}
-
 /* Hero and Post Grid Integration */
 .main-portal-grid {
-  margin-top: -180px !important;
   /* Pull posts up into the hero */
   z-index: 100 !important;
   padding: 0 40px 100px;
   position: relative;
-}
-
-.md-content__inner {
-  padding-top: 0 !important;
 }
 
 /* Blog Card Evolution - High Fidelity Glassmorphism */
