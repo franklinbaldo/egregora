@@ -408,7 +408,8 @@ def run_cli_flow(
         if exit_on_error:
             raise
         # Wrap SystemExit in RuntimeError so callers (like demo) can handle it gracefully
-        raise RuntimeError(f"API key validation failed: {e}") from e
+        msg = f"API key validation failed: {e}"
+        raise RuntimeError(msg) from e
 
     # Load config to determine sources
     base_config = load_egregora_config(output_dir)
