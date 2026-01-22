@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 # Conservative character limit for a "safe" context batch (approx 100k tokens ~ 400k chars)
 # Gemini 1.5 has 1M+ context, but we keep it safe to avoid timeout/latency issues.
 MAX_PROMPT_CHARS = 400_000
-MIN_DOCS_FOR_CLUSTERING = 5
 
 
 def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) -> int:
@@ -36,6 +35,11 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
         The number of documents updated with new tags.
 
     """
+    # Check if taxonomy is enabled
+    if not config.taxonomy.enabled:
+        logger.info("Taxonomy generation disabled via config")
+        return 0
+
     try:
         from sklearn.cluster import KMeans
     except ModuleNotFoundError as exc:
@@ -54,12 +58,20 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
 
     doc_ids, vectors = backend.get_all_post_vectors()
     n_docs = len(doc_ids)
-    if n_docs < MIN_DOCS_FOR_CLUSTERING:
-        logger.info("Insufficient posts for clustering (<%d). Skipping taxonomy.", MIN_DOCS_FOR_CLUSTERING)
+    min_docs = config.taxonomy.min_docs
+    if n_docs < min_docs:
+        logger.info("Insufficient posts for clustering (<%d). Skipping taxonomy.", min_docs)
         return 0
 
-    k = max(2, int(np.sqrt(n_docs / 2)))
-    logger.info("Clustering %d posts into %d semantic topics...", n_docs, k)
+    # Calculate k using configurable exponent or fixed value
+    if config.taxonomy.num_clusters is not None:
+        k = config.taxonomy.num_clusters
+    else:
+        # k = n^exponent (default exponent=0.5 gives sqrt(n))
+        k = max(2, int(n_docs ** config.taxonomy.cluster_exponent))
+
+    logger.info("Clustering %d posts into %d semantic topics (exponent=%.2f)...",
+                n_docs, k, config.taxonomy.cluster_exponent)
 
     kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
     labels = kmeans.fit_predict(vectors)

@@ -607,6 +607,38 @@ class ReaderSettings(BaseModel):
     )
 
 
+class TaxonomySettings(BaseModel):
+    """Semantic taxonomy generation settings.
+
+    After posts are generated, clusters similar posts and assigns
+    consistent tags using LLM analysis. Uses K-Means clustering
+    with k = n^cluster_exponent (default: sqrt, exponent=0.5).
+    """
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable automatic semantic taxonomy generation",
+    )
+    num_clusters: int | None = Field(
+        default=None,
+        ge=2,
+        le=100,
+        description="Fixed number of clusters. If None, uses formula: n^cluster_exponent",
+    )
+    cluster_exponent: float = Field(
+        default=0.5,
+        ge=0.1,
+        le=1.0,
+        description="Exponent for cluster count formula: k = n^exponent. Default 0.5 (sqrt). Use 0.368 (1/e) for fewer clusters.",
+    )
+    min_docs: int = Field(
+        default=5,
+        ge=2,
+        le=50,
+        description="Minimum documents required before clustering",
+    )
+
+
 class FeaturesSettings(BaseModel):
     """Feature flags for experimental or optional functionality."""
 
@@ -723,6 +755,10 @@ class EgregoraConfig(BaseSettings):
     quota: QuotaSettings = Field(
         default_factory=QuotaSettings,
         description="LLM usage quota tracking",
+    )
+    taxonomy: TaxonomySettings = Field(
+        default_factory=TaxonomySettings,
+        description="Semantic taxonomy generation settings",
     )
 
     model_config = SettingsConfigDict(
