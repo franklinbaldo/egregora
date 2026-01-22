@@ -402,7 +402,13 @@ def run_cli_flow(
 
     output_dir = output.expanduser().resolve()
     _ensure_site_initialized(output_dir)
-    _validate_api_key(output_dir)
+    try:
+        _validate_api_key(output_dir)
+    except SystemExit as e:
+        if exit_on_error:
+            raise
+        # Wrap SystemExit in RuntimeError so callers (like demo) can handle it gracefully
+        raise RuntimeError(f"API key validation failed: {e}") from e
 
     # Load config to determine sources
     base_config = load_egregora_config(output_dir)
