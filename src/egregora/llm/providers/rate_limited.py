@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
@@ -34,8 +33,8 @@ class RateLimitedModel(Model):
         """Make a rate-limited request."""
         limiter = get_rate_limiter()
 
-        # Acquire slot in a separate thread to avoid blocking the event loop
-        await asyncio.to_thread(limiter.acquire)
+        # Use async acquire directly, no thread needed
+        await limiter.acquire()
         try:
             return await self.wrapped_model.request(messages, model_settings, model_request_parameters)
         finally:
@@ -51,8 +50,8 @@ class RateLimitedModel(Model):
         """Make a rate-limited stream request."""
         limiter = get_rate_limiter()
 
-        # Acquire slot in a separate thread to avoid blocking the event loop
-        await asyncio.to_thread(limiter.acquire)
+        # Use async acquire directly, no thread needed
+        await limiter.acquire()
         try:
             async with self.wrapped_model.request_stream(
                 messages, model_settings, model_request_parameters

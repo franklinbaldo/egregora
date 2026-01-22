@@ -18,6 +18,12 @@ from egregora.rag.embeddings import (
 from egregora.rag.exceptions import EmbeddingAPIError, EmbeddingValidationError, RateLimitError
 
 
+@pytest.fixture(autouse=True)
+def mock_sleep(monkeypatch):
+    """Mock time.sleep to avoid waiting in retry loops during tests."""
+    monkeypatch.setattr("time.sleep", lambda x: None)
+
+
 class TestIsRagAvailable:
     """Test RAG availability check behavior."""
 

@@ -247,6 +247,25 @@ def test_sync_authors_from_posts_benchmark(benchmark, author_posts):
     assert "author_49" in authors_data
 
 
+def test_sync_authors_from_posts_benchmark_no_authors(benchmark, tmp_path):
+    """
+    Benchmark the performance of sync_authors_from_posts when files have NO authors.
+    This represents the majority of files in a documentation site.
+    """
+    posts_dir = tmp_path / "docs" / "posts"
+    posts_dir.mkdir(parents=True)
+
+    # Create 500 files without authors
+    for i in range(NUM_FILES):
+        (posts_dir / f"post_{i}.md").write_text(f"---\ntitle: Post {i}\n---\n", encoding="utf-8")
+
+    def run_sync():
+        return sync_authors_from_posts(posts_dir)
+
+    result = benchmark(run_sync)
+    assert result == 0
+
+
 def test_sync_authors_from_posts_with_new_authors(project_structure: tuple[Path, Path]) -> None:
     """Verify new authors from posts are added to .authors.yml."""
     docs_dir, posts_dir = project_structure
