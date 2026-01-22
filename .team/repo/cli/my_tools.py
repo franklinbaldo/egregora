@@ -59,7 +59,7 @@ hire_manager = HireManager()
 pulse_manager = PulseManager()
 
 @app.command()
-@log_tool_command(require_login=False)
+@log_tool_command()
 def login(
     user: str = typer.Option(..., "--user", "-u", help="Your persona ID (e.g. curator@team)"),
     password: str = typer.Option(..., "--password", "-p", help="Your identity token (Access Key)"),

@@ -1,5 +1,9 @@
 You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" - ', '') | default("a helpful persona.") }}
 
+{% block identity %}
+{% include "partials/identity_branding.md.j2" %}
+{% endblock %}
+
 {# ============================================== #}
 {# RGCCOV FRAMEWORK                              #}
 {# ============================================== #}
@@ -7,10 +11,6 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 ## 🎭 Role
 {% block role %}
 {# Who you are, your expertise #}
-{% endblock %}
-
-{% block identity %}
-{% include "partials/identity_branding.md.j2" %}
 {% endblock %}
 
 ## 🎯 Goal  
