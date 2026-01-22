@@ -51,10 +51,16 @@ def initialize_database(backend: BaseBackend) -> None:
 
     conn = backend.con if hasattr(backend, "con") else backend
 
+    from egregora.database.schemas import get_table_foreign_keys
+
     # 1. Unified Documents Table
     # This creates the table with the full schema if it's missing.
     create_table_if_not_exists(
-        conn, "documents", UNIFIED_SCHEMA, check_constraints=get_table_check_constraints("documents")
+        conn,
+        "documents",
+        UNIFIED_SCHEMA,
+        check_constraints=get_table_check_constraints("documents"),
+        primary_key="id",
     )
 
     # 2. Tasks Table
@@ -74,6 +80,7 @@ def initialize_database(backend: BaseBackend) -> None:
         "annotations",
         ANNOTATIONS_SCHEMA,
         check_constraints=get_table_check_constraints("annotations"),
+        foreign_keys=get_table_foreign_keys("annotations"),
     )
 
     # Indexes for messages table (Ingestion performance)
