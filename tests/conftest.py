@@ -531,3 +531,19 @@ def config_factory(tmp_path: Path):
         return config
 
     return _factory
+
+
+@pytest.fixture(autouse=True)
+def mock_session_auth(monkeypatch, request):
+    """Mock SessionManager authentication for all tests."""
+    # Exclude job simulation tests which rely on real login flow
+    if "test_job_simulation_steps" in str(getattr(request.node, "fspath", "")):
+        return
+
+    try:
+        from repo.features.session import SessionManager
+
+        monkeypatch.setattr(SessionManager, "get_active_persona", lambda self: "tester@team")
+        monkeypatch.setattr(SessionManager, "get_active_sequence", lambda self: "seq-123")
+    except ImportError:
+        pass

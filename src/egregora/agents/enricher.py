@@ -1517,17 +1517,12 @@ class EnrichmentWorker(BaseWorker):
                 new_path = f"media/{media_subdir}/{slug_value}{Path(filename).suffix}"
 
                 # Using SQL replace to update all occurrences
-                # TODO: [Taskmaster] Refactor to use parameterized queries to prevent SQL injection
+                # Use parameterized queries to prevent SQL injection
                 try:
-                    # We need to use valid SQL string escaping
-                    safe_original = original_ref.replace("'", "''")
-                    safe_new = new_path.replace("'", "''")
-
-                    # Update text column
+                    # Update text column using parameterized query
                     # Note: This updates ALL messages containing this ref.
-                    # Given filenames are usually unique (timestamps), this is safe.
-                    query = f"UPDATE messages SET text = replace(text, '{safe_original}', '{safe_new}') WHERE text LIKE '%{safe_original}%'"
-                    self.ctx.storage._conn.execute(query)
+                    query = "UPDATE messages SET text = replace(text, ?, ?) WHERE text LIKE ?"
+                    self.ctx.storage._conn.execute(query, [original_ref, new_path, f"%{original_ref}%"])
                 except duckdb.Error as exc:
                     logger.warning("Failed to update message references for %s: %s", original_ref, exc)
 

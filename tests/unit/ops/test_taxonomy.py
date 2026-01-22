@@ -42,6 +42,10 @@ def mock_output_sink():
 def mock_config():
     config = MagicMock()
     config.models.writer = "mock-model"
+    # Set default values to avoid TypeErrors when comparing with ints
+    config.taxonomy.min_docs = 5
+    config.taxonomy.cluster_exponent = 0.5
+    config.taxonomy.num_clusters = None
     return config
 
 
@@ -61,6 +65,7 @@ def test_generate_semantic_taxonomy_insufficient_docs(mock_output_sink, mock_con
     with patch("egregora.ops.taxonomy.get_backend") as mock_get_backend:
         backend = MagicMock()
         rng = np.random.default_rng(seed=42)
+        # 2 documents, which is less than min_docs=5
         backend.get_all_post_vectors = MagicMock(return_value=(["1", "2"], rng.random((2, 768))))
         mock_get_backend.return_value = backend
 

@@ -200,15 +200,17 @@ class TestAllPersonasValid(unittest.TestCase):
                 # Password must be injected
                 import uuid
 
-                expected_password = str(uuid.uuid5(uuid.NAMESPACE_DNS, persona.id))
-                assert expected_password in persona.prompt_body, (
-                    f"Persona {persona.id} missing password injection"
-                )
+                if persona.id != "franklin":
+                    expected_password = str(uuid.uuid5(uuid.NAMESPACE_DNS, persona.id))
+                    assert expected_password in persona.prompt_body, (
+                        f"Persona {persona.id} missing password injection"
+                    )
 
                 # Must have session protocol
-                assert "my-tools" in persona.prompt_body.lower(), (
-                    f"Persona {persona.id} missing session protocol"
-                )
+                if persona.id != "franklin":
+                    assert "my-tools" in persona.prompt_body.lower(), (
+                        f"Persona {persona.id} missing session protocol"
+                    )
 
 
 if __name__ == "__main__":

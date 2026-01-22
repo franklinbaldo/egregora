@@ -12,14 +12,14 @@ import dataclasses
 import json
 import logging
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import ibis
-import ibis.common.exceptions
+import ibis.common.exceptions  # type: ignore[import-untyped] # ibis missing stubs
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
 from pydantic_ai import UsageLimits
@@ -27,13 +27,15 @@ from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
+    ModelResponsePart,
     TextPart,
     ThinkingPart,
     ToolCallPart,
     ToolReturnPart,
 )
+from pydantic_ai.models import KnownModelName, Model
 from pydantic_ai.settings import ModelSettings
-from ratelimit import limits, sleep_and_retry
+from ratelimit import limits, sleep_and_retry  # type: ignore[import-untyped] # ratelimit missing stubs
 from tenacity import Retrying
 
 from egregora.agents.exceptions import AgentError
@@ -115,8 +117,7 @@ RESULT_KEY_PROFILES = "profiles"
 
 # Type aliases for improved type safety
 MessageHistory = Sequence[ModelRequest | ModelResponse]
-LLMClient = Any
-AgentModel = Any
+AgentModel = Model | KnownModelName
 
 _WRITER_LOOP: asyncio.AbstractEventLoop | None = None
 _KEY_ROTATION_INDEX: int = 0  # Global counter for proactive key rotation
@@ -175,7 +176,7 @@ def _create_tool_call_entry(part: ToolCallPart, timestamp: datetime | None) -> J
     )
 
 
-def _process_response_part(part: Any, timestamp: datetime | None) -> JournalEntry | None:
+def _process_response_part(part: ModelResponsePart, timestamp: datetime | None) -> JournalEntry | None:
     """Convert a message part to a journal entry."""
     if isinstance(part, ThinkingPart):
         return JournalEntry(JOURNAL_TYPE_THINKING, part.content, timestamp)
@@ -183,6 +184,9 @@ def _process_response_part(part: Any, timestamp: datetime | None) -> JournalEntr
         return JournalEntry(JOURNAL_TYPE_TEXT, part.content, timestamp)
     if isinstance(part, ToolCallPart):
         return _create_tool_call_entry(part, timestamp)
+    # Note: ToolReturnPart is part of ModelRequest, not ModelResponse.
+    # This check is technically unreachable for ModelResponsePart but kept for reference
+    # or if the function is reused for ModelRequest parts in the future.
     if isinstance(part, ToolReturnPart):
         result_str = str(part.content) if hasattr(part, "content") else "No result"
         return JournalEntry(
@@ -210,11 +214,11 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
             )
 
         elif isinstance(message, ModelRequest):
-            entries.extend(
-                _create_tool_call_entry(part, timestamp)
-                for part in message.parts
-                if isinstance(part, ToolCallPart)
-            )
+            # Help mypy with type narrowing in generator
+            tool_parts: list[ToolCallPart] = [
+                cast("ToolCallPart", p) for p in message.parts if isinstance(p, ToolCallPart)
+            ]
+            entries.extend(_create_tool_call_entry(part, timestamp) for part in tool_parts)
 
     return entries
 
@@ -342,15 +346,18 @@ def _process_single_tool_result(
         logger.debug("Tool '%s' result processed but not a post/profile (status: %s)", tool_name, status)
 
 
-def _extract_from_message(message: Any, saved_posts: list[str], saved_profiles: list[str]) -> None:
+def _extract_from_message(
+    message: ModelRequest | ModelResponse, saved_posts: list[str], saved_profiles: list[str]
+) -> None:
     """Extract tool results from a single message."""
     if hasattr(message, "parts"):
         for part in message.parts:
             if isinstance(part, ToolReturnPart):
                 _process_single_tool_result(part.content, part.tool_name, saved_posts, saved_profiles)
+    # Fallback for potentially older message structures or other types if Union expands
     elif hasattr(message, "kind") and message.kind == "tool-return":
         tool_name = getattr(message, "tool_name", None)
-        _process_single_tool_result(message.content, tool_name, saved_posts, saved_profiles)
+        _process_single_tool_result(getattr(message, "content", None), tool_name, saved_posts, saved_profiles)
 
 
 def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str]]:
@@ -372,8 +379,14 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
     return saved_posts, saved_profiles
 
 
-@sleep_and_retry
-@limits(calls=100, period=60)
+# Type safe decorators for ratelimit
+F = TypeVar("F", bound=Callable[..., Any])
+_limits = cast("Callable[..., Callable[[F], F]]", limits)
+_sleep_and_retry = cast("Callable[[F], F]", sleep_and_retry)
+
+
+@_sleep_and_retry
+@_limits(calls=100, period=60)
 def write_posts_with_pydantic_agent(
     *,
     prompt: str,
@@ -558,8 +571,13 @@ def _iter_writer_models(config: EgregoraConfig) -> list[str]:
     if model_name.startswith("openrouter:") or config.enrichment.model_rotation_enabled:
         all_candidates.extend(_get_openrouter_free_models())
 
-    seen = set()
-    return [m for m in all_candidates if not (m in seen or seen.add(m))]
+    seen: set[str] = set()
+    unique_candidates: list[str] = []
+    for m in all_candidates:
+        if m not in seen:
+            seen.add(m)
+            unique_candidates.append(m)
+    return unique_candidates
 
 
 def _iter_provider_keys(model_name: str) -> list[str]:
@@ -948,4 +966,4 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     )
     if author_counts.count().execute() == 0:
         return []
-    return author_counts.author_uuid.cast("string").execute().tolist()
+    return cast("list[str]", author_counts.author_uuid.cast("string").execute().tolist())
