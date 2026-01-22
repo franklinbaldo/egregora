@@ -14,6 +14,7 @@ from repo.features.hire import HireManager
 from repo.cli.mail import app as mail_app
 from repo.cli.roster import app as roster_app
 from repo.cli.skills import app as skills_app
+from repo.cli.persona import app as persona_app
 from repo.features.pulse import PulseManager
 from repo.features.logging import log_tool_command
 
@@ -30,6 +31,7 @@ HELP_TEXT = """
   [bold magenta]email[/bold magenta]        Inter-persona messaging system.
   [bold magenta]roster[/bold magenta]       Discover and view team members.
   [bold magenta]skills[/bold magenta]       Discover specialized instruction sets.
+  [bold magenta]persona[/bold magenta]      Manage and inspect personas.
   [bold magenta]vote[/bold magenta]         Participate in shift scheduling.
   [bold magenta]hire[/bold magenta]         Provision new persona identities.
 
@@ -49,6 +51,7 @@ app = typer.Typer(
 app.add_typer(mail_app, name="email")
 app.add_typer(roster_app, name="roster")
 app.add_typer(skills_app, name="skills")
+app.add_typer(persona_app, name="persona")
 
 session_manager = SessionManager()
 vote_manager = VoteManager()
