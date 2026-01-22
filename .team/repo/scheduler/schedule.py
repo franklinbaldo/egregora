@@ -180,6 +180,7 @@ def auto_extend(rows: list[dict[str, Any]], count: int = 50) -> list[dict[str, A
     """Add more rows to the schedule if running low.
 
     Uses round-robin through discovered personas, skipping any that don't exist.
+    Ensures sequential sequence numbers with no gaps.
     """
     cycle_personas = get_cycle_personas()
 
@@ -199,16 +200,20 @@ def auto_extend(rows: list[dict[str, Any]], count: int = 50) -> list[dict[str, A
             last_persona_idx = -1
 
     added = 0
-    for i in range(count):
-        seq = last_seq + i + 1
-        persona_idx = (last_persona_idx + i + 1) % len(cycle_personas)
+    attempt = 0
+    # Keep trying until we've added the requested count of valid personas
+    # This prevents gaps in sequence numbers when personas don't exist
+    while added < count and attempt < count * 2:  # Safety limit to prevent infinite loops
+        persona_idx = (last_persona_idx + attempt + 1) % len(cycle_personas)
         persona = cycle_personas[persona_idx]
+        attempt += 1
 
         # Double-check persona exists before adding to schedule
         if not validate_persona_exists(persona):
             print(f"⚠️  Skipping non-existent persona '{persona}' during schedule extension")
             continue
 
+        seq = last_seq + added + 1  # Use 'added' count for sequential sequence numbers
         rows.append({
             "sequence": f"{seq:03d}",
             "persona": persona,
