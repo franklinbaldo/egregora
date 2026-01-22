@@ -180,10 +180,12 @@ def extract_media_references(table: Table) -> set[str]:
 
     if hasattr(df, "text"):
         # pandas DataFrame
-        messages = df["text"].dropna().tolist()
+        # Optimization: process only unique messages to avoid redundant regex scans.
+        # Use dropna().unique() to exclude NaNs/Nones from the set.
+        messages = df["text"].dropna().unique()
     elif hasattr(df, "to_pylist"):
         # pyarrow Table
-        messages = [r["text"] for r in df.to_pylist()]
+        messages = {r["text"] for r in df.to_pylist() if r["text"] is not None}
     else:
         # Fallback for unexpected type
         return references
