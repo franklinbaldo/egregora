@@ -141,9 +141,7 @@ def _load_dotenv_if_available(output_dir: Path) -> None:
         dotenv.load_dotenv()  # Check CWD as well
 
 
-def _validate_dates(
-    from_date: str | None, to_date: str | None
-) -> tuple[date_type | None, date_type | None]:
+def _validate_dates(from_date: str | None, to_date: str | None) -> tuple[date_type | None, date_type | None]:
     """Validate and parse date arguments."""
     from_date_obj, to_date_obj = None, None
     try:
