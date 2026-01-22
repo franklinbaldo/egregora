@@ -450,8 +450,10 @@ def demo(
         console.print(
             "[bold cyan]🚀 API key found. Generating full demo site with LLM content...[/bold cyan]"
         )
-        project_root = Path(__file__).resolve().parent.parent.parent.parent
-        sample_input = project_root / "tests/fixtures/Conversa do WhatsApp com Teste.zip"
+
+        from egregora.assets import get_demo_chat_path
+
+        sample_input = get_demo_chat_path()
         if not sample_input.exists():
             console.print(f"[red]Sample input file not found at {sample_input}[/red]")
             raise typer.Exit(1)
