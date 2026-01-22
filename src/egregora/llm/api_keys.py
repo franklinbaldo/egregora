@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 import os
 
+from egregora.config.exceptions import ApiKeyNotFoundError
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,13 +24,13 @@ def get_google_api_key() -> str:
         The API key string
 
     Raises:
-        ValueError: If neither environment variable is set
+        ApiKeyNotFoundError: If neither environment variable is set
 
     """
     api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        msg = "GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable is required"
-        raise ValueError(msg)
+        msg = "GOOGLE_API_KEY (or GEMINI_API_KEY)"
+        raise ApiKeyNotFoundError(msg)
     return api_key
 
 
@@ -87,12 +89,18 @@ def validate_gemini_api_key(api_key: str | None = None) -> None:
         raise ValueError(msg) from e
 
 
-__all__ = [
-    "get_google_api_key",
-    "get_google_api_keys",
-    "google_api_key_available",
-    "validate_gemini_api_key",
-]
+def _get_api_keys_from_env(*env_vars: str) -> list[str]:
+    """Get a de-duplicated list of API keys from multiple environment variables."""
+    keys: list[str] = []
+    for var in env_vars:
+        keys_str = os.environ.get(var, "")
+        if not keys_str:
+            continue
+        for k in keys_str.split(","):
+            val = k.strip().lstrip("=").strip()
+            if val and val not in keys:
+                keys.append(val)
+    return keys
 
 
 def get_google_api_keys() -> list[str]:
@@ -107,20 +115,41 @@ def get_google_api_keys() -> list[str]:
         List of unique API keys, or empty list if none found.
 
     """
-    keys = []
+    return _get_api_keys_from_env("GEMINI_API_KEYS", "GEMINI_API_KEY", "GOOGLE_API_KEY")
 
-    # 1. Check GEMINI_API_KEYS (comma-separated list)
-    keys_str = os.environ.get("GEMINI_API_KEYS", "")
-    if keys_str:
-        for k in keys_str.split(","):
-            val = k.strip()
-            if val and val not in keys:
-                keys.append(val)
 
-    # 2. Check individual keys
-    for var in ["GEMINI_API_KEY", "GOOGLE_API_KEY"]:
-        key = os.environ.get(var)
-        if key and key.strip() and key.strip() not in keys:
-            keys.append(key.strip())
+def get_openrouter_api_key() -> str:
+    """Get OpenRouter API key from environment.
 
-    return keys
+    Returns:
+        The API key string
+
+    Raises:
+        ApiKeyNotFoundError: If environment variable is not set
+
+    """
+    keys = get_openrouter_api_keys()
+    if not keys:
+        msg = "OPENROUTER_API_KEY or OPENROUTER_API_KEYS"
+        raise ApiKeyNotFoundError(msg)
+    return keys[0]
+
+
+def get_openrouter_api_keys() -> list[str]:
+    """Get list of OpenRouter API keys from environment.
+
+    Returns:
+        List of unique API keys.
+
+    """
+    return _get_api_keys_from_env("OPENROUTER_API_KEYS", "OPENROUTER_API_KEY")
+
+
+__all__ = [
+    "get_google_api_key",
+    "get_google_api_keys",
+    "get_openrouter_api_key",
+    "get_openrouter_api_keys",
+    "google_api_key_available",
+    "validate_gemini_api_key",
+]
