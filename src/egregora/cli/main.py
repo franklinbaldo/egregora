@@ -29,7 +29,6 @@ from egregora.config.settings import get_google_api_key
 from egregora.constants import SourceType, WindowUnit
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
-from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.orchestration.pipelines.write import run_cli_flow
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
@@ -450,8 +449,10 @@ def demo(
         console.print(
             "[bold cyan]🚀 API key found. Generating full demo site with LLM content...[/bold cyan]"
         )
-        project_root = Path(__file__).resolve().parent.parent.parent.parent
-        sample_input = project_root / "tests/fixtures/Conversa do WhatsApp com Teste.zip"
+
+        from egregora.assets import get_demo_chat_path
+
+        sample_input = get_demo_chat_path()
         if not sample_input.exists():
             console.print(f"[red]Sample input file not found at {sample_input}[/red]")
             raise typer.Exit(1)
@@ -477,8 +478,9 @@ def demo(
                 force=True,  # Always force a refresh for the demo
                 debug=False,
                 options=None,
+                exit_on_error=False,
             )
-        except (AllModelsExhaustedError, RuntimeError) as e:
+        except Exception as e:
             console.print(f"[bold yellow]⚠️  Content generation failed: {e}[/bold yellow]")
             console.print(
                 "[dim]The demo site scaffold has been created, but without AI-generated content.[/dim]"

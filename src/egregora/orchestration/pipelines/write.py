@@ -43,6 +43,7 @@ from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
+from egregora.config.exceptions import InvalidDateFormatError, InvalidTimezoneError
 from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
 from egregora.constants import WindowUnit
 from egregora.data_primitives.document import OutputSink, UrlContext
@@ -138,6 +139,42 @@ def _load_dotenv_if_available(output_dir: Path) -> None:
     if dotenv:
         dotenv.load_dotenv(output_dir / ".env")
         dotenv.load_dotenv()  # Check CWD as well
+
+
+def _validate_dates(from_date: str | None, to_date: str | None) -> tuple[date_type | None, date_type | None]:
+    """Validate and parse date arguments."""
+    from_date_obj, to_date_obj = None, None
+    try:
+        if from_date:
+            from_date_obj = parse_date_arg(from_date, "from_date")
+        if to_date:
+            to_date_obj = parse_date_arg(to_date, "to_date")
+    except (ValueError, InvalidDateFormatError) as e:
+        console.print(f"[red]{e}[/red]")
+        raise SystemExit(1) from e
+    return from_date_obj, to_date_obj
+
+
+def _validate_timezone_arg(timezone: str | None) -> None:
+    """Validate timezone argument."""
+    if timezone:
+        try:
+            validate_timezone(timezone)
+            console.print(f"[green]Using timezone: {timezone}[/green]")
+        except (ValueError, InvalidTimezoneError) as e:
+            console.print(f"[red]{e}[/red]")
+            raise SystemExit(1) from e
+
+
+def _ensure_site_initialized(output_dir: Path) -> None:
+    """Ensure the site is initialized with configuration."""
+    config_path = output_dir / ".egregora.toml"
+
+    if not config_path.exists():
+        output_dir.mkdir(parents=True, exist_ok=True)
+        logger.info("Initializing site in %s", output_dir)
+        scaffolder = MkDocsSiteScaffolder()
+        scaffolder.scaffold_site(output_dir, site_name=output_dir.name)
 
 
 # TODO: [Taskmaster] Refactor API key validation for clarity and separation of concerns
@@ -327,12 +364,14 @@ def run_cli_flow(
     debug: bool = False,
     options: str | None = None,
     smoke_test: bool = False,
+    exit_on_error: bool = True,
 ) -> None:
     """Execute the write flow from CLI arguments.
 
     Args:
         source: Can be a source type (e.g., "whatsapp"), a source key from config, or None.
                 If None, will use default_source from config, or run all sources if default is None.
+        exit_on_error: If True, raise SystemExit(1) on failure. If False, re-raise the exception.
 
     """
     cli_values = {
@@ -358,39 +397,19 @@ def run_cli_flow(
     if debug:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    from_date_obj, to_date_obj = None, None
-    if from_date:
-        try:
-            from_date_obj = parse_date_arg(from_date, "from_date")
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise SystemExit(1) from e
-    if to_date:
-        try:
-            to_date_obj = parse_date_arg(to_date, "to_date")
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise SystemExit(1) from e
-
-    if timezone:
-        try:
-            validate_timezone(timezone)
-            console.print(f"[green]Using timezone: {timezone}[/green]")
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise SystemExit(1) from e
+    from_date_obj, to_date_obj = _validate_dates(from_date, to_date)
+    _validate_timezone_arg(timezone)
 
     output_dir = output.expanduser().resolve()
-
-    config_path = output_dir / ".egregora.toml"
-
-    if not config_path.exists():
-        output_dir.mkdir(parents=True, exist_ok=True)
-        logger.info("Initializing site in %s", output_dir)
-        scaffolder = MkDocsSiteScaffolder()
-        scaffolder.scaffold_site(output_dir, site_name=output_dir.name)
-
-    _validate_api_key(output_dir)
+    _ensure_site_initialized(output_dir)
+    try:
+        _validate_api_key(output_dir)
+    except SystemExit as e:
+        if exit_on_error:
+            raise
+        # Wrap SystemExit in RuntimeError so callers (like demo) can handle it gracefully
+        msg = f"API key validation failed: {e}"
+        raise RuntimeError(msg) from e
 
     # Load config to determine sources
     base_config = load_egregora_config(output_dir)
@@ -441,7 +460,9 @@ def run_cli_flow(
         except Exception as e:
             console.print_exception(show_locals=False)
             console.print(f"[red]Pipeline failed for source '{source_key}': {e}[/]")
-            raise SystemExit(1) from e
+            if exit_on_error:
+                raise SystemExit(1) from e
+            raise e
 
 
 def process_whatsapp_export(
