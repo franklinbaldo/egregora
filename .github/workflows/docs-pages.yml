@@ -67,8 +67,17 @@ jobs:
       - name: Build Documentation
         run: uv run mkdocs build
 
-      - name: Generate Demo Site (offline)
-        run: uv run python scripts/generate_demo_site.py --output-dir .demo-site
+      - name: Generate Demo Site (with real Gemini API)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "::warning::GEMINI_API_KEY not configured, falling back to offline demo"
+            uv run python scripts/generate_demo_site.py --output-dir .demo-site
+          else
+            echo "::notice::Generating demo with real Gemini API"
+            uv run egregora demo --output-dir .demo-site --enable-enrichment
+          fi
 
       - name: Build Demo Site
         run: uv run mkdocs build -f .demo-site/.egregora/mkdocs.yml -d "$(pwd)/site/demo"
