@@ -115,15 +115,6 @@ body,
   transform: scale(1.05);
 }
 
-/* Hide standard MkDocs elements that clutter the Portal */
-.md-main__inner>.md-content>.md-content__inner>h1 {
-  display: none !important;
-}
-
-.md-sidebar--secondary {
-  display: none !important;
-}
-
 /* Hero Depth and Atmosphere */
 .portal-hero {
   background-image: linear-gradient(rgba(10, 10, 10, 0.5), rgba(10, 10, 10, 0.5)), url('../assets/hero.png') !important;

@@ -66,7 +66,6 @@ theme:
     - content.action.view
     # Table of contents
     - toc.follow
-    - toc.integrate
   icon:
     repo: fontawesome/brands/github
     edit: material/pencil
@@ -215,9 +214,9 @@ nav:
   - Blog:
       - Latest: {{ blog_dir }}/index.md
       - Tags & Topics: {{ blog_dir }}/tags.md
-      - Profiles: posts/profiles/index.md
+      - Profiles: {{ blog_dir }}/profiles/index.md
   - Journal: journal/index.md
-  - Media: posts/media/index.md
+  - Media: {{ media_dir }}/index.md
   - About: about.md
 
 
