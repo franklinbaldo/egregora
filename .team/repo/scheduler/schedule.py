@@ -427,6 +427,130 @@ def extract_sequence_from_title(title: str) -> str | None:
     return match.group(1) if match else None
 
 
+def extract_persona_from_title(title: str) -> str | None:
+    """Extract persona name from session title.
+
+    Matches pattern: "{seq} {emoji} {persona} {repo}"
+    Example: "002 🎨 artisan egregora"
+
+    Returns persona name or None if not found.
+    """
+    cycle_personas = get_cycle_personas()
+    title_lower = title.lower()
+    for persona in cycle_personas:
+        if persona in title_lower:
+            return persona
+    return None
+
+
+def get_last_sequence_from_api(repo_name: str | None = None) -> tuple[int, str | None]:
+    """Query Jules API to find the last sequence number created.
+
+    This is the source of truth for determining what sequence to run next.
+
+    Args:
+        repo_name: Optional repo name to filter sessions (e.g., "egregora")
+
+    Returns:
+        Tuple of (last_sequence_number, last_persona)
+        Returns (0, None) if no sessions found or API error
+    """
+    from repo.core.client import TeamClient
+
+    try:
+        client = TeamClient()
+        sessions_data = client.list_sessions()
+        sessions = sessions_data.get("sessions", [])
+
+        if not sessions:
+            return 0, None
+
+        max_seq = 0
+        max_persona = None
+
+        for session in sessions:
+            title = session.get("title", "") or ""
+
+            # Filter by repo if specified
+            if repo_name and repo_name.lower() not in title.lower():
+                continue
+
+            seq_str = extract_sequence_from_title(title)
+            if seq_str:
+                seq_num = int(seq_str)
+                if seq_num > max_seq:
+                    max_seq = seq_num
+                    max_persona = extract_persona_from_title(title)
+
+        return max_seq, max_persona
+
+    except Exception as e:
+        print(f"⚠️  Failed to query Jules API for last sequence: {e}")
+        return 0, None
+
+
+def get_current_sequence_from_api(
+    rows: list[dict[str, Any]],
+    repo_name: str | None = None
+) -> tuple[dict[str, Any] | None, bool]:
+    """Find the next sequence to execute using Jules API as source of truth.
+
+    This queries the Jules API to find the highest sequence number that has
+    been created, then returns the next sequence from the schedule.
+
+    Args:
+        rows: Schedule rows
+        repo_name: Optional repo name to filter sessions
+
+    Returns:
+        Tuple of (next_row, schedule_modified)
+        - next_row: The next row to execute, or None if all done
+        - schedule_modified: True if rows were modified (invalid personas marked closed)
+    """
+    last_seq, _ = get_last_sequence_from_api(repo_name)
+
+    modified = False
+
+    # Find the row for the next sequence
+    for row in rows:
+        try:
+            row_seq = int(row.get("sequence", "0"))
+        except ValueError:
+            continue
+
+        # Skip sequences that have already been processed (based on API)
+        if row_seq <= last_seq:
+            continue
+
+        # Skip completed rows
+        status = row.get("pr_status", "").strip().lower()
+        if status in ["merged", "closed"]:
+            continue
+
+        # Skip rows that already have a session (belt-and-suspenders safety)
+        # This prevents duplicates if API query failed or returned stale data
+        session_id = row.get("session_id", "").strip()
+        if session_id:
+            continue
+
+        # Skip excluded personas
+        persona = row.get("persona", "").strip().lower()
+        if persona in EXCLUDED_PERSONAS:
+            continue
+
+        # Skip personas that don't exist (auto-mark as closed)
+        if not validate_persona_exists(persona):
+            print(f"⚠️  Persona '{persona}' not found, marking sequence {row['sequence']} as closed")
+            row['pr_status'] = 'closed'
+            modified = True
+            continue
+
+        # This row needs work
+        return row, modified
+
+    return None, modified
+
+
 def list_recent_sessions(limit: int = 20) -> None:
     """List recent sessions with schedule context.
 
