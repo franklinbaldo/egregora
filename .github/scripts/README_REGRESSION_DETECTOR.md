@@ -1,6 +1,6 @@
 # Regression Detection System
 
-Automatically detects when code is accidentally reverted to earlier states.
+Automatically detects when code is accidentally reverted to earlier states, with smart filtering to reduce false positives.
 
 ## Problem It Solves
 
@@ -14,7 +14,18 @@ The regression detector:
 2. **Computes content hashes** for each file
 3. **Checks recent git history** (last 30 days by default)
 4. **Finds exact matches** - if the staged content matches an earlier commit
-5. **Alerts the developer** with details about the potential regression
+5. **Filters false positives** - uses AST comparison for Python files and skips formatting commits
+6. **Alerts the developer** with details about the potential regression
+
+## Smart False Positive Reduction
+
+The system reduces false positives by:
+
+- **AST comparison for Python files**: Ignores formatting changes (spaces, line breaks, import order)
+- **Formatting commit filter**: Skips commits with "ruff format", "black format", "style:", etc. in messages
+- **Whitespace normalization**: For non-Python files, compares normalized content
+
+This means formatter churn won't trigger false alarms!
 
 ## When It Runs
 
@@ -67,6 +78,20 @@ python .github/scripts/detect_regression.py
 Options:
 - `--lookback-days 30` - How far back to check (default: 30 days)
 - `--non-interactive` - Run without prompting (for CI)
+- `--no-semantic` - Disable semantic comparison (exact hash only, more false positives)
+
+### Analyze Historical Commits
+
+Check past commits for regressions:
+
+```bash
+python .github/scripts/analyze_historical_regressions.py --commits 1000 --verbose
+```
+
+Options:
+- `--commits 1000` - Number of recent commits to analyze (default: 1000)
+- `--verbose` - Show progress updates
+- `--no-filter-formatting` - Include formatting commits (more false positives)
 
 ### Bypass if Needed
 
@@ -156,12 +181,21 @@ if any(
 
 **Q:** The detector flags a file that's not actually a regression
 
-**A:** This can happen if:
-- You're legitimately re-implementing something the same way
-- The file is generated code
-- You're merging an old branch
+**A:** The detector now has smart filtering to reduce false positives:
+
+**✅ Automatically filtered:**
+- Formatting-only commits (ruff, black, style changes)
+- Python files where only formatting changed (AST comparison)
+- Whitespace-only changes in other files
+
+**Remaining cases:**
+- Legitimately re-implementing something the same way
+- Merging an old branch with identical content
+- Generated code that matches earlier output
 
 **Solution:** Review and confirm it's not a regression, then proceed with `y`
+
+**Disable filtering:** Use `--no-semantic` to get exact hash comparison (more sensitive)
 
 ### Performance
 
@@ -194,14 +228,23 @@ git hash-object file.py
 
 The detector compares hashes, so even a single character difference means no match.
 
-### Why Exact Matches Only?
+### Semantic vs. Exact Matching
 
-We only flag **exact** content matches because:
-- ✅ High precision: No false positives from similar code
-- ✅ Fast comparison: Hash lookups are O(1)
-- ❌ Won't catch: Partial reverts or line-by-line reversions
+**Default mode (Semantic):**
+- Python files: Compares AST (ignores formatting)
+- Other files: Normalized whitespace comparison
+- Skips commits with formatting keywords in messages
+- ✅ Fewer false positives from formatter churn
+- ✅ Catches real regressions
+- ❌ Might miss intentional reversions to identical code
 
-This is intentional - we want to catch the most obvious regressions without noise.
+**Exact mode (`--no-semantic`):**
+- Pure hash comparison for all files
+- No filtering of formatting commits
+- ✅ Catches every byte-identical match
+- ❌ More false positives from ruff/black cycles
+
+We recommend the default semantic mode for most use cases.
 
 ## Contributing
 

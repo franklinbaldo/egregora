@@ -3,6 +3,8 @@
 
 This script checks the last N commits to identify where files were
 reverted to earlier states (potential regressions).
+
+Reduces false positives by filtering out formatting-only commits.
 """
 import subprocess
 import sys
@@ -84,11 +86,31 @@ def should_skip_file(file: str) -> bool:
     return False
 
 
+def is_formatting_commit(message: str) -> bool:
+    """Check if commit message indicates formatting-only changes."""
+    formatting_keywords = [
+        "ruff format",
+        "black format",
+        "formatting",
+        "chore: format",
+        "style:",
+        "apply ruff",
+        "apply black",
+        "code style",
+        "linting fixes",
+        "pre-commit",
+        "modernize code with ruff",
+    ]
+    message_lower = message.lower()
+    return any(keyword in message_lower for keyword in formatting_keywords)
+
+
 def analyze_commit_for_regressions(
     commit: str,
     commit_index: int,
     all_commits: List[str],
     file_history: Dict[str, List[Tuple[int, str, str]]],
+    filter_formatting: bool = True,
 ) -> List[Dict]:
     """Analyze a single commit for regressions.
 
@@ -97,11 +119,28 @@ def analyze_commit_for_regressions(
         commit_index: Index of this commit in all_commits list
         all_commits: List of all commits being analyzed
         file_history: Dict mapping file -> list of (index, hash, commit) tuples
+        filter_formatting: If True, skip formatting-only commits
 
     Returns:
         List of regression dicts
     """
     regressions = []
+
+    # Get commit message to check if it's formatting-only
+    _, _, _, commit_message = get_commit_info(commit)
+    if filter_formatting and is_formatting_commit(commit_message):
+        # Still track file history, but don't report as regression
+        changed_files = get_changed_files(commit)
+        for file in changed_files:
+            if should_skip_file(file):
+                continue
+            current_hash = get_file_hash(commit, file)
+            if current_hash:
+                if file not in file_history:
+                    file_history[file] = []
+                file_history[file].append((commit_index, current_hash, commit))
+        return []
+
     changed_files = get_changed_files(commit)
 
     for file in changed_files:
@@ -116,9 +155,15 @@ def analyze_commit_for_regressions(
         if file in file_history:
             for earlier_index, earlier_hash, earlier_commit in file_history[file]:
                 if earlier_index < commit_index and earlier_hash == current_hash:
-                    # Found a regression! Current commit reverts to earlier state
-                    curr_short, curr_date, curr_author, curr_msg = get_commit_info(commit)
+                    # Found a potential regression
                     early_short, early_date, early_author, early_msg = get_commit_info(earlier_commit)
+
+                    # Skip if the earlier commit was also formatting-only
+                    if filter_formatting and is_formatting_commit(early_msg):
+                        continue
+
+                    # Real regression! Current commit reverts to earlier state
+                    curr_short, curr_date, curr_author, curr_msg = get_commit_info(commit)
 
                     regressions.append({
                         "file": file,
@@ -142,9 +187,10 @@ def analyze_commit_for_regressions(
     return regressions
 
 
-def main(limit: int = 1000, verbose: bool = False):
+def main(limit: int = 1000, verbose: bool = False, filter_formatting: bool = True):
     """Analyze recent commits for regressions."""
-    print(f"🔍 Analyzing last {limit} commits for regressions...\n")
+    mode = "with formatting filter" if filter_formatting else "without formatting filter"
+    print(f"🔍 Analyzing last {limit} commits for regressions ({mode})...\n")
 
     # Get commits (newest first)
     commits = get_recent_commits(limit)
@@ -162,7 +208,9 @@ def main(limit: int = 1000, verbose: bool = False):
         if verbose and i % 100 == 0:
             print(f"Progress: {i}/{total} commits analyzed...")
 
-        regressions = analyze_commit_for_regressions(commit, i, commits, file_history)
+        regressions = analyze_commit_for_regressions(
+            commit, i, commits, file_history, filter_formatting=filter_formatting
+        )
         all_regressions.extend(regressions)
 
     # Report findings
@@ -224,7 +272,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Analyze git history for code regressions"
+        description="Analyze git history for code regressions (filters out formatting-only commits by default)"
     )
     parser.add_argument(
         "--commits",
@@ -237,11 +285,22 @@ if __name__ == "__main__":
         action="store_true",
         help="Show progress updates",
     )
+    parser.add_argument(
+        "--no-filter-formatting",
+        action="store_true",
+        help="Disable formatting commit filter (may increase false positives)",
+    )
 
     args = parser.parse_args()
 
     try:
-        sys.exit(main(limit=args.commits, verbose=args.verbose))
+        sys.exit(
+            main(
+                limit=args.commits,
+                verbose=args.verbose,
+                filter_formatting=not args.no_filter_formatting,
+            )
+        )
     except KeyboardInterrupt:
         print("\n\n❌ Analysis interrupted by user")
         sys.exit(1)
