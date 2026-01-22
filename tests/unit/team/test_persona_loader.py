@@ -116,7 +116,7 @@ class TestPersonaLoader(unittest.TestCase):
             # Curator has journal entries, so journal_entries should be non-empty
             # (This might fail if curator has no journals, which is ok for this test)
             # Just verify the field exists
-            assert hasattr(persona, 'journal_entries')
+            assert hasattr(persona, "journal_entries")
             assert isinstance(persona.journal_entries, str)
 
     def test_template_inheritance_works(self):
@@ -199,18 +199,24 @@ class TestAllPersonasValid(unittest.TestCase):
                 assert persona.description, f"Persona {persona.id} missing description"
 
                 # Must have non-empty prompt
-                assert len(persona.prompt_body) > 100, \
-                    f"Persona {persona.id} has suspiciously short prompt"
+                assert len(persona.prompt_body) > 100, f"Persona {persona.id} has suspiciously short prompt"
+
+                # Franklin (human user) is exempt from password/session checks
+                if persona.id == "franklin":
+                    continue
 
                 # Password must be injected
                 import uuid
+
                 expected_password = str(uuid.uuid5(uuid.NAMESPACE_DNS, persona.id))
-                assert expected_password in persona.prompt_body, \
+                assert expected_password in persona.prompt_body, (
                     f"Persona {persona.id} missing password injection"
+                )
 
                 # Must have session protocol
-                assert "my-tools" in persona.prompt_body.lower(), \
+                assert "my-tools" in persona.prompt_body.lower(), (
                     f"Persona {persona.id} missing session protocol"
+                )
 
 
 if __name__ == "__main__":
