@@ -364,12 +364,14 @@ def run_cli_flow(
     debug: bool = False,
     options: str | None = None,
     smoke_test: bool = False,
+    exit_on_error: bool = True,
 ) -> None:
     """Execute the write flow from CLI arguments.
 
     Args:
         source: Can be a source type (e.g., "whatsapp"), a source key from config, or None.
                 If None, will use default_source from config, or run all sources if default is None.
+        exit_on_error: If True, raise SystemExit(1) on failure. If False, re-raise the exception.
 
     """
     cli_values = {
@@ -451,7 +453,9 @@ def run_cli_flow(
         except Exception as e:
             console.print_exception(show_locals=False)
             console.print(f"[red]Pipeline failed for source '{source_key}': {e}[/]")
-            raise SystemExit(1) from e
+            if exit_on_error:
+                raise SystemExit(1) from e
+            raise e
 
 
 def process_whatsapp_export(
