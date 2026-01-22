@@ -125,7 +125,7 @@ def register_writer_tools(
         if isinstance(meta_dict.get("tags"), str):
             meta_dict["tags"] = [t.strip() for t in meta_dict["tags"].split(",") if t.strip()]
         elif "tags" not in meta_dict:
-            meta_dict["tags"] = [] # Should be caught by missing_fields above but for safety
+            meta_dict["tags"] = []  # Should be caught by missing_fields above but for safety
 
         # Ensure required fields for Document model
         if "id" not in meta_dict:
