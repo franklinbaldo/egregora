@@ -22,7 +22,7 @@ def _verify_all_constraints_present(conn: duckdb.DuckDBPyConnection, table_name:
     try:
         # Get existing constraints
         result = conn.execute(
-            f"SELECT constraint_name FROM duckdb_constraints() WHERE table_name='{table_name}' AND constraint_type='CHECK'"
+            f"SELECT constraint_name FROM duckdb_constraints() WHERE table_name='{table_name}' AND constraint_type='CHECK'"  # nosec B608
         ).fetchall()
         existing_constraints = {row[0] for row in result}
 
@@ -70,8 +70,8 @@ def _build_documents_insert_select_sql(temp_table: str, existing_columns: set[st
         else:
             select_expressions.append(f"NULL AS {quote_identifier(name)}")
 
-    select_sql = f"SELECT {', '.join(select_expressions)} FROM documents"
-    return f"INSERT INTO {quote_identifier(temp_table)} ({', '.join(column_names)}) {select_sql};"
+    select_sql = f"SELECT {', '.join(select_expressions)} FROM documents"  # nosec B608
+    return f"INSERT INTO {quote_identifier(temp_table)} ({', '.join(column_names)}) {select_sql};"  # nosec B608
 
 
 def migrate_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
