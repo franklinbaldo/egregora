@@ -23,6 +23,8 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {# Background, references, current state #}
 {% endblock %}
 
+{{ sprint_context_text }}
+
 {% block environment %}
 {% include "blocks/environment_awareness.md.j2" %}
 {% endblock %}
