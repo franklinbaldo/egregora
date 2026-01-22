@@ -76,12 +76,16 @@ def _get_active_persona_from_session() -> Optional[str]:
 @log_tool_command(prefix="email")
 def inbox(
     persona: str = typer.Option(
-        None, "--persona", "-p", 
+        None, "--persona", "-p",
         help="Persona ID to check (defaults to active session)"
     ),
     unread: bool = typer.Option(
-        False, "--unread", "-u", 
+        False, "--unread", "-u",
         help="Filter for unread messages"
+    ),
+    limit: int = typer.Option(
+        None, "--limit", "-l",
+        help="Limit number of messages to display"
     )
 ):
     """
@@ -96,12 +100,16 @@ def inbox(
     if not persona:
         print("❌ Error: Persona ID required. Please login.")
         raise typer.Exit(code=1)
-        
+
     try:
         messages = list_inbox(persona, unread_only=unread)
         if not messages:
             print(f"📬 Inbox for {persona} is empty.")
             return
+
+        # Apply limit if specified
+        if limit and limit > 0:
+            messages = messages[:limit]
 
         print(f"📬 Messages for {persona}:")
         for msg in messages:
