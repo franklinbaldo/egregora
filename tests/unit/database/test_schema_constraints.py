@@ -3,13 +3,18 @@
 import uuid
 
 import duckdb
+
+# Mock schemas that were refactored away but are needed for tests
 import pytest
 
+# Test constraints on the deprecated tables are no longer relevant as those tables are gone.
+# We should test constraints on the 'documents' table instead.
+# Let's import UNIFIED_SCHEMA
 from egregora.database.schemas import (
     ANNOTATIONS_SCHEMA,
     MEDIA_SCHEMA,
-    POSTS_SCHEMA,
     TASKS_SCHEMA,
+    UNIFIED_SCHEMA,
     create_table_if_not_exists,
     get_table_check_constraints,
 )
@@ -23,53 +28,41 @@ def duckdb_conn():
     conn.close()
 
 
-class TestPostsSchemaConstraints:
-    """Test constraints for the posts table."""
+class TestUnifiedDocumentsSchemaConstraints:
+    """Test constraints for the unified documents table."""
 
-    def test_posts_status_check_constraint_allows_valid_values(self, duckdb_conn):
-        """Verify that posts.status CHECK constraint allows valid status values."""
-        # Arrange: Create posts table with constraints
-        constraints = get_table_check_constraints("posts")
-        create_table_if_not_exists(duckdb_conn, "posts", POSTS_SCHEMA, check_constraints=constraints)
+    def test_doc_post_check_constraint_allows_valid_values(self, duckdb_conn):
+        """Verify that documents.doc_type='post' requirements are enforced."""
+        constraints = get_table_check_constraints("documents")
+        create_table_if_not_exists(duckdb_conn, "documents", UNIFIED_SCHEMA, check_constraints=constraints)
 
-        # Act & Assert: Valid status values should be accepted
-        valid_statuses = ["draft", "published", "archived"]
-        for status in valid_statuses:
+        # Valid Post
+        duckdb_conn.execute(
+            """
+            INSERT INTO documents (id, doc_type, status, title, slug, content, created_at)
+            VALUES (?, 'post', 'draft', 'Title', 'slug', 'content', CURRENT_TIMESTAMP)
+            """,
+            ("post-1",),
+        )
+
+        # Assert inserted
+        count = duckdb_conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+        assert count == 1
+
+    def test_doc_post_check_constraint_rejects_missing_title(self, duckdb_conn):
+        """Verify that documents.doc_type='post' requires title."""
+        constraints = get_table_check_constraints("documents")
+        create_table_if_not_exists(duckdb_conn, "documents", UNIFIED_SCHEMA, check_constraints=constraints)
+
+        # Invalid Post (missing title)
+        with pytest.raises(duckdb.ConstraintException, match="CHECK constraint"):
             duckdb_conn.execute(
                 """
-                INSERT INTO posts (id, content, created_at, source_checksum,
-                                  title, slug, date, summary, authors, tags, status)
-                VALUES (?, 'test content', CURRENT_TIMESTAMP, 'checksum',
-                       'Test Title', 'test-slug', CURRENT_DATE, 'Test summary',
-                       ARRAY['author1'], ARRAY['tag1'], ?)
+                INSERT INTO documents (id, doc_type, status, title, slug, content, created_at)
+                VALUES (?, 'post', 'draft', NULL, 'slug', 'content', CURRENT_TIMESTAMP)
                 """,
-                (f"post-{status}", status),
+                ("post-2",),
             )
-
-        # Verify all rows were inserted
-        result = duckdb_conn.execute("SELECT COUNT(*) FROM posts").fetchone()
-        assert result[0] == len(valid_statuses)
-
-    def test_posts_status_check_constraint_rejects_invalid_values(self, duckdb_conn):
-        """Verify that posts.status CHECK constraint rejects invalid status values."""
-        # Arrange: Create posts table with constraints
-        constraints = get_table_check_constraints("posts")
-        create_table_if_not_exists(duckdb_conn, "posts", POSTS_SCHEMA, check_constraints=constraints)
-
-        # Act & Assert: Invalid status values should be rejected
-        invalid_statuses = ["banana", "PUBLISHED", "Draft", "", "pending"]
-        for invalid_status in invalid_statuses:
-            with pytest.raises(duckdb.ConstraintException, match="CHECK constraint"):
-                duckdb_conn.execute(
-                    """
-                    INSERT INTO posts (id, content, created_at, source_checksum,
-                                      title, slug, date, summary, authors, tags, status)
-                    VALUES (?, 'test content', CURRENT_TIMESTAMP, 'checksum',
-                           'Test Title', 'test-slug', CURRENT_DATE, 'Test summary',
-                           ARRAY['author1'], ARRAY['tag1'], ?)
-                    """,
-                    (f"post-{invalid_status}", invalid_status),
-                )
 
 
 class TestTasksSchemaConstraints:

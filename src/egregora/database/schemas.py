@@ -314,34 +314,32 @@ BASE_COLUMNS = {
     "source_checksum": dt.string,  # Hash for deduplication/change detection
 }
 
-# 1. POSTS TABLE
-POSTS_SCHEMA = ibis.schema(
-    {
-        **BASE_COLUMNS,
-        "title": dt.string,
-        "slug": dt.string,
-        "date": dt.date,
-        "summary": dt.string,
-        "authors": dt.Array(dt.string),  # List of Author UUIDs
-        "tags": dt.Array(dt.string),
-        "status": dt.string,  # 'published', 'draft'
-    }
-)
+# 1. POSTS TABLE (Deprecated: Merged into documents)
+# Keeping structure here to compose UNIFIED_SCHEMA until Ibis supports cleaner union
+_POSTS_COLUMNS = {
+    **BASE_COLUMNS,
+    "title": dt.string,
+    "slug": dt.string,
+    "date": dt.date,
+    "summary": dt.string,
+    "authors": dt.Array(dt.string),  # List of Author UUIDs
+    "tags": dt.Array(dt.string),
+    "status": dt.string,  # 'published', 'draft'
+}
 
-# 2. PROFILES TABLE
-PROFILES_SCHEMA = ibis.schema(
-    {
-        **BASE_COLUMNS,
-        "subject_uuid": dt.string,
-        "title": dt.string,  # Was 'name'
-        "alias": dt.string,
-        "summary": dt.string,  # Was 'bio'
-        "avatar_url": dt.string,
-        "interests": dt.Array(dt.string),
-    }
-)
+# 2. PROFILES TABLE (Deprecated: Merged into documents)
+_PROFILES_COLUMNS = {
+    **BASE_COLUMNS,
+    "subject_uuid": dt.string,
+    "title": dt.string,  # Was 'name'
+    "alias": dt.string,
+    "summary": dt.string,  # Was 'bio'
+    "avatar_url": dt.string,
+    "interests": dt.Array(dt.string),
+}
 
 # 3. MEDIA TABLE (Metadata only, content is binary/external)
+# Also used for standalone MEDIA table if needed, but primarily for Unified
 MEDIA_SCHEMA = ibis.schema(
     {
         **BASE_COLUMNS,
@@ -352,15 +350,13 @@ MEDIA_SCHEMA = ibis.schema(
     }
 )
 
-# 4. JOURNALS TABLE
-JOURNALS_SCHEMA = ibis.schema(
-    {
-        **BASE_COLUMNS,
-        "title": dt.string,  # Was 'window_label'
-        "window_start": dt.timestamp,
-        "window_end": dt.timestamp,
-    }
-)
+# 4. JOURNALS TABLE (Deprecated: Merged into documents)
+_JOURNALS_COLUMNS = {
+    **BASE_COLUMNS,
+    "title": dt.string,  # Was 'window_label'
+    "window_start": dt.timestamp,
+    "window_end": dt.timestamp,
+}
 
 # ----------------------------------------------------------------------------
 # Tasks Schema (Asynchronous Background Tasks)
@@ -385,21 +381,15 @@ TASKS_SCHEMA = ibis.schema(
 
 UNIFIED_SCHEMA = ibis.schema(
     {
-        **dict(POSTS_SCHEMA.items()),
-        **dict(PROFILES_SCHEMA.items()),
+        **_POSTS_COLUMNS,
+        **_PROFILES_COLUMNS,
         **dict(MEDIA_SCHEMA.items()),
-        **dict(JOURNALS_SCHEMA.items()),
+        **_JOURNALS_COLUMNS,
         "doc_type": dt.String(nullable=False),
         "status": dt.String(nullable=False),
         "extensions": dt.json,
     }
 )
-
-# ============================================================================
-# Views
-# ============================================================================
-
-DOCUMENTS_VIEW_SQL = None  # Deprecated in V3 Pure
 
 # ============================================================================
 # Ingestion Schemas
