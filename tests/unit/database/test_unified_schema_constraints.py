@@ -105,9 +105,7 @@ class TestDocumentsSchemaConstraints:
         # 1. Arrange: Create table with ONLY ONE constraint (simulating old schema)
         # We manually pass a subset of constraints
         full_constraints = get_table_check_constraints("documents")
-        partial_constraints = {
-            "chk_doc_post_status": full_constraints["chk_doc_post_status"]
-        }
+        partial_constraints = {"chk_doc_post_status": full_constraints["chk_doc_post_status"]}
         # Ensure we are testing what we think we are: 'chk_doc_post_req' is MISSING.
         assert "chk_doc_post_req" not in partial_constraints
         assert "chk_doc_post_req" in full_constraints
