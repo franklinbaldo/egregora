@@ -9,11 +9,19 @@
 
   --md-text-font-size: 1.1rem;
   --portal-bg: #0a0a0a;
+
+  /* High Contrast Text for Dark Mode */
+  --md-typeset-color: #e0e0e0;
+  --md-default-fg-color: #e0e0e0;
+  --md-default-fg-color--light: #a0a0a0;
+  --md-default-fg-color--lighter: #707070;
+  --md-default-fg-color--lightest: #404040;
 }
 
 /* Global Immersive Overrides */
 body {
   background-color: var(--portal-bg);
+  color: var(--md-typeset-color);
   overflow-x: hidden;
 }
 
@@ -132,8 +140,25 @@ body,
 
 .portal-hero p {
   font-size: 1.4rem !important;
-  max-width: 800px !importa...
-[omitted a few lines]
+  max-width: 800px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  line-height: 1.6 !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+
+/* Scoped Homepage Overrides */
+/* Only apply full-width layout to the homepage explicitly */
+.md-content__inner.md-typeset:has(.homepage-hero) {
+  margin: 0 !important;
+  padding: 0 !important;
+  max-width: none !important;
+}
+
+/* Homepage Footer */
+.homepage-footer {
+  text-align: center;
   background-color: transparent !important;
   border-top: 1px solid rgba(255, 255, 255, 0.03);
   padding: 40px 0;
