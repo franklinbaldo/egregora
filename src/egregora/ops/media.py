@@ -81,7 +81,7 @@ UNICODE_MEDIA_PATTERN = re.compile(r"\u200e((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\
 FAST_MEDIA_PATTERN = re.compile(
     r"""
     !\[(?P<img_alt>[^\]]*)\]\((?P<img_url>[^)]+)\) |              # Markdown Image
-    (?<!!)\[(?P<link_text>[^\]]+)\]\((?P<link_url>[^)]+)\) |      # Markdown Link
+    \[(?P<link_text>[^\]]+)\]\((?P<link_url>[^)]+)\) |            # Markdown Link
     \b(?P<wa_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b |     # WhatsApp
     (?i:\u200e(?P<uni_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)) # Unicode
     """,
@@ -180,7 +180,8 @@ def extract_media_references(table: Table) -> set[str]:
 
     if hasattr(df, "text"):
         # pandas DataFrame
-        messages = df["text"].dropna().tolist()
+        # Optimization: Avoid dropna() copy, handle None/NaN in loop
+        messages = df["text"].tolist()
     elif hasattr(df, "to_pylist"):
         # pyarrow Table
         messages = [r["text"] for r in df.to_pylist()]
@@ -204,15 +205,18 @@ def extract_media_references(table: Table) -> set[str]:
 
         # Pass 1: Fast patterns (Images, Links, WhatsApp, Unicode)
         for match in fast_find(message):
-            if img_url := match.group("img_url"):
-                references.add(img_url)
-            elif link_url := match.group("link_url"):
+            # Optimization: Use match.lastgroup for O(1) dispatch instead of checking all groups
+            group_name = match.lastgroup
+            if group_name == "img_url":
+                references.add(match.group("img_url"))
+            elif group_name == "link_url":
+                link_url = match.group("link_url")
                 if not link_url.startswith(("http://", "https://")):
                     references.add(link_url)
-            elif wa_file := match.group("wa_file"):
-                references.add(wa_file)
-            elif uni_file := match.group("uni_file"):
-                references.add(uni_file)
+            elif group_name == "wa_file":
+                references.add(match.group("wa_file"))
+            elif group_name == "uni_file":
+                references.add(match.group("uni_file"))
 
         # Pass 2: Attachments via markers (optimized to avoid greedy filename scanning)
         for match in marker_find(message):
