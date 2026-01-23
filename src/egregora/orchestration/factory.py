@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 import ibis
 from google import genai
 
+from egregora.config.exceptions import InvalidDatabaseUriError, SiteStructureError
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.types import WriterResources
 from egregora.data_primitives.document import UrlContext
@@ -157,25 +158,24 @@ class PipelineFactory:
 
         def _validate_and_connect(value: str, setting_name: str) -> tuple[str, Any]:
             if not value:
-                msg = f"Database setting '{setting_name}' must be a non-empty connection URI."
-                raise ValueError(msg)
+                raise InvalidDatabaseUriError(value, f"Database setting '{setting_name}' must be non-empty.")
 
             parsed = urlparse(value)
             if not parsed.scheme:
                 msg = (
-                    "Database setting '{setting}' must be provided as an "
+                    f"Database setting '{setting_name}' must be provided as an "
                     "Ibis-compatible connection URI (e.g. 'duckdb:///absolute/path/to/file.duckdb' "
                     "or 'postgres://user:pass@host/db')."
                 )
-                raise ValueError(msg.format(setting=setting_name))
+                raise InvalidDatabaseUriError(value, msg)
 
             if len(parsed.scheme) == 1 and value[1:3] in {":/", ":\\"}:
                 msg = (
-                    "Database setting '{setting}' looks like a filesystem path. "
+                    f"Database setting '{setting_name}' looks like a filesystem path. "
                     "Provide a full connection URI instead "
                     "(see the database settings documentation)."
                 )
-                raise ValueError(msg.format(setting=setting_name))
+                raise InvalidDatabaseUriError(value, msg)
 
             normalized_value = value
 
@@ -221,7 +221,7 @@ class PipelineFactory:
                 f"No mkdocs.yml found for site at {output_dir}. "
                 "Run 'egregora init <site-dir>' before processing exports."
             )
-            raise ValueError(msg)
+            raise SiteStructureError(str(output_dir), msg)
 
         docs_dir = site_paths.docs_dir
         if not docs_dir.exists():
@@ -229,7 +229,7 @@ class PipelineFactory:
                 f"Docs directory not found: {docs_dir}. "
                 "Re-run 'egregora init' to scaffold the MkDocs project."
             )
-            raise ValueError(msg)
+            raise SiteStructureError(str(docs_dir), msg)
 
         return site_paths
 

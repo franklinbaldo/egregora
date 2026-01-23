@@ -44,6 +44,7 @@ from egregora.config.exceptions import (
     ConfigNotFoundError,
     ConfigValidationError,
     InvalidDateFormatError,
+    InvalidEnrichmentConfigError,
     InvalidTimezoneError,
     SiteNotFoundError,
 )
@@ -1215,10 +1216,10 @@ class PipelineEnrichmentConfig:
         """Validate configuration after initialization."""
         if self.batch_threshold < 1:
             msg = f"batch_threshold must be >= 1, got {self.batch_threshold}"
-            raise ValueError(msg)
+            raise InvalidEnrichmentConfigError(msg)
         if self.max_enrichments < 0:
             msg = f"max_enrichments must be >= 0, got {self.max_enrichments}"
-            raise ValueError(msg)
+            raise InvalidEnrichmentConfigError(msg)
 
     @classmethod
     def from_cli_args(cls, **kwargs: Any) -> PipelineEnrichmentConfig:
