@@ -183,7 +183,7 @@ def vote(
                 if voter_sequence:
                     # Calculate target sequence
                     roster_size = len(roster)
-                    target_seq = int(voter_sequence) + roster_size + 1
+                    target_seq = int(voter_sequence) + roster_size
                     target_seq_str = f"{target_seq:03}"
                     
                     # Get upcoming winners
@@ -267,7 +267,7 @@ def vote(
             "[cyan]my-tools vote --persona <1ST> --persona <2ND> --persona <3RD> --password <YOUR_PASSWORD>[/cyan]\n\n"
             "[dim]• First choice gets maximum Borda points\n"
             "• Each subsequent choice receives fewer points\n"
-            "• Vote targets sequence: current + roster_size + 1[/dim]",
+            "• Vote targets sequence: current + roster_size[/dim]",
             title="[bold white]🗳️ Voting Instructions[/bold white]",
             border_style="yellow"
         ))
