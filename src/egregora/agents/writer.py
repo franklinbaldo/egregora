@@ -61,11 +61,11 @@ from egregora.agents.writer_setup import (
     create_writer_model,
     setup_writer_agent,
 )
-from egregora.config.settings import (
+from egregora.data_primitives.document import Document, DocumentType
+from egregora.llm.api_keys import (
     get_google_api_keys,
     get_openrouter_api_keys,
 )
-from egregora.data_primitives.document import Document, DocumentType
 from egregora.llm.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.orchestration.cache import PipelineCache
 from egregora.output_adapters import OutputSinkRegistry, create_default_output_registry

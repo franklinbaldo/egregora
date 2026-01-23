@@ -159,7 +159,7 @@ def find_media_references(text: str) -> list[str]:
 
 def extract_media_references(table: Table) -> set[str]:
     """Extract all media references (markdown and raw) from message column."""
-    references = set()
+    references: set[str] = set()
     # IR v1: use "text" column
     try:
         df = table.select("text").execute()
@@ -381,7 +381,7 @@ def process_media_for_window(
         )
 
         try:
-            media_doc = _prepare_media_document(document, media_ref)
+            media_doc: Document = _prepare_media_document(document, media_ref)
         except (ValueError, TypeError) as exc:
             logger.warning("Invalid document structure for '%s': %s", media_ref, exc)
             continue
