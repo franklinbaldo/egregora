@@ -52,12 +52,34 @@ class GovernanceManager:
 
     def is_persona_pleaded(self, persona_id: str) -> bool:
         """
-        A persona is pleaded if they have ANY [PLEAD] commit to the Constitution.
-        
-        Since the constitution is append-only, agreeing to any version 
+        A persona is pleaded if they have ANY [PLEAD] entry in the Constitution.
+
+        Checks both:
+        1. Git commit history for [PLEAD] commit messages (tamper-evident)
+        2. Constitution file content for [PLEAD] entries (fallback for bulk-added pledges)
+
+        Since the constitution is append-only, agreeing to any version
         (current or historical) is valid for continued participation.
         """
-        return self.get_persona_last_plead_commit(persona_id) != ""
+        # First check commit history (preferred - tamper-evident)
+        if self.get_persona_last_plead_commit(persona_id) != "":
+            return True
+
+        # Fallback: check if plead exists in file content
+        # This handles personas added in bulk without individual commits
+        return self._plead_exists_in_file(persona_id)
+
+    def _plead_exists_in_file(self, persona_id: str) -> bool:
+        """Check if a [PLEAD] entry exists in the constitution file content."""
+        try:
+            if not self.constitution_path.exists():
+                return False
+            content = self.constitution_path.read_text()
+            # Look for the exact plead format: [PLEAD] persona_id:
+            plead_pattern = f"[PLEAD] {persona_id}:"
+            return plead_pattern in content
+        except Exception:
+            return False
 
     def has_constitution_changed_since_plead(self, persona_id: str) -> bool:
         """Check if constitution has changed since the persona's last plead."""
