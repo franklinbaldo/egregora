@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from dateutil.parser import parse as parse_date
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, ModelRetry, RunContext
 
 from egregora.agents.banner.agent import is_banner_generation_available
 from egregora.agents.tools.writer_tools import (
@@ -107,6 +107,26 @@ def register_writer_tools(
                 logger.warning("Could not parse metadata string: %s", metadata)
                 meta_dict = {}
 
+        # Enforce strict metadata requirements
+        missing_fields = []
+        if "title" not in meta_dict or not meta_dict["title"]:
+            missing_fields.append("title")
+        if "tags" not in meta_dict or not isinstance(meta_dict["tags"], (list, str)):
+            # We still allow string tags here because the next block normalizes it,
+            # but if it's completely missing, we want to fail.
+            missing_fields.append("tags")
+
+        if missing_fields:
+            msg = f"Missing required metadata fields: {', '.join(missing_fields)}. Please provide both 'title' and 'tags' (as a list) for the blog post."
+            logger.warning(msg)
+            raise ModelRetry(msg)
+
+        # Standardize tags to list if they are provided as a string
+        if isinstance(meta_dict.get("tags"), str):
+            meta_dict["tags"] = [t.strip() for t in meta_dict["tags"].split(",") if t.strip()]
+        elif "tags" not in meta_dict:
+            meta_dict["tags"] = []  # Should be caught by missing_fields above but for safety
+
         # Ensure required fields for Document model
         if "id" not in meta_dict:
             # Generate a deterministic ID
@@ -123,16 +143,17 @@ def register_writer_tools(
                 parsed_date = parse_date(meta_dict["date"])
                 if parsed_date.tzinfo is None:
                     parsed_date = parsed_date.replace(tzinfo=UTC)
-                meta_dict["updated"] = parsed_date
+                meta_dict["updated"] = parsed_date.isoformat()
             except (ValueError, TypeError):
                 logger.warning("Could not parse date '%s', using current time.", meta_dict["date"])
-                meta_dict["updated"] = datetime.now(UTC)
+                meta_dict["updated"] = datetime.now(UTC).isoformat()
         elif "updated" not in meta_dict:
-            meta_dict["updated"] = datetime.now(UTC)
+            meta_dict["updated"] = datetime.now(UTC).isoformat()
+        elif isinstance(meta_dict["updated"], datetime):
+            meta_dict["updated"] = meta_dict["updated"].isoformat()
 
-        # Inject model name if we have a dict
-        if isinstance(meta_dict, dict):
-            meta_dict["model"] = ctx.deps.model_name
+        # Inject model name
+        meta_dict["model"] = ctx.deps.model_name
 
         tool_ctx = ToolContext(
             output_sink=ctx.deps.output_sink,

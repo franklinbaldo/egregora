@@ -5,9 +5,13 @@ from unittest.mock import patch
 
 import pytest
 
+from egregora.config.exceptions import ApiKeyNotFoundError
 from egregora.llm.api_keys import (
+    _get_api_keys_from_env,
     get_google_api_key,
     get_google_api_keys,
+    get_openrouter_api_key,
+    get_openrouter_api_keys,
     google_api_key_available,
     validate_gemini_api_key,
 )
@@ -17,8 +21,8 @@ from egregora.llm.api_keys import (
 def test_get_google_api_key_missing():
     """Test that getting the API key raises an error if not set."""
     with pytest.raises(
-        ValueError,
-        match="GOOGLE_API_KEY \\(or GEMINI_API_KEY\\) environment variable is required",
+        ApiKeyNotFoundError,
+        match="API key environment variable not set: GOOGLE_API_KEY \\(or GEMINI_API_KEY\\)",
     ):
         get_google_api_key()
 
@@ -103,6 +107,57 @@ def test_get_google_api_keys_all_sources():
 def test_get_google_api_keys_uniqueness():
     """Test that the returned list of keys contains only unique values."""
     assert get_google_api_keys() == ["key1", "key2"]
+
+
+@patch.dict(os.environ, {}, clear=True)
+def test_get_openrouter_api_key_missing():
+    """Test that getting the OpenRouter key raises an error if not set."""
+    with pytest.raises(
+        ApiKeyNotFoundError,
+        match="API key environment variable not set: OPENROUTER_API_KEY or OPENROUTER_API_KEYS",
+    ):
+        get_openrouter_api_key()
+
+
+@patch.dict(os.environ, {"OPENROUTER_API_KEY": "or_key"}, clear=True)
+def test_get_openrouter_api_key_success():
+    """Test that the OpenRouter key is retrieved."""
+    assert get_openrouter_api_key() == "or_key"
+
+
+@patch.dict(os.environ, {"OPENROUTER_API_KEYS": "key1,key2"}, clear=True)
+def test_get_openrouter_api_keys_success():
+    """Test that OpenRouter keys are retrieved correctly."""
+    assert get_openrouter_api_keys() == ["key1", "key2"]
+
+
+def test_get_openrouter_api_key_strips_value():
+    """Test that get_openrouter_api_key strips whitespace and equals signs."""
+    with patch.dict(os.environ, {"OPENROUTER_API_KEY": " = openrouter_key "}, clear=True):
+        assert get_openrouter_api_key() == "openrouter_key"
+
+
+def test_get_api_keys_from_env():
+    """Test the helper function for parsing API keys from environment variables."""
+    # Test case 1: Single key
+    with patch.dict(os.environ, {"MY_KEYS": "key1"}, clear=True):
+        assert _get_api_keys_from_env("MY_KEYS") == ["key1"]
+
+    # Test case 2: Comma-separated keys with whitespace
+    with patch.dict(os.environ, {"MY_KEYS": "key1, key2,key3 "}, clear=True):
+        assert _get_api_keys_from_env("MY_KEYS") == ["key1", "key2", "key3"]
+
+    # Test case 3: Empty and whitespace-only entries
+    with patch.dict(os.environ, {"MY_KEYS": "key1,, key2, ,key3"}, clear=True):
+        assert _get_api_keys_from_env("MY_KEYS") == ["key1", "key2", "key3"]
+
+    # Test case 4: Duplicates
+    with patch.dict(os.environ, {"MY_KEYS": "key1,key2,key1"}, clear=True):
+        assert _get_api_keys_from_env("MY_KEYS") == ["key1", "key2"]
+
+    # Test case 5: Variable not set
+    with patch.dict(os.environ, {}, clear=True):
+        assert _get_api_keys_from_env("MY_KEYS") == []
 
 
 @patch("google.genai.Client")

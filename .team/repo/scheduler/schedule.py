@@ -25,12 +25,12 @@ EXCLUDED_PERSONAS = [
 
 # Fallback list if filesystem discovery fails
 # This should match the actual personas in .team/personas/ (excluding EXCLUDED_PERSONAS)
+# Updated 2026-01-23: Added lore, maya, meta; removed archived personas
 FALLBACK_CYCLE_PERSONAS = [
-    "absolutist", "artisan", "bolt", "builder", "curator", "docs_curator",
-    "essentialist", "forge", "janitor", "lore", "maintainer", "organizer", "palette",
-    "pruner", "refactor", "sapper", "scribe", "sentinel", "shepherd", "sheriff",
-    "simplifier", "steward", "streamliner", "taskmaster", "typeguard",
-    "visionary"
+    "absolutist", "artisan", "bolt", "builder", "curator",
+    "essentialist", "forge", "janitor", "lore", "maya", "meta",
+    "organizer", "refactor", "sapper", "scribe", "sentinel",
+    "shepherd", "sheriff", "simplifier", "streamliner", "typeguard", "visionary"
 ]
 
 
@@ -48,9 +48,13 @@ def discover_personas() -> list[str]:
 
     try:
         # Find all subdirectories (persona definitions)
+        # Exclude hidden directories (.) and internal directories (_)
         personas = [
             p.name for p in PERSONAS_DIR.iterdir()
-            if p.is_dir() and not p.name.startswith('.') and p.name not in EXCLUDED_PERSONAS
+            if p.is_dir()
+            and not p.name.startswith('.')
+            and not p.name.startswith('_')
+            and p.name not in EXCLUDED_PERSONAS
         ]
 
         if not personas:
@@ -234,8 +238,9 @@ def validate_and_fix(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], 
     """Validate and fix schedule rows, returning fixed rows and list of issues found."""
     issues: list[str] = []
     fixed_rows: list[dict[str, Any]] = []
-    
+
     seen_sequences = set()
+    seen_session_ids: set[str] = set()
     
     for i, row in enumerate(rows):
         # Ensure all required fields exist
@@ -256,6 +261,18 @@ def validate_and_fix(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], 
             issues.append(f"Row {i+1}: Duplicate sequence {fixed_row['sequence']}, skipping")
             continue
         seen_sequences.add(fixed_row["sequence"])
+
+        # Detect duplicate session_ids (indicates scheduler bug)
+        session_id = fixed_row.get("session_id", "").strip()
+        if session_id:
+            if session_id in seen_session_ids:
+                issues.append(
+                    f"Row {i+1}: Duplicate session_id {session_id[:16]}... "
+                    f"(seq {fixed_row['sequence']}), marking as closed"
+                )
+                fixed_row["pr_status"] = "closed"
+            else:
+                seen_session_ids.add(session_id)
         
         # Validate persona
         persona = fixed_row["persona"].strip().lower()
@@ -411,6 +428,139 @@ def extract_sequence_from_title(title: str) -> str | None:
     # Match 3-digit sequence at the start of title
     match = re.match(r'^(\d{3})\s', title)
     return match.group(1) if match else None
+
+
+def extract_persona_from_title(title: str) -> str | None:
+    """Extract persona name from session title.
+
+    Matches pattern: "{seq} {emoji} {persona} {repo}"
+    Example: "002 🎨 artisan egregora"
+
+    Returns persona name or None if not found.
+    """
+    cycle_personas = get_cycle_personas()
+    title_lower = title.lower()
+    for persona in cycle_personas:
+        if persona in title_lower:
+            return persona
+    return None
+
+
+def get_last_sequence_from_api(repo_name: str | None = None) -> tuple[int | None, str | None]:
+    """Query Jules API to find the last sequence number created.
+
+    This is the source of truth for determining what sequence to run next.
+
+    Args:
+        repo_name: Optional repo name to filter sessions (e.g., "egregora")
+
+    Returns:
+        Tuple of (last_sequence_number, last_persona)
+        Returns (None, None) if API error (signals to use CSV fallback)
+        Returns (0, None) if no sessions found in API
+    """
+    from repo.core.client import TeamClient
+
+    try:
+        client = TeamClient()
+        sessions_data = client.list_sessions()
+        sessions = sessions_data.get("sessions", [])
+
+        if not sessions:
+            return 0, None
+
+        max_seq = 0
+        max_persona = None
+
+        for session in sessions:
+            title = session.get("title", "") or ""
+
+            # Filter by repo if specified
+            if repo_name and repo_name.lower() not in title.lower():
+                continue
+
+            seq_str = extract_sequence_from_title(title)
+            if seq_str:
+                seq_num = int(seq_str)
+                if seq_num > max_seq:
+                    max_seq = seq_num
+                    max_persona = extract_persona_from_title(title)
+
+        return max_seq, max_persona
+
+    except Exception as e:
+        print(f"⚠️  Failed to query Jules API for last sequence: {e}")
+        # Return None to signal that we should fall back to CSV-based approach
+        return None, None
+
+
+def get_current_sequence_from_api(
+    rows: list[dict[str, Any]],
+    repo_name: str | None = None
+) -> tuple[dict[str, Any] | None, bool]:
+    """Find the next sequence to execute using Jules API as source of truth.
+
+    This queries the Jules API to find the highest sequence number that has
+    been created, then returns the next sequence from the schedule.
+
+    Falls back to CSV-based approach if API is unavailable.
+
+    Args:
+        rows: Schedule rows
+        repo_name: Optional repo name to filter sessions
+
+    Returns:
+        Tuple of (next_row, schedule_modified)
+        - next_row: The next row to execute, or None if all done
+        - schedule_modified: True if rows were modified (invalid personas marked closed)
+    """
+    last_seq, _ = get_last_sequence_from_api(repo_name)
+
+    # If API failed (returned None), fall back to CSV-based approach
+    if last_seq is None:
+        print("📋 Falling back to CSV-based sequence detection")
+        return get_current_sequence(rows)
+
+    modified = False
+
+    # Find the row for the next sequence
+    for row in rows:
+        try:
+            row_seq = int(row.get("sequence", "0"))
+        except ValueError:
+            continue
+
+        # Skip sequences that have already been processed (based on API)
+        if row_seq <= last_seq:
+            continue
+
+        # Skip completed rows
+        status = row.get("pr_status", "").strip().lower()
+        if status in ["merged", "closed"]:
+            continue
+
+        # Skip rows that already have a session (belt-and-suspenders safety)
+        # This prevents duplicates if API query failed or returned stale data
+        session_id = row.get("session_id", "").strip()
+        if session_id:
+            continue
+
+        # Skip excluded personas
+        persona = row.get("persona", "").strip().lower()
+        if persona in EXCLUDED_PERSONAS:
+            continue
+
+        # Skip personas that don't exist (auto-mark as closed)
+        if not validate_persona_exists(persona):
+            print(f"⚠️  Persona '{persona}' not found, marking sequence {row['sequence']} as closed")
+            row['pr_status'] = 'closed'
+            modified = True
+            continue
+
+        # This row needs work
+        return row, modified
+
+    return None, modified
 
 
 def list_recent_sessions(limit: int = 20) -> None:

@@ -35,7 +35,12 @@ class TestWriterToolsExtraction:
         # Arrange
         mock_output_sink = Mock()
         ctx = ToolContext(output_sink=mock_output_sink, window_label="2024-11-29")
-        metadata = {"title": "Test Post", "slug": "test-post", "date": "2024-11-29"}
+        metadata = {
+            "title": "Test Post",
+            "slug": "test-post",
+            "date": "2024-11-29",
+            "tags": ["test"],
+        }
         content = "# Test Content"
 
         # Act

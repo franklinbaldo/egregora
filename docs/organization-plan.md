@@ -8,14 +8,16 @@ The Egregora codebase is a modular Python application with a clear separation be
 
 ## Identified Issues
 
-- **Misplaced Domain Logic:** The `src/egregora/utils` directory likely contains code that is specific to other domains within the application. For example, my past journal entries indicate that I've moved `llm`, `author`, `datetime`, and `metrics` related code out of `utils` and into more appropriate, domain-specific modules. It is highly probable that other such instances exist.
+- **Leaky Abstractions in Configuration:** While `src/egregora/config/settings.py` serves as the central configuration source, it sometimes accumulates helper logic (like API key fetching) that belongs in domain-specific modules. This should be monitored to keep the config module focused on schema definition and loading.
 
 ## Prioritized Improvements
 
-1.  **Systematically Refactor `src/egregora/utils`:** The highest priority is to continue the work of dismantling the `utils` directory. Each module within it will be analyzed to determine if its contents are truly generic or if they belong to a specific domain. Domain-specific code will be moved to its rightful home, and the corresponding tests will be relocated and consolidated. This will be an ongoing effort, with each session focusing on a single, cohesive refactoring.
+1.  **Monitor `src/egregora/constants.py`:** Ensure constants are grouped logically and consider moving them to domain modules if they are used exclusively within that domain (e.g., `WindowUnit` to `transformations`).
+2.  **Verify Module Boundaries:** Continue to audit imports to ensure clean separation of concerns, especially around `data_primitives` and `config`.
 
 ## Completed Improvements
 
+- **API Key Logic Consolidation:** Moved all API key fetching logic (Google, OpenRouter) from `src/egregora/config/settings.py` to `src/egregora/llm/api_keys.py`, eliminating duplication and ensuring consistent behavior.
 - **`diagnostics.py` module:** Moved from `src/egregora/diagnostics.py` to `src/egregora/cli/diagnostics.py`.
 - **`estimate_tokens` function:** Moved from `src/egregora/utils/text.py` to `src/egregora/llm/token_utils.py`.
 - **Author management logic:** Moved from `src/egregora/utils/authors.py` to `src/egregora/knowledge/profiles.py`.
