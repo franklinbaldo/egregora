@@ -69,3 +69,29 @@ class InvalidRetrievalModeError(ConfigError):
     def __init__(self, mode: str) -> None:
         self.mode = mode
         super().__init__(f"Invalid retrieval mode: '{mode}'. Choose 'ann' or 'exact'.")
+
+
+class InvalidConfigurationValueError(ConfigError):
+    """Raised when a configuration value is invalid."""
+
+
+class InvalidEnrichmentConfigError(InvalidConfigurationValueError):
+    """Raised when enrichment configuration is invalid."""
+
+
+class SiteStructureError(ConfigError):
+    """Raised when required site directory structure is missing."""
+
+    def __init__(self, path: str, reason: str) -> None:
+        self.path = path
+        self.reason = reason
+        super().__init__(f"Invalid site structure at '{path}': {reason}")
+
+
+class InvalidDatabaseUriError(ConfigError):
+    """Raised when a database connection URI is malformed."""
+
+    def __init__(self, uri: str, reason: str) -> None:
+        self.uri = uri
+        self.reason = reason
+        super().__init__(f"Invalid database URI '{uri}': {reason}")
