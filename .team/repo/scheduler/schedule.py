@@ -447,16 +447,18 @@ def extract_persona_from_title(title: str) -> str | None:
 
 
 def get_last_sequence_from_api(repo_name: str | None = None) -> tuple[int | None, str | None]:
-    """Query Jules API to find the last sequence number created.
+    """Query Jules API to find the highest sequence number created.
 
-    This is the source of truth for determining what sequence to run next.
+    NOTE: This is used for informational logging only. The CSV is the source
+    of truth for determining what sequence to run next. See
+    get_current_sequence_from_api() for the actual scheduling logic.
 
     Args:
         repo_name: Optional repo name to filter sessions (e.g., "egregora")
 
     Returns:
         Tuple of (last_sequence_number, last_persona)
-        Returns (None, None) if API error (signals to use CSV fallback)
+        Returns (None, None) if API error
         Returns (0, None) if no sessions found in API
     """
     from repo.core.client import TeamClient
@@ -498,12 +500,14 @@ def get_current_sequence_from_api(
     rows: list[dict[str, Any]],
     repo_name: str | None = None
 ) -> tuple[dict[str, Any] | None, bool]:
-    """Find the next sequence to execute using Jules API as source of truth.
+    """Find the next sequence to execute, using API to prevent duplicates.
 
-    This queries the Jules API to find the highest sequence number that has
-    been created, then returns the next sequence from the schedule.
+    This function finds the first row that needs work (no session_id, not closed).
+    It uses the Jules API to verify we don't create duplicate sessions for
+    sequences that may have been processed but not yet reflected in the CSV.
 
-    Falls back to CSV-based approach if API is unavailable.
+    The CSV is the primary source of truth for what needs to run. The API is
+    only used for duplicate prevention, not for skipping sequences.
 
     Args:
         rows: Schedule rows
@@ -514,33 +518,19 @@ def get_current_sequence_from_api(
         - next_row: The next row to execute, or None if all done
         - schedule_modified: True if rows were modified (invalid personas marked closed)
     """
-    last_seq, _ = get_last_sequence_from_api(repo_name)
-
-    # If API failed (returned None), fall back to CSV-based approach
-    if last_seq is None:
-        print("📋 Falling back to CSV-based sequence detection")
-        return get_current_sequence(rows)
+    # Get API sessions for duplicate checking (not for sequence skipping)
+    api_session_sequences = _get_api_session_sequences(repo_name)
 
     modified = False
 
-    # Find the row for the next sequence
+    # Find the first row that needs work (CSV is source of truth)
     for row in rows:
-        try:
-            row_seq = int(row.get("sequence", "0"))
-        except ValueError:
-            continue
-
-        # Skip sequences that have already been processed (based on API)
-        if row_seq <= last_seq:
-            continue
-
         # Skip completed rows
         status = row.get("pr_status", "").strip().lower()
         if status in ["merged", "closed"]:
             continue
 
-        # Skip rows that already have a session (belt-and-suspenders safety)
-        # This prevents duplicates if API query failed or returned stale data
+        # Skip rows that already have a session in CSV
         session_id = row.get("session_id", "").strip()
         if session_id:
             continue
@@ -557,10 +547,53 @@ def get_current_sequence_from_api(
             modified = True
             continue
 
+        # Check API for duplicate prevention (belt-and-suspenders)
+        # If this sequence already has a session in the API, skip it
+        seq = row.get("sequence", "").strip()
+        if seq in api_session_sequences:
+            print(f"⚠️  Sequence {seq} already has session in API, skipping")
+            continue
+
         # This row needs work
         return row, modified
 
     return None, modified
+
+
+def _get_api_session_sequences(repo_name: str | None = None) -> set[str]:
+    """Get set of sequence numbers that have sessions in the Jules API.
+
+    Used for duplicate prevention - if a sequence already has a session
+    in the API, we shouldn't create another one.
+
+    Returns:
+        Set of sequence strings (e.g., {"116", "117", "123"})
+    """
+    from repo.core.client import TeamClient
+
+    try:
+        client = TeamClient()
+        sessions_data = client.list_sessions()
+        sessions = sessions_data.get("sessions", [])
+
+        sequences = set()
+        for session in sessions:
+            title = session.get("title", "") or ""
+
+            # Filter by repo if specified
+            if repo_name and repo_name.lower() not in title.lower():
+                continue
+
+            seq_str = extract_sequence_from_title(title)
+            if seq_str:
+                sequences.add(seq_str)
+
+        return sequences
+
+    except Exception as e:
+        print(f"⚠️  Failed to query Jules API for session sequences: {e}")
+        # Return empty set - we'll rely on CSV session_id for duplicate prevention
+        return set()
 
 
 def list_recent_sessions(limit: int = 20) -> None:
