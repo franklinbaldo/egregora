@@ -197,6 +197,10 @@ class TestAllPersonasValid(unittest.TestCase):
                 # Must have non-empty prompt
                 assert len(persona.prompt_body) > 100, f"Persona {persona.id} has suspiciously short prompt"
 
+                # Franklin (human user) is exempt from password/session checks
+                if persona.id == "franklin":
+                    continue
+
                 # Password must be injected
                 import uuid
 
