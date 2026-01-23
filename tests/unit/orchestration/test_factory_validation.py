@@ -4,6 +4,8 @@ from types import SimpleNamespace
 import pytest
 
 from egregora.orchestration.factory import PipelineFactory
+from egregora.config.exceptions import InvalidDatabaseUriError, SiteStructureError
+from egregora.config.settings import EgregoraConfig
 
 
 def make_config(pipeline_db: str):
@@ -14,7 +16,7 @@ def test_create_database_backends_requires_uri(tmp_path):
     config = make_config("")
 
     with pytest.raises(
-        ValueError, match=r"Database setting 'database\.pipeline_db' must be a non-empty connection URI\."
+        InvalidDatabaseUriError, match=r"Database setting 'database\.pipeline_db' must be non-empty\."
     ):
         PipelineFactory.create_database_backends(tmp_path, config)
 
@@ -36,3 +38,23 @@ def test_create_database_backends_normalizes_duckdb_path(tmp_path):
 
     with contextlib.suppress(Exception):
         pipeline_backend.close()
+
+
+def test_resolve_site_paths_missing_mkdocs(tmp_path):
+    """Test that resolve_site_paths_or_raise raises SiteStructureError if mkdocs.yml is missing."""
+    config = EgregoraConfig()
+
+    with pytest.raises(SiteStructureError, match="No mkdocs.yml found"):
+        PipelineFactory.resolve_site_paths_or_raise(tmp_path, config)
+
+
+def test_resolve_site_paths_missing_docs_dir(tmp_path):
+    """Test that resolve_site_paths_or_raise raises SiteStructureError if docs/ is missing."""
+    config = EgregoraConfig()
+
+    # Create .egregora/mkdocs.yml so first check passes
+    (tmp_path / ".egregora").mkdir()
+    (tmp_path / ".egregora" / "mkdocs.yml").touch()
+
+    with pytest.raises(SiteStructureError, match="Docs directory not found"):
+        PipelineFactory.resolve_site_paths_or_raise(tmp_path, config)
