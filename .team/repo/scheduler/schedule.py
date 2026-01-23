@@ -25,13 +25,12 @@ EXCLUDED_PERSONAS = [
 
 # Fallback list if filesystem discovery fails
 # This should match the actual personas in .team/personas/ (excluding EXCLUDED_PERSONAS)
-# Updated 2026-01-22: Removed archived personas (docs_curator, maintainer, palette,
-# pruner, specifier, steward, taskmaster, weaver)
+# Updated 2026-01-23: Added lore, maya, meta; removed archived personas
 FALLBACK_CYCLE_PERSONAS = [
     "absolutist", "artisan", "bolt", "builder", "curator",
-    "essentialist", "forge", "janitor", "lore", "organizer",
-    "refactor", "sapper", "scribe", "sentinel", "shepherd", "sheriff",
-    "simplifier", "streamliner", "typeguard", "visionary"
+    "essentialist", "forge", "janitor", "lore", "maya", "meta",
+    "organizer", "refactor", "sapper", "scribe", "sentinel",
+    "shepherd", "sheriff", "simplifier", "streamliner", "typeguard", "visionary"
 ]
 
 
@@ -49,9 +48,13 @@ def discover_personas() -> list[str]:
 
     try:
         # Find all subdirectories (persona definitions)
+        # Exclude hidden directories (.) and internal directories (_)
         personas = [
             p.name for p in PERSONAS_DIR.iterdir()
-            if p.is_dir() and not p.name.startswith('.') and p.name not in EXCLUDED_PERSONAS
+            if p.is_dir()
+            and not p.name.startswith('.')
+            and not p.name.startswith('_')
+            and p.name not in EXCLUDED_PERSONAS
         ]
 
         if not personas:
