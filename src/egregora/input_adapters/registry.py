@@ -17,8 +17,9 @@ from __future__ import annotations
 
 import importlib
 import logging
+from collections.abc import Mapping
 from importlib.metadata import entry_points
-from typing import TYPE_CHECKING, Mapping, cast
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from egregora.input_adapters.base import InputAdapter
@@ -165,7 +166,7 @@ class InputAdapterRegistry:
         """
         # Convert TypedDict to plain dict for broader compatibility
         return [
-            dict(cast(Mapping[str, str], adapter.get_adapter_metadata()))
+            dict(cast("Mapping[str, str]", adapter.get_adapter_metadata()))
             for adapter in self._adapters.values()
         ]
 
