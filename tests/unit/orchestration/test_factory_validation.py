@@ -3,9 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from egregora.orchestration.factory import PipelineFactory
 from egregora.config.exceptions import InvalidDatabaseUriError, SiteStructureError
-from egregora.config.settings import EgregoraConfig
+from egregora.orchestration.factory import PipelineFactory
 
 
 def make_config(pipeline_db: str):
@@ -40,17 +39,17 @@ def test_create_database_backends_normalizes_duckdb_path(tmp_path):
         pipeline_backend.close()
 
 
-def test_resolve_site_paths_missing_mkdocs(tmp_path):
+def test_resolve_site_paths_missing_mkdocs(tmp_path, minimal_config):
     """Test that resolve_site_paths_or_raise raises SiteStructureError if mkdocs.yml is missing."""
-    config = EgregoraConfig()
+    config = minimal_config
 
-    with pytest.raises(SiteStructureError, match="No mkdocs.yml found"):
+    with pytest.raises(SiteStructureError, match=r"No mkdocs\.yml found"):
         PipelineFactory.resolve_site_paths_or_raise(tmp_path, config)
 
 
-def test_resolve_site_paths_missing_docs_dir(tmp_path):
+def test_resolve_site_paths_missing_docs_dir(tmp_path, minimal_config):
     """Test that resolve_site_paths_or_raise raises SiteStructureError if docs/ is missing."""
-    config = EgregoraConfig()
+    config = minimal_config
 
     # Create .egregora/mkdocs.yml so first check passes
     (tmp_path / ".egregora").mkdir()

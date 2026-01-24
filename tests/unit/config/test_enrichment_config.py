@@ -1,8 +1,10 @@
 """Tests for enrichment configuration validation."""
 
 import pytest
-from egregora.config.settings import PipelineEnrichmentConfig
+
 from egregora.config.exceptions import InvalidEnrichmentConfigError
+from egregora.config.settings import PipelineEnrichmentConfig
+
 
 def test_pipeline_enrichment_config_valid():
     """Test valid enrichment config."""
@@ -10,10 +12,12 @@ def test_pipeline_enrichment_config_valid():
     assert config.batch_threshold == 10
     assert config.max_enrichments == 100
 
+
 def test_pipeline_enrichment_config_invalid_batch_threshold():
     """Test invalid batch threshold."""
     with pytest.raises(InvalidEnrichmentConfigError, match="batch_threshold must be >= 1"):
         PipelineEnrichmentConfig(batch_threshold=0)
+
 
 def test_pipeline_enrichment_config_invalid_max_enrichments():
     """Test invalid max enrichments."""

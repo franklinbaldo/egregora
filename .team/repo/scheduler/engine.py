@@ -440,10 +440,18 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> Sched
             save_schedule(rows)
 
         if not current:
-            return SchedulerResult(
-                success=True,
-                message="All scheduled work complete"
-            )
+            # Check if we are truly done or just blocked by an active session
+            remaining = count_remaining_empty(rows)
+            if remaining > 0:
+                return SchedulerResult(
+                    success=True,
+                    message="Waiting for active session to complete (sequential execution)"
+                )
+            else:
+                return SchedulerResult(
+                    success=True,
+                    message="All scheduled work complete"
+                )
 
         seq = current["sequence"]
         persona_id = current["persona"]
