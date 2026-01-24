@@ -129,7 +129,7 @@ def get_current_sequence(rows: list[dict[str, Any]]) -> tuple[dict[str, Any] | N
         status = row.get("pr_status", "").strip().lower()
 
         # Skip completed rows
-        if status in ["merged", "closed"]:
+        if status in ["merged", "closed", "draft", "open"]:
             continue
 
         # If a session exists but is not completed, we must wait.
@@ -527,7 +527,7 @@ def get_current_sequence_from_api(
     for row in rows:
         # Skip completed rows
         status = row.get("pr_status", "").strip().lower()
-        if status in ["merged", "closed"]:
+        if status in ["merged", "closed", "draft", "open"]:
             continue
 
         # Skip rows that already have a session in CSV
