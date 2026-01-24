@@ -132,10 +132,10 @@ def get_current_sequence(rows: list[dict[str, Any]]) -> tuple[dict[str, Any] | N
         if status in ["merged", "closed"]:
             continue
 
-        # Skip rows that have a session (regardless of PR status)
-        # Once a session exists, wait for PR tracker to update the status
+        # If a session exists but is not completed, we must wait.
+        # We should NOT proceed to the next row (strict sequential execution).
         if session_id:
-            continue
+            return None, modified
 
         # Skip excluded personas
         persona = row.get("persona", "").strip().lower()
@@ -531,9 +531,10 @@ def get_current_sequence_from_api(
             continue
 
         # Skip rows that already have a session in CSV
+        # If a session exists but is not completed, we must wait (strict sequential execution).
         session_id = row.get("session_id", "").strip()
         if session_id:
-            continue
+            return None, modified
 
         # Skip excluded personas
         persona = row.get("persona", "").strip().lower()
