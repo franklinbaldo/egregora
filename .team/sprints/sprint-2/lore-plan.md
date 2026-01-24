@@ -8,8 +8,9 @@
 ## Objectives
 My mission is to capture the "Deep Knowledge" of the system during this transitional phase.
 
-- [ ] **Wiki - The "Reactive" Shift:** Document the current "Batch Processing" architecture in `.team/wiki/Architecture.md` to establish a baseline before the "Symbiote" changes.
+- [ ] **Wiki - The "Batch" Baseline:** Explicitly mark the current `Architecture.md` as the "Batch Era" snapshot to preserve the historical context before the "Symbiote" changes.
 - [ ] **Wiki - Persona Registry:** maintain the `Team-Roster.md` to reflect the evolving roles (e.g., Visionary's new focus).
+- [ ] **Lore - Ghost Personas:** Investigate and document "Ghost Personas" (e.g., `docs_curator`) found in historical artifacts like the Constitution but missing from the active roster.
 - [ ] **Blog - "The Great Refactor":** Write a piece in `.team/personas/lore/blog/` documenting the intent behind the major refactors led by Artisan and Refactor.
 - [ ] **ADR Indexing:** Collaborate with Steward to link the new ADRs into the Wiki structure.
 
@@ -24,6 +25,7 @@ Sprint 2 is a "Pivot Point." We are changing how we build (ADRs), how we run (Ru
 1.  **Updated Wiki:** `Architecture.md` reflecting the "Before" state.
 2.  **Blog Post:** "Chronicles of the Refactor."
 3.  **ADR Integration:** A section in the Wiki linking to the new ADRs.
+4.  **Lore Entry:** A report or blog post on "Ghost Personas."
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |

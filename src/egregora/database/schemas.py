@@ -6,7 +6,6 @@ This module defines the strictly typed, append-only tables for the new architect
 from __future__ import annotations
 
 import logging
-from typing import Any, Union
 
 import duckdb
 import ibis
@@ -21,7 +20,7 @@ logger = logging.getLogger(__name__)
 # Helper Functions
 # ============================================================================
 
-DBConnection = Union[BaseBackend, duckdb.DuckDBPyConnection]
+DBConnection = BaseBackend | duckdb.DuckDBPyConnection
 
 
 def execute_sql(conn: DBConnection, sql: str) -> None:
@@ -223,7 +222,9 @@ def create_index(
     execute_sql(conn, sql)
 
 
-def add_check_constraint(conn: DBConnection, table_name: str, constraint_name: str, check_expression: str) -> None:
+def add_check_constraint(
+    conn: DBConnection, table_name: str, constraint_name: str, check_expression: str
+) -> None:
     """Add a CHECK constraint to an existing table.
 
     Args:
