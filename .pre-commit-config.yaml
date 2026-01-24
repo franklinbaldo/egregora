@@ -125,7 +125,7 @@ repos:
             "--cov=src/egregora",
             "--cov-report=term-missing",
             "--cov-branch",
-            "--cov-fail-under=57",
+            "--cov-fail-under=57.5",
             "-q",
             "--ignore=tests/unit/team",
           ]
