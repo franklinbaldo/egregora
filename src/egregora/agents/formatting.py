@@ -34,7 +34,7 @@ def load_journal_memory(output_sink: OutputSink) -> str:
     latest = max(journals, key=lambda d: d.identifier)
 
     try:
-        doc = output_sink.read_document(DocumentType.JOURNAL, latest.identifier)
+        doc = output_sink.get(DocumentType.JOURNAL, latest.identifier)
         return doc.content
     except DocumentNotFoundError:
         return ""
