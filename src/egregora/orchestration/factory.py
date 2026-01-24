@@ -15,9 +15,9 @@ from urllib.parse import urlparse
 import ibis
 from google import genai
 
-from egregora.config.exceptions import InvalidDatabaseUriError, SiteStructureError
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.types import WriterResources
+from egregora.config.exceptions import InvalidDatabaseUriError, SiteStructureError
 from egregora.data_primitives.document import UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager

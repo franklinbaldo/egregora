@@ -3,9 +3,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from egregora.orchestration.factory import PipelineFactory
 from egregora.config.exceptions import InvalidDatabaseUriError, SiteStructureError
 from egregora.config.settings import EgregoraConfig
+from egregora.orchestration.factory import PipelineFactory
 
 
 def make_config(pipeline_db: str):
