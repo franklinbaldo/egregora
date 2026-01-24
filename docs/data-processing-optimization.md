@@ -22,11 +22,16 @@ The byte-based windowing is better, using an Ibis window function to calculate c
 
 ## Prioritized Optimizations
 
-1.  **Refactor `_window_by_time` to be fully declarative.**
-    - **Rationale:** This is similar in inefficiency to the count-based approach. It can be refactored by calculating a `window_index` based on timestamp arithmetic directly in Ibis, avoiding the Python loop.
-    - **Expected Impact:** Similar significant performance improvement.
+1.  **Refactor `_window_by_bytes` loop.**
+    - **Rationale:** The byte-based windowing still uses a `while` loop that executes multiple queries. While it uses window functions for cumulative sum, the chunking is iterative.
+    - **Expected Impact:** Moderate performance improvement and code simplification.
 
 ## Completed Optimizations
+
+- **Refactored `_window_by_time` to be declarative.**
+  - **Date:** 2025-01-XX
+  - **Change:** Replaced the iterative `while` loop (N+1 queries) with a single vectorized Ibis query. The new implementation assigns window indices to rows using timestamp arithmetic, handles overlaps via logic, and uses `unnest` + `group_by` to aggregate window counts in one pass.
+  - **Impact:** Benchmark showed ~9.6x speedup (4.0s -> 0.4s for 334 windows). Reduced database queries from N+2 to 2.
 
 - **Refactored `_window_by_count` to be declarative.**
   - **Date:** 2024-07-30
