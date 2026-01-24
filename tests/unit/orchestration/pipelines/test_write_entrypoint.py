@@ -16,8 +16,8 @@ def test_write_pipeline_importable():
 
 @patch("egregora.orchestration.pipelines.write.run")
 @patch("egregora.orchestration.pipelines.write.load_egregora_config")
-@patch("egregora.orchestration.pipelines.write._validate_api_key")
-@patch("egregora.orchestration.pipelines.write.MkDocsSiteScaffolder.scaffold_site")
+@patch("egregora.orchestration.pipelines.write.validate_api_key")
+@patch("egregora.orchestration.pipelines.etl.setup.MkDocsSiteScaffolder.scaffold_site")
 def test_run_cli_flow(mock_scaffold_site, mock_validate_key, mock_load_config, mock_run, config_factory):
     """
     GREEN TEST: Verify run_cli_flow executes the pipeline logic.
@@ -44,8 +44,8 @@ def test_run_cli_flow(mock_scaffold_site, mock_validate_key, mock_load_config, m
 
 @patch("egregora.orchestration.pipelines.write.run")
 @patch("egregora.orchestration.pipelines.write.load_egregora_config")
-@patch("egregora.orchestration.pipelines.write._validate_api_key")
-@patch("egregora.orchestration.pipelines.write.MkDocsSiteScaffolder.scaffold_site")
+@patch("egregora.orchestration.pipelines.write.validate_api_key")
+@patch("egregora.orchestration.pipelines.etl.setup.MkDocsSiteScaffolder.scaffold_site")
 def test_run_cli_flow_runs_all_sources_when_default_missing(
     mock_scaffold_site, mock_validate_key, mock_load_config, mock_run, config_factory
 ):
@@ -77,8 +77,8 @@ def test_run_cli_flow_runs_all_sources_when_default_missing(
 
 @patch("egregora.orchestration.pipelines.write.run")
 @patch("egregora.orchestration.pipelines.write.load_egregora_config")
-@patch("egregora.orchestration.pipelines.write._validate_api_key")
-@patch("egregora.orchestration.pipelines.write.MkDocsSiteScaffolder.scaffold_site")
+@patch("egregora.orchestration.pipelines.write.validate_api_key")
+@patch("egregora.orchestration.pipelines.etl.setup.MkDocsSiteScaffolder.scaffold_site")
 def test_run_cli_flow_invalid_source_key_exits(
     mock_scaffold_site, mock_validate_key, mock_load_config, mock_run, config_factory
 ):
@@ -106,8 +106,8 @@ def test_run_cli_flow_invalid_source_key_exits(
 
 @patch("egregora.orchestration.pipelines.write.run")
 @patch("egregora.orchestration.pipelines.write.load_egregora_config")
-@patch("egregora.orchestration.pipelines.write._validate_api_key")
-@patch("egregora.orchestration.pipelines.write.MkDocsSiteScaffolder.scaffold_site")
+@patch("egregora.orchestration.pipelines.write.validate_api_key")
+@patch("egregora.orchestration.pipelines.etl.setup.MkDocsSiteScaffolder.scaffold_site")
 def test_run_cli_flow_scaffolds_if_no_config(
     mock_scaffold_site, mock_validate_key, mock_load_config, mock_run, config_factory, tmp_path
 ):
