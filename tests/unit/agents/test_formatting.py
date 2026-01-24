@@ -19,14 +19,14 @@ def test_load_journal_memory_handles_document_not_found_error() -> None:
     meta = MagicMock()
     meta.identifier = "test-journal"
     output_sink.list.return_value = [meta]
-    output_sink.read_document.side_effect = DocumentNotFoundError("journal", "test-journal")
+    output_sink.get.side_effect = DocumentNotFoundError("journal", "test-journal")
 
     # Act
     result = load_journal_memory(output_sink)
 
     # Assert
     output_sink.list.assert_called_once_with(DocumentType.JOURNAL)
-    output_sink.read_document.assert_called_once_with(DocumentType.JOURNAL, "test-journal")
+    output_sink.get.assert_called_once_with(DocumentType.JOURNAL, "test-journal")
     assert result == ""
 
 

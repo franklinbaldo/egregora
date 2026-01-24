@@ -18,10 +18,10 @@ def mock_repository() -> MagicMock:
     return MagicMock()
 
 
-def test_read_document_raises_not_found_error(mock_repository: MagicMock):
+def test_get_raises_not_found_error(mock_repository: MagicMock):
     """
     Given a DbOutputSink with a repository that returns None
-    When read_document is called
+    When get is called
     Then it should raise DocumentNotFoundError.
     """
     # Arrange
@@ -32,7 +32,7 @@ def test_read_document_raises_not_found_error(mock_repository: MagicMock):
 
     # Act & Assert
     with pytest.raises(DocumentNotFoundError):
-        sink.read_document(doc_type, identifier)
+        sink.get(doc_type, identifier)
 
 
 def test_documents_raises_iteration_error_on_missing_document():
@@ -50,7 +50,7 @@ def test_documents_raises_iteration_error_on_missing_document():
     )
 
     sink.list = MagicMock(return_value=[metadata])
-    sink.read_document = MagicMock(side_effect=DocumentNotFoundError(doc_type.value, identifier))
+    sink.get = MagicMock(side_effect=DocumentNotFoundError(doc_type.value, identifier))
 
     # Act & Assert
     with pytest.raises(DocumentIterationError) as exc_info:
