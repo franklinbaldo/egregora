@@ -11,8 +11,8 @@ from unittest.mock import Mock, patch
 import pytest
 from ibis import memtable
 
-from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import DocumentType
+from egregora.knowledge.constants import EGREGORA_NAME, EGREGORA_UUID
 
 
 class TestProfileMetadata:

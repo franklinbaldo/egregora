@@ -10,8 +10,8 @@ from egregora.agents.commands import (
     is_command,
     parse_command,
 )
-from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import DocumentType
+from egregora.knowledge.constants import EGREGORA_NAME, EGREGORA_UUID
 
 # Scenarios
 
