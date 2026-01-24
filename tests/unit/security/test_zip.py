@@ -1,26 +1,26 @@
-import pytest
-from unittest.mock import MagicMock, patch
 import zipfile
+from unittest.mock import MagicMock
+
+import pytest
+
 from egregora.security.zip import (
-    validate_zip_contents,
-    get_zip_info,
-    ensure_safe_member_size,
-    configure_default_limits,
-    ZipValidationSettings,
-    ZipValidationError,
+    ZipCompressionBombError,
     ZipMemberCountError,
     ZipMemberSizeError,
-    ZipTotalSizeError,
-    ZipCompressionBombError,
     ZipPathTraversalError,
+    ZipTotalSizeError,
+    ZipValidationSettings,
+    configure_default_limits,
+    ensure_safe_member_size,
+    get_zip_info,
+    validate_zip_contents,
 )
 
-class TestZipSecurity:
 
+class TestZipSecurity:
     @pytest.fixture
     def mock_zip_file(self):
-        zf = MagicMock(spec=zipfile.ZipFile)
-        return zf
+        return MagicMock(spec=zipfile.ZipFile)
 
     @pytest.fixture
     def default_limits(self):
@@ -37,7 +37,7 @@ class TestZipSecurity:
         """Test validation passes for a normal safe zip file."""
         mock_zip_file.infolist.return_value = [
             self.create_mock_info("file1.txt", 1000, 500),
-            self.create_mock_info("dir/file2.txt", 2000, 1000)
+            self.create_mock_info("dir/file2.txt", 2000, 1000),
         ]
 
         # Should not raise
@@ -46,9 +46,7 @@ class TestZipSecurity:
     def test_validate_zip_contents_too_many_members(self, mock_zip_file):
         """Test error when zip has too many members."""
         limits = ZipValidationSettings(max_member_count=2)
-        mock_zip_file.infolist.return_value = [
-            self.create_mock_info(f"file{i}.txt") for i in range(3)
-        ]
+        mock_zip_file.infolist.return_value = [self.create_mock_info(f"file{i}.txt") for i in range(3)]
 
         with pytest.raises(ZipMemberCountError) as excinfo:
             validate_zip_contents(mock_zip_file, limits=limits)
@@ -59,9 +57,7 @@ class TestZipSecurity:
     def test_validate_zip_contents_member_too_large(self, mock_zip_file):
         """Test error when a single member is too large."""
         limits = ZipValidationSettings(max_member_size=100)
-        mock_zip_file.infolist.return_value = [
-            self.create_mock_info("huge.txt", file_size=150)
-        ]
+        mock_zip_file.infolist.return_value = [self.create_mock_info("huge.txt", file_size=150)]
 
         with pytest.raises(ZipMemberSizeError) as excinfo:
             validate_zip_contents(mock_zip_file, limits=limits)
@@ -73,7 +69,7 @@ class TestZipSecurity:
         limits = ZipValidationSettings(max_total_size=200)
         mock_zip_file.infolist.return_value = [
             self.create_mock_info("file1.txt", 150),
-            self.create_mock_info("file2.txt", 100)  # Total 250 > 200
+            self.create_mock_info("file2.txt", 100),  # Total 250 > 200
         ]
 
         with pytest.raises(ZipTotalSizeError) as excinfo:
@@ -94,19 +90,20 @@ class TestZipSecurity:
         assert "suspicious compression ratio" in str(excinfo.value)
         assert excinfo.value.ratio == 100.0
 
-    @pytest.mark.parametrize("unsafe_path", [
-        "/etc/passwd",
-        "../secret.txt",
-        "folder/../../outside.txt",
-        "C:\\Windows",
-        "\\Server\Share",
-        "D:file.txt"
-    ])
+    @pytest.mark.parametrize(
+        "unsafe_path",
+        [
+            "/etc/passwd",
+            "../secret.txt",
+            "folder/../../outside.txt",
+            "C:\\Windows",
+            "\\Server\\Share",
+            "D:file.txt",
+        ],
+    )
     def test_validate_zip_contents_path_traversal(self, mock_zip_file, unsafe_path, default_limits):
         """Test error for various unsafe paths."""
-        mock_zip_file.infolist.return_value = [
-            self.create_mock_info(unsafe_path)
-        ]
+        mock_zip_file.infolist.return_value = [self.create_mock_info(unsafe_path)]
 
         with pytest.raises(ZipPathTraversalError) as excinfo:
             validate_zip_contents(mock_zip_file, limits=default_limits)
@@ -132,7 +129,7 @@ class TestZipSecurity:
         """Test metadata extraction."""
         mock_zip_file.infolist.return_value = [
             self.create_mock_info("file1.txt", 100, 50),  # Ratio 2.0
-            self.create_mock_info("empty.txt", 0, 0)      # Ratio 1.0 (default)
+            self.create_mock_info("empty.txt", 0, 0),  # Ratio 1.0 (default)
         ]
 
         info = get_zip_info(mock_zip_file)
@@ -156,9 +153,7 @@ class TestZipSecurity:
         configure_default_limits(new_limits)
 
         # Verify validate_zip_contents uses new defaults
-        mock_zip_file.infolist.return_value = [
-            self.create_mock_info(f"f{i}") for i in range(6)
-        ]
+        mock_zip_file.infolist.return_value = [self.create_mock_info(f"f{i}") for i in range(6)]
 
         try:
             with pytest.raises(ZipMemberCountError) as excinfo:
@@ -172,16 +167,16 @@ class TestZipSecurity:
     def test_validate_zip_contents_zero_compression_size(self, mock_zip_file, default_limits):
         """Test valid file with zero compressed size (e.g. stored or empty) doesn't div by zero."""
         mock_zip_file.infolist.return_value = [
-             # file_size > 0 but compress_size = 0 is technically weird for standard zip unless stored?
-             # If method=STORED, compress_size usually == file_size.
-             # If file is empty, both are 0.
-             self.create_mock_info("empty.txt", file_size=0, compress_size=0)
+            # file_size > 0 but compress_size = 0 is technically weird for standard zip unless stored?
+            # If method=STORED, compress_size usually == file_size.
+            # If file is empty, both are 0.
+            self.create_mock_info("empty.txt", file_size=0, compress_size=0)
         ]
         validate_zip_contents(mock_zip_file, limits=default_limits)
 
         # Case where file_size > 0 and compress_size = 0 (should not happen in valid zip usually, but check logic)
         # Logic: if info.compress_size > 0 and info.file_size > 0: check ratio
         mock_zip_file.infolist.return_value = [
-             self.create_mock_info("odd.txt", file_size=100, compress_size=0)
+            self.create_mock_info("odd.txt", file_size=100, compress_size=0)
         ]
         validate_zip_contents(mock_zip_file, limits=default_limits)

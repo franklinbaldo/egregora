@@ -80,6 +80,13 @@ body,
 }
 
 /* Custom Scrollbar for Premium Feel */
+/* Firefox Support */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #333 #0a0a0a;
+}
+
+/* WebKit Support */
 ::-webkit-scrollbar {
   width: 8px;
 }
@@ -150,10 +157,18 @@ body,
 
 /* Scoped Homepage Overrides */
 /* Only apply full-width layout to the homepage explicitly */
+.md-main__inner:has(.homepage-hero) {
+  max-width: 100% !important;
+}
+
 .md-content__inner.md-typeset:has(.homepage-hero) {
   margin: 0 !important;
   padding: 0 !important;
   max-width: none !important;
+}
+
+.main-portal-grid:has(.homepage-hero) {
+  margin-top: -180px !important;
 }
 
 /* Homepage Footer */
