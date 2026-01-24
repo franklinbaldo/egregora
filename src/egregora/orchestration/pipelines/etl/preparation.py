@@ -31,7 +31,7 @@ from egregora.input_adapters.whatsapp.commands import extract_commands, filter_e
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext, PipelineRunParams
-from egregora.orchestration.factory import PipelineFactory
+from egregora.output_adapters import create_and_initialize_adapter
 from egregora.rag import index_documents, reset_backend
 from egregora.transformations import (
     Window,
@@ -309,9 +309,9 @@ def prepare_pipeline_data(
     vision_model = config.models.enricher_vision
     embedding_model = config.models.embedding
 
-    output_sink = PipelineFactory.create_output_adapter(
-        config,
+    output_sink = create_and_initialize_adapter(
         run_params.output_dir,
+        config,
         site_root=ctx.site_root,
         registry=ctx.output_registry,
         url_context=ctx.url_context,
