@@ -1,13 +1,18 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
 
-:root,
-[data-md-color-primary="custom"] {
+:root {
   /* Official Palette */
   --md-primary-fg-color:        #2c3e50;
   --md-primary-fg-color--light: #34495e;
   --md-primary-fg-color--dark:  #2c3e50;
 
+  --md-accent-fg-color:         #f9d423;
+  --md-accent-fg-color--transparent: rgba(249, 212, 35, 0.1);
+
   --md-text-font-size: 1.1rem;
+}
+
+[data-md-color-scheme="slate"] {
   --portal-bg: #0a0a0a;
 
   /* High Contrast Text for Dark Mode */
@@ -18,8 +23,8 @@
   --md-default-fg-color--lightest: #404040;
 }
 
-/* Global Immersive Overrides */
-body {
+/* Global Immersive Overrides - Scoped to Dark Mode */
+body[data-md-color-scheme="slate"] {
   background-color: var(--portal-bg);
   color: var(--md-typeset-color);
   overflow-x: hidden;

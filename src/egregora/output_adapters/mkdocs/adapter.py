@@ -1102,6 +1102,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Add Enrichment category using helper (handles malformed data)
         metadata = self._ensure_category(metadata, "Enrichment")
 
+        # Fix: Remove 'title' if it is None to allow MkDocs to default to filename.
+        # This prevents mkdocs-macros-plugin crashing with "TypeError: argument of type 'NoneType' is not iterable"
+        if "title" in metadata and metadata["title"] is None:
+            del metadata["title"]
+
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")

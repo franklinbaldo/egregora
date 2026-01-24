@@ -55,9 +55,7 @@ def test_prepare_pipeline_data_handles_rag_connection_error(
     with patch("egregora.orchestration.pipelines.etl.preparation.index_documents") as mock_index:
         mock_index.side_effect = ConnectionError("Connection refused")
 
-        with patch(
-            "egregora.orchestration.pipelines.etl.preparation.PipelineFactory"
-        ) as mock_factory:
+        with patch("egregora.orchestration.pipelines.etl.preparation.PipelineFactory") as mock_factory:
             # Setup factory to return our mock context's output format
             mock_factory.create_output_adapter.return_value = mock_pipeline_context.output_format
 
@@ -70,15 +68,9 @@ def test_prepare_pipeline_data_handles_rag_connection_error(
 
             # Mock other dependencies to avoid side effects
             with (
-                patch(
-                    "egregora.orchestration.pipelines.etl.preparation._parse_and_validate_source"
-                ),
-                patch(
-                    "egregora.orchestration.pipelines.etl.preparation._setup_content_directories"
-                ),
-                patch(
-                    "egregora.orchestration.pipelines.etl.preparation._process_commands_and_avatars"
-                ),
+                patch("egregora.orchestration.pipelines.etl.preparation._parse_and_validate_source"),
+                patch("egregora.orchestration.pipelines.etl.preparation._setup_content_directories"),
+                patch("egregora.orchestration.pipelines.etl.preparation._process_commands_and_avatars"),
                 patch("egregora.orchestration.pipelines.etl.preparation._apply_filters"),
                 patch("egregora.orchestration.pipelines.etl.preparation.create_windows"),
             ):
@@ -100,24 +92,16 @@ def test_prepare_pipeline_data_handles_rag_value_error(
     with patch("egregora.orchestration.pipelines.etl.preparation.index_documents") as mock_index:
         mock_index.side_effect = ValueError("Invalid vector dimension")
 
-        with patch(
-            "egregora.orchestration.pipelines.etl.preparation.PipelineFactory"
-        ) as mock_factory:
+        with patch("egregora.orchestration.pipelines.etl.preparation.PipelineFactory") as mock_factory:
             mock_factory.create_output_adapter.return_value = mock_pipeline_context.output_format
             mock_pipeline_context.with_output_format.return_value = mock_pipeline_context
             mock_pipeline_context.with_adapter.return_value = mock_pipeline_context
             mock_pipeline_context.output_format.documents.return_value = ["doc1"]
 
             with (
-                patch(
-                    "egregora.orchestration.pipelines.etl.preparation._parse_and_validate_source"
-                ),
-                patch(
-                    "egregora.orchestration.pipelines.etl.preparation._setup_content_directories"
-                ),
-                patch(
-                    "egregora.orchestration.pipelines.etl.preparation._process_commands_and_avatars"
-                ),
+                patch("egregora.orchestration.pipelines.etl.preparation._parse_and_validate_source"),
+                patch("egregora.orchestration.pipelines.etl.preparation._setup_content_directories"),
+                patch("egregora.orchestration.pipelines.etl.preparation._process_commands_and_avatars"),
                 patch("egregora.orchestration.pipelines.etl.preparation._apply_filters"),
                 patch("egregora.orchestration.pipelines.etl.preparation.create_windows"),
             ):
@@ -137,24 +121,16 @@ def test_prepare_pipeline_data_handles_rag_os_error(
     with patch("egregora.orchestration.pipelines.etl.preparation.index_documents") as mock_index:
         mock_index.side_effect = OSError("Read-only file system")
 
-        with patch(
-            "egregora.orchestration.pipelines.etl.preparation.PipelineFactory"
-        ) as mock_factory:
+        with patch("egregora.orchestration.pipelines.etl.preparation.PipelineFactory") as mock_factory:
             mock_factory.create_output_adapter.return_value = mock_pipeline_context.output_format
             mock_pipeline_context.with_output_format.return_value = mock_pipeline_context
             mock_pipeline_context.with_adapter.return_value = mock_pipeline_context
             mock_pipeline_context.output_format.documents.return_value = ["doc1"]
 
             with (
-                patch(
-                    "egregora.orchestration.pipelines.etl.preparation._parse_and_validate_source"
-                ),
-                patch(
-                    "egregora.orchestration.pipelines.etl.preparation._setup_content_directories"
-                ),
-                patch(
-                    "egregora.orchestration.pipelines.etl.preparation._process_commands_and_avatars"
-                ),
+                patch("egregora.orchestration.pipelines.etl.preparation._parse_and_validate_source"),
+                patch("egregora.orchestration.pipelines.etl.preparation._setup_content_directories"),
+                patch("egregora.orchestration.pipelines.etl.preparation._process_commands_and_avatars"),
                 patch("egregora.orchestration.pipelines.etl.preparation._apply_filters"),
                 patch("egregora.orchestration.pipelines.etl.preparation.create_windows"),
             ):
