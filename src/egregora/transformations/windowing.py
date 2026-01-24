@@ -371,11 +371,7 @@ def _window_by_time(
 
     # We must explicitly name the count column to avoid backend-specific default names (e.g. CountStar())
     unnested = t.unnest("window_indices")
-    window_counts = (
-        unnested.group_by("window_indices")
-        .aggregate(count=unnested.count())
-        .execute()
-    )
+    window_counts = unnested.group_by("window_indices").aggregate(count=unnested.count()).execute()
 
     # Convert counts to dict for O(1) lookup
     # Iterate and cast to native int to avoid numpy/arrow types
