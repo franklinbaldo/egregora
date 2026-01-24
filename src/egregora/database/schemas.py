@@ -6,11 +6,12 @@ This module defines the strictly typed, append-only tables for the new architect
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Union
 
 import duckdb
 import ibis
 import ibis.expr.datatypes as dt
+from ibis.backends import BaseBackend
 
 from egregora.database.utils import quote_identifier
 
@@ -20,9 +21,31 @@ logger = logging.getLogger(__name__)
 # Helper Functions
 # ============================================================================
 
+DBConnection = Union[BaseBackend, duckdb.DuckDBPyConnection]
+
+
+def execute_sql(conn: DBConnection, sql: str) -> None:
+    """Execute raw SQL on a connection or backend.
+
+    Args:
+        conn: DuckDB connection or Ibis backend
+        sql: SQL statement to execute
+
+    """
+    if hasattr(conn, "raw_sql"):
+        # Ibis backend
+        conn.raw_sql(sql)
+    elif hasattr(conn, "execute"):
+        # Raw DuckDB connection
+        conn.execute(sql)
+    else:
+        # Fallback for unexpected connection objects
+        msg = f"Connection object {type(conn)} does not support raw_sql or execute"
+        raise AttributeError(msg)
+
 
 def create_table_if_not_exists(
-    conn: Any,
+    conn: DBConnection,
     table_name: str,
     schema: ibis.Schema,
     *,
@@ -46,10 +69,7 @@ def create_table_if_not_exists(
 
     """
     # Explicitly check if the connection is a raw DuckDB connection.
-    # This is more reliable than duck-typing with hasattr.
-    is_raw_duckdb_connection = isinstance(conn, duckdb.DuckDBPyConnection)
-
-    if is_raw_duckdb_connection:
+    if isinstance(conn, duckdb.DuckDBPyConnection):
         # Raw duckdb connection - build the CREATE TABLE statement with constraints.
         if overwrite:
             conn.execute(f"DROP TABLE IF EXISTS {quote_identifier(table_name)}")
@@ -75,17 +95,17 @@ def create_table_if_not_exists(
 
         create_verb = "CREATE TABLE" if overwrite else "CREATE TABLE IF NOT EXISTS"
         create_sql = f"{create_verb} {quote_identifier(table_name)} ({', '.join(all_clauses)})"
-        conn.execute(create_sql)
+        execute_sql(conn, create_sql)
     # Assume Ibis connection for all other cases.
     elif table_name not in conn.list_tables() or overwrite:
         conn.create_table(table_name, schema=schema, overwrite=overwrite)
         # This path is problematic for DuckDB which doesn't support ALTER TABLE ADD CONSTRAINT.
         # But we try to apply what we can via helpers.
         if primary_key:
-            add_primary_key(conn.raw_sql, table_name, primary_key)
+            add_primary_key(conn, table_name, primary_key)
         if check_constraints:
             for constraint_name, check_expr in check_constraints.items():
-                add_check_constraint(conn.raw_sql, table_name, constraint_name, check_expr)
+                add_check_constraint(conn, table_name, constraint_name, check_expr)
         # Note: Foreign keys via ALTER TABLE are tricky/limited in some backends or contexts,
         # so they are best handled in the raw_duckdb path or via migration.
 
@@ -128,17 +148,16 @@ def ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:
     return str(ibis_type).upper()
 
 
-def add_primary_key(conn: duckdb.DuckDBPyConnection, table_name: str, column_name: str) -> None:
+def add_primary_key(conn: DBConnection, table_name: str, column_name: str) -> None:
     """Add a primary key constraint to an existing table.
 
     Args:
-        conn: DuckDB connection (raw, not Ibis)
+        conn: DuckDB connection or Ibis backend
         table_name: Name of the table
         column_name: Column to use as primary key
 
     Note:
         DuckDB requires ALTER TABLE for primary key constraints.
-        This must be called on raw DuckDB connection, not Ibis connection.
 
     """
     try:
@@ -146,14 +165,14 @@ def add_primary_key(conn: duckdb.DuckDBPyConnection, table_name: str, column_nam
         quoted_constraint = quote_identifier(f"pk_{table_name}")
         quoted_col = quote_identifier(column_name)
         sql = f"ALTER TABLE {quoted_table} ADD CONSTRAINT {quoted_constraint} PRIMARY KEY ({quoted_col})"
-        conn.execute(sql)
+        execute_sql(conn, sql)
     except duckdb.Error as e:
         # Constraint may already exist - log and continue
         logger.debug("Could not add primary key to %s.%s: %s", table_name, column_name, e)
 
 
 def ensure_identity_column(
-    conn: Any, table_name: str, column_name: str, *, generated: str = "ALWAYS"
+    conn: DBConnection, table_name: str, column_name: str, *, generated: str = "ALWAYS"
 ) -> None:
     """Ensure a column is configured as an identity column in DuckDB."""
     if generated not in ("ALWAYS", "BY DEFAULT"):
@@ -164,10 +183,7 @@ def ensure_identity_column(
         quoted_table = quote_identifier(table_name)
         quoted_column = quote_identifier(column_name)
         sql = f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} SET GENERATED {generated} AS IDENTITY"
-        if hasattr(conn, "raw_sql"):
-            conn.raw_sql(sql)
-        else:
-            conn.execute(sql)
+        execute_sql(conn, sql)
     except (duckdb.Error, RuntimeError) as e:
         # Identity column setup failure is non-fatal (might already exist or not supported by backend)
         # duckdb.Error is likely, but catching RuntimeError to be safe against different backends
@@ -177,12 +193,12 @@ def ensure_identity_column(
 
 
 def create_index(
-    conn: Any, table_name: str, index_name: str, column_name: str, index_type: str = "HNSW"
+    conn: DBConnection, table_name: str, index_name: str, column_name: str, index_type: str = "HNSW"
 ) -> None:
     """Create an index on a table.
 
     Args:
-        conn: DuckDB connection (raw, not Ibis)
+        conn: DuckDB connection or Ibis backend
         table_name: Name of the table
         index_name: Name for the index
         column_name: Column to index
@@ -190,7 +206,6 @@ def create_index(
 
     Note:
         For vector columns, use index_type='HNSW' with cosine metric (optimized for 768-dim embeddings).
-        This must be called on raw DuckDB connection, not Ibis connection.
         Uses CREATE INDEX IF NOT EXISTS to handle already-existing indexes.
 
     """
@@ -205,20 +220,19 @@ def create_index(
     else:
         sql = f"CREATE INDEX IF NOT EXISTS {q_index} ON {q_table} ({q_col})"
 
-    conn.execute(sql)
+    execute_sql(conn, sql)
 
 
-def add_check_constraint(conn: Any, table_name: str, constraint_name: str, check_expression: str) -> None:
+def add_check_constraint(conn: DBConnection, table_name: str, constraint_name: str, check_expression: str) -> None:
     """Add a CHECK constraint to an existing table.
 
     Args:
-        conn: DuckDB connection (raw, not Ibis)
+        conn: DuckDB connection or Ibis backend
         table_name: Name of the table
         constraint_name: Name for the constraint
         check_expression: SQL expression for the constraint (e.g., "status IN ('draft', 'published')")
 
     Note:
-        This must be called on raw DuckDB connection, not Ibis connection.
         DuckDB requires ALTER TABLE for check constraints.
         Idempotent: silently succeeds if constraint already exists.
 
@@ -227,7 +241,7 @@ def add_check_constraint(conn: Any, table_name: str, constraint_name: str, check
         quoted_table = quote_identifier(table_name)
         quoted_constraint = quote_identifier(constraint_name)
         sql = f"ALTER TABLE {quoted_table} ADD CONSTRAINT {quoted_constraint} CHECK ({check_expression})"
-        conn.execute(sql)
+        execute_sql(conn, sql)
     except duckdb.Error as e:
         # Constraint may already exist - log and continue
         logger.debug("Could not add CHECK constraint to %s: %s", table_name, e)
