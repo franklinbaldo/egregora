@@ -27,7 +27,6 @@ from egregora.orchestration.exceptions import (
     WindowSizeError,
     WindowSplitError,
 )
-from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.journal import create_journal_document, window_already_processed
 from egregora.resources.prompts import PromptManager
 from egregora.transformations.windowing import generate_window_signature, split_window_into_n_parts
@@ -331,7 +330,7 @@ class PipelineRunner:
         else:
             enriched_table = window_table_processed
 
-        resources = PipelineFactory.create_writer_resources(self.context)
+        resources = self.context.create_writer_resources()
         adapter_summary, adapter_instructions = self._extract_adapter_info()
 
         # TODO: [Taskmaster] Refactor data type conversion for consistency

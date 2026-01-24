@@ -66,10 +66,8 @@ class TestPipelineRunnerJournalIntegration:
     @patch("egregora.orchestration.runner.write_posts_for_window")
     @patch("egregora.orchestration.runner.generate_profile_posts")
     @patch("egregora.orchestration.runner.create_journal_document")
-    @patch("egregora.orchestration.runner.PipelineFactory")  # for writer resources
     def test_process_window_creates_journal_on_success(
         self,
-        mock_factory,
         mock_create_journal,
         mock_gen_profiles,
         mock_write_posts,
@@ -134,10 +132,8 @@ class TestPipelineRunnerJournalIntegration:
     @patch("egregora.orchestration.runner.write_posts_for_window")
     @patch("egregora.orchestration.runner.generate_profile_posts")
     @patch("egregora.orchestration.runner.create_journal_document")
-    @patch("egregora.orchestration.runner.PipelineFactory")
     def test_process_window_handles_journal_persist_error(
         self,
-        mock_factory,
         mock_create_journal,
         mock_gen_profiles,
         mock_write_posts,
