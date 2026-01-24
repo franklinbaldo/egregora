@@ -9,8 +9,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.knowledge.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.output_adapters.exceptions import ProfileMetadataError
 from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 

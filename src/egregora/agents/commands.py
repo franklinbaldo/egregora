@@ -8,8 +8,8 @@ import re
 from datetime import datetime
 from typing import Any
 
-from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.knowledge.constants import EGREGORA_NAME, EGREGORA_UUID
 
 
 def is_command(text: str) -> bool:

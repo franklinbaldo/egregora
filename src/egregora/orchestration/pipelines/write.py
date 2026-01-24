@@ -33,8 +33,8 @@ from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
+from egregora.config.enums import WindowUnit
 from egregora.config.settings import EgregoraConfig
-from egregora.constants import WindowUnit
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.ops.taxonomy import generate_semantic_taxonomy

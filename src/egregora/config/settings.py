@@ -39,6 +39,7 @@ import tomli_w
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from egregora.config.enums import SourceType, WindowUnit
 from egregora.config.exceptions import (
     ConfigError,
     ConfigNotFoundError,
@@ -48,7 +49,6 @@ from egregora.config.exceptions import (
     InvalidTimezoneError,
     SiteNotFoundError,
 )
-from egregora.constants import SourceType, WindowUnit
 
 logger = logging.getLogger(__name__)
 

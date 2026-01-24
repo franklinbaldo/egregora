@@ -6,8 +6,8 @@ directory structure: /docs/posts/profiles/{author_uuid}/{slug}.md
 
 import pytest
 
-from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import Document, DocumentType, UrlContext
+from egregora.knowledge.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.output_adapters.conventions import StandardUrlConvention
 
 
