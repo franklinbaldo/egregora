@@ -39,9 +39,9 @@ This section defines the "Portal" design system, which aims to create a dark, im
 -   **Implementation:** `mkdocs.yml` uses `primary: custom` and `accent: custom`.
 
 ### Scoping and Usability
--   **Status:** Needs Refinement.
--   **Issue:** The "Portal" theme uses aggressive global CSS overrides in `extra.css` (e.g., hiding TOC and H1 globally). This degrades usability on standard content pages.
--   **Next Action:** Task `20260122-1400-ux-refine-portal-theme-scoping.md` has been created to scope these overrides to the homepage only using frontmatter and removing global CSS blocks.
+-   **Status:** Implemented.
+-   **Issue:** The "Portal" theme previously used aggressive global CSS overrides.
+-   **Resolution:** Overrides are now correctly scoped to the homepage using the `:has(.homepage-hero)` selector in `extra.css` and `hide: - toc` frontmatter in the homepage template. Standard pages now correctly display their Table of Contents.
 
 ### Typography
 -   **Status:** Defined.
@@ -49,9 +49,9 @@ This section defines the "Portal" design system, which aims to create a dark, im
 -   **Implementation:** The fonts are imported and applied in `extra.css`.
 
 ### Navigation
--   **Status:** Implemented, but needs review.
--   **Issue:** The main navigation is functional. "Media" is top-level.
--   **Next Action:** Review if "Media" should be nested under "Resources" or similar. Task `20260122-1400-ux-refine-portal-theme-scoping.md` addresses this potential restructure.
+-   **Status:** Implemented.
+-   **Issue:** Navigation structure needed refinement.
+-   **Resolution:** "Media" has been nested under "Resources" for a cleaner top-level menu. The `site_url` in `mkdocs.yml` is correctly templated.
 
 ### Analytics
 -   **Status:** Removed.
