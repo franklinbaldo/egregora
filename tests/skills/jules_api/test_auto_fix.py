@@ -69,7 +69,7 @@ class TestAutoFixPrompt:
                 sent_messages.append(message)
                 return {}
 
-        monkeypatch.setattr(self.auto_fix, "TeamClient", lambda: DummyClient())
+        monkeypatch.setattr(self.auto_fix, "JulesClient", lambda: DummyClient())
         monkeypatch.setattr(self.auto_fix, "get_repo_info", lambda: {"repo_full": "owner/repo"})
         monkeypatch.setattr(self.auto_fix, "get_base_sha", lambda *_args, **_kwargs: "base-sha")
         monkeypatch.setattr(self.auto_fix, "fetch_failed_logs_summary", lambda *_args, **_kwargs: "")
@@ -120,7 +120,7 @@ class TestAutoFixPrompt:
                 sent_messages.append((session_id, message))
                 return {}
 
-        monkeypatch.setattr(self.auto_fix, "TeamClient", lambda: DummyClient())
+        monkeypatch.setattr(self.auto_fix, "JulesClient", lambda: DummyClient())
         monkeypatch.setattr(self.auto_fix, "get_repo_info", lambda: {"repo_full": "owner/repo"})
         monkeypatch.setattr(self.auto_fix, "fetch_failed_logs_summary", lambda *_args, **_kwargs: "")
         monkeypatch.setattr(self.auto_fix, "fetch_full_ci_logs", lambda **_kwargs: "")

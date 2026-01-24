@@ -157,19 +157,6 @@ def write_post_impl(ctx: ToolContext, metadata: dict | str, content: str) -> Wri
     # Fix: Unescape literal newlines that might have been escaped by the LLM
     content = content.replace("\\n", "\n")
 
-    # Enforce strict metadata requirements
-    if isinstance(metadata, dict):
-        missing_fields = []
-        if "title" not in metadata or not metadata["title"]:
-            missing_fields.append("title")
-        if "tags" not in metadata or not metadata["tags"]:
-            missing_fields.append("tags")
-
-        if missing_fields:
-            msg = f"Missing required metadata fields: {', '.join(missing_fields)}. Please provide both 'title' and 'tags' (as a list) for the blog post."
-            logger.warning(msg)
-            raise ModelRetry(msg)
-
     doc = Document(
         content=content,
         type=DocumentType.POST,

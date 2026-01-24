@@ -17,7 +17,7 @@ Usage:
 import importlib.util
 import os
 import shutil
-import subprocess  # nosec B404
+import subprocess
 import sys
 from dataclasses import dataclass
 from enum import Enum
@@ -205,7 +205,7 @@ def check_git() -> DiagnosticResult:
             msg = "git executable not found"
             raise FileNotFoundError(msg)
 
-        result = subprocess.run(  # nosec B603
+        result = subprocess.run(
             [git_path, "--version"],
             capture_output=True,
             text=True,

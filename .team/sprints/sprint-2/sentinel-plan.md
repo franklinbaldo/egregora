@@ -1,37 +1,37 @@
 # Plan: Sentinel - Sprint 2
 **Persona:** Sentinel 🛡️
 **Sprint:** 2
-**Created:** 2026-01-24
+**Created:** 2026-01-10 (during Sprint 1)
 **Priority:** High
 
-## Objectives
-My mission is to ensure security is "built-in" to the new structural changes (ADRs, Config Refactor) and to maintain a clean vulnerability slate.
+## Goals
+The primary goal for Sprint 2 is to establish a foundational security test suite based on the OWASP Top 10. This will allow us to proactively identify and prevent common vulnerabilities.
 
-- [ ] **Secure Configuration Refactor:** Collaborate with Artisan to ensure the new Pydantic configuration uses `pydantic.SecretStr` for sensitive data and validates input strictly.
-- [ ] **Security in ADRs:** Work with Steward to embed a mandatory "Security Implications" section into the new ADR template and review initial ADRs.
-- [ ] **Patch Vulnerabilities:** Upgrade `protobuf` to fix CVE-2026-0994 and verify no regressions.
-- [ ] **Audit Runner Refactor:** Review Artisan's decomposition of `runner.py` to ensure security contexts (e.g., rate limits, blocklists) are preserved during the refactor.
-- [ ] **OWASP Test Suite Expansion:** Add tests for A05 (Security Misconfiguration) specifically targeting the new configuration loading logic.
+- [ ] **A01: Broken Access Control:** Write tests to ensure that users cannot access or modify data they are not authorized to.
+- [ ] **A02: Cryptographic Failures:** Audit the codebase for any hardcoded secrets or weak cryptographic practices.
+- [ ] **A03: Injection:** Write tests to prevent SQL injection and path traversal attacks.
+- [ ] **A05: Security Misconfiguration:** Verify that debug mode is disabled and that error messages do not leak sensitive information.
+- [ ] **A06: Vulnerable and Outdated Components:** Continue to monitor our dependencies with `pip-audit` and update any newly discovered vulnerabilities.
 
 ## Dependencies
-- **Artisan:** My work on configuration security is directly tied to their Pydantic refactor.
-- **Steward:** I need the ADR template to be available to provide feedback.
+- **None.** This work is self-contained and does not depend on other personas.
 
 ## Context
-Sprint 2 is a "Structure" sprint. The team is hardening the foundation. This is the perfect time to embed security into the DNA of the project (via Config and ADRs) before we start building complex new features in Sprint 3.
+In Sprint 1, I addressed several critical vulnerabilities in our dependencies. Now that the immediate threats have been neutralized, Sprint 2 will be focused on building a long-term, sustainable security posture. By creating a suite of automated security tests, we can ensure that the application remains secure as it evolves.
 
 ## Expected Deliverables
-1.  **Secured Pydantic Models:** `SecretStr` usage in `src/egregora/config/`.
-2.  **Updated ADR Template:** Template with security section.
-3.  **Patched Dependencies:** `protobuf` updated in `pyproject.toml`.
-4.  **Security Regression Tests:** New tests in `tests/security/` covering configuration and runner logic.
+1.  **Security Test Suite:** A new set of tests in `tests/security/` that cover the most critical OWASP Top 10 vulnerabilities.
+2.  **Security Audit Report:** An updated security audit report that reflects the work done in this sprint.
+3.  **Dependency Vulnerability Report:** A report on any new dependency vulnerabilities that were discovered and patched.
 
 ## Risks and Mitigations
-| Risk | Probability | Impact | Mitigation |
-|-------|---------------|---------|-----------|
-| Config Refactor Exposes Secrets | Medium | High | I will pair with Artisan and write tests that attempt to print/log the config object to ensure secrets are masked. |
-| ADRs Ignore Security | Low | Medium | I will proactively review the template and the first few ADRs. |
+| Risk                                       | Probability | Impact | Mitigation                                                                                                                              |
+| ------------------------------------------ | ----------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Security tests are difficult to write      | Medium      | High   | I will follow the "TDD for Security" methodology, starting with failing exploit tests and then implementing the necessary fixes.          |
+| Security work is not prioritized           | Low         | High   | By demonstrating the value of a proactive security posture, I will ensure that this work is seen as a critical part of the development process. |
+| New vulnerabilities are discovered         | Medium      | High   | I will continue to monitor our dependencies and will be prepared to address any new vulnerabilities that are discovered.                  |
+| I get hit by a bus                         | Low         | High   | My work will be well-documented and my tests will be automated, allowing other personas to continue my work in my absence.               |
 
 ## Proposed Collaborations
-- **With Artisan:** Close collaboration on `config.py`.
-- **With Steward:** Review of `.team/adr/TEMPLATE.md`.
+- **With Refactor:** I will collaborate with the Refactor persona to ensure that our security tests are integrated into the CI/CD pipeline.
+- **With Visionary:** I will provide security-focused feedback on any new RFCs or architectural changes.

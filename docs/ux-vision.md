@@ -16,42 +16,52 @@ This document outlines the user experience and user interface (UX/UI) vision for
 
 ### Template Architecture
 
-**CRITICAL FINDING:** The templates for the MkDocs site have been moved to Jinja2 files in `src/egregora/rendering/templates/site/`. This is a significant improvement over the previous embedded string approach.
+**CRITICAL FINDING:** The templates for the MkDocs site are **not** standalone `.html` or `.jinja2` files. They are embedded as triple-quoted strings within the Python source code.
 
-Key locations:
--   `src/egregora/output_adapters/mkdocs/scaffolding.py`: Renders these templates during the scaffold process.
--   `src/egregora/rendering/templates/site/mkdocs.yml.jinja`: The main configuration template.
--   `src/egregora/rendering/templates/site/docs/stylesheets/extra.css`: The "Portal" theme styles.
+This has significant implications for how we work:
+-   **Forge Persona:** All UX/UI changes will require modifying Python files, not just HTML/CSS.
+-   **Curator Persona:** My tasks must be extremely precise, pointing to the exact Python file and even the specific function or variable that contains the template string.
+
+The key locations for these embedded templates are:
+-   `src/egregora/output_adapters/mkdocs/scaffolding.py`: Generates `mkdocs.yml` and the core site structure.
+-   `src/egregora/output_adapters/mkdocs/adapter.py`: Generates the individual Markdown pages for posts, profiles, etc.
+-   `src/egregora/output_adapters/mkdocs/site_generator.py`: Orchestrates the assembly of the site and generation of summary pages.
 
 ### Developer Experience
--   **Status:** Improving.
--   **Issue:** The `egregora demo` command works but throws a `RuntimeError: Event loop is closed` at the end. It successfully generates the site structure even if API keys are missing (Graceful Degradation working!).
--   **Next Action:** A task should be created to fix the event loop error, but it is not blocking UX work.
+-   **Status:** Broken.
+-   **Issue:** The `egregora demo` and `mkdocs build` commands fail due to numerous missing dependencies in `pyproject.toml`. This makes the project unusable in a clean environment.
+-   **Next Action:** A comprehensive task, `20260116-1400-ux-implement-portal-vision.md`, has been created for the `forge` persona to add all required dependencies to `pyproject.toml`.
 
 ## Design System (V1 - "The Portal")
 
 This section defines the "Portal" design system, which aims to create a dark, immersive, and premium experience.
 
 ### Color Palette
--   **Status:** Implemented.
+-   **Status:** Broken.
 -   **Primary:** A deep, thoughtful blue (`#2c3e50`) defined in `extra.css`.
 -   **Accent:** A vibrant, energetic yellow (`#f9d423`) defined in `extra.css`.
--   **Implementation:** `mkdocs.yml` uses `primary: custom` and `accent: custom`.
-
-### Scoping and Usability
--   **Status:** Needs Refinement.
--   **Issue:** The "Portal" theme uses aggressive global CSS overrides in `extra.css` (e.g., hiding TOC and H1 globally). This degrades usability on standard content pages.
--   **Next Action:** Task `20260122-1400-ux-refine-portal-theme-scoping.md` has been created to scope these overrides to the homepage only using frontmatter and removing global CSS blocks.
+-   **Conflict:** The generated `mkdocs.yml` incorrectly hardcodes `accent: yellow`, which overrides the custom accent color in `extra.css` and breaks the "Portal" theme.
+-   **Next Action:** The task `20260116-1400-ux-implement-portal-vision.md` instructs the `forge` persona to modify the `mkdocs.yml` template to use `accent: custom`.
 
 ### Typography
 -   **Status:** Defined.
 -   **Fonts:** `Outfit` for headings and `Inter` for body text.
--   **Implementation:** The fonts are imported and applied in `extra.css`.
+-   **Implementation:** The fonts are imported and applied in `demo/docs/stylesheets/extra.css`.
+
+### Favicon
+-   **Status:** Missing.
+-   **Issue:** The site is missing a favicon, which is referenced in the generated `mkdocs.yml` but not included in the scaffolded files.
+-   **Next Action:** The task `20260116-1400-ux-implement-portal-vision.md` instructs the `forge` persona to add a placeholder favicon and ensure it's copied during the scaffolding process.
+
+### Social Cards
+-   **Status:** Broken.
+-   **Issue:** The social card generation fails with 404 errors during the `mkdocs build` process.
+-   **Next Action:** The task `20260116-1400-ux-implement-portal-vision.md` instructs the `forge` persona to fix the social card generation.
 
 ### Navigation
 -   **Status:** Implemented, but needs review.
--   **Issue:** The main navigation is functional. "Media" is top-level.
--   **Next Action:** Review if "Media" should be nested under "Resources" or similar. Task `20260122-1400-ux-refine-portal-theme-scoping.md` addresses this potential restructure.
+-   **Issue:** The main navigation is functional, but the "Media" page is a placeholder and may not be the most logical top-level item. The hero section on the homepage also contains navigation links that should be consistent with the main nav.
+-   **Next Action:** Review the information architecture and create a task to restructure the navigation for better clarity and consistency.
 
 ### Analytics
 -   **Status:** Removed.

@@ -17,7 +17,6 @@ from google import genai
 
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.types import WriterResources
-from egregora.config.exceptions import InvalidDatabaseUriError, SiteStructureError
 from egregora.data_primitives.document import UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
@@ -158,24 +157,25 @@ class PipelineFactory:
 
         def _validate_and_connect(value: str, setting_name: str) -> tuple[str, Any]:
             if not value:
-                raise InvalidDatabaseUriError(value, f"Database setting '{setting_name}' must be non-empty.")
+                msg = f"Database setting '{setting_name}' must be a non-empty connection URI."
+                raise ValueError(msg)
 
             parsed = urlparse(value)
             if not parsed.scheme:
                 msg = (
-                    f"Database setting '{setting_name}' must be provided as an "
+                    "Database setting '{setting}' must be provided as an "
                     "Ibis-compatible connection URI (e.g. 'duckdb:///absolute/path/to/file.duckdb' "
                     "or 'postgres://user:pass@host/db')."
                 )
-                raise InvalidDatabaseUriError(value, msg)
+                raise ValueError(msg.format(setting=setting_name))
 
             if len(parsed.scheme) == 1 and value[1:3] in {":/", ":\\"}:
                 msg = (
-                    f"Database setting '{setting_name}' looks like a filesystem path. "
+                    "Database setting '{setting}' looks like a filesystem path. "
                     "Provide a full connection URI instead "
                     "(see the database settings documentation)."
                 )
-                raise InvalidDatabaseUriError(value, msg)
+                raise ValueError(msg.format(setting=setting_name))
 
             normalized_value = value
 
@@ -221,7 +221,7 @@ class PipelineFactory:
                 f"No mkdocs.yml found for site at {output_dir}. "
                 "Run 'egregora init <site-dir>' before processing exports."
             )
-            raise SiteStructureError(str(output_dir), msg)
+            raise ValueError(msg)
 
         docs_dir = site_paths.docs_dir
         if not docs_dir.exists():
@@ -229,7 +229,7 @@ class PipelineFactory:
                 f"Docs directory not found: {docs_dir}. "
                 "Re-run 'egregora init' to scaffold the MkDocs project."
             )
-            raise SiteStructureError(str(docs_dir), msg)
+            raise ValueError(msg)
 
         return site_paths
 

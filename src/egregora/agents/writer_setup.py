@@ -21,7 +21,7 @@ from egregora.agents.writer_helpers import (
     validate_prompt_fits,
 )
 from egregora.config.exceptions import ApiKeyNotFoundError
-from egregora.llm.api_keys import get_google_api_key, get_openrouter_api_key
+from egregora.config.settings import get_google_api_key, get_openrouter_api_key
 
 if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig

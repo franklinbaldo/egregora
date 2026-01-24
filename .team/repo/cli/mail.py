@@ -82,10 +82,6 @@ def inbox(
     unread: bool = typer.Option(
         False, "--unread", "-u",
         help="Filter for unread messages"
-    ),
-    limit: int = typer.Option(
-        None, "--limit", "-l",
-        help="Limit number of messages to display"
     )
 ):
     """
@@ -106,10 +102,6 @@ def inbox(
         if not messages:
             print(f"📬 Inbox for {persona} is empty.")
             return
-
-        # Apply limit if specified
-        if limit and limit > 0:
-            messages = messages[:limit]
 
         print(f"📬 Messages for {persona}:")
         for msg in messages:

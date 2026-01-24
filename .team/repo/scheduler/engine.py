@@ -36,8 +36,6 @@ from repo.scheduler.schedule import (
     count_remaining_empty,
     get_active_oracle_session,
     get_current_sequence,
-    get_current_sequence_from_api,
-    get_last_sequence_from_api,
     load_schedule,
     register_oracle_session,
     save_schedule,
@@ -393,9 +391,6 @@ def create_persona_session(
 def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> SchedulerResult:
     """Execute next persona in sequential order from schedule.csv.
 
-    Uses Jules API as source of truth for determining the next sequence.
-    This prevents duplicate sessions even if the CSV is out of sync.
-
     Args:
         dry_run: If True, don't create sessions or modify files
         reset: If True, reset current sequence (requires manual CSV edit)
@@ -425,33 +420,19 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> Sched
             if not dry_run:
                 save_schedule(rows)
 
-        # Query Jules API to find the last sequence created (source of truth)
-        last_api_seq, last_api_persona = get_last_sequence_from_api(repo_info["repo"])
-        if last_api_seq is not None:
-            print(f"📡 Jules API: Last sequence = {last_api_seq} ({last_api_persona or 'unknown'})")
-        else:
-            print("📋 Jules API unavailable, using CSV-based approach")
 
-        # Find current sequence using API as source of truth
-        current, schedule_modified = get_current_sequence_from_api(rows, repo_info["repo"])
+        # Find current sequence
+        current, schedule_modified = get_current_sequence(rows)
 
         # Save schedule if invalid personas were marked as closed
         if schedule_modified and not dry_run:
             save_schedule(rows)
 
         if not current:
-            # Check if we are truly done or just blocked by an active session
-            remaining = count_remaining_empty(rows)
-            if remaining > 0:
-                return SchedulerResult(
-                    success=True,
-                    message="Waiting for active session to complete (sequential execution)"
-                )
-            else:
-                return SchedulerResult(
-                    success=True,
-                    message="All scheduled work complete"
-                )
+            return SchedulerResult(
+                success=True,
+                message="All scheduled work complete"
+            )
 
         seq = current["sequence"]
         persona_id = current["persona"]
@@ -465,7 +446,7 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> Sched
             persona_id = voted_winner
             # Reload schedule to get updated persona
             rows = load_schedule()
-            current, _ = get_current_sequence_from_api(rows, repo_info["repo"])
+            current, _ = get_current_sequence(rows)
             if current:
                 persona_id = current["persona"]
 
@@ -511,17 +492,6 @@ def execute_sequential_tick(dry_run: bool = False, reset: bool = False) -> Sched
         )
 
         if result.success and result.session_id:
-            # Check for duplicate session_id before saving (prevent scheduler bug)
-            existing_ids = {
-                r.get("session_id", "").strip()
-                for r in rows
-                if r.get("session_id", "").strip()
-            }
-            if result.session_id in existing_ids:
-                return SchedulerResult(
-                    success=False,
-                    message=f"Duplicate session_id {result.session_id[:16]}... detected, aborting"
-                )
 
             # Update CSV
             rows = update_sequence(rows, seq, session_id=result.session_id)

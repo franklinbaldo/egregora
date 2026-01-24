@@ -90,7 +90,7 @@ class TestPipelineRunnerJournalIntegration:
 
         # Mock processing returns
         mock_media.return_value = (MagicMock(), {})
-        mock_write_posts.return_value = {"posts": ["post1"], "profiles": ["profile1"]}
+        mock_write_posts.return_value = (["post1"], ["profile1"])
         mock_gen_profiles.return_value = []
 
         mock_journal_doc = MagicMock()
@@ -157,7 +157,7 @@ class TestPipelineRunnerJournalIntegration:
         mock_check.return_value = False
 
         mock_media.return_value = (MagicMock(), {})
-        mock_write_posts.return_value = {"posts": ["post1"], "profiles": []}
+        mock_write_posts.return_value = (["post1"], [])
         mock_gen_profiles.return_value = []
 
         mock_journal_doc = MagicMock()

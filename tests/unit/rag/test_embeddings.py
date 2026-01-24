@@ -8,7 +8,6 @@ import pytest
 import respx
 from httpx import Response
 
-from egregora.config.exceptions import ApiKeyNotFoundError
 from egregora.rag.embeddings import (
     embed_chunks,
     embed_query_text,
@@ -124,12 +123,12 @@ class TestEmbedText:
             embed_text("test", model="models/text-embedding-004")
 
     def test_raises_value_error_when_no_api_key(self, monkeypatch):
-        """Should raise ApiKeyNotFoundError when API key is not configured."""
+        """Should raise ValueError when API key is not configured."""
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("GEMINI_API_KEYS", raising=False)
 
-        with pytest.raises(ApiKeyNotFoundError, match=r"not set.*GOOGLE_API_KEY"):
+        with pytest.raises(ValueError, match=r"GOOGLE_API_KEY.*required"):
             embed_text("test", model="models/text-embedding-004")
 
     @respx.mock

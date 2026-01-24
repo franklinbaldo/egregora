@@ -25,12 +25,12 @@ EXCLUDED_PERSONAS = [
 
 # Fallback list if filesystem discovery fails
 # This should match the actual personas in .team/personas/ (excluding EXCLUDED_PERSONAS)
-# Updated 2026-01-23: Added lore, maya, meta; removed archived personas
 FALLBACK_CYCLE_PERSONAS = [
-    "absolutist", "artisan", "bolt", "builder", "curator",
-    "essentialist", "forge", "janitor", "lore", "maya", "meta",
-    "organizer", "refactor", "sapper", "scribe", "sentinel",
-    "shepherd", "sheriff", "simplifier", "streamliner", "typeguard", "visionary"
+    "absolutist", "artisan", "bolt", "builder", "curator", "docs_curator",
+    "essentialist", "forge", "janitor", "lore", "maintainer", "organizer", "palette",
+    "pruner", "refactor", "sapper", "scribe", "sentinel", "shepherd", "sheriff",
+    "simplifier", "steward", "streamliner", "taskmaster", "typeguard",
+    "visionary"
 ]
 
 
@@ -48,13 +48,9 @@ def discover_personas() -> list[str]:
 
     try:
         # Find all subdirectories (persona definitions)
-        # Exclude hidden directories (.) and internal directories (_)
         personas = [
             p.name for p in PERSONAS_DIR.iterdir()
-            if p.is_dir()
-            and not p.name.startswith('.')
-            and not p.name.startswith('_')
-            and p.name not in EXCLUDED_PERSONAS
+            if p.is_dir() and not p.name.startswith('.') and p.name not in EXCLUDED_PERSONAS
         ]
 
         if not personas:
@@ -129,13 +125,13 @@ def get_current_sequence(rows: list[dict[str, Any]]) -> tuple[dict[str, Any] | N
         status = row.get("pr_status", "").strip().lower()
 
         # Skip completed rows
-        if status in ["merged", "closed", "draft", "open"]:
+        if status in ["merged", "closed"]:
             continue
 
-        # If a session exists but is not completed, we must wait.
-        # We should NOT proceed to the next row (strict sequential execution).
+        # Skip rows that have a session (regardless of PR status)
+        # Once a session exists, wait for PR tracker to update the status
         if session_id:
-            return None, modified
+            continue
 
         # Skip excluded personas
         persona = row.get("persona", "").strip().lower()
@@ -184,7 +180,6 @@ def auto_extend(rows: list[dict[str, Any]], count: int = 50) -> list[dict[str, A
     """Add more rows to the schedule if running low.
 
     Uses round-robin through discovered personas, skipping any that don't exist.
-    Ensures sequential sequence numbers with no gaps.
     """
     cycle_personas = get_cycle_personas()
 
@@ -204,20 +199,16 @@ def auto_extend(rows: list[dict[str, Any]], count: int = 50) -> list[dict[str, A
             last_persona_idx = -1
 
     added = 0
-    attempt = 0
-    # Keep trying until we've added the requested count of valid personas
-    # This prevents gaps in sequence numbers when personas don't exist
-    while added < count and attempt < count * 2:  # Safety limit to prevent infinite loops
-        persona_idx = (last_persona_idx + attempt + 1) % len(cycle_personas)
+    for i in range(count):
+        seq = last_seq + i + 1
+        persona_idx = (last_persona_idx + i + 1) % len(cycle_personas)
         persona = cycle_personas[persona_idx]
-        attempt += 1
 
         # Double-check persona exists before adding to schedule
         if not validate_persona_exists(persona):
             print(f"⚠️  Skipping non-existent persona '{persona}' during schedule extension")
             continue
 
-        seq = last_seq + added + 1  # Use 'added' count for sequential sequence numbers
         rows.append({
             "sequence": f"{seq:03d}",
             "persona": persona,
@@ -240,7 +231,6 @@ def validate_and_fix(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], 
     fixed_rows: list[dict[str, Any]] = []
 
     seen_sequences = set()
-    seen_session_ids: set[str] = set()
     
     for i, row in enumerate(rows):
         # Ensure all required fields exist
@@ -261,18 +251,6 @@ def validate_and_fix(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], 
             issues.append(f"Row {i+1}: Duplicate sequence {fixed_row['sequence']}, skipping")
             continue
         seen_sequences.add(fixed_row["sequence"])
-
-        # Detect duplicate session_ids (indicates scheduler bug)
-        session_id = fixed_row.get("session_id", "").strip()
-        if session_id:
-            if session_id in seen_session_ids:
-                issues.append(
-                    f"Row {i+1}: Duplicate session_id {session_id[:16]}... "
-                    f"(seq {fixed_row['sequence']}), marking as closed"
-                )
-                fixed_row["pr_status"] = "closed"
-            else:
-                seen_session_ids.add(session_id)
         
         # Validate persona
         persona = fixed_row["persona"].strip().lower()
@@ -428,173 +406,6 @@ def extract_sequence_from_title(title: str) -> str | None:
     # Match 3-digit sequence at the start of title
     match = re.match(r'^(\d{3})\s', title)
     return match.group(1) if match else None
-
-
-def extract_persona_from_title(title: str) -> str | None:
-    """Extract persona name from session title.
-
-    Matches pattern: "{seq} {emoji} {persona} {repo}"
-    Example: "002 🎨 artisan egregora"
-
-    Returns persona name or None if not found.
-    """
-    cycle_personas = get_cycle_personas()
-    title_lower = title.lower()
-    for persona in cycle_personas:
-        if persona in title_lower:
-            return persona
-    return None
-
-
-def get_last_sequence_from_api(repo_name: str | None = None) -> tuple[int | None, str | None]:
-    """Query Jules API to find the highest sequence number created.
-
-    NOTE: This is used for informational logging only. The CSV is the source
-    of truth for determining what sequence to run next. See
-    get_current_sequence_from_api() for the actual scheduling logic.
-
-    Args:
-        repo_name: Optional repo name to filter sessions (e.g., "egregora")
-
-    Returns:
-        Tuple of (last_sequence_number, last_persona)
-        Returns (None, None) if API error
-        Returns (0, None) if no sessions found in API
-    """
-    from repo.core.client import TeamClient
-
-    try:
-        client = TeamClient()
-        sessions_data = client.list_sessions()
-        sessions = sessions_data.get("sessions", [])
-
-        if not sessions:
-            return 0, None
-
-        max_seq = 0
-        max_persona = None
-
-        for session in sessions:
-            title = session.get("title", "") or ""
-
-            # Filter by repo if specified
-            if repo_name and repo_name.lower() not in title.lower():
-                continue
-
-            seq_str = extract_sequence_from_title(title)
-            if seq_str:
-                seq_num = int(seq_str)
-                if seq_num > max_seq:
-                    max_seq = seq_num
-                    max_persona = extract_persona_from_title(title)
-
-        return max_seq, max_persona
-
-    except Exception as e:
-        print(f"⚠️  Failed to query Jules API for last sequence: {e}")
-        # Return None to signal that we should fall back to CSV-based approach
-        return None, None
-
-
-def get_current_sequence_from_api(
-    rows: list[dict[str, Any]],
-    repo_name: str | None = None
-) -> tuple[dict[str, Any] | None, bool]:
-    """Find the next sequence to execute, using API to prevent duplicates.
-
-    This function finds the first row that needs work (no session_id, not closed).
-    It uses the Jules API to verify we don't create duplicate sessions for
-    sequences that may have been processed but not yet reflected in the CSV.
-
-    The CSV is the primary source of truth for what needs to run. The API is
-    only used for duplicate prevention, not for skipping sequences.
-
-    Args:
-        rows: Schedule rows
-        repo_name: Optional repo name to filter sessions
-
-    Returns:
-        Tuple of (next_row, schedule_modified)
-        - next_row: The next row to execute, or None if all done
-        - schedule_modified: True if rows were modified (invalid personas marked closed)
-    """
-    # Get API sessions for duplicate checking (not for sequence skipping)
-    api_session_sequences = _get_api_session_sequences(repo_name)
-
-    modified = False
-
-    # Find the first row that needs work (CSV is source of truth)
-    for row in rows:
-        # Skip completed rows
-        status = row.get("pr_status", "").strip().lower()
-        if status in ["merged", "closed", "draft", "open"]:
-            continue
-
-        # Skip rows that already have a session in CSV
-        # If a session exists but is not completed, we must wait (strict sequential execution).
-        session_id = row.get("session_id", "").strip()
-        if session_id:
-            return None, modified
-
-        # Skip excluded personas
-        persona = row.get("persona", "").strip().lower()
-        if persona in EXCLUDED_PERSONAS:
-            continue
-
-        # Skip personas that don't exist (auto-mark as closed)
-        if not validate_persona_exists(persona):
-            print(f"⚠️  Persona '{persona}' not found, marking sequence {row['sequence']} as closed")
-            row['pr_status'] = 'closed'
-            modified = True
-            continue
-
-        # Check API for duplicate prevention (belt-and-suspenders)
-        # If this sequence already has a session in the API, skip it
-        seq = row.get("sequence", "").strip()
-        if seq in api_session_sequences:
-            print(f"⚠️  Sequence {seq} already has session in API, skipping")
-            continue
-
-        # This row needs work
-        return row, modified
-
-    return None, modified
-
-
-def _get_api_session_sequences(repo_name: str | None = None) -> set[str]:
-    """Get set of sequence numbers that have sessions in the Jules API.
-
-    Used for duplicate prevention - if a sequence already has a session
-    in the API, we shouldn't create another one.
-
-    Returns:
-        Set of sequence strings (e.g., {"116", "117", "123"})
-    """
-    from repo.core.client import TeamClient
-
-    try:
-        client = TeamClient()
-        sessions_data = client.list_sessions()
-        sessions = sessions_data.get("sessions", [])
-
-        sequences = set()
-        for session in sessions:
-            title = session.get("title", "") or ""
-
-            # Filter by repo if specified
-            if repo_name and repo_name.lower() not in title.lower():
-                continue
-
-            seq_str = extract_sequence_from_title(title)
-            if seq_str:
-                sequences.add(seq_str)
-
-        return sequences
-
-    except Exception as e:
-        print(f"⚠️  Failed to query Jules API for session sequences: {e}")
-        # Return empty set - we'll rely on CSV session_id for duplicate prevention
-        return set()
 
 
 def list_recent_sessions(limit: int = 20) -> None:

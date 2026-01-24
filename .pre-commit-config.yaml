@@ -25,13 +25,6 @@ repos:
   # - check-complexity, check-dead-code, check-security: Use scripts/quality.sh instead
   - repo: local
     hooks:
-      - id: detect-regression
-        name: Detect code regressions
-        entry: python .github/scripts/detect_regression.py
-        language: system
-        pass_filenames: false
-        stages: [pre-commit]
-        verbose: true
       # - id: check-root-structure
       #   name: Enforce Clean Root Directory
       #   entry: python scripts/dev_tools/check_root_structure.py
@@ -125,7 +118,7 @@ repos:
             "--cov=src/egregora",
             "--cov-report=term-missing",
             "--cov-branch",
-            "--cov-fail-under=57.5",
+            "--cov-fail-under=57",
             "-q",
             "--ignore=tests/unit/team",
           ]

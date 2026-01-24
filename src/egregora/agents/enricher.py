@@ -875,8 +875,6 @@ class EnrichmentWorker(BaseWorker):
             if enrichment:
                 # Build EnrichmentOutput from result
                 slug = enrichment.get("slug", "")
-                title = enrichment.get("title") or slug.replace("-", " ").title()
-                tags = enrichment.get("tags", [])
                 summary = enrichment.get("summary", "")
                 takeaways = enrichment.get("key_takeaways", [])
 
@@ -893,7 +891,7 @@ class EnrichmentWorker(BaseWorker):
 ---
 *Source: [{url}]({url})*
 """
-                output = EnrichmentOutput(slug=slug, markdown=markdown, title=title, tags=tags)
+                output = EnrichmentOutput(slug=slug, markdown=markdown)
                 results.append((task, output, None))
                 logger.info("[URLEnricher] Processed %s via single-call batch", url)
             else:
@@ -1517,12 +1515,17 @@ class EnrichmentWorker(BaseWorker):
                 new_path = f"media/{media_subdir}/{slug_value}{Path(filename).suffix}"
 
                 # Using SQL replace to update all occurrences
-                # Use parameterized queries to prevent SQL injection
+                # TODO: [Taskmaster] Refactor to use parameterized queries to prevent SQL injection
                 try:
-                    # Update text column using parameterized query
+                    # We need to use valid SQL string escaping
+                    safe_original = original_ref.replace("'", "''")
+                    safe_new = new_path.replace("'", "''")
+
+                    # Update text column
                     # Note: This updates ALL messages containing this ref.
-                    query = "UPDATE messages SET text = replace(text, ?, ?) WHERE text LIKE ?"
-                    self.ctx.storage._conn.execute(query, [original_ref, new_path, f"%{original_ref}%"])
+                    # Given filenames are usually unique (timestamps), this is safe.
+                    query = f"UPDATE messages SET text = replace(text, '{safe_original}', '{safe_new}') WHERE text LIKE '%{safe_original}%'"
+                    self.ctx.storage._conn.execute(query)
                 except duckdb.Error as exc:
                     logger.warning("Failed to update message references for %s: %s", original_ref, exc)
 

@@ -131,7 +131,7 @@ def embed_text(
         768-dimensional embedding vector
 
     Raises:
-        ApiKeyNotFoundError: If GOOGLE_API_KEY not set and api_key not provided
+        ValueError: If GOOGLE_API_KEY not set and api_key not provided
         EmbeddingValidationError: If API returns invalid response format
         RateLimitError: If API rate limit is exceeded after retries
         EmbeddingAPIError: If API request fails after retries
@@ -181,7 +181,7 @@ def _embed_batch_chunk(
         List of 768-dimensional embedding vectors
 
     Raises:
-        ApiKeyNotFoundError: If GOOGLE_API_KEY not set and api_key not provided
+        ValueError: If GOOGLE_API_KEY not set and api_key not provided
         EmbeddingValidationError: If API returns invalid response format
         RateLimitError: If API rate limit is exceeded after retries
         EmbeddingAPIError: If API request fails after retries
@@ -243,7 +243,7 @@ def embed_texts_in_batch(
         List of 768-dimensional embedding vectors
 
     Raises:
-        ApiKeyNotFoundError: If GOOGLE_API_KEY not set and api_key not provided
+        ValueError: If GOOGLE_API_KEY not set and api_key not provided
         RuntimeError: If embedding API returns invalid response
         httpx.HTTPError: If API request fails after retries
 

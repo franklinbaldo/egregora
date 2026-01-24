@@ -9,7 +9,7 @@ import logging
 import math
 from collections import deque
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any
 
 from egregora.agents.banner.worker import BannerWorker
 from egregora.agents.commands import command_to_announcement, filter_commands
@@ -19,7 +19,7 @@ from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.types import Message, PromptTooLargeError, WindowProcessingParams
 from egregora.agents.writer import write_posts_for_window
-from egregora.data_primitives.document import Document, DocumentType, UrlContext
+from egregora.data_primitives.document import DocumentType, UrlContext
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.exceptions import (
@@ -37,16 +37,8 @@ if TYPE_CHECKING:
 
     import ibis.expr.types as ir
 
-    from egregora.data_primitives.document import DocumentMetadata
     from egregora.input_adapters.base import MediaMapping
     from egregora.transformations.windowing import Window
-
-    class JournalRepositoryProtocol(Protocol):
-        def list(self, doc_type: DocumentType) -> Iterator[DocumentMetadata]: ...
-
-    class LibraryProtocol(Protocol):
-        journal: JournalRepositoryProtocol
-
 
 logger = logging.getLogger(__name__)
 
@@ -186,15 +178,13 @@ class PipelineRunner:
             Set of (start_iso, end_iso) tuples.
 
         """
-        processed: set[tuple[str, str]] = set()
+        processed = set()
         if not self.context.library:
             return processed
 
         try:
             # Using list(DocumentType.JOURNAL) on library.journal (which is a DocumentRepository)
-            # Use cast to Protocol to avoid "object has no attribute journal" error
-            library = cast("LibraryProtocol", self.context.library)
-            journals = library.journal.list(doc_type=DocumentType.JOURNAL)
+            journals = self.context.library.journal.list(doc_type=DocumentType.JOURNAL)
 
             for journal in journals:
                 # journal is DocumentMetadata (identifier, doc_type, metadata)
@@ -401,19 +391,13 @@ class PipelineRunner:
             messages=messages_dtos,  # Inject DTOs
         )
 
-        writer_result = write_posts_for_window(params)
-        posts: list[str] = cast("list[str]", writer_result.get("posts", []))
-        profiles: list[str] = cast("list[str]", writer_result.get("profiles", []))
+        posts, profiles = write_posts_for_window(params)
 
         window_date = window.start_time.strftime("%Y-%m-%d")
         try:
-            profile_docs_result = generate_profile_posts(
+            profile_docs = generate_profile_posts(
                 ctx=self.context, messages=clean_messages_list, window_date=window_date
             )
-            # Handle potential awaitable return from generate_profile_posts
-            # In sync context, we expect list[Document]
-            profile_docs: list[Document] = cast("list[Document]", profile_docs_result)
-
             for profile_doc in profile_docs:
                 try:
                     output_sink.persist(profile_doc)

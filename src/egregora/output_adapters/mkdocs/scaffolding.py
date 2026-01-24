@@ -48,7 +48,7 @@ def safe_yaml_load(content: str) -> dict[str, Any]:
     # FullLoader but still triggers S506 in some tools if not explicitly 'safe_load'.
     # However, standard safe_load doesn't support custom constructors easily without
     # global state or more complex code. Our _ConfigLoader inherits from SafeLoader.
-    return yaml.load(content, Loader=_ConfigLoader) or {}  # nosec B506
+    return yaml.load(content, Loader=_ConfigLoader) or {}
 
 
 class MkDocsSiteScaffolder:

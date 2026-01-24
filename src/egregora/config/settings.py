@@ -40,11 +40,11 @@ from pydantic import BaseModel, Field, ValidationError, field_validator, model_v
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from egregora.config.exceptions import (
+    ApiKeyNotFoundError,
     ConfigError,
     ConfigNotFoundError,
     ConfigValidationError,
     InvalidDateFormatError,
-    InvalidEnrichmentConfigError,
     InvalidTimezoneError,
     SiteNotFoundError,
 )
@@ -607,38 +607,6 @@ class ReaderSettings(BaseModel):
     )
 
 
-class TaxonomySettings(BaseModel):
-    """Semantic taxonomy generation settings.
-
-    After posts are generated, clusters similar posts and assigns
-    consistent tags using LLM analysis. Uses K-Means clustering
-    with k = n^cluster_exponent (default: sqrt, exponent=0.5).
-    """
-
-    enabled: bool = Field(
-        default=True,
-        description="Enable automatic semantic taxonomy generation",
-    )
-    num_clusters: int | None = Field(
-        default=None,
-        ge=2,
-        le=100,
-        description="Fixed number of clusters. If None, uses formula: n^cluster_exponent",
-    )
-    cluster_exponent: float = Field(
-        default=0.5,
-        ge=0.1,
-        le=1.0,
-        description="Exponent for cluster count formula: k = n^exponent. Default 0.5 (sqrt). Use 0.368 (1/e) for fewer clusters.",
-    )
-    min_docs: int = Field(
-        default=5,
-        ge=2,
-        le=50,
-        description="Minimum documents required before clustering",
-    )
-
-
 class FeaturesSettings(BaseModel):
     """Feature flags for experimental or optional functionality."""
 
@@ -755,10 +723,6 @@ class EgregoraConfig(BaseSettings):
     quota: QuotaSettings = Field(
         default_factory=QuotaSettings,
         description="LLM usage quota tracking",
-    )
-    taxonomy: TaxonomySettings = Field(
-        default_factory=TaxonomySettings,
-        description="Semantic taxonomy generation settings",
     )
 
     model_config = SettingsConfigDict(
@@ -1216,10 +1180,10 @@ class PipelineEnrichmentConfig:
         """Validate configuration after initialization."""
         if self.batch_threshold < 1:
             msg = f"batch_threshold must be >= 1, got {self.batch_threshold}"
-            raise InvalidEnrichmentConfigError(msg)
+            raise ValueError(msg)
         if self.max_enrichments < 0:
             msg = f"max_enrichments must be >= 0, got {self.max_enrichments}"
-            raise InvalidEnrichmentConfigError(msg)
+            raise ValueError(msg)
 
     @classmethod
     def from_cli_args(cls, **kwargs: Any) -> PipelineEnrichmentConfig:
@@ -1268,8 +1232,54 @@ __all__ = [
     "WriterRuntimeConfig",
     "create_default_config",
     "find_egregora_config",
+    "get_google_api_key",
+    "get_google_api_keys",
+    "get_openrouter_api_key",
+    "get_openrouter_api_keys",
     "load_egregora_config",
     "parse_date_arg",
     "save_egregora_config",
     "validate_timezone",
 ]
+
+
+def get_google_api_key() -> str:
+    """Get Google API key from environment, checking both GEMINI and GOOGLE variables."""
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if not api_key:
+        msg = "GEMINI_API_KEY or GOOGLE_API_KEY"
+        raise ApiKeyNotFoundError(msg)
+    return api_key
+
+
+def _get_api_keys_from_env(*env_vars: str) -> list[str]:
+    """Get a de-duplicated list of API keys from multiple environment variables."""
+    keys: list[str] = []
+    for var in env_vars:
+        keys_str = os.environ.get(var, "")
+        if not keys_str:
+            continue
+        for k in keys_str.split(","):
+            val = k.strip().lstrip("=").strip()
+            if val and val not in keys:
+                keys.append(val)
+    return keys
+
+
+def get_google_api_keys() -> list[str]:
+    """Get list of Google API keys from environment."""
+    return _get_api_keys_from_env("GEMINI_API_KEYS", "GEMINI_API_KEY", "GOOGLE_API_KEY")
+
+
+def get_openrouter_api_key() -> str:
+    """Get OpenRouter API key from environment."""
+    keys = get_openrouter_api_keys()
+    if not keys:
+        msg = "OPENROUTER_API_KEY or OPENROUTER_API_KEYS"
+        raise ApiKeyNotFoundError(msg)
+    return keys[0]
+
+
+def get_openrouter_api_keys() -> list[str]:
+    """Get list of OpenRouter API keys from environment."""
+    return _get_api_keys_from_env("OPENROUTER_API_KEYS", "OPENROUTER_API_KEY")

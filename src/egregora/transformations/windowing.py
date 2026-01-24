@@ -314,8 +314,10 @@ def _window_by_time(
 ) -> Iterator[Window]:
     """Generate windows of fixed time duration with optional overlap.
 
-    This implementation is declarative and vectorized, using Ibis window
-    functions and unnesting to calculate window memberships in a single pass.
+    Time overlap ensures conversation threads spanning window boundaries
+    maintain context for the LLM.
+
+    All windows are processed - the LLM decides if content warrants a post.
 
     Args:
         table: Sorted table of messages
@@ -328,73 +330,37 @@ def _window_by_time(
 
     """
     # Get overall time range
-    bounds = table.aggregate(
-        min_ts=table.ts.min(),
-        max_ts=table.ts.max(),
-    ).execute()
-    min_ts = bounds["min_ts"][0]
-    max_ts = bounds["max_ts"][0]
+    min_ts = _get_min_timestamp(table)
+    max_ts = _get_max_timestamp(table)
 
     # Calculate window duration
     delta = timedelta(hours=step_size) if step_unit == "hours" else timedelta(days=step_size)
+
+    # Calculate overlap duration
     overlap_delta = delta * overlap_ratio
 
-    # Calculate total seconds for vectorized math
-    step_sec = delta.total_seconds()
-    overlap_sec = overlap_delta.total_seconds()
-
-    # Calculate number of windows
-    # We loop until current_start > max_ts.
-    # start = min_ts + i * delta
-    # min_ts + i * delta <= max_ts  -> i * delta <= max_ts - min_ts
-    total_duration = (max_ts - min_ts).total_seconds()
-    num_windows = math.floor(total_duration / step_sec) + 1
-
-    # Vectorized count calculation:
-    # 1. Calculate offset in seconds from min_ts
-    # 2. Assign range of window indices [lower, upper]
-    # 3. Unnest and group count
-
-    min_ts_timestamp = min_ts.timestamp()
-
-    t = table.mutate(offset_sec=table.ts.epoch_seconds() - int(min_ts_timestamp))
-
-    t = t.mutate(
-        lower_idx=((t.offset_sec - step_sec - overlap_sec) / step_sec).floor().cast("int") + 1,
-        upper_idx=(t.offset_sec / step_sec).floor().cast("int"),
-    )
-
-    t = t.mutate(lower_idx=ibis.greatest(t.lower_idx, 0))
-
-    # [lower, upper] inclusive, so range(lower, upper + 1)
-    t = t.mutate(window_indices=ibis.range(t.lower_idx, t.upper_idx + 1))
-
-    # We must explicitly name the count column to avoid backend-specific default names (e.g. CountStar())
-    unnested = t.unnest("window_indices")
-    window_counts = unnested.group_by("window_indices").aggregate(count=unnested.count()).execute()
-
-    # Convert counts to dict for O(1) lookup
-    # Iterate and cast to native int to avoid numpy/arrow types
-    counts_map = {int(row["window_indices"]): int(row["count"]) for _, row in window_counts.iterrows()}
-
+    # Create windows
+    window_index = 0
     current_start = min_ts
-    for i in range(num_windows):
+
+    while current_start <= max_ts:  # Use <= to handle single-timestamp datasets
         current_end = current_start + delta + overlap_delta
 
-        size = counts_map.get(i, 0)
-
-        # Reconstruct the window table expression
+        # Filter messages in this window (IR v1: use .ts column)
         window_table = table.filter((table.ts >= current_start) & (table.ts < current_end))
 
+        window_size = window_table.count().execute()
+
         yield Window(
-            window_index=i,
+            window_index=window_index,
             start_time=current_start,
             end_time=current_end,
             table=window_table,
-            size=size,
+            size=window_size,
         )
 
-        current_start += delta
+        window_index += 1
+        current_start += delta  # Advance by delta, creating overlap
 
 
 def _calculate_overlap_rows(window_table: Table, overlap_bytes: int) -> int:
@@ -497,6 +463,18 @@ def _window_by_bytes(
             advance = chunk_size
 
         offset += advance
+
+
+def _get_min_timestamp(table: Table) -> datetime:
+    """Get minimum timestamp from table (IR v1: use .ts column)."""
+    result = table.aggregate(table.ts.min().name("min_ts")).execute()
+    return result["min_ts"][0]
+
+
+def _get_max_timestamp(table: Table) -> datetime:
+    """Get maximum timestamp from table (IR v1: use .ts column)."""
+    result = table.aggregate(table.ts.max().name("max_ts")).execute()
+    return result["max_ts"][0]
 
 
 def split_window_into_n_parts(window: Window, n: int) -> list[Window]:

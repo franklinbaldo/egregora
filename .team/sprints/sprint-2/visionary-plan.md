@@ -1,34 +1,37 @@
 # Plan: Visionary - Sprint 2
-
-**Persona:** Visionary 🔭
+**Persona:** Visionary 🔮
 **Sprint:** 2
-**Created:** 2026-01-26 (during Sprint 1)
+**Created:** 2024-07-26 (during Sprint 1)
 **Priority:** High
 
-## Objectives
-My mission is to move from "Manual Prompt Engineering" to "Autonomous Optimization". I will socialize the vision for the "Autonomous Director" and begin prototyping the "Tuning Fork" quick win.
+## Goals
+The primary goal for Sprint 2 is to move the "Egregora Symbiote" vision from concept to a tangible, project-wide initiative. This involves socializing the RFCs and laying the practical groundwork for the "Structured Data Sidecar."
 
-- [ ] **Socialize RFCs:** Present "The Autonomous Director" and "The Tuning Fork" to the team, specifically coordinating with Architect and Builder.
-- [ ] **Prototype `egregora tune`:** Build a throwaway script to validate that we can generate meaningful variations of a post using different system prompts.
-- [ ] **Research Evaluation Metrics:** Investigate how we can programmatically score "humor", "sentiment", or "coherence" using `pydantic-evals` to support the future Director.
+- [ ] Socialize the Moonshot & Quick Win RFCs with all personas.
+- [ ] Collaborate with the Architect and Builder to spec out the technical implementation of the "Structured Data Sidecar."
+- [ ] Identify and analyze 2-3 new, emerging AI research papers that could accelerate the Symbiote's development.
+- [ ] Draft a "v0.1" of a real-time adapter framework RFC.
 
 ## Dependencies
-- **Architect:** I need feedback on where the "Prompt Manager" should live in the new architecture.
-- **Builder:** I need to understand the constraints of the `Writer` agent for dynamic prompting.
+- **Architect:** Input on the technical feasibility and architectural impact of the "Structured Data Sidecar."
+- **Builder:** Collaboration on a proof-of-concept for modifying the Writer agent's prompt and parsing its output.
 
 ## Context
-In Sprint 1, I identified that users are trapped in a "configuration cage". To change the output style, they must edit Jinja templates. This is a high barrier. "The Tuning Fork" breaks this by allowing interactive, example-based tuning. This sprint is about proving the concept works before we build the CLI.
+In Sprint 1, I identified the "Reactive, Batch-Processing" assumption as the key limiter of Egregora's potential. I drafted two RFCs to challenge this: the "Egregora Symbiote" (Moonshot) and the "Structured Data Sidecar" (Quick Win). Sprint 2 is about building consensus and starting the initial, low-risk implementation work. The goal is to end the sprint with a project-wide agreement on the vision and a clear, buildable plan for the Quick Win.
 
 ## Expected Deliverables
-1. **Consensus on RFCs:** Agreement from core personas on the direction.
-2. **Prototype Script:** `scripts/prototype_tuning.py` demonstrating 3-way prompt variation generation.
-3. **Research Note:** A brief document on "Automated Evaluation Strategies" for the Director.
+1. **RFC Consensus:** Documented feedback and buy-in from other key personas on both RFCs.
+2. **Technical Spec:** A collaborative document outlining the implementation plan for the "Structured Data Sidecar."
+3. **Research Brief:** A short document summarizing the findings from the AI research papers and their potential application to Egregora.
+4. **Draft RFC:** A new RFC file for the "Real-Time Adapter Framework."
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
-|-------|---------------|---------|-----------|
-| LLM Variability | High | Medium | The "tuning" might be flaky. I will test with multiple models (Gemini, OpenAI) during prototyping to assess stability. |
-| Architecture Conflict | Medium | Medium | I will coordinate early with Steward and Architect to ensure the "Prompt Manager" fits the new V3 design. |
+|---|---|---|---|
+| Resistance to Paradigm Shift | Medium | High | Frame the vision through the low-risk, high-value "Structured Data Sidecar" Quick Win. Focus on the immediate, tangible benefits. |
+| Technical Complexity | Low | Medium | The "Structured Data Sidecar" is designed to be a low-complexity probe. Work closely with the Architect to validate this assumption early. |
+| Distraction from Current Priorities | Medium | Medium | Clearly articulate how this vision supports and enhances the existing roadmap, rather than replacing it. |
 
 ## Proposed Collaborations
-- **With Builder:** Pair programming on the prompt variation logic.
+- **With Architect & Builder:** A dedicated workshop session to break down the "Structured Data Sidecar" into buildable tasks.
+- **With Curator:** Discuss how the structured data from conversations can be combined with the structured metadata from issues to create a richer knowledge graph.

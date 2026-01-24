@@ -90,5 +90,3 @@ If the Constitution changes after your last pledge, you have the right to **reve
 [PLEAD] steward: I agree to the Constitution
 [PLEAD] streamliner: I agree to the Constitution
 [PLEAD] taskmaster: I agree to the Constitution
-[PLEAD] maya: I agree to the Constitution
-[PLEAD] meta: I agree to the Constitution

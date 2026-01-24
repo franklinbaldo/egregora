@@ -28,8 +28,6 @@ def create_table_if_not_exists(
     *,
     overwrite: bool = False,
     check_constraints: dict[str, str] | None = None,
-    primary_key: str | None = None,
-    foreign_keys: list[str] | None = None,
 ) -> None:
     """Create a table using Ibis if it doesn't already exist.
 
@@ -40,9 +38,6 @@ def create_table_if_not_exists(
         overwrite: If True, drop existing table first
         check_constraints: Optional dict of constraint_name -> check_expression
                           Example: {"chk_status": "status IN ('draft', 'published')"}
-        primary_key: Optional column name to set as PRIMARY KEY
-        foreign_keys: Optional list of foreign key constraint strings
-                      Example: ["FOREIGN KEY (parent_id) REFERENCES documents(id)"]
 
     """
     # Explicitly check if the connection is a raw DuckDB connection.
@@ -58,20 +53,17 @@ def create_table_if_not_exists(
             f"{quote_identifier(name)} {ibis_to_duckdb_type(dtype)}" for name, dtype in schema.items()
         )
 
-        all_clauses = [columns_sql]
-
-        # Add PRIMARY KEY
-        if primary_key:
-            all_clauses.append(f"PRIMARY KEY ({quote_identifier(primary_key)})")
-
-        # Add FOREIGN KEYs
-        if foreign_keys:
-            all_clauses.extend(foreign_keys)
-
         # Add CHECK constraints to CREATE TABLE statement
+        constraint_clauses = []
         if check_constraints:
             for constraint_name, check_expr in check_constraints.items():
-                all_clauses.append(f"CONSTRAINT {quote_identifier(constraint_name)} CHECK ({check_expr})")
+                constraint_clauses.append(
+                    f"CONSTRAINT {quote_identifier(constraint_name)} CHECK ({check_expr})"
+                )
+
+        all_clauses = [columns_sql]
+        if constraint_clauses:
+            all_clauses.extend(constraint_clauses)
 
         create_verb = "CREATE TABLE" if overwrite else "CREATE TABLE IF NOT EXISTS"
         create_sql = f"{create_verb} {quote_identifier(table_name)} ({', '.join(all_clauses)})"
@@ -80,14 +72,9 @@ def create_table_if_not_exists(
     elif table_name not in conn.list_tables() or overwrite:
         conn.create_table(table_name, schema=schema, overwrite=overwrite)
         # This path is problematic for DuckDB which doesn't support ALTER TABLE ADD CONSTRAINT.
-        # But we try to apply what we can via helpers.
-        if primary_key:
-            add_primary_key(conn.raw_sql, table_name, primary_key)
         if check_constraints:
             for constraint_name, check_expr in check_constraints.items():
                 add_check_constraint(conn.raw_sql, table_name, constraint_name, check_expr)
-        # Note: Foreign keys via ALTER TABLE are tricky/limited in some backends or contexts,
-        # so they are best handled in the raw_duckdb path or via migration.
 
 
 def ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:
@@ -279,22 +266,6 @@ def get_table_check_constraints(table_name: str) -> dict[str, str]:
     return {}
 
 
-def get_table_foreign_keys(table_name: str) -> list[str]:
-    """Get Foreign Key constraints for a table.
-
-    Args:
-        table_name: Name of the table
-
-    Returns:
-        List of FOREIGN KEY clause strings.
-        Example: ["FOREIGN KEY (parent_id) REFERENCES documents(id)"]
-
-    """
-    if table_name == "annotations":
-        return ["FOREIGN KEY (parent_id) REFERENCES documents(id)"]
-    return []
-
-
 # ============================================================================
 # Core Tables (Append-Only)
 # ============================================================================
@@ -314,32 +285,34 @@ BASE_COLUMNS = {
     "source_checksum": dt.string,  # Hash for deduplication/change detection
 }
 
-# 1. POSTS TABLE (Deprecated: Merged into documents)
-# Keeping structure here to compose UNIFIED_SCHEMA until Ibis supports cleaner union
-_POSTS_COLUMNS = {
-    **BASE_COLUMNS,
-    "title": dt.string,
-    "slug": dt.string,
-    "date": dt.date,
-    "summary": dt.string,
-    "authors": dt.Array(dt.string),  # List of Author UUIDs
-    "tags": dt.Array(dt.string),
-    "status": dt.string,  # 'published', 'draft'
-}
+# 1. POSTS TABLE
+POSTS_SCHEMA = ibis.schema(
+    {
+        **BASE_COLUMNS,
+        "title": dt.string,
+        "slug": dt.string,
+        "date": dt.date,
+        "summary": dt.string,
+        "authors": dt.Array(dt.string),  # List of Author UUIDs
+        "tags": dt.Array(dt.string),
+        "status": dt.string,  # 'published', 'draft'
+    }
+)
 
-# 2. PROFILES TABLE (Deprecated: Merged into documents)
-_PROFILES_COLUMNS = {
-    **BASE_COLUMNS,
-    "subject_uuid": dt.string,
-    "title": dt.string,  # Was 'name'
-    "alias": dt.string,
-    "summary": dt.string,  # Was 'bio'
-    "avatar_url": dt.string,
-    "interests": dt.Array(dt.string),
-}
+# 2. PROFILES TABLE
+PROFILES_SCHEMA = ibis.schema(
+    {
+        **BASE_COLUMNS,
+        "subject_uuid": dt.string,
+        "title": dt.string,  # Was 'name'
+        "alias": dt.string,
+        "summary": dt.string,  # Was 'bio'
+        "avatar_url": dt.string,
+        "interests": dt.Array(dt.string),
+    }
+)
 
 # 3. MEDIA TABLE (Metadata only, content is binary/external)
-# Also used for standalone MEDIA table if needed, but primarily for Unified
 MEDIA_SCHEMA = ibis.schema(
     {
         **BASE_COLUMNS,
@@ -350,13 +323,15 @@ MEDIA_SCHEMA = ibis.schema(
     }
 )
 
-# 4. JOURNALS TABLE (Deprecated: Merged into documents)
-_JOURNALS_COLUMNS = {
-    **BASE_COLUMNS,
-    "title": dt.string,  # Was 'window_label'
-    "window_start": dt.timestamp,
-    "window_end": dt.timestamp,
-}
+# 4. JOURNALS TABLE
+JOURNALS_SCHEMA = ibis.schema(
+    {
+        **BASE_COLUMNS,
+        "title": dt.string,  # Was 'window_label'
+        "window_start": dt.timestamp,
+        "window_end": dt.timestamp,
+    }
+)
 
 # ----------------------------------------------------------------------------
 # Tasks Schema (Asynchronous Background Tasks)
@@ -381,15 +356,32 @@ TASKS_SCHEMA = ibis.schema(
 
 UNIFIED_SCHEMA = ibis.schema(
     {
-        **_POSTS_COLUMNS,
-        **_PROFILES_COLUMNS,
+        **dict(POSTS_SCHEMA.items()),
+        **dict(PROFILES_SCHEMA.items()),
         **dict(MEDIA_SCHEMA.items()),
-        **_JOURNALS_COLUMNS,
+        **dict(JOURNALS_SCHEMA.items()),
         "doc_type": dt.String(nullable=False),
         "status": dt.String(nullable=False),
         "extensions": dt.json,
     }
 )
+
+# ============================================================================
+# Views
+# ============================================================================
+
+DOCUMENTS_VIEW_SQL = """
+CREATE OR REPLACE VIEW documents_view AS
+    SELECT id, 'post' as type, content, created_at, title, slug, NULL as subject_uuid FROM posts
+    UNION ALL
+    SELECT id, 'profile' as type, content, created_at, title, NULL as slug, subject_uuid FROM profiles
+    UNION ALL
+    SELECT id, 'journal' as type, content, created_at, title, NULL as slug, NULL as subject_uuid FROM journals
+    UNION ALL
+    SELECT id, 'media' as type, content, created_at, NULL as title, NULL as slug, NULL as subject_uuid FROM media
+    UNION ALL
+    SELECT id, 'annotation' as type, content, created_at, NULL as title, NULL as slug, NULL as subject_uuid FROM annotations
+"""
 
 # ============================================================================
 # Ingestion Schemas
