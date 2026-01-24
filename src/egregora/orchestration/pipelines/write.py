@@ -11,23 +11,25 @@ This module orchestrates the high-level flow for the 'write' command, coordinati
 
 from __future__ import annotations
 
+import builtins
+import inspect
 import json
 import logging
 import math
 import os
 from collections import deque
-from collections.abc import Iterator
+from collections.abc import Awaitable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date as date_type
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import ibis
-import ibis.common.exceptions
+import ibis.common.exceptions  # type: ignore[import-untyped]
 from google import genai
 from google.genai import types
 from rich.console import Console
@@ -41,12 +43,13 @@ from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker,
 from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.shared.annotations import AnnotationStore
+from egregora.agents.types import Message
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.exceptions import InvalidDateFormatError, InvalidTimezoneError
 from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
 from egregora.constants import WindowUnit
-from egregora.data_primitives.document import OutputSink, UrlContext
+from egregora.data_primitives.document import Document, OutputSink, UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.task_store import TaskStore
@@ -763,9 +766,13 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     # Prepare Resources
     resources = PipelineFactory.create_writer_resources(ctx)
 
+    # Convert dictionaries to Message objects for strong typing
+    # Note: We use ** to unpack dictionary values. The schema must match Message fields.
+    messages_objects = [Message(**msg) for msg in clean_messages_list]
+
     params = WindowProcessingParams(
         table=conversation.messages_table,
-        messages=clean_messages_list,
+        messages=messages_objects,
         window_start=conversation.window.start_time,
         window_end=conversation.window.end_time,
         resources=resources,
@@ -812,6 +819,17 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     window_date = conversation.window.start_time.strftime("%Y-%m-%d")
     try:
         profile_docs = generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date)
+
+        # Ensure result is iterable and strictly typed
+        if inspect.isawaitable(profile_docs):
+             # This should not happen in synchronous flow if generate_profile_posts correctly detects loop
+             # But if it does, we need to fail fast or await it (but we are sync)
+             msg = "Received awaitable profile docs in synchronous flow"
+             raise RuntimeError(msg)
+
+        # Explicit type narrowing for mypy
+        assert isinstance(profile_docs, builtins.list)
+
         for profile_doc in profile_docs:
             try:
                 output_sink.persist(profile_doc)
@@ -938,10 +956,22 @@ def _create_gemini_client(api_key: str | None = None) -> genai.Client:
 def _get_safety_settings() -> list[types.SafetySetting]:
     """Get standard safety settings to avoid blocking content."""
     return [
-        types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE"),
-        types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH", threshold="BLOCK_NONE"),
-        types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
-        types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+        ),
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+        ),
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+        ),
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+        ),
     ]
 
 
