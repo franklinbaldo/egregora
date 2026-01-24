@@ -6,7 +6,7 @@ This module defines the strictly typed, append-only tables for the new architect
 from __future__ import annotations
 
 import logging
-from typing import Any, Union
+from typing import Any
 
 import duckdb
 import ibis
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # Helper Functions
 # ============================================================================
 
-DBConnection = Union[BaseBackend, duckdb.DuckDBPyConnection]
+DBConnection = BaseBackend | duckdb.DuckDBPyConnection
 
 
 def execute_sql(conn: DBConnection, sql: str) -> None:

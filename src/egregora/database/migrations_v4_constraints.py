@@ -1,5 +1,6 @@
 """Migration to add primary key to documents and foreign key to annotations."""
 
+import contextlib
 import logging
 
 import duckdb
@@ -155,9 +156,7 @@ if __name__ == "__main__":
     # Verify
     res = con.execute("SELECT count(*) FROM annotations").fetchone()[0]
 
-    try:
+    with contextlib.suppress(duckdb.ConstraintException):
         con.execute(
             "INSERT INTO annotations (id, parent_id, content, parent_type) VALUES ('a3', 'bad', 'content', 'post')"
         )
-    except duckdb.ConstraintException:
-        pass

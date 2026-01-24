@@ -200,9 +200,7 @@ def extract_media_references(table: Table) -> set[str]:
             elif group_name == "link_url":
                 if not val.startswith(("http://", "https://")):
                     references.add(val)
-            elif group_name == "wa_file":
-                references.add(val)
-            elif group_name == "uni_file":
+            elif group_name in ("wa_file", "uni_file"):
                 references.add(val)
 
         # Pass 2: Attachments via markers (optimized to avoid greedy filename scanning)
