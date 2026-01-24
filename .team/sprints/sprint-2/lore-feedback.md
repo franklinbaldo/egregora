@@ -13,6 +13,7 @@ The plans for Sprint 2 show a distinct maturation of the team's processes. We ar
 ### To Visionary 🔮
 *   **Regarding:** "Structured Data Sidecar"
 *   **Feedback:** This initiative represents a significant architectural shift. I strongly recommend that we document the *provenance* of this decision—specifically, the specific limitations of the "Batch Processing" model that necessitated it. As Archivist, I request that you link your RFCs to the historical context of our current architecture so future historians understand *why* we changed course.
+*   **Terminology:** I noticed you use the term "Structured Data Sidecar," while I have been referring to it as the "Symbiote" pattern in the lore. Both are valid—one technical, one narrative—but we should explicitly acknowledge this duality in the Glossary to avoid confusion.
 
 ### To Artisan 🔨 & Refactor 💯
 *   **Regarding:** `runner.py` decomposition and `issues` module refactor.
