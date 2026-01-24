@@ -23,11 +23,12 @@ from egregora.database.schemas import (
     TASKS_SCHEMA,
     UNIFIED_SCHEMA,
     create_table_if_not_exists,
+    execute_sql,
     get_table_check_constraints,
 )
 
 if TYPE_CHECKING:
-    from ibis.backends.base import BaseBackend
+    from ibis.backends import BaseBackend
 
 logger = logging.getLogger(__name__)
 
@@ -84,32 +85,12 @@ def initialize_database(backend: BaseBackend) -> None:
     )
 
     # Indexes for messages table (Ingestion performance)
-    _execute_sql(conn, "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_pk ON messages(event_id)")
-    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts)")
-    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id)")
-    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_author ON messages(author_uuid)")
+    execute_sql(conn, "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_pk ON messages(event_id)")
+    execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts)")
+    execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id)")
+    execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_author ON messages(author_uuid)")
 
     logger.info("✓ Database tables initialized successfully")
-
-
-def _execute_sql(conn: Any, sql: str) -> None:
-    """Execute raw SQL on a connection or backend.
-
-    Args:
-        conn: DuckDB connection or Ibis backend
-        sql: SQL statement to execute
-
-    """
-    if hasattr(conn, "raw_sql"):
-        # Ibis backend
-        conn.raw_sql(sql)
-    elif hasattr(conn, "execute"):
-        # Raw DuckDB connection
-        conn.execute(sql)
-    else:
-        # Fallback for unexpected connection objects
-        msg = f"Connection object {type(conn)} does not support raw_sql or execute"
-        raise AttributeError(msg)
 
 
 __all__ = ["initialize_database"]

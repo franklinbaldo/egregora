@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from google import genai
 
     from egregora.agents.shared.annotations import AnnotationStore
+    from egregora.agents.types import WriterResources
     from egregora.config.settings import EgregoraConfig
     from egregora.data_primitives.document import OutputSink, UrlContext
     from egregora.database.protocols import StorageProtocol
@@ -322,3 +323,35 @@ class PipelineContext:
             new_config = replace(self.config_obj, url_context=url_context)
             return PipelineContext(new_config, self.state)
         return self
+
+    def create_writer_resources(self) -> WriterResources:
+        """Create WriterResources from the pipeline context."""
+        from egregora.agents.types import WriterResources
+
+        if self.output_sink is None:
+            msg = "Output adapter must be initialized before creating writer resources."
+            raise RuntimeError(msg)
+
+        profiles_dir = getattr(self.output_sink, "profiles_dir", self.profiles_dir)
+        journal_dir = getattr(self.output_sink, "journal_dir", self.docs_dir / "journal")
+        prompts_dir = self.site_root / ".egregora" / "prompts" if self.site_root else None
+
+        profiles_dir.mkdir(parents=True, exist_ok=True)
+        journal_dir.mkdir(parents=True, exist_ok=True)
+        if prompts_dir:
+            prompts_dir.mkdir(parents=True, exist_ok=True)
+
+        return WriterResources(
+            output=self.output_sink,
+            output_registry=self.output_registry,
+            annotations_store=self.annotations_store,
+            storage=self.storage,
+            embedding_model=self.embedding_model,
+            retrieval_config=self.config.rag,
+            profiles_dir=profiles_dir,
+            journal_dir=journal_dir,
+            prompts_dir=prompts_dir,
+            client=self.client,
+            usage=self.usage_tracker,
+            task_store=self.task_store,
+        )

@@ -56,10 +56,10 @@ def test_prepare_pipeline_data_handles_rag_connection_error(
         mock_index.side_effect = ConnectionError("Connection refused")
 
         with patch(
-            "egregora.orchestration.pipelines.etl.preparation.PipelineFactory"
-        ) as mock_factory:
+            "egregora.orchestration.pipelines.etl.preparation.create_and_initialize_adapter"
+        ) as mock_create_adapter:
             # Setup factory to return our mock context's output format
-            mock_factory.create_output_adapter.return_value = mock_pipeline_context.output_format
+            mock_create_adapter.return_value = mock_pipeline_context.output_format
 
             # Setup context with output format
             mock_pipeline_context.with_output_format.return_value = mock_pipeline_context
@@ -101,9 +101,9 @@ def test_prepare_pipeline_data_handles_rag_value_error(
         mock_index.side_effect = ValueError("Invalid vector dimension")
 
         with patch(
-            "egregora.orchestration.pipelines.etl.preparation.PipelineFactory"
-        ) as mock_factory:
-            mock_factory.create_output_adapter.return_value = mock_pipeline_context.output_format
+            "egregora.orchestration.pipelines.etl.preparation.create_and_initialize_adapter"
+        ) as mock_create_adapter:
+            mock_create_adapter.return_value = mock_pipeline_context.output_format
             mock_pipeline_context.with_output_format.return_value = mock_pipeline_context
             mock_pipeline_context.with_adapter.return_value = mock_pipeline_context
             mock_pipeline_context.output_format.documents.return_value = ["doc1"]
@@ -138,9 +138,9 @@ def test_prepare_pipeline_data_handles_rag_os_error(
         mock_index.side_effect = OSError("Read-only file system")
 
         with patch(
-            "egregora.orchestration.pipelines.etl.preparation.PipelineFactory"
-        ) as mock_factory:
-            mock_factory.create_output_adapter.return_value = mock_pipeline_context.output_format
+            "egregora.orchestration.pipelines.etl.preparation.create_and_initialize_adapter"
+        ) as mock_create_adapter:
+            mock_create_adapter.return_value = mock_pipeline_context.output_format
             mock_pipeline_context.with_output_format.return_value = mock_pipeline_context
             mock_pipeline_context.with_adapter.return_value = mock_pipeline_context
             mock_pipeline_context.output_format.documents.return_value = ["doc1"]
