@@ -1,6 +1,8 @@
 import pytest
-from egregora.input_adapters.registry import InputAdapterRegistry
+
 from egregora.input_adapters.exceptions import UnknownAdapterError
+from egregora.input_adapters.registry import InputAdapterRegistry
+
 
 def test_registry_raises_unknown_adapter_error():
     registry = InputAdapterRegistry()

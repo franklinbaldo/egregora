@@ -1,8 +1,9 @@
 import pytest
-from pathlib import Path
-from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
+
 from egregora.data_primitives.document import UrlContext
 from egregora.output_adapters.conventions import StandardUrlConvention
+from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
+
 
 @pytest.fixture
 def site_gen(tmp_path):
@@ -20,7 +21,8 @@ def site_gen(tmp_path):
     # The optimization benefits scale linearly with size, so for larger files
     # the improvement is even more dramatic.
     for i in range(100):
-        (posts_dir / f"post_{i}.md").write_text(f"""---
+        (posts_dir / f"post_{i}.md").write_text(
+            f"""---
 title: Post {i}
 date: 2024-01-01
 slug: post-{i}
@@ -28,7 +30,9 @@ tags: [tag1, tag2]
 banner: image.png
 ---
 # Content for post {i}
-""" + "blah " * 10000)
+"""
+            + "blah " * 10000
+        )
 
     return SiteGenerator(
         site_root=site_root,
@@ -41,8 +45,10 @@ banner: image.png
         url_context=UrlContext(base_url="http://localhost"),
     )
 
+
 def test_get_site_stats_benchmark(benchmark, site_gen):
     benchmark(site_gen.get_site_stats)
+
 
 def test_get_recent_posts_benchmark(benchmark, site_gen):
     benchmark(site_gen.get_recent_posts, limit=10)

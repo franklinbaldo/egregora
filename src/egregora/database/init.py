@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING, Any
 
 from egregora.database.schemas import (
     ANNOTATIONS_SCHEMA,
-    MEDIA_SCHEMA,
     STAGING_MESSAGES_SCHEMA,
     TASKS_SCHEMA,
     UNIFIED_SCHEMA,
