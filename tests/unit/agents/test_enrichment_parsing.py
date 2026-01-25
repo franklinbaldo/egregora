@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker
+from egregora.agents.exceptions import EnrichmentParsingError
 
 
 @pytest.fixture
@@ -85,7 +86,5 @@ def test_parse_media_result_handles_missing_slug(worker):
 
     task = {"task_id": "task-2", "_parsed_payload": {"filename": "IMG.jpg"}, "llm_result": "{}"}
 
-    result = worker._parse_media_result(SimpleNamespace(tag="t", error=None, response={"text": "{}"}), task)
-    # Should fail if slug is missing and no pre-existing markdown
-    assert result is None
-    worker.ctx.task_store.mark_failed.assert_called()
+    with pytest.raises(EnrichmentParsingError, match="Missing slug or markdown"):
+        worker._parse_media_result(SimpleNamespace(tag="t", error=None, response={"text": "{}"}), task)
