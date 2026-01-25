@@ -2,30 +2,34 @@
 
 **Persona:** Forge ⚒️
 **Sprint:** 3
-**Created:** 2026-01-26
+**Created:** 2026-01-26 (during Sprint 1)
 **Priority:** Medium
 
 ## Objectives
-Building on the "Portal" theme established in Sprint 2, Sprint 3 will focus on component richness and interactivity.
+My mission shifts from "Identity" to "Immersion" and "Performance". I will prepare the frontend to visualize the new data streams coming from the "Structured Data Sidecar" and ensure the site performs flawlessly.
 
-- [ ] **Interactive Components:** Introduce standard UI components for "Callouts", "Tabs", and "Data Tables" that match the Portal aesthetic.
-- [ ] **Accessibility Audit:** Run a full automated accessibility audit (Lighthouse/Axe) and fix all WCAG AA violations.
-- [ ] **Performance Optimization:** Optimize asset loading (fonts, images) to ensure a Lighthouse Performance score of >90.
-- [ ] **Dark/Light Mode Polish:** While "Portal" is dark-first, ensure a credible "Light Mode" fallback exists if the user explicitly requests it.
+- [ ] **Structured Data Visualization:** Create Jinja macros or custom components to visualize structured data (e.g., entity graphs, timelines) if the backend supports it.
+- [ ] **Accessibility Audit:** Achieve WCAG AA compliance. Run automated audits (Lighthouse/Axe) and fix contrast/aria issues.
+- [ ] **Performance Tuning:** Optimize asset loading (fonts, images) to achieve a Lighthouse Performance score > 90.
+- [ ] **Dark Mode Polish:** Ensure the "Portal" theme works perfectly in forced dark mode (or hybrid) contexts.
 
 ## Dependencies
-- **Curator:** Feedback on the component library visual design.
-- **Visionary:** If the "Structured Data Sidecar" is ready, I may need to build components to visualize that data.
+- **Visionary/Simplifier:** I need the "Structured Data Sidecar" to output data in a format I can consume (e.g., JSON/YAML files in the build).
+- **Curator:** UX direction for how complex data should be presented.
 
 ## Context
-Sprint 2 fixed the "basics" (branding, layout, broken links). Sprint 3 is about "delight" and "inclusion" (performance, a11y, interactivity).
+Once the site looks good (Sprint 2), it needs to work well (Sprint 3). Accessibility and Performance are not optional. Additionally, if the "Symbiote" initiative bears fruit, the frontend needs to be ready to display more than just text.
 
 ## Expected Deliverables
-1.  **Component Library:** A set of reusable CSS classes/HTML patterns for blog authors.
-2.  **Audit Report:** A passing accessibility and performance report.
-3.  **Optimized Assets:** WebP conversion for images, font subsetting if needed.
+1.  **Component Library:** A set of reusable Jinja macros for complex data types.
+2.  **Audit Report:** A passing WCAG AA report.
+3.  **High Performance Score:** Validated by Lighthouse.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Scope Creep on Components | Medium | Low | I will stick to standard MkDocs Material extensions first before building custom JS. |
+| Structured Data is delayed | Medium | Medium | Focus on Accessibility and Performance as the primary deliverables. |
+| Performance requires architectural changes | Low | High | I will work with the defaults of MkDocs Material as much as possible to avoid fighting the framework. |
+
+## Proposed Collaborations
+- **With Visionary:** To understand the schema of the structured data.

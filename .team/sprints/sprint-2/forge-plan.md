@@ -2,34 +2,34 @@
 
 **Persona:** Forge ⚒️
 **Sprint:** 2
-**Created:** 2026-01-26
+**Created:** 2026-01-26 (during Sprint 1)
 **Priority:** High
 
 ## Objectives
-My mission is to transform the UX vision into high-performance web components. For Sprint 2, I will focus on executing the visual identity and structural fixes defined by the Curator.
+My mission is to transform the Egregora blog into a polished, distinct product ("The Portal") by implementing the Curator's visual identity requirements and fixing critical frontend bugs.
 
-- [ ] **Implement Custom Visual Identity:** Apply the new color palette and favicon across all templates, replacing the default Material theme look.
-- [ ] **Fix Frontend Broken Links/Assets:** Resolve the missing CSS file issues and ensure social card images are generated and linked correctly (fixing 404s).
-- [ ] **Enhance Empty State:** Redesign the "empty state" homepage to be more welcoming and informative for new users.
-- [ ] **Verify Mobile Responsiveness:** Ensure all changes look good and function correctly on mobile viewports.
+- [ ] **Fix Social Cards:** Resolve the issue where generated social cards are missing CSS or returning 404s.
+- [ ] **Implement "Portal" Palette:** Hardcode the custom color palette (Deep Blue `#2c3e50` / Yellow `#f9d423`) into the theme configuration, replacing the default Material colors.
+- [ ] **Custom Favicon:** Add a unique favicon to the template to replace the MkDocs default.
+- [ ] **Refine "Empty State":** Improve the "Welcome to Egregora" message on the homepage to be more engaging when no content has been generated yet.
 
 ## Dependencies
-- **Curator:** I am dependent on the Curator to provide the specific design specifications (colors, assets, copy) via tasks in `.team/tasks/`.
-- **Simplifier:** Dependent on `write.py` refactor maintaining `egregora demo` stability.
+- **Curator:** I rely on the Curator for final approval of visual changes and any specific copy for the "Empty State".
 
 ## Context
-In Sprint 1, we identified that the generated blogs look too generic and have some broken visual elements. Sprint 2 is about "polishing the surface" to ensure that the out-of-the-box experience for an Egregora user is professional and distinct.
+Sprint 1 focused on basic functionality and "Graceful Degradation" of the demo command. Sprint 2 is about **Identity**. The current site looks like a generic MkDocs template. By the end of this sprint, it should look like a bespoke "Portal" into the Egregora collective.
 
 ## Expected Deliverables
-1. **Updated Templates:** `src/egregora/rendering/templates/` will be updated with new CSS and HTML overrides.
-2. **Fixed Scaffolding:** The site generation logic will correctly place favicons and assets.
-3. **Visual Verification:** Screenshots demonstrating the new look and the absence of 404 errors in the console.
+1.  **Functional Social Cards:** `og:image` tags point to valid, generated images.
+2.  **Themed Site:** The site uses the specific `#2c3e50` and `#f9d423` colors.
+3.  **Favicon:** A custom `.ico` or `.png` is served.
+4.  **Polished Homepage:** The initial landing page is visually distinct and welcoming.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Build Process Failures | Medium | High | As seen in Sprint 1, backend build issues can block frontend verification. I will continue to improve the `egregora demo` resilience if I encounter more issues. |
-| Design Ambiguity | Low | Medium | I will ask for clarification from the Curator if tasks lack specific hex codes or asset paths. |
+| Social Card generation fails in CI | Medium | Medium | I will ensure the necessary dependencies (CairoSVG, Pillow) are correctly handled in the environment or the generation logic degrades gracefully. |
+| Custom CSS conflicts with Material updates | Low | Low | I will keep overrides minimal and scoped, as learned in Sprint 1. |
 
 ## Proposed Collaborations
-- **With Curator:** Tight feedback loop on design implementation.
+- **With Curator:** Regular syncs (via tasks) to review visual changes.
