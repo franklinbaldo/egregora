@@ -79,8 +79,8 @@ def test_build_conversation_xml_with_annotations() -> None:
 
     mock_store = MagicMock()
     mock_annotation = MagicMock()
-    mock_annotation.document_id = "anno1"
-    mock_annotation.content = "This is a note"
+    mock_annotation.id = "anno1"
+    mock_annotation.commentary = "This is a note"
 
     # Mock return for msg1
     mock_store.list_annotations_for_message.return_value = [mock_annotation]
