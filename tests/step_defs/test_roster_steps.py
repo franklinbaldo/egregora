@@ -87,8 +87,10 @@ def run_view_persona(runner, p_id):
     mock_config.prompt_body = f"# {p_id.upper()}\n\nThis is the prompt content."
 
     # roster.py now has 'from repo.scheduler.loader import PersonaLoader' at top level
-    with patch("repo.cli.roster.PersonaLoader") as mock_loader_class, \
-         patch("repo.features.session.SessionManager") as mock_sm_class:
+    with (
+        patch("repo.cli.roster.PersonaLoader") as mock_loader_class,
+        patch("repo.features.session.SessionManager") as mock_sm_class,
+    ):
         mock_loader = MagicMock()
         mock_loader.load_persona.return_value = mock_config
         mock_loader_class.return_value = mock_loader

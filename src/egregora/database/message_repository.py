@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import mimetypes
-import re
 import uuid
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
@@ -11,21 +10,11 @@ from typing import TYPE_CHECKING, Any
 from egregora.data_primitives.datetime_utils import ensure_datetime
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
-from egregora.ops.media import extract_urls, find_media_references
+from egregora.ops.media import extract_urls, find_all_media_references
 
 if TYPE_CHECKING:
     from ibis.backends.duckdb import Backend as DuckDBBackend
     from ibis.expr.types import Table
-
-
-_MARKDOWN_LINK_PATTERN = re.compile(r"(?:!\[|\[)[^\]]*\]\([^)]*?([^/)]+\.\w+)\)")
-_UUID_PATTERN = re.compile(r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+)")
-
-# Pattern to match simple media filenames with known extensions
-_MEDIA_FILE_PATTERN = re.compile(
-    r"\b([\w\-\.]+\.(?:jpg|jpeg|png|gif|webp|mp4|mov|3gp|avi|opus|ogg|mp3|m4a|aac|pdf|doc|docx))\b",
-    re.IGNORECASE,
-)
 
 
 class MessageRepository:
@@ -160,7 +149,7 @@ class MessageRepository:
                 if not message:
                     continue
 
-                refs = self._find_media_references(message, row)
+                refs = find_all_media_references(message, include_uuids=bool(row.get("media_type")))
                 if not refs:
                     continue
 
@@ -208,12 +197,3 @@ class MessageRepository:
         )
 
         return [(ref, document_lookup[ref], metadata_lookup[ref]) for ref in sorted_refs[:limit]]
-
-    def _find_media_references(self, message: str, row: dict[str, Any]) -> list[str]:
-        """Find media references in a message."""
-        refs = find_media_references(message)
-        refs.extend(_MARKDOWN_LINK_PATTERN.findall(message))
-        refs.extend(_MEDIA_FILE_PATTERN.findall(message))
-        uuid_refs = _UUID_PATTERN.findall(message)
-        refs.extend([u for u in uuid_refs if row.get("media_type")])
-        return refs

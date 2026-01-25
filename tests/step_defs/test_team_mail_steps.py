@@ -59,6 +59,7 @@ def create_personas(isolated_fs, names):
 
 from unittest.mock import MagicMock, patch
 
+
 @when(parsers.parse('I run the mail command "{command}" with args:'), target_fixture="last_command_result")
 def run_mail_command(runner, command, datatable):
     # Flatten datatable to list of args

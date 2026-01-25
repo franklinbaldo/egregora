@@ -35,3 +35,19 @@ class EnrichmentError(AgentError):
 
 class MediaStagingError(EnrichmentError):
     """Raised when a media file cannot be staged for enrichment."""
+
+
+class JinaFetchError(EnrichmentError):
+    """Raised when Jina fetch fails."""
+
+
+class EnrichmentSlugError(EnrichmentError):
+    """Raised when slug generation or normalization fails."""
+
+
+class EnrichmentFileError(EnrichmentError):
+    """Raised when there is an issue with loading or processing an enrichment file."""
+
+
+class EnrichmentParsingError(EnrichmentError):
+    """Raised when parsing enrichment response fails."""

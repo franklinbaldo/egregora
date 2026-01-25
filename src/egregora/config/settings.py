@@ -39,6 +39,17 @@ import tomli_w
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from egregora.config.defaults import (
+    DEFAULT_PIPELINE_DB,
+    DEFAULT_READER_DB,
+    DEFAULT_SITE_NAME,
+    EMBEDDING_DIM,
+    MAX_PROMPT_TOKENS_WARNING_THRESHOLD,
+    RAG_TOP_K_WARNING_THRESHOLD,
+    ModelDefaults,
+    PipelineDefaults,
+    RateLimitDefaults,
+)
 from egregora.config.exceptions import (
     ConfigError,
     ConfigNotFoundError,
@@ -56,24 +67,12 @@ logger = logging.getLogger(__name__)
 # Constants
 # ============================================================================
 
-DEFAULT_MODEL = "google-gla:gemini-2.5-flash"  # Use latest stable model (pydantic-ai format)
-DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
-DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash"  # (google-sdk format uses models/ prefix via validator)
-EMBEDDING_DIM = 768  # Embedding vector dimensions
-DEFAULT_SITE_NAME = "default"
-
-# Quota defaults
-DEFAULT_DAILY_LLM_REQUESTS = 100  # Conservative default
-DEFAULT_PER_SECOND_LIMIT = 2.0  # Allow 2 req/s - FallbackModel handles 429s via key/model rotation
-DEFAULT_CONCURRENCY = 5  # Allow 5 concurrent requests
-
-# Default database connection strings
-# NOTE: These defaults are relative to site root.
-DEFAULT_PIPELINE_DB = "duckdb:///./.egregora/pipeline.duckdb"
-
-# Configuration validation warning thresholds
-RAG_TOP_K_WARNING_THRESHOLD = 20
-MAX_PROMPT_TOKENS_WARNING_THRESHOLD = 200_000
+DEFAULT_MODEL = ModelDefaults.WRITER
+DEFAULT_EMBEDDING_MODEL = ModelDefaults.EMBEDDING
+DEFAULT_BANNER_MODEL = ModelDefaults.BANNER
+DEFAULT_DAILY_LLM_REQUESTS = RateLimitDefaults.DAILY_REQUESTS
+DEFAULT_PER_SECOND_LIMIT = RateLimitDefaults.REQUESTS_PER_SECOND
+DEFAULT_CONCURRENCY = RateLimitDefaults.CONCURRENCY
 
 # Model naming conventions
 PydanticModelName = Annotated[
@@ -95,37 +94,37 @@ class ModelSettings(BaseModel):
 
     # Text generation agents (all default to DEFAULT_MODEL, pydantic naming)
     writer: PydanticModelName = Field(
-        default=DEFAULT_MODEL,
+        default=ModelDefaults.WRITER,
         description="Model for blog post generation (pydantic-ai format)",
     )
     enricher: PydanticModelName = Field(
-        default=DEFAULT_MODEL,
+        default=ModelDefaults.ENRICHER,
         description="Model for URL/text enrichment (pydantic-ai format)",
     )
     enricher_vision: PydanticModelName = Field(
-        default=DEFAULT_MODEL,
+        default=ModelDefaults.ENRICHER_VISION,
         description="Model for image/video enrichment (pydantic-ai format)",
     )
     ranking: PydanticModelName = Field(
-        default=DEFAULT_MODEL,
+        default=ModelDefaults.RANKING,
         description="Model for post ranking (pydantic-ai format)",
     )
     editor: PydanticModelName = Field(
-        default=DEFAULT_MODEL,
+        default=ModelDefaults.EDITOR,
         description="Model for interactive post editing (pydantic-ai format)",
     )
     reader: PydanticModelName = Field(
-        default=DEFAULT_MODEL,
+        default=ModelDefaults.READER,
         description="Model for reader agent (pydantic-ai format)",
     )
 
     # Special models with their own defaults (direct Gemini API usage)
     embedding: GoogleModelName = Field(
-        default=DEFAULT_EMBEDDING_MODEL,
+        default=ModelDefaults.EMBEDDING,
         description="Model for vector embeddings (Google GenAI format: models/...)",
     )
     banner: GoogleModelName = Field(
-        default=DEFAULT_BANNER_MODEL,
+        default=ModelDefaults.BANNER,
         description="Model for banner/cover image generation (Google GenAI format)",
     )
 
@@ -324,16 +323,16 @@ class PipelineSettings(BaseModel):
     """Pipeline execution settings."""
 
     step_size: int = Field(
-        default=1,
+        default=PipelineDefaults.STEP_SIZE,
         ge=1,
         description="Size of each processing window (number of messages, hours, days, etc.)",
     )
     step_unit: WindowUnit = Field(
-        default=WindowUnit.DAYS,
+        default=PipelineDefaults.STEP_UNIT,
         description="Unit for windowing: 'messages' (count), 'hours'/'days' (time), 'bytes' (max packing)",
     )
     overlap_ratio: float = Field(
-        default=0.2,
+        default=PipelineDefaults.OVERLAP_RATIO,
         ge=0.0,
         le=0.5,
         description="Fraction of window to overlap for context continuity (0.0-0.5, default 0.2 = 20%)",
@@ -361,7 +360,7 @@ class PipelineSettings(BaseModel):
         description="End date for filtering (ISO format: YYYY-MM-DD)",
     )
     max_prompt_tokens: int = Field(
-        default=100_000,
+        default=PipelineDefaults.MAX_PROMPT_TOKENS,
         ge=1_000,
         description="Maximum tokens per prompt (default 100k, even if model supports more). Prevents context overflow and controls costs.",
     )
@@ -586,7 +585,7 @@ class ReaderSettings(BaseModel):
     """
 
     enabled: bool = Field(
-        default=True,  # ⭐ Changed from False - this is a magical feature!
+        default=True,  # ⭐ Magical feature - should always be True by default!
         description="Enable reader agent for post quality evaluation (Content Discovery)",
     )
     comparisons_per_post: int = Field(
@@ -602,7 +601,7 @@ class ReaderSettings(BaseModel):
         description="ELO K-factor controlling rating volatility (16=stable, 64=volatile)",
     )
     database_path: str = Field(
-        default=".egregora/reader.duckdb",
+        default=DEFAULT_READER_DB,
         description="Path to reader database for ELO ratings and comparison history",
     )
 
@@ -652,17 +651,17 @@ class QuotaSettings(BaseModel):
     """Configuration for LLM usage budgets and concurrency."""
 
     daily_llm_requests: int = Field(
-        default=DEFAULT_DAILY_LLM_REQUESTS,
+        default=RateLimitDefaults.DAILY_REQUESTS,
         ge=1,
         description="Soft limit for daily LLM calls (writer + enrichment).",
     )
     per_second_limit: float = Field(
-        default=DEFAULT_PER_SECOND_LIMIT,
+        default=RateLimitDefaults.REQUESTS_PER_SECOND,
         ge=0.01,
         description="Maximum number of LLM calls allowed per second (for async guard).",
     )
     concurrency: int = Field(
-        default=DEFAULT_CONCURRENCY,
+        default=RateLimitDefaults.CONCURRENCY,
         ge=1,
         le=20,
         description="Maximum number of simultaneous LLM tasks (enrichment, writing, etc).",
@@ -1197,7 +1196,7 @@ class EnrichmentRuntimeConfig:
 
     client: Annotated[object, "The Gemini client"]
     output_dir: Annotated[Path, "The directory to save enriched data"]
-    model: Annotated[str, "The Gemini model to use for enrichment"] = DEFAULT_MODEL
+    model: Annotated[str, "The Gemini model to use for enrichment"] = ModelDefaults.ENRICHER
 
 
 @dataclass
@@ -1241,10 +1240,8 @@ ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor"
 
 
 __all__ = [
-    "DEFAULT_BANNER_MODEL",
-    "DEFAULT_EMBEDDING_MODEL",
-    "DEFAULT_MODEL",
     "DEFAULT_PIPELINE_DB",
+    "DEFAULT_SITE_NAME",
     "EMBEDDING_DIM",
     "EgregoraConfig",
     "EnrichmentRuntimeConfig",

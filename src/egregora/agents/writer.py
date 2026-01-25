@@ -72,7 +72,6 @@ from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
 from egregora.resources.prompts import render_prompt
 
 if TYPE_CHECKING:
-
     from egregora.config.settings import EgregoraConfig
     from egregora.data_primitives.document import OutputSink
 
@@ -920,5 +919,3 @@ def _regenerate_site_indices(adapter: OutputSink) -> None:
     site_generator.regenerate_tags_page()
     site_generator.regenerate_feeds_page()
     logger.info("Successfully regenerated site indices.")
-
-

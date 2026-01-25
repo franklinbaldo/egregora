@@ -7,6 +7,7 @@ without coupling high-level logic to implementation details.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
@@ -45,6 +46,16 @@ class StorageProtocol(Protocol):
 
         Raises:
             ValueError: If table doesn't exist
+
+        """
+        ...
+
+    def execute_sql(self, sql: str, params: Sequence | None = None) -> None:
+        """Execute a raw SQL statement without returning results.
+
+        Args:
+            sql: SQL query or statement to execute.
+            params: Optional sequence of parameters for prepared execution.
 
         """
         ...
