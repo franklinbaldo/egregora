@@ -330,7 +330,7 @@ def _store_rag_context(cache: Any | None, query_text: str, context: str) -> None
 def load_profiles_context(active_authors: list[str], output_sink: Any) -> str:
     """Load profiles for top active authors via output sink (database-backed).
 
-    Uses output_sink.read_document() which reads from the database (canonical source),
+    Uses output_sink.get() which reads from the database (canonical source),
     eliminating file I/O bottleneck.
 
     Args:
@@ -353,7 +353,7 @@ def load_profiles_context(active_authors: list[str], output_sink: Any) -> str:
 
     for author_uuid in active_authors:
         try:
-            doc = output_sink.read_document(DocumentType.PROFILE, author_uuid)
+            doc = output_sink.get(DocumentType.PROFILE, author_uuid)
             profile_content = doc.content
         except DocumentNotFoundError as exc:
             logger.debug("Could not read profile for %s: %s", author_uuid, exc)

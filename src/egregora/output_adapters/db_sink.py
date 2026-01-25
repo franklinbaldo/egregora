@@ -44,7 +44,7 @@ class DbOutputSink(OutputSink):
         """Persist document to the database repository."""
         self.repository.save(document)
 
-    def read_document(self, doc_type: DocumentType, identifier: str) -> Document:
+    def get(self, doc_type: DocumentType, identifier: str) -> Document:
         """Retrieve document from database."""
         document = self.repository.get(doc_type, identifier)
         if document is None:
@@ -106,7 +106,7 @@ class DbOutputSink(OutputSink):
         for dtype in known_types:
             for meta in self.list(dtype):
                 try:
-                    doc = self.read_document(dtype, meta.identifier)
+                    doc = self.get(dtype, meta.identifier)
                     yield doc
                 except DocumentNotFoundError as e:
                     raise DocumentIterationError(doc_type=e.doc_type, identifier=e.identifier) from e

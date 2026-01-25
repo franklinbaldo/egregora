@@ -374,7 +374,7 @@ class OutputSink(Protocol):
 
         """
 
-    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
+    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
         """Retrieve a single document by its ``doc_type`` primary identifier.
 
         Args:
@@ -390,7 +390,7 @@ class OutputSink(Protocol):
         """Iterate through available documents, optionally filtering by ``doc_type``.
 
         Returns lightweight DocumentMetadata objects for memory-efficient enumeration.
-        For full document content, use documents() or read_document().
+        For full document content, use documents() or get().
 
         Args:
             doc_type: Optional filter by document type
