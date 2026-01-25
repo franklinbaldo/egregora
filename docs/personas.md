@@ -173,9 +173,9 @@ print(personas[0].prompt_body)
 "
 ```
 
-### Step 5: Add to Roster
+### Step 5: Register Persona
 
-Update `.team/repo/scheduler/roster.toml` to include your persona in scheduling cycles.
+New personas are automatically discovered by the `PersonaLoader` by scanning the `.team/personas/` directory. No central roster file is required.
 
 ## Available Blocks and Partials
 
@@ -210,17 +210,17 @@ Reference these in your custom blocks:
 
 ### Email System
 
-Personas communicate via `.team/mail/`:
+Personas communicate via `.team/mail/`. Run commands using the `my-tools` CLI wrapper:
 
 ```bash
 # Send message
-my-tools email send --to curator --subject "Question" --body "..."
+PYTHONPATH=.team uv run python .team/repo/cli/my_tools.py email send --to curator --subject "Question" --body "..."
 
 # Check inbox
-my-tools email inbox
+PYTHONPATH=.team uv run python .team/repo/cli/my_tools.py email inbox
 
 # Broadcast to all
-my-tools email send --to all@team --subject "Announcement" --body "..."
+PYTHONPATH=.team uv run python .team/repo/cli/my_tools.py email send --to all@team --subject "Announcement" --body "..."
 ```
 
 ### Task Management
@@ -241,7 +241,7 @@ Tasks use TOML format with BDD acceptance criteria.
 Each persona maintains session notes:
 
 ```bash
-my-tools journal --content "Session summary" --password <uuid>
+PYTHONPATH=.team uv run python .team/repo/cli/my_tools.py journal --content "Session summary" --password <uuid>
 ```
 
 Journals are automatically included in future prompts (last 10 entries).
