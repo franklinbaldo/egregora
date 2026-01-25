@@ -6,13 +6,14 @@ site_url: {{ site_url | default("http://127.0.0.1:8000") }}  # Update with your 
 # repo_name: your-repo
 docs_dir: ../{{ docs_dir }}
 site_dir: {{ site_dir | default("site") }}  # Set per-site to avoid build collisions in multi-site configs
+use_directory_urls: true
 copyright: Copyright &copy; {{ now.year }} {{ site_name }}
 
 theme:
   name: material
   custom_dir: ../overrides
   language: en
-  favicon: assets/images/favicon.png
+  favicon: assets/images/favicon.svg
   font:
     text: Roboto
     code: Roboto Mono
@@ -72,7 +73,11 @@ theme:
     view: material/eye
 
 plugins:
-  - social
+  - social:
+      cards: true
+      cards_layout_options:
+        background_color: "#0a0a0a"
+        color: "#f9d423"
   - offline
   - search:
       lang: en
@@ -218,7 +223,7 @@ nav:
   - Journal: journal/index.md
   - Resources:
       - Media: {{ media_dir }}/index.md
-      - About: about.md
+  - About: about.md
 
 
 # Egregora configuration lives in .egregora.toml at the site root

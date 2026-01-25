@@ -172,3 +172,42 @@ body,
   margin: 4rem auto;
   backdrop-filter: blur(10px);
 }
+
+.empty-state-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 1.5rem;
+  color: var(--md-accent-fg-color);
+  opacity: 0.8;
+}
+
+.command-block {
+  margin: 2rem 0;
+  text-align: left;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.command-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--md-default-fg-color--light);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.command-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.command-wrapper code {
+  background: transparent !important;
+  padding: 0 !important;
+  color: #fff !important;
+  font-family: var(--md-code-font) !important;
+}

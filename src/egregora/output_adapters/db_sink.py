@@ -7,7 +7,6 @@ central ContentRepository (DuckDB) instead of the filesystem.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import TYPE_CHECKING
 
 from egregora.data_primitives.document import (
     Document,
@@ -23,9 +22,6 @@ from egregora.output_adapters.exceptions import (
     DocumentIterationError,
     DocumentNotFoundError,
 )
-
-if TYPE_CHECKING:
-    from ibis.expr.types import Table
 
 
 class DbOutputSink(OutputSink):
@@ -48,7 +44,7 @@ class DbOutputSink(OutputSink):
         """Persist document to the database repository."""
         self.repository.save(document)
 
-    def read_document(self, doc_type: DocumentType, identifier: str) -> Document:
+    def get(self, doc_type: DocumentType, identifier: str) -> Document:
         """Retrieve document from database."""
         document = self.repository.get(doc_type, identifier)
         if document is None:
@@ -90,28 +86,6 @@ class DbOutputSink(OutputSink):
                 metadata=row,  # Pass full row as metadata
             )
 
-    def list_documents(self, doc_type: DocumentType | None = None) -> Table:
-        """Return Ibis table for RAG indexing."""
-        # Direct access to repository's DB connection for Ibis table
-        # We need to return a table with specific schema?
-        # OutputSink protocol says: columns storage_identifier, mtime_ns
-
-        # We can construct a query on the fly using Ibis
-        # This requires the underlying repository to expose Ibis tables
-
-        # Simplified:
-        if doc_type:
-            table_name = self.repository._get_table_for_type(doc_type)
-            if table_name:
-                t = self.repository.db.read_table(table_name)
-                # Mutate to match expected schema
-                return t.select(
-                    storage_identifier=t.id, mtime_ns=t.created_at.epoch_seconds() * 1_000_000_000
-                )
-
-        # Fallback or empty
-        return self.repository.db._empty_document_table()
-
     def documents(self) -> Iterator[Document]:
         """Iterate all documents."""
         # Use repository.get_all which streams from view
@@ -132,7 +106,7 @@ class DbOutputSink(OutputSink):
         for dtype in known_types:
             for meta in self.list(dtype):
                 try:
-                    doc = self.read_document(dtype, meta.identifier)
+                    doc = self.get(dtype, meta.identifier)
                     yield doc
                 except DocumentNotFoundError as e:
                     raise DocumentIterationError(doc_type=e.doc_type, identifier=e.identifier) from e

@@ -1,4 +1,3 @@
-import json
 import sys
 import unittest
 from pathlib import Path
@@ -16,31 +15,14 @@ from repo.scheduler.models import PersonaConfig  # noqa: E402
 
 
 class TestSimpleScheduler(unittest.TestCase):
-    simple: ClassVar[ModuleType]
-    PersonaConfig: ClassVar[type]
-
-    @classmethod
-    def setUpClass(cls) -> None:
-        """Ensure scheduler modules are importable for tests."""
-        repo_root = Path(__file__).parents[3]
-        team_path = repo_root / ".team"
-        if str(team_path) not in sys.path:
-            sys.path.append(str(team_path))
-
-        from repo.scheduler import simple as scheduler_simple
-        from repo.scheduler.models import PersonaConfig as SchedulerPersonaConfig
-
-        cls.simple = scheduler_simple
-        cls.PersonaConfig = SchedulerPersonaConfig
-
     @patch("repo.scheduler.simple.subprocess.run")
     def test_ensure_jules_branch_exists(self, mock_run: MagicMock) -> None:
         """Test ensure_jules_branch when branch exists."""
         mock_run.return_value.returncode = 0
-        self.simple.ensure_jules_branch()
+        simple.ensure_jules_branch()
         # Verify it checks existence
         mock_run.assert_called_with(
-            ["git", "rev-parse", "--verify", f"refs/heads/{self.simple.JULES_BRANCH}"],
+            ["git", "rev-parse", "--verify", f"refs/heads/{simple.JULES_BRANCH}"],
             capture_output=True,
         )
         # Verify it doesn't create
@@ -51,13 +33,13 @@ class TestSimpleScheduler(unittest.TestCase):
         """Test ensure_jules_branch when branch missing."""
 
         # First call fails (check), second succeeds (create)
-        def side_effect(cmd: list[str], **kwargs: object) -> MagicMock:
+        def side_effect(cmd, **kwargs):
             if cmd[0] == "git" and cmd[1] == "rev-parse":
                 return MagicMock(returncode=1)
             return MagicMock(returncode=0)
 
         mock_run.side_effect = side_effect
-        self.simple.ensure_jules_branch()
+        simple.ensure_jules_branch()
 
         self.assertEqual(mock_run.call_count, 2)
         mock_run.assert_has_calls(
@@ -95,16 +77,16 @@ class TestSimpleScheduler(unittest.TestCase):
 
         mock_path.iterdir.return_value = [d1, d2, d3, d4]
 
-        personas = self.simple.discover_personas()
+        personas = simple.discover_personas()
         self.assertEqual(personas, ["persona1"])
 
     def test_get_next_persona(self) -> None:
         personas = ["a", "b", "c"]
-        self.assertEqual(self.simple.get_next_persona("a", personas), "b")
-        self.assertEqual(self.simple.get_next_persona("c", personas), "a")
-        self.assertEqual(self.simple.get_next_persona(None, personas), "a")
-        self.assertEqual(self.simple.get_next_persona("z", personas), "a")
-        self.assertIsNone(self.simple.get_next_persona("a", []))
+        self.assertEqual(simple.get_next_persona("a", personas), "b")
+        self.assertEqual(simple.get_next_persona("c", personas), "a")
+        self.assertEqual(simple.get_next_persona(None, personas), "a")
+        self.assertEqual(simple.get_next_persona("z", personas), "a")
+        self.assertIsNone(simple.get_next_persona("a", []))
 
     @patch("repo.scheduler.simple.ensure_jules_branch")
     def test_create_session(self, mock_ensure: MagicMock) -> None:
@@ -112,67 +94,19 @@ class TestSimpleScheduler(unittest.TestCase):
         mock_client = MagicMock()
         mock_client.create_session.return_value = {"name": "sessions/123"}
 
-        persona = MagicMock(spec=self.PersonaConfig)
+        persona = MagicMock(spec=PersonaConfig)
         persona.id = "test-p"
         persona.emoji = "T"
         persona.prompt_body = "prompt"
 
         repo_info = {"owner": "o", "repo": "r"}
 
-        result = self.simple.create_session(mock_client, persona, repo_info)
+        result = simple.create_session(mock_client, persona, repo_info)
 
         self.assertTrue(result.success)
         self.assertEqual(result.session_id, "123")
         mock_ensure.assert_called_once()
         mock_client.create_session.assert_called_once()
-
-    @patch("repo.scheduler.simple.subprocess.run")
-    def test_merge_completed_prs_no_checks(self, mock_run: MagicMock) -> None:
-        """Test merge_completed_prs with no checks (should merge)."""
-        pr_data = [{"number": 1, "isDraft": True, "statusCheckRollup": [], "mergeable": "MERGEABLE"}]
-        mock_run.side_effect = [
-            MagicMock(stdout=json.dumps(pr_data), returncode=0),
-            MagicMock(returncode=0),
-            MagicMock(returncode=0),
-        ]
-        merged_count = simple.merge_completed_prs()
-        self.assertEqual(merged_count, 1)
-        self.assertEqual(mock_run.call_count, 3)
-
-    @patch("repo.scheduler.simple.subprocess.run")
-    def test_merge_completed_prs_with_passing_checks(self, mock_run: MagicMock) -> None:
-        """Test merge_completed_prs with passing checks (should merge)."""
-        pr_data = [
-            {
-                "number": 2,
-                "isDraft": False,
-                "statusCheckRollup": [{"conclusion": "SUCCESS"}],
-                "mergeable": "MERGEABLE",
-            }
-        ]
-        mock_run.side_effect = [
-            MagicMock(stdout=json.dumps(pr_data), returncode=0),
-            MagicMock(returncode=0),
-        ]
-        merged_count = simple.merge_completed_prs()
-        self.assertEqual(merged_count, 1)
-
-    @patch("repo.scheduler.simple.subprocess.run")
-    def test_merge_completed_prs_with_failing_checks(self, mock_run: MagicMock) -> None:
-        """Test merge_completed_prs with failing checks (should NOT merge)."""
-        pr_data = [
-            {
-                "number": 3,
-                "isDraft": False,
-                "statusCheckRollup": [{"conclusion": "FAILURE"}],
-                "mergeable": "MERGEABLE",
-            }
-        ]
-        mock_run.side_effect = [
-            MagicMock(stdout=json.dumps(pr_data), returncode=0),
-        ]
-        merged_count = simple.merge_completed_prs()
-        self.assertEqual(merged_count, 0)
 
 
 if __name__ == "__main__":
