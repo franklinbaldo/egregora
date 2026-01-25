@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from egregora.agents.shared.annotations import AnnotationStore
     from egregora.config.settings import EgregoraConfig, RAGSettings
     from egregora.data_primitives.document import OutputSink
+    from egregora.database.protocols import StorageProtocol
     from egregora.database.task_store import TaskStore
     from egregora.llm.usage import UsageTracker
     from egregora.orchestration.cache import PipelineCache
@@ -177,7 +178,7 @@ class WriterResources:
 
     output: OutputSink
     annotations_store: AnnotationStore | None
-    storage: Any | None
+    storage: StorageProtocol | None
     embedding_model: str
     retrieval_config: RAGSettings
     profiles_dir: Path
