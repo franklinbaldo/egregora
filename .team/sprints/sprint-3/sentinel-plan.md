@@ -1,35 +1,35 @@
 # Plan: Sentinel - Sprint 3
 **Persona:** Sentinel 🛡️
 **Sprint:** 3
-**Created:** 2026-01-24
+**Created:** 2026-01-26
 **Priority:** High
 
 ## Objectives
-My mission for Sprint 3 is to prepare the defenses for the "Symbiote" initiative. As we move towards real-time data and LLM integration, the attack surface grows significantly.
+My mission is to safeguard the new "Discovery" features and ensure the "Mobile Polish" doesn't introduce client-side vulnerabilities.
 
-- [ ] **Threat Model "Symbiote":** Conduct a threat modeling session for the "Real-Time Adapter" and "Structured Data Sidecar" RFCs.
-- [ ] **Automated Security Gates:** Integrate `bandit` and `pip-audit` into the CI/CD pipeline (GitHub Actions or equivalent) to prevent regressions.
-- [ ] **LLM Injection Defenses:** Research and prototype defenses against Prompt Injection and Indirect Prompt Injection for the new "Structured Data Sidecar".
-- [ ] **Fuzzing Setup:** Establish a basic fuzzing harness for the input parsers that will handle the real-time data.
+- [ ] **Audit Related Content (Discovery):** Review the implementation of the "Related Content" feature. Ensure that the embedding/retrieval process handles data securely and doesn't accidentally surface content marked as "private" or "draft" if such flags exist.
+- [ ] **Mobile UI Security Audit:** Verify that the "Mobile Polish" updates (likely CSS/JS) do not introduce DOM-based XSS vulnerabilities, especially in touch event handlers or dynamic menus.
+- [ ] **Rate Limit Tuning for Discovery:** Ensure that the new bulk operations for generating related content do not trigger API rate limits or excessive costs.
+- [ ] **Automated Dependency Audits:** Formalize `pip-audit` into the CI/CD pipeline if not already done in Sprint 2.
 
 ## Dependencies
-- **Visionary:** I need the RFCs and technical specs for the Symbiote features to perform threat modeling.
-- **Sheriff:** I will need to coordinate with the Sheriff (Build Cop) to modify the CI/CD pipelines.
+- **Visionary/Simplifier:** I need access to the "Related Content" implementation (likely in `src/egregora/rag/` or similar).
+- **Forge:** I need to see the mobile UI changes.
 
 ## Context
-Sprint 3 is likely where the "Visionary" ideas start to become code. Real-time data processing and deeper LLM integration are classic areas for security vulnerabilities (DoS, Injection). I need to be ahead of the curve, defining the security requirements before the code is written.
+Sprint 3 introduces "Smart" features (Discovery). "Smart" often means "Complex", and complexity breeds vulnerabilities. I need to be vigilant about how data flows through the RAG pipeline.
 
 ## Expected Deliverables
-1.  **Threat Model Document:** A document in `.team/security/threat-models/` analyzing the Symbiote architecture.
-2.  **CI/CD Security Jobs:** Updated workflow files with security scanners.
-3.  **LLM Security Guidelines:** A set of guidelines for the team on how to safely interact with LLMs (output validation, sanitization).
+1.  **Security Audit Report:** Focused on the Discovery/RAG pipeline.
+2.  **Hardened RAG Configuration:** Rate limits and retries configured for the new feature.
+3.  **XSS Regression Tests:** Specific checks for mobile UI components.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| "Symbiote" complexity hides bugs | High | High | Threat modeling *before* implementation is key. We need to design for security. |
-| CI/CD slows down | Medium | Low | I will ensure the security scanners run in parallel or are optimized to not block the build unnecessarily. |
+| RAG Pipeline Leaks Data | Low | High | Review the query construction and filtering logic in the embedding retrieval step. |
+| API Cost Overrun | Medium | Low | Monitor usage and ensure strict rate limiting is applied to the new batch jobs. |
 
 ## Proposed Collaborations
-- **With Visionary & Builder:** Threat modeling workshop.
-- **With Sheriff:** CI/CD pipeline integration.
+- **With Visionary:** Understand the RAG architecture.
+- **With Forge:** Review mobile frontend code.
