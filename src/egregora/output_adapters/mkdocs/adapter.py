@@ -1010,6 +1010,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
     # Document Writing Strategies ---------------------------------------------
 
     @staticmethod
+    def _clean_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+        """Remove None values from metadata to prevent YAML nulls."""
+        return {k: v for k, v in metadata.items() if v is not None}
+
+    @staticmethod
     def _ensure_category(metadata: dict[str, Any], category: str) -> dict[str, Any]:
         """Ensure metadata has a valid categories list with the specified category.
 
@@ -1036,6 +1041,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         # Add Journal category using helper (handles malformed data)
         metadata = self._ensure_category(metadata, "Journal")
+        metadata = self._clean_metadata(metadata)
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
@@ -1049,6 +1055,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         # Add Annotations category using helper (handles malformed data)
         metadata = self._ensure_category(metadata, "Annotations")
+        metadata = self._clean_metadata(metadata)
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
@@ -1073,8 +1080,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Add Authors category using helper (handles malformed data)
         metadata = self._ensure_category(metadata, "Authors")
 
-        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
-
         all_posts = list(self.documents())
         author_posts_docs = [post for post in all_posts if author_uuid in post.metadata.get("authors", [])]
         metadata["posts"] = [
@@ -1085,6 +1090,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             }
             for post in author_posts_docs
         ]
+        metadata = self._clean_metadata(metadata)
+
+        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
         # Avatar is in frontmatter only - not prepended to content
         # This allows the template/theme to handle avatar rendering
@@ -1101,6 +1109,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         # Add Enrichment category using helper (handles malformed data)
         metadata = self._ensure_category(metadata, "Enrichment")
+        metadata = self._clean_metadata(metadata)
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
