@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Protocol
-
-if TYPE_CHECKING:
-    from egregora.orchestration.context import PipelineContext
+from typing import Any, Protocol
 
 
 class WorkerContext(Protocol):

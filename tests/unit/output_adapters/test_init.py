@@ -1,7 +1,4 @@
-from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from egregora.config.settings import EgregoraConfig
 from egregora.output_adapters import create_and_initialize_adapter
@@ -16,10 +13,11 @@ def test_create_and_initialize_adapter_detects_mkdocs(tmp_path):
     config = MagicMock(spec=EgregoraConfig)
 
     # Mock MkDocsPaths to return our output_dir as site_root
-    with patch("egregora.output_adapters.MkDocsPaths") as mock_paths_cls, \
-         patch("egregora.output_adapters.create_output_sink") as mock_create_sink, \
-         patch("egregora.output_adapters.create_default_output_registry") as mock_create_registry:
-
+    with (
+        patch("egregora.output_adapters.MkDocsPaths") as mock_paths_cls,
+        patch("egregora.output_adapters.create_output_sink") as mock_create_sink,
+        patch("egregora.output_adapters.create_default_output_registry") as mock_create_registry,
+    ):
         mock_paths_instance = MagicMock()
         mock_paths_instance.site_root = output_dir
         mock_paths_cls.return_value = mock_paths_instance
@@ -37,6 +35,7 @@ def test_create_and_initialize_adapter_detects_mkdocs(tmp_path):
         assert adapter is mock_adapter
         mock_create_sink.assert_called_once()
         mock_adapter.initialize.assert_called_once()
+
 
 def test_create_and_initialize_adapter_uses_existing_registry(tmp_path):
     """Test that adapter uses provided registry."""

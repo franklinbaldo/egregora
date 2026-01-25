@@ -99,13 +99,11 @@ def migrate_media_table(conn: duckdb.DuckDBPyConnection) -> None:
         "phash",
     ]
 
-    target_columns = columns_to_copy + ["doc_type", "status"]
-    select_columns = columns_to_copy + ["'media'", "'published'"]
+    target_columns = [*columns_to_copy, "doc_type", "status"]
+    select_columns = [*columns_to_copy, "'media'", "'published'"]
 
     target_cols_str = ", ".join(quote_identifier(c) for c in target_columns)
-    select_cols_str = ", ".join(
-        c if c.startswith("'") else quote_identifier(c) for c in select_columns
-    )
+    select_cols_str = ", ".join(c if c.startswith("'") else quote_identifier(c) for c in select_columns)
 
     insert_sql = f"INSERT INTO documents ({target_cols_str}) SELECT {select_cols_str} FROM media"
 
@@ -129,9 +127,7 @@ def migrate_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
     # Check if migration is needed
     # If we have all columns AND all expected constraints, we skip.
     needs_schema_migration = not (
-        "doc_type" in existing_columns
-        and "status" in existing_columns
-        and constraints_ok
+        "doc_type" in existing_columns and "status" in existing_columns and constraints_ok
     )
 
     if needs_schema_migration:
@@ -142,9 +138,7 @@ def migrate_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
         logger.info(f"Creating temporary table: {temp_table_name}")
         conn.execute(create_sql)
 
-        insert_sql = _build_documents_insert_select_sql(
-            temp_table_name, existing_columns
-        )
+        insert_sql = _build_documents_insert_select_sql(temp_table_name, existing_columns)
         logger.info(f"Copying data to temporary table: {temp_table_name}")
         conn.execute(insert_sql)
 

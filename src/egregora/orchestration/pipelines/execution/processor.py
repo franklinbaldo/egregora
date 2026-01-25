@@ -95,8 +95,8 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     # Note: We don't handle PromptTooLargeError here because we rely on heuristic splitting
     # in the generator. If it fails here, it fails.
     writer_result = write_posts_for_window(params)
-    posts = cast(list[Any], writer_result.get("posts", []))
-    profiles = cast(list[Any], writer_result.get("profiles", []))
+    posts = cast("list[Any]", writer_result.get("posts", []))
+    profiles = cast("list[Any]", writer_result.get("profiles", []))
 
     # Warn if writer processed messages but generated no posts
     if not posts and clean_messages_list:
@@ -127,7 +127,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     try:
         # Cast to list[Document] as we are running synchronously
         profile_docs = cast(
-            list[Document],
+            "list[Document]",
             generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date),
         )
         for profile_doc in profile_docs:

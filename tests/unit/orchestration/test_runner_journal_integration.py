@@ -66,10 +66,10 @@ class TestPipelineRunnerJournalIntegration:
     @patch("egregora.orchestration.runner.write_posts_for_window")
     @patch("egregora.orchestration.runner.generate_profile_posts")
     @patch("egregora.orchestration.runner.create_journal_document")
-    @patch("egregora.orchestration.runner.PipelineFactory")  # for writer resources
+    @patch("egregora.orchestration.runner.WriterResources")
     def test_process_window_creates_journal_on_success(
         self,
-        mock_factory,
+        mock_resources_cls,
         mock_create_journal,
         mock_gen_profiles,
         mock_write_posts,
@@ -87,6 +87,8 @@ class TestPipelineRunnerJournalIntegration:
         mock_pm.get_template_content.return_value = "template"
         mock_sig.return_value = "new-signature"
         mock_check.return_value = False  # Not processed yet
+
+        mock_resources_cls.from_pipeline_context.return_value = MagicMock()
 
         # Mock processing returns
         mock_media.return_value = (MagicMock(), {})
@@ -134,10 +136,10 @@ class TestPipelineRunnerJournalIntegration:
     @patch("egregora.orchestration.runner.write_posts_for_window")
     @patch("egregora.orchestration.runner.generate_profile_posts")
     @patch("egregora.orchestration.runner.create_journal_document")
-    @patch("egregora.orchestration.runner.PipelineFactory")
+    @patch("egregora.orchestration.runner.WriterResources")
     def test_process_window_handles_journal_persist_error(
         self,
-        mock_factory,
+        mock_resources_cls,
         mock_create_journal,
         mock_gen_profiles,
         mock_write_posts,
@@ -155,6 +157,8 @@ class TestPipelineRunnerJournalIntegration:
         mock_pm.get_template_content.return_value = "template"
         mock_sig.return_value = "new-signature"
         mock_check.return_value = False
+
+        mock_resources_cls.from_pipeline_context.return_value = MagicMock()
 
         mock_media.return_value = (MagicMock(), {})
         mock_write_posts.return_value = {"posts": ["post1"], "profiles": []}

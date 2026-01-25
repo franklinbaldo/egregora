@@ -43,16 +43,26 @@ def test_about_page_structure_and_styling(tmp_path: Path, scaffolder: MkDocsSite
 
     # Check Navigation Structure
     nav = mkdocs_config.get("nav", [])
-    # "About: about.md" should be a top-level item, usually at the end
-    # Structure is list of dicts: [{'Home': 'index.md'}, ...]
+    # "About: about.md" should be under Resources
+    # Structure is list of dicts: [{'Home': 'index.md'}, {'Resources': [...]}, ...]
+
+    resources_entry = None
+    for item in nav:
+        if isinstance(item, dict) and "Resources" in item:
+            resources_entry = item["Resources"]
+            break
+
+    assert resources_entry is not None, "Resources section missing from nav"
 
     about_entry = None
-    for item in nav:
+    for item in resources_entry:
         if isinstance(item, dict) and "About" in item:
             about_entry = item["About"]
             break
 
-    assert about_entry == "about.md", "About page should be top-level navigation item pointing to about.md"
+    assert about_entry == "about.md", (
+        "About page should be navigation item under Resources pointing to about.md"
+    )
 
 
 def test_extra_css_glassmorphism(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:
