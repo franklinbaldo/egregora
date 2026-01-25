@@ -21,6 +21,8 @@ from collections.abc import Mapping
 from importlib.metadata import entry_points
 from typing import TYPE_CHECKING, cast
 
+from egregora.input_adapters.exceptions import AdapterLoadError, UnknownAdapterError
+
 if TYPE_CHECKING:
     from egregora.input_adapters.base import InputAdapter
 
@@ -94,8 +96,11 @@ class InputAdapterRegistry:
                 self._adapters[meta["source"]] = adapter
                 logger.info("Loaded plugin adapter: %s v%s (from %s)", meta["name"], meta["version"], ep.name)
 
-            except Exception:
-                logger.exception("Failed to load plugin adapter: %s", ep.name)
+            except Exception as e:
+                # Wrap in AdapterLoadError for consistent logging structure,
+                # though we still swallow it to prevent startup crashes.
+                error = AdapterLoadError(ep.name, e)
+                logger.exception("Failed to load plugin adapter: %s", error)
 
     def _register_builtin_adapters(self) -> None:
         """Register adapters bundled with the application.
@@ -125,8 +130,9 @@ class InputAdapterRegistry:
 
                 self._adapters[meta["source"]] = adapter
                 logger.info("Registered built-in adapter: %s v%s", meta["name"], meta["version"])
-            except Exception:
-                logger.exception("Failed to initialize built-in adapter: %s", class_name)
+            except Exception as e:
+                error = AdapterLoadError(class_name, e)
+                logger.exception("Failed to initialize built-in adapter: %s", error)
 
     def get(self, source_identifier: str) -> InputAdapter:
         """Get adapter by source identifier.
@@ -138,7 +144,7 @@ class InputAdapterRegistry:
             Adapter instance
 
         Raises:
-            KeyError: If source identifier not found
+            UnknownAdapterError: If source identifier not found
 
         Example:
             >>> registry = InputAdapterRegistry()
@@ -147,9 +153,7 @@ class InputAdapterRegistry:
 
         """
         if source_identifier not in self._adapters:
-            available = ", ".join(self._adapters.keys())
-            msg = f"Unknown source: '{source_identifier}'. Available: {available}"
-            raise KeyError(msg)
+            raise UnknownAdapterError(source_identifier, list(self._adapters.keys()))
         return self._adapters[source_identifier]
 
     def list_adapters(self) -> list[dict[str, str]]:
