@@ -3,14 +3,17 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
+
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 
 if TYPE_CHECKING:
     from pathlib import Path
 
+
 @pytest.fixture
 def scaffolder() -> MkDocsSiteScaffolder:
     return MkDocsSiteScaffolder()
+
 
 def test_about_page_structure_and_styling(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:
     """
@@ -50,6 +53,7 @@ def test_about_page_structure_and_styling(tmp_path: Path, scaffolder: MkDocsSite
             break
 
     assert about_entry == "about.md", "About page should be top-level navigation item pointing to about.md"
+
 
 def test_extra_css_glassmorphism(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:
     """
