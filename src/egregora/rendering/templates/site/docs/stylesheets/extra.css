@@ -172,3 +172,14 @@ body,
   margin: 4rem auto;
   backdrop-filter: blur(10px);
 }
+
+/* About Page Container */
+.about-container {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(40px) saturate(250%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 28px;
+  padding: 48px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  margin-top: 2rem;
+}
