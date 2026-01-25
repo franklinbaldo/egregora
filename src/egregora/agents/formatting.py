@@ -17,7 +17,6 @@ from egregora.output_adapters.exceptions import DocumentNotFoundError
 
 if TYPE_CHECKING:
     from egregora.agents.shared.annotations import Annotation, AnnotationStore
-    from egregora.data_primitives.document import Document
     from egregora.output_adapters.base import OutputSink
 
 logger = logging.getLogger(__name__)
@@ -130,18 +129,19 @@ def build_conversation_xml(
         ts = str(row.get("ts", row.get("timestamp", "")))
         text = str(row.get("text", ""))
 
+        msg_notes: list[dict[str, str]] = []
+        if msg_id in annotations_map:
+            msg_notes.extend(
+                {"id": str(ann.id), "content": ann.commentary} for ann in annotations_map[msg_id]
+            )
+
         msg_data = {
             "id": msg_id,
             "author": author,
             "ts": ts,
             "content": text,
-            "notes": [],
+            "notes": msg_notes,
         }
-
-        if msg_id in annotations_map:
-            notes: list[dict[str, str]] = msg_data["notes"]  # type: ignore[assignment]
-            for ann in annotations_map[msg_id]:
-                notes.append({"id": str(ann.id), "content": ann.commentary})
         messages.append(msg_data)
 
     templates_dir = Path(__file__).resolve().parents[1] / "templates"

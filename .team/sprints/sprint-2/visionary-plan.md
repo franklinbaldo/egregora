@@ -1,49 +1,41 @@
-# Plano: visionary - Sprint 2
+# Plan: Visionary - Sprint 2
 
-**Persona:** visionary
+**Persona:** Visionary 🔭
 **Sprint:** 2
-**Criado em:** 2026-01-22
-**Prioridade:** Alta
+**Created:** 2026-01-26
+**Priority:** High
 
-## Objetivos
+## Objectives
 
-Descreva os principais objetivos para este sprint:
+My mission is to lay the groundwork for the **Egregora Nervous System** (RFC 028).
 
-- [ ] Prototipar `CodeReferenceDetector` para detecção de paths e SHAs em mensagens de chat (RFC 027).
-- [ ] Implementar POC de `GitHistoryResolver` para mapear Timestamp -> Commit SHA (RFC 027).
-- [ ] Validar viabilidade de integração com Markdown do agente Writer.
+- [ ] **Event Schema Definition:** Define the core `Event` dataclasses and the `Bus` interface.
+- [ ] **Instrumentation (Alpha):** Add event emission points to `write.py` (e.g., `PhaseChanged`, `WindowProcessed`) without breaking existing logic.
+- [ ] **Prototype Pulse UI:** Build a standalone `rich` prototype that consumes mock events to demonstrate the UX (RFC 029).
 
-## Dependências
+## Dependencies
 
-Liste dependências de trabalho de outras personas:
+- **Refactor:** I need `write.py` to be stable enough to instrument, or ideally partially modularized.
+- **Builder:** Need to ensure the new Event classes don't conflict with existing Pydantic models.
 
-- **builder:** Suporte para schema de cache de Git Lookups em DuckDB.
-- **scribe:** Atualização da documentação para incluir nova feature de links históricos.
+## Context
 
-## Contexto
+The "Historical Code Linking" (RFC 027) was a good idea, but the **Architecture Analysis** revealed a deeper systemic risk: the opacity and fragility of the core pipeline. We must fix the "Nervous System" before we add more complex organs.
 
-Explique o contexto e raciocínio por trás deste plano:
+## Expected Deliverables
 
-Após a aprovação do Quick Win (RFC 027), o foco é validar a tecnologia principal (Regex + Git CLI) antes de integrar totalmente ao pipeline. Precisamos garantir que a detecção seja precisa e a resolução de commits seja rápida.
+1.  `src/egregora/orchestration/events.py`: Core event definitions.
+2.  `src/egregora/orchestration/bus.py`: Simple synchronous event bus.
+3.  `examples/pulse_demo.py`: A script demonstrating the proposed CLI UI.
 
-## Entregáveis Esperados
+## Risks and Mitigations
 
-1. Script Python `detect_refs.py` que extrai referências de um arquivo de texto.
-2. Script Python `resolve_commit.py` que aceita data/hora e retorna SHA do repo local.
-3. Relatório de performance (tempo por lookup).
-
-## Riscos e Mitigações
-
-| Risco | Probabilidade | Impacto | Mitigação |
+| Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Git Lookup lento | Alta | Médio | Implementar cache agressivo (DuckDB/Redis) |
-| Ambiguidade de path | Média | Baixo | Linkar para tree root ou exibir warning se arquivo não existe |
+| Disruption to `write.py` | Medium | High | Use a "Sidecar" approach: emit events but don't change control flow yet. |
+| Performance Overhead | Low | Low | Keep the Event Bus synchronous and lightweight for now. |
 
-## Colaborações Propostas
+## Proposed Collaborations
 
-- **Com builder:** Definir schema da tabela `git_cache`.
-- **Com artisan:** Revisar código do resolver para otimização.
-
-## Notas Adicionais
-
-Foco total na "Foundation" para o Context Layer.
+- **With Refactor:** Coordinate on where to slice `write.py` so I can insert probes.
+- **With Maya:** Design the "textual aesthetics" of the Pulse UI.
