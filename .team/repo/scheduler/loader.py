@@ -176,12 +176,8 @@ class PersonaLoader:
         if "id" in full_context:
             full_context["password"] = str(uuid.uuid5(uuid.NAMESPACE_DNS, full_context["id"]))
 
-        # Sprint planning
-        from repo.features.sprints import sprint_manager
-        
-        # Calculate sprint context text (used by sprint_planning_block or legacy append)
-        sprint_context = sprint_manager.get_sprint_context(metadata.get("id", "unknown"))
-        full_context["sprint_context_text"] = sprint_context
+        # Empty sprint context (legacy variable, kept for template compatibility)
+        full_context["sprint_context_text"] = ""
 
         # PRE-RENDER PARTIALS AND BLOCKS
         # This allows using {{ identity_branding }} instead of {% include "partials/identity_branding.md.j2" %}
@@ -209,10 +205,6 @@ class PersonaLoader:
                 except Exception:
                     # If rendering fails (e.g. missing vars required by partial), skip or log
                     pass
-
-        # Legacy Support: Append sprint context if not using inheritance/blocks
-        if "{% extends" not in body_template and "{% block" not in body_template:
-            body_template += sprint_context
 
         # Render final body
         return self.jinja_env.from_string(body_template).render(**full_context).strip()
