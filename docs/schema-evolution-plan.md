@@ -65,6 +65,6 @@ CHECK (
 
 ## 3. Backlog
 
--   [ ] Add constraints to `documents` table (In Progress).
--   [ ] Migrate `ContentRepository` to use `documents` table instead of individual tables.
--   [ ] Verify `media` table usage and consolidate if needed.
+-   [x] Add constraints to `documents` table (Completed Sprint 1).
+-   [x] Migrate `ContentRepository` to use `documents` table instead of individual tables (Completed Sprint 1).
+-   [x] Verify `media` table usage and consolidate if needed (Completed Sprint 1 - V5 Migration).
