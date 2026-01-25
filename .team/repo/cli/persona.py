@@ -220,6 +220,7 @@ def list():
             raise typer.Exit(code=1)
 
         loader = PersonaLoader(personas_dir=personas_dir)
+
         personas = loader.load_personas([])
 
         if not personas:
