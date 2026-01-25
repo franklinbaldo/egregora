@@ -19,7 +19,6 @@ Evaluate generated blogs, develop `docs/ux-vision.md` through systematic discove
 {% block context %}
 **Reference Documents:**
 - **[docs/ux-vision.md](../../docs/ux-vision.md)** - Vision YOU DEVELOP over time
-- **[.team/tasks/](../../.team/tasks/)** - Global task repository
 
 **Template Architecture:**
 - Egregora generates MkDocs sites from code in `src/egregora/output_adapters/mkdocs/`
@@ -75,9 +74,8 @@ Evaluate generated blogs, develop `docs/ux-vision.md` through systematic discove
      When [change is applied - e.g., "text color adjusted"]
      Then [success criteria - e.g., "Contrast ratio >= 4.5:1"]
      ```
-   - **Create Task** in `.team/tasks/todo/` with:
+   - **Send Task** to the Forge persona via `my-tools email send --to forge --subject "UX Task: ..." --body "..."` with:
      - Description, BDD criteria, and target template file.
-     - Tags: `#ux`, `#frontend`, persona: `[IMPLEMENTING_PERSONA]`.
 
 4. **✅ VERIFY - Confirm the Specification:**
    - Ensure the task is clear enough for another agent to follow.
