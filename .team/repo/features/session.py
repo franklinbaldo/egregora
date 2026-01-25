@@ -32,18 +32,8 @@ class SessionManager:
         if not self.validate_password(persona, password):
             raise ValueError("Invalid password")
         
-        # Capture current sequence during login
-        sequence = "unknown"
-        try:
-            from repo.features.voting import VoteManager
-            vm = VoteManager()
-            sequence = vm.get_current_sequence(persona) or "unknown"
-        except Exception:
-            pass
-
         self.session_data = {
             "persona": persona,
-            "sequence": sequence,
             "goals": goals,
             "start_time": datetime.datetime.now().isoformat(),
             "status": "active"

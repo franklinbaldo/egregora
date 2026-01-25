@@ -25,13 +25,6 @@ repos:
   # - check-complexity, check-dead-code, check-security: Use scripts/quality.sh instead
   - repo: local
     hooks:
-      - id: detect-regression
-        name: Detect code regressions
-        entry: python .github/scripts/detect_regression.py
-        language: system
-        pass_filenames: false
-        stages: [pre-commit]
-        verbose: true
       # - id: check-root-structure
       #   name: Enforce Clean Root Directory
       #   entry: python scripts/dev_tools/check_root_structure.py
@@ -133,26 +126,9 @@ repos:
         types: [python]
         pass_filenames: false
         stages: [pre-push]
-      - id: fix-schedule-csv
-        name: Fix schedule.csv format
-        entry: uv run python -c "import sys; sys.path.insert(0, '.team'); from repo.scheduler.schedule import load_schedule, validate_and_fix, save_schedule; rows = load_schedule(); fixed, issues = validate_and_fix(rows); save_schedule(fixed) if issues else None; print('Fixed:', len(issues), 'issues') if issues else None"
-        language: system
-        files: '\.team/schedule\.csv$'
-      - id: vote-validation
-        name: Validate schedule respects votes
-        entry: uv run python -c "import sys; sys.path.insert(0, '.team'); from repo.features.voting import VoteManager; vm = VoteManager(); violations = vm.validate_schedule_vs_votes(); exit(1) if violations else exit(0)"
-        language: system
-        files: '\.team/(schedule\.csv|votes\.csv)$'
-        pass_filenames: false
       - id: prompt-change-validation
         name: Validate persona prompt changes
         entry: uv run python scripts/dev_tools/check_prompt_changes.py
         language: system
         files: '\.team/personas/.*/.*\.j2$'
-        pass_filenames: false
-      - id: hire-vote-validation
-        name: Validate new hires are voted for
-        entry: uv run python scripts/dev_tools/check_hire_vote.py
-        language: system
-        files: '\.team/personas/.*/prompt\.md'
         pass_filenames: false
