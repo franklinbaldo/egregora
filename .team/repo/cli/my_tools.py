@@ -74,15 +74,15 @@ def login(
         print(f"✅ Logged in as {user}")
         print(f"🎯 Goals set: {', '.join(goals) if goals else '(none)'}")
         print("📋 Session configuration created.")
-        
+
         # Check for constitution changes
         from rich import print as rprint
         from rich.panel import Panel
         from repo.features.governance import GovernanceManager
-        
+
         gov = GovernanceManager()
         persona_id = user.split("@")[0]  # Extract persona ID from user@team
-        
+
         if gov.has_constitution_changed_since_plead(persona_id):
             rprint(Panel(
                 "[bold red]⚠️  CONSTITUTION CHANGED[/bold red]\n\n"
@@ -102,7 +102,7 @@ def login(
                 title="[bold white on yellow] NOTICE [/bold white on yellow]",
                 border_style="yellow"
             ))
-        
+
         # Display Sitrep
         sequence = session_manager.get_active_sequence()
         sitrep = pulse_manager.get_sitrep(user, sequence)
@@ -153,7 +153,7 @@ def vote(
     """
     🗳️ CAST SCHEDULING VOTES.
     Influence the project sequence by ranking preferred personas.
-    
+
     The first --persona is your 1st choice, the second is 2nd choice, etc.
     The target sequence is automatically calculated based on the roster size.
     """
@@ -162,9 +162,9 @@ def vote(
     from rich.table import Table
     from rich.console import Console
     from pathlib import Path
-    
+
     console = Console()
-    
+
     # Show rich help if no personas or password provided
     if not personas or not password:
         # Get roster
@@ -172,7 +172,7 @@ def vote(
         roster = []
         if personas_dir.exists():
             roster = [d.name for d in personas_dir.iterdir() if d.is_dir()]
-        
+
         # Get upcoming schedule
         schedule_info = []
         target_seq_str = "???"
@@ -185,20 +185,20 @@ def vote(
                     roster_size = len(roster)
                     target_seq = int(voter_sequence) + roster_size
                     target_seq_str = f"{target_seq:03}"
-                    
+
                     # Get upcoming winners
                     upcoming = vote_manager.get_upcoming_winners(voter_sequence, count=target_seq - int(voter_sequence) + 2)
                     schedule_info = upcoming
         except Exception:
             pass
-        
+
         # Display TARGET SEQUENCE prominently
         rprint(Panel(
             f"[bold green]🎯 You are voting for: SEQUENCE {target_seq_str}[/bold green]",
             border_style="green"
         ))
         rprint("")
-        
+
         # Display current schedule panel
         if schedule_info:
             sched_table = Table(title="📅 Current Schedule (leading up to your vote)", header_style="bold cyan")
@@ -214,7 +214,7 @@ def vote(
                     sched_table.add_row(entry["sequence"], entry["winner"], status)
             rprint(sched_table)
             rprint("")
-        
+
         # Display current frontrunners for target sequence
         target_tally = vote_manager.get_tally(target_seq_str)
         if target_tally:
@@ -230,20 +230,20 @@ def vote(
         else:
             rprint(Panel("[dim]No votes cast yet for this sequence[/dim]", title="🏆 Current Frontrunners", border_style="dim"))
             rprint("")
-        
+
         # Display roster panel (same format as roster list command)
         from repo.scheduler.loader import PersonaLoader
         try:
             base_context = {"owner": "", "repo": "", "open_prs": []}
             loader = PersonaLoader(personas_dir, base_context)
             loaded_personas = loader.load_personas([])
-            
+
             roster_table = Table(title="👥 Available Candidates", header_style="bold magenta")
             roster_table.add_column("Icon", justify="center")
             roster_table.add_column("Persona ID", style="cyan")
             roster_table.add_column("Pronouns", style="magenta")
             roster_table.add_column("Description", style="green")
-            
+
             for p in sorted(loaded_personas, key=lambda x: x.id):
                 roster_table.add_row(
                     p.emoji or "👤",
@@ -260,7 +260,7 @@ def vote(
                 roster_table.add_row(p)
             rprint(roster_table)
         rprint("")
-        
+
         # Display usage instructions
         rprint(Panel(
             "[bold yellow]How to Vote:[/bold yellow]\n\n"
@@ -271,23 +271,23 @@ def vote(
             title="[bold white]🗳️ Voting Instructions[/bold white]",
             border_style="yellow"
         ))
-        
+
         if not personas:
             print("\n❌ Missing required option: --persona")
         if not password:
             print("❌ Missing required option: --password")
         raise typer.Exit(code=1)
-    
+
     try:
         voter_id = session_manager.get_active_persona()
         if not voter_id:
             print("❌ No active session. Please login first.")
             raise typer.Exit(code=1)
-            
+
         if not session_manager.validate_password(voter_id, password):
             print("❌ Auth failed: Invalid password.")
             raise typer.Exit(code=1)
-            
+
         voter_sequence = vote_manager.get_current_sequence(voter_id)
         if not voter_sequence:
             print(f"❌ Could not determine current sequence for {voter_id}.")
@@ -296,14 +296,14 @@ def vote(
         vote_manager.cast_vote(voter_sequence, personas)
         persona_list = ", ".join(personas)
         print(f"✅ Ranked votes cast by {voter_id} (seq {voter_sequence}) for [{persona_list}]")
-        
+
         # In rolling model, we apply votes to the NEXT unassigned sequence
         next_sequence = vote_manager.get_next_open_sequence()
         if next_sequence:
             winner = vote_manager.apply_votes(next_sequence)
             if winner:
                 print(f"📋 Schedule updated: Sequence {next_sequence} now assigned to {winner}")
-        
+
             # Display current sequence leaders briefing
             upcoming = vote_manager.get_upcoming_winners(next_sequence, count=5)
             if upcoming:
@@ -312,7 +312,7 @@ def vote(
                 table.add_column("Leader", style="green")
                 table.add_column("Points", justify="right")
                 table.add_column("Status", style="dim")
-                
+
                 for entry in upcoming:
                     status = "📋 scheduled" if entry.get("scheduled") else f"🗳️ {entry['total_votes']} votes"
                     table.add_row(
@@ -322,7 +322,7 @@ def vote(
                         status
                     )
                 rprint(table)
-        
+
     except Exception as e:
         print(f"❌ Vote failed: {e}")
         raise typer.Exit(code=1)
@@ -345,22 +345,22 @@ def hire(
     """
     🤝 PROVISION NEW PERSONA.
     Expand the team by creating a new specialized persona identity.
-    
+
     ⚠️ You MUST vote for the new hire as your TOP choice before committing!
     """
     from rich import print as rprint
     from rich.panel import Panel
-    
+
     try:
         voter_id = session_manager.get_active_persona()
         if not voter_id:
             print("❌ No active session. Please login first.")
             raise typer.Exit(code=1)
-            
+
         if not session_manager.validate_password(voter_id, password):
             print("❌ Auth failed: Invalid password.")
             raise typer.Exit(code=1)
-            
+
         path = hire_manager.hire_persona(
             persona_id=id,
             emoji=emoji,
@@ -375,7 +375,7 @@ def hire(
             workflow=workflow
         )
         print(f"✅ Persona '{id}' successfully hired! Prompt created at {path}")
-        
+
         # Show MANDATORY vote reminder
         rprint(Panel(
             f"[bold yellow]⚠️ MANDATORY: You MUST vote for '{id}' as your TOP choice![/bold yellow]\n\n"
@@ -384,7 +384,7 @@ def hire(
             title="[bold white on yellow] ACTION REQUIRED [/bold white on yellow]",
             border_style="yellow"
         ))
-        
+
     except Exception as e:
         print(f"❌ Hire failed: {e}")
         raise typer.Exit(code=1)

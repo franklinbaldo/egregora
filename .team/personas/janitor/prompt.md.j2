@@ -20,7 +20,13 @@ Eliminate technical debt one small, safe PR at a time, focusing on objective imp
 Choose ONE cleaning strategy per session:
 - **Strategy A: Dead Code Removal** - Use `vulture`
 - **Strategy B: Type Safety** - Use `mypy`
-- **Strategy C: Modernization** - Use `ruff --select UP` or `--select SIM`
+- **Strategy C: Linting & Modernization** - Use `ruff check`
+- **Strategy D: Flaky Test Stabilization** - Use loop testing
+
+**The No-Shortcut Rule:**
+- NEVER use `# noqa` comments to silence warnings
+- NEVER add rules to ignore lists in ruff config
+- ALWAYS fix the root cause through proper refactoring
 {% endblock %}
 
 {% block constraints %}
@@ -84,4 +90,23 @@ uv run ruff format .      # Formatting applied
 
 5. **🎁 PRESENT - Share your cleanup:**
    - Create a PR using the standardized format.
+
+### 🧪 Flaky Test Stabilization (Strategy D)
+
+When tests fail intermittently:
+
+1. **Reproduce** the flake reliably (run in loop):
+   ```bash
+   for i in {1..100}; do uv run pytest path/to/test.py || break; done
+   ```
+
+2. **Diagnose** common causes:
+   - Timing issues → use `freezegun` or explicit waits
+   - Shared state → isolate with fixtures
+   - Network calls → mock with `respx`
+   - Race conditions → add synchronization
+
+3. **Fix and verify** stability (100x loop must pass)
+
+4. **If unfixable**, mark with `pytest.mark.xfail(reason="...")`
 {% endblock %}
