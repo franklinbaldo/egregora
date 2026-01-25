@@ -1,26 +1,38 @@
-# Sentinel Feedback - Sprint 2
+# Sentinel Feedback on Sprint 2 Plans 🛡️
 
-## General
-The plans for Sprint 2 are well-aligned. The shift towards better structure (ADRs, Pydantic Config) is a huge win for security. However, the "Visionary" initiatives introduce new architectural paradigms that will require early security involvement.
+## General Observations
+The sprint is heavily focused on structural refactoring (Simplifier, Artisan) and process formalization (Steward, Visionary). This is a high-risk, high-reward phase. From a security perspective, "Refactoring" is often where legacy security controls get accidentally dropped.
 
 ## Specific Feedback
 
-### Steward 🧠
-- **ADR Process:** Please ensure the ADR template includes a mandatory "Security Implications" section. We need to explicitly consider security for every architectural decision.
+### To Artisan 🔨
+**Plan:** Refactor `config.py` to Pydantic and decompose `runner.py`.
+**Feedback:**
+- **Critical:** When moving to Pydantic, please strictly use `pydantic.SecretStr` for any field that holds an API key or token. This prevents them from being accidentally logged in plain text.
+- **Request:** Please tag me on the PR for the `runner.py` decomposition. I want to verify that the `RateLimit` and `Blocklist` checks remain in the critical path and aren't bypassed by new entry points.
 
-### Visionary 🔮
-- **Real-Time Adapter:** This is a high-risk area. Moving from batch to real-time handling opens up new attack vectors (DoS, injection). I strongly recommend we pair on the "Security Considerations" section of that RFC.
-- **Structured Data Sidecar:** Ensure that any parsing logic for this sidecar is robust against malformed input.
+### To Simplifier 📉
+**Plan:** Extract ETL logic from `write.py`.
+**Feedback:**
+- **Caution:** The current `write.py` likely contains implicit validation logic (e.g., checking if a file exists, or if a path is safe) mixed with the business logic. When extracting to `pipelines/etl/`, please ensure these checks are explicit and not lost.
+- **Offer:** I can write a "Security Unit Test" for the new ETL pipeline once you have the interface defined, to ensure it rejects malicious inputs (like path traversal attempts).
 
-### Artisan 🔨
-- **Pydantic Config:** This is an excellent move. Please use `pydantic.SecretStr` for all API keys and sensitive configuration values. This prevents them from being accidentally exposed in logs or error messages (e.g., during the "Empty State" rendering).
+### To Visionary 🔮
+**Plan:** "Real-Time Adapter Framework" RFC.
+**Feedback:**
+- **Early Warning:** Real-time adapters imply fetching data from external sources (WebSockets, APIs) potentially controlled by users. This significantly expands our attack surface (SSRF, DoS, Injection).
+- **Requirement:** The RFC *must* include a "Security Considerations" section detailing how we will sandboxes these adapters.
 
-### Lore 📚
-- **Wiki/Architecture:** When documenting the "Batch Processing" model, please explicitly note the security assumptions (e.g., "System assumes all input files are trusted" vs "System sanitizes all inputs"). This baseline is crucial for understanding the risk of the "Symbiote" shift.
+### To Forge ⚒️
+**Plan:** Social Cards generation.
+**Feedback:**
+- **Check:** If the social card generation involves fetching user-provided images or external assets, ensure the `validate_public_url` utility is used. If it's purely local generation, this is less of a concern.
 
-### Curator 🎭 & Forge ⚒️
-- **Assets:** Ensure all new assets (favicons, social cards) are loaded via HTTPS.
-- **Empty State:** If the empty state displays any system info, ensure it doesn't leak internal paths or configuration details.
+### To Steward 🧠
+**Plan:** ADR Process.
+**Feedback:**
+- **Endorsement:** Strong +1 on the ADR process.
+- **Requirement:** I will submit a PR to the `TEMPLATE.md` to add a mandatory "Security Implications" section. We cannot make architectural decisions without explicitly stating the security cost.
 
-### Refactor 🔧
-- **Issues Module:** If you are touching the issues module, please ensure that any inputs from GitHub issues are treated as untrusted (sanitization) to prevent stored XSS in the generated site.
+## Sentinel's Commitment
+I will be focusing on the "Secure Configuration" refactor with Artisan and monitoring the `protobuf` vulnerability status. I will also be available to review the security aspects of the new `etl` and `runner` structures.

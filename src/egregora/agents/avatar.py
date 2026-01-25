@@ -20,6 +20,7 @@ from ratelimit import limits, sleep_and_retry
 
 from egregora.agents.enricher import ensure_datetime
 from egregora.agents.enrichment import enrich_avatar
+from egregora.constants import AVATAR_NAMESPACE_UUID
 from egregora.exceptions import EgregoraError
 from egregora.input_adapters.whatsapp.commands import extract_commands
 from egregora.knowledge.profiles import remove_profile_avatar, update_profile_avatar
@@ -97,15 +98,13 @@ def _get_avatar_directory(media_dir: Path) -> Path:
     return avatar_dir
 
 
-# TODO: [Taskmaster] Refactor: Move hardcoded UUID namespace to configuration
 def _generate_avatar_uuid(content: bytes | bytearray) -> uuid.UUID:
     """Generate deterministic UUID for avatar based on content only.
 
     Same content = same UUID, regardless of which group/chat uses it.
     This enables global deduplication across all groups.
     """
-    # Use a fixed namespace for all egregora media
-    namespace = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")  # NAMESPACE_DNS
+    namespace = uuid.UUID(AVATAR_NAMESPACE_UUID)
     content_hash = hashlib.sha256(content).hexdigest()
     return uuid.uuid5(namespace, content_hash)
 
@@ -323,26 +322,24 @@ def _save_avatar_file(content: bytes | bytearray, avatar_uuid: uuid.UUID, ext: s
     return avatar_path
 
 
-def _download_avatar_with_client(client: httpx.Client, url: str, media_dir: Path) -> tuple[uuid.UUID, Path]:
-    """Internal function to download avatar using an existing client."""
-    logger.info("Downloading avatar from URL: %s", url)
+def _perform_download_stream(client: httpx.Client, url: str) -> tuple[bytearray, str]:
+    """Execute the HTTP request and return content/type.
+
+    Responsible for:
+    - HTTP Stream management
+    - Calling content validator
+    - Handling httpx exceptions and wrapping them
+    """
     try:
         with client.stream("GET", url) as response:
             response.raise_for_status()
-            content, content_type = _download_image_content(response)
-
-        # _validate_image_content is already called inside _download_image_content for early rejection
-        _validate_image_dimensions(content)
-
-        ext = _get_extension_from_mime_type(content_type, url)
-        avatar_uuid = _generate_avatar_uuid(content)
-        avatar_path = _save_avatar_file(content, avatar_uuid, ext, media_dir)
-
+            return _download_image_content(response)
     except httpx.TooManyRedirects as e:
         msg = f"Too many redirects (>{MAX_REDIRECT_HOPS}) for URL: {url}"
         raise AvatarProcessingError(msg) from e
     except httpx.HTTPError as e:
         # If the HTTP error was caused by our own validation, re-raise it directly
+        # This preserves security error messages (SSRF)
         if isinstance(e.__cause__, AvatarProcessingError):
             raise e.__cause__ from e
         if isinstance(e.__context__, AvatarProcessingError):
@@ -350,6 +347,23 @@ def _download_avatar_with_client(client: httpx.Client, url: str, media_dir: Path
         logger.debug("HTTP error details: %s", e)
         msg = "Failed to download avatar. Please check the URL and try again."
         raise AvatarProcessingError(msg) from e
+
+
+def _download_avatar_with_client(client: httpx.Client, url: str, media_dir: Path) -> tuple[uuid.UUID, Path]:
+    """Internal function to download avatar using an existing client."""
+    logger.info("Downloading avatar from URL: %s", url)
+
+    # 1. Download Content (Network I/O)
+    content, content_type = _perform_download_stream(client, url)
+
+    # 2. Validate Dimensions (CPU Bound)
+    _validate_image_dimensions(content)
+
+    # 3. Save File (Disk I/O)
+    ext = _get_extension_from_mime_type(content_type, url)
+    avatar_uuid = _generate_avatar_uuid(content)
+    try:
+        avatar_path = _save_avatar_file(content, avatar_uuid, ext, media_dir)
     except OSError as e:
         logger.debug("File system error details: %s", e)
         msg = "Failed to save avatar due to file system error."

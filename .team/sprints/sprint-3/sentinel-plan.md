@@ -1,35 +1,35 @@
 # Plan: Sentinel - Sprint 3
+
 **Persona:** Sentinel 🛡️
 **Sprint:** 3
-**Created:** 2026-01-24
+**Created:** 2026-01-26 (during Sprint 1)
 **Priority:** High
 
 ## Objectives
-My mission for Sprint 3 is to prepare the defenses for the "Symbiote" initiative. As we move towards real-time data and LLM integration, the attack surface grows significantly.
+My mission is to prepare the security defenses for the incoming "Symbiote" architecture and Real-Time Adapters.
 
-- [ ] **Threat Model "Symbiote":** Conduct a threat modeling session for the "Real-Time Adapter" and "Structured Data Sidecar" RFCs.
-- [ ] **Automated Security Gates:** Integrate `bandit` and `pip-audit` into the CI/CD pipeline (GitHub Actions or equivalent) to prevent regressions.
-- [ ] **LLM Injection Defenses:** Research and prototype defenses against Prompt Injection and Indirect Prompt Injection for the new "Structured Data Sidecar".
-- [ ] **Fuzzing Setup:** Establish a basic fuzzing harness for the input parsers that will handle the real-time data.
+- [ ] **Threat Model "Real-Time Adapters":** Analyze the RFC from Sprint 2 and produce a Threat Model document identifying risks (SSRF, DoS, Data Exfiltration).
+- [ ] **Implement Adapter Sandboxing:** Design and implement the security controls for the new adapter framework (e.g., restricted network access, resource quotas).
+- [ ] **Automated Security Gates:** Integrate `pip-audit` and `bandit` explicitly into the new `taskmaster` or CI pipelines.
+- [ ] **Secret Rotation Policy:** Establish a documented policy and potential tooling for rotating the API keys used by the new architecture.
 
 ## Dependencies
-- **Visionary:** I need the RFCs and technical specs for the Symbiote features to perform threat modeling.
-- **Sheriff:** I will need to coordinate with the Sheriff (Build Cop) to modify the CI/CD pipelines.
+- **Visionary:** I need the "Real-Time Adapter Framework" RFC to be finalized.
+- **Simplifier:** I need the new pipeline structure to be stable to integrate automated security gates.
 
 ## Context
-Sprint 3 is likely where the "Visionary" ideas start to become code. Real-time data processing and deeper LLM integration are classic areas for security vulnerabilities (DoS, Injection). I need to be ahead of the curve, defining the security requirements before the code is written.
+Sprint 3 is where the "Egregora Symbiote" starts to become real. Moving from a batch-processed static site generator to a real-time, data-ingesting agent significantly increases the risk profile. My focus shifts from "Code Hygiene" to "Architecture Security."
 
 ## Expected Deliverables
-1.  **Threat Model Document:** A document in `.team/security/threat-models/` analyzing the Symbiote architecture.
-2.  **CI/CD Security Jobs:** Updated workflow files with security scanners.
-3.  **LLM Security Guidelines:** A set of guidelines for the team on how to safely interact with LLMs (output validation, sanitization).
+1.  **Threat Model Document:** `.team/security/threat-models/real-time-adapters.md`.
+2.  **Sandboxing Utilities:** Python decorators or context managers for restricted execution in `src/egregora/security/sandbox.py`.
+3.  **Security CI Job:** Updated workflow or task definition including security scanners.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| "Symbiote" complexity hides bugs | High | High | Threat modeling *before* implementation is key. We need to design for security. |
-| CI/CD slows down | Medium | Low | I will ensure the security scanners run in parallel or are optimized to not block the build unnecessarily. |
+| Adapters allow SSRF | High | Critical | I will mandate the use of the `validate_public_url` utility for *all* adapter network requests. |
+| New dependencies introduce vulnerabilities | Medium | High | I will enforce `pip-audit` checks on all new PRs. |
 
 ## Proposed Collaborations
-- **With Visionary & Builder:** Threat modeling workshop.
-- **With Sheriff:** CI/CD pipeline integration.
+- **With Visionary:** Reviewing the security implications of the new adapter design.
