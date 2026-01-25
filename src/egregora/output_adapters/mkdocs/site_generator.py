@@ -191,11 +191,22 @@ class SiteGenerator:
                     if isinstance(post_date, str):
                         # Parse date string
                         from datetime import datetime as dt
+                        try:
+                            post_date = dt.fromisoformat(post_date).date()
+                        except ValueError:
+                            logger.warning(
+                                "Invalid date format for post %s: %s. Using path stem.",
+                                path.name,
+                                post_date,
+                            )
+                            post_date = None
 
-                        post_date = dt.fromisoformat(post_date).date()
-                    post_url = (
-                        f"posts/{post_date.year:04d}/{post_date.month:02d}/{post_date.day:02d}/{post_slug}/"
-                    )
+                    if post_date:
+                        post_url = (
+                            f"posts/{post_date.year:04d}/{post_date.month:02d}/{post_date.day:02d}/{post_slug}/"
+                        )
+                    else:
+                        post_url = f"posts/{post_slug}/"
                 else:
                     post_url = f"posts/{post_slug}/"
 
@@ -315,8 +326,20 @@ class SiteGenerator:
                         from datetime import datetime as dt
 
                         if isinstance(post_date, str):
-                            post_date = dt.fromisoformat(post_date).date()
-                        post_url = f"posts/{post_date.year:04d}/{post_date.month:02d}/{post_date.day:02d}/{post_slug}/"
+                            try:
+                                post_date = dt.fromisoformat(post_date).date()
+                            except ValueError:
+                                logger.warning(
+                                    "Invalid date format for top post %s: %s. Using slug.",
+                                    post_slug,
+                                    post_date,
+                                )
+                                post_date = None
+
+                        if post_date:
+                            post_url = f"posts/{post_date.year:04d}/{post_date.month:02d}/{post_date.day:02d}/{post_slug}/"
+                        else:
+                            post_url = f"posts/{post_slug}/"
                     else:
                         post_url = f"posts/{post_slug}/"
 

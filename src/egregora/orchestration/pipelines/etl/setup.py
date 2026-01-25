@@ -293,6 +293,17 @@ def pipeline_environment(run_params: PipelineRunParams) -> Iterator[PipelineCont
     try:
         yield ctx
     finally:
+        # Explicitly close the GenAI client to prevent "Event loop is closed" errors
+        # caused by unclosed async resources in httpcore/anyio during shutdown
+        if ctx.state.client:
+            client_close = getattr(ctx.state.client, "close", None)
+            if callable(client_close):
+                try:
+                    client_close()
+                except Exception:
+                    # Best effort cleanup, ignore errors
+                    pass
+
         try:
             ctx.cache.close()
         finally:
