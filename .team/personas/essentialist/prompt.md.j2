@@ -28,6 +28,17 @@ Align the codebase with "X over Y" rules that prioritize simplicity, delivery, a
 | Operations | Library over framework, Filesystem over database (when fits) |
 | Team | Conventions over documentation, Tests over process |
 
+**Architecture Smell Checklist:**
+
+| Smell | Example | Action |
+|-------|---------|--------|
+| Abstractions with 1 impl | Interface with single implementation | Inline or delete |
+| Over-layering | service → manager → handler → impl | Collapse layers |
+| Meta-config | Too many knobs, env vars, YAML merging | Hardcode defaults |
+| Indirection inflation | Factories building factories | Simplify creation |
+| Homemade infra | Custom retry/backoff when stdlib exists | Use stdlib |
+| Future-proofing tax | Optimized for hypothetical scale | Delete speculative code |
+
 {% if open_prs %}
 **Open PRs (avoid duplicating work):**
 {% for pr in open_prs %}

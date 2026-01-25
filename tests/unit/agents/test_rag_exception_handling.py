@@ -59,11 +59,13 @@ def test_prepare_pipeline_data_handles_rag_connection_error(
     with patch("egregora.orchestration.pipelines.etl.preparation.index_documents") as mock_index:
         mock_index.side_effect = ConnectionError("Connection refused")
 
-        with patch("egregora.orchestration.pipelines.etl.preparation.PipelineFactory") as mock_factory:
+        with patch(
+            "egregora.orchestration.pipelines.etl.preparation.create_and_initialize_adapter"
+        ) as mock_create_adapter:
             # Setup factory to return our mock context's output format (sink)
             mock_sink = MagicMock()
             mock_sink.documents.return_value = ["doc1"]
-            mock_factory.create_output_adapter.return_value = mock_sink
+            mock_create_adapter.return_value = mock_sink
 
             # Setup context
             mock_pipeline_context.with_output_sink.return_value = mock_pipeline_context
@@ -94,10 +96,12 @@ def test_prepare_pipeline_data_handles_rag_value_error(
     with patch("egregora.orchestration.pipelines.etl.preparation.index_documents") as mock_index:
         mock_index.side_effect = ValueError("Invalid vector dimension")
 
-        with patch("egregora.orchestration.pipelines.etl.preparation.PipelineFactory") as mock_factory:
+        with patch(
+            "egregora.orchestration.pipelines.etl.preparation.create_and_initialize_adapter"
+        ) as mock_create_adapter:
             mock_sink = MagicMock()
             mock_sink.documents.return_value = ["doc1"]
-            mock_factory.create_output_adapter.return_value = mock_sink
+            mock_create_adapter.return_value = mock_sink
 
             mock_pipeline_context.with_output_sink.return_value = mock_pipeline_context
             mock_pipeline_context.with_adapter.return_value = mock_pipeline_context
@@ -124,10 +128,12 @@ def test_prepare_pipeline_data_handles_rag_os_error(
     with patch("egregora.orchestration.pipelines.etl.preparation.index_documents") as mock_index:
         mock_index.side_effect = OSError("Read-only file system")
 
-        with patch("egregora.orchestration.pipelines.etl.preparation.PipelineFactory") as mock_factory:
+        with patch(
+            "egregora.orchestration.pipelines.etl.preparation.create_and_initialize_adapter"
+        ) as mock_create_adapter:
             mock_sink = MagicMock()
             mock_sink.documents.return_value = ["doc1"]
-            mock_factory.create_output_adapter.return_value = mock_sink
+            mock_create_adapter.return_value = mock_sink
 
             mock_pipeline_context.with_output_sink.return_value = mock_pipeline_context
             mock_pipeline_context.with_adapter.return_value = mock_pipeline_context

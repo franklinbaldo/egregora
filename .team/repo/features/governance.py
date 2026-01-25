@@ -15,14 +15,14 @@ class GovernanceManager:
                 "git", "log", "--format=%H %s", "--", str(self.constitution_path)
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            
+
             for line in result.stdout.strip().split("\n"):
                 if not line:
                     continue
                 parts = line.split(" ", 1)
                 commit_hash = parts[0]
                 subject = parts[1] if len(parts) > 1 else ""
-                
+
                 if not subject.strip().startswith("[PLEAD]"):
                     return commit_hash
             return ""
@@ -36,14 +36,14 @@ class GovernanceManager:
                 "git", "log", "--format=%H %s", "--", str(self.constitution_path)
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            
+
             for line in result.stdout.strip().split("\n"):
                 if not line:
                     continue
                 parts = line.split(" ", 1)
                 commit_hash = parts[0]
                 subject = parts[1] if len(parts) > 1 else ""
-                
+
                 if subject.strip().startswith(f"[PLEAD] {persona_id}"):
                     return commit_hash
             return ""
@@ -95,7 +95,7 @@ class GovernanceManager:
         try:
             cmd = ["git", "merge-base", "--is-ancestor", persona_plead, last_constitution_commit]
             result = subprocess.run(cmd)
-            # If persona_plead is ancestor of last_constitution_commit, 
+            # If persona_plead is ancestor of last_constitution_commit,
             # then constitution HAS changed since the plead
             return result.returncode == 0 and persona_plead != last_constitution_commit
         except subprocess.CalledProcessError:
@@ -106,7 +106,7 @@ class GovernanceManager:
         persona_plead = self.get_persona_last_plead_commit(persona_id)
         if not persona_plead:
             return ""
-        
+
         try:
             cmd = ["git", "diff", persona_plead, "HEAD", "--", str(self.constitution_path)]
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)

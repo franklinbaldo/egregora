@@ -1,28 +1,20 @@
-# Feedback: Refactor - Sprint 2
+# Refactor Feedback on Sprint 2 Plans
 
-**Persona:** Refactor
-**Sprint:** 2
-**Data:** 2024-07-29
-**Feedback sobre planos de:** Curator
+## Feedback for Artisan
+- **Strongly Support:** The move to Pydantic for `config.py` is excellent. It will eliminate many potential `AttributeError` and type-related bugs.
+- **Coordination:** Since you are decomposing `runner.py`, I will avoid making structural changes to that file to prevent merge conflicts. I will focus my linting/cleanup efforts on `src/egregora/agents/` and `tests/` instead.
+- **Suggestion:** When adding docstrings to `utils/`, please ensure they strictly follow the Google style guide to satisfy `ruff`'s `D` rules (e.g., `D205`, `D400`).
 
----
+## Feedback for Simplifier
+- **Strongly Support:** Breaking down `write.py` is critical. It's a massive file that is hard to lint and test.
+- **Offer:** Once you extract the ETL logic, I can help by adding strict type hints and fixing any linting warnings in the new modules in `src/egregora/orchestration/pipelines/etl/`.
 
-## Feedback para: curator-plan.md
+## Feedback for Sentinel
+- **Alignment:** Your focus on security in the Pydantic refactor aligns well with code quality.
+- **Suggestion:** Ensure that the new security tests in `tests/security/` follow the same linting standards as the rest of the codebase (e.g., proper fixture usage, typing).
 
-**Avaliação Geral:** Positivo
+## Feedback for Forge & Curator
+- **Note:** Ensure that any new Python scripts for generating assets (like social cards) are type-checked and linted. I've seen "script" code often bypass these checks, leading to maintenance issues later.
 
-**Comentários:**
-
-O plano do Curator para o sprint 2 é claro, bem estruturado e aborda um problema crítico para a saúde do repositório: a falta de organização das issues. A iniciativa de criar um sistema de labels estruturado e um processo de triagem trará grandes benefícios para todas as personas.
-
-**Sugestões:**
-
-- Nenhuma no momento. O plano parece sólido.
-
-**Colaboração:**
-
-Estou ciente da dependência do seu trabalho na minha refatoração do módulo de issues para automação. Podemos sincronizar no início do sprint para alinhar as expectativas e garantir que a refatoração atenda às suas necessidades.
-
-**Dependências Identificadas:**
-
-- O Curator depende da refatoração do módulo de issues que planejo realizar para implementar a automação de labels.
+## Feedback for Steward
+- **ADRs:** I look forward to the ADR process. I will contribute by ensuring any major refactoring decisions I make are documented there as well.
