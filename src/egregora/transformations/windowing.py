@@ -23,7 +23,9 @@ DESIGN PHILOSOPHY: Calculate, Don't Iterate
   cannot enforce time limits without knowing message density beforehand
 """
 
+import bisect
 import hashlib
+import itertools
 import logging
 import math
 from collections.abc import Iterator
@@ -406,7 +408,7 @@ def _window_by_bytes(
 
     Optimized implementation using "Fetch-then-Compute" pattern:
     1. Fetches metadata (timestamp, length) for all rows in one query.
-    2. Computes window boundaries in Python to avoid N+1 queries.
+    2. Computes window boundaries in Python using binary search (bisect) to avoid O(N) loops.
     3. Yields windows with lazy Ibis table slices.
 
     Byte-to-token ratio: ~4 bytes per token (industry standard).
@@ -437,51 +439,48 @@ def _window_by_bytes(
         return
 
     # Extract columns to simple lists/arrays for fast iteration
-    # Assuming metadata is a pandas DataFrame or similar
     timestamps = metadata["ts"].tolist()
     msg_bytes_list = metadata["msg_bytes"].tolist()
+
+    # Pre-calculate cumulative bytes for O(log N) window sizing via bisect
+    # cum_bytes[i] is the sum of lengths of messages 0..i inclusive
+    cum_bytes = list(itertools.accumulate(msg_bytes_list))
 
     window_index = 0
     offset = 0
 
     # 2. Compute window boundaries (Compute phase)
     while offset < total_count:
-        relative_bytes = 0
-        chunk_size = 0
+        # Determine the end index of the window using binary search.
+        # Condition: Window includes messages [offset, k] such that sum(lengths[offset+1...k]) <= max_bytes.
+        # sum(lengths[offset+1...k]) = cum_bytes[k] - cum_bytes[offset]
+        # So we want max k such that: cum_bytes[k] <= cum_bytes[offset] + max_bytes
+        limit_val = cum_bytes[offset] + max_bytes
 
-        # Scan forward to fill window
-        for i in range(offset, total_count):
-            msg_len = msg_bytes_list[i]
+        # bisect_right returns insertion point i where all a[:i] <= x.
+        # So a[i-1] <= x. Thus k = next_idx - 1.
+        # Range lo=offset ensures we don't look behind.
+        next_idx = bisect.bisect_right(cum_bytes, limit_val, lo=offset)
 
-            # Legacy behavior: The first message establishes the baseline (relative_bytes=0).
-            # Subsequent messages are checked against max_bytes relative to that baseline.
-            # This effectively allows the window to be (size_of_first_msg + max_bytes).
-            if chunk_size > 0:
-                relative_bytes += msg_len
+        # The window slice is [offset, next_idx).
+        # Note: If next_idx == offset + 1, it means cum_bytes[offset+1] > limit_val?
+        # No, if cum_bytes[offset+1] > limit_val, bisect returns offset+1.
+        # So window includes [offset, offset+1), i.e., just the offset message.
+        # This preserves the "first message always included" behavior.
+        chunk_size = next_idx - offset
 
-            # Check limit
-            # We enforce chunk_size > 0 to ensure at least one message is included
-            # (preventing infinite loops if a single message > max_bytes)
-            if relative_bytes > max_bytes and chunk_size > 0:
-                break
+        # Ensure we don't exceed bounds (bisect might return len(a))
+        chunk_size = min(chunk_size, total_count - offset)
 
-            chunk_size += 1
-
-        # Construct the window
         start_idx = offset
         end_idx = offset + chunk_size  # exclusive
 
-        # Determine start/end time from cached metadata
-        # Handle case where chunk_size might be 0 (shouldn't happen due to loop logic but for safety)
         if chunk_size == 0:
             break
 
         start_time = timestamps[start_idx]
         end_time = timestamps[end_idx - 1]
 
-        # Create the window with a lazy slice of the original table
-        # We rely on the fact that `table` is already sorted by `ts` (as contract says)
-        # or we explicitly sort it again to be safe.
         window_table = table.order_by("ts").limit(chunk_size, offset=offset)
 
         yield Window(
@@ -497,17 +496,23 @@ def _window_by_bytes(
         # Calculate overlap
         advance = chunk_size
         if overlap_bytes > 0 and chunk_size > 1:
-            overlap_accum = 0
-            overlap_rows = 0
-            # Scan backwards from the end of the chunk
-            for i in range(end_idx - 1, start_idx - 1, -1):
-                msg_len = msg_bytes_list[i]
-                if overlap_accum + msg_len > overlap_bytes:
-                    break
-                overlap_accum += msg_len
-                overlap_rows += 1
+            # We want max rows from end such that sum(last rows) <= overlap_bytes.
+            # sum(lengths[j...end_idx-1]) <= overlap_bytes
+            # cum_bytes[end_idx-1] - cum_bytes[j-1] <= overlap_bytes
+            # cum_bytes[j-1] >= cum_bytes[end_idx-1] - overlap_bytes
+            target = cum_bytes[end_idx - 1] - overlap_bytes
 
-            advance = max(1, chunk_size - overlap_rows)
+            # Find first index p such that cum_bytes[p] >= target.
+            # This p corresponds to j-1. So j = p + 1.
+            # Search range: lo=start_idx (since overlap cannot start before window start).
+            # hi=end_idx-1 (we search up to the item before the last one).
+            p = bisect.bisect_left(cum_bytes, target, lo=start_idx, hi=end_idx - 1)
+
+            # p is the index of the element *before* the overlap starts.
+            # So overlap starts at p+1.
+            # However, we must ensure we advance at least 1.
+            # advance = new_start - old_start = (p + 1) - start_idx.
+            advance = max(1, p + 1 - start_idx)
 
         offset += advance
 
