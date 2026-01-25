@@ -376,7 +376,7 @@ class OutputSink(Protocol):
 
         """
 
-    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
+    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
         """Retrieve a single document by its ``doc_type`` primary identifier.
 
         Args:
@@ -392,7 +392,7 @@ class OutputSink(Protocol):
         """Iterate through available documents, optionally filtering by ``doc_type``.
 
         Returns lightweight DocumentMetadata objects for memory-efficient enumeration.
-        For full document content, use documents() or read_document().
+        For full document content, use documents() or get().
 
         Args:
             doc_type: Optional filter by document type
@@ -403,26 +403,6 @@ class OutputSink(Protocol):
         Examples:
             >>> for meta in sink.list(DocumentType.POST):
             ...     print(f"Post: {meta.identifier}, Modified: {meta.metadata['mtime_ns']}")
-
-        """
-
-    def list_documents(self, doc_type: DocumentType | None = None) -> Table:
-        """Return all known documents as an Ibis table, optionally filtered by ``doc_type``.
-
-        Used by RAG indexing for incremental updates. Returns Ibis Table for
-        efficient querying and filtering.
-
-        Args:
-            doc_type: Optional filter by document type
-
-        Returns:
-            Ibis Table with columns:
-                - storage_identifier: string (format-specific identifier)
-                - mtime_ns: int64 (modification time in nanoseconds)
-
-        Note:
-            This method is kept for RAG compatibility. For general enumeration,
-            prefer the lighter-weight list() method.
 
         """
 
