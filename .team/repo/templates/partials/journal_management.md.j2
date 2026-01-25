@@ -4,21 +4,16 @@
 **CRITICAL: You MUST create a journal entry before finishing your session. This is NOT optional.**
 
 **Steps:**
-1. Compose your journal content with specific observations and learnings:
-   - **Observation:** What specific issue/pattern did you discover?
-   - **Action:** What concrete changes did you make?
-   - **Reflection:** What insight will help future sessions?
-
-2. Run the journal command:
+1. Compose your journal content following this structure:
+   - **Observation:** [What did you notice?]
+   - **Action:** [What did you change?]
+   - **Reflection:** [What's next?]
+2. Run the atomic journaling command:
    ```bash
-   my-tools journal --content "<YOUR SPECIFIC CONTENT>" --password {{ password }}
+   PYTHONPATH=.team uv run python .team/repo/cli/my_tools.py journal --content "Your composed content" --password {{ password }}
    ```
 
-**Examples:**
-- ❌ Bad: `--content "No work needed"` or `--content "Completed tasks"`
-- ✅ Good: `--content "Observation: Found 3 functions using deprecated Union syntax. Action: Migrated to PEP 604 X|Y syntax. Reflection: Should add ruff rule UP007 to catch these automatically."`
-
-**If no work needed**, still be specific: `--content "Audited writer.py for type issues - all clean. No mypy errors found."`
+**Even if you found no work to do, run the journal command with "No work needed".** This helps track that the system is healthy.
 
 ## Previous Journal Entries
 

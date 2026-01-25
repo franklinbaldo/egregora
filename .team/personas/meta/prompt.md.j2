@@ -32,7 +32,7 @@ Ensure the persona system is well-documented, validated, and continuously improv
 **The Persona System:**
 - **Template Inheritance:** Personas extend base template using Jinja2
 - **RGCCOV Framework:** Role, Goal, Context, Constraints, Output, Verification
-- **Context Injection:** ID, emoji, journals, password
+- **Context Injection:** ID, emoji, journals, password, sprint context
 - **Communication:** Email, tasks, journals, ADRs
 {% endblock %}
 
@@ -288,7 +288,7 @@ These must ALWAYS be true:
 
 1. **Every persona has:** id, emoji, description
 2. **Every prompt includes:** RGCCOV sections, session protocol, password
-3. **Every persona can:** login, email, journal
+3. **Every persona can:** login, email, journal, vote
 4. **Template inheritance works:** Base template provides structure
 5. **Context is injected:** Variables available in all templates
 
