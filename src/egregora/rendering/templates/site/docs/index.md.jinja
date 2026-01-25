@@ -1,217 +1,70 @@
----
-hide:
-  - navigation
-  - toc
----
-<div class="homepage-hero">
-  <div class="hero-content">
-    <h1 class="hero-title">{{ site_name }}</h1>
-    <p class="hero-subtitle">Your conversations, transformed into connected stories</p>
-    {% if stats %}
-    <div class="hero-stats">
-      <div class="stat-item">
-        <span class="stat-number">{{ stats.post_count }}</span>
-        <span class="stat-label">Posts</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-number">{{ stats.profile_count }}</span>
-        <span class="stat-label">Contributors</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-number">{{ stats.media_count }}</span>
-        <span class="stat-label">Media</span>
-      </div>
+<div class="portal-hero">
+  <section class="portal-hero">
+    <div class="hero-content">
+        <h1>{{ site_name }}</h1>
+        <p>Transmuting collective noise into crystalline knowledge. A living notebook of synchronous human thought.</p>
+        <div class="hero-actions">
+            <a href="{{ blog_dir }}/" class="md-button md-button--primary">Enter the Archive</a>
+            <a href="about/" class="md-button">Our Mission</a>
+        </div>
     </div>
-    {% endif %}
-  </div>
+  </section>
 </div>
 
-{% if posts %}
-<div class="homepage-section">
-  <div class="section-header">
-    <h2>Latest Stories</h2>
-    <a href="{{ blog_dir }}/" class="view-all-link">View all posts →</a>
-  </div>
+---
 
-  <!-- Featured Post (First/Latest) -->
-  {% set featured = posts[0] %}
-  <div class="featured-post">
-    {% if featured.banner %}
-    <div class="featured-banner">
-      <img src="{{ featured.banner }}" alt="{{ featured.title }}" loading="eager">
-    </div>
-    {% endif %}
-    <div class="featured-content">
-      <div class="featured-meta">
-        {% if featured.authors %}
-        <div class="post-authors">
-          {% for author in featured.authors %}
-          <img src="{{ author.avatar }}" alt="{{ author.name }}" class="author-avatar-small" title="{{ author.name }}">
-          {% endfor %}
-        </div>
-        {% endif %}
-        <span class="post-date">{{ featured.date }}</span>
-        <span class="post-reading-time">{{ featured.reading_time }} min read</span>
-      </div>
-      <h3 class="featured-title">
-        <a href="{{ featured.url }}">{{ featured.title }}</a>
-      </h3>
-      <p class="featured-summary">{{ featured.summary }}</p>
-      {% if featured.tags %}
-      <div class="post-tags-inline">
-        {% for tag in featured.tags[:3] %}
-        <span class="tag-pill">{{ tag }}</span>
-        {% endfor %}
-      </div>
-      {% endif %}
-    </div>
-  </div>
+## Latest Posts
 
-  <!-- Recent Posts Grid -->
-  {% if posts|length > 1 %}
-  <div class="posts-grid">
-    {% for post in posts[1:] %}
-    <article class="post-card-modern">
-      {% if post.banner %}
-      <div class="post-card-image">
-        <a href="{{ post.url }}">
-          <img src="{{ post.banner }}" alt="{{ post.title }}" loading="lazy">
-        </a>
-      </div>
-      {% endif %}
-      <div class="post-card-content">
-        <div class="post-card-meta">
-          {% if post.authors %}
-          <div class="post-authors-small">
-            {% for author in post.authors[:2] %}
-            <img src="{{ author.avatar }}" alt="{{ author.name }}" class="author-avatar-tiny" title="{{ author.name }}">
-            {% endfor %}
-          </div>
-          {% endif %}
-          <span class="post-date-small">{{ post.date }}</span>
-        </div>
-        <h3 class="post-card-title">
-          <a href="{{ post.url }}">{{ post.title }}</a>
-        </h3>
-        <p class="post-card-summary">{{ post.summary | truncate(120) }}</p>
-        <div class="post-card-footer">
-          <span class="reading-time-small">📖 {{ post.reading_time }} min</span>
-          {% if post.tags %}
-          <div class="tags-compact">
-            {% for tag in post.tags[:2] %}
-            <span class="tag-pill-small">{{ tag }}</span>
-            {% endfor %}
-          </div>
-          {% endif %}
-        </div>
-      </div>
-    </article>
-    {% endfor %}
-  </div>
-  {% endif %}
+{% raw %}
+{% for post in posts | default([]) %}
+<div class="post-card" markdown>
+### [{{ post.title }}]({{ post.url }})
+*{{ post.date }}* — {{ post.summary | default('') | truncate(150) }}
 </div>
 {% else %}
-<div class="empty-state-card">
-  <h2>Welcome to Egregora</h2>
-  <p>This archive is currently empty. Start transforming your conversations into connected stories.</p>
-  <br>
-  <p>Run the following command to generate your first post:</p>
-  <pre><code>egregora write path/to/chat_export.zip</code></pre>
-  <br>
-  <p><small>Use <code>egregora write --help</code> to see all available options.<br>Once you generate content, your latest stories will appear here.</small></p>
-</div>
-{% endif %}
+*No posts yet. Run `egregora write` to generate content.*
+{% endfor %}
+{% endraw %}
 
-<!-- Top Rated Posts by ELO -->
-{% if top_posts %}
-<div class="homepage-section">
-  <div class="section-header">
-    <h2>🏆 Top Rated Posts</h2>
-    <p class="section-subtitle">Reader favorites based on quality comparisons</p>
-  </div>
-  <div class="top-posts-grid">
-    {% for post in top_posts %}
-    <article class="top-post-card">
-      {% if post.banner %}
-      <div class="top-post-image">
-        <a href="{{ post.url }}">
-          <img src="{{ post.banner }}" alt="{{ post.title }}" loading="lazy">
-        </a>
-        <div class="elo-badge">
-          <span class="elo-value">{{ post.elo_rating | round(0) | int }}</span>
-          <span class="elo-label">ELO</span>
-        </div>
-      </div>
-      {% endif %}
-      <div class="top-post-content">
-        <div class="top-post-meta">
-          {% if post.authors %}
-          <div class="post-authors-small">
-            {% for author in post.authors[:2] %}
-            <img src="{{ author.avatar }}" alt="{{ author.name }}" class="author-avatar-tiny" title="{{ author.name }}">
-            {% endfor %}
-          </div>
-          {% endif %}
-          <div class="top-post-stats">
-            <span class="stat-badge" title="Number of comparisons">⚖️ {{ post.comparisons }}</span>
-            {% if post.win_rate %}
-            <span class="stat-badge" title="Win rate">📊 {{ (post.win_rate * 100) | round(1) }}%</span>
-            {% endif %}
-          </div>
-        </div>
-        <h3 class="top-post-title">
-          <a href="{{ post.url }}">{{ post.title }}</a>
-        </h3>
-        <p class="top-post-summary">{{ post.summary | truncate(100) }}</p>
-        <div class="top-post-footer">
-          <span class="reading-time-small">📖 {{ post.reading_time }} min</span>
-          {% if post.tags %}
-          <div class="tags-compact">
-            {% for tag in post.tags[:2] %}
-            <span class="tag-pill-small">{{ tag }}</span>
-            {% endfor %}
-          </div>
-          {% endif %}
-        </div>
-      </div>
-    </article>
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
+[View all posts →]({{ blog_dir }}/index.md){ .md-button .md-button--primary }
 
-<!-- Quick Navigation -->
-<div class="homepage-navigation">
-  <a href="{{ blog_dir }}/profiles/" class="nav-card">
-    <span class="nav-icon">👥</span>
-    <div class="nav-content">
-      <h3>Contributors</h3>
-      <p>Meet the people behind the conversations</p>
-    </div>
-  </a>
-  <a href="{{ media_dir }}/" class="nav-card">
-    <span class="nav-icon">🖼️</span>
-    <div class="nav-content">
-      <h3>Media Gallery</h3>
-      <p>Browse shared links and resources</p>
-    </div>
-  </a>
-  <a href="about/" class="nav-card">
-    <span class="nav-icon">📖</span>
-    <div class="nav-content">
-      <h3>About</h3>
-      <p>Learn how Egregora works</p>
-    </div>
-  </a>
-  <a href="feeds/" class="nav-card">
-    <span class="nav-icon">📡</span>
-    <div class="nav-content">
-      <h3>RSS Feeds</h3>
-      <p>Subscribe to updates</p>
-    </div>
-  </a>
+---
+
+## Contributors
+
+{% for profile in profiles %}
+- {{ profile.name }}
+{% endfor %}
+
+<div class="homepage-nav" markdown>
+
+[:fontawesome-solid-users: **Contributors**]({{ blog_dir }}/profiles/index.md){ .md-button }
+[:fontawesome-solid-photo-film: **Media Library**]({{ media_dir }}/index.md){ .md-button }
+
 </div>
 
-<div class="homepage-footer">
-  <p><em>Powered by <a href="https://github.com/franklinbaldo/egregora" target="_blank">Egregora</a> — transforming chats into connected narratives with AI</em></p>
-</div>
+---
+
+<details markdown>
+<summary>**How It Works**</summary>
+
+1. **Parse & Anonymize** – Conversations parsed with deterministic UUIDs
+2. **Enrich Everything** – URLs and media summarized by AI agents
+3. **Write With Intent** – Essays inspired by Scott Alexander and LessWrong
+4. **Publish Consistently** – Every document becomes a structured artifact
+
+</details>
+
+<details markdown>
+<summary>**Privacy First**</summary>
+
+- All authors identified by **UUID-based pseudonyms**
+- Optional `/egregora set alias "Name"` for readability
+- Full `/egregora opt-out` command before any run
+- No PII reaches the language models
+
+</details>
+
+---
+
+*Automatically generated by [Egregora](https://github.com/franklinbaldo/egregora) from conversations.*
