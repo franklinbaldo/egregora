@@ -1,9 +1,7 @@
-import subprocess
 import sys
 import unittest
-from importlib import import_module
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 # Add .team to path so we can import repo.scheduler
 # We use relative path from repo root
@@ -12,128 +10,103 @@ TEAM_PATH = REPO_ROOT / ".team"
 if str(TEAM_PATH) not in sys.path:
     sys.path.append(str(TEAM_PATH))
 
+from repo.scheduler import simple  # noqa: E402
+from repo.scheduler.models import PersonaConfig  # noqa: E402
 
-def _load_legacy_module():
-    return import_module("repo.scheduler.legacy")
 
-
-class TestTeamSchedulerUpdate(unittest.TestCase):
-    @patch("subprocess.run")
-    def test_update_scheduled_from_main_success(self, mock_run: MagicMock) -> None:
-        """Test that update_scheduled_from_main runs the correct git commands on success."""
-        # Mock successful execution
+class TestSimpleScheduler(unittest.TestCase):
+    @patch("repo.scheduler.simple.subprocess.run")
+    def test_ensure_jules_branch_exists(self, mock_run: MagicMock) -> None:
+        """Test ensure_jules_branch when branch exists."""
         mock_run.return_value.returncode = 0
-
-        legacy = _load_legacy_module()
-        result = legacy.update_scheduled_from_main()
-
-        self.assertTrue(result)
-
-        # Verify calls
-        # Config user
-        mock_run.assert_any_call(["git", "config", "user.name", "Team Bot"], check=False)
-        mock_run.assert_any_call(["git", "config", "user.email", "team-bot@egregora.com"], check=False)
-
-        # Checkout
-        jules_branch = legacy.JULES_BRANCH
-        mock_run.assert_any_call(
-            ["git", "checkout", "-B", jules_branch, f"origin/{jules_branch}"], check=True, capture_output=True
+        simple.ensure_jules_branch()
+        # Verify it checks existence
+        mock_run.assert_called_with(
+            ["git", "rev-parse", "--verify", f"refs/heads/{simple.JULES_BRANCH}"],
+            capture_output=True,
         )
+        # Verify it doesn't create
+        self.assertEqual(mock_run.call_count, 1)
 
-        # Merge
-        mock_run.assert_any_call(
-            ["git", "merge", "origin/main", "--no-edit"], check=True, capture_output=True
-        )
+    @patch("repo.scheduler.simple.subprocess.run")
+    def test_ensure_jules_branch_creates(self, mock_run: MagicMock) -> None:
+        """Test ensure_jules_branch when branch missing."""
 
-        # Push
-        mock_run.assert_any_call(["git", "push", "origin", jules_branch], check=True, capture_output=True)
-
-    @patch("repo.scheduler.legacy.rotate_drifted_scheduled_branch")
-    @patch("subprocess.run")
-    def test_update_scheduled_from_main_failure(self, mock_run: MagicMock, mock_rotate: MagicMock) -> None:
-        """Test that update_scheduled_from_main fails gracefully and rotates on error."""
-
-        # Mock failure during merge
-        def side_effect(*args: object, **kwargs: object) -> MagicMock:
-            cmd = args[0]
-            if isinstance(cmd, list) and "merge" in cmd:
-                raise subprocess.CalledProcessError(1, cmd, stderr=b"Conflict")
+        # First call fails (check), second succeeds (create)
+        def side_effect(cmd, **kwargs):
+            if cmd[0] == "git" and cmd[1] == "rev-parse":
+                return MagicMock(returncode=1)
             return MagicMock(returncode=0)
 
         mock_run.side_effect = side_effect
+        simple.ensure_jules_branch()
 
-        legacy = _load_legacy_module()
-        result = legacy.update_scheduled_from_main()
-
-        self.assertFalse(result)
-        mock_rotate.assert_called_once()
-
-    @patch("repo.scheduler.legacy.update_scheduled_from_main")
-    @patch("repo.scheduler.legacy.is_scheduled_drifted")
-    @patch("subprocess.run")
-    def test_ensure_scheduled_branch_exists_calls_update(
-        self, mock_run: MagicMock, mock_is_drifted: MagicMock, mock_update: MagicMock
-    ) -> None:
-        """Test that ensure_scheduled_branch_exists calls update when branch is healthy."""
-        # Mock fetch success
-        mock_run.return_value.returncode = 0
-        # Mock branch exists
-        mock_run.return_value.stdout = "refs/heads/jules"
-
-        # Mock not drifted
-        mock_is_drifted.return_value = False
-
-        # Mock update success
-        mock_update.return_value = True
-
-        legacy = _load_legacy_module()
-        legacy.ensure_scheduled_branch_exists()
-
-        mock_update.assert_called_once()
-
-    @patch("repo.scheduler.legacy.update_scheduled_from_main")
-    @patch("repo.scheduler.legacy.is_scheduled_drifted")
-    @patch("subprocess.run")
-    def test_ensure_scheduled_branch_exists_fallback_on_update_fail(
-        self, mock_run: MagicMock, mock_is_drifted: MagicMock, mock_update: MagicMock
-    ) -> None:
-        """Test that ensure_scheduled_branch_exists recreates branch if update fails."""
-        # Mock fetch success
-        # We need to simulate the sequence of subprocess calls
-        # 1. git fetch
-        # 2. git ls-remote (returns branch exists)
-        # 3. git rev-parse origin/main (for recreation)
-        # 4. git push --force (recreation)
-
-        def run_side_effect(*args: object, **kwargs: object) -> MagicMock:
-            cmd = args[0]
-            if cmd == ["git", "fetch", "origin"]:
-                return MagicMock(returncode=0)
-            legacy = _load_legacy_module()
-            if cmd == ["git", "ls-remote", "--heads", "origin", legacy.JULES_BRANCH]:
-                return MagicMock(stdout="hash refs/heads/jules\n")
-            if cmd == ["git", "rev-parse", "origin/main"]:
-                return MagicMock(stdout="main_sha\n")
-            if isinstance(cmd, list) and cmd[:4] == ["git", "push", "--force", "origin"]:
-                return MagicMock(returncode=0)
-            return MagicMock()
-
-        mock_run.side_effect = run_side_effect
-
-        # Mock not drifted
-        mock_is_drifted.return_value = False
-
-        # Mock update FAILURE
-        mock_update.return_value = False
-
-        legacy = _load_legacy_module()
-        legacy.ensure_scheduled_branch_exists()
-
-        mock_update.assert_called_once()
-        # Verify it proceeded to recreate (calls git rev-parse origin/main)
-        mock_run.assert_any_call(
-            ["git", "rev-parse", "origin/main"], capture_output=True, text=True, check=True
+        self.assertEqual(mock_run.call_count, 2)
+        mock_run.assert_has_calls(
+            [
+                call(
+                    ["git", "rev-parse", "--verify", f"refs/heads/{simple.JULES_BRANCH}"], capture_output=True
+                ),
+                call(["git", "branch", simple.JULES_BRANCH, "origin/main"], check=True, capture_output=True),
+            ]
         )
+
+    @patch("repo.scheduler.simple._get_persona_dir")
+    def test_discover_personas(self, mock_get_dir: MagicMock) -> None:
+        """Test discover_personas filtering."""
+        mock_path = MagicMock()
+        mock_get_dir.return_value = mock_path
+        mock_path.exists.return_value = True
+
+        # Setup directories
+        d1 = MagicMock()
+        d1.is_dir.return_value = True
+        d1.name = "persona1"
+        (d1 / "prompt.md.j2").exists.return_value = True
+
+        d2 = MagicMock()
+        d2.is_dir.return_value = True
+        d2.name = ".hidden"
+
+        d3 = MagicMock()
+        d3.is_dir.return_value = True
+        d3.name = "oracle"  # Excluded
+
+        d4 = MagicMock()
+        d4.is_dir.return_value = False  # Not dir
+
+        mock_path.iterdir.return_value = [d1, d2, d3, d4]
+
+        personas = simple.discover_personas()
+        self.assertEqual(personas, ["persona1"])
+
+    def test_get_next_persona(self) -> None:
+        personas = ["a", "b", "c"]
+        self.assertEqual(simple.get_next_persona("a", personas), "b")
+        self.assertEqual(simple.get_next_persona("c", personas), "a")
+        self.assertEqual(simple.get_next_persona(None, personas), "a")
+        self.assertEqual(simple.get_next_persona("z", personas), "a")
+        self.assertIsNone(simple.get_next_persona("a", []))
+
+    @patch("repo.scheduler.simple.ensure_jules_branch")
+    def test_create_session(self, mock_ensure: MagicMock) -> None:
+        """Test create_session."""
+        mock_client = MagicMock()
+        mock_client.create_session.return_value = {"name": "sessions/123"}
+
+        persona = MagicMock(spec=PersonaConfig)
+        persona.id = "test-p"
+        persona.emoji = "T"
+        persona.prompt_body = "prompt"
+
+        repo_info = {"owner": "o", "repo": "r"}
+
+        result = simple.create_session(mock_client, persona, repo_info)
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.session_id, "123")
+        mock_ensure.assert_called_once()
+        mock_client.create_session.assert_called_once()
 
 
 if __name__ == "__main__":
