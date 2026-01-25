@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from egregora.database.task_store import TaskStore
     from egregora.llm.usage import UsageTracker
     from egregora.orchestration.cache import PipelineCache
+    from egregora.orchestration.context import PipelineContext
     from egregora.output_adapters import OutputSinkRegistry
 
 from egregora.exceptions import EgregoraError
@@ -189,6 +190,37 @@ class WriterResources:
     output_registry: OutputSinkRegistry | None = None
     run_id: uuid.UUID | str | None = None
     quota: Any | None = None
+
+    @classmethod
+    def from_pipeline_context(cls, ctx: PipelineContext) -> WriterResources:
+        """Build WriterResources from the pipeline context."""
+        output = ctx.output_sink
+        if output is None:
+            msg = "Output adapter must be initialized before creating writer resources."
+            raise RuntimeError(msg)
+
+        profiles_dir = getattr(output, "profiles_dir", ctx.profiles_dir)
+        journal_dir = getattr(output, "journal_dir", ctx.docs_dir / "journal")
+        prompts_dir = ctx.site_root / ".egregora" / "prompts" if ctx.site_root else None
+
+        profiles_dir.mkdir(parents=True, exist_ok=True)
+        journal_dir.mkdir(parents=True, exist_ok=True)
+        if prompts_dir:
+            prompts_dir.mkdir(parents=True, exist_ok=True)
+
+        return cls(
+            output=output,
+            output_registry=ctx.output_registry,
+            annotations_store=ctx.annotations_store,
+            storage=ctx.storage,
+            embedding_model=ctx.embedding_model,
+            retrieval_config=ctx.config.rag,
+            profiles_dir=profiles_dir,
+            journal_dir=journal_dir,
+            prompts_dir=prompts_dir,
+            client=ctx.client,
+            usage=ctx.usage_tracker,
+        )
 
 
 @dataclass(frozen=True)

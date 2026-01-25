@@ -31,6 +31,7 @@ from egregora.agents.commands import extract_commands as extract_commands_list
 from egregora.agents.enricher import EnrichmentWorker
 from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
+from egregora.agents.types import WriterResources
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig
@@ -39,7 +40,6 @@ from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineContext, PipelineRunParams
-from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.etl.preparation import (
     Conversation,
     PreparedPipelineData,
@@ -447,7 +447,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     clean_messages_list = filter_commands(messages_list)
 
     # Prepare Resources
-    resources = PipelineFactory.create_writer_resources(ctx)
+    resources = WriterResources.from_pipeline_context(ctx)
 
     params = WindowProcessingParams(
         table=conversation.messages_table,
