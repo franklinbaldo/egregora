@@ -18,8 +18,6 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {# Specific objective to achieve #}
 {% endblock %}
 
-{{ sprint_context_text }}
-
 ## 📋 Context
 {{ sprint_context_text }}
 
@@ -39,16 +37,8 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {% include "blocks/communication.md.j2" %}
 {% endblock %}
 
-{% block voting %}
-{% include "blocks/voting.md.j2" %}
-{% endblock %}
-
 {% block skills %}
 {% include "blocks/skills.md.j2" %}
-{% endblock %}
-
-{% block governance %}
-{% include "blocks/governance.md.j2" %}
 {% endblock %}
 
 ## ⚠️ Constraints

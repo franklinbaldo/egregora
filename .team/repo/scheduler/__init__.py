@@ -12,13 +12,10 @@ Usage:
     result = run_scheduler()
 """
 
-# Main scheduler exports
 from repo.scheduler.simple import (  # noqa: F401
+    JULES_BRANCH,
     SchedulerResult,
     discover_personas,
     merge_completed_prs,
     run_scheduler,
 )
-
-# Keep some legacy exports for compatibility during transition
-from repo.scheduler.legacy import JULES_BRANCH  # noqa: F401
