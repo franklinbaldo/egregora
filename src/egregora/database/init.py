@@ -21,6 +21,7 @@ from egregora.database.schemas import (
     STAGING_MESSAGES_SCHEMA,
     TASKS_SCHEMA,
     UNIFIED_SCHEMA,
+    create_index,
     create_table_if_not_exists,
     get_table_check_constraints,
 )
@@ -61,6 +62,11 @@ def initialize_database(backend: BaseBackend) -> None:
         check_constraints=get_table_check_constraints("documents"),
         primary_key="id",
     )
+
+    # Create indexes for documents
+    create_index(conn, "documents", "idx_documents_type", "doc_type", index_type="Standard")
+    create_index(conn, "documents", "idx_documents_slug", "slug", index_type="Standard")
+    create_index(conn, "documents", "idx_documents_created", "created_at", index_type="Standard")
 
     # 2. Tasks Table
     create_table_if_not_exists(
