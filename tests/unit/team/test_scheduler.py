@@ -1,5 +1,6 @@
 import sys
 import unittest
+import json
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
@@ -107,6 +108,61 @@ class TestSimpleScheduler(unittest.TestCase):
         self.assertEqual(result.session_id, "123")
         mock_ensure.assert_called_once()
         mock_client.create_session.assert_called_once()
+
+    @patch("repo.scheduler.simple.subprocess.run")
+    def test_merge_completed_prs_no_checks(self, mock_run: MagicMock) -> None:
+        """Test merge_completed_prs with no checks (should merge)."""
+        pr_data = [
+            {
+                "number": 1,
+                "isDraft": True,
+                "statusCheckRollup": [],
+                "mergeable": "MERGEABLE"
+            }
+        ]
+        mock_run.side_effect = [
+            MagicMock(stdout=json.dumps(pr_data), returncode=0),
+            MagicMock(returncode=0),
+            MagicMock(returncode=0),
+        ]
+        merged_count = simple.merge_completed_prs()
+        self.assertEqual(merged_count, 1)
+        self.assertEqual(mock_run.call_count, 3)
+
+    @patch("repo.scheduler.simple.subprocess.run")
+    def test_merge_completed_prs_with_passing_checks(self, mock_run: MagicMock) -> None:
+        """Test merge_completed_prs with passing checks (should merge)."""
+        pr_data = [
+            {
+                "number": 2,
+                "isDraft": False,
+                "statusCheckRollup": [{"conclusion": "SUCCESS"}],
+                "mergeable": "MERGEABLE"
+            }
+        ]
+        mock_run.side_effect = [
+            MagicMock(stdout=json.dumps(pr_data), returncode=0),
+            MagicMock(returncode=0),
+        ]
+        merged_count = simple.merge_completed_prs()
+        self.assertEqual(merged_count, 1)
+
+    @patch("repo.scheduler.simple.subprocess.run")
+    def test_merge_completed_prs_with_failing_checks(self, mock_run: MagicMock) -> None:
+        """Test merge_completed_prs with failing checks (should NOT merge)."""
+        pr_data = [
+            {
+                "number": 3,
+                "isDraft": False,
+                "statusCheckRollup": [{"conclusion": "FAILURE"}],
+                "mergeable": "MERGEABLE"
+            }
+        ]
+        mock_run.side_effect = [
+            MagicMock(stdout=json.dumps(pr_data), returncode=0),
+        ]
+        merged_count = simple.merge_completed_prs()
+        self.assertEqual(merged_count, 0)
 
 
 if __name__ == "__main__":
