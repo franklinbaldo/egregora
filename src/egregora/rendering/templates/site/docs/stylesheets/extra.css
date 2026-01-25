@@ -6,6 +6,7 @@
   --md-primary-fg-color:        #2c3e50;
   --md-primary-fg-color--light: #34495e;
   --md-primary-fg-color--dark:  #2c3e50;
+  --md-accent-fg-color:         #f9d423;
 
   --md-text-font-size: 1.1rem;
   --portal-bg: #0a0a0a;
@@ -106,8 +107,8 @@ body,
 }
 
 /* Hero Depth and Atmosphere */
-.portal-hero {
-  background-image: linear-gradient(rgba(10, 10, 10, 0.5), rgba(10, 10, 10, 0.5)), url('../assets/hero.png') !important;
+.homepage-hero {
+  background: linear-gradient(rgba(10, 10, 10, 0.7), rgba(10, 10, 10, 0.7)), linear-gradient(135deg, #1a2a3a 0%, #000 100%) !important;
   background-size: cover !important;
   background-position: center !important;
   height: 65vh !important;
@@ -120,7 +121,7 @@ body,
   mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
 }
 
-.portal-hero h1 {
+.homepage-hero h1 {
   font-size: 5rem !important;
   font-weight: 800 !important;
   margin-bottom: 0.5rem !important;
@@ -130,7 +131,7 @@ body,
   filter: drop-shadow(0 0 30px rgba(0, 128, 128, 0.3));
 }
 
-.portal-hero p {
+.homepage-hero p {
   font-size: 1.4rem !important;
   max-width: 800px !important;
   margin-left: auto !important;
@@ -158,4 +159,16 @@ body,
   background-color: transparent !important;
   border-top: 1px solid rgba(255, 255, 255, 0.03);
   padding: 40px 0;
+}
+
+/* Empty State Card */
+.empty-state-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 3rem;
+  text-align: center;
+  max-width: 600px;
+  margin: 4rem auto;
+  backdrop-filter: blur(10px);
 }

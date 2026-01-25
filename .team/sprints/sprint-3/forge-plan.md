@@ -6,28 +6,26 @@
 **Priority:** Medium
 
 ## Objectives
-Building on the visual identity established in Sprint 2, Sprint 3 will focus on **interactive components** and **accessibility**.
+Building on the "Portal" theme established in Sprint 2, Sprint 3 will focus on component richness and interactivity.
 
-- [ ] **Implement Accessibility (A11y) Improvements:** Conduct an audit (Lighthouse/Axe) and fix WCAG violations (contrast, aria-labels).
-- [ ] **Interactive Data Visualization:** Explore adding simple charts or graphs to the "Top Posts" or "Reader History" pages if the data is available.
-- [ ] **Optimize Performance:** Audit CSS/JS bundle sizes and implement optimizations (e.g., critical CSS, lazy loading images).
+- [ ] **Interactive Components:** Introduce standard UI components for "Callouts", "Tabs", and "Data Tables" that match the Portal aesthetic.
+- [ ] **Accessibility Audit:** Run a full automated accessibility audit (Lighthouse/Axe) and fix all WCAG AA violations.
+- [ ] **Performance Optimization:** Optimize asset loading (fonts, images) to ensure a Lighthouse Performance score of >90.
+- [ ] **Dark/Light Mode Polish:** While "Portal" is dark-first, ensure a credible "Light Mode" fallback exists if the user explicitly requests it.
 
 ## Dependencies
-- **Curator:** Design direction for any new interactive elements.
-- **Artisan/Builder:** May need support if new data needs to be exposed to the templates for visualization.
+- **Curator:** Feedback on the component library visual design.
+- **Visionary:** If the "Structured Data Sidecar" is ready, I may need to build components to visualize that data.
 
 ## Context
-Once the site looks good (Sprint 2), we need to ensure it feels good (performance) and works for everyone (accessibility). Sprint 3 shifts focus from "Brand" to "Quality of Experience".
+Sprint 2 fixed the "basics" (branding, layout, broken links). Sprint 3 is about "delight" and "inclusion" (performance, a11y, interactivity).
 
 ## Expected Deliverables
-1. **Accessibility Report:** A report showing improved a11y scores.
-2. **Performance Report:** A report showing improved Core Web Vitals (LCP, CLS).
-3. **Enhanced Templates:** Further updates to MkDocs templates.
+1.  **Component Library:** A set of reusable CSS classes/HTML patterns for blog authors.
+2.  **Audit Report:** A passing accessibility and performance report.
+3.  **Optimized Assets:** WebP conversion for images, font subsetting if needed.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Scope Creep on "Interactivity" | Medium | Low | I will limit the scope to simple, static-generated visualizations first, avoiding complex client-side frameworks unless necessary. |
-
-## Proposed Collaborations
-- **With Sentinel:** Ensure any external scripts or libraries added for interactivity are secure.
+| Scope Creep on Components | Medium | Low | I will stick to standard MkDocs Material extensions first before building custom JS. |
