@@ -275,8 +275,8 @@ class SiteGenerator:
             return posts
 
         try:
-            from egregora.agents.reader.elo_store import EloStore
             from egregora.database.duckdb_manager import DuckDBStorageManager
+            from egregora.database.elo_store import EloStore
 
             # Get top rated posts from database
             with DuckDBStorageManager(self.db_path) as storage:
