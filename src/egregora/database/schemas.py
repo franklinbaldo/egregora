@@ -259,21 +259,20 @@ def get_table_check_constraints(table_name: str) -> dict[str, str]:
         valid_task_types = ", ".join(f"'{task_type}'" for task_type in VALID_TASK_TYPES)
         constraints["chk_tasks_task_type"] = f"task_type IN ({valid_task_types})"
         return constraints
-    if table_name == "media":
-        valid_values = ", ".join(f"'{media_type}'" for media_type in VALID_MEDIA_TYPES)
-        return {"chk_media_media_type": f"media_type IN ({valid_values})"}
     if table_name == "annotations":
         valid_values = ", ".join(f"'{parent_type}'" for parent_type in VALID_ANNOTATION_PARENT_TYPES)
         return {"chk_annotations_parent_type": f"parent_type IN ({valid_values})"}
 
     if table_name == "documents":
         valid_post_statuses = ", ".join(f"'{status}'" for status in VALID_POST_STATUSES)
+        valid_media_types = ", ".join(f"'{media_type}'" for media_type in VALID_MEDIA_TYPES)
         return {
             "chk_doc_post_req": "(doc_type != 'post') OR (title IS NOT NULL AND slug IS NOT NULL AND status IS NOT NULL)",
             "chk_doc_post_status": f"(doc_type != 'post') OR (status IN ({valid_post_statuses}))",
             "chk_doc_profile_req": "(doc_type != 'profile') OR (title IS NOT NULL AND subject_uuid IS NOT NULL)",
             "chk_doc_journal_req": "(doc_type != 'journal') OR (title IS NOT NULL AND window_start IS NOT NULL AND window_end IS NOT NULL)",
             "chk_doc_media_req": "(doc_type != 'media') OR (filename IS NOT NULL)",
+            "chk_doc_media_type": f"(doc_type != 'media') OR (media_type IN ({valid_media_types}))",
         }
 
     return {}
@@ -340,13 +339,17 @@ _PROFILES_COLUMNS = {
 
 # 3. MEDIA TABLE (Metadata only, content is binary/external)
 # Also used for standalone MEDIA table if needed, but primarily for Unified
+_MEDIA_COLUMNS = {
+    "filename": dt.string,
+    "mime_type": dt.string,
+    "media_type": dt.string,  # 'image', 'video', 'audio'
+    "phash": dt.string,  # Perceptual hash for dedup
+}
+
 MEDIA_SCHEMA = ibis.schema(
     {
         **BASE_COLUMNS,
-        "filename": dt.string,
-        "mime_type": dt.string,
-        "media_type": dt.string,  # 'image', 'video', 'audio'
-        "phash": dt.string,  # Perceptual hash for dedup
+        **_MEDIA_COLUMNS,
     }
 )
 
@@ -383,7 +386,7 @@ UNIFIED_SCHEMA = ibis.schema(
     {
         **_POSTS_COLUMNS,
         **_PROFILES_COLUMNS,
-        **dict(MEDIA_SCHEMA.items()),
+        **_MEDIA_COLUMNS,
         **_JOURNALS_COLUMNS,
         "doc_type": dt.String(nullable=False),
         "status": dt.String(nullable=False),
