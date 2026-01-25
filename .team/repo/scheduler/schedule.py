@@ -518,8 +518,51 @@ def get_current_sequence_from_api(
         - next_row: The next row to execute, or None if all done
         - schedule_modified: True if rows were modified (invalid personas marked closed)
     """
-    # Get API sessions for duplicate checking (not for sequence skipping)
-    api_session_sequences = _get_api_session_sequences(repo_name)
+    from datetime import datetime, timezone, timedelta
+    from repo.core.client import TeamClient
+
+    SESSION_TIMEOUT_MINUTES = 30
+
+    # Fetch all sessions once for efficiency
+    try:
+        client = TeamClient()
+        sessions_data = client.list_sessions()
+        all_sessions = sessions_data.get("sessions", [])
+    except Exception as e:
+        print(f"⚠️  Failed to list sessions from API: {e}")
+        all_sessions = []
+
+    # Build lookup maps
+    # session_map: session_id -> session object
+    # active_sequences: set of sequences that have ACTIVE (non-expired) sessions
+    session_map = {}
+    active_sequences = set()
+
+    for session in all_sessions:
+        # Map session ID
+        session_full_id = session.get("name", "")
+        session_id = session_full_id.split("/")[-1] if "/" in session_full_id else session_full_id
+        session_map[session_id] = session
+
+        # Check if session is expired
+        is_expired = False
+        create_time_str = session.get("createTime")
+        if create_time_str:
+            try:
+                # Handle Z or +00:00
+                create_time = datetime.fromisoformat(create_time_str.replace("Z", "+00:00"))
+                age = datetime.now(timezone.utc) - create_time
+                if age > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
+                    is_expired = True
+            except Exception:
+                pass
+
+        # If active and relevant to this repo, track the sequence
+        title = session.get("title", "") or ""
+        if not is_expired and (not repo_name or repo_name.lower() in title.lower()):
+            seq = extract_sequence_from_title(title)
+            if seq:
+                active_sequences.add(seq)
 
     modified = False
 
@@ -530,11 +573,40 @@ def get_current_sequence_from_api(
         if status in ["merged", "closed", "draft", "open"]:
             continue
 
-        # Skip rows that already have a session in CSV
-        # If a session exists but is not completed, we must wait (strict sequential execution).
+        # Check existing session in CSV
         session_id = row.get("session_id", "").strip()
         if session_id:
-            return None, modified
+            # Check if this specific session is expired or missing
+            # If it's missing from API, we assume it's gone/invalid -> allow retry
+            # If it's present but expired -> allow retry
+            # If it's present and active -> block
+
+            # Note: session_map keys are short IDs
+            session = session_map.get(session_id)
+            if not session:
+                 # Session in CSV but not in API? Maybe deleted. Treat as done/retryable?
+                 # If we return None, we block forever.
+                 # If we return row, we create NEW session.
+                 # Let's assume if it's gone from API, we can retry.
+                 pass
+            else:
+                 # Check age again (or use flag if we stored it)
+                 create_time_str = session.get("createTime")
+                 if create_time_str:
+                     try:
+                         create_time = datetime.fromisoformat(create_time_str.replace("Z", "+00:00"))
+                         age = datetime.now(timezone.utc) - create_time
+                         if age > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
+                             print(f"⚠️  Session {session_id} timed out ({age.total_seconds()/60:.1f} mins), restarting sequence {row['sequence']}")
+                             # Expired -> Allow retry (fall through to return row)
+                             pass
+                         else:
+                             # Active -> Block
+                             return None, modified
+                     except Exception:
+                         return None, modified # Error parsing -> Block safe
+                 else:
+                     return None, modified # No time -> Block safe
 
         # Skip excluded personas
         persona = row.get("persona", "").strip().lower()
@@ -548,11 +620,11 @@ def get_current_sequence_from_api(
             modified = True
             continue
 
-        # Check API for duplicate prevention (belt-and-suspenders)
-        # If this sequence already has a session in the API, skip it
+        # Check API for duplicate prevention
+        # We only skip if there is an ACTIVE (non-expired) session for this sequence
         seq = row.get("sequence", "").strip()
-        if seq in api_session_sequences:
-            print(f"⚠️  Sequence {seq} already has session in API, skipping")
+        if seq in active_sequences:
+            print(f"⚠️  Sequence {seq} has active session in API, skipping")
             continue
 
         # This row needs work
