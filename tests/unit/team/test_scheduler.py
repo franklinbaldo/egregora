@@ -1,9 +1,18 @@
+import json
 import sys
 import unittest
 from pathlib import Path
-from types import ModuleType
-from typing import ClassVar
 from unittest.mock import MagicMock, call, patch
+
+# Add .team to path so we can import repo.scheduler
+# We use relative path from repo root
+REPO_ROOT = Path(__file__).parents[3]
+TEAM_PATH = REPO_ROOT / ".team"
+if str(TEAM_PATH) not in sys.path:
+    sys.path.append(str(TEAM_PATH))
+
+from repo.scheduler import simple  # noqa: E402
+from repo.scheduler.models import PersonaConfig  # noqa: E402
 
 
 class TestSimpleScheduler(unittest.TestCase):
@@ -54,14 +63,9 @@ class TestSimpleScheduler(unittest.TestCase):
         mock_run.assert_has_calls(
             [
                 call(
-                    ["git", "rev-parse", "--verify", f"refs/heads/{self.simple.JULES_BRANCH}"],
-                    capture_output=True,
+                    ["git", "rev-parse", "--verify", f"refs/heads/{simple.JULES_BRANCH}"], capture_output=True
                 ),
-                call(
-                    ["git", "branch", self.simple.JULES_BRANCH, "origin/main"],
-                    check=True,
-                    capture_output=True,
-                ),
+                call(["git", "branch", simple.JULES_BRANCH, "origin/main"], check=True, capture_output=True),
             ]
         )
 
@@ -121,6 +125,54 @@ class TestSimpleScheduler(unittest.TestCase):
         self.assertEqual(result.session_id, "123")
         mock_ensure.assert_called_once()
         mock_client.create_session.assert_called_once()
+
+    @patch("repo.scheduler.simple.subprocess.run")
+    def test_merge_completed_prs_no_checks(self, mock_run: MagicMock) -> None:
+        """Test merge_completed_prs with no checks (should merge)."""
+        pr_data = [{"number": 1, "isDraft": True, "statusCheckRollup": [], "mergeable": "MERGEABLE"}]
+        mock_run.side_effect = [
+            MagicMock(stdout=json.dumps(pr_data), returncode=0),
+            MagicMock(returncode=0),
+            MagicMock(returncode=0),
+        ]
+        merged_count = simple.merge_completed_prs()
+        self.assertEqual(merged_count, 1)
+        self.assertEqual(mock_run.call_count, 3)
+
+    @patch("repo.scheduler.simple.subprocess.run")
+    def test_merge_completed_prs_with_passing_checks(self, mock_run: MagicMock) -> None:
+        """Test merge_completed_prs with passing checks (should merge)."""
+        pr_data = [
+            {
+                "number": 2,
+                "isDraft": False,
+                "statusCheckRollup": [{"conclusion": "SUCCESS"}],
+                "mergeable": "MERGEABLE",
+            }
+        ]
+        mock_run.side_effect = [
+            MagicMock(stdout=json.dumps(pr_data), returncode=0),
+            MagicMock(returncode=0),
+        ]
+        merged_count = simple.merge_completed_prs()
+        self.assertEqual(merged_count, 1)
+
+    @patch("repo.scheduler.simple.subprocess.run")
+    def test_merge_completed_prs_with_failing_checks(self, mock_run: MagicMock) -> None:
+        """Test merge_completed_prs with failing checks (should NOT merge)."""
+        pr_data = [
+            {
+                "number": 3,
+                "isDraft": False,
+                "statusCheckRollup": [{"conclusion": "FAILURE"}],
+                "mergeable": "MERGEABLE",
+            }
+        ]
+        mock_run.side_effect = [
+            MagicMock(stdout=json.dumps(pr_data), returncode=0),
+        ]
+        merged_count = simple.merge_completed_prs()
+        self.assertEqual(merged_count, 0)
 
 
 if __name__ == "__main__":

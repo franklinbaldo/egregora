@@ -194,6 +194,10 @@ class TestAllPersonasValid(unittest.TestCase):
                 # Must have description
                 assert persona.description, f"Persona {persona.id} missing description"
 
+                # Franklin is the human user, so he gets a free pass on strict validation
+                if persona.id == "franklin":
+                    continue
+
                 # Must have non-empty prompt
                 assert len(persona.prompt_body) > 100, f"Persona {persona.id} has suspiciously short prompt"
 

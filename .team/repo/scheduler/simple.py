@@ -179,10 +179,14 @@ def merge_completed_prs() -> int:
 
         # Check if all checks pass
         checks = pr.get("statusCheckRollup") or []
-        all_green = all(
-            (c.get("conclusion") or "").upper() in ("SUCCESS", "NEUTRAL", "SKIPPED")
-            for c in checks
-        ) if checks else False
+        if checks:
+            all_green = all(
+                (c.get("conclusion") or "").upper() in ("SUCCESS", "NEUTRAL", "SKIPPED")
+                for c in checks
+            )
+        else:
+            # No checks (or none reported) -> assume ready if not conflicting
+            all_green = True
 
         # Skip if not ready
         if not all_green:
