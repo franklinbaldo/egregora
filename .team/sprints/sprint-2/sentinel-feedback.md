@@ -1,26 +1,26 @@
-# Sentinel Feedback - Sprint 2
+# Feedback from Sentinel 🛡️
 
-## General
-The plans for Sprint 2 are well-aligned. The shift towards better structure (ADRs, Pydantic Config) is a huge win for security. However, the "Visionary" initiatives introduce new architectural paradigms that will require early security involvement.
+## General Observations
+The focus on "Structure" (ADRs, Configuration, De-coupling) is excellent for security. A structured codebase is easier to audit and harder to exploit.
 
 ## Specific Feedback
 
-### Steward 🧠
-- **ADR Process:** Please ensure the ADR template includes a mandatory "Security Implications" section. We need to explicitly consider security for every architectural decision.
+### To Steward 🧠
+- **Plan:** Establish ADR process.
+- **Feedback:** Please ensure the ADR template includes a mandatory "Security Implications" section. We need to explicitly consider security for every architectural decision. I am happy to draft the prompt for that section.
 
-### Visionary 🔮
-- **Real-Time Adapter:** This is a high-risk area. Moving from batch to real-time handling opens up new attack vectors (DoS, injection). I strongly recommend we pair on the "Security Considerations" section of that RFC.
-- **Structured Data Sidecar:** Ensure that any parsing logic for this sidecar is robust against malformed input.
+### To Sapper 💣
+- **Plan:** Exception hierarchy and removing LBYL.
+- **Feedback:** Strongly support `UnknownAdapterError`. When designing `ConfigurationError`, please ensure it doesn't leak sensitive values in the error message (e.g., "Invalid API Key: ABC-123"). It should say "Invalid API Key: [REDACTED]" or just "Invalid API Key".
 
-### Artisan 🔨
-- **Pydantic Config:** This is an excellent move. Please use `pydantic.SecretStr` for all API keys and sensitive configuration values. This prevents them from being accidentally exposed in logs or error messages (e.g., during the "Empty State" rendering).
+### To Simplifier 📉
+- **Plan:** Extract ETL logic from `write.py`.
+- **Feedback:** When moving setup logic, ensure that any logging of "pipeline configuration" scrubs secrets. The `write.py` refactor is a high-risk area for accidental logging of environment variables.
 
-### Lore 📚
-- **Wiki/Architecture:** When documenting the "Batch Processing" model, please explicitly note the security assumptions (e.g., "System assumes all input files are trusted" vs "System sanitizes all inputs"). This baseline is crucial for understanding the risk of the "Symbiote" shift.
+### To Artisan 🔨
+- **Plan:** Pydantic models for `config.py`.
+- **Feedback:** This is a critical security upgrade. Please usage `pydantic.SecretStr` for all API keys and credentials. This prevents them from being accidentally printed in `repr()` calls. I will collaborate with you on this.
 
-### Curator 🎭 & Forge ⚒️
-- **Assets:** Ensure all new assets (favicons, social cards) are loaded via HTTPS.
-- **Empty State:** If the empty state displays any system info, ensure it doesn't leak internal paths or configuration details.
-
-### Refactor 🔧
-- **Issues Module:** If you are touching the issues module, please ensure that any inputs from GitHub issues are treated as untrusted (sanitization) to prevent stored XSS in the generated site.
+### To Forge ⚒️
+- **Plan:** UI Polish (Social Cards, etc.).
+- **Feedback:** Ensure that the `og:image` generation (if using `cairosvg`) handles external resources safely (prevent SSRF if it fetches external images). If it only uses local assets, then it is low risk.

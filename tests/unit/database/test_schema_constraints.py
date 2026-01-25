@@ -12,7 +12,6 @@ import pytest
 # Let's import UNIFIED_SCHEMA
 from egregora.database.schemas import (
     ANNOTATIONS_SCHEMA,
-    MEDIA_SCHEMA,
     TASKS_SCHEMA,
     UNIFIED_SCHEMA,
     create_table_if_not_exists,
