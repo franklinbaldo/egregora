@@ -28,6 +28,7 @@ and simple adapter discovery.
 """
 
 from egregora.input_adapters.base import InputAdapter
+from egregora.input_adapters.exceptions import UnknownAdapterError
 from egregora.input_adapters.iperon_tjro import IperonTJROAdapter
 from egregora.input_adapters.registry import InputAdapterRegistry, get_global_registry
 from egregora.input_adapters.self_reflection import SelfInputAdapter
@@ -42,6 +43,24 @@ ADAPTER_REGISTRY: dict[str, type] = {
     "iperon-tjro": IperonTJROAdapter,
     "self": SelfInputAdapter,
 }
+
+
+def get_adapter_class(source_identifier: str) -> type[InputAdapter]:
+    """Get adapter class by source identifier.
+
+    Args:
+        source_identifier: Source identifier (e.g., "whatsapp")
+
+    Returns:
+        Adapter class (not instance)
+
+    Raises:
+        UnknownAdapterError: If source identifier not found
+
+    """
+    if source_identifier not in ADAPTER_REGISTRY:
+        raise UnknownAdapterError(source_identifier, list(ADAPTER_REGISTRY.keys()))
+    return ADAPTER_REGISTRY[source_identifier]
 
 
 def list_adapters() -> list[str]:
@@ -67,7 +86,9 @@ __all__ = [
     "InputAdapterRegistry",
     "IperonTJROAdapter",
     "SelfInputAdapter",
+    "UnknownAdapterError",
     "WhatsAppAdapter",
+    "get_adapter_class",
     "get_global_registry",
     "list_adapters",
 ]
