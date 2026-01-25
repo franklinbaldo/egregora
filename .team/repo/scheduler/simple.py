@@ -100,6 +100,14 @@ def get_last_persona_from_api(client: TeamClient, repo: str) -> str | None:
     except Exception:
         return None
 
+    # Sort sessions by createTime descending (most recent first)
+    # This ensures we find the actual last persona, not just the first match
+    sessions = sorted(
+        sessions,
+        key=lambda s: s.get("createTime") or "",
+        reverse=True,
+    )
+
     personas = discover_personas()
     repo_lower = repo.lower()
 
