@@ -134,12 +134,12 @@ def hire(
     Expand the team by creating a new specialized persona identity.
     """
     try:
-        voter_id = session_manager.get_active_persona()
-        if not voter_id:
+        active_persona = session_manager.get_active_persona()
+        if not active_persona:
             print("❌ No active session. Please login first.")
             raise typer.Exit(code=1)
 
-        if not session_manager.validate_password(voter_id, password):
+        if not session_manager.validate_password(active_persona, password):
             print("❌ Auth failed: Invalid password.")
             raise typer.Exit(code=1)
 
@@ -147,7 +147,7 @@ def hire(
             persona_id=id,
             emoji=emoji,
             description=description,
-            hired_by=voter_id,
+            hired_by=active_persona,
             role=role,
             goal=goal,
             context=context,
