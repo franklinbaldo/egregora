@@ -1,6 +1,6 @@
 # Data Processing Optimization Plan
 
-Last updated: 2024-07-30
+Last updated: 2026-01-07
 
 ## Current Data Processing Patterns
 
@@ -22,11 +22,16 @@ The byte-based windowing is better, using an Ibis window function to calculate c
 
 ## Prioritized Optimizations
 
-1.  **Refactor `_window_by_bytes` loop.**
-    - **Rationale:** The byte-based windowing still uses a `while` loop that executes multiple queries. While it uses window functions for cumulative sum, the chunking is iterative.
-    - **Expected Impact:** Moderate performance improvement and code simplification.
+- **Profile and Refactor `src/egregora/transformations/enrichment.py`.**
+  - **Rationale:** Similar to windowing, enrichment might contain row-by-row operations that can be vectorized.
+  - **Expected Impact:** Improved throughput for the initial data loading phase.
 
 ## Completed Optimizations
+
+- **Refactored `_window_by_bytes` loop.**
+  - **Date:** 2026-01-07
+  - **Change:** Replaced the iterative `while` loop which executed N+1 queries with a "fetch-then-compute" strategy. The new implementation fetches metadata columns (row_number, ts, cumulative_bytes) into memory in a single query and computes window boundaries using Python `bisect`.
+  - **Impact:** Benchmark showed ~16x speedup (8.22s -> 0.49s for 5000 messages). Reduced database queries from 3*N to 1.
 
 - **Refactored `_window_by_time` to be declarative.**
   - **Date:** 2025-01-XX
@@ -47,4 +52,4 @@ My strategy is to systematically replace imperative, iterative data processing l
 3.  **Group and Yield:** After the data is tagged with window identifiers, use a single `group_by` or one final iteration over the pre-calculated results to yield the `Window` objects.
 4.  **TDD:** For each optimization, I will first ensure tests exist. If not, I will write a test that captures the current behavior to ensure my refactoring does not introduce regressions.
 
-For this session, I will focus on the highest priority item: refactoring `_window_by_count`.
+For this session, I focused on refactoring `_window_by_bytes`.
