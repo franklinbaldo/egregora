@@ -17,7 +17,12 @@ from egregora.agents.commands import extract_commands as extract_commands_list
 from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker, schedule_enrichment
 from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
-from egregora.agents.types import Message, PromptTooLargeError, WindowProcessingParams
+from egregora.agents.types import (
+    Message,
+    PromptTooLargeError,
+    WindowProcessingParams,
+    WriterResources,
+)
 from egregora.agents.writer import write_posts_for_window
 from egregora.data_primitives.document import Document, DocumentType, UrlContext
 from egregora.ops.media import process_media_for_window
@@ -27,7 +32,6 @@ from egregora.orchestration.exceptions import (
     WindowSizeError,
     WindowSplitError,
 )
-from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.journal import create_journal_document, window_already_processed
 from egregora.resources.prompts import PromptManager
 from egregora.transformations.windowing import generate_window_signature, split_window_into_n_parts
@@ -331,7 +335,7 @@ class PipelineRunner:
         else:
             enriched_table = window_table_processed
 
-        resources = PipelineFactory.create_writer_resources(self.context)
+        resources = WriterResources.from_pipeline_context(self.context)
         adapter_summary, adapter_instructions = self._extract_adapter_info()
 
         # TODO: [Taskmaster] Refactor data type conversion for consistency

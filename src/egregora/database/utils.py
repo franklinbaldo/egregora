@@ -1,5 +1,6 @@
 """Database utility functions."""
 
+import os
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -33,6 +34,13 @@ def resolve_db_uri(uri: str, site_root: Path) -> str:
                 fs_path = Path(path_value).resolve()
 
             fs_path.parent.mkdir(parents=True, exist_ok=True)
+
+            if os.name == "nt":
+                # Windows paths need to avoid the leading slash (duckdb:///C:/)
+                # to prevent Ibis from prepending the current drive (C:/C:/).
+                # Using duckdb:C:/... (one slash after scheme) works.
+                return f"duckdb:{fs_path.as_posix()}"
+
             return f"duckdb://{fs_path}"
 
     return uri
