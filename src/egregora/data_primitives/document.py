@@ -26,7 +26,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
-    from ibis.expr.types import Table
 
 # Well-known namespace for Egregora documents
 # Based on DNS namespace but specific to Egregora
