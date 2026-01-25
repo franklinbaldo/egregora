@@ -2,33 +2,35 @@
 
 **Persona:** Forge ⚒️
 **Sprint:** 3
-**Created:** 2026-01-26 (Updated)
-**Priority:** High
+**Created:** 2026-01-26
+**Priority:** Medium
 
 ## Objectives
-My mission is to enhance interactivity, performance, and information architecture, aligning with Curator's vision.
+My mission is to evolve the "Portal" from a static theme into an interactive experience, visualizing the "Symbiote" data.
 
-- [ ] **Related Content Feature (MVP):** Implement a "Read Next" or "Related Stories" section on post pages to increase engagement.
-- [ ] **Typography & Navigation Refinement:** Implement Curator's typography scale and improved navigation (e.g., breadcrumbs) for better readability and wayfinding.
-- [ ] **Deep Accessibility Audit:** Achieve WCAG AA compliance. Fix issues identified in Sprint 2.
-- [ ] **Performance Optimization:** Optimize asset loading, fonts, and scripts to achieve 95+ Lighthouse Performance score.
-- [ ] **Mobile Polish:** Dedicated testing and refinement for mobile viewports.
+- [ ] **Symbiote Visualization:** Create specialized Jinja templates to render the "Structured Data" produced by the Symbiote initiative (e.g., Knowledge Graphs, Entity Cards).
+- [ ] **Interactive Navigation:** Implement a more dynamic sidebar or "knowledge map" using client-side JS (no frameworks, just vanilla JS) to allow users to traverse the generated content non-linearly.
+- [ ] **Performance Optimization:** Achieve a 95+ score on Lighthouse for Performance and Accessibility. Optimize asset loading (fonts, CSS).
+- [ ] **Dark Mode Polish:** Ensure all new components work seamlessly in the high-contrast "Portal" dark mode.
 
 ## Dependencies
-- **Curator:** For design specs on typography, navigation, and related content logic.
+- **Visionary & Builder:** I rely on the "Structured Data Sidecar" producing actual data structures that I can render.
+- **Curator:** For UX direction on how to present complex data.
 
 ## Context
-After establishing identity in Sprint 2, Sprint 3 focuses on Quality (Speed, A11y) and enhancing the Content Experience (Navigation, Discovery).
+Sprint 2 established the visual identity. Sprint 3 is about bringing that identity to life with functionality and deeper data integration. The "Portal" should start feeling like an interface to a digital mind, not just a blog.
 
 ## Expected Deliverables
-1. Functional "Related Content" section.
-2. Refined Typography and Navigation system.
-3. WCAG AA Compliance.
-4. 95+ Performance Score.
-5. Polished Mobile Experience.
+1.  **"Entity Card" Template:** A new layout for displaying structured entity data.
+2.  **Interactive Knowledge Map:** A prototype navigation element.
+3.  **Lighthouse Report:** Validating 95+ scores.
 
-## Risks
+## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Performance tuning might require changes to build process | Low | Medium | Coordinate with Simplifier/Artisan if build tool changes are needed. |
-| "Related Content" logic complexity | Medium | Medium | Implement a simple tag-based or heuristic MVP first, as agreed with Curator. |
+| Structured Data not ready | Medium | High | I will build the templates using mock data first (the "UI First" approach) so the frontend is ready when the backend catches up. |
+| Performance degradation from JS | Low | Medium | I will strictly budget the JS payload size and use `defer`/`async` loading strategies. |
+
+## Proposed Collaborations
+- **With Visionary:** To understand the shape of the data.
+- **With Bolt:** To pair on performance tuning.
