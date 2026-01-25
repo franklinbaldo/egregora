@@ -3,31 +3,28 @@
 **Persona:** Forge ⚒️
 **Sprint:** 3
 **Created:** 2026-01-26
-**Priority:** Medium
+**Priority:** High
 
 ## Objectives
-Following the "Identity" work in Sprint 2, Sprint 3 will focus on **Excellence**—specifically Performance and Accessibility.
+My mission is to enhance interactivity and performance.
 
-- [ ] **Lighthouse Audit:** Achieve 95+ scores on Performance, Accessibility, Best Practices, and SEO for the generated homepage and article pages.
-- [ ] **Accessibility (a11y) Retrofit:** Ensure full keyboard navigability and screen reader support, addressing any issues found in the Sprint 2 visual overhaul.
-- [ ] **Search Optimization:** Tune the MkDocs search configuration for better relevance and faster indexing on larger sites.
+- [ ] **Deep Accessibility Audit:** Achieve WCAG AA compliance. Fix issues identified in Sprint 2.
+- [ ] **Performance Optimization:** Optimize asset loading, fonts, and scripts to achieve 95+ Lighthouse Performance score.
+- [ ] **Interactive Components:** Implement client-side search improvements or filtering for the "Resources" section if needed.
+- [ ] **Mobile Polish:** Dedicated testing and refinement for mobile viewports.
 
 ## Dependencies
-- **Curator:** Feedback on any visual changes required for accessibility (e.g., contrast adjustments).
+- **Curator:** For feedback on interactive elements.
 
 ## Context
-Once the site looks good (Sprint 2), it must *feel* good and work for everyone. Sprint 3 is about refining the engine under the hood. We want the "Portal" to be blazing fast and inclusive.
+After establishing identity in Sprint 2, Sprint 3 focuses on Quality (Speed, A11y) and Interactivity.
 
 ## Expected Deliverables
-1.  **Lighthouse Report:** A report showing green scores across the board.
-2.  **A11y Statement:** A generated accessibility statement page.
-3.  **Optimized Assets:** Image optimization pipeline (if not fully covered in Sprint 2).
+1. WCAG AA Compliance.
+2. 95+ Performance Score.
+3. Polished Mobile Experience.
 
-## Risks and Mitigations
+## Risks
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Third-party scripts (if any) dragging down performance | Low | Medium | Strict auditing of any included JS. |
-| Contrast requirements conflicting with "Portal" aesthetic | Medium | Medium | Work closely with Curator to find compliant color variations. |
-
-## Proposed Collaborations
-- **With Curator:** Accessibility reviews.
+| Performance tuning might require changes to build process | Low | Medium | Coordinate with Simplifier/Artisan if build tool changes are needed. |

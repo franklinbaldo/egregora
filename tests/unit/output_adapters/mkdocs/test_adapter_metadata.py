@@ -1,21 +1,17 @@
-import pytest
-from unittest.mock import MagicMock, patch
-from pathlib import Path
+from unittest.mock import patch
+
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 
+
 def test_clean_metadata_removes_none_values():
-    metadata = {
-        "title": None,
-        "slug": "test-slug",
-        "description": "valid",
-        "missing": None
-    }
+    metadata = {"title": None, "slug": "test-slug", "description": "valid", "missing": None}
     cleaned = MkDocsAdapter._clean_metadata(metadata)
     assert "title" not in cleaned
     assert "missing" not in cleaned
     assert cleaned["slug"] == "test-slug"
     assert cleaned["description"] == "valid"
+
 
 @patch("egregora.output_adapters.mkdocs.adapter.yaml.dump")
 def test_write_enrichment_doc_sanitizes_metadata(mock_yaml_dump, tmp_path):
@@ -26,11 +22,7 @@ def test_write_enrichment_doc_sanitizes_metadata(mock_yaml_dump, tmp_path):
     doc = Document(
         content="Test content",
         type=DocumentType.ENRICHMENT_IMAGE,
-        metadata={
-            "title": None,
-            "slug": "test-image",
-            "categories": ["Enrichment"]
-        }
+        metadata={"title": None, "slug": "test-image", "categories": ["Enrichment"]},
     )
 
     path = adapter.media_dir / "test.md"
@@ -44,6 +36,7 @@ def test_write_enrichment_doc_sanitizes_metadata(mock_yaml_dump, tmp_path):
     assert dumped_metadata["slug"] == "test-image"
     assert "Enrichment" in dumped_metadata["categories"]
 
+
 @patch("egregora.output_adapters.mkdocs.adapter.yaml.dump")
 def test_write_profile_doc_sanitizes_metadata(mock_yaml_dump, tmp_path):
     adapter = MkDocsAdapter()
@@ -56,11 +49,7 @@ def test_write_profile_doc_sanitizes_metadata(mock_yaml_dump, tmp_path):
         doc = Document(
             content="Profile content",
             type=DocumentType.PROFILE,
-            metadata={
-                "uuid": "user123",
-                "title": None,
-                "name": "User Name"
-            }
+            metadata={"uuid": "user123", "title": None, "name": "User Name"},
         )
 
         path = adapter.profiles_dir / "user123.md"

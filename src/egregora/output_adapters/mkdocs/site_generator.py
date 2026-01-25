@@ -191,6 +191,7 @@ class SiteGenerator:
                     if isinstance(post_date, str):
                         # Parse date string
                         from datetime import datetime as dt
+
                         try:
                             post_date = dt.fromisoformat(post_date).date()
                         except ValueError:
@@ -202,9 +203,7 @@ class SiteGenerator:
                             post_date = None
 
                     if post_date:
-                        post_url = (
-                            f"posts/{post_date.year:04d}/{post_date.month:02d}/{post_date.day:02d}/{post_slug}/"
-                        )
+                        post_url = f"posts/{post_date.year:04d}/{post_date.month:02d}/{post_date.day:02d}/{post_slug}/"
                     else:
                         post_url = f"posts/{post_slug}/"
                 else:
