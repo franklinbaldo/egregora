@@ -16,6 +16,9 @@ Detailed breakdown of all active personas, their missions, and unique constraint
 
 Deep dive into the JULES engine, scheduler, and feature modules.
 
+**Epochs:**
+- 🏛️ [The Batch Era](Architecture-Batch-Era.md) (Sprint 1-2)
+
 ### 🚦 [Protocols & Workflows](Protocols.md)
 
 Standard operating procedures for session management, BDD implementation, and multi-agent coordination.
