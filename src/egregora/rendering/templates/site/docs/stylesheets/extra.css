@@ -178,3 +178,34 @@ body,
   border-top: 1px solid rgba(255, 255, 255, 0.03);
   padding: 40px 0;
 }
+
+/* Empty State Styling */
+.empty-state-homepage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 4rem 2rem;
+  margin: 2rem auto;
+  max-width: 600px;
+
+  /* Glassmorphism */
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+}
+
+.empty-state-homepage h3 {
+  margin-top: 1rem;
+  font-size: 1.5rem;
+  color: var(--md-primary-fg-color--light);
+}
+
+.empty-state-homepage p {
+  font-size: 1.1rem;
+  color: var(--md-default-fg-color--light);
+  max-width: 400px;
+}
