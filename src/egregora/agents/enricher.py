@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any, Self
 
 import duckdb
 import httpx
+import ibis
 from google.api_core import exceptions as google_exceptions
 from ibis.common.exceptions import IbisError
 from pydantic import BaseModel
@@ -488,6 +489,7 @@ class EnrichmentWorker(BaseWorker):
         enrichment_config: EnrichmentSettings | None = None,
     ) -> None:
         super().__init__(ctx)
+        self.ctx: PipelineContext | EnrichmentRuntimeContext = ctx
         self._enrichment_config_override = enrichment_config
         self.zip_handle: zipfile.ZipFile | None = None
         self.media_index: dict[str, str] = {}
@@ -957,7 +959,8 @@ class EnrichmentWorker(BaseWorker):
 
         if new_rows:
             try:
-                self.ctx.storage.ibis_conn.insert("messages", new_rows)
+                t = ibis.memtable(new_rows)
+                self.ctx.storage.write_table(t, "messages", mode="append")
                 logger.info("Inserted %d enrichment rows", len(new_rows))
             except Exception:
                 logger.exception("Failed to insert enrichment rows")
@@ -1532,7 +1535,7 @@ class EnrichmentWorker(BaseWorker):
                     # Update text column using parameterized query
                     # Note: This updates ALL messages containing this ref.
                     query = "UPDATE messages SET text = replace(text, ?, ?) WHERE text LIKE ?"
-                    self.ctx.storage._conn.execute(query, [original_ref, new_path, f"%{original_ref}%"])
+                    self.ctx.storage.execute_sql(query, [original_ref, new_path, f"%{original_ref}%"])
                 except duckdb.Error as exc:
                     logger.warning("Failed to update message references for %s: %s", original_ref, exc)
 
@@ -1540,7 +1543,8 @@ class EnrichmentWorker(BaseWorker):
 
         if new_rows:
             try:
-                self.ctx.storage.ibis_conn.insert("messages", new_rows)
+                t = ibis.memtable(new_rows)
+                self.ctx.storage.write_table(t, "messages", mode="append")
                 logger.info("Inserted %d media enrichment rows", len(new_rows))
             except (IbisError, duckdb.Error):
                 logger.exception("Failed to insert media enrichment rows")
