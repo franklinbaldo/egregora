@@ -83,8 +83,8 @@ def run_facilitator_tick(mock_mail_features):
 
     from repo.scheduler.engine import execute_facilitator_tick
 
-    # We also need to mock create_session if it triggers Oracle
-    with patch("repo.scheduler.engine.execute_scheduled_tick"):
+    # Mock execute_single_persona to prevent Oracle session creation side effects
+    with patch("repo.scheduler.engine.execute_single_persona"):
         execute_facilitator_tick(dry_run=False)
 
 

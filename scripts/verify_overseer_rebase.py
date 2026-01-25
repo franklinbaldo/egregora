@@ -5,8 +5,8 @@ from pathlib import Path
 # Add .team to path
 sys.path.append(os.path.abspath(".team"))
 
-from repo.scheduler_managers import PRManager
-from repo.github import get_repo_info
+from repo.scheduler.managers import PRManager
+from repo.core.github import get_repo_info
 
 def verify_rebase():
     print("🚀 Starting Overseer Rebase Verification...")
