@@ -19,7 +19,8 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {% endblock %}
 
 ## 📋 Context
-{{ sprint_context_text }}
+
+{% include "partials/project_context.md.j2" %}
 
 {% block context %}
 {# Background, references, current state #}
