@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from egregora.orchestration.pipelines.write import (
-    _prepare_pipeline_data,
+from egregora.orchestration.pipelines.etl.preparation import (
+    prepare_pipeline_data,
 )
 
 
@@ -16,6 +16,9 @@ def mock_pipeline_context():
     ctx = MagicMock()
     ctx.config.rag.enabled = True
     ctx.output_format.documents.return_value = []
+    # Mock output_sink since it's used in preparation
+    ctx.output_sink = MagicMock()
+    ctx.output_sink.documents.return_value = []
     return ctx
 
 
@@ -52,31 +55,31 @@ def test_prepare_pipeline_data_handles_rag_connection_error(
     """Test that connection errors during RAG indexing are caught and logged."""
 
     # Mock index_documents to raise ConnectionError
-    with patch("egregora.orchestration.pipelines.write.index_documents") as mock_index:
+    # Note: Patch where it is imported/used
+    with patch("egregora.orchestration.pipelines.etl.preparation.index_documents") as mock_index:
         mock_index.side_effect = ConnectionError("Connection refused")
 
-        with patch("egregora.orchestration.pipelines.write.PipelineFactory") as mock_factory:
-            # Setup factory to return our mock context's output format
-            mock_factory.create_output_adapter.return_value = mock_pipeline_context.output_format
+        with patch("egregora.orchestration.pipelines.etl.preparation.PipelineFactory") as mock_factory:
+            # Setup factory to return our mock context's output format (sink)
+            mock_sink = MagicMock()
+            mock_sink.documents.return_value = ["doc1"]
+            mock_factory.create_output_adapter.return_value = mock_sink
 
-            # Setup context with output format
-            mock_pipeline_context.with_output_format.return_value = mock_pipeline_context
+            # Setup context
+            mock_pipeline_context.with_output_sink.return_value = mock_pipeline_context
             mock_pipeline_context.with_adapter.return_value = mock_pipeline_context
-
-            # Setup documents to ensure indexing is attempted
-            mock_pipeline_context.output_format.documents.return_value = ["doc1"]
 
             # Mock other dependencies to avoid side effects
             with (
-                patch("egregora.orchestration.pipelines.write._parse_and_validate_source"),
-                patch("egregora.orchestration.pipelines.write._setup_content_directories"),
-                patch("egregora.orchestration.pipelines.write._process_commands_and_avatars"),
-                patch("egregora.orchestration.pipelines.write._apply_filters"),
-                patch("egregora.orchestration.pipelines.write.create_windows"),
+                patch("egregora.orchestration.pipelines.etl.preparation._parse_and_validate_source"),
+                patch("egregora.orchestration.pipelines.etl.preparation._setup_content_directories"),
+                patch("egregora.orchestration.pipelines.etl.preparation._process_commands_and_avatars"),
+                patch("egregora.orchestration.pipelines.etl.preparation._apply_filters"),
+                patch("egregora.orchestration.pipelines.etl.preparation.create_windows"),
             ):
                 # Execute function
                 with caplog.at_level(logging.WARNING):
-                    _prepare_pipeline_data(mock_adapter, mock_run_params, mock_pipeline_context)
+                    prepare_pipeline_data(mock_adapter, mock_run_params, mock_pipeline_context)
 
                 # Verify warning logged
                 assert "RAG backend unavailable" in caplog.text
@@ -88,25 +91,26 @@ def test_prepare_pipeline_data_handles_rag_value_error(
 ):
     """Test that value errors (invalid data) during RAG indexing are caught and logged."""
 
-    # Mock index_documents to raise ValueError
-    with patch("egregora.orchestration.pipelines.write.index_documents") as mock_index:
+    with patch("egregora.orchestration.pipelines.etl.preparation.index_documents") as mock_index:
         mock_index.side_effect = ValueError("Invalid vector dimension")
 
-        with patch("egregora.orchestration.pipelines.write.PipelineFactory") as mock_factory:
-            mock_factory.create_output_adapter.return_value = mock_pipeline_context.output_format
-            mock_pipeline_context.with_output_format.return_value = mock_pipeline_context
+        with patch("egregora.orchestration.pipelines.etl.preparation.PipelineFactory") as mock_factory:
+            mock_sink = MagicMock()
+            mock_sink.documents.return_value = ["doc1"]
+            mock_factory.create_output_adapter.return_value = mock_sink
+
+            mock_pipeline_context.with_output_sink.return_value = mock_pipeline_context
             mock_pipeline_context.with_adapter.return_value = mock_pipeline_context
-            mock_pipeline_context.output_format.documents.return_value = ["doc1"]
 
             with (
-                patch("egregora.orchestration.pipelines.write._parse_and_validate_source"),
-                patch("egregora.orchestration.pipelines.write._setup_content_directories"),
-                patch("egregora.orchestration.pipelines.write._process_commands_and_avatars"),
-                patch("egregora.orchestration.pipelines.write._apply_filters"),
-                patch("egregora.orchestration.pipelines.write.create_windows"),
+                patch("egregora.orchestration.pipelines.etl.preparation._parse_and_validate_source"),
+                patch("egregora.orchestration.pipelines.etl.preparation._setup_content_directories"),
+                patch("egregora.orchestration.pipelines.etl.preparation._process_commands_and_avatars"),
+                patch("egregora.orchestration.pipelines.etl.preparation._apply_filters"),
+                patch("egregora.orchestration.pipelines.etl.preparation.create_windows"),
             ):
                 with caplog.at_level(logging.WARNING):
-                    _prepare_pipeline_data(mock_adapter, mock_run_params, mock_pipeline_context)
+                    prepare_pipeline_data(mock_adapter, mock_run_params, mock_pipeline_context)
 
                 assert "Invalid document data for RAG indexing" in caplog.text
                 assert "Invalid vector dimension" in caplog.text
@@ -117,25 +121,26 @@ def test_prepare_pipeline_data_handles_rag_os_error(
 ):
     """Test that OS errors (permission/disk) during RAG indexing are caught and logged."""
 
-    # Mock index_documents to raise OSError
-    with patch("egregora.orchestration.pipelines.write.index_documents") as mock_index:
+    with patch("egregora.orchestration.pipelines.etl.preparation.index_documents") as mock_index:
         mock_index.side_effect = OSError("Read-only file system")
 
-        with patch("egregora.orchestration.pipelines.write.PipelineFactory") as mock_factory:
-            mock_factory.create_output_adapter.return_value = mock_pipeline_context.output_format
-            mock_pipeline_context.with_output_format.return_value = mock_pipeline_context
+        with patch("egregora.orchestration.pipelines.etl.preparation.PipelineFactory") as mock_factory:
+            mock_sink = MagicMock()
+            mock_sink.documents.return_value = ["doc1"]
+            mock_factory.create_output_adapter.return_value = mock_sink
+
+            mock_pipeline_context.with_output_sink.return_value = mock_pipeline_context
             mock_pipeline_context.with_adapter.return_value = mock_pipeline_context
-            mock_pipeline_context.output_format.documents.return_value = ["doc1"]
 
             with (
-                patch("egregora.orchestration.pipelines.write._parse_and_validate_source"),
-                patch("egregora.orchestration.pipelines.write._setup_content_directories"),
-                patch("egregora.orchestration.pipelines.write._process_commands_and_avatars"),
-                patch("egregora.orchestration.pipelines.write._apply_filters"),
-                patch("egregora.orchestration.pipelines.write.create_windows"),
+                patch("egregora.orchestration.pipelines.etl.preparation._parse_and_validate_source"),
+                patch("egregora.orchestration.pipelines.etl.preparation._setup_content_directories"),
+                patch("egregora.orchestration.pipelines.etl.preparation._process_commands_and_avatars"),
+                patch("egregora.orchestration.pipelines.etl.preparation._apply_filters"),
+                patch("egregora.orchestration.pipelines.etl.preparation.create_windows"),
             ):
                 with caplog.at_level(logging.WARNING):
-                    _prepare_pipeline_data(mock_adapter, mock_run_params, mock_pipeline_context)
+                    prepare_pipeline_data(mock_adapter, mock_run_params, mock_pipeline_context)
 
                 assert "Cannot access RAG storage" in caplog.text
                 assert "Read-only file system" in caplog.text
