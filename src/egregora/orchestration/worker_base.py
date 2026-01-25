@@ -3,16 +3,22 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from egregora.orchestration.context import PipelineContext
 
 
+class WorkerContext(Protocol):
+    """Protocol for context required by workers."""
+
+    task_store: Any
+
+
 class BaseWorker(ABC):
     """Abstract base for background workers that consume TaskStore jobs."""
 
-    def __init__(self, ctx: PipelineContext) -> None:
+    def __init__(self, ctx: WorkerContext) -> None:
         self.ctx = ctx
         task_store = getattr(ctx, "task_store", None)
         if not task_store:
