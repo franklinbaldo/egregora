@@ -139,9 +139,7 @@ def build_conversation_xml(
 
         if msg_id in annotations_map:
             notes = cast("list[dict[str, str]]", msg_data["notes"])
-            notes.extend(
-                {"id": str(ann.id), "content": ann.commentary} for ann in annotations_map[msg_id]
-            )
+            notes.extend({"id": str(ann.id), "content": ann.commentary} for ann in annotations_map[msg_id])
         messages.append(msg_data)
 
     templates_dir = Path(__file__).resolve().parents[1] / "templates"

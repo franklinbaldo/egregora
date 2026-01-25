@@ -105,7 +105,8 @@ def migrate_media_table(conn: duckdb.DuckDBPyConnection) -> None:
     target_cols_str = ", ".join(quote_identifier(c) for c in target_columns)
     select_cols_str = ", ".join(c if c.startswith("'") else quote_identifier(c) for c in select_columns)
 
-    insert_sql = f"INSERT INTO documents ({target_cols_str}) SELECT {select_cols_str} FROM media"
+    # Safe: Columns are hardcoded in `columns_to_copy` and quoted.
+    insert_sql = f"INSERT INTO documents ({target_cols_str}) SELECT {select_cols_str} FROM media"  # nosec B608
 
     logger.info(f"Copying media rows: {insert_sql}")
     conn.execute(insert_sql)
