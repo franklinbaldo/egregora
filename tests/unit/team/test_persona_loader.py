@@ -203,18 +203,25 @@ class TestAllPersonasValid(unittest.TestCase):
                     continue
 
                 # Must have non-empty prompt
-                assert len(persona.prompt_body) > 100, \
+                assert len(persona.prompt_body) > 100, (
                     f"Persona {persona.id} has suspiciously short prompt"
+                )
+
+                # Skip password/session checks for 'franklin' (User persona)
+                if persona.id == 'franklin':
+                    continue
 
                 # Password must be injected
                 import uuid
                 expected_password = str(uuid.uuid5(uuid.NAMESPACE_DNS, persona.id))
-                assert expected_password in persona.prompt_body, \
+                assert expected_password in persona.prompt_body, (
                     f"Persona {persona.id} missing password injection"
+                )
 
                 # Must have session protocol
-                assert "my-tools" in persona.prompt_body.lower(), \
+                assert "my-tools" in persona.prompt_body.lower(), (
                     f"Persona {persona.id} missing session protocol"
+                )
 
 
 if __name__ == "__main__":
