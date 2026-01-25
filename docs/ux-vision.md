@@ -53,6 +53,11 @@ This section defines the "Portal" design system, which aims to create a dark, im
 -   **Issue:** The main navigation is functional. "Media" is top-level.
 -   **Next Action:** Review if "Media" should be nested under "Resources" or similar. Task `20260122-1400-ux-refine-portal-theme-scoping.md` addresses this potential restructure.
 
+### Feeds Page
+-   **Status:** Missing (Broken Link).
+-   **Issue:** The "RSS Feeds" card on the homepage links to `feeds/`, which creates a 404 error. There is no dedicated page to list available feeds.
+-   **Next Action:** Create `docs/feeds/index.md` with a polished UI listing all available RSS and JSON feeds. Task `20260126-1000-ux-implement-feeds-page.md` created.
+
 ### Analytics
 -   **Status:** Removed.
 -   **Issue:** Previous versions of the generator included a placeholder for a Google Analytics key. As of the latest inspection, this has been removed from the default `mkdocs.yml` template.
