@@ -20,12 +20,12 @@ def test_materialize_site_handles_document_not_found_error():
     meta.identifier = "test-post"
 
     source_sink.list.return_value = [meta]
-    source_sink.read_document.side_effect = DocumentNotFoundError("post", "test-post")
+    source_sink.get.side_effect = DocumentNotFoundError("post", "test-post")
 
     # Act
     materialize_site(source_sink, destination_sink)
 
     # Assert
     assert source_sink.list.call_count == 5
-    assert source_sink.read_document.call_count == 5
+    assert source_sink.get.call_count == 5
     destination_sink.persist.assert_not_called()
