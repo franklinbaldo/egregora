@@ -1,5 +1,6 @@
 """Exceptions for input adapters."""
 
+
 class AdapterError(Exception):
     """Base exception for all adapter errors."""
 
@@ -18,6 +19,7 @@ class UnknownAdapterError(AdapterError, LookupError):
 
 class AdapterLoadError(AdapterError):
     """Raised when an adapter fails to load (plugin or built-in)."""
+
     def __init__(self, name: str, reason: str | Exception) -> None:
         self.name = name
         self.reason = reason

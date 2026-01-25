@@ -1,4 +1,3 @@
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -39,12 +38,14 @@ def test_writer_resources_from_context(tmp_path):
     assert (tmp_path / "profiles").exists()
     assert (tmp_path / "journal").exists()
 
+
 def test_writer_resources_raises_if_no_output_sink():
     mock_ctx = MagicMock(spec=PipelineContext)
     mock_ctx.output_sink = None
 
     with pytest.raises(RuntimeError, match="Output adapter must be initialized"):
         WriterResources.from_pipeline_context(mock_ctx)
+
 
 def test_writer_resources_creation_without_site_root(tmp_path):
     """Test fallback when site_root is None."""
@@ -54,7 +55,7 @@ def test_writer_resources_creation_without_site_root(tmp_path):
     # journal_dir not on sink, fallback to ctx.docs_dir / journal
     del mock_ctx.output_sink.journal_dir
     mock_ctx.docs_dir = tmp_path / "docs"
-    mock_ctx.site_root = None # No site root
+    mock_ctx.site_root = None  # No site root
 
     # Other required mocks
     mock_ctx.output_registry = MagicMock()

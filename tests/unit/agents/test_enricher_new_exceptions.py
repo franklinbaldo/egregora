@@ -1,21 +1,21 @@
-import json
-import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
-from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 import httpx
+import pytest
 
 from egregora.agents.enricher import (
-    fetch_url_with_jina,
+    EnrichmentWorker,
     _normalize_slug,
+    fetch_url_with_jina,
     load_file_as_binary_content,
-    EnrichmentWorker
 )
 from egregora.agents.exceptions import (
-    JinaFetchError,
-    EnrichmentSlugError,
     EnrichmentFileError,
-    EnrichmentParsingError
+    EnrichmentParsingError,
+    EnrichmentSlugError,
+    JinaFetchError,
 )
+
 
 @pytest.mark.asyncio
 async def test_fetch_url_with_jina_raises_exception():
@@ -28,6 +28,7 @@ async def test_fetch_url_with_jina_raises_exception():
         with pytest.raises(JinaFetchError, match="Jina fetch failed"):
             await fetch_url_with_jina(ctx, "http://example.com")
 
+
 def test_normalize_slug_raises_exception():
     """Test that invalid slugs raise EnrichmentSlugError."""
     with pytest.raises(EnrichmentSlugError, match="LLM failed to generate slug"):
@@ -35,6 +36,7 @@ def test_normalize_slug_raises_exception():
 
     with pytest.raises(EnrichmentSlugError, match="LLM slug .* is invalid"):
         _normalize_slug("!@#$", "id")
+
 
 def test_load_file_as_binary_content_raises_exception(tmp_path):
     """Test that file issues raise EnrichmentFileError."""
@@ -51,11 +53,12 @@ def test_load_file_as_binary_content_raises_exception(tmp_path):
     # To avoid creating a large file, we can just pass a very small max_size_mb
     # But max_size_mb is in MB. 0.000001 MB is 1 byte.
 
-    large_file.write_bytes(b"12345") # 5 bytes
+    large_file.write_bytes(b"12345")  # 5 bytes
 
     # 0.000001 * 1024 * 1024 = 1.04 bytes.
     with pytest.raises(EnrichmentFileError, match="File too large"):
         load_file_as_binary_content(large_file, max_size_mb=0.000001)
+
 
 def test_parse_media_result_raises_exception():
     """Test that JSON parsing errors raise EnrichmentParsingError."""
