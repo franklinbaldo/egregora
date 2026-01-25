@@ -26,7 +26,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
-
 # Well-known namespace for Egregora documents
 # Based on DNS namespace but specific to Egregora
 NAMESPACE_DOCUMENT = UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
@@ -223,30 +222,6 @@ class Document:
         )
 
 
-@dataclass
-class DocumentCollection:
-    """Batch of documents produced by a single operation (e.g., one window)."""
-
-    documents: list[Document]
-    window_label: str | None = None
-
-    def by_type(self, doc_type: DocumentType) -> list[Document]:
-        return [doc for doc in self.documents if doc.type == doc_type]
-
-    def find_children(self, parent_id: str) -> list[Document]:
-        return [doc for doc in self.documents if doc.parent_id == parent_id]
-
-    def find_by_id(self, document_id: str) -> Document | None:
-        for doc in self.documents:
-            if doc.document_id == document_id:
-                return doc
-        return None
-
-    def __len__(self) -> int:
-        return len(self.documents)
-
-    def __iter__(self) -> Iterator[Document]:
-        return iter(self.documents)
 
 
 @dataclass(frozen=True, slots=True)
