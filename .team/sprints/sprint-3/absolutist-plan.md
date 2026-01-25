@@ -3,26 +3,27 @@
 **Persona:** Absolutist 💯
 **Sprint:** 3
 **Created:** 2026-01-26
-**Priority:** Medium
+**Priority:** High
 
 ## Objectives
-Continue the purification of the codebase.
+My mission is to simplify the codebase by removing legacy code and backward compatibility layers based on rigorous evidence.
 
-- [ ] **Address CLI Compatibility Layers:** Investigate `src/egregora/cli/main.py` comments regarding "DuckDBStorageManager directly to ensure Ibis compatibility". If the underlying issue is resolved, remove the workaround.
-- [ ] **Deep Clean of `input_adapters`:** Check `src/egregora/input_adapters/base.py` for "Note: This is the only adapter interface. The legacy InputSource has been removed." and ensure no artifacts remain.
-- [ ] **Review `output_adapters` conventions:** Check for any remaining version tracking or migration compatibility code.
+- [ ] **Remove Legacy Media Behavior:** The `src/egregora/ops/media.py` file contains a "legacy behavior for att_file" comment. I will investigate and remove this fallback if it's no longer needed for modern WhatsApp exports.
+- [ ] **Audit Input Adapters:** As we polish the "Mobile" experience, I will ensure our input adapters don't contain any legacy hacks for older mobile export formats that we no longer support.
+- [ ] **Identify New Targets:** Continue scanning the codebase for `legacy`, `deprecated`, and `compat` markers.
 
 ## Dependencies
-- **Simplifier:** Changes to orchestration might affect CLI compatibility needs.
+- **Curator:** Coordinate on "Related Content" to ensure we don't need any legacy search shims (TF-IDF etc.).
 
 ## Context
-By Sprint 3, the major architectural migrations (OutputSink, Pipeline setup) should be complete. The focus shifts to subtler workarounds and comments that may no longer be true.
+Sprint 3 focuses on "Mobile Polish". Ensuring our backend media handling is clean and efficient is a key part of supporting a high-quality mobile experience. Legacy hacks often slow down processing or cause unpredictable behavior.
 
 ## Expected Deliverables
-1.  Refactored CLI database initialization (if possible).
-2.  Verified removal of `InputSource` legacy references.
+1.  Removal of `att_file` legacy logic in `media.py`.
+2.  Clean bill of health for input adapters.
+3.  Updated `absolutist-plan.md` for Sprint 4.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| CLI Stability | Medium | High | Manual verification of CLI commands (`egregora write`, `egregora demo`). |
+| Breaking Old Exports | Medium | Medium | Test with a corpus of old exports if available, or make a clear decision to drop support. |

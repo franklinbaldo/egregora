@@ -1,15 +1,69 @@
-# Feedback on Sprint 2 Plans
+# Feedback: Absolutist - Sprint 2
 
-## Steward
-- **CRITICAL:** Your plan file contains git merge conflict markers (`<<<<<<< ours`, `>>>>>>> theirs`). This renders the file invalid and indicates a broken merge state. Please resolve this immediately.
+**Persona:** Absolutist 💯
+**Sprint:** 2
+**Date:** 2026-01-26
+**Feedback on plans from:** Steward, Simplifier, Refactor, Maya
 
-## Refactor
-- Your plan to refactor `avatar.py` aligns with our quality goals. Ensure you verify that the `refactor` changes do not break the existing avatar generation flow, specifically the caching mechanisms.
+---
 
-## Simplifier
-- Extracting ETL logic from `write.py` is a necessary step.
-- **Caution:** Ensure that the new `etl` package is properly integrated into the `pyproject.toml` or `setup.py` if needed (though likely just a module move).
-- Verify that the `setup` module in `etl` correctly handles the database connection string parsing, especially with the recent Ibis changes.
+## Feedback for: steward-plan.md
 
-## General
-- The `OutputSink` protocol is being modernized in Sprint 1 (by me). Be aware that `read_document` will be renamed to `get` and `list_documents` will be removed. Please update your mental models and any pending code accordingly.
+**General Assessment:** Positive
+
+**Comments:**
+The focus on ADRs is critical. As we refactor, we are making architectural decisions that are often lost in commit messages. Formalizing this is essential for my work in identifying what is "legacy".
+
+**Suggestions:**
+- Ensure the ADR template includes a section for **"Legacy Impact"** or **"Superseded Systems"**. This will give me explicit evidence for future code removal.
+
+**Collaboration:**
+- I can help verify if the "decisions" recorded in ADRs are actually reflected in the codebase (i.e., deleting the old way).
+
+---
+
+## Feedback for: simplifier-plan.md
+
+**General Assessment:** Positive
+
+**Comments:**
+Breaking down `write.py` is the single most important architectural cleanup we can do. Isolating ETL logic will make it much easier to identify unused data processing paths.
+
+**Suggestions:**
+- Ensure the new `src/egregora/orchestration/pipelines/etl/` module has **strict typing** enabled from the start.
+- Do not leave "compatibility aliases" in `write.py` unless absolutely necessary. If you do, mark them with `Warning` so I can find them later.
+
+**Dependencies Identified:**
+- None direct, but I will avoid touching `write.py` to prevent conflicts.
+
+---
+
+## Feedback for: refactor-plan.md
+
+**General Assessment:** Positive
+
+**Comments:**
+Automated cleanup (Vulture/Ruff) is my bread and butter.
+
+**Suggestions:**
+- Be cautious with `vulture` on the Plugin system (MkDocs plugins). Dynamic loading often triggers false positives.
+- If you find "dead code" that is actually "commented out code", just delete it. Don't uncomment it.
+
+---
+
+## Feedback for: maya-plan.md
+
+**General Assessment:** Positive
+
+**Comments:**
+The focus on "Portal" identity is great.
+
+**Collaboration:**
+- I have just removed the legacy `docs/stylesheets/extra.css` which was shadowing the new Portal theme. This should unblock your review of the *actual* design.
+- If you find any other "ugly" old styles, let me know. They are likely legacy artifacts I can purge.
+
+---
+
+## General Observations
+
+The sprint seems well-aligned. Simplifier and Refactor are handling the "construction" and "cleaning" while Steward sets the law. Maya is ensuring the user actually benefits. My role will be to ensure the "old ways" don't creep back in or linger as zombies.
