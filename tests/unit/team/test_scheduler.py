@@ -1,6 +1,6 @@
+import json
 import sys
 import unittest
-import json
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
@@ -112,14 +112,7 @@ class TestSimpleScheduler(unittest.TestCase):
     @patch("repo.scheduler.simple.subprocess.run")
     def test_merge_completed_prs_no_checks(self, mock_run: MagicMock) -> None:
         """Test merge_completed_prs with no checks (should merge)."""
-        pr_data = [
-            {
-                "number": 1,
-                "isDraft": True,
-                "statusCheckRollup": [],
-                "mergeable": "MERGEABLE"
-            }
-        ]
+        pr_data = [{"number": 1, "isDraft": True, "statusCheckRollup": [], "mergeable": "MERGEABLE"}]
         mock_run.side_effect = [
             MagicMock(stdout=json.dumps(pr_data), returncode=0),
             MagicMock(returncode=0),
@@ -137,7 +130,7 @@ class TestSimpleScheduler(unittest.TestCase):
                 "number": 2,
                 "isDraft": False,
                 "statusCheckRollup": [{"conclusion": "SUCCESS"}],
-                "mergeable": "MERGEABLE"
+                "mergeable": "MERGEABLE",
             }
         ]
         mock_run.side_effect = [
@@ -155,7 +148,7 @@ class TestSimpleScheduler(unittest.TestCase):
                 "number": 3,
                 "isDraft": False,
                 "statusCheckRollup": [{"conclusion": "FAILURE"}],
-                "mergeable": "MERGEABLE"
+                "mergeable": "MERGEABLE",
             }
         ]
         mock_run.side_effect = [
