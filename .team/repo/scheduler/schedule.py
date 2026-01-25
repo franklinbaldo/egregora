@@ -624,8 +624,8 @@ def get_current_sequence_from_api(
         # We only skip if there is an ACTIVE (non-expired) session for this sequence
         seq = row.get("sequence", "").strip()
         if seq in active_sequences:
-            print(f"⚠️  Sequence {seq} has active session in API, skipping")
-            continue
+            print(f"⚠️  Sequence {seq} has active session in API, waiting for completion")
+            return None, modified
 
         # This row needs work
         return row, modified
