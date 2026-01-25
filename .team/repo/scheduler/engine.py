@@ -28,7 +28,7 @@ from repo.core.github import get_open_prs, get_pr_by_session_id_any_state, get_r
 from repo.features.mail import get_message, list_inbox, mark_read, send_message
 from repo.scheduler.legacy import JULES_BRANCH
 from repo.scheduler.loader import PersonaLoader
-from repo.scheduler.managers import BranchManager, PRManager, SessionOrchestrator
+from repo.scheduler.managers import BranchManager, PRManager
 from repo.scheduler.models import SessionRequest
 from repo.scheduler.schedule import (
     SCHEDULE_PATH,
@@ -368,9 +368,17 @@ def create_persona_session(
                 session_id=None
             )
 
-        # Create session
-        orchestrator = SessionOrchestrator(client, dry_run=False)
-        session_id = orchestrator.create_session(request)
+        # Create session directly via client
+        result = client.create_session(
+            prompt=request.prompt,
+            owner=request.owner,
+            repo=request.repo,
+            branch=request.branch,
+            title=request.title,
+            automation_mode=request.automation_mode,
+            require_plan_approval=request.require_plan_approval,
+        )
+        session_id = result.get("name", "").split("/")[-1]
 
         return SchedulerResult(
             success=True,
@@ -958,38 +966,3 @@ def run_scheduler(
             message=f"Scheduler error: {e}",
             error=e
         )
-
-
-# ============================================================================
-# LEGACY COMPATIBILITY
-# ============================================================================
-
-def execute_scheduled_tick(
-    run_all: bool = False,
-    prompt_id: str | None = None,
-    dry_run: bool = False
-) -> None:
-    """Legacy compatibility wrapper.
-
-    DEPRECATED: Use execute_single_persona() or run_scheduler() instead.
-    """
-    if not prompt_id:
-        return
-
-    execute_single_persona(prompt_id, dry_run)
-
-
-def execute_parallel_cycle_tick(dry_run: bool = False) -> None:
-    """Legacy compatibility wrapper.
-
-    DEPRECATED: Use execute_sequential_tick() instead.
-    """
-    execute_sequential_tick(dry_run)
-
-
-def execute_cycle_tick(dry_run: bool = False) -> None:
-    """Legacy compatibility wrapper.
-
-    DEPRECATED: Use execute_sequential_tick() instead.
-    """
-    execute_sequential_tick(dry_run)
