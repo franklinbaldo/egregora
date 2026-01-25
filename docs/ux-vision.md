@@ -16,12 +16,13 @@ This document outlines the user experience and user interface (UX/UI) vision for
 
 ### Template Architecture
 
-**CRITICAL FINDING:** The templates for the MkDocs site have been moved to Jinja2 files in `src/egregora/rendering/templates/site/`. This is a significant improvement over the previous embedded string approach.
+**CRITICAL FINDING:** The templates for the MkDocs site have been moved to Jinja2 files in `src/egregora/rendering/templates/site/`.
 
 Key locations:
 -   `src/egregora/output_adapters/mkdocs/scaffolding.py`: Renders these templates during the scaffold process.
 -   `src/egregora/rendering/templates/site/mkdocs.yml.jinja`: The main configuration template.
--   `src/egregora/rendering/templates/site/docs/stylesheets/extra.css`: The "Portal" theme styles.
+-   `src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`: The structural CSS (layout, navigation).
+-   `src/egregora/rendering/templates/site/docs/stylesheets/extra.css`: The "Portal" theme styles (deprecated/shadowing).
 
 ### Developer Experience
 -   **Status:** Improving.
@@ -32,28 +33,33 @@ Key locations:
 
 This section defines the "Portal" design system, which aims to create a dark, immersive, and premium experience.
 
+### CSS Architecture
+-   **Status:** Broken / Fragmented.
+-   **Issue:** The CSS is split between `docs/stylesheets/extra.css` (Portal Theme) and `overrides/stylesheets/extra.css` (Structure). MkDocs prioritizes the `docs` folder, causing the Portal theme to "shadow" and obliterate the structural styles needed for the homepage navigation and layout.
+-   **Next Action:** Task `20260125-140000-ux-consolidate-css-shadowing.md` has been created to consolidate all CSS into `overrides` and fix the shadowing.
+
 ### Color Palette
--   **Status:** Implemented.
+-   **Status:** Verified.
 -   **Primary:** A deep, thoughtful blue (`#2c3e50`) defined in `extra.css`.
 -   **Accent:** A vibrant, energetic yellow (`#f9d423`) defined in `extra.css`.
 -   **Implementation:** `mkdocs.yml` uses `primary: custom` and `accent: custom`.
 
 ### Scoping and Usability
--   **Status:** Needs Refinement.
--   **Issue:** The "Portal" theme uses aggressive global CSS overrides in `extra.css` (e.g., hiding TOC and H1 globally). This degrades usability on standard content pages.
--   **Next Action:** Task `20260122-1400-ux-refine-portal-theme-scoping.md` has been created to scope these overrides to the homepage only using frontmatter and removing global CSS blocks.
+-   **Status:** Verified.
+-   **Issue:** Previous aggressive global CSS overrides have been successfully scoped. The homepage now uses `:has(.homepage-hero)` to apply immersive styles only where appropriate.
+-   **Next Action:** None.
 
 ### Typography
--   **Status:** Defined.
+-   **Status:** Verified.
 -   **Fonts:** `Outfit` for headings and `Inter` for body text.
 -   **Implementation:** The fonts are imported and applied in `extra.css`.
 
 ### Navigation
--   **Status:** Implemented, but needs review.
--   **Issue:** The main navigation is functional. "Media" is top-level.
--   **Next Action:** Review if "Media" should be nested under "Resources" or similar. Task `20260122-1400-ux-refine-portal-theme-scoping.md` addresses this potential restructure.
+-   **Status:** Structure Verified, Styling Broken.
+-   **Issue:** The navigation hierarchy is correct (Media nested under Resources), but the homepage "Quick Navigation" cards are unstyled due to the CSS shadowing bug.
+-   **Next Action:** Fix CSS shadowing (see above).
 
 ### Analytics
--   **Status:** Removed.
--   **Issue:** Previous versions of the generator included a placeholder for a Google Analytics key. As of the latest inspection, this has been removed from the default `mkdocs.yml` template.
--   **Next Action:** None. This issue is resolved and aligns with our "Privacy-First" principle.
+-   **Status:** Verified (Removed).
+-   **Issue:** Analytics placeholders have been removed from the default configuration.
+-   **Next Action:** None.
