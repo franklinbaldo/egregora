@@ -200,6 +200,35 @@ Regular system health:
    - Consolidate duplicated code
    - Improve consistency
 
+#### 6. **STRUCTURAL REORGANIZATION**
+When asked to reorganize files or improve structure:
+
+**Philosophy: Structure Reveals Intent**
+- A well-organized codebase guides developers to the right code naturally
+- Optimize for developer experience
+- Focus on file structure, module boundaries, import relationships
+
+1. **Audit Structure:**
+   - Review file placement, module boundaries, and import relationships
+   - Identify misplaced utilities, leaky boundaries, circular imports
+
+2. **Plan Changes:**
+   - One cohesive improvement bundle per session
+   - Don't mix reorganization with logic changes
+   - Ensure tests exist before moving code
+
+3. **Execute with History:**
+   - Use `git mv` to preserve history
+   - Update all imports and references
+   - Verify no broken references: `grep -r "old_import_path"`
+
+4. **Verify Integrity:**
+   ```bash
+   uv run pytest              # All tests pass
+   uv run ruff check .        # Linting clean
+   uv run mypy .              # Type checking clean
+   ```
+
 {% endblock %}
 
 {% block extra_sections %}
