@@ -2,28 +2,28 @@
 
 **Persona:** Forge ⚒️
 **Sprint:** 2
-**Created:** 2026-01-26 (during Sprint 1)
+**Created:** 2026-01-26 (Updated)
 **Priority:** High
 
 ## Objectives
-My mission is to transform the Egregora blog into a polished, distinct product ("The Portal") by implementing the Curator's visual identity requirements and fixing critical frontend bugs.
+My mission is to complete the "Portal" visual identity and ensure a polished user experience.
 
-- [ ] **Fix Social Cards:** Resolve the issue where generated social cards are missing CSS or returning 404s.
-- [ ] **Implement "Portal" Palette:** Hardcode the custom color palette (Deep Blue `#2c3e50` / Yellow `#f9d423`) into the theme configuration, replacing the default Material colors.
-- [ ] **Custom Favicon:** Add a unique favicon to the template to replace the MkDocs default.
-- [ ] **Refine "Empty State":** Improve the "Welcome to Egregora" message on the homepage to be more engaging when no content has been generated yet.
+- [ ] **Functional Social Cards:** Ensure `og:image` tags are generated correctly and do not return 404s. (Requires `pillow`, `cairosvg`).
+- [ ] **Custom Favicon:** Implement a unique favicon for the site.
+- [ ] **Refine "Empty State":** Polish the "Welcome" message on the homepage to be engaging even without content.
+- [ ] **Accessibility Audit (Preliminary):** Run a basic accessibility check (Lighthouse/Axe) on the new "Portal" theme to catch low-hanging fruit (contrast, labels).
 
 ## Dependencies
-- **Curator:** I rely on the Curator for final approval of visual changes and any specific copy for the "Empty State".
+- **Curator:** For approval of visual refinements.
 
 ## Context
-Sprint 1 focused on basic functionality and "Graceful Degradation" of the demo command. Sprint 2 is about **Identity**. The current site looks like a generic MkDocs template. By the end of this sprint, it should look like a bespoke "Portal" into the Egregora collective.
+Foundational theming was established in Sprint 1. Sprint 2 is about "Finish and Polish".
 
 ## Expected Deliverables
-1.  **Functional Social Cards:** `og:image` tags point to valid, generated images.
-2.  **Themed Site:** The site uses the specific `#2c3e50` and `#f9d423` colors.
-3.  **Favicon:** A custom `.ico` or `.png` is served.
-4.  **Polished Homepage:** The initial landing page is visually distinct and welcoming.
+1. Working Social Cards.
+2. Custom Favicon.
+3. Polished Empty State.
+4. Accessibility Report.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |

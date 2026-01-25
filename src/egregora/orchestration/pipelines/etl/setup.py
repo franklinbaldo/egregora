@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -298,11 +298,9 @@ def pipeline_environment(run_params: PipelineRunParams) -> Iterator[PipelineCont
         if ctx.state.client:
             client_close = getattr(ctx.state.client, "close", None)
             if callable(client_close):
-                try:
-                    client_close()
-                except Exception:
+                with suppress(Exception):
                     # Best effort cleanup, ignore errors
-                    pass
+                    client_close()
 
         try:
             ctx.cache.close()
