@@ -6,23 +6,27 @@
 **Priority:** Medium
 
 ## Objectives
-Continue the purification of the codebase.
+Continuing the mission of simplification, Sprint 3 will focus on deeper structural cleanups and auditing peripheral adapters.
 
-- [ ] **Address CLI Compatibility Layers:** Investigate `src/egregora/cli/main.py` comments regarding "DuckDBStorageManager directly to ensure Ibis compatibility". If the underlying issue is resolved, remove the workaround.
-- [ ] **Deep Clean of `input_adapters`:** Check `src/egregora/input_adapters/base.py` for "Note: This is the only adapter interface. The legacy InputSource has been removed." and ensure no artifacts remain.
-- [ ] **Review `output_adapters` conventions:** Check for any remaining version tracking or migration compatibility code.
+- [ ] **Audit `input_adapters` for Legacy Artifacts:** Ensure that the transition from `InputSource` to the current adapter interface is complete and no "ghost" classes remain.
+- [ ] **Review `output_adapters` Compatibility:** Investigate `src/egregora/output_adapters/conventions.py` and other output adapters for migration layers that have served their purpose.
+- [ ] **Dead Code Analysis:** Conduct a sweep for unreachable code or unused imports that linters might have missed (or that were ignored).
 
 ## Dependencies
-- **Simplifier:** Changes to orchestration might affect CLI compatibility needs.
+- **Refactor:** Coordination on any large-scale structural changes.
 
 ## Context
-By Sprint 3, the major architectural migrations (OutputSink, Pipeline setup) should be complete. The focus shifts to subtler workarounds and comments that may no longer be true.
+By Sprint 3, the core configuration and pipeline runner should be stabilized (thanks to Sprint 2 work). This opens the door for cleaning up the "edges" of the system—the input and output adapters—where compatibility shims often hide.
 
 ## Expected Deliverables
-1.  Refactored CLI database initialization (if possible).
-2.  Verified removal of `InputSource` legacy references.
+1.  Report on `input_adapters` cleanliness.
+2.  Removal of any identified legacy code in `output_adapters`.
+3.  Deletion of verified dead code blocks.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| CLI Stability | Medium | High | Manual verification of CLI commands (`egregora write`, `egregora demo`). |
+| Removing rarely used but valid adapters | Low | High | Verify usage against production logs or test coverage before removal. |
+
+## Proposed Collaborations
+- **With Shepherd:** Ensure that removing "unused" code doesn't reduce test coverage of edge cases that are actually important.
