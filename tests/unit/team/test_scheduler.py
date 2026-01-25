@@ -1,7 +1,7 @@
+import sys
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch, call
-import sys
+from unittest.mock import MagicMock, call, patch
 
 # Add .team to path so we can import repo.scheduler
 # We use relative path from repo root
@@ -10,8 +10,9 @@ TEAM_PATH = REPO_ROOT / ".team"
 if str(TEAM_PATH) not in sys.path:
     sys.path.append(str(TEAM_PATH))
 
-from repo.scheduler import simple
-from repo.scheduler.models import PersonaConfig
+from repo.scheduler import simple  # noqa: E402
+from repo.scheduler.models import PersonaConfig  # noqa: E402
+
 
 class TestSimpleScheduler(unittest.TestCase):
     @patch("repo.scheduler.simple.subprocess.run")
@@ -30,6 +31,7 @@ class TestSimpleScheduler(unittest.TestCase):
     @patch("repo.scheduler.simple.subprocess.run")
     def test_ensure_jules_branch_creates(self, mock_run: MagicMock) -> None:
         """Test ensure_jules_branch when branch missing."""
+
         # First call fails (check), second succeeds (create)
         def side_effect(cmd, **kwargs):
             if cmd[0] == "git" and cmd[1] == "rev-parse":
@@ -40,10 +42,14 @@ class TestSimpleScheduler(unittest.TestCase):
         simple.ensure_jules_branch()
 
         self.assertEqual(mock_run.call_count, 2)
-        mock_run.assert_has_calls([
-            call(["git", "rev-parse", "--verify", f"refs/heads/{simple.JULES_BRANCH}"], capture_output=True),
-            call(["git", "branch", simple.JULES_BRANCH, "origin/main"], check=True, capture_output=True),
-        ])
+        mock_run.assert_has_calls(
+            [
+                call(
+                    ["git", "rev-parse", "--verify", f"refs/heads/{simple.JULES_BRANCH}"], capture_output=True
+                ),
+                call(["git", "branch", simple.JULES_BRANCH, "origin/main"], check=True, capture_output=True),
+            ]
+        )
 
     @patch("repo.scheduler.simple._get_persona_dir")
     def test_discover_personas(self, mock_get_dir: MagicMock) -> None:
@@ -53,14 +59,21 @@ class TestSimpleScheduler(unittest.TestCase):
         mock_path.exists.return_value = True
 
         # Setup directories
-        d1 = MagicMock(); d1.is_dir.return_value = True; d1.name = "persona1"
+        d1 = MagicMock()
+        d1.is_dir.return_value = True
+        d1.name = "persona1"
         (d1 / "prompt.md.j2").exists.return_value = True
 
-        d2 = MagicMock(); d2.is_dir.return_value = True; d2.name = ".hidden"
+        d2 = MagicMock()
+        d2.is_dir.return_value = True
+        d2.name = ".hidden"
 
-        d3 = MagicMock(); d3.is_dir.return_value = True; d3.name = "oracle" # Excluded
+        d3 = MagicMock()
+        d3.is_dir.return_value = True
+        d3.name = "oracle"  # Excluded
 
-        d4 = MagicMock(); d4.is_dir.return_value = False # Not dir
+        d4 = MagicMock()
+        d4.is_dir.return_value = False  # Not dir
 
         mock_path.iterdir.return_value = [d1, d2, d3, d4]
 
@@ -94,6 +107,7 @@ class TestSimpleScheduler(unittest.TestCase):
         self.assertEqual(result.session_id, "123")
         mock_ensure.assert_called_once()
         mock_client.create_session.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()
