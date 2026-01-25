@@ -1,11 +1,7 @@
 {% extends "base.html" %}
 
-{% block styles %}
-    {{ super() }}
-    <link rel="stylesheet" href="{{ 'stylesheets/extra.css' | url }}">
-{% endblock %}
-
-{% block scripts %}
-    {{ super() }}
-    <script src="{{ 'javascripts/custom.js' | url }}"></script>
+{% block extrahead %}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;800&display=swap" rel="stylesheet">
 {% endblock %}
