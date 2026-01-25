@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
+
 # Well-known namespace for Egregora documents
 # Based on DNS namespace but specific to Egregora
 NAMESPACE_DOCUMENT = UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")

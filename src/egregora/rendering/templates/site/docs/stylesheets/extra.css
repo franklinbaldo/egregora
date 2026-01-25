@@ -173,20 +173,41 @@ body,
   backdrop-filter: blur(10px);
 }
 
-/* About Page Glassmorphism (using custom Admonition) */
-.admonition.glass {
-  background: rgba(255, 255, 255, 0.02) !important;
-  backdrop-filter: blur(40px) saturate(250%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: 28px !important;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-  margin-top: 2rem;
+.empty-state-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 1.5rem;
+  color: var(--md-accent-fg-color);
+  opacity: 0.8;
 }
 
-.admonition.glass > .admonition-title {
-  display: none !important; /* Hide title bar */
+.command-block {
+  margin: 2rem 0;
+  text-align: left;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.admonition.glass > .admonition-content {
-  padding: 48px !important;
+.command-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--md-default-fg-color--light);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.command-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.command-wrapper code {
+  background: transparent !important;
+  padding: 0 !important;
+  color: #fff !important;
+  font-family: var(--md-code-font) !important;
 }

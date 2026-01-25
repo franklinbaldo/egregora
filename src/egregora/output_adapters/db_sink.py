@@ -7,7 +7,6 @@ central ContentRepository (DuckDB) instead of the filesystem.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import TYPE_CHECKING
 
 from egregora.data_primitives.document import (
     Document,
@@ -23,6 +22,7 @@ from egregora.output_adapters.exceptions import (
     DocumentIterationError,
     DocumentNotFoundError,
 )
+
 
 class DbOutputSink(OutputSink):
     """OutputSink implementation that persists to DuckDB via ContentRepository."""
