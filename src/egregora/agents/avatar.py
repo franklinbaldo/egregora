@@ -20,6 +20,7 @@ from ratelimit import limits, sleep_and_retry
 
 from egregora.agents.enricher import ensure_datetime
 from egregora.agents.enrichment import enrich_avatar
+from egregora.constants import AVATAR_NAMESPACE_UUID
 from egregora.exceptions import EgregoraError
 from egregora.input_adapters.whatsapp.commands import extract_commands
 from egregora.knowledge.profiles import remove_profile_avatar, update_profile_avatar
@@ -104,8 +105,7 @@ def _generate_avatar_uuid(content: bytes | bytearray) -> uuid.UUID:
     Same content = same UUID, regardless of which group/chat uses it.
     This enables global deduplication across all groups.
     """
-    # Use a fixed namespace for all egregora media
-    namespace = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")  # NAMESPACE_DNS
+    namespace = uuid.UUID(AVATAR_NAMESPACE_UUID)
     content_hash = hashlib.sha256(content).hexdigest()
     return uuid.uuid5(namespace, content_hash)
 
@@ -323,25 +323,30 @@ def _save_avatar_file(content: bytes | bytearray, avatar_uuid: uuid.UUID, ext: s
     return avatar_path
 
 
-def _download_avatar_with_client(client: httpx.Client, url: str, media_dir: Path) -> tuple[uuid.UUID, Path]:
-    """Internal function to download avatar using an existing client."""
+def _fetch_and_validate_image(client: httpx.Client, url: str) -> tuple[bytearray, str]:
+    """Fetch image from URL and validate it."""
     logger.info("Downloading avatar from URL: %s", url)
-    try:
-        with client.stream("GET", url) as response:
-            response.raise_for_status()
-            content, content_type = _download_image_content(response)
+    with client.stream("GET", url) as response:
+        response.raise_for_status()
+        content, content_type = _download_image_content(response)
 
-        # _validate_image_content is already called inside _download_image_content for early rejection
-        _validate_image_dimensions(content)
+    # _validate_image_content is already called inside _download_image_content for early rejection
+    _validate_image_dimensions(content)
 
-        ext = _get_extension_from_mime_type(content_type, url)
-        avatar_uuid = _generate_avatar_uuid(content)
-        avatar_path = _save_avatar_file(content, avatar_uuid, ext, media_dir)
+    ext = _get_extension_from_mime_type(content_type, url)
+    return content, ext
 
-    except httpx.TooManyRedirects as e:
+
+def _handle_download_error(e: Exception, url: str) -> None:
+    """Handle errors occurring during avatar download."""
+    if isinstance(e, AvatarProcessingError):
+        raise e
+
+    if isinstance(e, httpx.TooManyRedirects):
         msg = f"Too many redirects (>{MAX_REDIRECT_HOPS}) for URL: {url}"
         raise AvatarProcessingError(msg) from e
-    except httpx.HTTPError as e:
+
+    if isinstance(e, httpx.HTTPError):
         # If the HTTP error was caused by our own validation, re-raise it directly
         if isinstance(e.__cause__, AvatarProcessingError):
             raise e.__cause__ from e
@@ -350,15 +355,28 @@ def _download_avatar_with_client(client: httpx.Client, url: str, media_dir: Path
         logger.debug("HTTP error details: %s", e)
         msg = "Failed to download avatar. Please check the URL and try again."
         raise AvatarProcessingError(msg) from e
-    except OSError as e:
+
+    if isinstance(e, OSError):
         logger.debug("File system error details: %s", e)
         msg = "Failed to save avatar due to file system error."
         raise AvatarProcessingError(msg) from e
 
-    return avatar_uuid, avatar_path
+    raise e  # Re-raise unexpected exceptions
 
 
-# TODO: [Taskmaster] Refactor: Decompose `download_avatar_from_url` to simplify logic
+def _download_avatar_with_client(client: httpx.Client, url: str, media_dir: Path) -> tuple[uuid.UUID, Path]:
+    """Internal function to download avatar using an existing client."""
+    try:
+        content, ext = _fetch_and_validate_image(client, url)
+        avatar_uuid = _generate_avatar_uuid(content)
+        avatar_path = _save_avatar_file(content, avatar_uuid, ext, media_dir)
+        return avatar_uuid, avatar_path
+    except (AvatarProcessingError, httpx.HTTPError, OSError) as e:
+        _handle_download_error(e, url)
+        # _handle_download_error always raises, but static analysis might not know
+        raise e
+
+
 @sleep_and_retry
 @limits(calls=10, period=60)
 def download_avatar_from_url(

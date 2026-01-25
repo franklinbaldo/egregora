@@ -62,25 +62,83 @@ class SiteGenerator:
             loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape()
         )
 
-    def _scan_directory(self, directory: Path, doc_type: DocumentType) -> Iterator[Document]:
-        """Scans a directory for markdown files and yields Document objects."""
+    def _read_frontmatter_only(self, path: Path) -> dict[str, Any]:
+        """Reads only the YAML frontmatter from a markdown file.
+
+        Optimized to read only the beginning of the file to avoid loading
+        large content when only metadata is needed.
+        """
+        try:
+            # Read first 4KB which should cover most frontmatters
+            with path.open("r", encoding="utf-8") as f:
+                header = f.read(4096)
+
+            if header.startswith("---"):
+                # Find the closing delimiter
+                end_pos = header.find("\n---", 3)
+                if end_pos != -1:
+                    yaml_text = header[3:end_pos]
+                    return yaml.safe_load(yaml_text) or {}
+
+                # If not found in 4KB, try reading up to 16KB
+                with path.open("r", encoding="utf-8") as f:
+                    header = f.read(16384)
+                end_pos = header.find("\n---", 3)
+                if end_pos != -1:
+                    yaml_text = header[3:end_pos]
+                    return yaml.safe_load(yaml_text) or {}
+
+                # If still not found but starts with ---, it might be huge or malformed.
+                # Fallback to full load to ensure correctness.
+                post = frontmatter.load(str(path))
+                return post.metadata
+
+            return {}
+
+        except (OSError, yaml.YAMLError) as e:
+            raise DocumentParsingError(str(path), str(e)) from e
+
+    def _scan_directory(
+        self, directory: Path, doc_type: DocumentType, metadata_only: bool = False
+    ) -> Iterator[Document]:
+        """Scans a directory for markdown files and yields Document objects.
+
+        Args:
+            directory: Directory to scan
+            doc_type: Type of documents to create
+            metadata_only: If True, only reads frontmatter and skips content.
+
+        """
         if not directory.exists():
             return
         for path in directory.rglob("*.md"):
             if path.is_file() and "index" not in path.name:
                 try:
-                    post = frontmatter.load(str(path))
-                    doc = Document(content=post.content, type=doc_type, metadata=post.metadata)
+                    if metadata_only:
+                        metadata = self._read_frontmatter_only(path)
+                        content = ""
+                    else:
+                        post = frontmatter.load(str(path))
+                        metadata = post.metadata
+                        content = post.content
+
+                    doc = Document(content=content, type=doc_type, metadata=metadata)
                     yield doc
                 except (OSError, yaml.YAMLError) as e:
                     raise DocumentParsingError(str(path), str(e)) from e
 
     def get_site_stats(self) -> dict[str, int]:
         """Calculate site statistics for homepage."""
-        post_count = len(list(self._scan_directory(self.posts_dir, DocumentType.POST)))
+        post_count = len(
+            [p for p in self.posts_dir.rglob("*.md") if p.is_file() and "index" not in p.name]
+        )
         profile_count = len(list(self.profiles_dir.glob("*/*.md")))  # Count files in author subdirs
-        media_count = len(list(self._scan_directory(self.urls_dir, DocumentType.ENRICHMENT_URL)))
-        journal_count = len(list(self._scan_directory(self.journal_dir, DocumentType.JOURNAL)))
+        media_count = len(
+            [p for p in self.urls_dir.rglob("*.md") if p.is_file() and "index" not in p.name]
+        )
+        journal_count = len(
+            [p for p in self.journal_dir.rglob("*.md") if p.is_file() and "index" not in p.name]
+        )
 
         return {
             "post_count": post_count,
@@ -179,8 +237,7 @@ class SiteGenerator:
             if len(posts) >= limit:
                 break
             try:
-                post = frontmatter.load(str(path))
-                metadata = post.metadata
+                metadata = self._read_frontmatter_only(path)
 
                 # Build post URL from date and slug
                 post_date = metadata.get("date")
@@ -217,12 +274,12 @@ class SiteGenerator:
                         candidates = [p for p in author_dir.glob("*.md") if p.name != "index.md"]
                         if candidates:
                             profile_path = max(candidates, key=lambda p: p.stat().st_mtime_ns)
-                            profile = frontmatter.load(str(profile_path))
+                            profile_meta = self._read_frontmatter_only(profile_path)
                             authors.append(
                                 {
                                     "uuid": author_uuid,
-                                    "name": profile.metadata.get("name", author_uuid[:8]),
-                                    "avatar": profile.metadata.get(
+                                    "name": profile_meta.get("name", author_uuid[:8]),
+                                    "avatar": profile_meta.get(
                                         "avatar", generate_fallback_avatar_url(author_uuid)
                                     ),
                                 }
@@ -275,8 +332,8 @@ class SiteGenerator:
             return posts
 
         try:
-            from egregora.agents.reader.elo_store import EloStore
             from egregora.database.duckdb_manager import DuckDBStorageManager
+            from egregora.database.elo_store import EloStore
 
             # Get top rated posts from database
             with DuckDBStorageManager(self.db_path) as storage:
@@ -311,8 +368,7 @@ class SiteGenerator:
                     break
 
                 try:
-                    post = frontmatter.load(str(path))
-                    metadata = post.metadata
+                    metadata = self._read_frontmatter_only(path)
                     post_slug = metadata.get("slug", path.stem)
 
                     # Skip if not in top rated list
@@ -350,12 +406,12 @@ class SiteGenerator:
                             candidates = [p for p in author_dir.glob("*.md") if p.name != "index.md"]
                             if candidates:
                                 profile_path = max(candidates, key=lambda p: p.stat().st_mtime_ns)
-                                profile = frontmatter.load(str(profile_path))
+                                profile_meta = self._read_frontmatter_only(profile_path)
                                 authors.append(
                                     {
                                         "uuid": author_uuid,
-                                        "name": profile.metadata.get("name", author_uuid[:8]),
-                                        "avatar": profile.metadata.get(
+                                        "name": profile_meta.get("name", author_uuid[:8]),
+                                        "avatar": profile_meta.get(
                                             "avatar", generate_fallback_avatar_url(author_uuid)
                                         ),
                                     }
@@ -399,7 +455,7 @@ class SiteGenerator:
 
     def regenerate_tags_page(self) -> None:
         """Regenerate the tags.md page."""
-        all_posts = self._scan_directory(self.posts_dir, DocumentType.POST)
+        all_posts = self._scan_directory(self.posts_dir, DocumentType.POST, metadata_only=True)
         tag_counts = Counter(tag for post in all_posts for tag in post.metadata.get("tags", []))
         if not tag_counts:
             return
@@ -417,7 +473,7 @@ class SiteGenerator:
     def regenerate_feeds_page(self) -> None:
         """Regenerate the feeds.md page listing all available RSS feeds."""
         # Collect categories/tags from all posts
-        all_posts = self._scan_directory(self.posts_dir, DocumentType.POST)
+        all_posts = self._scan_directory(self.posts_dir, DocumentType.POST, metadata_only=True)
         tag_counts = Counter(tag for post in all_posts for tag in post.metadata.get("tags", []))
 
         if not tag_counts:

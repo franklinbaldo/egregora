@@ -66,6 +66,8 @@ def mock_jules_client(mocker):
     """Mock TeamClient."""
     mock_client = MagicMock()
     mock_client.list_sessions.return_value = {"sessions": []}
+    # Mock create_session return value to match what engine expects (dict with name)
+    mock_client.create_session.return_value = {"name": "sessions/999888777"}
     mocker.patch("repo.scheduler.engine.TeamClient", return_value=mock_client)
     return mock_client
 
@@ -77,15 +79,6 @@ def mock_branch_manager(mocker):
     mock_mgr.create_session_branch.return_value = "jules-sched-test"
     mocker.patch("repo.scheduler.engine.BranchManager", return_value=mock_mgr)
     return mock_mgr
-
-
-@pytest.fixture
-def mock_orchestrator(mocker):
-    """Mock SessionOrchestrator to return fake session ID."""
-    mock_orch = MagicMock()
-    mock_orch.create_session.return_value = "999888777"
-    mocker.patch("repo.scheduler.engine.SessionOrchestrator", return_value=mock_orch)
-    return mock_orch
 
 
 @pytest.fixture
@@ -184,7 +177,7 @@ def oracle_session_age(hours, mock_oracle_schedule_path, context):
 
 # When steps
 @when("the scheduler runs a sequential tick")
-def run_sequential_tick(mock_jules_client, mock_orchestrator, mock_branch_manager, mocker, context):
+def run_sequential_tick(mock_jules_client, mock_branch_manager, mocker, context):
     _ = mock_branch_manager
     # Mock get_repo_info and get_open_prs
     mocker.patch("repo.scheduler.engine.get_repo_info", return_value={"owner": "test", "repo": "test"})
@@ -228,8 +221,6 @@ def run_sequential_tick(mock_jules_client, mock_orchestrator, mock_branch_manage
 
     context["result"] = execute_sequential_tick(dry_run=False)
 
-    context["orchestrator"] = mock_orchestrator
-
 
 @when("the Oracle facilitator needs to start")
 def oracle_needs_start(mock_jules_client, mocker, context):
@@ -246,22 +237,25 @@ def oracle_needs_start(mock_jules_client, mocker, context):
 
 # Then steps
 @then(parsers.parse('a session should be created for persona "{persona}"'))
-def session_created_for(persona, context):
-    orchestrator = context["orchestrator"]
+def session_created_for(persona, context, mock_jules_client):
     result = context.get("result")
     if result and result.message.startswith("Session already exists"):
         return
-    assert orchestrator.create_session.called
-    call_args = orchestrator.create_session.call_args
-    request = call_args[0][0]
-    assert persona in request.persona_id
+    assert mock_jules_client.create_session.called
+
+    # Check arguments
+    # create_session(prompt=..., owner=..., repo=..., branch=..., title=..., ...)
+    call_args = mock_jules_client.create_session.call_args
+    kwargs = call_args.kwargs
+
+    # Check if persona ID is in the title
+    title = kwargs.get("title", "")
+    assert persona in title, f"Expected persona {persona} in title {title}"
 
 
 @then("no new session should be created")
-def no_session_created(context):
-    orchestrator = context.get("orchestrator")
-    if orchestrator:
-        assert not orchestrator.create_session.called
+def no_session_created(mock_jules_client):
+    assert not mock_jules_client.create_session.called
 
 
 @then("the scheduler should report waiting for PR")

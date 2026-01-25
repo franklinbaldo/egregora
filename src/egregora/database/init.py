@@ -72,9 +72,7 @@ def initialize_database(backend: BaseBackend) -> None:
     create_table_if_not_exists(conn, "messages", STAGING_MESSAGES_SCHEMA)
 
     # 4. Media and Annotations Tables
-    create_table_if_not_exists(
-        conn, "media", MEDIA_SCHEMA, check_constraints=get_table_check_constraints("media")
-    )
+    # Media table is deprecated and consolidated into 'documents'.
     create_table_if_not_exists(
         conn,
         "annotations",

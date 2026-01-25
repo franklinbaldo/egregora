@@ -22,7 +22,7 @@ from rich.panel import Panel
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.defaults import PipelineDefaults
 from egregora.constants import WindowUnit
-from egregora.input_adapters import ADAPTER_REGISTRY
+from egregora.input_adapters import get_adapter_class
 from egregora.llm.exceptions import AllModelsExhaustedError
 from egregora.orchestration.context import PipelineRunParams
 from egregora.orchestration.pipelines.coordination.background_tasks import (
@@ -250,10 +250,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
 
     # Create adapter with config for privacy settings
     # Instead of using singleton from registry, instantiate with config
-    adapter_cls = ADAPTER_REGISTRY.get(run_params.source_type)
-    if adapter_cls is None:
-        msg = f"Unknown source type: {run_params.source_type}"
-        raise ValueError(msg)
+    adapter_cls = get_adapter_class(run_params.source_type)
 
     # Instantiate adapter with config if it supports it (WhatsApp does)
     try:
