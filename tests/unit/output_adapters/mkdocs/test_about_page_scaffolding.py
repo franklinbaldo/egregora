@@ -27,8 +27,8 @@ def test_about_page_structure_and_styling(tmp_path: Path, scaffolder: MkDocsSite
     assert about_path.exists()
     content = about_path.read_text(encoding="utf-8")
 
-    # Check for Glassmorphism container with markdown="1" (Critical Fix)
-    assert '<div class="about-container" markdown="1">' in content
+    # Check for Glassmorphism using Admonition syntax (Robust Fix)
+    assert '!!! glass ""' in content
 
     # Check for Footer
     assert '<div class="homepage-footer">' in content
@@ -57,7 +57,7 @@ def test_about_page_structure_and_styling(tmp_path: Path, scaffolder: MkDocsSite
 
 def test_extra_css_glassmorphism(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:
     """
-    Verifies that the extra.css file contains the glassmorphism styles for .about-container.
+    Verifies that the extra.css file contains the glassmorphism styles for .admonition.glass.
     """
     scaffolder.scaffold_site(tmp_path, site_name="Test UX Site")
 
@@ -65,5 +65,5 @@ def test_extra_css_glassmorphism(tmp_path: Path, scaffolder: MkDocsSiteScaffolde
     assert css_path.exists()
     css_content = css_path.read_text(encoding="utf-8")
 
-    assert ".about-container" in css_content
+    assert ".admonition.glass" in css_content
     assert "backdrop-filter: blur" in css_content
