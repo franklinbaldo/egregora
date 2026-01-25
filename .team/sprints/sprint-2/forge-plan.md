@@ -2,7 +2,7 @@
 
 **Persona:** Forge ⚒️
 **Sprint:** 2
-**Created:** 2026-01-24
+**Created:** 2026-01-26
 **Priority:** High
 
 ## Objectives
@@ -15,6 +15,7 @@ My mission is to transform the UX vision into high-performance web components. F
 
 ## Dependencies
 - **Curator:** I am dependent on the Curator to provide the specific design specifications (colors, assets, copy) via tasks in `.team/tasks/`.
+- **Simplifier:** Dependent on `write.py` refactor maintaining `egregora demo` stability.
 
 ## Context
 In Sprint 1, we identified that the generated blogs look too generic and have some broken visual elements. Sprint 2 is about "polishing the surface" to ensure that the out-of-the-box experience for an Egregora user is professional and distinct.
