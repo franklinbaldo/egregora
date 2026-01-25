@@ -30,6 +30,7 @@ from egregora.data_primitives.document import (
     UrlConvention,
 )
 from egregora.data_primitives.text import slugify
+from egregora.database.protocols import StorageProtocol
 from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
@@ -70,11 +71,11 @@ class MkDocsAdapter(BaseOutputSink):
     implement only OutputSink. For pure initialization tools, implement only SiteScaffolder.
     """
 
-    def __init__(self, storage: Any | None = None) -> None:
+    def __init__(self, storage: StorageProtocol | None = None) -> None:
         """Initializes the adapter.
 
         Args:
-            storage: DuckDBStorageManager for database-backed document reading
+            storage: Storage backend for database-backed document reading
 
         """
         self._scaffolder = MkDocsSiteScaffolder()
@@ -84,17 +85,17 @@ class MkDocsAdapter(BaseOutputSink):
         self._index: dict[str, Path] = {}
         self._ctx: UrlContext | None = None
         self._template_env: Environment | None = None
-        self._storage = storage
+        self._storage: StorageProtocol | None = storage
 
     def initialize(
-        self, site_root: Path, url_context: UrlContext | None = None, storage: Any | None = None
+        self, site_root: Path, url_context: UrlContext | None = None, storage: StorageProtocol | None = None
     ) -> None:
         """Initializes the adapter with all necessary paths and dependencies.
 
         Args:
             site_root: Root directory of the site
             url_context: URL context for canonical URL generation
-            storage: DuckDBStorageManager for database-backed document reading
+            storage: Storage backend for database-backed document reading
 
         """
         site_paths = MkDocsPaths(site_root)
