@@ -206,7 +206,7 @@ def read_profile_impl(ctx: ToolContext, author_uuid: str) -> ReadProfileResult:
 
     """
     try:
-        doc = ctx.output_sink.read_document(DocumentType.PROFILE, author_uuid)
+        doc = ctx.output_sink.get(DocumentType.PROFILE, author_uuid)
         content = doc.content
     except DocumentNotFoundError:
         content = "No profile exists yet."

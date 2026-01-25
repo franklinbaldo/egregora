@@ -60,7 +60,7 @@ class TestWriterToolsExtraction:
         # Arrange
         mock_output_sink = Mock()
         mock_doc = Mock(content="# Profile Content")
-        mock_output_sink.read_document.return_value = mock_doc
+        mock_output_sink.get.return_value = mock_doc
         ctx = ToolContext(output_sink=mock_output_sink, window_label="test")
 
         # Act
@@ -69,13 +69,13 @@ class TestWriterToolsExtraction:
         # Assert
         assert isinstance(result, ReadProfileResult)
         assert result.content == "# Profile Content"
-        mock_output_sink.read_document.assert_called_once_with(DocumentType.PROFILE, "test-uuid")
+        mock_output_sink.get.assert_called_once_with(DocumentType.PROFILE, "test-uuid")
 
     def test_read_profile_impl_handles_missing_profile(self):
         """Test read_profile_impl returns default message for missing profile."""
         # Arrange
         mock_output_sink = Mock()
-        mock_output_sink.read_document.side_effect = DocumentNotFoundError("profile", "missing-uuid")
+        mock_output_sink.get.side_effect = DocumentNotFoundError("profile", "missing-uuid")
         ctx = ToolContext(output_sink=mock_output_sink, window_label="test")
 
         # Act

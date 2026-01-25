@@ -34,7 +34,7 @@ def materialize_site(source: OutputSink, destination: "MkDocsAdapter") -> None:
 
         for meta in source.list(doc_type):
             try:
-                doc = source.read_document(doc_type, meta.identifier)
+                doc = source.get(doc_type, meta.identifier)
                 destination.persist(doc)
                 count += 1
             except DocumentNotFoundError:

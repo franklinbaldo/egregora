@@ -10,8 +10,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import ibis
-import ibis.expr.datatypes as dt
 import yaml
 
 from egregora.data_primitives import DocumentMetadata, OutputSink, UrlConvention
@@ -27,20 +25,11 @@ from egregora.security.fs import safe_path_join
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from ibis.expr.types import Table
-
     from egregora.data_primitives.document import Document, DocumentType
 
 # Constants
 ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
 FILENAME_PARTS_WITH_EXTENSION = 2  # Parts when splitting filename by "." (name, extension)
-
-DOCUMENT_INVENTORY_SCHEMA = ibis.schema(
-    {
-        "storage_identifier": dt.string,
-        "mtime_ns": dt.Int64(nullable=True),
-    }
-)
 
 
 @dataclass
@@ -110,31 +99,6 @@ class BaseOutputSink(OutputSink, ABC):
 
             yield DocumentMetadata(identifier=identifier, doc_type=document.type, metadata=document.metadata)
 
-    def list_documents(self, doc_type: DocumentType | None = None) -> Table:
-        """Compatibility shim returning an Ibis table of document metadata."""
-        rows: builtins.list[dict[str, Any]] = []
-        for meta in self.list(doc_type):
-            mtime_ns = meta.metadata.get("mtime_ns") if isinstance(meta.metadata, dict) else None
-            if mtime_ns is None:
-                try:
-                    raw_path = (
-                        meta.metadata.get("source_path", meta.identifier)
-                        if isinstance(meta.metadata, dict)
-                        else None
-                    )
-                    path: Path | None = None
-                    if isinstance(raw_path, (str, Path)):
-                        path = Path(raw_path)
-
-                    if path and path.exists():
-                        mtime_ns = path.stat().st_mtime_ns
-                except OSError:
-                    mtime_ns = None
-
-            rows.append({"storage_identifier": meta.identifier, "mtime_ns": mtime_ns})
-
-        return ibis.memtable(rows, schema=DOCUMENT_INVENTORY_SCHEMA)
-
     def read_document(self, doc_type: DocumentType, identifier: str) -> Document:
         """Backward-compatible alias for :meth:`get`."""
         return self.get(doc_type, identifier)
@@ -176,15 +140,6 @@ class BaseOutputSink(OutputSink, ABC):
                 continue
 
         return documents
-
-    def _empty_document_table(self) -> Table:
-        """Return an empty Ibis table with the document listing schema."""
-        return ibis.memtable([], schema=ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"}))
-
-    def _documents_to_table(self, documents: builtins.list[dict[str, Any]]) -> Table:
-        """Convert list of document dicts to Ibis table."""
-        schema = ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"})
-        return ibis.memtable(documents, schema=schema)
 
     @staticmethod
     def normalize_slug(slug: str) -> str:
