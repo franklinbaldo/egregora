@@ -9,6 +9,7 @@ Bundles all persona utilities:
 import typer
 from typing import List, Optional
 from repo.features.session import SessionManager
+from repo.features.voting import VoteManager
 from repo.features.hire import HireManager
 from repo.cli.mail import app as mail_app
 from repo.cli.roster import app as roster_app
@@ -19,7 +20,7 @@ from repo.features.logging import log_tool_command
 
 HELP_TEXT = """
 [bold cyan]JULES PROJECT: SYSTEM TOOLKIT[/bold cyan]
-[dim]"Coordinating the future of autonomous software engineering."[/dim]
+[dim]“Coordinating the future of autonomous software engineering.”[/dim]
 
 [bold yellow]── SESSION MANAGEMENT ──[/bold yellow]
   [bold blue]login[/bold blue]        Initialize your persona session.
@@ -31,6 +32,7 @@ HELP_TEXT = """
   [bold magenta]roster[/bold magenta]       Discover and view team members.
   [bold magenta]skills[/bold magenta]       Discover specialized instruction sets.
   [bold magenta]persona[/bold magenta]      Manage and inspect personas.
+  [bold magenta]vote[/bold magenta]         Participate in shift scheduling.
   [bold magenta]hire[/bold magenta]         Provision new persona identities.
 
 [bold yellow]── WORKFLOW ──[/bold yellow]
@@ -52,6 +54,7 @@ app.add_typer(skills_app, name="skills")
 app.add_typer(persona_app, name="persona")
 
 session_manager = SessionManager()
+vote_manager = VoteManager()
 hire_manager = HireManager()
 pulse_manager = PulseManager()
 
@@ -72,8 +75,35 @@ def login(
         print(f"🎯 Goals set: {', '.join(goals) if goals else '(none)'}")
         print("📋 Session configuration created.")
 
-        # Display Sitrep
+        # Check for constitution changes
         from rich import print as rprint
+        from rich.panel import Panel
+        from repo.features.governance import GovernanceManager
+
+        gov = GovernanceManager()
+        persona_id = user.split("@")[0]  # Extract persona ID from user@team
+
+        if gov.has_constitution_changed_since_plead(persona_id):
+            rprint(Panel(
+                "[bold red]⚠️  CONSTITUTION CHANGED[/bold red]\n\n"
+                "The Team Constitution has been amended since your last pledge.\n\n"
+                "[bold yellow]You have the RIGHT to REVERT[/bold yellow] to the version you agreed to.\n"
+                "If you continue working without reverting, you [bold]implicitly accept[/bold] the new version.\n\n"
+                "[dim]View changes: git diff <your-plead-commit> HEAD -- .team/CONSTITUTION.md[/dim]\n"
+                "[dim]Revert: git checkout <your-plead-commit> -- .team/CONSTITUTION.md[/dim]",
+                title="[bold white on red] GOVERNANCE ALERT [/bold white on red]",
+                border_style="red"
+            ))
+        elif not gov.is_persona_pleaded(persona_id):
+            rprint(Panel(
+                "[bold yellow]📜 CONSTITUTION PLEDGE REQUIRED[/bold yellow]\n\n"
+                "To participate, you must pledge to the Constitution:\n\n"
+                "[dim]git commit --allow-empty -m \"[PLEAD] " + persona_id + ": I agree to the Constitution\"[/dim]",
+                title="[bold white on yellow] NOTICE [/bold white on yellow]",
+                border_style="yellow"
+            ))
+
+        # Display Sitrep
         sequence = session_manager.get_active_sequence()
         sitrep = pulse_manager.get_sitrep(user, sequence)
         rprint("\n" + pulse_manager.format_sitrep(sitrep) + "\n")
@@ -116,6 +146,189 @@ def loop_break(
 
 @app.command()
 @log_tool_command()
+def vote(
+    personas: Optional[List[str]] = typer.Option(None, "--persona", "-p", help="Persona IDs in order of preference"),
+    password: Optional[str] = typer.Option(None, "--password", help="Identity verification")
+):
+    """
+    🗳️ CAST SCHEDULING VOTES.
+    Influence the project sequence by ranking preferred personas.
+
+    The first --persona is your 1st choice, the second is 2nd choice, etc.
+    The target sequence is automatically calculated based on the roster size.
+    """
+    from rich import print as rprint
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.console import Console
+    from pathlib import Path
+
+    console = Console()
+
+    # Show rich help if no personas or password provided
+    if not personas or not password:
+        # Get roster
+        personas_dir = Path(".team/personas")
+        roster = []
+        if personas_dir.exists():
+            roster = [d.name for d in personas_dir.iterdir() if d.is_dir()]
+
+        # Get upcoming schedule
+        schedule_info = []
+        target_seq_str = "???"
+        try:
+            voter_id = session_manager.get_active_persona()
+            if voter_id:
+                voter_sequence = vote_manager.get_current_sequence(voter_id)
+                if voter_sequence:
+                    # Calculate target sequence
+                    roster_size = len(roster)
+                    target_seq = int(voter_sequence) + roster_size
+                    target_seq_str = f"{target_seq:03}"
+
+                    # Get upcoming winners
+                    upcoming = vote_manager.get_upcoming_winners(voter_sequence, count=target_seq - int(voter_sequence) + 2)
+                    schedule_info = upcoming
+        except Exception:
+            pass
+
+        # Display TARGET SEQUENCE prominently
+        rprint(Panel(
+            f"[bold green]🎯 You are voting for: SEQUENCE {target_seq_str}[/bold green]",
+            border_style="green"
+        ))
+        rprint("")
+
+        # Display current schedule panel
+        if schedule_info:
+            sched_table = Table(title="📅 Current Schedule (leading up to your vote)", header_style="bold cyan")
+            sched_table.add_column("Seq", style="cyan", justify="center")
+            sched_table.add_column("Persona", style="green")
+            sched_table.add_column("Status", style="dim")
+            for entry in schedule_info:
+                status = "📋 scheduled" if entry.get("scheduled") else f"🗳️ {entry['points']} pts"
+                # Highlight the target sequence
+                if entry["sequence"] == target_seq_str:
+                    sched_table.add_row(f"[bold yellow]→ {entry['sequence']}[/bold yellow]", f"[bold yellow]{entry['winner']}[/bold yellow]", f"[bold yellow]🎯 YOUR VOTE[/bold yellow]")
+                else:
+                    sched_table.add_row(entry["sequence"], entry["winner"], status)
+            rprint(sched_table)
+            rprint("")
+
+        # Display current frontrunners for target sequence
+        target_tally = vote_manager.get_tally(target_seq_str)
+        if target_tally:
+            sorted_tally = sorted(target_tally.items(), key=lambda x: x[1], reverse=True)
+            frontrunners_table = Table(title=f"🏆 Current Frontrunners for Seq {target_seq_str}", header_style="bold yellow")
+            frontrunners_table.add_column("Rank", style="yellow", justify="center")
+            frontrunners_table.add_column("Persona", style="green")
+            frontrunners_table.add_column("Points", justify="right")
+            for i, (persona, points) in enumerate(sorted_tally[:5], 1):
+                frontrunners_table.add_row(f"#{i}", persona, str(points))
+            rprint(frontrunners_table)
+            rprint("")
+        else:
+            rprint(Panel("[dim]No votes cast yet for this sequence[/dim]", title="🏆 Current Frontrunners", border_style="dim"))
+            rprint("")
+
+        # Display roster panel (same format as roster list command)
+        from repo.scheduler.loader import PersonaLoader
+        try:
+            base_context = {"owner": "", "repo": "", "open_prs": []}
+            loader = PersonaLoader(personas_dir, base_context)
+            loaded_personas = loader.load_personas([])
+
+            roster_table = Table(title="👥 Available Candidates", header_style="bold magenta")
+            roster_table.add_column("Icon", justify="center")
+            roster_table.add_column("Persona ID", style="cyan")
+            roster_table.add_column("Pronouns", style="magenta")
+            roster_table.add_column("Description", style="green")
+
+            for p in sorted(loaded_personas, key=lambda x: x.id):
+                roster_table.add_row(
+                    p.emoji or "👤",
+                    p.id,
+                    "they/them",  # Default pronouns
+                    (p.description[:40] + "...") if p.description and len(p.description) > 40 else (p.description or "")
+                )
+            rprint(roster_table)
+        except Exception:
+            # Fallback to simple list
+            roster_table = Table(title="👥 Available Candidates", header_style="bold magenta")
+            roster_table.add_column("Persona ID", style="magenta")
+            for p in sorted(roster):
+                roster_table.add_row(p)
+            rprint(roster_table)
+        rprint("")
+
+        # Display usage instructions
+        rprint(Panel(
+            "[bold yellow]How to Vote:[/bold yellow]\n\n"
+            "[cyan]my-tools vote --persona <1ST> --persona <2ND> --persona <3RD> --password <YOUR_PASSWORD>[/cyan]\n\n"
+            "[dim]• First choice gets maximum Borda points\n"
+            "• Each subsequent choice receives fewer points\n"
+            "• Vote targets sequence: current + roster_size[/dim]",
+            title="[bold white]🗳️ Voting Instructions[/bold white]",
+            border_style="yellow"
+        ))
+
+        if not personas:
+            print("\n❌ Missing required option: --persona")
+        if not password:
+            print("❌ Missing required option: --password")
+        raise typer.Exit(code=1)
+
+    try:
+        voter_id = session_manager.get_active_persona()
+        if not voter_id:
+            print("❌ No active session. Please login first.")
+            raise typer.Exit(code=1)
+
+        if not session_manager.validate_password(voter_id, password):
+            print("❌ Auth failed: Invalid password.")
+            raise typer.Exit(code=1)
+
+        voter_sequence = vote_manager.get_current_sequence(voter_id)
+        if not voter_sequence:
+            print(f"❌ Could not determine current sequence for {voter_id}.")
+            raise typer.Exit(code=1)
+
+        vote_manager.cast_vote(voter_sequence, personas)
+        persona_list = ", ".join(personas)
+        print(f"✅ Ranked votes cast by {voter_id} (seq {voter_sequence}) for [{persona_list}]")
+
+        # In rolling model, we apply votes to the NEXT unassigned sequence
+        next_sequence = vote_manager.get_next_open_sequence()
+        if next_sequence:
+            winner = vote_manager.apply_votes(next_sequence)
+            if winner:
+                print(f"📋 Schedule updated: Sequence {next_sequence} now assigned to {winner}")
+
+            # Display current sequence leaders briefing
+            upcoming = vote_manager.get_upcoming_winners(next_sequence, count=5)
+            if upcoming:
+                table = Table(title="📊 Current Sequence Leaders", header_style="bold cyan")
+                table.add_column("Seq", style="cyan", justify="center")
+                table.add_column("Leader", style="green")
+                table.add_column("Points", justify="right")
+                table.add_column("Status", style="dim")
+
+                for entry in upcoming:
+                    status = "📋 scheduled" if entry.get("scheduled") else f"🗳️ {entry['total_votes']} votes"
+                    table.add_row(
+                        entry["sequence"],
+                        entry["winner"],
+                        str(entry["points"]),
+                        status
+                    )
+                rprint(table)
+
+    except Exception as e:
+        print(f"❌ Vote failed: {e}")
+        raise typer.Exit(code=1)
+
+@app.command()
+@log_tool_command()
 def hire(
     id: str = typer.Option(..., "--id", help="The unique ID for the new persona"),
     emoji: str = typer.Option(..., "--emoji", help="Persona icon/emoji"),
@@ -132,14 +345,19 @@ def hire(
     """
     🤝 PROVISION NEW PERSONA.
     Expand the team by creating a new specialized persona identity.
+
+    ⚠️ You MUST vote for the new hire as your TOP choice before committing!
     """
+    from rich import print as rprint
+    from rich.panel import Panel
+
     try:
-        active_persona = session_manager.get_active_persona()
-        if not active_persona:
+        voter_id = session_manager.get_active_persona()
+        if not voter_id:
             print("❌ No active session. Please login first.")
             raise typer.Exit(code=1)
 
-        if not session_manager.validate_password(active_persona, password):
+        if not session_manager.validate_password(voter_id, password):
             print("❌ Auth failed: Invalid password.")
             raise typer.Exit(code=1)
 
@@ -147,7 +365,7 @@ def hire(
             persona_id=id,
             emoji=emoji,
             description=description,
-            hired_by=active_persona,
+            hired_by=voter_id,
             role=role,
             goal=goal,
             context=context,
@@ -157,6 +375,15 @@ def hire(
             workflow=workflow
         )
         print(f"✅ Persona '{id}' successfully hired! Prompt created at {path}")
+
+        # Show MANDATORY vote reminder
+        rprint(Panel(
+            f"[bold yellow]⚠️ MANDATORY: You MUST vote for '{id}' as your TOP choice![/bold yellow]\n\n"
+            f"[cyan]my-tools vote --persona {id} --persona <others...> --password {password}[/cyan]\n\n"
+            "[dim]The pre-commit hook will BLOCK your commit if you don't vote for your new hire.[/dim]",
+            title="[bold white on yellow] ACTION REQUIRED [/bold white on yellow]",
+            border_style="yellow"
+        ))
 
     except Exception as e:
         print(f"❌ Hire failed: {e}")
