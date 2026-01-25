@@ -23,6 +23,7 @@ DESIGN PHILOSOPHY: Calculate, Don't Iterate
   cannot enforce time limits without knowing message density beforehand
 """
 
+import bisect
 import hashlib
 import logging
 import math
@@ -397,22 +398,6 @@ def _window_by_time(
         current_start += delta
 
 
-def _calculate_overlap_rows(window_table: Table, overlap_bytes: int) -> int:
-    """Calculates how many messages from the end of a window table fit within a byte limit."""
-    # This helper calculates the number of rows to keep for the overlap
-    # by summing message bytes from the end of the window backwards.
-    window_with_rev_cum_bytes = window_table.mutate(
-        reverse_cumulative_bytes=window_table.msg_bytes.sum().over(
-            ibis.window(order_by=window_table.ts.desc(), rows=(None, 0))
-        )
-    )
-
-    rows_in_overlap = window_with_rev_cum_bytes.filter(
-        window_with_rev_cum_bytes.reverse_cumulative_bytes <= overlap_bytes
-    )
-    return rows_in_overlap.count().execute()
-
-
 def _window_by_bytes(
     table: Table,
     max_bytes: int,
@@ -435,68 +420,104 @@ def _window_by_bytes(
         Windows packed to maximum byte capacity
 
     """
-    # Pre-computation: Add message byte lengths and a cumulative sum.
-    # This is done once over the entire table for efficiency.
-    enriched = table.mutate(
-        msg_bytes=table.text.length().cast("int64"),
-    )
-    windowed = enriched.mutate(
-        cumulative_bytes=enriched.msg_bytes.sum().over(ibis.window(order_by=[enriched.ts], rows=(None, 0)))
-    )
-
-    # Materialize to avoid recomputing in the loop.
-    materialized = windowed.cache()
-    total_count = materialized.count().execute()
-
+    total_count = table.count().execute()
     if total_count == 0:
         return
 
-    window_index = 0
-    offset = 0
-    while offset < total_count:
-        # Get the rest of the table from the current offset.
-        chunk = materialized.limit(total_count - offset, offset=offset)
+    # Add row number and byte metrics
+    # Ensure row_number is 0-based for easy list indexing matching python 0-based index
+    # Note: ibis.row_number() usually starts at 0.
+    # We fetch it to be sure we match the database's view of "row 0", "row 1".
+    enriched = table.mutate(
+        msg_bytes=table.text.length().cast("int64"),
+    )
 
-        # To find how many messages fit, we calculate bytes relative to the chunk's start.
-        chunk_with_relative_bytes = chunk.mutate(
-            relative_bytes=chunk.cumulative_bytes - chunk.cumulative_bytes.min()
-        )
-        fitting_messages = chunk_with_relative_bytes.filter(
-            chunk_with_relative_bytes.relative_bytes <= max_bytes
-        )
-        chunk_size = fitting_messages.count().execute()
+    windowed = enriched.mutate(
+        cumulative_bytes=enriched.msg_bytes.sum().over(ibis.window(order_by=[enriched.ts], rows=(None, 0))),
+        row_number=ibis.row_number().over(ibis.window(order_by=[enriched.ts])),
+    )
+
+    # Fetch metadata columns to memory
+    # Using to_pandas() for convenience and performance
+    df = windowed.select("row_number", "ts", "msg_bytes", "cumulative_bytes").to_pandas()
+
+    # Sort just in case, though Ibis usually preserves order if not shuffled
+    df = df.sort_values("row_number")
+
+    row_numbers = df["row_number"].values
+    ts_values = df["ts"].values
+    msg_bytes_values = df["msg_bytes"].values
+    cumulative_bytes_values = df["cumulative_bytes"].values
+
+    total_rows = len(df)
+    offset_idx = 0
+    window_index = 0
+
+    while offset_idx < total_rows:
+        current_cum_base = cumulative_bytes_values[offset_idx]
+
+        # Calculate limit for this window
+        # We need relative_bytes <= max_bytes
+        # relative_bytes[i] = cumulative_bytes[i] - current_cum_base (but relative at offset is 0)
+        # So cumulative_bytes[i] <= max_bytes + current_cum_base
+        limit_val = max_bytes + current_cum_base
+
+        # Find last index where cumulative_bytes <= limit_val
+        # bisect_right returns the first index > limit_val
+        next_idx = bisect.bisect_right(cumulative_bytes_values, limit_val, lo=offset_idx)
+
+        chunk_size = next_idx - offset_idx
 
         if chunk_size == 0:
-            # Edge case: A single message is larger than max_bytes. Include it to prevent an infinite loop.
+            # Edge case: A single message is larger than max_bytes
             chunk_size = 1
+            next_idx = offset_idx + 1
 
-        # Create the window from the messages that fit.
-        window_table = materialized.limit(chunk_size, offset=offset)
+        window_end_idx = next_idx  # Exclusive
 
-        # Get window metadata with a single query.
-        agg_result = window_table.aggregate(
-            start_time=window_table.ts.min(),
-            end_time=window_table.ts.max(),
-        ).execute()
+        # Construct window table
+        # We use the row_number values from our fetched data to filter the original table expression
+        start_rn = row_numbers[offset_idx]
+        end_rn = row_numbers[window_end_idx - 1]  # Inclusive for filter
+
+        # We use the 'windowed' table which already has row_number
+        window_table = windowed.filter(
+            (windowed.row_number >= start_rn) & (windowed.row_number <= end_rn)
+        ).drop("row_number", "msg_bytes", "cumulative_bytes")
+
+        # Metadata from memory
+        start_time = ts_values[offset_idx]
+        end_time = ts_values[window_end_idx - 1]
 
         yield Window(
             window_index=window_index,
-            start_time=agg_result["start_time"][0],
-            end_time=agg_result["end_time"][0],
-            table=window_table.drop(["msg_bytes", "cumulative_bytes"]),
+            start_time=start_time,
+            end_time=end_time,
+            table=window_table,
             size=chunk_size,
         )
 
         window_index += 1
 
-        # Calculate how many rows to advance for the next window based on overlap.
+        # Calculate advance
+        advance = chunk_size
         if overlap_bytes > 0 and chunk_size > 1:
-            overlap_rows = _calculate_overlap_rows(window_table, overlap_bytes)
-            advance = max(1, chunk_size - overlap_rows)
-        else:
-            advance = chunk_size
+            # Iterate backwards from end of window to find overlap rows
+            # We want sum(bytes from end) <= overlap_bytes
+            current_overlap_sum = 0
+            overlap_count = 0
+            # Scan backwards from window_end_idx - 1 down to offset_idx
+            for i in range(window_end_idx - 1, offset_idx - 1, -1):
+                msg_len = msg_bytes_values[i]
+                if current_overlap_sum + msg_len <= overlap_bytes:
+                    current_overlap_sum += msg_len
+                    overlap_count += 1
+                else:
+                    break
 
-        offset += advance
+            advance = max(1, chunk_size - overlap_count)
+
+        offset_idx += advance
 
 
 def split_window_into_n_parts(window: Window, n: int) -> list[Window]:
