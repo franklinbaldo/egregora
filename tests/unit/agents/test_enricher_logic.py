@@ -10,7 +10,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from egregora.agents.enricher import EnrichmentWorker, _normalize_slug, load_file_as_binary_content
-from egregora.agents.exceptions import MediaStagingError
+from egregora.agents.exceptions import (
+    EnrichmentFileError,
+    EnrichmentParsingError,
+    EnrichmentSlugError,
+    MediaStagingError,
+)
 
 
 class TestEnrichmentWorkerStageFile(unittest.TestCase):
@@ -117,20 +122,20 @@ class TestNormalizeSlug(unittest.TestCase):
         self.assertEqual(_normalize_slug("A Valid Slug", "id"), "a-valid-slug")
 
     def test_normalize_slug_none(self):
-        with pytest.raises(ValueError, match="LLM failed to generate slug"):
+        with pytest.raises(EnrichmentSlugError, match="LLM failed to generate slug"):
             _normalize_slug(None, "id")
 
     def test_normalize_slug_empty(self):
-        with pytest.raises(ValueError, match="LLM failed to generate slug"):
+        with pytest.raises(EnrichmentSlugError, match="LLM failed to generate slug"):
             _normalize_slug("  ", "id")
 
     def test_normalize_slug_invalid_after_slugify(self):
-        with pytest.raises(ValueError, match=r"LLM slug .* is invalid after normalization"):
+        with pytest.raises(EnrichmentSlugError, match=r"LLM slug .* is invalid after normalization"):
             _normalize_slug("!@#$", "id")
 
     def test_normalize_slug_post_is_invalid(self):
         """Test that 'post' is considered an invalid slug after normalization."""
-        with pytest.raises(ValueError, match=r"LLM slug .* is invalid after normalization"):
+        with pytest.raises(EnrichmentSlugError, match=r"LLM slug .* is invalid after normalization"):
             _normalize_slug("post", "some-identifier")
 
 
@@ -151,14 +156,14 @@ class TestLoadFileAsBinaryContent(unittest.TestCase):
         self.assertEqual(binary_content.media_type, "text/plain")
 
     def test_load_file_as_binary_content_file_not_found(self):
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(EnrichmentFileError):
             load_file_as_binary_content(Path(self.temp_dir.name) / "non_existent.txt")
 
     def test_load_file_as_binary_content_file_too_large(self):
         with self.test_file.open("wb") as f:
             f.write(b"a" * (21 * 1024 * 1024))  # 21MB
 
-        with pytest.raises(ValueError, match="File too large"):
+        with pytest.raises(EnrichmentFileError, match="File too large"):
             load_file_as_binary_content(self.test_file, max_size_mb=20)
 
 
@@ -191,28 +196,21 @@ class TestParseMediaResult(unittest.TestCase):
         self.worker.task_store.mark_failed.assert_not_called()
 
     def test_parse_media_result_malformed_json(self):
-        """Test that malformed JSON is handled correctly."""
+        """Test that malformed JSON raises EnrichmentParsingError."""
         mock_res = MagicMock()
         mock_res.response = {"text": "{'bad-json':"}
 
-        result = self.worker._parse_media_result(mock_res, self.task)
-
-        self.assertIsNone(result)
-        self.worker.task_store.mark_failed.assert_called_once()
-        args, _ = self.worker.task_store.mark_failed.call_args
-        self.assertEqual(args[0], "media-task-1")
-        self.assertIn("Parse error", args[1])
+        with pytest.raises(EnrichmentParsingError, match="Failed to parse media result"):
+            self.worker._parse_media_result(mock_res, self.task)
 
     def test_parse_media_result_missing_slug(self):
-        """Test that a missing slug is handled correctly."""
+        """Test that a missing slug raises EnrichmentParsingError."""
         response_text = json.dumps({"markdown": "some markdown"})
         mock_res = MagicMock()
         mock_res.response = {"text": response_text}
 
-        result = self.worker._parse_media_result(mock_res, self.task)
-
-        self.assertIsNone(result)
-        self.worker.task_store.mark_failed.assert_called_once_with("media-task-1", "Missing slug or markdown")
+        with pytest.raises(EnrichmentParsingError, match="Missing slug or markdown"):
+            self.worker._parse_media_result(mock_res, self.task)
 
     def test_parse_media_result_missing_markdown_with_fallback(self):
         """Test fallback markdown construction when 'markdown' is missing."""
@@ -243,10 +241,8 @@ class TestParseMediaResult(unittest.TestCase):
         mock_res = MagicMock()
         mock_res.response = {"text": response_text}
 
-        result = self.worker._parse_media_result(mock_res, self.task)
-
-        self.assertIsNone(result)
-        self.worker.task_store.mark_failed.assert_called_once_with("media-task-1", "Missing slug or markdown")
+        with pytest.raises(EnrichmentParsingError, match="Missing slug or markdown"):
+            self.worker._parse_media_result(mock_res, self.task)
 
 
 if __name__ == "__main__":

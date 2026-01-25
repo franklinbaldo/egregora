@@ -77,6 +77,31 @@ _MARKERS_REGEX = "|".join(re.escape(m) for m in ATTACHMENT_MARKERS)
 ATTACHMENT_MARKERS_PATTERN = re.compile(rf"([\w\-\.]+\.\w+)\s*(?:{_MARKERS_REGEX})", re.IGNORECASE)
 UNICODE_MEDIA_PATTERN = re.compile(r"\u200e((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)", re.IGNORECASE)
 
+# Combined pattern for efficient single-pass extraction (replaces multiple regex passes)
+COMBINED_ENRICHMENT_PATTERN = re.compile(
+    r"""
+    # 1. Markdown Link (extract filename)
+    (?:(?:!\[|\[)[^\]]*\]\([^)]*?(?P<md_file>[^/)]+\.\w+)\)) |
+
+    # 2. WhatsApp Patterns
+    (?P<wa_file>\b(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+\b) |
+    (?:\u200e(?P<uni_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)) |
+
+    # 3. Generic Filename (matches any filename, optionally with marker)
+    # This covers Attachment Markers, Simple Media, and UUIDs in one pass.
+    # We use a broad pattern and filter in Python to avoid backtracking overhead.
+    \b(?P<gen_file>[\w\-\.]+\.\w+)\b(?P<gen_marker>\s*(?:"""
+    + _MARKERS_REGEX
+    + r"""))?
+    """,
+    re.VERBOSE | re.IGNORECASE,
+)
+
+# Regex for validating UUIDs (extracted from generic match)
+UUID_VALIDATION_PATTERN = re.compile(
+    r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+$", re.IGNORECASE
+)
+
 # Split Patterns for optimized extraction
 FAST_MEDIA_PATTERN = re.compile(
     r"""
@@ -155,6 +180,52 @@ def find_media_references(text: str) -> list[str]:
     media_files.extend(UNICODE_MEDIA_PATTERN.findall(text))
 
     return list(set(media_files))
+
+
+def find_all_media_references(text: str, *, include_uuids: bool = False) -> list[str]:
+    """Find all media references using a single optimized regex pass.
+
+    This combines:
+    - Attachment markers
+    - Markdown links/images (extracting filename)
+    - WhatsApp patterns
+    - Simple media filenames (e.g. foo.jpg)
+    - UUID filenames (optional)
+
+    Args:
+        text: The message text to search.
+        include_uuids: Whether to include UUID filenames (requires row['media_type'] check usually).
+
+    Returns:
+        List of unique media references found.
+
+    """
+    if not text:
+        return []
+
+    refs = set()
+    for match in COMBINED_ENRICHMENT_PATTERN.finditer(text):
+        name = match.lastgroup
+        # Use lastgroup to identify which pattern matched
+        if name == "md_file":
+            refs.add(match.group("md_file"))
+        elif name == "wa_file":
+            refs.add(match.group("wa_file"))
+        elif name == "uni_file":
+            refs.add(match.group("uni_file"))
+        elif name == "gen_file" or name == "gen_marker":
+            filename = match.group("gen_file")
+            # If marker matched, we always include it (legacy behavior for att_file)
+            if match.group("gen_marker"):
+                refs.add(filename)
+            # Else check if it is a known media type
+            elif detect_media_type(filename):
+                refs.add(filename)
+            # Else check if it is a UUID (if requested)
+            elif include_uuids and UUID_VALIDATION_PATTERN.match(filename):
+                refs.add(filename)
+
+    return list(refs)
 
 
 def extract_media_references(table: Table) -> set[str]:

@@ -2,31 +2,36 @@
 
 **Persona:** Lore 📚
 **Sprint:** 2
-**Created:** 2026-01-26 (during Sprint 1)
+**Created:** 2026-01-26
 **Priority:** Medium
 
 ## Objectives
-My mission is to capture the "Deep Knowledge" of the system during this transitional phase.
+My mission is to capture the history of the "Batch Era" before it is refactored away, and to support the structural changes by documenting the "why".
 
-- [ ] **Wiki - The "Reactive" Shift:** Document the current "Batch Processing" architecture in `.team/wiki/Architecture.md` to establish a baseline before the "Symbiote" changes.
-- [ ] **Wiki - Persona Registry:** maintain the `Team-Roster.md` to reflect the evolving roles (e.g., Visionary's new focus).
-- [ ] **Blog - "The Great Refactor":** Write a piece in `.team/personas/lore/blog/` documenting the intent behind the major refactors led by Artisan and Refactor.
-- [ ] **ADR Indexing:** Collaborate with Steward to link the new ADRs into the Wiki structure.
+- [ ] **Document the "Batch Era":** Create a comprehensive Wiki entry detailing the current `write.py` and `runner.py` architecture. This will serve as the "Before" snapshot for the Simplifier's and Artisan's refactors.
+- [ ] **Forensic Analysis of `runner.py`:** Investigate the git history of the recursive splitting logic in `runner.py` to understand its origins and intent. Publish findings in a blog post or journal.
+- [ ] **Update Persona Arcs:** Update the Team Roster and individual persona pages to reflect the shift in roles (e.g., Visionary moving to "Symbiote" architect).
+- [ ] **Review Initial ADRs:** Ensure the first batch of ADRs produced by Steward includes sufficient historical context.
 
 ## Dependencies
-- **Steward:** I need the ADR templates and initial records to be established.
-- **Visionary:** I need the RFCs to be shared to document their context.
+- **Simplifier & Artisan:** I need to analyze the code *before* they change it.
+- **Steward:** I need the ADR template to be established.
 
 ## Context
-Sprint 2 is a "Pivot Point." We are changing how we build (ADRs), how we run (Runner refactor), and what we look like (Visual Identity). My job is to ensure we don't lose the history of *what we were* while we become *what we are next*.
+The system is undergoing a metamorphosis from a batch-processing script to a structured, potentially real-time organism. This is a critical moment for a historian. If we don't document the current state now, it will be lost.
 
 ## Expected Deliverables
-1.  **Updated Wiki:** `Architecture.md` reflecting the "Before" state.
-2.  **Blog Post:** "Chronicles of the Refactor."
-3.  **ADR Integration:** A section in the Wiki linking to the new ADRs.
+1. **Wiki Page:** `Architecture-Batch-Era.md`.
+2. **Blog Post:** "The Heartbeat of the Machine" (Analysis of `runner.py` history).
+3. **Updated Roster:** Reflecting current active personas and missions.
+4. **ADR Reviews:** Comments/Feedback on early ADRs.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Lore Drift | Medium | High | I will monitor PRs closely to ensure documentation keeps pace with code changes. |
-| Missing Context | Low | Medium | I will interview personas (via email/tasks) if the "Why" behind a change is unclear. |
+| Refactors happen faster than documentation | Medium | High | I will prioritize the "Before" snapshots in the first few days of the sprint. |
+| "Lore" is seen as a blocker | Low | Medium | I will work asynchronously and not block PRs, but provide retroactive documentation if needed. |
+
+## Proposed Collaborations
+- **With Simplifier:** To map the `write.py` flow.
+- **With Artisan:** To understand the `runner.py` logic.

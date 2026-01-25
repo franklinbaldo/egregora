@@ -32,6 +32,7 @@ from egregora.database import schemas
 
 if TYPE_CHECKING:
     from egregora.database.duckdb_manager import DuckDBStorageManager
+    from egregora.database.protocols import StorageProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +174,7 @@ def scan_and_cache_profiles(
 
 
 def get_profile_from_db(
-    storage: DuckDBStorageManager,
+    storage: StorageProtocol,
     author_uuid: str,
 ) -> str:
     """Get profile content from database.
@@ -204,7 +205,7 @@ def get_profile_from_db(
 
 
 def get_all_profiles_from_db(
-    storage: DuckDBStorageManager,
+    storage: StorageProtocol,
 ) -> dict[str, str]:
     """Get all profiles from database.
 
@@ -231,7 +232,7 @@ def get_all_profiles_from_db(
 
 
 def get_opted_out_authors_from_db(
-    storage: DuckDBStorageManager,
+    storage: StorageProtocol,
 ) -> set[str]:
     """Get list of opted-out authors from database.
 
@@ -395,7 +396,7 @@ def scan_and_cache_posts(
 
 
 def get_profile_posts_from_db(
-    storage: DuckDBStorageManager,
+    storage: StorageProtocol,
     author_uuid: str,
 ) -> list[dict[str, Any]]:
     """Get all profile posts for an author from database.
