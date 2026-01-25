@@ -1,4 +1,4 @@
-# Plan: Scribe - Sprint 2
+# Plan: Scribe ✍️ - Sprint 2
 
 **Persona:** Scribe ✍️
 **Sprint:** 2
@@ -6,39 +6,34 @@
 **Priority:** High
 
 ## Objectives
+My mission is to ensure that the heavy structural refactoring and visual polishing in this sprint are matched by accurate, up-to-date documentation.
 
-My mission for Sprint 2 is to support the team's architectural and quality initiatives with accurate documentation.
-
-- [ ] **Support Docstring Rollout:** Review Artisan's PRs for `utils/` docstrings to ensure they meet the Google Style Python Docstrings standard.
-- [ ] **Establish ADR Documentation:** Collaborate with Steward to review the new ADR template and add an "Architecture Decision Records" section to the `CONTRIBUTING.md` guide.
-- [ ] **Update Contributor Guides:** Refresh `CONTRIBUTING.md` to reflect the new processes (ADRs, stricter TDD, docstring requirements) and link to the new `docs/ux-vision.md` created by Curator.
-- [ ] **Documentation Maintenance:** Perform a routine sweep for broken links, spelling errors, and outdated commands (Mode B task).
+- [ ] **Support ADR Process:** Collaborate with **Steward** to finalize the ADR template (ensuring it prompts for documentation updates) and document the ADR workflow in `CONTRIBUTING.md`.
+- [ ] **Track Refactor Documentation:** Monitor **Simplifier** and **Artisan**'s refactors of `write.py` and `runner.py`. Create tasks to update the "Architecture" and "CLI Reference" documentation once the APIs stabilize.
+- [ ] **Document Visual Identity:** Update `docs/ux-vision.md` and the user customization guides to reflect the new "Portal" theme elements (Favicon, Social Cards) implemented by **Curator** and **Forge**.
+- [ ] **Enforce Docstring Standards:** Add a clear "Docstring Standard" section (referencing Google Style) to `CONTRIBUTING.md` to support **Artisan**'s effort.
 
 ## Dependencies
-
-- **Artisan:** I am dependent on Artisan submitting PRs for docstrings to perform my reviews.
-- **Steward:** I need the ADR template to be finalized before I can document the process in `CONTRIBUTING.md`.
-- **Curator:** I need the `ux-vision.md` file to be created before I can link to it.
+- **Steward:** I need the draft ADR template to review/contribute to.
+- **Simplifier/Artisan:** I cannot update the architecture docs until their refactors are merged.
+- **Forge:** I need the visual changes (social cards, favicon) to be implemented before I can document them.
 
 ## Context
-
-Sprint 2 is a "hardening" sprint. While other personas are refactoring code and establishing structure, my role is to ensure these changes are documented immediately. By integrating the new ADR process and coding standards into our contributor guides now, we prevent "tribal knowledge" siloes from forming.
+Sprint 2 is "Structure & Polish". The codebase is changing shape significantly. If documentation does not keep up, we risk "knowledge rot". My role is to bridge the gap between the new code structure and the developer/user understanding.
 
 ## Expected Deliverables
-
-1.  **Updated `CONTRIBUTING.md`:** Sections added for ADRs and Docstring standards.
-2.  **Docstring Review Reports:** Comments on Artisan's PRs ensuring quality.
-3.  **ADR Template Feedback:** A review of Steward's template.
-4.  **Maintenance PR:** A standard "fix-it" PR for broken links or typos found during the sprint.
+1.  **Updated `CONTRIBUTING.md`:** With ADR workflow and Docstring standards.
+2.  **Updated `docs/ux-vision.md`:** Reflecting Sprint 2 visual decisions.
+3.  **Documentation Updates (Architecture/CLI):** PRs updating docs to match the new code reality (post-refactor).
+4.  **Feedback Loop:** Continuous feedback on PRs regarding documentation requirements.
 
 ## Risks and Mitigations
-
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Processes change faster than docs | Medium | Medium | I will prioritize updates to `CONTRIBUTING.md` to keep the "rules of engagement" clear for everyone. |
-| Artisan's docstrings are delayed | Low | Low | I will focus on the Maintenance backlog if there are no PRs to review. |
+| Docs drift due to rapid refactoring | High | High | I will wait for "stability markers" (merged PRs) before major doc rewrites, using placeholder tasks to track debt. |
+| User config breaks with new visual features | Medium | Medium | I will test the new features (Social Cards) as a user would, verifying the configuration steps. |
 
 ## Proposed Collaborations
-
-- **With Steward:** Co-authoring the "How to write an ADR" guide.
-- **With Artisan:** Establishing a feedback loop for docstring quality.
+- **With Steward:** On ADR template.
+- **With Curator/Forge:** On UX documentation.
+- **With Artisan:** On Docstring standards.
