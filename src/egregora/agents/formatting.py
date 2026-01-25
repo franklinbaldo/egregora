@@ -8,7 +8,7 @@ import logging
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -17,7 +17,6 @@ from egregora.output_adapters.exceptions import DocumentNotFoundError
 
 if TYPE_CHECKING:
     from egregora.agents.shared.annotations import Annotation, AnnotationStore
-    from egregora.data_primitives.document import Document
     from egregora.output_adapters.base import OutputSink
 
 logger = logging.getLogger(__name__)
@@ -139,9 +138,10 @@ def build_conversation_xml(
         }
 
         if msg_id in annotations_map:
-            notes: list[dict[str, str]] = msg_data["notes"]  # type: ignore[assignment]
-            for ann in annotations_map[msg_id]:
-                notes.append({"id": str(ann.id), "content": ann.commentary})
+            notes = cast("list[dict[str, str]]", msg_data["notes"])
+            notes.extend(
+                {"id": str(ann.id), "content": ann.commentary} for ann in annotations_map[msg_id]
+            )
         messages.append(msg_data)
 
     templates_dir = Path(__file__).resolve().parents[1] / "templates"

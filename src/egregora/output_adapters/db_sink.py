@@ -6,8 +6,8 @@ central ContentRepository (DuckDB) instead of the filesystem.
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import Iterator
-from typing import List
 
 from egregora.data_primitives.document import (
     Document,
@@ -118,8 +118,8 @@ class DbOutputSink(OutputSink):
     def finalize_window(
         self,
         window_label: str,
-        _posts_created: List[str],
-        profiles_updated: List[str],
+        _posts_created: builtins.list[str],
+        profiles_updated: builtins.list[str],
         metadata: dict | None = None,
     ) -> None:
         pass
