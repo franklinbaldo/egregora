@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any, Self
 
 import duckdb
 import httpx
+import ibis
 from google.api_core import exceptions as google_exceptions
 from ibis.common.exceptions import IbisError
 from pydantic import BaseModel
@@ -36,7 +37,13 @@ from pydantic_ai import Agent, RunContext, UrlContextTool
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import BinaryContent
 
-from egregora.agents.exceptions import MediaStagingError
+from egregora.agents.exceptions import (
+    EnrichmentFileError,
+    EnrichmentParsingError,
+    EnrichmentSlugError,
+    JinaFetchError,
+    MediaStagingError,
+)
 from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.datetime_utils import ensure_datetime
 from egregora.data_primitives.document import Document, DocumentType
@@ -85,13 +92,13 @@ def load_file_as_binary_content(file_path: Path, max_size_mb: int = 20) -> Binar
     """Load a file as BinaryContent for pydantic-ai agents."""
     if not file_path.exists():
         msg = f"File not found: {file_path}"
-        raise FileNotFoundError(msg)
+        raise EnrichmentFileError(msg)
     file_size = file_path.stat().st_size
     max_size_bytes = max_size_mb * 1024 * 1024
     if file_size > max_size_bytes:
         size_mb = file_size / (1024 * 1024)
         msg = f"File too large: {size_mb:.2f}MB exceeds {max_size_mb}MB limit. File: {file_path.name}"
-        raise ValueError(msg)
+        raise EnrichmentFileError(msg)
     media_type, _ = mimetypes.guess_type(str(file_path))
     if not media_type:
         media_type = "application/octet-stream"
@@ -115,12 +122,12 @@ def _normalize_slug(candidate: str | None, identifier: str) -> str:
     """
     if not isinstance(candidate, str) or not candidate.strip():
         msg = f"LLM failed to generate slug for: {identifier[:100]}"
-        raise ValueError(msg)
+        raise EnrichmentSlugError(msg)
 
     value = slugify(candidate.strip())
     if not value or value == "post":
         msg = f"LLM slug '{candidate}' is invalid after normalization for: {identifier[:100]}"
-        raise ValueError(msg)
+        raise EnrichmentSlugError(msg)
 
     return value
 
@@ -160,7 +167,8 @@ async def fetch_url_with_jina(ctx: RunContext[Any], url: str) -> str:
             response.raise_for_status()
             return response.text
         except (httpx.RequestError, httpx.HTTPStatusError) as exc:
-            return f"Jina fetch failed: {exc}"
+            msg = f"Jina fetch failed: {exc}"
+            raise JinaFetchError(msg) from exc
 
 
 @dataclass(frozen=True, slots=True)
@@ -481,6 +489,7 @@ class EnrichmentWorker(BaseWorker):
         enrichment_config: EnrichmentSettings | None = None,
     ) -> None:
         super().__init__(ctx)
+        self.ctx: PipelineContext | EnrichmentRuntimeContext = ctx
         self._enrichment_config_override = enrichment_config
         self.zip_handle: zipfile.ZipFile | None = None
         self.media_index: dict[str, str] = {}
@@ -862,7 +871,7 @@ class EnrichmentWorker(BaseWorker):
         except json.JSONDecodeError as e:
             logger.warning("[URLEnricher] Failed to parse JSON response: %s", e)
             msg = f"Failed to parse batch response: {e}"
-            raise ValueError(msg) from e
+            raise EnrichmentParsingError(msg) from e
 
         # Convert to result tuples
         results: list[tuple[dict, EnrichmentOutput | None, str | None]] = []
@@ -950,7 +959,8 @@ class EnrichmentWorker(BaseWorker):
 
         if new_rows:
             try:
-                self.ctx.storage.ibis_conn.insert("messages", new_rows)
+                t = ibis.memtable(new_rows)
+                self.ctx.storage.write_table(t, "messages", mode="append")
                 logger.info("Inserted %d enrichment rows", len(new_rows))
             except Exception:
                 logger.exception("Failed to insert enrichment rows")
@@ -1150,7 +1160,7 @@ class EnrichmentWorker(BaseWorker):
             try:
                 logger.info("[MediaEnricher] Using single-call batch mode for %d images", len(requests))
                 return self._execute_media_single_call(requests, task_map, model_name, api_key)
-            except google_exceptions.GoogleAPICallError as single_call_exc:
+            except (google_exceptions.GoogleAPICallError, EnrichmentParsingError) as single_call_exc:
                 logger.warning(
                     "[MediaEnricher] Single-call batch failed (%s), falling back to standard batch",
                     single_call_exc,
@@ -1262,7 +1272,7 @@ class EnrichmentWorker(BaseWorker):
         except json.JSONDecodeError as e:
             logger.warning("[MediaEnricher] Failed to parse JSON response: %s", e)
             msg = f"Failed to parse batch response: {e}"
-            raise ValueError(msg) from e
+            raise EnrichmentParsingError(msg) from e
 
         # Convert to BatchResult-like objects
         results = []
@@ -1379,8 +1389,11 @@ class EnrichmentWorker(BaseWorker):
                 self.task_store.mark_failed(task["task_id"], str(res.error))
                 continue
 
-            task_result = self._parse_media_result(res, task)
-            if task_result is None:
+            try:
+                task_result = self._parse_media_result(res, task)
+            except EnrichmentParsingError as exc:
+                logger.warning("Enrichment parsing failed for task %s: %s", task.get("task_id"), exc)
+                self.task_store.mark_failed(task["task_id"], str(exc))
                 continue
 
             payload, output = task_result
@@ -1522,7 +1535,7 @@ class EnrichmentWorker(BaseWorker):
                     # Update text column using parameterized query
                     # Note: This updates ALL messages containing this ref.
                     query = "UPDATE messages SET text = replace(text, ?, ?) WHERE text LIKE ?"
-                    self.ctx.storage._conn.execute(query, [original_ref, new_path, f"%{original_ref}%"])
+                    self.ctx.storage.execute_sql(query, [original_ref, new_path, f"%{original_ref}%"])
                 except duckdb.Error as exc:
                     logger.warning("Failed to update message references for %s: %s", original_ref, exc)
 
@@ -1530,7 +1543,8 @@ class EnrichmentWorker(BaseWorker):
 
         if new_rows:
             try:
-                self.ctx.storage.ibis_conn.insert("messages", new_rows)
+                t = ibis.memtable(new_rows)
+                self.ctx.storage.write_table(t, "messages", mode="append")
                 logger.info("Inserted %d media enrichment rows", len(new_rows))
             except (IbisError, duckdb.Error):
                 logger.exception("Failed to insert media enrichment rows")
@@ -1540,7 +1554,7 @@ class EnrichmentWorker(BaseWorker):
     # TODO: [Taskmaster] Improve brittle JSON parsing from LLM output
     def _parse_media_result(
         self, res: Any, task: dict[str, Any]
-    ) -> tuple[dict[str, Any], EnrichmentOutput] | None:
+    ) -> tuple[dict[str, Any], EnrichmentOutput]:
         text = self._extract_text(res.response)
         try:
             clean_text = text.strip()
@@ -1582,13 +1596,12 @@ class EnrichmentWorker(BaseWorker):
                     logger.info("Constructed fallback markdown for %s -> %s", filename, final_filename)
 
             if not slug_value or not markdown:
-                self.task_store.mark_failed(task["task_id"], "Missing slug or markdown")
-                return None
+                msg = "Missing slug or markdown"
+                raise EnrichmentParsingError(msg)
 
             output = EnrichmentOutput(slug=slug_value, markdown=markdown, title=title, tags=tags)
             return payload, output
 
-        except Exception as exc:
-            logger.exception("Failed to parse media result %s", task["task_id"])
-            self.task_store.mark_failed(task["task_id"], f"Parse error: {exc!s}")
-            return None
+        except (json.JSONDecodeError, EnrichmentSlugError) as exc:
+            msg = f"Failed to parse media result for task {task.get('task_id')}: {exc}"
+            raise EnrichmentParsingError(msg) from exc
