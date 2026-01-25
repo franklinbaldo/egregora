@@ -1,44 +1,40 @@
 # Plan: Curator - Sprint 2
 
-**Persona:** Curator 🎭
+**Persona:** Curator
 **Sprint:** 2
-**Created:** 2024-07-29 (during Sprint 1)
+**Created:** 2026-01-26
 **Priority:** High
 
 ## Objectives
 
-My mission is to establish a baseline of UX excellence for the generated MkDocs blogs. For Sprint 2, the objectives are:
+Establish a solid UX baseline by fixing critical visual and functional bugs.
 
-- [ ] **Establish Visual Identity:** Work with Forge to implement a custom color palette and favicon, moving away from the generic Material theme defaults.
-- [ ] **Fix Critical Broken Elements:** Guide Forge to fix the missing CSS file and the 404 errors on social card images.
-- [ ] **Improve First Impressions:** Refine the "empty state" messaging and address the generic site name.
-- [ ] **Solidify UX Vision:** Continue to build out `docs/ux-vision.md` with the principles and decisions established in Sprint 1 and 2.
+- [ ] Oversee the consolidation of CSS files to resolve the shadowing issue.
+- [ ] Oversee the implementation of the Feeds index page to fix the 404 error.
+- [ ] Verify the "Portal" vision integrity after CSS consolidation.
 
 ## Dependencies
 
-The following dependencies have been identified:
-
-- **Forge:** All of my objectives for this sprint require Forge to implement the necessary code changes in the templates and scaffolding scripts. I will provide clear, actionable tasks.
+- **Forge:** Must complete task `20260125-140000-ux-consolidate-css-shadowing.md`.
+- **Forge:** Must complete task `20260126-1000-ux-implement-feeds-page.md`.
 
 ## Context
 
-Sprint 1 was focused on unblocking the Curation Cycle and conducting an initial UX audit. This audit revealed several high-priority issues that prevent the generated blogs from having a professional and unique identity. Sprint 2 is about addressing this foundational debt. By the end of this sprint, the generated sites should feel less like a generic template and more like a bespoke product.
+The current CSS architecture is fragmented, causing the "Portal" theme styles (in `docs/`) to shadow the structural fixes (in `overrides/`). This results in a broken layout on the homepage. Additionally, the "RSS Feeds" link on the homepage leads to a 404 page, which is a poor user experience.
 
 ## Expected Deliverables
 
-1.  **New Color Palette:** The default Teal/Amber theme is replaced with a custom palette.
-2.  **Custom Favicon:** A unique favicon is present on all pages.
-3.  **Functional Social Sharing:** Social card images are generated correctly without 404 errors.
-4.  **Improved Empty State:** The initial homepage message is more welcoming and user-friendly.
-5.  **Updated UX Vision:** `docs/ux-vision.md` is updated with the new design decisions.
+1.  **Consolidated CSS:** A single source of truth for styles that correctly applies both the "Portal" theme and the layout structure.
+2.  **Feeds Page:** A working `docs/feeds/index.md` page that lists available RSS/JSON feeds.
+3.  **Verified Demo:** A `demo` site generated via `egregora demo` that passes visual inspection.
 
 ## Risks and Mitigations
 
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Forge is blocked or unable to implement changes | Medium | High | I will write extremely detailed tasks with clear WHY/WHAT/HOW/WHERE to minimize ambiguity. I will also monitor the `.team/tasks/` directory closely to provide feedback or clarification if needed. |
-| Design decisions are subjective | Low | Medium | I will ground all design decisions in the established UX Excellence Criteria and document the rationale in `docs/ux-vision.md`. |
+| CSS conflicts persist | Medium | High | Require Forge to verify with specific screenshots/DOM inspection. |
+| Scaffolding logic fails | Low | Medium | Review scaffolding code changes carefully. |
 
 ## Proposed Collaborations
 
-- **With Forge:** Continuous collaboration via the task management system in `.team/tasks/`.
+- **With Forge:** Direct feedback loop on the CSS consolidation to ensure the "Portal" aesthetic is preserved.

@@ -1552,9 +1552,7 @@ class EnrichmentWorker(BaseWorker):
         return len(results)
 
     # TODO: [Taskmaster] Improve brittle JSON parsing from LLM output
-    def _parse_media_result(
-        self, res: Any, task: dict[str, Any]
-    ) -> tuple[dict[str, Any], EnrichmentOutput]:
+    def _parse_media_result(self, res: Any, task: dict[str, Any]) -> tuple[dict[str, Any], EnrichmentOutput]:
         text = self._extract_text(res.response)
         try:
             clean_text = text.strip()
