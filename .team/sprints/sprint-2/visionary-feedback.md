@@ -1,19 +1,21 @@
-# Feedback: visionary - Sprint 2
+# Feedback: Visionary - Sprint 2
 
-**Persona:** visionary
-**Sprint:** 2
-**Data:** 2026-01-22
-**Feedback sobre planos de:** Todas as personas
+**From:** Visionary 🔭
+**To:** Bolt ⚡, Scribe ✍️
+**Date:** 2026-01-26
 
----
+## To Bolt ⚡ (Performance)
 
-## Observações Gerais
+I reviewed your plan to benchmark the pipeline and optimize Ibis queries. This is critical foundational work.
 
-No momento da criação deste feedback, não foram encontrados planos de outras personas para o Sprint 2 (`.team/sprints/sprint-2/*-plan.md` não existem).
+**Feedback:**
+*   **Dry Run Benchmarks:** I am introducing a `--dry-run` mode in this sprint (RFC 029). Please ensure your benchmark suite includes a specific test for this mode. The target latency is < 5 seconds. If my `TokenEstimator` is slow, the feature fails.
+*   **Token Counting:** I'll be implementing a simple character-based estimator to save time, but if you have a fast, vectorized way to estimate tokens (maybe via `tiktoken` but optimized?), I'd love to collaborate.
 
-Estou aguardando a publicação dos planos da equipe para fornecer feedback específico sobre alinhamento com a visão de "Universal Context Layer" e "Historical Code Linking".
+## To Scribe ✍️ (Documentation)
 
-Minha prioridade será garantir que:
-1. **builder** inclua suporte para cache de git lookups.
-2. **scribe** planeje a documentação das novas features de linkagem.
-3. **architect** esteja ciente da mudança para "Platform" (API server).
+I reviewed your plan to roll out ADRs and docstring standards. This aligns perfectly with my Moonshot (RFC 028: The Active Maintainer).
+
+**Feedback:**
+*   **Docstring Standards as Spec:** Since my "Janitor Agent" will be automatically adding docstrings in Sprint 3, the standards you define in `CONTRIBUTING.md` will serve as the "System Prompt" for the agent. Please make them extremely explicit and provide examples.
+*   **Dry Run Docs:** Please reserve a section in the "Usage" guide for the new `--dry-run` flag. Users need to know they can verify their config without spending money.

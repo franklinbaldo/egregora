@@ -1,49 +1,43 @@
-# Plano: visionary - Sprint 2
+# Plan: Visionary - Sprint 2
 
-**Persona:** visionary
+**Persona:** Visionary 🔭
 **Sprint:** 2
-**Criado em:** 2026-01-22
-**Prioridade:** Alta
+**Created:** 2026-01-26
+**Priority:** High
 
-## Objetivos
+## Objectives
 
-Descreva os principais objetivos para este sprint:
+My mission for this sprint is to deliver the "Dry Run Mode" (Quick Win) to enable cost control and pave the way for autonomous agents.
 
-- [ ] Prototipar `CodeReferenceDetector` para detecção de paths e SHAs em mensagens de chat (RFC 027).
-- [ ] Implementar POC de `GitHistoryResolver` para mapear Timestamp -> Commit SHA (RFC 027).
-- [ ] Validar viabilidade de integração com Markdown do agente Writer.
+- [ ] **Core Logic Implementation:** Implement the `dry_run` flag in `write.py` and the `TokenEstimator` service (RFC 029).
+- [ ] **Reporting UI:** Create the `DryRunReporter` to visualize estimated costs and window breakdowns using `rich`.
+- [ ] **CLI Integration:** Expose `--dry-run` in the `egregora write` command.
+- [ ] **Verification:** Ensure dry run performance is under 5 seconds for standard inputs.
 
-## Dependências
+## Dependencies
 
-Liste dependências de trabalho de outras personas:
+- **Bolt:** I need to ensure that my token estimation logic doesn't introduce performance regressions (e.g., re-reading files unnecessarily).
+- **Scribe:** Documentation needs to be updated to explain the new flag and how to interpret the cost estimates.
 
-- **builder:** Suporte para schema de cache de Git Lookups em DuckDB.
-- **scribe:** Atualização da documentação para incluir nova feature de links históricos.
+## Context
 
-## Contexto
+We identified that running the pipeline is opaque and costly. Before we can build "The Active Maintainer" (Moonshot), we need a simulation layer. This sprint delivers that layer immediately as a user-facing feature (`--dry-run`).
 
-Explique o contexto e raciocínio por trás deste plano:
+## Expected Deliverables
 
-Após a aprovação do Quick Win (RFC 027), o foco é validar a tecnologia principal (Regex + Git CLI) antes de integrar totalmente ao pipeline. Precisamos garantir que a detecção seja precisa e a resolução de commits seja rápida.
+1.  `--dry-run` flag working in `egregora write`.
+2.  `TokenEstimator` service with unit tests.
+3.  Cost estimation logic for Gemini models.
+4.  Updated CLI help text.
 
-## Entregáveis Esperados
+## Risks and Mitigations
 
-1. Script Python `detect_refs.py` que extrai referências de um arquivo de texto.
-2. Script Python `resolve_commit.py` que aceita data/hora e retorna SHA do repo local.
-3. Relatório de performance (tempo por lookup).
-
-## Riscos e Mitigações
-
-| Risco | Probabilidade | Impacto | Mitigação |
+| Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Git Lookup lento | Alta | Médio | Implementar cache agressivo (DuckDB/Redis) |
-| Ambiguidade de path | Média | Baixo | Linkar para tree root ou exibir warning se arquivo não existe |
+| Inaccurate Estimates | Medium | Low | Clearly label output as "Estimated" and add a disclaimer. |
+| Code Complexity | Medium | Medium | Use the "Facade Pattern" to abstract the LLM calls so `write.py` doesn't become a mess of `if dry_run:` checks. |
 
-## Colaborações Propostas
+## Proposed Collaborations
 
-- **Com builder:** Definir schema da tabela `git_cache`.
-- **Com artisan:** Revisar código do resolver para otimização.
-
-## Notas Adicionais
-
-Foco total na "Foundation" para o Context Layer.
+- **With Bolt:** Review the `TokenEstimator` for efficiency.
+- **With Scribe:** Co-author the "Cost Management" section in the docs.

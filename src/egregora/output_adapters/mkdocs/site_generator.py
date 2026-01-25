@@ -99,7 +99,7 @@ class SiteGenerator:
             raise DocumentParsingError(str(path), str(e)) from e
 
     def _scan_directory(
-        self, directory: Path, doc_type: DocumentType, metadata_only: bool = False
+        self, directory: Path, doc_type: DocumentType, *, metadata_only: bool = False
     ) -> Iterator[Document]:
         """Scans a directory for markdown files and yields Document objects.
 
@@ -129,13 +129,9 @@ class SiteGenerator:
 
     def get_site_stats(self) -> dict[str, int]:
         """Calculate site statistics for homepage."""
-        post_count = len(
-            [p for p in self.posts_dir.rglob("*.md") if p.is_file() and "index" not in p.name]
-        )
+        post_count = len([p for p in self.posts_dir.rglob("*.md") if p.is_file() and "index" not in p.name])
         profile_count = len(list(self.profiles_dir.glob("*/*.md")))  # Count files in author subdirs
-        media_count = len(
-            [p for p in self.urls_dir.rglob("*.md") if p.is_file() and "index" not in p.name]
-        )
+        media_count = len([p for p in self.urls_dir.rglob("*.md") if p.is_file() and "index" not in p.name])
         journal_count = len(
             [p for p in self.journal_dir.rglob("*.md") if p.is_file() and "index" not in p.name]
         )

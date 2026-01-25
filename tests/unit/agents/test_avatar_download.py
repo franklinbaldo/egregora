@@ -1,12 +1,12 @@
 """Unit tests for avatar download logic."""
 
 import uuid
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import httpx
 import pytest
 import respx
+
 from egregora.agents.avatar import (
     AvatarProcessingError,
     _download_avatar_with_client,
@@ -40,10 +40,12 @@ def mock_client():
 
 @patch("egregora.agents.avatar._generate_avatar_uuid", return_value=FAKE_UUID)
 @respx.mock
-def test_download_avatar_success(mock_uuid, mock_media_dir, mock_client):
+def test_download_avatar_success(_mock_uuid, mock_media_dir, mock_client):
     """Test successful avatar download."""
     url = "http://example.com/avatar.png"
-    respx.get(url).mock(return_value=httpx.Response(200, content=VALID_PNG_CONTENT, headers={"Content-Type": "image/png"}))
+    respx.get(url).mock(
+        return_value=httpx.Response(200, content=VALID_PNG_CONTENT, headers={"Content-Type": "image/png"})
+    )
 
     avatar_uuid, avatar_path = _download_avatar_with_client(mock_client, url, mock_media_dir)
 
@@ -80,7 +82,9 @@ def test_download_avatar_too_many_redirects(mock_media_dir, mock_client):
 def test_download_avatar_invalid_content_type(mock_media_dir, mock_client):
     """Test invalid content type handling."""
     url = "http://example.com/text.txt"
-    respx.get(url).mock(return_value=httpx.Response(200, content=b"text", headers={"Content-Type": "text/plain"}))
+    respx.get(url).mock(
+        return_value=httpx.Response(200, content=b"text", headers={"Content-Type": "text/plain"})
+    )
 
     with pytest.raises(AvatarProcessingError) as exc:
         _download_avatar_with_client(mock_client, url, mock_media_dir)
@@ -91,10 +95,12 @@ def test_download_avatar_invalid_content_type(mock_media_dir, mock_client):
 @patch("egregora.agents.avatar._save_avatar_file")
 @patch("egregora.agents.avatar._generate_avatar_uuid", return_value=FAKE_UUID)
 @respx.mock
-def test_download_avatar_os_error(mock_uuid, mock_save, mock_media_dir, mock_client):
+def test_download_avatar_os_error(_mock_uuid, mock_save, mock_media_dir, mock_client):
     """Test file system error handling."""
     url = "http://example.com/avatar.png"
-    respx.get(url).mock(return_value=httpx.Response(200, content=VALID_PNG_CONTENT, headers={"Content-Type": "image/png"}))
+    respx.get(url).mock(
+        return_value=httpx.Response(200, content=VALID_PNG_CONTENT, headers={"Content-Type": "image/png"})
+    )
 
     mock_save.side_effect = OSError("Disk full")
 
