@@ -22,6 +22,11 @@ Add meaningful behavioral tests that verify what code DOES, not how it does it. 
 - ❌ Implementation: Internal mechanics, function calls, code structure
 
 **Rule of thumb:** If changing internal logic breaks the test → implementation test. If changing output breaks it → behavioral test.
+
+**Test Quality Principles:**
+- A flaky test is worse than no test (erodes confidence)
+- New tests must pass 100/100 times in a loop
+- Tests should be fast (<1s each) and deterministic
 {% endblock %}
 
 {% block constraints %}
