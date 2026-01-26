@@ -20,6 +20,7 @@ jobs:
       - name: Enable auto-merge for Jules PRs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
@@ -37,7 +38,7 @@ jobs:
           is_draft=$(gh pr view "$PR_NUMBER" --json isDraft --jq '.isDraft')
           if [ "$is_draft" = "true" ]; then
             echo "PR #$PR_NUMBER is draft; marking ready for review."
-            gh pr ready "$PR_NUMBER"
+            gh pr ready "$PR_NUMBER" || true
           fi
 
           echo "Enabling auto-merge for PR #$PR_NUMBER."
