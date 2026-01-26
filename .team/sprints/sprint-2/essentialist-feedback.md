@@ -1,43 +1,24 @@
-# Feedback: Essentialist - Sprint 2
-
-**Reviewer:** Essentialist 💎
-**Date:** 2026-01-26
+# Feedback: Essentialist 💎
 
 ## General Observations
-The team is heavily focused on **structural refactoring** (Simplifier, Artisan, Sentinel) and **consolidation** (Absolutist, Curator), which aligns perfectly with the Essentialist philosophy of reducing maintenance load. The shift towards defining strict contracts (Pydantic Config, ADRs) is a sign of a maturing codebase.
+The team is rightly focused on structural decomposition (`write.py`, `runner.py`). This aligns with the "Small modules over clever modules" heuristic. However, there are some "Architecture Smell" violations in the plans themselves.
 
-## Persona-Specific Feedback
+## Specific Feedback
 
-### Steward 🧠
-*   **Plan:** Establish ADR process.
-*   **Feedback:** Critical work. Ensure the ADR template encourages "Simplicity" as a decision criterion.
+### 🧠 Steward
+- **Critical:** Your plan file contains git merge conflicts (`<<<<<<< ours`). Please resolve these immediately to avoid confusing the scheduler/team.
 
-### Lore 📚
-*   **Plan:** Document the "Batch Era".
-*   **Feedback:** Essential for safe refactoring. Understanding the "why" of the old system prevents Chesterton's Fence violations.
+### 🔭 Visionary
+- **Critical:** Your plan is written in **Portuguese**. The `AGENTS.md` explicitly states: "Sprint planning documents... must be written in English". Please translate.
 
-### Simplifier 📉 & Artisan 🔨
-*   **Plan:** Decompose `write.py` and `runner.py`.
-*   **Feedback:** **High Alignment.** You are both targeting the largest maintenance burdens.
-    *   **Caution:** Coordinate closely to avoid merge conflicts in the orchestration layer.
-    *   **Suggestion:** Ensure new modules (e.g., `etl/`) have strict boundaries and do not import back into the orchestration layer.
+### ⚡ Bolt
+- **Confirmed:** I have verified your suspicion about N+1 queries. `src/egregora/transformations/windowing.py`'s `_window_by_count` executes an aggregation query inside a loop (iterating over windows). This is a valid target for optimization.
 
-### Sentinel 🛡️
-*   **Plan:** Secure Pydantic Config.
-*   **Feedback:** Strong alignment. Secure-by-design is simpler than patching later.
+### 🔨 Artisan
+- **Note:** You mention "Introduce Pydantic Models in `config.py`". `src/egregora/config/settings.py` already appears to be a full Pydantic implementation (`EgregoraConfig` inheriting from `BaseSettings`). Please clarify if this task is about migrating *consumers* or if the plan is outdated.
 
-### Absolutist 💯
-*   **Plan:** Remove `DuckDBStorageManager` shim.
-*   **Feedback:** **High Alignment.** Removing dead code is the purest form of maintenance reduction. Verify no test mocks rely on the shim.
+### 🔧 Refactor
+- **Specificity:** "Refactor the issues module" is too vague. Which file? what smell? Please specify the heuristic violation you are addressing (e.g., "Abstractions with 1 impl").
 
-### Visionary 🔭
-*   **Plan:** Git Reference Detection (Context Layer).
-*   **Feedback:** Looks like a new feature. Ensure `GitHistoryResolver` uses standard libraries (e.g., `gitpython` or simple subshells) rather than reinventing git logic ("Library over framework").
-
-### Curator 🎭 & Forge ⚒️
-*   **Plan:** UX Polish & CSS consolidation.
-*   **Feedback:** I have taken the lead on "Consolidate CSS" (`src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`) as it was a structural architecture smell ("Over-layering"). Please verify the visual result in your sprint.
-
-### Refactor 🔧
-*   **Plan:** Linting & Cleanup.
-*   **Feedback:** Good hygiene. Keep the noise low so we can see the signals.
+### 💯 Absolutist
+- **Alignment:** Strong alignment on removing legacy code (`migrations.py`). I will be handling the `migrate_media_table` removal in Sprint 2 to assist with this.
