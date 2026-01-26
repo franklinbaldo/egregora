@@ -74,8 +74,6 @@ def _build_documents_insert_select_sql(temp_table: str, existing_columns: set[st
     return f"INSERT INTO {quote_identifier(temp_table)} ({', '.join(column_names)}) {select_sql};"
 
 
-
-
 def migrate_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
     """Applies the Pure UNIFIED_SCHEMA to an existing 'documents' table.
 
