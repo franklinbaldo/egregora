@@ -1,4 +1,4 @@
-# Plan: Sapper - Sprint 2
+# Plan: Sapper 💣 - Sprint 2
 
 **Persona:** Sapper 💣
 **Sprint:** 2
@@ -6,28 +6,33 @@
 **Priority:** High
 
 ## Objectives
-My mission is to ensure the system fails gracefully during the major refactoring efforts of this sprint. I will focus on defining exception boundaries for the new architectural components.
+My mission is to eliminate "silent failures" in the core orchestration logic, ensuring that the system fails explicitly and informatively.
 
-- [ ] **Refactor `src/egregora/agents/enricher.py`:** This module interacts with external APIs (Google, etc.) and is a prime candidate for specific exception handling (`EnrichmentError`, `QuotaExceededError`) replacing generic `Exception` catches.
-- [ ] **Secure `runner.py` Refactor:** Collaborate with Artisan to ensure the decomposed `PipelineRunner` methods raise domain-specific exceptions (`RunnerExecutionError`, `StageFailedError`) rather than leaking low-level implementation details.
-- [ ] **Config Error UX:** Work with Artisan/Sentinel to wrap the new Pydantic configuration loading in a user-friendly error handler that transforms `ValidationError` into actionable messages.
+- [ ] **Refactor `runner.py` Exception Handling:** Replace generic `try...except Exception` blocks in `src/egregora/orchestration/runner.py` with specific, structured exceptions.
+    - Raise `MediaPersistenceError` for media failures.
+    - Raise `CommandAnnouncementError` for command failures.
+    - Raise `ProfileGenerationError` for profile failures.
+- [ ] **Enhance Exception Hierarchy:** Expand `src/egregora/orchestration/exceptions.py` to cover the granular failure modes identified in `runner.py`.
+- [ ] **Audit `agents` Package:** Continue the sweep of the `src/egregora/agents/` directory (started in Sprint 1) to identify and fix LBYL patterns.
+- [ ] **Coordinate with Refactorers:** Ensure **Artisan** and **Simplifier** adopt the new exception classes in their decomposition work.
 
 ## Dependencies
-- **Artisan:** I am directly depending on their refactor of `runner.py` and `config.py`. I will follow their lead but supply the exception handling logic.
+- **Artisan:** High potential for conflict in `runner.py`. I will aim to merge my exception definitions *before* their decomposition, or work on a branch they can pull from.
+- **Simplifier:** Similar coordination needed for `write.py`.
 
 ## Context
-Sprint 2 involves breaking up "God Objects" (`write.py`, `runner.py`). This is the most dangerous time for stability. If we split logic but forget to move the error handling with it, the application will become fragile. I am the safety net.
+`runner.py` is the heartbeat of the system. Currently, it catches `Exception` in several places and logs a warning. This hides bugs (e.g., a `KeyError` in profile generation looks the same as a network error). This "Trigger, Don't Confirm" refactor is essential before the "Symbiote Shift" (Real-Time) makes debugging even harder.
 
 ## Expected Deliverables
-1.  **Refactored Enricher:** `src/egregora/agents/enricher.py` using a new `EnrichmentError` hierarchy.
-2.  **Runner Exceptions:** A set of exception classes for the orchestration layer (`src/egregora/orchestration/exceptions.py`).
-3.  **Config Error Handler:** A utility to formatting Pydantic errors for the CLI.
+1.  **Updated `runner.py`:** No generic `except Exception` blocks (unless at the very top level for final safety).
+2.  **Expanded `exceptions.py`:** New classes for Media, Command, and Profile errors.
+3.  **Green Tests:** Existing tests pass, and new tests verify the specific exceptions are raised.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Refactor Collision | High | High | I will work on `enricher.py` (isolated) first, then pair with Artisan on `runner.py` once their structure is PR'd. |
-| "Exception Fatigue" | Medium | Low | I will ensure we don't create *too* many exceptions. Grouping by domain (Enrichment, Orchestration, Config) is key. |
+| Merge Conflicts with Artisan | High | High | I will create the *definitions* (Exception classes) first in a separate PR, then apply them to `runner.py` in smaller chunks. |
+| Breaking "Resilience" | Medium | Medium | By removing "swallow and log", the pipeline might crash more often. I will ensure the top-level loop in `process_windows` still catches the new specific exceptions to maintain batch resilience, but with better logging context. |
 
 ## Proposed Collaborations
-- **With Artisan:** Reviewing their PRs specifically for `try/except` blocks and exception hierarchy.
+- **With Artisan:** "I'll define the exceptions, you use them in your extracted methods."

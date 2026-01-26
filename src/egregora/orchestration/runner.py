@@ -23,7 +23,10 @@ from egregora.data_primitives.document import Document, DocumentType, UrlContext
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.exceptions import (
+    CommandAnnouncementError,
+    MediaPersistenceError,
     OutputSinkError,
+    ProfileGenerationError,
     WindowSizeError,
     WindowSplitError,
 )
@@ -324,7 +327,8 @@ class PipelineRunner:
                 try:
                     output_sink.persist(media_doc)
                 except Exception as e:
-                    logger.exception("Failed to write media file: %s", e)
+                    msg = f"Failed to write media file {media_doc.filename}: {e}"
+                    raise MediaPersistenceError(msg) from e
 
         if self.context.enable_enrichment:
             enriched_table = self._perform_enrichment(window_table_processed, media_mapping)
@@ -383,7 +387,8 @@ class PipelineRunner:
                     output_sink.persist(announcement)
                     announcements_generated += 1
                 except Exception as exc:
-                    logger.exception("Failed to generate announcement: %s", exc)
+                    msg = f"Failed to generate announcement for command: {exc}"
+                    raise CommandAnnouncementError(msg) from exc
 
         clean_messages_list = filter_commands(messages_list)
 
@@ -419,9 +424,13 @@ class PipelineRunner:
                     output_sink.persist(profile_doc)
                     profiles.append(profile_doc.document_id)
                 except Exception as exc:
-                    logger.exception("Failed to persist profile: %s", exc)
+                    msg = f"Failed to persist profile {profile_doc.document_id}: {exc}"
+                    raise ProfileGenerationError(msg) from exc
         except Exception as exc:
-            logger.exception("Failed to generate profile posts: %s", exc)
+            if isinstance(exc, ProfileGenerationError):
+                raise
+            msg = f"Failed to generate profile posts: {exc}"
+            raise ProfileGenerationError(msg) from exc
 
         # Scheduled tasks are returned as "pending:<task_id>"
         scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
@@ -531,7 +540,8 @@ class PipelineRunner:
                     output_sink.persist(announcement)
                     announcements_generated += 1
                 except Exception as exc:
-                    logger.exception("Failed to generate announcement: %s", exc)
+                    msg = f"Failed to generate announcement for command: {exc}"
+                    raise CommandAnnouncementError(msg) from exc
         return announcements_generated
 
     # TODO: [Taskmaster] Extract status message generation from _process_single_window

@@ -27,8 +27,16 @@ class EnrichmentError(OrchestrationError):
     """Raised when an error occurs during the enrichment process."""
 
 
+class MediaPersistenceError(OrchestrationError):
+    """Raised when media files fail to be persisted."""
+
+
 class CommandProcessingError(OrchestrationError):
     """Raised when an error occurs while processing a command."""
+
+
+class CommandAnnouncementError(CommandProcessingError):
+    """Raised when a command cannot be converted to an announcement."""
 
 
 class ProfileGenerationError(OrchestrationError):

@@ -1,32 +1,36 @@
-# Plan: Sapper - Sprint 3
+# Plan: Sapper 💣 - Sprint 3
 
 **Persona:** Sapper 💣
 **Sprint:** 3
 **Created:** 2026-01-26
-**Priority:** Medium
+**Priority:** High
 
 ## Objectives
-My mission is to extend resilience to the user experience and edge cases.
+My mission is to harden the new "Async Core" and "Discovery" pipelines against specific failure modes, supporting the transition to the "Symbiote" architecture.
 
-- [ ] **Global CLI Crash Handler:** Implement a top-level exception handler in `cli/main.py` (or equivalent) that catches unexpected crashes, logs a "Panic Report" to a file, and shows a friendly "Oops" message to the user.
-- [ ] **Refactor `src/egregora/ops/media.py`:** Media operations (downloading, resizing, checking dimensions) are notoriously flaky. I will introduce specific exceptions (`MediaCorruptError`, `ImageProcessingError`) and robust fallback strategies.
-- [ ] **Fuzz Testing Strategy:** Investigate and prototype a "Fuzz Test" that feeds garbage configuration and data into the pipeline to identify unhandled edge cases.
+- [ ] **Async Exception Handling:** Define and implement patterns for handling exceptions in `asyncio` streams (supporting Bolt's work). Ensure exceptions are propagated or handled gracefully without crashing the event loop or being swallowed.
+- [ ] **Discovery Pipeline Hardening:** Work with Visionary and Simplifier to ensure the new RAG/Discovery pipeline has explicit failure modes (e.g., `EmbeddingGenerationError`, `VectorSearchError`).
+- [ ] **Input Adapter Audit:** Continue the audit of input adapters to ensure they follow "Trigger, Don't Confirm", especially as they are refactored for async ingestion.
+- [ ] **API Error Standardization:** Establish standard error response patterns (HTTP 4xx/5xx mapped from internal exceptions) for the new Context Layer API.
 
 ## Dependencies
-- **Simplifier:** The CLI entry point structure might change in Sprint 2, affecting where I place the global handler.
+- **Bolt:** I need the initial Async Core implementation to audit/refactor.
+- **Visionary:** I need the Context Layer API design to define error mappings.
 
 ## Context
-After stabilizing the core structure in Sprint 2, Sprint 3 is about "Polish" and "Discovery". Users will be interacting more with the system. A crash with a raw Python stack trace is a bad user experience. We need "Trigger, Don't Confirm" even at the UI level: Trigger a crash report, don't confirm the user's fear that the software is broken.
+Sprint 3 introduces "Real-Time" and "Discovery". These features add significant complexity. A silent failure in a real-time stream is disastrous (data loss). A silent failure in Discovery means bad recommendations. Explicit exceptions are critical here.
 
 ## Expected Deliverables
-1.  **Crash Reporter:** A module that serializes the crash state (without secrets!) to a log file.
-2.  **Robust Media Ops:** Refactored `media.py` with 100% test coverage for failure modes.
-3.  **Fuzzing POC:** A script or test suite using `hypothesis` or similar to fuzz the config loader.
+1.  **Async Exception Patterns:** Documented patterns or utility decorators for safe async execution.
+2.  **Hardened RAG Pipeline:** Exception hierarchy for the Discovery module.
+3.  **API Error Middleware:** Middleware or utility to map `EgregoraError` subclasses to HTTP responses.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Crash Handler Hides Bugs | Medium | High | The handler must *always* log the full stack trace to a file, even if it hides it from the console. |
+| Async errors swallowed | High | High | Use `task.add_done_callback` or specific exception handlers in the main loop. |
+| API exposes stack traces | Medium | High | Implement a global exception handler that sanitizes errors for the API response. |
 
 ## Proposed Collaborations
-- **With Forge/Curator:** Discussing how media failures should be handled (e.g., placeholder images vs. broken links).
+- **With Bolt:** Reviewing async code for error handling.
+- **With Visionary:** defining API error contracts.
