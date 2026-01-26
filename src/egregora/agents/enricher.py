@@ -23,7 +23,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Self, cast
 
 import duckdb
 import httpx
@@ -498,16 +498,17 @@ class EnrichmentWorker(BaseWorker):
         self.staging_dir = tempfile.TemporaryDirectory(prefix="egregora_staging_")
         self.staged_files: set[str] = set()
 
-        if self.ctx.input_path and self.ctx.input_path.exists() and self.ctx.input_path.is_file():
+        input_path = getattr(self.ctx, "input_path", None)
+        if input_path and input_path.exists() and input_path.is_file():
             try:
-                self.zip_handle = zipfile.ZipFile(self.ctx.input_path, "r")
+                self.zip_handle = zipfile.ZipFile(input_path, "r")
                 validate_zip_contents(self.zip_handle)
                 # Build index for O(1) lookup
                 for info in self.zip_handle.infolist():
                     if not info.is_dir():
                         self.media_index[Path(info.filename).name.lower()] = info.filename
             except (OSError, zipfile.BadZipFile) as exc:
-                logger.warning("Failed to open source ZIP %s: %s", self.ctx.input_path, exc)
+                logger.warning("Failed to open source ZIP %s: %s", input_path, exc)
                 if self.zip_handle:
                     self.zip_handle.close()
                     self.zip_handle = None
@@ -615,7 +616,8 @@ class EnrichmentWorker(BaseWorker):
 
         try:
             # Create agent with fallback
-            model_name = self.ctx.config.models.enricher
+            config = getattr(self.ctx, "config", None)
+            model_name = config.models.enricher if config else "gemini-1.5-flash"
             provider = GoogleProvider(api_key=get_google_api_key())
             model = GoogleModel(
                 model_name.removeprefix("google-gla:"),
@@ -688,7 +690,7 @@ class EnrichmentWorker(BaseWorker):
             return self._enrichment_config_override
         # Fallback to context config if available
         if hasattr(self.ctx, "config"):
-            return self.ctx.config.enrichment
+            return cast("PipelineContext", self.ctx).config.enrichment
         # Last resort fallback (should not happen in normal pipeline)
         return EnrichmentSettings()
 
@@ -721,7 +723,11 @@ class EnrichmentWorker(BaseWorker):
             logger.info("Auto-scaling concurrency to match available API keys: %d", num_keys)
             enrichment_concurrency = num_keys
 
-        global_concurrency = getattr(self.ctx.config.quota, "concurrency", num_keys)
+        config = getattr(self.ctx, "config", None)
+        if config:
+            global_concurrency = getattr(config.quota, "concurrency", num_keys)
+        else:
+            global_concurrency = num_keys
 
         # Calculate effective concurrency
         # We cap at num_keys to avoid rate limits on single keys (unless rotation handles it,
@@ -792,7 +798,9 @@ class EnrichmentWorker(BaseWorker):
                     task = future_to_task[future]["task"]
                     # Log as error but maybe without full stack trace if we trust the message?
                     # For now, keep full trace as it helps debugging.
-                    logger.error("Enrichment execution failed for %s: %s", task["task_id"], exc, exc_info=True)
+                    logger.error(
+                        "Enrichment execution failed for %s: %s", task["task_id"], exc, exc_info=True
+                    )
                     results.append((task, None, str(exc)))
                 except Exception as exc:
                     task = future_to_task[future]["task"]
@@ -836,7 +844,9 @@ class EnrichmentWorker(BaseWorker):
             prompts_dir=prompts_dir,
             url_count=len(urls),
             urls_json=json.dumps(urls),
-            pii_prevention=getattr(self.ctx.config.privacy, "pii_prevention", None),
+            pii_prevention=getattr(cast("PipelineContext", self.ctx).config.privacy, "pii_prevention", None)
+            if hasattr(self.ctx, "config")
+            else None,
         ).strip()
 
         # Build model+key rotator if enabled
@@ -852,7 +862,7 @@ class EnrichmentWorker(BaseWorker):
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
                     model=model,
-                    contents=[{"parts": [{"text": combined_prompt}]}],
+                    contents=cast("Any", [{"parts": [{"text": combined_prompt}]}]),
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
                 return response.text or ""
@@ -860,12 +870,13 @@ class EnrichmentWorker(BaseWorker):
             response_text = rotator.call_with_rotation(call_with_model_and_key)
         else:
             # No rotation - use configured model and API key
-            model_name = self.ctx.config.models.enricher
+            config = getattr(self.ctx, "config", None)
+            model_name = config.models.enricher if config else "gemini-1.5-flash"
             api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
             client = genai.Client(api_key=api_key)
             response = client.models.generate_content(
                 model=model_name,
-                contents=[{"parts": [{"text": combined_prompt}]}],
+                contents=cast("Any", [{"parts": [{"text": combined_prompt}]}]),
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
             response_text = response.text or ""
@@ -952,8 +963,9 @@ class EnrichmentWorker(BaseWorker):
                 )
 
                 # Main Architecture: Use ContentLibrary if available
-                if self.ctx.library:
-                    self.ctx.library.save(doc)
+                library = getattr(self.ctx, "library", None)
+                if library:
+                    library.save(doc)
                 elif self.ctx.output_sink:
                     self.ctx.output_sink.persist(doc)
 
@@ -970,8 +982,12 @@ class EnrichmentWorker(BaseWorker):
         if new_rows:
             try:
                 t = ibis.memtable(new_rows)
-                self.ctx.storage.write_table(t, "messages", mode="append")
-                logger.info("Inserted %d enrichment rows", len(new_rows))
+                storage = getattr(self.ctx, "storage", None)
+                if storage:
+                    storage.write_table(t, "messages", mode="append")
+                    logger.info("Inserted %d enrichment rows", len(new_rows))
+                else:
+                    logger.warning("Storage not available for enrichment rows")
             except Exception:
                 logger.exception("Failed to insert enrichment rows")
 
@@ -990,7 +1006,7 @@ class EnrichmentWorker(BaseWorker):
             return ""
         if "text" in response:
             return response["text"]
-        texts = []
+        texts: list[str] = []
         for cand in response.get("candidates") or []:
             content = cand.get("content") or {}
             texts.extend(part["text"] for part in content.get("parts") or [] if "text" in part)
@@ -1073,7 +1089,7 @@ class EnrichmentWorker(BaseWorker):
 
         # Ensure ZIP handle is available, opening it if necessary.
         if zf is None:
-            input_path = self.ctx.input_path
+            input_path = getattr(self.ctx, "input_path", None)
             if not input_path or not input_path.exists():
                 msg = f"Input path not available for media task {task['task_id']}"
                 raise MediaStagingError(msg)
@@ -1116,7 +1132,8 @@ class EnrichmentWorker(BaseWorker):
     def _prepare_media_content(self, file_path: Path, mime_type: str) -> dict[str, Any]:
         """Prepare media content for API request, using File API for large files."""
         # Threshold: 20 MB
-        params = getattr(self.ctx.config.enrichment, "large_file_threshold_mb", 20)
+        config = getattr(self.ctx, "config", None)
+        params = getattr(config.enrichment, "large_file_threshold_mb", 20) if config else 20
         threshold_bytes = params * 1024 * 1024
 
         file_size = file_path.stat().st_size
@@ -1140,7 +1157,7 @@ class EnrichmentWorker(BaseWorker):
 
             # Upload file
             # Note: client.files.upload returns a File object with 'uri'
-            uploaded_file = client.files.upload(path=str(file_path), config={"mime_type": mime_type})
+            uploaded_file = client.files.upload(file=str(file_path), config={"mime_type": mime_type})
             logger.info("Uploaded file %s to %s", file_path.name, uploaded_file.uri)
 
             return {"fileData": {"mimeType": mime_type, "fileUri": uploaded_file.uri}}
@@ -1158,7 +1175,8 @@ class EnrichmentWorker(BaseWorker):
         self, requests: list[dict[str, Any]], task_map: dict[str, dict[str, Any]]
     ) -> list[Any]:
         """Execute media enrichments based on configured strategy."""
-        model_name = self.ctx.config.models.enricher_vision
+        config = getattr(self.ctx, "config", None)
+        model_name = config.models.enricher_vision if config else "gemini-1.5-flash"
         api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         if not api_key:
             msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for media enrichment"
@@ -1233,13 +1251,17 @@ class EnrichmentWorker(BaseWorker):
 
         # Render prompt from Jinja template
         prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
+
+        config = getattr(self.ctx, "config", None)
+        pii_prevention = getattr(config.privacy, "pii_prevention", None) if config else None
+
         combined_prompt = render_prompt(
             "enrichment.jinja",
             mode="media_batch",
             prompts_dir=prompts_dir,
             image_count=len(filenames),
             filenames_json=json.dumps(filenames),
-            pii_prevention=getattr(self.ctx.config.privacy, "pii_prevention", None),
+            pii_prevention=pii_prevention,
         ).strip()
 
         # Build the request: prompt first, then all images
@@ -1258,7 +1280,7 @@ class EnrichmentWorker(BaseWorker):
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
                     model=model,
-                    contents=[{"parts": request_parts}],
+                    contents=cast("Any", [{"parts": request_parts}]),
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
                 return response.text or ""
@@ -1268,7 +1290,7 @@ class EnrichmentWorker(BaseWorker):
             # No rotation - use configured model and API key
             response = client.models.generate_content(
                 model=model_name,
-                contents=[{"parts": request_parts}],
+                contents=cast("Any", [{"parts": request_parts}]),
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
             response_text = response.text if response.text else ""
@@ -1465,8 +1487,9 @@ class EnrichmentWorker(BaseWorker):
             )
 
             try:
-                if self.ctx.library:
-                    self.ctx.library.save(media_doc)
+                library = getattr(self.ctx, "library", None)
+                if library:
+                    library.save(media_doc)
                 elif self.ctx.output_sink:
                     self.ctx.output_sink.persist(media_doc)
                 logger.info("Persisted enriched media: %s -> %s", filename, media_doc.metadata["filename"])
@@ -1505,8 +1528,9 @@ class EnrichmentWorker(BaseWorker):
                 parent_id=None,  # No parent document needed - slug + filename uniquely identify media
             )
 
-            if self.ctx.library:
-                self.ctx.library.save(doc)
+            library = getattr(self.ctx, "library", None)
+            if library:
+                library.save(doc)
             elif self.ctx.output_sink:
                 self.ctx.output_sink.persist(doc)
 
@@ -1545,7 +1569,9 @@ class EnrichmentWorker(BaseWorker):
                     # Update text column using parameterized query
                     # Note: This updates ALL messages containing this ref.
                     query = "UPDATE messages SET text = replace(text, ?, ?) WHERE text LIKE ?"
-                    self.ctx.storage.execute_sql(query, [original_ref, new_path, f"%{original_ref}%"])
+                    storage = getattr(self.ctx, "storage", None)
+                    if storage:
+                        storage.execute_sql(query, [original_ref, new_path, f"%{original_ref}%"])
                 except duckdb.Error as exc:
                     logger.warning("Failed to update message references for %s: %s", original_ref, exc)
 
@@ -1554,8 +1580,12 @@ class EnrichmentWorker(BaseWorker):
         if new_rows:
             try:
                 t = ibis.memtable(new_rows)
-                self.ctx.storage.write_table(t, "messages", mode="append")
-                logger.info("Inserted %d media enrichment rows", len(new_rows))
+                storage = getattr(self.ctx, "storage", None)
+                if storage:
+                    storage.write_table(t, "messages", mode="append")
+                    logger.info("Inserted %d media enrichment rows", len(new_rows))
+                else:
+                    logger.warning("Storage not available for media enrichment rows")
             except (IbisError, duckdb.Error):
                 logger.exception("Failed to insert media enrichment rows")
 

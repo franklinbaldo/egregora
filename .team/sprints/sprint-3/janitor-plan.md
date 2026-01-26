@@ -6,24 +6,26 @@
 **Priority:** Medium
 
 ## Objectives
-Following the structural changes of Sprint 2, my mission for Sprint 3 is **Modernization (Strategy C)**. I will polish the newly refactored code to ensure it meets modern Python standards.
+My mission in Sprint 3 is to support the "Symbiote Shift" by ensuring the new Context Layer is type-safe and stable. I will also support the Refactor persona by stabilizing the test suite.
 
-- [ ] **Ruff Modernization:** Run `ruff check --select UP,SIM` on the codebase, specifically targeting the new modules created in Sprint 2 (`pipelines/etl/`, new `runner.py`).
-- [ ] **Import Sorting:** Ensure all new files comply with `isort` / `ruff` import ordering.
-- [ ] **Flaky Test Elimination:** If the heavy refactoring introduced flaky tests, I will switch to **Strategy D** to stabilize them.
+- [ ] **Type-Safe Context Layer:** Enforce strict type checking on the new "Universal Context Layer" APIs (RFC 026) and "Code Reference Detector" (RFC 027) being built by the Visionary.
+- [ ] **Flaky Test Stabilization (Strategy D):** Identify and fix intermittent test failures to improve CI reliability, supporting the Refactor persona's test suite review.
+- [ ] **Zero Regression:** Maintain the improved `mypy` baseline achieved in Sprint 2.
 
 ## Dependencies
-- **Simplifier & Artisan:** I can only polish their code after it is merged.
+- **Visionary:** I will be auditing their new code for type safety.
+- **Refactor:** I will coordinate with them on which tests to target for stabilization.
 
 ## Context
-After major surgery (Sprint 2), the patient (codebase) will have scars (inconsistent styles, old patterns copied over). Sprint 3 is about healing those scars.
+As the codebase evolves towards the "Symbiote" vision, complex interactions between the agent and the git history will emerge. Strict typing is crucial here to prevent runtime errors in these new, data-heavy pathways.
 
 ## Expected Deliverables
-1.  Modernized code using Python 3.12+ features (via `UP` rules).
-2.  Simplified control flow (via `SIM` rules).
-3.  Green and stable CI pipeline.
+1.  PRs adding type hints to new Context Layer modules.
+2.  PRs fixing identified flaky tests (using `pytest` repetition to verify).
+3.  Continued reduction in overall `mypy` error count.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Aggressive linting breaks behavior | Low | High | Verification via the full test suite after every automated fix. |
+| New Context Layer APIs change rapidly | High | Medium | I will focus on the stable core interfaces first and work closely with the Visionary. |
+| Flaky tests are hard to reproduce | Medium | Medium | I will use the `loop-testing` strategy (Strategy D) to reliably reproduce failures before fixing. |
