@@ -4,7 +4,10 @@ on:
   pull_request:
 
 jobs:
+  # The key here is the job ID. It was 'enable-auto-merge' before.
+  # If the check is looking for 'enable-auto-merge', this ID matches.
   enable-auto-merge:
+    name: enable-auto-merge
     runs-on: ubuntu-latest
     steps:
       - name: Enable auto-merge
