@@ -1,20 +1,62 @@
-name: Enable Auto-Merge
+name: Jules PR Auto-Merge
 
 on:
   pull_request_target:
-    types: [opened, reopened, ready_for_review, synchronize]
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
 
 permissions:
-  pull-requests: write
   contents: write
+  pull-requests: write
 
 jobs:
   enable-auto-merge:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    if: github.actor == 'google-labs-jules[bot]' || github.actor == 'jules-bot' || startsWith(github.head_ref, 'jules-')
     steps:
-      - name: Enable auto-merge
+      - name: Enable auto-merge for Jules PRs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          gh pr merge --auto --merge "${{ github.event.pull_request.html_url }}" || true
+          # Remove set -e to prevent exit on error
+          # set -euo pipefail
+
+          echo "Processing PR #$PR_NUMBER"
+
+          # Fetch author with error handling
+          author_login=$(gh pr view "$PR_NUMBER" --json author --jq '.author.login' || echo "unknown")
+          echo "PR Author: $author_login"
+
+          case "$author_login" in
+            "google-labs-jules[bot]"|"app/google-labs-jules"|"google-labs-jules")
+              echo "Author matches bot whitelist. Proceeding."
+              ;;
+            *)
+              echo "PR #$PR_NUMBER is authored by $author_login (not in whitelist); skipping."
+              exit 0
+              ;;
+          esac
+
+          # Check draft status
+          is_draft=$(gh pr view "$PR_NUMBER" --json isDraft --jq '.isDraft' || echo "false")
+          if [ "$is_draft" = "true" ]; then
+            echo "PR #$PR_NUMBER is draft; marking ready for review."
+            gh pr ready "$PR_NUMBER" || echo "Failed to mark ready (non-fatal)."
+          fi
+
+          echo "Enabling auto-merge for PR #$PR_NUMBER."
+          # Attempt to enable auto-merge, but do not fail the job if it fails
+          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch || echo "Failed to enable auto-merge. This is expected if repo settings disable it or permissions are missing. Continuing."
+
+          # Explicit success exit
+          exit 0
