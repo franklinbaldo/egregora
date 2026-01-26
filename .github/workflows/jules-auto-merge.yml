@@ -41,4 +41,5 @@ jobs:
           fi
 
           echo "Enabling auto-merge for PR #$PR_NUMBER."
-          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch
+          # Use || true to prevent workflow failure if auto-merge cannot be enabled (e.g. repo settings)
+          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch || echo "Failed to enable auto-merge, but continuing workflow."
