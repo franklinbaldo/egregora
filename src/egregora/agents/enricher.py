@@ -33,7 +33,15 @@ from ibis.common.exceptions import IbisError
 from pydantic import BaseModel
 
 # UrlContextTool is the client-side fetcher (alias for WebFetchTool) suitable for pydantic-ai
-from pydantic_ai import Agent, RunContext, UrlContextTool
+from pydantic_ai import Agent, RunContext
+
+# Pydantic-AI < 0.0.18 uses UrlContextTool, newer uses WebFetchTool.
+# We try to import WebFetchTool first, falling back to UrlContextTool.
+try:
+    from pydantic_ai.tools import WebFetchTool
+except ImportError:
+    from pydantic_ai import UrlContextTool as WebFetchTool
+
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import BinaryContent
 
@@ -150,7 +158,7 @@ class EnrichmentOutput(BaseModel):
 async def fetch_url_with_jina(ctx: RunContext[Any], url: str) -> str:
     """Fetch URL content using Jina.ai Reader.
 
-    Use this tool ONLY if the standard 'UrlContextTool' fails to retrieve meaningful content.
+    Use this tool ONLY if the standard 'WebFetchTool' fails to retrieve meaningful content.
     Examples of when to use this:
     - The standard fetch returns "JavaScript is required" or "Access Denied" (403/429).
     - The content is empty or contains only cookie/GDPR banners.
@@ -623,12 +631,12 @@ class EnrichmentWorker(BaseWorker):
             )
 
             # REGISTER TOOLS:
-            # 1. UrlContextTool: Standard client-side fetcher (primary) - passed via builtin_tools
+            # 1. WebFetchTool: Standard client-side fetcher (primary) - passed via builtin_tools
             # 2. fetch_url_with_jina: Fallback service for difficult pages - passed via tools
             agent = Agent(
                 model=model,
                 output_type=EnrichmentOutput,
-                builtin_tools=[UrlContextTool()],  # Built-in tools must use builtin_tools param
+                builtin_tools=[WebFetchTool()],  # Built-in tools must use builtin_tools param
                 tools=[fetch_url_with_jina],  # Custom tools use regular tools param
             )
 
