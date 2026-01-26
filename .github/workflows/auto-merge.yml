@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   enable-auto-merge:
-    name: Enable Auto Merge Check
+    name: enable-auto-merge
     runs-on: ubuntu-latest
     steps:
       - name: Dummy Auto-Merge Check
