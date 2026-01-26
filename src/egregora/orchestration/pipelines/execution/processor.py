@@ -15,7 +15,7 @@ from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.types import Message
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.data_primitives.document import Document
-from egregora.orchestration.context import Context
+from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.coordination.background_tasks import process_background_tasks
 from egregora.orchestration.pipelines.etl.preparation import Conversation
@@ -73,7 +73,7 @@ def _convert_messages_to_list(conversation: Conversation) -> list[dict[str, Any]
         executed = conversation.messages_table.execute()
         if hasattr(executed, "to_pylist"):
             return executed.to_pylist()
-        if hasattr(executed, "to_dict"):
+        elif hasattr(executed, "to_dict"):
             return executed.to_dict(orient="records")
     except (AttributeError, TypeError):
         try:
@@ -84,7 +84,7 @@ def _convert_messages_to_list(conversation: Conversation) -> list[dict[str, Any]
     return []
 
 
-def _process_announcements(ctx: Context, messages_list: list[dict[str, Any]]) -> int:
+def _process_announcements(ctx: PipelineContext, messages_list: list[dict[str, Any]]) -> int:
     """Extract and persist announcements from commands."""
     command_messages = extract_commands_list(messages_list)
     count = 0
@@ -102,7 +102,7 @@ def _process_announcements(ctx: Context, messages_list: list[dict[str, Any]]) ->
 
 
 def _execute_writer(
-    ctx: Context,
+    ctx: PipelineContext,
     conversation: Conversation,
     messages_objects: list[Message],
     clean_messages_list: list[dict[str, Any]],
@@ -147,7 +147,7 @@ def _execute_writer(
 
 
 def _execute_profile_generator(
-    ctx: Context,
+    ctx: PipelineContext,
     messages: list[dict[str, Any]],
     conversation: Conversation,
     profiles_list: list[Any],
