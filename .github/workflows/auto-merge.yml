@@ -13,4 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Dummy Auto-Merge Check
-        run: echo "Manual auto-merge check satisfied for non-Renovate PRs."
+        # This check is required by branch protection rules.
+        # It always passes for non-Renovate PRs (Renovate handles its own merging).
+        run: echo "Manual auto-merge check satisfied."
