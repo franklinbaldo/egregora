@@ -22,4 +22,7 @@ The sprint focus on "Structure & Polish" is the perfect foundation for the "Auto
 
 ### 🛡️ Sentinel
 - **New Risk Vector:** My Moonshot (RFC 028) introduces "Self-Modification" logic. If the AI can rewrite its prompts based on user input (via journals), we open a "Prompt Injection -> System Mutation" vector.
-- **Action Item:** Please consider adding a task to design a "Mutation Guardrail" or "Sandbox" for configuration changes. The prompt optimizer (RFC 029) will need your "SecretStr" work to ensure it doesn't accidentally leak secrets when rewriting configs.
+- **Action Item:** Please design a "Mutation Guardrail" or "Sandbox". Specifically, any proposed configuration change from the `PromptOptimizer` must be:
+    1.  Validated against a strict Pydantic schema (no arbitrary code execution).
+    2.  Checked for secret leakage (using your new `SecretStr` models).
+    3.  Submitted as a PR for human review, never applied directly to production.
