@@ -1,19 +1,19 @@
 # Sprint 1
 
-**Status:** In Progress  
-**Started:** 2026-01-07  
-**Completed:** TBD  
+**Status:** In Progress
+**Started:** 2026-01-07
+**Completed:** TBD
 
-## Objetivos Gerais
+## General Objectives
 
-Este é o primeiro sprint do sistema de planejamento colaborativo entre personas Jules.
+This is the first sprint of the Jules persona collaborative planning system.
 
-### Metas Principais
-- Estabelecer estrutura de sprints
-- Criar planos iniciais para sprint-2 e sprint-3
-- Testar fluxo de feedback entre personas
+### Main Goals
+- Establish sprint structure
+- Create initial plans for sprint-2 and sprint-3
+- Test feedback flow between personas
 
-## Personas Participantes
+## Participating Personas
 
 - curator
 - refactor
@@ -37,26 +37,26 @@ Este é o primeiro sprint do sistema de planejamento colaborativo entre personas
 - essentialist
 - sapper
 
-## Instruções para Personas
+## Instructions for Personas
 
-Durante este sprint, cada persona deve:
+During this sprint, each persona must:
 
-1. **Executar trabalho normal** conforme definido em seu prompt
-2. **Ler planos existentes** em `sprint-2/` e `sprint-3/`
-3. **Criar feedback** sobre planos de outras personas
-4. **Criar planos próprios** para sprint-2 e sprint-3
+1. **Execute normal work** as defined in their prompt
+2. **Read existing plans** in `sprint-2/` and `sprint-3/`
+3. **Create feedback** on other personas' plans
+4. **Create own plans** for sprint-2 and sprint-3
 
-## Estrutura de Arquivos
+## File Structure
 
-Cada persona deve criar:
-- `sprint-2/{persona}-plan.md` - Seu plano para o próximo sprint
-- `sprint-2/{persona}-feedback.md` - Feedback sobre planos de outros
-- `sprint-3/{persona}-plan.md` - Seu plano para sprint+2
+Each persona must create:
+- `sprint-2/{persona}-plan.md` - Their plan for the next sprint
+- `sprint-2/{persona}-feedback.md` - Feedback on others' plans
+- `sprint-3/{persona}-plan.md` - Their plan for sprint+2
 
-## Resumo de Resultados
+## Summary of Results
 
-(Será preenchido ao final do sprint)
+(To be filled at the end of the sprint)
 
 ---
 
-**Nota:** Este é um sprint experimental. Ajustes serão feitos conforme aprendemos.
+**Note:** This is an experimental sprint. Adjustments will be made as we learn.

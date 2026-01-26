@@ -1,49 +1,49 @@
-# Plano: {persona} - Sprint {n}
+# Plan: {persona} - Sprint {n}
 
-**Persona:** {persona_name}  
-**Sprint:** {sprint_number}  
-**Criado em:** {date}  
-**Prioridade:** Alta / Média / Baixa  
+**Persona:** {persona_name}
+**Sprint:** {sprint_number}
+**Created:** {date}
+**Priority:** High / Medium / Low
 
-## Objetivos
+## Objectives
 
-Descreva os principais objetivos para este sprint:
+Describe the main objectives for this sprint:
 
-- [ ] Objetivo 1
-- [ ] Objetivo 2
-- [ ] Objetivo 3
+- [ ] Objective 1
+- [ ] Objective 2
+- [ ] Objective 3
 
-## Dependências
+## Dependencies
 
-Liste dependências de trabalho de outras personas:
+List dependencies from other personas:
 
-- **Persona X:** Aguardando refatoração do módulo Y
-- **Persona Z:** Coordenar sobre feature W
+- **Persona X:** Waiting for refactoring of module Y
+- **Persona Z:** Coordinate on feature W
 
-## Contexto
+## Context
 
-Explique o contexto e raciocínio por trás deste plano:
+Explain the context and reasoning behind this plan:
 
-Durante o sprint anterior, identifiquei que...
+During the previous sprint, I identified that...
 
-## Entregáveis Esperados
+## Expected Deliverables
 
-1. Entregável 1: Descrição
-2. Entregável 2: Descrição
-3. Entregável 3: Descrição
+1. Deliverable 1: Description
+2. Deliverable 2: Description
+3. Deliverable 3: Description
 
-## Riscos e Mitigações
+## Risks and Mitigations
 
-| Risco | Probabilidade | Impacto | Mitigação |
+| Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Risco 1 | Alta | Alto | Estratégia de mitigação |
-| Risco 2 | Média | Médio | Estratégia de mitigação |
+| Risk 1 | High | High | Mitigation strategy |
+| Risk 2 | Medium | Medium | Mitigation strategy |
 
-## Colaborações Propostas
+## Proposed Collaborations
 
-- **Com Persona X:** Proposta de colaboração
-- **Com Persona Y:** Proposta de colaboração
+- **With Persona X:** Collaboration proposal
+- **With Persona Y:** Collaboration proposal
 
-## Notas Adicionais
+## Additional Notes
 
-Qualquer informação adicional relevante.
+Any additional relevant information.
