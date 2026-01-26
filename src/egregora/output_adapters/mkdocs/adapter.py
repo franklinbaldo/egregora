@@ -38,8 +38,11 @@ from egregora.output_adapters.exceptions import (
     AdapterNotInitializedError,
     CollisionResolutionError,
     ConfigLoadError,
+    DirectoryCreationError,
     DocumentNotFoundError,
     DocumentParsingError,
+    FileWriteError,
+    FilesystemOperationError,
     ProfileMetadataError,
     UnsupportedDocumentTypeError,
 )
@@ -98,29 +101,33 @@ class MkDocsAdapter(BaseOutputSink):
             storage: Storage backend for database-backed document reading
 
         """
-        site_paths = MkDocsPaths(site_root)
-        self.site_root = site_paths.site_root
-        self._site_root = self.site_root
-        self.docs_dir = site_paths.docs_dir
-        # `site_prefix` is a URL hosting prefix (e.g. '/egregora'), not a filesystem directory like `docs/`.
-        # Default to empty unless explicitly provided by the caller.
-        self._ctx = url_context or UrlContext(base_url="", site_prefix="", base_path=self.site_root)
-        self.posts_dir = site_paths.posts_dir
-        self.profiles_dir = site_paths.profiles_dir
-        # Journal entries are stored in the configured journal directory (defaults to posts/journal)
-        self.journal_dir = site_paths.journal_dir
-        self.media_dir = site_paths.media_dir
-        self.urls_dir = self.media_dir / "urls"
+        try:
+            site_paths = MkDocsPaths(site_root)
+            self.site_root = site_paths.site_root
+            self._site_root = self.site_root
+            self.docs_dir = site_paths.docs_dir
+            # `site_prefix` is a URL hosting prefix (e.g. '/egregora'), not a filesystem directory like `docs/`.
+            # Default to empty unless explicitly provided by the caller.
+            self._ctx = url_context or UrlContext(base_url="", site_prefix="", base_path=self.site_root)
+            self.posts_dir = site_paths.posts_dir
+            self.profiles_dir = site_paths.profiles_dir
+            # Journal entries are stored in the configured journal directory (defaults to posts/journal)
+            self.journal_dir = site_paths.journal_dir
+            self.media_dir = site_paths.media_dir
+            self.urls_dir = self.media_dir / "urls"
 
-        # Store storage if provided (overrides __init__ value)
-        if storage is not None:
-            self._storage = storage
+            # Store storage if provided (overrides __init__ value)
+            if storage is not None:
+                self._storage = storage
 
-        self.posts_dir.mkdir(parents=True, exist_ok=True)
-        self.profiles_dir.mkdir(parents=True, exist_ok=True)
-        self.media_dir.mkdir(parents=True, exist_ok=True)
-        self.urls_dir.mkdir(parents=True, exist_ok=True)
-        self.journal_dir.mkdir(parents=True, exist_ok=True)
+            self.posts_dir.mkdir(parents=True, exist_ok=True)
+            self.profiles_dir.mkdir(parents=True, exist_ok=True)
+            self.media_dir.mkdir(parents=True, exist_ok=True)
+            self.urls_dir.mkdir(parents=True, exist_ok=True)
+            self.journal_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            # Catch any filesystem error during initialization (including from MkDocsPaths)
+            raise DirectoryCreationError(str(site_root), e) from e
 
         # Configure URL convention to match filesystem layout
         # This ensures that generated URLs align with where files are actually stored
@@ -170,15 +177,18 @@ class MkDocsAdapter(BaseOutputSink):
 
         # We use the resolved docs_dir if possible, otherwise guess "docs"
         docs_dir = site_root / "docs"
-        if not docs_dir.exists():
-            docs_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            if not docs_dir.exists():
+                docs_dir.mkdir(parents=True, exist_ok=True)
 
-        authors_file = docs_dir / ".authors.yml"
+            authors_file = docs_dir / ".authors.yml"
 
-        if not authors_file.exists():
-            # Create empty but valid YAML
-            authors_file.write_text("# Authors metadata\n", encoding="utf-8")
-            logger.info("Created initial authors file at %s", authors_file)
+            if not authors_file.exists():
+                # Create empty but valid YAML
+                authors_file.write_text("# Authors metadata\n", encoding="utf-8")
+                logger.info("Created initial authors file at %s", authors_file)
+        except OSError as e:
+            raise FileWriteError(str(docs_dir / ".authors.yml"), e) from e
 
     @property
     def format_type(self) -> str:
@@ -217,11 +227,14 @@ class MkDocsAdapter(BaseOutputSink):
             old_path = self._index[doc_id]
             if old_path != path and old_path.exists():
                 logger.info("Moving document %s: %s → %s", doc_id[:8], old_path, path)
-                path.parent.mkdir(parents=True, exist_ok=True)
-                if path.exists():
-                    old_path.unlink()
-                else:
-                    old_path.rename(path)
+                try:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    if path.exists():
+                        old_path.unlink()
+                    else:
+                        old_path.rename(path)
+                except OSError as e:
+                    raise FilesystemOperationError(str(old_path), e, f"Failed to move document: {e}") from e
 
         if path.exists() and document.type == DocumentType.ENRICHMENT_URL:
             existing_doc_id = self._get_document_id_at_path(path)
@@ -229,7 +242,10 @@ class MkDocsAdapter(BaseOutputSink):
                 path = self._resolve_collision(path, doc_id)
                 logger.warning("Hash collision for %s, using %s", doc_id[:8], path)
 
-        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            raise DirectoryCreationError(str(path.parent), e) from e
 
         if document.type == DocumentType.POST:
             metadata = document.metadata
@@ -1046,7 +1062,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
-        path.write_text(full_content, encoding="utf-8")
+        try:
+            path.write_text(full_content, encoding="utf-8")
+        except OSError as e:
+            raise FileWriteError(str(path), e) from e
 
     def _write_annotation_doc(self, document: Document, path: Path) -> None:
         metadata = self._ensure_hidden(dict(document.metadata or {}))
@@ -1060,7 +1079,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
-        path.write_text(full_content, encoding="utf-8")
+        try:
+            path.write_text(full_content, encoding="utf-8")
+        except OSError as e:
+            raise FileWriteError(str(path), e) from e
 
     def _write_profile_doc(self, document: Document, path: Path) -> None:
         # Ensure UUID is in metadata
@@ -1098,7 +1120,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Avatar is in frontmatter only - not prepended to content
         # This allows the template/theme to handle avatar rendering
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
-        path.write_text(full_content, encoding="utf-8")
+        try:
+            path.write_text(full_content, encoding="utf-8")
+        except OSError as e:
+            raise FileWriteError(str(path), e) from e
 
     def _write_enrichment_doc(self, document: Document, path: Path) -> None:
         metadata = self._ensure_hidden(document.metadata.copy())
@@ -1114,7 +1139,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
-        path.write_text(full_content, encoding="utf-8")
+        try:
+            path.write_text(full_content, encoding="utf-8")
+        except OSError as e:
+            raise FileWriteError(str(path), e) from e
 
     def _write_media_doc(self, document: Document, path: Path) -> None:
         if document.metadata.get("pii_deleted"):
@@ -1131,25 +1159,34 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 # We use move to be efficient (atomic on same filesystem), falling back to copy if needed.
                 # Since the source is usually a temp staging file, moving is preferred.
                 try:
-                    shutil.move(src, path)
-                except OSError:
-                    # Fallback if cross-device or other issue
-                    shutil.copy2(src, path)
-                    with suppress(OSError):
-                        src.unlink()
+                    try:
+                        shutil.move(src, path)
+                    except OSError:
+                        # Fallback if cross-device or other issue
+                        shutil.copy2(src, path)
+                        with suppress(OSError):
+                            src.unlink()
+                except OSError as e:
+                    raise FileWriteError(str(path), e) from e
                 return
             logger.warning("Source path %s provided but does not exist, falling back to content", source_path)
 
         payload = (
             document.content if isinstance(document.content, bytes) else document.content.encode("utf-8")
         )
-        path.write_bytes(payload)
+        try:
+            path.write_bytes(payload)
+        except OSError as e:
+            raise FileWriteError(str(path), e) from e
 
     def _write_generic_doc(self, document: Document, path: Path) -> None:
-        if isinstance(document.content, bytes):
-            path.write_bytes(document.content)
-        else:
-            path.write_text(document.content, encoding="utf-8")
+        try:
+            if isinstance(document.content, bytes):
+                path.write_bytes(document.content)
+            else:
+                path.write_text(document.content, encoding="utf-8")
+        except OSError as e:
+            raise FileWriteError(str(path), e) from e
 
     @staticmethod
     def _ensure_hidden(metadata: dict[str, Any]) -> dict[str, Any]:
