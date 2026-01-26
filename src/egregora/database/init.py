@@ -64,6 +64,8 @@ def initialize_database(backend: BaseBackend) -> None:
     )
 
     # Create indexes for documents
+    # These are crucial for performance of queries filtering by doc_type (e.g. ContentRepository.list)
+    # and looking up by slug (e.g. finding posts).
     create_index(conn, "documents", "idx_documents_type", "doc_type", index_type="Standard")
     create_index(conn, "documents", "idx_documents_slug", "slug", index_type="Standard")
     create_index(conn, "documents", "idx_documents_created", "created_at", index_type="Standard")
