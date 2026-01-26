@@ -85,6 +85,41 @@ def discover_personas() -> list[str]:
     return sorted(personas)
 
 
+def get_active_session(client: TeamClient, repo: str) -> dict | None:
+    """Check if there's an active/running Jules session for this repo.
+
+    Args:
+        client: Jules API client
+        repo: Repository name to filter sessions
+
+    Returns:
+        Active session dict if found, None otherwise.
+    """
+    # Active states that indicate a session is still running
+    active_states = {"ACTIVE", "RUNNING", "PLANNING", "EXECUTING", "WAITING_FOR_USER"}
+
+    try:
+        sessions = client.list_sessions().get("sessions", [])
+    except Exception:
+        return None
+
+    repo_lower = repo.lower()
+
+    for session in sessions:
+        title = (session.get("title") or "").lower()
+        state = (session.get("state") or "").upper()
+
+        # Filter by repo
+        if repo_lower not in title:
+            continue
+
+        # Check if session is active
+        if state in active_states:
+            return session
+
+    return None
+
+
 def get_last_persona_from_api(client: TeamClient, repo: str) -> str | None:
     """Get the last persona that ran from Jules API.
 
@@ -282,10 +317,11 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
     """Main scheduler entry point.
 
     This function:
-    1. Merges any completed Jules PRs
-    2. Determines the next persona (round-robin)
-    3. Renders the persona prompt with Jinja2
-    4. Creates a Jules session
+    1. Checks if there's already an active session (skips if yes)
+    2. Merges any completed Jules PRs
+    3. Determines the next persona (round-robin)
+    4. Renders the persona prompt with Jinja2
+    5. Creates a Jules session
 
     Args:
         dry_run: If True, don't create sessions or merge PRs
@@ -301,8 +337,23 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
     repo_info = get_repo_info()
     print(f"Repository: {repo_info['owner']}/{repo_info['repo']}")
 
-    # Step 1: Merge completed PRs
-    print("\n1. Checking for PRs to merge...")
+    # Step 1: Check for active sessions
+    print("\n1. Checking for active sessions...")
+    active_session = get_active_session(client, repo_info["repo"])
+    if active_session:
+        session_id = active_session.get("name", "").split("/")[-1]
+        state = active_session.get("state", "UNKNOWN")
+        print(f"  Active session found: {session_id} (state: {state})")
+        return SchedulerResult(
+            success=True,
+            message=f"Session already running ({state}), skipping new session creation",
+            session_id=session_id,
+            merged_count=0,
+        )
+    print("  No active sessions found")
+
+    # Step 2: Merge completed PRs
+    print("\n2. Checking for PRs to merge...")
     if dry_run:
         print("  [DRY RUN] Skipping PR merge")
         merged = 0
@@ -310,8 +361,8 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
         merged = merge_completed_prs()
     print(f"  Merged {merged} PR(s)")
 
-    # Step 2: Find next persona
-    print("\n2. Determining next persona...")
+    # Step 3: Find next persona
+    print("\n3. Determining next persona...")
     personas = discover_personas()
     if not personas:
         return SchedulerResult(
@@ -336,8 +387,8 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
         )
     print(f"  Next persona: {next_persona_id}")
 
-    # Step 3: Load and render persona
-    print("\n3. Loading persona configuration...")
+    # Step 4: Load and render persona
+    print("\n4. Loading persona configuration...")
     try:
         open_prs = get_open_prs(repo_info["owner"], repo_info["repo"])
         context: dict[str, Any] = {**repo_info, "open_prs": open_prs}
@@ -362,8 +413,8 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
             merged_count=merged,
         )
 
-    # Step 4: Create session
-    print("\n4. Creating Jules session...")
+    # Step 5: Create session
+    print("\n5. Creating Jules session...")
     if dry_run:
         print(f"  [DRY RUN] Would create session for {persona.id}")
         return SchedulerResult(
