@@ -218,27 +218,6 @@ class MkDocsSiteScaffolder:
             (site_paths.egregora_dir / "main.py", "main.py.jinja"),
         ]
 
-        stylesheets_dir = docs_dir / "stylesheets"
-        stylesheets_dir.mkdir(parents=True, exist_ok=True)
-        extra_css_src = Path(env.loader.searchpath[0]) / "docs" / "stylesheets" / "extra.css"
-        extra_css_dest = stylesheets_dir / "extra.css"
-        if extra_css_src.exists() and not extra_css_dest.exists():
-            shutil.copy(extra_css_src, extra_css_dest)
-
-        javascripts_dir = docs_dir / "javascripts"
-        javascripts_dir.mkdir(parents=True, exist_ok=True)
-        carousel_js_src = Path(env.loader.searchpath[0]) / "docs" / "javascripts" / "media_carousel.js"
-        carousel_js_dest = javascripts_dir / "media_carousel.js"
-        if carousel_js_src.exists() and not carousel_js_dest.exists():
-            shutil.copy(carousel_js_src, carousel_js_dest)
-
-        assets_dir = docs_dir / "assets"
-        assets_dir.mkdir(parents=True, exist_ok=True)
-        assets_src = Path(env.loader.searchpath[0]) / "assets"
-        assets_dest = assets_dir
-        if assets_src.exists():
-            # Ensure assets are always copied, even if the directory exists.
-            shutil.copytree(assets_src, assets_dest, dirs_exist_ok=True)
 
         for target_path, template_name in templates_to_render:
             if not target_path.exists():

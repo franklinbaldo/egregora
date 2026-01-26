@@ -8,9 +8,10 @@
 ## Objectives
 My mission is to complete the "Portal" visual identity and ensure a polished user experience.
 
-- [ ] **Functional Social Cards:** Ensure `og:image` tags are generated correctly and do not return 404s. (Requires `pillow`, `cairosvg`).
-- [ ] **Custom Favicon:** Implement a unique favicon for the site.
-- [ ] **Refine "Empty State":** Polish the "Welcome" message on the homepage to be engaging even without content.
+- [x] **Functional Social Cards:** Ensure `og:image` tags are generated correctly and do not return 404s. (Requires `pillow`, `cairosvg`).
+- [x] **Custom Favicon:** Implement a unique favicon for the site.
+- [x] **Refine "Empty State":** Polish the "Welcome" message on the homepage to be engaging even without content.
+- [x] **Consolidate CSS and Assets:** Fix shadowing bug by moving all theme assets to `overrides/` and cleaning up scaffolding logic.
 - [ ] **Accessibility Audit (Preliminary):** Run a basic accessibility check (Lighthouse/Axe) on the new "Portal" theme to catch low-hanging fruit (contrast, labels).
 
 ## Dependencies
@@ -23,7 +24,8 @@ Foundational theming was established in Sprint 1 (including the Portal theme and
 1. Working Social Cards.
 2. Custom Favicon.
 3. Polished Empty State.
-4. Accessibility Report.
+4. Consolidated CSS/Asset Architecture.
+5. Accessibility Report.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
