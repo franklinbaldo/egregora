@@ -6,11 +6,12 @@
 **Priority:** High
 
 ## Objectives
-Sprint 3 will likely focus on "Context" and "Features". My role will be to ensure these new features do not re-introduce complexity.
+Sprint 3 will likely focus on "Context" and "Features" (Visionary's Context Layer, Bolt's Real-Time Adapter). My role will be to ensure these new features do not re-introduce complexity.
 
 - [ ] **Audit "Context Layer":** Review the implementation of the Visionary's "Git Reference" and "Contextual Memory" features. Ensure they follow "Data over Logic" (e.g., persisting context as simple data structures, not complex objects).
 - [ ] **Unified Error Handling:** Work with Sapper to collapse custom exception hierarchies if they have become too deep ("Abstractions with 1 impl").
 - [ ] **Enforce "Library over Framework":** Audit dependencies added in Sprint 2/3.
+- [ ] **API Surface Review:** As we expose more APIs (Context Layer), ensure they are minimal and explicit ("Constraints over Options").
 
 ## Dependencies
 - **Visionary:** Implementation of Context Layer.
@@ -27,3 +28,4 @@ After the structural hardening of Sprint 2, Sprint 3 will see feature growth. Th
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
 | Feature creep | High | Medium | Enforce "Constraints over Options" in code reviews. |
+| Context Layer becomes a second database | Medium | High | Ensure it uses existing storage abstractions (Ibis/DuckDB) where possible. |

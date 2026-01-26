@@ -15,9 +15,9 @@ from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.types import Message
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.data_primitives.document import Document
-from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.coordination.background_tasks import process_background_tasks
 from egregora.orchestration.pipelines.etl.preparation import Conversation
+from egregora.orchestration.resources import create_writer_resources
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     messages_objects = [Message(**msg) for msg in clean_messages_list]
 
     # Prepare Resources
-    resources = PipelineFactory.create_writer_resources(ctx)
+    resources = create_writer_resources(ctx)
 
     params = WindowProcessingParams(
         table=conversation.messages_table,
