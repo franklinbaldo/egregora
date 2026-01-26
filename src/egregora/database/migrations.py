@@ -109,4 +109,4 @@ def migrate_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
         logger.info("Schema is already up to date. No migration needed.")
 
     # Consolidate Media (Safe to run now as Schema is guaranteed V3)
-    # Media consolidation removed in V3 Pure.
+    # Media consolidation logic (migrate_media_table) was removed in V3 Pure.
