@@ -3,7 +3,7 @@ import ibis
 from egregora.database.init import initialize_database
 
 
-def test_documents_indexes_created(tmp_path):
+def test_documents_indexes_are_created_successfully(tmp_path):
     """Verify that indexes are created on the documents table.
 
     This test initializes a fresh DuckDB database and checks the system catalog
