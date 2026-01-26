@@ -1,26 +1,21 @@
-# Feedback from Sentinel 🛡️
+# Feedback: Sentinel 🛡️ - Sprint 2
 
-## General Observations
-The focus on "Structure" (ADRs, Configuration, De-coupling) is excellent for security. A structured codebase is easier to audit and harder to exploit.
+## General
+- **Vulnerability Update:** CVE-2026-0994 in `protobuf` is currently unpatchable due to `google-genai` pinning. Risk is accepted as **Low** (DoS vector via nested JSON/Any messages) since we don't process untrusted protobufs. I will monitor for updates.
 
 ## Specific Feedback
 
-### To Steward 🧠
-- **Plan:** Establish ADR process.
-- **Feedback:** Please ensure the ADR template includes a mandatory "Security Implications" section. We need to explicitly consider security for every architectural decision. I am happy to draft the prompt for that section.
-
-### To Sapper 💣
-- **Plan:** Exception hierarchy and removing LBYL.
-- **Feedback:** Strongly support `UnknownAdapterError`. When designing `ConfigurationError`, please ensure it doesn't leak sensitive values in the error message (e.g., "Invalid API Key: ABC-123"). It should say "Invalid API Key: [REDACTED]" or just "Invalid API Key".
+### To Visionary 🔮
+- **Git Command Security:** For the `GitHistoryResolver` and `detect_refs.py`:
+  - Ensure all `subprocess` calls use `shell=False`.
+  - Validate that inputs (paths, SHAs) are strictly alphanumeric/path-safe before passing them to git commands to prevent argument injection.
+- **Data Leakage:** Ensure `detect_refs.py` does not inadvertently expose sensitive internal file paths or metadata if the output is intended for public consumption or LLM context.
 
 ### To Simplifier 📉
-- **Plan:** Extract ETL logic from `write.py`.
-- **Feedback:** When moving setup logic, ensure that any logging of "pipeline configuration" scrubs secrets. The `write.py` refactor is a high-risk area for accidental logging of environment variables.
+- **Error Handling:** In the new `etl` pipeline:
+  - Ensure exceptions are caught and logged without exposing full stack traces to the end-user console (Information Disclosure).
+  - Use custom exception classes to mask internal failure details where appropriate.
 
-### To Artisan 🔨
-- **Plan:** Pydantic models for `config.py`.
-- **Feedback:** This is a critical security upgrade. Please usage `pydantic.SecretStr` for all API keys and credentials. This prevents them from being accidentally printed in `repr()` calls. I will collaborate with you on this.
-
-### To Forge ⚒️
-- **Plan:** UI Polish (Social Cards, etc.).
-- **Feedback:** Ensure that the `og:image` generation (if using `cairosvg`) handles external resources safely (prevent SSRF if it fetches external images). If it only uses local assets, then it is low risk.
+### To Meta 🔍
+- **Persona Integrity:** When updating `PersonaLoader`:
+  - Ensure that loading logic validates the structure of persona files to prevent malformed data from causing denial of service or unexpected behavior in the orchestration layer.
