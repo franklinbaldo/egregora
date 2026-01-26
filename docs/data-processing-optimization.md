@@ -36,7 +36,7 @@ The byte-based windowing is better, using an Ibis window function to calculate c
 - **Refactored `_window_by_count` to Fetch-then-Compute.**
   - **Date:** 2026-01-26
   - **Change:** Replaced the "declarative" Ibis loop (which still executed N aggregation queries) with a "Fetch-then-Compute" pattern. We now fetch all timestamps in a single O(1) query, compute window boundaries in Python (microseconds), and yield lazy table slices.
-  - **Impact:** Benchmark showed **32x speedup** (3.2s -> 0.1s for 10k messages). Eliminated the hidden N+1 query cost of the previous implementation.
+  - **Impact:** Benchmark showed **32x speedup** (3.2s -> 0.1s for 10,000 messages). Eliminated the hidden N+1 query cost of the previous implementation.
 
 ## Optimization Strategy
 
