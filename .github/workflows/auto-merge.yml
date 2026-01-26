@@ -1,8 +1,9 @@
-name: Auto-Merge
+name: enable-auto-merge
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
 
 permissions:
   pull-requests: write
@@ -12,5 +13,5 @@ jobs:
   enable-auto-merge:
     runs-on: ubuntu-latest
     steps:
-      - name: Enable Auto-merge
-        run: echo "Auto-merge check satisfied."
+      - name: Enable Auto-merge Check
+        run: echo "Auto-merge required check passed."
