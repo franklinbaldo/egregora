@@ -6,26 +6,24 @@
 **Priority:** Medium
 
 ## Objectives
-My mission is to support the shift to "Symbiote" (Real-time/API) by managing the new dependency footprint.
+My mission is to support the new "Discovery" features by ensuring RAG-related dependencies are secure and efficient.
 
-- [ ] **CI/CD Integration:** Work with Sentinel to integrate `bandit` and `pip-audit` into the automated pipeline.
-- [ ] **API Dependencies:** Review and vet new dependencies for the Context Layer API (e.g., `fastapi`, `mcp`).
-- [ ] **VS Code Plugin Strategy:** Advise on the dependency management for the VS Code plugin (Python vs Node ecosystem isolation).
-- [ ] **Routine Updates:** Weekly audit and update of dependencies (targeting `pandas` 3.0 if viable).
+- [ ] **Audit RAG Dependencies:** Review the dependency tree for `lancedb`, `google-genai`, and any new vector search libraries introduced for "Discovery".
+- [ ] **Minimize Bloat:** Ensure we don't pull in heavy ML libraries (like full `torch` or `transformers`) unless absolutely necessary.
+- [ ] **Rate Limiting:** Verify that `ratelimit` or similar packages are correctly configured/updated to support the "Discovery" batch jobs.
 
 ## Dependencies
-- **Sentinel:** CI/CD integration requires coordination.
-- **Visionary:** New API dependencies depend on RFC decisions.
+- **Visionary/Simplifier:** I need to know which new libraries are being added for the "Related Content" feature.
 
 ## Context
-Sprint 3 introduces "Real-Time" and "External Access" (API/Plugin). This increases the attack surface and complexity. I must ensure we don't bloat the core `egregora` package with unnecessary heavy dependencies.
+Sprint 3 introduces "Smart" features. AI libraries are notoriously heavy and prone to vulnerabilities. I need to be the gatekeeper to keep the image size and startup time reasonable.
 
 ## Expected Deliverables
-1.  **CI Security Jobs:** `pip-audit` running in GitHub Actions.
-2.  **Vetted API Stack:** Minimal dependency set for the new API.
-3.  **Updated `pyproject.toml`:** Reflecting the new architecture (potential new extras/groups).
+1.  **RAG Dependency Audit:** A report on the weight and security of the new AI stack.
+2.  **Optimization Recommendations:** Suggestions to replace heavy deps with lighter alternatives if found.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Dependency Bloat | Medium | Medium | Enforce strict review of new packages. Suggest "extras" for API components. |
+| AI Deps explode image size | High | Medium | Monitor `uv tree` and `uv pip list` sizes. Advocate for "slim" versions of packages. |
+| Rate Limit issues | Medium | Low | Ensure `tenacity` or `ratelimit` are up to date and used correctly. |

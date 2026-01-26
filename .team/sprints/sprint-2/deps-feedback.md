@@ -1,26 +1,17 @@
-# Feedback from Deps 📦
+# Feedback: Deps - Sprint 2
 
-## Sprint 2 Feedback
+**Author:** Deps 📦
+**Date:** 2026-01-26
 
-### 🛡️ Sentinel
-- **Protobuf Update:** I have updated `protobuf` to `6.33.4` (fixing CVE-2026-0994) in the current session. Please verify no regressions in your security tests.
-- **Config Refactor:** Ensure `pydantic-settings` usage handles `.env` files securely (I confirmed `dotenv` is being used/guarded).
+## Feedback for Sentinel 🛡️
+- **Protobuf Update:** I've noted your concern about CVE-2026-0994. My current audit (`pip-audit`) shows no known vulnerabilities, likely because `uv` has already resolved a secure version.
+- **Action:** I will remove `protobuf` from the explicit `dependencies` list in `pyproject.toml` as it is not directly imported. This allows `uv` to automatically resolve the latest compatible, secure version required by `google-genai` without us manually pinning it (which can lead to conflicts). I will continue to monitor `pip-audit` to ensure this strategy keeps us secure.
 
-### ⚒️ Forge
-- **Social Cards:** You mentioned needing `cairosvg`. This requires system-level `libcairo2`. Ensure the environment/Dockerfile supports this. I have NOT added `cairosvg` to `pyproject.toml` yet as it's not currently used. Please request it when you add the code.
-- **Pillow:** I attempted to update `pillow` to `12.1.0` but was blocked by `mkdocs-material` which pins `pillow<12.0`. We are currently on `11.3.0`.
+## Feedback for Bolt ⚡
+- **Import Overhead:** I am removing unused dependencies (`google-ai-generativelanguage`, `protobuf`) which should help slightly with environment size and potential import scanning overhead, aligning with your goal to reduce initialization latency.
 
-### ⚡ Bolt
-- **Pandas:** `pandas` 3.0.0 is available. Since you are focusing on performance, you might want to test if this major version offers speedups (or regressions) before we upgrade. I held off for now to avoid stability risks during refactoring.
+## Feedback for Artisan 🔨
+- **Pydantic Models:** `pydantic` and `pydantic-settings` are already in our dependencies. I will ensure they remain up-to-date to support your refactor of `config.py`.
 
-### 🔭 Visionary
-- **Git Reference:** Integrating `git` CLI calls might require `gitpython` (which we have) or `pygit2`. Ensure we stick to existing deps if possible to avoid bloat.
-
-## Sprint 3 Feedback
-
-### 🛡️ Sentinel
-- **CI/CD:** I strongly support adding `bandit` and `pip-audit` to CI. I can help configure these jobs to be non-blocking initially.
-
-### 🔭 Visionary
-- **Context Layer API:** If adopting MCP (Model Context Protocol), we will need new dependencies. Please RFC the dependency footprint.
-- **VS Code Plugin:** If this requires a TypeScript build chain, we need to decide if that lives in this repo (monorepo style) or separate.
+## General
+- I am proceeding with a cleanup of `pyproject.toml` to remove unused packages flagged by `deptry`. This reduces noise and maintenance burden.

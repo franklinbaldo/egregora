@@ -6,26 +6,25 @@
 **Priority:** High
 
 ## Objectives
-My mission is to ensure the dependency tree remains healthy and secure while the team performs major structural refactoring.
+My mission is to declutter the dependency tree and ensure the "Structure" sprint builds on a clean foundation.
 
-- [x] **Fix Dependency Auditing:** Restore and configure `[tool.deptry]` in `pyproject.toml` to eliminate false positives and make audits useful again. (Completed in Sprint 1 transition).
-- [x] **Security Updates:** Update `protobuf` to fix CVE-2026-0994. (Completed).
-- [ ] **Monitor Refactoring Impacts:** Watch for new dependencies introduced by Simplifier (`write.py` refactor) and Artisan (`pydantic` models).
-- [ ] **Support Social Cards:** Be ready to add `cairosvg` or other image processing libs for Forge.
+- [ ] **Remove Unused Dependencies:** Remove `protobuf` and `google-ai-generativelanguage` from `pyproject.toml` as flagged by `deptry`.
+- [ ] **Support Security Patches:** Allow `protobuf` to float as a transitive dependency to facilitate automatic security updates (addressing Sentinel's CVE concern).
+- [ ] **Automated Audits:** continue running manual audits and investigate formalizing them into CI (as requested by Sentinel).
 
 ## Dependencies
-- **Forge:** Waiting on implementation of Social Cards to finalize dependencies.
-- **Simplifier:** Refactoring `write.py` might change import structures affecting `deptry`.
+- **Sentinel:** Coordination on `protobuf` security verification.
 
 ## Context
-Sprint 2 is heavy on refactoring. My role is "support and monitor". I have already cleaned up the `deptry` configuration and handled the critical `protobuf` update.
+We have some "zombie" dependencies that were likely needed for legacy code but are no longer imported. Removing them reduces the attack surface and simplifies the lockfile.
 
 ## Expected Deliverables
-1.  **Clean `deptry` Report:** No false positives.
-2.  **Secure `uv.lock`:** All critical patches applied.
-3.  **Feedback:** Timely feedback on PRs adding new libraries.
+1.  **Cleaner `pyproject.toml`:** Removal of at least 2 unused packages.
+2.  **Updated `uv.lock`:** Reflecting the removals.
+3.  **Audit Report:** Confirmation that the new dependency tree is secure.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| `mkdocs-material` blocks updates | High | Low | `pillow` 12.0 is blocked. I will monitor for upstream updates. |
+| Implicit/Legacy usage breaks | Low | High | Run full test suite (`uv run pytest`) immediately after removal. `google-api-core` is kept for exceptions. |
+| Protobuf version mismatch | Medium | Medium | Rely on `uv`'s resolution. If `google-genai` forces an insecure version, I will explicitly override it in `pyproject.toml`. |
