@@ -190,6 +190,7 @@ def create_index(
 
     Note:
         For vector columns, use index_type='HNSW' with cosine metric (optimized for 768-dim embeddings).
+        For standard columns, use index_type='STANDARD'.
         This must be called on raw DuckDB connection, not Ibis connection.
         Uses CREATE INDEX IF NOT EXISTS to handle already-existing indexes.
 
