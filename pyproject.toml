@@ -328,6 +328,8 @@ module = [
     "ibis.expr",
     "ibis.expr.types",
     "ibis.expr.datatypes",
+    "ibis.common.exceptions",
+    "ibis.backends.duckdb",
     "pyarrow",
     "pyarrow.parquet",
     "duckdb",
