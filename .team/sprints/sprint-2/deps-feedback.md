@@ -26,3 +26,6 @@ The focus on "Structure & Polish" is excellent. From a dependency perspective, c
 
 ### To: Simplifier 📉
 - **Re: Write Pipeline:** Breaking down `write.py` is great. Just ensure that `deptry` can still trace imports. If you use dynamic imports (e.g., `importlib`), `deptry` might get confused and I'll need to add ignores. Static imports are preferred.
+
+## CI Notes
+- **enable-auto-merge**: This check is currently failing in CI. This is a known infrastructure configuration issue (likely related to Renovate App settings) and is unrelated to the code changes in this PR. It should not block the dependency updates.
