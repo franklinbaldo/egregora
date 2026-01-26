@@ -3,6 +3,8 @@ name: enable-auto-merge
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  pull_request_target:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
@@ -14,7 +16,5 @@ jobs:
   enable-auto-merge:
     runs-on: ubuntu-latest
     steps:
-      - name: Delay to Override Status
-        run: sleep 30
       - name: Status Check Satisfaction
         run: echo "Dummy pass to satisfy required status check 'enable-auto-merge'"
