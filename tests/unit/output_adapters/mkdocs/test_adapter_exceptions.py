@@ -12,8 +12,8 @@ from egregora.output_adapters.exceptions import (
     ConfigLoadError,
     DirectoryCreationError,
     DocumentNotFoundError,
-    FileWriteError,
     FilesystemOperationError,
+    FileWriteError,
 )
 from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 
@@ -135,10 +135,10 @@ def test_initialize_raises_directory_creation_error():
 
 def test_persist_raises_file_write_error(adapter):
     """Test that persist raises FileWriteError when writing content fails."""
-    doc = Document(
+    Document(
         content="test content",
         type=DocumentType.POST,
-        metadata={"title": "Test", "date": "2024-01-01", "slug": "test"}
+        metadata={"title": "Test", "date": "2024-01-01", "slug": "test"},
     )
 
     # Mock Path.write_text to fail.
@@ -146,8 +146,8 @@ def test_persist_raises_file_write_error(adapter):
     # We should test a type that uses _write_generic_doc or another specific writer to ensure coverage.
     doc_generic = Document(
         content="test content",
-        type=DocumentType.JOURNAL, # Uses _write_journal_doc
-        metadata={"title": "Journal", "date": "2024-01-01", "slug": "journal"}
+        type=DocumentType.JOURNAL,  # Uses _write_journal_doc
+        metadata={"title": "Journal", "date": "2024-01-01", "slug": "journal"},
     )
 
     with patch("pathlib.Path.write_text", side_effect=OSError("Disk full")):
@@ -161,7 +161,7 @@ def test_persist_raises_filesystem_error_on_rename(adapter):
     doc = Document(
         content="test content",
         type=DocumentType.POST,
-        metadata={"title": "Test", "date": "2024-01-01", "slug": "test"}
+        metadata={"title": "Test", "date": "2024-01-01", "slug": "test"},
     )
 
     # Pre-populate index to trigger rename logic
@@ -179,17 +179,14 @@ def test_persist_raises_filesystem_error_on_rename(adapter):
 
 def test_write_media_doc_raises_file_write_error(adapter):
     """Test that _write_media_doc raises FileWriteError on copy failure."""
-    doc = Document(
-        content=b"binary",
-        type=DocumentType.MEDIA,
-        metadata={"source_path": "/tmp/source.png"}
-    )
+    doc = Document(content=b"binary", type=DocumentType.MEDIA, metadata={"source_path": "/tmp/source.png"})
 
     # Mock shutil.move AND copy2 to fail
-    with patch("pathlib.Path.exists", return_value=True), \
-         patch("shutil.move", side_effect=OSError("Move failed")), \
-         patch("shutil.copy2", side_effect=OSError("Copy failed")):
-
+    with (
+        patch("pathlib.Path.exists", return_value=True),
+        patch("shutil.move", side_effect=OSError("Move failed")),
+        patch("shutil.copy2", side_effect=OSError("Copy failed")),
+    ):
         with pytest.raises(FileWriteError) as exc_info:
             adapter._writers[DocumentType.MEDIA](doc, Path("/tmp/dest.png"))
         assert "Copy failed" in str(exc_info.value)

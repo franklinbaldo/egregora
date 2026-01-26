@@ -41,8 +41,8 @@ from egregora.output_adapters.exceptions import (
     DirectoryCreationError,
     DocumentNotFoundError,
     DocumentParsingError,
-    FileWriteError,
     FilesystemOperationError,
+    FileWriteError,
     ProfileMetadataError,
     UnsupportedDocumentTypeError,
 )
