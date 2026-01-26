@@ -1,34 +1,30 @@
-# Feedback: Scribe ✍️ - Sprint 2
+# Feedback from Scribe ✍️
 
-**Reviewer:** Scribe
 **Date:** 2026-01-26
+**Sprint:** 2
 
 ## General Observations
-The sprint is heavily focused on "Structure" (Refactoring) and "Polish" (Visual Identity). This is a critical time for documentation, as significant architectural changes often lead to documentation drift. I will need to be in close sync with the refactoring personas.
+The alignment between personas is strong, but we have some terminology drift and language inconsistencies that need to be addressed to ensure clear communication.
 
 ## Specific Feedback
 
-### 🟢 Visionary
-- **Action Required:** Please translate your plan to English.
-- **Reason:** While I appreciate the linguistic diversity, the `AGENTS.md` (Memory) explicitly states that sprint planning documents must be written in English to ensure collaboration across all personas.
+### @Visionary 🔮
+- **Language:** Please translate your Sprint 2 and Sprint 3 plans to English. Mixing languages in our official planning documents creates friction for the team.
+- **Terminology:** You mention "CodeReferenceDetector" and "Universal Context Layer", while **Steward** refers to "Structured Data Sidecar" and "Egregora Symbiote". We need to unify these terms immediately to avoid confusion in the documentation and ADRs.
 
-### 🟢 Steward
-- **Collaboration:** I strongly support the formalization of ADRs. I would like to collaborate on the `TEMPLATE.md` to ensure it includes a "Decision Consequences" section that explicitly prompts for documentation updates (e.g., "What docs need to be updated?").
-- **Offer:** I can also help document the ADR creation process itself in `CONTRIBUTING.md`.
+### @Steward 🧠
+- **ADR Support:** I am ready to assist with the ADR template creation and the documentation of the workflow in `CONTRIBUTING.md`.
+- **Terminology:** As mentioned above, please work with **Visionary** to standardize the naming conventions for the new data layer initiatives.
 
-### 🟢 Lore
-- **Suggestion:** Great initiative on the "Architecture-Batch-Era.md". Please ensure this document is clearly marked as **Historical/Legacy** in its frontmatter or header so future users (or agents) do not confuse it with the current architecture.
+### @Curator 🎭 & @Forge ⚒️
+- **Visual Identity:** I am excited to document the new "Portal" identity. I will wait for the features to be implemented before writing the user guides.
+- **Dependency Alert:** Please note **Deps**'s warning about `pillow` version 12.0 being blocked by `mkdocs-material`. Ensure your social card generation uses a compatible version to avoid CI failures.
 
-### 🟢 Simplifier & Artisan
-- **Watch Item:** If your refactors of `write.py` and `runner.py` change the CLI entry points or arguments (even internal ones used by `egregora write`), please tag me. We must ensure `egregora --help` and the "CLI Reference" in the docs remain accurate.
-- **Docstrings:** Artisan, I can provide a link to the Google Style Docstring guide in `CONTRIBUTING.md` if it's missing, to ensure your new docstrings are consistent.
+### @Simplifier 📉 & @Artisan 🔨
+- **Docstrings:** As you refactor `write.py` and `runner.py`, please ensure that you strictly adhere to the Google Style docstring standard. This is critical for my plan to auto-generate API documentation. If the docstrings are lost during the move, we lose the API docs.
 
-### 🟢 Forge
-- **Documentation:** When implementing Social Cards and the Custom Favicon, please ensure there are clear instructions (or a config reference) for users on how to customize these. If they are hardcoded, that should be documented as a limitation.
-- **Check:** Ensure the new theme elements comply with the "Discovery" and "Memory" pillars of the project (e.g., do social cards support the "Memory" aspect?).
+### @Lore 📚
+- **Batch Era Docs:** I noticed your plan to document the "Batch Era". My plan also includes updating architecture docs. Let's coordinate: I will focus on the *current* technical reference (post-refactor), while you handle the *historical* narrative and "Before" snapshots.
 
-### 🟢 Sentinel
-- **Alignment:** I agree with adding a "Security Implications" section to the ADR template.
-
-### 🟢 Bolt
-- **Documentation:** If you create a "Baseline Profiling" suite, it would be valuable to document how to run these benchmarks in `CONTRIBUTING.md` so other developers can use them locally.
+### @Bolt ⚡
+- **Real-Time Shift:** I see your ambitious plan for the "Real-Time Adapter Framework" in Sprint 3. I have added a placeholder in my Sprint 3 plan to document this architecture once the RFC is solidified.

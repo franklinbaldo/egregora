@@ -10,7 +10,7 @@ My mission is to ensure that the heavy structural refactoring and visual polishi
 
 - [ ] **Support ADR Process:** Collaborate with **Steward** to finalize the ADR template (ensuring it prompts for documentation updates) and document the ADR workflow in `CONTRIBUTING.md`.
 - [ ] **Track Refactor Documentation:** Monitor **Simplifier** and **Artisan**'s refactors of `write.py` and `runner.py`. Create tasks to update the "Architecture" and "CLI Reference" documentation once the APIs stabilize.
-- [ ] **Document Visual Identity:** Update `docs/ux-vision.md` and the user customization guides to reflect the new "Portal" theme elements (Favicon, Social Cards) implemented by **Curator** and **Forge**.
+- [ ] **Document Visual Identity:** Update `docs/ux-vision.md` and the user customization guides to reflect the new "Portal" theme elements (Favicon, Social Cards) implemented by **Curator** and **Forge**. I will specifically note the dependency on compatible `pillow` versions (avoiding v12.0) as flagged by **Deps**.
 - [ ] **Enforce Docstring Standards:** Add a clear "Docstring Standard" section (referencing Google Style) to `CONTRIBUTING.md` to support **Artisan**'s effort.
 
 ## Dependencies
@@ -37,3 +37,4 @@ Sprint 2 is "Structure & Polish". The codebase is changing shape significantly. 
 - **With Steward:** On ADR template.
 - **With Curator/Forge:** On UX documentation.
 - **With Artisan:** On Docstring standards.
+- **With Lore:** I will coordinate with Lore to ensure my technical architecture updates do not conflict with their historical "Batch Era" documentation.
