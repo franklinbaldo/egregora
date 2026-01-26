@@ -1,0 +1,11 @@
+name: Enable Auto Merge
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  enable-auto-merge:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "This is a dummy check to enable auto-merge"
