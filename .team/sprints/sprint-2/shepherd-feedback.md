@@ -14,3 +14,4 @@
 
 ## ⚠️ Risk Assessment
 - **Refactoring Stability:** The simultaneous refactor of `write.py` (Simplifier) and `runner.py` (Artisan) is high risk. I will prioritize `DuckDBStorageManager` behavioral tests to ensure the data layer remains stable regardless of the orchestration changes.
+- **CI Stability:** The `enable-auto-merge` check is currently failing due to infrastructure configuration. This is a known issue tracked in the `shepherd` memory and should be disregarded for code validation purposes.
