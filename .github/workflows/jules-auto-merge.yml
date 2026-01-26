@@ -31,6 +31,11 @@ jobs:
         run: |
           set -euo pipefail
 
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "Status check mode - skipping merge logic to avoid permission errors."
+            exit 0
+          fi
+
           author_login=$(gh pr view "$PR_NUMBER" --json author --jq '.author.login')
           case "$author_login" in
             "google-labs-jules[bot]"|"app/google-labs-jules"|"google-labs-jules")
