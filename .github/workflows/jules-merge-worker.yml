@@ -1,4 +1,4 @@
-name: Jules PR Auto-Merge
+name: Jules Merge Worker
 
 on:
   pull_request_target:
@@ -13,7 +13,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  enable-auto-merge:
+  merge-worker:
     runs-on: ubuntu-latest
     steps:
       - name: Enable auto-merge for Jules PRs

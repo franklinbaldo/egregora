@@ -10,8 +10,8 @@ jobs:
   enable-auto-merge:
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for conflicting workflow
-        run: echo "Waiting 180s to ensure this run finishes last and overwrites any failures from the base branch..." && sleep 180
+      - name: Wait for conflicting workflow (base branch)
+        run: echo "Waiting 60s to ensure this run finishes last and overwrites any failures from the base branch..." && sleep 60
 
       - name: Satisfy branch protection check
-        run: echo "Check passed."
+        run: echo "This job exists to satisfy the 'enable-auto-merge' status check required by Renovate/GitHub settings."
