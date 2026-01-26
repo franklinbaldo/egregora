@@ -17,3 +17,6 @@
 
 ## For Maya 💝
 - **Social Cards:** When designing the "look and feel" of shared links, be aware that we are generating HTML/Images from user content. We must sanitize any text that goes into these cards to prevent XSS if they are rendered in a browser context before being screenshotted.
+
+
+*(Verified by Sentinel on 2026-01-26)*
