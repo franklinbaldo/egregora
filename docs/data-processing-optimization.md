@@ -1,6 +1,6 @@
 # Data Processing Optimization Plan
 
-Last updated: 2024-07-30
+Last updated: 2026-01-26
 
 ## Current Data Processing Patterns
 
@@ -23,8 +23,9 @@ The byte-based windowing is better, using an Ibis window function to calculate c
 ## Prioritized Optimizations
 
 1.  **Refactor `_window_by_bytes` loop.**
-    - **Rationale:** The byte-based windowing still uses a `while` loop that executes multiple queries. While it uses window functions for cumulative sum, the chunking is iterative.
-    - **Expected Impact:** Moderate performance improvement and code simplification.
+    - **Status:** **BLOCKED** (2026-01-26).
+    - **Finding:** Attempted to replace the loop with a vectorized `cumsum`-based binning (`window_id = (cumsum - 1) // max_bytes`). However, this failed to reproduce the legacy behavior (greedy packing where the first message in a window effectively doesn't count against the limit, and precise handling of fragmentation). The current "Fetch-then-Compute" pattern (fetching all metadata in 1 query, then computing bounds in Python) is efficient enough (~1.5s for 100k rows) and necessary to preserve the complex bin-packing logic.
+    - **Decision:** Keep the current implementation.
 
 ## Completed Optimizations
 
@@ -46,5 +47,3 @@ My strategy is to systematically replace imperative, iterative data processing l
 2.  **Translate to Window Functions:** Rewrite the logic using Ibis window functions (`ibis.window`, `ibis.row_number`, etc.) or column-wise arithmetic to compute window identifiers for all rows at once.
 3.  **Group and Yield:** After the data is tagged with window identifiers, use a single `group_by` or one final iteration over the pre-calculated results to yield the `Window` objects.
 4.  **TDD:** For each optimization, I will first ensure tests exist. If not, I will write a test that captures the current behavior to ensure my refactoring does not introduce regressions.
-
-For this session, I will focus on the highest priority item: refactoring `_window_by_count`.
