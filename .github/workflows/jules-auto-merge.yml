@@ -24,13 +24,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Enable auto-merge for Jules PRs
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          set -euo pipefail
+          # Disable exit-on-error to ensure this step NEVER fails the workflow
+          set +e
 
-          author_login=$(gh pr view "$PR_NUMBER" --json author --jq '.author.login')
+          echo "Starting auto-merge attempt for PR #$PR_NUMBER"
+
+          # Check if gh cli is available
+          if ! command -v gh &> /dev/null; then
+             echo "gh command not found. Skipping."
+             exit 0
+          fi
+
+          author_login=$(gh pr view "$PR_NUMBER" --json author --jq '.author.login' 2>/dev/null)
+          if [ $? -ne 0 ]; then
+             echo "Could not fetch PR details (likely permission error). Skipping."
+             exit 0
+          fi
+
           case "$author_login" in
             "google-labs-jules[bot]"|"app/google-labs-jules"|"google-labs-jules")
               ;;
@@ -40,11 +55,14 @@ jobs:
               ;;
           esac
 
-          is_draft=$(gh pr view "$PR_NUMBER" --json isDraft --jq '.isDraft')
+          is_draft=$(gh pr view "$PR_NUMBER" --json isDraft --jq '.isDraft' 2>/dev/null)
           if [ "$is_draft" = "true" ]; then
             echo "PR #$PR_NUMBER is draft; marking ready for review."
-            gh pr ready "$PR_NUMBER" || echo "Failed to mark PR ready (might need approval first), continuing..."
+            gh pr ready "$PR_NUMBER" 2>/dev/null || echo "Failed to mark PR ready, continuing..."
           fi
 
           echo "Enabling auto-merge for PR #$PR_NUMBER."
-          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch || echo "Failed to enable auto-merge (permissions or state?), continuing to avoid CI failure."
+          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch || echo "Failed to enable auto-merge, continuing."
+
+          # Always exit success
+          exit 0
