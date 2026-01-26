@@ -1,44 +1,43 @@
-# Plan: Curator - Sprint 3
+# Plan: Curator 🎭 - Sprint 3
 
 **Persona:** Curator 🎭
 **Sprint:** 3
-**Created:** 2024-07-29 (during Sprint 1)
+**Created:** 2026-01-26
 **Priority:** Medium
 
 ## Objectives
 
-Assuming the foundational UX issues are resolved in Sprint 2, Sprint 3 will focus on enhancing the content experience and information architecture.
+With the "Portal" visual identity established in Sprint 2, Sprint 3 focuses on the **Reading Experience** and **Content Discovery**, ensuring the site works beautifully on all devices.
 
-- [ ] **Improve Content Readability:** Implement a custom typography scale and refine spacing to improve the reading experience.
-- [ ] **Enhance Navigation:** Restructure the site navigation based on user needs, potentially introducing breadcrumbs for better context.
-- [ ] **Develop "Related Content" Feature:** Work with Forge to design and implement a feature that suggests related posts, increasing user engagement.
-- [ ] **Audit Accessibility:** Conduct a formal accessibility audit using an automated tool (once available) and create tasks to address any violations.
+- [ ] **Mobile Polish:** Conduct a thorough audit of the "Portal" theme on mobile breakpoints. Ensure navigation, cards, and typography scale correctly.
+- [ ] **Design Discovery UI:** Work with **Scribe** and **Visionary** to design the "Related Content" and "Code Reference" UI elements.
+- [ ] **Typographic Refinement:** Implement a custom type scale that improves readability for long-form content, moving beyond the default sizing.
+- [ ] **Accessibility Deep Dive:** Achieve a Lighthouse Accessibility score of 100% by systematically addressing contrast and labeling issues.
 
 ## Dependencies
 
-- **Forge:** Will need Forge to implement the typography, navigation, and related content features.
-- **Sentinel:** An automated accessibility testing tool, which Sentinel may be involved in, would be highly beneficial.
+- **Forge:** Needed for implementing mobile-specific CSS adjustments.
+- **Visionary:** Collaboration needed for the "Code Reference" UI design (hover cards vs. sidebars).
 
 ## Context
 
-With the visual identity established in Sprint 2, Sprint 3 shifts focus to the core user journey: reading and discovering content. The goal is to make the experience as seamless and engaging as possible. This involves moving beyond the basics of the Material theme and implementing more sophisticated UX patterns.
+The "Portal" looks good on desktop, but mobile is often an afterthought. Sprint 3 flips this, ensuring the immersive experience translates to smaller screens. Additionally, as we start generating richer content (links, code refs), the UI needs to support these new data types without clutter.
 
 ## Expected Deliverables
 
-1.  **Improved Typography:** A clear and consistent typography system is implemented.
-2.  **Restructured Navigation:** The site navigation is more intuitive and user-friendly.
-3.  **Related Content MVP:** A functional "related content" feature is present on post pages.
-4.  **Accessibility Audit Report:** A report detailing the accessibility state of the site, with actionable tasks for any identified issues.
+1.  **Mobile-Optimized Theme:** No horizontal scrolling, usable navigation, and readable text on mobile.
+2.  **Discovery UI Mockups/Specs:** Specs for "Related Posts" and "Code References".
+3.  **Refined Typography:** CSS variables for a modular type scale.
+4.  **Accessibility Report:** Documentation of 100% Lighthouse score (or plan to get there).
 
 ## Risks and Mitigations
 
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| "Related Content" logic is complex | Medium | Medium | I will work with Forge and Visionary to define a simple MVP for the related content feature, focusing on a basic but effective algorithm first. |
-| Accessibility audit reveals major issues | Medium | High | I will prioritize accessibility issues based on WCAG guidelines and work with Forge to create a realistic plan for addressing them over time. |
+| Mobile menu interactions are complex | Medium | Medium | I will stick to standard MkDocs Material patterns where possible to avoid reinventing the wheel. |
+| Code References clutter the UI | Medium | High | I will design for "progressive disclosure" (hover/click) rather than always-on noise. |
 
 ## Proposed Collaborations
 
-- **With Forge:** Close collaboration on implementing the new features.
-- **With Visionary:** Brainstorming session on the logic for the "related content" feature.
-- **With Sentinel:** Collaboration on implementing and interpreting accessibility testing tools.
+- **With Forge:** Mobile testing and CSS tweaks.
+- **With Visionary:** Designing the "Code Reference" experience.
