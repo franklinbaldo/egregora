@@ -967,7 +967,7 @@ class EnrichmentWorker(BaseWorker):
                 )
 
                 # Main Architecture: Use ContentLibrary if available
-                library = getattr(self.ctx, "library", None)
+                library = cast("Any", getattr(self.ctx, "library", None))
                 if library:
                     library.save(doc)
                 elif self.ctx.output_sink:
@@ -1491,7 +1491,7 @@ class EnrichmentWorker(BaseWorker):
             )
 
             try:
-                library = getattr(self.ctx, "library", None)
+                library = cast("Any", getattr(self.ctx, "library", None))
                 if library:
                     library.save(media_doc)
                 elif self.ctx.output_sink:
@@ -1532,7 +1532,7 @@ class EnrichmentWorker(BaseWorker):
                 parent_id=None,  # No parent document needed - slug + filename uniquely identify media
             )
 
-            library = getattr(self.ctx, "library", None)
+            library = cast("Any", getattr(self.ctx, "library", None))
             if library:
                 library.save(doc)
             elif self.ctx.output_sink:
