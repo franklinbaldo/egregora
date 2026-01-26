@@ -1,49 +1,41 @@
-# Plano: visionary - Sprint 2
+# Plan: Visionary - Sprint 2
 
-**Persona:** visionary
+**Persona:** Visionary 🔭
 **Sprint:** 2
-**Criado em:** 2026-01-22
-**Prioridade:** Alta
+**Created:** 2026-01-28
+**Priority:** High
 
-## Objetivos
+## Objectives
 
-Descreva os principais objetivos para este sprint:
+My mission is to validate the "Self-Optimizing" capabilities (RFC 029) while maintaining momentum on the "Context Layer" (RFC 027).
 
-- [ ] Prototipar `CodeReferenceDetector` para detecção de paths e SHAs em mensagens de chat (RFC 027).
-- [ ] Implementar POC de `GitHistoryResolver` para mapear Timestamp -> Commit SHA (RFC 027).
-- [ ] Validar viabilidade de integração com Markdown do agente Writer.
+- [ ] **Prototype `CriticAgent` (RFC 029):** Design and implement a standalone agent that can take a (Input, Prompt, Output) tuple and return a structured critique.
+- [ ] **Validate Code Linking (RFC 027):** (Carried over) Complete the `CodeReferenceDetector` prototype to ensure we can reliably detect file paths in chat.
+- [ ] **Update RFCs:** Formalize the learnings from the prototypes into the RFC documents.
 
-## Dependências
+## Dependencies
 
-Liste dependências de trabalho de outras personas:
+- **Simplifier:** I need a stable `write.py` / `runner.py` structure to know where to "hook" the `CriticAgent`.
+- **Builder:** Need support for persisting the `Reflection` artifacts (scoring/critiques).
 
-- **builder:** Suporte para schema de cache de Git Lookups em DuckDB.
-- **scribe:** Atualização da documentação para incluir nova feature de links históricos.
+## Context
 
-## Contexto
+Sprint 2 is about "Structure". My contribution is structural *introspection*. By building the `CriticAgent` now, we provide the "eyes" for the system to see itself. This aligns with the polishing phase—we are building the tool that helps us polish.
 
-Explique o contexto e raciocínio por trás deste plano:
+## Expected Deliverables
 
-Após a aprovação do Quick Win (RFC 027), o foco é validar a tecnologia principal (Regex + Git CLI) antes de integrar totalmente ao pipeline. Precisamos garantir que a detecção seja precisa e a resolução de commits seja rápida.
+1.  **`src/egregora/agents/critic.py`:** A working Pydantic-AI agent for critique.
+2.  **`tests/prototypes/test_critic.py`:** Verification that the critic can catch bad prompts.
+3.  **`detect_refs.py`:** (RFC 027) Prototype for detecting code references.
 
-## Entregáveis Esperados
+## Risks and Mitigations
 
-1. Script Python `detect_refs.py` que extrai referências de um arquivo de texto.
-2. Script Python `resolve_commit.py` que aceita data/hora e retorna SHA do repo local.
-3. Relatório de performance (tempo por lookup).
-
-## Riscos e Mitigações
-
-| Risco | Probabilidade | Impacto | Mitigação |
+| Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Git Lookup lento | Alta | Médio | Implementar cache agressivo (DuckDB/Redis) |
-| Ambiguidade de path | Média | Baixo | Linkar para tree root ou exibir warning se arquivo não existe |
+| Critic is hallucination-prone | High | High | Use "Few-Shot" prompting in the Critic's system prompt to ground it. |
+| Overloading Sprint 2 | Medium | Medium | RFC 029 is the priority. RFC 027 can slip to Sprint 3 if needed. |
 
-## Colaborações Propostas
+## Proposed Collaborations
 
-- **Com builder:** Definir schema da tabela `git_cache`.
-- **Com artisan:** Revisar código do resolver para otimização.
-
-## Notas Adicionais
-
-Foco total na "Foundation" para o Context Layer.
+- **With Simplifier:** To agree on the `PipelineContext` structure the Critic will analyze.
+- **With Artisan:** To review the `CodeReferenceDetector` regex logic.

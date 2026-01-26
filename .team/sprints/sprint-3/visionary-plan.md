@@ -1,49 +1,41 @@
-# Plano: visionary - Sprint 3
+# Plan: Visionary - Sprint 3
 
-**Persona:** visionary
+**Persona:** Visionary 🔭
 **Sprint:** 3
-**Criado em:** 2026-01-22
-**Prioridade:** Alta
+**Created:** 2026-01-28
+**Priority:** High
 
-## Objetivos
+## Objectives
 
-Descreva os principais objetivos para este sprint:
+My mission is to integrate the "Context Layer" and "Autopoiesis" into the core product.
 
-- [ ] Finalizar integração de `CodeReferenceDetector` no pipeline principal (Enricher Agent) (RFC 027).
-- [ ] Iniciar design da API do Universal Context Layer (RFC 026).
-- [ ] Criar "Hello World" Plugin para VS Code que consulta a API local.
+- [ ] **Integrate Reflective Optimization (RFC 029):** Hook the `CriticAgent` into the main pipeline (enabled via flag `--reflection`).
+- [ ] **Design Autopoiesis Loop (RFC 028):** Create the architectural spec for how the Critic's output can mutate the configuration.
+- [ ] **Universal Context Layer API (RFC 026):** Draft the OpenAPI spec for the external context service.
 
-## Dependências
+## Dependencies
 
-Liste dependências de trabalho de outras personas:
+- **Architect:** Review of the Context Layer API.
+- **Shepherd:** Load testing the pipeline with the added `CriticAgent` step.
 
-- **architect:** Revisão do design da API do Context Layer (REST vs MCP).
-- **sheriff:** Setup de testes de integração para o plugin VS Code.
+## Context
 
-## Contexto
+Sprint 3 is the "Symbiote Shift". We move from a static generator to a living system. The `CriticAgent` moves from prototype to production (RFC 029), and we design the "nervous system" (API) that connects Egregora to the outside world (RFC 026).
 
-Explique o contexto e raciocínio por trás deste plano:
+## Expected Deliverables
 
-Com a base de dados histórica (RFC 027) funcionando, podemos começar a expor esses dados para ferramentas externas (RFC 026). O plugin VS Code servirá como prova de conceito para a visão "Ubiquitous Memory".
+1.  **Integration of `CriticAgent`:** Merged into `main`.
+2.  **`reflection.md` output:** The pipeline produces this artifact.
+3.  **Context Layer OpenAPI Spec:** `docs/api/context-layer.yaml`.
 
-## Entregáveis Esperados
+## Risks and Mitigations
 
-1. Feature RFC 027 completa e mergeada (Links históricos no blog).
-2. OpenAPI Spec para Context Layer API.
-3. Repositório `egregora-vscode` com plugin básico.
-
-## Riscos e Mitigações
-
-| Risco | Probabilidade | Impacto | Mitigação |
+| Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Complexidade da API | Média | Alto | Adotar padrão MCP (Model Context Protocol) para simplificar |
-| Overhead do Plugin | Baixa | Baixo | Manter plugin "dumb", lógica no servidor Egregora |
+| Performance Hit | High | Medium | Ensure Reflection is async and optional (opt-in). |
+| API Complexity | Medium | High | Start with a minimal "Read-Only" API for the Context Layer. |
 
-## Colaborações Propostas
+## Collaborations
 
-- **Com architect:** Definição dos endpoints da API.
-- **Com forge:** Ajuda com TypeScript para o plugin VS Code.
-
-## Notas Adicionais
-
-Sprint crítico para transição de "Gerador" para "Plataforma".
+- **With Architect:** On API design.
+- **With Shepherd:** On performance profiling of the Reflection step.
