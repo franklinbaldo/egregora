@@ -50,7 +50,7 @@ def initialize_database(backend: BaseBackend) -> None:
 
     conn = backend.con if hasattr(backend, "con") else backend
 
-    from egregora.database.schemas import create_index, get_table_foreign_keys
+    from egregora.database.schemas import get_table_foreign_keys
 
     # 1. Unified Documents Table
     # This creates the table with the full schema if it's missing.
@@ -81,10 +81,10 @@ def initialize_database(backend: BaseBackend) -> None:
     )
 
     # Indexes for unified documents table (Query performance)
-    create_index(conn, "documents", "idx_documents_type", "doc_type", index_type="STANDARD")
-    create_index(conn, "documents", "idx_documents_slug", "slug", index_type="STANDARD")
-    create_index(conn, "documents", "idx_documents_created", "created_at", index_type="STANDARD")
-    create_index(conn, "documents", "idx_documents_status", "status", index_type="STANDARD")
+    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_documents_type ON documents(doc_type)")
+    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_documents_slug ON documents(slug)")
+    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_documents_created ON documents(created_at)")
+    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(status)")
 
     # Indexes for messages table (Ingestion performance)
     _execute_sql(conn, "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_pk ON messages(event_id)")
