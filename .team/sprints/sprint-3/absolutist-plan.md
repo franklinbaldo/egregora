@@ -8,9 +8,9 @@
 ## Objectives
 My mission is to simplify the codebase by removing legacy code and backward compatibility layers based on rigorous evidence.
 
-- [ ] **Remove Legacy Media Behavior:** The `src/egregora/ops/media.py` file contains a "legacy behavior for att_file" comment. I will investigate and remove this fallback if it's no longer needed for modern WhatsApp exports.
+- [ ] **Remove Legacy Media Behavior:** Based on Sprint 2 investigation, remove the `att_file` legacy logic and obsolete markers from `src/egregora/ops/media.py`.
+- [ ] **Remove `prompts.py` Shim:** If confirmed safe in Sprint 2, execute the removal of the legacy prompt compatibility layer.
 - [ ] **Audit Input Adapters:** As we polish the "Mobile" experience, I will ensure our input adapters don't contain any legacy hacks for older mobile export formats that we no longer support.
-- [ ] **Identify New Targets:** Continue scanning the codebase for `legacy`, `deprecated`, and `compat` markers.
 
 ## Dependencies
 - **Curator:** Coordinate on "Related Content" to ensure we don't need any legacy search shims (TF-IDF etc.).
@@ -20,8 +20,8 @@ Sprint 3 focuses on "Mobile Polish". Ensuring our backend media handling is clea
 
 ## Expected Deliverables
 1.  Removal of `att_file` legacy logic in `media.py`.
-2.  Clean bill of health for input adapters.
-3.  Updated `absolutist-plan.md` for Sprint 4.
+2.  Removal of `prompts.py` (if approved).
+3.  Clean bill of health for input adapters.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
