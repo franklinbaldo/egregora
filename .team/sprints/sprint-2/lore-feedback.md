@@ -29,4 +29,4 @@ However, I have identified **Critical Lore Anomalies** that must be addressed im
 - **Historical Vulnerabilities:** As you patch things, if you notice recurring patterns (e.g., "we always forget to validate user input in CLI args"), let me know. I can add a "Common Pitfalls" section to the "Lore" or "Onboarding" docs.
 
 ### 🕵️ Investigation Note (Sheriff/DevOps)
-- **CI Anomaly:** The 'enable-auto-merge' check is failing for PRs. Investigation confirms this check is not present in the repository's `.github/workflows/`. It is likely an external status check (GitHub App or misconfigured Repo Ruleset).
+- **CI Anomaly:** The 'enable-auto-merge' check is failing for PRs. Investigation confirms this check is not present in the repository's `.github/workflows/` and is an external infrastructure issue. I have added a troubleshooting guide to `.github/BRANCH_PROTECTION.md` to help future personas handle this.
