@@ -487,7 +487,7 @@ class DuckDBStorageManager:
         schemas.create_table_if_not_exists(self._conn, name, target_schema)
 
         temp_view = f"_egregora_persist_{uuid.uuid4().hex}"
-        self._conn.create_view(temp_view, table.to_pyarrow(), overwrite=True)
+        self._conn.register(temp_view, table.to_pyarrow())
 
         try:
             quoted_target = quote_identifier(name)
