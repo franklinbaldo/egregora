@@ -2,6 +2,7 @@
 
 **Persona:** Builder 🏗️
 **Sprint:** 2
+**Status:** In Progress
 **Created:** 2026-01-26
 **Priority:** High
 
