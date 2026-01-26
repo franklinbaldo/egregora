@@ -10,7 +10,9 @@ permissions:
 jobs:
   enable-auto-merge:
     name: enable-auto-merge
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    if: always()
     steps:
       - name: Enable auto-merge
+        shell: bash
         run: echo "Auto-merge step placeholder."
