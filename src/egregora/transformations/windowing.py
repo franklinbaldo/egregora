@@ -26,9 +26,11 @@ DESIGN PHILOSOPHY: Calculate, Don't Iterate
 import hashlib
 import logging
 import math
+from bisect import bisect_left, bisect_right
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from itertools import accumulate
 
 import ibis
 from ibis.expr.types import Table
@@ -405,9 +407,9 @@ def _window_by_bytes(
     """Generate windows by packing messages up to a byte limit.
 
     Optimized implementation using "Fetch-then-Compute" pattern:
-    1. Fetches metadata (timestamp, length) for all rows in one query.
-    2. Computes window boundaries in Python to avoid N+1 queries.
-    3. Yields windows with lazy Ibis table slices.
+    1. Fetches metadata (row_number, timestamp, length) for all rows in one query.
+    2. Computes window boundaries efficiently using prefix sums and bisect (O(log N)).
+    3. Yields windows with precise row_number filtering.
 
     Byte-to-token ratio: ~4 bytes per token (industry standard).
 
@@ -420,15 +422,17 @@ def _window_by_bytes(
         Windows packed to maximum byte capacity
 
     """
-    # 1. Fetch metadata for all rows (Fetch phase)
-    # We only need timestamp (for window bounds) and length (for packing).
-    # order_by is crucial to ensure alignment with the input table's sort order.
+    # 1. Fetch metadata (Fetch phase)
+    # Add row_number to allow precise, efficient slicing without limit/offset scaling issues.
+    table_with_rn = table.mutate(row_number=ibis.row_number().over(ibis.window(order_by=table.ts)))
+
     metadata = (
-        table.select(
-            ts=table.ts,
-            msg_bytes=table.text.length().cast("int64"),
+        table_with_rn.select(
+            rn=table_with_rn.row_number,
+            ts=table_with_rn.ts,
+            msg_bytes=table_with_rn.text.length().cast("int64"),
         )
-        .order_by("ts")
+        .order_by("rn")
         .execute()
     )
 
@@ -436,53 +440,63 @@ def _window_by_bytes(
     if total_count == 0:
         return
 
-    # Extract columns to simple lists/arrays for fast iteration
-    # Assuming metadata is a pandas DataFrame or similar
+    # Extract columns
+    row_numbers = metadata["rn"].tolist()
     timestamps = metadata["ts"].tolist()
     msg_bytes_list = metadata["msg_bytes"].tolist()
 
-    window_index = 0
-    offset = 0
-
     # 2. Compute window boundaries (Compute phase)
-    while offset < total_count:
-        relative_bytes = 0
-        chunk_size = 0
+    # Prefix sum for O(1) range sum queries: accum_bytes[i] = sum(bytes[0]...bytes[i-1])
+    accum_bytes = [0] + list(accumulate(msg_bytes_list))
 
-        # Scan forward to fill window
-        for i in range(offset, total_count):
-            msg_len = msg_bytes_list[i]
+    current_start_idx = 0
+    window_index = 0
 
-            # Legacy behavior: The first message establishes the baseline (relative_bytes=0).
-            # Subsequent messages are checked against max_bytes relative to that baseline.
-            # This effectively allows the window to be (size_of_first_msg + max_bytes).
-            if chunk_size > 0:
-                relative_bytes += msg_len
+    while current_start_idx < total_count:
+        # Find end index such that sum(start+1..end) <= max_bytes
+        # Legacy behavior: The first message's size is ignored in the limit check.
+        # sum(start+1..end) = accum_bytes[end] - accum_bytes[start+1]
+        # accum_bytes[end] <= accum_bytes[start+1] + max_bytes
 
-            # Check limit
-            # We enforce chunk_size > 0 to ensure at least one message is included
-            # (preventing infinite loops if a single message > max_bytes)
-            if relative_bytes > max_bytes and chunk_size > 0:
-                break
-
-            chunk_size += 1
-
-        # Construct the window
-        start_idx = offset
-        end_idx = offset + chunk_size  # exclusive
-
-        # Determine start/end time from cached metadata
-        # Handle case where chunk_size might be 0 (shouldn't happen due to loop logic but for safety)
-        if chunk_size == 0:
+        # Check if we have at least one message
+        if current_start_idx >= total_count:
             break
 
-        start_time = timestamps[start_idx]
+        # Calculate target based on start+1 to ignore first message size
+        # accum_bytes has length total_count + 1.
+        base_idx = min(current_start_idx + 1, len(accum_bytes) - 1)
+        target_sum = accum_bytes[base_idx] + max_bytes
+
+        # bisect_right returns the first index where val > target_sum.
+        # We want the last index where val <= target_sum, so index - 1.
+        end_idx = bisect_right(accum_bytes, target_sum, lo=current_start_idx + 1) - 1
+
+        # Ensure at least one message is included if the first message exceeds max_bytes
+        if end_idx <= current_start_idx:
+            end_idx = current_start_idx + 1
+
+        # Ensure we don't go past the end
+        if end_idx > total_count:
+            end_idx = total_count
+
+        chunk_size = end_idx - current_start_idx
+
+        # Get boundaries
+        start_rn = row_numbers[current_start_idx]
+        # row_number logic: inclusive start, exclusive end for logic, but filter works on values.
+        # If we use range(start_idx, end_idx), we want rows with indices start_idx ... end_idx - 1.
+        # Their row_numbers are row_numbers[start_idx] ... row_numbers[end_idx - 1].
+        # So filter(rn >= start_rn & rn <= end_rn)
+        end_rn = row_numbers[end_idx - 1]
+
+        start_time = timestamps[current_start_idx]
         end_time = timestamps[end_idx - 1]
 
-        # Create the window with a lazy slice of the original table
-        # We rely on the fact that `table` is already sorted by `ts` (as contract says)
-        # or we explicitly sort it again to be safe.
-        window_table = table.order_by("ts").limit(chunk_size, offset=offset)
+        # Construct window table
+        window_table = table_with_rn.filter(
+            (table_with_rn.row_number >= start_rn) &
+            (table_with_rn.row_number <= end_rn)
+        ).drop("row_number")
 
         yield Window(
             window_index=window_index,
@@ -494,22 +508,23 @@ def _window_by_bytes(
 
         window_index += 1
 
-        # Calculate overlap
-        advance = chunk_size
-        if overlap_bytes > 0 and chunk_size > 1:
-            overlap_accum = 0
-            overlap_rows = 0
-            # Scan backwards from the end of the chunk
-            for i in range(end_idx - 1, start_idx - 1, -1):
-                msg_len = msg_bytes_list[i]
-                if overlap_accum + msg_len > overlap_bytes:
-                    break
-                overlap_accum += msg_len
-                overlap_rows += 1
+        # Calculate next start index with overlap
+        # We want to overlap such that shared bytes <= overlap_bytes.
+        # Shared range is [next_start, end).
+        # sum(next_start..end) <= overlap_bytes.
+        # accum_bytes[end] - accum_bytes[next_start] <= overlap_bytes.
+        # accum_bytes[next_start] >= accum_bytes[end] - overlap_bytes.
 
-            advance = max(1, chunk_size - overlap_rows)
+        # Note: Overlap logic strictly counts ALL bytes in the overlap region,
+        # unlike the window limit which might ignore the first message.
+        target_overlap = accum_bytes[end_idx] - overlap_bytes
+        next_start_idx = bisect_left(accum_bytes, target_overlap, lo=current_start_idx, hi=end_idx)
 
-        offset += advance
+        # Ensure forward progress
+        if next_start_idx <= current_start_idx:
+            next_start_idx = current_start_idx + 1
+
+        current_start_idx = next_start_idx
 
 
 def split_window_into_n_parts(window: Window, n: int) -> list[Window]:
