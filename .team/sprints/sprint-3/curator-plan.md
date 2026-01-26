@@ -1,44 +1,36 @@
-# Plan: Curator - Sprint 3
+# Plan: Curator 🎭 - Sprint 3
 
 **Persona:** Curator 🎭
 **Sprint:** 3
-**Created:** 2024-07-29 (during Sprint 1)
+**Created:** 2026-01-26
 **Priority:** Medium
 
 ## Objectives
+With the visual identity established in Sprint 2, Sprint 3 shifts focus to the core "Reading Experience" and "Content Discovery".
 
-Assuming the foundational UX issues are resolved in Sprint 2, Sprint 3 will focus on enhancing the content experience and information architecture.
-
-- [ ] **Improve Content Readability:** Implement a custom typography scale and refine spacing to improve the reading experience.
-- [ ] **Enhance Navigation:** Restructure the site navigation based on user needs, potentially introducing breadcrumbs for better context.
-- [ ] **Develop "Related Content" Feature:** Work with Forge to design and implement a feature that suggests related posts, increasing user engagement.
-- [ ] **Audit Accessibility:** Conduct a formal accessibility audit using an automated tool (once available) and create tasks to address any violations.
+- [ ] **Reading Experience Polish:** Deep dive into typography (line-height, measure, font-weight) and mobile responsiveness. Ensure long-form content is comfortable to read on any device.
+- [ ] **Content Discovery UI:** Design and specify the UI for "Related Content" and the "Code References" feature (collaborating with Visionary).
+- [ ] **100% Lighthouse Accessibility:** Aim for a perfect accessibility score. Move from "audit" to "fix".
+- [ ] **Search Experience:** Evaluate and refine the search UI (standard MkDocs vs specialized implementation).
 
 ## Dependencies
-
-- **Forge:** Will need Forge to implement the typography, navigation, and related content features.
-- **Sentinel:** An automated accessibility testing tool, which Sentinel may be involved in, would be highly beneficial.
+- **Forge:** To implement the CSS tweaks for reading experience.
+- **Visionary:** To provide the backend data for "Code References" so we can style them.
 
 ## Context
-
-With the visual identity established in Sprint 2, Sprint 3 shifts focus to the core user journey: reading and discovering content. The goal is to make the experience as seamless and engaging as possible. This involves moving beyond the basics of the Material theme and implementing more sophisticated UX patterns.
+A pretty blog is useless if it's hard to read or if users can't find relevant content. Sprint 3 is about utility and depth.
 
 ## Expected Deliverables
-
-1.  **Improved Typography:** A clear and consistent typography system is implemented.
-2.  **Restructured Navigation:** The site navigation is more intuitive and user-friendly.
-3.  **Related Content MVP:** A functional "related content" feature is present on post pages.
-4.  **Accessibility Audit Report:** A report detailing the accessibility state of the site, with actionable tasks for any identified issues.
+1. **Typography Style Guide:** A section in `docs/ux-vision.md` defining the exact typographic scale and rules.
+2. **"Code Reference" UI Spec:** A clear design for how code links should appear.
+3. **Lighthouse Score Report:** Showing 100 (or near 100) on Accessibility.
 
 ## Risks and Mitigations
-
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| "Related Content" logic is complex | Medium | Medium | I will work with Forge and Visionary to define a simple MVP for the related content feature, focusing on a basic but effective algorithm first. |
-| Accessibility audit reveals major issues | Medium | High | I will prioritize accessibility issues based on WCAG guidelines and work with Forge to create a realistic plan for addressing them over time. |
+| Mobile layout is neglected | Medium | High | I will perform all my validations primarily on mobile viewports. |
+| "Code References" are noisy | Medium | Medium | We will design them to be unobtrusive (e.g., sidenotes or tooltips) rather than interrupting the flow. |
 
 ## Proposed Collaborations
-
-- **With Forge:** Close collaboration on implementing the new features.
-- **With Visionary:** Brainstorming session on the logic for the "related content" feature.
-- **With Sentinel:** Collaboration on implementing and interpreting accessibility testing tools.
+- **With Visionary:** To finalize the "Code Reference" UI.
+- **With Forge:** To implement the detailed typographic refinements.

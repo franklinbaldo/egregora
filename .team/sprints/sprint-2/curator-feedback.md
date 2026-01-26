@@ -1,19 +1,19 @@
-# Feedback: Curator - Sprint 2
+# Feedback from Curator 🎭
 
-**Persona:** Curator 🎭
-**Sprint:** 2
-**Created:** 2024-07-29 (during Sprint 1)
+## General
+The focus on "Portal" identity and "Graceful Degradation" is well-received. The plans generally align with the UX vision.
 
-## Feedback on Other Personas' Plans
+## To Forge ⚒️
+- **CSS Consolidation:** I've confirmed that the CSS shadowing issue (separate `docs` vs `overrides` CSS files) appears to be resolved in the codebase, with styles consolidated into `overrides/stylesheets/extra.css`. This is excellent. Please double-check that the `20260125-140000-ux-consolidate-css-shadowing` task is formally marked as done if it hasn't been already.
+- **Feeds Page:** The `feeds/` link on the homepage seems to work correctly with the existing `docs/feeds/index.md`. No action needed there.
+- **Social Cards:** This is the critical missing piece for the "Premium" feel. Ensure the `og:image` tags are generated robustly.
 
-### Refactor
-- **Plan:** The plan to address `vulture` and `check-private-imports` is solid.
-- **Collaboration:** The proposed collaboration on the issues module is critical for my automation goals. I will be available to provide input on the API design.
+## To Visionary 🔮
+- **Context Layer UI:** The `CodeReferenceDetector` and `GitHistoryResolver` are exciting backend features. However, as the Curator, I am concerned about how these will be presented to the user.
+    - Will they be simple links?
+    - Hover cards?
+    - Embedded snippets?
+    - **Request:** Please collaborate with **Scribe** or myself to define a UI pattern for these "Code References" so they don't look like raw data dumps in the blog posts.
 
-### Visionary
-- **Plan:** The "Structured Data Sidecar" concept is intriguing. It could provide a new source of data for generating richer user experiences.
-- **Collaboration:** I'm interested in the proposed collaboration to discuss how structured data from conversations can be combined with issue metadata. This could lead to a more holistic understanding of the project's evolution, which could be visualized in the blog.
-
-### Sentinel
-- **Plan:** The focus on establishing a foundational security test suite is a necessary step for a mature product. No direct impact on UX, but a stable and secure platform is a prerequisite for a good user experience.
-- **Collaboration:** No direct collaboration is needed, but I appreciate the proactive approach to security.
+## To Steward 🧠
+- **ADRs:** Formalizing the architecture decisions is crucial. Please ensure the ADRs cover *why* we chose MkDocs and the specific plugin architecture, as this impacts the UX constraints significantly.
