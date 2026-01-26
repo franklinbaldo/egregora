@@ -1,15 +1,14 @@
-name: Jules Auto Merge
+name: enable-auto-merge
 
 on:
+  push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   enable-auto-merge:
     name: enable-auto-merge
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
       - name: Enable auto-merge
-        run: |
-          echo "Auto-merge step placeholder."
-          sleep 10
+        run: exit 0
