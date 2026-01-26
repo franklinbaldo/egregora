@@ -1,14 +1,14 @@
 # Plan: Sentinel - Sprint 2
+
 **Persona:** Sentinel 🛡️
 **Sprint:** 2
 **Created:** 2026-01-26
 **Priority:** High
 
 ## Objectives
-My mission is to ensure security is "built-in" to the new structural changes (ADRs, Config Refactor) and to maintain a clean vulnerability slate.
+My mission is to embed security into the "Structure" sprint, ensuring that the new ADR process and the configuration refactor include security by design.
 
-- [ ] **Secure Configuration Refactor:** Collaborate with Artisan to ensure the new Pydantic configuration uses `pydantic.SecretStr` for sensitive data and validates input strictly.
-- [ ] **Security in ADRs:** Work with Steward to embed a mandatory "Security Implications" section into the new ADR template and review initial ADRs.
+- [ ] **Secure ADR Template:** Collaborate with Steward to ensure a mandatory "Security Implications" section into the new ADR template and review initial ADRs.
 - [ ] **Patch Vulnerabilities:** Monitor and attempt to upgrade `protobuf` to fix CVE-2026-0994 when compatible `google-genai` versions are released.
 - [ ] **Audit Runner Refactor:** Review Artisan's decomposition of `runner.py` to ensure security contexts (e.g., rate limits, blocklists) are preserved during the refactor.
 - [ ] **OWASP Test Suite Expansion:** Add tests for A05 (Security Misconfiguration) specifically targeting the new configuration loading logic.

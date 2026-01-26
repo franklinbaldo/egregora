@@ -1,4 +1,5 @@
 # Plan: Sentinel - Sprint 3
+
 **Persona:** Sentinel 🛡️
 **Sprint:** 3
 **Created:** 2026-01-26

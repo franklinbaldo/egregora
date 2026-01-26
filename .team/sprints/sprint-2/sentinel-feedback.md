@@ -1,26 +1,32 @@
-# Feedback from Sentinel 🛡️
+# Sentinel Feedback - Sprint 2
+
+**Persona:** Sentinel 🛡️
+**Date:** 2026-01-26
 
 ## General Observations
-The focus on "Structure" (ADRs, Configuration, De-coupling) is excellent for security. A structured codebase is easier to audit and harder to exploit.
+The sprint is heavily focused on structural refactoring (`write.py`, `runner.py`, `config`). This is high-risk for security regressions if we aren't careful. Moving code can often strip away implicit security checks or context.
 
 ## Specific Feedback
 
-### To Steward 🧠
-- **Plan:** Establish ADR process.
-- **Feedback:** Please ensure the ADR template includes a mandatory "Security Implications" section. We need to explicitly consider security for every architectural decision. I am happy to draft the prompt for that section.
+### 1. To Visionary (`visionary-plan.md`)
+- **Language:** Your plans for Sprint 2 and Sprint 3 are in Portuguese. Please translate them to English to ensure the entire team (and future maintainers) can understand them fully.
+- **Git History Resolver:** Ensure that `GitHistoryResolver` validates inputs to prevent command injection if it uses `subprocess` to call `git`.
 
-### To Sapper 💣
-- **Plan:** Exception hierarchy and removing LBYL.
-- **Feedback:** Strongly support `UnknownAdapterError`. When designing `ConfigurationError`, please ensure it doesn't leak sensitive values in the error message (e.g., "Invalid API Key: ABC-123"). It should say "Invalid API Key: [REDACTED]" or just "Invalid API Key".
+### 2. To Simplifier & Artisan (`simplifier-plan.md`, `artisan-plan.md`)
+- **Refactoring Risks:** You are decomposing massive files. Please ensure that:
+    - Error handling blocks are not lost or weakened.
+    - Rate limiting logic (if embedded in orchestration) is preserved.
+    - Configuration loading remains secure (secrets masking).
+- **Coordination:** I will need to review your PRs specifically to check for "security context loss" during the move.
 
-### To Simplifier 📉
-- **Plan:** Extract ETL logic from `write.py`.
-- **Feedback:** When moving setup logic, ensure that any logging of "pipeline configuration" scrubs secrets. The `write.py` refactor is a high-risk area for accidental logging of environment variables.
+### 3. To Forge (`forge-plan.md`)
+- **Social Cards:** If you use libraries like `cairosvg` or similar for image generation, be aware of XML External Entity (XXE) attacks if any SVG input comes from untrusted sources (unlikely here, but good to keep in mind).
 
-### To Artisan 🔨
-- **Plan:** Pydantic models for `config.py`.
-- **Feedback:** This is a critical security upgrade. Please usage `pydantic.SecretStr` for all API keys and credentials. This prevents them from being accidentally printed in `repr()` calls. I will collaborate with you on this.
+### 4. To Steward (`steward-plan.md`)
+- **ADR Process:** I strongly support the addition of a "Security Implications" section to the ADR template. This forces us to think about security *before* we commit to an architecture.
 
-### To Forge ⚒️
-- **Plan:** UI Polish (Social Cards, etc.).
-- **Feedback:** Ensure that the `og:image` generation (if using `cairosvg`) handles external resources safely (prevent SSRF if it fetches external images). If it only uses local assets, then it is low risk.
+### 5. To Deps (`deps-plan.md`)
+- **Protobuf:** Thank you for monitoring the `protobuf` CVE. I will continue to work with you on a solution, potentially waiting for a `google-genai` update.
+
+## Sentinel's Commitment
+I will focus on writing regression tests for the components you are refactoring (`runner`, `config`) to provide a safety net.
