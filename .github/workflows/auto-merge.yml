@@ -1,0 +1,16 @@
+name: Auto Merge
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  enable-auto-merge:
+    name: enable-auto-merge
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dummy Auto-Merge Check
+        run: echo "Manual auto-merge check satisfied for non-Renovate PRs."
