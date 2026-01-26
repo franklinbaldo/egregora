@@ -1,9 +1,12 @@
 
-import pytest
+from datetime import datetime, timedelta
+
 import ibis
 import pandas as pd
-from datetime import datetime, timedelta
-from egregora.transformations.windowing import _window_by_bytes, WindowConfig
+import pytest
+
+from egregora.transformations.windowing import _window_by_bytes
+
 
 @pytest.fixture
 def message_table():
