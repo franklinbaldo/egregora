@@ -1,4 +1,4 @@
-name: Jules PR Auto-Merge
+name: Jules PR Auto-Merge Fix
 
 on:
   pull_request:
