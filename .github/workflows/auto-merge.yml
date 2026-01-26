@@ -1,8 +1,12 @@
-name: Enable Auto Merge
+name: enable-auto-merge
 
 on:
   pull_request:
+  pull_request_target:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   enable-auto-merge:
