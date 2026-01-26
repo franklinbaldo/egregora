@@ -201,9 +201,14 @@ class MkDocsSiteScaffolder:
     ) -> None:
         """Render and write all standard Jinja2 templates to the site structure.
 
-        This method handles the creation of the README, gitignore, GitHub workflows,
-        and the initial content pages (index, about, feeds, etc.). It also copies
-        static assets like the favicon and default overrides.
+        This method handles the creation of:
+        - Root files (README, gitignore)
+        - GitHub workflows
+        - Initial content pages (index, about, feeds, etc.)
+        - Static assets (favicon, default overrides)
+
+        It uses the provided Jinja2 environment to render templates located in
+        the `templates/site` directory.
 
         Args:
             site_paths: The resolved paths object for the target site.
