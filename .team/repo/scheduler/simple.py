@@ -96,7 +96,8 @@ def get_active_session(client: TeamClient, repo: str) -> dict | None:
         Active session dict if found, None otherwise.
     """
     # Active states that indicate a session is still running
-    active_states = {"ACTIVE", "RUNNING", "PLANNING", "EXECUTING", "WAITING_FOR_USER"}
+    # Jules API uses IN_PROGRESS for running sessions
+    active_states = {"IN_PROGRESS", "ACTIVE"}
 
     try:
         sessions = client.list_sessions().get("sessions", [])
