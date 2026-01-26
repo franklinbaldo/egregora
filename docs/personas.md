@@ -104,6 +104,7 @@ touch .team/personas/your-persona/prompt.md.j2
 Create `.team/personas/your-persona/prompt.md.j2`:
 
 ```jinja
+{% raw %}
 ---
 description: One-line description of your persona
 emoji: 🔧
@@ -158,6 +159,7 @@ Specific objective this persona achieves.
 2. **STEP 2**: Next action
 3. **STEP 3**: Final verification
 {% endblock %}
+{% endraw %}
 ```
 
 ### Step 4: Test Rendering
@@ -201,9 +203,11 @@ You can override any of these by redefining the block in your persona template.
 Reference these in your custom blocks:
 
 ```jinja
+{% raw %}
 {% include "blocks/bdd_technique.md.j2" %}  # BDD testing guidance
 {% include "blocks/pr_format.md.j2" %}      # Standardized PR template
 {% include "partials/celebration.md.j2" %}  # Empty queue celebration
+{% endraw %}
 ```
 
 ## Persona Communication
@@ -260,11 +264,13 @@ Each persona should have **one clear purpose**. Don't create "jack-of-all-trades
 Personas must work **independently** without human input:
 
 ```jinja
+{% raw %}
 {% block constraints %}
 - Make decisions autonomously
 - Don't ask humans for approval
 - Document uncertainties in journal
 {% endblock %}
+{% endraw %}
 ```
 
 ### 3. Clear Verification
@@ -272,11 +278,13 @@ Personas must work **independently** without human input:
 Always define **measurable success criteria**:
 
 ```jinja
+{% raw %}
 {% block verification %}
 - All tests pass (run `uv run pytest`)
 - Linter shows 0 errors (run `uv run ruff check`)
 - Documentation updated in docs/
 {% endblock %}
+{% endraw %}
 ```
 
 ### 4. Precise Context
@@ -314,12 +322,14 @@ sprint_context = sprint_manager.get_sprint_context("curator")
 Use Jinja2 conditionals for flexible prompts:
 
 ```jinja
+{% raw %}
 {% if journal_entries %}
 ## Previous Work
 {{ journal_entries }}
 {% else %}
 This is your first session!
 {% endif %}
+{% endraw %}
 ```
 
 ### Custom Password Generation
@@ -387,9 +397,9 @@ Study these well-implemented personas:
 
 ### Related Documentation
 
-- [Team Constitution](.team/CONSTITUTION.md)
-- [Parallel Personas](.team/PARALLEL_PERSONAS_README.md)
-- [Code of the Weaver](CLAUDE.md)
+- [Team Constitution](https://github.com/franklinbaldo/egregora/blob/main/.team/CONSTITUTION.md)
+- [Parallel Personas](https://github.com/franklinbaldo/egregora/blob/main/.team/PARALLEL_PERSONAS_README.md)
+- [Code of the Weaver](https://github.com/franklinbaldo/egregora/blob/main/CLAUDE.md)
 
 ---
 
