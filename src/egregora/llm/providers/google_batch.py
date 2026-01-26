@@ -238,10 +238,10 @@ class GoogleBatchModel(Model):
             result["candidates"] = candidates
         return result
 
-    def _poll_job(self, client: Any, job_name: str) -> Any:
+    def _poll_job(self, client: genai.Client, job_name: str) -> types.BatchJob:
         """Poll the batch job for completion using tenacity."""
 
-        def _check_job_status(job: Any) -> bool:
+        def _check_job_status(job: types.BatchJob) -> bool:
             return job.state.name in ("PROCESSING", "PENDING", "STATE_UNSPECIFIED")
 
         # Retry while the job is in a processing state
@@ -253,7 +253,7 @@ class GoogleBatchModel(Model):
             wait=wait_fixed(self.poll_interval),
             reraise=True,
         )
-        def _get_job_with_retry() -> Any:
+        def _get_job_with_retry() -> types.BatchJob:
             # client.batches.get is blocking
             return client.batches.get(name=job_name)
 
