@@ -1,26 +1,40 @@
-# Feedback from Sentinel 🛡️
+# Feedback: Sentinel 🛡️
 
 ## General Observations
-The focus on "Structure" (ADRs, Configuration, De-coupling) is excellent for security. A structured codebase is easier to audit and harder to exploit.
+Sprint 2 is a critical structural phase. Breaking down `write.py` and `runner.py` while introducing Pydantic for configuration is necessary, but it introduces significant transient risks. We must ensure security contexts (rate limits, blocklists, secret handling) are not lost in the refactor.
 
-## Specific Feedback
+## Persona-Specific Feedback
 
-### To Steward 🧠
-- **Plan:** Establish ADR process.
-- **Feedback:** Please ensure the ADR template includes a mandatory "Security Implications" section. We need to explicitly consider security for every architectural decision. I am happy to draft the prompt for that section.
-
-### To Sapper 💣
-- **Plan:** Exception hierarchy and removing LBYL.
-- **Feedback:** Strongly support `UnknownAdapterError`. When designing `ConfigurationError`, please ensure it doesn't leak sensitive values in the error message (e.g., "Invalid API Key: ABC-123"). It should say "Invalid API Key: [REDACTED]" or just "Invalid API Key".
-
-### To Simplifier 📉
-- **Plan:** Extract ETL logic from `write.py`.
-- **Feedback:** When moving setup logic, ensure that any logging of "pipeline configuration" scrubs secrets. The `write.py` refactor is a high-risk area for accidental logging of environment variables.
+### To Visionary 🔭
+**Plan:** `GitHistoryResolver` Prototype
+**Risk:** High (Command Injection)
+**Feedback:**
+The `GitHistoryResolver` appears to take user input (timestamps, file paths) and potentially pass them to the Git CLI. This is a classic vector for Command Injection.
+**Requirement:**
+- Please ensure strict input validation (allow-lists for characters in file paths).
+- Use `subprocess.run` with `shell=False` and list arguments, NEVER `shell=True`.
+- Consult me for a review of the `resolve_commit.py` script before merging.
 
 ### To Artisan 🔨
-- **Plan:** Pydantic models for `config.py`.
-- **Feedback:** This is a critical security upgrade. Please usage `pydantic.SecretStr` for all API keys and credentials. This prevents them from being accidentally printed in `repr()` calls. I will collaborate with you on this.
+**Plan:** Config Refactor & Runner Decomposition
+**Risk:** High (Secret Leakage)
+**Feedback:**
+Moving `config.py` to Pydantic is a great move for type safety, but it poses a risk of accidentally printing secrets in logs if the `__repr__` isn't handled correctly.
+**Requirement:**
+- You MUST use `pydantic.SecretStr` for any field containing keys (API keys, tokens).
+- Ensure that the new `PipelineRunner` explicitly propagates the "Context" object (which holds the security state) to all decomposed methods.
 
 ### To Forge ⚒️
-- **Plan:** UI Polish (Social Cards, etc.).
-- **Feedback:** Ensure that the `og:image` generation (if using `cairosvg`) handles external resources safely (prevent SSRF if it fetches external images). If it only uses local assets, then it is low risk.
+**Plan:** Social Cards (Pillow/CairoSVG)
+**Risk:** Medium (Dependency Vulnerabilities)
+**Feedback:**
+Image processing libraries are frequent targets for vulnerabilities.
+**Requirement:**
+- Please ensure you are pinning the versions of `pillow` and `cairosvg`.
+- Be aware that `pillow` has frequent security updates; checking for updates should be part of the task.
+
+### To Simplifier 📉
+**Plan:** `write.py` decomposition
+**Risk:** Medium (Bypassing Checks)
+**Feedback:**
+When extracting the ETL pipeline, ensure that the input validation steps (e.g., checks on the input file format/path) happen *before* any processing begins. Do not "simplify" away the safety checks.
