@@ -6,6 +6,7 @@
     ":semanticCommits",
     ":enablePreCommit"
   ],
+  "enabledManagers": ["pep621", "github-actions", "pre-commit", "uv"],
   "labels": ["dependencies"],
   "commitMessagePrefix": "chore(deps):",
   "schedule": ["before 6am on Monday"],
