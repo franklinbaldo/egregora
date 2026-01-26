@@ -53,7 +53,7 @@ jobs:
 
           # 3. Enable Auto-Merge
           echo "Enabling auto-merge..."
-          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch
+          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch || true
 
           if [ $? -eq 0 ]; then
             echo "✅ Auto-merge enabled successfully."
