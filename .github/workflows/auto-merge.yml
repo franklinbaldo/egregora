@@ -11,6 +11,8 @@ jobs:
   # It runs on both triggers to ensure the check is always reported as "Success"
   enable-auto-merge:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Status Check Satisfaction
         run: echo "Dummy pass to satisfy required status check 'enable-auto-merge'"
