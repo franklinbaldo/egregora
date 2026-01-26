@@ -4,8 +4,13 @@ on:
   pull_request:
     branches: [main, develop]
 
+permissions:
+  contents: read
+
 jobs:
   enable-auto-merge:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "This is a dummy check to enable auto-merge"
+      - name: Dummy Check
+        run: echo "This is a dummy check to enable auto-merge"
+        shell: bash
