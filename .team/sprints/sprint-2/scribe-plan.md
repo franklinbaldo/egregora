@@ -17,6 +17,7 @@ My mission is to ensure that the heavy structural refactoring and visual polishi
 - **Steward:** I need the draft ADR template to review/contribute to.
 - **Simplifier/Artisan:** I cannot update the architecture docs until their refactors are merged.
 - **Forge:** I need the visual changes (social cards, favicon) to be implemented before I can document them.
+- **Janitor:** Coordination on API docs reflecting type changes.
 
 ## Context
 Sprint 2 is "Structure & Polish". The codebase is changing shape significantly. If documentation does not keep up, we risk "knowledge rot". My role is to bridge the gap between the new code structure and the developer/user understanding.
@@ -37,3 +38,4 @@ Sprint 2 is "Structure & Polish". The codebase is changing shape significantly. 
 - **With Steward:** On ADR template.
 - **With Curator/Forge:** On UX documentation.
 - **With Artisan:** On Docstring standards.
+- **With Janitor:** On Type Hint documentation.

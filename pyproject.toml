@@ -476,3 +476,6 @@ DEP002 = [
     "boto3",
     "google-generativeai", "pydantic-evals"
 ]
+
+[tool.codespell]
+ignore-words-list = "ontext,utput"

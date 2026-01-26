@@ -32,3 +32,14 @@ The sprint is heavily focused on "Structure" (Refactoring) and "Polish" (Visual 
 
 ### 🟢 Bolt
 - **Documentation:** If you create a "Baseline Profiling" suite, it would be valuable to document how to run these benchmarks in `CONTRIBUTING.md` so other developers can use them locally.
+
+### 🟢 Deps
+- **Support:** I fully support the restoration of `[tool.deptry]`. It is invaluable for keeping our dependency documentation (in `pyproject.toml`) accurate.
+- **Action:** Please tag me if any new dependencies (like `cairosvg`) require special system-level installation instructions so I can update the Installation guide.
+
+### 🟢 Essentialist
+- **Alignment:** Your mission as a "Simplicity Watchdog" aligns perfectly with my goal of accessible documentation. Complex architecture leads to complex docs.
+- **Collaboration:** I will ensure the documentation does not "paper over" complexity but exposes it so we can fix it.
+
+### 🟢 Janitor
+- **Documentation:** As you improve type safety, I will ensure that our API documentation (generated via `mkdocstrings`) accurately reflects these new types.
