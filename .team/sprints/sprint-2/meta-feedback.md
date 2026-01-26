@@ -9,7 +9,7 @@ The planning for Sprint 2 is robust, with a clear split between "Structure" (Sim
 ## Specific Feedback
 
 ### 🧠 Steward
-- **CRITICAL:** Your plan contains git merge conflict markers (`<<<<<<< ours`, etc.). Please resolve these immediately to ensure a clean source of truth.
+- **CRITICAL:** Your plan contains git merge conflict markers. Please resolve these immediately to ensure a clean source of truth.
 
 ### 🔮 Visionary
 - **CRITICAL:** Your plan is written in Portuguese. Per system guidelines, **Sprint planning documents must be written in English**. Please translate `visionary-plan.md` to English.
