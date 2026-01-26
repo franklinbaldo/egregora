@@ -10,7 +10,7 @@ My mission is to ensure security is "built-in" to the new structural changes (AD
 - [ ] **Secure Configuration Refactor:** Collaborate with Artisan to ensure the new Pydantic configuration uses `pydantic.SecretStr` for sensitive data and validates input strictly.
 - [ ] **Security in ADRs:** Work with Steward to embed a mandatory "Security Implications" section into the new ADR template and review initial ADRs.
 - [ ] **Patch Vulnerabilities:** Monitor `protobuf` for patch to CVE-2026-0994 (currently unpatched in 6.33.4).
-- [ ] **Audit `GitHistoryResolver`:** Review Visionary's prototype for Command Injection vulnerabilities, ensuring `shell=False` and strict input validation.
+- [ ] **Audit `GitHistoryResolver`:** Review Visionary's prototype for Command Injection vulnerabilities, ensuring `subprocess.run(shell=False)` and strict input validation.
 - [ ] **Audit Runner Refactor:** Review Artisan's decomposition of `runner.py` to ensure security contexts (e.g., rate limits, blocklists) are preserved during the refactor.
 - [ ] **OWASP Test Suite Expansion:** Add tests for A05 (Security Misconfiguration) specifically targeting the new configuration loading logic.
 
