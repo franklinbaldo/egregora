@@ -1,8 +1,8 @@
-# Plan: Forge ⚒️ - Sprint 2
+# Plan: Forge - Sprint 2
 
 **Persona:** Forge ⚒️
 **Sprint:** 2
-**Created:** 2026-01-26
+**Created:** 2026-01-26 (Updated)
 **Priority:** High
 
 ## Objectives
@@ -17,7 +17,7 @@ My mission is to complete the "Portal" visual identity and ensure a polished use
 - **Curator:** For approval of visual refinements.
 
 ## Context
-Foundational theming was established in Sprint 1 (including the Portal theme and Feeds page). Sprint 2 is about "Finish and Polish".
+Foundational theming was established in Sprint 1. Sprint 2 is about "Finish and Polish".
 
 ## Expected Deliverables
 1. Working Social Cards.

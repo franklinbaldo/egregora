@@ -44,7 +44,6 @@ def render(
     """
     try:
         from repo.scheduler.loader import PersonaLoader
-        from unittest.mock import patch
 
         # Initialize loader
         personas_dir = Path(".team/personas")
@@ -54,38 +53,34 @@ def render(
 
         loader = PersonaLoader(personas_dir=personas_dir)
 
-        # Mock sprint manager to avoid dependencies
-        with patch("repo.features.sprints.sprint_manager") as mock_sm:
-            mock_sm.get_sprint_context.return_value = ""
+        # Load the persona
+        personas = loader.load_personas([f'personas/{persona_id}/prompt.md.j2'])
 
-            # Load the persona
-            personas = loader.load_personas([f'personas/{persona_id}/prompt.md.j2'])
+        if not personas:
+            rprint(f"[red]❌ Error: Persona '{persona_id}' not found[/red]")
+            rprint(f"[dim]Looking for: .team/personas/{persona_id}/prompt.md.j2[/dim]")
+            raise typer.Exit(code=1)
 
-            if not personas:
-                rprint(f"[red]❌ Error: Persona '{persona_id}' not found[/red]")
-                rprint(f"[dim]Looking for: .team/personas/{persona_id}/prompt.md.j2[/dim]")
-                raise typer.Exit(code=1)
+        persona = personas[0]
 
-            persona = personas[0]
-
-            # Output to file or console
-            if output:
-                output.write_text(persona.prompt_body)
-                rprint(f"[green]✅ Rendered prompt saved to {output}[/green]")
-            elif preview:
-                rprint(Panel(
-                    persona.prompt_body[:1000] + "\n\n[dim]... (truncated)[/dim]",
-                    title=f"🎨 {persona.emoji} {persona.id}",
-                    subtitle=f"{len(persona.prompt_body)} characters total"
-                ))
-            else:
-                # Show full prompt with syntax highlighting
-                syntax = Syntax(persona.prompt_body, "markdown", theme="monokai", line_numbers=False)
-                console.print(Panel(
-                    syntax,
-                    title=f"🎨 {persona.emoji} {persona.id}",
-                    subtitle=persona.description
-                ))
+        # Output to file or console
+        if output:
+            output.write_text(persona.prompt_body)
+            rprint(f"[green]✅ Rendered prompt saved to {output}[/green]")
+        elif preview:
+            rprint(Panel(
+                persona.prompt_body[:1000] + "\n\n[dim]... (truncated)[/dim]",
+                title=f"🎨 {persona.emoji} {persona.id}",
+                subtitle=f"{len(persona.prompt_body)} characters total"
+            ))
+        else:
+            # Show full prompt with syntax highlighting
+            syntax = Syntax(persona.prompt_body, "markdown", theme="monokai", line_numbers=False)
+            console.print(Panel(
+                syntax,
+                title=f"🎨 {persona.emoji} {persona.id}",
+                subtitle=persona.description
+            ))
 
     except ImportError as e:
         rprint(f"[red]❌ Error: Missing dependency: {e}[/red]")
@@ -114,7 +109,6 @@ def validate(
     """
     try:
         from repo.scheduler.loader import PersonaLoader
-        from unittest.mock import patch
         import uuid
 
         personas_dir = Path(".team/personas")
@@ -124,87 +118,83 @@ def validate(
 
         loader = PersonaLoader(personas_dir=personas_dir)
 
-        # Mock sprint manager
-        with patch("repo.features.sprints.sprint_manager") as mock_sm:
-            mock_sm.get_sprint_context.return_value = ""
+        # Determine which personas to validate
+        if persona_id:
+            personas = loader.load_personas([f'personas/{persona_id}/prompt.md.j2'])
+            if not personas:
+                rprint(f"[red]❌ Error: Persona '{persona_id}' not found[/red]")
+                raise typer.Exit(code=1)
+        else:
+            personas = loader.load_personas([])
 
-            # Determine which personas to validate
-            if persona_id:
-                personas = loader.load_personas([f'personas/{persona_id}/prompt.md.j2'])
-                if not personas:
-                    rprint(f"[red]❌ Error: Persona '{persona_id}' not found[/red]")
-                    raise typer.Exit(code=1)
+        # Create results table
+        table = Table(title="Persona Validation Results")
+        table.add_column("Persona", style="cyan")
+        table.add_column("Status", style="green")
+        table.add_column("Issues", style="yellow")
+
+        failed = []
+        passed = []
+
+        for persona in personas:
+            issues = []
+
+            # Check required fields
+            if not persona.id:
+                issues.append("Missing ID")
+            if not persona.emoji:
+                issues.append("Missing emoji")
+            if not persona.description:
+                issues.append("Missing description")
+            if len(persona.prompt_body) < 100:
+                issues.append("Prompt too short")
+
+            # Check password injection
+            expected_password = str(uuid.uuid5(uuid.NAMESPACE_DNS, persona.id))
+            if expected_password not in persona.prompt_body:
+                issues.append("Password not injected")
+
+            # Check session protocol
+            if "my-tools" not in persona.prompt_body.lower():
+                issues.append("Missing session protocol")
+
+            # Check RGCCOV sections
+            if "Role" not in persona.prompt_body and "## 🎭 Role" not in persona.prompt_body:
+                issues.append("Missing Role section")
+            if "Goal" not in persona.prompt_body and "## 🎯 Goal" not in persona.prompt_body:
+                issues.append("Missing Goal section")
+
+            # Add to results
+            if issues:
+                failed.append(persona.id)
+                status = "❌ FAILED"
+                table.add_row(
+                    f"{persona.emoji} {persona.id}",
+                    status,
+                    ", ".join(issues)
+                )
             else:
-                personas = loader.load_personas([])
-
-            # Create results table
-            table = Table(title="Persona Validation Results")
-            table.add_column("Persona", style="cyan")
-            table.add_column("Status", style="green")
-            table.add_column("Issues", style="yellow")
-
-            failed = []
-            passed = []
-
-            for persona in personas:
-                issues = []
-
-                # Check required fields
-                if not persona.id:
-                    issues.append("Missing ID")
-                if not persona.emoji:
-                    issues.append("Missing emoji")
-                if not persona.description:
-                    issues.append("Missing description")
-                if len(persona.prompt_body) < 100:
-                    issues.append("Prompt too short")
-
-                # Check password injection
-                expected_password = str(uuid.uuid5(uuid.NAMESPACE_DNS, persona.id))
-                if expected_password not in persona.prompt_body:
-                    issues.append("Password not injected")
-
-                # Check session protocol
-                if "my-tools" not in persona.prompt_body.lower():
-                    issues.append("Missing session protocol")
-
-                # Check RGCCOV sections
-                if "Role" not in persona.prompt_body and "## 🎭 Role" not in persona.prompt_body:
-                    issues.append("Missing Role section")
-                if "Goal" not in persona.prompt_body and "## 🎯 Goal" not in persona.prompt_body:
-                    issues.append("Missing Goal section")
-
-                # Add to results
-                if issues:
-                    failed.append(persona.id)
-                    status = "❌ FAILED"
+                passed.append(persona.id)
+                if verbose:
                     table.add_row(
                         f"{persona.emoji} {persona.id}",
-                        status,
-                        ", ".join(issues)
+                        "✅ PASSED",
+                        "All checks passed"
                     )
-                else:
-                    passed.append(persona.id)
-                    if verbose:
-                        table.add_row(
-                            f"{persona.emoji} {persona.id}",
-                            "✅ PASSED",
-                            "All checks passed"
-                        )
 
-            # Display results
-            console.print(table)
-            console.print()
+        # Display results
+        console.print(table)
+        console.print()
 
-            # Summary
-            total = len(personas)
-            rprint(f"[bold]Summary:[/bold] {len(passed)}/{total} personas passed validation")
+        # Summary
+        total = len(personas)
+        rprint(f"[bold]Summary:[/bold] {len(passed)}/{total} personas passed validation")
 
-            if failed:
-                rprint(f"[red]Failed personas: {', '.join(failed)}[/red]")
-                raise typer.Exit(code=1)
-            else:
-                rprint("[green]✅ All personas are valid![/green]")
+        if failed:
+            rprint(f"[red]Failed personas: {', '.join(failed)}[/red]")
+            raise typer.Exit(code=1)
+        else:
+            rprint("[green]✅ All personas are valid![/green]")
 
     except ImportError as e:
         rprint(f"[red]❌ Error: Missing dependency: {e}[/red]")
@@ -223,7 +213,6 @@ def list():
     """
     try:
         from repo.scheduler.loader import PersonaLoader
-        from unittest.mock import patch
 
         personas_dir = Path(".team/personas")
         if not personas_dir.exists():
@@ -232,30 +221,26 @@ def list():
 
         loader = PersonaLoader(personas_dir=personas_dir)
 
-        # Mock sprint manager
-        with patch("repo.features.sprints.sprint_manager") as mock_sm:
-            mock_sm.get_sprint_context.return_value = ""
+        personas = loader.load_personas([])
 
-            personas = loader.load_personas([])
+        if not personas:
+            rprint("[yellow]⚠️  No personas found[/yellow]")
+            return
 
-            if not personas:
-                rprint("[yellow]⚠️  No personas found[/yellow]")
-                return
+        # Create table
+        table = Table(title=f"Available Personas ({len(personas)})")
+        table.add_column("Emoji", style="cyan", width=5)
+        table.add_column("ID", style="green")
+        table.add_column("Description", style="white")
 
-            # Create table
-            table = Table(title=f"Available Personas ({len(personas)})")
-            table.add_column("Emoji", style="cyan", width=5)
-            table.add_column("ID", style="green")
-            table.add_column("Description", style="white")
+        for persona in sorted(personas, key=lambda p: p.id):
+            table.add_row(
+                persona.emoji,
+                persona.id,
+                persona.description[:80] + "..." if len(persona.description) > 80 else persona.description
+            )
 
-            for persona in sorted(personas, key=lambda p: p.id):
-                table.add_row(
-                    persona.emoji,
-                    persona.id,
-                    persona.description[:80] + "..." if len(persona.description) > 80 else persona.description
-                )
-
-            console.print(table)
+        console.print(table)
 
     except ImportError as e:
         rprint(f"[red]❌ Error: Missing dependency: {e}[/red]")

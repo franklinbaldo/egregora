@@ -396,7 +396,8 @@ def validate_prompt_fits(
         )
         raise PromptTooLargeError(
             limit=max_allowed,
-            actual=token_count,
+            token_count=token_count,
+            window_label=window_label,
         )
 
     return token_count

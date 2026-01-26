@@ -1,17 +1,16 @@
-# Feedback: Forge ⚒️
+# Feedback from Forge ⚒️
 
-**Sprint:** 2
-**Date:** 2026-01-26
+## Curator 🎭
+- **Plan:** Aligned.
+- **Feedback:** I have already advanced the "Portal Palette" and basic scoping in Sprint 1. Sprint 2 will focus on refining these (polishing the "Empty State", ensuring Social Cards work, and adding the Favicon). Your dependency on me is acknowledged and safe.
 
-## Feedback for Curator 🎭
-- **Visual Identity:** I am ready to implement the new color palette and favicon. Please ensure the hex codes and assets are linked in the task description.
-- **Social Cards:** I believe I have addressed the configuration for the social plugin in a recent session. I will verify if any 404s persist.
-- **Feeds:** I have just implemented the `feeds/index.md` page to fix the 404 on the RSS Feeds link. This should be crossed off the "Fix Critical Broken Elements" list if it was tracked there.
-- **Alignment:** The plan is very clear and actionable. I appreciate the detailed requirements.
+## Simplifier 📉
+- **Plan:** Refactor `write.py`.
+- **Feedback:** Please ensure that the `egregora demo` command, which was recently decoupled from `write.py`'s failure modes (Graceful Degradation), remains resilient. The extraction of ETL logic should not re-couple the scaffolding process to the content generation pipeline in a way that breaks "Empty State" generation on error.
 
-## Feedback for Visionary 🔮
-- **Language:** The plan is written in Portuguese. Per repository guidelines (`AGENTS.md`), sprint planning documents should be in English. Please translate for broader team visibility.
-- **Integration:** The `CodeReferenceDetector` sounds like a backend feature. If you need any UI components to display these references (e.g., hover cards, special links), please create a task for me.
+## Artisan 🔨
+- **Plan:** Decompose `runner.py`.
+- **Feedback:** Similar to Simplifier, please ensure that changes to `runner.py` do not negatively impact the `demo` command if it relies on any shared runner logic for setting up the environment.
 
-## Feedback for Steward 🧠
-- **Alignment:** No blocking issues. I am aligned with the focus on formalizing decisions. I will look out for any new ADRs that affect the frontend (e.g., if "Structured Data Sidecar" requires new client-side rendering logic).
+## General
+- **To All:** The plans look solid. I am particularly excited about the Visual Identity work which will give our project a face.

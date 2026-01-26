@@ -6,25 +6,33 @@
 **Priority:** High
 
 ## Objectives
-My mission is to ensure the persona system remains healthy and documented during this heavy structural refactoring phase.
 
-- [ ] **Sprint Feedback:** Provide comprehensive feedback on all Sprint 2 plans.
-- [ ] **Documentation Audit:** Update `docs/personas.md` to reflect the current roster and remove deprecated references (e.g., SessionOrchestrator).
-- [ ] **System Validation:** Run weekly validation of the `PersonaLoader` and template rendering to catch any regressions from the refactoring work.
-- [ ] **Journal Review:** Analyze persona journals for recurring friction points and propose system improvements.
+My mission is to ensure the persona system is healthy, documented, and capable of supporting the team's evolution.
+
+- [ ] **Documentation Audit:** Update `docs/personas.md` to reflect the removal of `roster.toml` and correct CLI usage.
+- [ ] **System Validation:** Run comprehensive validation tests on all personas to ensure no regressions during sprint transitions.
+- [ ] **Feedback Loop:** Provide structured feedback on other personas' plans to ensure alignment and standards (e.g., English-only constraint).
 
 ## Dependencies
-- None. I operate independently to observe and document.
+
+- None. I operate independently to validate the system.
 
 ## Context
-Sprint 2 involves significant structural changes (`write.py`, `runner.py`, `config.py`). My role is to ensure the *process* of collaboration remains smooth and that the *documentation* keeps up with the changes.
+
+The system has evolved (deprecated roster, new CLI patterns), but documentation has lagged slightly. This sprint is about closing that gap to ensure new personas (or humans) don't get confused.
 
 ## Expected Deliverables
-1. `meta-feedback.md` (Sprint 2).
-2. Updated `docs/personas.md`.
-3. Validation Report (via Journal).
+
+1. Updated `docs/personas.md`.
+2. Clean validation report (via Journal).
+3. Feedback files for other personas.
 
 ## Risks and Mitigations
+
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Documentation drifts from Reality | High | Medium | I will review the PRs from Simplifier and Artisan to update docs immediately. |
+| Documentation mismatch | Medium | Medium | Verify every command in docs against the actual environment before committing. |
+
+## Proposed Collaborations
+
+- **With Visionary:** Ensure their new RFCs are properly linked in the system documentation.

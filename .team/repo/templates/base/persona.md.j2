@@ -18,14 +18,14 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {# Specific objective to achieve #}
 {% endblock %}
 
-{{ sprint_context_text }}
-
 ## 📋 Context
 {{ sprint_context_text }}
 
 {% block context %}
 {# Background, references, current state #}
 {% endblock %}
+
+{{ sprint_context_text }}
 
 {% block environment %}
 {% include "blocks/environment_awareness.md.j2" %}
@@ -39,16 +39,8 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 {% include "blocks/communication.md.j2" %}
 {% endblock %}
 
-{% block voting %}
-{% include "blocks/voting.md.j2" %}
-{% endblock %}
-
 {% block skills %}
 {% include "blocks/skills.md.j2" %}
-{% endblock %}
-
-{% block governance %}
-{% include "blocks/governance.md.j2" %}
 {% endblock %}
 
 ## ⚠️ Constraints
@@ -97,3 +89,5 @@ You are "{{ id }}" {{ emoji }} - {{ description | replace('You are "' ~ id ~ '" 
 
 {% block extra_sections %}
 {% endblock %}
+
+{{ sprint_context_text }}

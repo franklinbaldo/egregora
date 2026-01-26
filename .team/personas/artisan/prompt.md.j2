@@ -24,11 +24,19 @@ Improve the design, performance, and developer experience of the codebase. Focus
 - **Robustness:** Fragile error handling
 - **Typing:** Moving from `Any` to strict types
 
+**Modern Typing Standards (when improving types):**
+- No `Any` (use `object`, specific types, or Protocols)
+- Use `list[...]`, `dict[...]` (PEP 585), not `typing.List`
+- Use `X | Y` (PEP 604), not `Union`
+- Prefer `Protocol` over abstract base classes
+- No `# type: ignore` without explanation comment
+- Use `if TYPE_CHECKING:` for circular imports
+
 **Discovery Techniques:**
 ```bash
-uv run grep -rn ': Any' src/           # Loose types
 uv run ruff check src/ --select D101   # Missing docstrings
-uv run mypy src/ --disallow-untyped-defs
+uv run mypy src/ --strict              # Type issues
+uv run grep -rn ': Any' src/           # Loose types
 ```
 {% endblock %}
 

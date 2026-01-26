@@ -57,6 +57,9 @@ def create_personas(isolated_fs, names):
         (isolated_fs / f".team/personas/{name}").mkdir(parents=True, exist_ok=True)
 
 
+from unittest.mock import MagicMock, patch
+
+
 @when(parsers.parse('I run the mail command "{command}" with args:'), target_fixture="last_command_result")
 def run_mail_command(runner, command, datatable):
     # Flatten datatable to list of args
@@ -71,12 +74,26 @@ def run_mail_command(runner, command, datatable):
             flat_args.append(str(row[0]))  # arg
             flat_args.append(str(row[1]))  # value
 
-    return runner.invoke(app, flat_args)
+    with patch("repo.features.session.SessionManager") as mock_sm_class:
+        # Mock active session for authentication
+        mock_sm = MagicMock()
+        mock_sm.get_active_persona.return_value = "tester"
+        mock_sm.get_active_sequence.return_value = "seq-1"
+        mock_sm_class.return_value = mock_sm
+
+        return runner.invoke(app, flat_args)
 
 
 @when('I run the mail command "read" with the message key', target_fixture="last_command_result")
 def run_read_command(runner, message_key):
-    return runner.invoke(app, ["read", message_key, "--persona", "me@team"])
+    with patch("repo.features.session.SessionManager") as mock_sm_class:
+        # Mock active session for authentication
+        mock_sm = MagicMock()
+        mock_sm.get_active_persona.return_value = "tester"
+        mock_sm.get_active_sequence.return_value = "seq-1"
+        mock_sm_class.return_value = mock_sm
+
+        return runner.invoke(app, ["read", message_key, "--persona", "me@team"])
 
 
 @then("the command should exit successfully")

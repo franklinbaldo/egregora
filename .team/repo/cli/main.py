@@ -3,36 +3,42 @@
 import typer
 
 from repo.features.autofix import auto_reply_to_jules
-from repo.scheduler.managers import BranchManager
-from repo.scheduler.engine import run_scheduler
+from repo.scheduler.simple import merge_completed_prs, run_scheduler
 
 app = typer.Typer()
 schedule_app = typer.Typer()
 app.add_typer(schedule_app, name="schedule")
 autofix_app = typer.Typer()
 app.add_typer(autofix_app, name="autofix")
-sync_app = typer.Typer()
-app.add_typer(sync_app, name="sync")
 
 
 @schedule_app.command("tick")
 def schedule_tick(
-    all: bool = typer.Option(False, "--all", help="Run all enabled prompts regardless of schedule"),  # noqa: FBT001, FBT003, A002
-    dry_run: bool = typer.Option(False, "--dry-run", help="Do not create sessions"),  # noqa: FBT001, FBT003
-    prompt_id: str = typer.Option(None, "--prompt-id", help="Run only specific prompt ID or prompt path"),
-    reset: bool = typer.Option(False, "--reset", help="Reset cycle and start from the first persona"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Do not create sessions or merge PRs"),
 ) -> None:
-    """Run the scheduler tick."""
-    result = run_scheduler(dry_run=dry_run, persona_id=prompt_id, reset=reset)
+    """Run the scheduler tick.
+
+    This will:
+    1. Merge any completed Jules PRs (drafts with passing CI)
+    2. Create a session for the next persona in round-robin order
+    """
+    result = run_scheduler(dry_run=dry_run)
     if result.success:
         typer.echo(f"✅ {result.message}")
         if result.session_id:
             typer.echo(f"Session ID: {result.session_id}")
+        if result.merged_count > 0:
+            typer.echo(f"Merged PRs: {result.merged_count}")
     else:
         typer.echo(f"❌ {result.message}", err=True)
-        if result.error:
-            typer.echo(f"Error details: {result.error}", err=True)
         raise typer.Exit(code=1)
+
+
+@schedule_app.command("merge")
+def schedule_merge() -> None:
+    """Merge completed Jules PRs only (no new session)."""
+    merged = merge_completed_prs()
+    typer.echo(f"Merged {merged} PR(s)")
 
 
 @autofix_app.command("analyze")
@@ -49,22 +55,13 @@ app.add_typer(feedback_app, name="feedback")
 
 @feedback_app.command("loop")
 def feedback_loop(
-    dry_run: bool = typer.Option(False, "--dry-run", help="Do not create sessions"),  # noqa: FBT001, FBT003
+    dry_run: bool = typer.Option(False, "--dry-run", help="Do not create sessions"),
     author: str = typer.Option("app/google-labs-jules", "--author", help="Filter PRs by author"),
 ) -> None:
     """Run the feedback loop."""
     from repo.features.feedback import run_feedback_loop
 
     run_feedback_loop(dry_run=dry_run, author_filter=author)
-
-
-@sync_app.command("merge-main")
-def sync_merge_main(
-    dry_run: bool = typer.Option(False, "--dry-run", help="Do not execute changes"),  # noqa: FBT001, FBT003
-) -> None:
-    """Directly merge jules → main (no PR)."""
-    mgr = BranchManager()
-    mgr.merge_jules_into_main_direct(dry_run=dry_run)
 
 
 if __name__ == "__main__":

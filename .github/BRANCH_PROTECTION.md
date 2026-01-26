@@ -92,11 +92,9 @@ After configuring branch protection:
    - Auto-merge button available (if all checks pass)
 
 3. **Test auto-merge:**
-   - Wait for Dependabot or Renovate to create a PR
+   - Wait for Dependabot, Renovate, or a Jules PR to appear
    - The auto-merge workflow should:
-     - ✅ Approve the PR
      - ✅ Enable auto-merge
-     - ✅ Post a comment
      - 🎯 PR merges automatically when checks pass
 
 ---

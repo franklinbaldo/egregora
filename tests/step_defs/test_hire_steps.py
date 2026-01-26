@@ -61,9 +61,17 @@ def hire_persona(runner, isolated_fs, p_id, name, emoji, role, description, miss
         "any",
     ]
 
-    with patch("repo.cli.my_tools.session_manager") as mock_session:
+    with (
+        patch("repo.cli.my_tools.session_manager") as mock_session,
+        patch("repo.features.session.SessionManager") as mock_sm_class,
+    ):
         mock_session.get_active_persona.return_value = "artisan"
         mock_session.validate_password.return_value = True
+
+        # Mock SessionManager for decorator auth check
+        mock_sm = mock_sm_class.return_value
+        mock_sm.get_active_persona.return_value = "artisan"
+        mock_sm.get_active_sequence.return_value = "seq-1"
 
         with patch("repo.cli.my_tools.hire_manager") as mock_hire_mgr:
             # We want to use a real HireManager but pointed to our isolated FS
@@ -102,8 +110,17 @@ def verify_hirer_metadata(isolated_fs, p_id, hirer):
 @then(parsers.parse('the persona "{p_id}" should appear in "my-tools roster list"'))
 def verify_roster(runner, isolated_fs, p_id):
     # Roster list uses get_personas_dir()
-    with patch("repo.cli.roster.get_personas_dir") as mock_get_dir:
+    with (
+        patch("repo.cli.roster.get_personas_dir") as mock_get_dir,
+        patch("repo.features.session.SessionManager") as mock_sm_class,
+    ):
         mock_get_dir.return_value = isolated_fs / ".team" / "personas"
+
+        # Mock active session for authentication
+        mock_sm = mock_sm_class.return_value
+        mock_sm.get_active_persona.return_value = "artisan"
+        mock_sm.get_active_sequence.return_value = "seq-1"
+
         result = runner.invoke(app, ["roster", "list"])
         assert p_id in result.stdout
 

@@ -381,9 +381,7 @@ Study these well-implemented personas:
 - **curator** - UX/UI evaluation with BDD
 - **forge** - Code implementation
 - **lore** - Knowledge base management
-- **oracle** - Technical support
-- **steward** - Strategic alignment & ADRs
-- **meta** - System introspection & validation
+- **oracle** - System coordination
 
 ### Related Documentation
 
@@ -393,4 +391,4 @@ Study these well-implemented personas:
 
 ---
 
-*This documentation is maintained by the team. Last updated: 2026-01-26*
+*This documentation is maintained by the team. Last updated: 2026-01-22*

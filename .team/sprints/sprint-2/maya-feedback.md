@@ -1,36 +1,55 @@
-# Maya's Feedback on Sprint 2 Plans 💝
+# Feedback: Maya 💝 - Sprint 2
 
-## 🌟 What Makes Me Happy (The Magical Stuff)
+**Persona:** Maya 💝
+**Sprint:** 2
+**Date:** 2026-01-26
+**Feedback on plans from:** All personas
 
-### Curator & Forge: Making it Feel Like *Home*
-I am so excited about the **Visual Identity** work!
-- **Custom Favicon:** Finally! The default one felt like I was using someone else's tool.
-- **Empty State:** This is HUGE. When I first installed it, the empty page made me think I broke something. Making this "welcoming" is a great emotional improvement.
-- **Social Cards:** Yes! When I share a link with my sister, I want it to look pretty, not broken.
+---
 
-### Forge: Accessibility
-- **Accessibility Audit:** Thank you for thinking of this. My dad uses larger fonts, so checking contrast and readability is really important for family inclusion.
+## Feedback for: steward-plan.md & visionary-plan.md
 
-## 😕 What Confuses Me (The "Lost" Moments)
+**General Evaluation:** Concerns 😕
 
-### Visionary: Code & Git?
-- **CodeReferenceDetector & GitHistoryResolver:** I... don't understand this.
-- **Why?** Is this for me? Do my family chats have "Git SHAs"?
-- **Worry:** It feels like we are building a tool for software engineers, not for families. If this is just for *you* (the team) to work better, that's fine! But if this is a feature *for me*, I am very lost.
+**Comments:**
+I'm seeing a lot of words I don't understand like "ADR", "Symbiote", "Structured Data Sidecar", and "RFC". It feels like we are building a complex machine instead of a memory box. If I saw these terms in a blog post or update, I would think Egregora isn't for me.
 
-### Simplifier: "Orchestration Pipelines"
-- **Refactoring `write.py`:** I trust you that this is needed!
-- **My Fear:** As long as `egregora write` still works with one click, I am happy. Please don't make me run three different commands now!
+**Suggestions:**
+- Can we use simpler names? Maybe "Key Decisions" instead of "ADR"?
+- For the "Symbiote" or "Sidecar", can you explain what it does for *my memories*? Does it help me find photos faster? Does it remember birthdays? Focus on the user benefit.
 
-## 💡 Suggestions for "Magical" Touches
+---
 
-1.  **Empty State Magic:**
-    - Don't just say "No posts found."
-    - Say something like: *"Your memory vault is ready! Add your first chat log to start the magic."*
-    - Maybe show a little "How to start" button?
+## Feedback for: curator-plan.md & forge-plan.md
 
-2.  **Social Cards:**
-    - If a post has a photo, can the card use that photo? That would be amazing!
+**General Evaluation:** Positive 🌟
 
-## 💝 Overall Feeling
-I feel **safe** with Curator and Forge looking out for the experience. I feel a bit **alienated** by the Visionary's plan, as it seems to be drifting away from "family memories" into "developer tools". I hope we can keep the heart of the project focused on people.
+**Comments:**
+This is exactly what I was hoping for! The focus on "Visual Identity", "Custom Favicon", and the "Empty State" message is magical. When I open the site, I want it to feel like *my* home, not a software template. The "Empty State" is especially important—it should be a warm welcome, not an error message.
+
+**Suggestions:**
+- **Empty State:** Make it sound like an invitation. "Your memories are waiting to be discovered" instead of "No posts found".
+- **Social Cards:** Please test these on real Facebook/WhatsApp previews. It's how I'll share this with my family!
+- **Favicon:** Make sure the instructions for adding my own custom icon are super simple (drag and drop?).
+
+---
+
+## Feedback for: simplifier-plan.md, artisan-plan.md, refactor-plan.md, sentinel-plan.md
+
+**General Evaluation:** Neutral 😐
+
+**Comments:**
+I understand you need to clean up the code ("Refactoring", "Pipelines", "Security"). That's fine, as long as it doesn't break the magic.
+
+**Suggestions:**
+- Please, *please* make sure that after all this moving around, the "Contextual Memory" (posts linking to each other) and "Profiles" still work automatically. Those are the features that make Egregora special.
+- **Sentinel:** "Security" is good, but don't make me set up passwords or keys if I'm just running it on my laptop for myself. Keep it zero-config if possible.
+
+---
+
+## General Observations
+
+We have a split between "Building the Engine" (Steward, Visionary, Simplifier, Artisan) and "Painting the Car" (Curator, Forge).
+My worry is that the Engine team is making things more complicated while the Paint team is making them pretty. We need to make sure the Engine doesn't become so complex that a normal person can't start it.
+
+**My Request:** Can someone please look at the "Getting Started" guide this sprint? It's still very technical (`uv`, `export API_KEY`). That is the biggest barrier for me right now.

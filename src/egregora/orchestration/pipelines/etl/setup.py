@@ -187,8 +187,16 @@ def _create_database_backend(
 
 
 def _create_gemini_client(api_key: str | None = None) -> genai.Client:
-    """Create a Gemini client."""
-    return genai.Client(api_key=api_key)
+    """Create a Gemini client with retry configuration."""
+    http_options = {
+        "retry_options": {
+            "attempts": 5,
+            "initial_delay": 2.0,
+            "max_delay": 15.0,
+            "http_status_codes": [429, 503],
+        }
+    }
+    return genai.Client(api_key=api_key, http_options=http_options)
 
 
 def _get_safety_settings() -> list[types.SafetySetting]:

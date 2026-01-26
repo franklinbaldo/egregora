@@ -20,12 +20,6 @@ The heart of the execution engine (`runner.py`) uses a recursive strategy to han
 - It continues splitting until a chunk fits within the token context window.
 - **Philosophy:** "Divide and Conquer" rather than "Stream and Process".
 
-#### Technical Anatomy: The Runner
-A forensic analysis of `src/egregora/orchestration/runner.py` reveals the implementation details of this philosophy, which serves as a historical artifact of the Batch Era:
-- **Iterative Recursion:** The `_process_window_with_auto_split` method implements recursion using a `collections.deque` queue rather than the call stack, allowing for strictly controlled execution order.
-- **Splitting Trigger:** The system is optimistic. It attempts to process a window first; only when a `PromptTooLargeError` is raised does it trigger `_split_window_for_retry`.
-- **Safety Valves:** The recursion is hard-capped with `max_depth=5` (default), preventing infinite splitting loops in cases of pathological data.
-
 ### 3. Lazy Context Loading
 As documented in [The Lazy Historian](../personas/lore/blog/002-the-lazy-historian.md), the system optimizes for cache hits by lazily loading RAG and Profile data.
 - **Assumption:** The world is static during the execution of a single batch.

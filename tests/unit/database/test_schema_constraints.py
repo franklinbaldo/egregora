@@ -63,17 +63,17 @@ class TestUnifiedDocumentsSchemaConstraints:
                 ("post-2",),
             )
 
-    def test_doc_media_check_constraint_rejects_invalid_media_type(self, duckdb_conn):
-        """Verify that documents.doc_type='media' requires valid media_type."""
+    def test_doc_media_check_constraint_rejects_missing_filename(self, duckdb_conn):
+        """Verify that documents.doc_type='media' requires filename."""
         constraints = get_table_check_constraints("documents")
         create_table_if_not_exists(duckdb_conn, "documents", UNIFIED_SCHEMA, check_constraints=constraints)
 
-        # Invalid Media Type
+        # Invalid Media (missing filename)
         with pytest.raises(duckdb.ConstraintException, match="CHECK constraint"):
             duckdb_conn.execute(
                 """
-                INSERT INTO documents (id, doc_type, status, media_type, filename, content, created_at)
-                VALUES (?, 'media', 'published', 'banana', 'file.jpg', 'content', CURRENT_TIMESTAMP)
+                INSERT INTO documents (id, doc_type, status, media_type, phash, created_at)
+                VALUES (?, 'media', 'draft', 'image', 'phash', CURRENT_TIMESTAMP)
                 """,
                 ("media-1",),
             )

@@ -7,7 +7,7 @@ from typing import Any
 
 from egregora.config import load_egregora_config
 
-__all__ = ["MkDocsPaths", "derive_mkdocs_paths"]
+__all__ = ["MkDocsPaths"]
 
 
 class MkDocsPaths:
@@ -86,24 +86,3 @@ class MkDocsPaths:
         return {
             k: getattr(self, k) for k in dir(self) if not k.startswith("_") and not callable(getattr(self, k))
         }
-
-
-def derive_mkdocs_paths(
-    site_root: Path, *, config: Any | None = None, site: str | None = None
-) -> dict[str, Path]:
-    """Backwards-compatible helper returning common MkDocs paths.
-
-    Prefer using :class:`MkDocsPaths` directly in new code.
-    """
-    paths = MkDocsPaths(site_root, config=config, site=site)
-    return {
-        "site_root": paths.site_root,
-        "egregora_dir": paths.egregora_dir,
-        "docs_dir": paths.docs_dir,
-        "posts_dir": paths.posts_dir,
-        "profiles_dir": paths.profiles_dir,
-        "media_dir": paths.media_dir,
-        "journal_dir": paths.journal_dir,
-        "mkdocs_path": paths.mkdocs_path,
-        "mkdocs_config_path": paths.mkdocs_config_path,
-    }

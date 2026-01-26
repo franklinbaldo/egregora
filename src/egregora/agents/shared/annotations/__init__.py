@@ -235,7 +235,7 @@ class AnnotationStore:
             database_schema.add_primary_key(conn, ANNOTATIONS_TABLE, "id")
 
         self._backend.raw_sql(
-            f"\n            CREATE INDEX IF NOT EXISTS idx_annotations_parent_created\n            ON {ANNOTATIONS_TABLE} (parent_id, parent_type, created_at)\n            "
+            f"CREATE INDEX IF NOT EXISTS idx_annotations_parent_created ON {ANNOTATIONS_TABLE} (parent_id, parent_type, created_at)"  # nosec B608
         )
 
     # ========================================================================
@@ -312,7 +312,7 @@ class AnnotationStore:
     def list_annotations_for_message(self, msg_id: str) -> list[Annotation]:
         """Return annotations for ``msg_id`` ordered by creation time."""
         records = self._fetch_records(
-            f"\n            SELECT id, parent_id, parent_type, author_id as author, content as commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at ASC, id ASC\n            ",  # nosec B608
+            f"SELECT id, parent_id, parent_type, author_id as author, content as commentary, created_at FROM {ANNOTATIONS_TABLE} WHERE parent_id = ? AND parent_type = 'message' ORDER BY created_at ASC, id ASC",  # nosec B608
             [msg_id],
         )
         return [self._row_to_annotation(row) for row in records]
@@ -322,7 +322,7 @@ class AnnotationStore:
         # Use protocol method instead of accessing protected member
         with self.storage.connection() as conn:
             cursor = conn.execute(
-                f"\n            SELECT id FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at DESC, id DESC\n            LIMIT 1\n            ",  # nosec B608
+                f"SELECT id FROM {ANNOTATIONS_TABLE} WHERE parent_id = ? AND parent_type = 'message' ORDER BY created_at DESC, id DESC LIMIT 1",  # nosec B608
                 [msg_id],
             )
             row = cursor.fetchone()
@@ -331,7 +331,7 @@ class AnnotationStore:
     def iter_all_annotations(self) -> Iterable[Annotation]:
         """Yield all annotations sorted by insertion order."""
         records = self._fetch_records(
-            f"\n            SELECT id, parent_id, parent_type, author_id as author, content as commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            ORDER BY created_at ASC, id ASC\n            "  # nosec B608
+            f"SELECT id, parent_id, parent_type, author_id as author, content as commentary, created_at FROM {ANNOTATIONS_TABLE} ORDER BY created_at ASC, id ASC"  # nosec B608
         )
         for row in records:
             yield self._row_to_annotation(row)

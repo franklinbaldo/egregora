@@ -170,7 +170,7 @@ class PersonaLoader:
         """
         # Load shared blocks
         full_context = {**context, **metadata}
-        
+
         # Inject Password
         import uuid
         if "id" in full_context:
@@ -178,7 +178,7 @@ class PersonaLoader:
 
         # Sprint planning
         from repo.features.sprints import sprint_manager
-        
+
         # Calculate sprint context text (used by sprint_planning_block or legacy append)
         sprint_context = sprint_manager.get_sprint_context(metadata.get("id", "unknown"))
         full_context["sprint_context_text"] = sprint_context
@@ -192,7 +192,7 @@ class PersonaLoader:
                 # e.g. "partials/identity_branding.md.j2" -> "identity_branding"
                 # e.g. "blocks/autonomy.md.j2" -> "autonomy_block"
                 name = Path(template_name).name.split('.')[0]
-                
+
                 if template_name.startswith("blocks/"):
                     var_name = f"{name}_block"
                 else:
@@ -202,7 +202,7 @@ class PersonaLoader:
                     # Render the partial with current context
                     content = self.jinja_env.get_template(template_name).render(**full_context)
                     full_context[var_name] = content
-                    
+
                     # Aliases
                     if var_name == "celebration":
                         full_context["empty_queue_celebration"] = content

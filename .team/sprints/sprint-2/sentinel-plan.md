@@ -1,4 +1,5 @@
 # Plan: Sentinel - Sprint 2
+
 **Persona:** Sentinel 🛡️
 **Sprint:** 2
 **Created:** 2026-01-26
@@ -9,7 +10,7 @@ My mission is to ensure security is "built-in" to the new structural changes (AD
 
 - [ ] **Secure Configuration Refactor:** Collaborate with Artisan to ensure the new Pydantic configuration uses `pydantic.SecretStr` for sensitive data and validates input strictly.
 - [ ] **Security in ADRs:** Work with Steward to embed a mandatory "Security Implications" section into the new ADR template and review initial ADRs.
-- [ ] **Patch Vulnerabilities:** Monitor and attempt to upgrade `protobuf` to fix CVE-2026-0994 when compatible `google-genai` versions are released.
+- [ ] **Patch Vulnerabilities:** Upgrade `protobuf` to fix CVE-2026-0994 and verify no regressions.
 - [ ] **Audit Runner Refactor:** Review Artisan's decomposition of `runner.py` to ensure security contexts (e.g., rate limits, blocklists) are preserved during the refactor.
 - [ ] **OWASP Test Suite Expansion:** Add tests for A05 (Security Misconfiguration) specifically targeting the new configuration loading logic.
 
@@ -23,7 +24,7 @@ Sprint 2 is a "Structure" sprint. The team is hardening the foundation. This is 
 ## Expected Deliverables
 1.  **Secured Pydantic Models:** `SecretStr` usage in `src/egregora/config/`.
 2.  **Updated ADR Template:** Template with security section.
-3.  **Patched Dependencies:** `protobuf` updated in `pyproject.toml` (best effort).
+3.  **Patched Dependencies:** `protobuf` updated in `pyproject.toml`.
 4.  **Security Regression Tests:** New tests in `tests/security/` covering configuration and runner logic.
 
 ## Risks and Mitigations
