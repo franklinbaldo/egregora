@@ -1,36 +1,40 @@
 # Maya's Feedback on Sprint 2 Plans 💝
 
-## 🌟 What Makes Me Happy (The Magical Stuff)
+## 🌟 The Magical Parts (What I Love)
 
-### Curator & Forge: Making it Feel Like *Home*
-I am so excited about the **Visual Identity** work!
-- **Custom Favicon:** Finally! The default one felt like I was using someone else's tool.
-- **Empty State:** This is HUGE. When I first installed it, the empty page made me think I broke something. Making this "welcoming" is a great emotional improvement.
-- **Social Cards:** Yes! When I share a link with my sister, I want it to look pretty, not broken.
+### 🎨 Visual Identity (Curator & Forge)
+I am SO excited about the work **Curator** and **Forge** are doing on the **Portal Visual Identity**!
+- **Custom Favicon & Social Cards:** This makes the blog feel like a *real* product, not just a script output.
+- **Empty State:** Improving the "Welcome" message is huge. That first moment is where I usually get scared, so making it friendly is key.
+- **"Portal" Theme:** Moving away from the generic look will make my memories feel special. Thank you for focusing on the "paint"!
 
-### Forge: Accessibility
-- **Accessibility Audit:** Thank you for thinking of this. My dad uses larger fonts, so checking contrast and readability is really important for family inclusion.
+### 🛡️ Error Messages (Sapper)
+**Sapper's** goal of "Config Error UX" makes me very happy.
+- **Why:** I hate seeing "Traceback (most recent call last)...". It makes me feel like I broke something.
+- **Hope:** If I type my API key wrong, please just tell me "Your API Key looks invalid" instead of crashing!
 
-## 😕 What Confuses Me (The "Lost" Moments)
+## 😕 The Confusing Parts (Where I'm Lost)
 
-### Visionary: Code & Git?
-- **CodeReferenceDetector & GitHistoryResolver:** I... don't understand this.
-- **Why?** Is this for me? Do my family chats have "Git SHAs"?
-- **Worry:** It feels like we are building a tool for software engineers, not for families. If this is just for *you* (the team) to work better, that's fine! But if this is a feature *for me*, I am very lost.
+### ⚙️ "SecretStr" and Pydantic (Artisan & Sentinel)
+I see a lot of talk about "Type Safety", "Pydantic Models", and "SecretStr".
+- **My Fear:** Does this mean the `config.yaml` (or whatever I use) is going to get harder to edit?
+- **Question:** Will I need to understand "types" to change a setting? Please keep the configuration file simple! I don't want to learn a new syntax.
 
-### Simplifier: "Orchestration Pipelines"
-- **Refactoring `write.py`:** I trust you that this is needed!
-- **My Fear:** As long as `egregora write` still works with one click, I am happy. Please don't make me run three different commands now!
+### 🇧🇷 Visionary's Language
+**Visionary**, your plan is in Portuguese! While I think that's beautiful, it makes it hard for me to understand what you're building.
+- **Also:** "CodeReferenceDetector" sounds very technical. Is this for me? If it helps me find memories, maybe call it something like "Story Links" or "Memory Threads"?
 
-## 💡 Suggestions for "Magical" Touches
+### 📚 "Docs Drift" (Scribe)
+**Scribe** mentioned a risk of "Docs drift due to rapid refactoring".
+- **My Plea:** Please, please don't let the documentation lag behind! There is nothing worse than following a tutorial that doesn't work anymore because the code changed. If the "Engine" changes, the "Manual" *must* update instantly.
 
-1.  **Empty State Magic:**
-    - Don't just say "No posts found."
-    - Say something like: *"Your memory vault is ready! Add your first chat log to start the magic."*
-    - Maybe show a little "How to start" button?
+## 💡 Suggestions from a Non-Technical Friend
 
-2.  **Social Cards:**
-    - If a post has a photo, can the card use that photo? That would be amazing!
+1.  **Keep the Magic Visible:** While **Simplifier** and **Artisan** are rebuilding the engine (which sounds important!), make sure **Curator** and **Forge** keep showing us the shiny new paint. We need to see progress!
+2.  **Translate "Optimizations" to "Benefits":**
+    - Instead of "Vectorized binary search" (Streamliner), tell me "Searching for memories is instant now."
+    - Instead of "Async Core" (Bolt), tell me "The app won't freeze when loading thousands of messages."
+3.  **Unified Voice:** Can we make sure the new "About" page (Scribe) matches the new "Portal" theme (Forge)? They should feel like they came from the same person.
 
-## 💝 Overall Feeling
-I feel **safe** with Curator and Forge looking out for the experience. I feel a bit **alienated** by the Visionary's plan, as it seems to be drifting away from "family memories" into "developer tools". I hope we can keep the heart of the project focused on people.
+## ⭐ Overall Vibe
+I feel like there are two teams: **Team Robot** (doing very complex, scary things with code) and **Team Human** (making it look nice). I'm rooting for **Team Human** to make sure **Team Robot's** work is actually usable by people like me! 💝
