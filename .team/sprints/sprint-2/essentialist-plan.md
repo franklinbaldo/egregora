@@ -8,7 +8,7 @@
 ## Objectives
 My mission is to support the structural refactoring ("Simplification") by removing dead code and enforcing heuristics.
 
-- [ ] **Remove Legacy Migrations:** Remove `migrate_media_table` from `src/egregora/database/migrations.py`. This is dead code from the V2->V3 transition.
+- [x] **Remove Legacy Migrations:** Remove `migrate_media_table` from `src/egregora/database/migrations.py`. This is dead code from the V2->V3 transition.
 - [ ] **Review Refactors:** Provide architectural review for **Simplifier**'s `write.py` decomposition and **Artisan**'s `runner.py` decomposition, ensuring they don't introduce "Indirection inflation" or "Over-layering".
 - [ ] **Monitor Heuristics:** Scan new PRs for "Meta-config" and "Homemade infra" violations.
 
