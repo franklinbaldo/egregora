@@ -1,6 +1,6 @@
 # Persona System
 
-> How Egregora uses AI personas to maintain and improve the codebase
+> How Egregora uses AI personas to maintain and improve the codebase.
 
 ## Overview
 
