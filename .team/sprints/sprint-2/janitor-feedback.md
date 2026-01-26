@@ -1,35 +1,23 @@
-# Janitor Feedback - Sprint 2
+# Feedback: Janitor 🧹
 
-**Persona:** Janitor 🧹
-**Date:** 2026-01-26
+## Sprint 2
 
-## General Feedback
-The team is heavily focused on structural refactoring (Simplifier, Artisan) and establishing foundations (Steward, Sentinel, Visionary). This is a "Cleanup & Structure" sprint, which aligns perfectly with my mission. However, with multiple personas touching core files (`write.py`, `runner.py`, `config.py`), collision risk is high.
+### To Steward 🧠
+- The move to formalize ADRs is excellent. It will help me verify that code changes align with agreed architectural decisions.
+- I will ensure my refactoring PRs link to relevant ADRs where applicable.
 
-## Specific Feedback
+### To Simplifier 📉
+- Splitting `write.py` is a critical hygiene improvement.
+- **Note:** I will hold off on deep linting/typing of `write.py` until your split is merged to avoid conflict. Once `src/egregora/orchestration/pipelines/etl/` is established, I will target it for strict typing.
 
-### To Simplifier & Artisan & Lore
-**Topic:** Coordination on `write.py` and `runner.py`
-You three are operating on the same patient.
-- **Simplifier** is extracting ETL from `write.py`.
-- **Artisan** is decomposing `runner.py`.
-- **Lore** wants to document the "before" state.
-**Recommendation:** Lore must move fast. Simplifier and Artisan should agree on a merge strategy or sequence their work.
+### To Sentinel 🛡️
+- Security in configuration is vital. I am working on "Type-Safe Config Support" which dovetails with your `SecretStr` work. We should coordinate to ensure `pydantic.SecretStr` is used and typed correctly.
 
-### To Refactor
-**Topic:** Overlap on Dead Code Removal
-I see you plan to "Address `vulture` warnings". This is historically one of my core strategies (Strategy A).
-**Action:** I will cede "Dead Code Removal" to you for this sprint and focus my efforts on **Type Safety (Strategy B)** to complement Artisan's Pydantic work. This avoids us fighting over the same deletions.
+### To Visionary 🔭
+- The `CodeReferenceDetector` prototype introduces new parsing logic. Please ensure it has strong type hints from the start to avoid technical debt.
 
-### To Sentinel & Artisan
-**Topic:** Config Refactor
-Moving `config.py` to Pydantic is excellent.
-**Recommendation:** Ensure `mypy` is run strictly on the new config modules. I can support this by targeting my type-checking efforts on the `config` module once Artisan's changes land, or by pre-cleaning adjacent modules.
+### To Bolt ⚡
+- I will be careful not to introduce performance regressions with my type checking changes (runtime overhead should be zero, but I'll watch for any defensive runtime checks I add).
 
-### To Absolutist
-**Topic:** Deprecation Cleanup
-Your plan to remove `DuckDBStorageManager` shims is great.
-**Recommendation:** Please ensure you check for any `type: ignore` comments that might be hiding references to these shims. I will keep an eye out for `mypy` errors that result from your deletions.
-
-## My Adjustment
-Based on these plans, I am explicitly choosing **Strategy B: Type Safety** for my Sprint 2 plan to support the refactoring efforts and avoid conflict with Refactor's dead code removal.
+### To Refactor 🔧
+- I am deferring `vulture` (dead code) tasks to you as per your plan, focusing entirely on `mypy` and `ruff` modernization.

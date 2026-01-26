@@ -23,13 +23,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Self, cast
 
 import duckdb
 import httpx
 import ibis
 from google.api_core import exceptions as google_exceptions
-from ibis.common.exceptions import IbisError
+from ibis.common.exceptions import IbisError  # type: ignore
 from pydantic import BaseModel
 
 # UrlContextTool is the client-side fetcher (alias for WebFetchTool) suitable for pydantic-ai
@@ -63,12 +63,15 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from types import TracebackType
 
-    from ibis.backends.duckdb import Backend as DuckDBBackend
+    from ibis.backends.duckdb import Backend as DuckDBBackend  # type: ignore
     from ibis.expr.types import Table
 
     from egregora.input_adapters.base import MediaMapping
     from egregora.llm.usage import UsageTracker
-    from egregora.orchestration.context import PipelineContext
+
+# Import PipelineContext at runtime to satisfy EnrichmentWorker type hints
+# We know this doesn't cause circular imports because orchestration.context doesn't import enricher
+from egregora.orchestration.context import PipelineContext
 
 logger = logging.getLogger(__name__)
 
@@ -486,11 +489,11 @@ class EnrichmentWorker(BaseWorker):
 
     def __init__(
         self,
-        ctx: PipelineContext | EnrichmentRuntimeContext,
+        ctx: PipelineContext,
         enrichment_config: EnrichmentSettings | None = None,
     ) -> None:
         super().__init__(ctx)
-        self.ctx: PipelineContext | EnrichmentRuntimeContext = ctx
+        self.ctx: PipelineContext = ctx
         self._enrichment_config_override = enrichment_config
         self.zip_handle: zipfile.ZipFile | None = None
         self.media_index: dict[str, str] = {}
@@ -850,9 +853,11 @@ class EnrichmentWorker(BaseWorker):
 
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 client = genai.Client(api_key=api_key)
+                # Cast contents to list[Any] to avoid mypy errors with strict dict types
+                contents: list[Any] = [{"parts": [{"text": combined_prompt}]}]
                 response = client.models.generate_content(
                     model=model,
-                    contents=[{"parts": [{"text": combined_prompt}]}],
+                    contents=contents,
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
                 return response.text or ""
@@ -863,9 +868,11 @@ class EnrichmentWorker(BaseWorker):
             model_name = self.ctx.config.models.enricher
             api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
             client = genai.Client(api_key=api_key)
+            # Cast contents to list[Any] to avoid mypy errors with strict dict types
+            contents: list[Any] = [{"parts": [{"text": combined_prompt}]}]
             response = client.models.generate_content(
                 model=model_name,
-                contents=[{"parts": [{"text": combined_prompt}]}],
+                contents=contents,
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
             response_text = response.text or ""
@@ -953,7 +960,9 @@ class EnrichmentWorker(BaseWorker):
 
                 # Main Architecture: Use ContentLibrary if available
                 if self.ctx.library:
-                    self.ctx.library.save(doc)
+                    # Cast library to Any because it's typed as object in PipelineContext
+                    # Ideally PipelineContext should type library with a Protocol
+                    cast(Any, self.ctx.library).save(doc)
                 elif self.ctx.output_sink:
                     self.ctx.output_sink.persist(doc)
 
@@ -990,7 +999,7 @@ class EnrichmentWorker(BaseWorker):
             return ""
         if "text" in response:
             return response["text"]
-        texts = []
+        texts: list[str] = []
         for cand in response.get("candidates") or []:
             content = cand.get("content") or {}
             texts.extend(part["text"] for part in content.get("parts") or [] if "text" in part)
@@ -1140,7 +1149,7 @@ class EnrichmentWorker(BaseWorker):
 
             # Upload file
             # Note: client.files.upload returns a File object with 'uri'
-            uploaded_file = client.files.upload(path=str(file_path), config={"mime_type": mime_type})
+            uploaded_file = client.files.upload(file=str(file_path), config={"mime_type": mime_type})
             logger.info("Uploaded file %s to %s", file_path.name, uploaded_file.uri)
 
             return {"fileData": {"mimeType": mime_type, "fileUri": uploaded_file.uri}}
@@ -1223,8 +1232,9 @@ class EnrichmentWorker(BaseWorker):
             filenames.append(filename)
 
             # Add each image's inline data from the request
-            contents = req.get("contents", [])
-            for content in contents:
+            # Rename variable to avoid shadowing later
+            req_contents = req.get("contents", [])
+            for content in req_contents:
                 for part in content.get("parts", []):
                     if "inlineData" in part:
                         parts.append({"inlineData": part["inlineData"]})
@@ -1256,9 +1266,11 @@ class EnrichmentWorker(BaseWorker):
 
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 client = genai.Client(api_key=api_key)
+                # Cast contents to list[Any] to avoid mypy errors with strict dict types
+                batch_contents: list[Any] = [{"parts": request_parts}]
                 response = client.models.generate_content(
                     model=model,
-                    contents=[{"parts": request_parts}],
+                    contents=batch_contents,
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
                 return response.text or ""
@@ -1266,9 +1278,11 @@ class EnrichmentWorker(BaseWorker):
             response_text = rotator.call_with_rotation(call_with_model_and_key)
         else:
             # No rotation - use configured model and API key
+            # Cast contents to list[Any] to avoid mypy errors with strict dict types
+            batch_contents: list[Any] = [{"parts": request_parts}]
             response = client.models.generate_content(
                 model=model_name,
-                contents=[{"parts": request_parts}],
+                contents=batch_contents,
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
             response_text = response.text if response.text else ""
@@ -1466,7 +1480,7 @@ class EnrichmentWorker(BaseWorker):
 
             try:
                 if self.ctx.library:
-                    self.ctx.library.save(media_doc)
+                    cast(Any, self.ctx.library).save(media_doc)
                 elif self.ctx.output_sink:
                     self.ctx.output_sink.persist(media_doc)
                 logger.info("Persisted enriched media: %s -> %s", filename, media_doc.metadata["filename"])
@@ -1506,7 +1520,7 @@ class EnrichmentWorker(BaseWorker):
             )
 
             if self.ctx.library:
-                self.ctx.library.save(doc)
+                cast(Any, self.ctx.library).save(doc)
             elif self.ctx.output_sink:
                 self.ctx.output_sink.persist(doc)
 
