@@ -6,10 +6,6 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
-permissions:
-  pull-requests: write
-  contents: write
-
 jobs:
   enable-auto-merge:
     runs-on: ubuntu-latest
