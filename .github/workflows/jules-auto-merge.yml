@@ -1,7 +1,6 @@
 name: Jules PR Auto-Merge
 
 on:
-  pull_request:
   pull_request_target:
     types:
       - opened
@@ -17,21 +16,17 @@ jobs:
   enable-auto-merge:
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for conflicting workflow (base branch)
-        run: echo "Waiting 60s to ensure this run finishes last and overwrites any failures from the base branch..." && sleep 60
-
       - name: Enable auto-merge for Jules PRs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          EVENT_NAME: ${{ github.event_name }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           BASE_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
 
           # Only attempt merge logic if running on target event within same repo
-          if [ "$EVENT_NAME" == "pull_request_target" ] && [ "$HEAD_REPO" == "$BASE_REPO" ]; then
+          if [ "$HEAD_REPO" == "$BASE_REPO" ]; then
             echo "Running auto-merge logic..."
 
             # Fallback for when 'gh' fails
@@ -57,6 +52,6 @@ jobs:
             gh pr merge "$PR_NUMBER" --auto --squash --delete-branch || echo "Failed to enable auto-merge; skipping."
 
           else
-            echo "Skipping logic for event '$EVENT_NAME' or repo mismatch. Passing check to satisfy branch protection."
+            echo "Repo mismatch (Fork). Passing check to satisfy branch protection."
             exit 0
           fi
