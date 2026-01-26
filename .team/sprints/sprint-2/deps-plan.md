@@ -28,3 +28,5 @@ We have some "zombie" dependencies that were likely needed for legacy code but a
 |-------|---------------|---------|-----------|
 | Implicit/Legacy usage breaks | Low | High | Run full test suite (`uv run pytest`) immediately after removal. `google-api-core` is kept for exceptions. |
 | Protobuf version mismatch | Medium | Medium | Rely on `uv`'s resolution. If `google-genai` forces an insecure version, I will explicitly override it in `pyproject.toml`. |
+
+*Note: CI 'enable-auto-merge' failure is acknowledged as an infrastructure issue.*
