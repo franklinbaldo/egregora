@@ -1,9 +1,5 @@
 # PR Reviews
 
-<<<<<<< ours
-<<<<<<< ours
-=======
->>>>>>> theirs
 ## Run 2026-01-13 19:35:02 UTC
 
 ### PR #2475 — 🗂️ refactor(utils): Remove unused cache compatibility shim
@@ -275,18 +271,3 @@
   - The CI status could not be determined from the GitHub API, which returned no checks. As per protocol, this PR is logged for informational purposes until a definitive CI status is available.
 - **Recommended Actions:**
   - No immediate action. The PR will be re-evaluated on the next run.
-<<<<<<< ours
-=======
-## Run 2024-07-22 12:00:00 UTC
-
-### PR #2439 — Apply V3 Refactoring Patch & Fix Tests
-- **Status:** INFORMATIONAL_ONLY
-- **Author:** @jules-dot-ai
-- **CI:** Pending
-- **Rationale:**
-  - The CI status could not be determined from the GitHub API.
-- **Recommended Actions:**
-  - Wait for the CI status to be reported before taking any action.
->>>>>>> theirs
-=======
->>>>>>> theirs
