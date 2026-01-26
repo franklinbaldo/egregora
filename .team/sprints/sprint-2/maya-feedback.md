@@ -15,7 +15,7 @@
 I am absolutely thrilled about the "Visual Identity" work! Moving away from the "generic template" to something "bespoke" is exactly what my family needs. The "Portal" theme sounds mysterious and lovely. A custom favicon and social cards are huge for sharing—my mom loves sharing links on WhatsApp, so those cards need to look good.
 
 **Suggestions:**
-- Please ensure the "Empty State" is warm and encouraging. Maybe say "Your memory box is waiting for its first story" instead of "No content found".
+- Please ensure the "Empty State" is warm and encouraging. Maybe say "Your memory box is waiting for its first story. Add a conversation to get started!" instead of "No content found".
 - For the color palette, can we test it for readability? My parents have trouble with low contrast.
 
 **Collaboration:**
