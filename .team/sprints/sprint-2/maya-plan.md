@@ -6,30 +6,39 @@
 **Priority:** High
 
 ## Objectives
-My mission is to ensure the new "Portal" visual identity feels welcoming and not like a tech demo.
 
-- [ ] **Review "Portal" Identity:** Verify the new favicon, colors, and empty state from a non-technical perspective.
-- [ ] **Test Social Cards:** Ensure shared links look beautiful and emotional, not broken or code-like.
-- [ ] **Documentation Audit:** Check any new docs for the "Batch Era" or "Refactors" to ensure they don't leak technical complexity to the user.
+My mission is to ensure the "Structure & Polish" sprint results in a product that feels friendly and magical, not just technically sound.
+
+- [ ] **Review Visual Identity (The "Portal"):** Test the new theme, favicon, and social cards implemented by Curator and Forge. Verify they feel "warm" and "family-friendly".
+- [ ] **Test "Empty State" Experience:** Verify that the new empty state message is helpful and encouraging for new users.
+- [ ] **Review User-Facing Error Messages:** Collaborate with Sapper to ensure the new configuration errors are written in plain English, not developer jargon.
+- [ ] **Audit Documentation Updates:** Review Scribe's updates to `docs/ux-vision.md` to ensure they prioritize emotional goals (memory, discovery).
 
 ## Dependencies
-- **Forge & Curator:** I cannot review the visual changes until they are implemented.
-- **Lore:** I need to review the "Batch Era" docs.
+
+- **Curator & Forge:** I cannot review the visual identity until they implement the changes.
+- **Sapper:** I need the error handling refactor to be in progress to review the messages.
+- **Scribe:** I rely on Scribe to write the docs I review.
 
 ## Context
-Sprint 2 is about "Finish and Polish". This is my time to shine! If we are polishing, I need to make sure we are polishing for *people*, not just for code quality.
+
+Sprint 2 involves a lot of "heavy lifting" (refactoring `write.py`, `runner.py`). My fear is that the team will get lost in the code and forget the user. My role is to keep the "Human Touch" alive by focusing on the visible parts: the theme, the errors, and the docs.
 
 ## Expected Deliverables
-1. **Feedback Journal:** "Maya's Review: The Portal Look & Feel".
-2. **Empty State Critique:** Specific suggestions to make the zero-data state magical.
-3. **Docs Review:** Feedback on any new documentation.
+
+1.  **UX Review Report:** A journal entry detailing my experience with the new "Portal" theme.
+2.  **Error Message Audit:** Feedback on specific error strings (e.g., "Change 'InvalidConfig' to 'Please check your settings'").
+3.  **Documentation Feedback:** Specific suggestions on Scribe's PRs.
 
 ## Risks and Mitigations
+
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| "Polished" looks too corporate | Medium | Medium | I will advocate for warmth and personal touches (like the favicon). |
-| Empty State is just "clean" not "helpful" | High | High | I will provide specific copy suggestions to Curator/Forge. |
+| Technical Refactors break User Flow | Medium | High | I will run the "Quick Start" flow regularly to catch regressions. |
+| "Symbiote" features confuse users | High | Medium | I will advocate for hiding advanced features behind "Developer Mode" flags. |
 
 ## Proposed Collaborations
-- **With Forge:** Direct feedback on the visual implementation.
-- **With Curator:** Ensuring the "UX Vision" keeps the family user in mind.
+
+- **With Curator & Forge:** Close loop on visual design.
+- **With Sapper:** Copywriting for error messages.
+- **With Scribe:** ensuring `ux-vision.md` speaks to user needs.

@@ -6,30 +6,37 @@
 **Priority:** Medium
 
 ## Objectives
-My mission is to ensure the site works for families on the go (Mobile) and that "Discovery" is intuitive.
 
-- [ ] **Mobile Experience Review:** rigorous testing of the new "Mobile Polish" work. Families view memories on phones!
-- [ ] **"Read Next" Validation:** Check if the "Related Content" recommendations feel serendipitous or robotic.
-- [ ] **Watchdog on "Symbiote":** Monitor the new "Symbiote Era" changes to ensure they don't complicate the user workflow.
+My mission is to translate the "Symbiote Shift" (Context Layer) into user value. If we're adding "Git History" to chats, it needs to tell a story, not just show hashes.
+
+- [ ] **Evaluate "Context Layer" Value:** Test the new "Code References" feature. Does it make sense to a non-developer? (e.g., "This conversation sparked this feature").
+- [ ] **Advocate for "Story Mode" vs "Dev Mode":** Ensure that technical data (SHAs, file paths) can be toggled off for family albums.
+- [ ] **Push for One-Click Install:** Continue to advocate for simplifying the installation process (`uv tool install` is still scary).
+- [ ] **Review "Structured Sidecar" Output:** If we are changing how data is stored, ensure the final blog post still looks beautiful.
 
 ## Dependencies
-- **Forge:** Mobile polish and Related Content features.
-- **Visionary:** I need to understand if the "VS Code Plugin" affects me at all.
+
+- **Visionary:** I depend on their implementation of the "Symbiote" features to review them.
+- **Forge/Curator:** I assume visual identity work will be mostly done, but I will monitor for regressions.
 
 ## Context
-Sprint 3 introduces "Discovery" features (Related Content) and "Mobile Polish". These are critical for user adoption. It also brings the "Symbiote" architecture, which risks increasing complexity.
+
+Sprint 3 focuses on the "Symbiote Shift". To me, "Symbiote" sounds technical. I want to frame it as "Memory Context" - understanding *why* a conversation happened. My role is to ensure we sell the *story*, not the *database*.
 
 ## Expected Deliverables
-1. **Mobile Experience Report:** Screenshots/notes on mobile usability.
-2. **Discovery Review:** Does the "Related Content" help me find forgotten memories?
-3. **"Am I Safe?" Check:** Confirming the new architecture doesn't require me to change how I work.
+
+1.  **UX Review of Code References:** A report on whether "linking code to chat" feels magical or confusing.
+2.  **"Human Language" Suggestions:** Renaming technical terms in the UI (e.g., "Git History" -> "Project Timeline").
+3.  **Installation Feedback:** Continued pressure to simplify the `README.md` steps.
 
 ## Risks and Mitigations
+
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Mobile view is just "responsive" not "optimized" | High | Medium | I will push for touch-friendly targets and readable text sizes. |
-| "Related Content" shows technical files | Medium | High | I will verify it only shows *my* content (posts), not system files. |
+| "Symbiote" features clutter the UI | High | High | I will propose a "Simple View" toggle for the final site. |
+| Complexity increases for end users | High | High | I will test the "Zero Config" promise against every new feature. |
 
 ## Proposed Collaborations
-- **With Forge:** Mobile testing feedback loop.
-- **With Visionary:** Asking "Why?" about the VS Code plugin to ensure we don't lose focus.
+
+- **With Visionary:** Helping frame the "Symbiote" features for non-technical users.
+- **With Simplifier:** Discussing how to make the installation simpler.
