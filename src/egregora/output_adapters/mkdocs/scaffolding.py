@@ -199,6 +199,17 @@ class MkDocsSiteScaffolder:
     def _create_template_files(
         self, site_paths: MkDocsPaths, env: Environment, context: dict[str, Any]
     ) -> None:
+        """Render and write all standard Jinja2 templates to the site structure.
+
+        This method handles the creation of the README, gitignore, GitHub workflows,
+        and the initial content pages (index, about, feeds, etc.). It also copies
+        static assets like the favicon and default overrides.
+
+        Args:
+            site_paths: The resolved paths object for the target site.
+            env: The Jinja2 environment configured with the template loader.
+            context: The template variables to render.
+        """
         site_root = site_paths.site_root
         docs_dir = site_paths.docs_dir
         media_dir = site_paths.media_dir
