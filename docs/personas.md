@@ -397,9 +397,9 @@ Study these well-implemented personas:
 
 ### Related Documentation
 
-- [Team Constitution](.team/CONSTITUTION.md)
-- [Parallel Personas](.team/PARALLEL_PERSONAS_README.md)
-- [Code of the Weaver](CLAUDE.md)
+- [Team Constitution]({{ config.repo_url }}/blob/main/.team/CONSTITUTION.md)
+- [Parallel Personas]({{ config.repo_url }}/blob/main/.team/PARALLEL_PERSONAS_README.md)
+- [Code of the Weaver]({{ config.repo_url }}/blob/main/CLAUDE.md)
 
 ---
 
