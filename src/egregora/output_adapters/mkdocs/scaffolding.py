@@ -218,7 +218,6 @@ class MkDocsSiteScaffolder:
             (site_paths.egregora_dir / "main.py", "main.py.jinja"),
         ]
 
-
         for target_path, template_name in templates_to_render:
             if not target_path.exists():
                 target_path.parent.mkdir(parents=True, exist_ok=True)
