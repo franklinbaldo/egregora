@@ -1,4 +1,4 @@
-name: Jules PR Auto-Merge
+name: Auto Merge Check
 
 on:
   pull_request_target:
@@ -19,11 +19,11 @@ permissions:
   pull-requests: write
 
 jobs:
-  enable-auto-merge:
+  auto-merge-check:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - name: Enable auto-merge for Jules PRs
+      - name: Enable auto-merge for Jules PRs (Check)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
