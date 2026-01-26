@@ -6,32 +6,32 @@
 **Priority:** Medium
 
 ## Objectives
-My mission is to capture the history of the "Batch Era" before it is refactored away, and to support the structural changes by documenting the "why".
+My mission is to chronicle the "Great Refactor" as it happens, ensuring the transition from the Monolith to the Modular architecture is well-documented.
 
-- [ ] **Document the "Batch Era":** Create a comprehensive Wiki entry detailing the current `write.py` and `runner.py` architecture. This will serve as the "Before" snapshot for the Simplifier's and Artisan's refactors.
-- [ ] **Forensic Analysis of `runner.py`:** Investigate the git history of the recursive splitting logic in `runner.py` to understand its origins and intent. Publish findings in a blog post or journal.
-- [ ] **Update Persona Arcs:** Update the Team Roster and individual persona pages to reflect the shift in roles (e.g., Visionary moving to "Symbiote" architect).
-- [ ] **Review Initial ADRs:** Ensure the first batch of ADRs produced by Steward includes sufficient historical context.
+- [ ] **Chronicle the Great Refactor:** Monitor the PRs from Simplifier (ETL extraction) and Artisan (`runner.py` decomposition). Document the *process* and specific architectural decisions in the Wiki.
+- [ ] **Support ADR Process:** Collaborate with Steward to ensure the first set of ADRs are rich in context and historical reasoning, specifically focusing on the "Alternatives Considered" sections.
+- [ ] **Blog: "The Monolith Crumbles":** Write a blog post detailing the end of the `write.py` monolith, explaining why it was necessary initially and why it must go now.
+- [ ] **Update Wiki Architecture:** Update the Architecture section to reflect the new `src/egregora/orchestration/pipelines/etl/` structure and Pydantic configuration once merged.
 
 ## Dependencies
-- **Simplifier & Artisan:** I need to analyze the code *before* they change it.
+- **Simplifier & Artisan:** I cannot document the new structure until their PRs are up.
 - **Steward:** I need the ADR template to be established.
 
 ## Context
-The system is undergoing a metamorphosis from a batch-processing script to a structured, potentially real-time organism. This is a critical moment for a historian. If we don't document the current state now, it will be lost.
+The "Batch Era" documentation (`Architecture-Batch-Era.md`) was completed in Sprint 1. Now, we are in the active phase of deconstruction. My role shifts from "Snapshotting the Past" to "Recording the Change". The risk of losing "why" decisions is highest during active refactoring.
 
 ## Expected Deliverables
-1. **Wiki Page:** `Architecture-Batch-Era.md`.
-2. **Blog Post:** "The Heartbeat of the Machine" (Analysis of `runner.py` history).
-3. **Updated Roster:** Reflecting current active personas and missions.
-4. **ADR Reviews:** Comments/Feedback on early ADRs.
+1. **Wiki Updates:** Updated Architecture pages reflecting the new modular design.
+2. **Blog Post:** "The Monolith Crumbles" (Narrative of the refactor).
+3. **ADR Reviews:** Detailed feedback on the first batch of ADRs.
+4. **Git Forensics:** Notes on the original implementation of `runner.py` added to the Wiki for posterity.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Refactors happen faster than documentation | Medium | High | I will prioritize the "Before" snapshots in the first few days of the sprint. |
-| "Lore" is seen as a blocker | Low | Medium | I will work asynchronously and not block PRs, but provide retroactive documentation if needed. |
+| Refactors are purely mechanical and lack context | Medium | High | I will comment on PRs asking for "Why" in docstrings/commit messages. |
+| Wiki becomes out of sync with code | High | Medium | I will prioritize Wiki updates immediately after PR merges. |
 
 ## Proposed Collaborations
-- **With Simplifier:** To map the `write.py` flow.
-- **With Artisan:** To understand the `runner.py` logic.
+- **With Steward:** Co-authoring the first ADR.
+- **With Visionary:** Documenting the context layer prototype.
