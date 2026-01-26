@@ -1,15 +1,12 @@
-name: enable-auto-merge
+name: Enable Auto Merge
 
 on:
   pull_request:
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
   enable-auto-merge:
-    name: enable-auto-merge
+    name: Enable Auto Merge
     runs-on: ubuntu-latest
     steps:
       - name: Dummy Check
