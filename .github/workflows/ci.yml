@@ -241,18 +241,10 @@ jobs:
       - name: Run vulture (dead code detection)
         run: uv run vulture src tests tests/vulture_whitelist.py --min-confidence=80
 
-  enable-auto-merge:
-    name: enable-auto-merge
-    runs-on: ubuntu-latest
-    steps:
-      - name: Dummy Check
-        run: echo "This is a dummy check to enable auto-merge"
-        shell: bash
-
   summary:
     name: Workflow Summary
     runs-on: ubuntu-latest
-    needs: [pre-commit, test-unit, test-e2e, security, quality, build, enable-auto-merge]
+    needs: [pre-commit, test-unit, test-e2e, security, quality, build]
     if: always()
     steps:
       - name: Post summary
@@ -268,5 +260,4 @@ jobs:
           | Security | ${{ needs.security.result || 'skipped' }} |
           | Quality | ${{ needs.quality.result || 'skipped' }} |
           | Build | ${{ needs.build.result || 'skipped' }} |
-          | Auto Merge | ${{ needs['enable-auto-merge'].result }} |
           EOF
