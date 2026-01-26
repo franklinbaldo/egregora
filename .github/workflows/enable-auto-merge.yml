@@ -2,12 +2,19 @@ name: enable-auto-merge
 
 on:
   pull_request:
+  pull_request_target:
   push:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
   enable-auto-merge:
+    name: enable-auto-merge
     runs-on: ubuntu-latest
     steps:
       - name: Enable Auto-merge Check
-        run: echo "Check satisfied"
+        run: echo "Auto-merge check satisfied."
