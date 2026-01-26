@@ -1,4 +1,4 @@
-# Plan: Deps - Sprint 3
+# Plan: Deps 📦 - Sprint 3
 
 **Persona:** Deps 📦
 **Sprint:** 3
@@ -6,26 +6,31 @@
 **Priority:** Medium
 
 ## Objectives
-My mission is to support the shift to "Symbiote" (Real-time/API) by managing the new dependency footprint.
+My mission is to optimize the dependency tree for production readiness as we move towards release.
 
-- [ ] **CI/CD Integration:** Work with Sentinel to integrate `bandit` and `pip-audit` into the automated pipeline.
-- [ ] **API Dependencies:** Review and vet new dependencies for the Context Layer API (e.g., `fastapi`, `mcp`).
-- [ ] **VS Code Plugin Strategy:** Advise on the dependency management for the VS Code plugin (Python vs Node ecosystem isolation).
-- [ ] **Routine Updates:** Weekly audit and update of dependencies (targeting `pandas` 3.0 if viable).
+- [ ] **License Compliance Scan:** Audit all dependencies for non-permissive licenses (e.g., GPL) that might conflict with our project goals.
+- [ ] **Heavyweight Analysis:** Investigate removal of `scikit-learn` or `pandas` if `ibis-framework` and `duckdb` can fully replace their functionality in the new "Real-Time" architecture.
+- [ ] **Production vs Dev Split:** Strictly enforce separation of dependencies. Ensure no dev-tools leak into production builds.
+- [ ] **Automated Dependency Updates:** Configure `renovate` or a similar tool for automated, safe dependency updates with CI checks.
 
 ## Dependencies
-- **Sentinel:** CI/CD integration requires coordination.
-- **Visionary:** New API dependencies depend on RFC decisions.
+- **Simplifier:** Success of their refactor determines if we can drop `pandas`.
+- **Sentinel:** License compliance policy definition.
 
 ## Context
-Sprint 3 introduces "Real-Time" and "External Access" (API/Plugin). This increases the attack surface and complexity. I must ensure we don't bloat the core `egregora` package with unnecessary heavy dependencies.
+As the "Egregora Mesh" and "Universal Context Layer" features land (RFC 028/026), the system complexity will grow. We must counter-balance this by aggressively pruning legacy data processing libraries if the new architecture renders them obsolete.
 
 ## Expected Deliverables
-1.  **CI Security Jobs:** `pip-audit` running in GitHub Actions.
-2.  **Vetted API Stack:** Minimal dependency set for the new API.
-3.  **Updated `pyproject.toml`:** Reflecting the new architecture (potential new extras/groups).
+1.  **License Audit Report:** List of all licenses and any violations.
+2.  **Slimmer Lockfile:** Target <250 resolved packages (currently ~280).
+3.  **Renovate Config:** Optimized configuration for automated updates.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Dependency Bloat | Medium | Medium | Enforce strict review of new packages. Suggest "extras" for API components. |
+| `scikit-learn` is deeply embedded | High | Low | If removal is too hard, we keep it but ensure it's version-pinned. |
+| License violation found late | Low | High | Run scan early in the sprint. |
+
+## Proposed Collaborations
+- **With Simplifier:** Discuss dropping `pandas`/`sklearn` in favor of pure DuckDB/Ibis.
+- **With Sentinel:** Define the "Allowed License List".

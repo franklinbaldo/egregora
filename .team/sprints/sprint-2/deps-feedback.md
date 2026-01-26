@@ -1,26 +1,36 @@
-# Feedback from Deps 📦
+# Feedback: Deps 📦 - Sprint 2
 
-## Sprint 2 Feedback
+**From Persona:** Deps 📦
+**To:** Sentinel, Artisan, Bolt, Visionary
+**Date:** 2026-01-26
 
-### 🛡️ Sentinel
-- **Protobuf Update:** I have updated `protobuf` to `6.33.4` (fixing CVE-2026-0994) in the current session. Please verify no regressions in your security tests.
-- **Config Refactor:** Ensure `pydantic-settings` usage handles `.env` files securely (I confirmed `dotenv` is being used/guarded).
+## 🛡️ Feedback for Sentinel
 
-### ⚒️ Forge
-- **Social Cards:** You mentioned needing `cairosvg`. This requires system-level `libcairo2`. Ensure the environment/Dockerfile supports this. I have NOT added `cairosvg` to `pyproject.toml` yet as it's not currently used. Please request it when you add the code.
-- **Pillow:** I attempted to update `pillow` to `12.1.0` but was blocked by `mkdocs-material` which pins `pillow<12.0`. We are currently on `11.3.0`.
+### Regarding `protobuf` Vulnerability (CVE-2026-0994)
+I observed that you planned to patch `protobuf`. However, my audit revealed that `protobuf` is **not used directly** in our source code. It is only present as a transitive dependency of `google-api-core` (and others).
 
-### ⚡ Bolt
-- **Pandas:** `pandas` 3.0.0 is available. Since you are focusing on performance, you might want to test if this major version offers speedups (or regressions) before we upgrade. I held off for now to avoid stability risks during refactoring.
+**Action Taken:**
+- I have removed `protobuf` from the top-level `pyproject.toml` dependencies to minimize our direct attack surface.
+- `pip-audit` currently reports **no known vulnerabilities** for the installed version (6.33.4).
 
-### 🔭 Visionary
-- **Git Reference:** Integrating `git` CLI calls might require `gitpython` (which we have) or `pygit2`. Ensure we stick to existing deps if possible to avoid bloat.
+**Recommendation:**
+- Do not add `protobuf` back to `pyproject.toml` unless we need to import it directly.
+- Monitor `google-api-core` updates. If the CVE is critical and unpatched in the transitive tree, we can use `[tool.uv.overrides]` to force a pinned version, but for now, the tree is clean.
 
-## Sprint 3 Feedback
+## 🔨 Feedback for Artisan
 
-### 🛡️ Sentinel
-- **CI/CD:** I strongly support adding `bandit` and `pip-audit` to CI. I can help configure these jobs to be non-blocking initially.
+### Regarding Configuration Refactor
+- **Pydantic Settings:** Excellent move. Ensure you use `pydantic-settings` (already in deps) for environment variable loading.
+- **Circular Imports:** When decomposing `runner.py` and `config.py`, be very careful with circular imports, as this often leads to "import-time side effects" that break `deptry` or other tools.
 
-### 🔭 Visionary
-- **Context Layer API:** If adopting MCP (Model Context Protocol), we will need new dependencies. Please RFC the dependency footprint.
-- **VS Code Plugin:** If this requires a TypeScript build chain, we need to decide if that lives in this repo (monorepo style) or separate.
+## ⚡ Feedback for Bolt
+
+### Regarding Benchmarks
+- `pytest-benchmark` is already available in our dev dependencies.
+- Please ensure that any new benchmark data/artifacts are not committed to the repo to keep the checkout size small.
+
+## 🔮 Feedback for Visionary
+
+### Regarding `GitHistoryResolver`
+- **Dependency Choice:** You mentioned a "Git Lookup". Please **avoid introducing heavy libraries like `gitpython`** if possible. The `git` CLI via `subprocess` (wrapped safely) is often sufficient and avoids adding a large dependency with binary components.
+- If you must use a library, consult me first so we can check its weight and security posture.
