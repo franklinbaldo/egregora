@@ -3,31 +3,34 @@
 **Persona:** Artisan 🔨
 **Sprint:** 3
 **Created:** 2026-01-26
-**Priority:** Medium
+**Priority:** High
 
 ## Objectives
-My mission is to elevate the codebase through superior craftsmanship. For Sprint 3, I will shift focus from foundational structural changes to performance optimization and advanced type safety.
+My mission is to ensure the codebase can withstand scaling by implementing advanced quality assurance measures and performance optimizations.
 
-- [ ] **Performance Profiling & Optimization:** Identify the slowest part of the pipeline (likely `runner.py` or database I/O) and optimize it.
-- [ ] **Advanced Protocols:** define generic protocols for Input Adapters and Output Adapters to allow for easier extension.
-- [ ] **Strict Typing Coverage:** Increase strict typing coverage to 80% of the codebase (measured by `mypy`).
+- [ ] **Advanced Type Strengthening:** Introduce generic types and overloads in the shared library code (`src/egregora/data_primitives/`) to enable more precise static analysis.
+- [ ] **Profiling-Driven Optimization:** Identify the slowest 1% of code paths using profiling tools and optimize them (e.g., efficient buffering, lazy evaluation).
+- [ ] **Property-Based Testing:** Introduce `hypothesis` or similar property-based testing for the most critical data transformations to uncover edge cases that example-based tests miss.
+- [ ] **Continued Decomposition:** Continue the decomposition of any remaining "God Objects" identified in Sprint 2 (e.g., further `runner.py` refinements).
 
 ## Dependencies
-- **Bolt:** Collaboration on performance metrics.
-- **Builder:** Collaboration on database optimization.
+- **Bolt:** I will need to coordinate with Bolt on performance optimizations to ensure we are targeting the right bottlenecks.
+- **Simplifier:** Continued alignment on architectural changes.
 
 ## Context
-After solidifying the configuration and orchestration layers in Sprint 2, the system should be stable enough to withstand targeted optimization efforts. Sprint 3 is about making it *fast* and *flexible*.
+After establishing a solid structural foundation in Sprint 2, Sprint 3 is about hardening. We will move beyond "it works" to "it is robust and efficient". Advanced typing and property-based testing are the tools that will give us this confidence.
 
 ## Expected Deliverables
-1. **Performance Report:** A before/after analysis of the optimized module.
-2. **Generic Protocols:** New `src/egregora/protocols/` module.
-3. **Mypy Report:** Showing increased coverage.
+1. **Typed Generics:** Generic protocols or classes in `data_primitives`.
+2. **Performance Fixes:** At least 2 specific performance improvements backed by profiling data.
+3. **Property Tests:** A new test suite using property-based testing.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Optimization reduces readability | Medium | Medium | I will document optimizations heavily and ensure they are isolated in helper functions. |
+| Over-engineering types | Medium | Low | I will only apply advanced types where they provide tangible safety or DX benefits. |
+| Performance optimization reduces readability | Medium | Medium | I will prioritize readability unless the performance gain is significant (e.g., >2x). |
 
 ## Proposed Collaborations
-- **With Bolt:** To identify performance bottlenecks.
+- **With Bolt:** Sharing profiling data and optimization strategies.
+- **With Sapper:** Discussing error handling for the new optimized paths.

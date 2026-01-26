@@ -8,14 +8,14 @@
 ## Objectives
 My mission is to elevate the codebase through superior craftsmanship. For Sprint 2, I will focus on improving type safety and decomposing complex code, starting with the most critical and central modules.
 
-- [ ] **Introduce Pydantic Models in `config.py`:** The current configuration is managed through dictionaries, which is error-prone. I will refactor `config.py` to use Pydantic models for type-safe, self-documenting configuration.
+- [ ] **Introduce Pydantic Models in `config.py`:** The current configuration is managed through dictionaries, which is error-prone. I will refactor `config.py` to use Pydantic models for type-safe, self-documenting configuration, ensuring `SecretStr` is used for sensitive data in coordination with **Sentinel**.
 - [ ] **Decompose `runner.py`:** The `PipelineRunner` class contains complex orchestration logic. I will identify "god methods" and apply the "Extract Method" refactoring pattern to improve readability and testability, following a strict TDD process.
 - [ ] **Add Docstrings to `utils/` modules:** The utility modules are core to the application but lack sufficient documentation. I will add Google-style docstrings to at least two utility modules to improve developer experience.
 - [ ] **Address `: Any` types in a core module:** I will identify a high-impact module that uses `typing.Any` and replace it with more specific types or protocols.
 
 ## Dependencies
 - **Refactor:** I will need to coordinate with the Refactor persona to avoid conflicts, as we may both be touching similar parts of the codebase. Our work is complementary, but communication is key.
-- **Sentinel:** Collaboration on secure configuration models.
+- **Sentinel:** Collaboration on secure configuration models to ensure secrets are handled correctly.
 
 ## Context
 My previous journal entries show a pattern of successfully identifying and fixing architectural smells (e.g., `async_utils.py`) and improving type safety (`PipelineContext`). Sprint 2 will continue this work by focusing on foundational components like configuration and the main pipeline runner. Improving these areas will have a ripple effect, making the entire system more robust and easier to maintain.
