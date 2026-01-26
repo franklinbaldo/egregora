@@ -218,9 +218,9 @@ class MkDocsSiteScaffolder:
             (site_paths.egregora_dir / "main.py", "main.py.jinja"),
         ]
 
-        # Stylesheets and Javascripts are now handled via overrides
-        # located in src/egregora/rendering/templates/site/overrides
-        # which are copied to the site root by the logic below.
+        # Stylesheets and Javascripts are now handled exclusively via the 'overrides' directory
+        # (src/egregora/rendering/templates/site/overrides), which is copied to the site root
+        # by the logic below. This prevents shadowing issues with the 'docs' directory.
 
         assets_dir = docs_dir / "assets"
         assets_dir.mkdir(parents=True, exist_ok=True)
