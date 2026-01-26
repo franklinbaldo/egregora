@@ -1,7 +1,7 @@
 name: Jules PR Auto-Merge
 
 on:
-  pull_request_target:
+  pull_request:
     types:
       - opened
       - reopened
@@ -19,24 +19,30 @@ jobs:
     steps:
       - name: Enable Auto-Merge
         uses: actions/github-script@v7
+        continue-on-error: true
         with:
           script: |
-            const pr = context.payload.pull_request;
-            const author = pr.user.login;
-            const julesBots = ["google-labs-jules[bot]", "app/google-labs-jules", "google-labs-jules"];
-
-            console.log(`PR Author: ${author}`);
-
-            if (!julesBots.includes(author)) {
-              console.log("Not a Jules PR. Skipping.");
-              return;
-            }
-
-            const prNumber = pr.number;
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-
             try {
+              const pr = context.payload.pull_request;
+              if (!pr) {
+                console.log("No pull_request payload found.");
+                return;
+              }
+
+              const author = pr.user.login;
+              const julesBots = ["google-labs-jules[bot]", "app/google-labs-jules", "google-labs-jules"];
+
+              console.log(`PR Author: ${author}`);
+
+              if (!julesBots.includes(author)) {
+                console.log("Not a Jules PR. Skipping.");
+                return;
+              }
+
+              const prNumber = pr.number;
+              const owner = context.repo.owner;
+              const repo = context.repo.repo;
+
               // Get latest PR details to ensure we have node_id
               const { data: prDetails } = await github.rest.pulls.get({
                 owner,
@@ -69,7 +75,7 @@ jobs:
               console.log("Auto-merge enabled successfully.");
 
             } catch (error) {
-              console.log("Error processing auto-merge:");
+              console.log("Error processing auto-merge (handled safely):");
               console.log(error.message);
-              // Explicitly do not throw error to avoid failing the job
+              // Do not re-throw
             }
