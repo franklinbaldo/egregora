@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
+
+if TYPE_CHECKING:
+    from egregora.database.task_store import TaskStore
 
 
 class WorkerContext(Protocol):
     """Protocol for context required by workers."""
 
-    task_store: Any
+    @property
+    def task_store(self) -> TaskStore | None: ...
 
 
 class BaseWorker(ABC):

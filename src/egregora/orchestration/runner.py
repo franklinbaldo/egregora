@@ -19,6 +19,8 @@ from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.types import Message, PromptTooLargeError, WindowProcessingParams
 from egregora.agents.writer import write_posts_for_window
+from egregora.config.settings import EnrichmentSettings
+from egregora.data_primitives import OutputSink
 from egregora.data_primitives.document import Document, DocumentType, UrlContext
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
@@ -475,7 +477,7 @@ class PipelineRunner:
         self,
         window_table: ir.Table,
         media_mapping: MediaMapping,
-        override_config: Any | None = None,
+        override_config: EnrichmentSettings | None = None,
     ) -> ir.Table:
         """Execute enrichment for a window's table."""
         enrichment_context = EnrichmentRuntimeContext(
@@ -520,7 +522,7 @@ class PipelineRunner:
         return str(summary or "").strip(), str(instructions or "").strip()
 
     # TODO: [Taskmaster] Extract command processing logic from _process_single_window
-    def _process_commands(self, messages_list: list[dict], output_sink: Any) -> int:
+    def _process_commands(self, messages_list: list[dict], output_sink: OutputSink) -> int:
         """Processes commands from a list of messages."""
         announcements_generated = 0
         command_messages = extract_commands_list(messages_list)
