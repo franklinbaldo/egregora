@@ -186,9 +186,13 @@ def test_next_sequence_values_raises_fetch_error(mocker):
     """Test that next_sequence_values raises SequenceFetchError when fetchone returns None."""
     with DuckDBStorageManager() as storage:
         storage.ensure_sequence("test_sequence")
+
+        # Replace the real connection with a mock
+        mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_cursor.fetchone.return_value = None
-        mocker.patch.object(storage, "execute", return_value=mock_cursor)
+        mock_conn.execute.return_value = mock_cursor
+        mocker.patch.object(storage, "_conn", mock_conn)
 
         with pytest.raises(SequenceFetchError) as exc_info:
             storage.next_sequence_values("test_sequence")
@@ -200,7 +204,17 @@ def test_next_sequence_values_raises_retry_failed_error(mocker):
     with DuckDBStorageManager() as storage:
         storage.ensure_sequence("test_sequence")
         mocker.patch.object(storage, "_is_invalidated_error", return_value=True)
-        mocker.patch.object(storage, "execute", side_effect=duckdb.Error("DB error"))
+
+        # Mock _reset_connection to prevent it from replacing our failing mock connection
+        mocker.patch.object(storage, "_reset_connection")
+        # Also mock get_sequence_state/ensure_sequence called during recovery logic
+        mocker.patch.object(storage, "get_sequence_state", side_effect=SequenceNotFoundError("test_sequence"))
+        mocker.patch.object(storage, "ensure_sequence")
+
+        # Replace the real connection with a mock that raises Error
+        mock_conn = MagicMock()
+        mock_conn.execute.side_effect = duckdb.Error("DB error")
+        mocker.patch.object(storage, "_conn", mock_conn)
 
         with pytest.raises(SequenceRetryFailedError) as exc_info:
             storage.next_sequence_values("test_sequence")
