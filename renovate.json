@@ -22,7 +22,7 @@
       "matchManagers": ["pip_requirements", "pip_setup", "pep621"],
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "Python dependencies (non-major)",
-      "automerge": true,
+      "automerge": false,
       "automergeType": "pr",
       "platformAutomerge": false
     },
