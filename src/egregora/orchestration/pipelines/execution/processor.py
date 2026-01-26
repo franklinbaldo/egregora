@@ -73,7 +73,7 @@ def _convert_messages_to_list(conversation: Conversation) -> list[dict[str, Any]
         executed = conversation.messages_table.execute()
         if hasattr(executed, "to_pylist"):
             return executed.to_pylist()
-        elif hasattr(executed, "to_dict"):
+        if hasattr(executed, "to_dict"):
             return executed.to_dict(orient="records")
     except (AttributeError, TypeError):
         try:
