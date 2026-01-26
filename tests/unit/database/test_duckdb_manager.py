@@ -186,9 +186,16 @@ def test_next_sequence_values_raises_fetch_error(mocker):
     """Test that next_sequence_values raises SequenceFetchError when fetchone returns None."""
     with DuckDBStorageManager() as storage:
         storage.ensure_sequence("test_sequence")
+
+        # Replace the real connection with a mock since we can't patch C-extension methods
+        mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_cursor.fetchone.return_value = None
-        mocker.patch.object(storage, "execute", return_value=mock_cursor)
+        mock_conn.execute.return_value = mock_cursor
+
+        # We need to keep the original connection for ensure_sequence to work above,
+        # but for the call under test, we swap it.
+        storage._conn = mock_conn
 
         with pytest.raises(SequenceFetchError) as exc_info:
             storage.next_sequence_values("test_sequence")
@@ -200,7 +207,25 @@ def test_next_sequence_values_raises_retry_failed_error(mocker):
     with DuckDBStorageManager() as storage:
         storage.ensure_sequence("test_sequence")
         mocker.patch.object(storage, "_is_invalidated_error", return_value=True)
-        mocker.patch.object(storage, "execute", side_effect=duckdb.Error("DB error"))
+        # Prevent reset from replacing our mock
+        mocker.patch.object(storage, "_reset_connection")
+
+        # Replace the real connection with a mock
+        mock_conn = MagicMock()
+
+        # 1. Fail first fetch
+        # 2. Succeed check (returns a mock cursor that has fetchone returning a row)
+        # 3. Fail retry fetch
+
+        cursor_success = MagicMock()
+        cursor_success.fetchone.return_value = (1, 1, 1)  # Valid sequence state
+
+        mock_conn.execute.side_effect = [
+            duckdb.Error("DB error 1"),
+            cursor_success,
+            duckdb.Error("DB error 2"),
+        ]
+        storage._conn = mock_conn
 
         with pytest.raises(SequenceRetryFailedError) as exc_info:
             storage.next_sequence_values("test_sequence")
