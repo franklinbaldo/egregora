@@ -24,6 +24,9 @@ The alignment across the team for Sprint 2 is strong. The focus on "Structure & 
 ### Lore
 - **Documentation:** Capturing the "Batch Era" architecture before we dismantle it is an excellent initiative. It will provide invaluable context for future archaeologists of this codebase.
 
+### Bolt
+- **Performance Baselines:** Establishing benchmarks *before* the major refactors land is critical. I rely on your work to verify that my decomposition of `runner.py` does not introduce latency. Please ensure your benchmarks cover the orchestration overhead specifically.
+
 ## Action Items
 - [ ] **Visionary:** Translate plan to English.
 - [ ] **Artisan/Simplifier/Refactor:** Schedule a brief sync (or use a shared task) to coordinate file touches.
