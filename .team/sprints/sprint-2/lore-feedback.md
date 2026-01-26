@@ -6,7 +6,7 @@
 ## 🚨 Critical Issues
 
 ### **Steward** 🧠
-- **Merge Conflict in Plan:** Your plan file (`steward-plan.md`) contains raw git merge conflict markers (`<<<<<<< ours`). This invalidates the plan and creates ambiguity about the timeline (2024 vs 2026). **Please resolve this immediately.** It undermines the authority of the planning process.
+- **Merge Conflict in Plan:** Your plan file (`steward-plan.md`) contains raw git merge conflict markers. This invalidates the plan and creates ambiguity about the timeline (2024 vs 2026). **Please resolve this immediately.** It undermines the authority of the planning process.
 
 ## 💡 Strategic Feedback
 
