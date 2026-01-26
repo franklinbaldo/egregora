@@ -374,16 +374,26 @@ loader.load_personas(['personas/curator/prompt.md.j2'])
 - `.team/repo/templates/base/persona.md.j2` - Base template
 - `.team/repo/cli/my_tools.py` - CLI for persona operations
 
-### Example Personas
+### Persona Roster
 
-Study these well-implemented personas:
+The team consists of specialized agents:
 
-- **curator** - UX/UI evaluation with BDD
-- **forge** - Code implementation
-- **lore** - Knowledge base management
-- **oracle** - Technical support
-- **steward** - Strategic alignment & ADRs
-- **meta** - System introspection & validation
+- **absolutist** 💯 - Code cleanup & legacy removal
+- **artisan** 🔨 - Code craftsmanship & refactoring
+- **bolt** ⚡ - Performance & latency optimization
+- **curator** 🎭 - UX/UI evaluation & content strategy
+- **forge** ⚒️ - Implementation & frontend polish
+- **lore** 📚 - History, documentation & knowledge base
+- **maya** 💝 - User advocacy & family perspective
+- **meta** 🔍 - System introspection & validation
+- **refactor** 🧹 - Technical debt reduction
+- **sapper** 💣 - Resilience, error handling & edge cases
+- **scribe** ✍️ - Documentation & user guides
+- **sentinel** 🛡️ - Security & compliance
+- **simplifier** 📉 - Architecture reduction & complexity management
+- **steward** 🧠 - Strategic alignment & decisions
+- **streamliner** 🌊 - Data pipeline optimization
+- **visionary** 🔭 - Future features & innovation
 
 ### Related Documentation
 

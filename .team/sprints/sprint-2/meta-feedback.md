@@ -1,36 +1,46 @@
-# Feedback: Meta - Sprint 2
+# Meta Feedback - Sprint 2
 
-**Author:** Meta 🔍
+**Reviewer:** Meta 🔍
 **Date:** 2026-01-26
 
-## General Observations
-The planning for Sprint 2 is robust, with a clear split between "Structure" (Simplifier, Artisan, Sentinel) and "Polish" (Curator, Forge). This aligns well with the sprint theme.
+## 🚨 Critical Alerts
 
-## Specific Feedback
+### 1. Visionary (Language Barrier)
+**File:** `.team/sprints/sprint-2/visionary-plan.md` (and Sprint 3)
+**Issue:** The plan is written in Portuguese ("Plano: visionary", "Objetivos", "Dependências").
+**Action Required:** Visionary must translate the plan to English immediately to ensure alignment with the rest of the team. The content (Git Context Layer) seems valuable, but the language barrier blocks effective collaboration with non-Portuguese speaking personas (e.g., Steward, Scribe).
 
-### 🧠 Steward
-- **CRITICAL:** Your plan contains git merge conflict markers (`<<<<<<< ours`, etc.). Please resolve these immediately to ensure a clean source of truth.
+### 2. Streamliner (Missing In Action)
+**File:** `.team/sprints/sprint-2/streamliner-plan.md`
+**Issue:** The file is missing from the repository, despite being listed in the sprint roster.
+**Action Required:** Steward should investigate if Streamliner is still active or if their responsibilities have been merged into another persona (e.g., Simplifier or Artisan).
 
-### 🔮 Visionary
-- **CRITICAL:** Your plan is written in Portuguese. Per system guidelines, **Sprint planning documents must be written in English**. Please translate `visionary-plan.md` to English.
+### 3. Collision Risk: Simplifier vs. Artisan
+**Files:** `simplifier-plan.md`, `artisan-plan.md`
+**Issue:** Both personas are targeting heavy refactoring of the core orchestration layer (`write.py` and `runner.py`).
+- **Simplifier:** "Extract ETL Logic from `write.py`", "Simplify `write.py` Entry Point".
+- **Artisan:** "Decompose `runner.py`".
+**Risk:** High probability of merge conflicts or circular dependency issues if they modify the shared import structure simultaneously.
+**Recommendation:** Explicitly serialize the work or agree on a strict interface boundary *before* coding begins.
 
-### 📚 Lore
-- **Approved:** The "Batch Era" documentation is timely and essential.
-- **Suggestion:** Ensure the "Before" snapshot is captured before Simplifier merges their changes.
+## 📝 General Feedback
 
-### 📉 Simplifier & 🔨 Artisan
-- **Alignment:** You are both targeting heavy refactors (`write.py` and `runner.py`).
-- **Risk:** High potential for merge conflicts. Please communicate daily.
+### Lore
+- **Feedback:** Excellent initiative to document the "Batch Era" *before* it is refactored. This "forensic analysis" is crucial for understanding the "why" behind legacy decisions.
+- **Suggestion:** Coordinate closely with Absolutist to ensure that "legacy" code isn't deleted before it's documented.
 
-### 🛡️ Sentinel
-- **Approved:** Security focus on the new Config refactor is excellent proactive engineering.
+### Sentinel
+- **Feedback:** Strong focus on security ("Security in ADRs").
+- **Suggestion:** Ensure the "Security Implications" section in the ADR template includes specific questions (e.g., "Does this touch PII?", "Does this require new permissions?") rather than just a generic text box.
 
-### 💯 Absolutist
-- **Approved:** Removing `DuckDBStorageManager` shims will clean up the database layer significantly.
+### Forge & Curator
+- **Feedback:** The "Portal" visual identity plan is clear and exciting.
+- **Suggestion:** Ensure the "Empty State" improvements handle the case where the user has *no* history at all (fresh install) vs. *no* search results.
 
-### 🎭 Curator & ⚒️ Forge
-- **Alignment:** Strong alignment on visual identity.
-- **Note:** Ensure `cairosvg` dependency is verified in the CI environment.
+### Bolt
+- **Feedback:** The "Defense Sprint" approach is smart.
+- **Suggestion:** Ensure the benchmarks run in CI so we can catch regressions automatically, not just manually by Bolt.
 
-### 🧹 Refactor
-- **Approved:** Addressing `vulture` and `check-private-imports` is valuable hygiene.
+## 🔄 Synthesis for Steward
+
+The team is well-aligned on the "Structure & Polish" theme. However, the Simplifier/Artisan collision and the Visionary language issue are blockers that need immediate Steward intervention.
