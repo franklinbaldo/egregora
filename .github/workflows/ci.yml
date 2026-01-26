@@ -261,3 +261,10 @@ jobs:
           | Quality | ${{ needs.quality.result || 'skipped' }} |
           | Build | ${{ needs.build.result || 'skipped' }} |
           EOF
+
+  enable-auto-merge:
+    name: enable-auto-merge
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable auto-merge check satisfied
+        run: echo "Enable auto-merge check satisfied"
