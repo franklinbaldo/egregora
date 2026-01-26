@@ -1,10 +1,6 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock, patch
-
-import pytest
-import yaml
 
 from egregora.output_adapters.mkdocs.scaffolding import (
     MkDocsSiteScaffolder,
