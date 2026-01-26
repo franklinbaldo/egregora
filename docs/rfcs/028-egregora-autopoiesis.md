@@ -6,6 +6,9 @@
 **Persona**: Visionary
 **Created**: 2026-01-26
 
+## Revision History
+- **v1.0 (2026-01-26):** Initial Proposal.
+
 ## Problem Statement
 Egregora is currently a "dead" artifact. It is a static pipeline that runs, produces output, and stops. While it has "memory" (RAG), it lacks "learning" in the structural sense. If the AI realizes "I should have asked about X," that realization is lost in a log file. Users must manually tune prompts and configurations, creating a friction barrier that prevents the system from evolving to match the team's changing needs.
 
