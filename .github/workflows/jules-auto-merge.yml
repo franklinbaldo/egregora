@@ -14,9 +14,6 @@ permissions:
 
 jobs:
   enable-auto-merge:
-    # NOTE: This workflow runs via pull_request_target, meaning it uses the workflow file from the BASE branch (main).
-    # This can create a deadlock where a broken workflow in main fails CI, preventing the fix (in the PR) from merging.
-    # Therefore, this script must be extremely robust and never fail (exit 0), even if the API call fails.
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
