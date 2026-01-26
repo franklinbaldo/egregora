@@ -209,6 +209,7 @@ class MkDocsSiteScaffolder:
             site_paths: The resolved paths object for the target site.
             env: The Jinja2 environment configured with the template loader.
             context: The template variables to render.
+
         """
         site_root = site_paths.site_root
         docs_dir = site_paths.docs_dir
@@ -233,7 +234,7 @@ class MkDocsSiteScaffolder:
         # (src/egregora/rendering/templates/site/overrides), which is copied to the site root
         # by the logic below. This prevents shadowing issues with the 'docs' directory.
 
-        loader = cast(FileSystemLoader, env.loader)
+        loader = cast("FileSystemLoader", env.loader)
 
         assets_dir = docs_dir / "assets"
         assets_dir.mkdir(parents=True, exist_ok=True)
