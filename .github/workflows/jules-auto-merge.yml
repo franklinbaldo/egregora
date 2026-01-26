@@ -1,7 +1,6 @@
-name: Jules PR Auto-Merge
+name: Jules Merge Worker
 
 on:
-  pull_request:
   pull_request_target:
     types:
       - opened
@@ -14,7 +13,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  enable-auto-merge:
+  auto-merge-worker:
     runs-on: ubuntu-latest
     steps:
       - name: Enable auto-merge for Jules PRs
@@ -23,15 +22,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           BASE_REPO: ${{ github.repository }}
-          EVENT_NAME: ${{ github.event_name }}
         run: |
-          # If triggered by pull_request, we are just satisfying the status check.
-          if [ "$EVENT_NAME" == "pull_request" ]; then
-            echo "Status check satisfaction mode. Passing."
-            exit 0
-          fi
-
-          # If triggered by pull_request_target, we perform the privileged merge logic.
           set -euo pipefail
 
           # Security: Prevent execution on forks
