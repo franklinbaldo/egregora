@@ -18,49 +18,63 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Enable auto-merge for Jules PRs
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          # Disable exit-on-error to prevent workflow failure on API glitches or permission issues
-          set +e
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const author = context.payload.pull_request.user.login;
 
-          echo "Attempting to enable auto-merge for PR #$PR_NUMBER..."
+            console.log(`Checking PR #${prNumber} by author '${author}'`);
 
-          # 1. Check Author
-          author_login=$(gh pr view "$PR_NUMBER" --json author --jq '.author.login' 2>/dev/null)
-          if [ $? -ne 0 ]; then
-             echo "⚠️ Failed to fetch PR author. Skipping."
-             exit 0
-          fi
+            const validAuthors = [
+              "google-labs-jules[bot]",
+              "app/google-labs-jules",
+              "google-labs-jules"
+            ];
 
-          case "$author_login" in
-            "google-labs-jules[bot]"|"app/google-labs-jules"|"google-labs-jules")
-              echo "✅ Author '$author_login' is valid."
-              ;;
-            *)
-              echo "PR #$PR_NUMBER is authored by '$author_login'; skipping."
-              exit 0
-              ;;
-          esac
+            if (!validAuthors.includes(author)) {
+              console.log(`Author '${author}' is not in the allowlist. Skipping.`);
+              return;
+            }
 
-          # 2. Check Draft Status
-          is_draft=$(gh pr view "$PR_NUMBER" --json isDraft --jq '.isDraft' 2>/dev/null)
-          if [ "$is_draft" = "true" ]; then
-            echo "PR #$PR_NUMBER is draft; marking ready for review."
-            gh pr ready "$PR_NUMBER" || echo "⚠️ Failed to mark as ready. Continuing..."
-          fi
+            // Check if draft
+            if (context.payload.pull_request.draft) {
+              console.log("PR is a draft. Marking as ready for review...");
+              try {
+                await github.graphql(`
+                  mutation($pullRequestId: ID!) {
+                    markPullRequestReadyForReview(input: {pullRequestId: $pullRequestId}) {
+                      pullRequest { isDraft }
+                    }
+                  }
+                `, {
+                  pullRequestId: context.payload.pull_request.node_id
+                });
+              } catch (error) {
+                console.log("Failed to mark as ready (non-fatal): " + error.message);
+              }
+            }
 
-          # 3. Enable Auto-Merge
-          echo "Enabling auto-merge..."
-          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch
-
-          if [ $? -eq 0 ]; then
-            echo "✅ Auto-merge enabled successfully."
-          else
-            echo "⚠️ Failed to enable auto-merge. This is likely due to repository settings or permissions."
-            echo "Ignoring failure to keep CI green."
-          fi
-
-          # Always succeed to satisfy branch protection rules
-          exit 0
+            // Enable auto-merge
+            console.log("Enabling auto-merge...");
+            try {
+              await github.graphql(`
+                mutation($pullRequestId: ID!) {
+                  enablePullRequestAutoMerge(input: {
+                    pullRequestId: $pullRequestId,
+                    mergeMethod: SQUASH
+                  }) {
+                    pullRequest { autoMergeRequest { enabledAt } }
+                  }
+                }
+              `, {
+                pullRequestId: context.payload.pull_request.node_id
+              });
+              console.log("✅ Auto-merge enabled successfully.");
+            } catch (error) {
+              console.log("⚠️ Failed to enable auto-merge: " + error.message);
+              // Do not fail the workflow, as this might be a permission issue or already enabled
+            }
