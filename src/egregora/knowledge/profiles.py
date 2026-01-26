@@ -76,7 +76,8 @@ _AUTHORS_COMBINED_REGEX = re.compile(
 def _iter_authors_fast(path_str: str) -> Iterator[str]:
     """Yield author IDs from a markdown file efficiently.
 
-    Uses low-level file operations and regex to avoid overhead.
+    Uses low-level file operations (`open`) and regex to avoid `pathlib` overhead
+    and intermediate object creation.
     """
     # Use simple open, no pathlib overhead
     with open(path_str, "r", encoding="utf-8") as f:
