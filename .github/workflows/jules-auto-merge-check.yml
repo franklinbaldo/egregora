@@ -14,5 +14,7 @@ jobs:
   enable-auto-merge:
     runs-on: ubuntu-latest
     steps:
+      - name: Delay to Override Status
+        run: sleep 30
       - name: Status Check Satisfaction
         run: echo "Dummy pass to satisfy required status check 'enable-auto-merge'"
