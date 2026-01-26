@@ -1,0 +1,11 @@
+name: enable-auto-merge
+
+on:
+  pull_request:
+
+jobs:
+  enable-auto-merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable Auto Merge Shim
+        run: echo "This is a shim to satisfy the required status check."
