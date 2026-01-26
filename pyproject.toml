@@ -33,7 +33,6 @@ dependencies = [
     "google-genai>=1.0",
     "protobuf>=6.33.4",
     "google-api-core>=2.29.0",
-    "google-ai-generativelanguage>=0.10.0",
 ]
 
 [project.scripts]
@@ -428,7 +427,6 @@ ignore_notebooks = true
 extend_exclude = [".team", "scripts", "artifacts", "docs", "tests", ".claude"]
 
 [tool.deptry.package_module_name_map]
-"google-ai-generativelanguage" = "google.ai.generativelanguage"
 "protobuf" = "google.protobuf"
 "pyyaml" = "yaml"
 "ibis-framework" = "ibis"
@@ -445,6 +443,7 @@ extend_exclude = [".team", "scripts", "artifacts", "docs", "tests", ".claude"]
 [tool.deptry.per_rule_ignores]
 DEP001 = ["dotenv", "google", "pydantic_core", "playwright", "repo", "requests", "uvicorn", "pydantic_graph", "repo_client"]
 DEP002 = [
+    "protobuf",
     "mkdocs",
     "mkdocs-material",
     "mkdocs-glightbox",

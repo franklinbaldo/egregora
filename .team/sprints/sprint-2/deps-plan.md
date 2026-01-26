@@ -1,31 +1,32 @@
 # Plan: Deps - Sprint 2
 
-**Persona:** Deps 📦
+**Persona:** deps 📦
 **Sprint:** 2
 **Created:** 2026-01-26
 **Priority:** High
 
 ## Objectives
-My mission is to ensure the dependency tree remains healthy and secure while the team performs major structural refactoring.
+My mission is to maintain a healthy dependency tree while supporting the team's structural refactoring efforts.
 
-- [x] **Fix Dependency Auditing:** Restore and configure `[tool.deptry]` in `pyproject.toml` to eliminate false positives and make audits useful again. (Completed in Sprint 1 transition).
-- [x] **Security Updates:** Update `protobuf` to fix CVE-2026-0994. (Completed).
-- [ ] **Monitor Refactoring Impacts:** Watch for new dependencies introduced by Simplifier (`write.py` refactor) and Artisan (`pydantic` models).
-- [ ] **Support Social Cards:** Be ready to add `cairosvg` or other image processing libs for Forge.
+- [ ] **Support Refactoring:** Monitor `deptry` and `vulture` results as `refactor` and `simplifier` modify the codebase, adjusting ignores or removing dependencies as needed.
+- [ ] **Monitor Protobuf:** Track the status of `protobuf` vs `google-api-core` and attempt to upgrade to a non-vulnerable version as soon as upstream allows.
+- [ ] **Enforce Minimalism:** Review any new dependency requests (e.g., from `visionary` or `bolt`) and suggest stdlib alternatives where possible.
+- [ ] **Automated Audits:** Ensure CI checks for dependencies (audit, deptry) remain green.
 
 ## Dependencies
-- **Forge:** Waiting on implementation of Social Cards to finalize dependencies.
-- **Simplifier:** Refactoring `write.py` might change import structures affecting `deptry`.
+- **Refactor:** Their work on dead code removal may allow me to remove unused packages.
+- **Sentinel:** We share the goal of patching `protobuf`.
 
 ## Context
-Sprint 2 is heavy on refactoring. My role is "support and monitor". I have already cleaned up the `deptry` configuration and handled the critical `protobuf` update.
+Sprint 2 is heavy on refactoring. This is a high-risk time for "dependency drift" where imports get moved and static analysis tools get confused. I need to be vigilant.
 
 ## Expected Deliverables
-1.  **Clean `deptry` Report:** No false positives.
-2.  **Secure `uv.lock`:** All critical patches applied.
-3.  **Feedback:** Timely feedback on PRs adding new libraries.
+1.  **Clean Dependency Tree:** No unused packages (`deptry` clean).
+2.  **No Vulnerabilities:** `pip-audit` clean (with known `protobuf` exception if needed).
+3.  **Updated Config:** Adjustments to `pyproject.toml` to reflect code structure changes.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| `mkdocs-material` blocks updates | High | Low | `pillow` 12.0 is blocked. I will monitor for upstream updates. |
+| Refactoring hides imports | Medium | Low | I will review PRs to ensure `deptry` doesn't flag falsely, or add explicit ignores. |
+| Protobuf remains vulnerable | High | Medium | We are blocked by upstream. I will document this as a known acceptance risk if we cannot upgrade. |
