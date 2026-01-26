@@ -28,8 +28,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          # Remove set -e to prevent exit on error
-          # set -euo pipefail
+          # Explicitly disable exit-on-error (GitHub Actions sets -e by default)
+          set +e
 
           echo "Processing PR #$PR_NUMBER"
 
