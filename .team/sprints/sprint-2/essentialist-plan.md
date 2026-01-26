@@ -9,8 +9,8 @@
 My mission is to enforce architectural simplicity and reduce "lifetime maintenance load". In this sprint, I act as a watchdog for the major refactors and optimize critical paths.
 
 - [ ] **Simplicity Watchdog:** Audit the active refactors by Simplifier (`write.py`) and Artisan (`runner.py`) to ensure they reduce complexity rather than just redistributing it.
-- [ ] **Optimize `_window_by_count`:** Refactor the windowing logic in `src/egregora/transformations/windowing.py` to remove the N+1 query loop, aligning with "Data over Logic" and "Fetch-then-Compute".
-- [ ] **Janitorial Maintenance:** Fix corrupted or non-compliant plan files (Steward, Visionary) to maintain a clean project state.
+- [x] **Optimize `_window_by_count`:** Refactor the windowing logic in `src/egregora/transformations/windowing.py` to remove the N+1 query loop, aligning with "Data over Logic" and "Fetch-then-Compute".
+- [x] **Janitorial Maintenance:** Fix corrupted or non-compliant plan files (Steward, Visionary) to maintain a clean project state.
 
 ## Dependencies
 - **Simplifier & Artisan:** My audit work runs in parallel with their implementation.
