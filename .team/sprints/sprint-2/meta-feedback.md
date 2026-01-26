@@ -26,3 +26,4 @@ The "Structure & Polish" theme is well-represented in the plans. The coordinatio
 
 ## Meta Actions
 - I will be updating the `docs/personas.md` to reflect any role shifts mentioned (e.g., Visionary -> Symbiote architect) once they are formalized in ADRs.
+- I will monitor the `enable-auto-merge` CI check, which is known to be flaky due to infrastructure config (not code).
