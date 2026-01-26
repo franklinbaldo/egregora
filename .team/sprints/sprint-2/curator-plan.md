@@ -1,44 +1,36 @@
-# Plan: Curator - Sprint 2
+# Plan: Curator 🎭 - Sprint 2
 
 **Persona:** Curator 🎭
 **Sprint:** 2
-**Created:** 2024-07-29 (during Sprint 1)
+**Created:** 2026-01-26
 **Priority:** High
 
 ## Objectives
+My mission is to ensure the "Portal" visual identity is fully realized and that the user experience is polished, accessible, and robust.
 
-My mission is to establish a baseline of UX excellence for the generated MkDocs blogs. For Sprint 2, the objectives are:
-
-- [ ] **Establish Visual Identity:** Work with Forge to implement a custom color palette and favicon, moving away from the generic Material theme defaults.
-- [ ] **Fix Critical Broken Elements:** Guide Forge to fix the missing CSS file and the 404 errors on social card images.
-- [ ] **Improve First Impressions:** Refine the "empty state" messaging and address the generic site name.
-- [ ] **Solidify UX Vision:** Continue to build out `docs/ux-vision.md` with the principles and decisions established in Sprint 1 and 2.
+- [ ] **Oversee Portal Implementation:** Direct the `forge` persona to complete the visual implementation of the Portal theme (Social Cards, Favicon consolidation).
+- [ ] **Accessibility Audit:** Conduct a thorough accessibility audit (WCAG 2.1 AA target) of the new theme and create tasks for any violations found.
+- [ ] **Empty State UX:** Refine the "Empty State" experience (when no content is generated) to be informative and "graceful" rather than broken.
+- [ ] **Maintain Vision:** Continuously update `docs/ux-vision.md` as the "Single Source of Truth" for design decisions.
 
 ## Dependencies
-
-The following dependencies have been identified:
-
-- **Forge:** All of my objectives for this sprint require Forge to implement the necessary code changes in the templates and scaffolding scripts. I will provide clear, actionable tasks.
+- **Forge:** Implementation of the visual changes.
+- **Maya:** Input on the emotional/copy aspects of the Empty State.
 
 ## Context
-
-Sprint 1 was focused on unblocking the Curation Cycle and conducting an initial UX audit. This audit revealed several high-priority issues that prevent the generated blogs from having a professional and unique identity. Sprint 2 is about addressing this foundational debt. By the end of this sprint, the generated sites should feel less like a generic template and more like a bespoke product.
+Sprint 2 is the "Structure & Polish" sprint. While others focus on backend structure, I am the guardian of the "Polish". A solid backend is useless if the frontend feels broken or cheap.
 
 ## Expected Deliverables
-
-1.  **New Color Palette:** The default Teal/Amber theme is replaced with a custom palette.
-2.  **Custom Favicon:** A unique favicon is present on all pages.
-3.  **Functional Social Sharing:** Social card images are generated correctly without 404 errors.
-4.  **Improved Empty State:** The initial homepage message is more welcoming and user-friendly.
-5.  **Updated UX Vision:** `docs/ux-vision.md` is updated with the new design decisions.
+1. **Updated `docs/ux-vision.md`:** Reflecting the final state of the Portal theme.
+2. **Accessibility Report:** A journal entry or document detailing the accessibility status and any required fixes.
+3. **Task Generation:** Precision tasks for `forge` (technical fixes) and `maya` (content/copy) based on my audits.
 
 ## Risks and Mitigations
-
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Forge is blocked or unable to implement changes | Medium | High | I will write extremely detailed tasks with clear WHY/WHAT/HOW/WHERE to minimize ambiguity. I will also monitor the `.team/tasks/` directory closely to provide feedback or clarification if needed. |
-| Design decisions are subjective | Low | Medium | I will ground all design decisions in the established UX Excellence Criteria and document the rationale in `docs/ux-vision.md`. |
+| Accessibility requires major markup changes | Medium | Medium | I will identify these early and create high-priority tasks for `forge`. |
+| "Portal" theme conflicts with standard MkDocs plugins | Low | Low | I will test standard plugins (search, toc) to ensure they are still usable. |
 
 ## Proposed Collaborations
-
-- **With Forge:** Continuous collaboration via the task management system in `.team/tasks/`.
+- **With Forge:** Tight feedback loop on visual implementation.
+- **With Maya:** Collaboration on the "voice" of the interface.

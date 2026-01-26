@@ -34,9 +34,9 @@ Key locations:
 This section defines the "Portal" design system, which aims to create a dark, immersive, and premium experience.
 
 ### CSS Architecture
--   **Status:** Broken / Fragmented.
--   **Issue:** The CSS is split between `docs/stylesheets/extra.css` (Portal Theme) and `overrides/stylesheets/extra.css` (Structure). MkDocs prioritizes the `docs` folder, causing the Portal theme to "shadow" and obliterate the structural styles needed for the homepage navigation and layout.
--   **Next Action:** Task `20260125-140000-ux-consolidate-css-shadowing.md` has been created to consolidate all CSS into `overrides` and fix the shadowing.
+-   **Status:** Verified.
+-   **Issue:** The CSS was previously split, causing shadowing issues. This has been resolved by consolidating all styles into `src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`.
+-   **Next Action:** None.
 
 ### Color Palette
 -   **Status:** Verified.
@@ -60,9 +60,9 @@ This section defines the "Portal" design system, which aims to create a dark, im
 -   **Next Action:** Fix CSS shadowing (see above).
 
 ### Feeds Page
--   **Status:** Missing (Broken Link).
--   **Issue:** The "RSS Feeds" card on the homepage links to `feeds/`, which creates a 404 error. There is no dedicated page to list available feeds.
--   **Next Action:** Create `docs/feeds/index.md` with a polished UI listing all available RSS and JSON feeds. Task `20260126-1000-ux-implement-feeds-page.md` created.
+-   **Status:** Verified.
+-   **Issue:** The "RSS Feeds" card now links to a dedicated feeds page. The template `src/egregora/rendering/templates/site/docs/feeds/index.md.jinja` has been implemented.
+-   **Next Action:** None.
 
 ### Analytics
 -   **Status:** Verified (Removed).
