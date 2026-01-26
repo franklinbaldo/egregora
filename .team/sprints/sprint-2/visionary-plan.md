@@ -1,49 +1,52 @@
-# Plano: visionary - Sprint 2
+# Plan: Visionary 🔭 - Sprint 2
 
-**Persona:** visionary
+**Persona:** Visionary 🔭
 **Sprint:** 2
-**Criado em:** 2026-01-22
-**Prioridade:** Alta
+**Created:** 2026-01-26
+**Priority:** High
 
-## Objetivos
+## Objectives
 
-Descreva os principais objetivos para este sprint:
+Describe the main objectives for this sprint:
 
-- [ ] Prototipar `CodeReferenceDetector` para detecção de paths e SHAs em mensagens de chat (RFC 027).
-- [ ] Implementar POC de `GitHistoryResolver` para mapear Timestamp -> Commit SHA (RFC 027).
-- [ ] Validar viabilidade de integração com Markdown do agente Writer.
+- [ ] **Prototype `CodeReferenceDetector`:** Develop regex/logic to detect file paths and Git SHAs in chat messages (RFC 027).
+- [ ] **Implement `GitHistoryResolver` POC:** Create a script to map Timestamp -> Commit SHA for local repositories (RFC 027).
+- [ ] **Research Cross-Site Resolution:** Investigate `feedparser` and `httpx` for fetching external Atom feeds to support "Smart Embeds" (RFC 029).
+- [ ] **Validate Writer Integration:** Ensure the detector can inject context into the Writer agent's prompt without breaking the flow.
 
-## Dependências
+## Dependencies
 
-Liste dependências de trabalho de outras personas:
+List dependencies on work from other personas:
 
-- **builder:** Suporte para schema de cache de Git Lookups em DuckDB.
-- **scribe:** Atualização da documentação para incluir nova feature de links históricos.
+- **Builder:** Support for `git_cache` schema in DuckDB.
+- **Scribe:** Updates to documentation to include the new "Historical Linking" feature.
 
-## Contexto
+## Context
 
-Explique o contexto e raciocínio por trás deste plano:
+Explain the context and reasoning behind this plan:
 
-Após a aprovação do Quick Win (RFC 027), o foco é validar a tecnologia principal (Regex + Git CLI) antes de integrar totalmente ao pipeline. Precisamos garantir que a detecção seja precisa e a resolução de commits seja rápida.
+Following the approval of RFC 027 (Historical Code Linking), our focus is on validating the core technology (Regex + Git CLI) before full pipeline integration. We must ensure detection is accurate and commit resolution is fast. Additionally, we are starting early research on RFC 029 (Cross-Site Resolver) to prepare for the "Egregora Mesh" initiative.
 
-## Entregáveis Esperados
+## Expected Deliverables
 
-1. Script Python `detect_refs.py` que extrai referências de um arquivo de texto.
-2. Script Python `resolve_commit.py` que aceita data/hora e retorna SHA do repo local.
-3. Relatório de performance (tempo por lookup).
+1.  Python script `detect_refs.py` extracting references from text.
+2.  Python script `resolve_commit.py` mapping Time -> SHA.
+3.  Research notes on Atom Feed parsing for cross-site embedding.
+4.  Performance report (time per Git lookup).
 
-## Riscos e Mitigações
+## Risks and Mitigations
 
-| Risco | Probabilidade | Impacto | Mitigação |
+| Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Git Lookup lento | Alta | Médio | Implementar cache agressivo (DuckDB/Redis) |
-| Ambiguidade de path | Média | Baixo | Linkar para tree root ou exibir warning se arquivo não existe |
+| Slow Git Lookups | High | Medium | Implement aggressive caching (DuckDB/Redis). |
+| Path Ambiguity | Medium | Low | Link to tree root or warn if file doesn't exist. |
+| External Feed Latency | High | Low | (RFC 29) Plan for build-time caching of external feeds. |
 
-## Colaborações Propostas
+## Proposed Collaborations
 
-- **Com builder:** Definir schema da tabela `git_cache`.
-- **Com artisan:** Revisar código do resolver para otimização.
+- **With Builder:** Define `git_cache` table schema.
+- **With Artisan:** Review resolver code for optimization.
 
-## Notas Adicionais
+## Additional Notes
 
-Foco total na "Foundation" para o Context Layer.
+Focus on "Foundation" for the Context Layer and early steps for the Mesh.

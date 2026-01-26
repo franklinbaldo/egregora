@@ -1,49 +1,51 @@
-# Plano: visionary - Sprint 3
+# Plan: Visionary 🔭 - Sprint 3
 
-**Persona:** visionary
+**Persona:** Visionary 🔭
 **Sprint:** 3
-**Criado em:** 2026-01-22
-**Prioridade:** Alta
+**Created:** 2026-01-26
+**Priority:** High
 
-## Objetivos
+## Objectives
 
-Descreva os principais objetivos para este sprint:
+Describe the main objectives for this sprint:
 
-- [ ] Finalizar integração de `CodeReferenceDetector` no pipeline principal (Enricher Agent) (RFC 027).
-- [ ] Iniciar design da API do Universal Context Layer (RFC 026).
-- [ ] Criar "Hello World" Plugin para VS Code que consulta a API local.
+- [ ] **Design "Egregora Mesh" Architecture:** Define the JSON/AtomPub protocol for federated discovery and query (RFC 028).
+- [ ] **Integrate Universal Context Layer:** Move `CodeReferenceDetector` from prototype to production integration in the `WriterAgent` pipeline (RFC 026).
+- [ ] **Implement `ReferenceResolver` MVP:** Build the first version of the cross-site embedding system (RFC 029) using the research from Sprint 2.
+- [ ] **Security Audit for Federation:** Work with Sentinel to define the trust model for inter-node communication.
 
-## Dependências
+## Dependencies
 
-Liste dependências de trabalho de outras personas:
+List dependencies on work from other personas:
 
-- **architect:** Revisão do design da API do Context Layer (REST vs MCP).
-- **sheriff:** Setup de testes de integração para o plugin VS Code.
+- **Sentinel:** Security review of the proposed federation protocol.
+- **Builder:** Implementation of the `ContentLibrary` facade (needed for clean cross-site fetching).
+- **Forge:** Design of the "Reference Card" UI component.
 
-## Contexto
+## Context
 
-Explique o contexto e raciocínio por trás deste plano:
+Explain the context and reasoning behind this plan:
 
-Com a base de dados histórica (RFC 027) funcionando, podemos começar a expor esses dados para ferramentas externas (RFC 026). O plugin VS Code servirá como prova de conceito para a visão "Ubiquitous Memory".
+Sprint 3 is about "Connecting the Dots". We move from local context (Code Linking) to global context (Mesh). RFC 026 (Context Layer) moves to production, while RFC 028 (Mesh) enters the detailed design phase. RFC 029 (Resolver) serves as the bridge between the two.
 
-## Entregáveis Esperados
+## Expected Deliverables
 
-1. Feature RFC 027 completa e mergeada (Links históricos no blog).
-2. OpenAPI Spec para Context Layer API.
-3. Repositório `egregora-vscode` com plugin básico.
+1.  `mesh_protocol_spec.md`: Detailed specification of the federation protocol.
+2.  `ReferenceResolver` class integrated into the rendering pipeline.
+3.  Production-ready `CodeReferenceDetector` in `src/egregora/agents/`.
 
-## Riscos e Mitigações
+## Risks and Mitigations
 
-| Risco | Probabilidade | Impacto | Mitigação |
+| Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Complexidade da API | Média | Alto | Adotar padrão MCP (Model Context Protocol) para simplificar |
-| Overhead do Plugin | Baixa | Baixo | Manter plugin "dumb", lógica no servidor Egregora |
+| Federation Protocol Complexity | High | High | Start with "Read-Only" public feeds before tackling auth/private sharing. |
+| Build Time Explosion | Medium | Medium | Strict timeouts and caching for all external fetches. |
 
-## Colaborações Propostas
+## Proposed Collaborations
 
-- **Com architect:** Definição dos endpoints da API.
-- **Com forge:** Ajuda com TypeScript para o plugin VS Code.
+- **With Sentinel:** Threat modeling for the Mesh.
+- **With Forge:** UI design for external content cards.
 
-## Notas Adicionais
+## Additional Notes
 
-Sprint crítico para transição de "Gerador" para "Plataforma".
+The goal is to prove "Egregora is not an Island".
