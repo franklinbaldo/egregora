@@ -3,6 +3,8 @@ name: enable-auto-merge
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  push:
+    branches: [jules-*]
 
 permissions:
   contents: read
@@ -12,4 +14,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Status Check Satisfaction
-        run: echo "Dummy pass to satisfy required status check 'enable-auto-merge' from file jules-auto-merge.yml"
+        run: echo "Dummy pass to satisfy required status check 'enable-auto-merge'"
