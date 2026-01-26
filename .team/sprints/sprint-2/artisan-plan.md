@@ -6,32 +6,38 @@
 **Priority:** High
 
 ## Objectives
-My mission is to elevate the codebase through superior craftsmanship. For Sprint 2, I will focus on improving type safety and decomposing complex code, starting with the most critical and central modules.
+My mission is to elevate the codebase through superior craftsmanship. For Sprint 2, I will focus on improving type safety and decomposing complex code, strictly adhering to the "Structure & Polish" theme.
 
-- [ ] **Introduce Pydantic Models in `config.py`:** The current configuration is managed through dictionaries, which is error-prone. I will refactor `config.py` to use Pydantic models for type-safe, self-documenting configuration.
-- [ ] **Decompose `runner.py`:** The `PipelineRunner` class contains complex orchestration logic. I will identify "god methods" and apply the "Extract Method" refactoring pattern to improve readability and testability, following a strict TDD process.
-- [ ] **Add Docstrings to `utils/` modules:** The utility modules are core to the application but lack sufficient documentation. I will add Google-style docstrings to at least two utility modules to improve developer experience.
-- [ ] **Address `: Any` types in a core module:** I will identify a high-impact module that uses `typing.Any` and replace it with more specific types or protocols.
+- [ ] **Migrate to Pydantic Configuration:** Refactor `src/egregora/config/settings.py` (and related files) to use Pydantic models. This will eliminate `dict` usage for configuration, providing type safety, validation (e.g., `DirectoryPath`), and support for `SecretStr` (collaborating with Sentinel).
+- [ ] **Decompose `runner.py`:** The `PipelineRunner` class is a monolith. I will extract distinct responsibilities:
+    -   Extract `_process_window` logic into a focused helper or class.
+    -   Separate "Worker Construction" from "Pipeline Execution".
+    -   Ensure the new interface is compatible with Simplifier's new ETL modules.
+- [ ] **Documentation Blitz:** Add Google-style docstrings to at least two key `utils` modules (e.g., `src/egregora/utils/filesystem.py`, `src/egregora/utils/datetime_utils.py`) to improve DX.
+- [ ] **Eradicate `Any` in Core:** Target `src/egregora/orchestration/context.py` or similar core files to replace `Any` with strict Protocols or Types.
 
 ## Dependencies
-- **Refactor:** I will need to coordinate with the Refactor persona to avoid conflicts, as we may both be touching similar parts of the codebase. Our work is complementary, but communication is key.
-- **Sentinel:** Collaboration on secure configuration models.
+- **Simplifier:** I must coordinate with Simplifier on the boundary between `write.py` (ETL) and `runner.py` (Orchestration). We need to agree on the data structures passed between them.
+- **Sentinel:** I rely on Sentinel's requirements for `SecretStr` and security validation rules for the new Pydantic config models.
+- **Refactor:** I will check `Refactor`'s plan to avoid touching the same `utils` files simultaneously.
 
 ## Context
-My previous journal entries show a pattern of successfully identifying and fixing architectural smells (e.g., `async_utils.py`) and improving type safety (`PipelineContext`). Sprint 2 will continue this work by focusing on foundational components like configuration and the main pipeline runner. Improving these areas will have a ripple effect, making the entire system more robust and easier to maintain.
+The codebase has reached a level of complexity where "dictionaries passing data" is no longer sustainable. We need rigid contracts (Pydantic Models, Protocols). Also, `runner.py` and `write.py` are the two biggest maintenance burdens. Splitting them up is critical for the "Batch Era".
 
 ## Expected Deliverables
-1. **Type-Safe Configuration:** The `config.py` module will be fully migrated to Pydantic models.
-2. **Refactored Pipeline Runner:** At least one major method in `runner.py` will be decomposed into smaller, well-tested functions.
-3. **Improved Documentation:** Two modules within the `src/egregora/utils/` directory will have complete, high-quality docstrings.
-4. **Journal Entry:** A detailed journal entry documenting the observations, actions, and reflections from the sprint's work.
+1.  **`src/egregora/config/settings.py`**: Fully typed Pydantic implementation.
+2.  **Refactored `runner.py`**: Reduced cyclomatic complexity and line count.
+3.  **Docstrings**: 100% coverage for 2+ utility modules.
+4.  **Type Safety**: Reduced usage of `Any` in orchestration layer.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Refactoring introduces subtle bugs | Medium | High | Strict adherence to the Test-Driven Development (TDD) cycle. I will write failing tests *before* refactoring to lock in existing behavior. |
-| Pydantic migration is more complex than anticipated | Low | Medium | I will start with the simplest configuration sections first and work incrementally. The test suite will validate each step. |
+| Config Refactor breaks runtime | High | High | I will write a "Config Snapshot" test before starting to verify the new Pydantic config produces the exact same values as the old dict config. |
+| Runner Refactor conflicts with Simplifier | Medium | High | Early agreement on interfaces. I will review Simplifier's PRs and vice-versa. |
+| Import Time Regression | Medium | Medium | I will run `python -X importtime` before and after major refactors to ensure no regression. |
 
 ## Proposed Collaborations
-- **With Refactor:** I will share my plan to refactor `runner.py` to ensure we are not duplicating effort or creating conflicting changes.
-- **With Sentinel:** As I work on the configuration module, I will be mindful of any security implications (e.g., secret management) and will consult the Sentinel if needed.
+- **With Simplifier:** Joint design session for the Pipeline Interface.
+- **With Sentinel:** Pair programming on `SecretStr` implementation.
+- **With Bolt:** Request benchmarks for the new `runner.py`.
