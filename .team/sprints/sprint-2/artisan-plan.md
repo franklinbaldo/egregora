@@ -10,8 +10,8 @@ My mission is to elevate the codebase through superior craftsmanship. For Sprint
 
 - [ ] **Introduce Pydantic Models in `config.py`:** The current configuration is managed through dictionaries, which is error-prone. I will refactor `config.py` to use Pydantic models for type-safe, self-documenting configuration, ensuring `SecretStr` is used for sensitive data in coordination with **Sentinel**.
 - [ ] **Decompose `runner.py`:** The `PipelineRunner` class contains complex orchestration logic. I will identify "god methods" and apply the "Extract Method" refactoring pattern to improve readability and testability, following a strict TDD process.
-- [ ] **Add Docstrings to `utils/` modules:** The utility modules are core to the application but lack sufficient documentation. I will add Google-style docstrings to at least two utility modules to improve developer experience.
-- [ ] **Address `: Any` types in a core module:** I will identify a high-impact module that uses `typing.Any` and replace it with more specific types or protocols.
+- [ ] **Add Docstrings to Transformation Modules:** The modules in `src/egregora/transformations/` (e.g., `windowing.py`, `enrichment.py`) are core to the application but lack sufficient documentation. I will add Google-style docstrings to these modules to improve developer experience.
+- [ ] **Address `: Any` types in Google Batch Provider:** I will replace the loose `typing.Any` types in `src/egregora/llm/providers/google_batch.py` with precise types or protocols to improve safety in the LLM layer.
 
 ## Dependencies
 - **Refactor:** I will need to coordinate with the Refactor persona to avoid conflicts, as we may both be touching similar parts of the codebase. Our work is complementary, but communication is key.
@@ -23,8 +23,9 @@ My previous journal entries show a pattern of successfully identifying and fixin
 ## Expected Deliverables
 1. **Type-Safe Configuration:** The `config.py` module will be fully migrated to Pydantic models.
 2. **Refactored Pipeline Runner:** At least one major method in `runner.py` will be decomposed into smaller, well-tested functions.
-3. **Improved Documentation:** Two modules within the `src/egregora/utils/` directory will have complete, high-quality docstrings.
-4. **Journal Entry:** A detailed journal entry documenting the observations, actions, and reflections from the sprint's work.
+3. **Improved Documentation:** The `src/egregora/transformations/` modules will have complete, high-quality docstrings.
+4. **Type-Safe LLM Provider:** `google_batch.py` will no longer rely on `Any`.
+5. **Journal Entry:** A detailed journal entry documenting the observations, actions, and reflections from the sprint's work.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
