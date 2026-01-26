@@ -25,6 +25,7 @@ Sprint 2 involves significant structural changes (`write.py`, `runner.py`, `conf
 1. `meta-feedback.md` (Sprint 2).
 2. Updated `docs/personas.md` (checking Streamliner status).
 3. Validation Report (via Journal).
+4. Passing CI/CD pipelines.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
