@@ -6,7 +6,7 @@ on:
 
 jobs:
   enable-auto-merge:
-    name: Enable Auto Merge
+    name: enable-auto-merge
     runs-on: ubuntu-latest
     steps:
       - name: Dummy Check
