@@ -245,15 +245,10 @@ def _window_by_count(
 ) -> Iterator[Window]:
     """Generate windows of fixed message count with optional overlap.
 
-    This implementation is declarative and vectorized, using Ibis window
-    functions to calculate all window boundaries in a single pass.
-
-    - A `row_number` is assigned to each message.
-    - Each message is mapped to one or more `window_index` values.
-    - Messages in the overlap region are duplicated for each window they belong to.
-    - The final result is grouped by `window_index` to form the windows.
-
-    This avoids iterative Python loops and N+1 queries.
+    Optimized implementation using "Fetch-then-Compute" pattern:
+    1. Fetches all timestamps in one query.
+    2. Calculates window boundaries in Python.
+    3. Yields windows with lazy Ibis table slices (limit/offset).
 
     Args:
         table: Sorted table of messages
@@ -264,13 +259,16 @@ def _window_by_count(
         Windows with overlapping message sets
 
     """
-    total_count = table.count().execute()
+    # 1. Fetch metadata (Fetch phase)
+    # We only need timestamps to define the window boundaries.
+    timestamps_res = table.select(table.ts).order_by("ts").execute()
+
+    total_count = len(timestamps_res)
     if total_count == 0:
         return
 
-    # Add a row number to the table to allow for precise slicing.
-    # The table is already sorted by timestamp from the calling function.
-    table_with_rn = table.mutate(row_number=ibis.row_number().over(ibis.window(order_by=table.ts)))
+    # Extract to list for fast indexing
+    timestamps = timestamps_res["ts"].tolist()
 
     # Calculate the total number of windows needed.
     num_windows = (total_count + step_size - 1) // step_size
@@ -279,31 +277,28 @@ def _window_by_count(
         offset = i * step_size
         chunk_size = min(step_size + overlap, total_count - offset)
 
-        # Filter the table to get the rows for the current window.
-        window_table = table_with_rn.filter(
-            (table_with_rn.row_number >= offset) & (table_with_rn.row_number < offset + chunk_size)
-        ).drop("row_number")
+        if chunk_size <= 0:
+            continue
 
-        # Get time bounds and size for the window.
-        # This is more efficient as it's a single aggregation query.
-        agg_result = window_table.aggregate(
-            start_time=window_table.ts.min(),
-            end_time=window_table.ts.max(),
-            size=window_table.count(),
-        ).execute()
+        # Calculate start/end time from the cached timestamps
+        # offset is 0-based index
+        start_idx = offset
+        end_idx = offset + chunk_size - 1  # Inclusive index for timestamp retrieval
 
-        start_time = agg_result["start_time"][0]
-        end_time = agg_result["end_time"][0]
-        window_size = agg_result["size"][0]
+        start_time = timestamps[start_idx]
+        end_time = timestamps[end_idx]
 
-        if window_size > 0:
-            yield Window(
-                window_index=i,
-                start_time=start_time,
-                end_time=end_time,
-                table=window_table,
-                size=window_size,
-            )
+        # 3. Construct lazy window table
+        # We use limit/offset which is efficient in SQL/DuckDB
+        window_table = table.order_by("ts").limit(chunk_size, offset=offset)
+
+        yield Window(
+            window_index=i,
+            start_time=start_time,
+            end_time=end_time,
+            table=window_table,
+            size=chunk_size,
+        )
 
 
 def _window_by_time(

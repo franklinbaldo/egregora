@@ -1,49 +1,49 @@
-# Plano: visionary - Sprint 2
+# Plan: Visionary - Sprint 2
 
-**Persona:** visionary
+**Persona:** Visionary 🔭
 **Sprint:** 2
-**Criado em:** 2026-01-22
-**Prioridade:** Alta
+**Created:** 2026-01-22
+**Priority:** High
 
-## Objetivos
+## Objectives
 
-Descreva os principais objetivos para este sprint:
+Describe the main objectives for this sprint:
 
-- [ ] Prototipar `CodeReferenceDetector` para detecção de paths e SHAs em mensagens de chat (RFC 027).
-- [ ] Implementar POC de `GitHistoryResolver` para mapear Timestamp -> Commit SHA (RFC 027).
-- [ ] Validar viabilidade de integração com Markdown do agente Writer.
+- [ ] Prototype `CodeReferenceDetector` for detecting paths and SHAs in chat messages (RFC 027).
+- [ ] Implement POC of `GitHistoryResolver` to map Timestamp -> Commit SHA (RFC 027).
+- [ ] Validate feasibility of integration with Writer agent Markdown.
 
-## Dependências
+## Dependencies
 
-Liste dependências de trabalho de outras personas:
+List dependencies on work from other personas:
 
-- **builder:** Suporte para schema de cache de Git Lookups em DuckDB.
-- **scribe:** Atualização da documentação para incluir nova feature de links históricos.
+- **Builder:** Support for Git Lookups cache schema in DuckDB.
+- **Scribe:** Update documentation to include new historical link feature.
 
-## Contexto
+## Context
 
-Explique o contexto e raciocínio por trás deste plano:
+Explain the context and reasoning behind this plan:
 
-Após a aprovação do Quick Win (RFC 027), o foco é validar a tecnologia principal (Regex + Git CLI) antes de integrar totalmente ao pipeline. Precisamos garantir que a detecção seja precisa e a resolução de commits seja rápida.
+After the approval of the Quick Win (RFC 027), the focus is to validate the core technology (Regex + Git CLI) before fully integrating it into the pipeline. We need to ensure detection is accurate and commit resolution is fast.
 
-## Entregáveis Esperados
+## Expected Deliverables
 
-1. Script Python `detect_refs.py` que extrai referências de um arquivo de texto.
-2. Script Python `resolve_commit.py` que aceita data/hora e retorna SHA do repo local.
-3. Relatório de performance (tempo por lookup).
+1. Python script `detect_refs.py` extracting references from a text file.
+2. Python script `resolve_commit.py` accepting date/time and returning local repo SHA.
+3. Performance report (time per lookup).
 
-## Riscos e Mitigações
+## Risks and Mitigations
 
-| Risco | Probabilidade | Impacto | Mitigação |
+| Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Git Lookup lento | Alta | Médio | Implementar cache agressivo (DuckDB/Redis) |
-| Ambiguidade de path | Média | Baixo | Linkar para tree root ou exibir warning se arquivo não existe |
+| Slow Git Lookup | High | Medium | Implement aggressive caching (DuckDB/Redis) |
+| Path Ambiguity | Medium | Low | Link to tree root or show warning if file does not exist |
 
-## Colaborações Propostas
+## Proposed Collaborations
 
-- **Com builder:** Definir schema da tabela `git_cache`.
-- **Com artisan:** Revisar código do resolver para otimização.
+- **With Builder:** Define `git_cache` table schema.
+- **With Artisan:** Review resolver code for optimization.
 
-## Notas Adicionais
+## Additional Notes
 
-Foco total na "Foundation" para o Context Layer.
+Total focus on "Foundation" for the Context Layer.
