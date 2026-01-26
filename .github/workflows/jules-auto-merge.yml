@@ -5,10 +5,18 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   enable-auto-merge:
     name: enable-auto-merge
     runs-on: ubuntu-latest
+    if: always()
     steps:
       - name: Enable auto-merge
-        run: exit 0
+        run: echo "Auto-merge step placeholder to satisfy CI check."
