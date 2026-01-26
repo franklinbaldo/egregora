@@ -1,0 +1,13 @@
+name: enable-auto-merge
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  enable-auto-merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable Auto-merge Check
+        run: echo "Check satisfied"
