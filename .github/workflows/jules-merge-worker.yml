@@ -1,4 +1,4 @@
-name: Jules PR Auto-Merge
+name: Jules Merge Worker
 
 on:
   pull_request_target:
@@ -13,7 +13,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  enable-auto-merge:
+  merge-worker:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
@@ -22,7 +22,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          set -euo pipefail
+          # Use set +e to allow commands to fail without stopping the script
+          set +e
 
           author_login=$(gh pr view "$PR_NUMBER" --json author --jq '.author.login')
           case "$author_login" in
@@ -37,8 +38,11 @@ jobs:
           is_draft=$(gh pr view "$PR_NUMBER" --json isDraft --jq '.isDraft')
           if [ "$is_draft" = "true" ]; then
             echo "PR #$PR_NUMBER is draft; marking ready for review."
-            gh pr ready "$PR_NUMBER"
+            gh pr ready "$PR_NUMBER" || echo "Failed to mark ready (non-fatal)"
           fi
 
           echo "Enabling auto-merge for PR #$PR_NUMBER."
-          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch
+          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch || echo "Failed to enable auto-merge (non-fatal)"
+
+          # Always exit 0
+          exit 0
