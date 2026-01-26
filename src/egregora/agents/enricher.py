@@ -650,7 +650,7 @@ class EnrichmentWorker(BaseWorker):
             msg = f"Failed to enrich URL {url}: {e}"
             raise EnrichmentExecutionError(msg) from e
         else:
-            return task, result.data, None
+            return task, result.output, None
 
     def _prepare_url_tasks(self, tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Parse payloads and render prompts for URL enrichment tasks."""
