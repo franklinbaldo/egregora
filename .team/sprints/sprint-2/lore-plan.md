@@ -1,37 +1,37 @@
-# Plan: Lore - Sprint 2
+# Plan: Lore 📚 - Sprint 2
 
 **Persona:** Lore 📚
 **Sprint:** 2
 **Created:** 2026-01-26
-**Priority:** Medium
+**Priority:** High
 
 ## Objectives
-My mission is to capture the history of the "Batch Era" before it is refactored away, and to support the structural changes by documenting the "why".
+My mission is to capture the history of the "Batch Era" before it is dismantled by the Sprint 2 refactors. The monolithic nature of `write.py` and `runner.py` is not a mistake but a historical artifact of the "Generation First" phase; I must preserve this context.
 
-- [ ] **Document the "Batch Era":** Create a comprehensive Wiki entry detailing the current `write.py` and `runner.py` architecture. This will serve as the "Before" snapshot for the Simplifier's and Artisan's refactors.
-- [ ] **Forensic Analysis of `runner.py`:** Investigate the git history of the recursive splitting logic in `runner.py` to understand its origins and intent. Publish findings in a blog post or journal.
-- [ ] **Update Persona Arcs:** Update the Team Roster and individual persona pages to reflect the shift in roles (e.g., Visionary moving to "Symbiote" architect).
-- [ ] **Review Initial ADRs:** Ensure the first batch of ADRs produced by Steward includes sufficient historical context.
+- [ ] **Archive the "Batch Era" Monoliths:** Create a detailed architectural snapshot (`Architecture-Batch-Era.md`) of the current `write.py` (1400+ lines) and `runner.py`. This will serve as the baseline for understanding the "Why" behind the Simplifier/Artisan refactors.
+- [ ] **Forensic Analysis of `write.py`:** Investigate the git history of `src/egregora/orchestration/pipelines/write.py` to trace how it grew to its current size. Was it organic accretion or a specific design decision?
+- [ ] **Blog: "The Heartbeat of the Machine":** Publish a narrative piece exploring the recursive splitting logic in `runner.py` as a metaphor for the system's "digestive" process.
+- [ ] **Roster & Role Updates:** Formalize the role shifts for **Steward** (Strategy), **Visionary** (Context Architect), and **Artisan** (Craftsman).
 
 ## Dependencies
-- **Simplifier & Artisan:** I need to analyze the code *before* they change it.
-- **Steward:** I need the ADR template to be established.
+- **Simplifier & Artisan:** I must analyze the codebase *before* their PRs merge. I have flagged this in my feedback.
+- **Steward:** I need the Steward to resolve the merge conflict in their plan to understand the definitive timeline.
 
 ## Context
-The system is undergoing a metamorphosis from a batch-processing script to a structured, potentially real-time organism. This is a critical moment for a historian. If we don't document the current state now, it will be lost.
+We are in a "Liminal Phase". The system is shedding its "script-based" skin to become a "platform". If we do not document the constraints that led to the Batch architecture, future developers will judge it as "bad code" rather than "appropriate for its time".
 
 ## Expected Deliverables
-1. **Wiki Page:** `Architecture-Batch-Era.md`.
-2. **Blog Post:** "The Heartbeat of the Machine" (Analysis of `runner.py` history).
-3. **Updated Roster:** Reflecting current active personas and missions.
-4. **ADR Reviews:** Comments/Feedback on early ADRs.
+1. **Wiki Page:** `.team/wiki/Architecture-Batch-Era.md` (The "Before" Snapshot).
+2. **Blog Post:** `.team/personas/lore/blog/the_heartbeat_of_the_machine.md`.
+3. **Forensic Report:** A journal entry detailing the growth of `write.py`.
+4. **Updated Roster:** `.team/roster.yaml` (if applicable) or Wiki updates.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Refactors happen faster than documentation | Medium | High | I will prioritize the "Before" snapshots in the first few days of the sprint. |
-| "Lore" is seen as a blocker | Low | Medium | I will work asynchronously and not block PRs, but provide retroactive documentation if needed. |
+| Refactors merge early | High | High | I will prioritize the `write.py` analysis in the first 48 hours. |
+| Lore is ignored | Low | Medium | I will insert "Historical Notes" directly into PR comments to ensure context is preserved in the git log. |
 
 ## Proposed Collaborations
-- **With Simplifier:** To map the `write.py` flow.
-- **With Artisan:** To understand the `runner.py` logic.
+- **With Simplifier:** To map the hidden dependencies in `write.py`.
+- **With Artisan:** To interview them about the specific "smells" they are targeting in `runner.py`.
