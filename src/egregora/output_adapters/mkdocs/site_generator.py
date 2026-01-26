@@ -467,7 +467,7 @@ class SiteGenerator:
         (self.posts_dir / "tags.md").write_text(content, encoding="utf-8")
 
     def regenerate_feeds_page(self) -> None:
-        """Regenerate the feeds.md page listing all available RSS feeds."""
+        """Regenerate the feeds/index.md page listing all available RSS feeds."""
         # Collect categories/tags from all posts
         all_posts = self._scan_directory(self.posts_dir, DocumentType.POST, metadata_only=True)
         tag_counts = Counter(tag for post in all_posts for tag in post.metadata.get("tags", []))
@@ -480,9 +480,12 @@ class SiteGenerator:
             ]
             categories.sort(key=lambda x: x["count"], reverse=True)
 
-        template = self._template_env.get_template("docs/feeds.md.jinja")
+        template = self._template_env.get_template("docs/feeds/index.md.jinja")
         content = template.render(categories=categories)
-        (self.docs_dir / "feeds.md").write_text(content, encoding="utf-8")
+
+        feeds_dir = self.docs_dir / "feeds"
+        feeds_dir.mkdir(exist_ok=True)
+        (feeds_dir / "index.md").write_text(content, encoding="utf-8")
 
     def regenerate_main_index(self) -> None:
         """Regenerates the main index.md from a template."""
