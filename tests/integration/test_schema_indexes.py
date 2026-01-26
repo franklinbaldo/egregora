@@ -1,10 +1,13 @@
 import ibis
-
+import pytest
 from egregora.database.init import initialize_database
 
-
 def test_documents_indexes_created(tmp_path):
-    """Verify that indexes are created on the documents table."""
+    """Verify that indexes are created on the documents table.
+
+    This test initializes a fresh DuckDB database and checks the system catalog
+    to ensure the expected indexes exist.
+    """
     # Setup temporary database
     db_path = tmp_path / "test.db"
     con = ibis.duckdb.connect(str(db_path))
@@ -16,16 +19,15 @@ def test_documents_indexes_created(tmp_path):
     raw_con = con.con
 
     # Use system view duckdb_indexes()
-    indexes = raw_con.execute(
-        "SELECT index_name FROM duckdb_indexes() WHERE table_name = 'documents'"
-    ).fetchall()
+    indexes = raw_con.execute("SELECT index_name FROM duckdb_indexes() WHERE table_name = 'documents'").fetchall()
 
     # Flatten results (list of tuples)
     index_names = [row[0] for row in indexes]
 
-    assert "idx_documents_type" in index_names
-    assert "idx_documents_slug" in index_names
-    assert "idx_documents_created" in index_names
+    print(f"Found indexes: {index_names}")
 
+    expected_indexes = ["idx_documents_type", "idx_documents_slug", "idx_documents_created"]
 
-# Verified by Builder
+    missing = [idx for idx in expected_indexes if idx not in index_names]
+
+    assert not missing, f"Missing expected indexes: {missing}. Found: {index_names}"
