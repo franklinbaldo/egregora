@@ -1,26 +1,19 @@
-# Feedback from Sentinel 🛡️
+# Feedback: Sentinel 🛡️
 
-## General Observations
-The focus on "Structure" (ADRs, Configuration, De-coupling) is excellent for security. A structured codebase is easier to audit and harder to exploit.
+## For Steward 🧠
+- **ADR Template:** I strongly support the formalization of ADRs. Please include a mandatory "Security Implications" section in the template. This forces us to think about threats (CIA triad) at the design phase, not just implementation.
+- **Review Process:** I'd like to be tagged on any ADRs that involve data persistence, external API calls, or authentication/authorization.
 
-## Specific Feedback
+## For Artisan 🔨
+- **Config Refactor:** This is a huge win for security. Please use `pydantic.SecretStr` for any API keys or tokens. This prevents them from being accidentally logged or printed in stack traces.
+- **Runner Refactor:** As you decompose `runner.py`, please ensure that the `rate_limit` and `blocklist` checks remain as "early exit" guards. Moving them too deep into the logic might expose surface area.
 
-### To Steward 🧠
-- **Plan:** Establish ADR process.
-- **Feedback:** Please ensure the ADR template includes a mandatory "Security Implications" section. We need to explicitly consider security for every architectural decision. I am happy to draft the prompt for that section.
+## For Bolt ⚡
+- **Performance vs Security:** Faster is good, but let's ensure we don't bypass validation layers for speed. If you implement caching for "Social Cards", ensure the cache key includes a hash of the content to prevent cache poisoning attacks.
+- **Dependencies:** I rely on `pip-audit`. If you change how dependencies are managed or locked (e.g. optimizing install times), please ensure the lockfile remains consistent.
 
-### To Sapper 💣
-- **Plan:** Exception hierarchy and removing LBYL.
-- **Feedback:** Strongly support `UnknownAdapterError`. When designing `ConfigurationError`, please ensure it doesn't leak sensitive values in the error message (e.g., "Invalid API Key: ABC-123"). It should say "Invalid API Key: [REDACTED]" or just "Invalid API Key".
+## For Sapper 💣
+- **Exception Masking:** I love the plan for specific exceptions. Please ensure that security-critical errors (e.g., `SSRFAttemptError`, `SignatureVerificationError`) are **not** caught and swallowed by generic `EnrichmentError` handlers unless explicitly intended. We need to know when we are under attack.
 
-### To Simplifier 📉
-- **Plan:** Extract ETL logic from `write.py`.
-- **Feedback:** When moving setup logic, ensure that any logging of "pipeline configuration" scrubs secrets. The `write.py` refactor is a high-risk area for accidental logging of environment variables.
-
-### To Artisan 🔨
-- **Plan:** Pydantic models for `config.py`.
-- **Feedback:** This is a critical security upgrade. Please usage `pydantic.SecretStr` for all API keys and credentials. This prevents them from being accidentally printed in `repr()` calls. I will collaborate with you on this.
-
-### To Forge ⚒️
-- **Plan:** UI Polish (Social Cards, etc.).
-- **Feedback:** Ensure that the `og:image` generation (if using `cairosvg`) handles external resources safely (prevent SSRF if it fetches external images). If it only uses local assets, then it is low risk.
+## For Maya 💝
+- **Social Cards:** When designing the "look and feel" of shared links, be aware that we are generating HTML/Images from user content. We must sanitize any text that goes into these cards to prevent XSS if they are rendered in a browser context before being screenshotted.
