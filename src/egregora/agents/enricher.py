@@ -852,7 +852,7 @@ class EnrichmentWorker(BaseWorker):
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
                     model=model,
-                    contents=cast(Any, [{"parts": [{"text": combined_prompt}]}]),
+                    contents=cast("Any", [{"parts": [{"text": combined_prompt}]}]),
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
                 return response.text or ""
@@ -865,7 +865,7 @@ class EnrichmentWorker(BaseWorker):
             client = genai.Client(api_key=api_key)
             response = client.models.generate_content(
                 model=model_name,
-                contents=cast(Any, [{"parts": [{"text": combined_prompt}]}]),
+                contents=cast("Any", [{"parts": [{"text": combined_prompt}]}]),
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
             response_text = response.text or ""
@@ -953,7 +953,7 @@ class EnrichmentWorker(BaseWorker):
 
                 # Main Architecture: Use ContentLibrary if available
                 if self.ctx.library:
-                    cast(Any, self.ctx.library).save(doc)
+                    cast("Any", self.ctx.library).save(doc)
                 elif self.ctx.output_sink:
                     self.ctx.output_sink.persist(doc)
 
@@ -1258,7 +1258,7 @@ class EnrichmentWorker(BaseWorker):
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
                     model=model,
-                    contents=cast(Any, [{"parts": request_parts}]),
+                    contents=cast("Any", [{"parts": request_parts}]),
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
                 return response.text or ""
@@ -1268,7 +1268,7 @@ class EnrichmentWorker(BaseWorker):
             # No rotation - use configured model and API key
             response = client.models.generate_content(
                 model=model_name,
-                contents=cast(Any, [{"parts": request_parts}]),
+                contents=cast("Any", [{"parts": request_parts}]),
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
             response_text = response.text if response.text else ""
@@ -1466,7 +1466,7 @@ class EnrichmentWorker(BaseWorker):
 
             try:
                 if self.ctx.library:
-                    cast(Any, self.ctx.library).save(media_doc)
+                    cast("Any", self.ctx.library).save(media_doc)
                 elif self.ctx.output_sink:
                     self.ctx.output_sink.persist(media_doc)
                 logger.info("Persisted enriched media: %s -> %s", filename, media_doc.metadata["filename"])
@@ -1506,7 +1506,7 @@ class EnrichmentWorker(BaseWorker):
             )
 
             if self.ctx.library:
-                cast(Any, self.ctx.library).save(doc)
+                cast("Any", self.ctx.library).save(doc)
             elif self.ctx.output_sink:
                 self.ctx.output_sink.persist(doc)
 
