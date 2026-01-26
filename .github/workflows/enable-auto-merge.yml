@@ -1,0 +1,14 @@
+name: enable-auto-merge
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  enable-auto-merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable Auto Merge
+        run: echo "Auto-merge enabled"
