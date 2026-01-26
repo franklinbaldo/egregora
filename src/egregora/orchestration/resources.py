@@ -13,6 +13,8 @@ from egregora.agents.types import WriterResources
 if TYPE_CHECKING:
     from egregora.orchestration.context import PipelineContext
 
+__all__ = ["create_writer_resources"]
+
 
 def create_writer_resources(ctx: PipelineContext) -> WriterResources:
     """Build WriterResources from the pipeline context."""
