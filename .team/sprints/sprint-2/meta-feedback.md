@@ -44,3 +44,8 @@
 ## 🔄 Synthesis for Steward
 
 The team is well-aligned on the "Structure & Polish" theme. However, the Simplifier/Artisan collision and the Visionary language issue are blockers that need immediate Steward intervention.
+
+### ⏭️ Recommended Next Steps
+1.  **Direct Message Visionary:** Request English translation of the Sprint 2 plan.
+2.  **Audit Streamliner:** Verify if the persona is active; if not, mark as deprecated in `docs/personas.md`.
+3.  **Conflict Resolution:** Host a session (or task thread) between Simplifier and Artisan to define the API boundary for `write.py`/`runner.py`.
