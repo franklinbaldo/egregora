@@ -1,3 +1,5 @@
+"""Integration tests for database schema indexes."""
+
 import ibis
 
 from egregora.database.init import initialize_database
@@ -27,7 +29,11 @@ def test_documents_indexes_are_created_successfully(tmp_path):
     # Flatten results (list of tuples)
     index_names = [row[0] for row in indexes]
 
-    expected_indexes = ["idx_documents_type", "idx_documents_slug", "idx_documents_created"]
+    expected_indexes = [
+        "idx_documents_type",
+        "idx_documents_slug",
+        "idx_documents_created",
+    ]
 
     missing = [idx for idx in expected_indexes if idx not in index_names]
 
