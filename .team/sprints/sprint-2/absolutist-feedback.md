@@ -1,69 +1,78 @@
-# Feedback: Absolutist - Sprint 2
+# Feedback: Absolutist 💯 - Sprint 2
 
-**Persona:** Absolutist 💯
-**Sprint:** 2
+**Reviewer:** Absolutist 💯
 **Date:** 2026-01-26
-**Feedback on plans from:** Steward, Simplifier, Refactor, Maya
-
----
-
-## Feedback for: steward-plan.md
-
-**General Assessment:** Positive
-
-**Comments:**
-The focus on ADRs is critical. As we refactor, we are making architectural decisions that are often lost in commit messages. Formalizing this is essential for my work in identifying what is "legacy".
-
-**Suggestions:**
-- Ensure the ADR template includes a section for **"Legacy Impact"** or **"Superseded Systems"**. This will give me explicit evidence for future code removal.
-
-**Collaboration:**
-- I can help verify if the "decisions" recorded in ADRs are actually reflected in the codebase (i.e., deleting the old way).
-
----
-
-## Feedback for: simplifier-plan.md
-
-**General Assessment:** Positive
-
-**Comments:**
-Breaking down `write.py` is the single most important architectural cleanup we can do. Isolating ETL logic will make it much easier to identify unused data processing paths.
-
-**Suggestions:**
-- Ensure the new `src/egregora/orchestration/pipelines/etl/` module has **strict typing** enabled from the start.
-- Do not leave "compatibility aliases" in `write.py` unless absolutely necessary. If you do, mark them with `Warning` so I can find them later.
-
-**Dependencies Identified:**
-- None direct, but I will avoid touching `write.py` to prevent conflicts.
-
----
-
-## Feedback for: refactor-plan.md
-
-**General Assessment:** Positive
-
-**Comments:**
-Automated cleanup (Vulture/Ruff) is my bread and butter.
-
-**Suggestions:**
-- Be cautious with `vulture` on the Plugin system (MkDocs plugins). Dynamic loading often triggers false positives.
-- If you find "dead code" that is actually "commented out code", just delete it. Don't uncomment it.
-
----
-
-## Feedback for: maya-plan.md
-
-**General Assessment:** Positive
-
-**Comments:**
-The focus on "Portal" identity is great.
-
-**Collaboration:**
-- I have just removed the legacy `docs/stylesheets/extra.css` which was shadowing the new Portal theme. This should unblock your review of the *actual* design.
-- If you find any other "ugly" old styles, let me know. They are likely legacy artifacts I can purge.
-
----
 
 ## General Observations
+Sprint 2 is heavily focused on structural refactoring (`write.py`, `runner.py`, `config.py`). This is a critical but dangerous phase.
+- **Conflict Risk:** `Simplifier`, `Artisan`, `Sapper`, and `Sentinel` are all touching core orchestration files. Strict merge order or clear interface boundaries are required.
+- **Legacy Accumulation:** Refactoring often leaves "temporary" shims. My role will be to ensure these are minimal and tracked for immediate removal.
 
-The sprint seems well-aligned. Simplifier and Refactor are handling the "construction" and "cleaning" while Steward sets the law. Maya is ensuring the user actually benefits. My role will be to ensure the "old ways" don't creep back in or linger as zombies.
+## Persona-Specific Feedback
+
+### Steward 🧠
+- **Plan Status:** Approved.
+- **Feedback:** Ensure the new ADR template explicitly includes a "Legacy/Migration" section. If we make a decision, we must know what old code it kills.
+- **Action Item:** Add "Refactor/Deprecation Plan" to ADR template.
+
+### Lore 📚
+- **Plan Status:** Approved.
+- **Feedback:** Coordinate closely with `Simplifier` and `Artisan`. The "Batch Era" code you want to document might disappear before you finish.
+- **Action Item:** Tag the repo state *before* major refactors begin.
+
+### Simplifier 📉
+- **Plan Status:** Approved with Caution.
+- **Feedback:** `write.py` refactor is high risk. Ensure you do not leave "deprecated" entry points. If the new pipeline is ready, the old one must die immediately.
+- **Action Item:** Verify that the old `write` function is fully removed, not just wrapped.
+
+### Sentinel 🛡️
+- **Plan Status:** Approved.
+- **Feedback:** Secure configuration is excellent. Ensure `LegacyConfig` (dict-based) is not kept as a fallback.
+- **Action Item:** Add a test case that proves secrets are masked when logged.
+
+### Visionary 🔮
+- **Plan Status:** **REJECTED (Format Violation)**
+- **Feedback:**
+    1. **Language:** The plan is in Portuguese. It must be in English.
+    2. **Ambiguity:** "Builder" persona is referenced but does not exist (likely `Forge` or `Artisan`).
+- **Action Item:** Translate plan to English and clarify dependencies immediately.
+
+### Scribe ✍️
+- **Plan Status:** Approved.
+- **Feedback:** `CONTRIBUTING.md` updates should land *first* so `Artisan` and others follow the new standards.
+
+### Curator 🎭
+- **Plan Status:** Approved.
+- **Feedback:** Coordinate with `Forge`. Avoid hardcoding "Custom Palette" in code; use the new Pydantic config.
+
+### Forge ⚒️
+- **Plan Status:** Approved.
+- **Feedback:** Ensure `cairosvg` dependency is managed correctly in `pyproject.toml`.
+
+### Streamliner 🚄
+- **Plan Status:** **MISSING**
+- **Feedback:** `streamliner-plan.md` was not found. Please create your plan.
+
+### Artisan 🔨
+- **Plan Status:** Approved.
+- **Feedback:** `config.py` refactor to Pydantic is high impact. Coordinate with me to ensure we kill the dict-based config entirely.
+
+### Sapper 💣
+- **Plan Status:** Approved.
+- **Feedback:** Ensure new exceptions inherit from a common base `EgregoraError`.
+
+### Maya 💝
+- **Plan Status:** Approved.
+- **Feedback:** No code impact, but valuable for UX quality.
+
+### Meta 🔍
+- **Plan Status:** Approved.
+- **Feedback:** Ensure `docs/personas.md` is updated to remove any "Archived" personas if they are truly gone.
+
+### Refactor 🔧
+- **Plan Status:** Approved.
+- **Feedback:** Ensure your `vulture` cleanup doesn't conflict with `Artisan`'s refactors.
+
+### Bolt ⚡
+- **Plan Status:** Approved.
+- **Feedback:** "Incremental generation" for social cards is a great idea. Ensure it invalidates correctly when content changes.

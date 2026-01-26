@@ -574,10 +574,6 @@ def get_router(
     return _router
 
 
-# Alias for backward compatibility
-get_embedding_router = get_router
-
-
 def shutdown_router() -> None:
     """Shutdown global router (for cleanup)."""
     global _router
@@ -638,7 +634,6 @@ __all__ = [
     "RateLimitState",
     "TaskType",
     "create_embedding_router",
-    "get_embedding_router",
     "get_router",
     "shutdown_router",
     "validate_api_key",

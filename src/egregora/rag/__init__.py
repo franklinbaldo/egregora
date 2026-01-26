@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from egregora.rag.backend import VectorStore
-from egregora.rag.embedding_router import TaskType, get_embedding_router
+from egregora.rag.embedding_router import TaskType, get_router
 from egregora.rag.lancedb_backend import LanceDBRAGBackend
 from egregora.rag.models import RAGQueryRequest, RAGQueryResponse
 
@@ -148,5 +148,5 @@ def embed_fn(
             # Fallback if config fails
             model = "models/gemini-embedding-001"
 
-    router = get_embedding_router(model=model)
+    router = get_router(model=model)
     return router.embed(list(texts), task_type=task_type)
