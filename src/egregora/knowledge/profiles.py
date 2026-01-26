@@ -80,7 +80,7 @@ def _iter_authors_fast(path_str: str) -> Iterator[str]:
     and intermediate object creation.
     """
     # Use simple open, no pathlib overhead
-    with open(path_str, "r", encoding="utf-8") as f:
+    with open(path_str, encoding="utf-8") as f:
         content = f.read(4096)  # Read first 4KB
 
     # Fail fast if no authors field
