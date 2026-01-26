@@ -23,7 +23,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Self, cast
 
 import duckdb
 import httpx
@@ -486,11 +486,11 @@ class EnrichmentWorker(BaseWorker):
 
     def __init__(
         self,
-        ctx: PipelineContext | EnrichmentRuntimeContext,
+        ctx: PipelineContext,
         enrichment_config: EnrichmentSettings | None = None,
     ) -> None:
         super().__init__(ctx)
-        self.ctx: PipelineContext | EnrichmentRuntimeContext = ctx
+        self.ctx: PipelineContext = ctx
         self._enrichment_config_override = enrichment_config
         self.zip_handle: zipfile.ZipFile | None = None
         self.media_index: dict[str, str] = {}
@@ -852,7 +852,7 @@ class EnrichmentWorker(BaseWorker):
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
                     model=model,
-                    contents=[{"parts": [{"text": combined_prompt}]}],
+                    contents=cast(Any, [{"parts": [{"text": combined_prompt}]}]),
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
                 return response.text or ""
@@ -865,7 +865,7 @@ class EnrichmentWorker(BaseWorker):
             client = genai.Client(api_key=api_key)
             response = client.models.generate_content(
                 model=model_name,
-                contents=[{"parts": [{"text": combined_prompt}]}],
+                contents=cast(Any, [{"parts": [{"text": combined_prompt}]}]),
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
             response_text = response.text or ""
@@ -953,7 +953,7 @@ class EnrichmentWorker(BaseWorker):
 
                 # Main Architecture: Use ContentLibrary if available
                 if self.ctx.library:
-                    self.ctx.library.save(doc)
+                    cast(Any, self.ctx.library).save(doc)
                 elif self.ctx.output_sink:
                     self.ctx.output_sink.persist(doc)
 
@@ -990,7 +990,7 @@ class EnrichmentWorker(BaseWorker):
             return ""
         if "text" in response:
             return response["text"]
-        texts = []
+        texts: list[str] = []
         for cand in response.get("candidates") or []:
             content = cand.get("content") or {}
             texts.extend(part["text"] for part in content.get("parts") or [] if "text" in part)
@@ -1140,7 +1140,7 @@ class EnrichmentWorker(BaseWorker):
 
             # Upload file
             # Note: client.files.upload returns a File object with 'uri'
-            uploaded_file = client.files.upload(path=str(file_path), config={"mime_type": mime_type})
+            uploaded_file = client.files.upload(file=str(file_path), config={"mime_type": mime_type})
             logger.info("Uploaded file %s to %s", file_path.name, uploaded_file.uri)
 
             return {"fileData": {"mimeType": mime_type, "fileUri": uploaded_file.uri}}
@@ -1258,7 +1258,7 @@ class EnrichmentWorker(BaseWorker):
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
                     model=model,
-                    contents=[{"parts": request_parts}],
+                    contents=cast(Any, [{"parts": request_parts}]),
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
                 return response.text or ""
@@ -1268,7 +1268,7 @@ class EnrichmentWorker(BaseWorker):
             # No rotation - use configured model and API key
             response = client.models.generate_content(
                 model=model_name,
-                contents=[{"parts": request_parts}],
+                contents=cast(Any, [{"parts": request_parts}]),
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
             response_text = response.text if response.text else ""
@@ -1466,7 +1466,7 @@ class EnrichmentWorker(BaseWorker):
 
             try:
                 if self.ctx.library:
-                    self.ctx.library.save(media_doc)
+                    cast(Any, self.ctx.library).save(media_doc)
                 elif self.ctx.output_sink:
                     self.ctx.output_sink.persist(media_doc)
                 logger.info("Persisted enriched media: %s -> %s", filename, media_doc.metadata["filename"])
@@ -1506,7 +1506,7 @@ class EnrichmentWorker(BaseWorker):
             )
 
             if self.ctx.library:
-                self.ctx.library.save(doc)
+                cast(Any, self.ctx.library).save(doc)
             elif self.ctx.output_sink:
                 self.ctx.output_sink.persist(doc)
 
