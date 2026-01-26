@@ -26,3 +26,4 @@ def test_documents_indexes_created(tmp_path):
     assert "idx_documents_type" in index_names
     assert "idx_documents_slug" in index_names
     assert "idx_documents_created" in index_names
+# Verified by Builder
