@@ -92,7 +92,7 @@ def initialize_database(backend: BaseBackend) -> None:
     _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id)")
     _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_author ON messages(author_uuid)")
 
-    logger.info("✓ Database tables initialized successfully")
+    logger.info("✓ Database tables and indexes initialized successfully")
 
 
 def _execute_sql(conn: Any, sql: str) -> None:
