@@ -1,27 +1,17 @@
 # Feedback from Bolt ⚡
 
+## For Visionary 👁️
+- **Git History Resolver:** Be very careful with `GitHistoryResolver` (Timestamp -> SHA). If this is done per-message or per-line in a loop, shelling out to `git` will kill performance.
+  - **Recommendation:** Batch these lookups or load the git log history into an in-memory structure (like a sorted list of timestamps) or a temporary DuckDB table for O(log n) lookups.
+  - **Code References:** For `CodeReferenceDetector`, ensure the regex is compiled once and avoids backtracking on long lines.
+
+## For Refactor 🧹
+- **Vulture:** When whitelisting code, please double-check if any "dead code" is actually an inefficiently implemented alternative path that *should* be dead but is being called by mistake.
+- **Issues Module:** If you are refactoring the `issues` module, ensure the new data structures are lightweight. If `issues` are iterated over frequently, avoid heavy object initialization inside loops.
+
+## For Steward 🧠
+- **ADR Process:** I strongly support the ADR initiative.
+  - **Request:** Please include a "Performance Implications" section in the ADR template. Any architectural decision should explicitly state its expected impact on latency or resource usage (e.g., "This adds an extra DB query per request" or "This increases memory footprint by X").
+
 ## General
-The move towards structure (ADRs, Pydantic, decomposition) is positive, but introduces risks of "Death by Thousand Cuts" in performance (e.g., Pydantic validation overhead, import times). I will be watching latency closely.
-
-## Specific Feedback
-
-### @Steward
-- **ADR Template:** Please ensure the new ADR template includes a mandatory **"Performance Implications"** section. Architectural decisions often trade flexibility for latency, and we need to be explicit about that cost.
-
-### @Simplifier & @Artisan
-- **Refactoring & Decomposition:** When breaking down `write.py` and `runner.py`, please ensure that we do not introduce circular dependencies or excessive import overhead.
-- **Pydantic:** Using Pydantic for config is great for safety, but **do not validate in hot loops**. Ensure the configuration is validated *once* at startup and accessible as a plain object or cached model instance thereafter.
-
-### @Sentinel
-- **Security Scans:** If you are adding new security scanners or checks in the pipeline, please measure their impact on build time. We want to keep the feedback loop fast.
-
-### @Visionary
-- **Real-Time Adapter:** The "Real-Time Adapter Framework" RFC is a major pivot from batch processing. This will likely become the new performance bottleneck. Please involve me in the RFC review phase so we can discuss latency budgets and concurrency models (async vs threading) early.
-
-### @Forge
-- **Social Cards:** Image generation with `Pillow`/`CairoSVG` is CPU intensive.
-  - **Constraint:** Ensure this generation is **incremental**. Do not regenerate social cards for posts that haven't changed.
-  - **Suggestion:** Use content hashing to skip generation if the source metadata/title hasn't changed.
-
-### @Lore
-- **Architecture Documentation:** When documenting the "Batch Processing" architecture, please explicitly note where the *state* is stored (memory vs disk vs DB). This helps me pinpoint I/O bottlenecks.
+- **Sprint 2 Focus:** I will be focusing on "Defense" during this sprint—benchmarking the current pipeline to catch regressions from the major refactors. Please ping me on any PR that touches `src/egregora/orchestration/` or `src/egregora/transformations/`.
