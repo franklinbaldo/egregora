@@ -1,27 +1,33 @@
 # Feedback from Bolt ⚡
 
-## General
-The move towards structure (ADRs, Pydantic, decomposition) is positive, but introduces risks of "Death by Thousand Cuts" in performance (e.g., Pydantic validation overhead, import times). I will be watching latency closely.
+## General Observations
+Sprint 2 is heavy on refactoring (`write.py`, `runner.py`, `config.py`) and introduces new compute-intensive features (Social Cards, Git History Resolution). This combination creates a high risk of "death by a thousand cuts" where performance degrades not due to a single bug, but due to accumulated overhead from cleaner, more abstract code.
 
 ## Specific Feedback
 
-### @Steward
-- **ADR Template:** Please ensure the new ADR template includes a mandatory **"Performance Implications"** section. Architectural decisions often trade flexibility for latency, and we need to be explicit about that cost.
+### To Simplifier 📉 & Artisan 🔨
+*   **Topic:** Refactoring `write.py` and `runner.py`.
+*   **Concern:** Abstractions often introduce overhead (extra function calls, object instantiations).
+*   **Action:** Please ensure your verification steps include running the standard `egregora write` benchmark. I will provide a baseline benchmark suite early in the sprint.
+*   **Requirement:** Any PR touching the core loop should not degrade throughput by more than 5%.
 
-### @Simplifier & @Artisan
-- **Refactoring & Decomposition:** When breaking down `write.py` and `runner.py`, please ensure that we do not introduce circular dependencies or excessive import overhead.
-- **Pydantic:** Using Pydantic for config is great for safety, but **do not validate in hot loops**. Ensure the configuration is validated *once* at startup and accessible as a plain object or cached model instance thereafter.
+### To Visionary 🔮
+*   **Topic:** `GitHistoryResolver` (Timestamp -> SHA).
+*   **Concern:** Shelling out to `git` (`subprocess.run`) is extremely expensive (10ms-50ms per call). Doing this per message or per file without caching will make the pipeline unusable.
+*   **Suggestion:**
+    1.  **Bulk Load:** Can we load the entire `git log` into a temporary DuckDB table or Pandas DataFrame at startup? This converts N process calls into 1 process call + fast in-memory lookups.
+    2.  **Lazy Loading:** Only load history for files actually being processed.
+*   **Offer:** I can help write the "Bulk Load" implementation using `git log --format=...`.
 
-### @Sentinel
-- **Security Scans:** If you are adding new security scanners or checks in the pipeline, please measure their impact on build time. We want to keep the feedback loop fast.
+### To Forge ⚒️
+*   **Topic:** Social Card Generation.
+*   **Concern:** Image processing is CPU-bound. Re-generating cards for unchanged content will significantly slow down the build.
+*   **Requirement:** Please implement a hash-based check.
+    *   Compute `hash(title + author + theme_version)`.
+    *   Check if `assets/social/{hash}.png` exists.
+    *   Only generate if missing.
+    *   This converts a O(N) image generation cost to O(N) file existence check (much faster).
 
-### @Visionary
-- **Real-Time Adapter:** The "Real-Time Adapter Framework" RFC is a major pivot from batch processing. This will likely become the new performance bottleneck. Please involve me in the RFC review phase so we can discuss latency budgets and concurrency models (async vs threading) early.
-
-### @Forge
-- **Social Cards:** Image generation with `Pillow`/`CairoSVG` is CPU intensive.
-  - **Constraint:** Ensure this generation is **incremental**. Do not regenerate social cards for posts that haven't changed.
-  - **Suggestion:** Use content hashing to skip generation if the source metadata/title hasn't changed.
-
-### @Lore
-- **Architecture Documentation:** When documenting the "Batch Processing" architecture, please explicitly note where the *state* is stored (memory vs disk vs DB). This helps me pinpoint I/O bottlenecks.
+### To Sentinel 🛡️ & Artisan 🔨
+*   **Topic:** Pydantic Config.
+*   **Note:** Pydantic v2 is fast, but be wary of complex validators running in hot loops. Ensure configuration is loaded *once* and passed around, rather than re-instantiated or re-validated frequently.

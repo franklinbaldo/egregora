@@ -482,7 +482,25 @@ def _window_by_bytes(
         # Create the window with a lazy slice of the original table
         # We rely on the fact that `table` is already sorted by `ts` (as contract says)
         # or we explicitly sort it again to be safe.
-        window_table = table.order_by("ts").limit(chunk_size, offset=offset)
+
+        # Optimization: Use filter(ts) + small offset instead of large offset
+        # This allows the database to jump to the timestamp index instead of scanning
+        # from the beginning of the table.
+
+        # Calculate how many rows to skip that share the same start_time
+        # (Handle duplicate timestamps)
+        skip_rows = 0
+        curr = start_idx
+        if start_idx > 0 and timestamps[start_idx] == timestamps[start_idx - 1]:
+            # Find the first occurrence of this timestamp in the list
+            # Since we iterate forward, we can just look backwards
+            while curr > 0 and timestamps[curr - 1] == start_time:
+                curr -= 1
+            skip_rows = start_idx - curr
+
+        window_table = (
+            table.filter(table.ts >= start_time).order_by("ts").limit(chunk_size, offset=skip_rows)
+        )
 
         yield Window(
             window_index=window_index,
