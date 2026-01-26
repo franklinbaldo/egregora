@@ -3,17 +3,28 @@ name: Jules Auto Merge
 on:
   pull_request_target:
     types: [opened, synchronize, reopened]
-
-permissions:
-  pull-requests: write
-  contents: write
+  pull_request:
 
 jobs:
   jules-merge:
     runs-on: ubuntu-latest
-    if: github.actor == 'google-labs-jules'
+    if: github.event_name == 'pull_request_target' && github.actor == 'google-labs-jules'
+    permissions:
+      pull-requests: write
+      contents: write
     steps:
       - name: Enable Auto Merge
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh pr merge --auto --merge "${{ github.event.pull_request.html_url }}" || true
+
+  enable-auto-merge:
+    name: enable-auto-merge
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    steps:
+      - name: Dummy Check
+        run: echo "This is a dummy check to enable auto-merge"
+        shell: bash
