@@ -7,6 +7,12 @@ on:
       - reopened
       - synchronize
       - ready_for_review
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
 
 permissions:
   contents: write
@@ -20,6 +26,7 @@ jobs:
       - name: Enable auto-merge for Jules PRs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
