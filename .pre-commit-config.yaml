@@ -73,7 +73,7 @@ repos:
             "--max-average",
             "B",
             "--exclude",
-            "*/database/*.py,src/egregora/orchestration/pipelines/execution/processor.py",
+            "*/database/*.py",
           ]
         language: system
         types: [python]

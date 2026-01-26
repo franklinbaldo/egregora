@@ -15,6 +15,7 @@ from egregora.agents.profile.generator import generate_profile_posts
 from egregora.agents.types import Message
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.data_primitives.document import Document
+from egregora.orchestration.context import Context
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.coordination.background_tasks import process_background_tasks
 from egregora.orchestration.pipelines.etl.preparation import Conversation
@@ -33,50 +34,81 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
 
     """
     ctx = conversation.context
-    output_sink = ctx.output_sink
 
-    # Extract commands (ETL/Processing boundary - commands are side effects)
-    # We do this here or in generator? Generator does "data prep".
-    # Commands might generate announcements which is "output".
-    # But filtering commands from input to writer is "prep".
+    # 1. Convert messages
+    messages_list = _convert_messages_to_list(conversation)
 
-    # Convert table to list
+    # 2. Handle commands
+    announcements_generated = _process_announcements(ctx, messages_list)
+
+    # 3. Filter and Prepare Messages
+    clean_messages_list = filter_commands(messages_list)
+    messages_objects = [Message(**msg) for msg in clean_messages_list]
+
+    # 4. Execute Writer
+    posts, profiles = _execute_writer(ctx, conversation, messages_objects, clean_messages_list)
+
+    # 5. Execute Profile Generator
+    _execute_profile_generator(ctx, clean_messages_list, conversation, profiles)
+
+    # 6. Background Tasks
+    process_background_tasks(ctx)
+
+    # 7. Log and Return
+    window_label = f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
+    logger.info(
+        "  [green]✔ Generated[/] %d posts, %d profiles, %d announcements for %s",
+        len(posts),
+        len(profiles),
+        announcements_generated,
+        window_label,
+    )
+
+    return {window_label: {"posts": posts, "profiles": profiles}}
+
+
+def _convert_messages_to_list(conversation: Conversation) -> list[dict[str, Any]]:
+    """Convert Ibis table to list of dicts safely."""
     try:
         executed = conversation.messages_table.execute()
         if hasattr(executed, "to_pylist"):
-            messages_list = executed.to_pylist()
-        elif hasattr(executed, "to_dict"):
-            messages_list = executed.to_dict(orient="records")
-        else:
-            messages_list = []
+            return executed.to_pylist()
+        if hasattr(executed, "to_dict"):
+            return executed.to_dict(orient="records")
     except (AttributeError, TypeError):
         try:
-            messages_list = conversation.messages_table.to_pylist()
+            return conversation.messages_table.to_pylist()
         except (AttributeError, TypeError):
-            messages_list = (
-                conversation.messages_table if isinstance(conversation.messages_table, list) else []
-            )
+            if isinstance(conversation.messages_table, list):
+                return conversation.messages_table
+    return []
 
-    # Handle commands (Announcements)
+
+def _process_announcements(ctx: Context, messages_list: list[dict[str, Any]]) -> int:
+    """Extract and persist announcements from commands."""
     command_messages = extract_commands_list(messages_list)
-    announcements_generated = 0
+    count = 0
     if command_messages:
+        output_sink = ctx.output_sink
         for cmd_msg in command_messages:
             try:
                 announcement = command_to_announcement(cmd_msg)
                 if output_sink:
                     output_sink.persist(announcement)
-                    announcements_generated += 1
+                    count += 1
             except Exception as exc:
                 logger.exception("Failed to generate announcement: %s", exc)
+    return count
 
-    clean_messages_list = filter_commands(messages_list)
-    # Convert to Message objects for strict typing
-    messages_objects = [Message(**msg) for msg in clean_messages_list]
 
-    # Prepare Resources
+def _execute_writer(
+    ctx: Context,
+    conversation: Conversation,
+    messages_objects: list[Message],
+    clean_messages_list: list[dict[str, Any]],
+) -> tuple[list[Any], list[Any]]:
+    """Execute the writer agent for the window."""
     resources = PipelineFactory.create_writer_resources(ctx)
-
     params = WindowProcessingParams(
         table=conversation.messages_table,
         messages=messages_objects,
@@ -91,14 +123,10 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         smoke_test=ctx.state.smoke_test,
     )
 
-    # EXECUTE WRITER
-    # Note: We don't handle PromptTooLargeError here because we rely on heuristic splitting
-    # in the generator. If it fails here, it fails.
     writer_result = write_posts_for_window(params)
     posts = cast("list[Any]", writer_result.get("posts", []))
     profiles = cast("list[Any]", writer_result.get("profiles", []))
 
-    # Warn if writer processed messages but generated no posts
     if not posts and clean_messages_list:
         logger.warning(
             "⚠️ Writer agent processed %d messages but generated no posts for window %s. "
@@ -108,49 +136,36 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
         )
 
     # Persist generated posts
-    # The writer agent returns documents (strings if pending).
-    # Pending posts are handled by background worker?
-    # The original runner logic didn't explicitly persist posts returned by `write_posts_for_window`.
-    # Let's check `write_posts_for_window` in `src/egregora/agents/writer.py`.
-    # It seems `write_posts_for_window` returns paths or IDs, and persistence happens inside tools.
-    # However, `generate_profile_posts` returns Document objects that need persistence.
-    # If `posts` contains Document objects, we should persist them.
+    output_sink = ctx.output_sink
     for post in posts:
-        if hasattr(post, "document_id") and output_sink:  # Is a Document
+        if hasattr(post, "document_id") and output_sink:
             try:
                 output_sink.persist(post)
             except Exception as exc:
                 logger.exception("Failed to persist post: %s", exc)
+    return posts, profiles
 
-    # EXECUTE PROFILE GENERATOR
+
+def _execute_profile_generator(
+    ctx: Context,
+    messages: list[dict[str, Any]],
+    conversation: Conversation,
+    profiles_list: list[Any],
+) -> None:
+    """Generate and persist profiles."""
     window_date = conversation.window.start_time.strftime("%Y-%m-%d")
     try:
-        # Cast to list[Document] as we are running synchronously
         profile_docs = cast(
             "list[Document]",
-            generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date),
+            generate_profile_posts(ctx=ctx, messages=messages, window_date=window_date),
         )
+        output_sink = ctx.output_sink
         for profile_doc in profile_docs:
             try:
                 if output_sink:
                     output_sink.persist(profile_doc)
-                    profiles.append(profile_doc.document_id)
+                    profiles_list.append(profile_doc.document_id)
             except Exception as exc:
                 logger.exception("Failed to persist profile: %s", exc)
     except Exception as exc:
         logger.exception("Failed to generate profile posts: %s", exc)
-
-    # Process background tasks (Banner, etc)
-    process_background_tasks(ctx)
-
-    # Logging
-    window_label = f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
-    logger.info(
-        "  [green]✔ Generated[/] %d posts, %d profiles, %d announcements for %s",
-        len(posts),
-        len(profiles),
-        announcements_generated,
-        window_label,
-    )
-
-    return {window_label: {"posts": posts, "profiles": profiles}}
