@@ -17,40 +17,34 @@ jobs:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - name: Check if PR is from Jules
-        id: check_author
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          author_login=$(gh pr view "$PR_NUMBER" --json author --jq '.author.login')
-          echo "PR Author: $author_login"
-          if [[ "$author_login" == "google-labs-jules[bot]" || "$author_login" == "app/google-labs-jules" || "$author_login" == "google-labs-jules" ]]; then
-            echo "is_jules=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_jules=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Enable Auto-Merge
-        if: steps.check_author.outputs.is_jules == 'true'
         uses: actions/github-script@v7
         with:
           script: |
-            const prNumber = context.payload.pull_request.number;
+            const pr = context.payload.pull_request;
+            const author = pr.user.login;
+            const julesBots = ["google-labs-jules[bot]", "app/google-labs-jules", "google-labs-jules"];
+
+            console.log(`PR Author: ${author}`);
+
+            if (!julesBots.includes(author)) {
+              console.log("Not a Jules PR. Skipping.");
+              return;
+            }
+
+            const prNumber = pr.number;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
-            console.log(`Processing PR #${prNumber} for auto-merge...`);
-
             try {
-              // Check if draft and mark ready if needed
-              const { data: pr } = await github.rest.pulls.get({
+              // Get latest PR details to ensure we have node_id
+              const { data: prDetails } = await github.rest.pulls.get({
                 owner,
                 repo,
                 pull_number: prNumber,
               });
 
-              if (pr.draft) {
+              if (prDetails.draft) {
                 console.log("PR is draft, marking as ready for review...");
                 await github.graphql(`
                   mutation($pullRequestId: ID!) {
@@ -58,10 +52,9 @@ jobs:
                       pullRequest { id }
                     }
                   }
-                `, { pullRequestId: pr.node_id });
+                `, { pullRequestId: prDetails.node_id });
               }
 
-              // Enable auto-merge via GraphQL
               console.log("Enabling auto-merge...");
               await github.graphql(`
                 mutation($pullRequestId: ID!) {
@@ -72,11 +65,11 @@ jobs:
                     pullRequest { id }
                   }
                 }
-              `, { pullRequestId: pr.node_id });
+              `, { pullRequestId: prDetails.node_id });
               console.log("Auto-merge enabled successfully.");
 
             } catch (error) {
-              console.log("Error enabling auto-merge (might be already enabled or permissions issue):");
+              console.log("Error processing auto-merge:");
               console.log(error.message);
-              // Do not fail the workflow if this step fails
+              // Explicitly do not throw error to avoid failing the job
             }
