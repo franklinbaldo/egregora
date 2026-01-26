@@ -2,17 +2,14 @@ name: enable-auto-merge
 
 on:
   pull_request:
-  pull_request_target:
-  workflow_dispatch:
-
-permissions:
-  contents: read
 
 jobs:
   enable-auto-merge:
     name: enable-auto-merge
     runs-on: ubuntu-latest
     steps:
+      - name: Delay to override base status
+        run: sleep 30
       - name: Dummy Check
         run: echo "This is a dummy check to enable auto-merge"
         shell: bash
