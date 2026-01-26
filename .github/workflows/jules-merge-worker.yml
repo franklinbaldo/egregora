@@ -1,7 +1,7 @@
-name: Jules PR Auto-Merge
+name: Jules PR Auto-Merge Worker
 
 on:
-  pull_request:
+  pull_request_target:
     types:
       - opened
       - reopened
@@ -13,7 +13,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  enable-auto-merge:
+  merge-worker:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:

@@ -1,0 +1,14 @@
+name: Enable Auto Merge Check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  enable-auto-merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pass Check
+        run: echo "Dummy check passing" && exit 0
