@@ -28,3 +28,4 @@ Sprint 2 is a heavy refactoring sprint. By enforcing strict types, I act as a sa
 |-------|---------------|---------|-----------|
 | Merge Conflicts with Simplifier | Medium | Medium | I will avoid touching `write.py` logic directly, focusing instead on the types of the objects it uses. |
 | Type fixes uncover logical bugs | Low | High | I will document any logical bugs found and either fix them (if small) or report them as Tasks. |
+| CI Flakiness | Medium | Low | The `enable-auto-merge` CI check is known to fail due to external configuration (Renovate) and can be ignored if tests pass. |
