@@ -34,6 +34,7 @@ from pydantic import BaseModel
 
 # UrlContextTool is the client-side fetcher (alias for WebFetchTool) suitable for pydantic-ai
 # Note: UrlContextTool is deprecated in newer versions, but we keep it for compatibility with the current stack.
+# We will migrate to WebFetchTool in a future sprint.
 from pydantic_ai import Agent, RunContext, UrlContextTool
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import BinaryContent
