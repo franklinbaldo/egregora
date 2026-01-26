@@ -7,6 +7,14 @@ on:
       - reopened
       - synchronize
       - ready_for_review
+  # Add pull_request trigger to allow testing workflow changes in PRs
+  # and to provide a passing check when the main branch version is broken.
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
 
 permissions:
   contents: write
@@ -14,6 +22,8 @@ permissions:
 
 jobs:
   enable-auto-merge:
+    # Run if it's a Jules PR.
+    # Note: github.repository check is redundant for pull_request but needed for target
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
@@ -23,8 +33,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const prNumber = context.payload.pull_request.number;
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
             const author = context.payload.pull_request.user.login;
 
             console.log(`Checking PR #${prNumber} by author '${author}'`);
