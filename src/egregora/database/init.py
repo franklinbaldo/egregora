@@ -91,7 +91,8 @@ def initialize_database(backend: BaseBackend) -> None:
     create_table_if_not_exists(conn, "git_commits", GIT_COMMITS_SCHEMA)
     # Composite index for "What was the SHA of this path at time T?"
     _execute_sql(
-        conn, "CREATE INDEX IF NOT EXISTS idx_git_commits_lookup ON git_commits(repo_path, commit_timestamp DESC)"
+        conn,
+        "CREATE INDEX IF NOT EXISTS idx_git_commits_lookup ON git_commits(repo_path, commit_timestamp DESC)",
     )
 
     logger.info("✓ Database tables initialized successfully")

@@ -2,8 +2,10 @@
 
 import duckdb
 import pytest
-from egregora.database.schemas import GIT_COMMITS_SCHEMA, create_table_if_not_exists
+
 from egregora.database.init import initialize_database
+from egregora.database.schemas import GIT_COMMITS_SCHEMA, create_table_if_not_exists
+
 
 @pytest.fixture
 def duckdb_conn():
@@ -11,6 +13,7 @@ def duckdb_conn():
     conn = duckdb.connect(":memory:")
     yield conn
     conn.close()
+
 
 class TestGitCommitsSchema:
     """Test schema and indexes for git_commits."""
@@ -38,7 +41,9 @@ class TestGitCommitsSchema:
 
         # Assert
         # Check if index exists using duckdb_indexes system view
-        duck_indexes = duckdb_conn.execute("SELECT index_name FROM duckdb_indexes WHERE table_name='git_commits'").fetchall()
+        duck_indexes = duckdb_conn.execute(
+            "SELECT index_name FROM duckdb_indexes WHERE table_name='git_commits'"
+        ).fetchall()
         index_names = [idx[0] for idx in duck_indexes]
         assert "idx_git_commits_lookup" in index_names
 
@@ -51,5 +56,7 @@ class TestGitCommitsSchema:
             VALUES ('src/main.py', 'abc1234', '2023-01-01 10:00:00', 'me', 'init')
         """)
 
-        res = duckdb_conn.execute("SELECT commit_sha FROM git_commits WHERE repo_path = 'src/main.py'").fetchone()
-        assert res[0] == 'abc1234'
+        res = duckdb_conn.execute(
+            "SELECT commit_sha FROM git_commits WHERE repo_path = 'src/main.py'"
+        ).fetchone()
+        assert res[0] == "abc1234"
