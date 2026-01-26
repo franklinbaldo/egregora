@@ -1,12 +1,16 @@
+"""Behavioral tests for DuckDBStorageManager.
+
+These tests verify the actual integration with DuckDB and the filesystem,
+complementing the mock-based unit tests in test_duckdb_manager.py.
+"""
+
 import shutil
-from pathlib import Path
 
 import ibis
 import pytest
 
 from egregora.database.duckdb_manager import temp_storage
-from egregora.database.exceptions import TableNotFoundError, SequenceNotFoundError
-from egregora.database.schemas import create_table_if_not_exists
+from egregora.database.exceptions import TableNotFoundError
 
 
 @pytest.fixture
