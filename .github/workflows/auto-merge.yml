@@ -4,8 +4,12 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
+permissions:
+  contents: read
+
 jobs:
   enable-auto-merge:
+    name: Enable Auto Merge Check
     runs-on: ubuntu-latest
     steps:
       - name: Dummy Auto-Merge Check
