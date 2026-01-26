@@ -8,6 +8,7 @@ permissions:
 
 jobs:
   enable-auto-merge:
+    name: enable-auto-merge
     runs-on: ubuntu-latest
     steps:
       - name: Enable Auto Merge
