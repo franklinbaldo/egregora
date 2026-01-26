@@ -8,27 +8,26 @@
 ## Objectives
 My mission is to enhance interactivity, performance, and information architecture, aligning with Curator's vision.
 
-- [ ] **Related Content Feature (MVP):** Implement a "Read Next" or "Related Stories" section on post pages to increase engagement.
-- [ ] **Typography & Navigation Refinement:** Implement Curator's typography scale and improved navigation (e.g., breadcrumbs) for better readability and wayfinding.
-- [ ] **Deep Accessibility Audit:** Achieve WCAG AA compliance. Fix issues identified in Sprint 2.
-- [ ] **Performance Optimization:** Optimize asset loading, fonts, and scripts to achieve 95+ Lighthouse Performance score.
-- [ ] **Mobile Polish:** Dedicated testing and refinement for mobile viewports.
+- [ ] **Related Content Feature (MVP):** Implement a "Read Next" or "Related Stories" section on post pages.
+- [ ] **Typography & Navigation Refinement:** Implement Curator's typography scale and improved navigation (breadcrumbs).
+- [ ] **VS Code Plugin Support:** Assist Visionary with TypeScript implementation for the "Hello World" plugin.
+- [ ] **Deep Accessibility Audit:** Achieve WCAG AA compliance.
+- [ ] **Performance Optimization:** Achieve 95+ Lighthouse Performance score.
 
 ## Dependencies
-- **Curator:** For design specs on typography, navigation, and related content logic.
+- **Curator:** Design specs.
+- **Visionary:** Context Layer API for the VS Code plugin.
 
 ## Context
-After establishing identity in Sprint 2, Sprint 3 focuses on Quality (Speed, A11y) and enhancing the Content Experience (Navigation, Discovery).
+Sprint 3 focuses on "Platform" (VS Code) and "Content Experience" (Navigation, Discovery).
 
 ## Expected Deliverables
 1. Functional "Related Content" section.
-2. Refined Typography and Navigation system.
-3. WCAG AA Compliance.
-4. 95+ Performance Score.
-5. Polished Mobile Experience.
+2. Refined Navigation system.
+3. VS Code Plugin prototype (TypeScript support).
+4. WCAG AA Compliance.
 
 ## Risks
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Performance tuning might require changes to build process | Low | Medium | Coordinate with Simplifier/Artisan if build tool changes are needed. |
-| "Related Content" logic complexity | Medium | Medium | Implement a simple tag-based or heuristic MVP first, as agreed with Curator. |
+| Plugin development distracts from Web UX | Low | Medium | Timebox plugin support to "Consulting/Setup" rather than full ownership. |

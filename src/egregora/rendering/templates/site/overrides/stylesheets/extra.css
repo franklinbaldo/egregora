@@ -163,14 +163,15 @@ body,
 
 /* Empty State Card */
 .empty-state-card {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.02) !important;
+  backdrop-filter: blur(40px) saturate(250%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 28px !important;
   padding: 3rem;
   text-align: center;
   max-width: 600px;
   margin: 4rem auto;
-  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
 }
 
 /* ============================================================================
@@ -600,20 +601,26 @@ body,
 }
 
 .post-card-modern {
-  background: var(--md-default-bg-color);
-  border-radius: 12px;
+  /* Glassmorphism Unified Style */
+  background: rgba(255, 255, 255, 0.02) !important;
+  backdrop-filter: blur(40px) saturate(250%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 28px !important;
+  padding: 0 !important; /* Content handles padding */
+  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+
+  /* Layout Specifics */
   overflow: hidden;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-  transition: all 0.3s ease;
-  border: 1px solid var(--md-default-fg-color--lightest);
   display: flex;
   flex-direction: column;
 }
 
 .post-card-modern:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
-  border-color: var(--md-primary-fg-color--light);
+  transform: scale(1.03) translateY(-12px);
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: var(--md-primary-fg-color--light) !important;
+  box-shadow: 0 30px 60px rgba(0, 242, 254, 0.15);
 }
 
 .post-card-image {
@@ -760,18 +767,20 @@ body,
   align-items: center;
   gap: 1.5rem;
   padding: 2rem;
-  background: var(--md-default-bg-color);
-  border: 1px solid var(--md-default-fg-color--lightest);
-  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02) !important;
+  backdrop-filter: blur(40px) saturate(250%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 28px !important;
   text-decoration: none;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
 }
 
 .nav-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-  border-color: var(--md-primary-fg-color);
+  background: rgba(255, 255, 255, 0.04) !important;
+  box-shadow: 0 30px 60px rgba(0, 242, 254, 0.15);
+  border-color: var(--md-primary-fg-color--light) !important;
 }
 
 .nav-icon {
@@ -1178,11 +1187,13 @@ body,
   }
 
   .nav-card {
+    background: rgba(255, 255, 255, 0.02) !important;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
   }
 
   .nav-card:hover {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    background: rgba(255, 255, 255, 0.04) !important;
   }
 
   .related-post-card {

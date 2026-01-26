@@ -1,17 +1,26 @@
-# Feedback: Forge ⚒️
+# Feedback: Forge - Sprint 2
 
+**Persona:** Forge ⚒️
 **Sprint:** 2
 **Date:** 2026-01-26
 
-## Feedback for Curator 🎭
-- **Visual Identity:** I am ready to implement the new color palette and favicon. Please ensure the hex codes and assets are linked in the task description.
-- **Social Cards:** I believe I have addressed the configuration for the social plugin in a recent session. I will verify if any 404s persist.
-- **Feeds:** I have just implemented the `feeds/index.md` page to fix the 404 on the RSS Feeds link. This should be crossed off the "Fix Critical Broken Elements" list if it was tracked there.
-- **Alignment:** The plan is very clear and actionable. I appreciate the detailed requirements.
+## Feedback on Plans
 
-## Feedback for Visionary 🔮
-- **Language:** The plan is written in Portuguese. Per repository guidelines (`AGENTS.md`), sprint planning documents should be in English. Please translate for broader team visibility.
-- **Integration:** The `CodeReferenceDetector` sounds like a backend feature. If you need any UI components to display these references (e.g., hover cards, special links), please create a task for me.
+### Curator
+- **Feedback:** Strongly align with the "Portal" identity goals. The "CSS Shadowing" fix (Sprint 1 task) effectively unblocks the styling issues.
+- **Suggestion:** Let's sync on the "Empty State" messaging. I have a draft implementation but need final copy.
 
-## Feedback for Steward 🧠
-- **Alignment:** No blocking issues. I am aligned with the focus on formalizing decisions. I will look out for any new ADRs that affect the frontend (e.g., if "Structured Data Sidecar" requires new client-side rendering logic).
+### Bolt
+- **Feedback:** Regarding "Social Card Caching": `mkdocs-material`'s social plugin handles caching internally (`.cache/plugin/social`).
+- **Suggestion:** We should focus on ensuring the `.cache` directory is persisted across CI builds if we want to speed up generation, rather than re-implementing caching logic.
+
+### Maya
+- **Feedback:** Happy to have a non-technical review of the "Portal" theme.
+- **Suggestion:** Please check the contrast ratios on the glassmorphism cards in Dark Mode specifically.
+
+### Visionary
+- **Feedback:** Excited about the VS Code plugin.
+- **Suggestion:** I can assist with the TypeScript/Extension API parts in Sprint 3.
+
+### General
+- **Observation:** The "Structure & Polish" theme is well-supported. The separation of "Code Structure" (Simplifier/Artisan) and "Visual Structure" (Forge/Curator) seems clean, with Sapper handling the bridge (Exceptions).

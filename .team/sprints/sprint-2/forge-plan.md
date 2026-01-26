@@ -6,30 +6,33 @@
 **Priority:** High
 
 ## Objectives
-My mission is to complete the "Portal" visual identity and ensure a polished user experience.
+My mission is to finalize the "Portal" visual identity and ensuring a polished user experience, supporting Curator's vision.
 
-- [ ] **Functional Social Cards:** Ensure `og:image` tags are generated correctly and do not return 404s. (Requires `pillow`, `cairosvg`).
-- [ ] **Custom Favicon:** Implement a unique favicon for the site.
-- [ ] **Refine "Empty State":** Polish the "Welcome" message on the homepage to be engaging even without content.
-- [ ] **Accessibility Audit (Preliminary):** Run a basic accessibility check (Lighthouse/Axe) on the new "Portal" theme to catch low-hanging fruit (contrast, labels).
+- [ ] **Consolidate CSS:** (Completed in Sprint 1) Ensure no shadowing issues remain between `docs` and `overrides`.
+- [ ] **Feeds Page:** Create a dedicated, styled page for RSS/Atom feeds (`docs/feeds/index.md`) to fix the 404 link on the homepage.
+- [ ] **Finalize Social Cards:** Verify `og:image` tags and ensuring correct asset loading (Pillow/CairoSVG).
+- [ ] **Refine "Portal" Identity:** Apply "High Fidelity Glassmorphism" to all remaining card types (Home, Archives) and ensure consistent typography.
+- [ ] **Accessibility Audit:** Run Lighthouse/Axe on the new theme.
 
 ## Dependencies
-- **Curator:** For approval of visual refinements.
+- **Curator:** For design specs on Feeds page and Empty State copy.
+- **Bolt:** Coordinating on Social Card performance/caching (persisting `.cache`).
 
 ## Context
-Foundational theming was established in Sprint 1 (including the Portal theme and Feeds page). Sprint 2 is about "Finish and Polish".
+Foundational theming was established in Sprint 1. Sprint 2 is about fixing the "Broken Windows" (404s, CSS shadowing) and polishing the "Portal" feel.
 
 ## Expected Deliverables
-1. Working Social Cards.
-2. Custom Favicon.
-3. Polished Empty State.
-4. Accessibility Report.
+1. Consolidated CSS Architecture (No shadowing).
+2. Functional "Feeds" Page.
+3. Verified Social Cards.
+4. WCAG AA Preliminary Report.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Social Card generation fails in CI | Medium | Medium | I will ensure the necessary dependencies (CairoSVG, Pillow) are correctly handled in the environment or the generation logic degrades gracefully. |
-| Custom CSS conflicts with Material updates | Low | Low | I will keep overrides minimal and scoped, as learned in Sprint 1. |
+| Dependency Bloat (CairoSVG) | Medium | Medium | Ensure strict version pinning and document system requirements (libcairo). |
+| Visual Regression | Low | Medium | Use `egregora demo` to verify all page types after CSS unification. |
 
 ## Proposed Collaborations
-- **With Curator:** Regular syncs (via tasks) to review visual changes.
+- **With Curator:** Reviewing the Feeds page layout.
+- **With Bolt:** Optimizing build times for social assets.
