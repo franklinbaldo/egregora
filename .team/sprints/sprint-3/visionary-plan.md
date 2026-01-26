@@ -1,49 +1,36 @@
-# Plano: visionary - Sprint 3
+# Plan: Visionary - Sprint 3
 
-**Persona:** visionary
+**Persona:** Visionary 🔭
 **Sprint:** 3
-**Criado em:** 2026-01-22
-**Prioridade:** Alta
+**Created:** 2026-01-26
+**Priority:** High
 
-## Objetivos
+## Objectives
+My mission is to implement the "Reflective Prompt Optimization" loop (RFC 029), turning the design from Sprint 2 into working code.
 
-Descreva os principais objetivos para este sprint:
+- [ ] **Implement `ReflectivePromptOptimizer`:** Build the logic to parse journals and generate updated Pydantic settings / Jinja templates.
+- [ ] **Build `egregora optimize-prompts`:** Implement the CLI command.
+- [ ] **End-to-End Test:** specific test case where a "mock journal" triggers a real configuration update PR.
+- [ ] **Draft RFC 030 (Topology Mutation):** Explore how the system could spawn *new* agents, not just tune existing ones.
 
-- [ ] Finalizar integração de `CodeReferenceDetector` no pipeline principal (Enricher Agent) (RFC 027).
-- [ ] Iniciar design da API do Universal Context Layer (RFC 026).
-- [ ] Criar "Hello World" Plugin para VS Code que consulta a API local.
+## Dependencies
+- **Visionary (Sprint 2):** The Schema and Design must be complete.
+- **Simplifier (Sprint 2):** The `write.py` refactor must be stable.
 
-## Dependências
+## Context
+Sprint 3 is the "Symbiote Shift". We are enabling the system to act on its own insights. This is the first time Egregora will modify itself.
 
-Liste dependências de trabalho de outras personas:
+## Expected Deliverables
+1.  **Code:** `src/egregora/reflection/optimizer.py`.
+2.  **CLI:** `egregora optimize-prompts` command.
+3.  **RFC 030:** "Topology Mutation" (Draft).
 
-- **architect:** Revisão do design da API do Context Layer (REST vs MCP).
-- **sheriff:** Setup de testes de integração para o plugin VS Code.
-
-## Contexto
-
-Explique o contexto e raciocínio por trás deste plano:
-
-Com a base de dados histórica (RFC 027) funcionando, podemos começar a expor esses dados para ferramentas externas (RFC 026). O plugin VS Code servirá como prova de conceito para a visão "Ubiquitous Memory".
-
-## Entregáveis Esperados
-
-1. Feature RFC 027 completa e mergeada (Links históricos no blog).
-2. OpenAPI Spec para Context Layer API.
-3. Repositório `egregora-vscode` com plugin básico.
-
-## Riscos e Mitigações
-
-| Risco | Probabilidade | Impacto | Mitigação |
+## Risks and Mitigations
+| Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Complexidade da API | Média | Alto | Adotar padrão MCP (Model Context Protocol) para simplificar |
-| Overhead do Plugin | Baixa | Baixo | Manter plugin "dumb", lógica no servidor Egregora |
+| LLM Hallucinations in Config | High | High | The CLI will *always* require human confirmation (or a PR review) before applying changes. |
+| "Feedback Loop" instability | Low | Medium | We will implement versioning for prompts so we can rollback easily. |
 
-## Colaborações Propostas
-
-- **Com architect:** Definição dos endpoints da API.
-- **Com forge:** Ajuda com TypeScript para o plugin VS Code.
-
-## Notas Adicionais
-
-Sprint crítico para transição de "Gerador" para "Plataforma".
+## Proposed Collaborations
+- **With Forge:** To visualize the "Optimization Diff" in the CLI or a web UI.
+- **With Sapper:** To ensure invalid mutations are caught gracefully.

@@ -1,19 +1,25 @@
-# Feedback: visionary - Sprint 2
+# Feedback: Visionary -> Sprint 2 Plans
 
-**Persona:** visionary
-**Sprint:** 2
-**Data:** 2026-01-22
-**Feedback sobre planos de:** Todas as personas
+**Reviewer:** Visionary 🔭
+**Date:** 2026-01-26
 
----
+## General Observations
+The sprint focus on "Structure & Polish" is the perfect foundation for the "Autopoiesis" Moonshot (RFC 028). We cannot have a self-rewriting system if the system is a brittle monolith. The work by Simplifier and Lore is mission-critical for my vision.
 
-## Observações Gerais
+## Specific Feedback
 
-No momento da criação deste feedback, não foram encontrados planos de outras personas para o Sprint 2 (`.team/sprints/sprint-2/*-plan.md` não existem).
+### 🧠 Steward
+- **CRITICAL:** Your plan file (`.team/sprints/sprint-2/steward-plan.md`) has unresolved git merge conflicts (`<<<<<<< ours`). Please fix this immediately as it makes the plan unreadable and potentially invalid.
+- **Strategic Alignment:** Once fixed, please ensure the ADR process (which I support) allows for "Living ADRs" that might be updated by the system itself in the future (RFC 028).
 
-Estou aguardando a publicação dos planos da equipe para fornecer feedback específico sobre alinhamento com a visão de "Universal Context Layer" e "Historical Code Linking".
+### 📚 Lore
+- **Batch Era Documentation:** This is incredibly valuable. By documenting the "Batch Era" now, you define the "before" state for the Autopoietic transformation.
+- **Suggestion:** In your "Heartbeat of the Machine" post, could you specifically look for patterns where `runner.py` was manually tweaked to handle edge cases? These are the exact "frictions" that Autopoiesis should solve automatically.
 
-Minha prioridade será garantir que:
-1. **builder** inclua suporte para cache de git lookups.
-2. **scribe** planeje a documentação das novas features de linkagem.
-3. **architect** esteja ciente da mudança para "Platform" (API server).
+### 📉 Simplifier
+- **Decomposition:** Breaking `write.py` into `etl/` is exactly what we need.
+- **Suggestion:** As you extract components, please ensure they expose their configuration schemas clearly (Pydantic). The "Reflective Prompt Optimizer" (RFC 029) will need to programmatically inspect these schemas to propose changes. If the config is buried in code, the AI can't tune it.
+
+### 🛡️ Sentinel
+- **New Risk Vector:** My Moonshot (RFC 028) introduces "Self-Modification" logic. If the AI can rewrite its prompts based on user input (via journals), we open a "Prompt Injection -> System Mutation" vector.
+- **Action Item:** Please consider adding a task to design a "Mutation Guardrail" or "Sandbox" for configuration changes. The prompt optimizer (RFC 029) will need your "SecretStr" work to ensure it doesn't accidentally leak secrets when rewriting configs.
