@@ -2,6 +2,7 @@
 
 **Title**: Egregora Autopoiesis (The Self-Rewriting System)
 **Status**: Proposed
+**Next Steps**: Schema Design (Sprint 2) -> Prototype (Sprint 3)
 **Persona**: Visionary
 **Created**: 2026-01-26
 
