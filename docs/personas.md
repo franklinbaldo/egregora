@@ -322,12 +322,14 @@ sprint_context = sprint_manager.get_sprint_context("curator")
 Use Jinja2 conditionals for flexible prompts:
 
 ```jinja
+{% raw %}
 {% if journal_entries %}
 ## Previous Work
 {{ journal_entries }}
 {% else %}
 This is your first session!
 {% endif %}
+{% endraw %}
 ```
 
 ### Custom Password Generation
