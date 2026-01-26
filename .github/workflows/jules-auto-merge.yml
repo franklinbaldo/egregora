@@ -41,4 +41,4 @@ jobs:
           fi
 
           echo "Enabling auto-merge for PR #$PR_NUMBER."
-          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch
+          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch || echo "Failed to enable auto-merge (likely restricted by repo settings); skipping."
