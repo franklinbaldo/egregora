@@ -23,9 +23,11 @@ on:
         type: boolean
         default: false
   schedule:
-    - cron: '*/5 * * * *'
+    # Reduced frequency - primary trigger is now jules-on-merge.yml (event-driven)
+    # This cron serves as a fallback and for feedback loop processing
+    - cron: '*/15 * * * *'
   workflow_run:
-    workflows: ["CI"]
+    workflows: ["CI", "Jules On-Merge Trigger"]
     types:
       - completed
 
@@ -37,10 +39,12 @@ permissions:
 
 jobs:
   tick:
+    # Run on: manual dispatch, schedule, or when triggered by Jules merge/CI success
     if: >
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
-      (startsWith(github.event.workflow_run.head_branch, 'jules-sched-') ||
+      (github.event.workflow_run.name == 'Jules On-Merge Trigger' ||
+       startsWith(github.event.workflow_run.head_branch, 'jules-sched-') ||
        github.event.workflow_run.head_branch == 'main' ||
        github.event.workflow_run.head_branch == 'jules'))
     runs-on: ubuntu-latest
