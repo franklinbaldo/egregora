@@ -21,6 +21,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -u # Do not use -e, handle errors manually
 

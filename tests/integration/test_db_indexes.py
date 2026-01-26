@@ -2,6 +2,7 @@
 
 import duckdb
 import pytest
+
 from egregora.database.init import initialize_database
 
 
