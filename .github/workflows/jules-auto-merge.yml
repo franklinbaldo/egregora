@@ -37,7 +37,7 @@ jobs:
           is_draft=$(gh pr view "$PR_NUMBER" --json isDraft --jq '.isDraft')
           if [ "$is_draft" = "true" ]; then
             echo "PR #$PR_NUMBER is draft; marking ready for review."
-            gh pr ready "$PR_NUMBER"
+            gh pr ready "$PR_NUMBER" || true
           fi
 
           echo "Enabling auto-merge for PR #$PR_NUMBER."
