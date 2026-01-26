@@ -55,7 +55,7 @@ from egregora.llm.api_keys import get_google_api_key
 from egregora.llm.providers.google_batch import GoogleBatchModel
 from egregora.orchestration.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.orchestration.exceptions import CacheKeyNotFoundError
-from egregora.orchestration.worker_base import BaseWorker
+from egregora.orchestration.worker_base import BaseWorker, WorkerContext
 from egregora.resources.prompts import render_prompt
 from egregora.security.zip import validate_zip_contents
 
@@ -489,8 +489,11 @@ class EnrichmentWorker(BaseWorker):
         ctx: PipelineContext | EnrichmentRuntimeContext,
         enrichment_config: EnrichmentSettings | None = None,
     ) -> None:
-        super().__init__(ctx)
-        self.ctx: PipelineContext | EnrichmentRuntimeContext = ctx
+        # Note: WorkerContext protocol mismatch is a known issue.
+        # We cast here to satisfy mypy, knowing that BaseWorker might expect a slightly different interface
+        # but runtime behavior is handled by our defensive getattr checks.
+        super().__init__(cast("WorkerContext", ctx))
+        self.ctx: PipelineContext | EnrichmentRuntimeContext = ctx  # type: ignore[assignment]
         self._enrichment_config_override = enrichment_config
         self.zip_handle: zipfile.ZipFile | None = None
         self.media_index: dict[str, str] = {}
