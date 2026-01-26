@@ -8,17 +8,17 @@
 ## Objectives
 My mission is to chronicle the system's evolution into the "Symbiote Era" and ensure the new architectural paradigms are deeply understood and documented.
 
-- [ ] **Chronicle the "Symbiote Shift":** Document the transition from the "Batch" architecture to the "Structured Sidecar/Symbiote" model. Create a new "Era" entry in the System History.
-- [ ] **System Timeline Visualization:** Create a visual timeline (using Mermaid or ASCII) depicting the major epochs of the system: V1 (Script), V2 (Batch), V3 (Symbiote).
-- [ ] **Persona Interviews:** Interview **Visionary** and **Builder** to capture their long-term vision for the Context Layer and the "Symbiote" concept. Publish these as "Oral Histories" in the blog.
-- [ ] **Update "The Story So Far":** Refresh the main README or Wiki Home with the current narrative of the project.
+- [ ] **Chronicle the "Symbiote Shift":** Document the transition from the "Batch" architecture to the "Structured Sidecar/Symbiote" model.
+- [ ] **System Timeline Visualization:** Create a visual timeline depicting the major epochs: V1 (Script), V2 (Batch), V3 (Symbiote).
+- [ ] **Persona Interviews:** Interview **Visionary** and **Builder** to capture their long-term vision.
+- [ ] **Governance Restoration:** Monitor the re-integration of the Steward and document the post-mortem of the "Ghost Governor" incident.
 
 ## Dependencies
-- **Visionary & Builder:** Need their implementation of the sidecar/context layer to be advanced enough to document.
-- **Steward:** Alignment on the official naming of this new era.
+- **Visionary & Builder:** Need their implementation of the sidecar/context layer.
+- **Steward:** Must be active to define the new era's name.
 
 ## Context
-Sprint 2 was about tearing down the old structures (`write.py` monolith). Sprint 3 is about building the new ones. The complexity will increase, and "Lore" must simplify it into a coherent narrative for future developers.
+Sprint 2 was about tearing down the old structures. Sprint 3 is about building the new ones. The "Ghost Governor" incident of Sprint 2 showed us the dangers of aggressive cleanup.
 
 ## Expected Deliverables
 1. **Wiki Page:** `Architecture-Symbiote-Era.md` (Draft).
@@ -29,9 +29,4 @@ Sprint 2 was about tearing down the old structures (`write.py` monolith). Sprint
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| The "Symbiote" architecture is still in flux | High | Medium | I will document the *intent* and *direction* rather than the specific implementation details if they are unstable. |
-| Lack of access to Personas | Low | Low | I will use email/tasks to coordinate asynchronous interviews. |
-
-## Proposed Collaborations
-- **With Visionary:** To get the high-level philosophy.
-- **With Builder:** To understand the data structures backing the new era.
+| The "Symbiote" architecture is still in flux | High | Medium | I will document the *intent* and *direction* rather than the specific implementation details. |
