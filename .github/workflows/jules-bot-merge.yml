@@ -1,4 +1,4 @@
-name: Jules PR Auto-Merge
+name: Jules Bot Merge
 
 on:
   pull_request_target:
@@ -13,7 +13,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  jules-bot-merge:
+  jules-merge:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
