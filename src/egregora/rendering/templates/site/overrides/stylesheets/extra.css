@@ -55,6 +55,7 @@ body,
 }
 
 /* Blog Card Evolution - High Fidelity Glassmorphism */
+/* Applied to both .md-post--card and .post-card-modern for consistency */
 .md-post--card {
   background: rgba(255, 255, 255, 0.02) !important;
   backdrop-filter: blur(40px) saturate(250%) !important;
