@@ -3,7 +3,10 @@ import ibis
 import pandas as pd  # noqa: TID251
 =======
 import pandas as pd
+<<<<<<< HEAD
 >>>>>>> origin/pr/2706
+=======
+>>>>>>> origin/pr/2705
 import pytest
 
 from egregora.ops.media import extract_media_references

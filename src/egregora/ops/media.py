@@ -166,6 +166,18 @@ COMBINED_RAW_PATTERN = re.compile(
     re.VERBOSE,
 )
 
+# Combined Pattern for single-pass extraction
+COMBINED_MEDIA_PATTERN = re.compile(
+    rf"""
+    !\[(?P<img_alt>[^\]]*)\]\((?P<img_url>[^)]+)\) |              # Markdown Image
+    (?<!!)\[(?P<link_text>[^\]]+)\]\((?P<link_url>[^)]+)\) |      # Markdown Link
+    (?i:(?P<att_file>[\w\-\.]+\.\w+)\s*(?:{_MARKERS_REGEX})) |    # Attachment
+    \b(?P<wa_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b |     # WhatsApp
+    (?i:\u200e(?P<uni_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)) # Unicode
+    """,
+    re.VERBOSE,
+)
+
 
 # ----------------------------------------------------------------------------
 # Detection & Classification
@@ -325,6 +337,7 @@ def extract_media_references(table: Table) -> set[str]:
 
 <<<<<<< HEAD
     # Pre-bind regex methods for optimization
+<<<<<<< HEAD
     fast_find = FAST_MEDIA_PATTERN.finditer
     marker_find = MARKER_PATTERN.finditer
 <<<<<<< HEAD
@@ -338,11 +351,15 @@ def extract_media_references(table: Table) -> set[str]:
     md_find_iter = COMBINED_MD_PATTERN.finditer
     raw_find_iter = COMBINED_RAW_PATTERN.finditer
 >>>>>>> origin/pr/2706
+=======
+    combined_find = COMBINED_MEDIA_PATTERN.finditer
+>>>>>>> origin/pr/2705
 
     for message in messages:
         if not message or not isinstance(message, str):
             continue
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -420,15 +437,25 @@ def extract_media_references(table: Table) -> set[str]:
 =======
         # Pass 1: Fast patterns (Images, Links, WhatsApp, Unicode)
         for match in fast_find(message):
+=======
+        for match in combined_find(message):
+            # Check which group matched (named groups from COMBINED_MEDIA_PATTERN)
+>>>>>>> origin/pr/2705
             if img_url := match.group("img_url"):
                 references.add(img_url)
             elif link_url := match.group("link_url"):
                 if not link_url.startswith(("http://", "https://")):
                     references.add(link_url)
+<<<<<<< HEAD
+=======
+            elif att_file := match.group("att_file"):
+                references.add(att_file)
+>>>>>>> origin/pr/2705
             elif wa_file := match.group("wa_file"):
                 references.add(wa_file)
             elif uni_file := match.group("uni_file"):
                 references.add(uni_file)
+<<<<<<< HEAD
 >>>>>>> origin/pr/2707
 
         # Pass 2: Attachments via markers (optimized to avoid greedy filename scanning)
@@ -460,6 +487,8 @@ def extract_media_references(table: Table) -> set[str]:
             elif match.group("uni_file"):
                 references.add(match.group("uni_file"))
 >>>>>>> origin/pr/2706
+=======
+>>>>>>> origin/pr/2705
 
     return references
 
