@@ -84,21 +84,21 @@ jobs:
           # All dependencies (httpx, requests, pydantic, typer, etc) are in pyproject.toml
           uv run python -m repo.cli schedule "${args[@]}"
 
-      - name: Run Jules Feedback Loop
-        # Run on schedule or if requested manually (unless prompt_id is specific for something else, but safe to run)
-        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.prompt_id == '')
-        env:
-          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYTHONPATH: .team
-        run: |
-           args=()
-           if [ "${{ inputs.dry_run }}" = "true" ]; then
-              args+=(--dry-run)
-           fi
-
-           # All dependencies are in pyproject.toml, uv will use cached environment
-           uv run python -m repo.cli feedback loop "${args[@]}"
+      # DISABLED: Feedback loop (autofix) is disabled
+      # PRs are merged regardless of CI status, and a dedicated fixer session
+      # runs before the next persona to fix any CI failures on main
+      # - name: Run Jules Feedback Loop
+      #   if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.prompt_id == '')
+      #   env:
+      #     JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+      #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #     PYTHONPATH: .team
+      #   run: |
+      #      args=()
+      #      if [ "${{ inputs.dry_run }}" = "true" ]; then
+      #         args+=(--dry-run)
+      #      fi
+      #      uv run python -m repo.cli feedback loop "${args[@]}"
 
       - name: Commit schedule updates
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'

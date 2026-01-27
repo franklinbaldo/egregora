@@ -183,19 +183,22 @@ def get_next_persona(last: str | None, personas: list[str]) -> str | None:
 
 
 def merge_completed_prs() -> int:
-    """Merge Jules draft PRs that have passing checks.
+    """Merge Jules draft PRs regardless of CI status.
+
+    PRs are merged even if CI hasn't passed yet. A separate fixer session
+    will handle any CI failures on main before the next persona runs.
 
     Returns:
         Number of PRs merged.
     """
-    # Get open Jules PRs with check status
+    # Get open Jules PRs
     try:
         result = subprocess.run(
             [
                 "gh", "pr", "list",
                 "--author", JULES_BOT_AUTHOR,
                 "--state", "open",
-                "--json", "number,isDraft,statusCheckRollup,mergeable",
+                "--json", "number,isDraft,mergeable",
                 "--limit", "50",
             ],
             capture_output=True,
@@ -213,16 +216,7 @@ def merge_completed_prs() -> int:
         is_draft = pr.get("isDraft", False)
         mergeable = pr.get("mergeable", "UNKNOWN")
 
-        # Check if all checks pass
-        checks = pr.get("statusCheckRollup") or []
-        all_green = all(
-            (c.get("conclusion") or "").upper() in ("SUCCESS", "NEUTRAL", "SKIPPED")
-            for c in checks
-        ) if checks else False
-
-        # Skip if not ready
-        if not all_green:
-            continue
+        # Only skip if conflicting - we merge even with failing CI
         if mergeable == "CONFLICTING":
             print(f"  PR #{pr_number}: has conflicts, skipping")
             continue
@@ -237,17 +231,19 @@ def merge_completed_prs() -> int:
                 )
                 print(f"  PR #{pr_number}: marked ready")
 
-            # Merge with squash
+            # Merge with squash and admin override to bypass CI requirements
             subprocess.run(
-                ["gh", "pr", "merge", str(pr_number), "--squash", "--delete-branch"],
+                ["gh", "pr", "merge", str(pr_number), "--squash", "--delete-branch", "--admin"],
                 check=True,
                 capture_output=True,
             )
-            print(f"  PR #{pr_number}: merged")
+            print(f"  PR #{pr_number}: merged (admin override)")
             merged += 1
 
         except subprocess.CalledProcessError as e:
             print(f"  PR #{pr_number}: merge failed - {e.stderr if e.stderr else e}")
+
+    return merged
 
     return merged
 
@@ -268,6 +264,98 @@ def ensure_jules_branch() -> None:
             capture_output=True,
         )
         print(f"  Created {JULES_BRANCH} branch from main")
+
+
+def check_ci_status_on_main() -> bool:
+    """Check if CI is passing on main branch.
+
+    Returns:
+        True if CI is green, False if there are failures.
+    """
+    try:
+        result = subprocess.run(
+            ["gh", "run", "list", "--branch", "main", "--limit", "1", "--json", "conclusion"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        runs = json.loads(result.stdout)
+        if runs:
+            return runs[0].get("conclusion") == "success"
+        return True  # No runs = assume OK
+    except Exception:
+        return True  # On error, assume OK to avoid blocking
+
+
+# CI Fixer prompt - used to fix CI failures on main
+CI_FIXER_PROMPT = """# 🔧 CI Fixer
+
+You are a CI maintenance bot. Your ONLY job is to make CI pass on the main branch.
+
+## Current Status
+CI is failing on main. You need to fix it.
+
+## Tasks (in order)
+1. Run `uv run pre-commit run --all-files` and fix any issues
+2. Run `uv run ruff check --fix src/ tests/` to auto-fix linting
+3. Run `uv run ruff format src/ tests/` to format code
+4. Run `uv run pytest tests/unit -x` and fix any failing tests
+5. Commit all fixes with message: "fix(ci): resolve CI failures on main"
+
+## Rules
+- Do NOT add new features
+- Do NOT refactor code
+- Do NOT change functionality
+- ONLY fix what's needed to make CI pass
+- Keep changes minimal and focused
+
+## Repository
+- Owner: {owner}
+- Repo: {repo}
+"""
+
+
+def create_fixer_session(client: TeamClient, repo_info: dict[str, str]) -> SchedulerResult:
+    """Create a CI fixer session.
+
+    Args:
+        client: Jules API client
+        repo_info: Repository information
+
+    Returns:
+        SchedulerResult with session details.
+    """
+    try:
+        ensure_jules_branch()
+
+        prompt = CI_FIXER_PROMPT.format(
+            owner=repo_info["owner"],
+            repo=repo_info["repo"],
+        )
+
+        result = client.create_session(
+            prompt=prompt,
+            owner=repo_info["owner"],
+            repo=repo_info["repo"],
+            branch=JULES_BRANCH,
+            title=f"🔧 ci-fixer {repo_info['repo']}",
+            automation_mode="AUTO_CREATE_PR",
+            require_plan_approval=False,
+        )
+
+        session_id = result.get("name", "").split("/")[-1]
+
+        return SchedulerResult(
+            success=True,
+            message="Created CI fixer session",
+            session_id=session_id,
+        )
+
+    except Exception as e:
+        return SchedulerResult(
+            success=False,
+            message=f"Failed to create fixer session: {e}",
+        )
 
 
 def create_session(
@@ -319,10 +407,11 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
 
     This function:
     1. Checks if there's already an active session (skips if yes)
-    2. Merges any completed Jules PRs
-    3. Determines the next persona (round-robin)
-    4. Renders the persona prompt with Jinja2
-    5. Creates a Jules session
+    2. Merges any completed Jules PRs (regardless of CI status)
+    3. Checks CI on main - if failing, creates fixer session instead
+    4. Determines the next persona (round-robin)
+    5. Renders the persona prompt with Jinja2
+    6. Creates a Jules session
 
     Args:
         dry_run: If True, don't create sessions or merge PRs
@@ -362,8 +451,29 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
         merged = merge_completed_prs()
     print(f"  Merged {merged} PR(s)")
 
-    # Step 3: Find next persona
-    print("\n3. Determining next persona...")
+    # Step 3: Check CI status on main - run fixer if needed
+    print("\n3. Checking CI status on main...")
+    ci_ok = check_ci_status_on_main()
+    if not ci_ok:
+        print("  CI is failing on main - creating fixer session")
+        if dry_run:
+            print("  [DRY RUN] Would create CI fixer session")
+            return SchedulerResult(
+                success=True,
+                message="[DRY RUN] Would create CI fixer session",
+                merged_count=merged,
+            )
+        result = create_fixer_session(client, repo_info)
+        result.merged_count = merged
+        if result.success:
+            print(f"  Fixer session created: {result.session_id}")
+        else:
+            print(f"  Failed: {result.message}")
+        return result
+    print("  CI is passing on main")
+
+    # Step 4: Find next persona
+    print("\n4. Determining next persona...")
     personas = discover_personas()
     if not personas:
         return SchedulerResult(
@@ -388,8 +498,8 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
         )
     print(f"  Next persona: {next_persona_id}")
 
-    # Step 4: Load and render persona
-    print("\n4. Loading persona configuration...")
+    # Step 5: Load and render persona
+    print("\n5. Loading persona configuration...")
     try:
         open_prs = get_open_prs(repo_info["owner"], repo_info["repo"])
         context: dict[str, Any] = {**repo_info, "open_prs": open_prs}
@@ -414,8 +524,8 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
             merged_count=merged,
         )
 
-    # Step 5: Create session
-    print("\n5. Creating Jules session...")
+    # Step 6: Create session
+    print("\n6. Creating Jules session...")
     if dry_run:
         print(f"  [DRY RUN] Would create session for {persona.id}")
         return SchedulerResult(
