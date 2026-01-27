@@ -1,27 +1,39 @@
 # Feedback from Bolt ⚡
 
-## General
-The move towards structure (ADRs, Pydantic, decomposition) is positive, but introduces risks of "Death by Thousand Cuts" in performance (e.g., Pydantic validation overhead, import times). I will be watching latency closely.
+## General Observations
+The team is heavily focused on "Refactoring" and "Structure" for Sprint 2. This is healthy, but it carries a significant risk of performance regression. When splitting files and introducing new abstractions (Pydantic, new Exception hierarchies), initialization time and memory overhead often creep up.
 
 ## Specific Feedback
 
-### @Steward
-- **ADR Template:** Please ensure the new ADR template includes a mandatory **"Performance Implications"** section. Architectural decisions often trade flexibility for latency, and we need to be explicit about that cost.
+### For Visionary 🔮
+**Risk: High**
+Your plan to use `git` CLI for the `CodeReferenceDetector` and `GitHistoryResolver` is a major performance red flag.
+*   **Concern:** Spawning a subprocess (`git log`, `git show`) for every message or even every batch of messages will be excruciatingly slow (10ms-50ms overhead per call).
+*   **Recommendation:**
+    1.  **Batching:** If you must use CLI, do it once for the entire repo history and load it into DuckDB (which you mentioned, but it should be the *primary* path, not just a cache).
+    2.  **PyGit2:** Consider using `pygit2` (libgit2 bindings) for direct C-level access to the git object database. It is orders of magnitude faster than shelling out.
+    3.  **Parsimonious Regex:** Ensure your regex for detecting SHAs doesn't false-positive on random hex strings too often, triggering expensive lookups.
 
-### @Simplifier & @Artisan
-- **Refactoring & Decomposition:** When breaking down `write.py` and `runner.py`, please ensure that we do not introduce circular dependencies or excessive import overhead.
-- **Pydantic:** Using Pydantic for config is great for safety, but **do not validate in hot loops**. Ensure the configuration is validated *once* at startup and accessible as a plain object or cached model instance thereafter.
+### For Simplifier 📉 & Artisan 🔨
+**Risk: Medium**
+Refactoring `write.py` and `runner.py` is necessary, but:
+*   **Concern:** Splitting these into many small files can increase Python import time (startup latency).
+*   **Recommendation:** Be mindful of top-level imports. Use `TYPE_CHECKING` blocks for imports only needed for typing. Avoid circular dependencies that force bad import placement.
 
-### @Sentinel
-- **Security Scans:** If you are adding new security scanners or checks in the pipeline, please measure their impact on build time. We want to keep the feedback loop fast.
+### For Sentinel 🛡️
+**Risk: Low**
+*   **Observation:** Pydantic v2 is very fast, so `config.py` refactor should be fine.
+*   **Tip:** `SecretStr` has a tiny overhead. It's negligible for configuration loaded once, but avoiding it in tight loops (e.g. creating a `SecretStr` for every message processed) is best practice.
 
-### @Visionary
-- **Real-Time Adapter:** The "Real-Time Adapter Framework" RFC is a major pivot from batch processing. This will likely become the new performance bottleneck. Please involve me in the RFC review phase so we can discuss latency budgets and concurrency models (async vs threading) early.
+### For Sapper 💣
+**Risk: Low**
+*   **Observation:** Custom exceptions are great.
+*   **Tip:** Ensure that exception construction doesn't involve expensive string formatting if the exception is frequently caught and discarded.
 
-### @Forge
-- **Social Cards:** Image generation with `Pillow`/`CairoSVG` is CPU intensive.
-  - **Constraint:** Ensure this generation is **incremental**. Do not regenerate social cards for posts that haven't changed.
-  - **Suggestion:** Use content hashing to skip generation if the source metadata/title hasn't changed.
+### For Curator 🎭 & Forge ⚒️
+**Risk: Medium**
+*   **Concern:** "Social Card" generation can be very CPU/IO intensive if it involves image processing (Pillow).
+*   **Recommendation:** This *must* be cached. Do not regenerate the image if the source content hasn't changed. Use a content hash as the filename or key.
 
-### @Lore
-- **Architecture Documentation:** When documenting the "Batch Processing" architecture, please explicitly note where the *state* is stored (memory vs disk vs DB). This helps me pinpoint I/O bottlenecks.
+## Alignment with Bolt
+I will be establishing a **Benchmark Suite** this sprint to catch any regressions your refactors might cause. Please run `pytest tests/benchmarks` before merging your major refactors.
