@@ -191,11 +191,18 @@ def test_next_sequence_values_raises_fetch_error(mocker):
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_cursor.fetchone.return_value = None
+<<<<<<< HEAD
         mock_conn.execute.return_value = mock_cursor
 
         # We need to keep the original connection for ensure_sequence to work above,
         # but for the call under test, we swap it.
         storage._conn = mock_conn
+=======
+        # Mock the connection's execute method directly since storage.execute is removed
+        mock_conn = MagicMock()
+        mock_conn.execute.return_value = mock_cursor
+        mocker.patch.object(storage, "_conn", mock_conn)
+>>>>>>> origin/pr/2890
 
         with pytest.raises(SequenceFetchError) as exc_info:
             storage.next_sequence_values("test_sequence")
@@ -207,6 +214,7 @@ def test_next_sequence_values_raises_retry_failed_error(mocker):
     with DuckDBStorageManager() as storage:
         storage.ensure_sequence("test_sequence")
         mocker.patch.object(storage, "_is_invalidated_error", return_value=True)
+<<<<<<< HEAD
         # Prevent reset from replacing our mock
         mocker.patch.object(storage, "_reset_connection")
 
@@ -226,6 +234,18 @@ def test_next_sequence_values_raises_retry_failed_error(mocker):
             duckdb.Error("DB error 2"),
         ]
         storage._conn = mock_conn
+=======
+        # Mock _reset_connection to prevent it from replacing our mock connection
+        mocker.patch.object(storage, "_reset_connection")
+
+        # Mock the connection to fail repeatedly
+        mock_conn = MagicMock()
+        mock_conn.execute.side_effect = duckdb.Error("DB error")
+        mocker.patch.object(storage, "_conn", mock_conn)
+
+        # Mock get_sequence_state to avoid it failing with the same DB error during recovery
+        mocker.patch.object(storage, "get_sequence_state")
+>>>>>>> origin/pr/2890
 
         with pytest.raises(SequenceRetryFailedError) as exc_info:
             storage.next_sequence_values("test_sequence")

@@ -9,9 +9,15 @@
 My mission is to enforce the "One Way" principle during the massive structural refactoring of this sprint. I will ensure that old patterns are removed, not just deprecated.
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 - [ ] **Remove `DuckDBStorageManager` Compatibility Shim:** The `src/egregora/database/duckdb_manager.py` file contains a backward compatibility layer for callers expecting a direct connection. I will investigate usage and remove this if confirmed obsolete.
 - [ ] **Audit `prompts.py` Compatibility:** Investigate `src/egregora/resources/prompts.py` for "API compatibility with the old prompt_templates.py" and remove if unused.
 - [ ] **Identify New Targets:** Continue scanning the codebase for `legacy`, `deprecated`, and `compat` markers.
+=======
+- [ ] **Audit `prompts.py` Compatibility:** Investigate `src/egregora/resources/prompts.py` for "API compatibility with the old prompt_templates.py" and remove if unused.
+- [ ] **Verify `extra.css` Removal:** Ensure no `docs/stylesheets/extra.css` files have crept back in, enforcing the new theme asset management.
+- [ ] **Investigate Media Legacy Markers:** Begin auditing `src/egregora/ops/media.py` to identify which specific "attachment markers" are truly obsolete versus active legacy support.
+>>>>>>> origin/pr/2890
 
 ## Dependencies
 - None specific, but I must coordinate with **Refactor** and **Simplifier** to ensure I don't delete code they are actively modifying.
@@ -28,6 +34,7 @@ My mission is to enforce the "One Way" principle during the massive structural r
 >>>>>>> origin/pr/2897
 
 ## Context
+<<<<<<< HEAD
 Sprint 2 is a "Structure" sprint. This is the prime opportunity to reduce technical debt. If we refactor without removing the old code, we double the complexity. I am the garbage collector for this sprint.
 
 ## Expected Deliverables
@@ -40,6 +47,14 @@ Sprint 2 is a "Structure" sprint. This is the prime opportunity to reduce techni
 2.  **Config Cleanup PR:** Removal of legacy dict config (post-Artisan merge).
 3.  **Audit Report:** Feedback on `write.py` and `runner.py` PRs ensuring no dead code remains.
 >>>>>>> origin/pr/2897
+=======
+The removal of `DuckDBStorageManager.execute` (completed in Sprint 1) was a good start. Now I focus on the prompt system and ensuring the visual identity transition (CSS) is clean.
+
+## Expected Deliverables
+1.  Report on `prompts.py` usage and potential for removal.
+2.  Clean bill of health for CSS assets.
+3.  List of media markers targeted for Sprint 3 removal.
+>>>>>>> origin/pr/2890
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |

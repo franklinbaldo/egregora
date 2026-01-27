@@ -9,9 +9,15 @@
 <<<<<<< HEAD
 Continue the purification of the codebase.
 
+<<<<<<< HEAD
 - [ ] **Address CLI Compatibility Layers:** Investigate `src/egregora/cli/main.py` comments regarding "DuckDBStorageManager directly to ensure Ibis compatibility". If the underlying issue is resolved, remove the workaround.
 - [ ] **Deep Clean of `input_adapters`:** Check `src/egregora/input_adapters/base.py` for "Note: This is the only adapter interface. The legacy InputSource has been removed." and ensure no artifacts remain.
 - [ ] **Review `output_adapters` conventions:** Check for any remaining version tracking or migration compatibility code.
+=======
+- [ ] **Remove Legacy Media Behavior:** Based on Sprint 2 investigation, remove the `att_file` legacy logic and obsolete markers from `src/egregora/ops/media.py`.
+- [ ] **Remove `prompts.py` Shim:** If confirmed safe in Sprint 2, execute the removal of the legacy prompt compatibility layer.
+- [ ] **Audit Input Adapters:** As we polish the "Mobile" experience, I will ensure our input adapters don't contain any legacy hacks for older mobile export formats that we no longer support.
+>>>>>>> origin/pr/2890
 
 ## Dependencies
 - **Simplifier:** Changes to orchestration might affect CLI compatibility needs.
@@ -20,6 +26,7 @@ Continue the purification of the codebase.
 By Sprint 3, the major architectural migrations (OutputSink, Pipeline setup) should be complete. The focus shifts to subtler workarounds and comments that may no longer be true.
 
 ## Expected Deliverables
+<<<<<<< HEAD
 1.  Refactored CLI database initialization (if possible).
 2.  Verified removal of `InputSource` legacy references.
 =======
@@ -42,6 +49,11 @@ Sprint 3 is about "Capabilities" (Real-Time). Old batch-processing assumptions w
 2.  **Archived Docs:** Cleanup of `docs/` folder.
 3.  **Dependency Report:** PR cleaning up `pyproject.toml`.
 >>>>>>> origin/pr/2897
+=======
+1.  Removal of `att_file` legacy logic in `media.py`.
+2.  Removal of `prompts.py` (if approved).
+3.  Clean bill of health for input adapters.
+>>>>>>> origin/pr/2890
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
