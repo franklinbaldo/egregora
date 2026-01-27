@@ -253,6 +253,7 @@ def extract_media_references(table: Table) -> set[str]:
         # pandas DataFrame
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         # Optimization: distinct messages to avoid redundant regex processing
         messages = df["text"].dropna().unique().tolist()
 =======
@@ -272,6 +273,13 @@ def extract_media_references(table: Table) -> set[str]:
         # pyarrow Table
         messages = {r["text"] for r in df.to_pylist() if r["text"] is not None}
 >>>>>>> origin/pr/2712
+=======
+        # Optimization: distinct messages to avoid redundant regex processing
+        messages = df["text"].dropna().unique().tolist()
+    elif hasattr(df, "to_pylist"):
+        # pyarrow Table
+        messages = list({r["text"] for r in df.to_pylist() if r["text"]})
+>>>>>>> origin/pr/2708
     else:
         # Fallback for unexpected type
         return references
@@ -286,6 +294,7 @@ def extract_media_references(table: Table) -> set[str]:
         if not message or not isinstance(message, str):
             continue
 
+<<<<<<< HEAD
         # Optimization: Fail fast if no potential media indicators are present
         if not quick_check(message):
             continue
@@ -293,10 +302,14 @@ def extract_media_references(table: Table) -> set[str]:
         # Pass 1: Fast patterns (Images, Links, WhatsApp, Unicode)
         for match in fast_find(message):
 <<<<<<< HEAD
+=======
+        for match in combined_find(message):
+>>>>>>> origin/pr/2708
             # Optimization: Use lastgroup to avoid checking all groups
             group_name = match.lastgroup
             val = match.group(group_name)
 
+<<<<<<< HEAD
             if group_name == "img_url":
                 references.add(val)
             elif group_name == "link_url":
@@ -346,6 +359,13 @@ def extract_media_references(table: Table) -> set[str]:
             # Validate the candidate against the allowed filename characters
             if filename_match(candidate):
                 references.add(candidate)
+=======
+            # Specific validation for markdown links
+            if group_name == "link_url" and val.startswith(("http://", "https://")):
+                continue
+
+            references.add(val)
+>>>>>>> origin/pr/2708
 
     return references
 
