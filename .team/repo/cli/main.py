@@ -3,7 +3,7 @@
 import typer
 
 from repo.features.autofix import auto_reply_to_jules
-from repo.scheduler.simple import merge_completed_prs, run_scheduler
+from repo.scheduler.stateless import merge_completed_prs, run_scheduler
 
 app = typer.Typer()
 schedule_app = typer.Typer()

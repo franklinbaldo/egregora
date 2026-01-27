@@ -1,18 +1,15 @@
 # GitHub Workflows Analysis
 
-> Generated: 2026-01-27 | Updated after unification
+> Generated: 2026-01-27 | Stateless architecture
 
 ## Executive Summary
 
-The repository has **4 workflow files** totaling **654 lines** of YAML.
+The repository has **4 workflow files** totaling **~580 lines** of YAML.
 
-**Consolidation History:**
-1. Removed `codeql.yml` (redundant - GitHub default setup active)
-2. Removed `pr-conflict-label.yml` (197 lines of inline code)
-3. Simplified `ci.yml` from 8 jobs to 5 jobs
-4. **Unified `jules.yml` and `jules-pr.yml`** into single workflow
-
-**Result:** 40% reduction in workflow code (1,095 → 654 lines)
+**Architecture:** Ralph Wiggum style stateless scheduling
+- Jules API is the single source of truth
+- No CSV files, no artifacts, no external state
+- Each tick queries API, derives next action, executes
 
 ---
 
@@ -20,148 +17,109 @@ The repository has **4 workflow files** totaling **654 lines** of YAML.
 
 | File | Lines | Jobs | Purpose |
 |------|-------|------|---------|
-| `jules.yml` | 310 | 5 | Complete Jules lifecycle (scheduler, auto-merge, auto-fix) |
+| `jules.yml` | ~270 | 5 | Complete Jules lifecycle (stateless) |
 | `ci.yml` | 157 | 5 | Main CI pipeline |
 | `docs-pages.yml` | 106 | 1 | Documentation deployment |
 | `cleanup.yml` | 81 | 1 | Artifact cleanup |
 
 ---
 
-## Trigger Flow Diagram
+## Jules Workflow - Stateless Architecture
 
 ```
-                                    ┌─────────────────┐
-                                    │   push (main)   │
-                                    └────────┬────────┘
-                                             │
-              ┌──────────────────────────────┼──────────────────────────────┐
-              │                              │                              │
-              ▼                              ▼                              │
-     ┌────────────────┐            ┌─────────────────┐                      │
-     │     ci.yml     │            │  docs-pages.yml │                      │
-     │  (CI Pipeline) │            │  (Deploy Docs)  │                      │
-     └────────┬───────┘            └─────────────────┘                      │
-              │                                                             │
-              │ workflow_run                                                │
-              ├─────────────────────────────────────────────────────────────┤
-              │ (success)                                     (failure)     │
-              ▼                                                             ▼
-     ┌─────────────────────────────────────────────────────────────────────────┐
-     │                            jules.yml                                    │
-     │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐ │
-     │  │  scheduler  │  │  sync-main  │  │  auto-merge │  │   auto-fixer    │ │
-     │  │ (every 15m) │  │             │  │             │  │  (on CI fail)   │ │
-     │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────────┘ │
-     │         │                                   ▲                           │
-     │         │ creates PR                        │ pull_request_target       │
-     │         └───────────────────────────────────┘                           │
-     │                                                                         │
-     │  ┌─────────────┐                                                        │
-     │  │  on-merge   │◄─────── PR merged by Jules                             │
-     │  └──────┬──────┘                                                        │
-     │         │ triggers scheduler                                            │
-     │         └──────────────────────────────────────────────────────────────►│
-     └─────────────────────────────────────────────────────────────────────────┘
-
-     ┌────────────────┐
-     │  cleanup.yml   │◄─────── schedule (weekly)
-     └────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     JULES STATELESS LOOP                                │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   TICK (every 15 min or on-merge):                                      │
+│   ┌─────────────────────────────────────────────────────────────────┐   │
+│   │ 1. Query Jules API: any active sessions?                        │   │
+│   │    → YES: skip (already running)                                │   │
+│   │    → NO: continue                                               │   │
+│   │                                                                 │   │
+│   │ 2. Merge any completed Jules PRs (admin override)               │   │
+│   │                                                                 │   │
+│   │ 3. Query Jules API: what was last persona?                      │   │
+│   │                                                                 │   │
+│   │ 4. Calculate next persona (round-robin from filesystem)         │   │
+│   │                                                                 │   │
+│   │ 5. Create new Jules session via API                             │   │
+│   └─────────────────────────────────────────────────────────────────┘   │
+│                              ↓                                          │
+│   Jules works asynchronously, creates PR                                │
+│                              ↓                                          │
+│   AUTO-MERGE enables auto-merge on PR                                   │
+│                              ↓                                          │
+│   CI runs                                                               │
+│         ├── SUCCESS → PR merges → ON-MERGE triggers next tick           │
+│         └── FAILURE → AUTO-FIXER sends fix instructions to Jules        │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
----
+### State Sources
 
-## Detailed Analysis
+| What | Source | NOT |
+|------|--------|-----|
+| Active sessions | Jules API `list_sessions()` | CSV |
+| Last persona | Jules API session titles | CSV |
+| Next persona | Round-robin from `.team/personas/` | CSV |
+| PR status | GitHub API | CSV |
 
-### 1. jules.yml - Unified Jules Workflow (310 lines)
+### Jobs
 
-**Purpose:** Complete Jules AI agent lifecycle management.
-
-**Jobs (5 total):**
 | Job | Trigger | Purpose |
 |-----|---------|---------|
-| `on-merge` | PR merged by Jules | Triggers scheduler for next session |
-| `scheduler` | dispatch, schedule (15m), workflow_run (success) | Picks persona, creates session |
-| `sync-main` | After scheduler | Merges jules → main |
-| `auto-merge` | pull_request_target | Enables auto-merge on Jules PRs |
-| `auto-fixer` | workflow_run (failure), dispatch | Analyzes CI failures, triggers fixes |
-
-**Optimizations Applied:**
-- Sparse checkout for scheduler (faster ticks)
-- 5-minute timeout on scheduler
-- Unified workflow_dispatch inputs
-
-**Security:**
-- `pull_request_target` fork check in auto-merge job
-- Per-PR concurrency for auto-merge
-
-### 2. ci.yml - Main CI Pipeline (157 lines)
-
-**Jobs (5 total):**
-| Job | Timeout | Purpose |
-|-----|---------|---------|
-| `pre-commit` | 10min | Linting, formatting |
-| `test-unit` | 10min | Unit tests with coverage |
-| `test-e2e` | 30min | E2E tests, 45% coverage threshold |
-| `security` | 10min | Safety + pip-audit |
-| `build` | 5min | Package build |
-
-### 3. docs-pages.yml - Documentation (106 lines)
-
-**Single Job:** Build docs, demo site, repomix bundles, deploy to Pages.
-
-### 4. cleanup.yml - Artifact Cleanup (81 lines)
-
-**Single Job:** Weekly cleanup of artifacts older than 30 days.
+| `on-merge` | Jules PR merged | Triggers scheduler |
+| `scheduler` | cron/dispatch/workflow_run | Query API, create session |
+| `sync-main` | After scheduler | Merge jules → main |
+| `auto-merge` | pull_request_target | Enable auto-merge |
+| `auto-fixer` | CI failure | Analyze and fix |
 
 ---
 
-## Metrics
+## Removed (Dead Code Cleanup)
 
-| Metric | Original | After Cleanup | After Unification | Total Change |
-|--------|----------|---------------|-------------------|--------------|
-| Workflow files | 7 | 5 | **4** | -43% |
-| Total lines | 1,095 | 724 | **654** | **-40%** |
-| Jules-related files | 2 | 2 | **1** | -50% |
-| Jules jobs | 5 | 5 | **5** | 0 |
-
----
-
-## Cleanup Checklist
-
-### Completed
-
-- [x] Remove redundant `codeql.yml`
-- [x] Remove `pr-conflict-label.yml`
-- [x] Simplify CI workflow (8 → 5 jobs)
-- [x] Remove duplicate bundle artifact upload
-- [x] Streamline pre-commit hooks
-- [x] Optimize scheduler tick (sparse checkout)
-- [x] **Unify Jules workflows into single file**
-
-### Remaining
-
-- [ ] Remove orphaned `analyze_historical_regressions.py` script
-- [ ] Either use or remove `construct_gemini_prompt.py`
-- [ ] Make security scan failures visible (remove `|| true`)
+| Item | Reason |
+|------|--------|
+| `schedule.csv` | Replaced by Jules API |
+| `oracle_schedule.csv` | Unused |
+| `restore-schedule-state.sh` | CSV artifact handling |
+| `run-scheduler.sh` | Replaced by direct CLI call |
+| `schedule.py` | Old CSV-based scheduler |
+| `test_csv_scheduler.py` | Tests for removed code |
+| CSV artifact upload/download | No longer needed |
 
 ---
 
-## Supporting Files
+## Scripts (`.github/scripts/jules/`)
 
-### Scripts (`.github/scripts/jules/`)
-
-| Script | Used By | Purpose |
-|--------|---------|---------|
-| `run-scheduler.sh` | jules.yml | Main scheduler execution |
-| `restore-schedule-state.sh` | jules.yml | Restore state from artifact |
-| `identify-pr.sh` | jules.yml | Find PR from workflow_run event |
-| `enable-auto-merge.sh` | jules.yml | Enable auto-merge on PR |
-| `sync-main.py` | jules.yml | Merge jules → main |
-
-### Composite Actions (`.github/actions/`)
-
-| Action | Purpose |
+| Script | Purpose |
 |--------|---------|
-| `setup-python-uv/action.yml` | Python + uv setup |
-| `gemini-run/action.yml` | Gemini API runner |
-| `shared-gemini-runner/action.yml` | Shared Gemini config |
+| `enable-auto-merge.sh` | Enable auto-merge on PR |
+| `identify-pr.sh` | Find PR from workflow_run |
+| `sync-main.py` | Merge jules → main |
+
+---
+
+## Scheduler Code
+
+**Location:** `.team/repo/scheduler/stateless.py`
+
+Key functions:
+- `get_active_session()` - Query API for running sessions
+- `get_last_persona_from_api()` - Find last persona from session titles
+- `get_next_persona()` - Round-robin calculation
+- `merge_completed_prs()` - Merge Jules PRs with admin override
+- `run_scheduler()` - Main entry point
+
+---
+
+## Benefits of Stateless Architecture
+
+1. **No state drift** - API is always authoritative
+2. **No merge conflicts** - No CSV to conflict
+3. **Simpler workflow** - No artifact handling
+4. **Faster ticks** - No download/upload steps
+5. **Debuggable** - Query API to see current state
+6. **Ralph Wiggum style** - Iteration > perfection

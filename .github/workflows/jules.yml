@@ -9,27 +9,29 @@ name: Jules
 # - PR automation (auto-merge, auto-fix)
 # - Branch synchronization
 #
-# COMPLETE FLOW:
-# ==============
+# COMPLETE FLOW (Ralph Wiggum Style):
+# ===================================
 #
 #   ┌─────────────────────────────────────────────────────────────────────────┐
 #   │                                                                         │
 #   │   1. SCHEDULER runs (via cron, manual, or on-merge trigger)             │
 #   │      ↓                                                                  │
-#   │   2. Scheduler picks next persona from schedule.csv                     │
+#   │   2. Query Jules API for last persona (stateless - no CSV)              │
 #   │      ↓                                                                  │
-#   │   3. Creates Jules session via API with persona's prompt                │
+#   │   3. Calculate next persona (round-robin)                               │
 #   │      ↓                                                                  │
-#   │   4. Jules works asynchronously, creates PR when done                   │
+#   │   4. Create Jules session via API                                       │
 #   │      ↓                                                                  │
-#   │   5. AUTO-MERGE enables auto-merge on the PR                            │
+#   │   5. Jules works asynchronously, creates PR when done                   │
 #   │      ↓                                                                  │
-#   │   6. CI runs on the PR                                                  │
+#   │   6. AUTO-MERGE enables auto-merge on the PR                            │
 #   │      ↓                                                                  │
-#   │   7a. If CI passes → PR is auto-merged → ON-MERGE triggers scheduler    │
+#   │   7. CI runs on the PR                                                  │
+#   │      ↓                                                                  │
+#   │   7a. If CI passes → PR auto-merges → ON-MERGE triggers scheduler       │
 #   │   7b. If CI fails → AUTO-FIXER analyzes and sends fix to Jules          │
 #   │      ↓                                                                  │
-#   │   8. Cycle repeats                                                      │
+#   │   8. Cycle repeats (stateless iteration)                                │
 #   │                                                                         │
 #   └─────────────────────────────────────────────────────────────────────────┘
 #
@@ -37,7 +39,7 @@ name: Jules
 # =====
 #
 #   on-merge:    Detects Jules PR merge → triggers scheduler
-#   scheduler:   Picks persona, creates Jules session
+#   scheduler:   Queries API, picks next persona, creates session
 #   sync-main:   Merges jules branch into main
 #   auto-merge:  Enables auto-merge for Jules PRs
 #   auto-fixer:  Analyzes CI failures, triggers fixes
@@ -45,8 +47,13 @@ name: Jules
 # STATE MANAGEMENT:
 # =================
 #
-#   Schedule state is stored as a GitHub Artifact (not committed).
-#   This prevents merge conflicts from concurrent runs.
+#   Jules API is the source of truth. Each tick:
+#   - Queries API for active sessions (skip if running)
+#   - Queries API for last persona
+#   - Calculates next persona (round-robin)
+#   - Creates new session
+#
+#   No CSV, no artifacts, no external state. Fully stateless.
 #
 # SECURITY NOTES:
 # ===============
@@ -58,30 +65,15 @@ name: Jules
 # ==============================================================================
 
 on:
-  # Scheduler triggers
   workflow_dispatch:
     inputs:
-      prompt_id:
-        description: "Run only a specific prompt id (e.g. curator)"
-        required: false
-        type: string
-      run_all:
-        description: "Ignore schedules and run all enabled prompts"
-        required: false
-        type: boolean
-        default: false
       dry_run:
         description: "Do not call Jules API (prints what would run)"
         required: false
         type: boolean
         default: false
-      reset:
-        description: "Reset the persona cycle and start from the first persona"
-        required: false
-        type: boolean
-        default: false
       pr_number:
-        description: "PR number to analyze and fix (auto-fixer)"
+        description: "PR number to analyze and fix (auto-fixer mode)"
         required: false
         type: string
 
@@ -141,7 +133,7 @@ jobs:
           gh workflow run jules.yml --repo "${{ github.repository }}" --ref main
 
   # ==========================================================================
-  # SCHEDULER: Main orchestration
+  # SCHEDULER: Main orchestration (stateless - queries Jules API)
   # ==========================================================================
   scheduler:
     name: Scheduler
@@ -156,12 +148,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      # Sparse checkout for faster clone - only what scheduler needs
       - uses: actions/checkout@v4
         with:
           sparse-checkout: |
             .github/actions
-            .github/scripts/jules
             .team
             src
             pyproject.toml
@@ -172,45 +162,17 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           extras: "--extra jules"
 
-      # Restore schedule state from artifact
-      - name: Download schedule state
-        uses: dawidd6/action-download-artifact@v6
-        continue-on-error: true
-        with:
-          name: schedule-state
-          workflow: jules.yml
-          workflow_conclusion: success
-          if_no_artifact_found: warn
-
-      - name: Restore schedule state
-        run: .github/scripts/jules/restore-schedule-state.sh
-
       - name: Run scheduler
         env:
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PYTHONPATH: .team
         run: |
-          args=()
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            [ "${{ inputs.run_all }}" = "true" ] && args+=(--all)
-            [ "${{ inputs.dry_run }}" = "true" ] && args+=(--dry-run)
-            [ "${{ inputs.reset }}" = "true" ] && args+=(--reset)
-            [ -n "${{ inputs.prompt_id }}" ] && args+=(--prompt-id "${{ inputs.prompt_id }}")
+          args=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args="--dry-run"
           fi
-          .github/scripts/jules/run-scheduler.sh "${args[@]}"
-
-      # Save schedule state as artifact
-      - name: Upload schedule state
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: schedule-state
-          path: |
-            .team/schedule.csv
-            .team/oracle_schedule.csv
-          retention-days: 90
-          overwrite: true
+          uv run python -m repo.cli schedule tick $args
 
   # ==========================================================================
   # SYNC-MAIN: Merge jules branch into main
@@ -248,7 +210,6 @@ jobs:
     name: Auto-Merge
     if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
-    # Security: only run for PRs from same repo (not forks)
     concurrency:
       group: jules-auto-merge-${{ github.event.pull_request.number }}
       cancel-in-progress: true
