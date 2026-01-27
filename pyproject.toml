@@ -31,9 +31,7 @@ dependencies = [
     "mkdocs-glightbox>=0.5.2",
     "numpy>=2.4.1",
     "google-genai>=1.0",
-    "protobuf>=6.33.4",
     "google-api-core>=2.29.0",
-    "google-ai-generativelanguage>=0.10.0",
 ]
 
 [project.scripts]
@@ -432,8 +430,6 @@ ignore_notebooks = true
 extend_exclude = [".team", "scripts", "artifacts", "docs", "tests", ".claude"]
 
 [tool.deptry.package_module_name_map]
-"google-ai-generativelanguage" = "google.ai.generativelanguage"
-"protobuf" = "google.protobuf"
 "pyyaml" = "yaml"
 "ibis-framework" = "ibis"
 "python-frontmatter" = "frontmatter"
