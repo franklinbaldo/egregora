@@ -18,6 +18,42 @@ from repo.core.github import (
 
 AUTOFIX_AUTOMATION_MODE = "AUTO_CREATE_PR"
 
+# Active session states (not completed/failed)
+ACTIVE_STATES = {"IN_PROGRESS", "AWAITING_USER_FEEDBACK", "AWAITING_PLAN_APPROVAL", "RUNNING"}
+
+
+def get_active_autofix_session_for_pr(client: TeamClient, pr_number: int) -> dict[str, Any] | None:
+    """Check if there's already an active auto-fix session for a given PR.
+
+    Uses the session title pattern: '🔧 Auto-Fix PR #{pr_number}:'
+
+    Returns:
+        The active session dict if found, None otherwise.
+    """
+    title_prefix = f"🔧 Auto-Fix PR #{pr_number}:"
+
+    try:
+        sessions_response = client.list_sessions()
+        sessions = sessions_response.get("sessions", [])
+
+        for session in sessions:
+            title = session.get("title", "")
+            state = session.get("state", "")
+
+            # Match by title prefix
+            if title.startswith(title_prefix):
+                # Check if session is in an active state
+                if state in ACTIVE_STATES:
+                    session_id = session.get("name", "").split("/")[-1]
+                    print(f"🔍 Found active auto-fix session for PR #{pr_number}: {session_id} (state: {state})")
+                    return session
+
+        return None
+    except Exception as e:
+        print(f"⚠️  Failed to check for existing sessions: {e}")
+        # Don't block on this check - allow creation to proceed
+        return None
+
 
 def post_pr_comment(pr_number: int, comment: str, repo_path: str = ".") -> None:
     """Post a comment on a PR using gh CLI.
@@ -115,6 +151,35 @@ def auto_reply_to_jules(pr_number: int) -> dict[str, Any]:
         session_id = None
 
     if not session_id:
+        # Check for existing active auto-fix session for this PR (by title pattern)
+        existing_session = get_active_autofix_session_for_pr(client, pr_number)
+        if existing_session:
+            existing_id = existing_session.get("name", "").split("/")[-1]
+            existing_state = existing_session.get("state", "UNKNOWN")
+            existing_title = existing_session.get("title", "")
+
+            print(f"⏭️  Skipping creation - active auto-fix session already exists for PR #{pr_number}")
+            print(f"   Session: {existing_id} | State: {existing_state} | Title: {existing_title}")
+
+            # Post comment notifying that we're using existing session
+            comment = (
+                f"## 🤖 Auto-Fix: Using Existing Session\n\n"
+                f"ℹ️ **An active auto-fix session already exists for this PR**\n\n"
+                f"- **Session ID**: `{existing_id}`\n"
+                f"- **Session State**: `{existing_state}`\n\n"
+                f"Skipping creation of new session. "
+                f"Track progress at: https://jules.google.com/session/{existing_id}"
+            )
+            post_pr_comment(pr_number, comment)
+
+            return {
+                "status": "skipped",
+                "action": "existing_session_found",
+                "session_id": existing_id,
+                "session_state": existing_state,
+                "message": f"Active auto-fix session already exists: {existing_id}",
+            }
+
         # PR is NOT from Jules - create a new session to fix it
         print(f"📋 {creation_reason} - creating NEW Jules session for PR #{pr_number}")
 
