@@ -12,6 +12,7 @@ My mission is to enforce the "One Way" principle during the massive structural r
 <<<<<<< HEAD
 - [ ] **Remove `DuckDBStorageManager` Compatibility Shim:** The `src/egregora/database/duckdb_manager.py` file contains a backward compatibility layer for callers expecting a direct connection. I will investigate usage and remove this if confirmed obsolete.
 - [ ] **Audit `prompts.py` Compatibility:** Investigate `src/egregora/resources/prompts.py` for "API compatibility with the old prompt_templates.py" and remove if unused.
+- [ ] **Post-Migration Cleanup (Config):** Coordinate with **Artisan** to remove legacy dictionary-based configuration loading logic after their Pydantic migration is complete.
 - [ ] **Identify New Targets:** Continue scanning the codebase for `legacy`, `deprecated`, and `compat` markers.
 =======
 - [ ] **Audit `prompts.py` Compatibility:** Investigate `src/egregora/resources/prompts.py` for "API compatibility with the old prompt_templates.py" and remove if unused.
@@ -20,6 +21,7 @@ My mission is to enforce the "One Way" principle during the massive structural r
 >>>>>>> origin/pr/2890
 
 ## Dependencies
+<<<<<<< HEAD
 - None specific, but I must coordinate with **Refactor** and **Simplifier** to ensure I don't delete code they are actively modifying.
 =======
 - [ ] **Audit `write.py` Refactor:** Monitor `Simplifier`'s work. Ensure the old monolithic `write` function is completely removed after the new pipeline is established.
@@ -32,6 +34,10 @@ My mission is to enforce the "One Way" principle during the massive structural r
 - **Simplifier:** I depend on their refactor of `write.py` to identify what can be deleted.
 - **Artisan:** I depend on their Pydantic refactor to delete the old config system.
 >>>>>>> origin/pr/2897
+=======
+- **Artisan:** I will wait for their Pydantic migration before touching `config.py` cleanup.
+- **Refactor:** Coordinate to ensure I don't delete code they are actively modifying.
+>>>>>>> origin/pr/2837
 
 ## Context
 <<<<<<< HEAD
@@ -41,6 +47,7 @@ Sprint 2 is a "Structure" sprint. This is the prime opportunity to reduce techni
 <<<<<<< HEAD
 1.  Removal of `DuckDBStorageManager` legacy accessors.
 2.  Cleaned up `prompts.py` if safe.
+<<<<<<< HEAD
 3.  Updated `absolutist-plan.md` for Sprint 3.
 =======
 1.  **Refactor PRs:** Removal of legacy aliases in `src/egregora/rag/`.
@@ -55,13 +62,25 @@ The removal of `DuckDBStorageManager.execute` (completed in Sprint 1) was a good
 2.  Clean bill of health for CSS assets.
 3.  List of media markers targeted for Sprint 3 removal.
 >>>>>>> origin/pr/2890
+=======
+3.  Removal of legacy configuration loading (if Artisan completes their task).
+4.  Updated `absolutist-plan.md` for Sprint 3.
+>>>>>>> origin/pr/2837
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
+<<<<<<< HEAD
 | Refactors keep compatibility layers "just in case" | High | Medium | I will rigorously comment on PRs requesting removal of shims unless a specific migration plan exists. |
 | Deleting code breaks obscure tests | Medium | High | I will run the full test suite (`uv run pytest`) before any removal. |
 
 ## Proposed Collaborations
 - **With Simplifier:** Verify removal of `write.py` legacy logic.
 - **With Artisan:** Verify removal of `config.py` dict logic.
+=======
+| Breaking Implicit Dependencies | Medium | High | Rigorous `grep` usage and test execution before deletion. |
+| Deleting "Planned" Code | Low | Medium | Check with Steward/Architect if code marked "legacy" is actually "future". |
+
+## Proposed Collaborations
+- **With Artisan:** Ensure that the old configuration logic is fully identified and safe to remove once the new Pydantic models are in place.
+>>>>>>> origin/pr/2837
