@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 from egregora.database.schemas import (
     ANNOTATIONS_SCHEMA,
+    GIT_COMMITS_SCHEMA,
     STAGING_MESSAGES_SCHEMA,
     TASKS_SCHEMA,
     UNIFIED_SCHEMA,
@@ -91,6 +92,14 @@ def initialize_database(backend: BaseBackend) -> None:
     _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts)")
     _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id)")
     _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_author ON messages(author_uuid)")
+
+    # 5. Git History Cache
+    create_table_if_not_exists(conn, "git_commits", GIT_COMMITS_SCHEMA)
+    # Composite index for "What was the SHA of this path at time T?"
+    _execute_sql(
+        conn,
+        "CREATE INDEX IF NOT EXISTS idx_git_commits_lookup ON git_commits(repo_path, commit_timestamp DESC)",
+    )
 
     logger.info("✓ Database tables initialized successfully")
 
