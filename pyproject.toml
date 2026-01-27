@@ -430,6 +430,10 @@ ignore_notebooks = true
 extend_exclude = [".team", "scripts", "artifacts", "docs", "tests", ".claude"]
 
 [tool.deptry.package_module_name_map]
+<<<<<<< HEAD
+=======
+"protobuf" = "google.protobuf"
+>>>>>>> origin/pr/2882
 "pyyaml" = "yaml"
 "ibis-framework" = "ibis"
 "python-frontmatter" = "frontmatter"
@@ -445,6 +449,7 @@ extend_exclude = [".team", "scripts", "artifacts", "docs", "tests", ".claude"]
 [tool.deptry.per_rule_ignores]
 DEP001 = ["dotenv", "google", "pydantic_core", "playwright", "repo", "requests", "uvicorn", "pydantic_graph", "repo_client"]
 DEP002 = [
+    "protobuf",
     "mkdocs",
     "mkdocs-material",
     "mkdocs-glightbox",
