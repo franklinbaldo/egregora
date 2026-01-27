@@ -482,7 +482,11 @@ def demo(
                 options=None,
                 exit_on_error=False,
             )
+<<<<<<< HEAD
         except Exception as e:
+=======
+        except (AllModelsExhaustedError, RuntimeError) as e:
+>>>>>>> origin/pr/2660
             console.print(f"[bold yellow]⚠️  Content generation failed: {e}[/bold yellow]")
             console.print(
                 "[dim]The demo site scaffold has been created, but without AI-generated content.[/dim]"
