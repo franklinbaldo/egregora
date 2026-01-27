@@ -105,6 +105,7 @@ Create `.team/personas/your-persona/prompt.md.j2`:
 
 {% raw %}
 ```jinja
+{% raw %}
 ---
 description: One-line description of your persona
 emoji: 🔧
@@ -159,6 +160,7 @@ Specific objective this persona achieves.
 2. **STEP 2**: Next action
 3. **STEP 3**: Final verification
 {% endblock %}
+{% endraw %}
 ```
 {% endraw %}
 
@@ -204,9 +206,11 @@ Reference these in your custom blocks:
 
 {% raw %}
 ```jinja
+{% raw %}
 {% include "blocks/bdd_technique.md.j2" %}  # BDD testing guidance
 {% include "blocks/pr_format.md.j2" %}      # Standardized PR template
 {% include "partials/celebration.md.j2" %}  # Empty queue celebration
+{% endraw %}
 ```
 {% endraw %}
 
@@ -265,11 +269,13 @@ Personas must work **independently** without human input:
 
 {% raw %}
 ```jinja
+{% raw %}
 {% block constraints %}
 - Make decisions autonomously
 - Don't ask humans for approval
 - Document uncertainties in journal
 {% endblock %}
+{% endraw %}
 ```
 {% endraw %}
 
@@ -279,11 +285,13 @@ Always define **measurable success criteria**:
 
 {% raw %}
 ```jinja
+{% raw %}
 {% block verification %}
 - All tests pass (run `uv run pytest`)
 - Linter shows 0 errors (run `uv run ruff check`)
 - Documentation updated in docs/
 {% endblock %}
+{% endraw %}
 ```
 {% endraw %}
 
@@ -323,12 +331,14 @@ Use Jinja2 conditionals for flexible prompts:
 
 {% raw %}
 ```jinja
+{% raw %}
 {% if journal_entries %}
 ## Previous Work
 {{ journal_entries }}
 {% else %}
 This is your first session!
 {% endif %}
+{% endraw %}
 ```
 {% endraw %}
 

@@ -13,7 +13,7 @@ import os
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
@@ -199,6 +199,18 @@ class MkDocsSiteScaffolder:
     def _create_template_files(
         self, site_paths: MkDocsPaths, env: Environment, context: dict[str, Any]
     ) -> None:
+        """Render and write all standard Jinja2 templates to the site structure.
+
+        This method handles the creation of the README, gitignore, GitHub workflows,
+        and the initial content pages (index, about, feeds, etc.). It also copies
+        static assets like the favicon and default overrides.
+
+        Args:
+            site_paths: The resolved paths object for the target site.
+            env: The Jinja2 environment configured with the template loader.
+            context: The template variables to render.
+
+        """
         site_root = site_paths.site_root
         docs_dir = site_paths.docs_dir
         media_dir = site_paths.media_dir
@@ -217,15 +229,23 @@ class MkDocsSiteScaffolder:
             (site_paths.egregora_dir / "main.py", "main.py.jinja"),
         ]
 
+<<<<<<< HEAD
         # Ensure directories exist
         stylesheets_dir = docs_dir / "stylesheets"
         stylesheets_dir.mkdir(parents=True, exist_ok=True)
         javascripts_dir = docs_dir / "javascripts"
         javascripts_dir.mkdir(parents=True, exist_ok=True)
+=======
+        # Stylesheets and Javascripts are now handled exclusively via the 'overrides' directory
+        # (src/egregora/rendering/templates/site/overrides), which is copied to the site root
+        # by the logic below. This prevents shadowing issues with the 'docs' directory.
+
+        loader = cast("FileSystemLoader", env.loader)
+>>>>>>> origin/pr/2886
 
         assets_dir = docs_dir / "assets"
         assets_dir.mkdir(parents=True, exist_ok=True)
-        assets_src = Path(env.loader.searchpath[0]) / "assets"
+        assets_src = Path(loader.searchpath[0]) / "assets"
         assets_dest = assets_dir
         if assets_src.exists():
             # Ensure assets are always copied, even if the directory exists.
@@ -241,7 +261,8 @@ class MkDocsSiteScaffolder:
         # Create overrides in site root (custom_dir is resolved relative to mkdocs.yml)
         overrides_dest = site_paths.site_root / "overrides"
         if not overrides_dest.exists():
-            overrides_src = Path(env.loader.searchpath[0]) / "overrides"
+            # We must use 'loader' (cast above) to access searchpath, as env.loader is generic BaseLoader
+            overrides_src = Path(loader.searchpath[0]) / "overrides"
             if overrides_src.exists():
                 shutil.copytree(overrides_src, overrides_dest)
             else:
@@ -267,7 +288,7 @@ class MkDocsSiteScaffolder:
             authors_file.write_text("# Authors metadata\n", encoding="utf-8")
             logger.info("Created initial authors file at %s", authors_file)
 
-    def _create_egregora_structure(self, site_paths: MkDocsPaths, env: Any | None = None) -> None:
+    def _create_egregora_structure(self, site_paths: MkDocsPaths, env: Environment | None = None) -> None:
         egregora_dir = site_paths.egregora_dir
         egregora_dir.mkdir(parents=True, exist_ok=True)
 
