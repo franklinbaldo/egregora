@@ -110,6 +110,7 @@ class PipelineFactory:
 
         """
 <<<<<<< HEAD
+<<<<<<< HEAD
 
         def _validate_and_connect(value: str, setting_name: str) -> tuple[str, Any]:
             if not value:
@@ -158,6 +159,8 @@ class PipelineFactory:
 
 =======
 >>>>>>> origin/pr/2654
+=======
+>>>>>>> origin/pr/2653
         runtime_db_uri, pipeline_backend = _validate_and_connect(
             config.database.pipeline_db, "database.pipeline_db", site_root
         )

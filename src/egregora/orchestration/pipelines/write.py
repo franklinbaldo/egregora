@@ -925,12 +925,18 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     refresh_tiers = {r.strip().lower() for r in (run_params.refresh or "").split(",") if r.strip()}
     site_paths = _resolve_site_paths_or_raise(resolved_output, run_params.config)
 <<<<<<< HEAD
+<<<<<<< HEAD
     _runtime_db_uri, pipeline_backend = create_pipeline_database(site_paths.site_root, run_params.config)
 =======
     _runtime_db_uri, pipeline_backend = PipelineFactory.create_database_backends(
         site_paths.site_root, run_params.config
     )
 >>>>>>> origin/pr/2654
+=======
+    _runtime_db_uri, pipeline_backend = PipelineFactory.create_database_backends(
+        site_paths.site_root, run_params.config
+    )
+>>>>>>> origin/pr/2653
 
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
     initialize_database(pipeline_backend)

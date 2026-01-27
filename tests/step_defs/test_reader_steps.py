@@ -382,6 +382,7 @@ def create_default_posts(test_posts_dir, count):
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 @given(parsers.parse("{count:d} posts exist"))
 def posts_exist(test_posts_dir, count):
     """Create specified number of posts."""
@@ -390,6 +391,8 @@ def posts_exist(test_posts_dir, count):
 
 =======
 >>>>>>> origin/pr/2654
+=======
+>>>>>>> origin/pr/2653
 @given(parsers.parse("a site with {count:d} blog posts in the posts directory"))
 def create_site_with_posts(test_posts_dir, count):
     """Create a site directory with blog posts."""
@@ -533,8 +536,12 @@ def posts_evaluated(test_posts_dir, elo_store, mock_compare_posts):
             post_a_slug=f"post-{i}",
             post_b_slug=f"post-{(i + 1) % 3}",
             winner="a",
+<<<<<<< HEAD
             rating_a_new=DEFAULT_ELO + 16,
             rating_b_new=DEFAULT_ELO - 16,
+=======
+            comparison_id=str(uuid.uuid4()),
+>>>>>>> origin/pr/2653
         )
         elo_store.update_ratings(params)
 
@@ -1119,6 +1126,7 @@ def verify_pairing_count(selected_pairs, count):
         post_counts[post_b] = post_counts.get(post_b, 0) + 1
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     # Verify each post gets approximately the target count (within ±1)
     for slug, pair_count in post_counts.items():
         assert abs(pair_count - count) <= 1, (
@@ -1134,6 +1142,10 @@ def verify_pairing_count_simple(selected_pairs, count):
     for pair_count in post_counts.values():
         assert pair_count == count
 >>>>>>> origin/pr/2654
+=======
+    for pair_count in post_counts.values():
+        assert pair_count == count
+>>>>>>> origin/pr/2653
 
 
 @then("no post should be paired with itself")

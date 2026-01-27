@@ -43,10 +43,15 @@ def test_create_database_backends_normalizes_duckdb_path(tmp_path):
         assert runtime_uri == f"duckdb:{expected_path.as_posix()}"
     else:
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         # resolve_db_uri produces "duckdb://{absolute_path}" which results in 3 slashes for unix absolute paths
         # e.g. duckdb:///tmp/foo
 >>>>>>> origin/pr/2654
+=======
+        # resolve_db_uri produces "duckdb://{absolute_path}" which results in 3 slashes for unix absolute paths
+        # e.g. duckdb:///tmp/foo
+>>>>>>> origin/pr/2653
         assert runtime_uri == f"duckdb://{expected_path}"
     assert expected_path.exists()
 
