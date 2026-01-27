@@ -1033,7 +1033,7 @@ def verify_post_count(top_posts, n):
 def verify_highest_rated(top_posts, n):
     """Verify posts are highest rated."""
     # Check that ratings are in descending order
-    ratings = [p["rating"] for p in top_posts]
+    ratings = [p.rating for p in top_posts]
     assert ratings == sorted(ratings, reverse=True)
 
 
@@ -1044,6 +1044,7 @@ def verify_pairing_count(selected_pairs, count):
     Note: The current pairing algorithm doesn't guarantee exact count for all posts,
     it produces approximately count ± 1 comparisons per post.
     """
+    target_count = int(count)
     post_counts: dict[str, int] = {}
     for pair in selected_pairs:
         post_a, post_b = pair
@@ -1052,8 +1053,8 @@ def verify_pairing_count(selected_pairs, count):
 
     # Verify each post gets approximately the target count (within ±1)
     for slug, pair_count in post_counts.items():
-        assert abs(pair_count - count) <= 1, (
-            f"Post {slug} scheduled for {pair_count} comparisons, expected approximately {count} (±1)"
+        assert abs(pair_count - target_count) <= 1, (
+            f"Post {slug} scheduled for {pair_count} comparisons, expected approximately {target_count} (±1)"
         )
 
 

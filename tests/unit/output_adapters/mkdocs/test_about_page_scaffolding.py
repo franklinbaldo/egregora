@@ -65,15 +65,15 @@ def test_about_page_structure_and_styling(tmp_path: Path, scaffolder: MkDocsSite
     )
 
 
-def test_extra_css_glassmorphism(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:
+def test_extra_css_content(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:
     """
-    Verifies that the extra.css file contains the glassmorphism styles for .admonition.glass.
+    Verifies that the extra.css file contains the core styles.
     """
     scaffolder.scaffold_site(tmp_path, site_name="Test UX Site")
 
-    css_path = tmp_path / "docs" / "stylesheets" / "extra.css"
+    css_path = tmp_path / "overrides" / "stylesheets" / "extra.css"
     assert css_path.exists()
     css_content = css_path.read_text(encoding="utf-8")
 
-    assert ".admonition.glass" in css_content
-    assert "backdrop-filter: blur" in css_content
+    assert ".md-typeset" in css_content
+    assert ".related-posts" in css_content
