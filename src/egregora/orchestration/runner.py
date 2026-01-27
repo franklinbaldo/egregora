@@ -10,10 +10,14 @@ import math
 from collections import deque
 from collections.abc import Iterator
 <<<<<<< HEAD
+<<<<<<< HEAD
 from typing import TYPE_CHECKING, Any, Protocol, cast
 =======
 from typing import TYPE_CHECKING, Any, cast
 >>>>>>> origin/pr/2679
+=======
+from typing import TYPE_CHECKING, Any, Protocol, cast
+>>>>>>> origin/pr/2678
 
 from egregora.agents.banner.worker import BannerWorker
 from egregora.agents.commands import command_to_announcement, filter_commands
@@ -52,6 +56,7 @@ if TYPE_CHECKING:
     import ibis.expr.types as ir
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     from egregora.data_primitives.document import DocumentMetadata
     from egregora.input_adapters.base import MediaMapping
     from egregora.transformations.windowing import Window
@@ -70,6 +75,21 @@ if TYPE_CHECKING:
     class LibraryProtocol(Protocol):
         journal: ContentRepository
 >>>>>>> origin/pr/2679
+=======
+    from egregora.data_primitives.document import Document, DocumentMetadata
+    from egregora.input_adapters.base import MediaMapping
+    from egregora.transformations.windowing import Window
+
+    class DocumentRepository(Protocol):
+        """Protocol for document repository access."""
+
+        def list(self, doc_type: DocumentType) -> list[DocumentMetadata]: ...
+
+    class ContentLibrary(Protocol):
+        """Protocol for content library access."""
+
+        journal: DocumentRepository
+>>>>>>> origin/pr/2678
 
 
 logger = logging.getLogger(__name__)
@@ -212,6 +232,9 @@ class PipelineRunner:
         """
         processed: set[tuple[str, str]] = set()
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> origin/pr/2678
         if not self.context.library:
 =======
         library = cast("LibraryProtocol | None", self.context.library)
@@ -220,12 +243,16 @@ class PipelineRunner:
             return processed
 
         try:
+            library = cast("ContentLibrary", self.context.library)
             # Using list(DocumentType.JOURNAL) on library.journal (which is a DocumentRepository)
+<<<<<<< HEAD
 <<<<<<< HEAD
             # Use cast to Protocol to avoid "object has no attribute journal" error
             library = cast("LibraryProtocol", self.context.library)
 =======
 >>>>>>> origin/pr/2679
+=======
+>>>>>>> origin/pr/2678
             journals = library.journal.list(doc_type=DocumentType.JOURNAL)
 
             for journal in journals:
@@ -430,6 +457,7 @@ class PipelineRunner:
             messages=messages_dtos,  # Inject DTOs
         )
 
+<<<<<<< HEAD
         writer_result = write_posts_for_window(params)
 <<<<<<< HEAD
         posts: list[str] = cast("list[str]", writer_result.get("posts", []))
@@ -445,12 +473,25 @@ class PipelineRunner:
 
         window_date = window.start_time.strftime("%Y-%m-%d")
         try:
+=======
+        # Fix: write_posts_for_window returns a dict, not a tuple
+        result_dict = write_posts_for_window(params)
+        posts = cast("list[str]", result_dict.get("posts", []))
+        profiles = cast("list[str]", result_dict.get("profiles", []))
+
+        window_date = window.start_time.strftime("%Y-%m-%d")
+        try:
+            # Fix: generate_profile_posts result might be awaitable but here we expect sync list[Document]
+>>>>>>> origin/pr/2678
             profile_docs = cast(
                 "list[Document]",
                 generate_profile_posts(
                     ctx=self.context, messages=clean_messages_list, window_date=window_date
                 ),
+<<<<<<< HEAD
 >>>>>>> origin/pr/2679
+=======
+>>>>>>> origin/pr/2678
             )
             # Handle potential awaitable return from generate_profile_posts
             # In sync context, we expect list[Document]
