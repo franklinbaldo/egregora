@@ -37,10 +37,22 @@ from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext, WebFetchTool
 =======
 # UrlContextTool is the client-side fetcher (alias for WebFetchTool) suitable for pydantic-ai
+<<<<<<< HEAD
 # Note: UrlContextTool is deprecated in newer versions, but we keep it for compatibility with the current stack.
 # We will migrate to WebFetchTool in a future sprint.
 from pydantic_ai import Agent, RunContext, UrlContextTool
 >>>>>>> origin/pr/2885
+=======
+from pydantic_ai import Agent, RunContext
+
+# Pydantic-AI < 0.0.18 uses UrlContextTool, newer uses WebFetchTool.
+# We try to import WebFetchTool first, falling back to UrlContextTool.
+try:
+    from pydantic_ai.tools import WebFetchTool
+except ImportError:
+    from pydantic_ai import UrlContextTool as WebFetchTool
+
+>>>>>>> origin/pr/2876
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import BinaryContent
 
@@ -157,7 +169,7 @@ class EnrichmentOutput(BaseModel):
 async def fetch_url_with_jina(ctx: RunContext[Any], url: str) -> str:
     """Fetch URL content using Jina.ai Reader.
 
-    Use this tool ONLY if the standard 'UrlContextTool' fails to retrieve meaningful content.
+    Use this tool ONLY if the standard 'WebFetchTool' fails to retrieve meaningful content.
     Examples of when to use this:
     - The standard fetch returns "JavaScript is required" or "Access Denied" (403/429).
     - The content is empty or contains only cookie/GDPR banners.
