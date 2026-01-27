@@ -29,7 +29,7 @@ def _convert_table_to_list(messages_table: Any) -> list[dict[str, Any]]:
         executed = messages_table.execute()
         if hasattr(executed, "to_pylist"):
             return executed.to_pylist()
-        elif hasattr(executed, "to_dict"):
+        if hasattr(executed, "to_dict"):
             return executed.to_dict(orient="records")
         return []
     except (AttributeError, TypeError):

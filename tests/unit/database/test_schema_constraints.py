@@ -64,6 +64,7 @@ class TestUnifiedDocumentsSchemaConstraints:
             )
 
     def test_doc_media_check_constraint_rejects_missing_filename(self, duckdb_conn):
+    def test_doc_media_check_constraint_rejects_missing_filename(self, duckdb_conn):
         """Verify that documents.doc_type='media' requires filename."""
         constraints = get_table_check_constraints("documents")
         create_table_if_not_exists(duckdb_conn, "documents", UNIFIED_SCHEMA, check_constraints=constraints)
@@ -77,25 +78,6 @@ class TestUnifiedDocumentsSchemaConstraints:
                 """,
                 ("media-1",),
             )
-
-    def test_doc_media_check_constraint_rejects_missing_filename(self, duckdb_conn):
-        """Verify that documents.doc_type='media' requires filename."""
-        constraints = get_table_check_constraints("documents")
-        create_table_if_not_exists(duckdb_conn, "documents", UNIFIED_SCHEMA, check_constraints=constraints)
-
-        # Invalid Media (missing filename)
-        with pytest.raises(duckdb.ConstraintException, match="CHECK constraint"):
-            duckdb_conn.execute(
-                """
-                INSERT INTO documents (id, doc_type, status, media_type, phash, created_at)
-                VALUES (?, 'media', 'draft', 'image', 'phash', CURRENT_TIMESTAMP)
-                """,
-                ("media-2",),
-            )
-
-
-class TestTasksSchemaConstraints:
-    """Test constraints for the tasks table."""
 
     def test_tasks_status_check_constraint_allows_valid_values(self, duckdb_conn):
         """Verify that tasks.status CHECK constraint allows valid status values."""

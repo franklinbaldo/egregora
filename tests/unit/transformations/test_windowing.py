@@ -335,17 +335,15 @@ def test_window_by_count_scenarios(num_messages, step_size, overlap_ratio, expec
         assert window.window_index == i
 
 def test_window_by_bytes_duplicates():
-    import pandas as pd
     # Create table with duplicate timestamps
     # 5 messages, first 3 have same TS
     ts = datetime(2023, 1, 1)
     data = {
         "ts": [ts, ts, ts, ts, ts],
-        "text": ["a", "b", "c", "d", "e"], # 1 byte each
+        "text": ["a", "b", "c", "d", "e"],  # 1 byte each
         "id": [1, 2, 3, 4, 5]
     }
-    df = pd.DataFrame(data)
-    table = ibis.memtable(df)
+    table = ibis.memtable(data)
 
     # Legacy behavior allows first message to be "free".
     # max_bytes=2.
@@ -364,7 +362,6 @@ def test_window_by_bytes_duplicates():
 
 
 def test_window_by_bytes_partial_duplicates():
-    import pandas as pd
     # TS: A, B, B, B, C
     t1 = datetime(2023, 1, 1)
     t2 = datetime(2023, 1, 2)
@@ -375,8 +372,7 @@ def test_window_by_bytes_partial_duplicates():
         "text": ["a", "b", "c", "d", "e"],
         "id": [1, 2, 3, 4, 5]
     }
-    df = pd.DataFrame(data)
-    table = ibis.memtable(df)
+    table = ibis.memtable(data)
 
     # Same chunking logic applies.
     # W0: [a, b, c]

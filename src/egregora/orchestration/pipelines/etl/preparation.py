@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import date as date_type
 from datetime import timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from rich.console import Console
 

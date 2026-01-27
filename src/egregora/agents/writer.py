@@ -886,11 +886,11 @@ def _regenerate_site_indices(adapter: OutputSink) -> None:
     """Helper to regenerate all site indices using SiteGenerator."""
     if not isinstance(adapter, MkDocsAdapter):
         logger.debug("Output format is not MkDocs, skipping site generation.")
-        return
+        return None
 
     if not adapter.site_root:
         logger.warning("Site root is not set, skipping site generation.")
-        return
+        return None
 
     # Load config to get reader database path
     from egregora.config import load_egregora_config

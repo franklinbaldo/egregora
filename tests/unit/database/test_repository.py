@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from ibis.common.exceptions import IbisError
 
-from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.document import DocumentType
 from egregora.database.exceptions import (
     DatabaseOperationError,
     DocumentNotFoundError,

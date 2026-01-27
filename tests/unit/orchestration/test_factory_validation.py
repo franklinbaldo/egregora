@@ -3,7 +3,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from egregora.config.exceptions import InvalidDatabaseUriError, SiteStructureError
 from egregora.orchestration.pipelines.etl.setup import _create_database_backend, _resolve_site_paths_or_raise
 
 

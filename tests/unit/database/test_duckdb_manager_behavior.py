@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import duckdb
 import ibis
+
 from egregora.database.duckdb_manager import DuckDBStorageManager, temp_storage
 
 

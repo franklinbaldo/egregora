@@ -23,9 +23,7 @@ DESIGN PHILOSOPHY: Calculate, Don't Iterate
   cannot enforce time limits without knowing message density beforehand
 """
 
-import bisect
 import hashlib
-import itertools
 import logging
 import math
 from bisect import bisect_left, bisect_right

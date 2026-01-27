@@ -101,7 +101,6 @@ def test_persist_journal(adapter, site_root):
     assert "Journal content" in content
 
 
-def test_list(adapter, site_root):
 def test_list_documents(adapter, site_root):
     """Verify listing documents from filesystem."""
     # Given

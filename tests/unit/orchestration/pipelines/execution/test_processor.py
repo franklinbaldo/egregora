@@ -1,12 +1,14 @@
-import pytest
-from unittest.mock import Mock, MagicMock, patch
 from datetime import datetime
+from unittest.mock import MagicMock, patch
 
-from egregora.orchestration.pipelines.execution.processor import process_item
-from egregora.orchestration.pipelines.etl.preparation import Conversation
-from egregora.orchestration.context import PipelineContext
-from egregora.transformations import Window
+import pytest
+
 from egregora.data_primitives.document import Document
+from egregora.orchestration.context import PipelineContext
+from egregora.orchestration.pipelines.etl.preparation import Conversation
+from egregora.orchestration.pipelines.execution.processor import process_item
+from egregora.transformations import Window
+
 
 @pytest.fixture
 def mock_context():
@@ -94,7 +96,7 @@ def test_process_item_success(
 
     # Assertions
     assert len(result) == 1
-    window_label = list(result.keys())[0]
+    window_label = next(iter(result.keys()))
     assert "posts" in result[window_label]
     assert "profiles" in result[window_label]
 
@@ -130,7 +132,7 @@ def test_process_item_empty_messages(
 
     # Should run without error but produce empty results
     assert len(result) == 1
-    val = list(result.values())[0]
+    val = next(iter(result.values()))
     assert val["posts"] == []
     assert val["profiles"] == []
 

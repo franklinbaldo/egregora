@@ -1,18 +1,18 @@
-import pytest
-from unittest.mock import MagicMock, Mock, patch
-from datetime import datetime, UTC
 import math
-import json
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from egregora.agents.formatting import (
-    load_journal_memory,
-    build_conversation_xml,
-    _stringify_value,
     _compute_message_id,
+    _stringify_value,
     _table_to_records,
+    build_conversation_xml,
+    load_journal_memory,
 )
-from egregora.data_primitives.document import DocumentType, Document, DocumentMetadata
-from egregora.agents.shared.annotations import AnnotationStore, Annotation
+from egregora.agents.shared.annotations import Annotation, AnnotationStore
+from egregora.data_primitives.document import Document, DocumentMetadata, DocumentType
 from egregora.output_sinks.base import OutputSink
 from egregora.output_sinks.exceptions import DocumentNotFoundError
 
