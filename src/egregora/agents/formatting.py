@@ -8,7 +8,7 @@ import logging
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -16,7 +16,8 @@ from egregora.data_primitives.document import DocumentType
 from egregora.output_adapters.exceptions import DocumentNotFoundError
 
 if TYPE_CHECKING:
-    from egregora.agents.shared.annotations import Annotation, AnnotationStore
+    from egregora.agents.shared.annotations import AnnotationStore
+    from egregora.data_primitives.document import Document
     from egregora.output_adapters.base import OutputSink
 
 logger = logging.getLogger(__name__)
@@ -34,9 +35,7 @@ def load_journal_memory(output_sink: OutputSink) -> str:
 
     try:
         doc = output_sink.get(DocumentType.JOURNAL, latest.identifier)
-        if isinstance(doc.content, bytes):
-            return doc.content.decode("utf-8")
-        return str(doc.content)
+        return doc.content
     except DocumentNotFoundError:
         return ""
 
@@ -52,12 +51,11 @@ def _stringify_value(value: object) -> str:
             return _stringify_value(value.as_py()) if value.is_valid else ""
         except (TypeError, AttributeError):
             return ""
-    if isinstance(value, (float, int)):
-        try:
-            if math.isnan(value):
-                return ""
-        except TypeError:
-            pass
+    try:
+        if math.isnan(value):
+            return ""
+    except TypeError:
+        pass
     return str(value)
 
 
@@ -113,7 +111,7 @@ def build_conversation_xml(
     # Ensure msg_id exists (reuses existing logic)
     _ensure_msg_id_column(rows, ["msg_id", "timestamp", "author", "text"])
 
-    annotations_map: dict[str, list[Annotation]] = {}
+    annotations_map: dict[str, list[Document]] = {}
     if annotations_store is not None:
         for row in rows:
             msg_id_value = row.get("msg_id")
@@ -138,8 +136,8 @@ def build_conversation_xml(
         }
 
         if msg_id in annotations_map:
-            notes = cast("list[dict[str, str]]", msg_data["notes"])
-            notes.extend({"id": str(ann.id), "content": ann.commentary} for ann in annotations_map[msg_id])
+            for ann in annotations_map[msg_id]:
+                msg_data["notes"].append({"id": ann.document_id, "content": ann.content})
         messages.append(msg_data)
 
     templates_dir = Path(__file__).resolve().parents[1] / "templates"

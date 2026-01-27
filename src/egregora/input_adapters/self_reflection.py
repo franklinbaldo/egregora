@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import UTC, date, datetime, tzinfo
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid5
@@ -31,7 +31,7 @@ EVENT_NAMESPACE = UUID("3d99325f-85e5-4c4b-9a85-4e80bc9a6d33")
 
 def _scan_and_parse_documents(output_adapter: OutputSink, doc_type: DocumentType) -> list[Document]:
     """Scan filesystem for documents and parse them."""
-    documents: list[Document] = []
+    documents = []
     posts_dir = getattr(output_adapter, "posts_dir", None)
     if not posts_dir or not posts_dir.exists():
         return documents
@@ -205,7 +205,7 @@ class SelfInputAdapter(InputAdapter):
         base = path.stem if path else metadata.get("storage_identifier", "self")
         return slugify(base)
 
-    def _resolve_timezone(self, timezone: str | None) -> tzinfo:
+    def _resolve_timezone(self, timezone: str | None) -> ZoneInfo:
         if timezone:
             try:
                 return ZoneInfo(timezone)

@@ -9,7 +9,7 @@ The alignment between personas is strong. The distinction between "Structure" (S
 ## Specific Feedback
 
 ### Steward 🧠
-- **Critical:** Your plan file contains git merge conflict markers (`<<<<<<< ours`, etc.). Please resolve these immediately as it makes the plan difficult to parse.
+- **Critical:** Your plan file contains git merge conflict markers. Please resolve these immediately as it makes the plan difficult to parse.
 - **Content:** The focus on ADRs is excellent. It will provide the "why" that often gets lost.
 
 ### Artisan 🔨

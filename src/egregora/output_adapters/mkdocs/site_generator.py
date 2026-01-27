@@ -99,7 +99,7 @@ class SiteGenerator:
             raise DocumentParsingError(str(path), str(e)) from e
 
     def _scan_directory(
-        self, directory: Path, doc_type: DocumentType, *, metadata_only: bool = False
+        self, directory: Path, doc_type: DocumentType, metadata_only: bool = False
     ) -> Iterator[Document]:
         """Scans a directory for markdown files and yields Document objects.
 

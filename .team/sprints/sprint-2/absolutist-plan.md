@@ -10,11 +10,10 @@ My mission is to simplify the codebase by removing legacy code and backward comp
 
 - [ ] **Remove `DuckDBStorageManager` Compatibility Shim:** The `src/egregora/database/duckdb_manager.py` file contains a backward compatibility layer for callers expecting a direct connection. I will investigate usage and remove this if confirmed obsolete.
 - [ ] **Audit `prompts.py` Compatibility:** Investigate `src/egregora/resources/prompts.py` for "API compatibility with the old prompt_templates.py" and remove if unused.
-- [ ] **Clean up Commented Code:** Remove any commented-out code blocks identified by the Refactor persona during their sweep.
+- [ ] **Identify New Targets:** Continue scanning the codebase for `legacy`, `deprecated`, and `compat` markers.
 
 ## Dependencies
-- **Simplifier:** I will avoid touching `write.py` while they extract ETL logic.
-- **Steward:** I will rely on new ADRs to justify removing superseded architectural patterns.
+- None specific, but I must coordinate with **Refactor** and **Simplifier** to ensure I don't delete code they are actively modifying.
 
 ## Context
 The codebase still contains several "shims" introduced during previous refactors (e.g., Ibis migration, Prompt management changes). These shims incur maintenance debt and obscure the true architecture.
@@ -22,7 +21,7 @@ The codebase still contains several "shims" introduced during previous refactors
 ## Expected Deliverables
 1.  Removal of `DuckDBStorageManager` legacy accessors.
 2.  Cleaned up `prompts.py` if safe.
-3.  Confirmation that no `docs/stylesheets/extra.css` files have crept back in.
+3.  Updated `absolutist-plan.md` for Sprint 3.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
