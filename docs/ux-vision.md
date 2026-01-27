@@ -19,10 +19,10 @@ This document outlines the user experience and user interface (UX/UI) vision for
 **CRITICAL FINDING:** The templates for the MkDocs site have been moved to Jinja2 files in `src/egregora/rendering/templates/site/`.
 
 Key locations:
--   `src/egregora/output_adapters/mkdocs/scaffolding.py`: Renders these templates during the scaffold process.
+-   `src/egregora/output_sinks/mkdocs/scaffolding.py`: Renders these templates during the scaffold process.
 -   `src/egregora/rendering/templates/site/mkdocs.yml.jinja`: The main configuration template.
--   `src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`: The structural CSS (layout, navigation).
--   `src/egregora/rendering/templates/site/docs/stylesheets/extra.css`: The "Portal" theme styles (deprecated/shadowing).
+-   `src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`: The structural CSS (layout, navigation) AND the "Portal" theme styles (Consolidated).
+-   `src/egregora/rendering/templates/site/docs/stylesheets/extra.css`: REMOVED (Fixed shadowing issue).
 
 ### Developer Experience
 -   **Status:** Improving.
@@ -34,9 +34,9 @@ Key locations:
 This section defines the "Portal" design system, which aims to create a dark, immersive, and premium experience.
 
 ### CSS Architecture
--   **Status:** Broken / Fragmented.
--   **Issue:** The CSS is split between `docs/stylesheets/extra.css` (Portal Theme) and `overrides/stylesheets/extra.css` (Structure). MkDocs prioritizes the `docs` folder, causing the Portal theme to "shadow" and obliterate the structural styles needed for the homepage navigation and layout.
--   **Next Action:** Task `20260125-140000-ux-consolidate-css-shadowing.md` has been created to consolidate all CSS into `overrides` and fix the shadowing.
+-   **Status:** Fixed.
+-   **Resolution:** The fragmented CSS has been consolidated. `src/egregora/rendering/templates/site/docs/stylesheets/extra.css` was removed, and its styles merged into `src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`. This resolved the shadowing issue, restoring the correct styling for the homepage navigation and blog cards.
+-   **Next Action:** None.
 
 ### Color Palette
 -   **Status:** Verified.
@@ -55,14 +55,14 @@ This section defines the "Portal" design system, which aims to create a dark, im
 -   **Implementation:** The fonts are imported and applied in `extra.css`.
 
 ### Navigation
--   **Status:** Structure Verified, Styling Broken.
--   **Issue:** The navigation hierarchy is correct (Media nested under Resources), but the homepage "Quick Navigation" cards are unstyled due to the CSS shadowing bug.
--   **Next Action:** Fix CSS shadowing (see above).
+-   **Status:** Verified.
+-   **Issue:** The navigation hierarchy is correct (Media nested under Resources). The homepage "Quick Navigation" cards are now correctly styled following the CSS consolidation.
+-   **Next Action:** None.
 
 ### Feeds Page
--   **Status:** Missing (Broken Link).
--   **Issue:** The "RSS Feeds" card on the homepage links to `feeds/`, which creates a 404 error. There is no dedicated page to list available feeds.
--   **Next Action:** Create `docs/feeds/index.md` with a polished UI listing all available RSS and JSON feeds. Task `20260126-1000-ux-implement-feeds-page.md` created.
+-   **Status:** Verified.
+-   **Resolution:** A dedicated `docs/feeds/index.md` page exists, providing a clean UI for subscribing to RSS and JSON feeds.
+-   **Next Action:** None.
 
 ### Analytics
 -   **Status:** Verified (Removed).

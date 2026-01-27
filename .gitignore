@@ -19,7 +19,6 @@ build/
 *.egg-info/
 *.egg
 bandit_report.json
-uv.lock
 
 
 # Testing
@@ -92,4 +91,3 @@ coverage.xml
 .team/session.json
 .team/tools_use.csv
 .team/logs/
-uv.lock

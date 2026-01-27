@@ -11,7 +11,7 @@ type: journal
 **Observation:** The `vulture` dead code detector reported an unused parameter `posts_created` in the `finalize_window` method across several `OutputSink` implementations and an unused `DbOutputSink` import in `src/egregora/orchestration/materializer.py`.
 
 **Action:**
-- Added a new unit test, `test_finalize_window_runs_without_error`, to `tests/unit/output_adapters/test_base.py` to ensure the method's behavior was covered before making changes.
+- Added a new unit test, `test_finalize_window_runs_without_error`, to `tests/unit/output_sinks/test_base.py` to ensure the method's behavior was covered before making changes.
 - Modified the `finalize_window` method signature in the `OutputSink` protocol (`src/egregora/data_primitives/document.py`) and all concrete implementations (`BaseOutputSink`, `DbOutputSink`, `MkDocsAdapter`), prefixing the unused argument with an underscore (`_posts_created`) to signify it is intentionally unused.
 - Corrected a pre-existing test in `tests/unit/test_output_sink_protocol.py` that failed due to the signature change.
 - In `src/egregora/orchestration/materializer.py`, replaced the unused `DbOutputSink` import with the more generic `OutputSink` protocol for the type hint, improving code modularity.

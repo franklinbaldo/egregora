@@ -1,41 +1,32 @@
 # Plan: Refactor - Sprint 3
 
-**Persona:** Refactor
+**Persona:** Refactor 🔧
 **Sprint:** 3
-**Created:** 2024-07-29 (during sprint-1)
+**Created:** 2026-01-26
 **Priority:** Medium
 
 ## Objectives
+My mission is to enforce architectural consistency and deep cleaning.
 
-My mission is to improve code quality and eliminate technical debt. For Sprint 3, the objectives are:
-
-- [ ] Investigate and address any remaining `vulture` warnings that were not fixed in Sprint 2.
-- [ ] Continue to monitor and fix any new `ruff` warnings.
-- [ ] Begin a review of the test suite to identify areas for improvement in coverage and efficiency.
+- [ ] **Error Handling Standardization:** Audit the codebase for inconsistent exception handling (e.g., bare `except:` or swallowing errors) and enforce a standard pattern.
+- [ ] **Logging Standardization:** Refactor logging statements to use the project's structured logging adapters consistently, replacing any `print` or standard `logging` calls.
+- [ ] **Pre-commit Hook Hardening:** Introduce stricter rules to pre-commit config if the team is ready (e.g., `docformatter`, stricter `mypy` flags).
 
 ## Dependencies
-
-- None identified at this time.
+- **Sapper:** I will collaborate with Sapper on the Error Handling standardization to ensure we are using the correct exception types.
 
 ## Context
-
-This plan is a continuation of the work done in Sprint 2. After addressing the most pressing technical debt, the focus will shift to a more proactive approach to improving code quality. This includes a review of the test suite to ensure it is as effective as possible.
+After the structural changes of Sprint 2, Sprint 3 is about consistency. ensuring that how we fail and how we log is uniform across the application.
 
 ## Expected Deliverables
-
-1. **Clean Bill of Health:** No new `ruff` or `vulture` warnings.
-2. **Test Suite Review:** A document outlining areas for improvement in the test suite.
+1.  **Standardized Exception Handling:** No bare `except` clauses (unless justified).
+2.  **Standardized Logging:** Zero usage of `print` for application logic.
+3.  **Updated Pre-commit:** Tighter quality gates.
 
 ## Risks and Mitigations
-
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Review of test suite reveals major issues | Low | High | Prioritize fixing any critical issues found. |
+| Over-engineering Logging | Low | Low | I will stick to the existing `structlog` (or equivalent) patterns already established. |
 
 ## Proposed Collaborations
-
-- None at this time.
-
-## Additional Notes
-
-This work will help to ensure the long-term health and maintainability of the codebase.
+- **With Sapper:** Jointly define the Error Handling guidelines.

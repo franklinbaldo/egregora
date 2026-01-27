@@ -101,11 +101,22 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 100,sheriff,14373741744885001967,2653,closed,
 101,simplifier,4211562496935248730,2654,merged,
 102,specifier,,,closed,
+<<<<<<< HEAD
 103,steward,13839054398889799990,2669,closed,
 104,streamliner,1652516612879013473,2614,merged,
 105,taskmaster,,,closed,
+<<<<<<< HEAD
+<<<<<<< HEAD
 106,typeguard,2602638207033439254,2680,merged,
 107,visionary,6708424704856151484,2633,merged,
+=======
+103,steward,13839054398889799990,2669,merged,
+104,streamliner,1652516612879013473,2614,merged,
+105,taskmaster,,,closed,
+106,typeguard,7718257831068083613,2616,merged,
+>>>>>>> origin/pr/2674
+107,visionary,,,,
+>>>>>>> origin/pr/2677
 108,weaver,,,closed,
 109,absolutist,1278488902245254732,2686,merged,
 110,artisan,8399847330726783056,2618,merged,
@@ -128,6 +139,25 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 127,shepherd,,,closed,
 128,sheriff,,,closed,
 129,simplifier,2622996516925966461,2755,merged,
+112,builder,,,,
+113,curator,,,,
+114,docs_curator,,,,
+115,essentialist,,,,
+116,forge,,,,
+117,janitor,,,,
+118,lore,,,,
+119,maintainer,,,,
+120,organizer,,,,
+121,palette,,,,
+122,pruner,,,,
+123,refactor,,,,
+124,sapper,,,,
+125,scribe,,,,
+126,sentinel,,,,
+127,shepherd,,,,
+128,sheriff,,,,
+129,simplifier,,,,
+>>>>>>> origin/pr/2699
 130,specifier,,,closed,
 131,steward,,,closed,
 132,streamliner,,,closed,

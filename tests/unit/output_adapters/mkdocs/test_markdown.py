@@ -8,8 +8,8 @@ from unittest.mock import patch
 import pytest
 import yaml
 
-from egregora.output_adapters.exceptions import MissingMetadataError, UniqueFilenameError
-from egregora.output_adapters.mkdocs.markdown import _resolve_filepath, write_markdown_post
+from egregora.output_sinks.exceptions import MissingMetadataError, UniqueFilenameError
+from egregora.output_sinks.mkdocs.markdown import _resolve_filepath, write_markdown_post
 
 
 def test_write_markdown_post_creates_file_with_frontmatter(tmp_path: Path):
@@ -25,7 +25,7 @@ def test_write_markdown_post_creates_file_with_frontmatter(tmp_path: Path):
     }
     content = "This is the content of the test post."
 
-    with patch("egregora.output_adapters.mkdocs.markdown.ensure_author_entries") as mock_ensure_author:
+    with patch("egregora.output_sinks.mkdocs.markdown.ensure_author_entries") as mock_ensure_author:
         result_path = write_markdown_post(content, metadata, output_dir)
 
     assert Path(result_path).exists()
@@ -54,12 +54,12 @@ def test_write_markdown_post_handles_filename_collisions(tmp_path: Path):
     content = "This is a post that will have a filename collision."
 
     # Create the first post
-    with patch("egregora.output_adapters.mkdocs.markdown.ensure_author_entries"):
+    with patch("egregora.output_sinks.mkdocs.markdown.ensure_author_entries"):
         first_path = write_markdown_post(content, metadata, output_dir)
     assert "collision-post.md" in first_path
 
     # Create a second post with the same slug and date
-    with patch("egregora.output_adapters.mkdocs.markdown.ensure_author_entries"):
+    with patch("egregora.output_sinks.mkdocs.markdown.ensure_author_entries"):
         second_path = write_markdown_post(content, metadata, output_dir)
     assert "collision-post-2.md" in second_path
 

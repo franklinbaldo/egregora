@@ -18,9 +18,11 @@ from typing import TYPE_CHECKING, Any
 
 from egregora.database.schemas import (
     ANNOTATIONS_SCHEMA,
+    GIT_COMMITS_SCHEMA,
     STAGING_MESSAGES_SCHEMA,
     TASKS_SCHEMA,
     UNIFIED_SCHEMA,
+    create_index,
     create_table_if_not_exists,
     get_table_check_constraints,
 )
@@ -62,6 +64,13 @@ def initialize_database(backend: BaseBackend) -> None:
         primary_key="id",
     )
 
+    # Create indexes for documents
+    # These are crucial for performance of queries filtering by doc_type (e.g. ContentRepository.list)
+    # and looking up by slug (e.g. finding posts).
+    create_index(conn, "documents", "idx_documents_type", "doc_type", index_type="Standard")
+    create_index(conn, "documents", "idx_documents_slug", "slug", index_type="Standard")
+    create_index(conn, "documents", "idx_documents_created", "created_at", index_type="Standard")
+
     # 2. Tasks Table
     create_table_if_not_exists(
         conn, "tasks", TASKS_SCHEMA, check_constraints=get_table_check_constraints("tasks")
@@ -80,11 +89,25 @@ def initialize_database(backend: BaseBackend) -> None:
         foreign_keys=get_table_foreign_keys("annotations"),
     )
 
+    # Indexes for unified documents table (Query performance)
+    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_documents_type ON documents(doc_type)")
+    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_documents_slug ON documents(slug)")
+    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_documents_created ON documents(created_at)")
+    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(status)")
+
     # Indexes for messages table (Ingestion performance)
     _execute_sql(conn, "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_pk ON messages(event_id)")
     _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts)")
     _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id)")
     _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_author ON messages(author_uuid)")
+
+    # 5. Git History Cache
+    create_table_if_not_exists(conn, "git_commits", GIT_COMMITS_SCHEMA)
+    # Composite index for "What was the SHA of this path at time T?"
+    _execute_sql(
+        conn,
+        "CREATE INDEX IF NOT EXISTS idx_git_commits_lookup ON git_commits(repo_path, commit_timestamp DESC)",
+    )
 
     logger.info("✓ Database tables initialized successfully")
 

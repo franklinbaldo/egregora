@@ -7,12 +7,15 @@ import pytest
 import yaml
 
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.output_adapters.exceptions import (
+from egregora.output_sinks.exceptions import (
     AdapterNotInitializedError,
     ConfigLoadError,
+    DirectoryCreationError,
     DocumentNotFoundError,
+    FilesystemOperationError,
+    FileWriteError,
 )
-from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
+from egregora.output_sinks.mkdocs.adapter import MkDocsAdapter
 
 
 @pytest.fixture
@@ -84,7 +87,7 @@ def test_persist_adds_related_posts_to_frontmatter(adapter: MkDocsAdapter):
     # Since `documents()` now reads from the DB, we mock its return value
     # to simulate the presence of other posts.
     with patch.object(adapter, "documents", return_value=[doc1, doc2, doc3]):
-        with patch("egregora.output_adapters.mkdocs.markdown.ensure_author_entries"):
+        with patch("egregora.output_sinks.mkdocs.markdown.ensure_author_entries"):
             adapter.persist(new_post_doc)
 
     # Verify that the new post's frontmatter contains the related posts
@@ -108,7 +111,7 @@ def test_persist_handles_filename_collisions(adapter: MkDocsAdapter):
     post1_meta = {"title": "Collision Post", "slug": "collision-post", "date": "2025-01-16"}
     post2_meta = {"title": "Collision Post", "slug": "collision-post", "date": "2025-01-16"}
 
-    with patch("egregora.output_adapters.mkdocs.markdown.ensure_author_entries"):
+    with patch("egregora.output_sinks.mkdocs.markdown.ensure_author_entries"):
         adapter.persist(Document(content="Content 1", type=DocumentType.POST, metadata=post1_meta))
         adapter.persist(Document(content="Content 2", type=DocumentType.POST, metadata=post2_meta))
 
@@ -117,3 +120,73 @@ def test_persist_handles_filename_collisions(adapter: MkDocsAdapter):
 
     assert first_path.exists()
     assert second_path.exists()
+
+
+def test_initialize_raises_directory_creation_error():
+    """Test that initialize raises DirectoryCreationError when mkdir fails."""
+    adapter = MkDocsAdapter()
+
+    with patch("pathlib.Path.mkdir", side_effect=OSError("Permission denied")):
+        with pytest.raises(DirectoryCreationError) as exc_info:
+            adapter.initialize(Path("/fake/path"))
+        assert "Permission denied" in str(exc_info.value)
+        assert "/fake/path" in str(exc_info.value)
+
+
+def test_persist_raises_file_write_error(adapter):
+    """Test that persist raises FileWriteError when writing content fails."""
+    Document(
+        content="test content",
+        type=DocumentType.POST,
+        metadata={"title": "Test", "date": "2024-01-01", "slug": "test"},
+    )
+
+    # Mock Path.write_text to fail.
+    # Note: DocumentType.POST uses markdown.write_markdown_post which ALREADY handles this.
+    # We should test a type that uses _write_generic_doc or another specific writer to ensure coverage.
+    doc_generic = Document(
+        content="test content",
+        type=DocumentType.JOURNAL,  # Uses _write_journal_doc
+        metadata={"title": "Journal", "date": "2024-01-01", "slug": "journal"},
+    )
+
+    with patch("pathlib.Path.write_text", side_effect=OSError("Disk full")):
+        with pytest.raises(FileWriteError) as exc_info:
+            adapter.persist(doc_generic)
+        assert "Disk full" in str(exc_info.value)
+
+
+def test_persist_raises_filesystem_error_on_rename(adapter):
+    """Test that persist raises FilesystemOperationError when renaming old file fails."""
+    doc = Document(
+        content="test content",
+        type=DocumentType.POST,
+        metadata={"title": "Test", "date": "2024-01-01", "slug": "test"},
+    )
+
+    # Pre-populate index to trigger rename logic
+    doc_id = doc.document_id
+    old_path = adapter.posts_dir / "old-slug.md"
+    adapter._index[doc_id] = old_path
+
+    old_path.touch()
+
+    with patch("pathlib.Path.rename", side_effect=OSError("Device busy")):
+        with pytest.raises(FilesystemOperationError) as exc_info:
+            adapter.persist(doc)
+        assert "Device busy" in str(exc_info.value)
+
+
+def test_write_media_doc_raises_file_write_error(adapter):
+    """Test that _write_media_doc raises FileWriteError on copy failure."""
+    doc = Document(content=b"binary", type=DocumentType.MEDIA, metadata={"source_path": "/tmp/source.png"})
+
+    # Mock shutil.move AND copy2 to fail
+    with (
+        patch("pathlib.Path.exists", return_value=True),
+        patch("shutil.move", side_effect=OSError("Move failed")),
+        patch("shutil.copy2", side_effect=OSError("Copy failed")),
+    ):
+        with pytest.raises(FileWriteError) as exc_info:
+            adapter._writers[DocumentType.MEDIA](doc, Path("/tmp/dest.png"))
+        assert "Copy failed" in str(exc_info.value)

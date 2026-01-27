@@ -18,10 +18,6 @@ def test_execute_wrappers_use_default_params(tmp_path):
 
     manager._conn = SpyProxy(manager._conn)
 
-    relation = manager.execute("SELECT 1")
-    assert relation.fetchall() == [(1,)]
-    assert manager._conn.calls[-1] == []
-
     manager.execute_sql("SELECT ?", params=[1])
     assert manager._conn.calls[-1] == [1]
 

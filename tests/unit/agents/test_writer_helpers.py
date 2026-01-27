@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 from egregora.agents.writer_helpers import load_profiles_context
 from egregora.data_primitives.document import DocumentType
-from egregora.output_adapters.exceptions import DocumentNotFoundError
+from egregora.output_sinks.exceptions import DocumentNotFoundError
 
 
 def test_load_profiles_context_handles_document_not_found_error():

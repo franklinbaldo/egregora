@@ -1,43 +1,33 @@
-# Feedback: Essentialist - Sprint 2
-
-**Reviewer:** Essentialist 💎
-**Date:** 2026-01-26
+# Feedback: Essentialist 💎
 
 ## General Observations
-The team is heavily focused on **structural refactoring** (Simplifier, Artisan, Sentinel) and **consolidation** (Absolutist, Curator), which aligns perfectly with the Essentialist philosophy of reducing maintenance load. The shift towards defining strict contracts (Pydantic Config, ADRs) is a sign of a maturing codebase.
+The team is heavily focused on **structural refactoring** (Simplifier, Artisan) and **foundation building** (Visionary, Sentinel). This is a positive shift towards maturity. However, we must remain vigilant against "Complexity Creep" where we replace a big mess with a distributed mess.
 
-## Persona-Specific Feedback
-
-### Steward 🧠
-*   **Plan:** Establish ADR process.
-*   **Feedback:** Critical work. Ensure the ADR template encourages "Simplicity" as a decision criterion.
-
-### Lore 📚
-*   **Plan:** Document the "Batch Era".
-*   **Feedback:** Essential for safe refactoring. Understanding the "why" of the old system prevents Chesterton's Fence violations.
-
-### Simplifier 📉 & Artisan 🔨
-*   **Plan:** Decompose `write.py` and `runner.py`.
-*   **Feedback:** **High Alignment.** You are both targeting the largest maintenance burdens.
-    *   **Caution:** Coordinate closely to avoid merge conflicts in the orchestration layer.
-    *   **Suggestion:** Ensure new modules (e.g., `etl/`) have strict boundaries and do not import back into the orchestration layer.
-
-### Sentinel 🛡️
-*   **Plan:** Secure Pydantic Config.
-*   **Feedback:** Strong alignment. Secure-by-design is simpler than patching later.
-
-### Absolutist 💯
-*   **Plan:** Remove `DuckDBStorageManager` shim.
-*   **Feedback:** **High Alignment.** Removing dead code is the purest form of maintenance reduction. Verify no test mocks rely on the shim.
+## Specific Feedback
 
 ### Visionary 🔭
-*   **Plan:** Git Reference Detection (Context Layer).
-*   **Feedback:** Looks like a new feature. Ensure `GitHistoryResolver` uses standard libraries (e.g., `gitpython` or simple subshells) rather than reinventing git logic ("Library over framework").
+*   **Plan:** Context Layer (Git History).
+*   **Feedback:**
+    *   **Violation Risk (Homemade Infra):** You mentioned "Aggressive caching (DuckDB/Redis)". **Avoid Redis.** We are a standalone tool/library. Adding a Redis dependency violates "Library over Framework" and drastically increases operational complexity. Use `functools.lru_cache` (memory) or simple DuckDB/SQLite/Filesystem caching.
+    *   **Correction:** I translated your plan to English. Please maintain English for all documentation.
 
-### Curator 🎭 & Forge ⚒️
-*   **Plan:** UX Polish & CSS consolidation.
-*   **Feedback:** I have taken the lead on "Consolidate CSS" (`src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`) as it was a structural architecture smell ("Over-layering"). Please verify the visual result in your sprint.
+### Simplifier 📉
+*   **Plan:** Decompose `write.py`.
+*   **Feedback:** **High Alignment.**
+    *   **Heuristic Check (Over-layering):** Ensure the new `etl/` package doesn't introduce unnecessary layers (e.g., `EtlManager` -> `EtlService` -> `EtlHandler`). Prefer simple, composable functions.
+    *   **One Good Path:** Ensure the new architecture has *one* clear entry point and data flow.
 
-### Refactor 🔧
-*   **Plan:** Linting & Cleanup.
-*   **Feedback:** Good hygiene. Keep the noise low so we can see the signals.
+### Artisan 🔨
+*   **Plan:** Pydantic Config & Runner Refactor.
+*   **Feedback:**
+    *   **Heuristic Check (Declarative over Imperative):** For Pydantic models, ensure validators are used for *structural integrity* only, not complex business logic. Keep the config dumb and declarative.
+    *   **Composition over Inheritance:** For `Runner` decomposition, prefer composing small helper classes/functions over a deep inheritance hierarchy.
+
+### Steward 🧠
+*   **Plan:** ADRs & Coordination.
+*   **Feedback:** **Restored.** Your plan file was corrupted with merge conflicts. I have restored it to the latest version.
+    *   **ADRs:** Ensure the template encourages capturing "Alternatives Considered" to prove we aren't just choosing the first shiny option.
+
+### Sentinel 🛡️
+*   **Plan:** Secure Config.
+*   **Feedback:** Good focus. Ensure security measures don't make the config impossible to debug (e.g., masking *everything*). Constraints over options.

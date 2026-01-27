@@ -92,7 +92,7 @@ The Egregora project already has mkdocstrings configured and working well. Curre
   ```markdown
   ::: egregora.input_adapters.whatsapp.exceptions
   ::: egregora.transformation.exceptions
-  ::: egregora.output_adapters.exceptions
+  ::: egregora.output_sinks.exceptions
   ```
 
 **1.3 Complete Input Adapters Documentation** ⭐ HIGH PRIORITY
@@ -147,12 +147,12 @@ The Egregora project already has mkdocstrings configured and working well. Curre
   ```
 
 **2.4 Output Adapters (Complete)**
-- **Action**: Expand `/docs/v2/api-reference/output_adapters/`
+- **Action**: Expand `/docs/v2/api-reference/output_sinks/`
 - **Coverage**: All output adapters, not just scaffolding
 - **Example**:
   ```markdown
-  ::: egregora.output_adapters.mkdocs
-  ::: egregora.output_adapters.static
+  ::: egregora.output_sinks.mkdocs
+  ::: egregora.output_sinks.static
   ```
 
 **2.5 Config Overrides & Builders**
@@ -347,7 +347,7 @@ Before starting implementation, please confirm:
 **Redundant API Reference Files** (replaced by minimal mkdocstrings docs):
 1. `docs/v2/api-reference/augmentation/enrichment.md` - Covered by agents.md
 2. `docs/v2/api-reference/configuration.md` - Replaced by config.md
-3. `docs/v2/api-reference/output_adapters/mkdocs/scaffolding.md` - Covered by output-adapters.md
+3. `docs/v2/api-reference/output_sinks/mkdocs/scaffolding.md` - Covered by output-adapters.md
 
 **Orphaned/Obsolete Files**:
 4. `docs/ux-vision.md` - Duplicate of v2/guides/ux-vision.md (in navigation)
@@ -357,8 +357,8 @@ Before starting implementation, please confirm:
 
 **Empty Directories Removed**:
 - `docs/v2/api-reference/augmentation/`
-- `docs/v2/api-reference/output_adapters/mkdocs/`
-- `docs/v2/api-reference/output_adapters/`
+- `docs/v2/api-reference/output_sinks/mkdocs/`
+- `docs/v2/api-reference/output_sinks/`
 
 ### Files Kept
 

@@ -289,23 +289,6 @@ class DuckDBStorageManager:
         params = params or []
         return self._conn.execute(sql, params).fetchall()
 
-    def execute(self, sql: str, params: Sequence | None = None) -> duckdb.DuckDBPyRelation:
-        """Execute a raw SQL statement via the managed connection.
-
-        This provides backward compatibility for callers expecting a direct
-        ``execute`` method on the storage manager while keeping connection
-        handling centralized.
-
-        Args:
-            sql: SQL query or statement to execute.
-            params: Optional sequence of parameters for prepared execution.
-
-        Returns:
-            The DuckDB relation produced by the statement (if any).
-
-        """
-        return self._conn.execute(sql, params or [])
-
     def execute_sql(self, sql: str, params: Sequence | None = None) -> None:
         """Execute a raw SQL statement without returning results."""
         self._conn.execute(sql, params or [])
@@ -487,7 +470,7 @@ class DuckDBStorageManager:
         schemas.create_table_if_not_exists(self._conn, name, target_schema)
 
         temp_view = f"_egregora_persist_{uuid.uuid4().hex}"
-        self._conn.create_view(temp_view, table.to_pyarrow(), overwrite=True)
+        self._conn.register(temp_view, table.to_pyarrow())
 
         try:
             quoted_target = quote_identifier(name)
@@ -645,7 +628,7 @@ class DuckDBStorageManager:
                 escaped_name = sequence_name.replace("'", "''")
                 sequence_literal = f"'{escaped_name}'"
                 for _ in range(count):
-                    row = self.execute(f"SELECT nextval({sequence_literal})").fetchone()
+                    row = self._conn.execute(f"SELECT nextval({sequence_literal})").fetchone()
                     if row is None:
                         raise SequenceFetchError(sequence_name)
                     results.append(int(row[0]))

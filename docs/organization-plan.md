@@ -23,7 +23,7 @@ The Egregora codebase is a modular Python application with a clear separation be
 - **Author management logic:** Moved from `src/egregora/utils/authors.py` to `src/egregora/knowledge/profiles.py`.
 - **`UsageTracker` class:** Moved from `src/egregora/utils/metrics.py` to `src/egregora/llm/usage.py`.
 - **Async utility:** Removed duplicated `run_async_safely` from `src/egregora/orchestration/pipelines/write.py`.
-- **Datetime utilities:** Moved from `src/egregora/utils/datetime_utils.py` to `src/egregora/output_adapters/mkdocs/markdown_utils.py`.
+- **Datetime utilities:** Moved from `src/egregora/utils/datetime_utils.py` to `src/egregora/output_sinks/mkdocs/markdown_utils.py`.
 - **Site scaffolding:** Replaced legacy `ensure_mkdocs_project` with `MkDocsSiteScaffolder`.
 - **Rate limiter:** Moved from `src/egregora/utils/rate_limit.py` to `src/egregora/llm/rate_limit.py`.
 - **`slugify` utility:** Moved from `src/egregora/utils/paths.py` to `src/egregora/utils/text.py`.

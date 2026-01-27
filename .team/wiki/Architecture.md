@@ -44,7 +44,7 @@ Located in `src/egregora/agents/writer.py`.
 The "Creative" engine. It takes the enriched window and generates the Markdown content for the blog post.
 
 ### 3. The Output Sink
-Located in `src/egregora/output_adapters/`.
+Located in `src/egregora/output_sinks/`.
 The abstraction layer for where artifacts go (File System, S3, Database). Currently, it primarily targets the local file system (`mkdocs` structure).
 
 ---
