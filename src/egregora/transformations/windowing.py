@@ -484,8 +484,7 @@ def _window_by_bytes(
 
         # Construct window table
         window_table = table_with_rn.filter(
-            (table_with_rn.row_number >= start_rn) &
-            (table_with_rn.row_number <= end_rn)
+            (table_with_rn.row_number >= start_rn) & (table_with_rn.row_number <= end_rn)
         ).drop("row_number")
 
         yield Window(

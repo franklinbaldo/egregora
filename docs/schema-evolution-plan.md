@@ -65,13 +65,7 @@ CHECK (
 
 ## 3. Backlog
 
-<<<<<<< HEAD
 -   [x] Add constraints to `documents` table (Completed Jan 2026).
 -   [x] Migrate `ContentRepository` to use `documents` table (Completed Jan 2026).
 -   [x] Verify `media` table usage and consolidate (Completed Jan 2026).
 -   [x] Add indexes to `documents` table (`doc_type`, `slug`, `created_at`, `status`) (Completed Jan 2026).
-=======
--   [x] Add constraints to `documents` table (Completed Sprint 1).
--   [x] Migrate `ContentRepository` to use `documents` table instead of individual tables (Completed Sprint 1).
--   [x] Verify `media` table usage and consolidate if needed (Completed Sprint 1 - V5 Migration).
->>>>>>> origin/pr/2841

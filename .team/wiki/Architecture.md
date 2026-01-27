@@ -11,15 +11,9 @@ At its heart, Egregora is a **Batch Processing Engine**. It ingests a stream of 
 
 ### Key Concepts
 
-<<<<<<< HEAD
 1.  **The Window**: A transient view of conversation data. While historically temporal (e.g., "Monday 10:00 AM - 12:00 PM"), modern "Phase 6" windowing supports **Byte-based Packing** to maximize context usage (~4 bytes/token) irrespective of time boundaries.
 2.  **The Pipeline**: The linear sequence of steps applied to a window: `Ingest -> Window -> Enrich -> Write -> Persist`.
 3.  **Idempotency**: The system is designed to be resumable. Completed windows are recorded as `DocumentType.JOURNAL` entries in the database. Subsequent runs query these entries to skip already-processed data.
-=======
-1.  **The Window**: A temporal slice of conversation history (e.g., "Monday 10:00 AM - 12:00 PM"). The system operates on one window at a time.
-2.  **The Pipeline**: The linear sequence of steps applied to a window: `Ingest -> Window -> Enrich -> Write -> Persist`.
-3.  **Idempotency**: The system is designed to be resumable. If a window is processed, it is recorded in the `JOURNAL`, and subsequent runs will skip it.
->>>>>>> origin/pr/2742
 
 ## ⚙️ The Engine: `PipelineRunner`
 
@@ -34,13 +28,8 @@ One of the most critical features of the Runner is its ability to handle **Promp
 
 ### Journal-Based State
 
-<<<<<<< HEAD
 The Runner uses a "Journal" mechanism for state tracking, persisted as `DocumentType.JOURNAL`.
 - Before processing a window, it checks if a Journal entry exists for that specific signature (hash of data + logic + model).
-=======
-The Runner uses a "Journal" mechanism for state tracking.
-- Before processing a window, it checks if a Journal entry exists for that specific time range and signature.
->>>>>>> origin/pr/2742
 - If found, it skips the window (`⏭️ Skipping window...`).
 - This allows the pipeline to be interrupted and restarted without duplicating work.
 
@@ -60,7 +49,6 @@ The abstraction layer for where artifacts go (File System, S3, Database). Curren
 
 ---
 
-<<<<<<< HEAD
 ## 🔮 Future Architecture: The Symbiote
 
 *Status: In Planning (Sprint 2/3)*
@@ -73,6 +61,3 @@ The **Visionary** has proposed a paradigm shift from the current "Passive Archiv
 - **Read-Only -> Interactive:** Allowing the system to participate in conversations rather than just observing them.
 
 *For more details, see [Sprint 2 Plans](../sprints/sprint-2/visionary-plan.md) and the [Glossary](Glossary.md).*
-=======
-*Archivist Note: This architecture is currently under review by the **Visionary** for a potential shift towards a "Symbiote" model (Real-time + Structured Sidecar). See [Sprint 2 Plans](../sprints/sprint-2/visionary-plan.md).*
->>>>>>> origin/pr/2742

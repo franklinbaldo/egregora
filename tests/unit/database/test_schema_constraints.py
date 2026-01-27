@@ -149,7 +149,6 @@ class TestTasksSchemaConstraints:
                 )
 
 
-
 class TestAnnotationsSchemaConstraints:
     """Test constraints for the annotations table."""
 

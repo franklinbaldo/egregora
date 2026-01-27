@@ -7,7 +7,6 @@
 **Reviewed:** 2026-01-26
 
 ## Objectives
-<<<<<<< HEAD
 My mission is to elevate the codebase through superior craftsmanship. For Sprint 2, I will focus on improving type safety and decomposing complex code, strictly adhering to the "Structure & Polish" theme.
 
 <<<<<<< HEAD
@@ -23,33 +22,15 @@ My mission is to elevate the codebase through superior craftsmanship. For Sprint
 - **Simplifier:** I must coordinate with Simplifier on the boundary between `write.py` (ETL) and `runner.py` (Orchestration). We need to agree on the data structures passed between them.
 - **Sentinel:** I rely on Sentinel's requirements for `SecretStr` and security validation rules for the new Pydantic config models.
 - **Refactor:** I will check `Refactor`'s plan to avoid touching the same `utils` files simultaneously.
-=======
-- [ ] **Introduce Pydantic Models in `config.py`:** The current configuration is managed through dictionaries, which is error-prone. I will refactor `config.py` to use Pydantic models for type-safe, self-documenting configuration, ensuring `SecretStr` is used for sensitive data in coordination with **Sentinel**.
-- [ ] **Decompose `runner.py`:** The `PipelineRunner` class contains complex orchestration logic. I will identify "god methods" and apply the "Extract Method" refactoring pattern to improve readability and testability, following a strict TDD process.
-- [ ] **Add Docstrings to Transformation Modules:** The modules in `src/egregora/transformations/` (e.g., `windowing.py`, `enrichment.py`) are core to the application but lack sufficient documentation. I will add Google-style docstrings to these modules to improve developer experience.
-- [ ] **Address `: Any` types in Google Batch Provider:** I will replace the loose `typing.Any` types in `src/egregora/llm/providers/google_batch.py` with precise types or protocols to improve safety in the LLM layer.
-
-## Dependencies
-- **Refactor:** I will need to coordinate with the Refactor persona to avoid conflicts, as we may both be touching similar parts of the codebase. Our work is complementary, but communication is key.
-- **Sentinel:** Collaboration on secure configuration models to ensure secrets are handled correctly.
->>>>>>> origin/pr/2899
 
 ## Context
 The codebase has reached a level of complexity where "dictionaries passing data" is no longer sustainable. We need rigid contracts (Pydantic Models, Protocols). Also, `runner.py` and `write.py` are the two biggest maintenance burdens. Splitting them up is critical for the "Batch Era".
 
 ## Expected Deliverables
-<<<<<<< HEAD
 1.  **`src/egregora/config/settings.py`**: Fully typed Pydantic implementation.
 2.  **Refactored `runner.py`**: Reduced cyclomatic complexity and line count.
 3.  **Docstrings**: 100% coverage for 2+ utility modules.
 4.  **Type Safety**: Reduced usage of `Any` in orchestration layer.
-=======
-1. **Type-Safe Configuration:** The `config.py` module will be fully migrated to Pydantic models.
-2. **Refactored Pipeline Runner:** At least one major method in `runner.py` will be decomposed into smaller, well-tested functions.
-3. **Improved Documentation:** The `src/egregora/transformations/` modules will have complete, high-quality docstrings.
-4. **Type-Safe LLM Provider:** `google_batch.py` will no longer rely on `Any`.
-5. **Journal Entry:** A detailed journal entry documenting the observations, actions, and reflections from the sprint's work.
->>>>>>> origin/pr/2899
 =======
 My mission is to elevate code quality, focusing on type safety and documentation during this "Finish and Polish" sprint.
 
@@ -72,7 +53,6 @@ Sprint 2 is about polish. For code, "polish" means clarity (documentation) and r
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-<<<<<<< HEAD
 | Config Refactor breaks runtime | High | High | I will write a "Config Snapshot" test before starting to verify the new Pydantic config produces the exact same values as the old dict config. |
 | Runner Refactor conflicts with Simplifier | Medium | High | Early agreement on interfaces. I will review Simplifier's PRs and vice-versa. |
 | Import Time Regression | Medium | Medium | I will run `python -X importtime` before and after major refactors to ensure no regression. |
@@ -81,10 +61,3 @@ Sprint 2 is about polish. For code, "polish" means clarity (documentation) and r
 - **With Simplifier:** Joint design session for the Pipeline Interface.
 - **With Sentinel:** Pair programming on `SecretStr` implementation.
 - **With Bolt:** Request benchmarks for the new `runner.py`.
-=======
-| Conflict with Simplifier | Medium | Medium | I will work on `rendering` documentation first, allowing Simplifier time to establish the `etl` structure. |
-| Over-engineering Types | Low | Low | I will use `Protocol`s where flexibility is needed, rather than complex inheritance hierarchies. |
-
-## Proposed Collaborations
-- **With Simplifier:** Joint code review on the new ETL pipeline structure.
->>>>>>> origin/pr/2886

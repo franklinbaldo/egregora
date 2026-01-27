@@ -231,9 +231,9 @@ def merge_completed_prs() -> int:
                 )
                 print(f"  PR #{pr_number}: marked ready")
 
-            # Merge with squash and admin override to bypass CI requirements
+            # Merge with admin override to bypass CI requirements
             subprocess.run(
-                ["gh", "pr", "merge", str(pr_number), "--squash", "--delete-branch", "--admin"],
+                ["gh", "pr", "merge", str(pr_number), "--delete-branch", "--admin"],
                 check=True,
                 capture_output=True,
             )
@@ -242,8 +242,6 @@ def merge_completed_prs() -> int:
 
         except subprocess.CalledProcessError as e:
             print(f"  PR #{pr_number}: merge failed - {e.stderr if e.stderr else e}")
-
-    return merged
 
     return merged
 

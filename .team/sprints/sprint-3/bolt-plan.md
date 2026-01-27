@@ -6,7 +6,6 @@
 **Priority:** Medium
 
 ## Objectives
-<<<<<<< HEAD
 My mission is to enable the "Real-Time Adapter Framework" (Visionary's Moonshot) by optimizing for latency and concurrency, and to finalize the performance hardening of the Context Layer.
 
 - [ ] **Async Core:** Refactor critical blocking I/O paths in the ingestion layer to be fully asynchronous (preparing for real-time streams).
@@ -14,12 +13,6 @@ My mission is to enable the "Real-Time Adapter Framework" (Visionary's Moonshot)
 - [ ] **Stream Processing:** Prototype a stream-based processing model (using `async generators` or `trio`) to replace the batch-windowing logic for the real-time adapter.
 - [ ] **Git History Optimization (Finalize):** Ensure the Git history resolution scale linearly with repo size, possibly implementing an incremental updater.
 - [ ] **Load Testing:** Conduct load testing on the new architecture to identify breaking points.
-=======
-
-- [ ] Implement parallel processing for media enrichment
-- [ ] Optimize search/ranking algorithms (ELO calculation)
-- [ ] Audit and optimize memory usage of long-running agents
->>>>>>> origin/pr/2840
 
 ## Dependencies
 
@@ -38,18 +31,6 @@ As the dataset grows, serial processing becomes a bottleneck. Sprint 3 focuses o
 ## Risks and Mitigations
 
 | Risk | Probability | Impact | Mitigation |
-<<<<<<< HEAD
 |-------|---------------|---------|-----------|
 | Python GIL limitations | Medium | High | Use multi-processing for CPU-bound tasks (if any), keep the main loop I/O bound. |
 | DB Write Locking | Medium | High | Optimizing DuckDB write patterns or moving to a wal-enabled mode if not already. |
-=======
-|------|-------------|--------|------------|
-| Race conditions in DB | Medium | High | Strict transaction isolation and testing |
-
-## Proposed Collaborations
-
-- **With Streamliner:** For parallel processing implementation.
-
-## Additional Notes
-None.
->>>>>>> origin/pr/2840
