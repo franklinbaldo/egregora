@@ -32,8 +32,8 @@ from google.api_core import exceptions as google_exceptions
 from ibis.common.exceptions import IbisError
 from pydantic import BaseModel
 
-# UrlContextTool is the client-side fetcher (alias for WebFetchTool) suitable for pydantic-ai
-from pydantic_ai import Agent, RunContext, UrlContextTool
+# WebFetchTool is the client-side fetcher suitable for pydantic-ai
+from pydantic_ai import Agent, RunContext, WebFetchTool
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import BinaryContent
 
@@ -623,12 +623,12 @@ class EnrichmentWorker(BaseWorker):
             )
 
             # REGISTER TOOLS:
-            # 1. UrlContextTool: Standard client-side fetcher (primary) - passed via builtin_tools
+            # 1. WebFetchTool: Standard client-side fetcher (primary) - passed via builtin_tools
             # 2. fetch_url_with_jina: Fallback service for difficult pages - passed via tools
             agent = Agent(
                 model=model,
                 output_type=EnrichmentOutput,
-                builtin_tools=[UrlContextTool()],  # Built-in tools must use builtin_tools param
+                builtin_tools=[WebFetchTool()],  # Built-in tools must use builtin_tools param
                 tools=[fetch_url_with_jina],  # Custom tools use regular tools param
             )
 
