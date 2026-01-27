@@ -1,22 +1,31 @@
 # GitHub Workflows Analysis
 
-> Generated: 2026-01-27
+> Generated: 2026-01-27 | Updated after cleanup
 
 ## Executive Summary
 
-The repository has **7 workflow files** totaling **1,095 lines** of YAML. The workflows are generally well-structured with good documentation, but there are some areas of complexity and potential overlap.
+The repository has **5 workflow files** totaling **724 lines** of YAML.
 
-### Workflow Inventory
+**Recent Cleanup (Commits 70211d3 → 3dd033c):**
+- Removed `codeql.yml` (redundant - GitHub default setup active)
+- Removed `pr-conflict-label.yml` (197 lines of inline code)
+- Simplified `ci.yml` from 8 jobs to 5 jobs (276 → 157 lines)
+- Removed duplicate bundle artifact upload from `docs-pages.yml`
+- Streamlined pre-commit hooks (removed bandit)
+
+**Result:** 34% reduction in workflow code (1,095 → 724 lines)
+
+---
+
+## Workflow Inventory
 
 | File | Lines | Purpose | Triggers |
 |------|-------|---------|----------|
-| `ci.yml` | 276 | Main CI pipeline | push, PR, schedule, dispatch |
-| `jules.yml` | 223 | AI agent orchestration | PR closed, push, schedule, workflow_run, dispatch |
-| `pr-conflict-label.yml` | 197 | PR conflict management | PR events, dispatch |
+| `jules.yml` | 223 | AI agent orchestration | PR closed, push, schedule (15min), workflow_run, dispatch |
+| `ci.yml` | 157 | Main CI pipeline | push, PR, dispatch |
 | `jules-pr.yml` | 157 | Jules PR automation | pull_request_target, workflow_run, dispatch |
-| `docs-pages.yml` | 114 | Documentation deployment | push (main), dispatch |
+| `docs-pages.yml` | 106 | Documentation deployment | push (main), dispatch |
 | `cleanup.yml` | 81 | Artifact cleanup | weekly schedule, dispatch |
-| `codeql.yml` | 47 | Security analysis | push, PR, weekly schedule, dispatch |
 
 ---
 
@@ -29,36 +38,26 @@ The repository has **7 workflow files** totaling **1,095 lines** of YAML. The wo
                                              │
               ┌──────────────────────────────┼──────────────────────────────┐
               │                              │                              │
-              ▼                              ▼                              ▼
-     ┌────────────────┐            ┌─────────────────┐           ┌─────────────────┐
-     │     ci.yml     │            │  docs-pages.yml │           │   codeql.yml    │
-     │  (CI Pipeline) │            │  (Deploy Docs)  │           │ (Security Scan) │
-     └────────┬───────┘            └─────────────────┘           └─────────────────┘
-              │
-              │ workflow_run (completed)
-              ▼
-     ┌────────────────┐
-     │   jules.yml    │◄─────── schedule (*/15 * * * *)
-     │  (Scheduler)   │◄─────── PR merged (Jules bot)
-     └────────┬───────┘
+              ▼                              ▼                              │
+     ┌────────────────┐            ┌─────────────────┐                      │
+     │     ci.yml     │            │  docs-pages.yml │                      │
+     │  (CI Pipeline) │            │  (Deploy Docs)  │                      │
+     └────────┬───────┘            └─────────────────┘                      │
+              │                                                             │
+              │ workflow_run                                                │
+              ├─────────────────────────────────────────────────────────────┤
+              │ (completed)                                   (failure)     │
+              ▼                                                             ▼
+     ┌────────────────┐                                          ┌─────────────────┐
+     │   jules.yml    │◄─────── schedule (*/15 * * * *)          │  jules-pr.yml   │
+     │  (Scheduler)   │◄─────── PR merged (Jules bot)            │  (Auto-fixer)   │
+     └────────┬───────┘                                          └─────────────────┘
               │
               │ Creates PR
               ▼
      ┌────────────────┐
      │  jules-pr.yml  │◄─────── pull_request_target (opened/sync)
      │  (Auto-merge)  │
-     └────────┬───────┘
-              │
-              │ workflow_run (CI failure)
-              ▼
-     ┌────────────────┐
-     │  Auto-fixer    │
-     │  (in jules-pr) │
-     └────────────────┘
-
-     ┌────────────────┐
-     │ pr-conflict-   │◄─────── pull_request (opened/sync)
-     │ label.yml      │
      └────────────────┘
 
      ┌────────────────┐
@@ -70,209 +69,150 @@ The repository has **7 workflow files** totaling **1,095 lines** of YAML. The wo
 
 ## Detailed Analysis by Workflow
 
-### 1. ci.yml - Main CI Pipeline
+### 1. ci.yml - Main CI Pipeline (157 lines)
 
 **Purpose:** Core CI with linting, testing, security, and build.
 
-**Jobs:**
-- `pre-commit`: Runs pre-commit hooks
-- `test-unit`: Unit tests with coverage
-- `test-e2e`: End-to-end tests (30min timeout, `--cov-fail-under=45`)
-- `security`: Safety, pip-audit, bandit scans
-- `build`: Package build (depends on tests)
-- `quality`: Radon, xenon, vulture (main/schedule only)
-- `enable-auto-merge`: Status check for branch protection
-- `summary`: Job result summary table
+**Jobs (5 total):**
+| Job | Timeout | Dependencies | Purpose |
+|-----|---------|--------------|---------|
+| `pre-commit` | 10min | none | Linting, formatting |
+| `test-unit` | 10min | none | Unit tests with coverage |
+| `test-e2e` | 30min | none | E2E tests, 45% coverage threshold |
+| `security` | 10min | none | Safety + pip-audit |
+| `build` | 5min | pre-commit, test-unit, test-e2e | Package build |
 
 **Strengths:**
-- Well-structured with proper dependencies
+- Well-documented with header comments
 - Concurrency control (`cancel-in-progress: true`)
-- Workflow dispatch inputs for debugging
-- Artifact retention configured
+- Skip tests option for debugging
+- Proper job dependencies for build
 
-**Issues:**
-- `security` job has `continue-on-error: true` on bandit - failures might be silent
-- `test-e2e` includes a specific step file (`test_reader_steps.py`) which seems odd
+**Remaining Issues:**
+- `security` job uses `|| true` - failures are silent
+- `test_reader_steps.py` included in e2e tests seems out of place
 
-### 2. jules.yml - AI Agent Orchestration
+### 2. jules.yml - AI Agent Orchestration (223 lines)
 
 **Purpose:** Orchestrates Jules AI agent sessions for automated maintenance.
 
-**Jobs:**
-- `on-merge`: Triggers scheduler when Jules PR merges
-- `scheduler`: Main orchestration, picks persona, creates session
-- `sync-main`: Merges jules branch into main
+**Jobs (3 total):**
+| Job | Trigger Condition | Purpose |
+|-----|-------------------|---------|
+| `on-merge` | PR merged by Jules | Triggers scheduler for next session |
+| `scheduler` | dispatch, schedule, workflow_run | Picks persona, creates session |
+| `sync-main` | After scheduler | Merges jules branch into main |
 
 **Strengths:**
-- Excellent inline documentation with flow diagrams
+- Excellent inline documentation with ASCII flow diagrams
 - State management via artifacts (avoids repo commits)
 - Chain triggers for continuous automation
 
-**Issues:**
-- Complex trigger conditions (5 different events)
+**Remaining Issues:**
 - Schedule runs every 15 minutes - potentially excessive
-- `workflow_run` chains can be hard to debug
+- 5 different event types makes debugging complex
 
-### 3. jules-pr.yml - Jules PR Automation
+### 3. jules-pr.yml - Jules PR Automation (157 lines)
 
 **Purpose:** Handles auto-merge and auto-fix for Jules PRs.
 
-**Jobs:**
-- `auto-merge`: Enables auto-merge for Jules PRs
-- `auto-fixer`: Analyzes CI failures and triggers fixes
+**Jobs (2 total):**
+| Job | Trigger | Purpose |
+|-----|---------|---------|
+| `auto-merge` | pull_request_target | Enable auto-merge for Jules PRs |
+| `auto-fixer` | CI failure, dispatch | Analyze failures, trigger fixes |
 
 **Strengths:**
-- Security-conscious (fork detection)
-- Good separation of concerns
-- Well-documented flow
+- Security-conscious (fork detection prevents secret exposure)
+- Well-documented security notes
+- Sparse checkout for efficiency
 
-**Issues:**
-- `pull_request_target` is powerful/risky (documented but worth noting)
-- Auto-fixer depends on external `repo.cli autofix` command
+**Notes:**
+- Uses `pull_request_target` (powerful/risky, but properly guarded)
 
-### 4. pr-conflict-label.yml - PR Conflict Management
-
-**Purpose:** Labels PRs with conflicts and auto-updates branches.
-
-**Jobs:**
-- `manage-pr`: Checks mergeability, manages labels, updates branches
-
-**Strengths:**
-- Retry logic for mergeability status
-- Triggers Jules for conflict resolution
-
-**Issues:**
-- **197 lines** is large for a labeling workflow
-- Inline Python script (136-197) should be externalized
-- Overlaps with `jules-pr.yml` in intent (both handle Jules PRs)
-
-### 5. docs-pages.yml - Documentation Deployment
+### 4. docs-pages.yml - Documentation Deployment (106 lines)
 
 **Purpose:** Builds and deploys MkDocs documentation.
 
-**Jobs:**
-- `pages`: Build docs, demo site, repomix bundles, deploy
+**Single Job:** `pages`
+- Builds MkDocs documentation
+- Generates demo site with real Gemini API (if available)
+- Creates repomix bundles for AI context
+- Deploys to GitHub Pages
 
 **Strengths:**
 - Clean single-job design
-- Uses GitHub Pages environment
-- Generates repomix bundles for AI context
+- Graceful fallback when Gemini API unavailable
+- Build metadata injected into mkdocs.yml
 
-**Issues:**
-- Node.js setup for just repomix - could use npx without setup-node
-
-### 6. cleanup.yml - Artifact Cleanup
+### 5. cleanup.yml - Artifact Cleanup (81 lines)
 
 **Purpose:** Deletes artifacts older than 30 days.
 
-**Jobs:**
-- `cleanup`: Paginates through artifacts, deletes old ones
+**Single Job:** `cleanup`
+- Weekly schedule (Sunday 3am UTC)
+- Paginates through all artifacts
+- Provides summary of cleaned items
 
-**Strengths:**
-- Good summary reporting
-- 10-minute timeout (safe)
-- Weekly schedule appropriate
-
-**Issues:**
-- None significant
-
-### 7. codeql.yml - Security Analysis
-
-**Purpose:** GitHub CodeQL security scanning.
-
-**Jobs:**
-- `analyze`: Runs CodeQL on Python code
-
-**Issues:**
-- `upload: false` and `upload-database: false` - workflow runs but doesn't upload results
-- Comment explains this is because "default setup" is enabled, making this workflow somewhat redundant
+**Status:** Well-designed, no issues.
 
 ---
 
-## Identified Patterns & Problems
+## Current State Assessment
 
-### 1. Overlapping Triggers
+### What Was Fixed
 
-| Trigger | Workflows Affected |
-|---------|-------------------|
-| `push` to main | ci.yml, docs-pages.yml, codeql.yml |
-| `pull_request` | ci.yml, codeql.yml, pr-conflict-label.yml |
-| `schedule` | ci.yml (daily), jules.yml (15min), cleanup.yml (weekly), codeql.yml (weekly) |
-| `workflow_run` on CI | jules.yml, jules-pr.yml |
+| Issue | Resolution |
+|-------|------------|
+| Redundant `codeql.yml` | Removed (GitHub default setup active) |
+| 197-line inline Python in `pr-conflict-label.yml` | Entire workflow removed |
+| 8 jobs in CI | Reduced to 5 jobs |
+| Duplicate artifact uploads | Removed from docs-pages |
+| Bandit in pre-commit | Removed (was causing friction) |
 
-**Concern:** Both `jules.yml` and `jules-pr.yml` listen to CI completion via `workflow_run`. This could cause duplicate triggers.
+### Remaining Recommendations
 
-### 2. Inline Code That Should Be Externalized
+#### Medium Priority
 
-| Workflow | Lines | Location |
-|----------|-------|----------|
-| `pr-conflict-label.yml` | ~60 | Inline Python script (lines 136-197) |
-| `cleanup.yml` | ~60 | Inline JavaScript (lines 22-81) |
+1. **Reduce Jules schedule frequency** - Every 15 minutes is aggressive. Consider 30 minutes or hourly. The `on-merge` trigger handles the primary loop.
 
-### 3. Redundant Workflows
+2. **Make security failures visible** - In `ci.yml`, the security job uses `|| true` which hides failures. Consider:
+   ```yaml
+   - name: Check dependencies for vulnerabilities
+     run: |
+       uvx safety check --full-report
+       uvx pip-audit
+     continue-on-error: true  # Visible failure without blocking
+   ```
 
-| Workflow | Concern |
-|----------|---------|
-| `codeql.yml` | Runs but doesn't upload results (GitHub default setup handles this) |
+3. **Review `workflow_run` listeners** - Both `jules.yml` and `jules-pr.yml` listen to CI completion. Ensure they have non-overlapping conditions.
 
-### 4. Schedule Frequency
+#### Low Priority
 
-| Workflow | Schedule | Concern |
-|----------|----------|---------|
-| `jules.yml` | Every 15 minutes | High frequency, potential cost/noise |
-| `ci.yml` | Daily 3am | Appropriate |
-| `cleanup.yml` | Weekly Sunday | Appropriate |
-| `codeql.yml` | Weekly Monday | Appropriate |
+4. **Document the test file inclusion** - `test_reader_steps.py` in e2e tests looks like it might be step definitions (BDD), worth a comment.
 
-### 5. Continue-on-error Usage
-
-| Workflow | Job/Step | Risk |
-|----------|----------|------|
-| `ci.yml` | `security` job, bandit step | Security failures may go unnoticed |
-| `jules.yml` | Download schedule state | Acceptable (has fallback) |
-| `ci.yml` | xenon step | Minor (informational) |
-
----
-
-## Recommendations
-
-### High Priority
-
-1. **Consider removing `codeql.yml`** - It runs but doesn't upload results. If GitHub's default CodeQL setup is enabled, this workflow is redundant and wastes compute time.
-
-2. **Reduce Jules schedule frequency** - Every 15 minutes is aggressive. Consider 30 minutes or hourly. The `on-merge` trigger handles the primary loop.
-
-3. **Externalize inline scripts**:
-   - Move `pr-conflict-label.yml` Python to `.github/scripts/jules/trigger-conflict-fix.py`
-   - Move `cleanup.yml` JavaScript to `.github/scripts/cleanup-artifacts.js`
-
-### Medium Priority
-
-4. **Review `workflow_run` listeners** - Both `jules.yml` and `jules-pr.yml` listen to CI completion. Ensure they have non-overlapping conditions to avoid duplicate work.
-
-5. **Make bandit failures visible** - In `ci.yml`, either remove `continue-on-error` from bandit or add a follow-up step that warns about failures.
-
-### Low Priority
-
-6. **Remove `setup-node` from docs-pages.yml** - `npx repomix` works without it.
-
-7. **Consider consolidating Jules workflows** - `jules.yml` and `jules-pr.yml` could potentially be one file with multiple jobs, reducing cognitive overhead.
+5. **Consider consolidating Jules workflows** - `jules.yml` and `jules-pr.yml` could potentially be one file, reducing cognitive overhead.
 
 ---
 
 ## Supporting Files
 
-### Scripts (`.github/scripts/`)
+### Scripts (`.github/scripts/jules/`)
 
-| Script | Used By |
-|--------|---------|
-| `jules/run-scheduler.sh` | jules.yml |
-| `jules/restore-schedule-state.sh` | jules.yml |
-| `jules/identify-pr.sh` | jules-pr.yml |
-| `jules/enable-auto-merge.sh` | jules-pr.yml |
-| `jules/sync-main.py` | jules.yml |
-| `construct_gemini_prompt.py` | Not referenced in workflows (has tests but no workflow usage) |
-| `analyze_historical_regressions.py` | Not referenced in any file (orphaned) |
+| Script | Used By | Purpose |
+|--------|---------|---------|
+| `run-scheduler.sh` | jules.yml | Main scheduler execution |
+| `restore-schedule-state.sh` | jules.yml | Restore state from artifact |
+| `identify-pr.sh` | jules-pr.yml | Find PR from workflow_run event |
+| `enable-auto-merge.sh` | jules-pr.yml | Enable auto-merge on PR |
+| `sync-main.py` | jules.yml | Merge jules → main |
+
+### Potentially Unused Scripts
+
+| Script | Status |
+|--------|--------|
+| `construct_gemini_prompt.py` | Has tests but no workflow reference |
+| `analyze_historical_regressions.py` | Not referenced anywhere (orphaned) |
 
 ### Composite Actions (`.github/actions/`)
 
@@ -286,11 +226,29 @@ The repository has **7 workflow files** totaling **1,095 lines** of YAML. The wo
 
 ## Cleanup Checklist
 
-- [ ] Remove or disable `codeql.yml` if GitHub default setup is active
+### Completed
+
+- [x] Remove redundant `codeql.yml`
+- [x] Remove `pr-conflict-label.yml` (externalize or delete inline code)
+- [x] Simplify CI workflow (8 → 5 jobs)
+- [x] Remove duplicate bundle artifact upload
+- [x] Streamline pre-commit hooks
+
+### Remaining
+
 - [ ] Reduce `jules.yml` schedule from `*/15` to `*/30` or hourly
-- [ ] Externalize inline Python in `pr-conflict-label.yml`
-- [ ] Externalize inline JS in `cleanup.yml` (optional)
 - [ ] Remove orphaned `analyze_historical_regressions.py` script
-- [ ] Either use or remove `construct_gemini_prompt.py` (has tests but no workflow)
-- [ ] Add visibility for bandit failures in `ci.yml`
-- [ ] Document the `workflow_run` dependency chain
+- [ ] Either use or remove `construct_gemini_prompt.py`
+- [ ] Make security scan failures visible (remove `|| true`)
+- [ ] Document `workflow_run` dependency chain
+
+---
+
+## Metrics
+
+| Metric | Before | After | Change |
+|--------|--------|-------|--------|
+| Workflow files | 7 | 5 | -29% |
+| Total lines | 1,095 | 724 | -34% |
+| CI jobs | 8 | 5 | -38% |
+| Inline scripts | 2 | 0 | -100% |
