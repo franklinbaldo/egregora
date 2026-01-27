@@ -1,5 +1,6 @@
 """Behavioral tests for enrichment transformations."""
 
+<<<<<<< HEAD
 from datetime import datetime
 
 import ibis
@@ -15,6 +16,14 @@ import pandas as pd
 from egregora.transformations.enrichment import combine_with_enrichment_rows
 
 
+=======
+import ibis
+import pytest
+import pandas as pd
+from datetime import datetime
+from egregora.transformations.enrichment import combine_with_enrichment_rows
+
+>>>>>>> origin/pr/2652
 def test_combine_basic_functionality():
     """Verify basic union of existing table and new rows."""
     # Given
@@ -25,12 +34,19 @@ def test_combine_basic_functionality():
     ]
     table = ibis.memtable(data, schema=schema)
 
+<<<<<<< HEAD
     new_rows = [{"id": 2, "val": "b", "ts": datetime(2023, 1, 1, 11, 0, 0)}]
+=======
+    new_rows = [
+        {"id": 2, "val": "b", "ts": datetime(2023, 1, 1, 11, 0, 0)}
+    ]
+>>>>>>> origin/pr/2652
 
     # When
     result = combine_with_enrichment_rows(table, new_rows, schema)
 
     # Then
+<<<<<<< HEAD
     res = result.to_pyarrow().to_pylist()
     assert len(res) == 2
     # Sort order is not guaranteed by default unless function sorts it.
@@ -40,6 +56,14 @@ def test_combine_basic_functionality():
 
 
 
+=======
+    res_df = result.to_pandas()
+    assert len(res_df) == 2
+    # Sort order is not guaranteed by default unless function sorts it.
+    # The function sorts by "ts".
+    assert res_df.iloc[0]["id"] == 1
+    assert res_df.iloc[1]["id"] == 2
+>>>>>>> origin/pr/2652
 
 def test_missing_columns_adaptation():
     """Verify that columns in schema but missing from input table are added as nulls."""
@@ -56,6 +80,7 @@ def test_missing_columns_adaptation():
     result = combine_with_enrichment_rows(table, new_rows, target_schema)
 
     # Then
+<<<<<<< HEAD
     res = result.to_pyarrow().to_pylist()
     assert "extra" in res[0]
 <<<<<<< HEAD
@@ -69,6 +94,14 @@ def test_missing_columns_adaptation():
 
 
 
+=======
+    res_df = result.to_pandas()
+    assert "extra" in res_df.columns
+    # First row (from table) should be None/NaN
+    assert pd.isna(res_df.iloc[0]["extra"])
+    # Second row (from new_rows) should be "foo"
+    assert res_df.iloc[1]["extra"] == "foo"
+>>>>>>> origin/pr/2652
 
 def test_timestamp_normalization_ts():
     """Verify timestamp normalization when column is named 'ts'."""
@@ -86,6 +119,7 @@ def test_timestamp_normalization_ts():
     # Then
     # Execute to verify no errors in casting
 <<<<<<< HEAD
+<<<<<<< HEAD
     res = result.to_pyarrow().to_pylist()
 =======
     res = result.to_pyarrow()
@@ -94,6 +128,10 @@ def test_timestamp_normalization_ts():
 
 
 
+=======
+    res_df = result.to_pandas()
+    assert len(res_df) == 1
+>>>>>>> origin/pr/2652
 
 def test_empty_new_rows():
     """Verify behavior when no new rows are provided."""
@@ -108,7 +146,10 @@ def test_empty_new_rows():
     # Then
     assert result.count().execute() == 1
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/pr/2652
 def test_ordering():
     """Verify that the result is ordered by timestamp."""
     # Given
@@ -125,12 +166,18 @@ def test_ordering():
     result = combine_with_enrichment_rows(table, new_rows, schema)
 
     # Then
+<<<<<<< HEAD
     res = result.to_pyarrow().to_pylist()
     assert res[0]["id"] == 1  # Should be first due to earlier timestamp
     assert res[1]["id"] == 2
 
 
 
+=======
+    res_df = result.to_pandas()
+    assert res_df.iloc[0]["id"] == 1  # Should be first due to earlier timestamp
+    assert res_df.iloc[1]["id"] == 2
+>>>>>>> origin/pr/2652
 
 def test_supports_alternate_timestamp_column():
     """Verify support for 'timestamp' column name instead of 'ts'."""
@@ -145,12 +192,18 @@ def test_supports_alternate_timestamp_column():
     result = combine_with_enrichment_rows(table, new_rows, schema)
 
     # Then
+<<<<<<< HEAD
     res = result.to_pyarrow().to_pylist()
     assert len(res) == 2
     assert res[1]["id"] == 2
 
 
 
+=======
+    res_df = result.to_pandas()
+    assert len(res_df) == 2
+    assert res_df.iloc[1]["id"] == 2
+>>>>>>> origin/pr/2652
 
 def test_no_timestamp_column():
     """Verify behavior when neither 'ts' nor 'timestamp' column is present."""

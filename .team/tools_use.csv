@@ -95,6 +95,7 @@ timestamp,persona,sequence,command,args
 2026-01-19T05:47:26.484830,palette,066,journal,"{'content': 'Fixed demo command suggestion to include [imaging] extra.', 'password': '***'}"
 2026-01-19T08:16:14.053866,unknown,unknown,login,"{'user': 'shepherd', 'password': '***', 'goals': ['Execute assigned tasks']}"
 2026-01-19T08:16:23.864825,shepherd,072,roster list-personas,{}
+<<<<<<< HEAD
 2026-01-19T12:30:21.496009,unknown,unknown,login,"{'user': 'simplifier', 'password': '***', 'goals': ['Execute assigned tasks']}"
 2026-01-19T12:30:32.894156,simplifier,074,email inbox,"{'persona': None, 'unread': False}"
 2026-01-19T12:30:37.905203,simplifier,074,roster list-personas,{}
@@ -103,3 +104,5 @@ timestamp,persona,sequence,command,args
 >>>>>>> origin/pr/2654
 =======
 >>>>>>> origin/pr/2653
+=======
+>>>>>>> origin/pr/2652
