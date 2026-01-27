@@ -1,6 +1,6 @@
 # Persona System
 
-> How Egregora uses AI personas to maintain and improve the codebase
+> How Egregora uses AI personas to maintain and improve the codebase.
 
 ## Overview
 
@@ -405,9 +405,15 @@ Study these well-implemented personas:
 
 ### Related Documentation
 
+<<<<<<< HEAD
 - [Team Constitution](https://github.com/franklinbaldo/egregora/blob/main/.team/CONSTITUTION.md)
 - [Parallel Personas](https://github.com/franklinbaldo/egregora/blob/main/.team/PARALLEL_PERSONAS_README.md)
 - [Code of the Weaver](https://github.com/franklinbaldo/egregora/blob/main/CLAUDE.md)
+=======
+- [Team Constitution]({{ config.repo_url }}/blob/main/.team/CONSTITUTION.md)
+- [Parallel Personas]({{ config.repo_url }}/blob/main/.team/PARALLEL_PERSONAS_README.md)
+- [Code of the Weaver]({{ config.repo_url }}/blob/main/CLAUDE.md)
+>>>>>>> origin/pr/2872
 
 ---
 

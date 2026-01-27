@@ -172,6 +172,7 @@ nav:
       - Technical Reference: reference/index.md
   - Community:
       - Contributing: community/contributing.md
+      - Personas: personas.md
   - Demo: https://franklinbaldo.github.io/egregora/demo/
 
 extra:
