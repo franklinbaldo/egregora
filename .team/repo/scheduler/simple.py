@@ -85,6 +85,7 @@ def discover_personas() -> list[str]:
     return sorted(personas)
 
 
+<<<<<<< HEAD
 def get_active_session(client: TeamClient, repo: str) -> dict | None:
     """Check if there's an active/running Jules session for this repo.
 
@@ -121,6 +122,8 @@ def get_active_session(client: TeamClient, repo: str) -> dict | None:
     return None
 
 
+=======
+>>>>>>> origin/pr/2856
 def get_last_persona_from_api(client: TeamClient, repo: str) -> str | None:
     """Get the last persona that ran from Jules API.
 
@@ -183,22 +186,34 @@ def get_next_persona(last: str | None, personas: list[str]) -> str | None:
 
 
 def merge_completed_prs() -> int:
+<<<<<<< HEAD
     """Merge Jules draft PRs regardless of CI status.
 
     PRs are merged even if CI hasn't passed yet. A separate fixer session
     will handle any CI failures on main before the next persona runs.
+=======
+    """Merge Jules draft PRs that have passing checks.
+>>>>>>> origin/pr/2856
 
     Returns:
         Number of PRs merged.
     """
+<<<<<<< HEAD
     # Get open Jules PRs
+=======
+    # Get open Jules PRs with check status
+>>>>>>> origin/pr/2856
     try:
         result = subprocess.run(
             [
                 "gh", "pr", "list",
                 "--author", JULES_BOT_AUTHOR,
                 "--state", "open",
+<<<<<<< HEAD
                 "--json", "number,isDraft,mergeable",
+=======
+                "--json", "number,isDraft,statusCheckRollup,mergeable",
+>>>>>>> origin/pr/2856
                 "--limit", "50",
             ],
             capture_output=True,
@@ -216,7 +231,20 @@ def merge_completed_prs() -> int:
         is_draft = pr.get("isDraft", False)
         mergeable = pr.get("mergeable", "UNKNOWN")
 
+<<<<<<< HEAD
         # Only skip if conflicting - we merge even with failing CI
+=======
+        # Check if all checks pass
+        checks = pr.get("statusCheckRollup") or []
+        all_green = all(
+            (c.get("conclusion") or "").upper() in ("SUCCESS", "NEUTRAL", "SKIPPED")
+            for c in checks
+        ) if checks else False
+
+        # Skip if not ready
+        if not all_green:
+            continue
+>>>>>>> origin/pr/2856
         if mergeable == "CONFLICTING":
             print(f"  PR #{pr_number}: has conflicts, skipping")
             continue
@@ -231,6 +259,7 @@ def merge_completed_prs() -> int:
                 )
                 print(f"  PR #{pr_number}: marked ready")
 
+<<<<<<< HEAD
             # Merge with squash and admin override to bypass CI requirements
             subprocess.run(
                 ["gh", "pr", "merge", str(pr_number), "--squash", "--delete-branch", "--admin"],
@@ -238,6 +267,15 @@ def merge_completed_prs() -> int:
                 capture_output=True,
             )
             print(f"  PR #{pr_number}: merged (admin override)")
+=======
+            # Merge with squash
+            subprocess.run(
+                ["gh", "pr", "merge", str(pr_number), "--squash", "--delete-branch"],
+                check=True,
+                capture_output=True,
+            )
+            print(f"  PR #{pr_number}: merged")
+>>>>>>> origin/pr/2856
             merged += 1
 
         except subprocess.CalledProcessError as e:
@@ -245,8 +283,11 @@ def merge_completed_prs() -> int:
 
     return merged
 
+<<<<<<< HEAD
     return merged
 
+=======
+>>>>>>> origin/pr/2856
 
 def ensure_jules_branch() -> None:
     """Ensure the jules branch exists and is up to date with main."""
@@ -266,6 +307,7 @@ def ensure_jules_branch() -> None:
         print(f"  Created {JULES_BRANCH} branch from main")
 
 
+<<<<<<< HEAD
 def check_ci_status_on_main() -> bool:
     """Check if CI is passing on main branch.
 
@@ -358,6 +400,8 @@ def create_fixer_session(client: TeamClient, repo_info: dict[str, str]) -> Sched
         )
 
 
+=======
+>>>>>>> origin/pr/2856
 def create_session(
     client: TeamClient,
     persona: PersonaConfig,
@@ -406,12 +450,19 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
     """Main scheduler entry point.
 
     This function:
+<<<<<<< HEAD
     1. Checks if there's already an active session (skips if yes)
     2. Merges any completed Jules PRs (regardless of CI status)
     3. Checks CI on main - if failing, creates fixer session instead
     4. Determines the next persona (round-robin)
     5. Renders the persona prompt with Jinja2
     6. Creates a Jules session
+=======
+    1. Merges any completed Jules PRs
+    2. Determines the next persona (round-robin)
+    3. Renders the persona prompt with Jinja2
+    4. Creates a Jules session
+>>>>>>> origin/pr/2856
 
     Args:
         dry_run: If True, don't create sessions or merge PRs
@@ -427,6 +478,7 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
     repo_info = get_repo_info()
     print(f"Repository: {repo_info['owner']}/{repo_info['repo']}")
 
+<<<<<<< HEAD
     # Step 1: Check for active sessions
     print("\n1. Checking for active sessions...")
     active_session = get_active_session(client, repo_info["repo"])
@@ -444,6 +496,10 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
 
     # Step 2: Merge completed PRs
     print("\n2. Checking for PRs to merge...")
+=======
+    # Step 1: Merge completed PRs
+    print("\n1. Checking for PRs to merge...")
+>>>>>>> origin/pr/2856
     if dry_run:
         print("  [DRY RUN] Skipping PR merge")
         merged = 0
@@ -451,6 +507,7 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
         merged = merge_completed_prs()
     print(f"  Merged {merged} PR(s)")
 
+<<<<<<< HEAD
     # Step 3: Check CI status on main - run fixer if needed
     print("\n3. Checking CI status on main...")
     ci_ok = check_ci_status_on_main()
@@ -474,6 +531,10 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
 
     # Step 4: Find next persona
     print("\n4. Determining next persona...")
+=======
+    # Step 2: Find next persona
+    print("\n2. Determining next persona...")
+>>>>>>> origin/pr/2856
     personas = discover_personas()
     if not personas:
         return SchedulerResult(
@@ -498,8 +559,13 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
         )
     print(f"  Next persona: {next_persona_id}")
 
+<<<<<<< HEAD
     # Step 5: Load and render persona
     print("\n5. Loading persona configuration...")
+=======
+    # Step 3: Load and render persona
+    print("\n3. Loading persona configuration...")
+>>>>>>> origin/pr/2856
     try:
         open_prs = get_open_prs(repo_info["owner"], repo_info["repo"])
         context: dict[str, Any] = {**repo_info, "open_prs": open_prs}
@@ -524,8 +590,13 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
             merged_count=merged,
         )
 
+<<<<<<< HEAD
     # Step 6: Create session
     print("\n6. Creating Jules session...")
+=======
+    # Step 4: Create session
+    print("\n4. Creating Jules session...")
+>>>>>>> origin/pr/2856
     if dry_run:
         print(f"  [DRY RUN] Would create session for {persona.id}")
         return SchedulerResult(

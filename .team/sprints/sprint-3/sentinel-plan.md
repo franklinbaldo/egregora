@@ -7,6 +7,9 @@
 
 ## Objectives
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> origin/pr/2856
 My mission is to prepare the security defenses for the incoming "Symbiote" architecture and Real-Time Adapters.
 
 - [ ] **Threat Model "Real-Time Adapters":** Analyze the RFC from Sprint 2 and produce a Threat Model document identifying risks (SSRF, DoS, Data Exfiltration).
@@ -25,6 +28,7 @@ Sprint 3 is where the "Egregora Symbiote" starts to become real. Moving from a b
 1.  **Threat Model Document:** `.team/security/threat-models/real-time-adapters.md`.
 2.  **Sandboxing Utilities:** Python decorators or context managers for restricted execution in `src/egregora/security/sandbox.py`.
 3.  **Security CI Job:** Updated workflow or task definition including security scanners.
+<<<<<<< HEAD
 =======
 My mission is to safeguard the new "Symbiote Shift" (Context Layer) and ensure the "Structured Sidecar" architecture doesn't introduce data leakage or injection vulnerabilities.
 
@@ -47,16 +51,22 @@ Sprint 3 moves from structure to "Intelligence" and "Context". The system will b
 3.  **RAG Privacy Verification:** Tests confirming private docs are not embeddable.
 4.  **XSS Regression Tests:** Specific checks for mobile UI components.
 >>>>>>> origin/pr/2891
+=======
+>>>>>>> origin/pr/2856
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> origin/pr/2856
 | Adapters allow SSRF | High | Critical | I will mandate the use of the `validate_public_url` utility for *all* adapter network requests. |
 | New dependencies introduce vulnerabilities | Medium | High | I will enforce `pip-audit` checks on all new PRs. |
 
 ## Proposed Collaborations
 - **With Visionary:** Reviewing the security implications of the new adapter design.
+<<<<<<< HEAD
 =======
 | LLM Context Injection | High | High | Implement strict filtering of what files are allowed into the context window (blocklist .env, secrets, etc). |
 | RAG Leaks Private Data | Medium | High | Enforce "Permissions at Ingestion" policy. |
@@ -66,3 +76,5 @@ Sprint 3 moves from structure to "Intelligence" and "Context". The system will b
 - **With Visionary:** Pair programming on the Context Layer security controls.
 - **With Forge:** Review mobile frontend code.
 >>>>>>> origin/pr/2891
+=======
+>>>>>>> origin/pr/2856

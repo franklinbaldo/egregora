@@ -8,7 +8,7 @@ import logging
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -98,6 +98,16 @@ def _compute_message_id(row: Mapping[str, object]) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
+class MessageData(TypedDict):
+    """TypedDict for message data structure."""
+
+    id: str
+    author: str
+    ts: str
+    content: str
+    notes: list[dict[str, str]]
+
+
 def build_conversation_xml(
     data: Iterable[Mapping[str, object]] | Sequence[Mapping[str, object]],
     annotations_store: AnnotationStore | None,
@@ -127,7 +137,7 @@ def build_conversation_xml(
         ts = str(row.get("ts", row.get("timestamp", "")))
         text = str(row.get("text", ""))
 
-        msg_data = {
+        msg_data: MessageData = {
             "id": msg_id,
             "author": author,
             "ts": ts,
@@ -136,6 +146,10 @@ def build_conversation_xml(
         }
 
         if msg_id in annotations_map:
+<<<<<<< HEAD
+=======
+            notes = msg_data["notes"]
+>>>>>>> origin/pr/2856
             for ann in annotations_map[msg_id]:
                 msg_data["notes"].append({"id": ann.document_id, "content": ann.content})
         messages.append(msg_data)
