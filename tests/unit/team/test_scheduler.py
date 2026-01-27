@@ -10,25 +10,25 @@ TEAM_PATH = REPO_ROOT / ".team"
 if str(TEAM_PATH) not in sys.path:
     sys.path.append(str(TEAM_PATH))
 
-from repo.scheduler import simple  # noqa: E402
+from repo.scheduler import stateless  # noqa: E402
 from repo.scheduler.models import PersonaConfig  # noqa: E402
 
 
-class TestSimpleScheduler(unittest.TestCase):
-    @patch("repo.scheduler.simple.subprocess.run")
+class TestStatelessScheduler(unittest.TestCase):
+    @patch("repo.scheduler.stateless.subprocess.run")
     def test_ensure_jules_branch_exists(self, mock_run: MagicMock) -> None:
         """Test ensure_jules_branch when branch exists."""
         mock_run.return_value.returncode = 0
-        simple.ensure_jules_branch()
+        stateless.ensure_jules_branch()
         # Verify it checks existence
         mock_run.assert_called_with(
-            ["git", "rev-parse", "--verify", f"refs/heads/{simple.JULES_BRANCH}"],
+            ["git", "rev-parse", "--verify", f"refs/heads/{stateless.JULES_BRANCH}"],
             capture_output=True,
         )
         # Verify it doesn't create
         self.assertEqual(mock_run.call_count, 1)
 
-    @patch("repo.scheduler.simple.subprocess.run")
+    @patch("repo.scheduler.stateless.subprocess.run")
     def test_ensure_jules_branch_creates(self, mock_run: MagicMock) -> None:
         """Test ensure_jules_branch when branch missing."""
 
@@ -39,19 +39,19 @@ class TestSimpleScheduler(unittest.TestCase):
             return MagicMock(returncode=0)
 
         mock_run.side_effect = side_effect
-        simple.ensure_jules_branch()
+        stateless.ensure_jules_branch()
 
         self.assertEqual(mock_run.call_count, 2)
         mock_run.assert_has_calls(
             [
                 call(
-                    ["git", "rev-parse", "--verify", f"refs/heads/{simple.JULES_BRANCH}"], capture_output=True
+                    ["git", "rev-parse", "--verify", f"refs/heads/{stateless.JULES_BRANCH}"], capture_output=True
                 ),
-                call(["git", "branch", simple.JULES_BRANCH, "origin/main"], check=True, capture_output=True),
+                call(["git", "branch", stateless.JULES_BRANCH, "origin/main"], check=True, capture_output=True),
             ]
         )
 
-    @patch("repo.scheduler.simple._get_persona_dir")
+    @patch("repo.scheduler.stateless._get_persona_dir")
     def test_discover_personas(self, mock_get_dir: MagicMock) -> None:
         """Test discover_personas filtering."""
         mock_path = MagicMock()
@@ -77,18 +77,18 @@ class TestSimpleScheduler(unittest.TestCase):
 
         mock_path.iterdir.return_value = [d1, d2, d3, d4]
 
-        personas = simple.discover_personas()
+        personas = stateless.discover_personas()
         self.assertEqual(personas, ["persona1"])
 
     def test_get_next_persona(self) -> None:
         personas = ["a", "b", "c"]
-        self.assertEqual(simple.get_next_persona("a", personas), "b")
-        self.assertEqual(simple.get_next_persona("c", personas), "a")
-        self.assertEqual(simple.get_next_persona(None, personas), "a")
-        self.assertEqual(simple.get_next_persona("z", personas), "a")
-        self.assertIsNone(simple.get_next_persona("a", []))
+        self.assertEqual(stateless.get_next_persona("a", personas), "b")
+        self.assertEqual(stateless.get_next_persona("c", personas), "a")
+        self.assertEqual(stateless.get_next_persona(None, personas), "a")
+        self.assertEqual(stateless.get_next_persona("z", personas), "a")
+        self.assertIsNone(stateless.get_next_persona("a", []))
 
-    @patch("repo.scheduler.simple.ensure_jules_branch")
+    @patch("repo.scheduler.stateless.ensure_jules_branch")
     def test_create_session(self, mock_ensure: MagicMock) -> None:
         """Test create_session."""
         mock_client = MagicMock()
@@ -101,7 +101,7 @@ class TestSimpleScheduler(unittest.TestCase):
 
         repo_info = {"owner": "o", "repo": "r"}
 
-        result = simple.create_session(mock_client, persona, repo_info)
+        result = stateless.create_session(mock_client, persona, repo_info)
 
         self.assertTrue(result.success)
         self.assertEqual(result.session_id, "123")

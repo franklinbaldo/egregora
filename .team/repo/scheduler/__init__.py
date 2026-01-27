@@ -12,7 +12,7 @@ Usage:
     result = run_scheduler()
 """
 
-from repo.scheduler.simple import (  # noqa: F401
+from repo.scheduler.stateless import (  # noqa: F401
     JULES_BRANCH,
     SchedulerResult,
     discover_personas,
