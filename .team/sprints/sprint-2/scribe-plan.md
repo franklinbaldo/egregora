@@ -12,6 +12,7 @@ My mission is to ensure that the heavy structural refactoring and visual polishi
 - [ ] **Track Refactor Documentation:** Monitor **Simplifier** and **Artisan**'s refactors of `write.py` and `runner.py`. Create tasks to update the "Architecture" and "CLI Reference" documentation once the APIs stabilize.
 - [ ] **Document Visual Identity:** Update `docs/ux-vision.md` and the user customization guides to reflect the new "Portal" theme elements (Favicon, Social Cards) implemented by **Curator** and **Forge**.
 - [ ] **Enforce Docstring Standards:** Add a clear "Docstring Standard" section (referencing Google Style) to `CONTRIBUTING.md` to support **Artisan**'s effort.
+- [ ] **Maintain Documentation Health:** Audit the `.team/` directory for malformed markdown (e.g., merge conflicts) and repair critical issues immediately (specifically `steward-plan.md`).
 
 ## Dependencies
 - **Steward:** I need the draft ADR template to review/contribute to.
@@ -26,7 +27,7 @@ Sprint 2 is "Structure & Polish". The codebase is changing shape significantly. 
 1.  **Updated `CONTRIBUTING.md`:** With ADR workflow and Docstring standards.
 2.  **Updated `docs/ux-vision.md`:** Reflecting Sprint 2 visual decisions.
 3.  **Documentation Updates (Architecture/CLI):** PRs updating docs to match the new code reality (post-refactor).
-4.  **Feedback Loop:** Continuous feedback on PRs regarding documentation requirements.
+4.  **Repaired Plans:** `.team/sprints/sprint-2/steward-plan.md` (repaired).
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
