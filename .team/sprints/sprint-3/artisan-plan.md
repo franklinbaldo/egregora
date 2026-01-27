@@ -6,28 +6,31 @@
 **Priority:** Medium
 
 ## Objectives
-My mission is to elevate the codebase through superior craftsmanship. For Sprint 3, I will shift focus from foundational structural changes to performance optimization and advanced type safety.
+My mission is to support the "Symbiote Shift" by ensuring the new Context Layer is built on a foundation of strict types and efficient protocols. I will also follow up on the major refactors of Sprint 2 with targeted performance optimization.
 
-- [ ] **Performance Profiling & Optimization:** Identify the slowest part of the pipeline (likely `runner.py` or database I/O) and optimize it.
-- [ ] **Advanced Protocols:** define generic protocols for Input Adapters and Output Adapters to allow for easier extension.
-- [ ] **Strict Typing Coverage:** Increase strict typing coverage to 80% of the codebase (measured by `mypy`).
+- [ ] **Protocol-First Context Layer:** Define strict `Protocols` for the new "Code Reference" and "Git History" components (introduced by Visionary). Ensure these components are decoupled and testable.
+- [ ] **Performance Optimization (Post-Refactor):** Based on Bolt's benchmarks from Sprint 2, I will optimize the "hot paths" in the newly decomposed `runner` and `etl` pipelines.
+- [ ] **Strict Typing Coverage (80%):** Continue the crusade against `Any`. I will enforce `mypy --strict` on the entire `src/egregora/context_layer/` (or equivalent) directory.
+- [ ] **Audit New Components:** Review the code merged during the "Symbiote Shift" for complexity and adherence to design patterns.
 
 ## Dependencies
-- **Bolt:** Collaboration on performance metrics.
-- **Builder:** Collaboration on database optimization.
+- **Visionary:** I rely on the architectural vision for the Context Layer to define the right Protocols.
+- **Bolt:** I need the benchmark results from Sprint 2 to know *where* to optimize.
 
 ## Context
-After solidifying the configuration and orchestration layers in Sprint 2, the system should be stable enough to withstand targeted optimization efforts. Sprint 3 is about making it *fast* and *flexible*.
+Sprint 3 moves us from "Structure" to "Symbiosis". The system will start understanding its own code (Git History). My role is to ensure this new intelligence doesn't become a tangled mess. By enforcing Protocols early, we keep the "Context Layer" clean.
 
 ## Expected Deliverables
-1. **Performance Report:** A before/after analysis of the optimized module.
-2. **Generic Protocols:** New `src/egregora/protocols/` module.
-3. **Mypy Report:** Showing increased coverage.
+1.  **`src/egregora/protocols/context.py`**: New protocols defining the Context Layer contract.
+2.  **Optimized Pipeline**: measurable speedup in the orchestration layer.
+3.  **Strictly Typed Context Layer**: `mypy` passing with zero errors in new modules.
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Optimization reduces readability | Medium | Medium | I will document optimizations heavily and ensure they are isolated in helper functions. |
+| Over-abstraction with Protocols | Low | Medium | I will follow the "Rule of Three" before extracting a Protocol. |
+| Optimization reduces readability | Medium | Medium | I will document optimizations heavily and use clear variable names. |
 
 ## Proposed Collaborations
-- **With Bolt:** To identify performance bottlenecks.
+- **With Visionary:** Reviewing the `GitHistoryResolver` and defining its Protocol.
+- **With Bolt:** Pair programming on optimization tasks.

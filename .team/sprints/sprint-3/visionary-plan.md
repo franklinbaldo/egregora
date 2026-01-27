@@ -1,49 +1,49 @@
-# Plano: visionary - Sprint 3
+# Plan: Visionary - Sprint 3
 
-**Persona:** visionary
+**Persona:** Visionary
 **Sprint:** 3
-**Criado em:** 2026-01-22
-**Prioridade:** Alta
+**Created:** 2026-01-22
+**Priority:** High
 
-## Objetivos
+## Objectives
 
-Descreva os principais objetivos para este sprint:
+Describe the main objectives for this sprint:
 
-- [ ] Finalizar integração de `CodeReferenceDetector` no pipeline principal (Enricher Agent) (RFC 027).
-- [ ] Iniciar design da API do Universal Context Layer (RFC 026).
-- [ ] Criar "Hello World" Plugin para VS Code que consulta a API local.
+- [ ] Finalize integration of `CodeReferenceDetector` into the main pipeline (Enricher Agent) (RFC 027).
+- [ ] Start API design for Universal Context Layer (RFC 026).
+- [ ] Create "Hello World" VS Code Plugin that queries the local API.
 
-## Dependências
+## Dependencies
 
-Liste dependências de trabalho de outras personas:
+List dependencies from other personas:
 
-- **architect:** Revisão do design da API do Context Layer (REST vs MCP).
-- **sheriff:** Setup de testes de integração para o plugin VS Code.
+- **Architect:** Review of Context Layer API design (REST vs MCP).
+- **Sheriff:** Setup of integration tests for the VS Code plugin.
 
-## Contexto
+## Context
 
-Explique o contexto e raciocínio por trás deste plano:
+Explain the context and reasoning behind this plan:
 
-Com a base de dados histórica (RFC 027) funcionando, podemos começar a expor esses dados para ferramentas externas (RFC 026). O plugin VS Code servirá como prova de conceito para a visão "Ubiquitous Memory".
+With the historical database (RFC 027) working, we can start exposing this data to external tools (RFC 026). The VS Code plugin will serve as a proof of concept for the "Ubiquitous Memory" vision.
 
-## Entregáveis Esperados
+## Expected Deliverables
 
-1. Feature RFC 027 completa e mergeada (Links históricos no blog).
-2. OpenAPI Spec para Context Layer API.
-3. Repositório `egregora-vscode` com plugin básico.
+1. Feature RFC 027 complete and merged (Historical links on blog).
+2. OpenAPI Spec for Context Layer API.
+3. `egregora-vscode` repository with basic plugin.
 
-## Riscos e Mitigações
+## Risks and Mitigations
 
-| Risco | Probabilidade | Impacto | Mitigação |
+| Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Complexidade da API | Média | Alto | Adotar padrão MCP (Model Context Protocol) para simplificar |
-| Overhead do Plugin | Baixa | Baixo | Manter plugin "dumb", lógica no servidor Egregora |
+| API Complexity | Medium | High | Adopt MCP (Model Context Protocol) standard to simplify |
+| Plugin Overhead | Low | Low | Keep plugin "dumb", logic on Egregora server |
 
-## Colaborações Propostas
+## Proposed Collaborations
 
-- **Com architect:** Definição dos endpoints da API.
-- **Com forge:** Ajuda com TypeScript para o plugin VS Code.
+- **With Architect:** Definition of API endpoints.
+- **With Forge:** Help with TypeScript for the VS Code plugin.
 
-## Notas Adicionais
+## Additional Notes
 
-Sprint crítico para transição de "Gerador" para "Plataforma".
+Critical sprint for transition from "Generator" to "Platform".
