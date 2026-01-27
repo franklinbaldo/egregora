@@ -16,6 +16,21 @@ from egregora.database.utils import quote_identifier
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "ANNOTATIONS_SCHEMA",
+    "ELO_HISTORY_SCHEMA",
+    "ELO_RATINGS_SCHEMA",
+    "STAGING_MESSAGES_SCHEMA",
+    "TASKS_SCHEMA",
+    "UNIFIED_SCHEMA",
+    "add_check_constraint",
+    "create_index",
+    "create_table_if_not_exists",
+    "get_table_check_constraints",
+    "get_table_foreign_keys",
+    "ibis_to_duckdb_type",
+]
+
 # ============================================================================
 # Helper Functions
 # ============================================================================

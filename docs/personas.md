@@ -425,6 +425,7 @@ The team consists of specialized agents:
 ### Related Documentation
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 - [Team Constitution](https://github.com/franklinbaldo/egregora/blob/main/.team/CONSTITUTION.md)
 - [Parallel Personas](https://github.com/franklinbaldo/egregora/blob/main/.team/PARALLEL_PERSONAS_README.md)
 - [Code of the Weaver](https://github.com/franklinbaldo/egregora/blob/main/CLAUDE.md)
@@ -433,6 +434,11 @@ The team consists of specialized agents:
 - [Parallel Personas]({{ config.repo_url }}/blob/main/.team/PARALLEL_PERSONAS_README.md)
 - [Code of the Weaver]({{ config.repo_url }}/blob/main/CLAUDE.md)
 >>>>>>> origin/pr/2872
+=======
+- [Team Constitution](https://github.com/franklinbaldo/egregora/blob/main/.team/CONSTITUTION.md)
+- [Parallel Personas](https://github.com/franklinbaldo/egregora/blob/main/.team/PARALLEL_PERSONAS_README.md)
+- [Code of the Weaver](https://github.com/franklinbaldo/egregora/blob/main/CLAUDE.md)
+>>>>>>> origin/pr/2860
 
 ---
 
