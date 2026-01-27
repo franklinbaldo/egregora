@@ -1574,7 +1574,11 @@ class EnrichmentWorker(BaseWorker):
                     # Update text column using parameterized query
                     # Note: This updates ALL messages containing this ref.
                     query = "UPDATE messages SET text = replace(text, ?, ?) WHERE text LIKE ?"
+<<<<<<< HEAD
                     self.ctx.storage.execute_sql(query, [original_ref, new_path, f"%{original_ref}%"])
+=======
+                    self.ctx.storage._conn.execute(query, [original_ref, new_path, f"%{original_ref}%"])
+>>>>>>> origin/pr/2713
                 except duckdb.Error as exc:
                     logger.warning("Failed to update message references for %s: %s", original_ref, exc)
 
