@@ -5,7 +5,7 @@ from egregora.agents.formatting import (  # type: ignore[import-not-found]
     load_journal_memory,
 )
 from egregora.data_primitives.document import DocumentType  # type: ignore[import-not-found]
-from egregora.output_adapters.exceptions import DocumentNotFoundError  # type: ignore[import-not-found]
+from egregora.output_sinks.exceptions import DocumentNotFoundError  # type: ignore[import-not-found]
 
 
 def test_load_journal_memory_handles_document_not_found_error() -> None:

@@ -1,0 +1,33 @@
+name: jules-auto-merge
+on:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable auto-merge for Jules PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          author_login=$(gh pr view "$PR_NUMBER" --json author --jq '.author.login')
+          case "$author_login" in
+            "google-labs-jules[bot]"|"app/google-labs-jules"|"google-labs-jules")
+              ;;
+            *)
+              echo "PR #$PR_NUMBER is authored by $author_login; skipping."
+              exit 0
+              ;;
+          esac
+
+          is_draft=$(gh pr view "$PR_NUMBER" --json isDraft --jq '.isDraft')
+          if [ "$is_draft" = "true" ]; then
+            echo "PR #$PR_NUMBER is draft; marking ready for review."
+            gh pr ready "$PR_NUMBER"
+          fi
+
+          echo "Enabling auto-merge for PR #$PR_NUMBER."
+          gh pr merge "$PR_NUMBER" --auto --delete-branch

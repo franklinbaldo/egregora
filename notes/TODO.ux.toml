@@ -27,7 +27,7 @@ HOW TO VERIFY:
 - Visual hierarchy clear at a glance
 
 WHERE: demo/docs/stylesheets/extra.css (to be created)
-TEMPLATE SOURCE: src/egregora/output_adapters/mkdocs/scaffolding.py
+TEMPLATE SOURCE: src/egregora/output_sinks/mkdocs/scaffolding.py
 """
 status = "pending"
 category = "baseline"
@@ -56,7 +56,7 @@ HOW TO VERIFY:
 WHERE:
 - Configuration: demo/.egregora/mkdocs.yml (theme.palette section)
 - Documentation: docs/ux-vision.md (to be created)
-TEMPLATE SOURCE: src/egregora/output_adapters/mkdocs/scaffolding.py (generates mkdocs.yml)
+TEMPLATE SOURCE: src/egregora/output_sinks/mkdocs/scaffolding.py (generates mkdocs.yml)
 """
 status = "pending"
 category = "visual"
@@ -84,7 +84,7 @@ HOW TO VERIFY:
 WHERE:
 - Files: demo/docs/assets/images/ (favicon.svg, apple-touch-icon.png)
 - Config: demo/.egregora/mkdocs.yml (theme.icon section)
-TEMPLATE SOURCE: src/egregora/output_adapters/mkdocs/scaffolding.py
+TEMPLATE SOURCE: src/egregora/output_sinks/mkdocs/scaffolding.py
 """
 status = "pending"
 category = "visual"
@@ -111,7 +111,7 @@ HOW TO VERIFY:
 WHERE:
 - Config: demo/.egregora/mkdocs.yml (extra.analytics section)
 - Docs: demo/docs/about.md or demo/docs/privacy.md
-TEMPLATE SOURCE: src/egregora/output_adapters/mkdocs/scaffolding.py
+TEMPLATE SOURCE: src/egregora/output_sinks/mkdocs/scaffolding.py
 """
 status = "pending"
 category = "baseline"
@@ -141,7 +141,7 @@ HOW TO VERIFY:
 - Visual element makes page feel less empty
 
 WHERE: demo/docs/index.md (template with Jinja2 conditional)
-TEMPLATE SOURCE: src/egregora/output_adapters/mkdocs/adapter.py (likely generates index.md)
+TEMPLATE SOURCE: src/egregora/output_sinks/mkdocs/adapter.py (likely generates index.md)
 """
 status = "pending"
 category = "content"
@@ -169,7 +169,7 @@ HOW TO VERIFY:
 WHERE:
 - Plugin config: demo/.egregora/mkdocs.yml (plugins.social section)
 - Images: demo/docs/assets/images/social/ (to be verified)
-TEMPLATE SOURCE: src/egregora/output_adapters/mkdocs/scaffolding.py
+TEMPLATE SOURCE: src/egregora/output_sinks/mkdocs/scaffolding.py
 """
 status = "pending"
 category = "baseline"
@@ -198,7 +198,7 @@ HOW TO VERIFY:
 WHERE:
 - Config: demo/.egregora/mkdocs.yml (nav section)
 - Missing page: demo/docs/journal/index.md (exists but not in nav)
-TEMPLATE SOURCE: src/egregora/output_adapters/mkdocs/scaffolding.py
+TEMPLATE SOURCE: src/egregora/output_sinks/mkdocs/scaffolding.py
 """
 status = "pending"
 category = "accessibility"
@@ -226,7 +226,7 @@ HOW TO VERIFY:
 WHERE:
 - Config: demo/.egregora/mkdocs.yml (site_name)
 - Homepage: demo/docs/index.md (title and description)
-TEMPLATE SOURCE: src/egregora/output_adapters/mkdocs/scaffolding.py
+TEMPLATE SOURCE: src/egregora/output_sinks/mkdocs/scaffolding.py
 DECISION NEEDED: Curator to propose names, or allow Egregora to generate from data?
 """
 status = "pending"
@@ -255,7 +255,7 @@ WHAT: Create docs/ux-vision.md with:
 HOW TO VERIFY:
 - File exists at docs/ux-vision.md
 - Documented: color palette, typography, spacing
-- Template source locations mapped (src/egregora/output_adapters/mkdocs/)
+- Template source locations mapped (src/egregora/output_sinks/mkdocs/)
 - Living document, updated as decisions are made
 
 WHERE: docs/ux-vision.md (to be created by Curator)

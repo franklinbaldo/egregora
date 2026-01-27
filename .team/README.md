@@ -230,7 +230,7 @@ Evaluate generated blogs and create data-driven UX improvements.
 
 {% block context %}
 - Reference: docs/ux-vision.md
-- Edit templates in src/egregora/output_adapters/mkdocs/
+- Edit templates in src/egregora/output_sinks/mkdocs/
 - NEVER edit demo/ directly (generated output)
 {% endblock %}
 

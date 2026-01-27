@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from egregora.input_adapters.base import InputAdapter
     from egregora.llm.usage import UsageTracker
     from egregora.orchestration.cache import PipelineCache
-    from egregora.output_adapters import OutputSinkRegistry
+    from egregora.output_sinks import OutputSinkRegistry
     from egregora.rag.embedding_router import EmbeddingRouter
 
 

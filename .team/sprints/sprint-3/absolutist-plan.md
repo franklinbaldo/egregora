@@ -3,27 +3,53 @@
 **Persona:** Absolutist 💯
 **Sprint:** 3
 **Created:** 2026-01-26
-**Priority:** High
+**Priority:** Medium
 
 ## Objectives
-My mission is to simplify the codebase by removing legacy code and backward compatibility layers based on rigorous evidence.
+<<<<<<< HEAD
+Continue the purification of the codebase.
 
-- [ ] **Remove Legacy Media Behavior:** The `src/egregora/ops/media.py` file contains a "legacy behavior for att_file" comment. I will investigate and remove this fallback if it's no longer needed for modern WhatsApp exports.
-- [ ] **Audit Input Adapters:** As we polish the "Mobile" experience, I will ensure our input adapters don't contain any legacy hacks for older mobile export formats that we no longer support.
-- [ ] **Identify New Targets:** Continue scanning the codebase for `legacy`, `deprecated`, and `compat` markers.
+<<<<<<< HEAD
+- [ ] **Address CLI Compatibility Layers:** Investigate `src/egregora/cli/main.py` comments regarding "DuckDBStorageManager directly to ensure Ibis compatibility". If the underlying issue is resolved, remove the workaround.
+- [ ] **Deep Clean of `input_adapters`:** Check `src/egregora/input_adapters/base.py` for "Note: This is the only adapter interface. The legacy InputSource has been removed." and ensure no artifacts remain.
+- [ ] **Review `output_sinks` conventions:** Check for any remaining version tracking or migration compatibility code.
+=======
+Continuing the mission of simplification, Sprint 3 will focus on deeper structural cleanups and auditing peripheral adapters.
+
+- [ ] **Audit `input_adapters` for Legacy Artifacts:** Ensure that the transition from `InputSource` to the current adapter interface is complete and no "ghost" classes remain.
+- [ ] **Review `output_sinks` Compatibility:** Investigate `src/egregora/output_sinks/conventions.py` and other output adapters for migration layers that have served their purpose.
+- [ ] **Dead Code Analysis:** Conduct a sweep for unreachable code or unused imports that linters might have missed (or that were ignored).
+>>>>>>> origin/pr/2837
 
 ## Dependencies
-- **Curator:** Coordinate on "Related Content" to ensure we don't need any legacy search shims (TF-IDF etc.).
+- **Refactor:** Coordination on any large-scale structural changes.
 
 ## Context
-Sprint 3 focuses on "Mobile Polish". Ensuring our backend media handling is clean and efficient is a key part of supporting a high-quality mobile experience. Legacy hacks often slow down processing or cause unpredictable behavior.
+By Sprint 3, the core configuration and pipeline runner should be stabilized (thanks to Sprint 2 work). This opens the door for cleaning up the "edges" of the system—the input and output adapters—where compatibility shims often hide.
 
 ## Expected Deliverables
+<<<<<<< HEAD
+1.  Refactored CLI database initialization (if possible).
+2.  Verified removal of `InputSource` legacy references.
+=======
 1.  Removal of `att_file` legacy logic in `media.py`.
-2.  Clean bill of health for input adapters.
-3.  Updated `absolutist-plan.md` for Sprint 4.
+2.  Removal of `prompts.py` (if approved).
+3.  Clean bill of health for input adapters.
+>>>>>>> origin/pr/2890
+=======
+1.  Report on `input_adapters` cleanliness.
+2.  Removal of any identified legacy code in `output_sinks`.
+3.  Deletion of verified dead code blocks.
+>>>>>>> origin/pr/2837
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Breaking Old Exports | Medium | Medium | Test with a corpus of old exports if available, or make a clear decision to drop support. |
+<<<<<<< HEAD
+| CLI Stability | Medium | High | Manual verification of CLI commands (`egregora write`, `egregora demo`). |
+=======
+| Removing rarely used but valid adapters | Low | High | Verify usage against production logs or test coverage before removal. |
+
+## Proposed Collaborations
+- **With Shepherd:** Ensure that removing "unused" code doesn't reduce test coverage of edge cases that are actually important.
+>>>>>>> origin/pr/2837

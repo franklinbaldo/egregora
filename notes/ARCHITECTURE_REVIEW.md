@@ -16,7 +16,7 @@ The system is built on a modern data stack (**DuckDB**, **Ibis**, **LanceDB**) f
 *   **Orchestration (`src/egregora/orchestration`):** The "nervous system." Coordinates data flow between adapters, agents, and persistence. The `write` command is the primary workflow, managed by `pipelines/write.py`.
 *   **Agents (`src/egregora/agents`):** Domain logic. specialized workers (Writer, Profiler, Enricher) that use LLMs to transform data. Built on `pydantic-ai`.
 *   **Data Primitives (`src/egregora/data_primitives`):** Core domain objects (`Document`, `Entry`) and Protocols (`OutputSink`, `SiteScaffolder`). This is the "Shared Kernel."
-*   **Adapters (`src/egregora/input_adapters`, `output_adapters`):** The "Ports." Handle external systems (WhatsApp ZIPs, File System/MkDocs).
+*   **Adapters (`src/egregora/input_adapters`, `output_sinks`):** The "Ports." Handle external systems (WhatsApp ZIPs, File System/MkDocs).
 *   **Database (`src/egregora/database`):** Infrastructure layer. Manages DuckDB connection via Ibis for relational data and task storage.
 *   **Config (`src/egregora/config`):** Centralized configuration management using `pydantic-settings`.
 
@@ -27,7 +27,7 @@ src/egregora/
 ├── config/           # [Cross-Cutting] Centralized configuration (Pydantic Settings)
 ├── data_primitives/  # [Domain] Core types (Document) & Interfaces (Protocols)
 ├── input_adapters/   # [Port] Ingestion logic (WhatsApp, etc.)
-├── output_adapters/  # [Port] Persistence logic (MkDocs, Filesystem)
+├── output_sinks/  # [Port] Persistence logic (MkDocs, Filesystem)
 ├── database/         # [Infra] Persistence implementation (DuckDB, Ibis)
 ├── rag/              # [Infra] Vector search implementation (LanceDB)
 ├── agents/           # [Domain Services] Business logic & LLM interaction

@@ -4,11 +4,11 @@ from pathlib import Path
 import pytest
 
 from egregora.data_primitives.document import Document, DocumentType, UrlContext
-from egregora.output_adapters.conventions import StandardUrlConvention
-from egregora.output_adapters.exceptions import DocumentParsingError
-from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
-from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
-from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
+from egregora.output_sinks.conventions import StandardUrlConvention
+from egregora.output_sinks.exceptions import DocumentParsingError
+from egregora.output_sinks.mkdocs.adapter import MkDocsAdapter
+from egregora.output_sinks.mkdocs.scaffolding import MkDocsSiteScaffolder
+from egregora.output_sinks.mkdocs.site_generator import SiteGenerator
 
 
 @pytest.fixture

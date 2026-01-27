@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
+from egregora.output_sinks.mkdocs.adapter import MkDocsAdapter
 
 
 def test_clean_metadata_removes_none_values():
@@ -13,7 +13,7 @@ def test_clean_metadata_removes_none_values():
     assert cleaned["description"] == "valid"
 
 
-@patch("egregora.output_adapters.mkdocs.adapter.yaml.dump")
+@patch("egregora.output_sinks.mkdocs.adapter.yaml.dump")
 def test_write_enrichment_doc_sanitizes_metadata(mock_yaml_dump, tmp_path):
     adapter = MkDocsAdapter()
     adapter.media_dir = tmp_path / "media"
@@ -37,7 +37,7 @@ def test_write_enrichment_doc_sanitizes_metadata(mock_yaml_dump, tmp_path):
     assert "Enrichment" in dumped_metadata["categories"]
 
 
-@patch("egregora.output_adapters.mkdocs.adapter.yaml.dump")
+@patch("egregora.output_sinks.mkdocs.adapter.yaml.dump")
 def test_write_profile_doc_sanitizes_metadata(mock_yaml_dump, tmp_path):
     adapter = MkDocsAdapter()
     adapter.profiles_dir = tmp_path / "profiles"

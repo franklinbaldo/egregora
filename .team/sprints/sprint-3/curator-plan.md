@@ -1,44 +1,64 @@
-# Plan: Curator - Sprint 3
+# Plan: Curator 🎭 - Sprint 3
 
-**Persona:** Curator 🎭
+**Persona:** Curator
 **Sprint:** 3
-**Created:** 2024-07-29 (during Sprint 1)
+**Created:** 2026-01-26
 **Priority:** Medium
 
 ## Objectives
+With the visual identity established in Sprint 2, Sprint 3 shifts focus to the core "Reading Experience" and "Content Discovery".
 
-Assuming the foundational UX issues are resolved in Sprint 2, Sprint 3 will focus on enhancing the content experience and information architecture.
-
-- [ ] **Improve Content Readability:** Implement a custom typography scale and refine spacing to improve the reading experience.
-- [ ] **Enhance Navigation:** Restructure the site navigation based on user needs, potentially introducing breadcrumbs for better context.
-- [ ] **Develop "Related Content" Feature:** Work with Forge to design and implement a feature that suggests related posts, increasing user engagement.
-- [ ] **Audit Accessibility:** Conduct a formal accessibility audit using an automated tool (once available) and create tasks to address any violations.
+<<<<<<< HEAD
+- [ ] **Reading Experience Polish:** Deep dive into typography (line-height, measure, font-weight) and mobile responsiveness. Ensure long-form content is comfortable to read on any device.
+- [ ] **Content Discovery UI:** Design and specify the UI for "Related Content" and the "Code References" feature (collaborating with Visionary).
+- [ ] **100% Lighthouse Accessibility:** Aim for a perfect accessibility score. Move from "audit" to "fix".
+- [ ] **Search Experience:** Evaluate and refine the search UI (standard MkDocs vs specialized implementation).
 
 ## Dependencies
-
-- **Forge:** Will need Forge to implement the typography, navigation, and related content features.
-- **Sentinel:** An automated accessibility testing tool, which Sentinel may be involved in, would be highly beneficial.
+- **Forge:** To implement the CSS tweaks for reading experience.
+- **Visionary:** To provide the backend data for "Code References" so we can style them.
 
 ## Context
-
-With the visual identity established in Sprint 2, Sprint 3 shifts focus to the core user journey: reading and discovering content. The goal is to make the experience as seamless and engaging as possible. This involves moving beyond the basics of the Material theme and implementing more sophisticated UX patterns.
+A pretty blog is useless if it's hard to read or if users can't find relevant content. Sprint 3 is about utility and depth.
 
 ## Expected Deliverables
+1. **Typography Style Guide:** A section in `docs/ux-vision.md` defining the exact typographic scale and rules.
+2. **"Code Reference" UI Spec:** A clear design for how code links should appear.
+3. **Lighthouse Score Report:** Showing 100 (or near 100) on Accessibility.
+=======
+My mission is to design the user experience for the new "Context Layer" (Git History and Code References) and ensure the site evolves into a true "Symbiote" interface.
 
-1.  **Improved Typography:** A clear and consistent typography system is implemented.
-2.  **Restructured Navigation:** The site navigation is more intuitive and user-friendly.
-3.  **Related Content MVP:** A functional "related content" feature is present on post pages.
-4.  **Accessibility Audit Report:** A report detailing the accessibility state of the site, with actionable tasks for any identified issues.
+- [ ] **Context Layer UX:** Design how Git history and code references are presented to the user. How does a user "travel back in time" via a link?
+- [ ] **Structured Sidecar UI:** Ensure that the structured data exposed by the backend is presented meaningfully in the UI (e.g., rich metadata sidebars, improved search facets).
+- [ ] **Mobile Refinement:** Perform a dedicated mobile UX audit and refinement pass, ensuring the "Portal" experience works on small screens.
+
+## Dependencies
+- **Visionary & Simplifier:** Definition of the "Context Layer" capabilities.
+- **Forge:** Implementation of the new UI components.
+
+## Context
+Sprint 3 moves beyond static polish into dynamic interaction. The "Symbiote Shift" adds a temporal dimension (history) to the content. This presents significant UX challenges: how to show this complexity without overwhelming the user?
+
+## Expected Deliverables
+1. **Context Layer Mockups/Specs:** detailed specifications for how history links should look and behave.
+2. **Mobile UX Report:** specific tasks for mobile optimization.
+>>>>>>> origin/pr/2881
 
 ## Risks and Mitigations
-
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| "Related Content" logic is complex | Medium | Medium | I will work with Forge and Visionary to define a simple MVP for the related content feature, focusing on a basic but effective algorithm first. |
-| Accessibility audit reveals major issues | Medium | High | I will prioritize accessibility issues based on WCAG guidelines and work with Forge to create a realistic plan for addressing them over time. |
+<<<<<<< HEAD
+| Mobile layout is neglected | Medium | High | I will perform all my validations primarily on mobile viewports. |
+| "Code References" are noisy | Medium | Medium | We will design them to be unobtrusive (e.g., sidenotes or tooltips) rather than interrupting the flow. |
 
 ## Proposed Collaborations
+- **With Visionary:** To finalize the "Code Reference" UI.
+- **With Forge:** To implement the detailed typographic refinements.
+=======
+| Context Layer is too complex for users | High | High | I will advocate for "progressive disclosure" – hiding complexity until requested. |
+| Mobile experience is neglected | Medium | Medium | I have dedicated a specific objective to Mobile Refinement. |
 
-- **With Forge:** Close collaboration on implementing the new features.
-- **With Visionary:** Brainstorming session on the logic for the "related content" feature.
-- **With Sentinel:** Collaboration on implementing and interpreting accessibility testing tools.
+## Proposed Collaborations
+- **With Visionary:** To understand the full scope of the "Context Layer".
+- **With Forge:** To prototype the new UI components.
+>>>>>>> origin/pr/2881

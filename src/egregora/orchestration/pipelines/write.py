@@ -11,30 +11,38 @@ This module orchestrates the high-level flow for the 'write' command, coordinati
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+from dataclasses import dataclass
+from datetime import date as date_type
 from datetime import datetime
 from pathlib import Path
+from typing import Any
+from zoneinfo import ZoneInfo
 
+from google import genai
 from rich.console import Console
 from rich.panel import Panel
 
+from egregora.agents.banner.worker import BannerWorker
+from egregora.agents.commands import command_to_announcement, filter_commands
+from egregora.agents.commands import extract_commands as extract_commands_list
+from egregora.agents.enricher import EnrichmentWorker
+from egregora.agents.profile.generator import generate_profile_posts
+from egregora.agents.profile.worker import ProfileWorker
+from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
-from egregora.config.defaults import PipelineDefaults
+from egregora.config.settings import EgregoraConfig
 from egregora.constants import WindowUnit
-from egregora.input_adapters import get_adapter_class
+from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.llm.exceptions import AllModelsExhaustedError
-from egregora.orchestration.context import PipelineRunParams
-from egregora.orchestration.pipelines.coordination.background_tasks import (
-    generate_taxonomy_task,
-    process_background_tasks,
-)
-from egregora.orchestration.pipelines.etl.config_resolution import (
-    prepare_write_config,
-    resolve_sources_to_run,
-    resolve_write_options,
-)
+from egregora.ops.taxonomy import generate_semantic_taxonomy
+from egregora.orchestration.context import PipelineContext, PipelineRunParams
+from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.pipelines.etl.preparation import (
+    Conversation,
+    PreparedPipelineData,
     get_pending_conversations,
     prepare_pipeline_data,
     validate_dates,
@@ -45,31 +53,192 @@ from egregora.orchestration.pipelines.etl.setup import (
     pipeline_environment,
     validate_api_key,
 )
-from egregora.orchestration.pipelines.execution.processor import process_item
-from egregora.orchestration.pipelines.types import WhatsAppProcessOptions, WriteCommandOptions
 
 logger = logging.getLogger(__name__)
 console = Console()
 __all__ = ["WhatsAppProcessOptions", "WriteCommandOptions", "process_whatsapp_export", "run", "run_cli_flow"]
 
+MIN_WINDOWS_WARNING_THRESHOLD = 5
 
+
+@dataclass
+class WriteCommandOptions:
+    """Options for the write command."""
+
+    input_file: Path
+    source: str
+    output: Path
+    step_size: int
+    step_unit: WindowUnit
+    overlap: float
+    enable_enrichment: bool
+    from_date: str | None
+    to_date: str | None
+    timezone: str | None
+    model: str | None
+    max_prompt_tokens: int
+    use_full_context_window: bool
+    max_windows: int | None
+    resume: bool
+    refresh: str | None
+    force: bool
+    debug: bool
+
+
+@dataclass(frozen=True)
+class WhatsAppProcessOptions:
+    """Runtime overrides for :func:`process_whatsapp_export`."""
+
+    output_dir: Path = Path("output")
+    step_size: int = 100
+    step_unit: str = "messages"
+    overlap_ratio: float = 0.2
+    enable_enrichment: bool = True
+    from_date: date_type | None = None
+    to_date: date_type | None = None
+    timezone: str | ZoneInfo | None = None
+    gemini_api_key: str | None = None
+    model: str | None = None
+    batch_threshold: int = 10
+    max_prompt_tokens: int = 100_000
+    use_full_context_window: bool = False
+    client: genai.Client | None = None
+    refresh: str | None = None
+
+
+def _prepare_write_config(
+    options: WriteCommandOptions, from_date_obj: date_type | None, to_date_obj: date_type | None
+) -> Any:
+    """Prepare Egregora configuration from options."""
+    base_config = load_egregora_config(options.output)
+    models_update: dict[str, str] = {}
+    if options.model:
+        models_update = {
+            "writer": options.model,
+            "enricher": options.model,
+            "enricher_vision": options.model,
+            "ranking": options.model,
+            "editor": options.model,
+        }
+    return base_config.model_copy(
+        deep=True,
+        update={
+            "pipeline": base_config.pipeline.model_copy(
+                update={
+                    "step_size": options.step_size,
+                    "step_unit": options.step_unit,
+                    "overlap_ratio": options.overlap,
+                    "timezone": options.timezone,
+                    "from_date": from_date_obj.isoformat() if from_date_obj else None,
+                    "to_date": to_date_obj.isoformat() if to_date_obj else None,
+                    "max_prompt_tokens": options.max_prompt_tokens,
+                    "use_full_context_window": options.use_full_context_window,
+                    "max_windows": options.max_windows,
+                    "checkpoint_enabled": options.resume,
+                }
+            ),
+            "enrichment": base_config.enrichment.model_copy(update={"enabled": options.enable_enrichment}),
+            "rag": base_config.rag,
+            **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
+        },
+    )
+
+
+def _resolve_write_options(
+    input_file: Path,
+    options_json: str | None,
+    cli_defaults: dict[str, Any],
+) -> WriteCommandOptions:
+    """Merge CLI options with JSON options and defaults."""
+    # Start with CLI values as base
+    defaults = cli_defaults.copy()
+
+    if options_json:
+        try:
+            overrides = json.loads(options_json)
+            # Update with JSON overrides, converting enums if strings
+            for k, v in overrides.items():
+                if k == "step_unit" and isinstance(v, str):
+                    defaults[k] = WindowUnit(v)
+                elif k == "output" and isinstance(v, str):
+                    defaults[k] = Path(v)
+                else:
+                    defaults[k] = v
+        except json.JSONDecodeError as e:
+            console.print(f"[red]Error parsing options JSON: {e}[/red]")
+            raise SystemExit(1) from e
+
+    return WriteCommandOptions(input_file=input_file, **defaults)
+
+
+def _resolve_sources_to_run(source: str | None, config: EgregoraConfig) -> list[tuple[str, str]]:
+    """Resolve which sources to run based on CLI argument and config.
+
+    Args:
+        source: Source key, source type, or None
+        config: Egregora configuration
+
+    Returns:
+        List of (source_key, source_type) tuples to process
+
+    Raises:
+        SystemExit: If source is unknown
+
+    """
+    # If source is explicitly provided
+    if source is not None:
+        # Check if it's a source key
+        if source in config.site.sources:
+            source_config = config.site.sources[source]
+            return [(source, source_config.adapter)]
+
+        # Check if it's a source type (adapter name) - find first matching source
+        for key, src_config in config.site.sources.items():
+            if src_config.adapter == source:
+                return [(key, source)]
+
+        # Unknown source
+        available_keys = ", ".join(config.site.sources.keys())
+        available_types = ", ".join({s.adapter for s in config.site.sources.values()})
+        console.print(
+            f"[red]Error: Unknown source '{source}'.[/red]\n"
+            f"Available source keys: {available_keys}\n"
+            f"Available source types: {available_types}"
+        )
+        raise SystemExit(1)
+
+    # source is None - use default or run all
+    if config.site.default_source is None:
+        # Run all configured sources
+        return [(key, src.adapter) for key, src in config.site.sources.items()]
+
+    # Use default source
+    default_key = config.site.default_source
+    if default_key not in config.site.sources:
+        console.print(f"[red]Error: default_source '{default_key}' not found in configured sources.[/red]")
+        raise SystemExit(1)
+
+    return [(default_key, config.site.sources[default_key].adapter)]
+
+
+# TODO: [Taskmaster] Refactor validation logic into separate functions
 def run_cli_flow(
     input_file: Path,
     *,
     output: Path = Path("site"),
     source: str | None = None,
-    step_size: int = PipelineDefaults.STEP_SIZE,
-    step_unit: WindowUnit = PipelineDefaults.STEP_UNIT,
-    overlap: float = PipelineDefaults.OVERLAP_RATIO,
+    step_size: int = 100,
+    step_unit: WindowUnit = WindowUnit.MESSAGES,
+    overlap: float = 0.0,
     enable_enrichment: bool = True,
-    from_date: str | None = PipelineDefaults.DEFAULT_FROM_DATE,
-    to_date: str | None = PipelineDefaults.DEFAULT_TO_DATE,
-    timezone: str | None = PipelineDefaults.DEFAULT_TIMEZONE,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    timezone: str | None = None,
     model: str | None = None,
-    max_prompt_tokens: int = PipelineDefaults.MAX_PROMPT_TOKENS,
-    use_full_context_window: bool = PipelineDefaults.DEFAULT_USE_FULL_CONTEXT,
-    max_windows: int | None = PipelineDefaults.DEFAULT_MAX_WINDOWS,
-    resume: bool = PipelineDefaults.DEFAULT_RESUME,
+    max_prompt_tokens: int = 400000,
+    use_full_context_window: bool = False,
+    max_windows: int | None = None,
+    resume: bool = True,
     refresh: str | None = None,
     force: bool = False,
     debug: bool = False,
@@ -126,18 +295,18 @@ def run_cli_flow(
     base_config = load_egregora_config(output_dir)
 
     # Determine which sources to run
-    sources_to_run = resolve_sources_to_run(source, base_config)
+    sources_to_run = _resolve_sources_to_run(source, base_config)
 
     # Process each source
     for source_key, source_type in sources_to_run:
         # Prepare options with current source
-        parsed_options = resolve_write_options(
+        parsed_options = _resolve_write_options(
             input_file=input_file,
             options_json=options,
             cli_defaults={**cli_values, "source": source_type},
         )
 
-        egregora_config = prepare_write_config(parsed_options, from_date_obj, to_date_obj)
+        egregora_config = _prepare_write_config(parsed_options, from_date_obj, to_date_obj)
 
         runtime = RuntimeContext(
             output_dir=output_dir,
@@ -236,6 +405,157 @@ def process_whatsapp_export(
     return run(run_params)
 
 
+def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
+    """Execute the agent on an isolated conversation item."""
+    ctx = conversation.context
+    output_sink = ctx.output_sink
+
+    # Extract commands (ETL/Processing boundary - commands are side effects)
+    # We do this here or in generator? Generator does "data prep".
+    # Commands might generate announcements which is "output".
+    # But filtering commands from input to writer is "prep".
+
+    # Convert table to list
+    try:
+        executed = conversation.messages_table.execute()
+        if hasattr(executed, "to_pylist"):
+            messages_list = executed.to_pylist()
+        elif hasattr(executed, "to_dict"):
+            messages_list = executed.to_dict(orient="records")
+        else:
+            messages_list = []
+    except (AttributeError, TypeError):
+        try:
+            messages_list = conversation.messages_table.to_pylist()
+        except (AttributeError, TypeError):
+            messages_list = (
+                conversation.messages_table if isinstance(conversation.messages_table, list) else []
+            )
+
+    # Handle commands (Announcements)
+    command_messages = extract_commands_list(messages_list)
+    announcements_generated = 0
+    if command_messages:
+        for cmd_msg in command_messages:
+            try:
+                announcement = command_to_announcement(cmd_msg)
+                output_sink.persist(announcement)
+                announcements_generated += 1
+            except Exception as exc:
+                logger.exception("Failed to generate announcement: %s", exc)
+
+    clean_messages_list = filter_commands(messages_list)
+
+    # Prepare Resources
+    resources = PipelineFactory.create_writer_resources(ctx)
+
+    params = WindowProcessingParams(
+        table=conversation.messages_table,
+        messages=clean_messages_list,
+        window_start=conversation.window.start_time,
+        window_end=conversation.window.end_time,
+        resources=resources,
+        config=ctx.config,
+        cache=ctx.cache,
+        adapter_content_summary=conversation.adapter_info[0],
+        adapter_generation_instructions=conversation.adapter_info[1],
+        run_id=str(ctx.run_id) if ctx.run_id else None,
+        smoke_test=ctx.state.smoke_test,
+    )
+
+    # EXECUTE WRITER
+    # Note: We don't handle PromptTooLargeError here because we rely on heuristic splitting
+    # in the generator. If it fails here, it fails.
+    writer_result = write_posts_for_window(params)
+    posts = writer_result.get("posts", [])
+    profiles = writer_result.get("profiles", [])
+
+    # Warn if writer processed messages but generated no posts
+    if not posts and clean_messages_list:
+        logger.warning(
+            "⚠️ Writer agent processed %d messages but generated no posts for window %s. "
+            "Check if write_post_tool was called by the agent.",
+            len(clean_messages_list),
+            f"{conversation.window.start_time:%Y-%m-%d %H:%M}",
+        )
+
+    # Persist generated posts
+    # The writer agent returns documents (strings if pending).
+    # Pending posts are handled by background worker?
+    # The original runner logic didn't explicitly persist posts returned by `write_posts_for_window`.
+    # Let's check `write_posts_for_window` in `src/egregora/agents/writer.py`.
+    # It seems `write_posts_for_window` returns paths or IDs, and persistence happens inside tools.
+    # However, `generate_profile_posts` returns Document objects that need persistence.
+    # If `posts` contains Document objects, we should persist them.
+    for post in posts:
+        if hasattr(post, "document_id"):  # Is a Document
+            try:
+                output_sink.persist(post)
+            except Exception as exc:
+                logger.exception("Failed to persist post: %s", exc)
+
+    # EXECUTE PROFILE GENERATOR
+    window_date = conversation.window.start_time.strftime("%Y-%m-%d")
+    try:
+        profile_docs = generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date)
+        for profile_doc in profile_docs:
+            try:
+                output_sink.persist(profile_doc)
+                profiles.append(profile_doc.document_id)
+            except Exception as exc:
+                logger.exception("Failed to persist profile: %s", exc)
+    except Exception as exc:
+        logger.exception("Failed to generate profile posts: %s", exc)
+
+    # Process background tasks (Banner, etc)
+    # We can do it per item or once at end. The prompt says "Execute agent on isolated item".
+    # Background tasks are usually global or batched.
+    # We will trigger them here to ensure "isolated item" processing is complete.
+    process_background_tasks(ctx)
+
+    # Logging
+    window_label = f"{conversation.window.start_time:%Y-%m-%d %H:%M} to {conversation.window.end_time:%H:%M}"
+    logger.info(
+        "  [green]✔ Generated[/] %d posts, %d profiles, %d announcements for %s",
+        len(posts),
+        len(profiles),
+        announcements_generated,
+        window_label,
+    )
+
+    return {window_label: {"posts": posts, "profiles": profiles}}
+
+
+def process_background_tasks(ctx: PipelineContext) -> None:
+    """Process pending background tasks."""
+    if not hasattr(ctx, "task_store") or not ctx.task_store:
+        return
+
+    banner_worker = BannerWorker(ctx)
+    banner_worker.run()
+
+    profile_worker = ProfileWorker(ctx)
+    profile_worker.run()
+
+    # Enrichment is already done in generator, but if new tasks were added:
+    if ctx.config.enrichment.enabled:
+        enrichment_worker = EnrichmentWorker(ctx)
+        enrichment_worker.run()
+
+
+def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
+    """Generate semantic taxonomy if enabled."""
+    if dataset.context.config.rag.enabled:
+        logger.info("[bold cyan]🏷️  Generating Semantic Taxonomy...[/]")
+        try:
+            tagged_count = generate_semantic_taxonomy(dataset.context.output_sink, dataset.context.config)
+            if tagged_count > 0:
+                logger.info("[green]✓ Applied semantic tags to %d posts[/]", tagged_count)
+        except (ValueError, TypeError, AttributeError) as e:
+            # Non-critical failure
+            logger.warning("Auto-taxonomy failed: %s", e)
+
+
 def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
     """Run the complete write pipeline workflow.
 
@@ -250,7 +570,10 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
 
     # Create adapter with config for privacy settings
     # Instead of using singleton from registry, instantiate with config
-    adapter_cls = get_adapter_class(run_params.source_type)
+    adapter_cls = ADAPTER_REGISTRY.get(run_params.source_type)
+    if adapter_cls is None:
+        msg = f"Unknown source type: {run_params.source_type}"
+        raise ValueError(msg)
 
     # Instantiate adapter with config if it supports it (WhatsApp does)
     try:
@@ -275,7 +598,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
                 if max_processed_timestamp is None or conversation.window.end_time > max_processed_timestamp:
                     max_processed_timestamp = conversation.window.end_time
 
-            generate_taxonomy_task(dataset)
+            _generate_taxonomy(dataset)
 
             # Final pass for any lingering background tasks
             process_background_tasks(dataset.context)

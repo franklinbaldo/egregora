@@ -22,8 +22,8 @@ focus: "Dead Code Elimination"
 
 **Details**:
 ```
-src/egregora/output_adapters/base.py:280: unused variable 'posts_created' (100% confidence)
-src/egregora/output_adapters/mkdocs/adapter.py:676: unused variable 'posts_created' (100% confidence)
+src/egregora/output_sinks/base.py:280: unused variable 'posts_created' (100% confidence)
+src/egregora/output_sinks/mkdocs/adapter.py:676: unused variable 'posts_created' (100% confidence)
 ```
 
 ## Analysis
@@ -68,9 +68,9 @@ def finalize_window(
 ```
 
 **Files Modified**:
-- `src/egregora/output_adapters/base.py:280`
-- `src/egregora/output_adapters/mkdocs/adapter.py:676`
-- `tests/unit/output_adapters/test_base.py:90` (updated test to use new parameter name)
+- `src/egregora/output_sinks/base.py:280`
+- `src/egregora/output_sinks/mkdocs/adapter.py:676`
+- `tests/unit/output_sinks/test_base.py:90` (updated test to use new parameter name)
 - `tests/unit/test_output_sink_protocol.py:27` (updated test to use new parameter name)
 
 ## Verification

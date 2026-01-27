@@ -8,7 +8,7 @@ type: journal
 
 ## 💣 2024-07-31 - Summary
 
-**Observation:** The `read_document` method in `src/egregora/output_adapters/db_sink.py` was a classic "Look Before You Leap" (LBYL) violation. It returned `Document | None`, forcing callers to perform defensive `if` checks and obscuring the root cause of a missing document. This, in turn, was the root cause of a series of CI failures in the E2E tests.
+**Observation:** The `read_document` method in `src/egregora/output_sinks/db_sink.py` was a classic "Look Before You Leap" (LBYL) violation. It returned `Document | None`, forcing callers to perform defensive `if` checks and obscuring the root cause of a missing document. This, in turn, was the root cause of a series of CI failures in the E2E tests.
 
 **Action:** I executed a methodical, TDD-driven refactoring to make this failure mode explicit and fix the CI.
 1.  **TDD Protocol:** I first modified the existing unit test to expect a `DocumentNotFoundError`, establishing a failing (RED) test.

@@ -52,14 +52,14 @@ class PulseManager:
     def _get_pending_tasks(self, limit: int = 3) -> List[str]:
         if not TASKS_TODO_DIR.exists():
             return []
-        
+
         try:
             tasks = []
             # List .md files in todo dir, excluding TEMPLATE.md
             for f in sorted(TASKS_TODO_DIR.glob("*.md"), reverse=True):
                 if f.name == "TEMPLATE.md":
                     continue
-                # Simple heuristic: older files might be higher priority? 
+                # Simple heuristic: older files might be higher priority?
                 # Or just use filenames which often have timestamps.
                 tasks.append(f.stem)
                 if len(tasks) >= limit:
@@ -123,17 +123,17 @@ class PulseManager:
         output.append("📡 [bold cyan]SITUATION REPORT (SITREP)[/bold cyan]")
         output.append(f"👤 Persona: [green]{sitrep['persona']}[/green]")
         output.append(f"🔢 Sequence: [yellow]{sitrep['sequence']}[/yellow] (Next: {sitrep['next_persona']})")
-        
+
         mail_color = "red" if sitrep['unread_mail_count'] > 0 else "green"
         output.append(f"📧 Mail: [{mail_color}]{sitrep['unread_mail_count']} unread[/{mail_color}]")
-        
+
         if sitrep['pending_tasks']:
             output.append("📋 Pending Tasks (Top 3):")
             for task in sitrep['pending_tasks']:
                 output.append(f"  - {task}")
         else:
             output.append("📋 Pending Tasks: [green]Clean list![/green]")
-            
+
         output.append(f"🛠️  Last Tool: [dim]{sitrep['last_tool_used']}[/dim]")
-        
+
         return "\n".join(output)

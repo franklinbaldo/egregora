@@ -14,7 +14,7 @@ This is my first pass as the Curator persona evaluating Egregora's MkDocs blog o
 - **Location**: `/home/user/egregora/demo/`
 - **Configuration**: `demo/.egregora/mkdocs.yml`
 - **Content**: `demo/docs/*.md`
-- **Template Source**: `src/egregora/output_adapters/mkdocs/`
+- **Template Source**: `src/egregora/output_sinks/mkdocs/`
 
 ### Key Pages Reviewed
 1. **Homepage** (`demo/docs/index.md`) - Entry point with empty state
@@ -79,9 +79,9 @@ This is my first pass as the Curator persona evaluating Egregora's MkDocs blog o
 
 **Key Finding**: Templates are NOT in separate `.md` or `.jinja2` files. They're embedded in Python code at:
 
-- **Main adapter**: `src/egregora/output_adapters/mkdocs/adapter.py`
-- **Scaffolding**: `src/egregora/output_adapters/mkdocs/scaffolding.py`
-- **Site generator**: `src/egregora/output_adapters/mkdocs/site_generator.py`
+- **Main adapter**: `src/egregora/output_sinks/mkdocs/adapter.py`
+- **Scaffolding**: `src/egregora/output_sinks/mkdocs/scaffolding.py`
+- **Site generator**: `src/egregora/output_sinks/mkdocs/site_generator.py`
 
 This means UX changes require editing Python code, not template files. The Forge persona will need to modify these source files to implement UX improvements.
 

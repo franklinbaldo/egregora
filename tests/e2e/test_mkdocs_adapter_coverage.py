@@ -3,7 +3,7 @@
 import pytest
 
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.output_adapters.mkdocs import MkDocsAdapter
+from egregora.output_sinks.mkdocs import MkDocsAdapter
 
 
 @pytest.fixture
@@ -69,7 +69,7 @@ def test_get_profiles_data_generates_stats(adapter):
     adapter.persist(post)
 
     # Get stats using the PUBLIC API
-    from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
+    from egregora.output_sinks.mkdocs.site_generator import SiteGenerator
 
     site_generator = SiteGenerator(
         site_root=adapter.site_root,

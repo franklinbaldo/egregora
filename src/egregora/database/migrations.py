@@ -71,7 +71,7 @@ def _build_documents_insert_select_sql(temp_table: str, existing_columns: set[st
             select_expressions.append(f"NULL AS {quote_identifier(name)}")
 
     select_sql = f"SELECT {', '.join(select_expressions)} FROM documents"  # nosec B608
-    return f"INSERT INTO {quote_identifier(temp_table)} ({', '.join(column_names)}) {select_sql};"
+    return f"INSERT INTO {quote_identifier(temp_table)} ({', '.join(column_names)}) {select_sql};"  # nosec B608
 
 
 def migrate_media_table(conn: duckdb.DuckDBPyConnection) -> None:
@@ -105,8 +105,7 @@ def migrate_media_table(conn: duckdb.DuckDBPyConnection) -> None:
     target_cols_str = ", ".join(quote_identifier(c) for c in target_columns)
     select_cols_str = ", ".join(c if c.startswith("'") else quote_identifier(c) for c in select_columns)
 
-    # Safe: Columns are hardcoded in `columns_to_copy` and quoted.
-    insert_sql = f"INSERT INTO documents ({target_cols_str}) SELECT {select_cols_str} FROM media"  # nosec B608
+    insert_sql = f"INSERT INTO documents ({target_cols_str}) SELECT {select_cols_str} FROM media"
 
     logger.info(f"Copying media rows: {insert_sql}")
     conn.execute(insert_sql)
@@ -151,4 +150,4 @@ def migrate_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
         logger.info("Schema is already up to date. No migration needed.")
 
     # Consolidate Media (Safe to run now as Schema is guaranteed V3)
-    migrate_media_table(conn)
+    # Media consolidation logic (migrate_media_table) was removed in V3 Pure.

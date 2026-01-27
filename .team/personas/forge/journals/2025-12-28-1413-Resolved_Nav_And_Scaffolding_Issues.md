@@ -11,7 +11,7 @@ type: journal
 **Observation:** The initial task was to fix a broken "Media" link in the site's navigation. However, during verification, I discovered a deeper issue: the `mkdocs build` command was failing due to an incorrect `custom_dir` path in the generated `mkdocs.yml`. This scaffolding bug was preventing any changes from being tested.
 
 **Action:**
-1.  **Pivoted to Blocker:** I prioritized fixing the scaffolding issue first. I modified `src/egregora/output_adapters/mkdocs/scaffolding.py` to ensure the `overrides` directory was created inside `.egregora`, aligning it with the `mkdocs.yml` configuration.
+1.  **Pivoted to Blocker:** I prioritized fixing the scaffolding issue first. I modified `src/egregora/output_sinks/mkdocs/scaffolding.py` to ensure the `overrides` directory was created inside `.egregora`, aligning it with the `mkdocs.yml` configuration.
 2.  **Corrected Navigation Link:** After unblocking the build, I identified that the "Media" link was pointing to the wrong path. The build logs revealed that the media index was being generated at `posts/media/index.md`. I updated `src/egregora/rendering/templates/site/mkdocs.yml.jinja` to use this correct path.
 3.  **Clean Builds:** Throughout the process, I had to repeatedly delete the `demo` directory and re-scaffold the site to ensure my changes were being applied correctly.
 

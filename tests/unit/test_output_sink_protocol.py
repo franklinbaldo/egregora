@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
+from egregora.output_sinks.mkdocs.adapter import MkDocsAdapter
 
 if TYPE_CHECKING:
     from pathlib import Path

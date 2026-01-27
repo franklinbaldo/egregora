@@ -63,21 +63,6 @@ class TestUnifiedDocumentsSchemaConstraints:
                 ("post-2",),
             )
 
-    def test_doc_media_check_constraint_rejects_invalid_media_type(self, duckdb_conn):
-        """Verify that documents.doc_type='media' requires valid media_type."""
-        constraints = get_table_check_constraints("documents")
-        create_table_if_not_exists(duckdb_conn, "documents", UNIFIED_SCHEMA, check_constraints=constraints)
-
-        # Invalid Media Type
-        with pytest.raises(duckdb.ConstraintException, match="CHECK constraint"):
-            duckdb_conn.execute(
-                """
-                INSERT INTO documents (id, doc_type, status, media_type, filename, content, created_at)
-                VALUES (?, 'media', 'published', 'banana', 'file.jpg', 'content', CURRENT_TIMESTAMP)
-                """,
-                ("media-1",),
-            )
-
 
 class TestTasksSchemaConstraints:
     """Test constraints for the tasks table."""

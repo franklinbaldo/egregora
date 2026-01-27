@@ -1,7 +1,4 @@
-import os
-import yaml
 from pathlib import Path
-from typing import Dict, Optional
 
 PERSONAS_ROOT = Path(".team/personas")
 

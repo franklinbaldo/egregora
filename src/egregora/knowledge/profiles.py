@@ -35,7 +35,9 @@ This is validated by `validate_profile_document()` in orchestration/persistence.
 import contextlib
 import html
 import logging
+import os
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
@@ -67,8 +69,40 @@ YAML_FRONTMATTER_DELIMITER_COUNT = 2  # Front matter delimiter occurrences in we
 PROFILE_DATE_REGEX = re.compile(r"(\d{4}-\d{2}-\d{2})")
 # Fast author extraction regex for performance-critical bulk operations
 _AUTHORS_COMBINED_REGEX = re.compile(
-    r"^authors:[ \t]*(?:\n(?P<list>(?:\s*-\s+.+\n?)+)|(?P<single>.+))$", re.MULTILINE
+    rb"^authors:[ \t]*(?:\n(?P<list>(?:\s*-\s+.+\n?)+)|(?P<single>.+))$", re.MULTILINE
 )
+
+
+def _iter_authors_fast(path_str: str) -> Iterator[str]:
+    """Yield author IDs from a markdown file efficiently.
+
+    Uses low-level file operations (`open`) and regex to avoid `pathlib` overhead
+    and intermediate object creation.
+    """
+    # Use simple open, no pathlib overhead
+    with open(path_str, encoding="utf-8") as f:
+        content = f.read(4096)  # Read first 4KB
+
+    # Fail fast if no authors field
+    if "authors:" not in content:
+        return
+
+    match = _AUTHORS_COMBINED_REGEX.search(content)
+    if match:
+        if match.group("list"):
+            authors_block = match.group("list")
+            for line in authors_block.split("\n"):
+                stripped = line.strip()
+                if stripped.startswith("-"):
+                    # Remove "- " and quotes
+                    author = stripped[1:].strip().strip("'\"")
+                    if author:
+                        yield author
+
+        elif match.group("single"):
+            author = match.group("single").strip()
+            if author and not author.startswith("["):
+                yield author
 
 
 def _find_profile_path(
@@ -1136,11 +1170,11 @@ def save_authors_yml(path: Path, authors: dict, count: int) -> None:
         raise AuthorsFileSaveError(str(path), e) from e
 
 
-def extract_authors_from_post(md_file: Path, *, fast: bool = True) -> set[str]:
+def extract_authors_from_post(md_file: Path | str, *, fast: bool = True) -> set[str]:
     """Load a single post file and extract its author IDs.
 
     Args:
-        md_file: Path to markdown file with YAML frontmatter
+        md_file: Path or string path to markdown file with YAML frontmatter
         fast: Use regex-based extraction (faster but less robust). Default True.
 
     Returns:
@@ -1154,7 +1188,9 @@ def extract_authors_from_post(md_file: Path, *, fast: bool = True) -> set[str]:
     try:
         if fast:
             # Fast path: Use regex to extract authors without full YAML parsing
-            with md_file.open("r", encoding="utf-8") as f:
+            # Use 'rb' to avoid decoding overhead until match found
+            # Supports both Path and str for open()
+            with open(md_file, "rb") as f:
                 content = f.read(4096)  # Read first 4KB (frontmatter typically <1KB)
 
             match = _AUTHORS_COMBINED_REGEX.search(content)
@@ -1163,19 +1199,19 @@ def extract_authors_from_post(md_file: Path, *, fast: bool = True) -> set[str]:
                     authors_block = match.group("list")
                     # Extract author IDs from "  - author_id" lines
                     authors = set()
-                    for line in authors_block.split("\n"):
+                    for line in authors_block.split(b"\n"):
                         stripped = line.strip()
-                        if stripped.startswith("-"):
+                        if stripped.startswith(b"-"):
                             # Remove the leading "- " and any surrounding whitespace/quotes
-                            author = stripped[1:].strip().strip("'\"")
-                            if author:
-                                authors.add(author)
+                            author_bytes = stripped[1:].strip().strip(b"'\"")
+                            if author_bytes:
+                                authors.add(author_bytes.decode("utf-8"))
                     return authors if authors else set()
 
                 if match.group("single"):
-                    author = match.group("single").strip()
-                    if author and not author.startswith("["):  # Not a JSON array
-                        return {author}
+                    author_bytes = match.group("single").strip()
+                    if author_bytes and not author_bytes.startswith(b"["):  # Not a JSON array
+                        return {author_bytes.decode("utf-8")}
 
             return set()
         # Slow path: Full YAML parsing (more robust, handles edge cases)
@@ -1199,8 +1235,13 @@ def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> in
     authors_path = find_authors_yml(posts_dir)
 
     all_author_ids: set[str] = set()
-    for md_file in posts_dir.rglob("*.md"):
-        all_author_ids.update(extract_authors_from_post(md_file))
+    # Optimization: os.walk avoids Path object overhead compared to rglob
+    # and open() accepts string paths natively.
+    root_str = str(posts_dir)
+    for root, _, files in os.walk(root_str):
+        for name in files:
+            if name.endswith(".md"):
+                all_author_ids.update(extract_authors_from_post(os.path.join(root, name)))
 
     if not all_author_ids:
         return 0
