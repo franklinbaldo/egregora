@@ -1,5 +1,6 @@
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 # Plan: Builder 🏗️ - Sprint 3
 =======
 # Plan: Builder - Sprint 3
@@ -13,10 +14,18 @@
 **Created:** 2026-01-26
 <<<<<<< HEAD
 <<<<<<< HEAD
+=======
+# Plan: Builder - Sprint 3
+
+**Persona:** Builder (Data Architect)
+**Sprint:** 3
+**Created:** 2026-01-26
+>>>>>>> origin/pr/2841
 **Priority:** Medium
 
 ## Objectives
 
+<<<<<<< HEAD
 My mission is to support the "Symbiote Shift" by enabling the storage of deep context and self-reflection data.
 
 - [ ] **"Structured Sidecar" Schema:** Formalize the data model for "Structured Sidecars" (metadata accompanying source files) as defined by the Visionary.
@@ -37,11 +46,32 @@ Sprint 3 is about the agent becoming a "Symbiote" that lives alongside the code.
 1.  **Sidecar Schema:** Definitions for storing/indexing sidecar data.
 2.  **Feedback Loop Tables:** Schema for storing `agent_critiques` and `agent_actions`.
 3.  **Expanded Git Schema:** If needed, tables for `code_symbols` linked to Git refs.
+=======
+- [ ] **Advanced Vector Indexing:** Implement HNSW indexes for embedding columns in `documents` to support semantic search.
+- [ ] **Data Retention & Archival:** Design and implement policies for moving old `messages` or `runs` to cold storage (e.g., Parquet files on S3/GCS) to keep the hot DuckDB database lean.
+- [ ] **Performance Optimization:** Optimize the `_window_by_bytes` logic by pre-computing cumulative byte counts in the database (Fetch-then-Compute pattern).
+
+## Dependencies
+
+- **Curator:** Needs semantic search capabilities for better content discovery.
+- **Forge:** Needs performant windowing for large document processing.
+
+## Context
+
+With the schema stable (V3 Pure) and lineage established (Sprint 2), Sprint 3 focuses on **Performance and Scale**. As the dataset grows, linear scans for windowing or search will become bottlenecks. We need to introduce proper indexing and data lifecycle management.
+
+## Expected Deliverables
+
+1.  **HNSW Index Migration:** Migration script to add vector indexes to `documents`.
+2.  **Archival Service:** A service or script that moves data older than X days to external storage.
+3.  **Windowing Optimization:** Refactored `Windowing` logic that leverages database-side aggregation where possible.
+>>>>>>> origin/pr/2841
 
 ## Risks and Mitigations
 
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
+<<<<<<< HEAD
 | Schema complexity explosion | Medium | High | Maintain the "Structure Before Scale" philosophy. Only add tables that are strictly necessary and enforce them with constraints. |
 
 ## Proposed Collaborations
@@ -108,3 +138,11 @@ Sprint 3 introduces "Discovery", which relies on vector embeddings. This require
 - **With Bolt:** Performance tuning for real-time.
 - **With Visionary:** Embedding schema definition.
 >>>>>>> origin/pr/2860
+=======
+| Index Build Time | Medium | Medium | Run index creation in background or during maintenance windows. |
+| Data Loss during Archival | Low | High | Implement "Copy-Verify-Delete" protocol for archival. |
+
+## Proposed Collaborations
+
+- **With Curator:** Define the specific query patterns needed for semantic search (e.g., k-NN vs. range search).
+>>>>>>> origin/pr/2841
