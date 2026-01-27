@@ -1,0 +1,55 @@
+name: Jules PR Auto-Merge Worker
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge-worker:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable auto-merge for Jules PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -u # Do not use -e, handle errors manually
+
+          echo "Checking PR #$PR_NUMBER author..."
+          author_login=$(gh pr view "$PR_NUMBER" --json author --jq '.author.login' || echo "unknown")
+
+          if [ "$author_login" = "unknown" ]; then
+            echo "Failed to retrieve author. Exiting gracefully."
+            exit 0
+          fi
+
+          case "$author_login" in
+            "google-labs-jules[bot]"|"app/google-labs-jules"|"google-labs-jules")
+              echo "Author is Jules ($author_login). Proceeding."
+              ;;
+            *)
+              echo "PR #$PR_NUMBER is authored by $author_login; skipping."
+              exit 0
+              ;;
+          esac
+
+          is_draft=$(gh pr view "$PR_NUMBER" --json isDraft --jq '.isDraft' || echo "false")
+          if [ "$is_draft" = "true" ]; then
+            echo "PR #$PR_NUMBER is draft; marking ready for review."
+            gh pr ready "$PR_NUMBER" || echo "Failed to mark ready (non-fatal)."
+          fi
+
+          echo "Enabling auto-merge for PR #$PR_NUMBER."
+          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch || echo "Failed to enable auto-merge (non-fatal)."
+
+          # Always exit 0 to keep the CI green
+          exit 0

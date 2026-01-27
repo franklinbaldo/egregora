@@ -80,6 +80,12 @@ def initialize_database(backend: BaseBackend) -> None:
         foreign_keys=get_table_foreign_keys("annotations"),
     )
 
+    # Indexes for unified documents table (Query performance)
+    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_documents_type ON documents(doc_type)")
+    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_documents_slug ON documents(slug)")
+    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_documents_created ON documents(created_at)")
+    _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(status)")
+
     # Indexes for messages table (Ingestion performance)
     _execute_sql(conn, "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_pk ON messages(event_id)")
     _execute_sql(conn, "CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts)")
