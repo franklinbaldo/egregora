@@ -9,12 +9,9 @@ from egregora.orchestration.runner import PipelineRunner
 def test_fetch_processed_intervals():
     """Test fetching processed intervals from journal documents."""
     context = MagicMock(spec=PipelineContext)
-    # Mock library.journal.list()
-    mock_journal1 = MagicMock()
-    mock_journal1.metadata = {"window_start": "2023-01-01T10:00:00", "window_end": "2023-01-01T12:00:00"}
-    mock_journal2 = MagicMock()
-    # Missing metadata should be ignored
-    mock_journal2.metadata = {}
+    # Mock library.journal.list() - journals are dictionaries with document fields
+    mock_journal1 = {"window_start": "2023-01-01T10:00:00", "window_end": "2023-01-01T12:00:00"}
+    mock_journal2 = {}  # Missing metadata should be ignored
 
     context.library.journal.list.return_value = [mock_journal1, mock_journal2]
 
@@ -36,9 +33,8 @@ def test_process_windows_skips_existing():
     config.pipeline.max_windows = 100
     context.config = config
 
-    # Mock processed intervals (via library)
-    mock_journal = MagicMock()
-    mock_journal.metadata = {"window_start": "2023-01-01T10:00:00", "window_end": "2023-01-01T12:00:00"}
+    # Mock processed intervals (via library) - journals are dictionaries
+    mock_journal = {"window_start": "2023-01-01T10:00:00", "window_end": "2023-01-01T12:00:00"}
     context.library.journal.list.return_value = [mock_journal]
 
     runner = PipelineRunner(context)
@@ -63,7 +59,7 @@ def test_process_windows_skips_existing():
 
     windows = [window1, window2]
 
-    _results, _max_ts = runner.process_windows(windows)
+    _results, _max_ts = runner.process_windows(iter(windows))
 
     # Assertions
     # Only window 2 should trigger processing
