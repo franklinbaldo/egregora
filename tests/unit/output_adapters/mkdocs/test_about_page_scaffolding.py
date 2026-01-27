@@ -71,7 +71,9 @@ def test_extra_css_glassmorphism(tmp_path: Path, scaffolder: MkDocsSiteScaffolde
     """
     scaffolder.scaffold_site(tmp_path, site_name="Test UX Site")
 
-    css_path = tmp_path / "docs" / "stylesheets" / "extra.css"
+    # CSS is now consolidated in overrides/stylesheets/extra.css to prevent shadowing
+    # when using custom themes, but mapped via mkdocs.yml extra_css
+    css_path = tmp_path / "overrides" / "stylesheets" / "extra.css"
     assert css_path.exists()
     css_content = css_path.read_text(encoding="utf-8")
 

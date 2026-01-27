@@ -6,6 +6,7 @@ site_url: {{ site_url | default("http://127.0.0.1:8000") }}  # Update with your 
 # repo_name: your-repo
 docs_dir: ../{{ docs_dir }}
 site_dir: {{ site_dir | default("site") }}  # Set per-site to avoid build collisions in multi-site configs
+use_directory_urls: true
 copyright: Copyright &copy; {{ now.year }} {{ site_name }}
 
 theme:
