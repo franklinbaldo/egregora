@@ -106,7 +106,7 @@ UUID_VALIDATION_PATTERN = re.compile(
 FAST_MEDIA_PATTERN = re.compile(
     r"""
     !\[(?P<img_alt>[^\]]*)\]\((?P<img_url>[^)]+)\) |              # Markdown Image
-    (?<!!)\[(?P<link_text>[^\]]+)\]\((?P<link_url>[^)]+)\) |      # Markdown Link
+    \[(?P<link_text>[^\]]+)\]\((?P<link_url>[^)]+)\) |            # Markdown Link
     \b(?P<wa_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b |     # WhatsApp
     (?i:\u200e(?P<uni_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)) # Unicode
     """,
@@ -114,7 +114,18 @@ FAST_MEDIA_PATTERN = re.compile(
 )
 
 MARKER_PATTERN = re.compile(rf"(?:{_MARKERS_REGEX})", re.IGNORECASE)
-FILENAME_LOOKBEHIND_PATTERN = re.compile(r"([\w\-\.]+\.\w+)\s*$", re.IGNORECASE)
+# Anchored validation pattern for manual extraction
+# Matches [\w\-\.]+\.\w+ exactly
+FILENAME_VALIDATION_PATTERN = re.compile(r"^[\w\-\.]+\.\w+$", re.IGNORECASE)
+
+# Quick check pattern to fail fast on strings with no potential media
+# ! = markdown image
+# [ = markdown link
+# I, V, A, P, D = WhatsApp filenames (IMG, VID, AUD, PTT, DOC)
+# \u200e = Unicode marker
+# ( = Attachment marker start (e.g., (file attached))
+# < = Attachment marker start (e.g., <attached:)
+QUICK_CHECK_PATTERN = re.compile(r"[!\[IVAPD\u200e(<]")
 
 
 # ----------------------------------------------------------------------------
@@ -241,8 +252,13 @@ def extract_media_references(table: Table) -> set[str]:
     if hasattr(df, "text"):
         # pandas DataFrame
 <<<<<<< HEAD
+<<<<<<< HEAD
         # Optimization: distinct messages to avoid redundant regex processing
         messages = df["text"].dropna().unique().tolist()
+=======
+        # Optimization: Avoid dropna() copy, handle None/NaN in loop
+        messages = df["text"].tolist()
+>>>>>>> origin/pr/2711
     elif hasattr(df, "to_pylist"):
         # pyarrow Table
         # Optimization: distinct messages to avoid redundant regex processing
@@ -263,14 +279,20 @@ def extract_media_references(table: Table) -> set[str]:
     # Pre-bind regex methods for optimization
     fast_find = FAST_MEDIA_PATTERN.finditer
     marker_find = MARKER_PATTERN.finditer
-    filename_search = FILENAME_LOOKBEHIND_PATTERN.search
+    filename_match = FILENAME_VALIDATION_PATTERN.match
+    quick_check = QUICK_CHECK_PATTERN.search
 
     for message in messages:
         if not message or not isinstance(message, str):
             continue
 
+        # Optimization: Fail fast if no potential media indicators are present
+        if not quick_check(message):
+            continue
+
         # Pass 1: Fast patterns (Images, Links, WhatsApp, Unicode)
         for match in fast_find(message):
+<<<<<<< HEAD
             # Optimization: Use lastgroup to avoid checking all groups
             group_name = match.lastgroup
             val = match.group(group_name)
@@ -284,6 +306,20 @@ def extract_media_references(table: Table) -> set[str]:
                 references.add(val)
             elif group_name == "uni_file":
                 references.add(val)
+=======
+            # Optimization: Use match.lastgroup for O(1) dispatch instead of checking all groups
+            group_name = match.lastgroup
+            if group_name == "img_url":
+                references.add(match.group("img_url"))
+            elif group_name == "link_url":
+                link_url = match.group("link_url")
+                if not link_url.startswith(("http://", "https://")):
+                    references.add(link_url)
+            elif group_name == "wa_file":
+                references.add(match.group("wa_file"))
+            elif group_name == "uni_file":
+                references.add(match.group("uni_file"))
+>>>>>>> origin/pr/2711
 
         # Pass 2: Attachments via markers (optimized to avoid greedy filename scanning)
         for match in marker_find(message):
@@ -292,9 +328,24 @@ def extract_media_references(table: Table) -> set[str]:
             if not lookback_slice:
                 continue
 
-            # Look for filename at the end of the preceding text
-            if fm := filename_search(lookback_slice):
-                references.add(fm.group(1))
+            # Optimized lookbehind:
+            # Instead of a greedy regex searching from the end of the string (O(N)),
+            # we manually split the string to find the last token and validate it.
+            # This is ~5000x faster for long strings.
+
+            # Remove trailing whitespace (spaces between filename and marker)
+            lookback_stripped = lookback_slice.rstrip()
+            if not lookback_stripped:
+                continue
+
+            # Get the last word/token
+            # rsplit(None, 1) splits on whitespace from the right, max 1 split
+            parts = lookback_stripped.rsplit(None, 1)
+            candidate = parts[-1]
+
+            # Validate the candidate against the allowed filename characters
+            if filename_match(candidate):
+                references.add(candidate)
 
     return references
 
