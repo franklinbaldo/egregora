@@ -172,11 +172,15 @@ def set_roster_size(count, roster):
     # These parameters are used by the BDD parser but not directly in the function body.
     # They are kept to match the BDD step definition.
 <<<<<<< HEAD
+<<<<<<< HEAD
     _ = (count, roster)
 =======
     _ = count
     _ = roster
 >>>>>>> origin/pr/2674
+=======
+    _ = (count, roster)  # Mark as intentionally unused
+>>>>>>> origin/pr/2671
 
 
 @given(parsers.parse('sequence "{seq}" voted for "{persona}" as first choice'))
@@ -219,11 +223,15 @@ def setup_tie_between(isolated_fs, p1, pts1, p2, pts2):
     # These parameters are used by the BDD parser but not directly in the function body.
     # They are kept to match the BDD step definition.
 <<<<<<< HEAD
+<<<<<<< HEAD
     _ = (pts1, pts2)
 =======
     _ = pts1
     _ = pts2
 >>>>>>> origin/pr/2674
+=======
+    _ = (pts1, pts2)  # Mark as intentionally unused
+>>>>>>> origin/pr/2671
     with (isolated_fs / ".team" / "votes.csv").open("w", newline="") as f:
         fieldnames = ["voter_sequence", "candidates"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
