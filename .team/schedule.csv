@@ -104,8 +104,13 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 103,steward,13839054398889799990,2669,closed,
 104,streamliner,1652516612879013473,2614,merged,
 105,taskmaster,,,closed,
+<<<<<<< HEAD
 106,typeguard,2602638207033439254,2680,merged,
 107,visionary,6708424704856151484,2633,merged,
+=======
+106,typeguard,13563329791048448429,2675,open,
+107,visionary,,,,
+>>>>>>> origin/pr/2677
 108,weaver,,,closed,
 109,absolutist,1278488902245254732,2686,merged,
 110,artisan,8399847330726783056,2618,merged,
