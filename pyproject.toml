@@ -293,6 +293,12 @@ ignore = [
     "PTH122",  # os.path.splitext (needed for extension handling)
 ]
 
+# Optimized author extraction - intentional use of os.path/open for performance
+"src/egregora/knowledge/profiles.py" = [
+    "PTH118",  # os.path.join (faster than Path /)
+    "PTH123",  # open (faster than Path.open)
+]
+
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
 

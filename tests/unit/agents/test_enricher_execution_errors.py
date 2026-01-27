@@ -33,6 +33,7 @@ def test_enrich_single_url_raises_exception(mock_context):
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     with patch("egregora.agents.enricher.Agent") as mock_agent_cls:
         mock_agent_instance = mock_agent_cls.return_value
 =======
@@ -51,6 +52,10 @@ def test_enrich_single_url_raises_exception(mock_context):
     with patch("egregora.agents.enricher.Agent") as mock_agent_class:
         mock_agent_instance = mock_agent_class.return_value
 >>>>>>> origin/pr/2881
+=======
+    with patch("egregora.agents.enricher.Agent") as mock_agent_cls:
+        mock_agent_instance = mock_agent_cls.return_value
+>>>>>>> origin/pr/2879
         # Mock the run method to raise a generic exception
         # Note: _enrich_single_url creates an event loop and runs this async,
         # but since we are mocking the sync Agent class wrapper (or pydantic_ai.Agent),
