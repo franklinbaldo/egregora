@@ -1,0 +1,223 @@
+name: Jules
+
+# ==============================================================================
+# JULES ORCHESTRATION WORKFLOW
+# ==============================================================================
+#
+# This workflow orchestrates the Jules AI agent system. It manages the lifecycle
+# of automated code maintenance sessions performed by Jules personas.
+#
+# EXPECTED FLOW:
+# ==============
+#
+#   ┌─────────────────────────────────────────────────────────────────────────┐
+#   │                                                                         │
+#   │   1. SCHEDULER runs (via cron, manual, or on-merge trigger)             │
+#   │      ↓                                                                  │
+#   │   2. Scheduler picks next persona from schedule.csv                     │
+#   │      ↓                                                                  │
+#   │   3. Creates Jules session via API with persona's prompt                │
+#   │      ↓                                                                  │
+#   │   4. Jules works asynchronously, creates PR when done                   │
+#   │      ↓                                                                  │
+#   │   5. jules-pr.yml enables auto-merge on the PR                          │
+#   │      ↓                                                                  │
+#   │   6. CI runs on the PR                                                  │
+#   │      ↓                                                                  │
+#   │   7. If CI passes → PR is auto-merged                                   │
+#   │      ↓                                                                  │
+#   │   8. ON-MERGE job detects the merge                                     │
+#   │      ↓                                                                  │
+#   │   9. Triggers SCHEDULER again → cycle repeats                           │
+#   │                                                                         │
+#   └─────────────────────────────────────────────────────────────────────────┘
+#
+# JOBS IN THIS WORKFLOW:
+# ======================
+#
+#   on-merge:   Detects when a Jules PR is merged and triggers next session
+#   scheduler:  Main orchestration - picks persona and creates Jules session
+#   sync-main:  Merges jules branch into main when clean (no conflicts)
+#
+# STATE MANAGEMENT:
+# =================
+#
+#   Schedule state (schedule.csv) is stored as a GitHub Artifact, NOT committed
+#   to the repository. This prevents merge conflicts from concurrent runs.
+#
+#   - On start: Download artifact from previous successful run
+#   - Fallback: Use .team/schedule.csv from repo as initial seed
+#   - On end: Upload updated state as artifact (90 day retention)
+#
+# IMPORTANT: Do not modify the trigger conditions or job dependencies without
+# understanding the full cycle. Breaking this flow will stop all Jules automation.
+#
+# ==============================================================================
+
+on:
+  # Scheduler triggers
+  workflow_dispatch:
+    inputs:
+      prompt_id:
+        description: "Run only a specific prompt id (e.g. curator)"
+        required: false
+        type: string
+      run_all:
+        description: "Ignore schedules and run all enabled prompts"
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: "Do not call Jules API (prints what would run)"
+        required: false
+        type: boolean
+        default: false
+      reset:
+        description: "Reset the persona cycle and start from the first persona"
+        required: false
+        type: boolean
+        default: false
+
+  schedule:
+    # Fallback polling - primary trigger is on-merge event
+    - cron: '*/15 * * * *'
+
+  # On-merge trigger (replaces jules-on-merge.yml)
+  pull_request:
+    types: [closed]
+    branches: [main, jules]
+
+  # Sync-main trigger
+  push:
+    branches: [jules]
+
+  # Chain from CI completion
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: jules-${{ github.event_name }}
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  # ==========================================================================
+  # ON-MERGE: Trigger scheduler when Jules PR is merged
+  # ==========================================================================
+  on-merge:
+    name: On-Merge Trigger
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.merged == true &&
+      (github.event.pull_request.user.login == 'google-labs-jules[bot]' ||
+       github.event.pull_request.user.login == 'google-labs-jules')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger scheduler for next session
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "✅ Jules PR #${{ github.event.pull_request.number }} merged"
+          echo "🚀 Triggering scheduler for next session..."
+          gh workflow run jules.yml --repo "${{ github.repository }}" --ref main
+
+  # ==========================================================================
+  # SCHEDULER: Main orchestration
+  # ==========================================================================
+  scheduler:
+    name: Scheduler
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       (startsWith(github.event.workflow_run.head_branch, 'jules-sched-') ||
+        github.event.workflow_run.head_branch == 'main' ||
+        github.event.workflow_run.head_branch == 'jules'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--extra jules"
+
+      # Restore schedule state from artifact
+      - name: Download schedule state
+        uses: dawidd6/action-download-artifact@v6
+        continue-on-error: true
+        with:
+          name: schedule-state
+          workflow: jules.yml
+          workflow_conclusion: success
+          if_no_artifact_found: warn
+
+      - name: Restore schedule state
+        run: .github/scripts/jules/restore-schedule-state.sh
+
+      - name: Run scheduler
+        env:
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: .team
+        run: |
+          args=()
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            [ "${{ inputs.run_all }}" = "true" ] && args+=(--all)
+            [ "${{ inputs.dry_run }}" = "true" ] && args+=(--dry-run)
+            [ "${{ inputs.reset }}" = "true" ] && args+=(--reset)
+            [ -n "${{ inputs.prompt_id }}" ] && args+=(--prompt-id "${{ inputs.prompt_id }}")
+          fi
+          .github/scripts/jules/run-scheduler.sh "${args[@]}"
+
+      # Save schedule state as artifact
+      - name: Upload schedule state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schedule-state
+          path: |
+            .team/schedule.csv
+            .team/oracle_schedule.csv
+          retention-days: 90
+          overwrite: true
+
+  # ==========================================================================
+  # SYNC-MAIN: Merge jules branch into main
+  # ==========================================================================
+  sync-main:
+    name: Sync → Main
+    needs: [scheduler]
+    if: |
+      always() &&
+      (needs.scheduler.result == 'success' || needs.scheduler.result == 'skipped') &&
+      (github.event_name == 'push' ||
+       github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--extra jules"
+
+      - name: Sync jules → main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: .team
+        run: uv run python .github/scripts/jules/sync-main.py
