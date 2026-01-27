@@ -11,7 +11,6 @@ permissions:
 
 env:
   PYTHON_VERSION: "3.12"
-  ARTIFACT_RETENTION_DAYS: "7"
 
 on:
   push:
@@ -105,10 +104,3 @@ jobs:
         id: deployment
         if: github.ref == 'refs/heads/main'
         uses: actions/deploy-pages@v4
-
-      - name: Upload bundles artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: bundles
-          path: /tmp/bundles/
-          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
