@@ -78,6 +78,7 @@ ATTACHMENT_MARKERS_PATTERN = re.compile(rf"([\w\-\.]+\.\w+)\s*(?:{_MARKERS_REGEX
 UNICODE_MEDIA_PATTERN = re.compile(r"\u200e((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)", re.IGNORECASE)
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 # Combined pattern for efficient single-pass extraction (replaces multiple regex passes)
 COMBINED_ENRICHMENT_PATTERN = re.compile(
     r"""
@@ -137,6 +138,33 @@ QUICK_CHECK_PATTERN = re.compile(r"[!\[IVAPD\u200e(<]")
 =======
 FILENAME_LOOKBEHIND_PATTERN = re.compile(r"([\w\-\.]+\.\w+)\s*$", re.IGNORECASE)
 >>>>>>> origin/pr/2707
+=======
+# Patterns for Markdown processing
+# Kept for backward compatibility
+MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
+MARKDOWN_LINK_PATTERN = re.compile(r"(?<!!)\[([^\]]+)\]\(([^)]+)\)")
+>>>>>>> origin/pr/2706
+
+COMBINED_MD_PATTERN = re.compile(
+    r"""
+    (?P<img_url>!\[[^\]]*\]\((?P<url1>[^)]+)\)) |
+    (?P<link_url>(?<!!)\[[^\]]+\]\((?P<url2>[^)]+)\))
+    """,
+    re.VERBOSE,
+)
+
+# Note: _MARKERS_REGEX contains escaped strings (via re.escape), so spaces are escaped (e.g. '\ ').
+# This is safe to use within re.VERBOSE where unescaped spaces are ignored.
+COMBINED_RAW_PATTERN = re.compile(
+    r"""
+    (?P<att>(?i:(?P<att_file>[\w\-\.]+\.\w+)\s*(?:"""
+    + _MARKERS_REGEX
+    + r"""))) |
+    (?P<wa>\b(?P<wa_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b) |
+    (?P<uni>(?i:\u200e(?P<uni_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)))
+    """,
+    re.VERBOSE,
+)
 
 
 # ----------------------------------------------------------------------------
@@ -295,6 +323,7 @@ def extract_media_references(table: Table) -> set[str]:
         # Fallback for unexpected type
         return references
 
+<<<<<<< HEAD
     # Pre-bind regex methods for optimization
     fast_find = FAST_MEDIA_PATTERN.finditer
     marker_find = MARKER_PATTERN.finditer
@@ -304,11 +333,17 @@ def extract_media_references(table: Table) -> set[str]:
 =======
     filename_search = FILENAME_LOOKBEHIND_PATTERN.search
 >>>>>>> origin/pr/2707
+=======
+    # Pre-bind method for optimization
+    md_find_iter = COMBINED_MD_PATTERN.finditer
+    raw_find_iter = COMBINED_RAW_PATTERN.finditer
+>>>>>>> origin/pr/2706
 
     for message in messages:
         if not message or not isinstance(message, str):
             continue
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
         # Optimization: Fail fast if no potential media indicators are present
@@ -406,6 +441,25 @@ def extract_media_references(table: Table) -> set[str]:
             # Look for filename at the end of the preceding text
             if fm := filename_search(lookback_slice):
                 references.add(fm.group(1))
+=======
+        # 1. Markdown references
+        for match in md_find_iter(message):
+            if match.group("url1"):
+                references.add(match.group("url1"))
+            elif match.group("url2"):
+                ref = match.group("url2")
+                if not ref.startswith(("http://", "https://")):
+                    references.add(ref)
+
+        # 2. Raw references
+        for match in raw_find_iter(message):
+            if match.group("att_file"):
+                references.add(match.group("att_file"))
+            elif match.group("wa_file"):
+                references.add(match.group("wa_file"))
+            elif match.group("uni_file"):
+                references.add(match.group("uni_file"))
+>>>>>>> origin/pr/2706
 
     return references
 
