@@ -17,20 +17,13 @@ Branch protection ensures code quality by requiring:
 For the auto-merge workflow to function properly, configure these **required status checks**:
 
 ### Core Checks (Always Required)
-- `Pre-commit Hooks` (includes Ruff lint and format)
+- `Pre-commit Hooks` (includes Ruff lint, format, vulture, etc.)
 - `Unit Tests (Python 3.12)`
 - `E2E Tests`
-- `enable-auto-merge` (gates PR mergeability based on test results)
 
-### Conditional Checks (Required when they run)
-These jobs only run under specific conditions, so mark them as "optional" or use GitHub's "Expected" checks feature:
-- `Security Scan` - Only runs on main, schedule, or manual dispatch
-- `Code Quality Metrics` - Only runs on main or schedule
+### Optional Checks
+- `Security Scan` - Dependency vulnerability scanning
 - `Build Package` - Runs after tests pass
-- `Build & Deploy Docs` - Only on main branch pushes
-
-### Additional Checks
-- `CodeQL Security Analysis / Analyze Python Code` - Security scanning (optional)
 
 ---
 
@@ -60,7 +53,6 @@ Settings → Branches → Add branch protection rule
     - `Pre-commit Hooks`
     - `Unit Tests (Python 3.12)`
     - `E2E Tests`
-    - `enable-auto-merge`
 
 - ✅ **Require conversation resolution before merging** (recommended)
 
@@ -119,14 +111,13 @@ If you see a CI failure named `enable-auto-merge`, be aware:
 ### Which checks should be required?
 
 **For CI speed, require only critical checks:**
-- Pre-commit hooks (includes Ruff linting + format)
-- Tests (Unit + E2E)
-- enable-auto-merge (gates mergeability)
+- Pre-commit Hooks (includes Ruff linting + format)
+- Unit Tests (Python 3.12)
+- E2E Tests
 
 **Don't require conditionally-run jobs:**
-- Security scans (only on main/schedule)
-- Quality metrics (only on main/schedule)
-- Docs builds (only on main)
+- Security scans (runs in parallel, non-blocking)
+- Build package (only runs after tests pass)
 
 GitHub's "Expected" checks feature (beta) can help with conditional jobs.
 
