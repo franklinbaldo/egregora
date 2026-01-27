@@ -112,15 +112,25 @@ def run_cli_flow(
     validate_timezone_arg(timezone)
 
     output_dir = output.expanduser().resolve()
+<<<<<<< HEAD
     ensure_site_initialized(output_dir)
     try:
         validate_api_key(output_dir)
+=======
+    _ensure_site_initialized(output_dir)
+    try:
+        _validate_api_key(output_dir)
+>>>>>>> origin/pr/2735
     except SystemExit as e:
         if exit_on_error:
             raise
         # Wrap SystemExit in RuntimeError so callers (like demo) can handle it gracefully
+<<<<<<< HEAD
         msg = f"API key validation failed: {e}"
         raise RuntimeError(msg) from e
+=======
+        raise RuntimeError(f"API key validation failed: {e}") from e
+>>>>>>> origin/pr/2735
 
     # Load config to determine sources
     base_config = load_egregora_config(output_dir)
