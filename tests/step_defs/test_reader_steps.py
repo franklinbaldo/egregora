@@ -1033,7 +1033,7 @@ def verify_post_count(top_posts, n):
 def verify_highest_rated(top_posts, n):
     """Verify posts are highest rated."""
     # Check that ratings are in descending order
-    ratings = [p["rating"] for p in top_posts]
+    ratings = [p.rating for p in top_posts]
     assert ratings == sorted(ratings, reverse=True)
 
 
@@ -1051,9 +1051,10 @@ def verify_pairing_count(selected_pairs, count):
         post_counts[post_b] = post_counts.get(post_b, 0) + 1
 
     # Verify each post gets approximately the target count (within ±1)
+    target_count = int(count)
     for slug, pair_count in post_counts.items():
-        assert abs(pair_count - count) <= 1, (
-            f"Post {slug} scheduled for {pair_count} comparisons, expected approximately {count} (±1)"
+        assert abs(pair_count - target_count) <= 1, (
+            f"Post {slug} scheduled for {pair_count} comparisons, expected approximately {target_count} (±1)"
         )
 
 
