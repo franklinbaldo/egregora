@@ -34,8 +34,13 @@ Key locations:
 This section defines the "Portal" design system, which aims to create a dark, immersive, and premium experience.
 
 ### CSS Architecture
+<<<<<<< HEAD
 -   **Status:** Fixed.
 -   **Resolution:** The fragmented CSS has been consolidated. `src/egregora/rendering/templates/site/docs/stylesheets/extra.css` was removed, and its styles merged into `src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`. This resolved the shadowing issue, restoring the correct styling for the homepage navigation and blog cards.
+=======
+-   **Status:** Verified.
+-   **Issue:** The CSS was previously split, causing shadowing issues. This has been resolved by consolidating all styles into `src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`.
+>>>>>>> origin/pr/2881
 -   **Next Action:** None.
 
 ### Color Palette
@@ -61,7 +66,11 @@ This section defines the "Portal" design system, which aims to create a dark, im
 
 ### Feeds Page
 -   **Status:** Verified.
+<<<<<<< HEAD
 -   **Resolution:** A dedicated `docs/feeds/index.md` page exists, providing a clean UI for subscribing to RSS and JSON feeds.
+=======
+-   **Issue:** The "RSS Feeds" card now links to a dedicated feeds page. The template `src/egregora/rendering/templates/site/docs/feeds/index.md.jinja` has been implemented.
+>>>>>>> origin/pr/2881
 -   **Next Action:** None.
 
 ### Analytics
