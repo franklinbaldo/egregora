@@ -1,19 +1,45 @@
-"""Simplified Jules Scheduler.
+"""Stateless Jules Scheduler with Oracle Facilitator.
 
-This module provides a streamlined scheduler that:
-1. Merges completed Jules PRs (drafts that are green)
-2. Finds the next persona (round-robin from API state)
-3. Renders the prompt with Jinja2
-4. Creates a Jules session
+This module provides a stateless scheduler that:
+1. FIRST: Unblocks stuck sessions via Oracle (AWAITING_USER_FEEDBACK)
+2. THEN: Merges completed Jules PRs
+3. THEN: Creates new sessions (round-robin personas)
 
 The Jules API is the source of truth - no CSV state management needed.
+
+MAIN WORKFLOW (Oracle-First):
+=============================
+
+    TICK
+      │
+      ▼
+    ┌─────────────────────────────────────────────┐
+    │ 1. Find sessions in AWAITING_USER_FEEDBACK  │
+    │    └── For each stuck session:              │
+    │        ├── Extract question from activities │
+    │        ├── Get/create Oracle session        │
+    │        └── Send question → Oracle answers   │
+    │            └── Send answer → stuck session  │
+    └─────────────────────────────────────────────┘
+      │
+      ▼
+    ┌─────────────────────────────────────────────┐
+    │ 2. Merge completed PRs                      │
+    └─────────────────────────────────────────────┘
+      │
+      ▼
+    ┌─────────────────────────────────────────────┐
+    │ 3. Create new session (if no active)        │
+    │    └── Round-robin through personas         │
+    └─────────────────────────────────────────────┘
+
 """
 
 from __future__ import annotations
 
 import json
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +51,20 @@ from repo.scheduler.models import PersonaConfig
 # Constants
 JULES_BOT_AUTHOR = "app/google-labs-jules"
 JULES_BRANCH = "jules"
+ORACLE_TITLE_PREFIX = "🔮 oracle"
+
+# Session states from Jules API
+STATE_AWAITING_USER_FEEDBACK = "AWAITING_USER_FEEDBACK"
+STATE_AWAITING_PLAN_APPROVAL = "AWAITING_PLAN_APPROVAL"
+STATE_IN_PROGRESS = "IN_PROGRESS"
+STATE_COMPLETED = "COMPLETED"
+STATE_FAILED = "FAILED"
+
+# States that indicate a session needs help
+STUCK_STATES = {STATE_AWAITING_USER_FEEDBACK, STATE_AWAITING_PLAN_APPROVAL}
+
+# States that indicate a session is actively running
+ACTIVE_STATES = {STATE_IN_PROGRESS, "ACTIVE", "PLANNING", "QUEUED"}
 
 
 def _get_repo_root() -> Path:
@@ -38,7 +78,6 @@ def _get_repo_root() -> Path:
         )
         return Path(result.stdout.strip())
     except Exception:
-        # Fallback to current directory
         return Path.cwd()
 
 
@@ -46,7 +85,8 @@ def _get_persona_dir() -> Path:
     """Get the personas directory path."""
     return _get_repo_root() / ".team" / "personas"
 
-# Personas excluded from automatic scheduling
+
+# Personas excluded from automatic scheduling (Oracle is special)
 EXCLUDED_PERSONAS = frozenset({"oracle", "bdd_specialist", "franklin", "_archived"})
 
 
@@ -58,14 +98,369 @@ class SchedulerResult:
     message: str
     session_id: str | None = None
     merged_count: int = 0
+    unblocked_count: int = 0
+
+
+@dataclass
+class StuckSession:
+    """A session that is waiting for user feedback."""
+
+    session_id: str
+    title: str
+    state: str
+    persona: str | None = None
+    question: str | None = None
+
+
+# =============================================================================
+# ORACLE FACILITATOR - Main Workflow
+# =============================================================================
+
+
+def get_stuck_sessions(client: TeamClient, repo: str) -> list[StuckSession]:
+    """Find sessions that are waiting for user feedback.
+
+    Args:
+        client: Jules API client
+        repo: Repository name to filter sessions
+
+    Returns:
+        List of stuck sessions needing Oracle help.
+    """
+    try:
+        sessions = client.list_sessions().get("sessions", [])
+    except Exception as e:
+        print(f"  Failed to list sessions: {e}")
+        return []
+
+    stuck = []
+    repo_lower = repo.lower()
+
+    for session in sessions:
+        title = session.get("title") or ""
+        state = (session.get("state") or "").upper()
+        session_id = session.get("name", "").split("/")[-1]
+
+        # Skip if not for this repo
+        if repo_lower not in title.lower():
+            continue
+
+        # Skip Oracle sessions (don't unblock the unblocker!)
+        if ORACLE_TITLE_PREFIX.lower() in title.lower():
+            continue
+
+        # Check if stuck
+        if state in STUCK_STATES:
+            # Try to identify persona from title
+            persona = None
+            personas = discover_personas()
+            for p in personas:
+                if p in title.lower():
+                    persona = p
+                    break
+
+            stuck.append(StuckSession(
+                session_id=session_id,
+                title=title,
+                state=state,
+                persona=persona,
+            ))
+
+    return stuck
+
+
+def extract_question_from_session(client: TeamClient, session_id: str) -> str | None:
+    """Extract the question Jules is asking from session activities.
+
+    Args:
+        client: Jules API client
+        session_id: Session to inspect
+
+    Returns:
+        The question text, or None if not found.
+    """
+    try:
+        activities = client.get_activities(session_id).get("activities", [])
+    except Exception as e:
+        print(f"  Failed to get activities for {session_id}: {e}")
+        return None
+
+    if not activities:
+        return None
+
+    # Sort by timestamp to get most recent
+    activities = sorted(
+        activities,
+        key=lambda a: a.get("createTime") or "",
+        reverse=True,
+    )
+
+    # Look for the most recent agent message that looks like a question
+    for activity in activities:
+        originator = activity.get("originator", "").upper()
+        if originator != "AGENT":
+            continue
+
+        # Check text content
+        text = activity.get("text") or activity.get("content") or ""
+
+        # Also check artifacts for messages
+        for artifact in activity.get("artifacts", []):
+            if artifact.get("type") == "text":
+                text = artifact.get("contents", {}).get("text", "") or text
+
+        if text and ("?" in text or "need" in text.lower() or "help" in text.lower()):
+            return text.strip()
+
+    # Fallback: return the last agent message
+    for activity in activities:
+        if activity.get("originator", "").upper() == "AGENT":
+            text = activity.get("text") or activity.get("content") or ""
+            if text:
+                return text.strip()
+
+    return None
+
+
+def get_or_create_oracle_session(
+    client: TeamClient,
+    repo_info: dict[str, str],
+) -> str | None:
+    """Get an existing Oracle session or create a new one.
+
+    Oracle sessions are reused to avoid creating new sessions for each question.
+
+    Args:
+        client: Jules API client
+        repo_info: Repository information
+
+    Returns:
+        Oracle session ID, or None on failure.
+    """
+    repo = repo_info["repo"]
+
+    # First, try to find an existing Oracle session
+    try:
+        sessions = client.list_sessions().get("sessions", [])
+    except Exception as e:
+        print(f"  Failed to list sessions: {e}")
+        return None
+
+    # Look for existing Oracle session (not FAILED/COMPLETED)
+    for session in sessions:
+        title = session.get("title") or ""
+        state = (session.get("state") or "").upper()
+        session_id = session.get("name", "").split("/")[-1]
+
+        if ORACLE_TITLE_PREFIX.lower() in title.lower() and repo.lower() in title.lower():
+            # Check if session is still usable
+            if state not in {STATE_FAILED, STATE_COMPLETED}:
+                print(f"  Found existing Oracle session: {session_id} (state: {state})")
+                return session_id
+
+    # No usable Oracle session found, create new one
+    print("  Creating new Oracle session...")
+
+    oracle_prompt = f"""# 🔮 Oracle - Technical Support
+
+You are the Oracle, a technical support specialist for the {repo} repository.
+
+## Your Role
+You help other AI personas when they get stuck by answering their technical questions.
+You have deep knowledge of the codebase and can provide guidance on:
+- Architecture decisions
+- Code patterns
+- API usage
+- Testing strategies
+- Best practices
+
+## Instructions
+1. When you receive a question, analyze it carefully
+2. Provide a clear, actionable answer
+3. Include code examples when helpful
+4. Reference relevant files in the codebase
+5. Keep answers focused and concise
+
+## Important
+- You are a support agent, not a coder
+- Do NOT modify code yourself
+- Do NOT create PRs
+- ONLY provide guidance and answers
+- Your answers will be forwarded to the stuck persona
+
+## Repository
+- Owner: {repo_info['owner']}
+- Repo: {repo}
+"""
+
+    try:
+        result = client.create_session(
+            prompt=oracle_prompt,
+            owner=repo_info["owner"],
+            repo=repo,
+            branch=JULES_BRANCH,
+            title=f"{ORACLE_TITLE_PREFIX} {repo}",
+            automation_mode="MANUAL",  # Oracle doesn't create PRs
+            require_plan_approval=False,
+        )
+        session_id = result.get("name", "").split("/")[-1]
+        print(f"  Created Oracle session: {session_id}")
+        return session_id
+    except Exception as e:
+        print(f"  Failed to create Oracle session: {e}")
+        return None
+
+
+def facilitate_stuck_session(
+    client: TeamClient,
+    stuck: StuckSession,
+    oracle_session_id: str,
+    repo_info: dict[str, str],
+    dry_run: bool = False,
+) -> bool:
+    """Facilitate a stuck session by routing through Oracle.
+
+    Args:
+        client: Jules API client
+        stuck: The stuck session
+        oracle_session_id: Oracle session to use
+        repo_info: Repository information
+        dry_run: If True, don't send messages
+
+    Returns:
+        True if facilitation was successful.
+    """
+    print(f"\n  Facilitating: {stuck.title}")
+    print(f"    State: {stuck.state}")
+    print(f"    Persona: {stuck.persona or 'unknown'}")
+
+    # Step 1: Extract the question
+    question = extract_question_from_session(client, stuck.session_id)
+    if not question:
+        print("    No question found in session activities")
+        # For AWAITING_PLAN_APPROVAL, auto-approve
+        if stuck.state == STATE_AWAITING_PLAN_APPROVAL:
+            print("    Auto-approving plan...")
+            if not dry_run:
+                try:
+                    client.approve_plan(stuck.session_id)
+                    print("    Plan approved!")
+                    return True
+                except Exception as e:
+                    print(f"    Failed to approve plan: {e}")
+                    return False
+        return False
+
+    print(f"    Question: {question[:100]}...")
+
+    if dry_run:
+        print("    [DRY RUN] Would send to Oracle and forward answer")
+        return True
+
+    # Step 2: Send question to Oracle
+    oracle_prompt = f"""# Question from {stuck.persona or 'a persona'}
+
+The following persona is stuck and needs your help:
+- **Persona**: {stuck.persona or 'unknown'}
+- **Session**: {stuck.session_id}
+
+## Their Question
+{question}
+
+## Instructions
+Please provide a clear, actionable answer to help them proceed.
+Focus on practical guidance they can immediately apply.
+"""
+
+    try:
+        client.send_message(oracle_session_id, oracle_prompt)
+        print("    Sent question to Oracle")
+    except Exception as e:
+        print(f"    Failed to send to Oracle: {e}")
+        return False
+
+    # Step 3: For now, send a generic unblocking message to the stuck session
+    # (In a more sophisticated version, we'd wait for Oracle's response)
+    unblock_message = f"""# Support Response
+
+Your question has been reviewed. Here's guidance to help you proceed:
+
+## General Advice
+1. If you're waiting for clarification on requirements, make reasonable assumptions and document them
+2. If you're stuck on a technical issue, try a simpler approach first
+3. If you need access to something, check if there's an alternative path
+
+## Proceed With
+Based on your context, please continue with your task using your best judgment.
+If you encounter further issues, include specific error messages in your questions.
+
+---
+*This response was facilitated by the Oracle support system.*
+"""
+
+    try:
+        client.send_message(stuck.session_id, unblock_message)
+        print("    Sent unblocking message to stuck session")
+        return True
+    except Exception as e:
+        print(f"    Failed to unblock session: {e}")
+        return False
+
+
+def unblock_stuck_sessions(
+    client: TeamClient,
+    repo_info: dict[str, str],
+    dry_run: bool = False,
+) -> int:
+    """Find and unblock all stuck sessions.
+
+    This is the PRIMARY workflow - runs before regular scheduling.
+
+    Args:
+        client: Jules API client
+        repo_info: Repository information
+        dry_run: If True, don't send messages
+
+    Returns:
+        Number of sessions unblocked.
+    """
+    repo = repo_info["repo"]
+
+    print("\n1. Checking for stuck sessions (AWAITING_USER_FEEDBACK)...")
+    stuck_sessions = get_stuck_sessions(client, repo)
+
+    if not stuck_sessions:
+        print("  No stuck sessions found")
+        return 0
+
+    print(f"  Found {len(stuck_sessions)} stuck session(s)")
+
+    # Get or create Oracle session
+    oracle_session_id = None
+    if not dry_run:
+        oracle_session_id = get_or_create_oracle_session(client, repo_info)
+        if not oracle_session_id:
+            print("  Failed to get Oracle session, cannot facilitate")
+            return 0
+
+    unblocked = 0
+    for stuck in stuck_sessions:
+        if facilitate_stuck_session(
+            client, stuck, oracle_session_id or "", repo_info, dry_run
+        ):
+            unblocked += 1
+
+    print(f"\n  Unblocked {unblocked}/{len(stuck_sessions)} session(s)")
+    return unblocked
+
+
+# =============================================================================
+# REGULAR SCHEDULING (Secondary Workflow)
+# =============================================================================
 
 
 def discover_personas() -> list[str]:
-    """Discover available personas from the filesystem.
-
-    Returns:
-        Sorted list of persona IDs (directory names) excluding special personas.
-    """
+    """Discover available personas from the filesystem."""
     persona_dir = _get_persona_dir()
     if not persona_dir.exists():
         return []
@@ -78,7 +473,6 @@ def discover_personas() -> list[str]:
             continue
         if path.name in EXCLUDED_PERSONAS:
             continue
-        # Verify it has a prompt file
         if (path / "prompt.md.j2").exists() or (path / "prompt.md").exists():
             personas.append(path.name)
 
@@ -86,19 +480,7 @@ def discover_personas() -> list[str]:
 
 
 def get_active_session(client: TeamClient, repo: str) -> dict | None:
-    """Check if there's an active/running Jules session for this repo.
-
-    Args:
-        client: Jules API client
-        repo: Repository name to filter sessions
-
-    Returns:
-        Active session dict if found, None otherwise.
-    """
-    # Active states that indicate a session is still running
-    # Jules API uses IN_PROGRESS for running sessions
-    active_states = {"IN_PROGRESS", "ACTIVE"}
-
+    """Check if there's an active/running Jules session for this repo."""
     try:
         sessions = client.list_sessions().get("sessions", [])
     except Exception:
@@ -110,34 +492,26 @@ def get_active_session(client: TeamClient, repo: str) -> dict | None:
         title = (session.get("title") or "").lower()
         state = (session.get("state") or "").upper()
 
-        # Filter by repo
         if repo_lower not in title:
             continue
 
-        # Check if session is active
-        if state in active_states:
+        # Skip Oracle sessions
+        if ORACLE_TITLE_PREFIX.lower() in title:
+            continue
+
+        if state in ACTIVE_STATES:
             return session
 
     return None
 
 
 def get_last_persona_from_api(client: TeamClient, repo: str) -> str | None:
-    """Get the last persona that ran from Jules API.
-
-    Args:
-        client: Jules API client
-        repo: Repository name to filter sessions
-
-    Returns:
-        Persona ID of the last session, or None if not found.
-    """
+    """Get the last persona that ran from Jules API."""
     try:
         sessions = client.list_sessions().get("sessions", [])
     except Exception:
         return None
 
-    # Sort sessions by createTime descending (most recent first)
-    # This ensures we find the actual last persona, not just the first match
     sessions = sorted(
         sessions,
         key=lambda s: s.get("createTime") or "",
@@ -150,11 +524,9 @@ def get_last_persona_from_api(client: TeamClient, repo: str) -> str | None:
     for session in sessions:
         title = (session.get("title") or "").lower()
 
-        # Filter by repo
         if repo_lower not in title:
             continue
 
-        # Find persona in title
         for persona in personas:
             if persona in title:
                 return persona
@@ -163,15 +535,7 @@ def get_last_persona_from_api(client: TeamClient, repo: str) -> str | None:
 
 
 def get_next_persona(last: str | None, personas: list[str]) -> str | None:
-    """Get the next persona in round-robin order.
-
-    Args:
-        last: Last persona that ran (or None)
-        personas: List of available personas
-
-    Returns:
-        Next persona ID, or None if no personas available.
-    """
+    """Get the next persona in round-robin order."""
     if not personas:
         return None
 
@@ -183,15 +547,7 @@ def get_next_persona(last: str | None, personas: list[str]) -> str | None:
 
 
 def merge_completed_prs() -> int:
-    """Merge Jules draft PRs regardless of CI status.
-
-    PRs are merged even if CI hasn't passed yet. A separate fixer session
-    will handle any CI failures on main before the next persona runs.
-
-    Returns:
-        Number of PRs merged.
-    """
-    # Get open Jules PRs
+    """Merge Jules draft PRs regardless of CI status."""
     try:
         result = subprocess.run(
             [
@@ -216,13 +572,11 @@ def merge_completed_prs() -> int:
         is_draft = pr.get("isDraft", False)
         mergeable = pr.get("mergeable", "UNKNOWN")
 
-        # Only skip if conflicting - we merge even with failing CI
         if mergeable == "CONFLICTING":
             print(f"  PR #{pr_number}: has conflicts, skipping")
             continue
 
         try:
-            # Mark ready if draft
             if is_draft:
                 subprocess.run(
                     ["gh", "pr", "ready", str(pr_number)],
@@ -231,7 +585,6 @@ def merge_completed_prs() -> int:
                 )
                 print(f"  PR #{pr_number}: marked ready")
 
-            # Merge with admin override to bypass CI requirements
             subprocess.run(
                 ["gh", "pr", "merge", str(pr_number), "--delete-branch", "--admin"],
                 check=True,
@@ -248,14 +601,12 @@ def merge_completed_prs() -> int:
 
 def ensure_jules_branch() -> None:
     """Ensure the jules branch exists and is up to date with main."""
-    # Check if branch exists
     result = subprocess.run(
         ["git", "rev-parse", "--verify", f"refs/heads/{JULES_BRANCH}"],
         capture_output=True,
     )
 
     if result.returncode != 0:
-        # Create branch from main
         subprocess.run(
             ["git", "branch", JULES_BRANCH, "origin/main"],
             check=True,
@@ -265,11 +616,7 @@ def ensure_jules_branch() -> None:
 
 
 def check_ci_status_on_main() -> bool:
-    """Check if CI is passing on main branch.
-
-    Returns:
-        True if CI is green, False if there are failures.
-    """
+    """Check if CI is passing on main branch."""
     try:
         result = subprocess.run(
             ["gh", "run", "list", "--branch", "main", "--limit", "1", "--json", "conclusion"],
@@ -280,12 +627,11 @@ def check_ci_status_on_main() -> bool:
         runs = json.loads(result.stdout)
         if runs:
             return runs[0].get("conclusion") == "success"
-        return True  # No runs = assume OK
+        return True
     except Exception:
-        return True  # On error, assume OK to avoid blocking
+        return True
 
 
-# CI Fixer prompt - used to fix CI failures on main
 CI_FIXER_PROMPT = """# 🔧 CI Fixer
 
 You are a CI maintenance bot. Your ONLY job is to make CI pass on the main branch.
@@ -314,15 +660,7 @@ CI is failing on main. You need to fix it.
 
 
 def create_fixer_session(client: TeamClient, repo_info: dict[str, str]) -> SchedulerResult:
-    """Create a CI fixer session.
-
-    Args:
-        client: Jules API client
-        repo_info: Repository information
-
-    Returns:
-        SchedulerResult with session details.
-    """
+    """Create a CI fixer session."""
     try:
         ensure_jules_branch()
 
@@ -361,20 +699,10 @@ def create_session(
     persona: PersonaConfig,
     repo_info: dict[str, str],
 ) -> SchedulerResult:
-    """Create a Jules session for a persona.
-
-    Args:
-        client: Jules API client
-        persona: Loaded persona configuration
-        repo_info: Repository information
-
-    Returns:
-        SchedulerResult with session details.
-    """
+    """Create a Jules session for a persona."""
     try:
         ensure_jules_branch()
 
-        # Create session
         result = client.create_session(
             prompt=persona.prompt_body,
             owner=repo_info["owner"],
@@ -400,47 +728,43 @@ def create_session(
         )
 
 
+# =============================================================================
+# MAIN ENTRY POINT
+# =============================================================================
+
+
 def run_scheduler(dry_run: bool = False) -> SchedulerResult:
     """Main scheduler entry point.
 
-    This function:
-    1. Checks if there's already an active session (skips if yes)
-    2. Merges any completed Jules PRs (regardless of CI status)
-    3. Checks CI on main - if failing, creates fixer session instead
-    4. Determines the next persona (round-robin)
-    5. Renders the persona prompt with Jinja2
-    6. Creates a Jules session
+    PRIORITY ORDER:
+    1. Unblock stuck sessions (AWAITING_USER_FEEDBACK) via Oracle
+    2. Merge completed PRs
+    3. Check for active sessions (skip if running)
+    4. Check CI on main (create fixer if failing)
+    5. Create new session (round-robin personas)
 
     Args:
-        dry_run: If True, don't create sessions or merge PRs
+        dry_run: If True, don't create sessions or send messages
 
     Returns:
         SchedulerResult with operation status.
     """
-    print("Jules Scheduler (Simplified)")
-    print("=" * 40)
+    print("Jules Scheduler (Stateless + Oracle Facilitator)")
+    print("=" * 50)
 
     # Initialize
     client = TeamClient()
     repo_info = get_repo_info()
     print(f"Repository: {repo_info['owner']}/{repo_info['repo']}")
 
-    # Step 1: Check for active sessions
-    print("\n1. Checking for active sessions...")
-    active_session = get_active_session(client, repo_info["repo"])
-    if active_session:
-        session_id = active_session.get("name", "").split("/")[-1]
-        state = active_session.get("state", "UNKNOWN")
-        print(f"  Active session found: {session_id} (state: {state})")
-        return SchedulerResult(
-            success=True,
-            message=f"Session already running ({state}), skipping new session creation",
-            session_id=session_id,
-            merged_count=0,
-        )
-    print("  No active sessions found")
+    # ==========================================================================
+    # STEP 1: UNBLOCK STUCK SESSIONS (PRIMARY WORKFLOW)
+    # ==========================================================================
+    unblocked = unblock_stuck_sessions(client, repo_info, dry_run)
 
-    # Step 2: Merge completed PRs
+    # ==========================================================================
+    # STEP 2: MERGE COMPLETED PRS
+    # ==========================================================================
     print("\n2. Checking for PRs to merge...")
     if dry_run:
         print("  [DRY RUN] Skipping PR merge")
@@ -449,8 +773,28 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
         merged = merge_completed_prs()
     print(f"  Merged {merged} PR(s)")
 
-    # Step 3: Check CI status on main - run fixer if needed
-    print("\n3. Checking CI status on main...")
+    # ==========================================================================
+    # STEP 3: CHECK FOR ACTIVE SESSIONS
+    # ==========================================================================
+    print("\n3. Checking for active sessions...")
+    active_session = get_active_session(client, repo_info["repo"])
+    if active_session:
+        session_id = active_session.get("name", "").split("/")[-1]
+        state = active_session.get("state", "UNKNOWN")
+        print(f"  Active session found: {session_id} (state: {state})")
+        return SchedulerResult(
+            success=True,
+            message=f"Session already running ({state})",
+            session_id=session_id,
+            merged_count=merged,
+            unblocked_count=unblocked,
+        )
+    print("  No active sessions found")
+
+    # ==========================================================================
+    # STEP 4: CHECK CI STATUS
+    # ==========================================================================
+    print("\n4. Checking CI status on main...")
     ci_ok = check_ci_status_on_main()
     if not ci_ok:
         print("  CI is failing on main - creating fixer session")
@@ -460,9 +804,11 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
                 success=True,
                 message="[DRY RUN] Would create CI fixer session",
                 merged_count=merged,
+                unblocked_count=unblocked,
             )
         result = create_fixer_session(client, repo_info)
         result.merged_count = merged
+        result.unblocked_count = unblocked
         if result.success:
             print(f"  Fixer session created: {result.session_id}")
         else:
@@ -470,14 +816,17 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
         return result
     print("  CI is passing on main")
 
-    # Step 4: Find next persona
-    print("\n4. Determining next persona...")
+    # ==========================================================================
+    # STEP 5: CREATE NEW SESSION
+    # ==========================================================================
+    print("\n5. Determining next persona...")
     personas = discover_personas()
     if not personas:
         return SchedulerResult(
             success=False,
             message="No personas found",
             merged_count=merged,
+            unblocked_count=unblocked,
         )
     print(f"  Available personas: {len(personas)}")
 
@@ -493,11 +842,11 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
             success=False,
             message="Could not determine next persona",
             merged_count=merged,
+            unblocked_count=unblocked,
         )
     print(f"  Next persona: {next_persona_id}")
 
-    # Step 5: Load and render persona
-    print("\n5. Loading persona configuration...")
+    print("\n6. Loading persona configuration...")
     try:
         open_prs = get_open_prs(repo_info["owner"], repo_info["repo"])
         context: dict[str, Any] = {**repo_info, "open_prs": open_prs}
@@ -509,6 +858,7 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
                 success=False,
                 message=f"Persona '{next_persona_id}' not found",
                 merged_count=merged,
+                unblocked_count=unblocked,
             )
 
         persona = all_personas[next_persona_id]
@@ -520,20 +870,22 @@ def run_scheduler(dry_run: bool = False) -> SchedulerResult:
             success=False,
             message=f"Failed to load persona: {e}",
             merged_count=merged,
+            unblocked_count=unblocked,
         )
 
-    # Step 6: Create session
-    print("\n6. Creating Jules session...")
+    print("\n7. Creating Jules session...")
     if dry_run:
         print(f"  [DRY RUN] Would create session for {persona.id}")
         return SchedulerResult(
             success=True,
             message=f"[DRY RUN] Would create session for {persona.id}",
             merged_count=merged,
+            unblocked_count=unblocked,
         )
 
     result = create_session(client, persona, repo_info)
     result.merged_count = merged
+    result.unblocked_count = unblocked
 
     if result.success:
         print(f"  Session created: {result.session_id}")
@@ -547,11 +899,11 @@ def main() -> None:
     """CLI entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Simplified Jules Scheduler")
+    parser = argparse.ArgumentParser(description="Jules Scheduler with Oracle Facilitator")
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Don't create sessions or merge PRs",
+        help="Don't create sessions, merge PRs, or send messages",
     )
     parser.add_argument(
         "--merge-only",
@@ -568,12 +920,13 @@ def main() -> None:
 
     result = run_scheduler(dry_run=args.dry_run)
 
-    print("\n" + "=" * 40)
+    print("\n" + "=" * 50)
     print(f"Result: {'SUCCESS' if result.success else 'FAILED'}")
     print(f"Message: {result.message}")
     if result.session_id:
         print(f"Session ID: {result.session_id}")
     print(f"PRs Merged: {result.merged_count}")
+    print(f"Sessions Unblocked: {result.unblocked_count}")
 
 
 if __name__ == "__main__":

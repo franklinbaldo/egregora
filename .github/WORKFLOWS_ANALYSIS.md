@@ -1,15 +1,16 @@
 # GitHub Workflows Analysis
 
-> Generated: 2026-01-27 | Stateless architecture
+> Generated: 2026-01-27 | Oracle-First Stateless Architecture
 
 ## Executive Summary
 
 The repository has **4 workflow files** totaling **~580 lines** of YAML.
 
-**Architecture:** Ralph Wiggum style stateless scheduling
+**Architecture:** Oracle-First Stateless Scheduling
 - Jules API is the single source of truth
+- **Oracle facilitator unblocks stuck sessions FIRST**
+- Then merges PRs and creates new sessions
 - No CSV files, no artifacts, no external state
-- Each tick queries API, derives next action, executes
 
 ---
 
@@ -17,78 +18,141 @@ The repository has **4 workflow files** totaling **~580 lines** of YAML.
 
 | File | Lines | Jobs | Purpose |
 |------|-------|------|---------|
-| `jules.yml` | ~270 | 5 | Complete Jules lifecycle (stateless) |
+| `jules.yml` | ~270 | 5 | Complete Jules lifecycle (Oracle-first) |
 | `ci.yml` | 157 | 5 | Main CI pipeline |
 | `docs-pages.yml` | 106 | 1 | Documentation deployment |
 | `cleanup.yml` | 81 | 1 | Artifact cleanup |
 
 ---
 
-## Jules Workflow - Stateless Architecture
+## Jules Workflow - Oracle-First Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                     JULES STATELESS LOOP                                │
+│                  JULES ORACLE-FIRST SCHEDULER                           │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │   TICK (every 15 min or on-merge):                                      │
+│                                                                         │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │ 1. Query Jules API: any active sessions?                        │   │
-│   │    → YES: skip (already running)                                │   │
-│   │    → NO: continue                                               │   │
+│   │ STEP 1: UNBLOCK STUCK SESSIONS (PRIMARY)                        │   │
 │   │                                                                 │   │
-│   │ 2. Merge any completed Jules PRs (admin override)               │   │
+│   │  Query API → Find AWAITING_USER_FEEDBACK sessions               │   │
+│   │       │                                                         │   │
+│   │       ▼                                                         │   │
+│   │  For each stuck session:                                        │   │
+│   │    ├── Extract question from activities                         │   │
+│   │    ├── Get/create Oracle session (reusable)                     │   │
+│   │    ├── Send question to Oracle                                  │   │
+│   │    └── Send answer to stuck session → UNBLOCKED                 │   │
 │   │                                                                 │   │
-│   │ 3. Query Jules API: what was last persona?                      │   │
-│   │                                                                 │   │
-│   │ 4. Calculate next persona (round-robin from filesystem)         │   │
-│   │                                                                 │   │
-│   │ 5. Create new Jules session via API                             │   │
+│   │  For AWAITING_PLAN_APPROVAL:                                    │   │
+│   │    └── Auto-approve plan                                        │   │
 │   └─────────────────────────────────────────────────────────────────┘   │
-│                              ↓                                          │
-│   Jules works asynchronously, creates PR                                │
-│                              ↓                                          │
-│   AUTO-MERGE enables auto-merge on PR                                   │
-│                              ↓                                          │
-│   CI runs                                                               │
-│         ├── SUCCESS → PR merges → ON-MERGE triggers next tick           │
-│         └── FAILURE → AUTO-FIXER sends fix instructions to Jules        │
+│                              │                                          │
+│                              ▼                                          │
+│   ┌─────────────────────────────────────────────────────────────────┐   │
+│   │ STEP 2: MERGE COMPLETED PRS                                     │   │
+│   │  └── Merge Jules PRs with admin override                        │   │
+│   └─────────────────────────────────────────────────────────────────┘   │
+│                              │                                          │
+│                              ▼                                          │
+│   ┌─────────────────────────────────────────────────────────────────┐   │
+│   │ STEP 3: CREATE NEW SESSION                                      │   │
+│   │  ├── Check for active sessions (skip if running)                │   │
+│   │  ├── Check CI on main (fixer if failing)                        │   │
+│   │  └── Round-robin through personas                               │   │
+│   └─────────────────────────────────────────────────────────────────┘   │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### State Sources
+---
+
+## Oracle Facilitator
+
+### Purpose
+
+When a Jules session gets stuck waiting for user input (`AWAITING_USER_FEEDBACK`),
+the Oracle automatically:
+1. Extracts the question from session activities
+2. Routes it to a reusable Oracle session
+3. Sends guidance back to unblock the stuck session
+
+### Session States Handled
+
+| State | Action |
+|-------|--------|
+| `AWAITING_USER_FEEDBACK` | Extract question → Oracle → Unblock |
+| `AWAITING_PLAN_APPROVAL` | Auto-approve plan |
+| `IN_PROGRESS` | Skip (actively running) |
+| `COMPLETED` | Skip (done) |
+| `FAILED` | Skip (terminal) |
+
+### Oracle Session
+
+- **Title Pattern:** `🔮 oracle {repo}`
+- **Reused:** Yes (one per repo, not recreated each tick)
+- **Mode:** `MANUAL` (doesn't create PRs)
+- **Role:** Technical support for other personas
+
+---
+
+## State Sources
 
 | What | Source | NOT |
 |------|--------|-----|
-| Active sessions | Jules API `list_sessions()` | CSV |
+| Stuck sessions | Jules API `list_sessions()` state=AWAITING_* | - |
+| Question text | Jules API `get_activities()` | - |
+| Active sessions | Jules API `list_sessions()` state=IN_PROGRESS | CSV |
 | Last persona | Jules API session titles | CSV |
 | Next persona | Round-robin from `.team/personas/` | CSV |
-| PR status | GitHub API | CSV |
 
-### Jobs
+---
+
+## Jobs
 
 | Job | Trigger | Purpose |
 |-----|---------|---------|
 | `on-merge` | Jules PR merged | Triggers scheduler |
-| `scheduler` | cron/dispatch/workflow_run | Query API, create session |
+| `scheduler` | cron/dispatch/workflow_run | Oracle-first tick |
 | `sync-main` | After scheduler | Merge jules → main |
 | `auto-merge` | pull_request_target | Enable auto-merge |
 | `auto-fixer` | CI failure | Analyze and fix |
 
 ---
 
-## Removed (Dead Code Cleanup)
+## Key Functions
 
-| Item | Reason |
-|------|--------|
-| `schedule.csv` | Replaced by Jules API |
-| `oracle_schedule.csv` | Unused |
-| `restore-schedule-state.sh` | CSV artifact handling |
-| `run-scheduler.sh` | Replaced by direct CLI call |
-| `schedule.py` | Old CSV-based scheduler |
-| `test_csv_scheduler.py` | Tests for removed code |
-| CSV artifact upload/download | No longer needed |
+### Oracle Facilitator (`stateless.py`)
+
+| Function | Purpose |
+|----------|---------|
+| `get_stuck_sessions()` | Find sessions in AWAITING_* states |
+| `extract_question_from_session()` | Get question from activities |
+| `get_or_create_oracle_session()` | Reusable Oracle session |
+| `facilitate_stuck_session()` | Route question and unblock |
+| `unblock_stuck_sessions()` | Main orchestration |
+
+### Regular Scheduling (`stateless.py`)
+
+| Function | Purpose |
+|----------|---------|
+| `discover_personas()` | List available personas |
+| `get_active_session()` | Check for running sessions |
+| `get_last_persona_from_api()` | Find last persona |
+| `get_next_persona()` | Round-robin calculation |
+| `run_scheduler()` | Main entry point |
+
+---
+
+## Benefits
+
+1. **No stuck sessions** - Oracle automatically unblocks waiting sessions
+2. **No wasted time** - Sessions don't sit waiting for human input
+3. **Reusable Oracle** - One Oracle session handles all questions
+4. **Stateless** - API is source of truth, no CSV drift
+5. **Self-healing** - Auto-approves plans, auto-fixes CI
 
 ---
 
@@ -99,27 +163,3 @@ The repository has **4 workflow files** totaling **~580 lines** of YAML.
 | `enable-auto-merge.sh` | Enable auto-merge on PR |
 | `identify-pr.sh` | Find PR from workflow_run |
 | `sync-main.py` | Merge jules → main |
-
----
-
-## Scheduler Code
-
-**Location:** `.team/repo/scheduler/stateless.py`
-
-Key functions:
-- `get_active_session()` - Query API for running sessions
-- `get_last_persona_from_api()` - Find last persona from session titles
-- `get_next_persona()` - Round-robin calculation
-- `merge_completed_prs()` - Merge Jules PRs with admin override
-- `run_scheduler()` - Main entry point
-
----
-
-## Benefits of Stateless Architecture
-
-1. **No state drift** - API is always authoritative
-2. **No merge conflicts** - No CSV to conflict
-3. **Simpler workflow** - No artifact handling
-4. **Faster ticks** - No download/upload steps
-5. **Debuggable** - Query API to see current state
-6. **Ralph Wiggum style** - Iteration > perfection

@@ -18,15 +18,18 @@ def schedule_tick(
 ) -> None:
     """Run the scheduler tick.
 
-    This will:
-    1. Merge any completed Jules PRs (drafts with passing CI)
-    2. Create a session for the next persona in round-robin order
+    Priority order:
+    1. Unblock stuck sessions (AWAITING_USER_FEEDBACK) via Oracle
+    2. Merge any completed Jules PRs
+    3. Create a session for the next persona in round-robin order
     """
     result = run_scheduler(dry_run=dry_run)
     if result.success:
         typer.echo(f"✅ {result.message}")
         if result.session_id:
             typer.echo(f"Session ID: {result.session_id}")
+        if result.unblocked_count > 0:
+            typer.echo(f"🔮 Unblocked: {result.unblocked_count}")
         if result.merged_count > 0:
             typer.echo(f"Merged PRs: {result.merged_count}")
     else:
