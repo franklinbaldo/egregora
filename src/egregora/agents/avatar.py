@@ -324,6 +324,7 @@ def _save_avatar_file(content: bytes | bytearray, avatar_uuid: uuid.UUID, ext: s
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 def _fetch_and_validate_image(client: httpx.Client, url: str) -> tuple[bytearray, str]:
     """Fetch image from URL and validate it."""
     logger.info("Downloading avatar from URL: %s", url)
@@ -352,6 +353,11 @@ def _handle_download_error(e: Exception, url: str) -> None:
 def _download_avatar_with_client(client: httpx.Client, url: str, media_dir: Path) -> tuple[uuid.UUID, Path]:
     """Internal function to download avatar using an existing client."""
     logger.info("Downloading avatar from URL: %s", url)
+=======
+def _download_avatar_with_client(client: httpx.Client, url: str, media_dir: Path) -> tuple[uuid.UUID, Path]:
+    """Internal function to download avatar using an existing client."""
+    logger.info("Downloading avatar from URL: %s", url)
+>>>>>>> origin/pr/2702
     try:
         with client.stream("GET", url) as response:
             response.raise_for_status()
@@ -435,6 +441,37 @@ def download_avatar_from_url(
 =======
     return avatar_uuid, avatar_path
 >>>>>>> origin/pr/2703
+
+
+# TODO: [Taskmaster] Refactor: Decompose `download_avatar_from_url` to simplify logic
+@sleep_and_retry
+@limits(calls=10, period=60)
+def download_avatar_from_url(
+    url: str,
+    media_dir: Path,
+    timeout: float = DEFAULT_DOWNLOAD_TIMEOUT,
+    client: httpx.Client | None = None,
+) -> tuple[uuid.UUID, Path]:
+    """Download avatar from URL and save to avatars directory.
+
+    Args:
+        url: URL of the avatar image
+        media_dir: Root media directory (e.g., site_root/media)
+        timeout: HTTP timeout in seconds
+        client: Optional httpx.Client to reuse
+
+    Returns:
+        Tuple of (avatar_uuid, avatar_path)
+
+    Raises:
+        AvatarProcessingError: If download fails or image is invalid
+
+    """
+    if client:
+        return _download_avatar_with_client(client, url, media_dir)
+
+    with _create_secure_client(timeout) as new_client:
+        return _download_avatar_with_client(new_client, url, media_dir)
 
 
 # TODO: [Taskmaster] Refactor: Decompose `download_avatar_from_url` to simplify logic
