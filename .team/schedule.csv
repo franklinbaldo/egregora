@@ -101,6 +101,7 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 100,sheriff,14373741744885001967,2653,closed,
 101,simplifier,4211562496935248730,2654,merged,
 102,specifier,,,closed,
+<<<<<<< HEAD
 103,steward,13839054398889799990,2669,closed,
 104,streamliner,1652516612879013473,2614,merged,
 105,taskmaster,,,closed,
@@ -113,6 +114,12 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
 =======
 106,typeguard,15977879793414783820,2675,open,
 >>>>>>> origin/pr/2676
+=======
+103,steward,13839054398889799990,2669,merged,
+104,streamliner,1652516612879013473,2614,merged,
+105,taskmaster,,,closed,
+106,typeguard,7718257831068083613,2616,merged,
+>>>>>>> origin/pr/2674
 107,visionary,,,,
 >>>>>>> origin/pr/2677
 108,weaver,,,closed,
