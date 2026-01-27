@@ -305,6 +305,7 @@ def extract_media_references(table: Table) -> set[str]:
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         # Optimization: distinct messages to avoid redundant regex processing
         messages = df["text"].dropna().unique().tolist()
 =======
@@ -331,10 +332,17 @@ def extract_media_references(table: Table) -> set[str]:
         # pyarrow Table
         messages = list({r["text"] for r in df.to_pylist() if r["text"]})
 >>>>>>> origin/pr/2708
+=======
+        messages = df["text"].dropna().tolist()
+    elif hasattr(df, "to_pylist"):
+        # pyarrow Table
+        messages = [r["text"] for r in df.to_pylist()]
+>>>>>>> origin/pr/2703
     else:
         # Fallback for unexpected type
         return references
 
+<<<<<<< HEAD
 <<<<<<< HEAD
     # Pre-bind regex methods for optimization
 <<<<<<< HEAD
@@ -354,11 +362,20 @@ def extract_media_references(table: Table) -> set[str]:
 =======
     combined_find = COMBINED_MEDIA_PATTERN.finditer
 >>>>>>> origin/pr/2705
+=======
+    # Pre-bind regex methods for optimization
+    md_img_find = MARKDOWN_IMAGE_PATTERN.findall
+    md_link_find = MARKDOWN_LINK_PATTERN.findall
+    att_find = ATTACHMENT_MARKERS_PATTERN.findall
+    wa_find = WA_MEDIA_PATTERN.findall
+    uni_find = UNICODE_MEDIA_PATTERN.findall
+>>>>>>> origin/pr/2703
 
     for message in messages:
         if not message or not isinstance(message, str):
             continue
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -489,6 +506,23 @@ def extract_media_references(table: Table) -> set[str]:
 >>>>>>> origin/pr/2706
 =======
 >>>>>>> origin/pr/2705
+=======
+        # 1. Markdown references
+        # Pattern: !\[([^\]]*)\]\(([^)]+)\) -> Group 2 is match[1]
+        for match in md_img_find(message):
+            references.add(match[1])
+
+        # Pattern: (?<!!)\[([^\]]+)\]\(([^)]+)\) -> Group 2 is match[1]
+        for match in md_link_find(message):
+            ref = match[1]
+            if not ref.startswith(("http://", "https://")):
+                references.add(ref)
+
+        # 2. Raw references (inlined find_media_references logic for speed)
+        references.update(att_find(message))
+        references.update(wa_find(message))
+        references.update(uni_find(message))
+>>>>>>> origin/pr/2703
 
     return references
 

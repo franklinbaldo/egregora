@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import ibis
 <<<<<<< HEAD
 import pandas as pd  # noqa: TID251
@@ -12,6 +13,14 @@ import pytest
 from egregora.ops.media import extract_media_references
 
 
+=======
+
+import pytest
+import ibis
+import pandas as pd
+from egregora.ops.media import extract_media_references
+
+>>>>>>> origin/pr/2703
 @pytest.fixture
 def mock_table():
     data = {
@@ -32,7 +41,10 @@ def mock_table():
     con = ibis.duckdb.connect()
     return con.create_table("messages", pd.DataFrame(data))
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/pr/2703
 def test_extract_media_references_logic(mock_table):
     refs = extract_media_references(mock_table)
 
@@ -43,12 +55,19 @@ def test_extract_media_references_logic(mock_table):
         "IMG-20210101-WA0001.jpg",
         "1.jpg",
         "2.png",
+<<<<<<< HEAD
         "/local/path",  # This is captured by design (relative link)
+=======
+        "/local/path"  # This is captured by design (relative link)
+>>>>>>> origin/pr/2703
     }
 
     assert refs == expected
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/pr/2703
 def test_extract_media_references_empty():
     con = ibis.duckdb.connect()
     # Create empty table with explicit schema
