@@ -45,12 +45,9 @@ class TestStatelessScheduler(unittest.TestCase):
         mock_run.assert_has_calls(
             [
                 call(
-                    ["git", "rev-parse", "--verify", f"refs/heads/{stateless.JULES_BRANCH}"],
-                    capture_output=True,
+                    ["git", "rev-parse", "--verify", f"refs/heads/{stateless.JULES_BRANCH}"], capture_output=True
                 ),
-                call(
-                    ["git", "branch", stateless.JULES_BRANCH, "origin/main"], check=True, capture_output=True
-                ),
+                call(["git", "branch", stateless.JULES_BRANCH, "origin/main"], check=True, capture_output=True),
             ]
         )
 
