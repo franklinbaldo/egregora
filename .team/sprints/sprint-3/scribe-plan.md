@@ -3,42 +3,58 @@
 **Persona:** Scribe ✍️
 **Sprint:** 3
 **Created:** 2026-01-26
-**Priority:** Medium
+**Priority:** High
 
 ## Objectives
+My mission is to document the "Symbiote Shift" - the integration of the Context Layer (Git History + Code References) into the core workflow.
 
-My mission for Sprint 3 is to document the "New Era" of Egregora (Symbiote, Real-Time) and ensure security knowledge is democratized.
-
-- [ ] **Document "Symbiote" Features:** Create initial documentation for the "Structured Data Sidecar" (configuration, usage) if the Sprint 2 POC is successful.
-- [ ] **Security Guidelines:** Collaborate with Sentinel to create a comprehensive `docs/security/guidelines.md` covering LLM safety and configuration security.
-- [ ] **System Glossary:** Collaborate with Lore to create `docs/reference/glossary.md` to standardize our terminology (e.g., separating "Persona" from "Agent").
-- [ ] **Draft API Documentation:** If the "Related Concepts API" moves to RFC, begin drafting the developer documentation for it.
+<<<<<<< HEAD
+- [ ] **Document "Discovery" Features:** Create a comprehensive guide on how the Content Ranking and Related Content features work, including how users can configure them (or confirming they are zero-config).
+- [ ] **Document Universal Context Layer API (RFC 026):** Create API documentation (likely OpenAPI-based) for the new local API service proposed by **Visionary**.
+- [ ] **Chronicle the "Symbiote Era":** Collaborate with **Lore** to update the high-level architecture documentation (`docs/architecture/`) to reflect the shift from "Batch" to "Symbiote" (Sidecar) architecture.
+- [ ] **Mobile Documentation Audit:** Perform a full audit of the Egregora documentation site (`mkdocs serve`) on mobile devices. Identify and fix any layout issues, ensuring the docs themselves are "Mobile Polished".
+- [ ] **API Reference Generation:** Ensure the new modules introduced in Sprint 2 (`src/egregora/orchestration/pipelines/etl/`, `src/egregora/config/`) have automatically generated API references in the documentation.
+- [ ] **Update "Getting Started":** Review and refine the "Getting Started" guide to reflect the "polished" experience, ensuring screenshots and commands are current.
 
 ## Dependencies
-
-- **Visionary/Builder:** I need the "Structured Data Sidecar" to be implemented to document it.
-- **Sentinel:** I rely on Sentinel's expertise for the content of the Security Guidelines.
-- **Lore:** Collaboration required for the Glossary to ensure it matches the Wiki's "Deep Lore".
+- **Curator/Forge:** I need the "Discovery" features to be finalized before I can document them accurately.
+- **Simplifier:** I need the new ETL package structure to be stable for API doc generation.
+- **Visionary:** I need the RFC 026 API spec to be drafted.
+- **Lore:** I need the "Batch Era" documentation to be complete before I can write the "Symbiote Era" docs.
 
 ## Context
-
-Sprint 3 sees the introduction of complex new features ("Symbiote"). If these are not documented immediately, they will become "black magic" that only the creators understand. My goal is to ensure that the documentation evolves in lockstep with the feature set.
+Sprint 3 focuses on "Mobile Polish & Discovery", but also marks the beginning of the "Symbiote Era" with the introduction of the Context Layer API. The documentation must explain *why* this is magic and *how* it benefits them. Additionally, as we polish the mobile experience of the blog, our own documentation site must set the example.
 
 ## Expected Deliverables
+1.  **"Understanding Discovery" Guide:** A new concept guide in `docs/concepts/`.
+2.  **Context Layer API Docs:** `docs/api/context-layer.md`.
+3.  **Symbiote Architecture Overview:** Updated `docs/architecture/overview.md`.
+4.  **Mobile-Optimized Docs:** Fixes to CSS/Layout of the documentation site.
+5.  **Updated API References:** New sections in `docs/reference/`.
+6.  **Refined "Getting Started":** Updated text and visuals.
+=======
+- [ ] **Context Layer Documentation:** Create comprehensive documentation for the "Universal Context Layer" (RFC 026/027), explaining how Egregora links content to code history.
+- [ ] **API Reference Finalization:** With the architecture stabilized in Sprint 2, I will enable and polish `mkdocstrings` for all core modules (`orchestration`, `agents`, `data_primitives`).
+- [ ] **Advanced User Guides:** Create guides for "Semantic Constellation" navigation and "Historical Deep Dives".
 
-1.  **`docs/features/sidecar.md`:** Documentation for the Structured Data Sidecar.
-2.  **`docs/security/guidelines.md`:** Developer security guide.
-3.  **`docs/reference/glossary.md`:** Standardized project terminology.
-4.  **Draft API Docs:** Preliminary docs for any new APIs.
+## Dependencies
+- **Visionary/Builder:** I rely on the implementation of the Context Layer (Git/Code Refs).
+- **Artisan:** I rely on the completion of the `runner.py` refactor to generate stable API docs.
+
+## Context
+Sprint 3 moves from "Structure" to "Symbiosis". The system becomes aware of its own history. Documenting this abstract concept will be challenging but crucial for adoption.
+
+## Expected Deliverables
+1.  **Context Layer Docs:** `docs/concepts/context-layer.md`.
+2.  **API Reference:** Complete API section in the docs site.
+3.  **Tutorial:** "Navigating Code History with Egregora".
+>>>>>>> origin/pr/2872
 
 ## Risks and Mitigations
-
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| "Symbiote" features change rapidly | High | Medium | I will focus on documenting the *concepts* and *configuration* first, as the implementation details may flux. |
-| Security jargon is too dense | Medium | Medium | I will work with Sentinel to "translate" the security findings into actionable checklists for developers. |
+| Abstract Concepts Confuse Users | High | High | I will use diagrams and concrete examples (Before/After) to explain the Context Layer. |
+| API Docs are Noisy | Medium | Low | I will configure `mkdocstrings` filters to show only public interfaces, hiding internal implementation details. |
 
 ## Proposed Collaborations
-
-- **With Sentinel:** Co-authoring the Security Guidelines.
-- **With Lore:** Defining the Glossary terms.
+- **With Visionary:** To accurately describe the intent and mechanics of the Context Layer.

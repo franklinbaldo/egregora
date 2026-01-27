@@ -5,7 +5,7 @@ from egregora.agents.formatting import (  # type: ignore[import-not-found]
     load_journal_memory,
 )
 from egregora.data_primitives.document import DocumentType  # type: ignore[import-not-found]
-from egregora.output_adapters.exceptions import DocumentNotFoundError  # type: ignore[import-not-found]
+from egregora.output_sinks.exceptions import DocumentNotFoundError  # type: ignore[import-not-found]
 
 
 def test_load_journal_memory_handles_document_not_found_error() -> None:
@@ -79,8 +79,8 @@ def test_build_conversation_xml_with_annotations() -> None:
 
     mock_store = MagicMock()
     mock_annotation = MagicMock()
-    mock_annotation.document_id = "anno1"
-    mock_annotation.content = "This is a note"
+    mock_annotation.id = "anno1"
+    mock_annotation.commentary = "This is a note"
 
     # Mock return for msg1
     mock_store.list_annotations_for_message.return_value = [mock_annotation]

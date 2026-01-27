@@ -3,8 +3,8 @@
 import pytest
 
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.output_adapters.exceptions import AdapterNotInitializedError
-from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
+from egregora.output_sinks.exceptions import AdapterNotInitializedError
+from egregora.output_sinks.mkdocs.adapter import MkDocsAdapter
 
 
 @pytest.fixture
@@ -101,7 +101,7 @@ def test_persist_journal(adapter, site_root):
     assert "Journal content" in content
 
 
-def test_list(adapter, site_root):
+def test_list_documents(adapter, site_root):
     """Verify listing documents from filesystem."""
     # Given
     p1 = site_root / "docs" / "posts" / "p1.md"

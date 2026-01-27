@@ -3,12 +3,12 @@ import os
 from pathlib import Path
 
 import pytest
+from egregora.output_sinks.mkdocs.scaffolding import ensure_mkdocs_project
 
 from egregora.config import load_egregora_config
 from egregora.constants import SourceType
 from egregora.orchestration.context import PipelineRunParams
 from egregora.orchestration.pipelines.write import run as run_write_pipeline
-from egregora.output_adapters.mkdocs.scaffolding import ensure_mkdocs_project
 
 # Determine the project root to reliably find the 'demo' directory
 PROJECT_ROOT = Path(__file__).parent.parent.parent.resolve()

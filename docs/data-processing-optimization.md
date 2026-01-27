@@ -38,10 +38,10 @@ The byte-based windowing is better, using an Ibis window function to calculate c
   - **Change:** Replaced the iterative `while` loop (N+1 queries) with a single vectorized Ibis query. The new implementation assigns window indices to rows using timestamp arithmetic, handles overlaps via logic, and uses `unnest` + `group_by` to aggregate window counts in one pass.
   - **Impact:** Benchmark showed ~9.6x speedup (4.0s -> 0.4s for 334 windows). Reduced database queries from N+2 to 2.
 
-- **Refactored `_window_by_count` to be declarative.**
-  - **Date:** 2024-07-30
-  - **Change:** Replaced the imperative `while` loop and its N+1 `table.limit()` queries with a more efficient approach. The new implementation first annotates all messages with a `row_number` in a single pass. It then iterates a calculated number of times, using an efficient `filter` operation on the row number to construct each window.
-  - **Impact:** Reduced the number of expensive database operations from N (number of windows) to a constant number of highly optimized Ibis queries. While a Python loop is still used to yield the windows, the expensive data manipulation is now handled much more efficiently by DuckDB.
+- **Refactored `_window_by_count` to Fetch-then-Compute.**
+  - **Date:** 2026-01-26
+  - **Change:** Replaced the "declarative" Ibis loop (which still executed N aggregation queries) with a "Fetch-then-Compute" pattern. We now fetch all timestamps in a single O(1) query, compute window boundaries in Python (microseconds), and yield lazy table slices.
+  - **Impact:** Benchmark showed **32x speedup** (3.2s -> 0.1s for 10,000 messages). Eliminated the hidden N+1 query cost of the previous implementation.
 
 ## Optimization Strategy
 

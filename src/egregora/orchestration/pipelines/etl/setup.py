@@ -35,9 +35,13 @@ from egregora.llm.rate_limit import init_rate_limiter
 from egregora.llm.usage import UsageTracker
 from egregora.orchestration.cache import PipelineCache
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
-from egregora.output_adapters import create_default_output_registry
-from egregora.output_adapters.mkdocs import MkDocsPaths
-from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
+from egregora.output_sinks import (
+    OutputSinkRegistry,
+    create_default_output_registry,
+    create_output_sink,
+)
+from egregora.output_sinks.mkdocs import MkDocsPaths
+from egregora.output_sinks.mkdocs.scaffolding import MkDocsSiteScaffolder
 
 try:
     import dotenv
@@ -298,6 +302,44 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     ctx = PipelineContext(config_obj, state)
 
     return ctx, pipeline_backend
+
+
+def create_output_adapter(
+    config: EgregoraConfig,
+    output_dir: Path,
+    *,
+    site_root: Path | None = None,
+    registry: OutputSinkRegistry | None = None,
+    url_context: UrlContext | None = None,
+    storage: Any | None = None,
+) -> Any:
+    """Create and initialize the output adapter for the pipeline.
+
+    Args:
+        config: Egregora configuration
+        output_dir: Output directory
+        site_root: Site root directory (optional)
+        registry: Output sink registry (optional)
+        url_context: URL context for canonical URLs (optional)
+        storage: DuckDBStorageManager for database-backed reading (optional)
+
+    Returns:
+        Initialized output adapter
+
+    """
+    resolved_output = output_dir.expanduser().resolve()
+    site_paths = MkDocsPaths(resolved_output, config=config)
+
+    root = site_root or site_paths.site_root
+
+    registry = registry or create_default_output_registry()
+
+    adapter = registry.detect_format(root)
+    if adapter is None:
+        adapter = create_output_sink(root, format_type="mkdocs", registry=registry)
+
+    adapter.initialize(root, url_context=url_context, storage=storage)
+    return adapter
 
 
 @contextmanager

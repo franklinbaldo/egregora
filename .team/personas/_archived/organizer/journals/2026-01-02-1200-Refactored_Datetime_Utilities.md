@@ -11,9 +11,9 @@ type: journal
 **Observation:** The generic utility module at `src/egregora/utils/datetime_utils.py` contained functions (`extract_clean_date`, `format_frontmatter_datetime`) and exceptions that were only used by the `mkdocs` output adapter. This violated the Single Responsibility Principle and made the code harder to understand and maintain.
 
 **Action:**
-- Moved the domain-specific functions and their related exceptions to a new, more appropriate module at `src/egregora/output_adapters/mkdocs/markdown_utils.py`.
-- Consolidated scattered and fragmented tests from `tests/unit/utils/test_datetime_utils.py` and `tests/utils/test_filesystem_performance.py` into a single, co-located test file at `tests/unit/output_adapters/mkdocs/test_markdown_utils.py`.
-- Updated the consumer in `src/egregora/output_adapters/mkdocs/markdown.py` to import from the new module.
+- Moved the domain-specific functions and their related exceptions to a new, more appropriate module at `src/egregora/output_sinks/mkdocs/markdown_utils.py`.
+- Consolidated scattered and fragmented tests from `tests/unit/utils/test_datetime_utils.py` and `tests/utils/test_filesystem_performance.py` into a single, co-located test file at `tests/unit/output_sinks/mkdocs/test_markdown_utils.py`.
+- Updated the consumer in `src/egregora/output_sinks/mkdocs/markdown.py` to import from the new module.
 - Cleaned up the original `datetime_utils.py` module and its corresponding test file by removing the now-dead code.
 - Fixed a regression caught during code review where a `default_timezone=UTC` argument was dropped during the refactoring, ensuring behavioral integrity.
 

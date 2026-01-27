@@ -16,6 +16,21 @@ from egregora.database.utils import quote_identifier
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "ANNOTATIONS_SCHEMA",
+    "ELO_HISTORY_SCHEMA",
+    "ELO_RATINGS_SCHEMA",
+    "STAGING_MESSAGES_SCHEMA",
+    "TASKS_SCHEMA",
+    "UNIFIED_SCHEMA",
+    "add_check_constraint",
+    "create_index",
+    "create_table_if_not_exists",
+    "get_table_check_constraints",
+    "get_table_foreign_keys",
+    "ibis_to_duckdb_type",
+]
+
 # ============================================================================
 # Helper Functions
 # ============================================================================
@@ -346,13 +361,6 @@ _MEDIA_COLUMNS = {
     "phash": dt.string,  # Perceptual hash for dedup
 }
 
-MEDIA_SCHEMA = ibis.schema(
-    {
-        **BASE_COLUMNS,
-        **_MEDIA_COLUMNS,
-    }
-)
-
 # 4. JOURNALS TABLE (Deprecated: Merged into documents)
 _JOURNALS_COLUMNS = {
     **BASE_COLUMNS,
@@ -466,5 +474,19 @@ ELO_HISTORY_SCHEMA = ibis.schema(
         "loser_id": dt.string,  # NOT NULL
         "elo_change": dt.float64,  # NOT NULL
         "tie": dt.boolean,  # DEFAULT FALSE
+    }
+)
+
+# ----------------------------------------------------------------------------
+# Git History Cache Schema (Context Layer)
+# ----------------------------------------------------------------------------
+
+GIT_COMMITS_SCHEMA = ibis.schema(
+    {
+        "repo_path": dt.string,  # Logical path in repo (e.g., 'src/main.py')
+        "commit_sha": dt.string,  # SHA-1
+        "commit_timestamp": dt.Timestamp(timezone="UTC"),
+        "author": dt.string(nullable=True),
+        "message": dt.string(nullable=True),
     }
 )

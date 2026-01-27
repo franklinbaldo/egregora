@@ -237,14 +237,29 @@ def create_unevaluated_post(test_posts_dir, slug):
 @given(parsers.parse('post "{slug}" has an ELO rating of {rating:d}'))
 def set_post_rating(elo_store, slug, rating):
     """Set a specific ELO rating for a post."""
-    params = create_update_params(
-        post_a_slug=slug,
-        post_b_slug="dummy",
-        winner="tie",
-        rating_a_new=float(rating),
-        rating_b_new=DEFAULT_ELO,
+    from datetime import UTC, datetime
+
+    from egregora.database.elo_store import EloRating
+
+    # Use direct upsert to avoid creating comparisons/dummy posts
+    elo_store._upsert_rating(
+        EloRating(
+            post_slug=slug,
+            rating=float(rating),
+            comparisons=1,  # Set to 1 so it appears in rankings (which filter comparisons > 0)
+            wins=0,
+            losses=0,
+            ties=0,
+            last_updated=datetime.now(UTC),
+            created_at=datetime.now(UTC),
+        )
     )
-    elo_store.update_ratings(params)
+
+
+@given(parsers.parse('post "{slug}" has been compared against multiple posts'))
+def set_multiple_comparisons(elo_store, slug):
+    """Set multiple comparisons for a post."""
+    set_comparison_count(elo_store, slug, 5)
 
 
 @given(parsers.parse('post "{slug}" has been compared {count:d} times'))
@@ -261,6 +276,8 @@ def set_comparison_count(elo_store, slug, count):
         elo_store.update_ratings(params)
 
 
+@given(parsers.parse('post "{slug}" has {wins:d} wins, {losses:d} losses, {ties:d} ties'))
+@given(parsers.parse('post "{slug}" has won {wins:d} times, lost {losses:d} time, and tied {ties:d} time'))
 @given(parsers.parse('"{slug}" has won {wins:d} times, lost {losses:d} time, and tied {ties:d} time'))
 def set_post_record(elo_store, test_posts_dir, slug, wins, losses, ties):
     """Set win/loss/tie record for a post."""
@@ -356,6 +373,7 @@ def create_multiple_posts(test_posts_dir, elo_store, count):
         set_post_rating(elo_store, slug, int(rating))
 
 
+@given(parsers.parse("{count:d} posts exist"))
 @given(parsers.parse("{count:d} posts with default ratings"))
 def create_default_posts(test_posts_dir, count):
     """Create posts with default ratings."""
@@ -660,6 +678,7 @@ def get_comparison_history(elo_store, slug):
     return history_table.execute().to_dict("records") if history_table is not None else []
 
 
+@when("I select post pairs", target_fixture="selected_pairs")
 @when("I select post pairs for evaluation", target_fixture="selected_pairs")
 def select_pairs(test_posts_dir, elo_store, reader_config):
     """Select post pairs for evaluation."""
@@ -728,6 +747,7 @@ def run_reader_with_model(test_posts_dir, model, mock_compare_posts, sample_docu
     return {"model_used": model, "status": "success"}
 
 
+@when("I run reader evaluation", target_fixture="eval_result")
 @when("I attempt to run reader evaluation", target_fixture="eval_result")
 def attempt_evaluation(
     test_posts_dir, reader_config, elo_store, mock_compare_posts, sample_document_a, sample_document_b
@@ -925,7 +945,7 @@ def verify_upset_penalty(elo_store, favorite):
 def verify_rating_unchanged(elo_store, slug, expected):
     """Verify rating remains unchanged."""
     rating = elo_store.get_rating(slug).rating
-    assert rating == expected
+    assert rating == float(expected)
 
 
 @then("a comparison record should be created in the database")
@@ -1013,11 +1033,11 @@ def verify_post_count(top_posts, n):
 def verify_highest_rated(top_posts, n):
     """Verify posts are highest rated."""
     # Check that ratings are in descending order
-    ratings = [p.rating for p in top_posts]
+    ratings = [p["rating"] for p in top_posts]
     assert ratings == sorted(ratings, reverse=True)
 
 
-@then(parsers.parse("each post should be scheduled for exactly {count:d} comparisons"))
+@then(parsers.re(r"each post should be scheduled for (exactly )?(?P<count>\d+) comparisons"))
 def verify_pairing_count(selected_pairs, count):
     """Verify each post gets correct number of comparisons.
 

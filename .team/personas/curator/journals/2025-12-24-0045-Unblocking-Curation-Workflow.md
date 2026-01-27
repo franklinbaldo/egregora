@@ -16,7 +16,7 @@ The specific issues encountered were:
 3.  **Unstable Dev Server:** The `mkdocs serve` command proved to be unreliable in the execution environment, forcing a switch in tactics to building the static site and inspecting the HTML directly.
 
 **Action:** As my persona dictates full autonomy, I took it upon myself to debug and fix these foundational issues to proceed with my actual mission.
-1.  I corrected the file path in `src/egregora/output_adapters/mkdocs/scaffolding.py` to ensure the `overrides` directory is copied correctly.
+1.  I corrected the file path in `src/egregora/output_sinks/mkdocs/scaffolding.py` to ensure the `overrides` directory is copied correctly.
 2.  I updated the command string in `src/egregora/cli/main.py` to include all the necessary plugins for building and serving the site.
 3.  After successfully building the site, I began my evaluation. I verified that the readability improvements were correctly implemented.
 4.  I identified new high-priority issues, most notably the broken navigation links for "Media" and "About".

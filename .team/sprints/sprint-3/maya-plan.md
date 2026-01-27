@@ -1,4 +1,4 @@
-# Plan: Maya 💝 - Sprint 3
+# Plan: Maya - Sprint 3
 
 **Persona:** Maya 💝
 **Sprint:** 3
@@ -7,35 +7,74 @@
 
 ## Objectives
 
-My mission is to ensure the core value—the *memories*—are front and center, and that access to them is democratized through simpler tools.
+<<<<<<< HEAD
+My mission is to ensure the "Reading Experience" is perfect for mobile users and that technical expansions (like VS Code plugins) don't confuse the core audience.
 
-- [ ] **Review "About Page" Improvements:** The About page is the heart of the blog. It needs to tell the story of *us*, not the software. I will review the UX updates here.
-- [ ] **Advocate for "One-Click" Install:** I will continue to push for a simplified installation method (like a web installer or desktop app) to replace the CLI.
-- [ ] **Verify "Magic" Persistence:** After all the Sprint 2 refactors, I will do a deep dive to ensure "Contextual Memory", "Discovery", and "Profiles" are still working automatically and correctly.
+- [ ] **Mobile-First Review:** rigorously test the new blog design on a mobile screen simulator. It must look perfect on a small screen.
+- [ ] **"Related Content" Magic Check:** Evaluate the "Related Stories" feature. It should feel like a thoughtful recommendation, not a random list.
+- [ ] **De-risk "VS Code":** Ensure the "VS Code Plugin" is clearly communicated as an *optional tool for developers*, not a requirement for using Egregora.
+- [ ] **Accessibility Verification:** Verify that the "WCAG AA" improvements actually make the site easier to read (contrast, font size).
 
 ## Dependencies
 
-- **Curator:** I need the "About Page" UX designs implemented.
-- **Visionary/Simplifier:** I need to know if the "Symbiote" or other architectural changes offer any new ways to simplify installation.
+- **Forge:** I am the primary tester for the Mobile Polish and Accessibility work.
+- **Curator:** I will review the "Related Content" logic to ensure it makes emotional sense.
 
 ## Context
 
-By Sprint 3, the "Refactoring" should be mostly done. This is the time to verify that we haven't lost the soul of the project. I want to ensure that the "Profiles" still feel like my family members and that the "Contextual Memory" still tells a story.
+Sprint 3 adds "Discovery" (Related Content) and "Expansion" (API/Plugin). Discovery is magical for me—finding forgotten memories. But "API" and "Plugin" sound like complexity. I need to make sure the core product remains simple and the new developer tools stay in the background.
 
 ## Expected Deliverables
 
-1.  **UX Review: About Page:** A detailed review of the new About page layout and content.
-2.  **"Magic" Audit Report:** A confirmation that the three key features (Memory, Discovery, Profiles) are working as expected on a fresh install.
-3.  **Installation User Journey Map:** A document showing the current pain points of installation vs. the ideal "Maya" flow.
+1.  **Mobile UX Report:** Screenshots and feedback on the mobile reading experience.
+2.  **"Is it Magic?" Report:** A qualitative review of the "Related Content" suggestions.
+3.  **Documentation Feedback:** Specific edits to ensure the VS Code plugin isn't presented as a requirement.
+=======
+My mission is to translate the "Symbiote Shift" (Context Layer) into user value. If we're adding "Git History" to chats, it needs to tell a story, not just show hashes.
+
+- [ ] **Evaluate "Context Layer" Value:** Test the new "Code References" feature. Does it make sense to a non-developer? (e.g., "This conversation sparked this feature").
+- [ ] **Advocate for "Story Mode" vs "Dev Mode":** Ensure that technical data (SHAs, file paths) can be toggled off for family albums.
+- [ ] **Push for One-Click Install:** Continue to advocate for simplifying the installation process (`uv tool install` is still scary).
+- [ ] **Review "Structured Sidecar" Output:** If we are changing how data is stored, ensure the final blog post still looks beautiful.
+
+## Dependencies
+
+- **Visionary:** I depend on their implementation of the "Symbiote" features to review them.
+- **Forge/Curator:** I assume visual identity work will be mostly done, but I will monitor for regressions.
+
+## Context
+
+Sprint 3 focuses on the "Symbiote Shift". To me, "Symbiote" sounds technical. I want to frame it as "Memory Context" - understanding *why* a conversation happened. My role is to ensure we sell the *story*, not the *database*.
+
+## Expected Deliverables
+
+1.  **UX Review of Code References:** A report on whether "linking code to chat" feels magical or confusing.
+2.  **"Human Language" Suggestions:** Renaming technical terms in the UI (e.g., "Git History" -> "Project Timeline").
+3.  **Installation Feedback:** Continued pressure to simplify the `README.md` steps.
+>>>>>>> origin/pr/2866
 
 ## Risks and Mitigations
 
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Complexity Creep | High | High | I will test the "Getting Started" flow from scratch on a clean environment. |
-| Feature Regression | Medium | High | I will compare the output of a Sprint 3 build with a Sprint 1 build to spot missing details. |
+<<<<<<< HEAD
+| User confusion about VS Code | High | Medium | I will demand a clear "For Developers" section in the docs. |
+| "Related Content" makes no sense | Medium | High | I will check the logic manually against real stories. |
 
 ## Proposed Collaborations
 
-- **With Curator:** Collaborative writing session for the default "About" page template.
-- **With Forge:** Discussing if we can make the "About" page more visual (photos, timeline?).
+- **With Visionary:** Helping frame the "Context Layer" as a feature that *powers* the magic, not a feature in itself.
+- **With Forge:** Iterating on font sizes and touch targets for mobile.
+
+## Additional Notes
+
+"The best technology is the one you don't notice."
+=======
+| "Symbiote" features clutter the UI | High | High | I will propose a "Simple View" toggle for the final site. |
+| Complexity increases for end users | High | High | I will test the "Zero Config" promise against every new feature. |
+
+## Proposed Collaborations
+
+- **With Visionary:** Helping frame the "Symbiote" features for non-technical users.
+- **With Simplifier:** Discussing how to make the installation simpler.
+>>>>>>> origin/pr/2866

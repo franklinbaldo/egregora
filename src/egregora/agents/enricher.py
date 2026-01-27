@@ -23,7 +23,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Self, cast
 
 import duckdb
 import httpx
@@ -32,12 +32,15 @@ from google.api_core import exceptions as google_exceptions
 from ibis.common.exceptions import IbisError
 from pydantic import BaseModel
 
-# UrlContextTool is the client-side fetcher (alias for WebFetchTool) suitable for pydantic-ai
-from pydantic_ai import Agent, RunContext, UrlContextTool
+# WebFetchTool is the client-side fetcher suitable for pydantic-ai
+# Note: UrlContextTool is deprecated in newer versions, but we keep it for compatibility with the current stack.
+# We will migrate to WebFetchTool in a future sprint.
+from pydantic_ai import Agent, RunContext, WebFetchTool
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import BinaryContent
 
 from egregora.agents.exceptions import (
+    EnrichmentExecutionError,
     EnrichmentFileError,
     EnrichmentParsingError,
     EnrichmentSlugError,
@@ -149,7 +152,7 @@ class EnrichmentOutput(BaseModel):
 async def fetch_url_with_jina(ctx: RunContext[Any], url: str) -> str:
     """Fetch URL content using Jina.ai Reader.
 
-    Use this tool ONLY if the standard 'UrlContextTool' fails to retrieve meaningful content.
+    Use this tool ONLY if the standard 'WebFetchTool' fails to retrieve meaningful content.
     Examples of when to use this:
     - The standard fetch returns "JavaScript is required" or "Access Denied" (403/429).
     - The content is empty or contains only cookie/GDPR banners.
@@ -485,11 +488,11 @@ class EnrichmentWorker(BaseWorker):
 
     def __init__(
         self,
-        ctx: PipelineContext | EnrichmentRuntimeContext,
+        ctx: PipelineContext,
         enrichment_config: EnrichmentSettings | None = None,
     ) -> None:
         super().__init__(ctx)
-        self.ctx: PipelineContext | EnrichmentRuntimeContext = ctx
+        self.ctx: PipelineContext = ctx
         self._enrichment_config_override = enrichment_config
         self.zip_handle: zipfile.ZipFile | None = None
         self.media_index: dict[str, str] = {}
@@ -622,12 +625,12 @@ class EnrichmentWorker(BaseWorker):
             )
 
             # REGISTER TOOLS:
-            # 1. UrlContextTool: Standard client-side fetcher (primary) - passed via builtin_tools
+            # 1. WebFetchTool: Standard client-side fetcher (primary) - passed via builtin_tools
             # 2. fetch_url_with_jina: Fallback service for difficult pages - passed via tools
             agent = Agent(
                 model=model,
                 output_type=EnrichmentOutput,
-                builtin_tools=[UrlContextTool()],  # Built-in tools must use builtin_tools param
+                builtin_tools=[WebFetchTool()],  # Built-in tools must use builtin_tools param
                 tools=[fetch_url_with_jina],  # Custom tools use regular tools param
             )
 
@@ -646,10 +649,10 @@ class EnrichmentWorker(BaseWorker):
                 loop.close()
 
         except Exception as e:
-            logger.exception("Failed to enrich URL %s", url)
-            return task, None, str(e)
+            msg = f"Failed to enrich URL {url}: {e}"
+            raise EnrichmentExecutionError(msg) from e
         else:
-            return task, result.data, None
+            return task, result.output, None
 
     def _prepare_url_tasks(self, tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Parse payloads and render prompts for URL enrichment tasks."""
@@ -672,8 +675,11 @@ class EnrichmentWorker(BaseWorker):
                 ).strip()
 
                 tasks_data.append({"task": task, "url": url, "prompt": prompt})
-            except Exception:
-                logger.exception("Failed to prepare URL task %s", task["task_id"])
+            except Exception as e:
+                msg = f"Failed to prepare URL task {task.get('task_id')}: {e}"
+                logger.exception(msg)
+                if self.task_store:
+                    self.task_store.mark_failed(task.get("task_id"), msg)
 
         return tasks_data
 
@@ -784,9 +790,17 @@ class EnrichmentWorker(BaseWorker):
                         logger.info("[Heartbeat] URL Enrichment: %d/%d (%.1f%%)", i, total, (i / total) * 100)
                         last_log_time = time.time()
 
+                except EnrichmentExecutionError as exc:
+                    task = future_to_task[future]["task"]
+                    # Log as error but maybe without full stack trace if we trust the message?
+                    # For now, keep full trace as it helps debugging.
+                    logger.error(
+                        "Enrichment execution failed for %s: %s", task["task_id"], exc, exc_info=True
+                    )
+                    results.append((task, None, str(exc)))
                 except Exception as exc:
                     task = future_to_task[future]["task"]
-                    logger.exception("Enrichment failed for %s", task["task_id"])
+                    logger.exception("Unexpected error during enrichment for %s", task["task_id"])
                     results.append((task, None, str(exc)))
 
         logger.info("[Enrichment] URL tasks complete: %d/%d", len(results), total)
@@ -842,7 +856,7 @@ class EnrichmentWorker(BaseWorker):
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
                     model=model,
-                    contents=[{"parts": [{"text": combined_prompt}]}],
+                    contents=cast("Any", [{"parts": [{"text": combined_prompt}]}]),
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
                 return response.text or ""
@@ -855,7 +869,7 @@ class EnrichmentWorker(BaseWorker):
             client = genai.Client(api_key=api_key)
             response = client.models.generate_content(
                 model=model_name,
-                contents=[{"parts": [{"text": combined_prompt}]}],
+                contents=cast("Any", [{"parts": [{"text": combined_prompt}]}]),
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
             response_text = response.text or ""
@@ -943,7 +957,7 @@ class EnrichmentWorker(BaseWorker):
 
                 # Main Architecture: Use ContentLibrary if available
                 if self.ctx.library:
-                    self.ctx.library.save(doc)
+                    cast("Any", self.ctx.library).save(doc)
                 elif self.ctx.output_sink:
                     self.ctx.output_sink.persist(doc)
 
@@ -980,7 +994,7 @@ class EnrichmentWorker(BaseWorker):
             return ""
         if "text" in response:
             return response["text"]
-        texts = []
+        texts: list[str] = []
         for cand in response.get("candidates") or []:
             content = cand.get("content") or {}
             texts.extend(part["text"] for part in content.get("parts") or [] if "text" in part)
@@ -1130,7 +1144,7 @@ class EnrichmentWorker(BaseWorker):
 
             # Upload file
             # Note: client.files.upload returns a File object with 'uri'
-            uploaded_file = client.files.upload(path=str(file_path), config={"mime_type": mime_type})
+            uploaded_file = client.files.upload(file=str(file_path), config={"mime_type": mime_type})
             logger.info("Uploaded file %s to %s", file_path.name, uploaded_file.uri)
 
             return {"fileData": {"mimeType": mime_type, "fileUri": uploaded_file.uri}}
@@ -1248,7 +1262,7 @@ class EnrichmentWorker(BaseWorker):
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
                     model=model,
-                    contents=[{"parts": request_parts}],
+                    contents=cast("Any", [{"parts": request_parts}]),
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
                 return response.text or ""
@@ -1258,7 +1272,7 @@ class EnrichmentWorker(BaseWorker):
             # No rotation - use configured model and API key
             response = client.models.generate_content(
                 model=model_name,
-                contents=[{"parts": request_parts}],
+                contents=cast("Any", [{"parts": request_parts}]),
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
             response_text = response.text if response.text else ""
@@ -1456,7 +1470,7 @@ class EnrichmentWorker(BaseWorker):
 
             try:
                 if self.ctx.library:
-                    self.ctx.library.save(media_doc)
+                    cast("Any", self.ctx.library).save(media_doc)
                 elif self.ctx.output_sink:
                     self.ctx.output_sink.persist(media_doc)
                 logger.info("Persisted enriched media: %s -> %s", filename, media_doc.metadata["filename"])
@@ -1496,7 +1510,7 @@ class EnrichmentWorker(BaseWorker):
             )
 
             if self.ctx.library:
-                self.ctx.library.save(doc)
+                cast("Any", self.ctx.library).save(doc)
             elif self.ctx.output_sink:
                 self.ctx.output_sink.persist(doc)
 

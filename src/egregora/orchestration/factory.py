@@ -15,18 +15,28 @@ from urllib.parse import urlparse
 import ibis
 from google import genai
 
+from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.types import WriterResources
 from egregora.config.exceptions import InvalidDatabaseUriError, SiteStructureError
 from egregora.data_primitives.document import UrlContext
+from egregora.database import initialize_database
+from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.profile_cache import scan_and_cache_all_documents
+from egregora.database.repository import ContentRepository
+from egregora.llm.usage import UsageTracker
+from egregora.orchestration.cache import PipelineCache
 from egregora.orchestration.context import (
+    PipelineConfig,
     PipelineContext,
+    PipelineRunParams,
+    PipelineState,
 )
-from egregora.output_adapters import (
+from egregora.output_sinks import (
     OutputSinkRegistry,
     create_default_output_registry,
     create_output_sink,
 )
-from egregora.output_adapters.mkdocs import MkDocsPaths
+from egregora.output_sinks.mkdocs import MkDocsPaths
 
 if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig
@@ -36,6 +46,91 @@ logger = logging.getLogger(__name__)
 
 class PipelineFactory:
     """Factory for creating pipeline resources and contexts."""
+
+    @staticmethod
+    def create_context(run_params: PipelineRunParams) -> tuple[PipelineContext, Any]:
+        """Create pipeline context with all resources and configuration.
+
+        Args:
+            run_params: Aggregated pipeline run parameters
+
+        Returns:
+            Tuple of (PipelineContext, pipeline_backend)
+            The backend is returned for cleanup by the context manager.
+
+        """
+        resolved_output = run_params.output_dir.expanduser().resolve()
+
+        refresh_tiers = {r.strip().lower() for r in (run_params.refresh or "").split(",") if r.strip()}
+        site_paths = PipelineFactory.resolve_site_paths_or_raise(resolved_output, run_params.config)
+
+        _runtime_db_uri, pipeline_backend = PipelineFactory.create_database_backends(
+            site_paths.site_root, run_params.config
+        )
+
+        # Initialize database tables (CREATE TABLE IF NOT EXISTS)
+        initialize_database(pipeline_backend)
+
+        client_instance = run_params.client or PipelineFactory.create_gemini_client()
+        cache_dir = Path(".egregora-cache") / site_paths.site_root.name
+        cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
+        site_paths.egregora_dir.mkdir(parents=True, exist_ok=True)
+        storage = DuckDBStorageManager.from_ibis_backend(pipeline_backend)
+        scan_and_cache_all_documents(
+            storage,
+            profiles_dir=site_paths.profiles_dir,
+            posts_dir=site_paths.posts_dir,
+        )
+        repository = ContentRepository(storage)
+
+        output_registry = create_default_output_registry()
+
+        url_ctx = UrlContext(
+            base_url="",
+            site_prefix=site_paths.docs_prefix,
+            base_path=site_paths.site_root,
+        )
+
+        adapter = PipelineFactory.create_output_adapter(
+            config=run_params.config,
+            output_dir=resolved_output,
+            site_root=site_paths.site_root,
+            registry=output_registry,
+            url_context=url_ctx,
+            storage=storage,
+        )
+
+        annotations_store = AnnotationStore(repository)
+
+        config_obj = PipelineConfig(
+            config=run_params.config,
+            output_dir=resolved_output,
+            site_root=site_paths.site_root,
+            docs_dir=site_paths.docs_dir,
+            posts_dir=site_paths.posts_dir,
+            profiles_dir=site_paths.profiles_dir,
+            media_dir=site_paths.media_dir,
+            url_context=url_ctx,
+        )
+
+        state = PipelineState(
+            run_id=run_params.run_id,
+            start_time=run_params.start_time,
+            source_type=run_params.source_type,
+            input_path=run_params.input_path,
+            client=client_instance,
+            storage=storage,
+            cache=cache,
+            annotations_store=annotations_store,
+            usage_tracker=UsageTracker(),
+            output_registry=output_registry,
+        )
+
+        ctx = PipelineContext(config_obj, state)
+        # Inject the already created adapter into the context
+        ctx.state.output_sink = adapter
+
+        return ctx, pipeline_backend
 
     @staticmethod
     def create_database_backends(

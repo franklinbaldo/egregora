@@ -172,6 +172,7 @@ nav:
       - Technical Reference: reference/index.md
   - Community:
       - Contributing: community/contributing.md
+      - Personas: personas.md
   - Demo: https://franklinbaldo.github.io/egregora/demo/
 
 extra:
@@ -214,6 +215,3 @@ extra:
 extra_javascript:
   - javascripts/mathjax.js
   - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
-
-extra_css:
-  - stylesheets/extra.css

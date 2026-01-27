@@ -77,31 +77,6 @@ _MARKERS_REGEX = "|".join(re.escape(m) for m in ATTACHMENT_MARKERS)
 ATTACHMENT_MARKERS_PATTERN = re.compile(rf"([\w\-\.]+\.\w+)\s*(?:{_MARKERS_REGEX})", re.IGNORECASE)
 UNICODE_MEDIA_PATTERN = re.compile(r"\u200e((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)", re.IGNORECASE)
 
-# Combined pattern for efficient single-pass extraction (replaces multiple regex passes)
-COMBINED_ENRICHMENT_PATTERN = re.compile(
-    r"""
-    # 1. Markdown Link (extract filename)
-    (?:(?:!\[|\[)[^\]]*\]\([^)]*?(?P<md_file>[^/)]+\.\w+)\)) |
-
-    # 2. WhatsApp Patterns
-    (?P<wa_file>\b(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+\b) |
-    (?:\u200e(?P<uni_file>(?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)) |
-
-    # 3. Generic Filename (matches any filename, optionally with marker)
-    # This covers Attachment Markers, Simple Media, and UUIDs in one pass.
-    # We use a broad pattern and filter in Python to avoid backtracking overhead.
-    \b(?P<gen_file>[\w\-\.]+\.\w+)\b(?P<gen_marker>\s*(?:"""
-    + _MARKERS_REGEX
-    + r"""))?
-    """,
-    re.VERBOSE | re.IGNORECASE,
-)
-
-# Regex for validating UUIDs (extracted from generic match)
-UUID_VALIDATION_PATTERN = re.compile(
-    r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+$", re.IGNORECASE
-)
-
 # Split Patterns for optimized extraction
 FAST_MEDIA_PATTERN = re.compile(
     r"""
@@ -182,50 +157,108 @@ def find_media_references(text: str) -> list[str]:
     return list(set(media_files))
 
 
-def find_all_media_references(text: str, *, include_uuids: bool = False) -> list[str]:
-    """Find all media references using a single optimized regex pass.
+def find_all_media_references(text: str, include_uuids: bool = False) -> list[str]:
+    """Find all media filenames and references in text.
 
-    This combines:
-    - Attachment markers
-    - Markdown links/images (extracting filename)
-    - WhatsApp patterns
-    - Simple media filenames (e.g. foo.jpg)
-    - UUID filenames (optional)
+    This is an extended version of find_media_references that also detects:
+    - UUID-based filenames (e.g., 12345678-1234-1234-1234-1234567890ab.png)
 
     Args:
-        text: The message text to search.
-        include_uuids: Whether to include UUID filenames (requires row['media_type'] check usually).
+        text: The text to search for media references
+        include_uuids: If True, include UUIDs with any extension.
+                      If False, only include UUIDs with known extensions.
 
     Returns:
-        List of unique media references found.
-
+        List of unique media filenames found in the text
     """
     if not text:
         return []
 
-    refs = set()
-    for match in COMBINED_ENRICHMENT_PATTERN.finditer(text):
-        name = match.lastgroup
-        # Use lastgroup to identify which pattern matched
-        if name == "md_file":
-            refs.add(match.group("md_file"))
-        elif name == "wa_file":
-            refs.add(match.group("wa_file"))
-        elif name == "uni_file":
-            refs.add(match.group("uni_file"))
-        elif name == "gen_file" or name == "gen_marker":
-            filename = match.group("gen_file")
-            # If marker matched, we always include it (legacy behavior for att_file)
-            if match.group("gen_marker"):
-                refs.add(filename)
-            # Else check if it is a known media type
-            elif detect_media_type(filename):
-                refs.add(filename)
-            # Else check if it is a UUID (if requested)
-            elif include_uuids and UUID_VALIDATION_PATTERN.match(filename):
-                refs.add(filename)
+    media_files: set[str] = set()
 
-    return list(refs)
+    # Pre-extract UUIDs first to avoid duplicates with plain file pattern
+    uuid_filenames: set[str] = set()
+    if include_uuids:
+        # UUID pattern: 8-4-4-4-12 hex digits with optional extension
+        uuid_pattern = re.compile(
+            r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?:\.(\w+))?\b",
+            re.IGNORECASE,
+        )
+        for match in uuid_pattern.finditer(text):
+            uuid_part = match.group(1)
+            ext_part = match.group(2)
+            if ext_part:
+                filename = f"{uuid_part}.{ext_part}"
+            else:
+                filename = uuid_part
+            uuid_filenames.add(filename)
+    else:
+        # Only include UUIDs with known extensions
+        uuid_pattern = re.compile(
+            r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\.(\w+)\b",
+            re.IGNORECASE,
+        )
+        for match in uuid_pattern.finditer(text):
+            uuid_part = match.group(1)
+            ext_part = match.group(2)
+            # Only include if extension is in known media extensions
+            if f".{ext_part.lower()}" in MEDIA_EXTENSIONS:
+                filename = f"{uuid_part}.{ext_part}"
+                uuid_filenames.add(filename)
+
+    media_files.update(uuid_filenames)
+
+    # Extract all basic media references (WhatsApp, markdown, attachments, etc.)
+    # Pass 1: Markdown images ![alt](url)
+    markdown_img_pattern = re.compile(r"!\[(?:[^\]]*)\]\(([^)]+)\)")
+    for match in markdown_img_pattern.finditer(text):
+        url = match.group(1)
+        # Extract just the filename from URLs
+        if "/" in url:
+            filename = url.split("/")[-1]
+        else:
+            filename = url
+        if filename:
+            media_files.add(filename)
+
+    # Pass 2: Markdown links [text](url)
+    markdown_link_pattern = re.compile(r"(?<!!)\[(?:[^\]]+)\]\(([^)]+)\)")
+    for match in markdown_link_pattern.finditer(text):
+        url = match.group(1)
+        # Extract just the filename from URLs
+        if "/" in url:
+            filename = url.split("/")[-1]
+        else:
+            filename = url
+        # Only add non-URL links (local references)
+        if filename and not filename.startswith(("http://", "https://")):
+            media_files.add(filename)
+
+    # Pass 3: Plain text filenames (pattern: word characters, dots, hyphens with extension)
+    # Exclude UUID patterns to avoid double-processing
+    plain_file_pattern = re.compile(r"\b([\w\-\.]+\.\w{2,})\b")
+    for match in plain_file_pattern.finditer(text):
+        filename = match.group(1)
+        # Skip if this is a UUID we've already processed
+        if filename in uuid_filenames:
+            continue
+        # Filter out common non-media extensions and very short extensions
+        ext = filename.split(".")[-1].lower()
+        if ext not in ("com", "org", "net", "io", "co", "de", "fr", "uk"):
+            # Also skip files that look like UUIDs
+            if not re.match(r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.", filename, re.IGNORECASE):
+                media_files.add(filename)
+
+    # Pass 4: Attachment markers pattern
+    media_files.update(ATTACHMENT_MARKERS_PATTERN.findall(text))
+
+    # Pass 5: WhatsApp file pattern
+    media_files.update(WA_MEDIA_PATTERN.findall(text))
+
+    # Pass 6: Unicode WhatsApp pattern
+    media_files.update(UNICODE_MEDIA_PATTERN.findall(text))
+
+    return sorted(media_files)
 
 
 def extract_media_references(table: Table) -> set[str]:

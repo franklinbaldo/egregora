@@ -7,11 +7,11 @@ to ensure deterministic, repeatable testing without API calls.
 import time
 
 import pytest
+from egregora.output_sinks.mkdocs import MkDocsAdapter
+from egregora.output_sinks.mkdocs.paths import derive_mkdocs_paths
 
 from egregora import rag
 from egregora.orchestration.pipelines.write import WhatsAppProcessOptions, process_whatsapp_export
-from egregora.output_adapters.mkdocs import MkDocsAdapter
-from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from tests.e2e.mocks.enrichment_mocks import mock_media_enrichment, mock_url_enrichment
 
 
@@ -83,9 +83,9 @@ def test_full_pipeline_smoke_test(pipeline_setup, tmp_path):
     assert results is not None
 
     # Resolve paths dynamically using the same logic as the adapter
-    site_paths = MkDocsPaths(site_root)
-    posts_dir = site_paths.posts_dir
-    profiles_dir = site_paths.profiles_dir
+    site_paths = derive_mkdocs_paths(site_root)
+    posts_dir = site_paths["posts_dir"]
+    profiles_dir = site_paths["profiles_dir"]
 
     # Verify output structure exists
     assert posts_dir.exists(), f"Posts directory should be created at {posts_dir}"

@@ -13,7 +13,7 @@ type: journal
 **Action:**
 1.  Systematically verified each item from the task description against the current codebase.
 2.  Confirmed all dependencies were correct by running `uv sync --all-extras`.
-3.  Inspected `pyproject.toml`, `src/egregora/rendering/templates/site/mkdocs.yml.jinja`, and `src/egregora/output_adapters/mkdocs/scaffolding.py` to confirm the fixes were present.
+3.  Inspected `pyproject.toml`, `src/egregora/rendering/templates/site/mkdocs.yml.jinja`, and `src/egregora/output_sinks/mkdocs/scaffolding.py` to confirm the fixes were present.
 4.  Ran the `pre-commit` hooks to ensure the repository remains in a clean state.
 5.  Recorded a new memory about the potential for outdated task files to prevent future agents from repeating this investigation.
 

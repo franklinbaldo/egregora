@@ -44,7 +44,7 @@ src/egregora/
 ├── agents/           # AI logic powered by Pydantic-AI
 ├── database/         # Data persistence using DuckDB and LanceDB
 ├── input_adapters/   # Logic for reading different data sources
-├── output_adapters/  # Logic for writing to different formats
+├── output_sinks/  # Logic for writing to different formats
 ├── transformations/  # Pure data transformation functions
 ├── rag/             # Vector knowledge base using LanceDB
 ├── config/          # Configuration management

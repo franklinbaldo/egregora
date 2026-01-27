@@ -8,10 +8,10 @@ import logging
 from typing import TYPE_CHECKING
 
 from egregora.data_primitives.document import DocumentType, OutputSink
-from egregora.output_adapters.exceptions import DocumentNotFoundError
+from egregora.output_sinks.exceptions import DocumentNotFoundError
 
 if TYPE_CHECKING:
-    from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
+    from egregora.output_sinks.mkdocs.adapter import MkDocsAdapter
 
 logger = logging.getLogger(__name__)
 

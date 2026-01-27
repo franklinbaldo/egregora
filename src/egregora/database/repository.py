@@ -15,6 +15,8 @@ from egregora.database.exceptions import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from egregora.database.duckdb_manager import DuckDBStorageManager
 
 
@@ -23,6 +25,7 @@ class ContentRepository:
 
     def __init__(self, db: DuckDBStorageManager) -> None:
         self.db = db
+        self._table_name = "documents"
 
     def save(self, doc: Document) -> None:
         """Save document to the unified documents table."""
@@ -134,7 +137,7 @@ class ContentRepository:
             msg = f"Failed to get document: {e}"
             raise DatabaseOperationError(msg) from e
 
-    def list(self, doc_type: DocumentType | None = None) -> Iterator[dict]:
+    def list(self, doc_type: DocumentType | None = None) -> Iterator[dict[str, Any]]:
         """List documents metadata."""
         try:
             t = self.db.read_table("documents")
@@ -190,6 +193,17 @@ class ContentRepository:
         }
         # Filter None values
         internal_metadata = {k: v for k, v in internal_metadata.items() if v is not None}
+
+        # Populate metadata with fields that were extracted
+        metadata = {}
+        if "title" in row:
+            metadata["title"] = row["title"]
+        if "summary" in row:
+            metadata["summary"] = row["summary"]
+        if "status" in row:
+            metadata["status"] = row["status"]
+        if "mime_type" in row:
+            metadata["mime_type"] = row["mime_type"]
 
         return Document(
             id=row.get("id"),

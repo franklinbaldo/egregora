@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
+from egregora.output_sinks import create_default_output_registry, create_output_sink
+
 from egregora.data_primitives.document import DocumentType
 from egregora.input_adapters.self_reflection import SelfInputAdapter
-from egregora.output_adapters import create_default_output_registry, create_output_sink
 
 if TYPE_CHECKING:
     from pathlib import Path

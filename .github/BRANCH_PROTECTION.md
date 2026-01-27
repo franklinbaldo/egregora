@@ -101,6 +101,16 @@ After configuring branch protection:
 
 ## Troubleshooting
 
+### Known Infrastructure Issues
+
+#### `enable-auto-merge` Check Failure
+If you see a CI failure named `enable-auto-merge`, be aware:
+- **Cause:** This is typically an external status check (triggered by Renovate or GitHub Actions infrastructure) that fails when it expects the repository to allow auto-merge but Branch Protection rules are misconfigured or missing.
+- **Resolution:**
+  1. Verify Branch Protection rules match the "Setup Instructions" above.
+  2. Ensure the "Allow auto-merge" setting is enabled in **Settings > General > Pull Requests**.
+  3. If the check persists in failing on PRs not authored by Renovate/Dependabot, it is safe to ignore/override if all other Core Checks passed.
+
 ### Auto-merge not working?
 
 **Error:** "Auto-merge requires branch protection rules"
