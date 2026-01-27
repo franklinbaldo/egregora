@@ -18,6 +18,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date as date_type
 from datetime import timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
@@ -43,6 +44,9 @@ from egregora.transformations import (
 if TYPE_CHECKING:
     import ibis.expr.types as ir
 
+    from egregora.config.settings import EgregoraConfig, EnrichmentSettings
+    from egregora.input_adapters.base import InputAdapter, MediaMapping
+
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -54,7 +58,7 @@ class PreparedPipelineData:
 
     messages_table: ir.Table
     windows_iterator: Iterator[Window]
-    checkpoint_path: Any  # pathlib.Path, simplified to Any to avoid circular import if needed
+    checkpoint_path: Path
     context: PipelineContext
     enable_enrichment: bool
     embedding_model: str
@@ -66,7 +70,7 @@ class Conversation:
 
     window: Window
     messages_table: ir.Table
-    media_mapping: dict[str, Any]
+    media_mapping: MediaMapping
     context: PipelineContext
     adapter_info: tuple[str, str]
     depth: int = 0
@@ -245,8 +249,8 @@ def _process_commands_and_avatars(
 
 
 def _parse_and_validate_source(
-    adapter: Any,
-    input_path: Any,  # pathlib.Path
+    adapter: InputAdapter,
+    input_path: Path,
     timezone: str,
     *,
     output_adapter: OutputSink | None = None,
@@ -275,7 +279,7 @@ def _parse_and_validate_source(
 
 
 def prepare_pipeline_data(
-    adapter: Any,
+    adapter: InputAdapter,
     run_params: PipelineRunParams,
     ctx: PipelineContext,
 ) -> PreparedPipelineData:
@@ -384,8 +388,8 @@ def prepare_pipeline_data(
 def perform_enrichment(
     context: PipelineContext,
     window_table: ir.Table,
-    media_mapping: dict[str, Any],
-    override_config: Any | None = None,
+    media_mapping: MediaMapping,
+    override_config: EnrichmentSettings | None = None,
 ) -> ir.Table:
     """Execute enrichment for a window's table."""
     enrichment_context = EnrichmentRuntimeContext(
@@ -443,7 +447,7 @@ def _extract_adapter_info(ctx: PipelineContext) -> tuple[str, str]:
     return (summary or "").strip(), (instructions or "").strip()
 
 
-def _calculate_max_window_size(config: Any) -> int:
+def _calculate_max_window_size(config: EgregoraConfig) -> int:
     """Calculate maximum window size based on LLM context window."""
     use_full_window = getattr(config.pipeline, "use_full_context_window", False)
     # Corresponds to a 1M token context window, expressed in characters
