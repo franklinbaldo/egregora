@@ -157,7 +157,7 @@ def find_media_references(text: str) -> list[str]:
     return list(set(media_files))
 
 
-def find_all_media_references(text: str, include_uuids: bool = False) -> list[str]:
+def find_all_media_references(text: str, *, include_uuids: bool = False) -> list[str]:
     """Find all media filenames and references in text.
 
     This is an extended version of find_media_references that also detects:

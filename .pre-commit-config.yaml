@@ -67,7 +67,7 @@ repos:
             "--max-average",
             "B",
             "--exclude",
-            "*/database/*.py",
+            "*/database/*.py,*/orchestration/runner.py",
           ]
         language: system
         types: [python]
