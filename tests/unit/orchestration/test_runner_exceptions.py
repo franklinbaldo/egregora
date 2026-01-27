@@ -35,7 +35,6 @@ def test_runner_raises_specific_exceptions():
         patch("egregora.orchestration.runner.process_media_for_window") as mock_media,
         patch("egregora.orchestration.runner.generate_profile_posts") as mock_profile,
         patch("egregora.orchestration.runner.write_posts_for_window") as mock_write,
-        patch("egregora.orchestration.runner.PipelineFactory"),
     ):
         mock_media.return_value = (MagicMock(), {})
         mock_write.return_value = {"posts": [], "profiles": []}
@@ -57,7 +56,6 @@ def test_runner_raises_specific_exceptions():
         patch("egregora.orchestration.runner.process_media_for_window") as mock_media,
         patch("egregora.orchestration.runner.generate_profile_posts") as mock_profile,
         patch("egregora.orchestration.runner.write_posts_for_window") as mock_write,
-        patch("egregora.orchestration.runner.PipelineFactory"),
     ):
         mock_media.return_value = (MagicMock(), {"file.jpg": MagicMock()})
         mock_write.return_value = {"posts": [], "profiles": []}

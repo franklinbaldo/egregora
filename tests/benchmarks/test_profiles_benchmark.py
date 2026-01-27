@@ -1,4 +1,3 @@
-
 import pytest
 
 from egregora.data_primitives.document import UrlContext
@@ -56,6 +55,7 @@ authors: [{author}]
         url_convention=StandardUrlConvention(),
         url_context=UrlContext(base_url="http://localhost"),
     )
+
 
 def test_get_profiles_data_benchmark(benchmark, site_gen_profiles):
     benchmark(site_gen_profiles.get_profiles_data)

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 From bf1a5603215c2b9ec3482cf0355d98a0b61138df Mon Sep 17 00:00:00 2001
 From: "google-labs-jules[bot]"
  <161369871+google-labs-jules[bot]@users.noreply.github.com>
@@ -609,27 +608,3 @@ index 1d967db51..0bb0f7528 100644
 
        - name: Build Demo Site
          run: uv run mkdocs build -f .demo-site/.egregora/mkdocs.yml -d "$(pwd)/site/demo"
-=======
-From f9aa2cbded3d7a58ef86811ebe7cfd72d3eb8c81 Mon Sep 17 00:00:00 2001
-From: "github-actions[bot]" <github-actions[bot]@users.noreply.github.com>
-Date: Wed, 21 Jan 2026 23:49:55 +0000
-Subject: [PATCH] chore: update scheduler state [skip ci]
-
----
- .team/schedule.csv | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
-
-diff --git a/.team/schedule.csv b/.team/schedule.csv
-index 3bdd6bae0..c2c77968d 100644
---- a/.team/schedule.csv
-+++ b/.team/schedule.csv
-@@ -109,7 +109,7 @@ sequence,persona,session_id,pr_number,pr_status,base_commit
- 108,weaver,,,closed,
- 109,absolutist,1278488902245254732,2686,merged,
- 110,artisan,8399847330726783056,2618,merged,
--111,bolt,7732327326214592162,2708,open,
-+111,bolt,1848744296476603441,2708,open,
- 112,builder,,,,
- 113,curator,,,,
- 114,docs_curator,,,,
->>>>>>> origin/pr/2710

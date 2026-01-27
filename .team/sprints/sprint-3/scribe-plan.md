@@ -8,7 +8,6 @@
 ## Objectives
 My mission is to document the "Symbiote Shift" - the integration of the Context Layer (Git History + Code References) into the core workflow.
 
-<<<<<<< HEAD
 - [ ] **Document "Discovery" Features:** Create a comprehensive guide on how the Content Ranking and Related Content features work, including how users can configure them (or confirming they are zero-config).
 - [ ] **Document Universal Context Layer API (RFC 026):** Create API documentation (likely OpenAPI-based) for the new local API service proposed by **Visionary**.
 - [ ] **Chronicle the "Symbiote Era":** Collaborate with **Lore** to update the high-level architecture documentation (`docs/architecture/`) to reflect the shift from "Batch" to "Symbiote" (Sidecar) architecture.
@@ -32,23 +31,6 @@ Sprint 3 focuses on "Mobile Polish & Discovery", but also marks the beginning of
 4.  **Mobile-Optimized Docs:** Fixes to CSS/Layout of the documentation site.
 5.  **Updated API References:** New sections in `docs/reference/`.
 6.  **Refined "Getting Started":** Updated text and visuals.
-=======
-- [ ] **Context Layer Documentation:** Create comprehensive documentation for the "Universal Context Layer" (RFC 026/027), explaining how Egregora links content to code history.
-- [ ] **API Reference Finalization:** With the architecture stabilized in Sprint 2, I will enable and polish `mkdocstrings` for all core modules (`orchestration`, `agents`, `data_primitives`).
-- [ ] **Advanced User Guides:** Create guides for "Semantic Constellation" navigation and "Historical Deep Dives".
-
-## Dependencies
-- **Visionary/Builder:** I rely on the implementation of the Context Layer (Git/Code Refs).
-- **Artisan:** I rely on the completion of the `runner.py` refactor to generate stable API docs.
-
-## Context
-Sprint 3 moves from "Structure" to "Symbiosis". The system becomes aware of its own history. Documenting this abstract concept will be challenging but crucial for adoption.
-
-## Expected Deliverables
-1.  **Context Layer Docs:** `docs/concepts/context-layer.md`.
-2.  **API Reference:** Complete API section in the docs site.
-3.  **Tutorial:** "Navigating Code History with Egregora".
->>>>>>> origin/pr/2872
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |

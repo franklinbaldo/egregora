@@ -11,9 +11,9 @@ the posts-centric directory layout:
 from __future__ import annotations
 
 import pytest
-from egregora.output_sinks.mkdocs import MkDocsAdapter
 
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.output_sinks.mkdocs import MkDocsAdapter
 
 
 @pytest.fixture

@@ -13,9 +13,7 @@ def make_config(pipeline_db: str):
 def test_create_database_backends_requires_uri(tmp_path):
     config = make_config("")
 
-    with pytest.raises(
-        ValueError, match=r"Database setting 'database\.pipeline_db' must be a non-empty"
-    ):
+    with pytest.raises(ValueError, match=r"Database setting 'database\.pipeline_db' must be a non-empty"):
         _create_database_backend(tmp_path, config)
 
 

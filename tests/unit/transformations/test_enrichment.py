@@ -31,8 +31,6 @@ def test_combine_basic_functionality():
     assert res[1]["id"] == 2
 
 
-
-
 def test_missing_columns_adaptation():
     """Verify that columns in schema but missing from input table are added as nulls."""
     # Given: Input table lacks 'extra' column present in schema
@@ -56,8 +54,6 @@ def test_missing_columns_adaptation():
     assert res[1]["extra"] == "foo"
 
 
-
-
 def test_timestamp_normalization_ts():
     """Verify timestamp normalization when column is named 'ts'."""
     # Given
@@ -75,8 +71,6 @@ def test_timestamp_normalization_ts():
     # Execute to verify no errors in casting
     res = result.to_pyarrow().to_pylist()
     assert len(res) == 1
-
-
 
 
 def test_empty_new_rows():
@@ -114,8 +108,6 @@ def test_ordering():
     assert res[1]["id"] == 2
 
 
-
-
 def test_supports_alternate_timestamp_column():
     """Verify support for 'timestamp' column name instead of 'ts'."""
     # Given: Schema using "timestamp" instead of "ts"
@@ -132,8 +124,6 @@ def test_supports_alternate_timestamp_column():
     res = result.to_pyarrow().to_pylist()
     assert len(res) == 2
     assert res[1]["id"] == 2
-
-
 
 
 def test_no_timestamp_column():

@@ -141,10 +141,7 @@ uv run mail send --to curator@team --subject "Fix needed" --body "..."
 │   ├── forge/                 # ⚒️ Feature implementation
 │   ├── janitor/               # 🧹 Code hygiene
 │   ├── lore/                  # 📚 System historian
-<<<<<<< HEAD
 │   ├── maya/                  # 💝 User advocate
-=======
->>>>>>> origin/pr/2674
 │   ├── oracle/                # 🔮 Support agent
 │   ├── organizer/             # 🗂️ Project organization
 │   ├── refactor/              # 🔧 Code quality
@@ -158,15 +155,12 @@ uv run mail send --to curator@team --subject "Fix needed" --body "..."
 │   ├── typeguard/             # 🔍 Type safety
 │   ├── visionary/             # 🔭 Strategic RFCs
 │   └── _archived/             # Eliminated personas
-<<<<<<< HEAD
 │
 ├── logs/                       # Per-session logs (gitignored)
 │   ├── tools_use/             # Tool usage logs per session
 │   │   ├── {persona}_{seq}_{timestamp}.csv
 │   │   └── ...
 │   └── README.md              # Logging system documentation
-=======
->>>>>>> origin/pr/2674
 │
 ├── mail/                       # Mail system storage
 │   └── events.jsonl           # Mail event log
@@ -282,10 +276,7 @@ Evaluate generated blogs and create data-driven UX improvements.
 | 🌊 | **Streamliner** | Optimizer | Data processing efficiency |
 | 🔍 | **Typeguard** | Type Checker | Type safety enforcement |
 | 🔭 | **Visionary** | Strategist | Strategic RFCs with BDD criteria |
-<<<<<<< HEAD
 | 💝 | **Maya** | User Advocate | Non-technical user feedback, doc clarity |
-=======
->>>>>>> origin/pr/2674
 
 ### Persona Capabilities
 
