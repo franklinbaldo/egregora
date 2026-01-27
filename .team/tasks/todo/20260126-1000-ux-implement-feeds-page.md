@@ -64,7 +64,7 @@ Stay connected with the collective consciousness through our open feeds.
 ```
 
 ### 2. Update Scaffolding
-Update `src/egregora/output_adapters/mkdocs/scaffolding.py` to:
+Update `src/egregora/output_sinks/mkdocs/scaffolding.py` to:
 1.  Register the new template in `templates_to_render`.
 2.  Ensure the `docs/feeds` directory is created.
 

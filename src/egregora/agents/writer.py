@@ -67,8 +67,8 @@ from egregora.llm.api_keys import (
 )
 from egregora.llm.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.orchestration.cache import PipelineCache
-from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
-from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
+from egregora.output_sinks.mkdocs.adapter import MkDocsAdapter
+from egregora.output_sinks.mkdocs.site_generator import SiteGenerator
 from egregora.resources.prompts import render_prompt
 
 if TYPE_CHECKING:

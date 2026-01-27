@@ -13,12 +13,12 @@ from typing import TYPE_CHECKING, TypedDict
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.data_primitives.document import DocumentType
-from egregora.output_adapters.exceptions import DocumentNotFoundError
+from egregora.output_sinks.exceptions import DocumentNotFoundError
 
 if TYPE_CHECKING:
     from egregora.agents.shared.annotations import AnnotationStore
     from egregora.data_primitives.document import Document
-    from egregora.output_adapters.base import OutputSink
+    from egregora.output_sinks.base import OutputSink
 
 logger = logging.getLogger(__name__)
 

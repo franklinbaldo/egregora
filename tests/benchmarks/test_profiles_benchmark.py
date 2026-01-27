@@ -1,8 +1,8 @@
 import pytest
 from pathlib import Path
-from egregora.output_adapters.mkdocs.site_generator import SiteGenerator
+from egregora.output_sinks.mkdocs.site_generator import SiteGenerator
 from egregora.data_primitives.document import UrlContext
-from egregora.output_adapters.conventions import StandardUrlConvention
+from egregora.output_sinks.conventions import StandardUrlConvention
 
 @pytest.fixture
 def site_gen_profiles(tmp_path):

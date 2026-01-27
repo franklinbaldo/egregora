@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
+from egregora.output_sinks.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 
 if TYPE_CHECKING:
     from pathlib import Path

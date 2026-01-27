@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from egregora.data_primitives.document import DocumentMetadata, DocumentType
-from egregora.output_adapters.db_sink import DbOutputSink
-from egregora.output_adapters.exceptions import (
+from egregora.output_sinks.db_sink import DbOutputSink
+from egregora.output_sinks.exceptions import (
     DocumentIterationError,
     DocumentNotFoundError,
 )

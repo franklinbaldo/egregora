@@ -5,13 +5,13 @@ from typing import Any
 
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import UrlContext
-from egregora.output_adapters.base import (
+from egregora.output_sinks.base import (
     BaseOutputSink,
     OutputSinkRegistry,
     create_output_registry,
     create_output_sink,
 )
-from egregora.output_adapters.mkdocs import MkDocsAdapter, MkDocsPaths
+from egregora.output_sinks.mkdocs import MkDocsAdapter, MkDocsPaths
 
 
 def create_default_output_registry() -> OutputSinkRegistry:

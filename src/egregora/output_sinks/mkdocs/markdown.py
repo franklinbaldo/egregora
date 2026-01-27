@@ -9,13 +9,13 @@ import yaml
 
 from egregora.data_primitives.text import slugify
 from egregora.knowledge.profiles import ensure_author_entries
-from egregora.output_adapters.exceptions import (
+from egregora.output_sinks.exceptions import (
     DirectoryCreationError,
     FileWriteError,
     MissingMetadataError,
     UniqueFilenameError,
 )
-from egregora.output_adapters.mkdocs.markdown_utils import (
+from egregora.output_sinks.mkdocs.markdown_utils import (
     extract_clean_date,
     format_frontmatter_datetime,
 )

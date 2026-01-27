@@ -20,8 +20,8 @@ from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoesca
 from yaml import YAMLError
 
 from egregora.config.settings import EgregoraConfig, create_default_config
-from egregora.output_adapters.base import SiteConfiguration
-from egregora.output_adapters.exceptions import (
+from egregora.output_sinks.base import SiteConfiguration
+from egregora.output_sinks.exceptions import (
     FileSystemScaffoldError,
     PathResolutionError,
     ScaffoldConfigLoadError,
@@ -29,7 +29,7 @@ from egregora.output_adapters.exceptions import (
     SiteNotSupportedError,
     TemplateRenderingError,
 )
-from egregora.output_adapters.mkdocs.paths import MkDocsPaths
+from egregora.output_sinks.mkdocs.paths import MkDocsPaths
 from egregora.resources.prompts import PromptManager
 
 logger = logging.getLogger(__name__)

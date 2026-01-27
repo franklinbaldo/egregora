@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Impact:** 400+ lines removed
 
 - **Output Formats:** Removed Parquet/JSON export adapter
-  - Deleted `src/egregora/output_adapters/parquet/` directory
+  - Deleted `src/egregora/output_sinks/parquet/` directory
   - Kept MkDocs as the only output format (as documented in FEATURES.md)
   - **Impact:** 200+ lines removed
 

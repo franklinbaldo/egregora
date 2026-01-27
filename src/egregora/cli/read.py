@@ -11,7 +11,7 @@ from rich.table import Table
 
 from egregora.agents.reader.reader_runner import run_reader_evaluation
 from egregora.config import load_egregora_config
-from egregora.output_adapters.mkdocs import MkDocsPaths
+from egregora.output_sinks.mkdocs import MkDocsPaths
 
 logger = logging.getLogger(__name__)
 console = Console()

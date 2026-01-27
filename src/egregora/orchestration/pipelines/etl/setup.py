@@ -35,13 +35,13 @@ from egregora.llm.rate_limit import init_rate_limiter
 from egregora.llm.usage import UsageTracker
 from egregora.orchestration.cache import PipelineCache
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
-from egregora.output_adapters import (
+from egregora.output_sinks import (
     OutputSinkRegistry,
     create_default_output_registry,
     create_output_sink,
 )
-from egregora.output_adapters.mkdocs import MkDocsPaths
-from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
+from egregora.output_sinks.mkdocs import MkDocsPaths
+from egregora.output_sinks.mkdocs.scaffolding import MkDocsSiteScaffolder
 
 try:
     import dotenv

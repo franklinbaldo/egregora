@@ -13,8 +13,8 @@ from egregora.agents.formatting import (
 )
 from egregora.data_primitives.document import DocumentType, Document, DocumentMetadata
 from egregora.agents.shared.annotations import AnnotationStore, Annotation
-from egregora.output_adapters.base import OutputSink
-from egregora.output_adapters.exceptions import DocumentNotFoundError
+from egregora.output_sinks.base import OutputSink
+from egregora.output_sinks.exceptions import DocumentNotFoundError
 
 
 class TestLoadJournalMemory:

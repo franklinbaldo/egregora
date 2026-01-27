@@ -152,7 +152,7 @@ Parquet adapter for exporting egregora data in columnar format:
 - Consistent schema (IR schema from DuckDB, not custom mapping)
 
 **References**:
-- Deleted code: `src/egregora/output_adapters/parquet/` (commit fa99223)
+- Deleted code: `src/egregora/output_sinks/parquet/` (commit fa99223)
 - DuckDB export docs: https://duckdb.org/docs/sql/statements/copy
 
 ---

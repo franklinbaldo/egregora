@@ -23,7 +23,7 @@ This document outlines the user experience and user interface (UX/UI) vision for
 >>>>>>> origin/pr/2729
 
 Key locations:
--   `src/egregora/output_adapters/mkdocs/scaffolding.py`: Renders these templates during the scaffold process.
+-   `src/egregora/output_sinks/mkdocs/scaffolding.py`: Renders these templates during the scaffold process.
 -   `src/egregora/rendering/templates/site/mkdocs.yml.jinja`: The main configuration template.
 <<<<<<< HEAD
 -   `src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`: The structural CSS (layout, navigation) AND the "Portal" theme styles (Consolidated).

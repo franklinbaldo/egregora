@@ -22,11 +22,11 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.text import slugify
 from egregora.knowledge.profiles import generate_fallback_avatar_url
-from egregora.output_adapters.exceptions import DocumentParsingError
+from egregora.output_sinks.exceptions import DocumentParsingError
 
 if TYPE_CHECKING:
     from egregora.data_primitives.document import UrlContext
-    from egregora.output_adapters.conventions import UrlConvention
+    from egregora.output_sinks.conventions import UrlConvention
 
 logger = logging.getLogger(__name__)
 

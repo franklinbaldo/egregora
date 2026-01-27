@@ -14,7 +14,7 @@ import yaml
 
 from egregora.data_primitives import DocumentMetadata, OutputSink, UrlConvention
 from egregora.data_primitives.text import slugify
-from egregora.output_adapters.exceptions import (
+from egregora.output_sinks.exceptions import (
     AdapterNotDetectedError,
     FilenameGenerationError,
     FrontmatterParsingError,

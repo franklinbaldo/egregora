@@ -1,7 +1,7 @@
 import pytest
 
 from egregora.data_primitives.document import Document, DocumentType, UrlContext
-from egregora.output_adapters.conventions import StandardUrlConvention
+from egregora.output_sinks.conventions import StandardUrlConvention
 
 
 @pytest.fixture

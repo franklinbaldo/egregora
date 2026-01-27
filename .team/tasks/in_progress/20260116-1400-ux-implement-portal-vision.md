@@ -55,20 +55,20 @@ This task is to fix the foundational issues to align the generated site with the
 -   **Verification:** After adding, run `uv sync` in a clean environment, then confirm `uv run egregora demo` runs without `ModuleNotFoundError`.
 
 ### 3.2. Fix Accent Color
--   **Where:** `src/egregora/output_adapters/mkdocs/scaffolding.py`
+-   **Where:** `src/egregora/output_sinks/mkdocs/scaffolding.py`
 -   **Action:** Locate the `MKDOCS_YML_TEMPLATE` multiline string. Find the `palette` section and change `accent: yellow` to `accent: custom` under both the `light` and `dark` mode schemes.
 -   **Verification:** After the change, run `uv run egregora demo` and inspect `demo/.egregora/mkdocs.yml` to confirm `accent: custom` is present.
 
 ### 3.3. Fix Social Cards
--   **Where:** `src/egregora/output_adapters/mkdocs/scaffolding.py`
+-   **Where:** `src/egregora/output_sinks/mkdocs/scaffolding.py`
 -   **Action:** In the `MKDOCS_YML_TEMPLATE`, find the `theme.features` list. Add the `cards` feature if it's not already enabled. The `mkdocs-material[imaging]` dependency added in step 3.1 is also required for this to work.
 -   **Verification:** Run `cd demo && uv run mkdocs build -f .egregora/mkdocs.yml` and check the build log. There should be no `404` errors related to social card images.
 
 ### 3.4. Add Favicon
 -   **Action:**
     1.  Create a placeholder 32x32 PNG favicon. You can generate one online or use a simple colored square.
-    2.  Save it to a new directory: `src/egregora/output_adapters/mkdocs/scaffold_files/assets/images/favicon.png`.
-    3.  Modify `src/egregora/output_adapters/mkdocs/scaffolding.py` to ensure this file is copied to `demo/docs/assets/images/favicon.png` when `egregora demo` is run. The logic for copying the `overrides` directory can likely be adapted.
+    2.  Save it to a new directory: `src/egregora/output_sinks/mkdocs/scaffold_files/assets/images/favicon.png`.
+    3.  Modify `src/egregora/output_sinks/mkdocs/scaffolding.py` to ensure this file is copied to `demo/docs/assets/images/favicon.png` when `egregora demo` is run. The logic for copying the `overrides` directory can likely be adapted.
 -   **Verification:** Run `uv run egregora demo` and verify that `demo/docs/assets/images/favicon.png` exists.
 
 ## 4. Acceptance Criteria

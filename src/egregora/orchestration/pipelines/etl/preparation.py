@@ -32,7 +32,7 @@ from egregora.input_adapters.whatsapp.commands import extract_commands, filter_e
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext, PipelineRunParams
-from egregora.output_adapters import create_and_initialize_adapter
+from egregora.output_sinks import create_and_initialize_adapter
 from egregora.rag import index_documents, reset_backend
 from egregora.transformations import (
     Window,

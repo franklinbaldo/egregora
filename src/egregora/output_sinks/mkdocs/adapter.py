@@ -32,9 +32,9 @@ from egregora.data_primitives.document import (
 from egregora.data_primitives.text import slugify
 from egregora.database.protocols import StorageProtocol
 from egregora.knowledge.profiles import generate_fallback_avatar_url
-from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
-from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
-from egregora.output_adapters.exceptions import (
+from egregora.output_sinks.base import BaseOutputSink, SiteConfiguration
+from egregora.output_sinks.conventions import RouteConfig, StandardUrlConvention
+from egregora.output_sinks.exceptions import (
     AdapterNotInitializedError,
     CollisionResolutionError,
     ConfigLoadError,
@@ -46,9 +46,9 @@ from egregora.output_adapters.exceptions import (
     ProfileMetadataError,
     UnsupportedDocumentTypeError,
 )
-from egregora.output_adapters.mkdocs.markdown import write_markdown_post
-from egregora.output_adapters.mkdocs.paths import MkDocsPaths
-from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
+from egregora.output_sinks.mkdocs.markdown import write_markdown_post
+from egregora.output_sinks.mkdocs.paths import MkDocsPaths
+from egregora.output_sinks.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 
 if TYPE_CHECKING:
     from collections.abc import Iterator

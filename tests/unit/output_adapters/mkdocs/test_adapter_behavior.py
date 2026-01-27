@@ -3,8 +3,8 @@
 import pytest
 
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.output_adapters.exceptions import AdapterNotInitializedError
-from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
+from egregora.output_sinks.exceptions import AdapterNotInitializedError
+from egregora.output_sinks.mkdocs.adapter import MkDocsAdapter
 
 
 @pytest.fixture

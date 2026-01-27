@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.output_adapters.exceptions import (
+from egregora.output_sinks.exceptions import (
     AdapterNotInitializedError,
     ConfigLoadError,
     DirectoryCreationError,
@@ -15,7 +15,7 @@ from egregora.output_adapters.exceptions import (
     FilesystemOperationError,
     FileWriteError,
 )
-from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
+from egregora.output_sinks.mkdocs.adapter import MkDocsAdapter
 
 
 @pytest.fixture
@@ -87,7 +87,7 @@ def test_persist_adds_related_posts_to_frontmatter(adapter: MkDocsAdapter):
     # Since `documents()` now reads from the DB, we mock its return value
     # to simulate the presence of other posts.
     with patch.object(adapter, "documents", return_value=[doc1, doc2, doc3]):
-        with patch("egregora.output_adapters.mkdocs.markdown.ensure_author_entries"):
+        with patch("egregora.output_sinks.mkdocs.markdown.ensure_author_entries"):
             adapter.persist(new_post_doc)
 
     # Verify that the new post's frontmatter contains the related posts
@@ -111,7 +111,7 @@ def test_persist_handles_filename_collisions(adapter: MkDocsAdapter):
     post1_meta = {"title": "Collision Post", "slug": "collision-post", "date": "2025-01-16"}
     post2_meta = {"title": "Collision Post", "slug": "collision-post", "date": "2025-01-16"}
 
-    with patch("egregora.output_adapters.mkdocs.markdown.ensure_author_entries"):
+    with patch("egregora.output_sinks.mkdocs.markdown.ensure_author_entries"):
         adapter.persist(Document(content="Content 1", type=DocumentType.POST, metadata=post1_meta))
         adapter.persist(Document(content="Content 2", type=DocumentType.POST, metadata=post2_meta))
 

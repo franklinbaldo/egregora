@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from egregora.config.settings import EgregoraConfig
-from egregora.output_adapters import create_and_initialize_adapter
+from egregora.output_sinks import create_and_initialize_adapter
 
 
 def test_create_and_initialize_adapter_detects_mkdocs(tmp_path):
@@ -14,9 +14,9 @@ def test_create_and_initialize_adapter_detects_mkdocs(tmp_path):
 
     # Mock MkDocsPaths to return our output_dir as site_root
     with (
-        patch("egregora.output_adapters.MkDocsPaths") as mock_paths_cls,
-        patch("egregora.output_adapters.create_output_sink") as mock_create_sink,
-        patch("egregora.output_adapters.create_default_output_registry") as mock_create_registry,
+        patch("egregora.output_sinks.MkDocsPaths") as mock_paths_cls,
+        patch("egregora.output_sinks.create_output_sink") as mock_create_sink,
+        patch("egregora.output_sinks.create_default_output_registry") as mock_create_registry,
     ):
         mock_paths_instance = MagicMock()
         mock_paths_instance.site_root = output_dir
@@ -45,7 +45,7 @@ def test_create_and_initialize_adapter_uses_existing_registry(tmp_path):
     mock_adapter = MagicMock()
     registry.detect_format.return_value = mock_adapter
 
-    with patch("egregora.output_adapters.MkDocsPaths") as mock_paths_cls:
+    with patch("egregora.output_sinks.MkDocsPaths") as mock_paths_cls:
         mock_paths_instance = MagicMock()
         mock_paths_instance.site_root = output_dir
         mock_paths_cls.return_value = mock_paths_instance

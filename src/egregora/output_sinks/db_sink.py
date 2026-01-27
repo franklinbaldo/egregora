@@ -17,8 +17,8 @@ from egregora.data_primitives.document import (
     UrlConvention,
 )
 from egregora.database.repository import ContentRepository
-from egregora.output_adapters.conventions import StandardUrlConvention
-from egregora.output_adapters.exceptions import (
+from egregora.output_sinks.conventions import StandardUrlConvention
+from egregora.output_sinks.exceptions import (
     DocumentIterationError,
     DocumentNotFoundError,
 )

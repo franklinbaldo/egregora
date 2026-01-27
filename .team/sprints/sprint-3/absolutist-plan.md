@@ -13,7 +13,7 @@ Continue the purification of the codebase.
 <<<<<<< HEAD
 - [ ] **Address CLI Compatibility Layers:** Investigate `src/egregora/cli/main.py` comments regarding "DuckDBStorageManager directly to ensure Ibis compatibility". If the underlying issue is resolved, remove the workaround.
 - [ ] **Deep Clean of `input_adapters`:** Check `src/egregora/input_adapters/base.py` for "Note: This is the only adapter interface. The legacy InputSource has been removed." and ensure no artifacts remain.
-- [ ] **Review `output_adapters` conventions:** Check for any remaining version tracking or migration compatibility code.
+- [ ] **Review `output_sinks` conventions:** Check for any remaining version tracking or migration compatibility code.
 =======
 - [ ] **Remove Legacy Media Behavior:** Based on Sprint 2 investigation, remove the `att_file` legacy logic and obsolete markers from `src/egregora/ops/media.py`.
 - [ ] **Remove `prompts.py` Shim:** If confirmed safe in Sprint 2, execute the removal of the legacy prompt compatibility layer.
@@ -23,7 +23,7 @@ Continue the purification of the codebase.
 Continuing the mission of simplification, Sprint 3 will focus on deeper structural cleanups and auditing peripheral adapters.
 
 - [ ] **Audit `input_adapters` for Legacy Artifacts:** Ensure that the transition from `InputSource` to the current adapter interface is complete and no "ghost" classes remain.
-- [ ] **Review `output_adapters` Compatibility:** Investigate `src/egregora/output_adapters/conventions.py` and other output adapters for migration layers that have served their purpose.
+- [ ] **Review `output_sinks` Compatibility:** Investigate `src/egregora/output_sinks/conventions.py` and other output adapters for migration layers that have served their purpose.
 - [ ] **Dead Code Analysis:** Conduct a sweep for unreachable code or unused imports that linters might have missed (or that were ignored).
 >>>>>>> origin/pr/2837
 
@@ -65,7 +65,7 @@ Sprint 3 is about "Capabilities" (Real-Time). Old batch-processing assumptions w
 >>>>>>> origin/pr/2890
 =======
 1.  Report on `input_adapters` cleanliness.
-2.  Removal of any identified legacy code in `output_adapters`.
+2.  Removal of any identified legacy code in `output_sinks`.
 3.  Deletion of verified dead code blocks.
 >>>>>>> origin/pr/2837
 

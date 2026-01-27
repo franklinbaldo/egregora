@@ -284,7 +284,7 @@ ignore = [
 ]
 
 # YAML loading - safe usage with controlled input
-"src/egregora/output_adapters/mkdocs/scaffolding.py" = [
+"src/egregora/output_sinks/mkdocs/scaffolding.py" = [
     "S506",    # Unsafe YAML load (mkdocs config from trusted source)
 ]
 

@@ -1703,7 +1703,7 @@ src/egregora/
 │   │   └── adapter.py
 │   ├── iperon_tjro.py
 │   └── self_reflection.py
-├── output_adapters/        # Format writers
+├── output_sinks/        # Format writers
 │   ├── base.py
 │   ├── mkdocs/
 │   │   ├── adapter.py

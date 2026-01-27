@@ -37,7 +37,7 @@ from egregora.agents.types import (
     WriterDeps,
 )
 from egregora.data_primitives.document import DocumentType
-from egregora.output_adapters.exceptions import DocumentNotFoundError
+from egregora.output_sinks.exceptions import DocumentNotFoundError
 from egregora.rag import RAGQueryRequest, reset_backend, search
 
 if TYPE_CHECKING:

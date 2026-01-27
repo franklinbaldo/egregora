@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from egregora.output_adapters.mkdocs.scaffolding import (
+from egregora.output_sinks.mkdocs.scaffolding import (
     MkDocsSiteScaffolder,
     ensure_mkdocs_project,
     safe_yaml_load,

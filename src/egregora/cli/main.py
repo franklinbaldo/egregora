@@ -30,8 +30,8 @@ from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
 from egregora.llm.api_keys import get_google_api_key
 from egregora.orchestration.pipelines.write import run_cli_flow
-from egregora.output_adapters.mkdocs.paths import MkDocsPaths
-from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
+from egregora.output_sinks.mkdocs.paths import MkDocsPaths
+from egregora.output_sinks.mkdocs.scaffolding import MkDocsSiteScaffolder
 
 app = typer.Typer(
     name="egregora",

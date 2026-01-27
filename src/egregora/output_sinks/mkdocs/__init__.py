@@ -8,13 +8,13 @@ Use EgregoraConfig().paths for directory configuration instead:
     - config.paths.media_dir (was MEDIA_DIR_NAME)
 """
 
-from egregora.output_adapters.mkdocs.adapter import (
+from egregora.output_sinks.mkdocs.adapter import (
     MkDocsAdapter,
 )
-from egregora.output_adapters.mkdocs.paths import (
+from egregora.output_sinks.mkdocs.paths import (
     MkDocsPaths,
 )
-from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
+from egregora.output_sinks.mkdocs.scaffolding import MkDocsSiteScaffolder
 
 __all__ = [
     "MkDocsAdapter",

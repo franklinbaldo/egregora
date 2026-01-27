@@ -78,7 +78,7 @@ All modified files compile successfully:
 ✓ src/egregora/database/views.py (Python 3.11 compatibility fix)
 ✓ src/egregora/utils/datetime_utils.py
 ✓ src/egregora/utils/exceptions.py
-✓ src/egregora/output_adapters/mkdocs/adapter.py
+✓ src/egregora/output_sinks/mkdocs/adapter.py
 ```
 
 ### ✅ Pre-commit Checks
