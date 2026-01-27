@@ -120,10 +120,14 @@ repos:
             "--cov-report=term-missing",
             "--cov-branch",
 <<<<<<< HEAD
+<<<<<<< HEAD
             "--cov-fail-under=60.0",
 =======
             "--cov-fail-under=59.6",
 >>>>>>> origin/pr/2874
+=======
+            "--cov-fail-under=59.5",
+>>>>>>> origin/pr/2834
             "-q",
             "--ignore=tests/unit/team",
           ]

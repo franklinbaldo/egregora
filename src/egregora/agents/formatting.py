@@ -151,7 +151,7 @@ def build_conversation_xml(
             notes = msg_data["notes"]
 >>>>>>> origin/pr/2856
             for ann in annotations_map[msg_id]:
-                msg_data["notes"].append({"id": ann.document_id, "content": ann.content})
+                msg_data["notes"].append({"id": ann.id, "content": ann.commentary})
         messages.append(msg_data)
 
     templates_dir = Path(__file__).resolve().parents[1] / "templates"
