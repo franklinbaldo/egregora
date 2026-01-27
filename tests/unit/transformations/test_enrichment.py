@@ -48,7 +48,11 @@ def test_missing_columns_adaptation():
     # Then
     res = result.to_pyarrow().to_pylist()
     assert "extra" in res[0]
+<<<<<<< HEAD
     # First row (from table) should be None
+=======
+    # First row (from table) should be None/NaN
+>>>>>>> origin/pr/2658
     assert res[0]["extra"] is None
     # Second row (from new_rows) should be "foo"
     assert res[1]["extra"] == "foo"
@@ -69,7 +73,11 @@ def test_timestamp_normalization_ts():
 
     # Then
     # Execute to verify no errors in casting
+<<<<<<< HEAD
     res = result.to_pyarrow().to_pylist()
+=======
+    res = result.to_pyarrow()
+>>>>>>> origin/pr/2658
     assert len(res) == 1
 
 
