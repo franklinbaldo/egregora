@@ -329,6 +329,8 @@ disallow_incomplete_defs = false
 [[tool.mypy.overrides]]
 module = [
     "ibis",
+    "ibis.common.exceptions",
+    "ibis.backends.duckdb",
     "ibis.expr",
     "ibis.expr.types",
     "ibis.expr.datatypes",

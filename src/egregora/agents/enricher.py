@@ -38,6 +38,7 @@ from pydantic_ai import Agent, RunContext, WebFetchTool
 =======
 # UrlContextTool is the client-side fetcher (alias for WebFetchTool) suitable for pydantic-ai
 <<<<<<< HEAD
+<<<<<<< HEAD
 # Note: UrlContextTool is deprecated in newer versions, but we keep it for compatibility with the current stack.
 # We will migrate to WebFetchTool in a future sprint.
 from pydantic_ai import Agent, RunContext, UrlContextTool
@@ -53,6 +54,9 @@ except ImportError:
     from pydantic_ai import UrlContextTool as WebFetchTool
 
 >>>>>>> origin/pr/2876
+=======
+from pydantic_ai import Agent, RunContext, WebFetchTool
+>>>>>>> origin/pr/2866
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import BinaryContent
 
@@ -1161,6 +1165,10 @@ class EnrichmentWorker(BaseWorker):
 
             # Upload file
             # Note: client.files.upload returns a File object with 'uri'
+<<<<<<< HEAD
+=======
+            # Memory: client.files.upload requires 'file' keyword argument, not 'path'
+>>>>>>> origin/pr/2866
             uploaded_file = client.files.upload(file=str(file_path), config={"mime_type": mime_type})
             logger.info("Uploaded file %s to %s", file_path.name, uploaded_file.uri)
 
