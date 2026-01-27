@@ -240,6 +240,7 @@ def extract_media_references(table: Table) -> set[str]:
 
     if hasattr(df, "text"):
         # pandas DataFrame
+<<<<<<< HEAD
         # Optimization: distinct messages to avoid redundant regex processing
         messages = df["text"].dropna().unique().tolist()
     elif hasattr(df, "to_pylist"):
@@ -247,6 +248,14 @@ def extract_media_references(table: Table) -> set[str]:
         # Optimization: distinct messages to avoid redundant regex processing
         # Use column iterator to avoid full table conversion
         messages = list({x for x in df["text"].to_pylist() if x})
+=======
+        # Optimization: process only unique messages to avoid redundant regex scans.
+        # Use dropna().unique() to exclude NaNs/Nones from the set.
+        messages = df["text"].dropna().unique()
+    elif hasattr(df, "to_pylist"):
+        # pyarrow Table
+        messages = {r["text"] for r in df.to_pylist() if r["text"] is not None}
+>>>>>>> origin/pr/2712
     else:
         # Fallback for unexpected type
         return references
