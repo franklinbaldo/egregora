@@ -792,7 +792,9 @@ class EnrichmentWorker(BaseWorker):
                     task = future_to_task[future]["task"]
                     # Log as error but maybe without full stack trace if we trust the message?
                     # For now, keep full trace as it helps debugging.
-                    logger.error("Enrichment execution failed for %s: %s", task["task_id"], exc, exc_info=True)
+                    logger.error(
+                        "Enrichment execution failed for %s: %s", task["task_id"], exc, exc_info=True
+                    )
                     results.append((task, None, str(exc)))
                 except Exception as exc:
                     task = future_to_task[future]["task"]
