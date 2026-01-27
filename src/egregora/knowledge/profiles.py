@@ -69,6 +69,7 @@ YAML_FRONTMATTER_DELIMITER_COUNT = 2  # Front matter delimiter occurrences in we
 PROFILE_DATE_REGEX = re.compile(r"(\d{4}-\d{2}-\d{2})")
 # Fast author extraction regex for performance-critical bulk operations
 _AUTHORS_COMBINED_REGEX = re.compile(
+<<<<<<< HEAD
     rb"^authors:[ \t]*(?:\n(?P<list>(?:\s*-\s+.+\n?)+)|(?P<single>.+))$", re.MULTILINE
 )
 
@@ -103,6 +104,10 @@ def _iter_authors_fast(path_str: str) -> Iterator[str]:
             author = match.group("single").strip()
             if author and not author.startswith("["):
                 yield author
+=======
+    r"^authors:[ \t]*(?:\n(?P<list>(?:\s*-\s+.+\n?)+)|(?P<single>.+))$", re.MULTILINE
+)
+>>>>>>> origin/pr/2700
 
 
 def _find_profile_path(
@@ -1200,6 +1205,7 @@ def extract_authors_from_post(md_file: Path | str, *, fast: bool = True) -> set[
                     authors_block = match.group("list")
                     # Extract author IDs from "  - author_id" lines
                     authors = set()
+<<<<<<< HEAD
                     for line in authors_block.split(b"\n"):
                         stripped = line.strip()
                         if stripped.startswith(b"-"):
@@ -1213,6 +1219,21 @@ def extract_authors_from_post(md_file: Path | str, *, fast: bool = True) -> set[
                     author_bytes = match.group("single").strip()
                     if author_bytes and not author_bytes.startswith(b"["):  # Not a JSON array
                         return {author_bytes.decode("utf-8")}
+=======
+                    for line in authors_block.split("\n"):
+                        stripped = line.strip()
+                        if stripped.startswith("-"):
+                            # Remove the leading "- " and any surrounding whitespace/quotes
+                            author = stripped[1:].strip().strip("'\"")
+                            if author:
+                                authors.add(author)
+                    return authors if authors else set()
+
+                if match.group("single"):
+                    author = match.group("single").strip()
+                    if author and not author.startswith("["):  # Not a JSON array
+                        return {author}
+>>>>>>> origin/pr/2700
 
             return set()
 =======
