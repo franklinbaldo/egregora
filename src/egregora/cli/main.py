@@ -28,7 +28,10 @@ from egregora.config.exceptions import ApiKeyNotFoundError
 from egregora.constants import SourceType, WindowUnit
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
+<<<<<<< HEAD
 from egregora.llm.api_keys import get_google_api_key
+=======
+>>>>>>> origin/pr/2736
 from egregora.orchestration.pipelines.write import run_cli_flow
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
