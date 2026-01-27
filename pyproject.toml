@@ -429,7 +429,11 @@ omit = ["*/tests/*", "*/__pycache__/*", "*/site-packages/*"]
 show_missing = true
 skip_covered = false
 precision = 2
+<<<<<<< HEAD
 fail_under = 60.0
+=======
+fail_under = 59.6
+>>>>>>> origin/pr/2874
 
 [tool.deptry]
 ignore_notebooks = true
