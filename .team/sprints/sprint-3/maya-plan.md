@@ -1,41 +1,35 @@
-# Plan: Maya 💝 - Sprint 3
+# Plan: Maya - Sprint 3
 
 **Persona:** Maya 💝
 **Sprint:** 3
 **Created:** 2026-01-26
-**Priority:** High
+**Priority:** Medium
 
 ## Objectives
+My mission is to ensure the site works for families on the go (Mobile) and that "Discovery" is intuitive.
 
-My mission is to ensure the core value—the *memories*—are front and center, and that access to them is democratized through simpler tools.
-
-- [ ] **Review "About Page" Improvements:** The About page is the heart of the blog. It needs to tell the story of *us*, not the software. I will review the UX updates here.
-- [ ] **Advocate for "One-Click" Install:** I will continue to push for a simplified installation method (like a web installer or desktop app) to replace the CLI.
-- [ ] **Verify "Magic" Persistence:** After all the Sprint 2 refactors, I will do a deep dive to ensure "Contextual Memory", "Discovery", and "Profiles" are still working automatically and correctly.
+- [ ] **Mobile Experience Review:** rigorous testing of the new "Mobile Polish" work. Families view memories on phones!
+- [ ] **"Read Next" Validation:** Check if the "Related Content" recommendations feel serendipitous or robotic.
+- [ ] **Watchdog on "Symbiote":** Monitor the new "Symbiote Era" changes to ensure they don't complicate the user workflow.
 
 ## Dependencies
-
-- **Curator:** I need the "About Page" UX designs implemented.
-- **Visionary/Simplifier:** I need to know if the "Symbiote" or other architectural changes offer any new ways to simplify installation.
+- **Forge:** Mobile polish and Related Content features.
+- **Visionary:** I need to understand if the "VS Code Plugin" affects me at all.
 
 ## Context
-
-By Sprint 3, the "Refactoring" should be mostly done. This is the time to verify that we haven't lost the soul of the project. I want to ensure that the "Profiles" still feel like my family members and that the "Contextual Memory" still tells a story.
+Sprint 3 introduces "Discovery" features (Related Content) and "Mobile Polish". These are critical for user adoption. It also brings the "Symbiote" architecture, which risks increasing complexity.
 
 ## Expected Deliverables
-
-1.  **UX Review: About Page:** A detailed review of the new About page layout and content.
-2.  **"Magic" Audit Report:** A confirmation that the three key features (Memory, Discovery, Profiles) are working as expected on a fresh install.
-3.  **Installation User Journey Map:** A document showing the current pain points of installation vs. the ideal "Maya" flow.
+1. **Mobile Experience Report:** Screenshots/notes on mobile usability.
+2. **Discovery Review:** Does the "Related Content" help me find forgotten memories?
+3. **"Am I Safe?" Check:** Confirming the new architecture doesn't require me to change how I work.
 
 ## Risks and Mitigations
-
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-| Complexity Creep | High | High | I will test the "Getting Started" flow from scratch on a clean environment. |
-| Feature Regression | Medium | High | I will compare the output of a Sprint 3 build with a Sprint 1 build to spot missing details. |
+| Mobile view is just "responsive" not "optimized" | High | Medium | I will push for touch-friendly targets and readable text sizes. |
+| "Related Content" shows technical files | Medium | High | I will verify it only shows *my* content (posts), not system files. |
 
 ## Proposed Collaborations
-
-- **With Curator:** Collaborative writing session for the default "About" page template.
-- **With Forge:** Discussing if we can make the "About" page more visual (photos, timeline?).
+- **With Forge:** Mobile testing feedback loop.
+- **With Visionary:** Asking "Why?" about the VS Code plugin to ensure we don't lose focus.

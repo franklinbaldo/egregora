@@ -22,6 +22,26 @@ from egregora.orchestration.pipelines.etl.preparation import Conversation
 logger = logging.getLogger(__name__)
 
 
+def _extract_messages(conversation: Conversation) -> list[Any]:
+    """Extract messages list from conversation table."""
+    try:
+        executed = conversation.messages_table.execute()
+        if hasattr(executed, "to_pylist"):
+            return cast("list[Any]", executed.to_pylist())
+        if hasattr(executed, "to_dict"):
+            return cast("list[Any]", executed.to_dict(orient="records"))
+        return []
+    except (AttributeError, TypeError):
+        try:
+            return cast("list[Any]", conversation.messages_table.to_pylist())
+        except (AttributeError, TypeError):
+            return (
+                cast("list[Any]", conversation.messages_table)
+                if isinstance(conversation.messages_table, list)
+                else []
+            )
+
+
 def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     """Execute the agent on an isolated conversation item.
 
@@ -41,21 +61,7 @@ def process_item(conversation: Conversation) -> dict[str, dict[str, list[str]]]:
     # But filtering commands from input to writer is "prep".
 
     # Convert table to list
-    try:
-        executed = conversation.messages_table.execute()
-        if hasattr(executed, "to_pylist"):
-            messages_list = executed.to_pylist()
-        elif hasattr(executed, "to_dict"):
-            messages_list = executed.to_dict(orient="records")
-        else:
-            messages_list = []
-    except (AttributeError, TypeError):
-        try:
-            messages_list = conversation.messages_table.to_pylist()
-        except (AttributeError, TypeError):
-            messages_list = (
-                conversation.messages_table if isinstance(conversation.messages_table, list) else []
-            )
+    messages_list = _extract_messages(conversation)
 
     # Handle commands (Announcements)
     command_messages = extract_commands_list(messages_list)

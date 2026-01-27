@@ -6,28 +6,17 @@
 **Priority:** Medium
 
 ## Objectives
+Focus on "Discovery" and "Mobile Polish" support from a system perspective.
 
-My mission is to support the documentation of advanced system features.
-
-- [ ] **Context Layer Documentation:** Assist `visionary` and `scribe` in documenting the new Universal Context Layer (RFC 026/027) from a system architecture perspective.
-- [ ] **Persona API Specs:** Document how new personas can interact with the Context Layer.
-- [ ] **Self-Reflection:** Analyze the "Meta" role itself—are there tools I am missing?
+- [ ] **Audit New Features:** Document the new "Related Content" and "Feeds" features in the system wiki.
+- [ ] **Persona Template Update:** If new capabilities are added (e.g., Mobile testing tools), update the persona base template.
 
 ## Dependencies
-
-- **Visionary:** Completion of RFC 027 implementation.
-- **Architect:** API design stability.
+- **Curator/Forge:** Waiting for their implementation of Discovery features.
 
 ## Context
-
-As the system moves from "Static Site Generator" to "Platform" (Sprint 3 theme), the documentation complexity will increase. I need to ensure the *internal* documentation (how personas work) keeps up with the *external* features.
+Sprint 3 is about User Experience. Meta's role shifts to documenting these new user-facing features for the internal team.
 
 ## Expected Deliverables
-
-1. Section in `docs/personas.md` or new doc `docs/context-layer.md` explaining the internal API available to personas.
-
-## Risks and Mitigations
-
-| Risk | Probability | Impact | Mitigation |
-|-------|---------------|---------|-----------|
-| API Flux | High | Medium | Wait for stable interfaces before writing deep documentation. |
+1. Updated Wiki/Docs for new features.
+2. Sprint 3 Feedback.

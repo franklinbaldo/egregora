@@ -38,6 +38,7 @@ from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import BinaryContent
 
 from egregora.agents.exceptions import (
+    EnrichmentExecutionError,
     EnrichmentFileError,
     EnrichmentParsingError,
     EnrichmentSlugError,
@@ -646,8 +647,8 @@ class EnrichmentWorker(BaseWorker):
                 loop.close()
 
         except Exception as e:
-            logger.exception("Failed to enrich URL %s", url)
-            return task, None, str(e)
+            msg = f"Failed to enrich URL {url}: {e}"
+            raise EnrichmentExecutionError(msg) from e
         else:
             return task, result.data, None
 
@@ -672,8 +673,11 @@ class EnrichmentWorker(BaseWorker):
                 ).strip()
 
                 tasks_data.append({"task": task, "url": url, "prompt": prompt})
-            except Exception:
-                logger.exception("Failed to prepare URL task %s", task["task_id"])
+            except Exception as e:
+                msg = f"Failed to prepare URL task {task.get('task_id')}: {e}"
+                logger.exception(msg)
+                if self.task_store:
+                    self.task_store.mark_failed(task.get("task_id"), msg)
 
         return tasks_data
 
@@ -784,9 +788,17 @@ class EnrichmentWorker(BaseWorker):
                         logger.info("[Heartbeat] URL Enrichment: %d/%d (%.1f%%)", i, total, (i / total) * 100)
                         last_log_time = time.time()
 
+                except EnrichmentExecutionError as exc:
+                    task = future_to_task[future]["task"]
+                    # Log as error but maybe without full stack trace if we trust the message?
+                    # For now, keep full trace as it helps debugging.
+                    logger.error(
+                        "Enrichment execution failed for %s: %s", task["task_id"], exc, exc_info=True
+                    )
+                    results.append((task, None, str(exc)))
                 except Exception as exc:
                     task = future_to_task[future]["task"]
-                    logger.exception("Enrichment failed for %s", task["task_id"])
+                    logger.exception("Unexpected error during enrichment for %s", task["task_id"])
                     results.append((task, None, str(exc)))
 
         logger.info("[Enrichment] URL tasks complete: %d/%d", len(results), total)

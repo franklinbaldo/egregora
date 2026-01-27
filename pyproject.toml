@@ -17,21 +17,23 @@ dependencies = [
     "rich>=13.9",
     "tenacity>=9.1",
     "typer>=0.20",
-
     # Egregora core dependencies
     "diskcache>=5.6.3",
     "ibis-framework[duckdb]>=11.0",
     "python-dateutil>=2.9",
     "pydantic-ai>=1.25",
-    "google-generativeai>=0.8.6",
     "scikit-learn>=1.7",
     "lancedb>=0.25",
-    "pillow>=11.3",
+    "pillow>=11.3.0",
     "ratelimit>=2.2",
-
     # Site generation dependencies (for demo command)
     "mkdocs-material[imaging]>=9.7",
     "mkdocs-glightbox>=0.5.2",
+    "numpy>=2.4.1",
+    "google-genai>=1.0",
+    "protobuf>=6.33.4",
+    "google-api-core>=2.29.0",
+    "google-ai-generativelanguage>=0.10.0",
 ]
 
 [project.scripts]
@@ -419,4 +421,58 @@ omit = ["*/tests/*", "*/__pycache__/*", "*/site-packages/*"]
 show_missing = true
 skip_covered = false
 precision = 2
-fail_under = 58.0
+fail_under = 60.0
+
+[tool.deptry]
+ignore_notebooks = true
+extend_exclude = [".team", "scripts", "artifacts", "docs", "tests", ".claude"]
+
+[tool.deptry.package_module_name_map]
+"google-ai-generativelanguage" = "google.ai.generativelanguage"
+"protobuf" = "google.protobuf"
+"pyyaml" = "yaml"
+"ibis-framework" = "ibis"
+"python-frontmatter" = "frontmatter"
+"python-dateutil" = "dateutil"
+"pillow" = "PIL"
+"scikit-learn" = "sklearn"
+"google-generativeai" = "google.generativeai"
+"google-genai" = "google.genai"
+"pydantic-settings" = "pydantic_settings"
+"pymdown-extensions" = "pymdownx"
+"google-api-python-client" = "googleapiclient"
+
+[tool.deptry.per_rule_ignores]
+DEP001 = ["dotenv", "google", "pydantic_core", "playwright", "repo", "requests", "uvicorn", "pydantic_graph", "repo_client"]
+DEP002 = [
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocs-glightbox",
+    "mkdocs-macros-plugin",
+    "mkdocs-rss-plugin",
+    "mkdocs-blogging-plugin",
+    "mkdocs-git-revision-date-localized-plugin",
+    "mkdocs-minify-plugin",
+    "mkdocs-static-i18n",
+    "mkdocstrings",
+    "mkdocs-autorefs",
+    "codespell",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-mock",
+    "pytest-xdist",
+    "faker",
+    "freezegun",
+    "syrupy",
+    "respx",
+    "moto",
+    "hypothesis",
+    "google-api-core",
+    "google-genai",
+    "aiohttp",
+    "urllib3",
+    "lxml",
+    "mkdocs-material[imaging]",
+    "boto3",
+    "google-generativeai", "pydantic-evals"
+]

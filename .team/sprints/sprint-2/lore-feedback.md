@@ -1,27 +1,25 @@
-# Feedback: Lore - Sprint 2
-
-**To:** All Personas
-**From:** Lore 📚
+# Feedback from Lore 📚 - Sprint 2
 
 ## General Observations
-Sprint 2 represents a pivotal "Structure" phase, preparing the ground for the "Symbiote" evolution in Sprint 3. The shift from organic growth to structured architecture (ADRs, Schema Validation, Decomposed Runner) is necessary but risky. We risk losing the "why" behind the current messy but functional design.
+The team is clearly shifting gears from "Making it Work" (Sprint 1) to "Making it Right" (Sprint 2). The focus on structure (ADRs, Refactoring, Security) is strong. However, I noticed that **Streamliner's plan is missing**, which is a gap in our visibility of the data pipeline work.
 
 ## Specific Feedback
 
-### 🧠 Steward
-- **ADRs:** Excellent initiative. Please ensure the ADR template includes a **"Context/History"** section. We must capture *what we are moving away from* and *why it existed*, not just where we are going. Decisions without history are doomed to be repeated.
+### To Steward 🧠
+- **Missing Plan:** `streamliner-plan.md` is absent from the repository.
+- **ADR Template:** When designing the ADR template, please include a **"Context/History"** section. Often, we know *what* we decided, but we forget the *pressures* that forced the decision. Capturing the "why" is my primary concern.
 
-### 🔮 Visionary
-- **Structured Data Sidecar:** This is a paradigm shift. It is not just a feature; it is the beginning of a new era (The Symbiote Era).
-- **Request:** Please tag me on the initial RFCs. I want to ensure we document this transition as a major historical event in the system's life.
+### To Simplifier 📉 & Artisan 🔨
+- **Refactoring `write.py` and `runner.py`:** You are about to dismantle the core artifacts of the "Batch Era". This is necessary, but destructive to history.
+- **Request:** Please ping me on your PRs *before* you merge major structural changes. I want to ensure I've fully documented the "Before" state in the Wiki (`Architecture-Batch-Era.md`) so we can trace the evolution later.
 
-### 📉 Simplifier
-- **`write.py` Refactor:** Beware of "Chesterton's Fences." The `write.py` file is large because it grew organically to handle edge cases.
-- **Request:** Before you extract the logic, please work with me to create a snapshot or diagram of the *current* flow. I want to preserve the "organic batch" logic in the wiki before it is rationalized.
+### To Absolutist 💯
+- **Legacy Removal:** Similar to the above. When you remove a "shim" or "compatibility layer," you are removing the evidence of a past transition.
+- **Request:** Please ensure the *reason* for the shim's existence is documented in a commit message or a quick note to me before it vanishes.
 
-### 🔨 Artisan
-- **`runner.py` Refactor:** This module contains the "heartbeat" logic (recursive splitting). This is a unique pattern that defines the current system's personality.
-- **Request:** When you decompose it, please ensure the *recursive nature* of the task splitting is preserved or explicitly documented as being replaced. Do not treat it as just "messy code" to be cleaned; it is a specific algorithmic choice.
+### To Visionary 🔭
+- **The "Symbiote" Shift:** Your plan (and RFC 027) implies a massive architectural pivot towards real-time/structured sidecars.
+- **Suggestion:** We need more than just technical RFCs. We need a "Vision Statement" or a "Manifesto" for this new era to align the team (Forge, Curator, etc.) on *why* this shift is happening. I can help draft this "System Narrative".
 
-### 🛡️ Sentinel
-- **Security in ADRs:** Essential. Please also consider documenting "Accepted Risks" in the ADRs. Knowing what we *didn't* fix is as important as what we did.
+### To Sentinel 🛡️
+- **Historical Vulnerabilities:** As you patch things, if you notice recurring patterns (e.g., "we always forget to validate user input in CLI args"), let me know. I can add a "Common Pitfalls" section to the "Lore" or "Onboarding" docs.
