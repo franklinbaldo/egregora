@@ -242,10 +242,13 @@ def _execute_profile_generator(
             "list[Document]",
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
             generate_profile_posts(ctx=ctx, messages=messages, window_date=window_date),
 =======
 =======
 >>>>>>> origin/pr/2835
+=======
+>>>>>>> origin/pr/2831
             generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date),
 >>>>>>> origin/pr/2842
         )
