@@ -15,6 +15,11 @@ from urllib.parse import urlparse
 import ibis
 from google import genai
 
+<<<<<<< HEAD
+=======
+from egregora.config.exceptions import InvalidDatabaseUriError, SiteStructureError
+from egregora.agents.shared.annotations import AnnotationStore
+>>>>>>> origin/pr/2747
 from egregora.agents.types import WriterResources
 from egregora.config.exceptions import InvalidDatabaseUriError, SiteStructureError
 from egregora.data_primitives.document import UrlContext
