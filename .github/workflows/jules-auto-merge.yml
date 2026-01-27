@@ -42,4 +42,4 @@ jobs:
           fi
 
           echo "Enabling auto-merge for PR #$PR_NUMBER."
-          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch
+          gh pr merge "$PR_NUMBER" --auto --delete-branch
