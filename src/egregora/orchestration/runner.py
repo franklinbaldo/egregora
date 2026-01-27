@@ -9,7 +9,11 @@ import logging
 import math
 from collections import deque
 from collections.abc import Iterator
+<<<<<<< HEAD
 from typing import TYPE_CHECKING, Any, Protocol, cast
+=======
+from typing import TYPE_CHECKING, Any, cast
+>>>>>>> origin/pr/2679
 
 from egregora.agents.banner.worker import BannerWorker
 from egregora.agents.commands import command_to_announcement, filter_commands
@@ -43,9 +47,11 @@ from egregora.transformations.windowing import generate_window_signature, split_
 
 if TYPE_CHECKING:
     from datetime import datetime
+    from typing import Protocol
 
     import ibis.expr.types as ir
 
+<<<<<<< HEAD
     from egregora.data_primitives.document import DocumentMetadata
     from egregora.input_adapters.base import MediaMapping
     from egregora.transformations.windowing import Window
@@ -55,6 +61,15 @@ if TYPE_CHECKING:
 
     class LibraryProtocol(Protocol):
         journal: JournalRepositoryProtocol
+=======
+    from egregora.data_primitives.document import Document
+    from egregora.database.repository import ContentRepository
+    from egregora.input_adapters.base import MediaMapping
+    from egregora.transformations.windowing import Window
+
+    class LibraryProtocol(Protocol):
+        journal: ContentRepository
+>>>>>>> origin/pr/2679
 
 
 logger = logging.getLogger(__name__)
@@ -196,24 +211,27 @@ class PipelineRunner:
 
         """
         processed: set[tuple[str, str]] = set()
+<<<<<<< HEAD
         if not self.context.library:
+=======
+        library = cast("LibraryProtocol | None", self.context.library)
+        if not library:
+>>>>>>> origin/pr/2679
             return processed
 
         try:
             # Using list(DocumentType.JOURNAL) on library.journal (which is a DocumentRepository)
+<<<<<<< HEAD
             # Use cast to Protocol to avoid "object has no attribute journal" error
             library = cast("LibraryProtocol", self.context.library)
+=======
+>>>>>>> origin/pr/2679
             journals = library.journal.list(doc_type=DocumentType.JOURNAL)
 
             for journal in journals:
-                # journal is DocumentMetadata (identifier, doc_type, metadata)
-                meta = journal.metadata
-                if not meta:
-                    continue
-
-                # Check timestamps (allowing for string/datetime diffs)
-                j_start = meta.get("window_start")
-                j_end = meta.get("window_end")
+                # journal is a dict with keys matching table columns
+                j_start = journal.get("window_start")
+                j_end = journal.get("window_end")
 
                 if j_start and j_end:
                     processed.add((str(j_start), str(j_end)))
@@ -357,7 +375,7 @@ class PipelineRunner:
 
         # CONVERT TO DTOs for Writer
         # Ensure messages_list are dicts, convert to Message objects
-        messages_dtos = []
+        messages_dtos: list[Message] = []
         for msg_dict in messages_list:
             try:
                 # We need to map keys if they don't match exactly or if extra keys exist.
@@ -413,6 +431,7 @@ class PipelineRunner:
         )
 
         writer_result = write_posts_for_window(params)
+<<<<<<< HEAD
         posts: list[str] = cast("list[str]", writer_result.get("posts", []))
         profiles: list[str] = cast("list[str]", writer_result.get("profiles", []))
 
@@ -420,6 +439,18 @@ class PipelineRunner:
         try:
             profile_docs_result = generate_profile_posts(
                 ctx=self.context, messages=clean_messages_list, window_date=window_date
+=======
+        posts: list[str] = writer_result.get("posts", [])
+        profiles: list[str] = writer_result.get("profiles", [])
+
+        window_date = window.start_time.strftime("%Y-%m-%d")
+        try:
+            profile_docs = cast(
+                "list[Document]",
+                generate_profile_posts(
+                    ctx=self.context, messages=clean_messages_list, window_date=window_date
+                ),
+>>>>>>> origin/pr/2679
             )
             # Handle potential awaitable return from generate_profile_posts
             # In sync context, we expect list[Document]
@@ -428,7 +459,8 @@ class PipelineRunner:
             for profile_doc in profile_docs:
                 try:
                     output_sink.persist(profile_doc)
-                    profiles.append(profile_doc.document_id)
+                    if profile_doc.document_id:
+                        profiles.append(profile_doc.document_id)
                 except Exception as exc:
                     msg = f"Failed to persist profile {profile_doc.document_id}: {exc}"
                     raise ProfileGenerationError(msg) from exc
