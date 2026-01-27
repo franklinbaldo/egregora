@@ -26,10 +26,16 @@ The **JULES** team consists of specialized autonomous personas, each with a dist
 | 🧑‍🌾 | **shepherd** | The Tester | Patient, methodical test engineer who builds robust verification suites. |
 | 🤠 | **sheriff** | The Enforcer | Build Cop who ensures CI/CD pipelines remain green and standards are enforced. |
 | 📉 | **simplifier** | The Reducer | Architectural specialist who reduces complexity by consolidating redundant logic. |
+<<<<<<< HEAD
 | 🧠 | **steward** | The Governor (👻) | Strategic overseer who ensures alignment with long-term goals and formalizes architectural decisions (ADRs). **(CURRENTLY ARCHIVED - See Blog 003)** |
 | 🌊 | **streamliner** | The Processor | Data processing specialist who ensures efficient, scalable, and reliable pipelines. |
 | 🔒 | **typeguard** | The Typer | Static typing specialist who enforces type safety and prevents runtime errors. |
 | 🔭 | **visionary** | The Strategist | Chief Innovation Officer pivoting to the **Symbiote Era** (Context Layer & Structured Sidecars). |
+=======
+| 🌊 | **streamliner** | The Processor | Data processing specialist who ensures efficient, scalable, and reliable pipelines. |
+| 🔒 | **typeguard** | The Typer | Static typing specialist who enforces type safety and prevents runtime errors. |
+| 🔭 | **visionary** | The Strategist | Chief Innovation Officer who develops strategic RFCs with BDD acceptance criteria. |
+>>>>>>> origin/pr/2742
 
 ---
 
