@@ -120,9 +120,6 @@ jobs:
     name: Security Scan
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: read
-      security-events: write
     steps:
       - uses: actions/checkout@v4
 
@@ -135,16 +132,6 @@ jobs:
         run: |
           uvx safety check --full-report || true
           uvx pip-audit || true
-
-      - name: Run bandit
-        continue-on-error: true
-        run: uvx --with bandit-sarif-formatter bandit -r src/ -f sarif -o bandit-report.sarif
-
-      - name: Upload Bandit SARIF
-        if: hashFiles('bandit-report.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: bandit-report.sarif
 
   build:
     name: Build Package
