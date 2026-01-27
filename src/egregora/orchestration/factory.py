@@ -7,7 +7,6 @@ for the write pipeline, decluttering the orchestration logic.
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
@@ -23,6 +22,16 @@ from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.types import WriterResources
 from egregora.config.exceptions import InvalidDatabaseUriError, SiteStructureError
 from egregora.data_primitives.document import UrlContext
+<<<<<<< HEAD
+=======
+from egregora.database import initialize_database
+from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.profile_cache import scan_and_cache_all_documents
+from egregora.database.repository import ContentRepository
+from egregora.database.utils import resolve_db_uri
+from egregora.llm.usage import UsageTracker
+from egregora.orchestration.cache import PipelineCache
+>>>>>>> origin/pr/2654
 from egregora.orchestration.context import (
     PipelineContext,
 )
@@ -37,6 +46,41 @@ if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_and_connect(value: str, setting_name: str, site_root: Path) -> tuple[str, Any]:
+    """Validate database URI and connect to the backend.
+
+    Args:
+        value: Database URI string
+        setting_name: Name of the setting for error messages
+        site_root: Site root directory for resolving relative paths
+
+    Returns:
+        Tuple of (resolved_uri, backend_connection)
+
+    """
+    if not value:
+        msg = f"Database setting '{setting_name}' must be a non-empty connection URI."
+        raise ValueError(msg)
+
+    parsed = urlparse(value)
+    if not parsed.scheme:
+        msg = (
+            f"Database setting '{setting_name}' must be provided as an Ibis-compatible connection "
+            "URI (e.g. 'duckdb:///absolute/path/to/file.duckdb' or 'postgres://user:pass@host/db')."
+        )
+        raise ValueError(msg)
+
+    if len(parsed.scheme) == 1 and value[1:3] in {":/", ":\\"}:
+        msg = (
+            f"Database setting '{setting_name}' looks like a filesystem path. Provide a full connection "
+            "URI instead (see the database settings documentation)."
+        )
+        raise ValueError(msg)
+
+    normalized_value = resolve_db_uri(value, site_root)
+    return normalized_value, ibis.connect(normalized_value)
 
 
 class PipelineFactory:
@@ -65,6 +109,7 @@ class PipelineFactory:
             still using proper connection strings.
 
         """
+<<<<<<< HEAD
 
         def _validate_and_connect(value: str, setting_name: str) -> tuple[str, Any]:
             if not value:
@@ -111,11 +156,11 @@ class PipelineFactory:
 
             return normalized_value, ibis.connect(normalized_value)
 
+=======
+>>>>>>> origin/pr/2654
         runtime_db_uri, pipeline_backend = _validate_and_connect(
-            config.database.pipeline_db, "database.pipeline_db"
+            config.database.pipeline_db, "database.pipeline_db", site_root
         )
-        # runs_db removed as part of Essentialist simplification
-
         return runtime_db_uri, pipeline_backend
 
     @staticmethod

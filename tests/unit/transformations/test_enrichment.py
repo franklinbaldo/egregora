@@ -3,6 +3,10 @@
 from datetime import datetime
 
 import ibis
+<<<<<<< HEAD
+=======
+import pandas as pd
+>>>>>>> origin/pr/2654
 
 from egregora.transformations.enrichment import combine_with_enrichment_rows
 
@@ -29,6 +33,7 @@ def test_combine_basic_functionality():
     # The function sorts by "ts".
     assert res[0]["id"] == 1
     assert res[1]["id"] == 2
+
 
 
 def test_missing_columns_adaptation():
@@ -58,6 +63,7 @@ def test_missing_columns_adaptation():
     assert res[1]["extra"] == "foo"
 
 
+
 def test_timestamp_normalization_ts():
     """Verify timestamp normalization when column is named 'ts'."""
     # Given
@@ -79,6 +85,7 @@ def test_timestamp_normalization_ts():
     res = result.to_pyarrow()
 >>>>>>> origin/pr/2658
     assert len(res) == 1
+
 
 
 def test_empty_new_rows():
@@ -116,6 +123,7 @@ def test_ordering():
     assert res[1]["id"] == 2
 
 
+
 def test_supports_alternate_timestamp_column():
     """Verify support for 'timestamp' column name instead of 'ts'."""
     # Given: Schema using "timestamp" instead of "ts"
@@ -132,6 +140,7 @@ def test_supports_alternate_timestamp_column():
     res = result.to_pyarrow().to_pylist()
     assert len(res) == 2
     assert res[1]["id"] == 2
+
 
 
 def test_no_timestamp_column():

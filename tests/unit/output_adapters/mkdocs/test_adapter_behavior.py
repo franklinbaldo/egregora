@@ -102,8 +102,11 @@ def test_persist_journal(adapter, site_root):
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 def test_list(adapter, site_root):
 =======
+=======
+>>>>>>> origin/pr/2654
 def test_list_documents(adapter, site_root):
 >>>>>>> origin/pr/2658
     """Verify listing documents from filesystem."""

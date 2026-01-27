@@ -119,10 +119,14 @@ def init(
                 f"[bold]Next steps:[/bold]\n"
                 f"1. Generate content:\n   [cyan]egregora write path/to/chat_export.zip --output-dir {output_dir}[/cyan]\n"
 <<<<<<< HEAD
+<<<<<<< HEAD
                 f'2. Preview the site:\n   [cyan]cd {output_dir}[/cyan]\n   [cyan]uv tool run --with "mkdocs-material\\[imaging]" --with pillow --with cairosvg --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml[/cyan]',
 =======
                 f'2. Preview the site:\n   [cyan]cd {output_dir}[/cyan]\n   [cyan]uv tool run --with "mkdocs-material[imaging]" --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml[/cyan]',
 >>>>>>> origin/pr/2658
+=======
+                f'2. Preview the site:\n   [cyan]cd {output_dir}[/cyan]\n   [cyan]uv tool run --with "mkdocs-material[imaging]" --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml[/cyan]',
+>>>>>>> origin/pr/2654
                 title="🛠️ Initialization Complete",
                 border_style="green",
             )
@@ -508,10 +512,14 @@ def demo(
             "[bold green]✅ Demo site generated successfully![/bold green]\n\n"
             "To view the site, run:\n"
 <<<<<<< HEAD
+<<<<<<< HEAD
             f'[cyan]cd {output_dir} && uv tool run --with "mkdocs-material\\[imaging]" --with pillow --with cairosvg --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml[/cyan]',
 =======
             '[cyan]cd demo && uv tool run --with "mkdocs-material[imaging]" --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml[/cyan]',
 >>>>>>> origin/pr/2658
+=======
+            '[cyan]cd demo && uv tool run --with "mkdocs-material[imaging]" --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin --with mkdocs-glightbox --with mkdocs-git-revision-date-localized-plugin --with mkdocs-minify-plugin mkdocs serve -f .egregora/mkdocs.yml[/cyan]',
+>>>>>>> origin/pr/2654
             title="🚀 Demo Complete",
             border_style="green",
         )

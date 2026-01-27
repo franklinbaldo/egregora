@@ -381,12 +381,15 @@ def create_default_posts(test_posts_dir, count):
         create_minimal_post(test_posts_dir, f"post-{i}")
 
 
+<<<<<<< HEAD
 @given(parsers.parse("{count:d} posts exist"))
 def posts_exist(test_posts_dir, count):
     """Create specified number of posts."""
     create_default_posts(test_posts_dir, count)
 
 
+=======
+>>>>>>> origin/pr/2654
 @given(parsers.parse("a site with {count:d} blog posts in the posts directory"))
 def create_site_with_posts(test_posts_dir, count):
     """Create a site directory with blog posts."""
@@ -1115,6 +1118,7 @@ def verify_pairing_count(selected_pairs, count):
         post_counts[post_a] = post_counts.get(post_a, 0) + 1
         post_counts[post_b] = post_counts.get(post_b, 0) + 1
 
+<<<<<<< HEAD
     # Verify each post gets approximately the target count (within ±1)
     for slug, pair_count in post_counts.items():
         assert abs(pair_count - count) <= 1, (
@@ -1126,6 +1130,10 @@ def verify_pairing_count(selected_pairs, count):
 def verify_pairing_count_simple(selected_pairs, count):
     """Verify each post gets correct number of comparisons (simple version)."""
     verify_pairing_count(selected_pairs, count)
+=======
+    for pair_count in post_counts.values():
+        assert pair_count == count
+>>>>>>> origin/pr/2654
 
 
 @then("no post should be paired with itself")
