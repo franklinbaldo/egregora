@@ -919,3 +919,41 @@ def _regenerate_site_indices(adapter: OutputSink) -> None:
     site_generator.regenerate_tags_page()
     site_generator.regenerate_feeds_page()
     logger.info("Successfully regenerated site indices.")
+<<<<<<< HEAD
+=======
+
+
+def load_format_instructions(site_root: Path | None, *, registry: OutputSinkRegistry | None = None) -> str:
+    """Load output format instructions for the writer agent."""
+    registry = registry or create_default_output_registry()
+
+    if site_root:
+        detected_format = registry.detect_format(site_root)
+        if detected_format:
+            return detected_format.get_format_instructions()
+
+    try:
+        default_format = registry.get_format("mkdocs")
+        return default_format.get_format_instructions()
+    except KeyError:
+        return ""
+
+
+def get_top_authors(table: Table, limit: int = 20) -> list[str]:
+    """Get top N active authors by message count.
+
+    Deprecated: Use Message DTOs filtering instead.
+    """
+    author_counts = (
+        table.filter(~table.author_uuid.cast("string").isin(["system", "egregora"]))
+        .filter(table.author_uuid.notnull())
+        .filter(table.author_uuid.cast("string") != "")
+        .group_by("author_uuid")
+        .aggregate(count=table.author_uuid.count())
+        .order_by(ibis.desc("count"))
+        .limit(limit)
+    )
+    if author_counts.count().execute() == 0:
+        return []
+    return cast("list[str]", author_counts.author_uuid.cast("string").execute().tolist())
+>>>>>>> origin/pr/2676
