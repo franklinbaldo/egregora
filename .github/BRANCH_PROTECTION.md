@@ -17,12 +17,10 @@ Branch protection ensures code quality by requiring:
 For the auto-merge workflow to function properly, configure these **required status checks**:
 
 ### Core Checks (Always Required)
-- `Pre-commit Hooks`
-- `Ruff (lint)`
-- `Ruff (format)`
+- `Pre-commit Hooks` (includes Ruff lint and format)
 - `Unit Tests (Python 3.12)`
 - `E2E Tests`
-- `Gemini PR Code Review / Review Status Check` (includes merge decision)
+- `enable-auto-merge` (gates PR mergeability based on test results)
 
 ### Conditional Checks (Required when they run)
 These jobs only run under specific conditions, so mark them as "optional" or use GitHub's "Expected" checks feature:
@@ -32,8 +30,7 @@ These jobs only run under specific conditions, so mark them as "optional" or use
 - `Build & Deploy Docs` - Only on main branch pushes
 
 ### Additional Checks
-- `CodeQL Security Analysis / Analyze Python Code` - Security scanning
-- `Gemini PR Code Review / Review Status Check` - AI code review (if enabled)
+- `CodeQL Security Analysis / Analyze Python Code` - Security scanning (optional)
 
 ---
 
@@ -61,11 +58,9 @@ Settings → Branches → Add branch protection rule
   - ✅ Require branches to be up to date before merging
   - **Search and add these required checks:**
     - `Pre-commit Hooks`
-    - `Ruff (lint)`
-    - `Ruff (format)`
     - `Unit Tests (Python 3.12)`
     - `E2E Tests`
-    - `Gemini PR Code Review / Review Status Check`
+    - `enable-auto-merge`
 
 - ✅ **Require conversation resolution before merging** (recommended)
 
@@ -124,9 +119,9 @@ If you see a CI failure named `enable-auto-merge`, be aware:
 ### Which checks should be required?
 
 **For CI speed, require only critical checks:**
-- Linting (Ruff check + format)
+- Pre-commit hooks (includes Ruff linting + format)
 - Tests (Unit + E2E)
-- Pre-commit hooks
+- enable-auto-merge (gates mergeability)
 
 **Don't require conditionally-run jobs:**
 - Security scans (only on main/schedule)

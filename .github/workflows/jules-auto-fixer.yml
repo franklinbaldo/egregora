@@ -80,56 +80,6 @@ jobs:
           echo "has_pr=true" >> $GITHUB_OUTPUT
           echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
 
-      - name: Wait for Gemini Review
-        if: steps.pr-info.outputs.has_pr == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          PR_NUMBER="${{ steps.pr-info.outputs.pr_number }}"
-
-          echo "Checking for Gemini PR Code Review workflow for PR #$PR_NUMBER..."
-
-          # Get the head SHA for this PR
-          HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq '.headRefOid')
-          echo "PR head SHA: $HEAD_SHA"
-
-          # Wait for up to 10 minutes (600 seconds) for Gemini review to complete
-          MAX_WAIT=600
-          ELAPSED=0
-          INTERVAL=10
-
-          while [ $ELAPSED -lt $MAX_WAIT ]; do
-            # Get all workflow runs for "Gemini PR Code Review" on this commit
-            GEMINI_RUNS=$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/gemini-pr-review.yml/runs?head_sha=${HEAD_SHA}&per_page=5" \
-              --jq '.workflow_runs[] | select(.event == "pull_request") | {id, status, conclusion}')
-
-            if [ -z "$GEMINI_RUNS" ]; then
-              echo "No Gemini review workflow found for this PR yet. Waiting..."
-            else
-              # Check if any run is completed
-              STATUS=$(echo "$GEMINI_RUNS" | jq -r '.status' | head -n1)
-              CONCLUSION=$(echo "$GEMINI_RUNS" | jq -r '.conclusion' | head -n1)
-
-              echo "Gemini workflow status: $STATUS, conclusion: $CONCLUSION"
-
-              if [ "$STATUS" = "completed" ]; then
-                echo "✅ Gemini review completed with conclusion: $CONCLUSION"
-                break
-              fi
-
-              echo "Gemini review still running..."
-            fi
-
-            sleep $INTERVAL
-            ELAPSED=$((ELAPSED + INTERVAL))
-            echo "Waited ${ELAPSED}s / ${MAX_WAIT}s"
-          done
-
-          if [ $ELAPSED -ge $MAX_WAIT ]; then
-            echo "⚠️ Timeout waiting for Gemini review. Proceeding anyway..."
-          fi
-
       - name: Trigger Jules Auto-Fix
         if: steps.pr-info.outputs.has_pr == 'true'
         env:
