@@ -34,7 +34,7 @@ def test_normalize_slug_raises_exception():
     with pytest.raises(EnrichmentSlugError, match="LLM failed to generate slug"):
         _normalize_slug(None, "id")
 
-    with pytest.raises(EnrichmentSlugError, match="LLM slug .* is invalid"):
+    with pytest.raises(EnrichmentSlugError, match=r"LLM slug .* is invalid"):
         _normalize_slug("!@#$", "id")
 
 
