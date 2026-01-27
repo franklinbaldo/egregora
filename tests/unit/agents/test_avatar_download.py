@@ -40,7 +40,11 @@ def mock_client():
 
 @patch("egregora.agents.avatar._generate_avatar_uuid", return_value=FAKE_UUID)
 @respx.mock
+<<<<<<< HEAD
 def test_download_avatar_success(_, mock_media_dir, mock_client):
+=======
+def test_download_avatar_success(_mock_uuid, mock_media_dir, mock_client):
+>>>>>>> origin/pr/2835
     """Test successful avatar download."""
     url = "http://example.com/avatar.png"
     respx.get(url).mock(
@@ -95,7 +99,11 @@ def test_download_avatar_invalid_content_type(mock_media_dir, mock_client):
 @patch("egregora.agents.avatar._save_avatar_file")
 @patch("egregora.agents.avatar._generate_avatar_uuid", return_value=FAKE_UUID)
 @respx.mock
+<<<<<<< HEAD
 def test_download_avatar_os_error(_, mock_save, mock_media_dir, mock_client):
+=======
+def test_download_avatar_os_error(_mock_uuid, mock_save, mock_media_dir, mock_client):
+>>>>>>> origin/pr/2835
     """Test file system error handling."""
     url = "http://example.com/avatar.png"
     respx.get(url).mock(

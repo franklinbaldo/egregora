@@ -19,9 +19,12 @@ from typing import TYPE_CHECKING, Any
 from egregora.database.schemas import (
     ANNOTATIONS_SCHEMA,
 <<<<<<< HEAD
+<<<<<<< HEAD
     GIT_COMMITS_SCHEMA,
 =======
 >>>>>>> origin/pr/2842
+=======
+>>>>>>> origin/pr/2835
     STAGING_MESSAGES_SCHEMA,
     TASKS_SCHEMA,
     UNIFIED_SCHEMA,
