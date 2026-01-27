@@ -398,47 +398,16 @@ loader.load_personas(['personas/curator/prompt.md.j2'])
 
 The team consists of specialized agents:
 
-<<<<<<< HEAD
 - **curator** - UX/UI evaluation with BDD
 - **forge** - Code implementation
 - **lore** - Knowledge base management
 - **oracle** - System coordination
-=======
-- **absolutist** 💯 - Code cleanup & legacy removal
-- **artisan** 🔨 - Code craftsmanship & refactoring
-- **bolt** ⚡ - Performance & latency optimization
-- **curator** 🎭 - UX/UI evaluation & content strategy
-- **forge** ⚒️ - Implementation & frontend polish
-- **lore** 📚 - History, documentation & knowledge base
-- **maya** 💝 - User advocacy & family perspective
-- **meta** 🔍 - System introspection & validation
-- **refactor** 🧹 - Technical debt reduction
-- **sapper** 💣 - Resilience, error handling & edge cases
-- **scribe** ✍️ - Documentation & user guides
-- **sentinel** 🛡️ - Security & compliance
-- **simplifier** 📉 - Architecture reduction & complexity management
-- **steward** 🧠 - Strategic alignment & decisions
-- **streamliner** 🌊 - Data pipeline optimization
-- **visionary** 🔭 - Future features & innovation
->>>>>>> origin/pr/2867
 
 ### Related Documentation
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 - [Team Constitution](https://github.com/franklinbaldo/egregora/blob/main/.team/CONSTITUTION.md)
 - [Parallel Personas](https://github.com/franklinbaldo/egregora/blob/main/.team/PARALLEL_PERSONAS_README.md)
 - [Code of the Weaver](https://github.com/franklinbaldo/egregora/blob/main/CLAUDE.md)
-=======
-- [Team Constitution]({{ config.repo_url }}/blob/main/.team/CONSTITUTION.md)
-- [Parallel Personas]({{ config.repo_url }}/blob/main/.team/PARALLEL_PERSONAS_README.md)
-- [Code of the Weaver]({{ config.repo_url }}/blob/main/CLAUDE.md)
->>>>>>> origin/pr/2872
-=======
-- [Team Constitution](https://github.com/franklinbaldo/egregora/blob/main/.team/CONSTITUTION.md)
-- [Parallel Personas](https://github.com/franklinbaldo/egregora/blob/main/.team/PARALLEL_PERSONAS_README.md)
-- [Code of the Weaver](https://github.com/franklinbaldo/egregora/blob/main/CLAUDE.md)
->>>>>>> origin/pr/2860
 
 ---
 

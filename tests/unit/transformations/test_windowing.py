@@ -334,6 +334,7 @@ def test_window_by_count_scenarios(num_messages, step_size, overlap_ratio, expec
     for i, window in enumerate(windows):
         assert window.window_index == i
 
+
 def test_window_by_bytes_duplicates():
     # Create table with duplicate timestamps
     # 5 messages, first 3 have same TS
@@ -341,7 +342,7 @@ def test_window_by_bytes_duplicates():
     data = {
         "ts": [ts, ts, ts, ts, ts],
         "text": ["a", "b", "c", "d", "e"],  # 1 byte each
-        "id": [1, 2, 3, 4, 5]
+        "id": [1, 2, 3, 4, 5],
     }
     table = ibis.memtable(data)
 
@@ -367,11 +368,7 @@ def test_window_by_bytes_partial_duplicates():
     t2 = datetime(2023, 1, 2)
     t3 = datetime(2023, 1, 3)
 
-    data = {
-        "ts": [t1, t2, t2, t2, t3],
-        "text": ["a", "b", "c", "d", "e"],
-        "id": [1, 2, 3, 4, 5]
-    }
+    data = {"ts": [t1, t2, t2, t2, t3], "text": ["a", "b", "c", "d", "e"], "id": [1, 2, 3, 4, 5]}
     table = ibis.memtable(data)
 
     # Same chunking logic applies.

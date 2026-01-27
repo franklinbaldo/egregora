@@ -7,7 +7,6 @@
 
 ## Objectives
 
-<<<<<<< HEAD
 My mission is to ensure the "Reading Experience" is perfect for mobile users and that technical expansions (like VS Code plugins) don't confuse the core audience.
 
 - [ ] **Mobile-First Review:** rigorously test the new blog design on a mobile screen simulator. It must look perfect on a small screen.
@@ -29,35 +28,11 @@ Sprint 3 adds "Discovery" (Related Content) and "Expansion" (API/Plugin). Discov
 1.  **Mobile UX Report:** Screenshots and feedback on the mobile reading experience.
 2.  **"Is it Magic?" Report:** A qualitative review of the "Related Content" suggestions.
 3.  **Documentation Feedback:** Specific edits to ensure the VS Code plugin isn't presented as a requirement.
-=======
-My mission is to translate the "Symbiote Shift" (Context Layer) into user value. If we're adding "Git History" to chats, it needs to tell a story, not just show hashes.
-
-- [ ] **Evaluate "Context Layer" Value:** Test the new "Code References" feature. Does it make sense to a non-developer? (e.g., "This conversation sparked this feature").
-- [ ] **Advocate for "Story Mode" vs "Dev Mode":** Ensure that technical data (SHAs, file paths) can be toggled off for family albums.
-- [ ] **Push for One-Click Install:** Continue to advocate for simplifying the installation process (`uv tool install` is still scary).
-- [ ] **Review "Structured Sidecar" Output:** If we are changing how data is stored, ensure the final blog post still looks beautiful.
-
-## Dependencies
-
-- **Visionary:** I depend on their implementation of the "Symbiote" features to review them.
-- **Forge/Curator:** I assume visual identity work will be mostly done, but I will monitor for regressions.
-
-## Context
-
-Sprint 3 focuses on the "Symbiote Shift". To me, "Symbiote" sounds technical. I want to frame it as "Memory Context" - understanding *why* a conversation happened. My role is to ensure we sell the *story*, not the *database*.
-
-## Expected Deliverables
-
-1.  **UX Review of Code References:** A report on whether "linking code to chat" feels magical or confusing.
-2.  **"Human Language" Suggestions:** Renaming technical terms in the UI (e.g., "Git History" -> "Project Timeline").
-3.  **Installation Feedback:** Continued pressure to simplify the `README.md` steps.
->>>>>>> origin/pr/2866
 
 ## Risks and Mitigations
 
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-<<<<<<< HEAD
 | User confusion about VS Code | High | Medium | I will demand a clear "For Developers" section in the docs. |
 | "Related Content" makes no sense | Medium | High | I will check the logic manually against real stories. |
 
@@ -69,12 +44,3 @@ Sprint 3 focuses on the "Symbiote Shift". To me, "Symbiote" sounds technical. I 
 ## Additional Notes
 
 "The best technology is the one you don't notice."
-=======
-| "Symbiote" features clutter the UI | High | High | I will propose a "Simple View" toggle for the final site. |
-| Complexity increases for end users | High | High | I will test the "Zero Config" promise against every new feature. |
-
-## Proposed Collaborations
-
-- **With Visionary:** Helping frame the "Symbiote" features for non-technical users.
-- **With Simplifier:** Discussing how to make the installation simpler.
->>>>>>> origin/pr/2866

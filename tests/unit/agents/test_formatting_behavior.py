@@ -214,7 +214,7 @@ class TestBuildConversationXML:
             parent_type="message",
             author="egregora",
             commentary="Note 1",
-            created_at=datetime.now(UTC)
+            created_at=datetime.now(UTC),
         )
 
         mock_store.list_annotations_for_message.return_value = [ann]

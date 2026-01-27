@@ -6,7 +6,6 @@ site_url: {{ site_url | default("http://127.0.0.1:8000") }}  # Update with your 
 # repo_name: your-repo
 docs_dir: ../{{ docs_dir }}
 site_dir: {{ site_dir | default("site") }}  # Set per-site to avoid build collisions in multi-site configs
-use_directory_urls: true
 copyright: Copyright &copy; {{ now.year }} {{ site_name }}
 
 theme:
@@ -218,18 +217,10 @@ nav:
       - Tags & Topics: {{ blog_dir }}/tags.md
       - Profiles: {{ blog_dir }}/profiles/index.md
   - Journal: journal/index.md
-<<<<<<< HEAD
   - Resources:
       - Media: {{ media_dir }}/index.md
-<<<<<<< HEAD
       - Feeds: feeds/index.md
-=======
->>>>>>> origin/pr/2736
       - About: about.md
-=======
-  - Media: {{ media_dir }}/index.md
-  - About: about.md
->>>>>>> origin/pr/2731
 
 
 # Egregora configuration lives in .egregora.toml at the site root

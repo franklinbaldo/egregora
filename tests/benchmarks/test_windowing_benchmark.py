@@ -1,4 +1,3 @@
-
 from datetime import datetime, timedelta
 
 import ibis
@@ -19,10 +18,11 @@ def message_table():
     data = {
         "ts": [base_time + timedelta(seconds=i) for i in range(n)],
         "text": ["a" * 100 for _ in range(n)],
-        "id": range(n)
+        "id": range(n),
     }
     df = pd.DataFrame(data)
     return ibis.memtable(df)
+
 
 def test_window_by_bytes_benchmark(benchmark, message_table):
     def run_windowing():

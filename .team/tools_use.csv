@@ -14,7 +14,6 @@ timestamp,persona,sequence,command,args
 2026-01-18T23:33:24.789880,builder,058,roster list-personas,{}
 2026-01-18T23:33:43.235413,builder,058,email inbox,"{'persona': None, 'unread': False}"
 2026-01-18T23:44:31.641290,builder,058,journal,"{'content': '# 🏗️ Builder: Add Conditional Constraints to Documents Table\n\n**Date**: 2026-01-16\n**Persona**: Builder (Data Architect)\n**Task**: Enforce data integrity for the unified `documents` table using database constraints.\n\n## Observation\nThe V3 ""Pure"" architecture uses a unified `documents` table (Single Table Inheritance). Because this table is wide and sparse, columns like `title` (required for Posts) or `filename` (required for Media) were nullable to accommodate other types. This allowed invalid states, such as a Post without a title.\n\n## Action\nI implemented conditional `CHECK` constraints to enforce type-specific requirements at the database level:\n- **Posts**: Must have `title`, `slug`, and valid `status`.\n- **Profiles**: Must have `title` and `subject_uuid`.\n- **Journals**: Must have `title`, `window_start`, and `window_end`.\n- **Media**: Must have `filename`.\n\nThe constraints use the pattern: `CHECK ((doc_type != \'type\') OR (requirements))`.\n\nI also:\n1.  Created `docs/schema-evolution-plan.md` to document the strategy.\n2.  Updated `src/egregora/database/schemas.py` to define these constraints.\n3.  Updated `src/egregora/database/init.py` to apply them during initialization.\n4.  Refactored `src/egregora/database/migrations.py` to support migrating existing tables to the new schema with constraints, using a ""create-copy-swap"" strategy.\n5.  Added comprehensive tests in `tests/unit/database/test_unified_schema_constraints.py`.\n\n## Reflection\nThis change aligns the `documents` table with the ""Structure Before Scale"" philosophy. By enforcing these rules in DuckDB, we prevent data corruption bugs from propagating. The migration strategy is robust and idempotent. Future work should verify if `ContentRepository` needs updates to fully utilize the `documents` table, as there seemed to be some disconnects between the repository and the initialization logic.', 'password': '***'}"
-<<<<<<< HEAD
 2026-01-19T00:01:56.062068,unknown,unknown,login,"{'user': 'docs_curator', 'password': '***', 'goals': ['Execute assigned tasks']}"
 2026-01-19T00:02:05.137628,docs_curator,060,roster list-personas,{}
 2026-01-19T00:02:27.769845,docs_curator,060,email inbox,"{'persona': None, 'unread': False}"
@@ -34,14 +33,10 @@ timestamp,persona,sequence,command,args
 2026-01-20T10:45:10.029377,unknown,unknown,login,"{'user': 'visionary', 'password': '***', 'goals': ['Execute assigned tasks']}"
 2026-01-20T10:45:26.230144,visionary,080,roster list-personas,{}
 2026-01-20T10:54:23.657987,visionary,080,journal,"{'content': ""# Continuity Journal — 2026-01-14\n\n## Observation\nThe codebase is heavily focused on refactoring (V3) and technical debt. While necessary, this creates a vacuum for user-facing innovation. I also noticed that while we have advanced 'under the hood' capabilities like LanceDB (RAG) and ELO ranking, they are largely invisible to the end user, who still sees a static, linear blog.\n\n## Action\nI conducted the 5-step inspiration process and identified a key opportunity to transform the 'linear blog' into a 'spatial knowledge graph'. I authored two RFCs:\n- **Moonshot (RFC 024): The Egregora Atlas**. A vision for an interactive, explorable 3D/2D map of the group's mind.\n- **Quick Win (RFC 025): Semantic Constellation Widget**. A concrete first step that adds AI-explained 'related posts' to the footer, proving we can use embeddings for navigation.\n\nI also fixed a minor linting issue in 'tests/step_defs/test_reader_steps.py' to keep the build green.\n\n## Reflection\nThe 'Constellation Widget' is a perfect bridge. It doesn't require a massive frontend rewrite (unlike the full Atlas) but immediately changes the user experience from 'chronological' to 'associative'. If successful, it validates the data for the full Atlas.\n\n## System Feedback / TODOs\n- [ ] The 'EnricherAgent' should be expanded to not just summarize URLs but to actively suggest internal links between posts.\n- [ ] We need to standardize how 'embeddings' are exposed to the frontend. Currently, they are locked in LanceDB/DuckDB. We need a build-time step to export a 'graph.json' or similar for client-side visualization.\n- [ ] 'ruff' is very strict about duplicate functions in BDD tests; we should ensure new scenarios don't copy-paste existing step definitions without renaming."", 'password': '***'}"
-=======
-=======
->>>>>>> origin/pr/2673
 2026-01-20T04:37:48.158655,unknown,unknown,login,"{'user': 'typeguard', 'password': '***', 'goals': ['Execute assigned tasks']}"
 2026-01-20T04:37:50.885414,typeguard,079,roster list-personas,{}
 2026-01-20T04:38:08.519061,typeguard,079,email inbox,"{'persona': None, 'unread': False}"
 2026-01-20T04:50:05.993087,typeguard,079,journal,"{'content': '🔒 Typeguard Journal\n\n**Observation:**\nIdentified several type safety issues in :\n-  reported errors with type narrowing in generator expressions and  return values.\n- Extensive usage of  for critical components like  and .\n- Untyped decorators from  library causing functions to be treated as untyped.\n- Untyped returns from  execution.\n\n**Action:**\n- Refactored  to use explicit list comprehension with  for better type narrowing.\n- Refactored deduplication logic in  to use an explicit loop instead of  side-effects in list comprehension.\n- Defined  using types from .\n- Typed  with .\n- Added typed aliases for  decorators (, ) using  and .\n- Added strict return type casting for  query results.\n- Removed unused  type alias.\n- Added necessary  for libraries missing stubs.\n\n**Reflection:**\nThe  file now passes . The use of  was necessary for untyped third-party libraries (,  return values), which is a pragmatic tradeoff. Future sessions should continue this pattern for other agent modules like  and .', 'password': '***'}"
-<<<<<<< HEAD
 2026-01-20T05:21:47.531307,unknown,unknown,login,"{'user': 'typeguard', 'password': '***', 'goals': ['Execute assigned tasks']}"
 2026-01-20T05:21:55.672613,typeguard,106,email inbox,"{'persona': None, 'unread': False}"
 2026-01-20T05:21:56.873873,typeguard,106,roster list-personas,{}
@@ -49,24 +44,16 @@ timestamp,persona,sequence,command,args
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
-=======
->>>>>>> origin/pr/2677
 2026-01-20T05:52:15.733806,unknown,unknown,login,"{'user': 'typeguard', 'password': '***', 'goals': ['Execute assigned tasks']}"
 2026-01-20T05:52:25.563748,typeguard,106,roster list-personas,{}
 2026-01-20T05:52:48.563568,typeguard,106,email inbox,"{'persona': None, 'unread': False}"
 2026-01-20T06:03:14.165548,typeguard,106,journal,"{'content': 'Observation: Identified  in  had several mypy errors: shadowed  method used as type, incompatible  argument, and loose types.\nAction: Imported  and replaced usage of  with  inside the class. Fixed  construction by validating/casting input. Refined return types to strict types (e.g., ).\nReflection: The file is now clean in . This pattern of using  when a method name shadows the built-in type should be applied elsewhere if encountered.', 'password': '***'}"
 2026-01-20T06:03:25.463680,typeguard,106,journal,"{'content': 'Observation: Identified BaseOutputSink in src/egregora/output_adapters/base.py had several mypy errors including shadowed list method used as type and incompatible Path argument. Action: Imported builtins and replaced usage of list[...] with builtins.list[...] inside the class. Fixed Path construction by validating input. Refined return types to strict types. Reflection: The file is now clean in mypy.', 'password': '***'}"
-<<<<<<< HEAD
 2026-01-20T06:31:51.433540,unknown,unknown,login,"{'user': 'typeguard', 'password': '***', 'goals': ['Execute assigned tasks']}"
 2026-01-20T06:32:01.422560,typeguard,106,email inbox,"{'persona': None, 'unread': False}"
 2026-01-20T06:32:02.653761,typeguard,106,roster list-personas,{}
 2026-01-20T06:41:32.313002,typeguard,106,journal,"{'content': 'Observation: Found type errors and a latent bug in . The code was treating  items as objects with metadata, but they are actually dictionaries. Also,  usage was incorrect (unpacking dict instead of access).\n\nAction:\n1. Defined  to properly type .\n2. Refactored  to correctly handle dictionary items from .\n3. Updated  to correctly handle  result (dict) and  return type (casting to list).\n4. Updated  to match the corrected behavior (returning dict from mocked writer).\n5. Deleted  before submission.\n\nReflection:  is invaluable for catching logic errors that might sleep in the codebase until the feature is activated. Strict typing enforces checking assumptions about data structures.', 'password': '***'}"
 >>>>>>> origin/pr/2679
-=======
-2026-01-20T06:15:58.495746,unknown,unknown,login,"{'user': 'typeguard', 'password': '***', 'goals': ['Execute assigned tasks']}"
-2026-01-20T06:16:03.316253,typeguard,106,roster list-personas,{}
-2026-01-20T06:25:21.998279,typeguard,106,journal,"{'content': 'Observation: Identified type errors in src/egregora/orchestration/runner.py including untyped library access, incorrect unpacking of write_posts_for_window result (dict vs tuple), and ambiguous return type usage for generate_profile_posts.\nAction: Defined ContentLibrary and DocumentRepository protocols for safe access. Fixed the write_posts_for_window unpacking bug by switching to dictionary lookups. Cast generate_profile_posts result. Updated unit tests to correctly mock write_posts_for_window as returning a dictionary.\nReflection: Strict typing revealed a latent runtime bug masked by incorrect test mocks. Future improvements should enforce stricter mock validation.', 'password': '***'}"
->>>>>>> origin/pr/2678
 =======
 >>>>>>> origin/pr/2677
 =======
@@ -95,14 +82,11 @@ timestamp,persona,sequence,command,args
 2026-01-19T05:47:26.484830,palette,066,journal,"{'content': 'Fixed demo command suggestion to include [imaging] extra.', 'password': '***'}"
 2026-01-19T08:16:14.053866,unknown,unknown,login,"{'user': 'shepherd', 'password': '***', 'goals': ['Execute assigned tasks']}"
 2026-01-19T08:16:23.864825,shepherd,072,roster list-personas,{}
-<<<<<<< HEAD
 2026-01-19T12:30:21.496009,unknown,unknown,login,"{'user': 'simplifier', 'password': '***', 'goals': ['Execute assigned tasks']}"
 2026-01-19T12:30:32.894156,simplifier,074,email inbox,"{'persona': None, 'unread': False}"
 2026-01-19T12:30:37.905203,simplifier,074,roster list-personas,{}
 2026-01-19T12:47:37.805985,simplifier,074,journal,"{'content': ""## 📉 2026-01-20 - Consolidate Database Backend Creation Logic\n\n**Observation:**\nThe 'write' pipeline contained a duplicated implementation of database backend creation ( and its nested ) which mirrored logic already present in . This redundancy violated DRY and led to inconsistent URI validation logic between the factory and the pipeline implementation.\n\n**Action:**\nI removed the duplicated  and  functions from . I refactored  in  to use a module-level  helper (which now correctly uses ) and updated  to delegate to the factory method. I also updated  to correctly verify the normalized URI format produced by  (checking for 3 slashes for absolute paths instead of the previous 4).\n\n**Reflection:**\nThis change centralizes the critical logic for establishing database connections. By forcing all consumers to go through  (or eventually a dedicated connection utility), we ensure that policies like URI normalization and scheme validation are applied consistently across the application. The removal of the 'write' pipeline's private implementation reduces the surface area for bugs and simplifies the module."", 'password': '***'}"
 <<<<<<< HEAD
 >>>>>>> origin/pr/2654
-=======
->>>>>>> origin/pr/2653
 =======
 >>>>>>> origin/pr/2652

@@ -16,21 +16,13 @@ This document outlines the user experience and user interface (UX/UI) vision for
 
 ### Template Architecture
 
-<<<<<<< HEAD
 **CRITICAL FINDING:** The templates for the MkDocs site have been moved to Jinja2 files in `src/egregora/rendering/templates/site/`.
-=======
-**CRITICAL FINDING:** The templates for the MkDocs site have been moved to Jinja2 files in `src/egregora/rendering/templates/site/`. This is a significant improvement over the previous embedded string approach.
->>>>>>> origin/pr/2729
 
 Key locations:
 -   `src/egregora/output_sinks/mkdocs/scaffolding.py`: Renders these templates during the scaffold process.
 -   `src/egregora/rendering/templates/site/mkdocs.yml.jinja`: The main configuration template.
-<<<<<<< HEAD
 -   `src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`: The structural CSS (layout, navigation) AND the "Portal" theme styles (Consolidated).
 -   `src/egregora/rendering/templates/site/docs/stylesheets/extra.css`: REMOVED (Fixed shadowing issue).
-=======
--   `src/egregora/rendering/templates/site/docs/stylesheets/extra.css`: The "Portal" theme styles.
->>>>>>> origin/pr/2729
 
 ### Developer Experience
 -   **Status:** Improving.
@@ -42,35 +34,20 @@ Key locations:
 This section defines the "Portal" design system, which aims to create a dark, immersive, and premium experience.
 
 ### CSS Architecture
-<<<<<<< HEAD
 -   **Status:** Fixed.
 -   **Resolution:** The fragmented CSS has been consolidated. `src/egregora/rendering/templates/site/docs/stylesheets/extra.css` was removed, and its styles merged into `src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`. This resolved the shadowing issue, restoring the correct styling for the homepage navigation and blog cards.
-=======
--   **Status:** Verified.
--   **Issue:** The CSS was previously split, causing shadowing issues. This has been resolved by consolidating all styles into `src/egregora/rendering/templates/site/overrides/stylesheets/extra.css`.
->>>>>>> origin/pr/2881
 -   **Next Action:** None.
 
 ### Color Palette
-<<<<<<< HEAD
 -   **Status:** Verified.
-=======
--   **Status:** Implemented.
->>>>>>> origin/pr/2729
 -   **Primary:** A deep, thoughtful blue (`#2c3e50`) defined in `extra.css`.
 -   **Accent:** A vibrant, energetic yellow (`#f9d423`) defined in `extra.css`.
 -   **Implementation:** `mkdocs.yml` uses `primary: custom` and `accent: custom`.
 
 ### Scoping and Usability
-<<<<<<< HEAD
 -   **Status:** Verified.
 -   **Issue:** Previous aggressive global CSS overrides have been successfully scoped. The homepage now uses `:has(.homepage-hero)` to apply immersive styles only where appropriate.
 -   **Next Action:** None.
-=======
--   **Status:** Needs Refinement.
--   **Issue:** The "Portal" theme uses aggressive global CSS overrides in `extra.css` (e.g., hiding TOC and H1 globally). This degrades usability on standard content pages.
--   **Next Action:** Task `20260122-1400-ux-refine-portal-theme-scoping.md` has been created to scope these overrides to the homepage only using frontmatter and removing global CSS blocks.
->>>>>>> origin/pr/2729
 
 ### Typography
 -   **Status:** Verified.
@@ -78,24 +55,14 @@ This section defines the "Portal" design system, which aims to create a dark, im
 -   **Implementation:** The fonts are imported and applied in `extra.css`.
 
 ### Navigation
-<<<<<<< HEAD
 -   **Status:** Verified.
 -   **Issue:** The navigation hierarchy is correct (Media nested under Resources). The homepage "Quick Navigation" cards are now correctly styled following the CSS consolidation.
 -   **Next Action:** None.
 
 ### Feeds Page
 -   **Status:** Verified.
-<<<<<<< HEAD
 -   **Resolution:** A dedicated `docs/feeds/index.md` page exists, providing a clean UI for subscribing to RSS and JSON feeds.
-=======
--   **Issue:** The "RSS Feeds" card now links to a dedicated feeds page. The template `src/egregora/rendering/templates/site/docs/feeds/index.md.jinja` has been implemented.
->>>>>>> origin/pr/2881
 -   **Next Action:** None.
-=======
--   **Status:** Implemented, but needs review.
--   **Issue:** The main navigation is functional. "Media" is top-level.
--   **Next Action:** Review if "Media" should be nested under "Resources" or similar. Task `20260122-1400-ux-refine-portal-theme-scoping.md` addresses this potential restructure.
->>>>>>> origin/pr/2729
 
 ### Analytics
 -   **Status:** Verified (Removed).

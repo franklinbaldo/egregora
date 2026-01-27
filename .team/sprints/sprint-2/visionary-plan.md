@@ -2,7 +2,6 @@
 
 <<<<<<< HEAD
 <<<<<<< HEAD
-<<<<<<< HEAD
 **Persona:** Visionary
 **Sprint:** 2
 **Created:** 2026-01-22
@@ -26,36 +25,10 @@ After approval of the Quick Win (RFC 027), the focus is to validate the core tec
 1. Python script `detect_refs.py` that extracts references from a text file.
 2. Python script `resolve_commit.py` that accepts date/time and returns SHA from local repo.
 3. Performance report (time per lookup).
-=======
-**Persona:** Visionary 🔭
-**Sprint:** 2
-**Created:** 2026-01-26
-**Priority:** High
-
-## Objectives
-My mission is to prepare the architecture for "Autopoiesis" (RFC 028) by defining the data structures for self-reflection.
-
-- [ ] **Define Reflection Schema:** Create the Pydantic models for the "System Feedback" section of the journal. This turns unstructured text into actionable data.
-- [ ] **Design Prompt Optimizer CLI:** Create the design spec for `egregora optimize-prompts` (RFC 029), including the "Human-in-the-loop" PR workflow.
-- [ ] **Security Collaboration:** Work with Sentinel to define the "Mutation Sandbox" to prevent prompt injection attacks via the journal.
-
-## Dependencies
-- **Simplifier:** I need `write.py` decomposed so I can hook into the journal generation process cleanly.
-- **Sentinel:** I need the "SecretStr" implementation to ensure my optimizer doesn't leak secrets.
-
-## Context
-We are moving from a "Batch/Static" era to a "Living System" era. Sprint 2 is about creating the *language* of this evolution. If we can't structure the feedback, we can't act on it.
-
-## Expected Deliverables
-1.  **Schema Module:** `src/egregora/reflection/models.py` (Draft).
-2.  **Design Doc:** `docs/design/reflective-optimizer.md`.
-3.  **RFCs:** 028 and 029 finalized and merged.
->>>>>>> origin/pr/2876
 
 ## Risks and Mitigations
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
-<<<<<<< HEAD
 | Slow Git Lookup | High | Medium | Implement aggressive caching (DuckDB/Redis) |
 | Path ambiguity | Medium | Low | Link to tree root or display warning if file does not exist |
 
@@ -65,47 +38,6 @@ We are moving from a "Batch/Static" era to a "Living System" era. Sprint 2 is ab
 
 ## Additional Notes
 Total focus on "Foundation" for the Context Layer.
-=======
-**Persona:** Visionary 🔭
-**Sprint:** 2
-**Created:** 2026-01-28
-**Priority:** High
-
-## Objectives
-
-My mission is to validate the "Self-Optimizing" capabilities (RFC 029) while maintaining momentum on the "Context Layer" (RFC 027).
-
-- [ ] **Prototype `CriticAgent` (RFC 029):** Design and implement a standalone agent that can take a (Input, Prompt, Output) tuple and return a structured critique.
-- [ ] **Validate Code Linking (RFC 027):** (Carried over) Complete the `CodeReferenceDetector` prototype to ensure we can reliably detect file paths in chat.
-- [ ] **Update RFCs:** Formalize the learnings from the prototypes into the RFC documents.
-
-## Dependencies
-
-- **Simplifier:** I need a stable `write.py` / `runner.py` structure to know where to "hook" the `CriticAgent`.
-- **Builder:** Need support for persisting the `Reflection` artifacts (scoring/critiques).
-
-## Context
-
-Sprint 2 is about "Structure". My contribution is structural *introspection*. By building the `CriticAgent` now, we provide the "eyes" for the system to see itself. This aligns with the polishing phase—we are building the tool that helps us polish.
-
-## Expected Deliverables
-
-1.  **`src/egregora/agents/critic.py`:** A working Pydantic-AI agent for critique.
-2.  **`tests/prototypes/test_critic.py`:** Verification that the critic can catch bad prompts.
-3.  **`detect_refs.py`:** (RFC 027) Prototype for detecting code references.
-
-## Risks and Mitigations
-
-| Risk | Probability | Impact | Mitigation |
-|-------|---------------|---------|-----------|
-| Critic is hallucination-prone | High | High | Use "Few-Shot" prompting in the Critic's system prompt to ground it. |
-| Overloading Sprint 2 | Medium | Medium | RFC 029 is the priority. RFC 027 can slip to Sprint 3 if needed. |
-
-## Proposed Collaborations
-
-- **With Simplifier:** To agree on the `PipelineContext` structure the Critic will analyze.
-- **With Artisan:** To review the `CodeReferenceDetector` regex logic.
->>>>>>> origin/pr/2895
 =======
 | Schema is too rigid | Medium | Medium | I will analyze past journals to ensure the schema covers existing feedback patterns. |
 | Security concerns block Autopoiesis | Medium | High | I will co-design with Sentinel from Day 1 to ensure safety is built-in. |

@@ -170,6 +170,7 @@ def find_all_media_references(text: str, include_uuids: bool = False) -> list[st
 
     Returns:
         List of unique media filenames found in the text
+
     """
     if not text:
         return []
@@ -246,7 +247,9 @@ def find_all_media_references(text: str, include_uuids: bool = False) -> list[st
         ext = filename.split(".")[-1].lower()
         if ext not in ("com", "org", "net", "io", "co", "de", "fr", "uk"):
             # Also skip files that look like UUIDs
-            if not re.match(r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.", filename, re.IGNORECASE):
+            if not re.match(
+                r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.", filename, re.IGNORECASE
+            ):
                 media_files.add(filename)
 
     # Pass 4: Attachment markers pattern

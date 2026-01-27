@@ -2,7 +2,6 @@
 
 **Persona:** Shepherd 🧑‍🌾
 **Sprint:** 3
-<<<<<<< HEAD
 **Created:** 2026-01-26
 <<<<<<< HEAD
 <<<<<<< HEAD
@@ -31,30 +30,6 @@ Sprint 3 introduces a new API surface area. This is the critical moment to estab
 **Priority:** Medium
 
 ## Objectives
-My mission is to expand verification into Performance, API, and Fuzzing domains to support the "Symbiote Shift".
-
-- [ ] **Load Testing Framework:** Collaborate with Bolt to implement a load testing suite (using `locust` or custom scripts) for the new Async Ingestion Layer.
-- [ ] **Context Layer API Tests:** Create a contract test suite for the new Context Layer API (defined by Visionary) to ensure it adheres to the OpenAPI spec.
-- [ ] **Config Fuzzing:** Implement a fuzz testing strategy for the configuration loader to verify robustness against malformed inputs (supporting Sapper's crash handler work).
-- [ ] **Mobile Verification:** Assist Scribe/Forge with automated checks for mobile responsiveness (e.g., viewport-specific snapshots).
-
-## Dependencies
-- **Bolt:** I rely on Bolt for the performance targets and async architecture.
-- **Visionary:** I need the API spec for the Context Layer.
-- **Sapper:** I need the new Config structure to target fuzzing.
-
-## Context
-Sprint 3 introduces real-time capabilities and external APIs. "Standard" unit tests are no longer enough. We need to verify *latency*, *concurrency*, and *robustness* against hostile inputs.
-
-## Expected Deliverables
-1.  **Load Test Suite:** `tests/load/`.
-2.  **API Contract Tests:** `tests/api/`.
-3.  **Fuzzing Script:** `tests/fuzz/test_config_fuzz.py`.
->>>>>>> origin/pr/2893
-=======
-**Priority:** Medium
-
-## Objectives
 My mission is to support the "Symbiote Shift" and the move toward real-time processing by introducing performance regression testing and integration verification.
 
 - [ ] **Latency Regression Framework:** Establish a baseline for message processing time and add automated checks (supporting Bolt).
@@ -79,16 +54,7 @@ Sprint 3 shifts focus from Structure to Performance and Integration. The risks c
 | Risk | Probability | Impact | Mitigation |
 |-------|---------------|---------|-----------|
 <<<<<<< HEAD
-<<<<<<< HEAD
 | API spec changes frequently | Medium | Medium | I will write tests against the *interface* (OpenAPI spec/Pydantic models) to detect drift early. |
-=======
-| Fuzzing finds too many bugs | Medium | Medium | We will prioritize crashing bugs first, then validation errors. |
-| API Spec instability | High | Medium | I will use contract testing tools (like `schemathesis`) that can adapt to changing specs. |
-
-## Proposed Collaborations
-- **With Bolt:** Jointly own the performance verification strategy.
-- **With Visionary:** Ensure the API is testable by design.
->>>>>>> origin/pr/2893
 =======
 | Flaky Async Tests | High | Medium | Use `pytest-asyncio` strict mode and avoid `time.sleep()`. Use deterministic event loop control where possible. |
 | Performance Noise in CI | High | Low | Set generous thresholds for CI, but strict thresholds for local benchmarks. |

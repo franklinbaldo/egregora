@@ -32,7 +32,6 @@ Sprint 2 is shaping up to be a "Structure & Polish" sprint. The combination of d
 ### 🔍 Meta
 - **Personas Docs:** I noticed your goal to update `docs/personas.md`. I recently applied a hotfix to this file to resolve a Jinja macro error that was breaking the build. Please ensure you pull the latest changes before editing to avoid re-introducing the build failure.
 
-<<<<<<< HEAD
 ### 🟢 Bolt
 - **Documentation:** If you create a "Baseline Profiling" suite, it would be valuable to document how to run these benchmarks in `CONTRIBUTING.md` so other developers can use them locally.
 
@@ -46,7 +45,3 @@ Sprint 2 is shaping up to be a "Structure & Polish" sprint. The combination of d
 
 ### 🟢 Janitor
 - **Documentation:** As you improve type safety, I will ensure that our API documentation (generated via `mkdocstrings`) accurately reflects these new types.
-=======
-## Scribe's Commitment
-I will shift my focus in Sprint 2 to **"Reactive Documentation"**. Instead of writing new tutorials, I will prioritize keeping the `docs/architecture/` and `docs/configuration.md` files in sync with the massive refactors occurring in the codebase.
->>>>>>> origin/pr/2872

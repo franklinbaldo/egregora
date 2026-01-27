@@ -54,17 +54,6 @@ body,
   -webkit-font-smoothing: antialiased;
 }
 
-<<<<<<< HEAD
-=======
-/* Hero and Post Grid Integration */
-.main-portal-grid {
-  /* Pull posts up into the hero */
-  z-index: 100 !important;
-  padding: 0 40px 100px;
-  position: relative;
-}
-
->>>>>>> origin/pr/2736
 /* Blog Card Evolution - High Fidelity Glassmorphism */
 .md-post--card {
   background: rgba(255, 255, 255, 0.02) !important;
@@ -154,13 +143,10 @@ body,
 
 /* Scoped Homepage Overrides */
 /* Only apply full-width layout to the homepage explicitly */
-<<<<<<< HEAD
 .md-main__inner:has(.homepage-hero) {
   max-width: 100% !important;
 }
 
-=======
->>>>>>> origin/pr/2740
 .md-content__inner.md-typeset:has(.homepage-hero) {
   margin: 0 !important;
   padding: 0 !important;
