@@ -32,8 +32,15 @@ from google.api_core import exceptions as google_exceptions
 from ibis.common.exceptions import IbisError
 from pydantic import BaseModel
 
+<<<<<<< HEAD
 # WebFetchTool is the client-side fetcher suitable for pydantic-ai
 from pydantic_ai import Agent, RunContext, WebFetchTool
+=======
+# UrlContextTool is the client-side fetcher (alias for WebFetchTool) suitable for pydantic-ai
+# Note: UrlContextTool is deprecated in newer versions, but we keep it for compatibility with the current stack.
+# We will migrate to WebFetchTool in a future sprint.
+from pydantic_ai import Agent, RunContext, UrlContextTool
+>>>>>>> origin/pr/2885
 from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import BinaryContent
 
