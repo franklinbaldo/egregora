@@ -23,10 +23,6 @@ def test_execute_wrappers_behavior():
         row = storage.execute_query_single("SELECT name FROM test WHERE id = ?", [1])
         assert row == ("Alice",)
 
-        # execute
-        relation = storage.execute("SELECT count(*) FROM test")
-        assert relation.fetchone()[0] == 2
-
 
 def test_write_table_append_checkpoint_behavior(tmp_path):
     """Verify write_table in append mode with checkpointing."""

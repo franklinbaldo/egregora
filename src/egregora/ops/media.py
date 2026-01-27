@@ -157,6 +157,110 @@ def find_media_references(text: str) -> list[str]:
     return list(set(media_files))
 
 
+def find_all_media_references(text: str, include_uuids: bool = False) -> list[str]:
+    """Find all media filenames and references in text.
+
+    This is an extended version of find_media_references that also detects:
+    - UUID-based filenames (e.g., 12345678-1234-1234-1234-1234567890ab.png)
+
+    Args:
+        text: The text to search for media references
+        include_uuids: If True, include UUIDs with any extension.
+                      If False, only include UUIDs with known extensions.
+
+    Returns:
+        List of unique media filenames found in the text
+    """
+    if not text:
+        return []
+
+    media_files: set[str] = set()
+
+    # Pre-extract UUIDs first to avoid duplicates with plain file pattern
+    uuid_filenames: set[str] = set()
+    if include_uuids:
+        # UUID pattern: 8-4-4-4-12 hex digits with optional extension
+        uuid_pattern = re.compile(
+            r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?:\.(\w+))?\b",
+            re.IGNORECASE,
+        )
+        for match in uuid_pattern.finditer(text):
+            uuid_part = match.group(1)
+            ext_part = match.group(2)
+            if ext_part:
+                filename = f"{uuid_part}.{ext_part}"
+            else:
+                filename = uuid_part
+            uuid_filenames.add(filename)
+    else:
+        # Only include UUIDs with known extensions
+        uuid_pattern = re.compile(
+            r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\.(\w+)\b",
+            re.IGNORECASE,
+        )
+        for match in uuid_pattern.finditer(text):
+            uuid_part = match.group(1)
+            ext_part = match.group(2)
+            # Only include if extension is in known media extensions
+            if f".{ext_part.lower()}" in MEDIA_EXTENSIONS:
+                filename = f"{uuid_part}.{ext_part}"
+                uuid_filenames.add(filename)
+
+    media_files.update(uuid_filenames)
+
+    # Extract all basic media references (WhatsApp, markdown, attachments, etc.)
+    # Pass 1: Markdown images ![alt](url)
+    markdown_img_pattern = re.compile(r"!\[(?:[^\]]*)\]\(([^)]+)\)")
+    for match in markdown_img_pattern.finditer(text):
+        url = match.group(1)
+        # Extract just the filename from URLs
+        if "/" in url:
+            filename = url.split("/")[-1]
+        else:
+            filename = url
+        if filename:
+            media_files.add(filename)
+
+    # Pass 2: Markdown links [text](url)
+    markdown_link_pattern = re.compile(r"(?<!!)\[(?:[^\]]+)\]\(([^)]+)\)")
+    for match in markdown_link_pattern.finditer(text):
+        url = match.group(1)
+        # Extract just the filename from URLs
+        if "/" in url:
+            filename = url.split("/")[-1]
+        else:
+            filename = url
+        # Only add non-URL links (local references)
+        if filename and not filename.startswith(("http://", "https://")):
+            media_files.add(filename)
+
+    # Pass 3: Plain text filenames (pattern: word characters, dots, hyphens with extension)
+    # Exclude UUID patterns to avoid double-processing
+    plain_file_pattern = re.compile(r"\b([\w\-\.]+\.\w{2,})\b")
+    for match in plain_file_pattern.finditer(text):
+        filename = match.group(1)
+        # Skip if this is a UUID we've already processed
+        if filename in uuid_filenames:
+            continue
+        # Filter out common non-media extensions and very short extensions
+        ext = filename.split(".")[-1].lower()
+        if ext not in ("com", "org", "net", "io", "co", "de", "fr", "uk"):
+            # Also skip files that look like UUIDs
+            if not re.match(r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.", filename, re.IGNORECASE):
+                media_files.add(filename)
+
+    # Pass 4: Attachment markers pattern
+    media_files.update(ATTACHMENT_MARKERS_PATTERN.findall(text))
+
+    # Pass 5: WhatsApp file pattern
+    media_files.update(WA_MEDIA_PATTERN.findall(text))
+
+    # Pass 6: Unicode WhatsApp pattern
+    media_files.update(UNICODE_MEDIA_PATTERN.findall(text))
+
+    return sorted(media_files)
+
+
 def extract_media_references(table: Table) -> set[str]:
     """Extract all media references (markdown and raw) from message column."""
     references: set[str] = set()

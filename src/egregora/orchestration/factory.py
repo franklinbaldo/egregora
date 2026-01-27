@@ -31,12 +31,12 @@ from egregora.orchestration.context import (
     PipelineRunParams,
     PipelineState,
 )
-from egregora.output_adapters import (
+from egregora.output_sinks import (
     OutputSinkRegistry,
     create_default_output_registry,
     create_output_sink,
 )
-from egregora.output_adapters.mkdocs import MkDocsPaths
+from egregora.output_sinks.mkdocs import MkDocsPaths
 
 if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig

@@ -33,6 +33,10 @@ class EnrichmentError(AgentError):
     """Base exception for errors during the enrichment process."""
 
 
+class EnrichmentExecutionError(EnrichmentError):
+    """Raised when enrichment execution fails."""
+
+
 class MediaStagingError(EnrichmentError):
     """Raised when a media file cannot be staged for enrichment."""
 

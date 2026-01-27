@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
+from egregora.output_sinks.mkdocs.scaffolding import MkDocsSiteScaffolder
 
 from egregora.knowledge.profiles import sync_all_profiles
 

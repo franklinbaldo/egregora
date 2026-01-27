@@ -7,8 +7,8 @@ to ensure deterministic, repeatable testing without API calls.
 import time
 
 import pytest
-from egregora.output_adapters.mkdocs import MkDocsAdapter
-from egregora.output_adapters.mkdocs.paths import derive_mkdocs_paths
+from egregora.output_sinks.mkdocs import MkDocsAdapter
+from egregora.output_sinks.mkdocs.paths import derive_mkdocs_paths
 
 from egregora import rag
 from egregora.orchestration.pipelines.write import WhatsAppProcessOptions, process_whatsapp_export

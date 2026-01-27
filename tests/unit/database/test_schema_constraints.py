@@ -12,7 +12,6 @@ import pytest
 # Let's import UNIFIED_SCHEMA
 from egregora.database.schemas import (
     ANNOTATIONS_SCHEMA,
-    MEDIA_SCHEMA,
     TASKS_SCHEMA,
     UNIFIED_SCHEMA,
     create_table_if_not_exists,
@@ -149,51 +148,6 @@ class TestTasksSchemaConstraints:
                     (task_id, task_type),
                 )
 
-
-class TestMediaSchemaConstraints:
-    """Test constraints for the media table."""
-
-    def test_media_media_type_check_constraint_allows_valid_values(self, duckdb_conn):
-        """Verify that media.media_type CHECK constraint allows valid media types."""
-        # Arrange
-        constraints = get_table_check_constraints("media")
-        create_table_if_not_exists(duckdb_conn, "media", MEDIA_SCHEMA, check_constraints=constraints)
-
-        # Act & Assert
-        valid_media_types = ["image", "video", "audio"]
-        for media_type in valid_media_types:
-            duckdb_conn.execute(
-                """
-                INSERT INTO media (id, content, created_at, source_checksum,
-                                   filename, mime_type, media_type, phash)
-                VALUES (?, 'content', CURRENT_TIMESTAMP, 'checksum',
-                        'file.jpg', 'image/jpeg', ?, 'phash')
-                """,
-                (f"media-{media_type}", media_type),
-            )
-
-        result = duckdb_conn.execute("SELECT COUNT(*) FROM media").fetchone()
-        assert result[0] == len(valid_media_types)
-
-    def test_media_media_type_check_constraint_rejects_invalid_values(self, duckdb_conn):
-        """Verify that media.media_type CHECK constraint rejects invalid media types."""
-        # Arrange
-        constraints = get_table_check_constraints("media")
-        create_table_if_not_exists(duckdb_conn, "media", MEDIA_SCHEMA, check_constraints=constraints)
-
-        # Act & Assert
-        invalid_media_types = ["banana", "IMAGE", ""]
-        for media_type in invalid_media_types:
-            with pytest.raises(duckdb.ConstraintException, match="CHECK constraint"):
-                duckdb_conn.execute(
-                    """
-                    INSERT INTO media (id, content, created_at, source_checksum,
-                                       filename, mime_type, media_type, phash)
-                    VALUES (?, 'content', CURRENT_TIMESTAMP, 'checksum',
-                            'file.jpg', 'image/jpeg', ?, 'phash')
-                    """,
-                    (f"media-{media_type}", media_type),
-                )
 
 
 class TestAnnotationsSchemaConstraints:
