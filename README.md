@@ -71,7 +71,7 @@ cd my-blog
 **2. Generate posts from your chat export:**
 
 ```bash
-egregora write path/to/chat_export.zip --output-dir=.
+egregora write whatsapp-export.zip --output-dir=. --timezone='America/New_York'
 ```
 
 That's it! Egregora will automatically:
