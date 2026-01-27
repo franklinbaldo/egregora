@@ -1,9 +1,21 @@
-name: jules-auto-merge
+name: Jules PR Auto-Merge
+
 on:
-  pull_request:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  check:
+  enable-auto-merge:
+    name: Jules Auto-Merge
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Enable auto-merge for Jules PRs
