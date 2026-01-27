@@ -74,6 +74,7 @@ def _build_documents_insert_select_sql(temp_table: str, existing_columns: set[st
     return f"INSERT INTO {quote_identifier(temp_table)} ({', '.join(column_names)}) {select_sql};"  # nosec B608
 
 
+<<<<<<< HEAD
 def migrate_media_table(conn: duckdb.DuckDBPyConnection) -> None:
     """Migrate legacy media table to documents table."""
     # Check if media table exists
@@ -115,6 +116,8 @@ def migrate_media_table(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute("DROP TABLE media")
 
 
+=======
+>>>>>>> origin/pr/2862
 def migrate_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
     """Applies the Pure UNIFIED_SCHEMA to an existing 'documents' table.
 
@@ -150,4 +153,4 @@ def migrate_documents_table(conn: duckdb.DuckDBPyConnection) -> None:
         logger.info("Schema is already up to date. No migration needed.")
 
     # Consolidate Media (Safe to run now as Schema is guaranteed V3)
-    migrate_media_table(conn)
+    # Media consolidation logic (migrate_media_table) was removed in V3 Pure.
