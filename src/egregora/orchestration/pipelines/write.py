@@ -20,7 +20,12 @@ from rich.console import Console
 from rich.panel import Panel
 
 from egregora.config import RuntimeContext, load_egregora_config
+<<<<<<< HEAD
 from egregora.config.defaults import PipelineDefaults
+=======
+from egregora.config.exceptions import InvalidDateFormatError, InvalidTimezoneError
+from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
+>>>>>>> origin/pr/2730
 from egregora.constants import WindowUnit
 from egregora.input_adapters import get_adapter_class
 from egregora.llm.exceptions import AllModelsExhaustedError
@@ -107,7 +112,13 @@ def _load_dotenv_if_available(output_dir: Path) -> None:
         dotenv.load_dotenv()  # Check CWD as well
 
 
+<<<<<<< HEAD
 def _validate_dates(from_date: str | None, to_date: str | None) -> tuple[date_type | None, date_type | None]:
+=======
+def _validate_dates(
+    from_date: str | None, to_date: str | None
+) -> tuple[date_type | None, date_type | None]:
+>>>>>>> origin/pr/2730
     """Validate and parse date arguments."""
     from_date_obj, to_date_obj = None, None
     try:
@@ -364,6 +375,7 @@ def run_cli_flow(
     if debug:
         logging.getLogger().setLevel(logging.DEBUG)
 
+<<<<<<< HEAD
     from_date_obj, to_date_obj = validate_dates(from_date, to_date)
     validate_timezone_arg(timezone)
 
@@ -387,6 +399,14 @@ def run_cli_flow(
 =======
         raise RuntimeError(f"API key validation failed: {e}") from e
 >>>>>>> origin/pr/2735
+=======
+    from_date_obj, to_date_obj = _validate_dates(from_date, to_date)
+    _validate_timezone_arg(timezone)
+
+    output_dir = output.expanduser().resolve()
+    _ensure_site_initialized(output_dir)
+    _validate_api_key(output_dir)
+>>>>>>> origin/pr/2730
 
     # Load config to determine sources
     base_config = load_egregora_config(output_dir)
